@@ -48,7 +48,7 @@ pub fn anisotropy_from_weighted_modes(modes: &[(f64, f64, f64)]) -> Option<Aniso
 
 use crate::{
     data::Pattern,
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     inference::scalar_pvalues::{permutation_p_value, Tail},
     permutation::{labels::permute_fixed_count, stratified::permute_within_strata},
     spectra::structure_factor::{centered_structure_factor, centered_structure_factor_for_marks},
@@ -96,13 +96,13 @@ pub(crate) fn permutation_whitened_anisotropy(
             permute_fixed_count(pattern.len(), pattern.n_marked(), permutation_seed)
         }
         .map_err(|error| {
-            MmrspaceError::Compute(format!(
+            MarklabError::Compute(format!(
                 "anisotropy permutation {perm_index} failed: {error}"
             ))
         })?;
         for (mode_index, (kx, ky)) in modes.iter().copied().enumerate() {
             let Some(power) = centered_structure_factor_for_marks(pattern, &labels, kx, ky) else {
-                return Err(MmrspaceError::Compute(format!(
+                return Err(MarklabError::Compute(format!(
                     "anisotropy permutation {perm_index} produced an undefined mode"
                 )));
             };
@@ -120,7 +120,7 @@ pub(crate) fn permutation_whitened_anisotropy(
         })
         .collect::<Option<Vec<_>>>();
     let Some(baselines) = baselines else {
-        return Err(MmrspaceError::Compute(
+        return Err(MarklabError::Compute(
             "anisotropy permutation baseline is undefined".into(),
         ));
     };

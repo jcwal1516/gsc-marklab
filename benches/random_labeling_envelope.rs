@@ -1,9 +1,9 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use mmrspace::{AnalysisConfig, AnalysisEngine, Pattern, PatternMeta, ThreadSetting};
+use marklab::{AnalysisConfig, AnalysisEngine, Pattern, PatternMeta, ThreadSetting};
 use std::hint::black_box;
 
 fn bench_marked_analysis_erl_b999(c: &mut Criterion) {
-    let full = std::env::var("MMRSPACE_BENCH_PROFILE").as_deref() == Ok("full");
+    let full = std::env::var("MARKLAB_BENCH_PROFILE").as_deref() == Ok("full");
     let n = if full { 2_000 } else { 500 };
     let side = (n as f64).sqrt().ceil() as usize;
     let mut pattern = Pattern::from_arrays(

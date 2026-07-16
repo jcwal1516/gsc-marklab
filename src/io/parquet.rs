@@ -11,7 +11,7 @@ use parquet::arrow::arrow_writer::ArrowWriter;
 
 use crate::{
     data::Pattern,
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     multimodal::cell_table::{CellSection, FusedCell},
     output::{CrossInteractionCurve, NeighborhoodEnrichmentResult},
 };
@@ -121,7 +121,7 @@ pub fn write_fused_cells_parquet(cells: &[FusedCell], path: impl AsRef<Path>) ->
             )),
         ],
     )
-    .map_err(|err| MmrspaceError::Schema(err.to_string()))?;
+    .map_err(|err| MarklabError::Schema(err.to_string()))?;
     write_record_batch(path, schema, &batch)
 }
 
@@ -179,7 +179,7 @@ pub fn write_neighborhood_enrichment_parquet(
             )),
         ],
     )
-    .map_err(|err| MmrspaceError::Schema(err.to_string()))?;
+    .map_err(|err| MarklabError::Schema(err.to_string()))?;
     write_record_batch(path, schema, &batch)
 }
 
@@ -237,7 +237,7 @@ pub fn write_cross_interaction_curves_parquet(
             Arc::new(Float64Array::from(p_global)),
         ],
     )
-    .map_err(|err| MmrspaceError::Schema(err.to_string()))?;
+    .map_err(|err| MarklabError::Schema(err.to_string()))?;
     write_record_batch(path, schema, &batch)
 }
 
@@ -327,31 +327,31 @@ pub fn write_pattern_parquet(pattern: &Pattern, path: impl AsRef<Path>) -> Resul
             )),
         ],
     )
-    .map_err(|err| MmrspaceError::Schema(err.to_string()))?;
+    .map_err(|err| MarklabError::Schema(err.to_string()))?;
 
-    let file = File::create(path).map_err(|source| MmrspaceError::io(path, source))?;
+    let file = File::create(path).map_err(|source| MarklabError::io(path, source))?;
     let mut writer = ArrowWriter::try_new(file, schema, None)
-        .map_err(|err| MmrspaceError::Schema(err.to_string()))?;
+        .map_err(|err| MarklabError::Schema(err.to_string()))?;
     writer
         .write(&batch)
-        .map_err(|err| MmrspaceError::Schema(err.to_string()))?;
+        .map_err(|err| MarklabError::Schema(err.to_string()))?;
     writer
         .close()
-        .map_err(|err| MmrspaceError::Schema(err.to_string()))?;
+        .map_err(|err| MarklabError::Schema(err.to_string()))?;
 
     Ok(())
 }
 
 fn write_record_batch(path: &Path, schema: Arc<Schema>, batch: &RecordBatch) -> Result<()> {
-    let file = File::create(path).map_err(|source| MmrspaceError::io(path, source))?;
+    let file = File::create(path).map_err(|source| MarklabError::io(path, source))?;
     let mut writer = ArrowWriter::try_new(file, schema, None)
-        .map_err(|err| MmrspaceError::Schema(err.to_string()))?;
+        .map_err(|err| MarklabError::Schema(err.to_string()))?;
     writer
         .write(batch)
-        .map_err(|err| MmrspaceError::Schema(err.to_string()))?;
+        .map_err(|err| MarklabError::Schema(err.to_string()))?;
     writer
         .close()
-        .map_err(|err| MmrspaceError::Schema(err.to_string()))?;
+        .map_err(|err| MarklabError::Schema(err.to_string()))?;
     Ok(())
 }
 
@@ -396,7 +396,7 @@ fn optional_metric_values(
         return Ok(vec![None; n]);
     };
     if values.len() != n {
-        return Err(MmrspaceError::Schema(format!(
+        return Err(MarklabError::Schema(format!(
             "{column} length must match pattern length"
         )));
     }

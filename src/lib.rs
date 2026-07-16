@@ -51,7 +51,7 @@ pub use config::{
     WaveletSection,
 };
 pub use data::{Pattern, PatternMeta, TumorWindow};
-pub use errors::{MmrspaceError, Result};
+pub use errors::{MarklabError, Result};
 pub use geom::mask::TumorMask;
 pub use multimodal::{
     cell_table::{CellSection, FusedCell, HeCell, IhcCell},

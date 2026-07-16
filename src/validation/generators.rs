@@ -1,6 +1,6 @@
 use crate::{
     data::{Pattern, PatternMeta},
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     permutation::labels::permute_fixed_count,
 };
 
@@ -101,7 +101,7 @@ pub(super) fn multimodal_replicate_outcome(
             }
         }
         _ => {
-            return Err(MmrspaceError::Validation(format!(
+            return Err(MarklabError::Validation(format!(
                 "unknown multimodal synthetic generator {generator}"
             )));
         }
@@ -183,7 +183,7 @@ pub(super) fn synthetic_pattern(generator: &str, replicate: u64) -> Result<Patte
         "rare_phenotype" => rare_marks(width, height),
         "serial_section_misregistration" => shifted_section_marks(width, height),
         _ => {
-            return Err(MmrspaceError::Validation(format!(
+            return Err(MarklabError::Validation(format!(
                 "unknown synthetic generator {generator}"
             )));
         }

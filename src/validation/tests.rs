@@ -235,7 +235,7 @@ mod multimodal {
         let dir = tempfile::tempdir().expect("tempdir");
         let out = dir.path().join("validation-multimodal");
 
-        Command::cargo_bin("mmrspace")
+        Command::cargo_bin("marklab")
             .expect("binary")
             .args([
                 "validate",

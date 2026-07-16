@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::errors::{MmrspaceError, Result};
+use crate::errors::{MarklabError, Result};
 
 use super::MarkedPatternResult;
 
@@ -28,7 +28,7 @@ pub(super) fn render_spectrum_svg(result: &MarkedPatternResult) -> String {
         .join(" ");
 
     format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 160"><title>mmrspace spectrum</title><rect width="340" height="160" fill="white"/><text x="14" y="22">low-k excess {low_k:.3}</text><line x1="44" y1="128" x2="306" y2="128" stroke="#333"/><line x1="44" y1="24" x2="44" y2="128" stroke="#333"/><polyline points="{polyline}" fill="none" stroke="#1f77b4" stroke-width="2"/><text x="244" y="148">k</text><text x="8" y="36">S white</text></svg>"##,
+        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 160"><title>marklab spectrum</title><rect width="340" height="160" fill="white"/><text x="14" y="22">low-k excess {low_k:.3}</text><line x1="44" y1="128" x2="306" y2="128" stroke="#333"/><line x1="44" y1="24" x2="44" y2="128" stroke="#333"/><polyline points="{polyline}" fill="none" stroke="#1f77b4" stroke-width="2"/><text x="244" y="148">k</text><text x="8" y="36">S white</text></svg>"##,
         low_k = spectrum.low_k_excess,
         polyline = polyline
     )
@@ -52,7 +52,7 @@ pub(super) fn render_anisotropy_svg(result: &MarkedPatternResult) -> String {
         },
     );
     format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 160"><title>mmrspace anisotropy</title><rect width="340" height="160" fill="white"/><circle cx="170" cy="80" r="46" fill="none" stroke="#777"/>{direction}<text class="anisotropy-index" x="14" y="24">anisotropy-index {index:.3}</text><text x="14" y="44">theta-deg {theta_deg}</text><text x="14" y="64">p-value {p_value}</text></svg>"##,
+        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 160"><title>marklab anisotropy</title><rect width="340" height="160" fill="white"/><circle cx="170" cy="80" r="46" fill="none" stroke="#777"/>{direction}<text class="anisotropy-index" x="14" y="24">anisotropy-index {index:.3}</text><text x="14" y="44">theta-deg {theta_deg}</text><text x="14" y="64">p-value {p_value}</text></svg>"##,
         direction = direction,
         index = anisotropy.index,
         theta_deg = optional_f64(anisotropy.theta_deg),
@@ -80,7 +80,7 @@ pub(super) fn render_scalogram_svg(result: &MarkedPatternResult) -> String {
     }
 
     format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 160"><title>mmrspace scalogram</title><rect width="340" height="160" fill="white"/><text x="14" y="22">variance fractions</text><line x1="36" y1="126" x2="316" y2="126" stroke="#333"/>{bars}</svg>"##,
+        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 160"><title>marklab scalogram</title><rect width="340" height="160" fill="white"/><text x="14" y="22">variance fractions</text><line x1="36" y1="126" x2="316" y2="126" stroke="#333"/>{bars}</svg>"##,
         bars = bars
     )
 }
@@ -118,7 +118,7 @@ pub(super) fn render_territory_overlay_svg(result: &MarkedPatternResult) -> Stri
         ));
     }
     format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 160"><title>mmrspace territory overlay</title><rect width="340" height="160" fill="white"/><text x="14" y="24">candidate territories: {count}</text>{circles}</svg>"##,
+        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 160"><title>marklab territory overlay</title><rect width="340" height="160" fill="white"/><text x="14" y="24">candidate territories: {count}</text>{circles}</svg>"##,
         count = territories.len(),
         circles = circles
     )
@@ -164,24 +164,24 @@ fn xml_text(value: &str) -> String {
 }
 pub(super) fn write(result: &MarkedPatternResult, out: &Path) -> Result<()> {
     let figures = out.join("figures");
-    std::fs::create_dir_all(&figures).map_err(|source| MmrspaceError::io(&figures, source))?;
+    std::fs::create_dir_all(&figures).map_err(|source| MarklabError::io(&figures, source))?;
 
     if !result.spectrum_curve.is_empty() {
         let spectrum_path = figures.join("spectrum.svg");
         std::fs::write(&spectrum_path, render_spectrum_svg(result))
-            .map_err(|source| MmrspaceError::io(&spectrum_path, source))?;
+            .map_err(|source| MarklabError::io(&spectrum_path, source))?;
     }
 
     if result.anisotropy.value().is_some() {
         let anisotropy_path = figures.join("anisotropy.svg");
         std::fs::write(&anisotropy_path, render_anisotropy_svg(result))
-            .map_err(|source| MmrspaceError::io(&anisotropy_path, source))?;
+            .map_err(|source| MarklabError::io(&anisotropy_path, source))?;
     }
 
     if !result.scalogram_curve.is_empty() {
         let scalogram_path = figures.join("scalogram.svg");
         std::fs::write(&scalogram_path, render_scalogram_svg(result))
-            .map_err(|source| MmrspaceError::io(&scalogram_path, source))?;
+            .map_err(|source| MarklabError::io(&scalogram_path, source))?;
     }
 
     if result
@@ -191,7 +191,7 @@ pub(super) fn write(result: &MarkedPatternResult, out: &Path) -> Result<()> {
     {
         let territory_path = figures.join("wavelet_territory_overlay.svg");
         std::fs::write(&territory_path, render_territory_overlay_svg(result))
-            .map_err(|source| MmrspaceError::io(&territory_path, source))?;
+            .map_err(|source| MarklabError::io(&territory_path, source))?;
     }
     Ok(())
 }

@@ -223,7 +223,7 @@ fn spectrum_curve(spectrum: &PermutationWhitenedSpectrum) -> Result<Vec<Spectrum
                 spectrum.whitened_power[index],
             ];
             if values.iter().any(|value| !value.is_finite()) {
-                return Err(MmrspaceError::Compute(format!(
+                return Err(MarklabError::Compute(format!(
                     "spectrum curve point {index} contains a non-finite value"
                 )));
             }
@@ -233,7 +233,7 @@ fn spectrum_curve(spectrum: &PermutationWhitenedSpectrum) -> Result<Vec<Spectrum
                 .copied()
                 .and_then(finite_option)
                 .ok_or_else(|| {
-                    MmrspaceError::Compute(format!(
+                    MarklabError::Compute(format!(
                         "spectrum lower envelope is missing at point {index}"
                     ))
                 })?;
@@ -243,7 +243,7 @@ fn spectrum_curve(spectrum: &PermutationWhitenedSpectrum) -> Result<Vec<Spectrum
                 .copied()
                 .and_then(finite_option)
                 .ok_or_else(|| {
-                    MmrspaceError::Compute(format!(
+                    MarklabError::Compute(format!(
                         "spectrum upper envelope is missing at point {index}"
                     ))
                 })?;

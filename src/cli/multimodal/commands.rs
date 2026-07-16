@@ -55,7 +55,7 @@ pub(in crate::cli) fn batch(manifest: PathBuf, out: PathBuf) -> Result<()> {
                 .map(str::trim)
                 .filter(|value| !value.is_empty())
                 .ok_or_else(|| {
-                    MmrspaceError::Validation(format!(
+                    MarklabError::Validation(format!(
                         "{} row {}: case_id is required",
                         manifest.display(),
                         row_number
@@ -68,7 +68,7 @@ pub(in crate::cli) fn batch(manifest: PathBuf, out: PathBuf) -> Result<()> {
                 .map(str::trim)
                 .filter(|value| !value.is_empty())
                 .ok_or_else(|| {
-                    MmrspaceError::Validation(format!(
+                    MarklabError::Validation(format!(
                         "{} row {}: timepoint is required",
                         manifest.display(),
                         row_number
@@ -81,7 +81,7 @@ pub(in crate::cli) fn batch(manifest: PathBuf, out: PathBuf) -> Result<()> {
                 .map(str::trim)
                 .filter(|value| !value.is_empty())
                 .ok_or_else(|| {
-                    MmrspaceError::Validation(format!(
+                    MarklabError::Validation(format!(
                         "{} row {}: protein is required",
                         manifest.display(),
                         row_number

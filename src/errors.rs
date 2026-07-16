@@ -2,10 +2,10 @@ use std::path::PathBuf;
 
 use thiserror::Error;
 
-pub type Result<T> = std::result::Result<T, MmrspaceError>;
+pub type Result<T> = std::result::Result<T, MarklabError>;
 
 #[derive(Debug, Error)]
-pub enum MmrspaceError {
+pub enum MarklabError {
     #[error("configuration error: {0}")]
     Config(String),
     #[error("input schema error: {0}")]
@@ -40,7 +40,7 @@ pub enum MmrspaceError {
     UnsupportedSlideSampleType(String),
 }
 
-impl MmrspaceError {
+impl MarklabError {
     pub fn io(path: impl Into<PathBuf>, source: std::io::Error) -> Self {
         Self::Io {
             path: path.into(),

@@ -8,7 +8,7 @@ pub struct GlobalEnvelope {
     pub n_permutations: usize,
 }
 
-use crate::errors::{MmrspaceError, Result};
+use crate::errors::{MarklabError, Result};
 
 impl GlobalEnvelope {
     pub fn from_curves(observed: &[f64], permutations: &[Vec<f64>], alpha: f64) -> Result<Self> {
@@ -27,12 +27,12 @@ impl GlobalEnvelope {
         inference_eligible: &[bool],
     ) -> Result<Self> {
         if observed.is_empty() {
-            return Err(MmrspaceError::Validation(
+            return Err(MarklabError::Validation(
                 "observed curve must not be empty".into(),
             ));
         }
         if permutations.is_empty() {
-            return Err(MmrspaceError::Validation(
+            return Err(MarklabError::Validation(
                 "global envelope requires at least one permutation curve".into(),
             ));
         }
@@ -40,25 +40,25 @@ impl GlobalEnvelope {
             .iter()
             .any(|curve| curve.len() != observed.len())
         {
-            return Err(MmrspaceError::Validation(
+            return Err(MarklabError::Validation(
                 "all permutation curves must match observed curve length".into(),
             ));
         }
         if inference_eligible.len() != observed.len()
             || !inference_eligible.iter().any(|value| *value)
         {
-            return Err(MmrspaceError::Validation(
+            return Err(MarklabError::Validation(
                 "global envelope requires at least one inference-eligible curve point".into(),
             ));
         }
         if !(alpha.is_finite() && 0.0 < alpha && alpha < 1.0) {
-            return Err(MmrspaceError::Validation(
+            return Err(MarklabError::Validation(
                 "global-envelope alpha must be finite and strictly between zero and one".into(),
             ));
         }
         let n_curves = permutations.len() + 1;
         if n_curves as f64 * alpha < 1.0 {
-            return Err(MmrspaceError::Validation(format!(
+            return Err(MarklabError::Validation(format!(
                 "global envelope requires (B + 1) * alpha >= 1 (got {n_curves} curves and alpha {alpha})"
             )));
         }
@@ -67,7 +67,7 @@ impl GlobalEnvelope {
         curves.push(observed.to_vec());
         curves.extend_from_slice(permutations);
         if curves.iter().flatten().any(|value| !value.is_finite()) {
-            return Err(MmrspaceError::Compute(
+            return Err(MarklabError::Compute(
                 "global-envelope curves contain a non-finite value".into(),
             ));
         }
@@ -86,7 +86,7 @@ impl GlobalEnvelope {
         let depths = normalized_erl_depths(&rank_vectors);
         let erl_depth = *depths
             .first()
-            .ok_or_else(|| MmrspaceError::Compute("missing observed ERL depth".into()))?;
+            .ok_or_else(|| MarklabError::Compute("missing observed ERL depth".into()))?;
         let outside_count = depths
             .iter()
             .skip(1)

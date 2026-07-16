@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 #[cfg(feature = "cli")]
-use crate::errors::{MmrspaceError, Result};
+use crate::errors::{MarklabError, Result};
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -61,12 +61,12 @@ pub struct FusedCell {
 pub fn load_he_cell_table_csv(path: impl AsRef<Path>) -> Result<Vec<HeCell>> {
     let path = path.as_ref();
     let mut reader = csv::Reader::from_path(path)
-        .map_err(|err| MmrspaceError::Schema(format!("failed to read H&E cell CSV: {err}")))?;
+        .map_err(|err| MarklabError::Schema(format!("failed to read H&E cell CSV: {err}")))?;
     let mut cells = Vec::new();
     for (index, row) in reader.deserialize().enumerate() {
         let row_number = index + 2;
         let cell: HeCell =
-            row.map_err(|err| MmrspaceError::Schema(format!("invalid H&E cell row: {err}")))?;
+            row.map_err(|err| MarklabError::Schema(format!("invalid H&E cell row: {err}")))?;
         validate_cell_id(path, row_number, &cell.cell_id)?;
         validate_xy(path, row_number, Some(&cell.cell_id), cell.x_um, cell.y_um)?;
         if cell
@@ -110,19 +110,19 @@ pub fn load_cellvit_he_cell_table_csv(
 ) -> Result<Vec<HeCell>> {
     let path = path.as_ref();
     if !min_probability.is_finite() || !(0.0..=1.0).contains(&min_probability) {
-        return Err(MmrspaceError::Config(
+        return Err(MarklabError::Config(
             "CellViT minimum probability must be in [0, 1]".into(),
         ));
     }
 
     let mut reader = csv::Reader::from_path(path).map_err(|err| {
-        MmrspaceError::Schema(format!("failed to read CellViT H&E cell CSV: {err}"))
+        MarklabError::Schema(format!("failed to read CellViT H&E cell CSV: {err}"))
     })?;
     let mut cells = Vec::new();
     for (index, row) in reader.deserialize().enumerate() {
         let row_number = index + 2;
         let row: CellVitHeCell =
-            row.map_err(|err| MmrspaceError::Schema(format!("invalid CellViT H&E row: {err}")))?;
+            row.map_err(|err| MarklabError::Schema(format!("invalid CellViT H&E row: {err}")))?;
         validate_cell_id(path, row_number, &row.cell_id)?;
         validate_xy(
             path,
@@ -214,12 +214,12 @@ fn ihc_mmr_label(cell: &FusedCell) -> Option<String> {
 pub fn load_ihc_cell_table_csv(path: impl AsRef<Path>) -> Result<Vec<IhcCell>> {
     let path = path.as_ref();
     let mut reader = csv::Reader::from_path(path)
-        .map_err(|err| MmrspaceError::Schema(format!("failed to read IHC cell CSV: {err}")))?;
+        .map_err(|err| MarklabError::Schema(format!("failed to read IHC cell CSV: {err}")))?;
     let mut cells = Vec::new();
     for (index, row) in reader.deserialize().enumerate() {
         let row_number = index + 2;
         let cell: IhcCell =
-            row.map_err(|err| MmrspaceError::Schema(format!("invalid IHC cell row: {err}")))?;
+            row.map_err(|err| MarklabError::Schema(format!("invalid IHC cell row: {err}")))?;
         validate_cell_id(path, row_number, &cell.cell_id)?;
         validate_xy(path, row_number, Some(&cell.cell_id), cell.x_um, cell.y_um)?;
         if let Some(mark) = cell.mmr_mark {
@@ -312,13 +312,13 @@ fn validation_error(
     row_number: usize,
     cell_id: Option<&str>,
     message: &str,
-) -> MmrspaceError {
+) -> MarklabError {
     let cell_id_context = match cell_id {
         Some(cell_id) if cell_id.trim().is_empty() => ", cell_id <blank>".to_string(),
         Some(cell_id) => format!(", cell_id {}", cell_id.trim()),
         None => String::new(),
     };
-    MmrspaceError::Schema(format!(
+    MarklabError::Schema(format!(
         "{} row {}{}: {}",
         path.display(),
         row_number,

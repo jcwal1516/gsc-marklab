@@ -38,8 +38,8 @@ jobs:
 
       - name: Compare wsi-rs/J2K output with the oracle
         env:
-          MMRSPACE_PUBLIC_APERIO_SVS: /tmp/JP2K-33003-1.svs
-          MMRSPACE_PUBLIC_APERIO_ORACLE_PNG: /tmp/JP2K-33003-1-openslide.png
+          MARKLAB_PUBLIC_APERIO_SVS: /tmp/JP2K-33003-1.svs
+          MARKLAB_PUBLIC_APERIO_ORACLE_PNG: /tmp/JP2K-33003-1-openslide.png
         run: >-
           cargo test --locked --features wsi,cli --test wsi_integration
           public_aperio_jp2k_region_matches_openslide_oracle

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::errors::{MmrspaceError, Result};
+use crate::errors::{MarklabError, Result};
 
 use super::result_types::MarkedPatternResult;
 
@@ -64,17 +64,17 @@ impl MarkedPatternResult {
                 )),
             ],
         )
-        .map_err(|err| MmrspaceError::Compute(err.to_string()))?;
+        .map_err(|err| MarklabError::Compute(err.to_string()))?;
         let path = out.join("spectra.parquet");
-        let file = File::create(&path).map_err(|source| MmrspaceError::io(&path, source))?;
+        let file = File::create(&path).map_err(|source| MarklabError::io(&path, source))?;
         let mut writer = ArrowWriter::try_new(file, schema, None)
-            .map_err(|err| MmrspaceError::Compute(err.to_string()))?;
+            .map_err(|err| MarklabError::Compute(err.to_string()))?;
         writer
             .write(&batch)
-            .map_err(|err| MmrspaceError::Compute(err.to_string()))?;
+            .map_err(|err| MarklabError::Compute(err.to_string()))?;
         writer
             .close()
-            .map_err(|err| MmrspaceError::Compute(err.to_string()))?;
+            .map_err(|err| MarklabError::Compute(err.to_string()))?;
         Ok(())
     }
 
@@ -137,17 +137,17 @@ impl MarkedPatternResult {
                 )),
             ],
         )
-        .map_err(|err| MmrspaceError::Compute(err.to_string()))?;
+        .map_err(|err| MarklabError::Compute(err.to_string()))?;
         let path = out.join("pair_correlation.parquet");
-        let file = File::create(&path).map_err(|source| MmrspaceError::io(&path, source))?;
+        let file = File::create(&path).map_err(|source| MarklabError::io(&path, source))?;
         let mut writer = ArrowWriter::try_new(file, schema, None)
-            .map_err(|err| MmrspaceError::Compute(err.to_string()))?;
+            .map_err(|err| MarklabError::Compute(err.to_string()))?;
         writer
             .write(&batch)
-            .map_err(|err| MmrspaceError::Compute(err.to_string()))?;
+            .map_err(|err| MarklabError::Compute(err.to_string()))?;
         writer
             .close()
-            .map_err(|err| MmrspaceError::Compute(err.to_string()))?;
+            .map_err(|err| MarklabError::Compute(err.to_string()))?;
         Ok(())
     }
 
@@ -206,17 +206,17 @@ impl MarkedPatternResult {
                 )),
             ],
         )
-        .map_err(|err| MmrspaceError::Compute(err.to_string()))?;
+        .map_err(|err| MarklabError::Compute(err.to_string()))?;
         let path = out.join("scalogram.parquet");
-        let file = File::create(&path).map_err(|source| MmrspaceError::io(&path, source))?;
+        let file = File::create(&path).map_err(|source| MarklabError::io(&path, source))?;
         let mut writer = ArrowWriter::try_new(file, schema, None)
-            .map_err(|err| MmrspaceError::Compute(err.to_string()))?;
+            .map_err(|err| MarklabError::Compute(err.to_string()))?;
         writer
             .write(&batch)
-            .map_err(|err| MmrspaceError::Compute(err.to_string()))?;
+            .map_err(|err| MarklabError::Compute(err.to_string()))?;
         writer
             .close()
-            .map_err(|err| MmrspaceError::Compute(err.to_string()))?;
+            .map_err(|err| MarklabError::Compute(err.to_string()))?;
         Ok(())
     }
 }

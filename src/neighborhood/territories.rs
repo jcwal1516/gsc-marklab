@@ -1,5 +1,5 @@
 use crate::{
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     multimodal::cell_table::{primary_label, CellSection, FusedCell},
     output::TerritoryFeature,
 };
@@ -70,17 +70,17 @@ pub fn detect_mmr_abnormal_territories(
 
 fn validate_config(config: TerritoryDomainConfig) -> Result<()> {
     if !config.eps_um.is_finite() || config.eps_um <= 0.0 {
-        return Err(MmrspaceError::Config(
+        return Err(MarklabError::Config(
             "territory_eps_um must be finite and positive".into(),
         ));
     }
     if config.min_cells == 0 {
-        return Err(MmrspaceError::Config(
+        return Err(MarklabError::Config(
             "territory_min_cells must be greater than zero".into(),
         ));
     }
     if !config.min_radius_um.is_finite() || config.min_radius_um < 0.0 {
-        return Err(MmrspaceError::Config(
+        return Err(MarklabError::Config(
             "territory_min_radius_um must be finite and non-negative".into(),
         ));
     }
@@ -90,7 +90,7 @@ fn validate_config(config: TerritoryDomainConfig) -> Result<()> {
 fn validate_cells(cells: &[FusedCell]) -> Result<()> {
     for (index, cell) in cells.iter().enumerate() {
         if !cell.x_um_registered.is_finite() || !cell.y_um_registered.is_finite() {
-            return Err(MmrspaceError::Validation(format!(
+            return Err(MarklabError::Validation(format!(
                 "fused cell {index} registered coordinates must be finite"
             )));
         }

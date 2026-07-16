@@ -3,7 +3,7 @@ use arrow::array::{
     UInt32Array, UInt8Array,
 };
 
-use crate::errors::{MmrspaceError, Result};
+use crate::errors::{MarklabError, Result};
 
 pub(super) struct BatchColumns<'a> {
     pub x: &'a Float64Array,
@@ -83,12 +83,12 @@ fn required<'a, T: Array + 'static>(batch: &'a RecordBatch, name: &str) -> Resul
     let index = batch
         .schema()
         .index_of(name)
-        .map_err(|error| MmrspaceError::Schema(error.to_string()))?;
+        .map_err(|error| MarklabError::Schema(error.to_string()))?;
     batch
         .column(index)
         .as_any()
         .downcast_ref::<T>()
-        .ok_or_else(|| MmrspaceError::Schema(format!("column {name} has unexpected type")))
+        .ok_or_else(|| MarklabError::Schema(format!("column {name} has unexpected type")))
 }
 
 fn optional<'a, T: Array + 'static>(batch: &'a RecordBatch, name: &str) -> Result<Option<&'a T>> {
@@ -100,5 +100,5 @@ fn optional<'a, T: Array + 'static>(batch: &'a RecordBatch, name: &str) -> Resul
         .as_any()
         .downcast_ref::<T>()
         .map(Some)
-        .ok_or_else(|| MmrspaceError::Schema(format!("column {name} has unexpected type")))
+        .ok_or_else(|| MarklabError::Schema(format!("column {name} has unexpected type")))
 }

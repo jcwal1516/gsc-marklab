@@ -2,13 +2,15 @@ use std::{fs, path::Path};
 
 use assert_cmd::Command;
 #[cfg(feature = "parquet")]
-use mmrspace::Pattern;
+use marklab::Pattern;
+#[cfg(not(feature = "wsi"))]
+use predicates::prelude::PredicateBooleanExt;
 use serde_json::Value;
 
 #[cfg(not(feature = "wsi"))]
 #[test]
 fn slide_commands_are_absent_without_wsi_feature() {
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("binary")
         .arg("--help")
         .assert()
@@ -101,7 +103,7 @@ fn analyze_cli_writes_result_json_from_csv_and_geojson_mask() {
     .expect("write mask");
     write_config(&config);
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("bin")
         .args([
             "analyze",
@@ -126,7 +128,7 @@ fn analyze_cli_writes_result_json_from_csv_and_geojson_mask() {
     let result = &document["analysis"]["result"];
 
     assert_eq!(document["format_version"], "0.2");
-    assert_eq!(document["provenance"]["program"], "mmrspace");
+    assert_eq!(document["provenance"]["program"], "marklab");
     assert_eq!(result["case_id"], "case_001");
     assert_eq!(result["timepoint"], "post");
     assert_eq!(result["protein"], "MSH6");
@@ -193,7 +195,7 @@ fn analyze_cli_writes_beta_binomial_diagnostic_when_enabled() {
     );
     fs::write(&config, config_text).expect("rewrite config");
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("bin")
         .args([
             "analyze",
@@ -257,7 +259,7 @@ fn analyze_cli_rejects_graph_smoothing_without_multimodal_graph() {
     );
     fs::write(&config, config_text).expect("rewrite config");
 
-    let output = Command::cargo_bin("mmrspace")
+    let output = Command::cargo_bin("marklab")
         .expect("bin")
         .args([
             "analyze",
@@ -310,7 +312,7 @@ fn analyze_cli_strict_repro_records_effective_single_thread_execution() {
     );
     fs::write(&config, config_text).expect("rewrite config");
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("bin")
         .args([
             "analyze",
@@ -362,7 +364,7 @@ fn analyze_cli_writes_requested_trace_and_timings_files() {
     .expect("write mask");
     write_config(&config);
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("bin")
         .args([
             "analyze",
@@ -441,7 +443,7 @@ fn analyze_cli_accepts_parquet_cell_input() {
     let mask = dir.path().join("mask.geojson");
     let config = dir.path().join("config.toml");
     let out = dir.path().join("out");
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("bin")
         .args([
             "simulate",
@@ -464,7 +466,7 @@ fn analyze_cli_accepts_parquet_cell_input() {
     .expect("write mask");
     write_config(&config);
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("bin")
         .args([
             "analyze",
@@ -518,7 +520,7 @@ fn analyze_cli_writes_requested_intermediate_artifacts() {
     config_text = config_text.replace("save_intermediates = false", "save_intermediates = true");
     fs::write(&config, config_text).expect("rewrite config");
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("bin")
         .args([
             "analyze",
@@ -555,7 +557,7 @@ fn profile_plan_cli_writes_external_profiler_commands() {
     let dir = tempfile::tempdir().expect("temp dir");
     let out = dir.path().join("profiling_plan.md");
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("bin")
         .args([
             "profile-plan",
@@ -580,7 +582,7 @@ fn profile_plan_cli_writes_external_profiler_commands() {
 
 #[test]
 fn analyze_cli_help_exposes_documented_heap_profile_flag() {
-    let output = Command::cargo_bin("mmrspace")
+    let output = Command::cargo_bin("marklab")
         .expect("bin")
         .args(["analyze", "--help"])
         .output()
@@ -596,7 +598,7 @@ fn simulate_random_labeling_writes_reproducible_cell_table() {
     let dir = tempfile::tempdir().expect("temp dir");
     let out = dir.path().join("random.csv");
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("bin")
         .args([
             "simulate",
@@ -631,7 +633,7 @@ fn simulate_random_labeling_writes_parquet_when_requested() {
     let out = dir.path().join("random.parquet");
     let mask = dir.path().join("mask.geojson");
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("bin")
         .args([
             "simulate",
@@ -665,7 +667,7 @@ fn validate_synthetic_writes_machine_readable_summary() {
     let dir = tempfile::tempdir().expect("temp dir");
     let out = dir.path().join("validation_run");
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("bin")
         .args([
             "validate",
@@ -757,7 +759,7 @@ fn batch_cli_runs_manifest_rows_into_named_output_dirs() {
     )
     .expect("manifest");
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("bin")
         .args([
             "batch",
@@ -823,7 +825,7 @@ fn batch_cli_prefers_batch_level_parallelism_for_multiple_rows() {
     )
     .expect("manifest");
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("bin")
         .args([
             "batch",
@@ -886,7 +888,7 @@ fn prepost_cli_writes_delta_result_with_safe_language() {
     write_config(&config);
 
     for (cells, out) in [(&pre_cells, &pre_out), (&post_cells, &post_out)] {
-        Command::cargo_bin("mmrspace")
+        Command::cargo_bin("marklab")
             .expect("bin")
             .args([
                 "analyze",
@@ -905,7 +907,7 @@ fn prepost_cli_writes_delta_result_with_safe_language() {
             .success();
     }
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("bin")
         .args([
             "prepost",

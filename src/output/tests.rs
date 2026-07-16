@@ -89,7 +89,7 @@ fn output_writer_emits_result_manifest_qc_and_timings_json() {
         &fs::read_to_string(dir.path().join("run_manifest.json")).expect("manifest"),
     )
     .expect("manifest json");
-    assert_eq!(manifest["program"], "mmrspace");
+    assert_eq!(manifest["program"], "marklab");
     assert_eq!(manifest["result"]["case_id"], "case_001");
     assert_eq!(manifest["result"]["timepoint"], "post");
     assert_eq!(manifest["result"]["n_cells"], 4);
@@ -129,7 +129,7 @@ fn output_writer_emits_result_manifest_qc_and_timings_json() {
     }
 
     let result_json = fs::read_to_string(dir.path().join("result.json")).expect("result");
-    assert!(result_json.contains("\"program\": \"mmrspace\""));
+    assert!(result_json.contains("\"program\": \"marklab\""));
     let report = fs::read_to_string(dir.path().join("report.md")).expect("report");
     let report_lower = report.to_lowercase();
     assert!(report_lower.contains("low-k excess"));

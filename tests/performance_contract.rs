@@ -1,4 +1,4 @@
-use mmrspace::{AnalysisConfig, AnalysisEngine, Pattern, PatternMeta, ThreadSetting};
+use marklab::{AnalysisConfig, AnalysisEngine, Pattern, PatternMeta, ThreadSetting};
 
 fn contract_config() -> AnalysisConfig {
     let mut config = AnalysisConfig::default();

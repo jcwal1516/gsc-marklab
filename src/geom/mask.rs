@@ -1,6 +1,6 @@
 use geojson::{GeoJson, Geometry, Value};
 
-use crate::errors::{MmrspaceError, Result};
+use crate::errors::{MarklabError, Result};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TumorMask {
@@ -20,11 +20,11 @@ impl TumorMask {
     pub fn from_geojson_str(text: &str) -> Result<Self> {
         let geojson = text
             .parse::<GeoJson>()
-            .map_err(|err| MmrspaceError::Geometry(err.to_string()))?;
+            .map_err(|err| MarklabError::Geometry(err.to_string()))?;
         let geometry = match geojson {
             GeoJson::Geometry(geometry) => geometry,
             GeoJson::Feature(feature) => feature.geometry.ok_or_else(|| {
-                MmrspaceError::Geometry("GeoJSON feature must contain MultiPolygon geometry".into())
+                MarklabError::Geometry("GeoJSON feature must contain MultiPolygon geometry".into())
             })?,
             GeoJson::FeatureCollection(collection) if collection.features.len() == 1 => collection
                 .features
@@ -32,12 +32,12 @@ impl TumorMask {
                 .next()
                 .and_then(|feature| feature.geometry)
                 .ok_or_else(|| {
-                    MmrspaceError::Geometry(
+                    MarklabError::Geometry(
                         "GeoJSON feature collection must contain MultiPolygon geometry".into(),
                     )
                 })?,
             GeoJson::FeatureCollection(_) => {
-                return Err(MmrspaceError::Geometry(
+                return Err(MarklabError::Geometry(
                     "mask input must be a single GeoJSON MultiPolygon".into(),
                 ));
             }
@@ -64,7 +64,7 @@ impl TumorMask {
 
     fn from_geometry(geometry: Geometry) -> Result<Self> {
         let Value::MultiPolygon(raw_polygons) = geometry.value else {
-            return Err(MmrspaceError::Geometry(
+            return Err(MarklabError::Geometry(
                 "mask input must be a GeoJSON MultiPolygon".into(),
             ));
         };
@@ -74,7 +74,7 @@ impl TumorMask {
 
         for raw_polygon in raw_polygons {
             if raw_polygon.is_empty() {
-                return Err(MmrspaceError::Geometry(
+                return Err(MarklabError::Geometry(
                     "MultiPolygon polygon must contain an exterior ring".into(),
                 ));
             }
@@ -106,7 +106,7 @@ impl MaskPolygon {
 
 fn parse_ring(raw: &[Vec<f64>]) -> Result<Ring> {
     if raw.len() < 4 {
-        return Err(MmrspaceError::Geometry(
+        return Err(MarklabError::Geometry(
             "GeoJSON linear ring must contain at least four positions".into(),
         ));
     }
@@ -114,7 +114,7 @@ fn parse_ring(raw: &[Vec<f64>]) -> Result<Ring> {
     let mut ring = Vec::with_capacity(raw.len());
     for position in raw {
         if position.len() < 2 || !position[0].is_finite() || !position[1].is_finite() {
-            return Err(MmrspaceError::Geometry(
+            return Err(MarklabError::Geometry(
                 "GeoJSON ring positions must contain finite x/y coordinates".into(),
             ));
         }
@@ -122,7 +122,7 @@ fn parse_ring(raw: &[Vec<f64>]) -> Result<Ring> {
     }
 
     if ring.first() != ring.last() {
-        return Err(MmrspaceError::Geometry(
+        return Err(MarklabError::Geometry(
             "GeoJSON linear ring must be closed".into(),
         ));
     }

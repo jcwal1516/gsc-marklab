@@ -14,7 +14,7 @@ fn start_heap_profiler(path: Option<&Path>) -> Result<Option<dhat::Profiler>> {
 #[cfg(not(all(feature = "dhat-heap", not(feature = "allocator-mimalloc"))))]
 fn start_heap_profiler(path: Option<&Path>) -> Result<Option<()>> {
     if path.is_some() {
-        return Err(MmrspaceError::Validation(
+        return Err(MarklabError::Validation(
             "--heap-profile requires a binary built with the dhat-heap feature and without allocator-mimalloc".into(),
         ));
     }
@@ -35,7 +35,7 @@ pub(super) fn run(request: AnalyzeRequest) -> Result<()> {
     init_logging(observability.log);
 
     let load_start = Instant::now();
-    let load_span = tracing::info_span!("mmrspace_stage", stage_name = "load");
+    let load_span = tracing::info_span!("marklab_stage", stage_name = "load");
     let load_enter = load_span.enter();
     let config_path = config;
     let mut config = AnalysisConfig::from_toml_path(&config_path)?;
@@ -87,7 +87,7 @@ pub(super) fn run(request: AnalyzeRequest) -> Result<()> {
             out.join("run_manifest.json"),
             serde_json::to_string_pretty(&serde_json::json!({
                 "command": "analyze",
-                "program": "mmrspace",
+                "program": "marklab",
                 "crate_version": env!("CARGO_PKG_VERSION"),
                 "format_version": "0.2",
                 "inputs": {
@@ -217,7 +217,7 @@ fn write_observability_outputs(out: &Path, observability: &ObservabilityOptions)
     if let Some(path) = observability.trace_json.as_deref() {
         let timings_json: serde_json::Value = serde_json::from_str(&timings_text)?;
         let stages = timings_json["stages"].as_array().ok_or_else(|| {
-            MmrspaceError::Validation("timings.json does not contain a stages array".into())
+            MarklabError::Validation("timings.json does not contain a stages array".into())
         })?;
         let log_level = observability.log.map(LogLevel::as_str).unwrap_or("info");
         let mut jsonl = String::new();

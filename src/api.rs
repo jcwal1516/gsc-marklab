@@ -7,7 +7,7 @@ use crate::{
     config::{AnalysisConfig, ComponentMode, PermutationStratum, ThreadSetting},
     data::{validate::validation_flags, Pattern},
     diagnostics::beta_binomial::beta_binomial,
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     geom::{components::ComponentSummary, spatial_index::mean_nearest_neighbor_distance},
     inference::scalar_pvalues::{permutation_p_value, Tail},
     output::{
@@ -66,7 +66,7 @@ impl AnalysisEngine {
     pub fn new(config: AnalysisConfig) -> Result<Self> {
         config.validate()?;
         if config.diagnostics.graph_smoothing {
-            return Err(MmrspaceError::Config(
+            return Err(MarklabError::Config(
                 "graph_smoothing diagnostic requires multimodal analyze with a fused-cell graph"
                     .into(),
             ));
@@ -87,9 +87,9 @@ impl AnalysisEngine {
         {
             let pool = rayon::ThreadPoolBuilder::new()
                 .num_threads(threads)
-                .thread_name(|i| format!("mmrspace-{i}"))
+                .thread_name(|i| format!("marklab-{i}"))
                 .build()
-                .map_err(|err| crate::errors::MmrspaceError::Compute(err.to_string()))?;
+                .map_err(|err| crate::errors::MarklabError::Compute(err.to_string()))?;
             Ok(Self {
                 config,
                 threads,
@@ -381,7 +381,7 @@ fn timed_stage<T>(
     threads: usize,
     f: impl FnOnce() -> T,
 ) -> T {
-    let span = tracing::info_span!("mmrspace_stage", stage_name);
+    let span = tracing::info_span!("marklab_stage", stage_name);
     let _enter = span.enter();
     let stage_start = Instant::now();
     let result = f();

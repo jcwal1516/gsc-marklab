@@ -48,7 +48,7 @@ pub fn render_analysis_report(result: &MarkedPatternResult) -> String {
         .unwrap_or_else(|| "not available".into());
 
     format!(
-        "# mmrspace Analysis Report\n\n\
+        "# Marklab Analysis Report\n\n\
 Case: {case_id}\n\n\
 Timepoint: {timepoint}\n\n\
 Protein: {protein}\n\n\
@@ -94,7 +94,7 @@ Scientific framing: This report quantifies section-level spatial organization of
 
 pub fn render_multimodal_report(result: &MultimodalResult) -> String {
     let mut report = format!(
-        "# mmrspace Multimodal Analysis Report\n\n\
+        "# Marklab Multimodal Analysis Report\n\n\
 Case: {case_id}\n\n\
 Status: {status}\n\n\
 Interpretation: {interpretation}\n\n\

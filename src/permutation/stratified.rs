@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::errors::{MmrspaceError, Result};
+use crate::errors::{MarklabError, Result};
 
 use super::labels::{deterministic_shuffle, marked_count};
 use super::rng::splitmix64;
@@ -10,12 +10,12 @@ where
     T: Copy + Ord + Into<u64>,
 {
     if labels.len() != strata.len() {
-        return Err(MmrspaceError::Validation(
+        return Err(MarklabError::Validation(
             "labels and strata must have equal length".into(),
         ));
     }
     if labels.iter().any(|value| *value != 0 && *value != 1) {
-        return Err(MmrspaceError::Validation(
+        return Err(MarklabError::Validation(
             "labels must be binary for stratified permutation".into(),
         ));
     }

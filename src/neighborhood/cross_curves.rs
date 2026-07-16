@@ -1,5 +1,5 @@
 use crate::{
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     multimodal::cell_table::{primary_label, FusedCell},
     output::{CrossInteractionCurve, PairCorrelationPoint},
     permutation::rng::splitmix64,
@@ -190,22 +190,22 @@ fn validate_curve_config(
     permutations: usize,
 ) -> Result<()> {
     if label_a.trim().is_empty() || label_b.trim().is_empty() {
-        return Err(MmrspaceError::Config(
+        return Err(MarklabError::Config(
             "cross interaction curve labels must be non-empty".into(),
         ));
     }
     if !bin_width_um.is_finite() || bin_width_um <= 0.0 {
-        return Err(MmrspaceError::Config(
+        return Err(MarklabError::Config(
             "cross interaction curve bin width must be positive and finite".into(),
         ));
     }
     if !max_r_um.is_finite() || max_r_um <= 0.0 {
-        return Err(MmrspaceError::Config(
+        return Err(MarklabError::Config(
             "cross interaction curve max distance must be positive and finite".into(),
         ));
     }
     if permutations == 0 {
-        return Err(MmrspaceError::Config(
+        return Err(MarklabError::Config(
             "cross interaction curve permutations must be greater than zero".into(),
         ));
     }
@@ -215,7 +215,7 @@ fn validate_curve_config(
 fn validate_registered_coordinates(cells: &[FusedCell]) -> Result<()> {
     for (index, cell) in cells.iter().enumerate() {
         if !cell.x_um_registered.is_finite() || !cell.y_um_registered.is_finite() {
-            return Err(MmrspaceError::Schema(format!(
+            return Err(MarklabError::Schema(format!(
                 "fused cell {index} ({}) has non-finite registered coordinates",
                 cell.source_cell_id
             )));

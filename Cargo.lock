@@ -1544,6 +1544,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "marklab"
+version = "0.1.0"
+dependencies = [
+ "approx",
+ "arrow",
+ "assert_cmd",
+ "clap",
+ "criterion",
+ "csv",
+ "dhat",
+ "dicom-core",
+ "dicom-object",
+ "geojson",
+ "image",
+ "insta",
+ "mimalloc",
+ "num-complex",
+ "parquet",
+ "predicates",
+ "proptest",
+ "rayon",
+ "rustfft",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "statrs",
+ "tempfile",
+ "thiserror 2.0.18",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+ "wsi-rs",
+]
+
+[[package]]
 name = "matchers"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1592,41 +1627,6 @@ name = "mintex"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c505b3e17ed6b70a7ed2e67fbb2c560ee327353556120d6e72f5232b6880d536"
-
-[[package]]
-name = "mmrspace"
-version = "0.1.0"
-dependencies = [
- "approx",
- "arrow",
- "assert_cmd",
- "clap",
- "criterion",
- "csv",
- "dhat",
- "dicom-core",
- "dicom-object",
- "geojson",
- "image",
- "insta",
- "mimalloc",
- "num-complex",
- "parquet",
- "predicates",
- "proptest",
- "rayon",
- "rustfft",
- "serde",
- "serde_json",
- "serde_path_to_error",
- "statrs",
- "tempfile",
- "thiserror 2.0.18",
- "toml",
- "tracing",
- "tracing-subscriber",
- "wsi-rs",
-]
 
 [[package]]
 name = "moxcms"

@@ -1,9 +1,9 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use mmrspace::Pattern;
+use marklab::Pattern;
 use std::{fmt::Write as _, hint::black_box};
 
 fn bench_pattern_csv_load_1m_cells(c: &mut Criterion) {
-    let full = std::env::var("MMRSPACE_BENCH_PROFILE").as_deref() == Ok("full");
+    let full = std::env::var("MARKLAB_BENCH_PROFILE").as_deref() == Ok("full");
     let n_cells = if full { 1_000_000 } else { 10_000 };
     let dir = tempfile::tempdir().expect("benchmark temp directory");
     let cells = dir.path().join("cells.csv");

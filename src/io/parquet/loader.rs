@@ -4,7 +4,7 @@ use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
 use crate::{
     data::{Pattern, PatternMeta},
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     geom::{mask::TumorMask, spatial_index::mean_nearest_neighbor_distance},
 };
 
@@ -17,12 +17,12 @@ pub fn load_pattern_parquet_with_diagnostics(
     mask: &TumorMask,
 ) -> Result<PatternLoadResult> {
     let path = path.as_ref();
-    let file = File::open(path).map_err(|source| MmrspaceError::io(path, source))?;
+    let file = File::open(path).map_err(|source| MarklabError::io(path, source))?;
     let builder = ParquetRecordBatchReaderBuilder::try_new(file)
-        .map_err(|err| MmrspaceError::Schema(err.to_string()))?;
+        .map_err(|err| MarklabError::Schema(err.to_string()))?;
     let reader = builder
         .build()
-        .map_err(|err| MmrspaceError::Schema(err.to_string()))?;
+        .map_err(|err| MarklabError::Schema(err.to_string()))?;
 
     let mut x = Vec::new();
     let mut y = Vec::new();
@@ -49,10 +49,10 @@ pub fn load_pattern_parquet_with_diagnostics(
     let mut stain_batch_strata = CategoricalStratumEncoder::default();
 
     let mask_filter_start = Instant::now();
-    let mask_filter_span = tracing::info_span!("mmrspace_stage", stage_name = "mask_filter");
+    let mask_filter_span = tracing::info_span!("marklab_stage", stage_name = "mask_filter");
     let mask_filter_enter = mask_filter_span.enter();
     for batch in reader {
-        let batch = batch.map_err(|err| MmrspaceError::Schema(err.to_string()))?;
+        let batch = batch.map_err(|err| MarklabError::Schema(err.to_string()))?;
         let columns = super::schema::BatchColumns::try_new(&batch)?;
         saw_internal_control |= columns.internal_control.is_some();
         saw_artifact_exclusion |= columns.has_artifact_columns();
@@ -85,7 +85,7 @@ pub fn load_pattern_parquet_with_diagnostics(
                     || existing.timepoint != row.timepoint
                     || existing.protein != row.protein
                 {
-                    return Err(MmrspaceError::Schema(
+                    return Err(MarklabError::Schema(
                         "Parquet input must contain one case_id/timepoint/protein group".into(),
                     ));
                 }
@@ -124,7 +124,7 @@ pub fn load_pattern_parquet_with_diagnostics(
     let mask_filter = mask_filter_start.elapsed();
 
     let meta = meta.ok_or_else(|| {
-        MmrspaceError::Validation("no valid tumor/IHC cells remained after mask filtering".into())
+        MarklabError::Validation("no valid tumor/IHC cells remained after mask filtering".into())
     })?;
     let mut pattern = Pattern::from_arrays(x, y, marks, meta)?;
     pattern.mark_prob = mark_prob.finish();
@@ -159,11 +159,11 @@ pub fn load_pattern_parquet_with_diagnostics(
     pattern.window.l_eff_um = mask.effective_diameter_um();
     let nearest_neighbor_start = Instant::now();
     let nearest_neighbor_span =
-        tracing::info_span!("mmrspace_stage", stage_name = "nearest_neighbor");
+        tracing::info_span!("marklab_stage", stage_name = "nearest_neighbor");
     let nearest_neighbor_enter = nearest_neighbor_span.enter();
     pattern.window.d_nn_mean_um = mean_nearest_neighbor_distance(&pattern.x_um, &pattern.y_um)
         .ok_or_else(|| {
-            MmrspaceError::Validation(
+            MarklabError::Validation(
                 "at least two retained cells are required to estimate nearest-neighbor distance"
                     .into(),
             )

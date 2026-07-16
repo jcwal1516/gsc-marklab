@@ -55,7 +55,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.96.0
       - name: Small production-workload smoke benchmark
-        run: /usr/bin/time -v -o benchmark-resources.txt env MMRSPACE_BENCH_PROFILE=smoke cargo bench --locked --all-features -- --quick
+        run: /usr/bin/time -v -o benchmark-resources.txt env MARKLAB_BENCH_PROFILE=smoke cargo bench --locked --all-features -- --quick
       - uses: actions/upload-artifact@v4
         with:
           name: criterion-results
@@ -77,7 +77,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.96.0
-      - run: cargo run --release --locked --features wsi --bin mmrspace -- validate --suite synthetic --replicates 1000 --out validation-ci
+      - run: cargo run --release --locked --features wsi --bin marklab -- validate --suite synthetic --replicates 1000 --out validation-ci
       - uses: actions/upload-artifact@v4
         with:
           name: synthetic-validation

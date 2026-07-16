@@ -24,7 +24,7 @@ pub(super) fn pair_correlation_with_envelope(
         .map(|bin| bin.value)
         .collect::<Vec<_>>();
     if observed_values.iter().any(|value| !value.is_finite()) {
-        return Err(MmrspaceError::Compute(
+        return Err(MarklabError::Compute(
             "observed pair-correlation curve contains a non-finite value".into(),
         ));
     }
@@ -67,7 +67,7 @@ pub(super) fn pair_correlation_with_envelope(
                 Some((lower, upper))
             });
             if !bin.r_min_um.is_finite() || !bin.r_max_um.is_finite() {
-                return Err(MmrspaceError::Compute(format!(
+                return Err(MarklabError::Compute(format!(
                     "pair-correlation bin {index} has non-finite bounds"
                 )));
             }
@@ -128,7 +128,7 @@ pub(super) fn scalogram_with_envelope(
         coarse_variance_fraction,
     ];
     if observed_values.iter().any(|value| !value.is_finite()) {
-        return Err(MmrspaceError::Compute(
+        return Err(MarklabError::Compute(
             "observed scalogram contains a non-finite value".into(),
         ));
     }

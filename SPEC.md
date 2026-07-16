@@ -1,13 +1,15 @@
-# mmrspace implemented contracts
+# Marklab implemented contracts
 
 This document describes implemented behavior. It is not a roadmap.
 
 ## Scientific scope
 
-`mmrspace` analyzes spatial organization of a binary or probabilistic mark on
-fixed tumor-cell positions. Its confirmatory null is fixed-position random
-labeling. Outputs are section-level diagnostics, not evidence of clonality,
-same-cell tracking, gain/loss, treatment response, or molecular MMR status.
+`marklab` analyzes spatial organization of a binary or probabilistic mark on
+fixed cell positions. Its confirmatory null is fixed-position random labeling.
+The current multimodal schema specializes in tumor-cell MMR-IHC workflows, but
+the marked-pattern engine accepts any validated binary or probabilistic mark.
+Outputs are section-level diagnostics, not evidence of clonality, same-cell
+tracking, gain/loss, treatment response, or molecular MMR status.
 
 ## Rust API
 

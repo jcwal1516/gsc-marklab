@@ -1,4 +1,4 @@
-use mmrspace::{AnalysisConfig, AnalysisEngine, MmrspaceError, Pattern, PatternMeta};
+use marklab::{AnalysisConfig, AnalysisEngine, MarklabError, Pattern, PatternMeta};
 
 fn meta() -> PatternMeta {
     PatternMeta {
@@ -30,7 +30,7 @@ fn analysis_engine_runs_enabled_beta_binomial_diagnostic() {
     let mut config = AnalysisConfig::default();
     config.diagnostics.beta_binomial = true;
     config.permutation.stratified = false;
-    config.performance.threads = mmrspace::ThreadSetting::Count(1);
+    config.performance.threads = marklab::ThreadSetting::Count(1);
 
     let result = AnalysisEngine::new(config)
         .expect("engine")
@@ -56,6 +56,6 @@ fn analysis_engine_rejects_graph_smoothing_without_multimodal_input() {
         Err(err) => err,
     };
 
-    assert!(matches!(err, MmrspaceError::Config(_)));
+    assert!(matches!(err, MarklabError::Config(_)));
     assert!(err.to_string().contains("graph_smoothing"));
 }

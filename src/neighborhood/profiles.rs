@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     comparison::curves::max_abs_standardized_difference,
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     multimodal::cell_table::{primary_label, FusedCell},
     output::{CurveTestResult, LabelFraction, TerritoryFeature, TerritoryProfile},
 };
@@ -75,13 +75,13 @@ fn profile_for_territory(
 
     let inclusion_radius_um = territory.radius_um + buffer_um;
     if !inclusion_radius_um.is_finite() || inclusion_radius_um < 0.0 {
-        return Err(MmrspaceError::Validation(format!(
+        return Err(MarklabError::Validation(format!(
             "territory {territory_id} inclusion radius must be finite and non-negative"
         )));
     }
     let inclusion_radius_sq = inclusion_radius_um * inclusion_radius_um;
     if !inclusion_radius_sq.is_finite() {
-        return Err(MmrspaceError::Validation(format!(
+        return Err(MarklabError::Validation(format!(
             "territory {territory_id} squared inclusion radius is not finite"
         )));
     }
@@ -130,7 +130,7 @@ fn profile_for_territory(
 
 fn validate_buffer(buffer_um: f64) -> Result<()> {
     if !buffer_um.is_finite() || buffer_um < 0.0 {
-        return Err(MmrspaceError::Config(
+        return Err(MarklabError::Config(
             "territory profile buffer must be finite and non-negative".into(),
         ));
     }
@@ -143,7 +143,7 @@ fn validate_territory(index: usize, territory: &TerritoryFeature) -> Result<()> 
         || !territory.radius_um.is_finite()
         || territory.radius_um < 0.0
     {
-        return Err(MmrspaceError::Validation(format!(
+        return Err(MarklabError::Validation(format!(
             "territory {index} must have finite center coordinates and non-negative finite radius"
         )));
     }
@@ -153,14 +153,14 @@ fn validate_territory(index: usize, territory: &TerritoryFeature) -> Result<()> 
 fn validate_cells(cells: &[FusedCell]) -> Result<()> {
     for (index, cell) in cells.iter().enumerate() {
         if !cell.x_um_registered.is_finite() || !cell.y_um_registered.is_finite() {
-            return Err(MmrspaceError::Schema(format!(
+            return Err(MarklabError::Schema(format!(
                 "fused cell {index} ({}) has non-finite registered coordinates",
                 cell.source_cell_id
             )));
         }
         if let Some(registration_error_um) = cell.registration_error_um {
             if !registration_error_um.is_finite() || registration_error_um < 0.0 {
-                return Err(MmrspaceError::Schema(format!(
+                return Err(MarklabError::Schema(format!(
                     "fused cell {index} ({}) has invalid registration_error_um",
                     cell.source_cell_id
                 )));
@@ -172,7 +172,7 @@ fn validate_cells(cells: &[FusedCell]) -> Result<()> {
 
 fn validate_margin(margin: Option<f64>) -> Result<()> {
     match margin {
-        Some(margin) if !margin.is_finite() || margin < 0.0 => Err(MmrspaceError::Config(
+        Some(margin) if !margin.is_finite() || margin < 0.0 => Err(MarklabError::Config(
             "territory profile equivalence margin must be finite and non-negative".into(),
         )),
         _ => Ok(()),
@@ -184,13 +184,13 @@ fn validate_profiles(profiles: &[TerritoryProfile]) -> Result<()> {
         let mut labels = BTreeSet::new();
         for fraction in &profile.cell_type_fractions {
             if !labels.insert(fraction.label.as_str()) {
-                return Err(MmrspaceError::Schema(format!(
+                return Err(MarklabError::Schema(format!(
                     "territory profile {} has duplicate cell-type label {}",
                     profile.territory_id, fraction.label
                 )));
             }
             if !fraction.fraction.is_finite() || !(0.0..=1.0).contains(&fraction.fraction) {
-                return Err(MmrspaceError::Schema(format!(
+                return Err(MarklabError::Schema(format!(
                     "territory profile {} has invalid fraction for cell-type label {}",
                     profile.territory_id, fraction.label
                 )));

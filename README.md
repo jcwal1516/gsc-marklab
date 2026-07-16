@@ -1,9 +1,10 @@
-# mmrspace
+# Marklab
 
-`mmrspace` is a Rust library and CLI for section-level spatial analysis of
-tumor-cell MMR-IHC marked point patterns. It reports organization, dispersion,
-anisotropy, wavelet diagnostics, and descriptive pre/post differences relative
-to fixed-position random labeling.
+`marklab` is a Rust library and CLI for section-level spatial analysis of marked
+cell patterns in pathology. It reports organization, dispersion, anisotropy,
+wavelet diagnostics, and descriptive pre/post differences relative to
+fixed-position random labeling. The current multimodal workflow has first-class
+MMR-IHC inputs, but the core marked-pattern analysis is not tied to one marker.
 
 It does not prove clonality, track the same cells between sections, infer MMR
 gain or loss, perform segmentation, or determine molecular MMR status.
@@ -28,7 +29,7 @@ enable it with `--features wsi --locked`.
 ## Analyze a marked pattern
 
 ```bash
-mmrspace analyze \
+marklab analyze \
   --cells cells.parquet \
   --mask tumor_mask.geojson \
   --config examples/config.toml \
@@ -38,9 +39,9 @@ mmrspace analyze \
 The supported Rust entry point is:
 
 ```rust
-use mmrspace::{AnalysisConfig, AnalysisEngine, Pattern};
+use marklab::{AnalysisConfig, AnalysisEngine, Pattern};
 
-# fn run(pattern: Pattern) -> mmrspace::Result<()> {
+# fn run(pattern: Pattern) -> marklab::Result<()> {
 let engine = AnalysisEngine::new(AnalysisConfig::default())?;
 let result = engine.analyze_pattern(&pattern)?;
 # let _ = result;
@@ -66,9 +67,9 @@ Format 0.1 inputs are rejected by `prepost`; re-run the original inputs.
 ## WSI commands
 
 ```bash
-mmrspace inspect-slide slide.svs
-mmrspace inspect-slide slide.svs --output metadata.json
-mmrspace extract-region slide.svs \
+marklab inspect-slide slide.svs
+marklab inspect-slide slide.svs --output metadata.json
+marklab extract-region slide.svs \
   --scene 0 --series 0 --level 0 --z 0 --c 0 --t 0 \
   --x 0 --y 0 --width 1024 --height 1024 \
   --output region.png

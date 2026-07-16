@@ -16,7 +16,7 @@ use std::{path::Path, time::Duration};
 
 use crate::{
     data::Pattern,
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     geom::mask::TumorMask,
 };
 
@@ -70,7 +70,7 @@ impl<T> DenseOptionalColumn<T> {
     pub(crate) fn push(&mut self, value: Option<T>, column: &str) -> Result<()> {
         let present = value.is_some();
         if self.presence.is_some_and(|expected| expected != present) {
-            return Err(MmrspaceError::Schema(format!(
+            return Err(MarklabError::Schema(format!(
                 "{column} must be populated for every retained row or none"
             )));
         }
@@ -103,7 +103,7 @@ pub fn load_pattern_path_with_diagnostics(
     match extension.as_deref() {
         Some("csv") => load_csv_path(path, mask),
         Some("parquet") => load_parquet_path(path, mask),
-        _ => Err(MmrspaceError::Schema(
+        _ => Err(MarklabError::Schema(
             "cell input extension must be .parquet or .csv".into(),
         )),
     }
@@ -114,7 +114,7 @@ pub(crate) fn checked_probability(value: f32, column: &str) -> Result<f32> {
     if value.is_finite() && (0.0..=1.0).contains(&value) {
         Ok(value)
     } else {
-        Err(MmrspaceError::Schema(format!(
+        Err(MarklabError::Schema(format!(
             "{column} must be finite and in [0, 1]"
         )))
     }
@@ -125,7 +125,7 @@ pub(crate) fn checked_positive(value: f32, column: &str) -> Result<f32> {
     if value.is_finite() && value > 0.0 {
         Ok(value)
     } else {
-        Err(MmrspaceError::Schema(format!(
+        Err(MarklabError::Schema(format!(
             "{column} must be finite and greater than 0"
         )))
     }
@@ -136,7 +136,7 @@ pub(crate) fn checked_finite(value: f32, column: &str) -> Result<f32> {
     if value.is_finite() {
         Ok(value)
     } else {
-        Err(MmrspaceError::Schema(format!("{column} must be finite")))
+        Err(MarklabError::Schema(format!("{column} must be finite")))
     }
 }
 
@@ -147,7 +147,7 @@ fn load_csv_path(path: &Path, mask: &TumorMask) -> Result<PatternLoadResult> {
 
 #[cfg(not(feature = "csv"))]
 fn load_csv_path(_path: &Path, _mask: &TumorMask) -> Result<PatternLoadResult> {
-    Err(MmrspaceError::Schema(
+    Err(MarklabError::Schema(
         "CSV input support is disabled; enable the csv feature".into(),
     ))
 }
@@ -159,7 +159,7 @@ fn load_parquet_path(path: &Path, mask: &TumorMask) -> Result<PatternLoadResult>
 
 #[cfg(not(feature = "parquet"))]
 fn load_parquet_path(_path: &Path, _mask: &TumorMask) -> Result<PatternLoadResult> {
-    Err(MmrspaceError::Schema(
+    Err(MarklabError::Schema(
         "Parquet input support is disabled; enable the parquet feature".into(),
     ))
 }

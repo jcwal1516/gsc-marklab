@@ -54,7 +54,7 @@ fn ci_workflow_runs_locked_rust_wsi_and_benchmark_gates() {
         "cargo test --locked --doc --all-features",
         "cargo check --locked --no-default-features",
         "cargo test --locked --features wsi,cli --test wsi_integration",
-        "MMRSPACE_BENCH_PROFILE=smoke cargo bench --locked --all-features -- --quick",
+        "MARKLAB_BENCH_PROFILE=smoke cargo bench --locked --all-features -- --quick",
         "cargo test --locked --no-default-features --features dhat-heap --lib dhat_ -- --test-threads=1",
         "cargo +nightly fuzz check",
         "cargo audit",
@@ -73,7 +73,7 @@ fn ci_workflow_runs_locked_rust_wsi_and_benchmark_gates() {
 
     assert!(
         scheduled_benchmarks
-            .contains("MMRSPACE_BENCH_PROFILE=full cargo bench --locked --all-features"),
+            .contains("MARKLAB_BENCH_PROFILE=full cargo bench --locked --all-features"),
         "scheduled workflow should execute the full declared benchmark profile"
     );
     assert!(
@@ -100,7 +100,7 @@ fn release_workflow_builds_locked_wsi_archives_with_licenses_and_checksums() {
         "aarch64-apple-darwin",
         "x86_64-pc-windows-msvc",
         "houseabsolute/actions-rust-cross@v1",
-        "args: --release --locked --features wsi --bin mmrspace",
+        "args: --release --locked --features wsi --bin marklab",
         "README.md LICENSE-MIT LICENSE-APACHE",
         "sha256sum",
         "Get-FileHash",
@@ -126,8 +126,8 @@ fn public_wsi_workflow_verifies_fixture_and_independent_oracle() {
         "workflow_dispatch:",
         "6205ccf75a8fa6c32df7c5c04b7377398971a490fb6b320d50d91f7ba6a0e6fd",
         "openslide-write-png",
-        "MMRSPACE_PUBLIC_APERIO_SVS",
-        "MMRSPACE_PUBLIC_APERIO_ORACLE_PNG",
+        "MARKLAB_PUBLIC_APERIO_SVS",
+        "MARKLAB_PUBLIC_APERIO_ORACLE_PNG",
         "public_aperio_jp2k_region_matches_openslide_oracle",
         "--ignored --exact",
     ] {

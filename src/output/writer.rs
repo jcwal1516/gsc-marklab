@@ -8,7 +8,7 @@ use serde::Serialize;
 
 use crate::{
     config::OutputSection,
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
 };
 
 use super::result_types::*;
@@ -29,7 +29,7 @@ impl ResultDocument {
         Self {
             format_version: RESULT_FORMAT_VERSION.into(),
             provenance: Provenance {
-                program: "mmrspace".into(),
+                program: "marklab".into(),
                 crate_version: env!("CARGO_PKG_VERSION").into(),
             },
             analysis,
@@ -38,25 +38,25 @@ impl ResultDocument {
 
     pub fn from_json(text: &str) -> Result<Self> {
         let value: serde_json::Value = serde_json::from_str(text)
-            .map_err(|error| MmrspaceError::Schema(format!("invalid result JSON: {error}")))?;
+            .map_err(|error| MarklabError::Schema(format!("invalid result JSON: {error}")))?;
         let found = value
             .get("format_version")
             .and_then(serde_json::Value::as_str)
-            .ok_or_else(|| MmrspaceError::Schema("result format_version is required".into()))?;
+            .ok_or_else(|| MarklabError::Schema("result format_version is required".into()))?;
         if found != RESULT_FORMAT_VERSION {
-            return Err(MmrspaceError::UnsupportedFormatVersion {
+            return Err(MarklabError::UnsupportedFormatVersion {
                 found: found.into(),
                 supported: RESULT_FORMAT_VERSION.into(),
             });
         }
         serde_json::from_value(value)
-            .map_err(|error| MmrspaceError::Schema(format!("invalid result document: {error}")))
+            .map_err(|error| MarklabError::Schema(format!("invalid result document: {error}")))
     }
 
     pub fn into_marked_pattern(self) -> Result<MarkedPatternResult> {
         match self.analysis {
             AnalysisResult::MarkedPattern(result) => Ok(result),
-            AnalysisResult::Multimodal(_) => Err(MmrspaceError::Validation(
+            AnalysisResult::Multimodal(_) => Err(MarklabError::Validation(
                 "expected a marked_pattern result document".into(),
             )),
         }
@@ -65,7 +65,7 @@ impl ResultDocument {
     pub fn into_multimodal(self) -> Result<MultimodalResult> {
         match self.analysis {
             AnalysisResult::Multimodal(result) => Ok(result),
-            AnalysisResult::MarkedPattern(_) => Err(MmrspaceError::Validation(
+            AnalysisResult::MarkedPattern(_) => Err(MarklabError::Validation(
                 "expected a multimodal result document".into(),
             )),
         }
@@ -73,15 +73,15 @@ impl ResultDocument {
 
     fn validated_json(&self) -> Result<String> {
         if self.format_version != RESULT_FORMAT_VERSION {
-            return Err(MmrspaceError::UnsupportedFormatVersion {
+            return Err(MarklabError::UnsupportedFormatVersion {
                 found: self.format_version.clone(),
                 supported: RESULT_FORMAT_VERSION.into(),
             });
         }
         let json = serde_json::to_string_pretty(self)
-            .map_err(|error| MmrspaceError::Compute(error.to_string()))?;
+            .map_err(|error| MarklabError::Compute(error.to_string()))?;
         serde_json::from_str::<Self>(&json).map_err(|error| {
-            MmrspaceError::Schema(format!(
+            MarklabError::Schema(format!(
                 "result document cannot be represented by format 0.2: {error}"
             ))
         })?;
@@ -95,18 +95,18 @@ fn write_marked_outputs(
     options: &OutputSection,
 ) -> Result<()> {
     let write_start = Instant::now();
-    std::fs::create_dir_all(out).map_err(|source| MmrspaceError::io(out, source))?;
+    std::fs::create_dir_all(out).map_err(|source| MarklabError::io(out, source))?;
 
     #[cfg(not(feature = "parquet"))]
     if options.write_parquet_curves {
-        return Err(MmrspaceError::Config(
+        return Err(MarklabError::Config(
             "Parquet curve output requires the parquet feature".into(),
         ));
     }
 
     if options.write_run_manifest {
         let manifest = serde_json::json!({
-            "program": "mmrspace",
+            "program": "marklab",
             "crate_version": env!("CARGO_PKG_VERSION"),
             "format_version": RESULT_FORMAT_VERSION,
             "result": {
@@ -131,9 +131,9 @@ fn write_marked_outputs(
         std::fs::write(
             out.join("run_manifest.json"),
             serde_json::to_string_pretty(&manifest)
-                .map_err(|err| MmrspaceError::Compute(err.to_string()))?,
+                .map_err(|err| MarklabError::Compute(err.to_string()))?,
         )
-        .map_err(|source| MmrspaceError::io(out.join("run_manifest.json"), source))?;
+        .map_err(|source| MarklabError::io(out.join("run_manifest.json"), source))?;
     }
 
     let qc = serde_json::json!({
@@ -142,11 +142,11 @@ fn write_marked_outputs(
         "metrics": result.qc,
     });
     std::fs::write(out.join("qc.json"), qc.to_string())
-        .map_err(|source| MmrspaceError::io(out.join("qc.json"), source))?;
+        .map_err(|source| MarklabError::io(out.join("qc.json"), source))?;
 
     let report = crate::io::report::render_analysis_report(result);
     std::fs::write(out.join("report.md"), report)
-        .map_err(|source| MmrspaceError::io(out.join("report.md"), source))?;
+        .map_err(|source| MarklabError::io(out.join("report.md"), source))?;
 
     #[cfg(feature = "parquet")]
     if options.write_parquet_curves {
@@ -194,7 +194,7 @@ fn write_marked_outputs(
         "stages": timings,
     });
     std::fs::write(out.join("timings.json"), timings_json.to_string())
-        .map_err(|source| MmrspaceError::io(out.join("timings.json"), source))?;
+        .map_err(|source| MarklabError::io(out.join("timings.json"), source))?;
 
     Ok(())
 }
@@ -218,7 +218,7 @@ impl OutputWriter {
 
         let result_path = out.join("result.json");
         std::fs::write(&result_path, result_json)
-            .map_err(|source| MmrspaceError::io(&result_path, source))?;
+            .map_err(|source| MarklabError::io(&result_path, source))?;
 
         let mut artifacts = BTreeMap::new();
         artifacts.insert(
@@ -274,11 +274,11 @@ fn write_multimodal_outputs(
     out: &Path,
     options: &OutputSection,
 ) -> Result<()> {
-    std::fs::create_dir_all(out).map_err(|source| MmrspaceError::io(out, source))?;
+    std::fs::create_dir_all(out).map_err(|source| MarklabError::io(out, source))?;
 
     #[cfg(not(feature = "parquet"))]
     if options.write_parquet_curves {
-        return Err(MmrspaceError::Config(
+        return Err(MarklabError::Config(
             "multimodal Parquet output requires the parquet feature".into(),
         ));
     }
@@ -310,7 +310,7 @@ fn write_multimodal_outputs(
         &report_path,
         crate::io::report::render_multimodal_report(result),
     )
-    .map_err(|source| MmrspaceError::io(&report_path, source))?;
+    .map_err(|source| MarklabError::io(&report_path, source))?;
 
     if options.write_geojson_territories {
         if let Some(territories) = result
@@ -359,7 +359,7 @@ fn write_multimodal_outputs(
         write_json(
             out.join("run_manifest.json"),
             &serde_json::json!({
-                "program": "mmrspace",
+                "program": "marklab",
                 "crate_version": env!("CARGO_PKG_VERSION"),
                 "format_version": RESULT_FORMAT_VERSION,
                 "analysis_kind": "multimodal",
@@ -392,8 +392,8 @@ fn write_available_json<T: Serialize>(
 
 fn write_json(path: PathBuf, value: &impl Serialize) -> Result<()> {
     let json = serde_json::to_string_pretty(value)
-        .map_err(|error| MmrspaceError::Compute(error.to_string()))?;
-    std::fs::write(&path, json).map_err(|source| MmrspaceError::io(&path, source))
+        .map_err(|error| MarklabError::Compute(error.to_string()))?;
+    std::fs::write(&path, json).map_err(|source| MarklabError::io(&path, source))
 }
 
 fn artifact_group_status(out: &Path, enabled: bool, representative: &str) -> ArtifactStatus {

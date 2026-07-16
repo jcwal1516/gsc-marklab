@@ -1,4 +1,4 @@
-use crate::errors::{MmrspaceError, Result};
+use crate::errors::{MarklabError, Result};
 use crate::multimodal::cell_table::{CellSection, FusedCell, HeCell, IhcCell};
 use crate::registration::transform::Transform2D;
 
@@ -80,7 +80,7 @@ fn validate_transform(transform: &Transform2D) -> Result<()> {
     if coefficients.iter().all(|value| value.is_finite()) {
         Ok(())
     } else {
-        Err(MmrspaceError::Validation(
+        Err(MarklabError::Validation(
             "registration transform coefficients must be finite".into(),
         ))
     }
@@ -93,7 +93,7 @@ fn validate_meta(meta: &FusionMeta) -> Result<()> {
 
     if let Some(error_um) = meta.registration_error_um {
         if !error_um.is_finite() || error_um < 0.0 {
-            return Err(MmrspaceError::Validation(
+            return Err(MarklabError::Validation(
                 "registration_error_um must be finite and non-negative".into(),
             ));
         }
@@ -103,7 +103,7 @@ fn validate_meta(meta: &FusionMeta) -> Result<()> {
 
 fn validate_required_meta_field(name: &str, value: &str) -> Result<()> {
     if value.trim().is_empty() {
-        Err(MmrspaceError::Schema(format!(
+        Err(MarklabError::Schema(format!(
             "FusionMeta.{name} must not be blank"
         )))
     } else {
@@ -115,7 +115,7 @@ fn validate_coordinates(section: &str, cell_id: &str, x_um: f64, y_um: f64) -> R
     if x_um.is_finite() && y_um.is_finite() {
         Ok(())
     } else {
-        Err(MmrspaceError::Validation(format!(
+        Err(MarklabError::Validation(format!(
             "{section} cell {cell_id} coordinates must be finite"
         )))
     }

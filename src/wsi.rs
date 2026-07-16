@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::errors::{MmrspaceError, Result};
+use crate::errors::{MarklabError, Result};
 
 pub const DEFAULT_MAX_REGION_PIXELS: u64 = 16_777_216;
 
@@ -101,14 +101,14 @@ impl SlideReader {
 
     pub fn open_with_options(path: impl AsRef<Path>, options: SlideOpenOptions) -> Result<Self> {
         if options.max_region_pixels == 0 {
-            return Err(MmrspaceError::Validation(
+            return Err(MarklabError::Validation(
                 "slide max_region_pixels must be greater than zero".into(),
             ));
         }
         let upstream_options = wsi_rs::SlideOpenOptions::deterministic()
             .with_max_region_pixels(options.max_region_pixels);
         let slide = wsi_rs::Slide::open_with_options(path.as_ref(), upstream_options)
-            .map_err(|error| MmrspaceError::Slide(error.to_string()))?;
+            .map_err(|error| MarklabError::Slide(error.to_string()))?;
         let metadata = metadata_from_dataset(slide.dataset());
         Ok(Self {
             slide,
@@ -129,10 +129,10 @@ impl SlideReader {
             wsi_rs::LevelIdx::new(request.level),
             (
                 i64::try_from(request.x).map_err(|_| {
-                    MmrspaceError::Validation("region x coordinate exceeds i64 range".into())
+                    MarklabError::Validation("region x coordinate exceeds i64 range".into())
                 })?,
                 i64::try_from(request.y).map_err(|_| {
-                    MmrspaceError::Validation("region y coordinate exceeds i64 range".into())
+                    MarklabError::Validation("region y coordinate exceeds i64 range".into())
                 })?,
             ),
             (request.width, request.height),
@@ -145,19 +145,19 @@ impl SlideReader {
         let image = self
             .slide
             .read_region_rgba(&upstream)
-            .map_err(|error| MmrspaceError::Slide(error.to_string()))?;
+            .map_err(|error| MarklabError::Slide(error.to_string()))?;
         let (width, height) = image.dimensions();
         if (width, height) != (request.width, request.height) {
-            return Err(MmrspaceError::Compute(format!(
+            return Err(MarklabError::Compute(format!(
                 "slide decoder returned {width}x{height}, expected {}x{}",
                 request.width, request.height
             )));
         }
         let pixels = image.into_raw();
         let expected = usize::try_from(u64::from(width) * u64::from(height) * 4)
-            .map_err(|_| MmrspaceError::Compute("RGBA buffer size overflow".into()))?;
+            .map_err(|_| MarklabError::Compute("RGBA buffer size overflow".into()))?;
         if pixels.len() != expected {
-            return Err(MmrspaceError::Compute(format!(
+            return Err(MarklabError::Compute(format!(
                 "slide decoder returned {} RGBA bytes, expected {expected}",
                 pixels.len()
             )));
@@ -232,26 +232,26 @@ fn validate_region_request(
     max_region_pixels: u64,
 ) -> Result<()> {
     if request.width == 0 || request.height == 0 {
-        return Err(MmrspaceError::Validation(
+        return Err(MarklabError::Validation(
             "region width and height must be greater than zero".into(),
         ));
     }
     let pixels = u64::from(request.width)
         .checked_mul(u64::from(request.height))
-        .ok_or_else(|| MmrspaceError::Validation("region pixel count overflow".into()))?;
+        .ok_or_else(|| MarklabError::Validation("region pixel count overflow".into()))?;
     if pixels > max_region_pixels {
-        return Err(MmrspaceError::Validation(format!(
+        return Err(MarklabError::Validation(format!(
             "region contains {pixels} pixels, exceeding limit {max_region_pixels}"
         )));
     }
     let scene = metadata.scenes.get(request.scene).ok_or_else(|| {
-        MmrspaceError::Validation(format!("scene index {} is out of range", request.scene))
+        MarklabError::Validation(format!("scene index {} is out of range", request.scene))
     })?;
     let series = scene.series.get(request.series).ok_or_else(|| {
-        MmrspaceError::Validation(format!("series index {} is out of range", request.series))
+        MarklabError::Validation(format!("series index {} is out of range", request.series))
     })?;
     let level = series.levels.get(request.level as usize).ok_or_else(|| {
-        MmrspaceError::Validation(format!("level index {} is out of range", request.level))
+        MarklabError::Validation(format!("level index {} is out of range", request.level))
     })?;
     for (name, index, extent) in [
         ("z", request.plane.z, series.z_planes),
@@ -259,13 +259,13 @@ fn validate_region_request(
         ("t", request.plane.t, series.timepoints),
     ] {
         if index >= extent {
-            return Err(MmrspaceError::Validation(format!(
+            return Err(MarklabError::Validation(format!(
                 "{name} index {index} is out of range for extent {extent}"
             )));
         }
     }
     if series.sample_type != SlideSampleType::Uint8 {
-        return Err(MmrspaceError::UnsupportedSlideSampleType(format!(
+        return Err(MarklabError::UnsupportedSlideSampleType(format!(
             "{:?}; only uint8 is supported for RGBA extraction",
             series.sample_type
         )));
@@ -273,13 +273,13 @@ fn validate_region_request(
     let end_x = request
         .x
         .checked_add(u64::from(request.width))
-        .ok_or_else(|| MmrspaceError::Validation("region x extent overflow".into()))?;
+        .ok_or_else(|| MarklabError::Validation("region x extent overflow".into()))?;
     let end_y = request
         .y
         .checked_add(u64::from(request.height))
-        .ok_or_else(|| MmrspaceError::Validation("region y extent overflow".into()))?;
+        .ok_or_else(|| MarklabError::Validation("region y extent overflow".into()))?;
     if end_x > level.width || end_y > level.height {
-        return Err(MmrspaceError::Validation(format!(
+        return Err(MarklabError::Validation(format!(
             "region [{}, {}) x [{}, {}) extends beyond level dimensions {}x{}",
             request.x, end_x, request.y, end_y, level.width, level.height
         )));
@@ -390,10 +390,7 @@ mod tests {
         for sample_type in [SlideSampleType::Uint16, SlideSampleType::Float32] {
             let error = validate_region_request(&metadata(sample_type), &request(), 400)
                 .expect_err("unsupported sample type");
-            assert!(matches!(
-                error,
-                MmrspaceError::UnsupportedSlideSampleType(_)
-            ));
+            assert!(matches!(error, MarklabError::UnsupportedSlideSampleType(_)));
         }
     }
 }

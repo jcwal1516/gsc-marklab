@@ -3,7 +3,7 @@ use std::{fs, path::Path};
 use crate::{
     config::AnalysisConfig,
     data::Pattern,
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     periodogram::raster::centered_mark_raster,
 };
 
@@ -13,7 +13,7 @@ pub fn write_analysis_intermediates(
     config: &AnalysisConfig,
 ) -> Result<()> {
     let dir = out.as_ref().join("intermediates");
-    fs::create_dir_all(&dir).map_err(|source| MmrspaceError::io(&dir, source))?;
+    fs::create_dir_all(&dir).map_err(|source| MarklabError::io(&dir, source))?;
 
     write_filtered_cells(&dir, pattern)?;
     write_kgrid(&dir, pattern, config)?;
@@ -29,7 +29,7 @@ fn write_filtered_cells(dir: &Path, pattern: &Pattern) -> Result<()> {
 
 #[cfg(not(feature = "parquet"))]
 fn write_filtered_cells(_dir: &Path, _pattern: &Pattern) -> Result<()> {
-    Err(MmrspaceError::Schema(
+    Err(MarklabError::Schema(
         "intermediate filtered_cells.parquet requires the parquet feature".into(),
     ))
 }
@@ -75,34 +75,34 @@ fn write_kgrid(dir: &Path, pattern: &Pattern, config: &AnalysisConfig) -> Result
             )),
         ],
     )
-    .map_err(|err| MmrspaceError::Schema(err.to_string()))?;
+    .map_err(|err| MarklabError::Schema(err.to_string()))?;
 
     let path = dir.join("kgrid.parquet");
-    let file = File::create(&path).map_err(|source| MmrspaceError::io(&path, source))?;
+    let file = File::create(&path).map_err(|source| MarklabError::io(&path, source))?;
     let mut writer = ArrowWriter::try_new(file, schema, None)
-        .map_err(|err| MmrspaceError::Schema(err.to_string()))?;
+        .map_err(|err| MarklabError::Schema(err.to_string()))?;
     writer
         .write(&batch)
-        .map_err(|err| MmrspaceError::Schema(err.to_string()))?;
+        .map_err(|err| MarklabError::Schema(err.to_string()))?;
     writer
         .close()
-        .map_err(|err| MmrspaceError::Schema(err.to_string()))?;
+        .map_err(|err| MarklabError::Schema(err.to_string()))?;
     Ok(())
 }
 
 #[cfg(not(feature = "parquet"))]
 fn write_kgrid(_dir: &Path, _pattern: &Pattern, _config: &AnalysisConfig) -> Result<()> {
-    Err(MmrspaceError::Schema(
+    Err(MarklabError::Schema(
         "intermediate kgrid.parquet requires the parquet feature".into(),
     ))
 }
 
 fn write_residual_raster(dir: &Path, pattern: &Pattern) -> Result<()> {
     let (spec, raster) = centered_mark_raster(pattern, pattern.window.d_nn_mean_um.max(1.0))
-        .ok_or_else(|| MmrspaceError::Compute("could not build residual raster".into()))?;
+        .ok_or_else(|| MarklabError::Compute("could not build residual raster".into()))?;
     let bytes = npy_f32_2d(&raster, spec.height, spec.width);
     let path = dir.join("residual_raster.npy");
-    fs::write(&path, bytes).map_err(|source| MmrspaceError::io(&path, source))?;
+    fs::write(&path, bytes).map_err(|source| MarklabError::io(&path, source))?;
     Ok(())
 }
 

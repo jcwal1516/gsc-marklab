@@ -1,4 +1,4 @@
-use mmrspace::{
+use marklab::{
     AnalysisConfig, NeighborhoodNullModel, PermutationStratum, RegistrationTransform, ThreadSetting,
 };
 

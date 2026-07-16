@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use crate::{
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     multimodal::cell_table::FusedCell,
 };
 
@@ -81,21 +81,21 @@ pub fn build_spatial_graph(cells: &[FusedCell], config: GraphConfig) -> Result<S
 
 fn validate_config(config: GraphConfig) -> Result<()> {
     if config.radius_um.is_none() && config.k_nearest.is_none() {
-        return Err(MmrspaceError::Config(
+        return Err(MarklabError::Config(
             "neighborhood graph requires radius_um or k_nearest".into(),
         ));
     }
 
     if let Some(radius_um) = config.radius_um {
         if !radius_um.is_finite() || radius_um <= 0.0 {
-            return Err(MmrspaceError::Config(
+            return Err(MarklabError::Config(
                 "radius_um must be finite and positive".into(),
             ));
         }
     }
 
     if matches!(config.k_nearest, Some(0)) {
-        return Err(MmrspaceError::Config(
+        return Err(MarklabError::Config(
             "k_nearest must be positive when configured".into(),
         ));
     }
@@ -106,13 +106,13 @@ fn validate_config(config: GraphConfig) -> Result<()> {
 fn validate_cells(cells: &[FusedCell]) -> Result<()> {
     for (index, cell) in cells.iter().enumerate() {
         if !cell.x_um_registered.is_finite() || !cell.y_um_registered.is_finite() {
-            return Err(MmrspaceError::Validation(format!(
+            return Err(MarklabError::Validation(format!(
                 "cell {index} registered coordinates must be finite"
             )));
         }
         if let Some(error_um) = cell.registration_error_um {
             if !error_um.is_finite() || error_um < 0.0 {
-                return Err(MmrspaceError::Validation(format!(
+                return Err(MarklabError::Validation(format!(
                     "cell {index} registration_error_um must be finite and non-negative"
                 )));
             }

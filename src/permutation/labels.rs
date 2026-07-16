@@ -2,7 +2,7 @@ pub fn marked_count(labels: &[u8]) -> usize {
     labels.iter().filter(|value| **value == 1).count()
 }
 
-use crate::errors::{MmrspaceError, Result};
+use crate::errors::{MarklabError, Result};
 
 use super::rng::splitmix64;
 
@@ -28,7 +28,7 @@ pub fn permute_fixed_count_indices_into(
     indices: &mut Vec<usize>,
 ) -> Result<()> {
     if n_marked > n {
-        return Err(MmrspaceError::Validation(
+        return Err(MarklabError::Validation(
             "n_marked cannot exceed n in fixed-count permutation".into(),
         ));
     }

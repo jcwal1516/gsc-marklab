@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     multimodal::cell_table::FusedCell,
     neighborhood::{enrichment::LabelPair, graph::SpatialGraph},
     output::GraphSmoothingSummary,
@@ -66,7 +66,7 @@ pub fn graph_smoothing(
 
 fn validate_input(cells: &[FusedCell], graph: &SpatialGraph) -> Result<()> {
     if graph.n_nodes != cells.len() {
-        return Err(MmrspaceError::Validation(format!(
+        return Err(MarklabError::Validation(format!(
             "graph-smoothing node count {} does not match fused cell count {}",
             graph.n_nodes,
             cells.len()

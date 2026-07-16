@@ -2,7 +2,7 @@ use std::{path::Path, time::Instant};
 
 use crate::{
     data::{Pattern, PatternMeta},
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     geom::{mask::TumorMask, spatial_index::mean_nearest_neighbor_distance},
 };
 
@@ -43,7 +43,7 @@ pub fn load_pattern_csv_with_diagnostics(
     let mut stain_batch_strata = CategoricalStratumEncoder::default();
 
     let mask_filter_start = Instant::now();
-    let mask_filter_span = tracing::info_span!("mmrspace_stage", stage_name = "mask_filter");
+    let mask_filter_span = tracing::info_span!("marklab_stage", stage_name = "mask_filter");
     let mask_filter_enter = mask_filter_span.enter();
     for row in decoder::read_rows(path_ref)? {
         if !mask.contains(row.x_um, row.y_um) {
@@ -80,7 +80,7 @@ pub fn load_pattern_csv_with_diagnostics(
                 || existing.timepoint != row.timepoint
                 || existing.protein != row.protein
             {
-                return Err(MmrspaceError::Schema(
+                return Err(MarklabError::Schema(
                     "CSV input must contain one case_id/timepoint/protein group".into(),
                 ));
             }
@@ -142,7 +142,7 @@ pub fn load_pattern_csv_with_diagnostics(
     let mask_filter = mask_filter_start.elapsed();
 
     let meta = meta.ok_or_else(|| {
-        MmrspaceError::Validation("no valid tumor/IHC cells remained after mask filtering".into())
+        MarklabError::Validation("no valid tumor/IHC cells remained after mask filtering".into())
     })?;
 
     let mut pattern = Pattern::from_arrays(x, y, marks, meta)?;
@@ -178,11 +178,11 @@ pub fn load_pattern_csv_with_diagnostics(
     pattern.window.l_eff_um = mask.effective_diameter_um();
     let nearest_neighbor_start = Instant::now();
     let nearest_neighbor_span =
-        tracing::info_span!("mmrspace_stage", stage_name = "nearest_neighbor");
+        tracing::info_span!("marklab_stage", stage_name = "nearest_neighbor");
     let nearest_neighbor_enter = nearest_neighbor_span.enter();
     pattern.window.d_nn_mean_um = mean_nearest_neighbor_distance(&pattern.x_um, &pattern.y_um)
         .ok_or_else(|| {
-            MmrspaceError::Validation(
+            MarklabError::Validation(
                 "at least two retained cells are required to estimate nearest-neighbor distance"
                     .into(),
             )

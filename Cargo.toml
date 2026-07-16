@@ -1,22 +1,22 @@
 [package]
-name = "mmrspace"
+name = "marklab"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.96"
 license = "MIT OR Apache-2.0"
-description = "Spatial statistics for tumor-cell MMR-IHC marked point patterns"
+description = "Spatial statistics for marked cell patterns in pathology"
 readme = "README.md"
 keywords = ["pathology", "spatial", "statistics", "ihc", "rust"]
 categories = ["science", "command-line-utilities"]
 
 [lib]
-name = "mmrspace"
+name = "marklab"
 crate-type = ["rlib"]
 bench = false
 
 [[bin]]
-name = "mmrspace"
-path = "src/bin/mmrspace.rs"
+name = "marklab"
+path = "src/bin/marklab.rs"
 required-features = ["cli"]
 bench = false
 

@@ -1,6 +1,6 @@
 use std::{fs, path::PathBuf};
 
-use crate::{MmrspaceError, RegionRequest, Result, SlideOpenOptions, SlideReader};
+use crate::{MarklabError, RegionRequest, Result, SlideOpenOptions, SlideReader};
 
 const MAX_CLI_REGION_PIXELS: u64 = 16_777_216;
 
@@ -27,7 +27,7 @@ pub fn inspect(slide_path: PathBuf, output: Option<PathBuf>) -> Result<()> {
 
 pub fn extract(request: ExtractRequest) -> Result<()> {
     if request.output.exists() && !request.force {
-        return Err(MmrspaceError::Validation(format!(
+        return Err(MarklabError::Validation(format!(
             "refusing to overwrite existing output {}; pass --force to replace it",
             request.output.display()
         )));

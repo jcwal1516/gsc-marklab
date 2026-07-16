@@ -1,5 +1,5 @@
 use crate::data::Pattern;
-use crate::errors::{MmrspaceError, Result};
+use crate::errors::{MarklabError, Result};
 use crate::geom::spatial_index::mean_nearest_neighbor_distance;
 use crate::inference::scalar_pvalues::{permutation_p_value, Tail};
 use crate::permutation::envelopes::GlobalEnvelope;
@@ -180,7 +180,7 @@ pub fn permutation_whitened_spectrum_from_observed_modes(
             )
             .all(|ok| ok);
         if !all_permutations_valid {
-            return Err(MmrspaceError::Compute(
+            return Err(MarklabError::Compute(
                 "a required spectrum permutation could not be evaluated".into(),
             ));
         }
@@ -201,7 +201,7 @@ pub fn permutation_whitened_spectrum_from_observed_modes(
             )
             .is_none()
             {
-                return Err(MmrspaceError::Compute(format!(
+                return Err(MarklabError::Compute(format!(
                     "spectrum permutation {perm_index} could not be evaluated"
                 )));
             }
@@ -260,7 +260,7 @@ pub fn permutation_whitened_value_spectrum_from_observed_modes(
             )
             .all(|ok| ok);
         if !all_permutations_valid {
-            return Err(MmrspaceError::Compute(
+            return Err(MarklabError::Compute(
                 "a required probabilistic-mark spectrum permutation could not be evaluated".into(),
             ));
         }
@@ -280,7 +280,7 @@ pub fn permutation_whitened_value_spectrum_from_observed_modes(
                 let Some(power) =
                     centered_structure_factor_for_values(pattern, &permuted, mode.kx, mode.ky)
                 else {
-                    return Err(MmrspaceError::Compute(format!(
+                    return Err(MarklabError::Compute(format!(
                         "probabilistic-mark spectrum permutation {perm_index} could not be evaluated"
                     )));
                 };
@@ -445,7 +445,7 @@ where
             let Some(power) =
                 centered_structure_factor_for_marks(pattern, &labels, mode.kx, mode.ky)
             else {
-                return Err(MmrspaceError::Compute(format!(
+                return Err(MarklabError::Compute(format!(
                     "stratified spectrum permutation {perm_index} produced an undefined mode"
                 )));
             };
@@ -522,7 +522,7 @@ fn summarize_permutation_whitening(
         })
         .collect::<Option<Vec<_>>>();
     let Some(median_permutation_power) = median_permutation_power else {
-        return Err(MmrspaceError::Compute(
+        return Err(MarklabError::Compute(
             "spectrum permutation powers contain a non-finite or empty shell".into(),
         ));
     };

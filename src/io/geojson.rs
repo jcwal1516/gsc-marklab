@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::{
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     output::TerritoryFeature,
 };
 
@@ -45,7 +45,7 @@ pub(crate) fn write_territory_features(
         "features": features
     });
     let path = path.as_ref();
-    std::fs::write(path, geojson.to_string()).map_err(|source| MmrspaceError::io(path, source))
+    std::fs::write(path, geojson.to_string()).map_err(|source| MarklabError::io(path, source))
 }
 
 fn territory_polygon_ring(
@@ -55,12 +55,12 @@ fn territory_polygon_ring(
     segments: usize,
 ) -> Result<Vec<[f64; 2]>> {
     if !center_x_um.is_finite() || !center_y_um.is_finite() {
-        return Err(MmrspaceError::Compute(
+        return Err(MarklabError::Compute(
             "territory center coordinates must be finite".into(),
         ));
     }
     if !radius_um.is_finite() || radius_um <= 0.0 {
-        return Err(MmrspaceError::Compute(
+        return Err(MarklabError::Compute(
             "territory radius must be finite and positive".into(),
         ));
     }

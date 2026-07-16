@@ -6,6 +6,6 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 #[global_allocator]
 static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-fn main() -> mmrspace::Result<()> {
-    mmrspace::run_cli()
+fn main() -> marklab::Result<()> {
+    marklab::run_cli()
 }

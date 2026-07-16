@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use mmrspace::{
+use marklab::{
     AnalysisResult, AnalysisSection, FusedCellSummary, Interpretation, MultimodalResult,
     OutputWriter, Provenance, RegistrationSummary, ResultDocument,
 };
@@ -94,7 +94,7 @@ fn result_reader_rejects_v01_instead_of_guessing_a_conversion() {
 
     assert!(matches!(
         error,
-        mmrspace::MmrspaceError::UnsupportedFormatVersion { .. }
+        marklab::MarklabError::UnsupportedFormatVersion { .. }
     ));
 }
 
@@ -104,12 +104,12 @@ fn output_writer_writes_a_v02_document() {
     let document = ResultDocument {
         format_version: "0.2".into(),
         provenance: Provenance {
-            program: "mmrspace".into(),
+            program: "marklab".into(),
             crate_version: env!("CARGO_PKG_VERSION").into(),
         },
         analysis: AnalysisResult::Multimodal(sample_result()),
     };
-    let mut options = mmrspace::AnalysisConfig::default().output;
+    let mut options = marklab::AnalysisConfig::default().output;
     options.write_parquet_curves = false;
     options.write_geojson_territories = false;
     options.write_figures = false;
@@ -126,6 +126,6 @@ fn output_writer_writes_a_v02_document() {
     assert!(matches!(parsed.analysis, AnalysisResult::Multimodal(_)));
     assert!(matches!(
         manifest.result,
-        mmrspace::ArtifactStatus::Written { .. }
+        marklab::ArtifactStatus::Written { .. }
     ));
 }

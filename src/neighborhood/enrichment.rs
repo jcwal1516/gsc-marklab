@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 #[cfg(feature = "cli")]
 use crate::permutation::labels::deterministic_shuffle;
 use crate::{
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     multimodal::cell_table::{primary_label, FusedCell},
     output::NeighborhoodEnrichmentResult,
     permutation::rng::splitmix64,
@@ -99,7 +99,7 @@ pub fn edge_enrichment_with_strata(
     validate_config(label_pairs, permutations)?;
     validate_graph(cells, graph)?;
     if strata.len() != cells.len() {
-        return Err(MmrspaceError::Validation(format!(
+        return Err(MarklabError::Validation(format!(
             "null-model stratum count {} does not match cell count {}",
             strata.len(),
             cells.len()
@@ -139,14 +139,14 @@ pub fn edge_enrichment_with_strata(
 
 fn validate_config(label_pairs: &[LabelPair], permutations: usize) -> Result<()> {
     if permutations == 0 {
-        return Err(MmrspaceError::Config(
+        return Err(MarklabError::Config(
             "neighborhood enrichment permutations must be greater than zero".into(),
         ));
     }
 
     for (index, pair) in label_pairs.iter().enumerate() {
         if pair.label_a.trim().is_empty() || pair.label_b.trim().is_empty() {
-            return Err(MmrspaceError::Config(format!(
+            return Err(MarklabError::Config(format!(
                 "label pair labels must be non-empty for pair {index}"
             )));
         }
@@ -157,7 +157,7 @@ fn validate_config(label_pairs: &[LabelPair], permutations: usize) -> Result<()>
 
 fn validate_graph(cells: &[FusedCell], graph: &SpatialGraph) -> Result<()> {
     if graph.n_nodes != cells.len() {
-        return Err(MmrspaceError::Validation(format!(
+        return Err(MarklabError::Validation(format!(
             "spatial graph node count {} does not match cell count {}",
             graph.n_nodes,
             cells.len()
@@ -167,23 +167,23 @@ fn validate_graph(cells: &[FusedCell], graph: &SpatialGraph) -> Result<()> {
     let mut seen_edges = BTreeSet::new();
     for (index, edge) in graph.edges.iter().enumerate() {
         if edge.source >= cells.len() || edge.target >= cells.len() {
-            return Err(MmrspaceError::Validation(format!(
+            return Err(MarklabError::Validation(format!(
                 "spatial graph edge {index} references a node outside the cell slice"
             )));
         }
         if edge.source == edge.target {
-            return Err(MmrspaceError::Validation(format!(
+            return Err(MarklabError::Validation(format!(
                 "spatial graph edge {index} is a self-edge"
             )));
         }
         let normalized = normalized_edge(edge.source, edge.target);
         if !seen_edges.insert(normalized) {
-            return Err(MmrspaceError::Validation(format!(
+            return Err(MarklabError::Validation(format!(
                 "spatial graph edge {index} is duplicate or mirrored"
             )));
         }
         if edge.source > edge.target {
-            return Err(MmrspaceError::Validation(format!(
+            return Err(MarklabError::Validation(format!(
                 "spatial graph edge {index} is duplicate or mirrored because endpoints are not canonical"
             )));
         }

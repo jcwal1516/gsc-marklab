@@ -4,7 +4,7 @@ use serde::Serialize;
 
 use crate::{
     config::ThreadSetting,
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     output::{MarkedPatternResult, StatusFlag},
     AnalysisConfig, AnalysisEngine,
 };
@@ -101,7 +101,7 @@ pub struct MultimodalSyntheticGeneratorResult {
 
 pub fn run_synthetic_validation(replicates: usize) -> Result<SyntheticValidationSummary> {
     if replicates == 0 {
-        return Err(MmrspaceError::Validation(
+        return Err(MarklabError::Validation(
             "synthetic validation requires at least one replicate".into(),
         ));
     }
@@ -137,7 +137,7 @@ pub fn run_multimodal_synthetic_validation(
     seed: u64,
 ) -> Result<MultimodalSyntheticValidationSummary> {
     if replicates == 0 {
-        return Err(MmrspaceError::Validation(
+        return Err(MarklabError::Validation(
             "multimodal synthetic validation requires at least one replicate".into(),
         ));
     }
@@ -253,7 +253,7 @@ fn run_generator(
             result.passed = true;
         }
         _ => {
-            return Err(MmrspaceError::Validation(format!(
+            return Err(MarklabError::Validation(format!(
                 "unknown synthetic generator {generator}"
             )));
         }
@@ -297,7 +297,7 @@ fn run_multimodal_generator(
         }
         "prepost_changed_spatial_pattern" => detection_rate > 0.70 && equivalence_rate < 0.20,
         _ => {
-            return Err(MmrspaceError::Validation(format!(
+            return Err(MarklabError::Validation(format!(
                 "unknown multimodal synthetic generator {generator}"
             )));
         }

@@ -1,4 +1,4 @@
-use crate::errors::{MmrspaceError, Result};
+use crate::errors::{MarklabError, Result};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MemoryInputs {
@@ -33,7 +33,7 @@ impl MemoryEstimate {
     pub fn enforce_budget_mib(&self, budget_mib: usize) -> Result<()> {
         let budget_bytes = budget_mib.saturating_mul(1024 * 1024);
         if self.total_bytes > budget_bytes {
-            return Err(MmrspaceError::Validation(format!(
+            return Err(MarklabError::Validation(format!(
                 "estimated peak memory {:.2} MiB exceeds configured budget {budget_mib} MiB",
                 self.total_mib()
             )));

@@ -1,6 +1,6 @@
 use crate::{
     data::Pattern,
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     output::BetaBinomialSummary,
 };
 
@@ -8,7 +8,7 @@ use crate::output::BetaBinomialGroupSummary;
 
 pub fn beta_binomial(pattern: &Pattern) -> Result<BetaBinomialSummary> {
     if pattern.is_empty() {
-        return Err(MmrspaceError::Validation(
+        return Err(MarklabError::Validation(
             "beta-binomial diagnostic requires at least one cell".into(),
         ));
     }
@@ -73,10 +73,10 @@ fn group_summaries(
         }
     } else {
         let median_x = median(pattern.x_um.as_ref()).ok_or_else(|| {
-            MmrspaceError::Compute("beta-binomial x-coordinate median is undefined".into())
+            MarklabError::Compute("beta-binomial x-coordinate median is undefined".into())
         })?;
         let median_y = median(pattern.y_um.as_ref()).ok_or_else(|| {
-            MmrspaceError::Compute("beta-binomial y-coordinate median is undefined".into())
+            MarklabError::Compute("beta-binomial y-coordinate median is undefined".into())
         })?;
         for index in 0..pattern.len() {
             let x_bin = if pattern.x_um[index] <= median_x {
@@ -134,7 +134,7 @@ fn beta_posterior_summary(
     let alpha = prior_alpha + n_marked as f64;
     let beta = prior_beta + n_cells.saturating_sub(n_marked) as f64;
     let distribution = Beta::new(alpha, beta)
-        .map_err(|err| MmrspaceError::Compute(format!("invalid beta posterior: {err}")))?;
+        .map_err(|err| MarklabError::Compute(format!("invalid beta posterior: {err}")))?;
     let mean = alpha / (alpha + beta);
     Ok((
         mean,

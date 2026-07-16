@@ -391,7 +391,7 @@ fn multimodal_prepost_cli_writes_cross_curve_delta_result() {
     pre.run().assert().success();
     post.run().assert().success();
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("binary")
         .args([
             "multimodal",
@@ -455,7 +455,7 @@ pair,,,,,,,,{},{}\n",
     )
     .expect("manifest");
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("binary")
         .args([
             "multimodal",
@@ -537,7 +537,7 @@ impl MultimodalFixture {
         I: IntoIterator<Item = S>,
         S: AsRef<std::ffi::OsStr>,
     {
-        let mut command = Command::cargo_bin("mmrspace").expect("binary");
+        let mut command = Command::cargo_bin("marklab").expect("binary");
         command.args([
             "multimodal",
             "analyze",

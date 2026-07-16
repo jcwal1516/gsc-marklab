@@ -1,6 +1,6 @@
 use crate::{
     comparison::curves::{max_abs_standardized_difference, validate_curves},
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     output::CurveTestResult,
     permutation::{labels::deterministic_shuffle, rng::splitmix64},
 };
@@ -19,7 +19,7 @@ pub fn curve_difference_test(
 ) -> Result<CurveTestResult> {
     validate_curves(a, b)?;
     if permutations == 0 {
-        return Err(MmrspaceError::Config(
+        return Err(MarklabError::Config(
             "curve difference test permutations must be greater than zero".into(),
         ));
     }

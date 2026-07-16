@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::errors::{MmrspaceError, Result};
+use crate::errors::{MarklabError, Result};
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -17,29 +17,29 @@ pub fn permutation_p_value(
     alpha: f64,
 ) -> Result<f64> {
     if !(alpha.is_finite() && 0.0 < alpha && alpha < 1.0) {
-        return Err(MmrspaceError::Validation(
+        return Err(MarklabError::Validation(
             "permutation-test alpha must be finite and strictly between zero and one".into(),
         ));
     }
     if !observed.is_finite() {
-        return Err(MmrspaceError::Compute(
+        return Err(MarklabError::Compute(
             "observed permutation statistic is not finite".into(),
         ));
     }
     if null_values.is_empty() {
-        return Err(MmrspaceError::Validation(
+        return Err(MarklabError::Validation(
             "permutation test requires at least one null statistic".into(),
         ));
     }
     if null_values.iter().any(|value| !value.is_finite()) {
-        return Err(MmrspaceError::Compute(
+        return Err(MarklabError::Compute(
             "permutation null statistics contain a non-finite value".into(),
         ));
     }
 
     let denominator = null_values.len() + 1;
     if tail == Tail::TwoSided && (denominator as f64) < 2.0 / alpha {
-        return Err(MmrspaceError::Validation(format!(
+        return Err(MarklabError::Validation(format!(
             "equal-tail permutation test requires B + 1 >= 2 / alpha (got {denominator} and alpha {alpha})"
         )));
     }

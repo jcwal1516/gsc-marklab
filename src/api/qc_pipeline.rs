@@ -26,7 +26,7 @@ pub(super) fn validate_pattern(
 
     let configured_strata = if config.permutation.stratified {
         let strata = combined_strata_for(config, pattern)?.ok_or_else(|| {
-            MmrspaceError::Validation(
+            MarklabError::Validation(
                 "stratified permutation requires at least one configured stratum".into(),
             )
         })?;
@@ -101,7 +101,7 @@ pub(super) fn stratified_confounds(config: &AnalysisConfig, pattern: &Pattern) -
     )?
     .map(|stratified| stratified.p_global >= config.inference.family_wise_alpha)
     .ok_or_else(|| {
-        MmrspaceError::Compute(
+        MarklabError::Compute(
             "stratified spectrum could not be evaluated for the configured strata".into(),
         )
     })
@@ -125,7 +125,7 @@ pub(super) fn permutation_labels(
     let seed = config.permutation.seed ^ (permutation_index as u64).wrapping_mul(seed_salt);
     if config.permutation.stratified {
         let strata = combined_strata_for(config, pattern)?.ok_or_else(|| {
-            MmrspaceError::Validation(
+            MarklabError::Validation(
                 "stratified permutation requires at least one configured stratum".into(),
             )
         })?;
@@ -142,7 +142,7 @@ pub(super) fn combined_strata_for(
     let mut columns = Vec::with_capacity(config.permutation.strata_fields.len());
     for field in &config.permutation.strata_fields {
         let column = stratum_column(field, pattern).ok_or_else(|| {
-            MmrspaceError::Validation(format!(
+            MarklabError::Validation(format!(
                 "configured permutation stratum {field:?} is absent or has the wrong length"
             ))
         })?;

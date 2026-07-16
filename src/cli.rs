@@ -25,7 +25,7 @@ use crate::{
         run_multimodal_synthetic_validation, run_synthetic_validation,
         MultimodalSyntheticValidationSummary,
     },
-    AnalysisConfig, AnalysisEngine, MarkedPatternResult, MmrspaceError, MultimodalEngine,
+    AnalysisConfig, AnalysisEngine, MarkedPatternResult, MarklabError, MultimodalEngine,
     MultimodalInput, MultimodalResult, NeighborhoodEnrichmentResult, NeighborhoodNullModel,
     OutputWriter, RegistrationTransform, Result, ResultDocument, ThreadSetting, TimingStage,
 };
@@ -35,7 +35,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 macro_rules! bail {
     ($($argument:tt)*) => {
-        return Err(MmrspaceError::Validation(format!($($argument)*)))
+        return Err(MarklabError::Validation(format!($($argument)*)))
     };
 }
 
@@ -60,9 +60,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "mmrspace",
+    name = "marklab",
     version,
-    about = "Spatial statistics for MMR-IHC marked point patterns"
+    about = "Spatial statistics for marked cell patterns in pathology"
 )]
 struct Cli {
     #[command(subcommand)]

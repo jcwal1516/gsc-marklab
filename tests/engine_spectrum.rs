@@ -1,4 +1,4 @@
-use mmrspace::{
+use marklab::{
     AnalysisConfig, AnalysisEngine, ComponentMode, OutputWriter, Pattern, PatternMeta,
     PermutationStratum, ResultDocument, StatusFlag,
 };
@@ -29,7 +29,7 @@ fn permissive_config() -> AnalysisConfig {
     config.permutation.b = 99;
     config.permutation.seed = 17;
     config.permutation.stratified = false;
-    config.performance.threads = mmrspace::ThreadSetting::Count(1);
+    config.performance.threads = marklab::ThreadSetting::Count(1);
     config
 }
 
@@ -245,18 +245,15 @@ fn engine_omits_wavelet_outputs_when_wavelet_is_disabled() {
         .analyze_pattern(&pattern)
         .expect("analysis");
 
-    assert!(matches!(
-        result.wavelet,
-        mmrspace::AnalysisSection::Disabled
-    ));
+    assert!(matches!(result.wavelet, marklab::AnalysisSection::Disabled));
     assert!(result.scalogram_curve.is_empty());
     assert!(matches!(
         result.scalogram,
-        mmrspace::AnalysisSection::Disabled
+        marklab::AnalysisSection::Disabled
     ));
     assert!(matches!(
         result.wavelet_territories,
-        mmrspace::AnalysisSection::Disabled
+        marklab::AnalysisSection::Disabled
     ));
 }
 
@@ -284,7 +281,7 @@ fn engine_omits_territories_when_territory_detection_is_disabled() {
     assert_eq!(result.wavelet.value().expect("wavelet").territory_count, 0);
     assert!(matches!(
         result.wavelet_territories,
-        mmrspace::AnalysisSection::Disabled
+        marklab::AnalysisSection::Disabled
     ));
     assert!(
         result
@@ -322,11 +319,11 @@ fn engine_marks_out_of_range_wavelet_endpoints_insufficient() {
 
     assert!(matches!(
         wavelet.coarse_variance_fraction_p_value,
-        mmrspace::AnalysisSection::InsufficientData { .. }
+        marklab::AnalysisSection::InsufficientData { .. }
     ));
     assert!(matches!(
         wavelet.territory_count_p_value,
-        mmrspace::AnalysisSection::Available { .. }
+        marklab::AnalysisSection::Available { .. }
     ));
 }
 
@@ -377,7 +374,7 @@ fn engine_flags_confounding_when_cluster_is_explained_by_qc_strata() {
     assert!(
         matches!(
             result.anisotropy,
-            mmrspace::AnalysisSection::InsufficientData { .. }
+            marklab::AnalysisSection::InsufficientData { .. }
         ),
         "a degenerate stratified anisotropy null must be reported as insufficient"
     );
@@ -500,8 +497,8 @@ fn engine_reports_separate_component_summaries_when_component_mode_is_both() {
     assert!((first.p_hat - (4.0 / 12.0)).abs() < 1e-12);
     assert!(matches!(
         first.primary_endpoint_value,
-        mmrspace::AnalysisSection::Available { .. }
-            | mmrspace::AnalysisSection::InsufficientData { .. }
+        marklab::AnalysisSection::Available { .. }
+            | marklab::AnalysisSection::InsufficientData { .. }
     ));
     if first.primary_endpoint_value.value().is_some() {
         assert!(first.k_min.expect("component k_min") > 0.0);
@@ -568,7 +565,7 @@ fn component_summaries_use_the_configured_interpretable_scale() {
     assert_eq!(components.len(), 2);
     assert!(components.iter().all(|component| matches!(
         component.primary_endpoint_value,
-        mmrspace::AnalysisSection::InsufficientData { .. }
+        marklab::AnalysisSection::InsufficientData { .. }
     )));
 }
 
@@ -703,7 +700,7 @@ fn engine_records_permutation_stage_when_probabilistic_marks_are_missing() {
         .any(|stage| stage.stage_name == "permutation_spectra"));
     assert!(matches!(
         result.spectrum,
-        mmrspace::AnalysisSection::InsufficientData { .. }
+        marklab::AnalysisSection::InsufficientData { .. }
     ));
 }
 
@@ -743,7 +740,7 @@ fn engine_marks_spectrum_insufficient_when_all_scales_are_out_of_range() {
 
     assert!(matches!(
         result.spectrum,
-        mmrspace::AnalysisSection::InsufficientData { .. }
+        marklab::AnalysisSection::InsufficientData { .. }
     ));
     assert!(!result
         .status_flags

@@ -3,7 +3,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::errors::{MmrspaceError, Result};
+use crate::errors::{MarklabError, Result};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -277,7 +277,7 @@ impl AnalysisConfig {
     pub fn from_toml_path(path: impl AsRef<Path>) -> Result<Self> {
         let path_ref = path.as_ref();
         let text = std::fs::read_to_string(path_ref)
-            .map_err(|source| MmrspaceError::io(path_ref, source))?;
+            .map_err(|source| MarklabError::io(path_ref, source))?;
         deserialize_toml(&text).and_then(Self::validated)
     }
 
@@ -287,16 +287,16 @@ impl AnalysisConfig {
         }
 
         let default_text = toml::to_string(&Self::default())
-            .map_err(|err| MmrspaceError::Config(err.to_string()))?;
+            .map_err(|err| MarklabError::Config(err.to_string()))?;
         let mut merged = default_text
             .parse::<toml::Value>()
-            .map_err(|err| MmrspaceError::Config(err.to_string()))?;
+            .map_err(|err| MarklabError::Config(err.to_string()))?;
         let overrides = text
             .parse::<toml::Value>()
-            .map_err(|err| MmrspaceError::Config(err.to_string()))?;
+            .map_err(|err| MarklabError::Config(err.to_string()))?;
         merge_toml_value(&mut merged, overrides);
         let merged_text =
-            toml::to_string(&merged).map_err(|err| MmrspaceError::Config(err.to_string()))?;
+            toml::to_string(&merged).map_err(|err| MarklabError::Config(err.to_string()))?;
         deserialize_toml(&merged_text).and_then(Self::validated)
     }
 
@@ -444,9 +444,9 @@ fn deserialize_toml(text: &str) -> Result<AnalysisConfig> {
         let path = error.path().to_string();
         let detail = error.inner();
         if path.is_empty() {
-            MmrspaceError::Config(detail.to_string())
+            MarklabError::Config(detail.to_string())
         } else {
-            MmrspaceError::Config(format!("{path}: {detail}"))
+            MarklabError::Config(format!("{path}: {detail}"))
         }
     })
 }
@@ -467,7 +467,7 @@ fn merge_toml_value(target: &mut toml::Value, source: toml::Value) {
 }
 
 fn config_error<T>(message: impl Into<String>) -> Result<T> {
-    Err(MmrspaceError::Config(message.into()))
+    Err(MarklabError::Config(message.into()))
 }
 
 fn positive_finite(field: &str, value: f64) -> Result<()> {

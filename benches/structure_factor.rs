@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use mmrspace::{AnalysisConfig, AnalysisEngine, Pattern, PatternMeta, ThreadSetting};
+use marklab::{AnalysisConfig, AnalysisEngine, Pattern, PatternMeta, ThreadSetting};
 use std::hint::black_box;
 
 fn representative_pattern(n: usize) -> Pattern {
@@ -27,7 +27,7 @@ fn representative_pattern(n: usize) -> Pattern {
 }
 
 fn bench_marked_analysis_structure_factor_n10k_k1k(c: &mut Criterion) {
-    let full = std::env::var("MMRSPACE_BENCH_PROFILE").as_deref() == Ok("full");
+    let full = std::env::var("MARKLAB_BENCH_PROFILE").as_deref() == Ok("full");
     let n = if full { 10_000 } else { 1_000 };
     let pattern = representative_pattern(n);
     let mut config = AnalysisConfig::default();

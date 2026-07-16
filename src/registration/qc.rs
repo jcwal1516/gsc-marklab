@@ -1,4 +1,4 @@
-use crate::errors::{MmrspaceError, Result};
+use crate::errors::{MarklabError, Result};
 use crate::output::RegistrationSummary;
 use crate::registration::landmarks::LandmarkPair;
 use crate::registration::transform::{validate_landmarks, Transform2D};
@@ -10,12 +10,12 @@ pub fn registration_qc(
 ) -> Result<RegistrationSummary> {
     validate_landmarks(landmarks)?;
     if landmarks.is_empty() {
-        return Err(MmrspaceError::Compute(
+        return Err(MarklabError::Compute(
             "at least one landmark is required for registration QC".into(),
         ));
     }
     if !claim_distance_multiplier.is_finite() || claim_distance_multiplier <= 0.0 {
-        return Err(MmrspaceError::Compute(
+        return Err(MarklabError::Compute(
             "claim distance multiplier must be finite and positive".into(),
         ));
     }
@@ -24,7 +24,7 @@ pub fn registration_qc(
     for landmark in landmarks {
         let (x, y) = transform.apply(landmark.source_x_um, landmark.source_y_um);
         if !x.is_finite() || !y.is_finite() {
-            return Err(MmrspaceError::Compute(
+            return Err(MarklabError::Compute(
                 "transform produced non-finite coordinates".into(),
             ));
         }

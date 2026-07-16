@@ -1,6 +1,6 @@
 use std::fs;
 
-use mmrspace::{
+use marklab::{
     AnalysisConfig, AnalysisEngine, HeCell, IhcCell, LandmarkPair, MultimodalEngine,
     MultimodalInput, Pattern, PatternMeta, ResultDocument, StatusFlag,
 };

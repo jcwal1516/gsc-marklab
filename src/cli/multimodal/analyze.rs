@@ -548,7 +548,7 @@ fn read_landmark_pairs(path: &Path) -> Result<Vec<LandmarkPair>> {
     for (index, row) in reader.deserialize::<LandmarkRow>().enumerate() {
         let row_number = index + 2;
         let row = row.map_err(|err| {
-            MmrspaceError::Validation(format!(
+            MarklabError::Validation(format!(
                 "{} row {}: invalid landmark row: {}",
                 path.display(),
                 row_number,

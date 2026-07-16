@@ -2,33 +2,33 @@ use super::*;
 
 pub(super) fn run(workload: &str, out: PathBuf) -> Result<()> {
     let text = format!(
-        r#"# mmrspace Profiling Plan
+        r#"# Marklab Profiling Plan
 
 Workload: `{workload}`
 
 ## Samply
 
 ```bash
-cargo build --profile profiling --bin mmrspace --features cli
-samply record ./target/profiling/mmrspace analyze --cells fixtures/{workload}.parquet --mask fixtures/{workload}.geojson --config examples/config.toml --out out/profile_run
+cargo build --profile profiling --bin marklab --features cli
+samply record ./target/profiling/marklab analyze --cells fixtures/{workload}.parquet --mask fixtures/{workload}.geojson --config examples/config.toml --out out/profile_run
 ```
 
 ## Flamegraph
 
 ```bash
-cargo flamegraph --profile profiling --bin mmrspace -- analyze --cells fixtures/{workload}.parquet --mask fixtures/{workload}.geojson --config examples/config.toml --out out/flamegraph_run
+cargo flamegraph --profile profiling --bin marklab -- analyze --cells fixtures/{workload}.parquet --mask fixtures/{workload}.geojson --config examples/config.toml --out out/flamegraph_run
 ```
 
 ## DHAT
 
 ```bash
-cargo run --profile profiling --features "cli dhat-heap" --bin mmrspace -- analyze --cells fixtures/{workload}.parquet --mask fixtures/{workload}.geojson --config examples/config.toml --out out/dhat_run --heap-profile out/dhat-heap.json
+cargo run --profile profiling --features "cli dhat-heap" --bin marklab -- analyze --cells fixtures/{workload}.parquet --mask fixtures/{workload}.geojson --config examples/config.toml --out out/dhat_run --heap-profile out/dhat-heap.json
 ```
 
 ## Assembly
 
 ```bash
-cargo asm mmrspace::AnalysisEngine::analyze_pattern --profile profiling
+cargo asm marklab::AnalysisEngine::analyze_pattern --profile profiling
 ```
 
 ## Criterion

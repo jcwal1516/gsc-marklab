@@ -33,7 +33,7 @@ fn rgba_oracle() -> Vec<u8> {
 
 #[test]
 fn slide_commands_are_present_with_wsi_feature() {
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("binary")
         .arg("--help")
         .assert()
@@ -44,7 +44,7 @@ fn slide_commands_are_present_with_wsi_feature() {
 
 #[test]
 fn extract_region_rejects_negative_coordinates_during_cli_parsing() {
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("binary")
         .args([
             "extract-region",
@@ -71,7 +71,7 @@ fn extract_region_refuses_overwrite_before_opening_slide() {
     let output = dir.path().join("region.png");
     std::fs::write(&output, b"existing").expect("existing output");
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("binary")
         .args([
             "extract-region",
@@ -98,7 +98,7 @@ fn inspect_slide_reports_corrupt_or_unsupported_input() {
     let slide = dir.path().join("truncated.j2k");
     std::fs::write(&slide, [0xff, 0x4f, 0xff]).expect("truncated fixture");
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("binary")
         .args(["inspect-slide", slide.to_str().unwrap()])
         .assert()
@@ -110,16 +110,16 @@ fn inspect_slide_reports_corrupt_or_unsupported_input() {
 fn raw_j2k_j2c_and_htj2k_metadata_full_reads_and_crops_match_oracle_exactly() {
     let expected = rgba_oracle();
     for extension in ["j2k", "j2c", "htj2k"] {
-        let slide = mmrspace::SlideReader::open(raw_fixture(extension)).expect("open raw fixture");
+        let slide = marklab::SlideReader::open(raw_fixture(extension)).expect("open raw fixture");
         let level = &slide.metadata().scenes[0].series[0].levels[0];
         assert_eq!((level.width, level.height), (16, 12));
 
         let full = slide
-            .read_region_rgba(&mmrspace::RegionRequest {
+            .read_region_rgba(&marklab::RegionRequest {
                 scene: 0,
                 series: 0,
                 level: 0,
-                plane: mmrspace::PlaneSelection::default(),
+                plane: marklab::PlaneSelection::default(),
                 x: 0,
                 y: 0,
                 width: 16,
@@ -129,11 +129,11 @@ fn raw_j2k_j2c_and_htj2k_metadata_full_reads_and_crops_match_oracle_exactly() {
         assert_eq!(full.pixels, expected, "{extension} full read");
 
         let crop = slide
-            .read_region_rgba(&mmrspace::RegionRequest {
+            .read_region_rgba(&marklab::RegionRequest {
                 scene: 0,
                 series: 0,
                 level: 0,
-                plane: mmrspace::PlaneSelection::default(),
+                plane: marklab::PlaneSelection::default(),
                 x: 3,
                 y: 2,
                 width: 5,
@@ -155,16 +155,16 @@ fn tiled_tiff_jpeg2000_full_read_and_crop_match_oracle_exactly() {
     let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/wsi/tiff/rgb_lossless_jp2k.tiff");
     let expected = rgba_oracle();
-    let slide = mmrspace::SlideReader::open(fixture).expect("open tiled TIFF fixture");
+    let slide = marklab::SlideReader::open(fixture).expect("open tiled TIFF fixture");
     let level = &slide.metadata().scenes[0].series[0].levels[0];
     assert_eq!((level.width, level.height), (16, 12));
 
     let full = slide
-        .read_region_rgba(&mmrspace::RegionRequest {
+        .read_region_rgba(&marklab::RegionRequest {
             scene: 0,
             series: 0,
             level: 0,
-            plane: mmrspace::PlaneSelection::default(),
+            plane: marklab::PlaneSelection::default(),
             x: 0,
             y: 0,
             width: 16,
@@ -174,11 +174,11 @@ fn tiled_tiff_jpeg2000_full_read_and_crop_match_oracle_exactly() {
     assert_eq!(full.pixels, expected);
 
     let crop = slide
-        .read_region_rgba(&mmrspace::RegionRequest {
+        .read_region_rgba(&marklab::RegionRequest {
             scene: 0,
             series: 0,
             level: 0,
-            plane: mmrspace::PlaneSelection::default(),
+            plane: marklab::PlaneSelection::default(),
             x: 3,
             y: 2,
             width: 5,
@@ -199,16 +199,16 @@ fn synthetic_dicom_vl_wsi_jpeg2000_full_read_and_crop_match_oracle_exactly() {
     let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/wsi/dicom/synthetic_vl_wsi_jp2k.dcm");
     let expected = rgba_oracle();
-    let slide = mmrspace::SlideReader::open(fixture).expect("open DICOM VL WSI fixture");
+    let slide = marklab::SlideReader::open(fixture).expect("open DICOM VL WSI fixture");
     let level = &slide.metadata().scenes[0].series[0].levels[0];
     assert_eq!((level.width, level.height), (16, 12));
 
     let full = slide
-        .read_region_rgba(&mmrspace::RegionRequest {
+        .read_region_rgba(&marklab::RegionRequest {
             scene: 0,
             series: 0,
             level: 0,
-            plane: mmrspace::PlaneSelection::default(),
+            plane: marklab::PlaneSelection::default(),
             x: 0,
             y: 0,
             width: 16,
@@ -218,11 +218,11 @@ fn synthetic_dicom_vl_wsi_jpeg2000_full_read_and_crop_match_oracle_exactly() {
     assert_eq!(full.pixels, expected);
 
     let crop = slide
-        .read_region_rgba(&mmrspace::RegionRequest {
+        .read_region_rgba(&marklab::RegionRequest {
             scene: 0,
             series: 0,
             level: 0,
-            plane: mmrspace::PlaneSelection::default(),
+            plane: marklab::PlaneSelection::default(),
             x: 3,
             y: 2,
             width: 5,
@@ -244,7 +244,7 @@ fn slide_cli_writes_pretty_metadata_json_and_exact_size_png() {
     let metadata = dir.path().join("metadata.json");
     let png = dir.path().join("region.png");
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("binary")
         .args([
             "inspect-slide",
@@ -263,7 +263,7 @@ fn slide_cli_writes_pretty_metadata_json_and_exact_size_png() {
         "inspect-slide must not export unreviewed vendor properties"
     );
 
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("binary")
         .args([
             "extract-region",
@@ -287,7 +287,7 @@ fn slide_cli_writes_pretty_metadata_json_and_exact_size_png() {
 
 #[test]
 fn inspect_slide_defaults_to_pretty_json_on_stdout() {
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("binary")
         .args(["inspect-slide", raw_fixture("j2k").to_str().unwrap()])
         .assert()
@@ -298,7 +298,7 @@ fn inspect_slide_defaults_to_pretty_json_on_stdout() {
 #[test]
 fn extract_region_enforces_the_cli_pixel_cap_before_decoding() {
     let dir = tempfile::tempdir().expect("tempdir");
-    Command::cargo_bin("mmrspace")
+    Command::cargo_bin("marklab")
         .expect("binary")
         .args([
             "extract-region",
@@ -322,23 +322,23 @@ fn extract_region_enforces_the_cli_pixel_cap_before_decoding() {
 #[test]
 #[ignore = "requires the checksummed public Aperio SVS and an independent OpenSlide oracle"]
 fn public_aperio_jp2k_region_matches_openslide_oracle() {
-    let slide_path = std::env::var_os("MMRSPACE_PUBLIC_APERIO_SVS")
-        .expect("MMRSPACE_PUBLIC_APERIO_SVS must name the checksummed public fixture");
-    let oracle_path = std::env::var_os("MMRSPACE_PUBLIC_APERIO_ORACLE_PNG")
-        .expect("MMRSPACE_PUBLIC_APERIO_ORACLE_PNG must name the OpenSlide oracle PNG");
+    let slide_path = std::env::var_os("MARKLAB_PUBLIC_APERIO_SVS")
+        .expect("MARKLAB_PUBLIC_APERIO_SVS must name the checksummed public fixture");
+    let oracle_path = std::env::var_os("MARKLAB_PUBLIC_APERIO_ORACLE_PNG")
+        .expect("MARKLAB_PUBLIC_APERIO_ORACLE_PNG must name the OpenSlide oracle PNG");
 
-    let slide = mmrspace::SlideReader::open(slide_path).expect("open public Aperio fixture");
+    let slide = marklab::SlideReader::open(slide_path).expect("open public Aperio fixture");
     let metadata = slide.metadata();
     let levels = &metadata.scenes[0].series[0].levels;
     assert_eq!((levels[0].width, levels[0].height), (15_374, 17_497));
     assert_eq!(levels.len(), 3);
 
     let actual = slide
-        .read_region_rgba(&mmrspace::RegionRequest {
+        .read_region_rgba(&marklab::RegionRequest {
             scene: 0,
             series: 0,
             level: 0,
-            plane: mmrspace::PlaneSelection::default(),
+            plane: marklab::PlaneSelection::default(),
             x: 7_000,
             y: 8_000,
             width: 256,

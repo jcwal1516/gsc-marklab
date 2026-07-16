@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, path::Path};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     geom::mask::TumorMask,
     io::load_pattern_path,
 };
@@ -65,7 +65,7 @@ impl Pattern {
     pub fn from_paths(cells: impl AsRef<Path>, mask: impl AsRef<Path>) -> Result<Self> {
         let mask_path = mask.as_ref();
         let mask_text = std::fs::read_to_string(mask_path)
-            .map_err(|source| MmrspaceError::io(mask_path, source))?;
+            .map_err(|source| MarklabError::io(mask_path, source))?;
         let mask = TumorMask::from_geojson_str(&mask_text)?;
         load_pattern_path(cells, &mask)
     }
@@ -77,13 +77,13 @@ impl Pattern {
         meta: PatternMeta,
     ) -> Result<Self> {
         if x_um.len() != y_um.len() || x_um.len() != mark.len() {
-            return Err(MmrspaceError::Schema(
+            return Err(MarklabError::Schema(
                 "x_um, y_um, and mark arrays must have equal length".into(),
             ));
         }
 
         if mark.iter().any(|value| *value != 0 && *value != 1) {
-            return Err(MmrspaceError::Schema(
+            return Err(MarklabError::Schema(
                 "mark must be binary with values 0 or 1".into(),
             ));
         }
@@ -93,7 +93,7 @@ impl Pattern {
             .chain(y_um.iter())
             .any(|value| !value.is_finite())
         {
-            return Err(MmrspaceError::Schema(
+            return Err(MarklabError::Schema(
                 "coordinates must be finite f64 values".into(),
             ));
         }

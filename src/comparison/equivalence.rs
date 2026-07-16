@@ -1,6 +1,6 @@
 use crate::{
     comparison::curves::max_abs_standardized_difference,
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     output::CurveTestResult,
 };
 
@@ -46,7 +46,7 @@ pub fn curve_equivalence_test(
 
 fn validate_margin(margin: Option<f64>) -> Result<()> {
     match margin {
-        Some(margin) if !margin.is_finite() || margin < 0.0 => Err(MmrspaceError::Config(
+        Some(margin) if !margin.is_finite() || margin < 0.0 => Err(MarklabError::Config(
             "curve equivalence margin must be finite and non-negative".into(),
         )),
         _ => Ok(()),

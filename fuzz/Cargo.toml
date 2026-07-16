@@ -1,5 +1,5 @@
 [package]
-name = "mmrspace-fuzz"
+name = "marklab-fuzz"
 version = "0.0.0"
 publish = false
 edition = "2021"
@@ -10,7 +10,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 tempfile = "3"
-mmrspace = { path = "..", default-features = false, features = ["csv"] }
+marklab = { path = "..", default-features = false, features = ["csv"] }
 
 [[bin]]
 name = "config"

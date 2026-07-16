@@ -1,7 +1,7 @@
 use crate::{
     config::{AnalysisConfig, RegistrationTransform},
     diagnostics::graph_smoothing::graph_smoothing,
-    errors::{MmrspaceError, Result},
+    errors::{MarklabError, Result},
     multimodal::{
         cell_table::{HeCell, IhcCell},
         fusion::{fuse_registered_cells, FusionMeta},
@@ -41,17 +41,17 @@ impl MultimodalEngine {
     pub fn new(config: AnalysisConfig) -> Result<Self> {
         config.validate()?;
         if config.diagnostics.beta_binomial {
-            return Err(MmrspaceError::Config(
+            return Err(MarklabError::Config(
                 "beta_binomial diagnostic requires marked-pattern input; multimodal analyze supports graph_smoothing only".into(),
             ));
         }
         if !config.registration.enabled {
-            return Err(MmrspaceError::Config(
+            return Err(MarklabError::Config(
                 "multimodal analyze requires [registration].enabled = true".into(),
             ));
         }
         if !config.neighborhood.enabled {
-            return Err(MmrspaceError::Config(
+            return Err(MarklabError::Config(
                 "multimodal analyze requires [neighborhood].enabled = true".into(),
             ));
         }
@@ -70,7 +70,7 @@ impl MultimodalEngine {
             self.config.registration.claim_distance_multiplier,
         )?;
         if registration.rmse_um > self.config.registration.max_rmse_um {
-            return Err(MmrspaceError::Validation(format!(
+            return Err(MarklabError::Validation(format!(
                 "registration RMSE {:.3} um exceeds configured max_rmse_um {:.3} um",
                 registration.rmse_um, self.config.registration.max_rmse_um
             )));
@@ -192,13 +192,13 @@ fn validate_input(input: &MultimodalInput, config: &AnalysisConfig) -> Result<()
         ("protein", input.protein.as_str()),
     ] {
         if value.trim().is_empty() {
-            return Err(MmrspaceError::Schema(format!(
+            return Err(MarklabError::Schema(format!(
                 "MultimodalInput.{name} must not be blank"
             )));
         }
     }
     if input.landmarks.len() < config.registration.min_landmarks {
-        return Err(MmrspaceError::Validation(format!(
+        return Err(MarklabError::Validation(format!(
             "registration requires at least {} landmarks, found {}",
             config.registration.min_landmarks,
             input.landmarks.len()

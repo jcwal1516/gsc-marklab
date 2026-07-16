@@ -1,6 +1,6 @@
 use arrow::array::{Array, BooleanArray, Float32Array, StringArray, UInt16Array, UInt32Array};
 
-use crate::errors::{MmrspaceError, Result};
+use crate::errors::{MarklabError, Result};
 use crate::io::{checked_finite, checked_positive, checked_probability};
 
 use super::schema::BatchColumns;
@@ -38,14 +38,14 @@ impl DecodedRow {
         let x_um = columns.x.value(row);
         let y_um = columns.y.value(row);
         if !x_um.is_finite() || !y_um.is_finite() {
-            return Err(MmrspaceError::Schema(format!(
+            return Err(MarklabError::Schema(format!(
                 "Parquet row {} has non-finite coordinates",
                 row + 1
             )));
         }
         let mark = columns.mark.value(row);
         if mark > 1 {
-            return Err(MmrspaceError::Schema(format!(
+            return Err(MarklabError::Schema(format!(
                 "Parquet row {} mark must be 0 or 1",
                 row + 1
             )));

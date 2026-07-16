@@ -16,9 +16,9 @@ pub(super) fn run(
 
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(batch_threads)
-            .thread_name(|i| format!("mmrspace-batch-{i}"))
+            .thread_name(|i| format!("marklab-batch-{i}"))
             .build()
-            .map_err(|error| MmrspaceError::Compute(error.to_string()))?;
+            .map_err(|error| MarklabError::Compute(error.to_string()))?;
 
         return pool.install(|| {
             rows.into_par_iter().try_for_each(|row| {

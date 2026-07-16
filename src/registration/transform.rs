@@ -1,4 +1,4 @@
-use crate::errors::{MmrspaceError, Result};
+use crate::errors::{MarklabError, Result};
 use crate::registration::landmarks::LandmarkPair;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -42,7 +42,7 @@ impl Transform2D {
 pub fn fit_similarity(landmarks: &[LandmarkPair]) -> Result<Transform2D> {
     validate_landmarks(landmarks)?;
     if landmarks.is_empty() {
-        return Err(MmrspaceError::Compute(
+        return Err(MarklabError::Compute(
             "at least one landmark is required for similarity".into(),
         ));
     }
@@ -85,7 +85,7 @@ pub fn fit_similarity(landmarks: &[LandmarkPair]) -> Result<Transform2D> {
     let degenerate_threshold =
         (source_scale * source_scale * landmarks.len() as f64).max(f64::MIN_POSITIVE) * 1.0e-12;
     if denominator <= degenerate_threshold {
-        return Err(MmrspaceError::Compute(
+        return Err(MarklabError::Compute(
             "source landmarks must span nonzero distance for similarity".into(),
         ));
     }
@@ -105,7 +105,7 @@ pub fn fit_similarity(landmarks: &[LandmarkPair]) -> Result<Transform2D> {
 pub fn fit_affine(landmarks: &[LandmarkPair]) -> Result<Transform2D> {
     validate_landmarks(landmarks)?;
     if landmarks.len() < 3 {
-        return Err(MmrspaceError::Compute(
+        return Err(MarklabError::Compute(
             "at least three landmarks are required for affine".into(),
         ));
     }
@@ -143,7 +143,7 @@ pub(crate) fn validate_landmarks(landmarks: &[LandmarkPair]) -> Result<()> {
     if landmarks.iter().all(LandmarkPair::is_finite) {
         Ok(())
     } else {
-        Err(MmrspaceError::Compute(
+        Err(MarklabError::Compute(
             "landmark coordinates must be finite".into(),
         ))
     }
@@ -166,7 +166,7 @@ fn solve_3x3(mut matrix: [[f64; 3]; 3], mut rhs: [f64; 3]) -> Result<[f64; 3]> {
             })
             .expect("non-empty pivot range");
         if matrix[pivot_row][pivot_col].abs() <= singular_threshold {
-            return Err(MmrspaceError::Compute(
+            return Err(MarklabError::Compute(
                 "landmark geometry is singular for affine transform".into(),
             ));
         }
@@ -201,7 +201,7 @@ fn solve_3x3(mut matrix: [[f64; 3]; 3], mut rhs: [f64; 3]) -> Result<[f64; 3]> {
     if rhs.iter().all(|value| value.is_finite()) {
         Ok(rhs)
     } else {
-        Err(MmrspaceError::Compute(
+        Err(MarklabError::Compute(
             "affine solve produced non-finite coefficients".into(),
         ))
     }

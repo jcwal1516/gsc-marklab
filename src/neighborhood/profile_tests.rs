@@ -1,7 +1,7 @@
 use crate::{
     multimodal::cell_table::{CellSection, FusedCell},
     neighborhood::profiles::{compare_territory_profiles, territory_profiles},
-    LabelFraction, MmrspaceError, TerritoryFeature, TerritoryProfile,
+    LabelFraction, MarklabError, TerritoryFeature, TerritoryProfile,
 };
 
 fn fused(id: &str, x: f64, y: f64, label: &str) -> FusedCell {
@@ -263,7 +263,7 @@ fn territory_comparison_rejects_duplicate_profile_labels() {
 
     let err = compare_territory_profiles(&profiles, Some(0.25)).expect_err("duplicate labels");
 
-    assert!(matches!(err, MmrspaceError::Schema(_)));
+    assert!(matches!(err, MarklabError::Schema(_)));
 }
 
 #[test]
@@ -289,7 +289,7 @@ fn territory_comparison_rejects_invalid_public_profile_fractions() {
 
     let err = compare_territory_profiles(&profiles, Some(0.25)).expect_err("invalid fraction");
 
-    assert!(matches!(err, MmrspaceError::Schema(_)));
+    assert!(matches!(err, MarklabError::Schema(_)));
 }
 
 #[test]

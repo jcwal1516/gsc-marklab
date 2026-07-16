@@ -1,9 +1,9 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use mmrspace::{AnalysisConfig, AnalysisEngine, Pattern, PatternMeta, ThreadSetting};
+use marklab::{AnalysisConfig, AnalysisEngine, Pattern, PatternMeta, ThreadSetting};
 use std::hint::black_box;
 
 fn bench_marked_analysis_periodogram_grid1024(c: &mut Criterion) {
-    let full = std::env::var("MMRSPACE_BENCH_PROFILE").as_deref() == Ok("full");
+    let full = std::env::var("MARKLAB_BENCH_PROFILE").as_deref() == Ok("full");
     let side = if full { 1024 } else { 64 };
     let n = if full { 1_000 } else { 250 };
     let mut x = (0..n)
