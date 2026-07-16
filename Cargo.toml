@@ -5,6 +5,7 @@ edition = "2021"
 rust-version = "1.96"
 license = "MIT OR Apache-2.0"
 description = "Spatial statistics for marked cell patterns in pathology"
+repository = "https://github.com/jcwal1516/marklab"
 readme = "README.md"
 keywords = ["pathology", "spatial", "statistics", "ihc", "rust"]
 categories = ["science", "command-line-utilities"]
