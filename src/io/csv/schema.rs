@@ -1,0 +1,33 @@
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+pub(super) struct CellRow {
+    pub x_um: f64,
+    pub y_um: f64,
+    pub mark: u8,
+    pub case_id: String,
+    pub timepoint: String,
+    pub protein: String,
+    pub valid_tumor: bool,
+    pub valid_ihc: bool,
+    pub internal_control_local: Option<String>,
+    pub artifact: Option<bool>,
+    pub edge_artifact: Option<bool>,
+    pub fold_artifact: Option<bool>,
+    pub necrosis: Option<bool>,
+    pub nonviable_therapy_effect: Option<bool>,
+    pub slide_id: Option<String>,
+    pub section_id: Option<String>,
+    pub stain_batch: Option<String>,
+    pub block_id: Option<String>,
+    pub slide_region: Option<String>,
+    pub histologic_compartment: Option<String>,
+    pub region_id: Option<String>,
+    pub qc_bin: Option<u16>,
+    pub component_id: Option<u32>,
+    pub mark_probability: Option<f32>,
+    pub tumor_probability: Option<f32>,
+    pub nucleus_area_um2: Option<f32>,
+    pub local_dab_od: Option<f32>,
+    pub local_hematoxylin_od: Option<f32>,
+}

@@ -1,0 +1,46 @@
+name: Public WSI validation
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  aperio-jp2k:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.96.0
+
+      - name: Install the independent decoder
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends openslide-tools
+
+      - name: Download and verify the public fixture
+        run: |
+          curl --fail --location --retry 3 \
+            --output /tmp/JP2K-33003-1.svs \
+            https://openslide.cs.cmu.edu/download/openslide-testdata/Aperio/JP2K-33003-1.svs
+          echo "6205ccf75a8fa6c32df7c5c04b7377398971a490fb6b320d50d91f7ba6a0e6fd  /tmp/JP2K-33003-1.svs" \
+            | sha256sum --check --strict
+
+      - name: Generate the OpenSlide oracle
+        run: |
+          openslide-write-png \
+            /tmp/JP2K-33003-1.svs 7000 8000 0 256 256 \
+            /tmp/JP2K-33003-1-openslide.png
+
+      - name: Compare wsi-rs/J2K output with the oracle
+        env:
+          MMRSPACE_PUBLIC_APERIO_SVS: /tmp/JP2K-33003-1.svs
+          MMRSPACE_PUBLIC_APERIO_ORACLE_PNG: /tmp/JP2K-33003-1-openslide.png
+        run: >-
+          cargo test --locked --features wsi,cli --test wsi_integration
+          public_aperio_jp2k_region_matches_openslide_oracle
+          -- --ignored --exact

@@ -1,0 +1,21 @@
+name: Full Benchmarks
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+
+jobs:
+  production-workloads:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.96.0
+      - name: Full declared workloads
+        run: /usr/bin/time -v -o benchmark-resources.txt env MMRSPACE_BENCH_PROFILE=full cargo bench --locked --all-features
+      - uses: actions/upload-artifact@v4
+        with:
+          name: full-criterion-results
+          path: |
+            target/criterion
+            benchmark-resources.txt

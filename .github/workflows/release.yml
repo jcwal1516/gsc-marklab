@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  binary:
+    name: binary-${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            archive: tar.gz
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            archive: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build declared target with WSI support
+        uses: houseabsolute/actions-rust-cross@v1
+        with:
+          command: build
+          target: ${{ matrix.target }}
+          toolchain: 1.96.0
+          args: --release --locked --features wsi --bin mmrspace
+      - name: Package Unix binary
+        if: matrix.archive == 'tar.gz'
+        run: |
+          mkdir -p dist
+          cp README.md LICENSE-MIT LICENSE-APACHE dist/
+          tar -czf dist/mmrspace-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release mmrspace -C "$GITHUB_WORKSPACE/dist" README.md LICENSE-MIT LICENSE-APACHE
+          sha256sum dist/mmrspace-${{ matrix.target }}.tar.gz > dist/mmrspace-${{ matrix.target }}.tar.gz.sha256
+          sha256sum --check dist/mmrspace-${{ matrix.target }}.tar.gz.sha256
+          tar -tzf dist/mmrspace-${{ matrix.target }}.tar.gz | grep -E '(^|/)README.md$'
+          tar -tzf dist/mmrspace-${{ matrix.target }}.tar.gz | grep -E '(^|/)LICENSE-MIT$'
+          tar -tzf dist/mmrspace-${{ matrix.target }}.tar.gz | grep -E '(^|/)LICENSE-APACHE$'
+      - name: Package Windows binary
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          Copy-Item README.md,LICENSE-MIT,LICENSE-APACHE -Destination dist
+          Compress-Archive -Path target/${{ matrix.target }}/release/mmrspace.exe,dist/README.md,dist/LICENSE-MIT,dist/LICENSE-APACHE -DestinationPath dist/mmrspace-${{ matrix.target }}.zip
+          (Get-FileHash dist/mmrspace-${{ matrix.target }}.zip -Algorithm SHA256).Hash.ToLower() + "  mmrspace-${{ matrix.target }}.zip" | Out-File -Encoding ascii dist/mmrspace-${{ matrix.target }}.zip.sha256
+          $archive = Get-FileHash dist/mmrspace-${{ matrix.target }}.zip -Algorithm SHA256
+          $expected = (Get-Content dist/mmrspace-${{ matrix.target }}.zip.sha256).Split()[0]
+          if ($archive.Hash.ToLower() -ne $expected) { throw "archive checksum mismatch" }
+          Expand-Archive dist/mmrspace-${{ matrix.target }}.zip -DestinationPath archive-smoke
+          foreach ($name in @("mmrspace.exe", "README.md", "LICENSE-MIT", "LICENSE-APACHE")) {
+            if (-not (Test-Path archive-smoke/$name)) { throw "$name missing from archive" }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mmrspace-${{ matrix.target }}
+          path: dist/*

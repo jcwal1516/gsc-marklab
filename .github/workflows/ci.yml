@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  workflow-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: actionlint
+        uses: raven-actions/actionlint@v2
+
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.96.0
+      - uses: taiki-e/install-action@nextest
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --all-targets --all-features -- -D warnings
+      - run: cargo nextest run --locked --all-features
+      - run: cargo test --locked --doc --all-features
+      - run: cargo check --locked --no-default-features
+      - run: cargo test --locked --features wsi,cli --test wsi_integration
+
+  dependency-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.96.0
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit,cargo-deny,cargo-machete
+      - run: cargo audit
+      - run: cargo deny check advisories licenses bans sources
+      - run: cargo machete
+      - run: cargo package --locked
+
+  fuzz-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - run: cargo +nightly fuzz check
+
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.96.0
+      - name: Small production-workload smoke benchmark
+        run: /usr/bin/time -v -o benchmark-resources.txt env MMRSPACE_BENCH_PROFILE=smoke cargo bench --locked --all-features -- --quick
+      - uses: actions/upload-artifact@v4
+        with:
+          name: criterion-results
+          path: |
+            target/criterion
+            benchmark-resources.txt
+
+  heap-regression:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.96.0
+      - run: cargo test --locked --no-default-features --features dhat-heap --lib dhat_ -- --test-threads=1
+
+  synthetic-validation:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.96.0
+      - run: cargo run --release --locked --features wsi --bin mmrspace -- validate --suite synthetic --replicates 1000 --out validation-ci
+      - uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-validation
+          path: validation-ci/validation.json

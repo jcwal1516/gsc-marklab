@@ -1,0 +1,574 @@
+use std::collections::{BTreeMap, BTreeSet};
+
+use crate::{
+    comparison::{difference::curve_difference_test, equivalence::curve_equivalence_test},
+    output::{
+        AnalysisSection, CrossInteractionCurve, CurveTestResult, MarkedPatternResult,
+        MultimodalResult, PrePostResult, StatusFlag, TerritoryFeature, TerritoryPrePostSummary,
+    },
+};
+
+const PREPOST_CURVE_TEST_SEED: u64 = 0x7072_6570_6f73_7400;
+const PREPOST_MULTIMODAL_CURVE_PERMUTATIONS: usize = 99;
+
+pub fn compare_prepost(pre: &MarkedPatternResult, post: &MarkedPatternResult) -> PrePostResult {
+    let mut status_flags = Vec::new();
+    let anatomically_comparable = pre.case_id == post.case_id
+        && pre.protein == post.protein
+        && pre.timepoint.eq_ignore_ascii_case("pre")
+        && post.timepoint.eq_ignore_ascii_case("post");
+    if !anatomically_comparable {
+        status_flags.push(StatusFlag::PrePostNotAnatomicallyComparable);
+    }
+    let interpretation_text = if anatomically_comparable {
+        "The post-treatment section shows descriptive change in coarse-scale spatial organization of the configured MMR-IHC phenotype compared with the pretreatment section.".into()
+    } else {
+        "The pre/post sections are not anatomically comparable; numeric deltas are emitted as diagnostics only.".into()
+    };
+
+    let territory_summary = territory_prepost_summary(pre, post);
+    let delta_territory_count = territory_summary
+        .value()
+        .map(|summary| summary.delta_count)
+        .map_or_else(
+            || AnalysisSection::InsufficientData {
+                reason: "wavelet territories are unavailable in one or both results".into(),
+            },
+            AnalysisSection::available,
+        );
+    let pre_spectrum = pre.spectrum.value();
+    let post_spectrum = post.spectrum.value();
+    let pre_anisotropy = pre.anisotropy.value();
+    let post_anisotropy = post.anisotropy.value();
+    let pre_wavelet = pre.wavelet.value();
+    let post_wavelet = post.wavelet.value();
+
+    PrePostResult {
+        status_flags,
+        curve_tests: prepost_curve_tests(pre, post),
+        delta_xi_um: numeric_delta(
+            pre_spectrum.and_then(|value| value.xi_um),
+            post_spectrum.and_then(|value| value.xi_um),
+            "xi_um is unavailable in one or both results",
+        ),
+        delta_low_k_excess: numeric_delta(
+            pre_spectrum.map(|value| value.low_k_excess),
+            post_spectrum.map(|value| value.low_k_excess),
+            "spectrum is unavailable in one or both results",
+        ),
+        delta_alpha: numeric_delta(
+            pre_spectrum.and_then(|value| value.alpha),
+            post_spectrum.and_then(|value| value.alpha),
+            "fitted low-k exponent is unavailable in one or both results",
+        ),
+        delta_anisotropy_index: numeric_delta(
+            pre_anisotropy.map(|value| value.index),
+            post_anisotropy.map(|value| value.index),
+            "anisotropy is unavailable in one or both results",
+        ),
+        delta_coarse_variance_fraction: numeric_delta(
+            pre_wavelet.map(|value| value.coarse_variance_fraction),
+            post_wavelet.map(|value| value.coarse_variance_fraction),
+            "wavelet analysis is unavailable in one or both results",
+        ),
+        delta_territory_count,
+        territory_summary,
+        interpretation_text,
+    }
+}
+
+pub fn compare_multimodal_prepost(
+    pre: &MultimodalResult,
+    post: &MultimodalResult,
+) -> PrePostResult {
+    let mut status_flags = Vec::new();
+    let anatomically_comparable = pre.case_id == post.case_id
+        && pre.protein == post.protein
+        && pre.timepoint.eq_ignore_ascii_case("pre")
+        && post.timepoint.eq_ignore_ascii_case("post");
+    if !anatomically_comparable {
+        status_flags.push(StatusFlag::PrePostNotAnatomicallyComparable);
+    }
+
+    let territory_summary = territory_prepost_summary_from_slices(
+        pre.neighborhood_territories.value().map(Vec::as_slice),
+        post.neighborhood_territories.value().map(Vec::as_slice),
+        "neighborhood territories are unavailable in one or both results",
+    );
+    let delta_territory_count = territory_summary
+        .value()
+        .map(|summary| AnalysisSection::available(summary.delta_count))
+        .unwrap_or_else(|| AnalysisSection::InsufficientData {
+            reason: "neighborhood territories are unavailable in one or both results".into(),
+        });
+    let mut curve_tests = Vec::new();
+    append_cross_interaction_curve_tests_for_sections(
+        &mut curve_tests,
+        pre.cross_interaction_curves.value().map(Vec::as_slice),
+        post.cross_interaction_curves.value().map(Vec::as_slice),
+    );
+
+    PrePostResult {
+        status_flags,
+        curve_tests,
+        delta_xi_um: AnalysisSection::NotApplicable,
+        delta_low_k_excess: AnalysisSection::NotApplicable,
+        delta_alpha: AnalysisSection::NotApplicable,
+        delta_anisotropy_index: AnalysisSection::NotApplicable,
+        delta_coarse_variance_fraction: AnalysisSection::NotApplicable,
+        delta_territory_count,
+        territory_summary,
+        interpretation_text: if anatomically_comparable {
+            "The post-treatment section shows descriptive change in multimodal neighborhood organization compared with the pretreatment section.".into()
+        } else {
+            "The pre/post multimodal sections are not anatomically comparable; numeric deltas are emitted as diagnostics only.".into()
+        },
+    }
+}
+
+fn numeric_delta(pre: Option<f64>, post: Option<f64>, reason: &str) -> AnalysisSection<f64> {
+    match (pre, post) {
+        (Some(pre), Some(post)) if pre.is_finite() && post.is_finite() => {
+            AnalysisSection::available(post - pre)
+        }
+        _ => AnalysisSection::InsufficientData {
+            reason: reason.into(),
+        },
+    }
+}
+
+fn prepost_curve_tests(
+    pre: &MarkedPatternResult,
+    post: &MarkedPatternResult,
+) -> Vec<CurveTestResult> {
+    let mut tests = Vec::new();
+
+    append_curve_tests(
+        &mut tests,
+        "spectrum",
+        &spectrum_values(pre),
+        &spectrum_values(post),
+        spectrum_axes_aligned(pre, post),
+        pre.spectrum
+            .value()
+            .map_or(0, |value| value.n_permutations)
+            .max(
+                post.spectrum
+                    .value()
+                    .map_or(0, |value| value.n_permutations),
+            ),
+        PREPOST_CURVE_TEST_SEED,
+    );
+    append_curve_tests(
+        &mut tests,
+        "pair_correlation",
+        &pair_correlation_values(pre),
+        &pair_correlation_values(post),
+        pair_correlation_axes_aligned(pre, post),
+        pre.pair_correlation
+            .value()
+            .map_or(0, |value| value.n_permutations)
+            .max(
+                post.pair_correlation
+                    .value()
+                    .map_or(0, |value| value.n_permutations),
+            ),
+        PREPOST_CURVE_TEST_SEED ^ 0x7061_6972,
+    );
+    append_cross_interaction_curve_tests(&mut tests, pre, post);
+
+    tests
+}
+
+fn append_curve_tests(
+    tests: &mut Vec<CurveTestResult>,
+    comparison_name: &str,
+    pre_values: &[f64],
+    post_values: &[f64],
+    axis_alignment: Result<(), String>,
+    permutations: usize,
+    seed: u64,
+) {
+    if pre_values.is_empty() && post_values.is_empty() {
+        tests.push(curve_test_error(
+            comparison_name,
+            "curve_availability",
+            format!(
+                "{comparison_name} curve is absent in both pre/post results; formal difference/equivalence diagnostics were not computed"
+            ),
+        ));
+        return;
+    }
+
+    if let Err(reason) = axis_alignment {
+        tests.push(curve_test_error(
+            comparison_name,
+            "axis_alignment",
+            format!(
+                "{comparison_name} curve axis is not aligned: {reason}; formal difference/equivalence diagnostics were not computed"
+            ),
+        ));
+        return;
+    }
+
+    if pre_values.is_empty() || pre_values.len() != post_values.len() {
+        tests.push(curve_test_error(
+            comparison_name,
+            "axis_alignment",
+            format!(
+                "{comparison_name} curve axis is not aligned: curve lengths differ or one curve is empty; formal difference/equivalence diagnostics were not computed"
+            ),
+        ));
+        return;
+    }
+
+    match curve_difference_test(comparison_name, pre_values, post_values, permutations, seed) {
+        Ok(test) => tests.push(test),
+        Err(err) => tests.push(curve_test_error(
+            comparison_name,
+            "max_abs_standardized_difference",
+            format!("curve difference diagnostic could not be computed: {err}"),
+        )),
+    }
+    match curve_equivalence_test(comparison_name, pre_values, post_values, None) {
+        Ok(test) => tests.push(test),
+        Err(err) => tests.push(curve_test_error(
+            comparison_name,
+            "max_abs_standardized_difference",
+            format!("curve equivalence diagnostic could not be computed: {err}"),
+        )),
+    }
+}
+
+fn curve_test_error(
+    comparison_name: &str,
+    metric: &str,
+    interpretation: String,
+) -> CurveTestResult {
+    CurveTestResult {
+        comparison_name: comparison_name.to_owned(),
+        metric: metric.to_owned(),
+        statistic: 0.0,
+        p_difference: None,
+        equivalence_margin: None,
+        p_equivalence: None,
+        equivalent: None,
+        interpretation,
+    }
+}
+
+fn spectrum_values(result: &MarkedPatternResult) -> Vec<f64> {
+    result
+        .spectrum_curve
+        .iter()
+        .map(|point| point.whitened_power)
+        .collect()
+}
+
+fn pair_correlation_values(result: &MarkedPatternResult) -> Vec<f64> {
+    result
+        .pair_correlation_curve
+        .iter()
+        .map(|point| point.value)
+        .collect()
+}
+
+fn append_cross_interaction_curve_tests(
+    tests: &mut Vec<CurveTestResult>,
+    pre: &MarkedPatternResult,
+    post: &MarkedPatternResult,
+) {
+    append_cross_interaction_curve_tests_for_sections(
+        tests,
+        pre.cross_interaction_curves.value().map(Vec::as_slice),
+        post.cross_interaction_curves.value().map(Vec::as_slice),
+    );
+}
+
+fn append_cross_interaction_curve_tests_for_sections(
+    tests: &mut Vec<CurveTestResult>,
+    pre_curves: Option<&[CrossInteractionCurve]>,
+    post_curves: Option<&[CrossInteractionCurve]>,
+) {
+    let pre_curves = cross_curve_map(pre_curves.unwrap_or(&[]));
+    let post_curves = cross_curve_map(post_curves.unwrap_or(&[]));
+    let keys = pre_curves
+        .keys()
+        .chain(post_curves.keys())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+
+    for key in keys {
+        let comparison_name = format!("cross_interaction:{}/{}", key.0, key.1);
+        match (pre_curves.get(&key), post_curves.get(&key)) {
+            (Some(pre_curve), Some(post_curve)) => append_curve_tests(
+                tests,
+                &comparison_name,
+                &cross_interaction_values(pre_curve),
+                &cross_interaction_values(post_curve),
+                cross_interaction_axes_aligned(pre_curve, post_curve),
+                PREPOST_MULTIMODAL_CURVE_PERMUTATIONS,
+                PREPOST_CURVE_TEST_SEED ^ cross_curve_seed(&key),
+            ),
+            _ => tests.push(curve_test_error(
+                &comparison_name,
+                "curve_availability",
+                format!(
+                    "{comparison_name} curve is absent from one pre/post result; formal difference/equivalence diagnostics were not computed"
+                ),
+            )),
+        }
+    }
+}
+
+fn cross_curve_map(
+    curves: &[CrossInteractionCurve],
+) -> BTreeMap<(String, String), &CrossInteractionCurve> {
+    curves
+        .iter()
+        .map(|curve| ((curve.label_a.clone(), curve.label_b.clone()), curve))
+        .collect()
+}
+
+fn cross_interaction_values(curve: &CrossInteractionCurve) -> Vec<f64> {
+    curve.points.iter().map(|point| point.value).collect()
+}
+
+fn cross_interaction_axes_aligned(
+    pre: &CrossInteractionCurve,
+    post: &CrossInteractionCurve,
+) -> Result<(), String> {
+    if pre.points.len() != post.points.len() {
+        return Err(format!(
+            "cross-interaction bin counts differ: {} vs {}",
+            pre.points.len(),
+            post.points.len()
+        ));
+    }
+
+    for (index, (pre_point, post_point)) in pre.points.iter().zip(&post.points).enumerate() {
+        if !pre_point.r_min_um.is_finite()
+            || !pre_point.r_max_um.is_finite()
+            || !post_point.r_min_um.is_finite()
+            || !post_point.r_max_um.is_finite()
+        {
+            return Err(format!(
+                "cross-interaction axis contains non-finite bin edge at index {index}"
+            ));
+        }
+        if pre_point.r_min_um != post_point.r_min_um || pre_point.r_max_um != post_point.r_max_um {
+            return Err(format!(
+                "cross-interaction axis differs at index {index}: [{}, {}) vs [{}, {})",
+                pre_point.r_min_um, pre_point.r_max_um, post_point.r_min_um, post_point.r_max_um
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn cross_curve_seed(key: &(String, String)) -> u64 {
+    key.0.bytes().chain(key.1.bytes()).fold(0_u64, |acc, byte| {
+        acc.wrapping_mul(1099511628211).wrapping_add(byte as u64)
+    })
+}
+
+fn territory_prepost_summary(
+    pre: &MarkedPatternResult,
+    post: &MarkedPatternResult,
+) -> AnalysisSection<TerritoryPrePostSummary> {
+    territory_prepost_summary_from_slices(
+        pre.wavelet_territories.value().map(Vec::as_slice),
+        post.wavelet_territories.value().map(Vec::as_slice),
+        "wavelet territories are unavailable in one or both results",
+    )
+}
+
+fn territory_prepost_summary_from_slices(
+    pre_territories: Option<&[TerritoryFeature]>,
+    post_territories: Option<&[TerritoryFeature]>,
+    unavailable_reason: &str,
+) -> AnalysisSection<TerritoryPrePostSummary> {
+    let (Some(pre_territories), Some(post_territories)) = (pre_territories, post_territories)
+    else {
+        return AnalysisSection::InsufficientData {
+            reason: unavailable_reason.into(),
+        };
+    };
+    let pre_count = pre_territories.len();
+    let post_count = post_territories.len();
+    AnalysisSection::available(TerritoryPrePostSummary {
+        pre_count,
+        post_count,
+        delta_count: post_count as isize - pre_count as isize,
+        delta_mean_radius_um: numeric_delta(
+            mean_territory_radius(pre_territories),
+            mean_territory_radius(post_territories),
+            "mean territory radius is undefined because one result has no territories",
+        ),
+        delta_median_radius_um: numeric_delta(
+            median_territory_radius(pre_territories),
+            median_territory_radius(post_territories),
+            "median territory radius is undefined because one result has no territories",
+        ),
+        delta_mean_supporting_cells: numeric_delta(
+            mean_supporting_cells(pre_territories),
+            mean_supporting_cells(post_territories),
+            "mean supporting-cell count is undefined because one result has no territories",
+        ),
+        delta_median_supporting_cells: numeric_delta(
+            median_supporting_cells(pre_territories),
+            median_supporting_cells(post_territories),
+            "median supporting-cell count is undefined because one result has no territories",
+        ),
+        new_domain_count: unmatched_domain_count(post_territories, pre_territories),
+        lost_domain_count: unmatched_domain_count(pre_territories, post_territories),
+    })
+}
+
+fn mean_territory_radius(territories: &[TerritoryFeature]) -> Option<f64> {
+    if territories.is_empty() {
+        None
+    } else {
+        Some(
+            territories
+                .iter()
+                .map(|territory| territory.radius_um)
+                .sum::<f64>()
+                / territories.len() as f64,
+        )
+    }
+}
+
+fn median_territory_radius(territories: &[TerritoryFeature]) -> Option<f64> {
+    let mut values = territories
+        .iter()
+        .map(|territory| territory.radius_um)
+        .collect::<Vec<_>>();
+    median(&mut values)
+}
+
+fn mean_supporting_cells(territories: &[TerritoryFeature]) -> Option<f64> {
+    if territories.is_empty() {
+        None
+    } else {
+        Some(
+            territories
+                .iter()
+                .map(|territory| territory.supporting_cells as f64)
+                .sum::<f64>()
+                / territories.len() as f64,
+        )
+    }
+}
+
+fn median_supporting_cells(territories: &[TerritoryFeature]) -> Option<f64> {
+    let mut values = territories
+        .iter()
+        .map(|territory| territory.supporting_cells as f64)
+        .collect::<Vec<_>>();
+    median(&mut values)
+}
+
+fn median(values: &mut [f64]) -> Option<f64> {
+    if values.is_empty() {
+        return None;
+    }
+    values.sort_by(f64::total_cmp);
+    let midpoint = values.len() / 2;
+    if values.len().is_multiple_of(2) {
+        Some((values[midpoint - 1] + values[midpoint]) / 2.0)
+    } else {
+        Some(values[midpoint])
+    }
+}
+
+fn unmatched_domain_count(query: &[TerritoryFeature], reference: &[TerritoryFeature]) -> usize {
+    query
+        .iter()
+        .filter(|territory| {
+            !reference
+                .iter()
+                .any(|candidate| domains_match(territory, candidate))
+        })
+        .count()
+}
+
+fn domains_match(left: &TerritoryFeature, right: &TerritoryFeature) -> bool {
+    let dx = left.center_x_um - right.center_x_um;
+    let dy = left.center_y_um - right.center_y_um;
+    let tolerance = left.radius_um.max(right.radius_um);
+    dx.hypot(dy) <= tolerance
+}
+
+fn spectrum_axes_aligned(
+    pre: &MarkedPatternResult,
+    post: &MarkedPatternResult,
+) -> Result<(), String> {
+    if pre.spectrum_curve.len() != post.spectrum_curve.len() {
+        return Err(format!(
+            "spectrum k-axis lengths differ: {} vs {}",
+            pre.spectrum_curve.len(),
+            post.spectrum_curve.len()
+        ));
+    }
+
+    for (index, (pre_point, post_point)) in pre
+        .spectrum_curve
+        .iter()
+        .zip(&post.spectrum_curve)
+        .enumerate()
+    {
+        if !pre_point.k.is_finite() || !post_point.k.is_finite() {
+            return Err(format!(
+                "spectrum k-axis contains non-finite value at index {index}"
+            ));
+        }
+        if pre_point.k != post_point.k {
+            return Err(format!(
+                "spectrum k-axis differs at index {index}: {} vs {}",
+                pre_point.k, post_point.k
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn pair_correlation_axes_aligned(
+    pre: &MarkedPatternResult,
+    post: &MarkedPatternResult,
+) -> Result<(), String> {
+    if pre.pair_correlation_curve.len() != post.pair_correlation_curve.len() {
+        return Err(format!(
+            "pair-correlation bin counts differ: {} vs {}",
+            pre.pair_correlation_curve.len(),
+            post.pair_correlation_curve.len()
+        ));
+    }
+
+    for (index, (pre_point, post_point)) in pre
+        .pair_correlation_curve
+        .iter()
+        .zip(&post.pair_correlation_curve)
+        .enumerate()
+    {
+        if !pre_point.r_min_um.is_finite()
+            || !pre_point.r_max_um.is_finite()
+            || !post_point.r_min_um.is_finite()
+            || !post_point.r_max_um.is_finite()
+        {
+            return Err(format!(
+                "pair-correlation axis contains non-finite bin edge at index {index}"
+            ));
+        }
+        if pre_point.r_min_um != post_point.r_min_um || pre_point.r_max_um != post_point.r_max_um {
+            return Err(format!(
+                "pair-correlation axis differs at index {index}: [{}, {}) vs [{}, {})",
+                pre_point.r_min_um, pre_point.r_max_um, post_point.r_min_um, post_point.r_max_um
+            ));
+        }
+    }
+
+    Ok(())
+}

@@ -1,0 +1,55 @@
+[analysis]
+mark_label = "marked"
+use_probabilistic_marks = false
+analyze_components = "auto"
+
+[validation]
+n_min = 200
+n_marked_min = 25
+n_unmarked_min = 25
+p_min = 0.02
+p_max = 0.98
+area_min_um2 = 100000.0
+k_shell_min = 5
+largest_interpretable_scale_fraction = 0.33
+valid_mask_fraction_min = 0.5
+
+[spectrum]
+k_shells = 64
+low_k_shells = 3
+fit_low_k_alpha = true
+anisotropy_low_k_shells = 5
+
+[periodogram]
+enabled = true
+
+[wavelet]
+enabled = true
+territory_detection = true
+min_territory_z = 2.5
+
+[permutation]
+b = 999
+seed = 123456789
+stratified = true
+strata_fields = ["qc_bin", "component_id"]
+
+[inference]
+family_wise_alpha = 0.05
+
+[diagnostics]
+beta_binomial = false
+graph_smoothing = false
+
+[performance]
+threads = "auto"
+memory_budget_mib = 4096
+k_chunk_modes = 256
+strict_repro = false
+save_intermediates = false
+
+[output]
+write_parquet_curves = true
+write_geojson_territories = true
+write_figures = true
+write_run_manifest = true

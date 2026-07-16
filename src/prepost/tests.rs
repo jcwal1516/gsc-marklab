@@ -1,0 +1,439 @@
+use crate::{
+    comparison::{difference::curve_difference_test, equivalence::curve_equivalence_test},
+    prepost::deltas::compare_prepost,
+    AnalysisSection, AnisotropySummary, CrossInteractionCurve, FunctionalSummary, Interpretation,
+    MarkedPatternResult, PairCorrelationPoint, PrimaryEndpoint, QcSummary, ScalogramPoint,
+    SpectrumPoint, SpectrumSummary, TerritoryFeature, WaveletSummary, WindowSummary,
+};
+
+fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResult {
+    MarkedPatternResult {
+        case_id: case_id.into(),
+        timepoint: timepoint.into(),
+        protein: "MSH6".into(),
+        mark_label: "marked".into(),
+        status: "ok".into(),
+        status_flags: Vec::new(),
+        n_cells: 4,
+        n_marked: 2,
+        p_hat: 0.5,
+        window: WindowSummary {
+            area_um2: 100.0,
+            l_eff_um: 10.0,
+            d_nn_mean_um: 1.0,
+        },
+        qc: QcSummary::default(),
+        primary_endpoint: PrimaryEndpoint {
+            name: "low_k_excess".into(),
+            value: AnalysisSection::available(1.0),
+            p_value: AnalysisSection::available(1.0),
+            null: "fixed_position_random_labeling".into(),
+        },
+        spectrum: AnalysisSection::available(SpectrumSummary {
+            max_interpretable_scale_um: 10.0,
+            k_min: Some(1.0),
+            k_max: Some(2.0),
+            n_k_modes: 2,
+            n_shells: 2,
+            n_permutations: 19,
+            spectral_curve_test: AnalysisSection::available(FunctionalSummary {
+                p_global: Some(1.0),
+                erl_depth: Some(1.0),
+                n_permutations: 19,
+            }),
+            xi_um: Some(10.0),
+            xi_stability_interval_um: Some([8.0, 12.0]),
+            low_k_excess: 1.0,
+            low_k_excess_p_value: Some(1.0),
+            alpha: Some(0.0),
+            xi_um_p_value: Some(1.0),
+            alpha_p_value: Some(1.0),
+        }),
+        spectrum_curve: Vec::new(),
+        pair_correlation: AnalysisSection::available(FunctionalSummary::default()),
+        pair_correlation_curve: Vec::new(),
+        anisotropy: AnalysisSection::available(AnisotropySummary {
+            index: 1.0,
+            theta_deg: None,
+            p_value: Some(1.0),
+        }),
+        wavelet: AnalysisSection::available(WaveletSummary {
+            fine_variance_fraction: 0.0,
+            intermediate_variance_fraction: 0.0,
+            coarse_variance_fraction: 0.0,
+            coarse_to_fine_ratio: None,
+            territory_count: 0,
+            coarse_variance_fraction_p_value: AnalysisSection::available(1.0),
+            territory_count_p_value: AnalysisSection::available(1.0),
+        }),
+        scalogram: AnalysisSection::available(FunctionalSummary::default()),
+        scalogram_curve: Vec::<ScalogramPoint>::new(),
+        wavelet_territories: AnalysisSection::available(Vec::new()),
+        component_results: AnalysisSection::available(Vec::new()),
+        diagnostics: AnalysisSection::Disabled,
+        timings: Vec::new(),
+        interpretation: Interpretation {
+            class: "random_like".into(),
+            text: "No unsafe biological mechanism claim.".into(),
+        },
+        registration: AnalysisSection::NotApplicable,
+        fused_cell_summary: AnalysisSection::NotApplicable,
+        fused_cells: Vec::new(),
+        neighborhood_enrichment: AnalysisSection::NotApplicable,
+        cross_interaction_curves: AnalysisSection::NotApplicable,
+        territory_profiles: AnalysisSection::NotApplicable,
+        territory_comparisons: AnalysisSection::NotApplicable,
+        prepost_curve_tests: Vec::new(),
+    }
+}
+
+fn territory(center_x_um: f64) -> TerritoryFeature {
+    TerritoryFeature {
+        center_x_um,
+        center_y_um: 0.0,
+        radius_um: 10.0,
+        scale_um: 7.0,
+        z_or_power: 2.0,
+        supporting_cells: 2,
+        component_id: None,
+        qc_overlap_fraction: 0.0,
+    }
+}
+
+#[test]
+fn curve_difference_and_equivalence_have_distinct_interpretations() {
+    let pre = [1.0, 1.1, 0.9];
+    let post = [1.01, 1.09, 0.91];
+
+    let difference = curve_difference_test("spectrum", &pre, &post, 19, 123).expect("difference");
+    let equivalence =
+        curve_equivalence_test("spectrum", &pre, &post, Some(0.2)).expect("equivalence");
+
+    assert!(difference.p_difference.is_some());
+    assert_eq!(equivalence.equivalent, Some(true));
+    assert!(!difference.interpretation.contains("same"));
+}
+
+#[test]
+fn prepost_result_includes_curve_tests_when_curves_exist() {
+    let mut pre = minimal_analysis_result("case1", "pre");
+    let mut post = minimal_analysis_result("case1", "post");
+
+    pre.spectrum_curve = vec![
+        SpectrumPoint {
+            k: 1.0,
+            observed_power: 1.0,
+            median_permutation_power: 1.0,
+            whitened_power: 1.0,
+            inference_eligible: true,
+            lower_global_envelope: Some(0.8),
+            upper_global_envelope: Some(1.2),
+        },
+        SpectrumPoint {
+            k: 2.0,
+            observed_power: 1.1,
+            median_permutation_power: 1.0,
+            whitened_power: 1.1,
+            inference_eligible: true,
+            lower_global_envelope: Some(0.8),
+            upper_global_envelope: Some(1.2),
+        },
+    ];
+    post.spectrum_curve = pre.spectrum_curve.clone();
+    post.spectrum_curve[1].whitened_power = 1.12;
+
+    pre.pair_correlation_curve = vec![PairCorrelationPoint {
+        r_min_um: 0.0,
+        r_max_um: 10.0,
+        value: 0.1,
+        inference_eligible: true,
+        lower_global_envelope: Some(0.0),
+        upper_global_envelope: Some(0.2),
+        count: 10,
+    }];
+    pre.pair_correlation
+        .value_mut()
+        .expect("pair correlation")
+        .n_permutations = 7;
+    post.pair_correlation_curve = vec![PairCorrelationPoint {
+        r_min_um: 0.0,
+        r_max_um: 10.0,
+        value: 0.11,
+        inference_eligible: true,
+        lower_global_envelope: Some(0.0),
+        upper_global_envelope: Some(0.2),
+        count: 10,
+    }];
+    post.pair_correlation
+        .value_mut()
+        .expect("pair correlation")
+        .n_permutations = 7;
+
+    let delta = compare_prepost(&pre, &post);
+    assert!(!delta.curve_tests.is_empty());
+    for comparison_name in ["spectrum", "pair_correlation"] {
+        let comparison_tests: Vec<_> = delta
+            .curve_tests
+            .iter()
+            .filter(|test| test.comparison_name == comparison_name)
+            .collect();
+        assert_eq!(
+            comparison_tests.len(),
+            2,
+            "{comparison_name} should emit difference and equivalence rows"
+        );
+        assert!(comparison_tests
+            .iter()
+            .any(|test| test.p_difference.is_some()));
+        assert!(comparison_tests.iter().any(|test| {
+            test.p_difference.is_none()
+                && test.equivalence_margin.is_none()
+                && test.equivalent.is_none()
+                && test
+                    .interpretation
+                    .contains("non-confirmatory without a prespecified margin")
+        }));
+    }
+}
+
+#[test]
+fn prepost_result_includes_multimodal_cross_interaction_tests_and_territory_delta() {
+    let mut pre = minimal_analysis_result("case1", "pre");
+    let mut post = minimal_analysis_result("case1", "post");
+
+    pre.cross_interaction_curves = AnalysisSection::available(vec![CrossInteractionCurve {
+        label_a: "mmr_abnormal".into(),
+        label_b: "lymphocyte".into(),
+        points: vec![
+            PairCorrelationPoint {
+                r_min_um: 0.0,
+                r_max_um: 10.0,
+                value: 2.0,
+                inference_eligible: true,
+                lower_global_envelope: Some(0.0),
+                upper_global_envelope: Some(3.0),
+                count: 2,
+            },
+            PairCorrelationPoint {
+                r_min_um: 10.0,
+                r_max_um: 20.0,
+                value: 1.0,
+                inference_eligible: true,
+                lower_global_envelope: Some(0.0),
+                upper_global_envelope: Some(3.0),
+                count: 1,
+            },
+        ],
+        p_global: Some(0.5),
+    }]);
+    post.cross_interaction_curves = AnalysisSection::available(vec![CrossInteractionCurve {
+        label_a: "mmr_abnormal".into(),
+        label_b: "lymphocyte".into(),
+        points: vec![
+            PairCorrelationPoint {
+                r_min_um: 0.0,
+                r_max_um: 10.0,
+                value: 3.0,
+                inference_eligible: true,
+                lower_global_envelope: Some(0.0),
+                upper_global_envelope: Some(4.0),
+                count: 3,
+            },
+            PairCorrelationPoint {
+                r_min_um: 10.0,
+                r_max_um: 20.0,
+                value: 1.0,
+                inference_eligible: true,
+                lower_global_envelope: Some(0.0),
+                upper_global_envelope: Some(3.0),
+                count: 1,
+            },
+        ],
+        p_global: Some(0.25),
+    }]);
+    pre.wavelet_territories = AnalysisSection::available(vec![territory(0.0)]);
+    post.wavelet_territories = AnalysisSection::available(vec![territory(0.0), territory(50.0)]);
+
+    let delta = compare_prepost(&pre, &post);
+
+    assert_eq!(delta.delta_territory_count.value(), Some(&1));
+    let cross_tests: Vec<_> = delta
+        .curve_tests
+        .iter()
+        .filter(|test| test.comparison_name == "cross_interaction:mmr_abnormal/lymphocyte")
+        .collect();
+    assert_eq!(cross_tests.len(), 2);
+    assert!(cross_tests.iter().any(|test| test.p_difference.is_some()));
+}
+
+#[test]
+fn prepost_curve_tests_surface_absent_curves_as_diagnostics() {
+    let pre = minimal_analysis_result("case1", "pre");
+    let post = minimal_analysis_result("case1", "post");
+
+    let delta = compare_prepost(&pre, &post);
+
+    for comparison_name in ["spectrum", "pair_correlation"] {
+        let comparison_tests: Vec<_> = delta
+            .curve_tests
+            .iter()
+            .filter(|test| test.comparison_name == comparison_name)
+            .collect();
+        assert_eq!(
+            comparison_tests.len(),
+            1,
+            "{comparison_name} should emit one absent-curve diagnostic"
+        );
+        let diagnostic = comparison_tests[0];
+        assert_eq!(diagnostic.metric, "curve_availability");
+        assert!(diagnostic.p_difference.is_none());
+        assert!(diagnostic.equivalence_margin.is_none());
+        assert!(diagnostic.equivalent.is_none());
+        assert!(diagnostic.interpretation.contains("absent"));
+    }
+}
+
+#[test]
+fn pair_correlation_difference_uses_pair_correlation_permutation_count() {
+    let mut pre = minimal_analysis_result("case1", "pre");
+    let mut post = minimal_analysis_result("case1", "post");
+
+    pre.spectrum.value_mut().expect("spectrum").n_permutations = 19;
+    post.spectrum.value_mut().expect("spectrum").n_permutations = 19;
+    pre.pair_correlation
+        .value_mut()
+        .expect("pair correlation")
+        .n_permutations = 0;
+    post.pair_correlation
+        .value_mut()
+        .expect("pair correlation")
+        .n_permutations = 0;
+
+    pre.pair_correlation_curve = vec![PairCorrelationPoint {
+        r_min_um: 0.0,
+        r_max_um: 10.0,
+        value: 0.1,
+        inference_eligible: true,
+        lower_global_envelope: Some(0.0),
+        upper_global_envelope: Some(0.2),
+        count: 10,
+    }];
+    post.pair_correlation_curve = vec![PairCorrelationPoint {
+        r_min_um: 0.0,
+        r_max_um: 10.0,
+        value: 0.2,
+        inference_eligible: true,
+        lower_global_envelope: Some(0.0),
+        upper_global_envelope: Some(0.2),
+        count: 10,
+    }];
+
+    let delta = compare_prepost(&pre, &post);
+    let pair_tests: Vec<_> = delta
+        .curve_tests
+        .iter()
+        .filter(|test| test.comparison_name == "pair_correlation")
+        .collect();
+
+    assert_eq!(pair_tests.len(), 2);
+    assert!(pair_tests.iter().any(|test| {
+        test.p_difference.is_none()
+            && test
+                .interpretation
+                .contains("permutations must be greater than zero")
+    }));
+    assert!(pair_tests.iter().any(|test| {
+        test.p_difference.is_none()
+            && test.equivalence_margin.is_none()
+            && test.equivalent.is_none()
+            && test
+                .interpretation
+                .contains("non-confirmatory without a prespecified margin")
+    }));
+}
+
+#[test]
+fn prepost_curve_tests_surface_unaligned_axis_diagnostics() {
+    let mut pre = minimal_analysis_result("case1", "pre");
+    let mut post = minimal_analysis_result("case1", "post");
+
+    pre.spectrum_curve = vec![
+        SpectrumPoint {
+            k: 1.0,
+            observed_power: 1.0,
+            median_permutation_power: 1.0,
+            whitened_power: 1.0,
+            inference_eligible: true,
+            lower_global_envelope: Some(0.8),
+            upper_global_envelope: Some(1.2),
+        },
+        SpectrumPoint {
+            k: 2.0,
+            observed_power: 1.1,
+            median_permutation_power: 1.0,
+            whitened_power: 1.1,
+            inference_eligible: true,
+            lower_global_envelope: Some(0.8),
+            upper_global_envelope: Some(1.2),
+        },
+    ];
+    post.spectrum_curve = vec![
+        SpectrumPoint {
+            k: 1.0,
+            observed_power: 1.0,
+            median_permutation_power: 1.0,
+            whitened_power: 1.0,
+            inference_eligible: true,
+            lower_global_envelope: Some(0.8),
+            upper_global_envelope: Some(1.2),
+        },
+        SpectrumPoint {
+            k: 3.0,
+            observed_power: 1.1,
+            median_permutation_power: 1.0,
+            whitened_power: 1.1,
+            inference_eligible: true,
+            lower_global_envelope: Some(0.8),
+            upper_global_envelope: Some(1.2),
+        },
+    ];
+
+    pre.pair_correlation_curve = vec![PairCorrelationPoint {
+        r_min_um: 0.0,
+        r_max_um: 10.0,
+        value: 0.1,
+        inference_eligible: true,
+        lower_global_envelope: Some(0.0),
+        upper_global_envelope: Some(0.2),
+        count: 10,
+    }];
+    post.pair_correlation_curve = vec![PairCorrelationPoint {
+        r_min_um: 5.0,
+        r_max_um: 15.0,
+        value: 0.11,
+        inference_eligible: true,
+        lower_global_envelope: Some(0.0),
+        upper_global_envelope: Some(0.2),
+        count: 10,
+    }];
+
+    let delta = compare_prepost(&pre, &post);
+
+    for comparison_name in ["spectrum", "pair_correlation"] {
+        let comparison_tests: Vec<_> = delta
+            .curve_tests
+            .iter()
+            .filter(|test| test.comparison_name == comparison_name)
+            .collect();
+        assert_eq!(
+            comparison_tests.len(),
+            1,
+            "{comparison_name} should emit one unaligned-axis diagnostic"
+        );
+        let diagnostic = comparison_tests[0];
+        assert!(diagnostic.p_difference.is_none());
+        assert!(diagnostic.equivalence_margin.is_none());
+        assert!(diagnostic.equivalent.is_none());
+        assert!(diagnostic.interpretation.contains("axis"));
+    }
+}

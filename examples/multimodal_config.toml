@@ -1,0 +1,89 @@
+[analysis]
+mark_label = "marked"
+use_probabilistic_marks = false
+analyze_components = "auto"
+
+[validation]
+n_min = 200
+n_marked_min = 25
+n_unmarked_min = 25
+p_min = 0.02
+p_max = 0.98
+area_min_um2 = 100000.0
+k_shell_min = 5
+largest_interpretable_scale_fraction = 0.33
+valid_mask_fraction_min = 0.5
+
+[spectrum]
+k_shells = 64
+low_k_shells = 3
+fit_low_k_alpha = true
+anisotropy_low_k_shells = 5
+
+[periodogram]
+enabled = true
+
+[wavelet]
+enabled = true
+territory_detection = true
+min_territory_z = 2.5
+
+[permutation]
+b = 999
+seed = 123456789
+stratified = true
+strata_fields = ["qc_bin", "component_id"]
+
+[inference]
+family_wise_alpha = 0.05
+
+[diagnostics]
+beta_binomial = false
+graph_smoothing = false
+
+[registration]
+enabled = true
+transform = "affine"
+min_landmarks = 3
+max_rmse_um = 25.0
+claim_distance_multiplier = 2.0
+
+[neighborhood]
+enabled = true
+radius_um = 60.0
+k_nearest = 0
+territory_eps_um = 60.0
+territory_min_cells = 1
+territory_min_radius_um = 1.0
+null_models = [
+  "source_section",
+  "source_section_density",
+  "source_section_cell_class",
+  "source_section_registration_qc"
+]
+label_pairs = [
+  ["mmr_abnormal", "lymphocyte"],
+  ["mmr_abnormal", "mmr_retained"]
+]
+
+[comparison]
+
+[comparison.equivalence_margins]
+spectrum = 0.20
+pair_correlation = 0.20
+cross_interaction = 0.25
+graph_enrichment_log2 = 0.50
+territory_profile = 0.25
+
+[performance]
+threads = "auto"
+memory_budget_mib = 4096
+k_chunk_modes = 256
+strict_repro = false
+save_intermediates = false
+
+[output]
+write_parquet_curves = false
+write_geojson_territories = false
+write_figures = false
+write_run_manifest = false
