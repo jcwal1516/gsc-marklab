@@ -46,9 +46,20 @@ Scalar alternatives are fixed:
 - one-sided high: low-k excess, anisotropy, coarse variance fraction, territory count;
 - equal-tail two-sided: `xi_um` and fitted low-k exponent.
 
-All scalar tests use inclusive ties and the plus-one correction. Equal-tail
-tests require `B + 1 >= 2 / alpha`; envelopes require
-`(B + 1) * alpha >= 1`. Undefined required null values are not dropped.
+All scalar tests use inclusive ties and the plus-one correction. Spectrum
+scalar reference curves use leave-one-out median whitening: each of the
+`B + 1` curves is normalized by the shellwise median of the other `B` curves.
+The reported observed whitening is unchanged because its reference remains the
+median of the `B` permutation curves. Equal-tail tests require
+`B + 1 >= 2 / alpha`; envelopes require `(B + 1) * alpha >= 1`. Undefined
+required null values are not dropped.
+
+The resulting scalar rank construction has a finite-sample validity guarantee
+under independent exact-uniform random labeling with fixed strata, counts, and
+inference-eligible shells. The implemented seeded deterministic shuffle is a
+reproducible pseudorandom generator; it is not an exact-uniform sampling
+certificate, so that mathematical guarantee does not apply literally to its
+finite seed space.
 
 The maximum interpretable scale is
 `largest_interpretable_scale_fraction * L_eff_um`. Spectrum wavelength is

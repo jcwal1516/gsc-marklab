@@ -512,6 +512,8 @@ fn summarize_permutation_whitening(
         return Ok(None);
     }
 
+    // Keep the reported observed whitening exactly as before: its baseline is
+    // the median of the B permutation curves.
     let median_permutation_power = (0..n_curve_points)
         .map(|shell_position| {
             let mut values = permutation_powers
@@ -526,6 +528,29 @@ fn summarize_permutation_whitening(
             "spectrum permutation powers contain a non-finite or empty shell".into(),
         ));
     };
+    // Give every permutation curve the corresponding leave-one-out baseline:
+    // the observed curve plus the other B - 1 permutation curves. Sharing the
+    // observed baseline here would privilege the observed run and break the
+    // run-index symmetry required by the scalar rank test.
+    let mut permutation_baselines = vec![vec![0.0; n_curve_points]; permutation_powers.len()];
+    for shell_position in 0..n_curve_points {
+        let mut values = Vec::with_capacity(permutation_powers.len() + 1);
+        values.push(observed_power[shell_position]);
+        values.extend(
+            permutation_powers
+                .iter()
+                .map(|powers| powers[shell_position]),
+        );
+        let Some(baselines) = leave_one_out_medians(&values) else {
+            return Err(MarklabError::Compute(
+                "spectrum powers contain a non-finite or empty leave-one-out shell".into(),
+            ));
+        };
+        debug_assert_eq!(median_permutation_power[shell_position], baselines[0]);
+        for (permutation_index, baseline) in baselines.into_iter().skip(1).enumerate() {
+            permutation_baselines[permutation_index][shell_position] = baseline;
+        }
+    }
 
     let whitened_power = observed_power
         .iter()
@@ -552,10 +577,11 @@ fn summarize_permutation_whitening(
         spectrum_scalar_readouts(&eligible_k_values, &eligible_whitened_power, low_count);
     let permutation_readouts = permutation_powers
         .iter()
-        .map(|powers| {
+        .zip(permutation_baselines.iter())
+        .map(|(powers, baselines)| {
             let whitened = powers
                 .iter()
-                .zip(median_permutation_power.iter())
+                .zip(baselines.iter())
                 .map(|(observed, baseline)| observed / baseline.max(f64::EPSILON))
                 .collect::<Vec<_>>();
             let eligible_whitened = eligible_positions
@@ -926,6 +952,43 @@ fn median(values: &mut [f64]) -> Option<f64> {
     }
 }
 
+fn leave_one_out_medians(values: &[f64]) -> Option<Vec<f64>> {
+    if values.len() < 2 || values.iter().any(|value| !value.is_finite()) {
+        return None;
+    }
+
+    let mut order = (0..values.len()).collect::<Vec<_>>();
+    order.sort_by(|left, right| values[*left].total_cmp(&values[*right]));
+    let sorted_values = order.iter().map(|index| values[*index]).collect::<Vec<_>>();
+    let mut sorted_positions = vec![0; values.len()];
+    for (position, original_index) in order.into_iter().enumerate() {
+        sorted_positions[original_index] = position;
+    }
+
+    let remaining_len = values.len() - 1;
+    let middle = remaining_len / 2;
+    Some(
+        sorted_positions
+            .into_iter()
+            .map(|removed_position| {
+                if !remaining_len.is_multiple_of(2) {
+                    if removed_position <= middle {
+                        sorted_values[middle + 1]
+                    } else {
+                        sorted_values[middle]
+                    }
+                } else if removed_position < middle {
+                    (sorted_values[middle] + sorted_values[middle + 1]) * 0.5
+                } else if removed_position == middle {
+                    (sorted_values[middle - 1] + sorted_values[middle + 1]) * 0.5
+                } else {
+                    (sorted_values[middle - 1] + sorted_values[middle]) * 0.5
+                }
+            })
+            .collect(),
+    )
+}
+
 fn low_k_log_slope(k_values: &[f64], powers: &[f64]) -> Option<f64> {
     if k_values.len() != powers.len() || k_values.len() < 2 {
         return None;
@@ -960,6 +1023,7 @@ mod tests {
     use super::*;
     use crate::data::PatternMeta;
     use approx::assert_abs_diff_eq;
+    use proptest::prelude::*;
 
     fn pattern(marks: Vec<u8>) -> Pattern {
         Pattern::from_arrays(
@@ -1053,5 +1117,229 @@ mod tests {
         let readout = spectrum_scalar_readouts(&[0.1, 0.2, 0.3], &[2.0, 4.0, 100.0], 2);
 
         assert_abs_diff_eq!(readout.low_k_excess, 3.0, epsilon = 1e-12);
+    }
+
+    #[test]
+    fn leave_one_out_medians_match_direct_exclusion_with_ties() {
+        for values in [
+            vec![1.0, 1.0],
+            vec![3.0, 1.0, 2.0],
+            vec![4.0, 1.0, 4.0, 2.0],
+            vec![5.0, 1.0, 5.0, 2.0, 3.0],
+            vec![8.0, 8.0, 18.0, 18.0, 8.0, 18.0],
+        ] {
+            let baselines = leave_one_out_medians(&values).expect("leave-one-out medians");
+            for (excluded, baseline) in baselines.iter().copied().enumerate() {
+                let mut remaining = values
+                    .iter()
+                    .copied()
+                    .enumerate()
+                    .filter_map(|(index, value)| (index != excluded).then_some(value))
+                    .collect::<Vec<_>>();
+                assert_eq!(baseline, median(&mut remaining).expect("median"));
+            }
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn leave_one_out_medians_match_direct_exclusion_for_generated_values(
+            raw_values in prop::collection::vec(0_u16..=10_000, 2..65),
+        ) {
+            let values = raw_values
+                .into_iter()
+                .map(f64::from)
+                .collect::<Vec<_>>();
+            let baselines = leave_one_out_medians(&values).expect("leave-one-out medians");
+
+            for (excluded, baseline) in baselines.iter().copied().enumerate() {
+                let mut remaining = values
+                    .iter()
+                    .copied()
+                    .enumerate()
+                    .filter_map(|(index, value)| (index != excluded).then_some(value))
+                    .collect::<Vec<_>>();
+                prop_assert_eq!(baseline, median(&mut remaining).expect("median"));
+            }
+        }
+
+        #[test]
+        fn leave_one_out_scores_are_equivariant_under_run_reversal(
+            raw_curves in prop::collection::vec(any::<[u16; 3]>(), 2..33),
+        ) {
+            let curves = raw_curves
+                .into_iter()
+                .map(|curve| curve.map(f64::from))
+                .collect::<Vec<_>>();
+            let scores = leave_one_out_low_k_scores(&curves);
+            let reversed_curves = curves.iter().copied().rev().collect::<Vec<_>>();
+            let reversed_scores = leave_one_out_low_k_scores(&reversed_curves);
+
+            prop_assert_eq!(
+                reversed_scores,
+                scores.into_iter().rev().collect::<Vec<_>>()
+            );
+        }
+    }
+
+    fn leave_one_out_low_k_scores(curves: &[[f64; 3]]) -> Vec<f64> {
+        let mut baselines = vec![[0.0; 3]; curves.len()];
+        for shell in 0..3 {
+            let values = curves.iter().map(|curve| curve[shell]).collect::<Vec<_>>();
+            for (run, baseline) in leave_one_out_medians(&values)
+                .expect("leave-one-out medians")
+                .into_iter()
+                .enumerate()
+            {
+                baselines[run][shell] = baseline;
+            }
+        }
+
+        curves
+            .iter()
+            .zip(baselines)
+            .map(|(curve, baseline)| {
+                curve
+                    .iter()
+                    .zip(baseline)
+                    .map(|(power, reference)| power / reference.max(f64::EPSILON))
+                    .sum::<f64>()
+                    / 3.0
+            })
+            .collect()
+    }
+
+    #[test]
+    fn leave_one_out_whitening_preserves_observed_low_k_score() {
+        let modes = vec![
+            KMode {
+                kx: 1.0,
+                ky: 0.0,
+                k: 1.0,
+                shell_index: 0,
+            },
+            KMode {
+                kx: 0.0,
+                ky: 2.0,
+                k: 2.0,
+                shell_index: 1,
+            },
+        ];
+        let result = summarize_permutation_whitening(
+            &modes,
+            vec![9.0, 6.0],
+            vec![vec![1.0, 2.0], vec![3.0, 4.0], vec![5.0, 8.0]],
+            SpectrumPermutationOptions {
+                n_shells: 2,
+                low_k_modes: 2,
+                n_permutations: 3,
+                seed: 0,
+                family_wise_alpha: 0.5,
+                max_scale_um: 10.0,
+                k_shell_min: 2,
+            },
+        )
+        .expect("valid spectrum summary")
+        .expect("eligible spectrum summary");
+
+        assert_eq!(result.median_permutation_power, vec![3.0, 4.0]);
+        assert_eq!(result.whitened_power, vec![3.0, 1.5]);
+        assert_eq!(result.low_k_excess, 2.25);
+    }
+
+    #[test]
+    fn exact_five_curve_table_reproduces_shared_baseline_defect_and_validates_loo_repair() {
+        let modes = vec![
+            KMode {
+                kx: 1.0,
+                ky: 0.0,
+                k: 1.0,
+                shell_index: 0,
+            },
+            KMode {
+                kx: 0.0,
+                ky: 2.0,
+                k: 2.0,
+                shell_index: 1,
+            },
+        ];
+        let curves = [
+            [8.0, 20.0],
+            [8.0, 10.0],
+            [8.0, 40.0],
+            [18.0, 20.0],
+            [18.0, 10.0],
+        ];
+        let options = SpectrumPermutationOptions {
+            n_shells: 2,
+            low_k_modes: 2,
+            n_permutations: 2,
+            seed: 0,
+            // The scalar p-value does not depend on alpha. Use a resolvable
+            // level for the unrelated two-sided scalar readouts.
+            family_wise_alpha: 2.0 / 3.0,
+            max_scale_um: 10.0,
+            k_shell_min: 2,
+        };
+
+        let mut shared_baseline_rejection_count = 0;
+        let mut leave_one_out_rejection_count = 0;
+        for observed in &curves {
+            for first_null in &curves {
+                for second_null in &curves {
+                    let shared_baseline_p_value =
+                        shared_baseline_low_k_p_value(observed, [first_null, second_null]);
+                    if shared_baseline_p_value <= 1.0 / 3.0 {
+                        shared_baseline_rejection_count += 1;
+                    }
+
+                    let result = summarize_permutation_whitening(
+                        &modes,
+                        observed.to_vec(),
+                        vec![first_null.to_vec(), second_null.to_vec()],
+                        options,
+                    )
+                    .expect("valid spectrum summary")
+                    .expect("eligible spectrum summary");
+                    if result
+                        .low_k_excess_p_value
+                        .is_some_and(|p_value| p_value <= 1.0 / 3.0)
+                    {
+                        leave_one_out_rejection_count += 1;
+                    }
+                }
+            }
+        }
+
+        assert_eq!(shared_baseline_rejection_count, 43);
+        assert!(
+            leave_one_out_rejection_count <= 125 / 3,
+            "leave-one-out test rejected {leave_one_out_rejection_count}/125 exact uniform tables"
+        );
+    }
+
+    fn shared_baseline_low_k_p_value(observed: &[f64; 2], permutations: [&[f64; 2]; 2]) -> f64 {
+        let baseline = [0, 1].map(|shell| {
+            let mut values = permutations
+                .iter()
+                .map(|curve| curve[shell])
+                .collect::<Vec<_>>();
+            median(&mut values).expect("shared permutation baseline")
+        });
+        let score = |curve: &[f64; 2]| {
+            curve
+                .iter()
+                .zip(baseline)
+                .map(|(power, reference)| power / reference.max(f64::EPSILON))
+                .sum::<f64>()
+                / 2.0
+        };
+        let null_scores = permutations
+            .iter()
+            .map(|curve| score(curve))
+            .collect::<Vec<_>>();
+
+        permutation_p_value(score(observed), &null_scores, Tail::OneSidedHigh, 2.0 / 3.0)
+            .expect("shared-baseline p-value")
     }
 }
