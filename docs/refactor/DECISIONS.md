@@ -149,3 +149,18 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Consequences: Format 0.3 consumers and configuration files require the documented rename. The diagnostic still groups by multiple component IDs when available and otherwise by coordinate-median quadrants. It must not be interpreted as evidence of spatial dependence or beta-binomial overdispersion. The touched production diagnostics stage now has explicit imports instead of a parent wildcard.
 - Evidence: Commit `1e8fbbd`; the result-schema test failed on the former field and passed on `beta_posterior_groups` plus identifier `beta_posterior_group_summary_v1`. Independent posterior means/intervals, component grouping, average-even coordinate medians, config alias rejection, marked CLI/report output, and multimodal rejection pass. Formatting, warnings-denied Clippy, no-default-features, doc tests, and all-feature Nextest pass (298/298, 15 expected skips).
 - Status: Accepted; SCI-08 closed.
+
+## 2026-08-22 — SCI-09 pooled-bin comparison diagnostic
+
+- Context: The curve “difference test” pooled two already-aggregated curves and shuffled their bin values. That operation has no spatial or per-cell exchangeability justification, while public DTO and collection names presented all comparison rows as tests.
+- Decision: Use `pooled_bin_difference_diagnostic`, `pooled_bin_p_value`, `CurveComparisonResult`, `curve_comparisons`, and a typed `CurveComparisonMethod` distinguishing pooled-bin permutation, descriptive margin, and unavailable rows. Retain explicit interpretation/report text that the diagnostic is approximate and non-spatial. Keep `spectral_curve_test` unchanged because it is the separately verified ERL global-envelope test.
+- Consequences: Format 0.3 consumers must migrate the renamed comparison fields/collections. The numerical shuffled-bin diagnostic and deterministic seed stream are preserved; only claims and schema ownership change. More fundamental comparison-model separation remains Phase 10 work if required.
+- Evidence: Commit `69005bb`; the schema test failed on generic `p_difference` and passed with method `pooled_bin_permutation` plus `pooled_bin_p_value`. Determinism, nonzero statistic, zero permutations, axis/availability, report, JSON, multimodal CLI, formatting, warnings-denied Clippy, no-default-features, doc tests, and all-feature Nextest pass (299/299, 15 expected skips).
+- Status: Accepted; SCI-09 closed.
+
+## 2026-08-22 — Phase 3 closed with honest smoke labeling
+
+- Closure: Public analytical names now match their implementations. False MODWT/wavelet/scalogram/DoG/Bartlett/pair-correlation/beta-binomial/equivalence/difference-test claims are removed or explicitly negated in explanatory/migration text. The generic marked engine is neutral. Established rigid, affine, spectrum, anisotropy, and ERL names retain implementation/reference tests.
+- Interim COR-01 decision: Until Phase 9 replaces direct outcome synthesis, expose the current workflows only as `marklab smoke`, `SyntheticSmoke*`, and `smoke.json`; state that they are not calibration or validation evidence. Remove the Task-derived below-resolution alias. This contains the claim but does not close COR-01.
+- Verification: `cargo +1.96.0 fmt --all --check`, warnings-denied all-target/all-feature Clippy, `cargo +1.96.0 check --locked --no-default-features`, all-feature doc tests, and `cargo +1.96.0 nextest run --locked --all-features` all exit 0. Nextest ran 299/299 tests with 15 expected skips. Obsolete-name searches return only negative assertions, migration history, or explicit “not this algorithm” documentation.
+- Status: Accepted; Phase 4 may begin.
