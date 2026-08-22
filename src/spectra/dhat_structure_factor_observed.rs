@@ -2,7 +2,9 @@
 
 use crate::{
     data::PatternMeta,
-    spectra::structure_factor::{observed_power_for_modes_into, resolvable_modes_for_pattern},
+    spectra::structure_factor::{
+        kernel::observed_power_for_modes_into, resolvable_modes_for_pattern,
+    },
     Pattern,
 };
 

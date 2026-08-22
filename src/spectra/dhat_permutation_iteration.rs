@@ -3,7 +3,8 @@
 use crate::{
     data::PatternMeta,
     spectra::structure_factor::{
-        permutation_power_for_modes_into, resolvable_modes_for_pattern, total_phase_sums_for_modes,
+        kernel::{permutation_power_for_modes_into, total_phase_sums_for_modes},
+        resolvable_modes_for_pattern,
     },
     Pattern,
 };
