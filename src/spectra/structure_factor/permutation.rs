@@ -52,6 +52,281 @@ fn observe_chunk_and_storage(chunk_len: usize, matrix: &F64Matrix, mode_count: u
     }
 }
 
+#[derive(Clone, Copy)]
+enum MarkField<'a> {
+    Binary(BinaryMarkContext),
+    Continuous(&'a [f64]),
+    Stratified {
+        context: BinaryMarkContext,
+        plan: &'a StratifiedPermutationPlan,
+    },
+}
+
+enum MarkFieldScratch {
+    Binary {
+        selected_indices: Vec<usize>,
+        powers: Vec<f64>,
+    },
+    Continuous {
+        permuted_values: Vec<f64>,
+        powers: Vec<f64>,
+    },
+    Stratified {
+        labels: Vec<u8>,
+        stratum_labels: Vec<u8>,
+        selected_indices: Vec<usize>,
+        powers: Vec<f64>,
+    },
+}
+
+impl MarkFieldScratch {
+    fn powers(&self) -> &[f64] {
+        match self {
+            Self::Binary { powers, .. }
+            | Self::Continuous { powers, .. }
+            | Self::Stratified { powers, .. } => powers,
+        }
+    }
+}
+
+impl MarkField<'_> {
+    fn scratch(self, cell_count: usize, chunk_size: usize) -> MarkFieldScratch {
+        match self {
+            Self::Binary(_) => MarkFieldScratch::Binary {
+                selected_indices: Vec::with_capacity(cell_count),
+                powers: Vec::with_capacity(chunk_size),
+            },
+            Self::Continuous(_) => MarkFieldScratch::Continuous {
+                permuted_values: Vec::with_capacity(cell_count),
+                powers: Vec::with_capacity(chunk_size),
+            },
+            Self::Stratified { plan, .. } => MarkFieldScratch::Stratified {
+                labels: Vec::with_capacity(cell_count),
+                stratum_labels: Vec::with_capacity(plan.maximum_stratum_size()),
+                selected_indices: Vec::with_capacity(cell_count),
+                powers: Vec::with_capacity(chunk_size),
+            },
+        }
+    }
+
+    fn prepare_mode_chunk(
+        self,
+        pattern: &Pattern,
+        mode_chunk: &[KMode],
+        total_phase_sums: &mut Vec<super::kernel::PhaseSum>,
+    ) -> Option<()> {
+        match self {
+            Self::Binary(_) | Self::Stratified { .. } => {
+                total_phase_sums_for_modes(pattern, mode_chunk, total_phase_sums)
+            }
+            Self::Continuous(_) => Some(()),
+        }
+    }
+
+    fn evaluate_permutation_chunk(
+        self,
+        pattern: &Pattern,
+        mode_chunk: &[KMode],
+        total_phase_sums: &[super::kernel::PhaseSum],
+        base_seed: u64,
+        permutation_index: usize,
+        scratch: &mut MarkFieldScratch,
+    ) -> Option<()> {
+        match (self, scratch) {
+            (
+                Self::Binary(context),
+                MarkFieldScratch::Binary {
+                    selected_indices,
+                    powers,
+                },
+            ) => {
+                permutation_selected_indices_into(
+                    pattern.len(),
+                    context,
+                    derive_seed(base_seed, SeedEndpoint::SpectrumBinary, permutation_index),
+                    selected_indices,
+                )?;
+                power_for_selected_modes_into(
+                    pattern,
+                    mode_chunk,
+                    total_phase_sums,
+                    selected_indices,
+                    context,
+                    powers,
+                )?;
+                Some(())
+            }
+            (
+                Self::Continuous(values),
+                MarkFieldScratch::Continuous {
+                    permuted_values,
+                    powers,
+                },
+            ) => {
+                permuted_values.clear();
+                permuted_values.extend_from_slice(values);
+                deterministic_shuffle(
+                    permuted_values,
+                    derive_seed(
+                        base_seed,
+                        SeedEndpoint::SpectrumContinuous,
+                        permutation_index,
+                    ),
+                );
+                powers.clear();
+                for mode in mode_chunk {
+                    powers.push(centered_structure_factor_for_values(
+                        pattern,
+                        permuted_values,
+                        mode.kx,
+                        mode.ky,
+                    )?);
+                }
+                Some(())
+            }
+            (
+                Self::Stratified { context, plan },
+                MarkFieldScratch::Stratified {
+                    labels,
+                    stratum_labels,
+                    selected_indices,
+                    powers,
+                },
+            ) => {
+                plan.permute_into(
+                    derive_seed(
+                        base_seed,
+                        SeedEndpoint::SpectrumStratified,
+                        permutation_index,
+                    ),
+                    labels,
+                    stratum_labels,
+                )
+                .ok()?;
+                selected_indices_for_marks_into(
+                    labels,
+                    context.use_unmarked_subset(),
+                    selected_indices,
+                )?;
+                power_for_selected_modes_into(
+                    pattern,
+                    mode_chunk,
+                    total_phase_sums,
+                    selected_indices,
+                    context,
+                    powers,
+                )?;
+                Some(())
+            }
+            _ => None,
+        }
+    }
+
+    fn evaluation_error(self) -> &'static str {
+        match self {
+            Self::Binary(_) => "a required spectrum permutation could not be evaluated",
+            Self::Continuous(_) => {
+                "a required probabilistic-mark spectrum permutation could not be evaluated"
+            }
+            Self::Stratified { .. } => {
+                "a required stratified spectrum permutation could not be evaluated"
+            }
+        }
+    }
+}
+
+fn permutation_shell_powers(
+    pattern: &Pattern,
+    modes: &[KMode],
+    shell_plan: &ShellPlan,
+    mark_field: MarkField<'_>,
+    options: SpectrumPermutationOptions,
+) -> Result<F64Matrix> {
+    let mut shell_powers = F64Matrix::zeros(options.n_permutations, shell_plan.shell_count())
+        .ok_or_else(|| MarklabError::Compute("invalid spectrum shell storage dimensions".into()))?;
+    let chunk_capacity = options.k_chunk_modes.min(modes.len());
+    let mut total_phase_sums = Vec::with_capacity(chunk_capacity);
+    #[cfg(not(feature = "parallel"))]
+    let mut scratch = mark_field.scratch(pattern.len(), chunk_capacity);
+    let mut mode_offset = 0usize;
+
+    for mode_chunk in modes.chunks(options.k_chunk_modes) {
+        if mark_field
+            .prepare_mode_chunk(pattern, mode_chunk, &mut total_phase_sums)
+            .is_none()
+        {
+            return Err(MarklabError::Compute(
+                "spectrum mode chunk could not be prepared".into(),
+            ));
+        }
+        observe_chunk_and_storage(mode_chunk.len(), &shell_powers, modes.len());
+
+        #[cfg(feature = "parallel")]
+        {
+            use rayon::prelude::*;
+
+            let all_permutations_valid = shell_powers
+                .values_mut()
+                .par_chunks_mut(shell_plan.shell_count())
+                .enumerate()
+                .map_init(
+                    || mark_field.scratch(pattern.len(), mode_chunk.len()),
+                    |scratch, (permutation_index, shell_sums)| {
+                        mark_field
+                            .evaluate_permutation_chunk(
+                                pattern,
+                                mode_chunk,
+                                &total_phase_sums,
+                                options.seed,
+                                permutation_index,
+                                scratch,
+                            )
+                            .and_then(|()| {
+                                shell_plan.accumulate_mode_chunk(
+                                    shell_sums,
+                                    mode_offset,
+                                    scratch.powers(),
+                                )
+                            })
+                            .is_some()
+                    },
+                )
+                .all(|valid| valid);
+            if !all_permutations_valid {
+                return Err(MarklabError::Compute(mark_field.evaluation_error().into()));
+            }
+        }
+
+        #[cfg(not(feature = "parallel"))]
+        for (permutation_index, shell_sums) in shell_powers.iter_rows_mut().enumerate() {
+            mark_field
+                .evaluate_permutation_chunk(
+                    pattern,
+                    mode_chunk,
+                    &total_phase_sums,
+                    options.seed,
+                    permutation_index,
+                    &mut scratch,
+                )
+                .and_then(|()| {
+                    shell_plan.accumulate_mode_chunk(shell_sums, mode_offset, scratch.powers())
+                })
+                .ok_or_else(|| {
+                    MarklabError::Compute(format!(
+                        "{} at index {permutation_index}",
+                        mark_field.evaluation_error()
+                    ))
+                })?;
+        }
+
+        mode_offset += mode_chunk.len();
+    }
+    shell_plan
+        .normalize_matrix(&mut shell_powers)
+        .ok_or_else(|| MarklabError::Compute("invalid spectrum shell aggregation".into()))?;
+    Ok(shell_powers)
+}
+
 pub fn permutation_whitened_spectrum(
     pattern: &Pattern,
     options: SpectrumPermutationOptions,
@@ -132,111 +407,13 @@ pub fn permutation_whitened_spectrum_from_observed_modes(
     let Some(observed_shell_power) = shell_plan.aggregate_mode_powers(&observed_mode_power) else {
         return Ok(None);
     };
-    let mut permutation_shell_powers =
-        F64Matrix::zeros(options.n_permutations, shell_plan.shell_count()).ok_or_else(|| {
-            MarklabError::Compute("invalid spectrum shell storage dimensions".into())
-        })?;
-    let mut total_phase_sums = Vec::with_capacity(options.k_chunk_modes.min(modes.len()));
-    let mut mode_offset = 0usize;
-    for mode_chunk in modes.chunks(options.k_chunk_modes) {
-        if total_phase_sums_for_modes(pattern, mode_chunk, &mut total_phase_sums).is_none() {
-            return Ok(None);
-        }
-        observe_chunk_and_storage(mode_chunk.len(), &permutation_shell_powers, modes.len());
-
-        #[cfg(feature = "parallel")]
-        {
-            use rayon::prelude::*;
-
-            let all_permutations_valid = permutation_shell_powers
-                .values_mut()
-                .par_chunks_mut(shell_plan.shell_count())
-                .enumerate()
-                .map_init(
-                    || {
-                        (
-                            Vec::with_capacity(pattern.len()),
-                            Vec::with_capacity(mode_chunk.len()),
-                        )
-                    },
-                    |(selected_indices, powers), (permutation_index, shell_sums)| {
-                        let seed = derive_seed(
-                            options.seed,
-                            SeedEndpoint::SpectrumBinary,
-                            permutation_index,
-                        );
-                        permutation_selected_indices_into(
-                            pattern.len(),
-                            context,
-                            seed,
-                            selected_indices,
-                        )
-                        .and_then(|()| {
-                            power_for_selected_modes_into(
-                                pattern,
-                                mode_chunk,
-                                &total_phase_sums,
-                                selected_indices,
-                                context,
-                                powers,
-                            )
-                        })
-                        .and_then(|()| {
-                            shell_plan.accumulate_mode_chunk(shell_sums, mode_offset, powers)
-                        })
-                        .is_some()
-                    },
-                )
-                .all(|valid| valid);
-            if !all_permutations_valid {
-                return Err(MarklabError::Compute(
-                    "a required spectrum permutation could not be evaluated".into(),
-                ));
-            }
-        }
-
-        #[cfg(not(feature = "parallel"))]
-        {
-            let mut selected_indices = Vec::with_capacity(pattern.len());
-            let mut powers = Vec::with_capacity(mode_chunk.len());
-            for (permutation_index, shell_sums) in
-                permutation_shell_powers.iter_rows_mut().enumerate()
-            {
-                let seed = derive_seed(
-                    options.seed,
-                    SeedEndpoint::SpectrumBinary,
-                    permutation_index,
-                );
-                let valid = permutation_selected_indices_into(
-                    pattern.len(),
-                    context,
-                    seed,
-                    &mut selected_indices,
-                )
-                .and_then(|()| {
-                    power_for_selected_modes_into(
-                        pattern,
-                        mode_chunk,
-                        &total_phase_sums,
-                        &selected_indices,
-                        context,
-                        &mut powers,
-                    )
-                })
-                .and_then(|()| shell_plan.accumulate_mode_chunk(shell_sums, mode_offset, &powers));
-                if valid.is_none() {
-                    return Err(MarklabError::Compute(format!(
-                        "spectrum permutation {permutation_index} could not be evaluated"
-                    )));
-                }
-            }
-        }
-
-        mode_offset += mode_chunk.len();
-    }
-    shell_plan
-        .normalize_matrix(&mut permutation_shell_powers)
-        .ok_or_else(|| MarklabError::Compute("invalid spectrum shell aggregation".into()))?;
+    let permutation_shell_powers = permutation_shell_powers(
+        pattern,
+        modes,
+        &shell_plan,
+        MarkField::Binary(context),
+        options,
+    )?;
 
     summarize_permutation_whitening_from_shells(
         &shell_plan,
@@ -272,109 +449,13 @@ pub fn permutation_whitened_value_spectrum_from_observed_modes(
     let Some(observed_shell_power) = shell_plan.aggregate_mode_powers(&observed_mode_power) else {
         return Ok(None);
     };
-    let mut permutation_shell_powers =
-        F64Matrix::zeros(options.n_permutations, shell_plan.shell_count()).ok_or_else(|| {
-            MarklabError::Compute("invalid probabilistic-mark shell storage dimensions".into())
-        })?;
-    let mut mode_offset = 0usize;
-    for mode_chunk in modes.chunks(options.k_chunk_modes) {
-        observe_chunk_and_storage(mode_chunk.len(), &permutation_shell_powers, modes.len());
-
-        #[cfg(feature = "parallel")]
-        {
-            use rayon::prelude::*;
-
-            let all_permutations_valid = permutation_shell_powers
-                .values_mut()
-                .par_chunks_mut(shell_plan.shell_count())
-                .enumerate()
-                .map_init(
-                    || {
-                        (
-                            Vec::with_capacity(values.len()),
-                            Vec::with_capacity(mode_chunk.len()),
-                        )
-                    },
-                    |(permuted, powers), (permutation_index, shell_sums)| {
-                        permuted.clear();
-                        permuted.extend_from_slice(values);
-                        deterministic_shuffle(
-                            permuted,
-                            derive_seed(
-                                options.seed,
-                                SeedEndpoint::SpectrumContinuous,
-                                permutation_index,
-                            ),
-                        );
-                        powers.clear();
-                        for mode in mode_chunk {
-                            let Some(power) = centered_structure_factor_for_values(
-                                pattern, permuted, mode.kx, mode.ky,
-                            ) else {
-                                return false;
-                            };
-                            powers.push(power);
-                        }
-                        shell_plan
-                            .accumulate_mode_chunk(shell_sums, mode_offset, powers)
-                            .is_some()
-                    },
-                )
-                .all(|valid| valid);
-            if !all_permutations_valid {
-                return Err(MarklabError::Compute(
-                    "a required probabilistic-mark spectrum permutation could not be evaluated"
-                        .into(),
-                ));
-            }
-        }
-
-        #[cfg(not(feature = "parallel"))]
-        {
-            let mut permuted = Vec::with_capacity(values.len());
-            let mut powers = Vec::with_capacity(mode_chunk.len());
-            for (permutation_index, shell_sums) in
-                permutation_shell_powers.iter_rows_mut().enumerate()
-            {
-                permuted.clear();
-                permuted.extend_from_slice(values);
-                deterministic_shuffle(
-                    &mut permuted,
-                    derive_seed(
-                        options.seed,
-                        SeedEndpoint::SpectrumContinuous,
-                        permutation_index,
-                    ),
-                );
-                powers.clear();
-                for mode in mode_chunk {
-                    let Some(power) =
-                        centered_structure_factor_for_values(pattern, &permuted, mode.kx, mode.ky)
-                    else {
-                        return Err(MarklabError::Compute(format!(
-                            "probabilistic-mark spectrum permutation {permutation_index} could not be evaluated"
-                        )));
-                    };
-                    powers.push(power);
-                }
-                if shell_plan
-                    .accumulate_mode_chunk(shell_sums, mode_offset, &powers)
-                    .is_none()
-                {
-                    return Err(MarklabError::Compute(format!(
-                        "probabilistic-mark spectrum permutation {permutation_index} could not be aggregated"
-                    )));
-                }
-            }
-        }
-
-        mode_offset += mode_chunk.len();
-    }
-    shell_plan
-        .normalize_matrix(&mut permutation_shell_powers)
-        .ok_or_else(|| {
-            MarklabError::Compute("invalid probabilistic-mark shell aggregation".into())
-        })?;
+    let permutation_shell_powers = permutation_shell_powers(
+        pattern,
+        modes,
+        &shell_plan,
+        MarkField::Continuous(values),
+        options,
+    )?;
 
     summarize_permutation_whitening_from_shells(
         &shell_plan,
@@ -418,61 +499,16 @@ where
     let Some(observed_shell_power) = shell_plan.aggregate_mode_powers(&observed_mode_power) else {
         return Ok(None);
     };
-    let mut permutation_shell_powers =
-        F64Matrix::zeros(options.n_permutations, shell_plan.shell_count()).ok_or_else(|| {
-            MarklabError::Compute("invalid stratified spectrum shell storage dimensions".into())
-        })?;
-    let mut total_phase_sums = Vec::with_capacity(options.k_chunk_modes.min(modes.len()));
-    let mut selected_indices = Vec::with_capacity(pattern.len());
-    let mut labels = Vec::with_capacity(pattern.len());
-    let mut stratum_labels = Vec::with_capacity(stratified_plan.maximum_stratum_size());
-    let mut powers = Vec::with_capacity(options.k_chunk_modes.min(modes.len()));
-    let mut mode_offset = 0usize;
-    for mode_chunk in modes.chunks(options.k_chunk_modes) {
-        if total_phase_sums_for_modes(pattern, mode_chunk, &mut total_phase_sums).is_none() {
-            return Ok(None);
-        }
-        observe_chunk_and_storage(mode_chunk.len(), &permutation_shell_powers, modes.len());
-        for (permutation_index, shell_sums) in permutation_shell_powers.iter_rows_mut().enumerate()
-        {
-            stratified_plan.permute_into(
-                derive_seed(
-                    options.seed,
-                    SeedEndpoint::SpectrumStratified,
-                    permutation_index,
-                ),
-                &mut labels,
-                &mut stratum_labels,
-            )?;
-            selected_indices_for_marks_into(
-                &labels,
-                context.use_unmarked_subset(),
-                &mut selected_indices,
-            )
-            .and_then(|()| {
-                power_for_selected_modes_into(
-                    pattern,
-                    mode_chunk,
-                    &total_phase_sums,
-                    &selected_indices,
-                    context,
-                    &mut powers,
-                )
-            })
-            .and_then(|()| shell_plan.accumulate_mode_chunk(shell_sums, mode_offset, &powers))
-            .ok_or_else(|| {
-                MarklabError::Compute(format!(
-                    "stratified spectrum permutation {permutation_index} produced an undefined mode"
-                ))
-            })?;
-        }
-        mode_offset += mode_chunk.len();
-    }
-    shell_plan
-        .normalize_matrix(&mut permutation_shell_powers)
-        .ok_or_else(|| {
-            MarklabError::Compute("invalid stratified spectrum shell aggregation".into())
-        })?;
+    let permutation_shell_powers = permutation_shell_powers(
+        pattern,
+        modes,
+        &shell_plan,
+        MarkField::Stratified {
+            context,
+            plan: &stratified_plan,
+        },
+        options,
+    )?;
 
     summarize_permutation_whitening_from_shells(
         &shell_plan,
