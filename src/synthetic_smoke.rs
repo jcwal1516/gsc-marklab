@@ -47,6 +47,10 @@ const MULTIMODAL_GENERATORS: [&str; 6] = [
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct SyntheticSmokeSummary {
     pub suite: String,
+    pub suite_kind: &'static str,
+    pub seed: u64,
+    pub engine_version: &'static str,
+    pub configuration: MarkedSmokeConfiguration,
     pub replicates: usize,
     pub status: String,
     pub alpha: f64,
@@ -54,16 +58,31 @@ pub struct SyntheticSmokeSummary {
     pub results: BTreeMap<String, SyntheticSmokeResult>,
 }
 
-#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct MarkedSmokeConfiguration {
+    pub permutations: usize,
+    pub permutation_seed: u64,
+    pub threads: usize,
+    pub family_wise_alpha: f64,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct SyntheticSmokeResult {
-    pub replicates_run: usize,
+    pub replicates_attempted: usize,
+    pub replicates_completed: usize,
+    pub replicates_failed: usize,
+    pub failure_reasons: Vec<String>,
     pub passed: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mean_low_k_excess: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub type_i_error_alpha_0_05: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub type_i_error_confidence_interval: Option<BinomialConfidenceInterval>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub detection_rate: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detection_confidence_interval: Option<BinomialConfidenceInterval>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mean_anisotropy_index: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -71,7 +90,12 @@ pub struct SyntheticSmokeResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub suppression_rate: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub suppression_confidence_interval: Option<BinomialConfidenceInterval>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub prepost_incomparable_rate: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prepost_incomparable_confidence_interval: Option<BinomialConfidenceInterval>,
+    pub acceptance_criterion: &'static str,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub status_flags: Vec<StatusFlag>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -140,7 +164,7 @@ pub fn run_synthetic_smoke(replicates: usize) -> Result<SyntheticSmokeSummary> {
     }
 
     let config = smoke_config();
-    let engine = AnalysisEngine::new(config)?;
+    let engine = AnalysisEngine::new(config.clone())?;
     let mut results = BTreeMap::new();
     for generator in GENERATORS {
         results.insert(
@@ -157,6 +181,15 @@ pub fn run_synthetic_smoke(replicates: usize) -> Result<SyntheticSmokeSummary> {
 
     Ok(SyntheticSmokeSummary {
         suite: "synthetic_generator_smoke".into(),
+        suite_kind: "smoke",
+        seed: config.permutation.seed,
+        engine_version: env!("CARGO_PKG_VERSION"),
+        configuration: MarkedSmokeConfiguration {
+            permutations: config.permutation.b,
+            permutation_seed: config.permutation.seed,
+            threads: 1,
+            family_wise_alpha: config.inference.family_wise_alpha,
+        },
         replicates,
         status: status.into(),
         alpha: 0.05,
@@ -239,12 +272,17 @@ fn run_generator(
     }
 
     let mut analyses = Vec::with_capacity(replicates);
+    let mut failure_reasons = Vec::new();
     for replicate in 0..replicates {
-        let pattern = synthetic_pattern(generator, replicate as u64)?;
-        analyses.push(engine.analyze_pattern(&pattern)?);
+        let analysis = synthetic_pattern(generator, replicate as u64)
+            .and_then(|pattern| engine.analyze_pattern(&pattern));
+        match analysis {
+            Ok(analysis) => analyses.push(analysis),
+            Err(error) => failure_reasons.push(format!("replicate {replicate}: {error}")),
+        }
     }
 
-    let mut result = summarize_analyses(&analyses);
+    let mut result = summarize_analyses(&analyses, replicates, failure_reasons);
     result.notes.push(note_for(generator).into());
     match generator {
         "random_labeling" => {
@@ -306,6 +344,8 @@ fn run_generator(
             )));
         }
     }
+    result.passed &= result.replicates_failed == 0;
+    result.acceptance_criterion = marked_acceptance_criterion(generator);
     Ok(result)
 }
 
@@ -316,34 +356,46 @@ fn run_marked_prepost_metadata_mismatch(
     let mut post_analyses = Vec::with_capacity(replicates);
     let mut incomparable_count = 0usize;
     let mut comparison_flags = Vec::new();
+    let mut failure_reasons = Vec::new();
     for replicate in 0..replicates {
-        let mut pre = synthetic_pattern("prepost_metadata_mismatch", replicate as u64)?;
-        pre.meta.case_id = "synthetic_pre_section".into();
-        pre.meta.timepoint = "pre".into();
-        let mut post = synthetic_pattern("prepost_metadata_mismatch", replicate as u64)?;
-        post.meta.case_id = "synthetic_post_section".into();
-        post.meta.timepoint = "post".into();
+        let outcome: Result<_> = (|| {
+            let mut pre = synthetic_pattern("prepost_metadata_mismatch", replicate as u64)?;
+            pre.meta.case_id = "synthetic_pre_section".into();
+            pre.meta.timepoint = "pre".into();
+            let mut post = synthetic_pattern("prepost_metadata_mismatch", replicate as u64)?;
+            post.meta.case_id = "synthetic_post_section".into();
+            post.meta.timepoint = "post".into();
 
-        let pre_result = engine.analyze_pattern(&pre)?;
-        let post_result = engine.analyze_pattern(&post)?;
-        let comparison = compare_prepost(&pre_result, &post_result);
-        let incomparable = comparison
-            .status_flags
-            .contains(&StatusFlag::PrePostNotAnatomicallyComparable);
-        incomparable_count += usize::from(incomparable);
-        for flag in comparison.status_flags {
-            push_unique_flag(&mut comparison_flags, flag);
+            let pre_result = engine.analyze_pattern(&pre)?;
+            let post_result = engine.analyze_pattern(&post)?;
+            let comparison = compare_prepost(&pre_result, &post_result);
+            Ok((post_result, comparison))
+        })();
+        match outcome {
+            Ok((post_result, comparison)) => {
+                let incomparable = comparison
+                    .status_flags
+                    .contains(&StatusFlag::PrePostNotAnatomicallyComparable);
+                incomparable_count += usize::from(incomparable);
+                for flag in comparison.status_flags {
+                    push_unique_flag(&mut comparison_flags, flag);
+                }
+                post_analyses.push(post_result);
+            }
+            Err(error) => failure_reasons.push(format!("replicate {replicate}: {error}")),
         }
-        post_analyses.push(post_result);
     }
 
-    let mut result = summarize_analyses(&post_analyses);
+    let mut result = summarize_analyses(&post_analyses, replicates, failure_reasons);
     for flag in comparison_flags {
         push_unique_flag(&mut result.status_flags, flag);
     }
-    let incomparable_rate = incomparable_count as f64 / replicates as f64;
-    result.prepost_incomparable_rate = Some(incomparable_rate);
-    result.passed = incomparable_rate == 1.0;
+    let incomparable_rate = observed_rate(incomparable_count, result.replicates_completed);
+    result.prepost_incomparable_rate = incomparable_rate;
+    result.prepost_incomparable_confidence_interval = incomparable_rate
+        .and_then(|_| wilson_interval(incomparable_count, result.replicates_completed));
+    result.passed = result.replicates_failed == 0 && incomparable_rate == Some(1.0);
+    result.acceptance_criterion = marked_acceptance_criterion("prepost_metadata_mismatch");
     result
         .notes
         .push(note_for("prepost_metadata_mismatch").into());
@@ -659,7 +711,11 @@ fn multimodal_acceptance_criterion(generator: &str) -> &'static str {
     }
 }
 
-fn summarize_analyses(analyses: &[MarkedPatternResult]) -> SyntheticSmokeResult {
+fn summarize_analyses(
+    analyses: &[MarkedPatternResult],
+    replicates_attempted: usize,
+    failure_reasons: Vec<String>,
+) -> SyntheticSmokeResult {
     let mut status_flags = Vec::new();
     for analysis in analyses {
         for flag in &analysis.status_flags {
@@ -667,14 +723,14 @@ fn summarize_analyses(analyses: &[MarkedPatternResult]) -> SyntheticSmokeResult 
         }
     }
 
-    let replicates_run = analyses.len();
-    let denom = replicates_run.max(1) as f64;
+    let replicates_completed = analyses.len();
+    let replicates_failed = failure_reasons.len();
     let mean_low_k_excess = mean_all_finite(
         analyses
             .iter()
             .filter_map(|analysis| analysis.spectrum.value().map(|value| value.low_k_excess)),
     );
-    let detection_rate = analyses
+    let detection_count = analyses
         .iter()
         .filter(|analysis| {
             analysis
@@ -689,9 +745,8 @@ fn summarize_analyses(analyses: &[MarkedPatternResult]) -> SyntheticSmokeResult 
                     .value()
                     .is_some_and(|value| value.low_k_excess > 1.25)
         })
-        .count() as f64
-        / denom;
-    let type_i_error_alpha_0_05 = analyses
+        .count();
+    let type_i_error_count = analyses
         .iter()
         .filter(|analysis| {
             analysis
@@ -702,8 +757,7 @@ fn summarize_analyses(analyses: &[MarkedPatternResult]) -> SyntheticSmokeResult 
                 .map(|p| p <= 0.05)
                 .unwrap_or(false)
         })
-        .count() as f64
-        / denom;
+        .count();
     let mean_anisotropy_index = mean_all_finite(
         analyses
             .iter()
@@ -715,24 +769,72 @@ fn summarize_analyses(analyses: &[MarkedPatternResult]) -> SyntheticSmokeResult 
             .value()
             .map(|value| value.territory_count as f64)
     }));
-    let suppression_rate = analyses
+    let suppression_count = analyses
         .iter()
         .filter(|analysis| analysis.status != "ok")
-        .count() as f64
-        / denom;
+        .count();
+    let detection_rate = observed_rate(detection_count, replicates_completed);
+    let type_i_error_alpha_0_05 = observed_rate(type_i_error_count, replicates_completed);
+    let suppression_rate = observed_rate(suppression_count, replicates_completed);
 
     SyntheticSmokeResult {
-        replicates_run,
+        replicates_attempted,
+        replicates_completed,
+        replicates_failed,
+        failure_reasons,
         passed: false,
         mean_low_k_excess,
-        type_i_error_alpha_0_05: Some(type_i_error_alpha_0_05),
-        detection_rate: Some(detection_rate),
+        type_i_error_alpha_0_05,
+        type_i_error_confidence_interval: type_i_error_alpha_0_05
+            .and_then(|_| wilson_interval(type_i_error_count, replicates_completed)),
+        detection_rate,
+        detection_confidence_interval: detection_rate
+            .and_then(|_| wilson_interval(detection_count, replicates_completed)),
         mean_anisotropy_index,
         mean_territory_count,
-        suppression_rate: Some(suppression_rate),
+        suppression_rate,
+        suppression_confidence_interval: suppression_rate
+            .and_then(|_| wilson_interval(suppression_count, replicates_completed)),
         prepost_incomparable_rate: None,
+        prepost_incomparable_confidence_interval: None,
+        acceptance_criterion: "pending scenario evaluation",
         status_flags,
         notes: Vec::new(),
+    }
+}
+
+fn marked_acceptance_criterion(generator: &str) -> &'static str {
+    match generator {
+        "random_labeling" => {
+            "smoke only: type-I rate must remain below the replicate-count-dependent guard"
+        }
+        "single_gaussian_cluster" | "single_matern_cluster" => {
+            "smoke only: mean production residual-territory count >= 1"
+        }
+        "many_small_foci" => {
+            "smoke only: mean production residual-territory count >= 4 with finite low-k excess"
+        }
+        "anisotropic_stripe" => "smoke only: mean production anisotropy index > 1.05",
+        "low_k_suppressed_dispersed" => "smoke only: mean production low-k excess <= 1.25",
+        "cell_density_gradient_random_labels" => {
+            "smoke only: mean production residual-territory count <= 1"
+        }
+        "stain_gradient_artifact" => {
+            "smoke only: every replicate is suppressed and carries the production stain-gradient flag"
+        }
+        "internal_control_dropout_artifact" => {
+            "smoke only: production status includes internal-control failure overlap"
+        }
+        "fragmented_tumor_islands" => {
+            "smoke only: production status includes mask-fragmentation suspect"
+        }
+        "rare_phenotype" => {
+            "smoke only: production status includes too-few-marked underpowering"
+        }
+        "prepost_metadata_mismatch" => {
+            "smoke only: every production pre/post comparison reports anatomical incomparability"
+        }
+        _ => "unknown smoke acceptance criterion",
     }
 }
 

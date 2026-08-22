@@ -700,6 +700,10 @@ fn smoke_synthetic_writes_machine_readable_summary() {
             .expect("json");
 
     assert_eq!(result["suite"], "synthetic_generator_smoke");
+    assert_eq!(result["suite_kind"], "smoke");
+    assert_eq!(result["seed"], 9_001);
+    assert!(result["engine_version"].is_string());
+    assert_eq!(result["configuration"]["permutations"], 39);
     assert_eq!(result["replicates"], 5);
     assert_eq!(result["status"], "completed");
     assert_eq!(
@@ -723,7 +727,16 @@ fn smoke_synthetic_writes_machine_readable_summary() {
         "prepost_metadata_mismatch",
     ] {
         assert!(results.contains_key(generator), "missing {generator}");
-        assert_eq!(results[generator]["replicates_run"], 5);
+        assert_eq!(results[generator]["replicates_attempted"], 5);
+        assert_eq!(results[generator]["replicates_completed"], 5);
+        assert_eq!(results[generator]["replicates_failed"], 0);
+        assert_eq!(
+            results[generator]["failure_reasons"]
+                .as_array()
+                .expect("failure reasons")
+                .len(),
+            0
+        );
         assert!(results[generator]["passed"].is_boolean());
     }
 

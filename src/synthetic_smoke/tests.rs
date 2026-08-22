@@ -148,6 +148,33 @@ fn marked_smoke_uses_production_qc_and_prepost_outcomes() {
         .status_flags
         .contains(&StatusFlag::PrePostNotAnatomicallyComparable));
     assert_eq!(metadata_mismatch.prepost_incomparable_rate, Some(1.0));
+    for result in summary.results.values() {
+        assert_eq!(result.replicates_attempted, 1);
+        assert_eq!(result.replicates_completed, 1);
+        assert_eq!(result.replicates_failed, 0);
+        assert!(result.failure_reasons.is_empty());
+        assert!(!result.acceptance_criterion.is_empty());
+    }
+}
+
+#[test]
+fn marked_smoke_reports_failed_replicates_without_hiding_denominators() {
+    let pattern = crate::synthetic_smoke::generators::synthetic_pattern("random_labeling", 0)
+        .expect("pattern");
+    let engine = AnalysisEngine::new(crate::synthetic_smoke::smoke_config()).expect("engine");
+    let analysis = engine.analyze_pattern(&pattern).expect("analysis");
+
+    let result = crate::synthetic_smoke::summarize_analyses(
+        &[analysis],
+        2,
+        vec!["replicate 1: synthetic execution failure".into()],
+    );
+
+    assert_eq!(result.replicates_attempted, 2);
+    assert_eq!(result.replicates_completed, 1);
+    assert_eq!(result.replicates_failed, 1);
+    assert_eq!(result.failure_reasons.len(), 1);
+    assert!(result.type_i_error_confidence_interval.is_some());
 }
 
 mod multimodal {
