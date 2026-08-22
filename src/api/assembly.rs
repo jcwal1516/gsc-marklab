@@ -234,7 +234,7 @@ pub(super) fn assemble(
         cross_interaction_curves: crate::output::AnalysisSection::NotApplicable,
         territory_profiles: crate::output::AnalysisSection::NotApplicable,
         territory_comparisons: crate::output::AnalysisSection::NotApplicable,
-        prepost_curve_tests: Vec::new(),
+        prepost_curve_comparisons: Vec::new(),
         component_mode_selection: component_plan.selection.clone(),
         component_results: component_results_for(config, pattern, &component_plan)?,
         diagnostics,

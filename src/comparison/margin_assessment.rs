@@ -1,7 +1,7 @@
 use crate::{
     comparison::curves::max_abs_standardized_difference,
     errors::{MarklabError, Result},
-    output::{CurveTestAvailability, CurveTestResult},
+    output::{CurveComparisonAvailability, CurveComparisonResult},
 };
 
 /// Compare two curves against an optional maximum standardized-difference margin.
@@ -14,7 +14,7 @@ pub fn curve_margin_assessment(
     a: &[f64],
     b: &[f64],
     margin: Option<f64>,
-) -> Result<CurveTestResult> {
+) -> Result<CurveComparisonResult> {
     let statistic = max_abs_standardized_difference(a, b)?;
     validate_margin(margin)?;
 
@@ -33,13 +33,14 @@ pub fn curve_margin_assessment(
         ),
     };
 
-    Ok(CurveTestResult {
+    Ok(CurveComparisonResult {
         comparison_name: comparison_name.to_owned(),
+        method: crate::output::CurveComparisonMethod::DescriptiveMargin,
         metric: "max_abs_standardized_difference".into(),
-        availability: CurveTestAvailability::Available,
+        availability: CurveComparisonAvailability::Available,
         statistic: Some(statistic),
         unavailable_reason: None,
-        p_difference: None,
+        pooled_bin_p_value: None,
         margin,
         within_margin,
         interpretation,

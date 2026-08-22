@@ -2,9 +2,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     common::stats::{mean_all_finite, median_average_even},
-    comparison::{difference::curve_difference_test, margin_assessment::curve_margin_assessment},
+    comparison::{
+        margin_assessment::curve_margin_assessment,
+        pooled_bin_difference::pooled_bin_difference_diagnostic,
+    },
     output::{
-        AnalysisSection, CrossInteractionCurve, CurveTestAvailability, CurveTestResult,
+        AnalysisSection, CrossInteractionCurve, CurveComparisonAvailability, CurveComparisonResult,
         MarkedPatternResult, MultimodalResult, PrePostResult, ResidualTerritory, StatusFlag,
         TerritoryFeature, TerritoryPrePostSummary,
     },
@@ -16,7 +19,7 @@ use crate::{
 const AXIS_ABSOLUTE_TOLERANCE: f64 = 1e-12;
 const AXIS_RELATIVE_TOLERANCE: f64 = 1e-12;
 
-const PREPOST_CURVE_TEST_SEED: u64 = 0x7072_6570_6f73_7400;
+const PREPOST_CURVE_COMPARISON_SEED: u64 = 0x7072_6570_6f73_7400;
 const PREPOST_MULTIMODAL_CURVE_PERMUTATIONS: usize = 99;
 
 pub fn compare_prepost(pre: &MarkedPatternResult, post: &MarkedPatternResult) -> PrePostResult {
@@ -54,7 +57,7 @@ pub fn compare_prepost(pre: &MarkedPatternResult, post: &MarkedPatternResult) ->
 
     PrePostResult {
         status_flags,
-        curve_tests: prepost_curve_tests(pre, post),
+        curve_comparisons: prepost_curve_comparisons(pre, post),
         delta_xi_um: numeric_delta(
             pre_spectrum.and_then(|value| value.xi_um),
             post_spectrum.and_then(|value| value.xi_um),
@@ -110,16 +113,16 @@ pub fn compare_multimodal_prepost(
         .unwrap_or_else(|| AnalysisSection::InsufficientData {
             reason: "neighborhood territories are unavailable in one or both results".into(),
         });
-    let mut curve_tests = Vec::new();
-    append_cross_interaction_curve_tests_for_sections(
-        &mut curve_tests,
+    let mut curve_comparisons = Vec::new();
+    append_cross_interaction_curve_comparisons_for_sections(
+        &mut curve_comparisons,
         pre.cross_interaction_curves.value().map(Vec::as_slice),
         post.cross_interaction_curves.value().map(Vec::as_slice),
     );
 
     PrePostResult {
         status_flags,
-        curve_tests,
+        curve_comparisons,
         delta_xi_um: AnalysisSection::NotApplicable,
         delta_low_k_excess: AnalysisSection::NotApplicable,
         delta_alpha: AnalysisSection::NotApplicable,
@@ -146,13 +149,13 @@ fn numeric_delta(pre: Option<f64>, post: Option<f64>, reason: &str) -> AnalysisS
     }
 }
 
-fn prepost_curve_tests(
+fn prepost_curve_comparisons(
     pre: &MarkedPatternResult,
     post: &MarkedPatternResult,
-) -> Vec<CurveTestResult> {
+) -> Vec<CurveComparisonResult> {
     let mut tests = Vec::new();
 
-    append_curve_tests(
+    append_curve_comparisons(
         &mut tests,
         "spectrum",
         &spectrum_values(pre),
@@ -166,9 +169,9 @@ fn prepost_curve_tests(
                     .value()
                     .map_or(0, |value| value.n_permutations),
             ),
-        PREPOST_CURVE_TEST_SEED,
+        PREPOST_CURVE_COMPARISON_SEED,
     );
-    append_curve_tests(
+    append_curve_comparisons(
         &mut tests,
         "mark_pair_covariance",
         &mark_pair_covariance_values(pre),
@@ -182,15 +185,15 @@ fn prepost_curve_tests(
                     .value()
                     .map_or(0, |value| value.n_permutations),
             ),
-        PREPOST_CURVE_TEST_SEED ^ 0x7061_6972,
+        PREPOST_CURVE_COMPARISON_SEED ^ 0x7061_6972,
     );
-    append_cross_interaction_curve_tests(&mut tests, pre, post);
+    append_cross_interaction_curve_comparisons(&mut tests, pre, post);
 
     tests
 }
 
-fn append_curve_tests(
-    tests: &mut Vec<CurveTestResult>,
+fn append_curve_comparisons(
+    tests: &mut Vec<CurveComparisonResult>,
     comparison_name: &str,
     pre_values: &[f64],
     post_values: &[f64],
@@ -199,7 +202,7 @@ fn append_curve_tests(
     seed: u64,
 ) {
     if pre_values.is_empty() && post_values.is_empty() {
-        tests.push(curve_test_error(
+        tests.push(curve_comparison_error(
             comparison_name,
             "curve_availability",
             format!(
@@ -210,7 +213,7 @@ fn append_curve_tests(
     }
 
     if let Err(reason) = axis_alignment {
-        tests.push(curve_test_error(
+        tests.push(curve_comparison_error(
             comparison_name,
             "axis_alignment",
             format!(
@@ -221,7 +224,7 @@ fn append_curve_tests(
     }
 
     if pre_values.is_empty() || pre_values.len() != post_values.len() {
-        tests.push(curve_test_error(
+        tests.push(curve_comparison_error(
             comparison_name,
             "axis_alignment",
             format!(
@@ -231,9 +234,15 @@ fn append_curve_tests(
         return;
     }
 
-    match curve_difference_test(comparison_name, pre_values, post_values, permutations, seed) {
+    match pooled_bin_difference_diagnostic(
+        comparison_name,
+        pre_values,
+        post_values,
+        permutations,
+        seed,
+    ) {
         Ok(test) => tests.push(test),
-        Err(err) => tests.push(curve_test_error(
+        Err(err) => tests.push(curve_comparison_error(
             comparison_name,
             "max_abs_standardized_difference",
             format!("curve difference diagnostic could not be computed: {err}"),
@@ -241,7 +250,7 @@ fn append_curve_tests(
     }
     match curve_margin_assessment(comparison_name, pre_values, post_values, None) {
         Ok(test) => tests.push(test),
-        Err(err) => tests.push(curve_test_error(
+        Err(err) => tests.push(curve_comparison_error(
             comparison_name,
             "max_abs_standardized_difference",
             format!("curve margin assessment could not be computed: {err}"),
@@ -249,18 +258,19 @@ fn append_curve_tests(
     }
 }
 
-fn curve_test_error(
+fn curve_comparison_error(
     comparison_name: &str,
     metric: &str,
     interpretation: String,
-) -> CurveTestResult {
-    CurveTestResult {
+) -> CurveComparisonResult {
+    CurveComparisonResult {
         comparison_name: comparison_name.to_owned(),
+        method: crate::output::CurveComparisonMethod::Unavailable,
         metric: metric.to_owned(),
-        availability: CurveTestAvailability::InsufficientData,
+        availability: CurveComparisonAvailability::InsufficientData,
         statistic: None,
         unavailable_reason: Some(interpretation.clone()),
-        p_difference: None,
+        pooled_bin_p_value: None,
         margin: None,
         within_margin: None,
         interpretation,
@@ -283,20 +293,20 @@ fn mark_pair_covariance_values(result: &MarkedPatternResult) -> Vec<f64> {
         .collect()
 }
 
-fn append_cross_interaction_curve_tests(
-    tests: &mut Vec<CurveTestResult>,
+fn append_cross_interaction_curve_comparisons(
+    tests: &mut Vec<CurveComparisonResult>,
     pre: &MarkedPatternResult,
     post: &MarkedPatternResult,
 ) {
-    append_cross_interaction_curve_tests_for_sections(
+    append_cross_interaction_curve_comparisons_for_sections(
         tests,
         pre.cross_interaction_curves.value().map(Vec::as_slice),
         post.cross_interaction_curves.value().map(Vec::as_slice),
     );
 }
 
-fn append_cross_interaction_curve_tests_for_sections(
-    tests: &mut Vec<CurveTestResult>,
+fn append_cross_interaction_curve_comparisons_for_sections(
+    tests: &mut Vec<CurveComparisonResult>,
     pre_curves: Option<&[CrossInteractionCurve]>,
     post_curves: Option<&[CrossInteractionCurve]>,
 ) {
@@ -311,16 +321,16 @@ fn append_cross_interaction_curve_tests_for_sections(
     for key in keys {
         let comparison_name = format!("cross_interaction:{}/{}", key.0, key.1);
         match (pre_curves.get(&key), post_curves.get(&key)) {
-            (Some(pre_curve), Some(post_curve)) => append_curve_tests(
+            (Some(pre_curve), Some(post_curve)) => append_curve_comparisons(
                 tests,
                 &comparison_name,
                 &cross_interaction_values(pre_curve),
                 &cross_interaction_values(post_curve),
                 cross_interaction_axes_aligned(pre_curve, post_curve),
                 PREPOST_MULTIMODAL_CURVE_PERMUTATIONS,
-                PREPOST_CURVE_TEST_SEED ^ cross_curve_seed(&key),
+                PREPOST_CURVE_COMPARISON_SEED ^ cross_curve_seed(&key),
             ),
-            _ => tests.push(curve_test_error(
+            _ => tests.push(curve_comparison_error(
                 &comparison_name,
                 "curve_availability",
                 format!(

@@ -5,7 +5,8 @@ use crate::{
     errors::{MarklabError, Result},
     multimodal::cell_table::{primary_label, FusedCell},
     output::{
-        CurveTestAvailability, CurveTestResult, LabelFraction, TerritoryFeature, TerritoryProfile,
+        CurveComparisonAvailability, CurveComparisonResult, LabelFraction, TerritoryFeature,
+        TerritoryProfile,
     },
 };
 
@@ -29,7 +30,7 @@ pub fn territory_profiles(
 pub fn compare_territory_profiles(
     profiles: &[TerritoryProfile],
     margin: Option<f64>,
-) -> Result<Vec<CurveTestResult>> {
+) -> Result<Vec<CurveComparisonResult>> {
     validate_margin(margin)?;
     validate_profiles(profiles)?;
 
@@ -49,16 +50,17 @@ pub fn compare_territory_profiles(
             let statistic = max_abs_standardized_difference(&left_vector, &right_vector)?;
             let within_margin = margin.map(|margin| statistic <= margin);
 
-            tests.push(CurveTestResult {
+            tests.push(CurveComparisonResult {
                 comparison_name: format!(
                     "territory_{}_vs_{}",
                     left.territory_id, right.territory_id
                 ),
+                method: crate::output::CurveComparisonMethod::DescriptiveMargin,
                 metric: "max_abs_standardized_difference".into(),
-                availability: CurveTestAvailability::Available,
+                availability: CurveComparisonAvailability::Available,
                 statistic: Some(statistic),
                 unavailable_reason: None,
-                p_difference: None,
+                pooled_bin_p_value: None,
                 margin,
                 within_margin,
                 interpretation: interpretation_for(statistic, margin, within_margin),
@@ -236,14 +238,15 @@ fn no_profile_data_result(
     left: &TerritoryProfile,
     right: &TerritoryProfile,
     margin: Option<f64>,
-) -> CurveTestResult {
-    CurveTestResult {
+) -> CurveComparisonResult {
+    CurveComparisonResult {
         comparison_name: format!("territory_{}_vs_{}", left.territory_id, right.territory_id),
+        method: crate::output::CurveComparisonMethod::DescriptiveMargin,
         metric: "max_abs_standardized_difference".into(),
-        availability: CurveTestAvailability::InsufficientData,
+        availability: CurveComparisonAvailability::InsufficientData,
         statistic: None,
         unavailable_reason: Some("no known cell-type labels are available for this territory pair".into()),
-        p_difference: None,
+        pooled_bin_p_value: None,
         margin,
         within_margin: None,
         interpretation: "insufficient territory profile data: no known cell-type labels are available for this pair; a descriptive margin assessment is unavailable".into(),

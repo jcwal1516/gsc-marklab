@@ -110,17 +110,21 @@ exclusion filters. Optional fractions are `null` only when the corresponding
 input state is unavailable. No result is constructed for a zero in-mask
 denominator.
 
-## Curve tests
+## Curve comparisons
 
-Every `CurveTestResult` has an `availability` of `available` or
-`insufficient_data`. Available tests contain a finite `statistic` and no
-`unavailable_reason`. An unavailable test contains `statistic: null` plus a
+Every `CurveComparisonResult` has an `availability` of `available` or
+`insufficient_data` and a typed `method`. A `pooled_bin_permutation` row has a
+finite `statistic` and `pooled_bin_p_value`; it shuffles already-aggregated bin
+values and is not a spatial or per-cell permutation test. A
+`descriptive_margin` row compares that statistic with an optional threshold and
+has no p-value. Available comparisons have no `unavailable_reason`. An
+unavailable comparison contains `statistic: null` plus a
 diagnostic reason. Failed or inapplicable comparisons never use a statistic of
 zero as a placeholder.
 
 Pre/post axis alignment requires equal lengths and finite values. Corresponding
 axis values match when `|a-b| <= 1e-12 + 1e-12 * max(|a|, |b|)`. A material
-mismatch produces an `insufficient_data` curve-test result with a null
+mismatch produces an `insufficient_data` curve-comparison result with a null
 statistic and axis diagnostics.
 
 ## Component modes

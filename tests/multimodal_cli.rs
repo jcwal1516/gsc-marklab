@@ -446,9 +446,9 @@ fn multimodal_prepost_cli_writes_cross_curve_delta_result() {
         &std::fs::read_to_string(delta_out.join("prepost.json")).expect("delta"),
     )
     .expect("json");
-    assert!(delta["curve_tests"]
+    assert!(delta["curve_comparisons"]
         .as_array()
-        .expect("curve tests")
+        .expect("curve comparisons")
         .iter()
         .any(|test| test["comparison_name"]
             .as_str()

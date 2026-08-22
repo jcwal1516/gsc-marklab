@@ -14,7 +14,7 @@ pub(crate) enum SeedEndpoint {
     NeighborhoodEnrichment = 0x6e65_6967_685f_656e,
     #[cfg(feature = "cli")]
     NeighborhoodStratifiedEnrichment = 0x6e65_6967_685f_7374,
-    CurveDifference = 0x6375_7276_655f_6469,
+    PooledBinDifference = 0x6375_7276_655f_6469,
 }
 
 /// Derive a stable seed from a base seed, endpoint namespace, and run index.
@@ -70,7 +70,7 @@ mod tests {
             SeedEndpoint::NeighborhoodEnrichment,
             #[cfg(feature = "cli")]
             SeedEndpoint::NeighborhoodStratifiedEnrichment,
-            SeedEndpoint::CurveDifference,
+            SeedEndpoint::PooledBinDifference,
         ];
         let mut seeds = endpoints
             .into_iter()

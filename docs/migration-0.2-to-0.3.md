@@ -26,7 +26,13 @@ semantics.
   `pair_count == 0` means the
   bin had no contributing cell pairs; it is not an observed correlation of
   zero.
-- `CurveTestResult.statistic` is nullable and `availability` is typed.
+- `CurveTestResult` is renamed to `CurveComparisonResult`, with typed
+  `availability` and `method`. `p_difference` becomes
+  `pooled_bin_p_value`; the name exposes that its null shuffles pooled,
+  already-aggregated bins rather than cells or spatial labels.
+- Marked-result `prepost_curve_tests` and pre/post-result `curve_tests` become
+  `prepost_curve_comparisons` and `curve_comparisons`.
+- `CurveComparisonResult.statistic` is nullable.
 - Curve comparison fields `equivalence_margin` and `equivalent` are renamed to
   `margin` and `within_margin`. The never-computed `p_equivalence` placeholder
   is removed. These fields describe a threshold comparison, not an inferential

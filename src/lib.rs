@@ -61,14 +61,15 @@ pub use multimodal::{
 pub use output::{
     AnalysisResult, AnalysisSection, AnisotropySummary, ArtifactStatus, BetaPosteriorGroupSummary,
     BetaPosteriorSummary, ComponentAnalysisSummary, ComponentModeSelection, CrossInteractionCurve,
-    CrossInteractionPoint, CurveTestAvailability, CurveTestResult, DiagnosticsResult,
-    EnrichmentStatisticUnavailableReason, FunctionalSummary, FusedCellSummary,
-    GraphSmoothingLabelPairSummary, GraphSmoothingSummary, Interpretation, LabelFraction,
-    MarkPairCovariancePoint, MarkedPatternResult, MultimodalResult, MultiscaleResidualSummary,
-    NeighborhoodEnrichmentResult, OutputManifest, OutputWriter, PrePostResult, PrimaryEndpoint,
-    Provenance, QcSummary, RegistrationSummary, ResidualTerritory, ResolvedComponentMode,
-    ResultDocument, ScaleEnergyPoint, SpectrumPoint, SpectrumSummary, StatusFlag, TerritoryFeature,
-    TerritoryPrePostSummary, TerritoryProfile, TimingStage, WindowSummary, RESULT_FORMAT_VERSION,
+    CrossInteractionPoint, CurveComparisonAvailability, CurveComparisonMethod,
+    CurveComparisonResult, DiagnosticsResult, EnrichmentStatisticUnavailableReason,
+    FunctionalSummary, FusedCellSummary, GraphSmoothingLabelPairSummary, GraphSmoothingSummary,
+    Interpretation, LabelFraction, MarkPairCovariancePoint, MarkedPatternResult, MultimodalResult,
+    MultiscaleResidualSummary, NeighborhoodEnrichmentResult, OutputManifest, OutputWriter,
+    PrePostResult, PrimaryEndpoint, Provenance, QcSummary, RegistrationSummary, ResidualTerritory,
+    ResolvedComponentMode, ResultDocument, ScaleEnergyPoint, SpectrumPoint, SpectrumSummary,
+    StatusFlag, TerritoryFeature, TerritoryPrePostSummary, TerritoryProfile, TimingStage,
+    WindowSummary, RESULT_FORMAT_VERSION,
 };
 pub use registration::landmarks::LandmarkPair;
 #[cfg(feature = "wsi")]

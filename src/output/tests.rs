@@ -2,8 +2,8 @@ use std::fs;
 
 use crate::{
     data::PatternMeta, io::report::render_analysis_report, prepost::deltas::compare_prepost,
-    AnalysisConfig, AnalysisEngine, CurveTestAvailability, CurveTestResult, OutputWriter, Pattern,
-    ResultDocument, SpectrumPoint, StatusFlag,
+    AnalysisConfig, AnalysisEngine, CurveComparisonAvailability, CurveComparisonResult,
+    OutputWriter, Pattern, ResultDocument, SpectrumPoint, StatusFlag,
 };
 #[cfg(feature = "parquet")]
 use crate::{
@@ -430,14 +430,14 @@ fn prepost_interpretation_uses_allowed_descriptive_language_only() {
     let text = delta.interpretation_text.to_lowercase();
 
     assert!(delta
-        .curve_tests
+        .curve_comparisons
         .iter()
         .any(|test| test.comparison_name == "spectrum"));
-    assert!(delta.curve_tests.iter().any(|test| test
+    assert!(delta.curve_comparisons.iter().any(|test| test
         .interpretation
         .contains("unavailable without a prespecified descriptive margin")));
     let delta_json = serde_json::to_value(&delta).expect("delta json");
-    assert!(delta_json["curve_tests"].is_array());
+    assert!(delta_json["curve_comparisons"].is_array());
 
     assert!(text.contains("coarse-scale organization"));
     assert!(!text.contains("same cells"));
@@ -459,17 +459,20 @@ fn report_distinguishes_difference_diagnostics_from_margin_assessments() {
         .analyze_pattern(&pattern("case_001", "post", vec![1, 0, 1, 0]))
         .expect("analysis");
 
-    result.prepost_curve_tests.push(CurveTestResult {
-        comparison_name: "spectrum".into(),
-        metric: "max_abs_standardized_difference".into(),
-        availability: CurveTestAvailability::Available,
-        statistic: Some(0.1),
-        unavailable_reason: None,
-        p_difference: Some(0.6),
-        margin: None,
-        within_margin: None,
-        interpretation: "nonsignificant diagnostic".into(),
-    });
+    result
+        .prepost_curve_comparisons
+        .push(CurveComparisonResult {
+            comparison_name: "spectrum".into(),
+            method: crate::CurveComparisonMethod::PooledBinPermutation,
+            metric: "max_abs_standardized_difference".into(),
+            availability: CurveComparisonAvailability::Available,
+            statistic: Some(0.1),
+            unavailable_reason: None,
+            pooled_bin_p_value: Some(0.6),
+            margin: None,
+            within_margin: None,
+            interpretation: "nonsignificant diagnostic".into(),
+        });
 
     let report = render_analysis_report(&result);
 

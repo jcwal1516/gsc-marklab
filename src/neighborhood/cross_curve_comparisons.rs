@@ -1,7 +1,7 @@
 use crate::{
     comparison::{
-        curves::max_abs_standardized_difference, difference::curve_difference_test,
-        margin_assessment::curve_margin_assessment,
+        curves::max_abs_standardized_difference, margin_assessment::curve_margin_assessment,
+        pooled_bin_difference::pooled_bin_difference_diagnostic,
     },
     multimodal::cell_table::{CellSection, FusedCell},
     neighborhood::cross_curves::cross_interaction_curve,
@@ -320,16 +320,16 @@ fn comparison_apis_reject_non_finite_curve_values() {
     let b = [1.0, 2.0];
 
     assert!(max_abs_standardized_difference(&a, &b).is_err());
-    assert!(curve_difference_test("nan", &a, &b, 19, 123).is_err());
+    assert!(pooled_bin_difference_diagnostic("nan", &a, &b, 19, 123).is_err());
     assert!(curve_margin_assessment("nan", &a, &b, Some(0.1)).is_err());
 }
 
 #[test]
-fn difference_test_rejects_zero_permutations() {
+fn pooled_bin_difference_rejects_zero_permutations() {
     let a = [1.0, 1.1];
     let b = [1.0, 1.2];
 
-    assert!(curve_difference_test("zero", &a, &b, 0, 123).is_err());
+    assert!(pooled_bin_difference_diagnostic("zero", &a, &b, 0, 123).is_err());
 }
 
 #[test]
@@ -345,21 +345,21 @@ fn margin_assessment_rejects_invalid_margins_and_accepts_zero_margin() {
 }
 
 #[test]
-fn difference_test_is_deterministic_for_same_seed() {
+fn pooled_bin_difference_is_deterministic_for_same_seed() {
     let a = [1.0, 1.0, 1.0];
     let b = [2.0, 1.0, 0.0];
 
-    let first = curve_difference_test("changed", &a, &b, 19, 123).expect("first");
-    let second = curve_difference_test("changed", &a, &b, 19, 123).expect("second");
+    let first = pooled_bin_difference_diagnostic("changed", &a, &b, 19, 123).expect("first");
+    let second = pooled_bin_difference_diagnostic("changed", &a, &b, 19, 123).expect("second");
 
     assert_eq!(first, second);
 }
 
 #[test]
-fn difference_test_reports_nonzero_statistic() {
+fn pooled_bin_difference_reports_nonzero_statistic() {
     let a = [1.0, 1.0, 1.0];
     let b = [2.0, 1.0, 0.0];
-    let result = curve_difference_test("changed", &a, &b, 19, 123).expect("difference");
+    let result = pooled_bin_difference_diagnostic("changed", &a, &b, 19, 123).expect("difference");
     assert!(result.statistic.is_some_and(|statistic| statistic > 0.0));
-    assert!(result.p_difference.is_some());
+    assert!(result.pooled_bin_p_value.is_some());
 }

@@ -1,7 +1,7 @@
 use crate::{
     multimodal::cell_table::{CellSection, FusedCell},
     neighborhood::profiles::{compare_territory_profiles, territory_profiles},
-    CurveTestAvailability, LabelFraction, MarklabError, TerritoryFeature, TerritoryProfile,
+    CurveComparisonAvailability, LabelFraction, MarklabError, TerritoryFeature, TerritoryProfile,
 };
 
 fn fused(id: &str, x: f64, y: f64, label: &str) -> FusedCell {
@@ -124,7 +124,7 @@ fn territory_comparison_with_no_known_labels_reports_margin_unavailable() {
     assert_eq!(tests.len(), 1);
     assert_eq!(
         tests[0].availability,
-        CurveTestAvailability::InsufficientData
+        CurveComparisonAvailability::InsufficientData
     );
     assert_eq!(tests[0].statistic, None);
     assert!(tests[0].unavailable_reason.is_some());
@@ -160,7 +160,7 @@ fn territory_comparison_with_only_zero_count_rows_reports_margin_unavailable() {
     assert_eq!(tests.len(), 1);
     assert_eq!(
         tests[0].availability,
-        CurveTestAvailability::InsufficientData
+        CurveComparisonAvailability::InsufficientData
     );
     assert_eq!(tests[0].statistic, None);
     assert!(tests[0].unavailable_reason.is_some());

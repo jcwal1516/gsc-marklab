@@ -6,7 +6,7 @@ pub mod profiles;
 pub mod territories;
 
 #[cfg(all(test, feature = "cli"))]
-mod cross_curve_tests;
+mod cross_curve_comparisons;
 #[cfg(test)]
 mod profile_tests;
 #[cfg(test)]

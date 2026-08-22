@@ -43,7 +43,7 @@ pub struct MultimodalResult {
     pub cross_interaction_curves: AnalysisSection<Vec<CrossInteractionCurve>>,
     pub neighborhood_territories: AnalysisSection<Vec<TerritoryFeature>>,
     pub territory_profiles: AnalysisSection<Vec<TerritoryProfile>>,
-    pub territory_comparisons: AnalysisSection<Vec<CurveTestResult>>,
+    pub territory_comparisons: AnalysisSection<Vec<CurveComparisonResult>>,
     pub diagnostics: AnalysisSection<DiagnosticsResult>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub timings: Vec<TimingStage>,
@@ -142,9 +142,9 @@ pub struct MarkedPatternResult {
     #[serde(default)]
     pub territory_profiles: AnalysisSection<Vec<TerritoryProfile>>,
     #[serde(default)]
-    pub territory_comparisons: AnalysisSection<Vec<CurveTestResult>>,
+    pub territory_comparisons: AnalysisSection<Vec<CurveComparisonResult>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub prepost_curve_tests: Vec<CurveTestResult>,
+    pub prepost_curve_comparisons: Vec<CurveComparisonResult>,
     pub component_mode_selection: ComponentModeSelection,
     pub component_results: AnalysisSection<Vec<ComponentAnalysisSummary>>,
     #[serde(default)]
@@ -159,7 +159,7 @@ pub struct PrePostResult {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub status_flags: Vec<StatusFlag>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub curve_tests: Vec<CurveTestResult>,
+    pub curve_comparisons: Vec<CurveComparisonResult>,
     pub delta_xi_um: AnalysisSection<f64>,
     pub delta_low_k_excess: AnalysisSection<f64>,
     pub delta_alpha: AnalysisSection<f64>,
@@ -389,14 +389,15 @@ pub struct LabelFraction {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct CurveTestResult {
+pub struct CurveComparisonResult {
     pub comparison_name: String,
+    pub method: CurveComparisonMethod,
     pub metric: String,
-    pub availability: CurveTestAvailability,
+    pub availability: CurveComparisonAvailability,
     pub statistic: Option<f64>,
     #[serde(default)]
     pub unavailable_reason: Option<String>,
-    pub p_difference: Option<f64>,
+    pub pooled_bin_p_value: Option<f64>,
     pub margin: Option<f64>,
     pub within_margin: Option<bool>,
     pub interpretation: String,
@@ -404,7 +405,15 @@ pub struct CurveTestResult {
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum CurveTestAvailability {
+pub enum CurveComparisonMethod {
+    PooledBinPermutation,
+    DescriptiveMargin,
+    Unavailable,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CurveComparisonAvailability {
     Available,
     InsufficientData,
 }

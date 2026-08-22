@@ -3,7 +3,7 @@ use crate::{
     comparison::curves::{max_abs_standardized_difference, validate_curves},
     errors::{MarklabError, Result},
     inference::scalar_pvalues::{permutation_p_value_with_spec, PermutationTestSpec, Tail},
-    output::{CurveTestAvailability, CurveTestResult},
+    output::{CurveComparisonAvailability, CurveComparisonResult},
     permutation::labels::deterministic_shuffle,
 };
 
@@ -12,38 +12,39 @@ use crate::{
 /// The returned p-value permutes pooled curve-bin values. It is an approximate
 /// diagnostic for curve-level difference, not a spatial or per-cell permutation
 /// test, and a non-significant result is not proof that curves are the same.
-pub fn curve_difference_test(
+pub fn pooled_bin_difference_diagnostic(
     comparison_name: &str,
     a: &[f64],
     b: &[f64],
     permutations: usize,
     seed: u64,
-) -> Result<CurveTestResult> {
+) -> Result<CurveComparisonResult> {
     validate_curves(a, b)?;
     if permutations == 0 {
         return Err(MarklabError::Config(
-            "curve difference test permutations must be greater than zero".into(),
+            "pooled-bin difference diagnostic permutations must be greater than zero".into(),
         ));
     }
 
     let statistic = max_abs_standardized_difference(a, b)?;
     let null_statistics = permuted_statistics(a, b, permutations, seed)?;
-    let p_difference = permutation_p_value_with_spec(
+    let pooled_bin_p_value = permutation_p_value_with_spec(
         statistic,
         &null_statistics,
         PermutationTestSpec::new(Tail::OneSidedHigh, 1),
     )?;
 
-    Ok(CurveTestResult {
+    Ok(CurveComparisonResult {
         comparison_name: comparison_name.to_owned(),
+        method: crate::output::CurveComparisonMethod::PooledBinPermutation,
         metric: "max_abs_standardized_difference".into(),
-        availability: CurveTestAvailability::Available,
+        availability: CurveComparisonAvailability::Available,
         statistic: Some(statistic),
         unavailable_reason: None,
-        p_difference: Some(p_difference),
+        pooled_bin_p_value: Some(pooled_bin_p_value),
         margin: None,
         within_margin: None,
-        interpretation: if p_difference < 0.05 {
+        interpretation: if pooled_bin_p_value < 0.05 {
             "difference detected by approximate pooled-bin permutation diagnostic; this is not a spatial or per-cell permutation test and does not prove biological causality".into()
         } else {
             "approximate pooled-bin permutation diagnostic was non-significant; this is not a spatial or per-cell permutation test and does not establish equivalence".into()
@@ -62,7 +63,7 @@ fn permuted_statistics(a: &[f64], b: &[f64], permutations: usize, seed: u64) -> 
         let mut shuffled = pooled.clone();
         deterministic_shuffle(
             &mut shuffled,
-            derive_seed(seed, SeedEndpoint::CurveDifference, permutation),
+            derive_seed(seed, SeedEndpoint::PooledBinDifference, permutation),
         );
         let left = &shuffled[..curve_len];
         let right = &shuffled[curve_len..];

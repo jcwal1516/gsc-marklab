@@ -1,8 +1,11 @@
 use crate::{
-    comparison::{difference::curve_difference_test, margin_assessment::curve_margin_assessment},
+    comparison::{
+        margin_assessment::curve_margin_assessment,
+        pooled_bin_difference::pooled_bin_difference_diagnostic,
+    },
     prepost::deltas::compare_prepost,
     AnalysisSection, AnisotropySummary, ComponentMode, ComponentModeSelection,
-    CrossInteractionCurve, CrossInteractionPoint, CurveTestAvailability, FunctionalSummary,
+    CrossInteractionCurve, CrossInteractionPoint, CurveComparisonAvailability, FunctionalSummary,
     Interpretation, MarkPairCovariancePoint, MarkedPatternResult, MultiscaleResidualSummary,
     PrimaryEndpoint, QcSummary, ResidualTerritory, ResolvedComponentMode, ScaleEnergyPoint,
     SpectrumPoint, SpectrumSummary, WindowSummary,
@@ -90,7 +93,7 @@ fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResul
         cross_interaction_curves: AnalysisSection::NotApplicable,
         territory_profiles: AnalysisSection::NotApplicable,
         territory_comparisons: AnalysisSection::NotApplicable,
-        prepost_curve_tests: Vec::new(),
+        prepost_curve_comparisons: Vec::new(),
     }
 }
 
@@ -108,15 +111,16 @@ fn territory(center_x_um: f64) -> ResidualTerritory {
 }
 
 #[test]
-fn curve_difference_and_margin_assessment_have_distinct_interpretations() {
+fn pooled_bin_difference_and_margin_assessment_have_distinct_interpretations() {
     let pre = [1.0, 1.1, 0.9];
     let post = [1.01, 1.09, 0.91];
 
-    let difference = curve_difference_test("spectrum", &pre, &post, 19, 123).expect("difference");
+    let difference =
+        pooled_bin_difference_diagnostic("spectrum", &pre, &post, 19, 123).expect("difference");
     let margin_assessment =
         curve_margin_assessment("spectrum", &pre, &post, Some(0.2)).expect("margin assessment");
 
-    assert!(difference.p_difference.is_some());
+    assert!(difference.pooled_bin_p_value.is_some());
     assert_eq!(margin_assessment.within_margin, Some(true));
     assert!(!difference.interpretation.contains("same"));
 }
@@ -135,7 +139,18 @@ fn curve_margin_assessment_has_no_equivalence_p_value() {
 }
 
 #[test]
-fn prepost_result_includes_curve_tests_when_curves_exist() {
+fn pooled_bin_difference_uses_diagnostic_schema() {
+    let result = pooled_bin_difference_diagnostic("spectrum", &[1.0, 2.0], &[1.0, 2.5], 19, 123)
+        .expect("pooled-bin diagnostic");
+    let value = serde_json::to_value(result).expect("comparison json");
+
+    assert!(value["pooled_bin_p_value"].is_number());
+    assert_eq!(value["method"], "pooled_bin_permutation");
+    assert!(value.get("p_difference").is_none());
+}
+
+#[test]
+fn prepost_result_includes_curve_comparisons_when_curves_exist() {
     let mut pre = minimal_analysis_result("case1", "pre");
     let mut post = minimal_analysis_result("case1", "post");
 
@@ -190,10 +205,10 @@ fn prepost_result_includes_curve_tests_when_curves_exist() {
         .n_permutations = 7;
 
     let delta = compare_prepost(&pre, &post);
-    assert!(!delta.curve_tests.is_empty());
+    assert!(!delta.curve_comparisons.is_empty());
     for comparison_name in ["spectrum", "mark_pair_covariance"] {
         let comparison_tests: Vec<_> = delta
-            .curve_tests
+            .curve_comparisons
             .iter()
             .filter(|test| test.comparison_name == comparison_name)
             .collect();
@@ -204,9 +219,9 @@ fn prepost_result_includes_curve_tests_when_curves_exist() {
         );
         assert!(comparison_tests
             .iter()
-            .any(|test| test.p_difference.is_some()));
+            .any(|test| test.pooled_bin_p_value.is_some()));
         assert!(comparison_tests.iter().any(|test| {
-            test.p_difference.is_none()
+            test.pooled_bin_p_value.is_none()
                 && test.margin.is_none()
                 && test.within_margin.is_none()
                 && test
@@ -278,16 +293,18 @@ fn prepost_result_includes_multimodal_cross_interaction_tests_and_territory_delt
 
     assert_eq!(delta.delta_territory_count.value(), Some(&1));
     let cross_tests: Vec<_> = delta
-        .curve_tests
+        .curve_comparisons
         .iter()
         .filter(|test| test.comparison_name == "cross_interaction:mmr_abnormal/lymphocyte")
         .collect();
     assert_eq!(cross_tests.len(), 2);
-    assert!(cross_tests.iter().any(|test| test.p_difference.is_some()));
+    assert!(cross_tests
+        .iter()
+        .any(|test| test.pooled_bin_p_value.is_some()));
 }
 
 #[test]
-fn prepost_curve_tests_surface_absent_curves_as_diagnostics() {
+fn prepost_curve_comparisons_surface_absent_curves_as_diagnostics() {
     let pre = minimal_analysis_result("case1", "pre");
     let post = minimal_analysis_result("case1", "post");
 
@@ -295,7 +312,7 @@ fn prepost_curve_tests_surface_absent_curves_as_diagnostics() {
 
     for comparison_name in ["spectrum", "mark_pair_covariance"] {
         let comparison_tests: Vec<_> = delta
-            .curve_tests
+            .curve_comparisons
             .iter()
             .filter(|test| test.comparison_name == comparison_name)
             .collect();
@@ -307,12 +324,12 @@ fn prepost_curve_tests_surface_absent_curves_as_diagnostics() {
         let diagnostic = comparison_tests[0];
         assert_eq!(
             diagnostic.availability,
-            CurveTestAvailability::InsufficientData
+            CurveComparisonAvailability::InsufficientData
         );
         assert_eq!(diagnostic.statistic, None);
         assert!(diagnostic.unavailable_reason.is_some());
         assert_eq!(diagnostic.metric, "curve_availability");
-        assert!(diagnostic.p_difference.is_none());
+        assert!(diagnostic.pooled_bin_p_value.is_none());
         assert!(diagnostic.margin.is_none());
         assert!(diagnostic.within_margin.is_none());
         let encoded = serde_json::to_value(diagnostic).expect("diagnostic JSON");
@@ -360,22 +377,22 @@ fn mark_pair_covariance_difference_uses_mark_pair_covariance_permutation_count()
 
     let delta = compare_prepost(&pre, &post);
     let pair_tests: Vec<_> = delta
-        .curve_tests
+        .curve_comparisons
         .iter()
         .filter(|test| test.comparison_name == "mark_pair_covariance")
         .collect();
 
     assert_eq!(pair_tests.len(), 2);
     assert!(pair_tests.iter().any(|test| {
-        test.availability == CurveTestAvailability::InsufficientData
+        test.availability == CurveComparisonAvailability::InsufficientData
             && test.statistic.is_none()
-            && test.p_difference.is_none()
+            && test.pooled_bin_p_value.is_none()
             && test
                 .interpretation
                 .contains("permutations must be greater than zero")
     }));
     assert!(pair_tests.iter().any(|test| {
-        test.p_difference.is_none()
+        test.pooled_bin_p_value.is_none()
             && test.margin.is_none()
             && test.within_margin.is_none()
             && test
@@ -385,7 +402,7 @@ fn mark_pair_covariance_difference_uses_mark_pair_covariance_permutation_count()
 }
 
 #[test]
-fn prepost_curve_tests_surface_unaligned_axis_diagnostics() {
+fn prepost_curve_comparisons_surface_unaligned_axis_diagnostics() {
     let mut pre = minimal_analysis_result("case1", "pre");
     let mut post = minimal_analysis_result("case1", "post");
 
@@ -453,7 +470,7 @@ fn prepost_curve_tests_surface_unaligned_axis_diagnostics() {
 
     for comparison_name in ["spectrum", "mark_pair_covariance"] {
         let comparison_tests: Vec<_> = delta
-            .curve_tests
+            .curve_comparisons
             .iter()
             .filter(|test| test.comparison_name == comparison_name)
             .collect();
@@ -465,10 +482,10 @@ fn prepost_curve_tests_surface_unaligned_axis_diagnostics() {
         let diagnostic = comparison_tests[0];
         assert_eq!(
             diagnostic.availability,
-            CurveTestAvailability::InsufficientData
+            CurveComparisonAvailability::InsufficientData
         );
         assert_eq!(diagnostic.statistic, None);
-        assert!(diagnostic.p_difference.is_none());
+        assert!(diagnostic.pooled_bin_p_value.is_none());
         assert!(diagnostic.margin.is_none());
         assert!(diagnostic.within_margin.is_none());
         assert!(diagnostic.interpretation.contains("axis"));
@@ -558,7 +575,7 @@ fn remediation_prepost_axes_accept_harmless_float_reconstruction() {
         "cross_interaction:mmr_abnormal/lymphocyte",
     ] {
         let comparison_tests = delta
-            .curve_tests
+            .curve_comparisons
             .iter()
             .filter(|test| test.comparison_name == comparison_name)
             .collect::<Vec<_>>();
@@ -595,7 +612,7 @@ fn prepost_axes_reject_material_numeric_differences() {
 
     let delta = compare_prepost(&pre, &post);
     let spectrum_tests = delta
-        .curve_tests
+        .curve_comparisons
         .iter()
         .filter(|test| test.comparison_name == "spectrum")
         .collect::<Vec<_>>();
@@ -603,7 +620,7 @@ fn prepost_axes_reject_material_numeric_differences() {
     assert_eq!(spectrum_tests.len(), 1);
     assert_eq!(
         spectrum_tests[0].availability,
-        CurveTestAvailability::InsufficientData
+        CurveComparisonAvailability::InsufficientData
     );
     assert!(spectrum_tests[0]
         .unavailable_reason
