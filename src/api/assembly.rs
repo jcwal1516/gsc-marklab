@@ -9,8 +9,8 @@ use crate::{
     config::AnalysisConfig,
     errors::{MarklabError, Result},
     output::{
-        AnalysisStatus, AnisotropySummary, DiagnosticsResult, FunctionalSummary, Interpretation,
-        InterpretationClass, MarkPairCovariancePoint, MarkedPatternResult,
+        AnalysisSection, AnalysisStatus, AnisotropySummary, DiagnosticsResult, FunctionalSummary,
+        Interpretation, InterpretationClass, MarkPairCovariancePoint, MarkedPatternResult,
         MultiscaleResidualSummary, PrimaryEndpoint, PrimaryEndpointKind, ResidualTerritory,
         ScaleEnergyPoint, SpectrumConfoundingConclusion, SpectrumNullInferenceSummary,
         SpectrumNullModel, SpectrumNullSensitivitySummary, SpectrumPoint, SpectrumSummary,
@@ -40,6 +40,13 @@ pub(super) struct Inputs {
     pub(super) component_plan: ComponentAnalysisPlan,
 }
 
+struct SpectrumAssembly {
+    primary_endpoint: PrimaryEndpoint,
+    spectrum: AnalysisSection<SpectrumSummary>,
+    null_sensitivity: AnalysisSection<SpectrumNullSensitivitySummary>,
+    curve: Vec<SpectrumPoint>,
+}
+
 pub(super) fn assemble(
     config: &AnalysisConfig,
     context: &MarkedAnalysisContext<'_>,
@@ -67,62 +74,14 @@ pub(super) fn assemble(
     } = inputs;
     let includes_pooled = component_plan.includes_pooled();
 
-    let spectral_curve_p_global = spectrum
-        .as_ref()
-        .and_then(|spectrum| finite_option(spectrum.p_global));
-    let xi_um = spectrum
-        .as_ref()
-        .and_then(|spectrum| spectrum.xi_um)
-        .and_then(finite_option);
-    let xi_stability_interval_um = spectrum
-        .as_ref()
-        .and_then(|spectrum| spectrum.xi_stability_interval_um)
-        .filter(|interval| interval.iter().all(|value| value.is_finite()));
-    let alpha = config
-        .spectrum
-        .fit_low_k_alpha
-        .then(|| {
-            spectrum
-                .as_ref()
-                .and_then(|spectrum| spectrum.alpha)
-                .and_then(finite_option)
-        })
-        .flatten();
-    let low_k_excess_p_value = spectrum
-        .as_ref()
-        .and_then(|spectrum| spectrum.low_k_excess_p_value)
-        .and_then(finite_option);
-    let xi_um_p_value = spectrum
-        .as_ref()
-        .and_then(|spectrum| spectrum.xi_um_p_value)
-        .and_then(finite_option);
-    let alpha_p_value = config
-        .spectrum
-        .fit_low_k_alpha
-        .then(|| {
-            spectrum
-                .as_ref()
-                .and_then(|spectrum| spectrum.alpha_p_value)
-                .and_then(finite_option)
-        })
-        .flatten();
-    let k_min = spectrum
-        .as_ref()
-        .and_then(|spectrum| spectrum.k_values.first().copied())
-        .and_then(finite_option);
-    let k_max = spectrum
-        .as_ref()
-        .and_then(|spectrum| spectrum.k_values.last().copied())
-        .and_then(finite_option);
-    let n_k_modes = spectrum.as_ref().map_or(0, |spectrum| spectrum.n_modes);
-    let n_permutations = spectrum
-        .as_ref()
-        .map_or(0, |spectrum| spectrum.n_permutations);
-    let spectrum_curve = spectrum
-        .as_ref()
-        .map(spectrum_curve)
-        .transpose()?
-        .unwrap_or_default();
+    let spectrum_assembly = assemble_spectrum(
+        config,
+        geometry.effective_length_um,
+        spectrum.as_ref(),
+        spectrum_null_sensitivity,
+        spectrum_unavailable_reason,
+        includes_pooled,
+    )?;
 
     let mut result = MarkedPatternResult {
         case_id: pattern.meta.case_id.clone(),
@@ -140,81 +99,10 @@ pub(super) fn assemble(
             d_nn_mean_um: geometry.mean_nearest_neighbor_um,
         },
         qc: qc_summary(pattern),
-        primary_endpoint: PrimaryEndpoint {
-            name: PrimaryEndpointKind::LowKExcess,
-            value: spectrum.as_ref().map_or_else(
-                || crate::output::AnalysisSection::InsufficientData {
-                    reason: spectrum_unavailable_reason.clone().unwrap_or_else(|| {
-                        "too few eligible spectrum shells or invalid spectrum input".into()
-                    }),
-                },
-                |value| crate::output::AnalysisSection::available(value.low_k_excess),
-            ),
-            p_value: low_k_excess_p_value.map_or_else(
-                || crate::output::AnalysisSection::InsufficientData {
-                    reason: spectrum_unavailable_reason.clone().unwrap_or_else(|| {
-                        "the low-k null statistic was unavailable".into()
-                    }),
-                },
-                crate::output::AnalysisSection::available,
-            ),
-            null: if config.permutation.stratified {
-                SpectrumNullModel::StratifiedFixedPositionRandomLabeling
-            } else {
-                SpectrumNullModel::FixedPositionRandomLabeling
-            },
-        },
-        spectrum: spectrum.as_ref().map_or_else(
-            || crate::output::AnalysisSection::InsufficientData {
-                reason: spectrum_unavailable_reason.unwrap_or_else(|| {
-                    format!(
-                        "fewer than {} inference-eligible spectrum shells or undefined spectrum input",
-                        config.validation.k_shell_min
-                    )
-                }),
-            },
-            |spectrum_value| {
-                crate::output::AnalysisSection::available(SpectrumSummary {
-                    max_interpretable_scale_um: config
-                        .validation
-                        .largest_interpretable_scale_fraction
-                        * geometry.effective_length_um,
-                    k_min,
-                    k_max,
-                    n_k_modes,
-                    n_shells: config.spectrum.k_shells,
-                    n_permutations,
-                    spectral_curve_test: match (
-                        spectral_curve_p_global,
-                        Some(spectrum_value.erl_depth),
-                    ) {
-                        (Some(p_global), Some(erl_depth)) => {
-                            crate::output::AnalysisSection::available(FunctionalSummary {
-                                p_global: Some(p_global),
-                                erl_depth: Some(erl_depth),
-                                n_permutations,
-                            })
-                        }
-                        _ => crate::output::AnalysisSection::InsufficientData {
-                            reason: "the spectral-curve ERL test was unavailable".into(),
-                        },
-                    },
-                    xi_um,
-                    xi_stability_interval_um,
-                    low_k_excess: spectrum_value.low_k_excess,
-                    low_k_excess_p_value,
-                    alpha,
-                    xi_um_p_value,
-                    alpha_p_value,
-                })
-            },
-        ),
-        spectrum_null_sensitivity: spectrum_null_sensitivity_section(
-            config,
-            includes_pooled,
-            spectrum_null_sensitivity,
-        ),
-        spectrum_curve,
+        primary_endpoint: spectrum_assembly.primary_endpoint,
+        spectrum: spectrum_assembly.spectrum,
+        spectrum_null_sensitivity: spectrum_assembly.null_sensitivity,
+        spectrum_curve: spectrum_assembly.curve,
         mark_pair_covariance,
         mark_pair_covariance_curve,
         anisotropy: anisotropy.map_or_else(
@@ -248,24 +136,154 @@ pub(super) fn assemble(
         timings,
         interpretation,
     };
-    if !includes_pooled {
-        result.primary_endpoint = PrimaryEndpoint {
-            name: PrimaryEndpointKind::ComponentLowKExcess,
-            value: crate::output::AnalysisSection::NotApplicable,
-            p_value: crate::output::AnalysisSection::NotApplicable,
-            null: SpectrumNullModel::ComponentSpecificFixedPositionRandomLabeling,
-        };
-        result.spectrum = crate::output::AnalysisSection::NotApplicable;
-        result.spectrum_curve.clear();
-        result.mark_pair_covariance = crate::output::AnalysisSection::NotApplicable;
-        result.mark_pair_covariance_curve.clear();
-        result.anisotropy = crate::output::AnalysisSection::NotApplicable;
-        result.multiscale_residual = crate::output::AnalysisSection::NotApplicable;
-        result.scale_energy = crate::output::AnalysisSection::NotApplicable;
-        result.scale_energy_curve.clear();
-        result.residual_territories = crate::output::AnalysisSection::NotApplicable;
-    }
+    apply_component_mode(&mut result, includes_pooled);
     Ok(result)
+}
+
+fn assemble_spectrum(
+    config: &AnalysisConfig,
+    effective_length_um: f64,
+    spectrum: Option<&PermutationWhitenedSpectrum>,
+    sensitivity: Option<SpectrumNullSensitivity>,
+    unavailable_reason: Option<String>,
+    includes_pooled: bool,
+) -> Result<SpectrumAssembly> {
+    let p_global = spectrum.and_then(|value| finite_option(value.p_global));
+    let xi_um = spectrum
+        .and_then(|value| value.xi_um)
+        .and_then(finite_option);
+    let xi_stability_interval_um = spectrum
+        .and_then(|value| value.xi_stability_interval_um)
+        .filter(|interval| interval.iter().all(|value| value.is_finite()));
+    let alpha = config
+        .spectrum
+        .fit_low_k_alpha
+        .then(|| {
+            spectrum
+                .and_then(|value| value.alpha)
+                .and_then(finite_option)
+        })
+        .flatten();
+    let low_k_excess_p_value = spectrum
+        .and_then(|value| value.low_k_excess_p_value)
+        .and_then(finite_option);
+    let xi_um_p_value = spectrum
+        .and_then(|value| value.xi_um_p_value)
+        .and_then(finite_option);
+    let alpha_p_value = config
+        .spectrum
+        .fit_low_k_alpha
+        .then(|| {
+            spectrum
+                .and_then(|value| value.alpha_p_value)
+                .and_then(finite_option)
+        })
+        .flatten();
+    let k_min = spectrum
+        .and_then(|value| value.k_values.first().copied())
+        .and_then(finite_option);
+    let k_max = spectrum
+        .and_then(|value| value.k_values.last().copied())
+        .and_then(finite_option);
+    let n_k_modes = spectrum.map_or(0, |value| value.n_modes);
+    let n_permutations = spectrum.map_or(0, |value| value.n_permutations);
+    let curve = spectrum
+        .map(spectrum_curve)
+        .transpose()?
+        .unwrap_or_default();
+
+    let primary_endpoint = PrimaryEndpoint {
+        name: PrimaryEndpointKind::LowKExcess,
+        value: spectrum.map_or_else(
+            || AnalysisSection::InsufficientData {
+                reason: unavailable_reason.clone().unwrap_or_else(|| {
+                    "too few eligible spectrum shells or invalid spectrum input".into()
+                }),
+            },
+            |value| AnalysisSection::available(value.low_k_excess),
+        ),
+        p_value: low_k_excess_p_value.map_or_else(
+            || AnalysisSection::InsufficientData {
+                reason: unavailable_reason
+                    .clone()
+                    .unwrap_or_else(|| "the low-k null statistic was unavailable".into()),
+            },
+            AnalysisSection::available,
+        ),
+        null: if config.permutation.stratified {
+            SpectrumNullModel::StratifiedFixedPositionRandomLabeling
+        } else {
+            SpectrumNullModel::FixedPositionRandomLabeling
+        },
+    };
+    let spectrum_section = spectrum.map_or_else(
+        || AnalysisSection::InsufficientData {
+            reason: unavailable_reason.unwrap_or_else(|| {
+                format!(
+                    "fewer than {} inference-eligible spectrum shells or undefined spectrum input",
+                    config.validation.k_shell_min
+                )
+            }),
+        },
+        |value| {
+            AnalysisSection::available(SpectrumSummary {
+                max_interpretable_scale_um: config.validation.largest_interpretable_scale_fraction
+                    * effective_length_um,
+                k_min,
+                k_max,
+                n_k_modes,
+                n_shells: config.spectrum.k_shells,
+                n_permutations,
+                spectral_curve_test: p_global.map_or_else(
+                    || AnalysisSection::InsufficientData {
+                        reason: "the spectral-curve ERL test was unavailable".into(),
+                    },
+                    |p_global| {
+                        AnalysisSection::available(FunctionalSummary {
+                            p_global: Some(p_global),
+                            erl_depth: Some(value.erl_depth),
+                            n_permutations,
+                        })
+                    },
+                ),
+                xi_um,
+                xi_stability_interval_um,
+                low_k_excess: value.low_k_excess,
+                low_k_excess_p_value,
+                alpha,
+                xi_um_p_value,
+                alpha_p_value,
+            })
+        },
+    );
+
+    Ok(SpectrumAssembly {
+        primary_endpoint,
+        spectrum: spectrum_section,
+        null_sensitivity: spectrum_null_sensitivity_section(config, includes_pooled, sensitivity),
+        curve,
+    })
+}
+
+fn apply_component_mode(result: &mut MarkedPatternResult, includes_pooled: bool) {
+    if includes_pooled {
+        return;
+    }
+    result.primary_endpoint = PrimaryEndpoint {
+        name: PrimaryEndpointKind::ComponentLowKExcess,
+        value: AnalysisSection::NotApplicable,
+        p_value: AnalysisSection::NotApplicable,
+        null: SpectrumNullModel::ComponentSpecificFixedPositionRandomLabeling,
+    };
+    result.spectrum = AnalysisSection::NotApplicable;
+    result.spectrum_curve.clear();
+    result.mark_pair_covariance = AnalysisSection::NotApplicable;
+    result.mark_pair_covariance_curve.clear();
+    result.anisotropy = AnalysisSection::NotApplicable;
+    result.multiscale_residual = AnalysisSection::NotApplicable;
+    result.scale_energy = AnalysisSection::NotApplicable;
+    result.scale_energy_curve.clear();
+    result.residual_territories = AnalysisSection::NotApplicable;
 }
 
 fn spectrum_null_sensitivity_section(
