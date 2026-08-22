@@ -69,3 +69,11 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Consequences: Result format 0.3 pair-correlation and curve-test fields are nullable. Parquet curve schemas mark values nullable, JSON emits explicit nulls, and downstream pre/post comparisons reject differing bin availability. Permutation curves may use an internal zero placeholder only for the identical geometry bins masked out by the eligibility vector; it never reaches a scientific result or rank calculation.
 - Evidence: Commit `e7447c0`; the former COR-05 reproduction, spectrum, neighborhood-profile, pre/post, JSON, and output artifact tests pass. `cargo +1.96.0 fmt --check`, warnings-denied all-target/all-feature Clippy, and `cargo +1.96.0 check --locked --no-default-features` pass. The full all-feature Nextest run passes 284/284 with 18 expected skips.
 - Status: Accepted; COR-05 closed.
+
+## 2026-08-21 — COR-06 pre/post axis tolerance
+
+- Context: Pre/post result documents reconstruct curve axes independently. Direct `f64` equality rejected mathematically identical decimals such as `0.1 + 0.2` and `0.3`, preventing valid difference and equivalence diagnostics.
+- Decision: Compare corresponding finite spectrum modes and pair/cross-interaction bin edges with `|a-b| <= 1e-12 + 1e-12 * max(|a|, |b|)`. Continue to require identical axis lengths and matching bin availability. Non-finite or materially different values produce the typed unavailable curve result introduced by COR-05.
+- Consequences: No result-schema field is added because current 0.3 documents do not carry a canonical axis identifier. The tolerance is explicit in `SPEC.md` and the result-format document and is deliberately much smaller than configured physical bin widths or mode spacings. A future structural axis definition may supersede numeric reconstruction but must preserve this compatibility behavior for independent documents.
+- Evidence: Commit `e7f91ca`; the enabled reproduction covers spectrum, pair-correlation, and cross-interaction paths, and a material-difference test preserves rejection. The pre/post suite passes 8/8. Formatting, warnings-denied Clippy, no-default-features, and all-feature Nextest pass; Nextest ran 286/286 with 17 expected skips.
+- Status: Accepted; COR-06 closed.
