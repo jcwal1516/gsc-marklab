@@ -195,3 +195,11 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Consequences: The multimodal CLI is 106 lines and has one application call plus one output call. No complete result or fused-cell table is cloned on this output path. Artifact order and non-atomic failure behavior are intentionally unchanged and remain visible under OUT-03. Marked output still clones its result, so PERF-10 remains open for that path.
 - Evidence: Commit `a29885b`; all 21 multimodal CLI tests, nine enabled output tests, formatting, warnings-denied Clippy, and no-default-feature check pass. The immediately preceding full run at `b97dfb3` passed 310/310 with 15 expected skips; this behavior-preserving move was then covered by the complete multimodal CLI suite.
 - Status: Accepted; ARCH-04 and BOUND-04 closed, PERF-10 remains active for marked output.
+
+## 2026-08-22 — One enrichment core with explicit permutation strategy
+
+- Context: Source-section and explicitly stratified neighborhood enrichment duplicated the entire analytical loop, including graph/config validation, label extraction, observed counts, result construction, and multiple-testing adjustment. Only the grouping used to shuffle labels differed.
+- Decision: Keep the two clear public entry points, but route both through one private execution core. Inject a small internal enum holding source-section groups or explicit string strata; use one permutation-count loop that dispatches only the shuffle operation and preserves the existing domain-separated seed endpoints.
+- Consequences: Observed quantities, undefined ratio/z-score rules, scalar p-values, and BH adjustment have one owner. There is no trait or speculative null-model framework. Exact deterministic sequences intentionally remain unchanged for both strategies.
+- Evidence: Commit `b233104`; pinned pre-refactor JSON outputs cover both strategies and two label pairs, including a stratified zero-variance null and unstratified adjusted p-values. All 16 enrichment tests, configured-null application test, sidecar integration, formatting, warnings-denied Clippy, and no-default-feature check pass.
+- Status: Accepted; DUP-04 closed.
