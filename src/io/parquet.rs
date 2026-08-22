@@ -135,8 +135,10 @@ pub fn write_neighborhood_enrichment_parquet(
         Field::new("label_b", DataType::Utf8, false),
         Field::new("observed_edges", DataType::UInt64, false),
         Field::new("expected_edges", DataType::Float64, false),
-        Field::new("enrichment_ratio", DataType::Float64, false),
-        Field::new("z_score", DataType::Float64, false),
+        Field::new("enrichment_ratio", DataType::Float64, true),
+        Field::new("enrichment_ratio_unavailable_reason", DataType::Utf8, true),
+        Field::new("z_score", DataType::Float64, true),
+        Field::new("z_score_unavailable_reason", DataType::Utf8, true),
         Field::new("p_value", DataType::Float64, true),
         Field::new("q_value", DataType::Float64, true),
     ]));
@@ -168,8 +170,21 @@ pub fn write_neighborhood_enrichment_parquet(
                     .map(|row| row.enrichment_ratio)
                     .collect::<Vec<_>>(),
             )),
+            Arc::new(StringArray::from(
+                rows.iter()
+                    .map(|row| {
+                        row.enrichment_ratio_unavailable_reason
+                            .map(|reason| reason.as_str())
+                    })
+                    .collect::<Vec<_>>(),
+            )),
             Arc::new(Float64Array::from(
                 rows.iter().map(|row| row.z_score).collect::<Vec<_>>(),
+            )),
+            Arc::new(StringArray::from(
+                rows.iter()
+                    .map(|row| row.z_score_unavailable_reason.map(|reason| reason.as_str()))
+                    .collect::<Vec<_>>(),
             )),
             Arc::new(Float64Array::from(
                 rows.iter().map(|row| row.p_value).collect::<Vec<_>>(),

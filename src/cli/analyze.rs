@@ -89,7 +89,7 @@ pub(super) fn run(request: AnalyzeRequest) -> Result<()> {
                 "command": "analyze",
                 "program": "marklab",
                 "crate_version": env!("CARGO_PKG_VERSION"),
-                "format_version": "0.2",
+                "format_version": crate::RESULT_FORMAT_VERSION,
                 "inputs": {
                     "cells": cells.to_string_lossy(),
                     "mask": mask_path.to_string_lossy(),

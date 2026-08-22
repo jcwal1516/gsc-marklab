@@ -127,7 +127,7 @@ fn analyze_cli_writes_result_json_from_csv_and_geojson_mask() {
             .expect("valid json");
     let result = &document["analysis"]["result"];
 
-    assert_eq!(document["format_version"], "0.2");
+    assert_eq!(document["format_version"], "0.3");
     assert_eq!(document["provenance"]["program"], "marklab");
     assert_eq!(result["case_id"], "case_001");
     assert_eq!(result["timepoint"], "post");

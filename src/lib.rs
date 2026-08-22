@@ -61,12 +61,13 @@ pub use multimodal::{
 pub use output::{
     AnalysisResult, AnalysisSection, AnisotropySummary, ArtifactStatus, BetaBinomialGroupSummary,
     BetaBinomialSummary, ComponentAnalysisSummary, CrossInteractionCurve, CurveTestResult,
-    DiagnosticsResult, FunctionalSummary, FusedCellSummary, GraphSmoothingLabelPairSummary,
-    GraphSmoothingSummary, Interpretation, LabelFraction, MarkedPatternResult, MultimodalResult,
-    NeighborhoodEnrichmentResult, OutputManifest, OutputWriter, PairCorrelationPoint,
-    PrePostResult, PrimaryEndpoint, Provenance, QcSummary, RegistrationSummary, ResultDocument,
-    ScalogramPoint, SpectrumPoint, SpectrumSummary, StatusFlag, TerritoryFeature,
-    TerritoryPrePostSummary, TerritoryProfile, TimingStage, WaveletSummary, WindowSummary,
+    DiagnosticsResult, EnrichmentStatisticUnavailableReason, FunctionalSummary, FusedCellSummary,
+    GraphSmoothingLabelPairSummary, GraphSmoothingSummary, Interpretation, LabelFraction,
+    MarkedPatternResult, MultimodalResult, NeighborhoodEnrichmentResult, OutputManifest,
+    OutputWriter, PairCorrelationPoint, PrePostResult, PrimaryEndpoint, Provenance, QcSummary,
+    RegistrationSummary, ResultDocument, ScalogramPoint, SpectrumPoint, SpectrumSummary,
+    StatusFlag, TerritoryFeature, TerritoryPrePostSummary, TerritoryProfile, TimingStage,
+    WaveletSummary, WindowSummary, RESULT_FORMAT_VERSION,
 };
 pub use registration::landmarks::LandmarkPair;
 #[cfg(feature = "wsi")]

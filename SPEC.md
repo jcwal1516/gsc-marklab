@@ -22,10 +22,10 @@ OutputWriter::write(&ResultDocument, output_directory, &OutputSection)
     -> Result<OutputManifest>
 ```
 
-Result format 0.2 is fixed by the library and cannot be configured. Its top
+Result format 0.3 is fixed by the library and cannot be configured. Its top
 level is `format_version`, `provenance`, and the adjacently tagged `analysis`
-enum (`kind` plus `result`). Format 0.1 is rejected with
-`UnsupportedFormatVersion`; there is no converter.
+enum (`kind` plus `result`). Older and unknown versions are rejected with
+`UnsupportedFormatVersion` while the 0.2 migration converter is pending.
 
 Optional analysis and artifact state uses `available`, `disabled`,
 `not_applicable`, or `insufficient_data`. Computation and I/O failures are

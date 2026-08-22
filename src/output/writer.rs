@@ -88,7 +88,7 @@ impl ResultDocument {
             .map_err(|error| MarklabError::Compute(error.to_string()))?;
         serde_json::from_str::<Self>(&json).map_err(|error| {
             MarklabError::Schema(format!(
-                "result document cannot be represented by format 0.2: {error}"
+                "result document cannot be represented by format 0.3: {error}"
             ))
         })?;
         Ok(json)

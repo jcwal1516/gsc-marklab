@@ -151,13 +151,22 @@ Fused cells: {n_fused_cells}\n",
     {
         report.push_str("\n## Neighborhood Enrichment\n\n");
         for row in enrichment {
+            let enrichment_ratio = row.enrichment_ratio.map_or_else(
+                || {
+                    format!(
+                        "undefined ({})",
+                        row.enrichment_ratio_unavailable_reason
+                            .map_or("reason_unavailable", |reason| reason.as_str())
+                    )
+                },
+                |value| format!("{value:.3}"),
+            );
             report.push_str(&format!(
-                "- {label_a} / {label_b}: observed_edges = {observed_edges}, expected_edges = {expected_edges:.3}, enrichment_ratio = {enrichment_ratio:.3}\n",
+                "- {label_a} / {label_b}: observed_edges = {observed_edges}, expected_edges = {expected_edges:.3}, enrichment_ratio = {enrichment_ratio}\n",
                 label_a = row.label_a,
                 label_b = row.label_b,
                 observed_edges = row.observed_edges,
                 expected_edges = row.expected_edges,
-                enrichment_ratio = row.enrichment_ratio,
             ));
         }
     }

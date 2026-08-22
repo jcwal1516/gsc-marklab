@@ -9,12 +9,12 @@ use crate::permutation::rng::splitmix64;
 use crate::{
     common::{
         seeds::{derive_seed, SeedEndpoint},
-        stats::{mean_all_finite, sample_standard_deviation},
+        stats::{mean_all_finite, safe_finite_ratio, sample_standard_deviation},
     },
     errors::{MarklabError, Result},
     inference::scalar_pvalues::{permutation_p_value_with_spec, PermutationTestSpec, Tail},
     multimodal::cell_table::{primary_label, FusedCell},
-    output::NeighborhoodEnrichmentResult,
+    output::{EnrichmentStatisticUnavailableReason, NeighborhoodEnrichmentResult},
 };
 
 use super::{graph::SpatialGraph, label_permutation::shuffle_labels_within_sections};
@@ -68,34 +68,7 @@ pub fn edge_enrichment(
     for pair in label_pairs {
         let observed_edges = count_pair_edges(&labels, graph, pair);
         let null_counts = permuted_counts(&labels, &sections, graph, pair, permutations, seed);
-        let null_counts_f64 = null_counts
-            .iter()
-            .map(|count| *count as f64)
-            .collect::<Vec<_>>();
-        let expected_edges = mean_all_finite(null_counts_f64.iter().copied())
-            .expect("validated permutation count produces a non-empty null distribution");
-        let null_sd = sample_standard_deviation(&null_counts_f64).unwrap_or(0.0);
-        let p_value = permutation_p_value_with_spec(
-            observed_edges as f64,
-            &null_counts_f64,
-            PermutationTestSpec::new(Tail::OneSidedHigh, 1),
-        )?;
-        let z_score = if null_sd > 0.0 {
-            (observed_edges as f64 - expected_edges) / null_sd
-        } else {
-            0.0
-        };
-
-        rows.push(NeighborhoodEnrichmentResult {
-            label_a: pair.label_a.clone(),
-            label_b: pair.label_b.clone(),
-            observed_edges,
-            expected_edges,
-            enrichment_ratio: enrichment_ratio(observed_edges, expected_edges),
-            z_score,
-            p_value: Some(p_value),
-            q_value: None,
-        });
+        rows.push(enrichment_result(pair, observed_edges, &null_counts)?);
     }
 
     apply_benjamini_hochberg(&mut rows);
@@ -127,34 +100,7 @@ pub fn edge_enrichment_with_strata(
         let observed_edges = count_pair_edges(&labels, graph, pair);
         let null_counts =
             permuted_counts_with_strata(&labels, strata, graph, pair, permutations, seed);
-        let null_counts_f64 = null_counts
-            .iter()
-            .map(|count| *count as f64)
-            .collect::<Vec<_>>();
-        let expected_edges = mean_all_finite(null_counts_f64.iter().copied())
-            .expect("validated permutation count produces a non-empty null distribution");
-        let null_sd = sample_standard_deviation(&null_counts_f64).unwrap_or(0.0);
-        let p_value = permutation_p_value_with_spec(
-            observed_edges as f64,
-            &null_counts_f64,
-            PermutationTestSpec::new(Tail::OneSidedHigh, 1),
-        )?;
-        let z_score = if null_sd > 0.0 {
-            (observed_edges as f64 - expected_edges) / null_sd
-        } else {
-            0.0
-        };
-
-        rows.push(NeighborhoodEnrichmentResult {
-            label_a: pair.label_a.clone(),
-            label_b: pair.label_b.clone(),
-            observed_edges,
-            expected_edges,
-            enrichment_ratio: enrichment_ratio(observed_edges, expected_edges),
-            z_score,
-            p_value: Some(p_value),
-            q_value: None,
-        });
+        rows.push(enrichment_result(pair, observed_edges, &null_counts)?);
     }
 
     apply_benjamini_hochberg(&mut rows);
@@ -329,14 +275,66 @@ fn edge_matches_pair(left: Option<&str>, right: Option<&str>, pair: &LabelPair) 
     }
 }
 
-fn enrichment_ratio(observed_edges: usize, expected_edges: f64) -> f64 {
-    if expected_edges > 0.0 {
-        observed_edges as f64 / expected_edges
-    } else if observed_edges == 0 {
-        0.0
-    } else {
-        f64::INFINITY
-    }
+fn enrichment_result(
+    pair: &LabelPair,
+    observed_edges: usize,
+    null_counts: &[usize],
+) -> Result<NeighborhoodEnrichmentResult> {
+    let null_counts_f64 = null_counts
+        .iter()
+        .map(|count| *count as f64)
+        .collect::<Vec<_>>();
+    let expected_edges = mean_all_finite(null_counts_f64.iter().copied())
+        .ok_or_else(|| MarklabError::Compute("enrichment null mean is undefined".into()))?;
+    let (enrichment_ratio, enrichment_ratio_unavailable_reason) =
+        match safe_finite_ratio(observed_edges as f64, expected_edges) {
+            Some(ratio) => (Some(ratio), None),
+            None if expected_edges == 0.0 => (
+                None,
+                Some(EnrichmentStatisticUnavailableReason::ZeroExpectedEdges),
+            ),
+            None => (
+                None,
+                Some(EnrichmentStatisticUnavailableReason::NonFiniteComputation),
+            ),
+        };
+    let (z_score, z_score_unavailable_reason) = match sample_standard_deviation(&null_counts_f64) {
+        Some(null_sd) if null_sd > 0.0 => {
+            match safe_finite_ratio(observed_edges as f64 - expected_edges, null_sd) {
+                Some(z_score) => (Some(z_score), None),
+                None => (
+                    None,
+                    Some(EnrichmentStatisticUnavailableReason::NonFiniteComputation),
+                ),
+            }
+        }
+        Some(_) => (
+            None,
+            Some(EnrichmentStatisticUnavailableReason::ZeroNullVariance),
+        ),
+        None => (
+            None,
+            Some(EnrichmentStatisticUnavailableReason::InsufficientNullSamples),
+        ),
+    };
+    let p_value = permutation_p_value_with_spec(
+        observed_edges as f64,
+        &null_counts_f64,
+        PermutationTestSpec::new(Tail::OneSidedHigh, 1),
+    )?;
+
+    Ok(NeighborhoodEnrichmentResult {
+        label_a: pair.label_a.clone(),
+        label_b: pair.label_b.clone(),
+        observed_edges,
+        expected_edges,
+        enrichment_ratio,
+        enrichment_ratio_unavailable_reason,
+        z_score,
+        z_score_unavailable_reason,
+        p_value: Some(p_value),
+        q_value: None,
+    })
 }
 
 fn apply_benjamini_hochberg(rows: &mut [NeighborhoodEnrichmentResult]) {

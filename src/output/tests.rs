@@ -8,8 +8,9 @@ use crate::{
 #[cfg(feature = "parquet")]
 use crate::{
     multimodal::cell_table::{CellSection, FusedCell},
-    AnalysisSection, CrossInteractionCurve, FusedCellSummary, Interpretation, MultimodalResult,
-    NeighborhoodEnrichmentResult, PairCorrelationPoint, RegistrationSummary,
+    AnalysisSection, CrossInteractionCurve, EnrichmentStatisticUnavailableReason, FusedCellSummary,
+    Interpretation, MultimodalResult, NeighborhoodEnrichmentResult, PairCorrelationPoint,
+    RegistrationSummary,
 };
 use serde_json::Value;
 
@@ -448,9 +449,15 @@ fn output_writer_emits_optional_multimodal_parquet_artifacts() {
             label_a: "mmr_abnormal".into(),
             label_b: "lymphocyte".into(),
             observed_edges: 2,
-            expected_edges: 1.0,
-            enrichment_ratio: 2.0,
-            z_score: 1.5,
+            expected_edges: 0.0,
+            enrichment_ratio: None,
+            enrichment_ratio_unavailable_reason: Some(
+                EnrichmentStatisticUnavailableReason::ZeroExpectedEdges,
+            ),
+            z_score: None,
+            z_score_unavailable_reason: Some(
+                EnrichmentStatisticUnavailableReason::ZeroNullVariance,
+            ),
             p_value: Some(0.05),
             q_value: Some(0.1),
         }]),

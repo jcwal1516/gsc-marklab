@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 use crate::multimodal::cell_table::FusedCell;
 
-pub const RESULT_FORMAT_VERSION: &str = "0.2";
+pub const RESULT_FORMAT_VERSION: &str = "0.3";
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -22,7 +22,7 @@ pub struct Provenance {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "kind", content = "result", rename_all = "snake_case")]
-// The unboxed variants are part of the result-format 0.2 Rust contract.
+// The unboxed variants are part of the result-format 0.3 Rust contract.
 #[allow(clippy::large_enum_variant)]
 pub enum AnalysisResult {
     MarkedPattern(MarkedPatternResult),
@@ -316,10 +316,34 @@ pub struct NeighborhoodEnrichmentResult {
     pub label_b: String,
     pub observed_edges: usize,
     pub expected_edges: f64,
-    pub enrichment_ratio: f64,
-    pub z_score: f64,
+    pub enrichment_ratio: Option<f64>,
+    #[serde(default)]
+    pub enrichment_ratio_unavailable_reason: Option<EnrichmentStatisticUnavailableReason>,
+    pub z_score: Option<f64>,
+    #[serde(default)]
+    pub z_score_unavailable_reason: Option<EnrichmentStatisticUnavailableReason>,
     pub p_value: Option<f64>,
     pub q_value: Option<f64>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum EnrichmentStatisticUnavailableReason {
+    ZeroExpectedEdges,
+    ZeroNullVariance,
+    InsufficientNullSamples,
+    NonFiniteComputation,
+}
+
+impl EnrichmentStatisticUnavailableReason {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ZeroExpectedEdges => "zero_expected_edges",
+            Self::ZeroNullVariance => "zero_null_variance",
+            Self::InsufficientNullSamples => "insufficient_null_samples",
+            Self::NonFiniteComputation => "non_finite_computation",
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]

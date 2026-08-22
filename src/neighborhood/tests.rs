@@ -4,7 +4,7 @@ use crate::{
         enrichment::{edge_enrichment, LabelPair},
         graph::{build_spatial_graph, GraphConfig, SpatialEdge, SpatialGraph},
     },
-    NeighborhoodEnrichmentResult,
+    EnrichmentStatisticUnavailableReason, NeighborhoodEnrichmentResult,
 };
 
 fn cell(id: &str, x: f64, y: f64, label: &str) -> FusedCell {
@@ -162,22 +162,23 @@ fn enrichment_detects_observed_label_pair_edges() {
 }
 
 #[test]
-#[ignore = "Phase 0 reproduction: COR-04 is fixed in Phase 2"]
 fn remediation_sparse_enrichment_statistics_are_finite_or_typed_undefined() {
     let row = sparse_positive_enrichment();
 
-    assert!(
-        row.enrichment_ratio.is_finite(),
-        "zero expected edges produced a non-finite ratio: {row:?}"
+    assert_eq!(row.enrichment_ratio, None);
+    assert_eq!(
+        row.enrichment_ratio_unavailable_reason,
+        Some(EnrichmentStatisticUnavailableReason::ZeroExpectedEdges)
     );
-    assert!(
-        row.z_score.is_finite() && row.z_score != 0.0,
-        "zero null variance was represented as an observed z-score of zero: {row:?}"
+    assert_eq!(row.z_score, None);
+    assert_eq!(
+        row.z_score_unavailable_reason,
+        Some(EnrichmentStatisticUnavailableReason::InsufficientNullSamples)
     );
+    assert!(row.p_value.is_some());
 }
 
 #[test]
-#[ignore = "Phase 0 reproduction: COR-04 serialization is fixed in Phase 2"]
 fn remediation_sparse_enrichment_roundtrips_through_json() {
     let row = sparse_positive_enrichment();
     let json = serde_json::to_string(&row).expect("serialize sparse enrichment");
@@ -294,6 +295,12 @@ fn enrichment_null_preserves_source_section_labels() {
 
     assert_eq!(rows[0].observed_edges, 0);
     assert_eq!(rows[0].expected_edges, 0.0);
+    assert_eq!(rows[0].enrichment_ratio, None);
+    assert_eq!(rows[0].z_score, None);
+    assert_eq!(
+        rows[0].z_score_unavailable_reason,
+        Some(EnrichmentStatisticUnavailableReason::ZeroNullVariance)
+    );
 }
 
 #[test]

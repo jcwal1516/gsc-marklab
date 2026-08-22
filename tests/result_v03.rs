@@ -45,7 +45,7 @@ fn sample_result() -> MultimodalResult {
 }
 
 #[test]
-fn result_document_serializes_the_exact_v02_envelope() {
+fn result_v03_roundtrip() {
     let document = ResultDocument::multimodal(sample_result());
     let value = serde_json::to_value(&document).expect("serialize result document");
     let keys = value
@@ -62,7 +62,7 @@ fn result_document_serializes_the_exact_v02_envelope() {
             .map(str::to_owned)
             .collect()
     );
-    assert_eq!(value["format_version"], "0.2");
+    assert_eq!(value["format_version"], "0.3");
     assert_eq!(value["analysis"]["kind"], "multimodal");
     assert!(value["analysis"]["result"].is_object());
     assert!(value["analysis"]["result"].get("format_version").is_none());
@@ -87,10 +87,10 @@ fn analysis_sections_use_explicit_statuses() {
 }
 
 #[test]
-fn result_reader_rejects_v01_instead_of_guessing_a_conversion() {
+fn unknown_result_version_rejected() {
     let error =
-        ResultDocument::from_json(r#"{"format_version":"0.1","provenance":{},"analysis":{}}"#)
-            .expect_err("0.1 is unsupported");
+        ResultDocument::from_json(r#"{"format_version":"9.9","provenance":{},"analysis":{}}"#)
+            .expect_err("unknown versions are unsupported");
 
     assert!(matches!(
         error,
@@ -99,10 +99,10 @@ fn result_reader_rejects_v01_instead_of_guessing_a_conversion() {
 }
 
 #[test]
-fn output_writer_writes_a_v02_document() {
+fn output_writer_writes_a_v03_document() {
     let dir = tempfile::tempdir().expect("tempdir");
     let document = ResultDocument {
-        format_version: "0.2".into(),
+        format_version: "0.3".into(),
         provenance: Provenance {
             program: "marklab".into(),
             crate_version: env!("CARGO_PKG_VERSION").into(),

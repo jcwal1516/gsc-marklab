@@ -49,11 +49,11 @@ let result = engine.analyze_pattern(&pattern)?;
 # }
 ```
 
-Result documents use format 0.2:
+Result documents use format 0.3:
 
 ```json
 {
-  "format_version": "0.2",
+  "format_version": "0.3",
   "provenance": {},
   "analysis": {
     "kind": "marked_pattern",
@@ -62,7 +62,8 @@ Result documents use format 0.2:
 }
 ```
 
-Format 0.1 inputs are rejected by `prepost`; re-run the original inputs.
+Older result formats are rejected by `prepost` until the documented 0.2 to
+0.3 migration path is completed.
 
 For multimodal serial-section analysis, `registration.transform = "rigid"`
 fits a two-dimensional rotation and translation without scale or reflection.
@@ -88,7 +89,9 @@ straight interleaved RGBA8. Existing PNGs require `--force` to overwrite.
 ## Contracts and non-goals
 
 See [SPEC.md](SPEC.md) for the implemented configuration, inference, result,
-and WSI contracts. Reviewed dependency exceptions are recorded in
+and WSI contracts. Result changes are tracked in
+[the 0.3 format reference](docs/result-format-0.3.md) and
+[the 0.2 migration guide](docs/migration-0.2-to-0.3.md). Reviewed dependency exceptions are recorded in
 [docs/dependency_advisories.md](docs/dependency_advisories.md).
 
 Licensed under MIT or Apache-2.0.

@@ -376,7 +376,9 @@ fn write_null_model_sensitivity_csv(
         "observed_edges",
         "expected_edges",
         "enrichment_ratio",
+        "enrichment_ratio_unavailable_reason",
         "z_score",
+        "z_score_unavailable_reason",
         "p_value",
         "q_value",
     ])?;
@@ -389,7 +391,10 @@ fn write_null_model_sensitivity_csv(
                 row.observed_edges,
                 row.expected_edges,
                 row.enrichment_ratio,
+                row.enrichment_ratio_unavailable_reason
+                    .map(|reason| reason.as_str()),
                 row.z_score,
+                row.z_score_unavailable_reason.map(|reason| reason.as_str()),
                 row.p_value,
                 row.q_value,
             ))?;
