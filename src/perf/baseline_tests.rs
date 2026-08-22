@@ -19,7 +19,7 @@ use crate::{
         cells::{CellSection, FusedCell, HeCell, IhcCell},
         MultimodalEngine, MultimodalInput,
     },
-    multiscale_residual::territories::detect_residual_territories,
+    multiscale_residual::territories::{detect_residual_territories, ResidualTerritoryPlan},
     neighborhood::{
         graph::{build_spatial_graph, GraphConfig},
         profiles::territory_profiles,
@@ -473,6 +473,137 @@ fn baseline_perf_territories_and_profiles() {
             },
         );
     }
+}
+
+#[test]
+#[ignore = "manual Phase 6 residual-territory plan benchmark"]
+fn phase6_perf_residual_territory_plan() {
+    for n in SPATIAL_SIZES {
+        let pattern = pattern(n);
+        let plan = ResidualTerritoryPlan::new(&pattern).expect("residual territory plan");
+        measure_case(
+            "residual_territory_plan_observed_evaluation",
+            n,
+            fixed_density_metadata(n, json!({"scales": 3, "min_z": 0.0})),
+            || {
+                residual_territory_checksum(
+                    &plan
+                        .detect_for_marks(black_box(&pattern), &pattern.mark, 0.0)
+                        .expect("observed residual territories"),
+                )
+            },
+        );
+
+        let permutation_marks = (0..19)
+            .map(|permutation| {
+                (0..n)
+                    .map(|index| u8::from((index + 7 * permutation) % 5 == 0))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        measure_case(
+            "residual_territory_plan_19_label_evaluations",
+            n,
+            fixed_density_metadata(n, json!({"evaluations": permutation_marks.len()})),
+            || {
+                permutation_marks.iter().fold(0_u64, |checksum, marks| {
+                    checksum
+                        ^ residual_territory_checksum(
+                            &plan
+                                .detect_for_marks(black_box(&pattern), marks, 0.0)
+                                .expect("permuted residual territories"),
+                        )
+                })
+            },
+        );
+    }
+}
+
+#[test]
+#[ignore = "manual Phase 6 indexed radius-consumer scaling benchmark"]
+fn phase6_perf_indexed_radius_consumers_scaling() {
+    for &n in &PHASE6_INDEX_SIZES[..4] {
+        let cells = fused_cells(n);
+        measure_case(
+            "phase6_radius_graph_scaling",
+            n,
+            fixed_density_metadata(n, json!({"radius_um": 1.5})),
+            || {
+                build_spatial_graph(
+                    black_box(&cells),
+                    GraphConfig {
+                        radius_um: Some(1.5),
+                        k_nearest: None,
+                    },
+                )
+                .expect("radius graph")
+                .edges
+                .len() as u64
+            },
+        );
+        measure_case(
+            "phase6_multimodal_territory_scaling",
+            n,
+            fixed_density_metadata(n, json!({"eps_um": 1.5, "abnormal_fraction": 0.5})),
+            || {
+                detect_mmr_abnormal_territories(
+                    black_box(&cells),
+                    TerritoryDomainConfig {
+                        eps_um: 1.5,
+                        min_cells: 2,
+                        min_radius_um: 0.5,
+                    },
+                )
+                .expect("multimodal territories")
+                .len() as u64
+            },
+        );
+
+        let side = side_for(n);
+        let territory_count = n / 8;
+        let territories = (0..territory_count)
+            .map(|territory_index| {
+                let cell_index = territory_index * 8;
+                NeighborhoodTerritory {
+                    center_x_um: (cell_index % side) as f64,
+                    center_y_um: (cell_index / side) as f64,
+                    radius_um: 3.0,
+                    supporting_abnormal_cells: 1,
+                    cluster_id: territory_index as u32,
+                }
+            })
+            .collect::<Vec<_>>();
+        measure_case(
+            "phase6_territory_profile_scaling",
+            n,
+            fixed_density_metadata(n, json!({"territory_count": territory_count})),
+            || {
+                territory_profiles(black_box(&territories), black_box(&cells), 1.0)
+                    .expect("territory profiles")
+                    .iter()
+                    .map(|profile| {
+                        profile
+                            .cell_type_fractions
+                            .iter()
+                            .map(|fraction| fraction.count)
+                            .sum::<usize>()
+                    })
+                    .sum::<usize>() as u64
+            },
+        );
+    }
+}
+
+fn residual_territory_checksum(
+    territories: &[crate::multiscale_residual::territories::ResidualTerritoryCandidate],
+) -> u64 {
+    territories.iter().fold(0_u64, |checksum, territory| {
+        checksum.rotate_left(7)
+            ^ territory.center_x_um.to_bits()
+            ^ territory.center_y_um.to_bits()
+            ^ territory.residual_score.to_bits()
+            ^ territory.supporting_marked_cells as u64
+    })
 }
 
 #[test]

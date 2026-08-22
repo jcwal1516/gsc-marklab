@@ -4,13 +4,14 @@ use crate::{
     config::AnalysisConfig,
     data::Pattern,
     errors::{MarklabError, Result},
+    geom::spatial_index::SpatialIndex2D,
     inference::scalar_pvalues::{permutation_p_value, Tail},
     multiscale_residual::{
         energy::relative_scale_energies_from_field,
-        territories::{detect_residual_territories, ResidualTerritoryCandidate},
+        territories::{ResidualTerritoryCandidate, ResidualTerritoryPlan},
     },
     output::{FunctionalSummary, MarkPairCovariancePoint, ResidualTerritory, ScaleEnergyPoint},
-    periodogram::raster::{centered_mark_raster, centered_mark_raster_for_marks},
+    periodogram::raster::centered_mark_raster_for_marks,
     periodogram::tapered::hann_tapered_raster_periodogram,
     permutation::envelopes::GlobalEnvelope,
     spectra::mark_pair_covariance::MarkPairCovariancePlan,
@@ -19,6 +20,7 @@ use crate::{
 pub(super) fn mark_pair_covariance_with_envelope(
     config: &AnalysisConfig,
     pattern: &Pattern,
+    spatial_index: &SpatialIndex2D,
 ) -> Result<(
     Vec<MarkPairCovariancePoint>,
     crate::output::AnalysisSection<FunctionalSummary>,
@@ -26,7 +28,9 @@ pub(super) fn mark_pair_covariance_with_envelope(
     let bin_width_um = pattern.window.d_nn_mean_um.max(1.0);
     let max_r_um =
         (pattern.window.l_eff_um * config.validation.largest_interpretable_scale_fraction).max(1.0);
-    let Some(plan) = MarkPairCovariancePlan::new(pattern, bin_width_um, max_r_um) else {
+    let Some(plan) =
+        MarkPairCovariancePlan::new_with_index(pattern, spatial_index, bin_width_um, max_r_um)
+    else {
         return Ok((
             Vec::new(),
             crate::output::AnalysisSection::InsufficientData {
@@ -271,6 +275,7 @@ pub(super) fn scale_energy_permutation_curves(
 pub(super) fn multiscale_residual_scalar_p_values(
     config: &AnalysisConfig,
     pattern: &Pattern,
+    territory_plan: Option<&ResidualTerritoryPlan>,
     observed_block_mean_variance_fraction: f64,
     observed_territory_count: usize,
 ) -> Result<(
@@ -313,11 +318,8 @@ pub(super) fn multiscale_residual_scalar_p_values(
             permutation_index,
             SeedEndpoint::ResidualTerritory,
         )?;
-        let mut permuted = pattern.clone();
-        permuted.mark = labels.into_boxed_slice();
-
         if block_mean_null_complete {
-            match block_mean_variance_fraction_for(&permuted) {
+            match block_mean_variance_fraction_for_marks(pattern, &labels) {
                 Some(block_mean_fraction) => block_mean_null
                     .as_mut()
                     .expect("eligible block-mean endpoint has null storage")
@@ -329,7 +331,12 @@ pub(super) fn multiscale_residual_scalar_p_values(
             }
         }
         if let Some(territory_null) = territory_null.as_mut() {
-            territory_null.push(territories_for(config, &permuted).len() as f64);
+            let plan = territory_plan.ok_or_else(|| {
+                MarklabError::Compute(
+                    "eligible residual territory inference requires a geometry plan".into(),
+                )
+            })?;
+            territory_null.push(territories_for(config, pattern, plan, &labels)?.len() as f64);
         }
     }
 
@@ -375,8 +382,11 @@ pub(super) fn multiscale_residual_scalar_p_values(
     ))
 }
 
-pub(super) fn block_mean_variance_fraction_for(pattern: &Pattern) -> Option<f64> {
-    centered_mark_raster(pattern, pattern.window.d_nn_mean_um.max(1.0))
+pub(super) fn block_mean_variance_fraction_for_marks(
+    pattern: &Pattern,
+    marks: &[u8],
+) -> Option<f64> {
+    centered_mark_raster_for_marks(pattern, marks, pattern.window.d_nn_mean_um.max(1.0))
         .and_then(|(spec, raster)| {
             relative_scale_energies_from_field(&raster, spec.width, spec.height)
         })
@@ -415,18 +425,21 @@ pub(super) fn periodogram_disagrees_with_particle_spectrum(
 pub(super) fn territories_for(
     config: &AnalysisConfig,
     pattern: &Pattern,
-) -> Vec<ResidualTerritory> {
+    plan: &ResidualTerritoryPlan,
+    marks: &[u8],
+) -> Result<Vec<ResidualTerritory>> {
     if !config.multiscale_residual.enabled || !config.multiscale_residual.territory_detection {
-        return Vec::new();
+        return Ok(Vec::new());
     }
 
     let max_scale_um =
         config.validation.largest_interpretable_scale_fraction * pattern.window.l_eff_um;
-    detect_residual_territories(pattern, config.multiscale_residual.min_territory_z)
+    Ok(plan
+        .detect_for_marks(pattern, marks, config.multiscale_residual.min_territory_z)?
         .into_iter()
         .filter(|territory| territory.analysis_scale_um <= max_scale_um)
         .map(ResidualTerritory::from)
-        .collect()
+        .collect())
 }
 
 impl From<ResidualTerritoryCandidate> for ResidualTerritory {
@@ -446,9 +459,14 @@ impl From<ResidualTerritoryCandidate> for ResidualTerritory {
 #[cfg(test)]
 mod tests {
     use crate::{
-        api::stages::mark_pair_covariance_with_envelope,
+        api::{spatial_stage, stages::mark_pair_covariance_with_envelope},
         config::AnalysisConfig,
         data::{Pattern, PatternMeta},
+        geom::spatial_index::SpatialIndex2D,
+        multiscale_residual::territories::{
+            plan_build_call_count as residual_plan_build_call_count,
+            reset_plan_build_call_count as reset_residual_plan_build_call_count,
+        },
         spectra::mark_pair_covariance::{plan_build_call_count, reset_plan_build_call_count},
     };
 
@@ -476,10 +494,46 @@ mod tests {
         pattern.window.l_eff_um = 40.0;
         pattern.window.d_nn_mean_um = 1.0;
         pattern.window.area_um2 = 200.0;
+        let spatial_index =
+            SpatialIndex2D::new(&pattern.x_um, &pattern.y_um).expect("spatial index");
         reset_plan_build_call_count();
 
-        mark_pair_covariance_with_envelope(&config, &pattern).expect("covariance envelope");
+        mark_pair_covariance_with_envelope(&config, &pattern, &spatial_index)
+            .expect("covariance envelope");
 
         assert_eq!(plan_build_call_count(), 1);
+    }
+
+    #[test]
+    fn residual_territory_geometry_is_reused_for_observed_and_permutations() {
+        let mut config = AnalysisConfig::default();
+        config.permutation.b = 19;
+        config.permutation.stratified = false;
+        let mut pattern = Pattern::from_arrays(
+            (0..40).map(|index| index as f64).collect(),
+            (0..40).map(|index| (index % 5) as f64).collect(),
+            (0..40).map(|index| u8::from(index % 4 == 0)).collect(),
+            PatternMeta {
+                case_id: "case".into(),
+                timepoint: "post".into(),
+                protein: "MSH6".into(),
+                slide_id: None,
+                section_id: None,
+                stain_batch: None,
+                block_id: None,
+                region_id: None,
+            },
+        )
+        .expect("pattern");
+        pattern.window.l_eff_um = 40.0;
+        pattern.window.d_nn_mean_um = 1.0;
+        pattern.window.area_um2 = 200.0;
+        reset_residual_plan_build_call_count();
+
+        let mut timings = Vec::new();
+        spatial_stage::run(&config, &pattern, true, None, None, &mut timings, 1)
+            .expect("spatial stage");
+
+        assert_eq!(residual_plan_build_call_count(), 1);
     }
 }

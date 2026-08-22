@@ -39,10 +39,22 @@ pub struct MarkPairCovariancePlan {
 }
 
 impl MarkPairCovariancePlan {
+    #[cfg(test)]
     pub fn new(pattern: &Pattern, bin_width_um: f64, max_r_um: f64) -> Option<Self> {
+        let index = SpatialIndex2D::new(&pattern.x_um, &pattern.y_um).ok()?;
+        Self::new_with_index(pattern, &index, bin_width_um, max_r_um)
+    }
+
+    pub(crate) fn new_with_index(
+        pattern: &Pattern,
+        index: &SpatialIndex2D,
+        bin_width_um: f64,
+        max_r_um: f64,
+    ) -> Option<Self> {
         #[cfg(test)]
         PLAN_BUILD_CALLS.set(PLAN_BUILD_CALLS.get() + 1);
         if pattern.len() < 2
+            || index.len() != pattern.len()
             || bin_width_um <= 0.0
             || max_r_um <= 0.0
             || !bin_width_um.is_finite()
@@ -55,7 +67,6 @@ impl MarkPairCovariancePlan {
             return None;
         }
 
-        let index = SpatialIndex2D::new(&pattern.x_um, &pattern.y_um).ok()?;
         let mut pairs = Vec::new();
         let mut pair_counts = vec![0usize; n_bins];
         for source in 0..pattern.len() {

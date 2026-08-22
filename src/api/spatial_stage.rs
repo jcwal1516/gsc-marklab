@@ -1,8 +1,10 @@
 use crate::{
     config::AnalysisConfig,
     data::Pattern,
-    errors::Result,
+    errors::{MarklabError, Result},
+    geom::spatial_index::SpatialIndex2D,
     multiscale_residual::energy::relative_scale_energies_from_field,
+    multiscale_residual::territories::ResidualTerritoryPlan,
     output::{
         AnalysisSection, FunctionalSummary, MarkPairCovariancePoint, MultiscaleResidualSummary,
         ResidualTerritory, ScaleEnergyPoint, TimingStage,
@@ -39,6 +41,11 @@ pub(super) fn run(
     timings: &mut Vec<TimingStage>,
     threads: usize,
 ) -> Result<Output> {
+    let spatial_index = timed_stage(timings, "spatial_index", threads, || -> Result<_> {
+        includes_pooled
+            .then(|| SpatialIndex2D::new(&pattern.x_um, &pattern.y_um))
+            .transpose()
+    })?;
     let periodogram_artifact = timed_stage(timings, "periodogram", threads, || {
         config.periodogram.enabled
             && low_k_excess.is_some_and(|value| {
@@ -48,18 +55,36 @@ pub(super) fn run(
     let (mark_pair_covariance_curve, mark_pair_covariance) =
         timed_stage(timings, "mark_pair_covariance", threads, || -> Result<_> {
             if includes_pooled {
-                mark_pair_covariance_with_envelope(config, pattern)
+                let index = spatial_index.as_ref().ok_or_else(|| {
+                    MarklabError::Compute(
+                        "pooled mark-pair covariance requires a spatial index".into(),
+                    )
+                })?;
+                mark_pair_covariance_with_envelope(config, pattern, index)
             } else {
                 Ok((Vec::new(), AnalysisSection::NotApplicable))
             }
         })?;
-    let territories = timed_stage(timings, "multiscale_residual", threads, || {
-        if includes_pooled {
-            territories_for(config, pattern)
-        } else {
-            Vec::new()
-        }
-    });
+    let (territory_plan, territories) =
+        timed_stage(timings, "multiscale_residual", threads, || -> Result<_> {
+            if includes_pooled
+                && config.multiscale_residual.enabled
+                && config.multiscale_residual.territory_detection
+            {
+                let index = spatial_index.as_ref().ok_or_else(|| {
+                    MarklabError::Compute(
+                        "pooled residual territories require a spatial index".into(),
+                    )
+                })?;
+                let max_scale_um = config.validation.largest_interpretable_scale_fraction
+                    * pattern.window.l_eff_um;
+                let plan = ResidualTerritoryPlan::new_with_index(pattern, index, max_scale_um)?;
+                let territories = territories_for(config, pattern, &plan, &pattern.mark)?;
+                Ok((Some(plan), territories))
+            } else {
+                Ok((None, Vec::new()))
+            }
+        })?;
     let anisotropy = timed_stage(timings, "anisotropy", threads, || -> Result<_> {
         if includes_pooled {
             permutation_whitened_anisotropy(
@@ -76,7 +101,13 @@ pub(super) fn run(
     })?;
     let (multiscale_residual, scale_energy_curve, scale_energy) =
         timed_stage(timings, "multiscale_residual_energy", threads, || {
-            multiscale_analysis(config, pattern, includes_pooled, territories.len())
+            multiscale_analysis(
+                config,
+                pattern,
+                includes_pooled,
+                territory_plan.as_ref(),
+                territories.len(),
+            )
         })?;
 
     Ok(Output {
@@ -95,6 +126,7 @@ fn multiscale_analysis(
     config: &AnalysisConfig,
     pattern: &Pattern,
     includes_pooled: bool,
+    territory_plan: Option<&ResidualTerritoryPlan>,
     territory_count: usize,
 ) -> Result<(
     AnalysisSection<MultiscaleResidualSummary>,
@@ -149,7 +181,13 @@ fn multiscale_analysis(
         energies.block_mean,
     )?;
     let (block_mean_variance_fraction_p_value, territory_count_p_value) =
-        multiscale_residual_scalar_p_values(config, pattern, energies.block_mean, territory_count)?;
+        multiscale_residual_scalar_p_values(
+            config,
+            pattern,
+            territory_plan,
+            energies.block_mean,
+            territory_count,
+        )?;
     Ok((
         AnalysisSection::available(MultiscaleResidualSummary {
             local_difference_energy_fraction: energies.local_difference,
