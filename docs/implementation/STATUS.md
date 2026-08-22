@@ -7,7 +7,7 @@ Last updated: 2026-08-22T18:43:37-04:00
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Current SHA: `a1260445a383c59381b2c7c7881cebb10e10c156`
+- Current SHA: `f2290fe4607d9747246a92e9bc1422b1b3a78780`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
@@ -27,7 +27,7 @@ Last updated: 2026-08-22T18:43:37-04:00
 
 ## Dirty files and reasons
 
-- C-01 production, tests, manifests, and locks are clean at `a1260445a383c59381b2c7c7881cebb10e10c156`. Current dirty files are the C-01 append-only closure ledgers/handoff and C-02 activation state only.
+- Production, tests, manifests, and locks are clean at `f2290fe4607d9747246a92e9bc1422b1b3a78780`. Current dirty files are only the proposed C-02 task contract, ownership row, and this activation-state update.
 
 ## Recent decisions
 
@@ -54,7 +54,7 @@ Last updated: 2026-08-22T18:43:37-04:00
 
 ## Next three exact actions
 
-1. Freeze C-02 semantics against the current coordinate/registration types and the remote physical-scale evidence without changing the compatibility API.
+1. Run a read-only C-02 design audit against the proposed explicit-axis/frame graph and current compatibility owners; freeze or correct the contract.
 2. Add behavior-first 2-D/3-D unit, frame, transform-chain, uncertainty-reference, and serial-section contract tests.
 3. Implement the smallest core/data boundary and run focused plus workspace compatibility gates.
 
