@@ -675,6 +675,30 @@ fn csv_loader_rejects_partially_populated_dense_optional_metrics() {
 }
 
 #[test]
+fn metadata_mismatch_rejected() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let cells = dir.path().join("metadata_mismatch.csv");
+    fs::write(
+        &cells,
+        "x_um,y_um,mark,case_id,timepoint,protein,valid_tumor,valid_ihc\n\
+0.0,0.0,1,case_001,post,MSH6,true,true\n\
+1.0,0.0,0,case_002,post,MSH6,true,true\n",
+    )
+    .expect("write cells");
+    let mask = TumorMask::from_geojson_str(
+        r#"{"type":"MultiPolygon","coordinates":[[[[-1,-1],[2,-1],[2,1],[-1,1],[-1,-1]]]]}"#,
+    )
+    .expect("mask");
+
+    let error = load_pattern_csv_with_diagnostics(&cells, &mask)
+        .expect_err("mixed case metadata must be rejected");
+
+    assert!(error
+        .to_string()
+        .contains("one case_id/timepoint/protein group"));
+}
+
+#[test]
 fn csv_loader_rejects_invalid_tumor_probability_and_nucleus_area_metrics() {
     let dir = tempfile::tempdir().expect("temp dir");
     let mask = TumorMask::from_geojson_str(

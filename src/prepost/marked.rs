@@ -7,6 +7,11 @@ use super::{
     numeric_delta, territories,
 };
 
+/// Compare two marked-pattern results with the production pre/post policy.
+///
+/// The output contains descriptive deltas and typed curve diagnostics. A
+/// pooled-bin p-value is an approximate aggregated-bin diagnostic, not a
+/// per-cell spatial test, and no result is interpreted as equivalence.
 pub fn compare_marked_prepost(
     pre: &MarkedPatternResult,
     post: &MarkedPatternResult,

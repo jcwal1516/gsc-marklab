@@ -203,13 +203,30 @@ fn remediation_sparse_enrichment_statistics_are_finite_or_typed_undefined() {
 }
 
 #[test]
-fn remediation_sparse_enrichment_roundtrips_through_json() {
+fn sparse_enrichment_roundtrip() {
     let row = sparse_positive_enrichment();
     let json = serde_json::to_string(&row).expect("serialize sparse enrichment");
     let roundtrip: NeighborhoodEnrichmentResult =
         serde_json::from_str(&json).expect("deserialize sparse enrichment");
 
     assert_eq!(roundtrip, row);
+}
+
+#[test]
+fn undefined_z_score_roundtrip() {
+    let row = sparse_positive_enrichment();
+    assert_eq!(row.z_score, None);
+    assert!(row.z_score_unavailable_reason.is_some());
+
+    let json = serde_json::to_string(&row).expect("serialize undefined z-score");
+    let roundtrip: NeighborhoodEnrichmentResult =
+        serde_json::from_str(&json).expect("deserialize undefined z-score");
+
+    assert_eq!(roundtrip.z_score, None);
+    assert_eq!(
+        roundtrip.z_score_unavailable_reason,
+        row.z_score_unavailable_reason
+    );
 }
 
 #[test]

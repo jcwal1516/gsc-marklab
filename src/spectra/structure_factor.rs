@@ -86,7 +86,7 @@ mod tests {
     }
 
     #[test]
-    fn marked_subset_core_matches_dense_binary_labels() {
+    fn binary_kernel_matches_dense_reference() {
         let pattern = pattern(vec![1, 0, 1, 0]);
         let total = total_phase_sum(&pattern, 0.7, 1.3).expect("total phase sum");
         let by_labels = centered_structure_factor_for_marks(&pattern, &pattern.mark, 0.7, 1.3)
@@ -103,6 +103,41 @@ mod tests {
         .expect("subset structure factor");
 
         assert_abs_diff_eq!(by_indices, by_labels, epsilon = 1e-12);
+    }
+
+    #[test]
+    fn continuous_kernel_matches_reference() {
+        let pattern = pattern(vec![1, 0, 1, 0]);
+        let values = [0.1, 0.8, 0.3, 0.9];
+        let (kx, ky) = (0.7, 1.3);
+        let actual = observed_value_power_for_modes(
+            &pattern,
+            &values,
+            &[KMode {
+                kx,
+                ky,
+                k: kx.hypot(ky),
+                shell_index: 0,
+            }],
+        )
+        .expect("continuous power")[0];
+        let mean = values.iter().sum::<f64>() / values.len() as f64;
+        let (re, im) = pattern
+            .x_um
+            .iter()
+            .copied()
+            .zip(pattern.y_um.iter().copied())
+            .zip(values)
+            .fold((0.0, 0.0), |(re, im), ((x, y), value)| {
+                let phase = -(kx * x + ky * y);
+                (
+                    re + (value - mean) * phase.cos(),
+                    im + (value - mean) * phase.sin(),
+                )
+            });
+        let expected = (re * re + im * im) / values.len() as f64;
+
+        assert_abs_diff_eq!(actual, expected, epsilon = 1e-12);
     }
 
     #[test]
@@ -443,6 +478,88 @@ mod tests {
 
         assert_eq!(results[0], results[1]);
         assert_eq!(results[0], results[2]);
+    }
+
+    #[test]
+    fn shell_level_storage_matches_previous_valid_output() {
+        let modes = vec![
+            KMode {
+                kx: 0.1,
+                ky: 0.0,
+                k: 0.1,
+                shell_index: 0,
+            },
+            KMode {
+                kx: 0.0,
+                ky: 0.1,
+                k: 0.1,
+                shell_index: 0,
+            },
+            KMode {
+                kx: 0.2,
+                ky: 0.0,
+                k: 0.2,
+                shell_index: 1,
+            },
+            KMode {
+                kx: 0.0,
+                ky: 0.2,
+                k: 0.2,
+                shell_index: 1,
+            },
+        ];
+        let observed = vec![4.0, 6.0, 8.0, 10.0];
+        let permutation_modes = vec![
+            vec![2.0, 4.0, 4.0, 6.0],
+            vec![3.0, 5.0, 5.0, 7.0],
+            vec![4.0, 6.0, 6.0, 8.0],
+        ];
+        let options = SpectrumPermutationOptions {
+            n_shells: 2,
+            low_k_modes: 1,
+            n_permutations: 3,
+            seed: 123,
+            family_wise_alpha: 0.5,
+            max_scale_um: f64::INFINITY,
+            k_shell_min: 1,
+            k_chunk_modes: 2,
+        };
+        let expected = summarize_permutation_whitening(
+            &modes,
+            observed.clone(),
+            permutation_modes.clone(),
+            options,
+        )
+        .expect("legacy mode-level summary")
+        .expect("summary");
+        let shell_plan =
+            super::shells::ShellPlan::new(&modes, options.n_shells).expect("shell plan");
+        let observed_shells = shell_plan
+            .aggregate_mode_powers(&observed)
+            .expect("observed shells");
+        let mut shell_matrix = crate::common::matrix::F64Matrix::zeros(
+            permutation_modes.len(),
+            shell_plan.shell_count(),
+        )
+        .expect("shell matrix");
+        for (target, source) in shell_matrix.iter_rows_mut().zip(&permutation_modes) {
+            target.copy_from_slice(
+                &shell_plan
+                    .aggregate_mode_powers(source)
+                    .expect("permutation shells"),
+            );
+        }
+        let actual = super::summaries::summarize_permutation_whitening_from_shells(
+            &shell_plan,
+            observed_shells,
+            shell_matrix,
+            modes.len(),
+            options,
+        )
+        .expect("shell-level summary")
+        .expect("summary");
+
+        assert_eq!(actual, expected);
     }
 
     #[test]

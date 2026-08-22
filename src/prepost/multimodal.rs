@@ -4,6 +4,11 @@ use super::{
     context::ComparisonContext, curves::append_cross_interaction_curve_comparisons, territories,
 };
 
+/// Compare two multimodal results without a descriptive cross-curve margin.
+///
+/// Cross-interaction and territory changes use the same typed availability and
+/// axis-alignment policy as the CLI. With no prespecified margin,
+/// `within_margin` remains unavailable.
 pub fn compare_multimodal_prepost(
     pre: &MultimodalResult,
     post: &MultimodalResult,
@@ -11,6 +16,11 @@ pub fn compare_multimodal_prepost(
     compare_multimodal_prepost_with_margin(pre, post, None)
 }
 
+/// Compare two multimodal results with an optional descriptive cross-curve margin.
+///
+/// The margin checks a maximum standardized curve distance. It is not an
+/// inferential equivalence test. Invalid or incomparable curves produce typed
+/// insufficient-data rows rather than numeric sentinels.
 pub fn compare_multimodal_prepost_with_margin(
     pre: &MultimodalResult,
     post: &MultimodalResult,

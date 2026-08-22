@@ -2,9 +2,10 @@ use std::collections::BTreeSet;
 
 use marklab::{
     AnalysisResult, AnalysisSection, AnalysisStatus, FusedCellSummary, Interpretation,
-    InterpretationClass, MultimodalResult, OutputWriter, PrePostResult, PrimaryEndpointKind,
-    Provenance, RegistrationSummary, ResultDocument, ScaleEnergyBand, SpectrumNullModel,
-    TransformKind, WindowSummary,
+    InterpretationClass, LabelFraction, MultimodalResult, NeighborhoodTerritory, OutputWriter,
+    PrePostResult, PrimaryEndpointKind, Provenance, RegistrationSummary, ResidualTerritory,
+    ResultDocument, ScaleEnergyBand, SpectrumNullModel, TerritoryProfile, TransformKind,
+    WindowSummary,
 };
 
 fn sample_result() -> MultimodalResult {
@@ -328,6 +329,53 @@ fn unknown_result_version_rejected() {
         error,
         marklab::MarklabError::UnsupportedFormatVersion { .. }
     ));
+}
+
+#[test]
+fn profile_fields_are_computed_or_absent_from_schema() {
+    let profile = TerritoryProfile {
+        territory_id: 7,
+        cell_type_fractions: vec![LabelFraction {
+            label: "lymphocyte".into(),
+            fraction: 0.75,
+            count: 3,
+        }],
+        below_registration_resolution: false,
+    };
+
+    let value = serde_json::to_value(profile).expect("serialize profile");
+
+    assert_eq!(value["cell_type_fractions"][0]["count"], 3);
+    assert!(value.get("enrichment").is_none());
+    assert!(value.get("cross_curves").is_none());
+    assert!(value.get("qc_overlap_fraction").is_none());
+}
+
+#[test]
+fn territory_types_are_distinct() {
+    let residual = serde_json::to_value(ResidualTerritory {
+        center_x_um: 1.0,
+        center_y_um: 2.0,
+        radius_um: 3.0,
+        analysis_scale_um: 4.0,
+        residual_score: 5.0,
+        supporting_marked_cells: 6,
+        component_id: Some(7),
+    })
+    .expect("serialize residual territory");
+    let neighborhood = serde_json::to_value(NeighborhoodTerritory {
+        center_x_um: 1.0,
+        center_y_um: 2.0,
+        radius_um: 3.0,
+        supporting_abnormal_cells: 6,
+        cluster_id: 7,
+    })
+    .expect("serialize neighborhood territory");
+
+    assert!(residual.get("residual_score").is_some());
+    assert!(residual.get("supporting_abnormal_cells").is_none());
+    assert!(neighborhood.get("supporting_abnormal_cells").is_some());
+    assert!(neighborhood.get("residual_score").is_none());
 }
 
 #[test]
