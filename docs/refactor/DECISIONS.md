@@ -269,3 +269,12 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Execution behavior: Both marked and multimodal batch flows call the same resolver. Marked batch resolves every job before starting sequential or parallel analysis, so a later invalid ID cannot follow earlier writes. Valid ID trimming and named output directories remain unchanged.
 - Evidence: Commit `a8d38c5`; the formerly ignored traversal regression is enabled and green. A unit table covers blank/absolute/dot/parent/both separators and a valid trimmed ID; a Unix test covers an existing outward symlink. Valid marked sequential/parallel batch tests, the multimodal batch integration, warnings-denied Clippy, and no-default-features check pass.
 - Status: Accepted; OUT-06 closed.
+
+## 2026-08-22 — Analysis telemetry and run manifests have one owner
+
+- Context: Marked `timings.json` appended a writer-only stage absent from `result.json`; the CLI then reread that sidecar to create external timings and trace JSONL. Three independent run-manifest constructors produced incompatible marked direct, marked CLI, and multimodal shapes.
+- Decision: Analysis telemetry contains only analysis/load stages and is serialized unchanged everywhere it appears. Output-writing time is not injected into the scientific result or timing sidecar; it remains a separate output benchmark/artifact concern. External timings and trace projections serialize the in-memory stage vector directly.
+- Manifest model: `RunManifest::from_document` is the only builder. It owns program/version, analysis kind, common result identity/status, output policy, and timing count. Optional typed context adds CLI command, inputs, and execution details without a second JSON constructor. Marked and multimodal manifests now share the same result/output structure.
+- Consequences: The CLI no longer disables writer manifests, writes a second manifest, or reads/parses `timings.json`. When external observability output is requested, only the small timing vector is cloned before the owning analysis run is consumed; no complete result is cloned.
+- Evidence: Commits `756ecbc`, `3d8ad46`, and `5d5f8d2`; enabled telemetry equality, marked/multimodal manifest assertions, external timing equality/trace, all eight analyze CLI tests, warnings-denied Clippy, no-default-features, and full Nextest 322/322 with 12 expected skips pass.
+- Status: Accepted; OUT-01 and DUP-07 closed.
