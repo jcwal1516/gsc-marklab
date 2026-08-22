@@ -8,6 +8,36 @@ pub struct PhaseSum {
     pub im: f64,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct BinaryMarkContext {
+    n_marked: usize,
+    use_unmarked_subset: bool,
+    selected_count: usize,
+}
+
+impl BinaryMarkContext {
+    pub(super) fn new(n_cells: usize, n_marked: usize) -> Option<Self> {
+        if n_cells < 2 || n_marked == 0 || n_marked >= n_cells {
+            return None;
+        }
+        let n_unmarked = n_cells - n_marked;
+        let use_unmarked_subset = n_marked > n_unmarked;
+        Some(Self {
+            n_marked,
+            use_unmarked_subset,
+            selected_count: if use_unmarked_subset {
+                n_unmarked
+            } else {
+                n_marked
+            },
+        })
+    }
+
+    pub(super) fn use_unmarked_subset(self) -> bool {
+        self.use_unmarked_subset
+    }
+}
+
 pub fn centered_structure_factor(pattern: &Pattern, kx: f64, ky: f64) -> Option<f64> {
     if pattern.is_empty() || !kx.is_finite() || !ky.is_finite() {
         return None;
@@ -44,17 +74,9 @@ pub fn observed_power_for_modes_into(
     selected_indices: &mut Vec<usize>,
     powers: &mut Vec<f64>,
 ) -> Option<()> {
-    let use_unmarked_subset = pattern.n_marked() > pattern.n_unmarked();
+    let context = BinaryMarkContext::new(pattern.len(), pattern.n_marked())?;
     selected_indices.clear();
-    selected_indices.extend(pattern.mark.iter().copied().enumerate().filter_map(
-        |(index, mark)| {
-            if use_unmarked_subset {
-                (mark == 0).then_some(index)
-            } else {
-                (mark == 1).then_some(index)
-            }
-        },
-    ));
+    selected_indices_for_marks_into(&pattern.mark, context.use_unmarked_subset, selected_indices)?;
 
     powers.clear();
     powers.resize(modes.len(), 0.0);
@@ -63,8 +85,8 @@ pub fn observed_power_for_modes_into(
         powers[mode_index] = centered_structure_factor_for_index_subset(
             pattern,
             selected_indices,
-            pattern.n_marked(),
-            use_unmarked_subset,
+            context.n_marked,
+            context.use_unmarked_subset,
             total,
             mode.kx,
             mode.ky,
@@ -86,6 +108,7 @@ pub fn total_phase_sums_for_modes(
     Some(())
 }
 
+#[cfg(all(feature = "dhat-heap", not(feature = "allocator-mimalloc")))]
 pub fn permutation_power_for_modes_into(
     pattern: &Pattern,
     modes: &[KMode],
@@ -97,13 +120,67 @@ pub fn permutation_power_for_modes_into(
     if modes.len() != total_phase_sums.len() {
         return None;
     }
-    let use_unmarked_subset = pattern.n_marked() > pattern.n_unmarked();
-    let selected_count = if use_unmarked_subset {
-        pattern.n_unmarked()
-    } else {
-        pattern.n_marked()
-    };
-    permute_fixed_count_indices_into(pattern.len(), selected_count, seed, selected_indices).ok()?;
+    let context = BinaryMarkContext::new(pattern.len(), pattern.n_marked())?;
+    permutation_selected_indices_into(pattern.len(), context, seed, selected_indices)?;
+
+    power_for_selected_modes_into(
+        pattern,
+        modes,
+        total_phase_sums,
+        selected_indices,
+        context,
+        powers,
+    )
+}
+
+pub(super) fn permutation_selected_indices_into(
+    n_cells: usize,
+    context: BinaryMarkContext,
+    seed: u64,
+    selected_indices: &mut Vec<usize>,
+) -> Option<()> {
+    if n_cells < context.selected_count {
+        return None;
+    }
+    permute_fixed_count_indices_into(n_cells, context.selected_count, seed, selected_indices).ok()
+}
+
+pub(super) fn selected_indices_for_marks_into(
+    marks: &[u8],
+    use_unmarked_subset: bool,
+    selected_indices: &mut Vec<usize>,
+) -> Option<()> {
+    if marks.iter().any(|mark| *mark != 0 && *mark != 1) {
+        return None;
+    }
+    selected_indices.clear();
+    selected_indices.extend(
+        marks
+            .iter()
+            .copied()
+            .enumerate()
+            .filter_map(|(index, mark)| {
+                if use_unmarked_subset {
+                    (mark == 0).then_some(index)
+                } else {
+                    (mark == 1).then_some(index)
+                }
+            }),
+    );
+    Some(())
+}
+
+pub(super) fn power_for_selected_modes_into(
+    pattern: &Pattern,
+    modes: &[KMode],
+    total_phase_sums: &[PhaseSum],
+    selected_indices: &[usize],
+    context: BinaryMarkContext,
+    powers: &mut Vec<f64>,
+) -> Option<()> {
+    if modes.len() != total_phase_sums.len() || pattern.len() < context.n_marked {
+        return None;
+    }
 
     powers.clear();
     powers.resize(modes.len(), 0.0);
@@ -111,8 +188,8 @@ pub fn permutation_power_for_modes_into(
         powers[mode_index] = centered_structure_factor_for_index_subset(
             pattern,
             selected_indices,
-            pattern.n_marked(),
-            use_unmarked_subset,
+            context.n_marked,
+            context.use_unmarked_subset,
             total_phase_sums[mode_index],
             mode.kx,
             mode.ky,

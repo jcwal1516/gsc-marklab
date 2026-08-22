@@ -177,6 +177,7 @@ fn permutation_options(n_permutations: usize) -> SpectrumPermutationOptions {
         family_wise_alpha: 0.10,
         max_scale_um: f64::INFINITY,
         k_shell_min: 1,
+        k_chunk_modes: 64,
     }
 }
 

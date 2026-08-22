@@ -198,6 +198,7 @@ fn permutation_options(config: &AnalysisConfig, pattern: &Pattern) -> SpectrumPe
         max_scale_um: config.validation.largest_interpretable_scale_fraction
             * pattern.window.l_eff_um,
         k_shell_min: config.validation.k_shell_min,
+        k_chunk_modes: config.performance.k_chunk_modes,
     }
 }
 

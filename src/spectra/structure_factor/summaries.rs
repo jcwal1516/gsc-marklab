@@ -1,15 +1,14 @@
+#[cfg(test)]
+use crate::spectra::kgrid::KMode;
 use crate::{
+    common::matrix::F64Matrix,
     common::stats::median_average_even,
     errors::{MarklabError, Result},
     inference::scalar_pvalues::{permutation_p_value, Tail},
     permutation::envelopes::GlobalEnvelope,
-    spectra::kgrid::KMode,
 };
 
-use super::{
-    shells::{nonempty_shells, shell_mean_k, shell_mean_powers},
-    PermutationWhitenedSpectrum, SpectrumPermutationOptions,
-};
+use super::{shells::ShellPlan, PermutationWhitenedSpectrum, SpectrumPermutationOptions};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct SpectrumScalarReadouts {
@@ -20,41 +19,59 @@ pub(super) struct SpectrumScalarReadouts {
     pub(super) alpha: Option<f64>,
 }
 
+#[cfg(test)]
 pub(super) fn summarize_permutation_whitening(
     modes: &[KMode],
     observed_mode_power: Vec<f64>,
     permutation_mode_powers: Vec<Vec<f64>>,
     options: SpectrumPermutationOptions,
 ) -> Result<Option<PermutationWhitenedSpectrum>> {
-    if modes.is_empty()
+    let Some(shell_plan) = ShellPlan::new(modes, options.n_shells) else {
+        return Ok(None);
+    };
+    let Some(observed_power) = shell_plan.aggregate_mode_powers(&observed_mode_power) else {
+        return Ok(None);
+    };
+    let Some(mut permutation_powers) =
+        F64Matrix::zeros(permutation_mode_powers.len(), shell_plan.shell_count())
+    else {
+        return Ok(None);
+    };
+    for (target, source) in permutation_powers
+        .iter_rows_mut()
+        .zip(permutation_mode_powers)
+    {
+        let Some(shell_power) = shell_plan.aggregate_mode_powers(&source) else {
+            return Ok(None);
+        };
+        target.copy_from_slice(&shell_power);
+    }
+    summarize_permutation_whitening_from_shells(
+        &shell_plan,
+        observed_power,
+        permutation_powers,
+        modes.len(),
+        options,
+    )
+}
+
+pub(super) fn summarize_permutation_whitening_from_shells(
+    shell_plan: &ShellPlan,
+    observed_power: Vec<f64>,
+    permutation_powers: F64Matrix,
+    n_modes: usize,
+    options: SpectrumPermutationOptions,
+) -> Result<Option<PermutationWhitenedSpectrum>> {
+    if n_modes == 0
         || options.n_shells == 0
-        || modes.len() != observed_mode_power.len()
-        || permutation_mode_powers.is_empty()
+        || observed_power.len() != shell_plan.shell_count()
+        || permutation_powers.row_count() == 0
+        || permutation_powers.column_count() != shell_plan.shell_count()
     {
         return Ok(None);
     }
 
-    let shell_index = nonempty_shells(modes, options.n_shells);
-    if shell_index.is_empty() {
-        return Ok(None);
-    }
-    let Some(k_values) = shell_index
-        .iter()
-        .map(|shell| shell_mean_k(modes, *shell))
-        .collect::<Option<Vec<_>>>()
-    else {
-        return Ok(None);
-    };
-    let Some(observed_power) = shell_mean_powers(modes, &observed_mode_power, &shell_index) else {
-        return Ok(None);
-    };
-    let Some(permutation_powers) = permutation_mode_powers
-        .iter()
-        .map(|powers| shell_mean_powers(modes, powers, &shell_index))
-        .collect::<Option<Vec<_>>>()
-    else {
-        return Ok(None);
-    };
+    let k_values = shell_plan.k_values().to_vec();
     let n_curve_points = k_values.len();
     let inference_eligible = k_values
         .iter()
@@ -76,7 +93,7 @@ pub(super) fn summarize_permutation_whitening(
     let median_permutation_power = (0..n_curve_points)
         .map(|shell_position| {
             let mut values = permutation_powers
-                .iter()
+                .iter_rows()
                 .map(|powers| powers[shell_position])
                 .collect::<Vec<_>>();
             median_average_even(&mut values)
@@ -90,13 +107,15 @@ pub(super) fn summarize_permutation_whitening(
     // Each permutation uses its corresponding leave-one-out baseline: the
     // observed curve plus the other B - 1 permutation curves. Reusing the
     // observed baseline would privilege that run and break rank-test symmetry.
-    let mut permutation_baselines = vec![vec![0.0; n_curve_points]; permutation_powers.len()];
+    let mut permutation_baselines =
+        F64Matrix::zeros(permutation_powers.row_count(), n_curve_points)
+            .ok_or_else(|| MarklabError::Compute("invalid spectrum baseline dimensions".into()))?;
     for shell_position in 0..n_curve_points {
-        let mut values = Vec::with_capacity(permutation_powers.len() + 1);
+        let mut values = Vec::with_capacity(permutation_powers.row_count() + 1);
         values.push(observed_power[shell_position]);
         values.extend(
             permutation_powers
-                .iter()
+                .iter_rows()
                 .map(|powers| powers[shell_position]),
         );
         let Some(baselines) = leave_one_out_medians(&values) else {
@@ -106,7 +125,9 @@ pub(super) fn summarize_permutation_whitening(
         };
         debug_assert_eq!(median_permutation_power[shell_position], baselines[0]);
         for (permutation_index, baseline) in baselines.into_iter().skip(1).enumerate() {
-            permutation_baselines[permutation_index][shell_position] = baseline;
+            permutation_baselines
+                .row_mut(permutation_index)
+                .expect("baseline row")[shell_position] = baseline;
         }
     }
 
@@ -115,7 +136,7 @@ pub(super) fn summarize_permutation_whitening(
         .zip(median_permutation_power.iter())
         .map(|(observed, baseline)| observed / baseline.max(f64::EPSILON))
         .collect::<Vec<_>>();
-    let envelope = GlobalEnvelope::from_curves_with_eligibility(
+    let envelope = GlobalEnvelope::from_matrix_with_eligibility(
         &observed_power,
         &permutation_powers,
         options.family_wise_alpha,
@@ -134,8 +155,8 @@ pub(super) fn summarize_permutation_whitening(
     let observed_readouts =
         spectrum_scalar_readouts(&eligible_k_values, &eligible_whitened_power, low_count);
     let permutation_readouts = permutation_powers
-        .iter()
-        .zip(permutation_baselines.iter())
+        .iter_rows()
+        .zip(permutation_baselines.iter_rows())
         .map(|(powers, baselines)| {
             let whitened = powers
                 .iter()
@@ -195,7 +216,7 @@ pub(super) fn summarize_permutation_whitening(
         lower_global_envelope: envelope.lower,
         upper_global_envelope: envelope.upper,
         erl_depth: envelope.erl_depth,
-        n_modes: modes.len(),
+        n_modes,
         n_permutations: envelope.n_permutations,
         low_k_excess: observed_readouts.low_k_excess,
         low_k_excess_p_value,

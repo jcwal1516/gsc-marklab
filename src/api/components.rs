@@ -193,6 +193,7 @@ pub(super) fn component_summary_for(
         max_scale_um: config.validation.largest_interpretable_scale_fraction
             * component.window.l_eff_um,
         k_shell_min: config.validation.k_shell_min,
+        k_chunk_modes: config.performance.k_chunk_modes,
     };
     let spectrum = if config.analysis.use_probabilistic_marks {
         if let Some(values) = component.mark_prob.as_deref() {

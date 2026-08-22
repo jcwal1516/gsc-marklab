@@ -54,6 +54,7 @@ pub struct SpectrumPermutationOptions {
     pub family_wise_alpha: f64,
     pub max_scale_um: f64,
     pub k_shell_min: usize,
+    pub k_chunk_modes: usize,
 }
 
 #[cfg(test)]
@@ -284,6 +285,7 @@ mod tests {
                 family_wise_alpha: 0.5,
                 max_scale_um: 10.0,
                 k_shell_min: 2,
+                k_chunk_modes: 2,
             },
         )
         .expect("valid spectrum summary")
@@ -327,6 +329,7 @@ mod tests {
             family_wise_alpha: 2.0 / 3.0,
             max_scale_um: 10.0,
             k_shell_min: 2,
+            k_chunk_modes: 2,
         };
 
         let mut shared_baseline_rejection_count = 0;
@@ -363,6 +366,110 @@ mod tests {
             leave_one_out_rejection_count <= 125 / 3,
             "leave-one-out test rejected {leave_one_out_rejection_count}/125 exact uniform tables"
         );
+    }
+
+    #[test]
+    fn chunk_sizes_produce_same_binary_and_continuous_spectrum() {
+        let mut pattern = pattern(vec![1, 0, 1, 0]);
+        pattern.window.l_eff_um = 4.0;
+        pattern.window.d_nn_mean_um = 1.0;
+        let modes = resolvable_modes_for_pattern(&pattern, 4).expect("modes");
+
+        let binary = [1, 3, modes.len() + 5].map(|k_chunk_modes| {
+            super::permutation::reset_chunk_observation();
+            let result = permutation_whitened_spectrum(&pattern, chunk_test_options(k_chunk_modes))
+                .expect("binary spectrum")
+                .expect("binary spectrum available");
+            let (rows, columns, stored_mode_count) =
+                super::permutation::last_shell_storage_dimensions();
+            assert_eq!(rows, 7);
+            assert!(columns <= 4);
+            assert!(columns < stored_mode_count);
+            assert!(
+                super::permutation::largest_mode_chunk_observed() <= k_chunk_modes.min(modes.len())
+            );
+            result
+        });
+        assert_eq!(binary[0], binary[1]);
+        assert_eq!(binary[0], binary[2]);
+
+        let values = [0.1, 0.8, 0.3, 0.9];
+        let continuous = [1, 3, modes.len() + 5].map(|k_chunk_modes| {
+            super::permutation::reset_chunk_observation();
+            let result = permutation_whitened_value_spectrum(
+                &pattern,
+                &values,
+                chunk_test_options(k_chunk_modes),
+            )
+            .expect("continuous spectrum")
+            .expect("continuous spectrum available");
+            assert!(
+                super::permutation::largest_mode_chunk_observed() <= k_chunk_modes.min(modes.len())
+            );
+            result
+        });
+        assert_eq!(continuous[0], continuous[1]);
+        assert_eq!(continuous[0], continuous[2]);
+    }
+
+    #[test]
+    fn chunk_sizes_produce_same_stratified_spectrum() {
+        let mut pattern = pattern(vec![1, 0, 0, 1]);
+        pattern.window.l_eff_um = 4.0;
+        pattern.window.d_nn_mean_um = 1.0;
+        let modes = resolvable_modes_for_pattern(&pattern, 4).expect("modes");
+        let observed = observed_power_for_modes(&pattern, &modes);
+        let strata = [0_u8, 0, 1, 1];
+
+        let results = [1, 3, modes.len() + 5].map(|k_chunk_modes| {
+            super::permutation::reset_chunk_observation();
+            let result = stratified_permutation_whitened_spectrum_from_observed_modes(
+                &pattern,
+                &strata,
+                &modes,
+                observed.clone(),
+                chunk_test_options(k_chunk_modes),
+            )
+            .expect("stratified spectrum")
+            .expect("stratified spectrum available");
+            let (rows, columns, stored_mode_count) =
+                super::permutation::last_shell_storage_dimensions();
+            assert_eq!(rows, 7);
+            assert!(columns < stored_mode_count);
+            assert!(
+                super::permutation::largest_mode_chunk_observed() <= k_chunk_modes.min(modes.len())
+            );
+            result
+        });
+
+        assert_eq!(results[0], results[1]);
+        assert_eq!(results[0], results[2]);
+    }
+
+    #[test]
+    fn zero_mode_chunk_is_rejected_without_evaluating_permutations() {
+        let mut pattern = pattern(vec![1, 0, 1, 0]);
+        pattern.window.l_eff_um = 4.0;
+        pattern.window.d_nn_mean_um = 1.0;
+
+        assert!(
+            permutation_whitened_spectrum(&pattern, chunk_test_options(0))
+                .expect("invalid chunk handled")
+                .is_none()
+        );
+    }
+
+    fn chunk_test_options(k_chunk_modes: usize) -> SpectrumPermutationOptions {
+        SpectrumPermutationOptions {
+            n_shells: 4,
+            low_k_modes: 2,
+            n_permutations: 7,
+            seed: 123_456,
+            family_wise_alpha: 0.25,
+            max_scale_um: 4.0,
+            k_shell_min: 1,
+            k_chunk_modes,
+        }
     }
 
     fn shared_baseline_low_k_p_value(observed: &[f64; 2], permutations: [&[f64; 2]; 2]) -> f64 {
