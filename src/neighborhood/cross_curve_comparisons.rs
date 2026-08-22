@@ -3,8 +3,15 @@ use crate::{
         curves::max_abs_standardized_difference, margin_assessment::curve_margin_assessment,
         pooled_bin_difference::pooled_bin_difference_diagnostic,
     },
-    multimodal::cells::{CellSection, FusedCell},
-    neighborhood::cross_curves::cross_interaction_curve,
+    geom::spatial_index::SpatialIndex2D,
+    multimodal::{
+        cells::{CellSection, FusedCell},
+        labels::PrimaryLabelEncoding,
+    },
+    neighborhood::{
+        cross_curves::{cross_interaction_curve, cross_interaction_curves_with_index},
+        enrichment::LabelPair,
+    },
 };
 
 const TEST_PERMUTATIONS: usize = 99;
@@ -79,6 +86,152 @@ fn cross_curve_counts_label_pairs_by_distance_bin() {
     assert_eq!(curve.points.len(), 3);
     assert_eq!(curve.points[0].count, 1);
     assert_eq!(curve.points[2].count, 1);
+}
+
+#[test]
+fn cross_curve_empty_geometric_bins_are_unavailable() {
+    let cells = vec![
+        cell("a", 0.0, 0.0, "mmr_abnormal"),
+        cell("b", 1.0, 0.0, "lymphocyte"),
+    ];
+
+    let curve = cross_interaction_curve(
+        &cells,
+        "mmr_abnormal",
+        "lymphocyte",
+        2.0,
+        6.0,
+        TEST_PERMUTATIONS,
+        TEST_SEED,
+    )
+    .expect("curve");
+
+    assert_eq!(curve.points[0].value, Some(1.0));
+    assert!(curve.points[0].inference_eligible);
+    for empty in &curve.points[1..] {
+        assert_eq!(empty.value, None);
+        assert!(!empty.inference_eligible);
+        assert_eq!(empty.lower_global_envelope, None);
+        assert_eq!(empty.upper_global_envelope, None);
+    }
+    let json = serde_json::to_string(&curve).expect("serialize sparse cross curve");
+    let roundtrip = serde_json::from_str(&json).expect("deserialize sparse cross curve");
+    assert_eq!(curve, roundtrip);
+}
+
+#[test]
+fn cross_interaction_plan_matches_bruteforce() {
+    let cells = (0..24)
+        .map(|index| {
+            cell(
+                &format!("cell-{index}"),
+                (index % 6) as f64,
+                (index / 6) as f64,
+                if index % 3 == 0 {
+                    "mmr_abnormal"
+                } else {
+                    "lymphocyte"
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    let bin_width_um = 0.75;
+    let max_r_um = 3.5;
+
+    let curve = cross_interaction_curve(
+        &cells,
+        "mmr_abnormal",
+        "lymphocyte",
+        bin_width_um,
+        max_r_um,
+        TEST_PERMUTATIONS,
+        TEST_SEED,
+    )
+    .expect("planned curve");
+    let mut brute_counts = vec![0usize; curve.points.len()];
+    let mut brute_geometric_counts = vec![0usize; curve.points.len()];
+    for source in 0..cells.len() {
+        for target in (source + 1)..cells.len() {
+            let distance = (cells[target].x_um_registered - cells[source].x_um_registered)
+                .hypot(cells[target].y_um_registered - cells[source].y_um_registered);
+            if distance >= max_r_um {
+                continue;
+            }
+            let bin = (distance / bin_width_um).floor() as usize;
+            brute_geometric_counts[bin] += 1;
+            let left = cells[source].cell_type.as_deref();
+            let right = cells[target].cell_type.as_deref();
+            if matches!(
+                (left, right),
+                (Some("mmr_abnormal"), Some("lymphocyte"))
+                    | (Some("lymphocyte"), Some("mmr_abnormal"))
+            ) {
+                brute_counts[bin] += 1;
+            }
+        }
+    }
+
+    assert_eq!(
+        curve
+            .points
+            .iter()
+            .map(|point| point.count)
+            .collect::<Vec<_>>(),
+        brute_counts
+    );
+    assert_eq!(
+        curve
+            .points
+            .iter()
+            .map(|point| point.inference_eligible)
+            .collect::<Vec<_>>(),
+        brute_geometric_counts
+            .iter()
+            .map(|count| *count > 0)
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn cross_curve_plan_rejects_output_sensitive_storage_over_budget() {
+    let cells = (0..32)
+        .map(|index| {
+            cell(
+                &format!("cell-{index}"),
+                index as f64 * 0.01,
+                0.0,
+                if index % 2 == 0 {
+                    "mmr_abnormal"
+                } else {
+                    "lymphocyte"
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    let labels = PrimaryLabelEncoding::new(&cells).expect("labels");
+    let index = SpatialIndex2D::from_points(
+        cells
+            .iter()
+            .map(|cell| [cell.x_um_registered, cell.y_um_registered]),
+    )
+    .expect("index");
+
+    let error = cross_interaction_curves_with_index(
+        &cells,
+        &index,
+        &labels,
+        &[LabelPair::new("mmr_abnormal", "lymphocyte")],
+        1.0,
+        5.0,
+        TEST_PERMUTATIONS,
+        TEST_SEED,
+        0.05,
+        512,
+    )
+    .expect_err("cross-interaction plan must honor its storage budget");
+
+    assert!(error.to_string().contains("cross-interaction"));
+    assert!(error.to_string().contains("512 bytes"));
 }
 
 #[test]
@@ -216,10 +369,16 @@ fn cross_curve_reports_global_permutation_diagnostic() {
 
     assert!(curve.p_global.is_some());
     assert!(curve.points.iter().all(|point| {
-        matches!(
-            (point.lower_global_envelope, point.upper_global_envelope),
-            (Some(lower), Some(upper)) if lower <= upper
-        )
+        if point.inference_eligible {
+            matches!(
+                (point.lower_global_envelope, point.upper_global_envelope),
+                (Some(lower), Some(upper)) if lower <= upper
+            )
+        } else {
+            point.value.is_none()
+                && point.lower_global_envelope.is_none()
+                && point.upper_global_envelope.is_none()
+        }
     }));
 }
 

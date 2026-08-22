@@ -51,6 +51,14 @@ with `count = 0` and `value = null`; they are excluded from inference. Curve
 comparisons use typed availability and a nullable statistic, so an unavailable
 test cannot be mistaken for an observed statistic of zero.
 
+Multimodal cross-interaction curves likewise preserve every configured
+distance bin. A bin with no geometric pair is null and inference-ineligible; a
+geometrically available bin with no requested-label pair is an observed zero.
+One indexed pair/bin plan is reused for every label pair and permutation.
+Envelope bounds and `p_global` are the checked ERL global envelope over the
+eligible count curves, not pointwise permutation extrema or a separate
+maximum-bin statistic.
+
 Pre/post spectrum, mark-pair-covariance, and cross-interaction axes compare finite
 values with `|a-b| <= 1e-12 + 1e-12 * max(|a|, |b|)`. This accepts harmless
 floating-point reconstruction while preserving a typed axis-mismatch result
@@ -154,6 +162,15 @@ intervals, seed, configuration, and engine version. Quick smoke thresholds do
 not establish calibration; the separate 1,000-replicate scheduled
 random-label control and its one-sided nominal-alpha acceptance are defined in
 `docs/validation-methodology.md`.
+
+`performance.memory_budget_mib` is an enforced multimodal execution limit.
+The engine reserves conservative input, fused-cell, label, index, graph,
+artifact, result, and telemetry storage before allocation; output-sensitive
+graph, cross-interaction, and territory-neighborhood builders stop before the
+next over-budget entry. Sequential permutation, ERL, profile, and diagnostic
+scratch contributes to the same reported peak. Every timing row reports that
+enforced conservative peak, which never exceeds the configured limit for a
+successful run.
 
 `registration.transform = "rigid"` is an orientation-preserving least-squares
 two-dimensional rotation plus translation. It never estimates scale or fits a

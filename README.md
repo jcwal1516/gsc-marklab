@@ -87,6 +87,13 @@ fits a two-dimensional rotation and translation without scale or reflection.
 Use `"affine"` only when scale or shear is part of the intended registration
 model.
 
+Multimodal cross-interaction curves build one indexed physical pair/bin plan
+per run and reuse it across configured label pairs and permutations. Empty
+geometric bins are typed unavailable; reported global bounds and `p_global`
+use extreme-rank-length global-envelope inference. The configured multimodal
+memory budget is enforced before and during output-sensitive graph and
+neighborhood-plan construction rather than reported only after completion.
+
 The multiscale residual diagnostic is a documented heuristic, not a wavelet or
 Difference-of-Gaussians transform. It combines local neighbor-difference energy,
 variance of 2x2 block means, and a residual share, then evaluates the resulting

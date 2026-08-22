@@ -113,6 +113,21 @@ CSV exports add the two reason columns. Parquet exports make the ratio and
 z-score columns nullable and add nullable UTF-8 reason columns. Reports print
 `undefined (<reason>)` instead of a numeric placeholder.
 
+## Cross-interaction curves
+
+`CrossInteractionCurve` counts the configured undirected label pair in
+half-open physical-distance bins; a pair at `max_r_um` is excluded. Geometry is
+planned once with the run's spatial index and reused for the observed labels,
+every configured label pair, and every source-section-stratified permutation.
+
+A bin with no geometric cell pair has `value: null`,
+`inference_eligible: false`, and null envelope bounds. A geometrically
+available bin with no observed requested-label pair has `value: 0`; this is a
+real observed zero. `lower_global_envelope`, `upper_global_envelope`, and
+`p_global` come from the same checked extreme-rank-length global-envelope
+calculation over all eligible bin-count curves. They are not pointwise
+permutation minima/maxima or a separate maximum-bin scalar test.
+
 ## Mark-pair covariance
 
 `MarkedPatternResult.mark_pair_covariance` contains the global-envelope summary,

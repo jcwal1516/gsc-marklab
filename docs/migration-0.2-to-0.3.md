@@ -61,6 +61,10 @@ converter never inserts scientific results or guesses at lost availability.
   `pair_count == 0` means the
   bin had no contributing cell pairs; it is not an observed correlation of
   zero.
+- Cross-interaction bins with no geometric pair now use `value: null` and are
+  inference-ineligible. Their global bounds and `p_global` are produced by one
+  ERL global-envelope calculation; the former raw permutation minima/maxima
+  and separate maximum-bin scalar p-value are not retained under those names.
 - `CurveTestResult` is renamed to `CurveComparisonResult`, with typed
   `availability` and `method`. `p_difference` becomes
   `pooled_bin_p_value`; the name exposes that its null shuffles pooled,

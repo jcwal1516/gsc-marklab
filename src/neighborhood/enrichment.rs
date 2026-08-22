@@ -1,22 +1,41 @@
-use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
 use crate::{
     common::{
-        seeds::{derive_seed, splitmix64, SeedEndpoint},
+        seeds::{derive_seed, SeedEndpoint},
         stats::{mean_all_finite, safe_finite_ratio, sample_standard_deviation},
     },
     errors::{MarklabError, Result},
-    inference::scalar_pvalues::{permutation_p_value_with_spec, PermutationTestSpec, Tail},
+    inference::{
+        multiple_testing::benjamini_hochberg,
+        scalar_pvalues::{permutation_p_value_with_spec, PermutationTestSpec, Tail},
+    },
     multimodal::{
-        cells::{CellSection, FusedCell},
-        labels::primary_label,
+        cells::FusedCell,
+        labels::{PrimaryLabelEncoding, PrimaryLabelId},
     },
     output::{EnrichmentStatisticUnavailableReason, NeighborhoodEnrichmentResult},
-    permutation::labels::deterministic_shuffle,
 };
 
-use super::{graph::SpatialGraph, label_permutation::shuffle_labels_within_sections};
+use super::{graph::SpatialGraph, label_permutation::LabelPermutationPlan};
+
+struct EnrichmentExecution<'a> {
+    cells: &'a [FusedCell],
+    labels: &'a PrimaryLabelEncoding,
+    graph: &'a SpatialGraph,
+    label_pairs: &'a [LabelPair],
+    permutations: usize,
+    seed: u64,
+}
+
+struct PermutationExecution<'a> {
+    labels: &'a [Option<PrimaryLabelId>],
+    graph: &'a SpatialGraph,
+    permutations: usize,
+    seed: u64,
+    plan: &'a LabelPermutationPlan,
+    seed_endpoint: SeedEndpoint,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// Label pair requested for undirected edge enrichment.
@@ -47,8 +66,21 @@ impl LabelPair {
     }
 }
 
+#[cfg(test)]
 pub fn edge_enrichment(
     cells: &[FusedCell],
+    graph: &SpatialGraph,
+    label_pairs: &[LabelPair],
+    permutations: usize,
+    seed: u64,
+) -> Result<Vec<NeighborhoodEnrichmentResult>> {
+    let labels = PrimaryLabelEncoding::new(cells)?;
+    edge_enrichment_with_labels(cells, &labels, graph, label_pairs, permutations, seed)
+}
+
+pub(crate) fn edge_enrichment_with_labels(
+    cells: &[FusedCell],
+    labels: &PrimaryLabelEncoding,
     graph: &SpatialGraph,
     label_pairs: &[LabelPair],
     permutations: usize,
@@ -58,16 +90,22 @@ pub fn edge_enrichment(
         .iter()
         .map(|cell| cell.source_section)
         .collect::<Vec<_>>();
-    edge_enrichment_with_strategy(
-        cells,
-        graph,
-        label_pairs,
-        permutations,
-        seed,
-        PermutationStrategy::SourceSections(&sections),
+    let plan = LabelPermutationPlan::for_source_sections(&sections);
+    edge_enrichment_with_plan(
+        EnrichmentExecution {
+            cells,
+            labels,
+            graph,
+            label_pairs,
+            permutations,
+            seed,
+        },
+        &plan,
+        SeedEndpoint::NeighborhoodEnrichment,
     )
 }
 
+#[cfg(test)]
 pub fn edge_enrichment_with_strata(
     cells: &[FusedCell],
     graph: &SpatialGraph,
@@ -76,53 +114,97 @@ pub fn edge_enrichment_with_strata(
     seed: u64,
     strata: &[String],
 ) -> Result<Vec<NeighborhoodEnrichmentResult>> {
-    edge_enrichment_with_strategy(
+    let labels = PrimaryLabelEncoding::new(cells)?;
+    edge_enrichment_with_strata_and_labels(
         cells,
+        &labels,
         graph,
         label_pairs,
         permutations,
         seed,
-        PermutationStrategy::ExplicitStrata(strata),
+        strata,
     )
 }
 
-#[derive(Clone, Copy)]
-enum PermutationStrategy<'a> {
-    SourceSections(&'a [CellSection]),
-    ExplicitStrata(&'a [String]),
-}
-
-fn edge_enrichment_with_strategy(
+pub(crate) fn edge_enrichment_with_strata_and_labels<T: Ord>(
     cells: &[FusedCell],
+    labels: &PrimaryLabelEncoding,
     graph: &SpatialGraph,
     label_pairs: &[LabelPair],
     permutations: usize,
     seed: u64,
-    strategy: PermutationStrategy<'_>,
+    strata: &[T],
 ) -> Result<Vec<NeighborhoodEnrichmentResult>> {
-    validate_config(label_pairs, permutations)?;
-    validate_graph(cells, graph)?;
-    let strategy_len = match strategy {
-        PermutationStrategy::SourceSections(sections) => sections.len(),
-        PermutationStrategy::ExplicitStrata(strata) => strata.len(),
-    };
-    if strategy_len != cells.len() {
+    if strata.len() != cells.len() {
         return Err(MarklabError::Validation(format!(
             "null-model stratum count {} does not match cell count {}",
-            strategy_len,
+            strata.len(),
             cells.len()
         )));
     }
+    let plan = LabelPermutationPlan::for_explicit_strata(strata);
+    edge_enrichment_with_plan(
+        EnrichmentExecution {
+            cells,
+            labels,
+            graph,
+            label_pairs,
+            permutations,
+            seed,
+        },
+        &plan,
+        SeedEndpoint::NeighborhoodStratifiedEnrichment,
+    )
+}
 
-    let labels = cells.iter().map(primary_label).collect::<Vec<_>>();
-    let mut rows = Vec::with_capacity(label_pairs.len());
-    for pair in label_pairs {
-        let observed_edges = count_pair_edges(&labels, graph, pair);
-        let null_counts = permuted_counts(&labels, graph, pair, permutations, seed, strategy);
+fn edge_enrichment_with_plan(
+    execution: EnrichmentExecution<'_>,
+    permutation_plan: &LabelPermutationPlan,
+    seed_endpoint: SeedEndpoint,
+) -> Result<Vec<NeighborhoodEnrichmentResult>> {
+    validate_config(execution.label_pairs, execution.permutations)?;
+    validate_graph(execution.cells, execution.graph)?;
+    if execution.labels.len() != execution.cells.len() {
+        return Err(MarklabError::Validation(format!(
+            "primary label count {} does not match cell count {}",
+            execution.labels.len(),
+            execution.cells.len()
+        )));
+    }
+
+    let mut rows = Vec::with_capacity(execution.label_pairs.len());
+    let mut shuffled = Vec::with_capacity(execution.labels.len());
+    let mut group_scratch = Vec::with_capacity(permutation_plan.maximum_group_size());
+    let permutation_execution = PermutationExecution {
+        labels: execution.labels.ids(),
+        graph: execution.graph,
+        permutations: execution.permutations,
+        seed: execution.seed,
+        plan: permutation_plan,
+        seed_endpoint,
+    };
+    for pair in execution.label_pairs {
+        let encoded_pair = EncodedLabelPair::new(execution.labels, pair);
+        let observed_edges =
+            count_pair_edges(execution.labels.ids(), execution.graph, encoded_pair);
+        let null_counts = permuted_counts(
+            &permutation_execution,
+            encoded_pair,
+            &mut shuffled,
+            &mut group_scratch,
+        )?;
         rows.push(enrichment_result(pair, observed_edges, &null_counts)?);
     }
 
-    apply_benjamini_hochberg(&mut rows);
+    let adjusted = benjamini_hochberg(
+        &rows
+            .iter()
+            .map(|row| row.p_value.expect("enrichment always computes a p-value"))
+            .collect::<Vec<_>>(),
+    )?;
+    for (row, q_value) in rows.iter_mut().zip(adjusted) {
+        row.q_value = Some(q_value);
+    }
     Ok(rows)
 }
 
@@ -190,66 +272,31 @@ fn normalized_edge(source: usize, target: usize) -> (usize, usize) {
 }
 
 fn permuted_counts(
-    labels: &[Option<&str>],
+    execution: &PermutationExecution<'_>,
+    pair: EncodedLabelPair,
+    shuffled: &mut Vec<Option<PrimaryLabelId>>,
+    group_scratch: &mut Vec<Option<PrimaryLabelId>>,
+) -> Result<Vec<usize>> {
+    let mut counts = Vec::with_capacity(execution.permutations);
+
+    for permutation in 0..execution.permutations {
+        execution.plan.permute_into(
+            execution.labels,
+            derive_seed(execution.seed, execution.seed_endpoint, permutation),
+            shuffled,
+            group_scratch,
+        )?;
+        counts.push(count_pair_edges(shuffled, execution.graph, pair));
+    }
+
+    Ok(counts)
+}
+
+fn count_pair_edges(
+    labels: &[Option<PrimaryLabelId>],
     graph: &SpatialGraph,
-    pair: &LabelPair,
-    permutations: usize,
-    seed: u64,
-    strategy: PermutationStrategy<'_>,
-) -> Vec<usize> {
-    let mut counts = Vec::with_capacity(permutations);
-    let mut shuffled = labels.to_vec();
-
-    for permutation in 0..permutations {
-        match strategy {
-            PermutationStrategy::SourceSections(sections) => shuffle_labels_within_sections(
-                labels,
-                sections,
-                &mut shuffled,
-                derive_seed(seed, SeedEndpoint::NeighborhoodEnrichment, permutation),
-            ),
-            PermutationStrategy::ExplicitStrata(strata) => shuffle_labels_within_strata(
-                labels,
-                strata,
-                &mut shuffled,
-                derive_seed(
-                    seed,
-                    SeedEndpoint::NeighborhoodStratifiedEnrichment,
-                    permutation,
-                ),
-            ),
-        }
-        counts.push(count_pair_edges(&shuffled, graph, pair));
-    }
-
-    counts
-}
-
-fn shuffle_labels_within_strata<T: Clone>(
-    labels: &[T],
-    strata: &[String],
-    shuffled: &mut [T],
-    seed: u64,
-) {
-    shuffled.clone_from_slice(labels);
-    let mut groups = BTreeMap::<&str, Vec<usize>>::new();
-    for (index, stratum) in strata.iter().enumerate() {
-        groups.entry(stratum.as_str()).or_default().push(index);
-    }
-
-    for (offset, indices) in groups.values().enumerate() {
-        let mut values = indices
-            .iter()
-            .map(|index| labels[*index].clone())
-            .collect::<Vec<_>>();
-        deterministic_shuffle(&mut values, splitmix64(seed ^ offset as u64));
-        for (index, value) in indices.iter().zip(values) {
-            shuffled[*index] = value;
-        }
-    }
-}
-
-fn count_pair_edges(labels: &[Option<&str>], graph: &SpatialGraph, pair: &LabelPair) -> usize {
+    pair: EncodedLabelPair,
+) -> usize {
     graph
         .edges
         .iter()
@@ -257,16 +304,35 @@ fn count_pair_edges(labels: &[Option<&str>], graph: &SpatialGraph, pair: &LabelP
         .count()
 }
 
-fn edge_matches_pair(left: Option<&str>, right: Option<&str>, pair: &LabelPair) -> bool {
+fn edge_matches_pair(
+    left: Option<PrimaryLabelId>,
+    right: Option<PrimaryLabelId>,
+    pair: EncodedLabelPair,
+) -> bool {
     match (left, right) {
-        (Some(left), Some(right)) if pair.label_a == pair.label_b => {
-            left == pair.label_a && right == pair.label_b
+        (Some(left), Some(right)) if pair.a == pair.b => {
+            pair.a == Some(left) && pair.b == Some(right)
         }
         (Some(left), Some(right)) => {
-            (left == pair.label_a && right == pair.label_b)
-                || (left == pair.label_b && right == pair.label_a)
+            (pair.a == Some(left) && pair.b == Some(right))
+                || (pair.b == Some(left) && pair.a == Some(right))
         }
         _ => false,
+    }
+}
+
+#[derive(Clone, Copy)]
+struct EncodedLabelPair {
+    a: Option<PrimaryLabelId>,
+    b: Option<PrimaryLabelId>,
+}
+
+impl EncodedLabelPair {
+    fn new(labels: &PrimaryLabelEncoding, pair: &LabelPair) -> Self {
+        Self {
+            a: labels.id_for(&pair.label_a),
+            b: labels.id_for(&pair.label_b),
+        }
     }
 }
 
@@ -330,22 +396,4 @@ fn enrichment_result(
         p_value: Some(p_value),
         q_value: None,
     })
-}
-
-fn apply_benjamini_hochberg(rows: &mut [NeighborhoodEnrichmentResult]) {
-    let mut indexed_p_values: Vec<_> = rows
-        .iter()
-        .enumerate()
-        .filter_map(|(index, row)| row.p_value.map(|p_value| (index, p_value)))
-        .collect();
-    indexed_p_values.sort_by(|left, right| left.1.total_cmp(&right.1));
-
-    let m = indexed_p_values.len();
-    let mut next_q = 1.0;
-    for (rank_from_zero, (index, p_value)) in indexed_p_values.into_iter().enumerate().rev() {
-        let rank = rank_from_zero + 1;
-        let q_value = (p_value * m as f64 / rank as f64).min(next_q).min(1.0);
-        rows[index].q_value = Some(q_value);
-        next_q = q_value;
-    }
 }

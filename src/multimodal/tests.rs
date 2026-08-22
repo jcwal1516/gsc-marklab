@@ -3,10 +3,18 @@ use crate::{
     multimodal::{
         cells::{AnalysisMetadata, CellSection, FusedCell, HeCell, IhcCell},
         fusion::{fuse_registered_cells, FusionMeta},
-        labels::primary_label,
+        labels::{
+            primary_label, primary_label_encoding_build_call_count,
+            reset_primary_label_encoding_build_call_count, PrimaryLabelEncoding,
+        },
         load_he_cell_table_csv, load_ihc_cell_table_csv, MultimodalEngine, MultimodalInput,
     },
-    neighborhood::graph::{graph_build_call_count, reset_graph_build_call_count},
+    neighborhood::{
+        cross_curves::{
+            cross_interaction_plan_build_call_count, reset_cross_interaction_plan_build_call_count,
+        },
+        graph::{graph_build_call_count, reset_graph_build_call_count},
+    },
     registration::{
         landmarks::LandmarkPair,
         transform::{reset_transform_fit_call_count, transform_fit_call_count, Transform2D},
@@ -47,6 +55,28 @@ fn application_builds_spatial_index_once() {
         .expect("multimodal run");
 
     assert_eq!(index_build_call_count(), 1);
+}
+
+#[test]
+fn application_builds_cross_interaction_plan_once() {
+    reset_cross_interaction_plan_build_call_count();
+
+    multimodal_engine()
+        .analyze_run(&multimodal_input())
+        .expect("multimodal run");
+
+    assert_eq!(cross_interaction_plan_build_call_count(), 1);
+}
+
+#[test]
+fn application_builds_primary_label_encoding_once() {
+    reset_primary_label_encoding_build_call_count();
+
+    multimodal_engine()
+        .analyze_run(&multimodal_input())
+        .expect("multimodal run");
+
+    assert_eq!(primary_label_encoding_build_call_count(), 1);
 }
 
 #[test]
@@ -95,6 +125,7 @@ fn multimodal_telemetry_populates_every_application_stage_in_order() {
             "registration_fit",
             "registration_qc",
             "fusion",
+            "label_encoding",
             "spatial_index",
             "graph",
             "artifact_projections",
@@ -122,6 +153,88 @@ fn multimodal_telemetry_populates_every_application_stage_in_order() {
             && stage.estimated_peak_memory_mib.is_finite()
             && stage.estimated_peak_memory_mib > 0.0
     }));
+}
+
+#[test]
+fn multimodal_memory_budget_rejects_projected_retained_storage_before_analysis() {
+    let mut config = AnalysisConfig::default();
+    config.registration.transform = RegistrationTransform::Rigid;
+    config.registration.min_landmarks = 2;
+    config.permutation.stratified = false;
+    config.permutation.b = 39;
+    config.performance.memory_budget_mib = 1;
+    let engine = MultimodalEngine::new(config).expect("engine");
+    let mut input = multimodal_input();
+    input.he_cells = (0..8_000)
+        .map(|index| HeCell {
+            cell_id: format!("he-{index}"),
+            x_um: index as f64,
+            y_um: 0.0,
+            cell_type: Some("lymphocyte".into()),
+            cell_type_probability: Some(0.9),
+        })
+        .collect();
+    input.ihc_cells.clear();
+
+    let error = engine
+        .analyze_run(&input)
+        .expect_err("one MiB cannot retain input and projected fused cells");
+
+    assert!(error.to_string().contains("memory budget"));
+    assert!(error.to_string().contains("fused"));
+}
+
+#[test]
+fn multimodal_memory_telemetry_never_exceeds_the_enforced_budget() {
+    let mut config = AnalysisConfig::default();
+    config.registration.transform = RegistrationTransform::Rigid;
+    config.registration.min_landmarks = 2;
+    config.permutation.stratified = false;
+    config.permutation.b = 39;
+    config.performance.memory_budget_mib = 2;
+    let run = MultimodalEngine::new(config)
+        .expect("engine")
+        .analyze_run(&multimodal_input())
+        .expect("run within budget");
+
+    assert!(run
+        .result
+        .timings
+        .iter()
+        .all(|stage| stage.estimated_peak_memory_mib <= 2.0));
+}
+
+#[test]
+fn multimodal_memory_budget_caps_dense_territory_neighborhoods() {
+    let mut config = AnalysisConfig::default();
+    config.registration.transform = RegistrationTransform::Rigid;
+    config.registration.min_landmarks = 2;
+    config.permutation.stratified = false;
+    config.permutation.b = 39;
+    config.performance.memory_budget_mib = 1;
+    config.neighborhood.radius_um = 0.001;
+    config.neighborhood.k_nearest = 0;
+    config.neighborhood.territory_eps_um = 10.0;
+    config.neighborhood.territory_min_cells = 2;
+    let engine = MultimodalEngine::new(config).expect("engine");
+    let mut input = multimodal_input();
+    input.he_cells.clear();
+    input.ihc_cells = (0..300)
+        .map(|index| IhcCell {
+            cell_id: format!("ihc-{index}"),
+            x_um: index as f64 * 0.01,
+            y_um: 0.0,
+            mmr_mark: Some(1),
+            mmr_probability: Some(0.99),
+        })
+        .collect();
+
+    let error = engine
+        .analyze_run(&input)
+        .expect_err("dense territory neighborhoods must honor the budget");
+
+    assert!(error.to_string().contains("territory neighborhood"));
+    assert!(error.to_string().contains("memory budget"));
 }
 
 #[test]
@@ -336,6 +449,50 @@ fn label_access_is_allocation_free_in_hot_path() {
 
     assert_eq!(label, stored);
     assert!(std::ptr::eq(label.as_ptr(), stored.as_ptr()));
+}
+
+#[test]
+fn compact_primary_labels_match_the_borrowed_label_policy() {
+    let cells = vec![
+        FusedCell {
+            source_section: CellSection::He,
+            source_cell_id: "he-label".into(),
+            x_um_registered: 0.0,
+            y_um_registered: 0.0,
+            mmr_mark: None,
+            mmr_probability: None,
+            cell_type: Some("lymphocyte".into()),
+            cell_type_probability: Some(0.9),
+            same_section: false,
+            registration_error_um: Some(1.0),
+        },
+        FusedCell {
+            source_section: CellSection::Ihc,
+            source_cell_id: "ihc-label".into(),
+            x_um_registered: 1.0,
+            y_um_registered: 0.0,
+            mmr_mark: Some(1),
+            mmr_probability: Some(0.9),
+            cell_type: None,
+            cell_type_probability: None,
+            same_section: false,
+            registration_error_um: Some(1.0),
+        },
+    ];
+
+    let labels = PrimaryLabelEncoding::new(&cells).expect("compact labels");
+
+    assert_eq!(labels.len(), cells.len());
+    assert_eq!(
+        labels.name(labels.id_at(0).expect("H&E label")),
+        Some("lymphocyte")
+    );
+    assert_eq!(
+        labels.name(labels.id_at(1).expect("IHC label")),
+        Some("mmr_abnormal")
+    );
+    assert_ne!(labels.id_at(0), labels.id_at(1));
+    assert!(labels.estimated_storage_bytes() > 0);
 }
 
 #[test]

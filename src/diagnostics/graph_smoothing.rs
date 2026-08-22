@@ -1,36 +1,49 @@
-use std::collections::BTreeMap;
-
 use crate::{
     errors::{MarklabError, Result},
-    multimodal::cells::FusedCell,
+    multimodal::{
+        cells::FusedCell,
+        labels::{PrimaryLabelEncoding, PrimaryLabelId},
+    },
     neighborhood::{enrichment::LabelPair, graph::SpatialGraph},
     output::GraphSmoothingSummary,
 };
 
-use crate::multimodal::labels::primary_label;
 use crate::output::GraphSmoothingLabelPairSummary;
 
+#[cfg(test)]
 pub fn graph_smoothing(
     cells: &[FusedCell],
     graph: &SpatialGraph,
     label_pairs: &[LabelPair],
 ) -> Result<GraphSmoothingSummary> {
-    validate_input(cells, graph)?;
+    let labels = PrimaryLabelEncoding::new(cells)?;
+    graph_smoothing_with_labels(cells, &labels, graph, label_pairs)
+}
 
-    let labels = cells
-        .iter()
-        .map(primary_label)
-        .collect::<Vec<Option<&str>>>();
-    let label_index = label_index(&labels);
-    let mut embeddings = initial_embeddings(&labels, &label_index);
+pub(crate) fn graph_smoothing_with_labels(
+    cells: &[FusedCell],
+    labels: &PrimaryLabelEncoding,
+    graph: &SpatialGraph,
+    label_pairs: &[LabelPair],
+) -> Result<GraphSmoothingSummary> {
+    validate_input(cells, graph)?;
+    if labels.len() != cells.len() {
+        return Err(MarklabError::Validation(format!(
+            "primary label encoding has {} entries for {} graph-smoothing cells",
+            labels.len(),
+            cells.len()
+        )));
+    }
+
+    let mut embeddings = initial_embeddings(labels);
     let adjacency = adjacency(graph.n_nodes, graph);
     for _ in 0..2 {
-        embeddings = propagate(&embeddings, &adjacency);
+        embeddings = propagate(&embeddings, labels.label_count(), &adjacency);
     }
 
     let label_pair_scores = label_pairs
         .iter()
-        .map(|pair| score_pair(pair, &labels, &label_index, &embeddings, graph))
+        .map(|pair| score_pair(pair, labels, &embeddings, graph))
         .collect::<Vec<_>>();
     let n_edges = graph.edges.len();
     let below_registration_resolution_edge_fraction = if n_edges == 0 {
@@ -54,7 +67,7 @@ pub fn graph_smoothing(
             2.0 * n_edges as f64 / graph.n_nodes as f64
         },
         below_registration_resolution_edge_fraction,
-        label_count: label_index.len(),
+        label_count: labels.label_count(),
         label_pair_scores,
         diagnostics: vec![
             "Deterministic two-layer graph message passing diagnostic, not a trained ML backend."
@@ -75,29 +88,15 @@ fn validate_input(cells: &[FusedCell], graph: &SpatialGraph) -> Result<()> {
     Ok(())
 }
 
-fn label_index<'a>(labels: &[Option<&'a str>]) -> BTreeMap<&'a str, usize> {
-    let mut index = BTreeMap::new();
-    for label in labels.iter().flatten() {
-        let next = index.len();
-        index.entry(*label).or_insert(next);
+fn initial_embeddings(labels: &PrimaryLabelEncoding) -> Vec<f64> {
+    let label_count = labels.label_count();
+    let mut embeddings = vec![0.0; labels.len().saturating_mul(label_count)];
+    for (node, label) in labels.ids().iter().copied().enumerate() {
+        if let Some(label) = label {
+            embeddings[node * label_count + label.as_usize()] = 1.0;
+        }
     }
-    index
-}
-
-fn initial_embeddings(
-    labels: &[Option<&str>],
-    label_index: &BTreeMap<&str, usize>,
-) -> Vec<Vec<f64>> {
-    labels
-        .iter()
-        .map(|label| {
-            let mut row = vec![0.0; label_index.len()];
-            if let Some(index) = label.and_then(|label| label_index.get(label)) {
-                row[*index] = 1.0;
-            }
-            row
-        })
-        .collect()
+    embeddings
 }
 
 fn adjacency(n_nodes: usize, graph: &SpatialGraph) -> Vec<Vec<usize>> {
@@ -111,46 +110,40 @@ fn adjacency(n_nodes: usize, graph: &SpatialGraph) -> Vec<Vec<usize>> {
     adjacency
 }
 
-fn propagate(embeddings: &[Vec<f64>], adjacency: &[Vec<usize>]) -> Vec<Vec<f64>> {
-    embeddings
-        .iter()
-        .enumerate()
-        .map(|(node, embedding)| {
-            if adjacency[node].is_empty() {
-                return embedding.clone();
-            }
-
-            let mut neighbor_mean = vec![0.0; embedding.len()];
-            for neighbor in &adjacency[node] {
-                for (slot, value) in neighbor_mean.iter_mut().zip(&embeddings[*neighbor]) {
-                    *slot += *value;
-                }
-            }
-            for value in &mut neighbor_mean {
-                *value /= adjacency[node].len() as f64;
-            }
-            embedding
+fn propagate(embeddings: &[f64], label_count: usize, adjacency: &[Vec<usize>]) -> Vec<f64> {
+    let mut output = vec![0.0; embeddings.len()];
+    for (node, neighbors) in adjacency.iter().enumerate() {
+        let row_start = node * label_count;
+        let row_end = row_start + label_count;
+        if neighbors.is_empty() {
+            output[row_start..row_end].copy_from_slice(&embeddings[row_start..row_end]);
+            continue;
+        }
+        for label in 0..label_count {
+            let neighbor_sum = neighbors
                 .iter()
-                .zip(neighbor_mean)
-                .map(|(self_value, neighbor_value)| 0.5 * self_value + 0.5 * neighbor_value)
-                .collect()
-        })
-        .collect()
+                .map(|neighbor| embeddings[*neighbor * label_count + label])
+                .sum::<f64>();
+            output[row_start + label] =
+                0.5 * embeddings[row_start + label] + 0.5 * neighbor_sum / neighbors.len() as f64;
+        }
+    }
+    output
 }
 
 fn score_pair(
     pair: &LabelPair,
-    labels: &[Option<&str>],
-    label_index: &BTreeMap<&str, usize>,
-    embeddings: &[Vec<f64>],
+    labels: &PrimaryLabelEncoding,
+    embeddings: &[f64],
     graph: &SpatialGraph,
 ) -> GraphSmoothingLabelPairSummary {
+    let encoded_pair = EncodedLabelPair::new(labels, pair);
     let observed_edges = graph
         .edges
         .iter()
-        .filter(|edge| labels_match_pair(labels, edge.source, edge.target, pair))
+        .filter(|edge| encoded_pair.matches(labels.id_at(edge.source), labels.id_at(edge.target)))
         .count();
-    let Some(index_a) = label_index.get(pair.label_a.as_str()).copied() else {
+    let Some(index_a) = encoded_pair.a.map(PrimaryLabelId::as_usize) else {
         return GraphSmoothingLabelPairSummary {
             label_a: pair.label_a.clone(),
             label_b: pair.label_b.clone(),
@@ -158,7 +151,7 @@ fn score_pair(
             message_passing_score: 0.0,
         };
     };
-    let Some(index_b) = label_index.get(pair.label_b.as_str()).copied() else {
+    let Some(index_b) = encoded_pair.b.map(PrimaryLabelId::as_usize) else {
         return GraphSmoothingLabelPairSummary {
             label_a: pair.label_a.clone(),
             label_b: pair.label_b.clone(),
@@ -170,12 +163,13 @@ fn score_pair(
         .edges
         .iter()
         .map(|edge| {
-            let left = &embeddings[edge.source];
-            let right = &embeddings[edge.target];
-            if pair.label_a == pair.label_b {
-                left[index_a] * right[index_a]
+            let left = edge.source * labels.label_count();
+            let right = edge.target * labels.label_count();
+            if encoded_pair.a == encoded_pair.b {
+                embeddings[left + index_a] * embeddings[right + index_a]
             } else {
-                left[index_a] * right[index_b] + left[index_b] * right[index_a]
+                embeddings[left + index_a] * embeddings[right + index_b]
+                    + embeddings[left + index_b] * embeddings[right + index_a]
             }
         })
         .sum::<f64>();
@@ -192,23 +186,31 @@ fn score_pair(
     }
 }
 
-fn labels_match_pair(
-    labels: &[Option<&str>],
-    source: usize,
-    target: usize,
-    pair: &LabelPair,
-) -> bool {
-    let left = labels.get(source).copied().flatten();
-    let right = labels.get(target).copied().flatten();
-    match (left, right) {
-        (Some(left), Some(right)) if pair.label_a == pair.label_b => {
-            left == pair.label_a && right == pair.label_a
+#[derive(Clone, Copy)]
+struct EncodedLabelPair {
+    a: Option<PrimaryLabelId>,
+    b: Option<PrimaryLabelId>,
+}
+
+impl EncodedLabelPair {
+    fn new(labels: &PrimaryLabelEncoding, pair: &LabelPair) -> Self {
+        Self {
+            a: labels.id_for(&pair.label_a),
+            b: labels.id_for(&pair.label_b),
         }
-        (Some(left), Some(right)) => {
-            (left == pair.label_a && right == pair.label_b)
-                || (left == pair.label_b && right == pair.label_a)
+    }
+
+    fn matches(self, left: Option<PrimaryLabelId>, right: Option<PrimaryLabelId>) -> bool {
+        match (left, right) {
+            (Some(left), Some(right)) if self.a == self.b => {
+                self.a == Some(left) && self.b == Some(right)
+            }
+            (Some(left), Some(right)) => {
+                (self.a == Some(left) && self.b == Some(right))
+                    || (self.b == Some(left) && self.a == Some(right))
+            }
+            _ => false,
         }
-        _ => false,
     }
 }
 

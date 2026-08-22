@@ -1,22 +1,26 @@
-use std::{mem::size_of, time::Instant};
+use std::time::Instant;
 
 use crate::{
     config::{AnalysisConfig, NeighborhoodNullModel, RegistrationTransform},
-    diagnostics::graph_smoothing::graph_smoothing,
+    diagnostics::graph_smoothing::graph_smoothing_with_labels,
     errors::{MarklabError, Result},
     geom::spatial_index::SpatialIndex2D,
     multimodal::{
-        cells::{AnalysisMetadata, FusedCell, HeCell, IhcCell},
+        cells::{AnalysisMetadata, HeCell, IhcCell},
         fusion::{fuse_registered_cells, FusionMeta},
-        null_sensitivity::{analyze_null_model, NullModelSensitivityResult},
+        labels::PrimaryLabelEncoding,
+        memory::MultimodalMemoryBudget,
+        null_sensitivity::{
+            analyze_null_model, NullModelAnalysisContext, NullModelSensitivityResult,
+        },
         registration_artifacts::{
             analyze_registration_artifacts, RegistrationExtrapolation, RegistrationResidual,
         },
     },
     neighborhood::{
-        cross_curves::cross_interaction_curve,
-        enrichment::{edge_enrichment, LabelPair},
-        graph::{build_spatial_graph_with_index, GraphConfig, SpatialEdge, SpatialGraph},
+        cross_curves::cross_interaction_curves_with_index,
+        enrichment::{edge_enrichment_with_labels, LabelPair},
+        graph::{build_spatial_graph_with_index, GraphConfig, SpatialGraph},
         profiles::{compare_territory_profiles, territory_profiles_with_index},
         territories::{detect_mmr_abnormal_territories_with_index, TerritoryDomainConfig},
     },
@@ -100,10 +104,12 @@ impl MultimodalEngine {
         #[cfg(test)]
         MULTIMODAL_ANALYSIS_CALLS.fetch_add(1, Ordering::SeqCst);
 
-        let mut timings = Vec::new();
+        let mut timings =
+            Vec::with_capacity(15usize.saturating_add(self.config.neighborhood.null_models.len()));
         timed_multimodal_stage(&mut timings, "validate_input", || {
             validate_input(input, &self.config)
         })?;
+        let mut memory_budget = MultimodalMemoryBudget::for_run(&self.config, input)?;
         let transform = timed_multimodal_stage(&mut timings, "registration_fit", || {
             match self.config.registration.transform {
                 RegistrationTransform::Affine => fit_affine(&input.landmarks),
@@ -136,6 +142,11 @@ impl MultimodalEngine {
         let fused = timed_multimodal_stage(&mut timings, "fusion", || {
             fuse_registered_cells(&input.he_cells, &input.ihc_cells, &transform, &fusion_meta)
         })?;
+        let label_storage_upper_bound = memory_budget.reserve_label_encoding_and_index(&fused)?;
+        let primary_labels = timed_multimodal_stage(&mut timings, "label_encoding", || {
+            PrimaryLabelEncoding::new(&fused)
+        })?;
+        debug_assert!(primary_labels.estimated_storage_bytes() <= label_storage_upper_bound);
         let spatial_index = timed_multimodal_stage(&mut timings, "spatial_index", || {
             SpatialIndex2D::from_points(
                 fused
@@ -143,7 +154,21 @@ impl MultimodalEngine {
                     .map(|cell| [cell.x_um_registered, cell.y_um_registered]),
             )
         })?;
-        let graph = timed_multimodal_stage(&mut timings, "graph", || {
+        memory_budget.reserve_configured_label_pairs(&self.config.neighborhood.label_pairs)?;
+        let label_pairs = self
+            .config
+            .neighborhood
+            .label_pairs
+            .iter()
+            .map(|pair| LabelPair::new(pair[0].clone(), pair[1].clone()))
+            .collect::<Vec<_>>();
+        memory_budget.reserve_registration_and_enrichment_results(
+            input,
+            &fused,
+            &label_pairs,
+            self.config.neighborhood.null_models.len(),
+        )?;
+        let graph_build = timed_multimodal_stage(&mut timings, "graph", || {
             build_spatial_graph_with_index(
                 &fused,
                 &spatial_index,
@@ -152,22 +177,25 @@ impl MultimodalEngine {
                     k_nearest: (self.config.neighborhood.k_nearest > 0)
                         .then_some(self.config.neighborhood.k_nearest),
                 },
+                memory_budget.remaining_bytes(),
             )
         })?;
+        memory_budget.observe_transient(
+            "graph construction",
+            graph_build.estimated_peak_storage_bytes,
+        )?;
+        let graph = graph_build.graph;
+        memory_budget.reserve_retained("spatial graph", graph.estimated_storage_bytes())?;
+        memory_budget.observe_registration_scratch(input.landmarks.len())?;
         let registration_artifacts =
             timed_multimodal_stage(&mut timings, "artifact_projections", || {
                 analyze_registration_artifacts(&input.landmarks, &transform, &fused)
             })?;
-        let label_pairs = self
-            .config
-            .neighborhood
-            .label_pairs
-            .iter()
-            .map(|pair| LabelPair::new(pair[0].clone(), pair[1].clone()))
-            .collect::<Vec<_>>();
+        memory_budget.observe_enrichment_scratch(fused.len(), self.config.permutation.b)?;
         let enrichment = timed_multimodal_stage(&mut timings, "enrichment_primary", || {
-            edge_enrichment(
+            edge_enrichment_with_labels(
                 &fused,
+                &primary_labels,
                 &graph,
                 &label_pairs,
                 self.config.permutation.b,
@@ -176,56 +204,72 @@ impl MultimodalEngine {
         })?;
         let mut null_model_sensitivity =
             Vec::with_capacity(self.config.neighborhood.null_models.len());
+        let null_model_context = NullModelAnalysisContext {
+            fused: &fused,
+            labels: &primary_labels,
+            graph: &graph,
+            label_pairs: &label_pairs,
+            primary_source_section: &enrichment,
+            permutations: self.config.permutation.b,
+            seed: self.config.permutation.seed,
+        };
         for null_model in self.config.neighborhood.null_models.iter().copied() {
             let result =
                 timed_multimodal_stage(&mut timings, null_model_timing_name(null_model), || {
-                    analyze_null_model(
-                        &fused,
-                        &graph,
-                        &label_pairs,
-                        null_model,
-                        &enrichment,
-                        self.config.permutation.b,
-                        self.config.permutation.seed,
-                    )
+                    analyze_null_model(&null_model_context, null_model)
                 })?;
             null_model_sensitivity.push(result);
         }
         let cross_bin_width_um = (self.config.neighborhood.radius_um / 5.0).max(1.0);
-        let cross_interaction_curves =
+        let cross_interaction_analysis =
             timed_multimodal_stage(&mut timings, "cross_interaction_curves", || {
-                label_pairs
-                    .iter()
-                    .map(|pair| {
-                        cross_interaction_curve(
-                            &fused,
-                            &pair.label_a,
-                            &pair.label_b,
-                            cross_bin_width_um,
-                            self.config.neighborhood.radius_um,
-                            self.config.permutation.b,
-                            self.config.permutation.seed,
-                        )
-                    })
-                    .collect::<Result<Vec<_>>>()
+                cross_interaction_curves_with_index(
+                    &fused,
+                    &spatial_index,
+                    &primary_labels,
+                    &label_pairs,
+                    cross_bin_width_um,
+                    self.config.neighborhood.radius_um,
+                    self.config.permutation.b,
+                    self.config.permutation.seed,
+                    self.config.inference.family_wise_alpha,
+                    memory_budget.remaining_bytes(),
+                )
             })?;
-        let neighborhood_territories =
+        memory_budget.observe_transient(
+            "cross-interaction execution",
+            cross_interaction_analysis.estimated_peak_storage_bytes,
+        )?;
+        let cross_interaction_curves = cross_interaction_analysis.curves;
+        memory_budget.reserve_cross_curves(&cross_interaction_curves)?;
+        let neighborhood_territory_analysis =
             timed_multimodal_stage(&mut timings, "territory_detection", || {
                 detect_mmr_abnormal_territories_with_index(
                     &fused,
+                    &primary_labels,
                     &spatial_index,
                     TerritoryDomainConfig {
                         eps_um: self.config.neighborhood.territory_eps_um,
                         min_cells: self.config.neighborhood.territory_min_cells,
                         min_radius_um: self.config.neighborhood.territory_min_radius_um,
                     },
+                    memory_budget.remaining_bytes(),
                 )
             })?;
+        memory_budget.observe_transient(
+            "territory neighborhood execution",
+            neighborhood_territory_analysis.estimated_peak_storage_bytes,
+        )?;
+        let neighborhood_territories = neighborhood_territory_analysis.territories;
+        memory_budget.reserve_territories(&neighborhood_territories)?;
+        memory_budget
+            .reserve_profiles_and_comparisons(neighborhood_territories.len(), &primary_labels)?;
         let territory_profiles =
             timed_multimodal_stage(&mut timings, "territory_profiles", || {
                 territory_profiles_with_index(
                     &neighborhood_territories,
                     &fused,
+                    &primary_labels,
                     &spatial_index,
                     0.0,
                 )
@@ -246,11 +290,24 @@ impl MultimodalEngine {
         } else {
             AnalysisSection::available(territory_comparisons)
         };
+        if self.config.diagnostics.graph_smoothing {
+            memory_budget.reserve_graph_smoothing(
+                graph.n_nodes,
+                graph.edges.len(),
+                &primary_labels,
+                &label_pairs,
+            )?;
+        }
         let diagnostics = timed_multimodal_stage(&mut timings, "diagnostics", || -> Result<_> {
             if self.config.diagnostics.graph_smoothing {
                 Ok(AnalysisSection::available(DiagnosticsResult {
                     beta_posterior_groups: None,
-                    graph_smoothing: Some(graph_smoothing(&fused, &graph, &label_pairs)?),
+                    graph_smoothing: Some(graph_smoothing_with_labels(
+                        &fused,
+                        &primary_labels,
+                        &graph,
+                        &label_pairs,
+                    )?),
                 }))
             } else {
                 Ok(AnalysisSection::Disabled)
@@ -259,7 +316,10 @@ impl MultimodalEngine {
 
         let n_fused_cells = fused.len();
         let n_mmr_abnormal = fused.iter().filter(|cell| cell.mmr_mark == Some(1)).count();
-        let estimated_peak_memory_mib = estimated_peak_memory_mib(input, &fused, &graph);
+        memory_budget.reserve_interpretation(
+            "Multimodal registration, fusion, and neighborhood enrichment summary.",
+        )?;
+        let estimated_peak_memory_mib = memory_budget.peak_mib();
         let mut result =
             timed_multimodal_stage(&mut timings, "result_assembly", || MultimodalResult {
                 case_id: fusion_meta.analysis.case_id,
@@ -353,53 +413,6 @@ const fn null_model_timing_name(null_model: NeighborhoodNullModel) -> &'static s
             "enrichment_null_source_section_registration_qc"
         }
     }
-}
-
-fn estimated_peak_memory_mib(
-    input: &MultimodalInput,
-    fused: &[FusedCell],
-    graph: &SpatialGraph,
-) -> f64 {
-    let input_bytes = input
-        .he_cells
-        .capacity()
-        .saturating_mul(size_of::<HeCell>())
-        .saturating_add(
-            input
-                .ihc_cells
-                .capacity()
-                .saturating_mul(size_of::<IhcCell>()),
-        )
-        .saturating_add(
-            input
-                .landmarks
-                .capacity()
-                .saturating_mul(size_of::<LandmarkPair>()),
-        );
-    let fused_bytes = fused
-        .len()
-        .saturating_mul(size_of::<FusedCell>())
-        .saturating_add(
-            fused
-                .iter()
-                .map(|cell| {
-                    cell.source_cell_id
-                        .capacity()
-                        .saturating_add(cell.cell_type.as_ref().map_or(0, String::capacity))
-                })
-                .sum::<usize>(),
-        );
-    let graph_bytes = graph
-        .edges
-        .capacity()
-        .saturating_mul(size_of::<SpatialEdge>());
-    let index_bytes = SpatialIndex2D::estimated_storage_bytes_for_len(fused.len());
-    input_bytes
-        .saturating_add(fused_bytes)
-        .saturating_add(graph_bytes)
-        .saturating_add(index_bytes)
-        .max(1) as f64
-        / (1024.0 * 1024.0)
 }
 
 fn validate_input(input: &MultimodalInput, config: &AnalysisConfig) -> Result<()> {

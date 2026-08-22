@@ -61,6 +61,12 @@ The pre/post margin is descriptive. A result within the margin is not called
 statistical equivalence, and a non-significant pooled-bin diagnostic is not used
 as equivalence evidence.
 
+The changed pre/post control preserves cell coordinates and swaps the H&E
+label organization. This changes the cross-label spatial arrangement while
+keeping the physical bin axis and geometric availability comparable. A
+geometry change that makes one timepoint's bin undefined is reported as an
+unavailable comparison, not coerced to an observed zero.
+
 ## Marked production scenarios
 
 Marked controls exercise random labeling, clustered and multi-focus marks,

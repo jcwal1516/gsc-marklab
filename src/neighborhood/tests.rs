@@ -1,10 +1,14 @@
 use std::collections::BTreeSet;
 
 use crate::{
+    geom::spatial_index::SpatialIndex2D,
     multimodal::cells::{CellSection, FusedCell},
     neighborhood::{
         enrichment::{edge_enrichment, edge_enrichment_with_strata, LabelPair},
-        graph::{build_spatial_graph, GraphConfig, SpatialEdge, SpatialGraph},
+        graph::{
+            build_spatial_graph, build_spatial_graph_with_index, GraphConfig, SpatialEdge,
+            SpatialGraph,
+        },
     },
     EnrichmentStatisticUnavailableReason, NeighborhoodEnrichmentResult,
 };
@@ -119,6 +123,33 @@ fn radius_graph_connects_only_cells_within_radius() {
     assert_eq!(graph.edges[0].source, 0);
     assert_eq!(graph.edges[0].target, 1);
     assert!((graph.edges[0].distance_um - 5.0).abs() < 1.0e-9);
+}
+
+#[test]
+fn graph_builder_rejects_output_sensitive_storage_before_exceeding_budget() {
+    let cells = (0..64)
+        .map(|index| cell(&format!("dense-{index}"), index as f64 * 0.01, 0.0, "tumor"))
+        .collect::<Vec<_>>();
+    let index = SpatialIndex2D::from_points(
+        cells
+            .iter()
+            .map(|cell| [cell.x_um_registered, cell.y_um_registered]),
+    )
+    .expect("index");
+
+    let error = build_spatial_graph_with_index(
+        &cells,
+        &index,
+        GraphConfig {
+            radius_um: Some(10.0),
+            k_nearest: None,
+        },
+        512,
+    )
+    .expect_err("dense graph must honor its storage budget");
+
+    assert!(error.to_string().contains("graph construction"));
+    assert!(error.to_string().contains("512 bytes"));
 }
 
 #[test]

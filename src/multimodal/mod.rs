@@ -8,6 +8,7 @@ mod csv_input;
 mod engine;
 pub mod fusion;
 pub(crate) mod labels;
+mod memory;
 mod null_sensitivity;
 mod registration_artifacts;
 

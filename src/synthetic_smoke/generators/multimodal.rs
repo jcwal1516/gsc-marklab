@@ -59,10 +59,19 @@ pub(in crate::synthetic_smoke) fn multimodal_replicate_scenario(
             post.timepoint = "post".into();
             (pre, Some(post))
         }
-        "prepost_changed_spatial_pattern" => (
-            immune_association_input(true, false, "pre", &mut rng),
-            Some(immune_association_input(false, false, "post", &mut rng)),
-        ),
+        "prepost_changed_spatial_pattern" => {
+            let pre = immune_association_input(true, false, "pre", &mut rng);
+            let mut post = pre.clone();
+            post.timepoint = "post".into();
+            for cell in &mut post.he_cells {
+                cell.cell_type = match cell.cell_type.as_deref() {
+                    Some("lymphocyte") => Some("tumor".into()),
+                    Some("tumor") => Some("lymphocyte".into()),
+                    _ => cell.cell_type.clone(),
+                };
+            }
+            (pre, Some(post))
+        }
         "registration_residual_above_threshold" => {
             config.registration.max_rmse_um = 1.0;
             (immune_association_input(false, true, "pre", &mut rng), None)

@@ -21,6 +21,7 @@ use crate::{
     },
     multiscale_residual::territories::{detect_residual_territories, ResidualTerritoryPlan},
     neighborhood::{
+        cross_curves::cross_interaction_curve,
         graph::{build_spatial_graph, GraphConfig},
         profiles::territory_profiles,
         territories::{detect_mmr_abnormal_territories, TerritoryDomainConfig},
@@ -352,6 +353,39 @@ fn baseline_perf_radius_and_knn_graph() {
                 .expect("kNN graph");
                 assert!(graph.edges.iter().all(|edge| edge.source < edge.target));
                 graph.edges.len() as u64
+            },
+        );
+    }
+}
+
+#[test]
+#[ignore = "manual completion-audit cross-interaction benchmark"]
+fn completion_audit_perf_cross_interaction() {
+    for n in SPATIAL_SIZES {
+        let cells = fused_cells(n);
+        measure_case(
+            "cross_interaction_observed_plus_19_nulls",
+            n,
+            fixed_density_metadata(
+                n,
+                json!({"bin_width_um": 1.0, "max_r_um": 5.0, "permutation_count": 19}),
+            ),
+            || {
+                let curve = cross_interaction_curve(
+                    black_box(&cells),
+                    "mmr_abnormal",
+                    "lymphocyte",
+                    1.0,
+                    5.0,
+                    19,
+                    123,
+                )
+                .expect("cross-interaction curve");
+                curve.points.iter().fold(0_u64, |checksum, point| {
+                    checksum.rotate_left(7)
+                        ^ point.count as u64
+                        ^ point.value.unwrap_or(0.0).to_bits()
+                }) ^ curve.p_global.unwrap_or(0.0).to_bits()
             },
         );
     }

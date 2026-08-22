@@ -1,11 +1,14 @@
+use std::mem::size_of;
+
 use crate::{
     errors::{MarklabError, Result},
     geom::spatial_index::SpatialIndex2D,
     multimodal::{
         cells::{CellSection, FusedCell},
-        labels::primary_label,
+        labels::PrimaryLabelEncoding,
     },
     output::NeighborhoodTerritory,
+    perf::counters::enforce_storage_budget,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -13,6 +16,12 @@ pub struct TerritoryDomainConfig {
     pub eps_um: f64,
     pub min_cells: usize,
     pub min_radius_um: f64,
+}
+
+#[derive(Debug)]
+pub(crate) struct TerritoryDetectionAnalysis {
+    pub(crate) territories: Vec<NeighborhoodTerritory>,
+    pub(crate) estimated_peak_storage_bytes: usize,
 }
 
 #[cfg(test)]
@@ -27,14 +36,20 @@ pub fn detect_mmr_abnormal_territories(
             .iter()
             .map(|cell| [cell.x_um_registered, cell.y_um_registered]),
     )?;
-    detect_validated_mmr_abnormal_territories(cells, &index, config)
+    let labels = PrimaryLabelEncoding::new(cells)?;
+    Ok(
+        detect_validated_mmr_abnormal_territories(cells, &labels, &index, config, usize::MAX)?
+            .territories,
+    )
 }
 
 pub(crate) fn detect_mmr_abnormal_territories_with_index(
     cells: &[FusedCell],
+    labels: &PrimaryLabelEncoding,
     index: &SpatialIndex2D,
     config: TerritoryDomainConfig,
-) -> Result<Vec<NeighborhoodTerritory>> {
+    storage_budget_bytes: usize,
+) -> Result<TerritoryDetectionAnalysis> {
     validate_config(config)?;
     validate_cells(cells)?;
     if index.len() != cells.len() {
@@ -44,24 +59,64 @@ pub(crate) fn detect_mmr_abnormal_territories_with_index(
             cells.len()
         )));
     }
-    detect_validated_mmr_abnormal_territories(cells, index, config)
+    if labels.len() != cells.len() {
+        return Err(MarklabError::Geometry(format!(
+            "primary label encoding has {} entries for {} territory cells",
+            labels.len(),
+            cells.len()
+        )));
+    }
+    detect_validated_mmr_abnormal_territories(cells, labels, index, config, storage_budget_bytes)
 }
 
 fn detect_validated_mmr_abnormal_territories(
     cells: &[FusedCell],
+    labels: &PrimaryLabelEncoding,
     index: &SpatialIndex2D,
     config: TerritoryDomainConfig,
-) -> Result<Vec<NeighborhoodTerritory>> {
+    storage_budget_bytes: usize,
+) -> Result<TerritoryDetectionAnalysis> {
+    let Some(abnormal_label) = labels.id_for("mmr_abnormal") else {
+        return Ok(TerritoryDetectionAnalysis {
+            territories: Vec::new(),
+            estimated_peak_storage_bytes: 0,
+        });
+    };
+    let abnormal_count = cells
+        .iter()
+        .enumerate()
+        .filter(|(index, cell)| {
+            cell.source_section == CellSection::Ihc && labels.id_at(*index) == Some(abnormal_label)
+        })
+        .count();
+    let base_storage_bytes = territory_base_storage_bytes(index.len(), abnormal_count);
+    enforce_storage_budget(
+        "multimodal territory neighborhood plan",
+        base_storage_bytes,
+        storage_budget_bytes,
+    )?;
     let abnormal_indices = cells
         .iter()
         .enumerate()
-        .filter_map(|(index, cell)| is_mmr_abnormal_ihc_cell(cell).then_some(index))
+        .filter_map(|(index, cell)| {
+            (cell.source_section == CellSection::Ihc && labels.id_at(index) == Some(abnormal_label))
+                .then_some(index)
+        })
         .collect::<Vec<_>>();
     if abnormal_indices.is_empty() {
-        return Ok(Vec::new());
+        return Ok(TerritoryDetectionAnalysis {
+            territories: Vec::new(),
+            estimated_peak_storage_bytes: base_storage_bytes,
+        });
     }
 
-    let neighbors = abnormal_neighbor_lists_with_index(index, &abnormal_indices, config.eps_um)?;
+    let (neighbors, neighborhood_storage_bytes) = abnormal_neighbor_lists_with_index(
+        index,
+        &abnormal_indices,
+        config.eps_um,
+        base_storage_bytes,
+        storage_budget_bytes,
+    )?;
     let mut visited = vec![false; abnormal_indices.len()];
     let mut assigned = vec![false; abnormal_indices.len()];
     let mut clusters = Vec::new();
@@ -99,7 +154,10 @@ fn detect_validated_mmr_abnormal_territories(
             territory_from_component(component_id, &component, cells, config.min_radius_um)
         })
         .collect();
-    Ok(territories)
+    Ok(TerritoryDetectionAnalysis {
+        territories,
+        estimated_peak_storage_bytes: neighborhood_storage_bytes,
+    })
 }
 
 fn validate_config(config: TerritoryDomainConfig) -> Result<()> {
@@ -132,10 +190,6 @@ fn validate_cells(cells: &[FusedCell]) -> Result<()> {
     Ok(())
 }
 
-fn is_mmr_abnormal_ihc_cell(cell: &FusedCell) -> bool {
-    cell.source_section == CellSection::Ihc && primary_label(cell) == Some("mmr_abnormal")
-}
-
 #[cfg(test)]
 pub(super) fn abnormal_neighbor_lists(
     cells: &[FusedCell],
@@ -147,14 +201,24 @@ pub(super) fn abnormal_neighbor_lists(
             .iter()
             .map(|cell| [cell.x_um_registered, cell.y_um_registered]),
     )?;
-    abnormal_neighbor_lists_with_index(&index, abnormal_indices, eps_um)
+    let base_storage_bytes = territory_base_storage_bytes(index.len(), abnormal_indices.len());
+    Ok(abnormal_neighbor_lists_with_index(
+        &index,
+        abnormal_indices,
+        eps_um,
+        base_storage_bytes,
+        usize::MAX,
+    )?
+    .0)
 }
 
 fn abnormal_neighbor_lists_with_index(
     index: &SpatialIndex2D,
     abnormal_indices: &[usize],
     eps_um: f64,
-) -> Result<Vec<Vec<usize>>> {
+    base_storage_bytes: usize,
+    storage_budget_bytes: usize,
+) -> Result<(Vec<Vec<usize>>, usize)> {
     let mut abnormal_position = vec![None; index.len()];
     for (position, cell_index) in abnormal_indices.iter().copied().enumerate() {
         if cell_index >= index.len() {
@@ -166,23 +230,80 @@ fn abnormal_neighbor_lists_with_index(
         abnormal_position[cell_index] = Some(position);
     }
 
-    abnormal_indices
-        .iter()
-        .copied()
-        .enumerate()
-        .map(|(position, cell_index)| {
-            let mut neighbors = Vec::new();
-            index.visit_within_radius(cell_index, eps_um, |neighbor| {
-                if let Some(position) = abnormal_position[neighbor.index] {
-                    neighbors.push(position);
+    let mut lists = Vec::with_capacity(abnormal_indices.len());
+    let mut stored_entries = 0usize;
+    for (position, cell_index) in abnormal_indices.iter().copied().enumerate() {
+        let mut neighbors = Vec::new();
+        let mut storage_error = None;
+        index.visit_within_radius(cell_index, eps_um, |neighbor| {
+            if let Some(position) = abnormal_position[neighbor.index] {
+                if storage_error.is_none() {
+                    let next_entries = stored_entries
+                        .saturating_add(neighbors.len())
+                        .saturating_add(1);
+                    let required =
+                        territory_neighbor_storage_bytes(base_storage_bytes, next_entries);
+                    if let Err(error) = enforce_storage_budget(
+                        "multimodal territory neighborhood plan",
+                        required,
+                        storage_budget_bytes,
+                    ) {
+                        storage_error = Some(error);
+                    } else {
+                        neighbors.push(position);
+                    }
                 }
-            })?;
-            neighbors.push(position);
-            neighbors.sort_unstable();
-            neighbors.dedup();
-            Ok(neighbors)
-        })
-        .collect()
+            }
+        })?;
+        if let Some(error) = storage_error {
+            return Err(error);
+        }
+        let next_entries = stored_entries
+            .saturating_add(neighbors.len())
+            .saturating_add(1);
+        enforce_storage_budget(
+            "multimodal territory neighborhood plan",
+            territory_neighbor_storage_bytes(base_storage_bytes, next_entries),
+            storage_budget_bytes,
+        )?;
+        neighbors.push(position);
+        neighbors.sort_unstable();
+        neighbors.dedup();
+        stored_entries = stored_entries.saturating_add(neighbors.len());
+        lists.push(neighbors);
+    }
+    Ok((
+        lists,
+        territory_neighbor_storage_bytes(base_storage_bytes, stored_entries),
+    ))
+}
+
+fn territory_base_storage_bytes(index_len: usize, abnormal_count: usize) -> usize {
+    index_len
+        .saturating_mul(size_of::<Option<usize>>())
+        .saturating_add(abnormal_count.saturating_mul(size_of::<usize>()))
+        .saturating_add(
+            abnormal_count
+                .saturating_mul(size_of::<Vec<usize>>())
+                .saturating_mul(2),
+        )
+        .saturating_add(abnormal_count.saturating_mul(2))
+        .saturating_add(
+            abnormal_count
+                .saturating_mul(size_of::<usize>())
+                .saturating_mul(3),
+        )
+        .saturating_add(abnormal_count.saturating_mul(size_of::<NeighborhoodTerritory>()))
+}
+
+fn territory_neighbor_storage_bytes(base_storage_bytes: usize, stored_entries: usize) -> usize {
+    // Vec capacity can temporarily exceed length. Four words per retained
+    // entry conservatively covers capacity growth and cluster queue copies.
+    base_storage_bytes.saturating_add(
+        stored_entries
+            .saturating_mul(size_of::<usize>())
+            .saturating_mul(4),
+    )
 }
 
 fn expand_cluster(

@@ -4,7 +4,10 @@ use crate::{
     comparison::{curves::max_abs_standardized_difference, result::CurveComparisonAnalysis},
     errors::{MarklabError, Result},
     geom::spatial_index::SpatialIndex2D,
-    multimodal::{cells::FusedCell, labels::primary_label},
+    multimodal::{
+        cells::FusedCell,
+        labels::{PrimaryLabelEncoding, PrimaryLabelId},
+    },
     output::{
         CurveComparisonMethod, CurveComparisonResult, LabelFraction, NeighborhoodTerritory,
         TerritoryProfile,
@@ -24,12 +27,14 @@ pub fn territory_profiles(
             .iter()
             .map(|cell| [cell.x_um_registered, cell.y_um_registered]),
     )?;
-    territory_profiles_validated(territories, cells, &index, buffer_um)
+    let labels = PrimaryLabelEncoding::new(cells)?;
+    territory_profiles_validated(territories, cells, &labels, &index, buffer_um)
 }
 
 pub(crate) fn territory_profiles_with_index(
     territories: &[NeighborhoodTerritory],
     cells: &[FusedCell],
+    labels: &PrimaryLabelEncoding,
     index: &SpatialIndex2D,
     buffer_um: f64,
 ) -> Result<Vec<TerritoryProfile>> {
@@ -42,12 +47,20 @@ pub(crate) fn territory_profiles_with_index(
             cells.len()
         )));
     }
-    territory_profiles_validated(territories, cells, index, buffer_um)
+    if labels.len() != cells.len() {
+        return Err(MarklabError::Geometry(format!(
+            "primary label encoding has {} entries for {} territory-profile cells",
+            labels.len(),
+            cells.len()
+        )));
+    }
+    territory_profiles_validated(territories, cells, labels, index, buffer_um)
 }
 
 fn territory_profiles_validated(
     territories: &[NeighborhoodTerritory],
     cells: &[FusedCell],
+    labels: &PrimaryLabelEncoding,
     index: &SpatialIndex2D,
     buffer_um: f64,
 ) -> Result<Vec<TerritoryProfile>> {
@@ -55,7 +68,7 @@ fn territory_profiles_validated(
         .iter()
         .enumerate()
         .map(|(territory_id, territory)| {
-            profile_for_territory(territory_id, territory, cells, index, buffer_um)
+            profile_for_territory(territory_id, territory, cells, labels, index, buffer_um)
         })
         .collect()
 }
@@ -102,6 +115,7 @@ fn profile_for_territory(
     territory_id: usize,
     territory: &NeighborhoodTerritory,
     cells: &[FusedCell],
+    labels: &PrimaryLabelEncoding,
     index: &SpatialIndex2D,
     buffer_um: f64,
 ) -> Result<TerritoryProfile> {
@@ -119,7 +133,7 @@ fn profile_for_territory(
             "territory {territory_id} squared inclusion radius is not finite"
         )));
     }
-    let mut counts = BTreeMap::<&str, usize>::new();
+    let mut counts = BTreeMap::<PrimaryLabelId, usize>::new();
     let mut known_cell_count = 0usize;
     let mut max_registration_error_um = 0.0_f64;
 
@@ -134,7 +148,7 @@ fn profile_for_territory(
                 max_registration_error_um = max_registration_error_um.max(registration_error_um);
             }
 
-            if let Some(label) = primary_label(cell) {
+            if let Some(label) = labels.id_at(neighbor.index) {
                 *counts.entry(label).or_insert(0) += 1;
                 known_cell_count += 1;
             }
@@ -143,16 +157,21 @@ fn profile_for_territory(
 
     let cell_type_fractions = counts
         .into_iter()
-        .map(|(label, count)| LabelFraction {
-            label: label.to_owned(),
-            fraction: if known_cell_count == 0 {
-                0.0
-            } else {
-                count as f64 / known_cell_count as f64
-            },
-            count,
+        .map(|(label, count)| {
+            let label = labels.name(label).ok_or_else(|| {
+                MarklabError::Compute("territory profile label ID is not in the run catalog".into())
+            })?;
+            Ok(LabelFraction {
+                label: label.to_owned(),
+                fraction: if known_cell_count == 0 {
+                    0.0
+                } else {
+                    count as f64 / known_cell_count as f64
+                },
+                count,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
 
     Ok(TerritoryProfile {
         territory_id,
