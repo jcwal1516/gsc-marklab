@@ -69,7 +69,7 @@ label_pairs = [
 
 [comparison]
 
-[comparison.equivalence_margins]
+[comparison.margins]
 spectrum = 0.20
 mark_pair_covariance = 0.20
 cross_interaction = 0.25

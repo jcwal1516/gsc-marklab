@@ -14,7 +14,7 @@ mod api;
 #[cfg(feature = "cli")]
 mod cli;
 mod common;
-mod comparison;
+pub mod comparison;
 mod config;
 mod data;
 mod diagnostics;
@@ -45,8 +45,8 @@ pub use cli::run_cli;
 
 pub use api::AnalysisEngine;
 pub use config::{
-    AnalysisConfig, AnalysisConfigSection, ComparisonSection, ComponentMode, DiagnosticsSection,
-    EquivalenceMargins, InferenceSection, MultiscaleResidualSection, NeighborhoodNullModel,
+    AnalysisConfig, AnalysisConfigSection, ComparisonSection, ComponentMode, CurveMargins,
+    DiagnosticsSection, InferenceSection, MultiscaleResidualSection, NeighborhoodNullModel,
     NeighborhoodSection, OutputSection, PerformanceSection, PeriodogramSection, PermutationSection,
     PermutationStratum, RegistrationSection, RegistrationTransform, SpectrumSection, ThreadSetting,
     ValidationSection,

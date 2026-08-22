@@ -1,5 +1,5 @@
 use crate::{
-    comparison::{difference::curve_difference_test, equivalence::curve_equivalence_test},
+    comparison::{difference::curve_difference_test, margin_assessment::curve_margin_assessment},
     prepost::deltas::compare_prepost,
     AnalysisSection, AnisotropySummary, ComponentMode, ComponentModeSelection,
     CrossInteractionCurve, CrossInteractionPoint, CurveTestAvailability, FunctionalSummary,
@@ -108,17 +108,30 @@ fn territory(center_x_um: f64) -> ResidualTerritory {
 }
 
 #[test]
-fn curve_difference_and_equivalence_have_distinct_interpretations() {
+fn curve_difference_and_margin_assessment_have_distinct_interpretations() {
     let pre = [1.0, 1.1, 0.9];
     let post = [1.01, 1.09, 0.91];
 
     let difference = curve_difference_test("spectrum", &pre, &post, 19, 123).expect("difference");
-    let equivalence =
-        curve_equivalence_test("spectrum", &pre, &post, Some(0.2)).expect("equivalence");
+    let margin_assessment =
+        curve_margin_assessment("spectrum", &pre, &post, Some(0.2)).expect("margin assessment");
 
     assert!(difference.p_difference.is_some());
-    assert_eq!(equivalence.equivalent, Some(true));
+    assert_eq!(margin_assessment.within_margin, Some(true));
     assert!(!difference.interpretation.contains("same"));
+}
+
+#[test]
+fn curve_margin_assessment_has_no_equivalence_p_value() {
+    let result = curve_margin_assessment("spectrum", &[1.0, 2.0], &[1.0, 2.1], Some(0.2))
+        .expect("margin assessment");
+    let value = serde_json::to_value(result).expect("comparison json");
+
+    assert_eq!(value["margin"], 0.2);
+    assert_eq!(value["within_margin"], true);
+    assert!(value.get("equivalence_margin").is_none());
+    assert!(value.get("p_equivalence").is_none());
+    assert!(value.get("equivalent").is_none());
 }
 
 #[test]
@@ -187,18 +200,18 @@ fn prepost_result_includes_curve_tests_when_curves_exist() {
         assert_eq!(
             comparison_tests.len(),
             2,
-            "{comparison_name} should emit difference and equivalence rows"
+            "{comparison_name} should emit difference-diagnostic and margin-assessment rows"
         );
         assert!(comparison_tests
             .iter()
             .any(|test| test.p_difference.is_some()));
         assert!(comparison_tests.iter().any(|test| {
             test.p_difference.is_none()
-                && test.equivalence_margin.is_none()
-                && test.equivalent.is_none()
+                && test.margin.is_none()
+                && test.within_margin.is_none()
                 && test
                     .interpretation
-                    .contains("non-confirmatory without a prespecified margin")
+                    .contains("unavailable without a prespecified descriptive margin")
         }));
     }
 }
@@ -300,8 +313,8 @@ fn prepost_curve_tests_surface_absent_curves_as_diagnostics() {
         assert!(diagnostic.unavailable_reason.is_some());
         assert_eq!(diagnostic.metric, "curve_availability");
         assert!(diagnostic.p_difference.is_none());
-        assert!(diagnostic.equivalence_margin.is_none());
-        assert!(diagnostic.equivalent.is_none());
+        assert!(diagnostic.margin.is_none());
+        assert!(diagnostic.within_margin.is_none());
         let encoded = serde_json::to_value(diagnostic).expect("diagnostic JSON");
         assert_eq!(encoded["availability"], "insufficient_data");
         assert!(encoded["statistic"].is_null());
@@ -363,11 +376,11 @@ fn mark_pair_covariance_difference_uses_mark_pair_covariance_permutation_count()
     }));
     assert!(pair_tests.iter().any(|test| {
         test.p_difference.is_none()
-            && test.equivalence_margin.is_none()
-            && test.equivalent.is_none()
+            && test.margin.is_none()
+            && test.within_margin.is_none()
             && test
                 .interpretation
-                .contains("non-confirmatory without a prespecified margin")
+                .contains("unavailable without a prespecified descriptive margin")
     }));
 }
 
@@ -456,8 +469,8 @@ fn prepost_curve_tests_surface_unaligned_axis_diagnostics() {
         );
         assert_eq!(diagnostic.statistic, None);
         assert!(diagnostic.p_difference.is_none());
-        assert!(diagnostic.equivalence_margin.is_none());
-        assert!(diagnostic.equivalent.is_none());
+        assert!(diagnostic.margin.is_none());
+        assert!(diagnostic.within_margin.is_none());
         assert!(diagnostic.interpretation.contains("axis"));
     }
 }
@@ -553,7 +566,7 @@ fn remediation_prepost_axes_accept_harmless_float_reconstruction() {
         assert_eq!(
             comparison_tests.len(),
             2,
-            "equivalent reconstructed axes should run difference and equivalence diagnostics: {comparison_tests:?}"
+            "matching reconstructed axes should run difference and margin diagnostics: {comparison_tests:?}"
         );
         assert!(comparison_tests
             .iter()

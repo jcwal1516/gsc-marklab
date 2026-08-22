@@ -435,7 +435,7 @@ fn prepost_interpretation_uses_allowed_descriptive_language_only() {
         .any(|test| test.comparison_name == "spectrum"));
     assert!(delta.curve_tests.iter().any(|test| test
         .interpretation
-        .contains("non-confirmatory without a prespecified margin")));
+        .contains("unavailable without a prespecified descriptive margin")));
     let delta_json = serde_json::to_value(&delta).expect("delta json");
     assert!(delta_json["curve_tests"].is_array());
 
@@ -448,7 +448,7 @@ fn prepost_interpretation_uses_allowed_descriptive_language_only() {
 }
 
 #[test]
-fn report_explains_difference_and_equivalence_tests_when_curve_tests_exist() {
+fn report_distinguishes_difference_diagnostics_from_margin_assessments() {
     let mut config = AnalysisConfig::default();
     config.validation.n_min = 4;
     config.validation.n_marked_min = 1;
@@ -466,19 +466,16 @@ fn report_explains_difference_and_equivalence_tests_when_curve_tests_exist() {
         statistic: Some(0.1),
         unavailable_reason: None,
         p_difference: Some(0.6),
-        equivalence_margin: None,
-        p_equivalence: None,
-        equivalent: None,
+        margin: None,
+        within_margin: None,
         interpretation: "nonsignificant diagnostic".into(),
     });
 
     let report = render_analysis_report(&result);
 
-    assert!(report.contains("Difference tests assess detectable change"));
-    assert!(
-        report.contains("Equivalence tests assess same-enough behavior within configured margins")
-    );
-    assert!(report.contains("nonsignificant difference test is not interpreted as sameness"));
+    assert!(report.contains("pooled-bin permutation diagnostics describe difference"));
+    assert!(report.contains("descriptive margin assessments only report whether"));
+    assert!(report.contains("nonsignificant difference diagnostic is not interpreted as sameness"));
 }
 
 #[cfg(feature = "parquet")]

@@ -155,7 +155,7 @@ impl MultimodalEngine {
         let territory_profiles = territory_profiles(&neighborhood_territories, &fused, 0.0)?;
         let territory_comparisons = compare_territory_profiles(
             &territory_profiles,
-            self.config.comparison.equivalence_margins.territory_profile,
+            self.config.comparison.margins.territory_profile,
         )?;
 
         let territory_comparisons = if territory_comparisons.is_empty() {

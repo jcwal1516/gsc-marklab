@@ -112,7 +112,7 @@ Scientific framing: This report summarizes serial-section cells placed in a shar
         .value()
         .is_some_and(|value| !value.is_empty())
     {
-        report.push_str("Formal curve tests: Difference tests assess detectable change. Equivalence tests assess same-enough behavior within configured margins. A nonsignificant difference test is not interpreted as sameness.\n\n");
+        report.push_str("Curve comparisons: pooled-bin permutation diagnostics describe difference, while descriptive margin assessments only report whether the chosen curve distance is within a configured margin. A nonsignificant difference diagnostic is not interpreted as sameness.\n\n");
     }
     report.push_str(&render_diagnostics(&result.diagnostics));
 
@@ -213,5 +213,5 @@ fn curve_test_framing(result: &MarkedPatternResult) -> String {
         return String::new();
     }
 
-    "Formal curve tests: Difference tests assess detectable change. Equivalence tests assess same-enough behavior within configured margins. A nonsignificant difference test is not interpreted as sameness.\n\n".into()
+    "Curve comparisons: pooled-bin permutation diagnostics describe difference, while descriptive margin assessments only report whether the chosen curve distance is within a configured margin. A nonsignificant difference diagnostic is not interpreted as sameness.\n\n".into()
 }

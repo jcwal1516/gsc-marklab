@@ -137,17 +137,21 @@ fn config_uses_multiscale_residual_terms_without_obsolete_aliases() {
 
 #[test]
 fn config_uses_mark_pair_covariance_margin_without_obsolete_alias() {
-    let config = AnalysisConfig::from_toml_overrides(
-        "[comparison.equivalence_margins]\nmark_pair_covariance = 0.25",
-    )
-    .expect("accurately named mark-pair covariance margin");
+    let config =
+        AnalysisConfig::from_toml_overrides("[comparison.margins]\nmark_pair_covariance = 0.25")
+            .expect("accurately named mark-pair covariance margin");
 
-    assert_eq!(
-        config.comparison.equivalence_margins.mark_pair_covariance,
-        Some(0.25)
+    assert_eq!(config.comparison.margins.mark_pair_covariance, Some(0.25));
+    assert!(
+        AnalysisConfig::from_toml_overrides("[comparison.margins]\npair_correlation = 0.25")
+            .is_err()
     );
     assert!(AnalysisConfig::from_toml_overrides(
-        "[comparison.equivalence_margins]\npair_correlation = 0.25"
+        "[comparison.equivalence_margins]\nmark_pair_covariance = 0.25"
     )
     .is_err());
+
+    let exact = AnalysisConfig::from_toml_overrides("[comparison.margins]\nspectrum = 0.0")
+        .expect("zero is a valid exact-match descriptive margin");
+    assert_eq!(exact.comparison.margins.spectrum, Some(0.0));
 }

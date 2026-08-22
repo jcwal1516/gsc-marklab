@@ -41,9 +41,8 @@ pub fn curve_difference_test(
         statistic: Some(statistic),
         unavailable_reason: None,
         p_difference: Some(p_difference),
-        equivalence_margin: None,
-        p_equivalence: None,
-        equivalent: None,
+        margin: None,
+        within_margin: None,
         interpretation: if p_difference < 0.05 {
             "difference detected by approximate pooled-bin permutation diagnostic; this is not a spatial or per-cell permutation test and does not prove biological causality".into()
         } else {

@@ -27,6 +27,12 @@ semantics.
   bin had no contributing cell pairs; it is not an observed correlation of
   zero.
 - `CurveTestResult.statistic` is nullable and `availability` is typed.
+- Curve comparison fields `equivalence_margin` and `equivalent` are renamed to
+  `margin` and `within_margin`. The never-computed `p_equivalence` placeholder
+  is removed. These fields describe a threshold comparison, not an inferential
+  equivalence test.
+- `[comparison.equivalence_margins]` is renamed to `[comparison.margins]`
+  without a compatibility alias.
   Insufficient comparisons include `unavailable_reason` instead of a fake
   statistic of zero.
 - QC results add nullable `valid_tumor_fraction` and `valid_ihc_fraction`.

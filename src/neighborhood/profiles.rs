@@ -28,9 +28,9 @@ pub fn territory_profiles(
 
 pub fn compare_territory_profiles(
     profiles: &[TerritoryProfile],
-    equivalence_margin: Option<f64>,
+    margin: Option<f64>,
 ) -> Result<Vec<CurveTestResult>> {
-    validate_margin(equivalence_margin)?;
+    validate_margin(margin)?;
     validate_profiles(profiles)?;
 
     let mut tests = Vec::new();
@@ -40,14 +40,14 @@ pub fn compare_territory_profiles(
             let right = &profiles[right_index];
             let labels = profile_labels(left, right);
             if labels.is_empty() || !has_profile_data(left, right) {
-                tests.push(no_profile_data_result(left, right, equivalence_margin));
+                tests.push(no_profile_data_result(left, right, margin));
                 continue;
             }
 
             let left_vector = profile_vector(left, &labels);
             let right_vector = profile_vector(right, &labels);
             let statistic = max_abs_standardized_difference(&left_vector, &right_vector)?;
-            let equivalent = equivalence_margin.map(|margin| statistic <= margin);
+            let within_margin = margin.map(|margin| statistic <= margin);
 
             tests.push(CurveTestResult {
                 comparison_name: format!(
@@ -59,10 +59,9 @@ pub fn compare_territory_profiles(
                 statistic: Some(statistic),
                 unavailable_reason: None,
                 p_difference: None,
-                equivalence_margin,
-                p_equivalence: None,
-                equivalent,
-                interpretation: interpretation_for(statistic, equivalence_margin, equivalent),
+                margin,
+                within_margin,
+                interpretation: interpretation_for(statistic, margin, within_margin),
             });
         }
     }
@@ -177,7 +176,7 @@ fn validate_cells(cells: &[FusedCell]) -> Result<()> {
 fn validate_margin(margin: Option<f64>) -> Result<()> {
     match margin {
         Some(margin) if !margin.is_finite() || margin < 0.0 => Err(MarklabError::Config(
-            "territory profile equivalence margin must be finite and non-negative".into(),
+            "territory profile comparison margin must be finite and non-negative".into(),
         )),
         _ => Ok(()),
     }
@@ -236,7 +235,7 @@ fn has_profile_data(left: &TerritoryProfile, right: &TerritoryProfile) -> bool {
 fn no_profile_data_result(
     left: &TerritoryProfile,
     right: &TerritoryProfile,
-    equivalence_margin: Option<f64>,
+    margin: Option<f64>,
 ) -> CurveTestResult {
     CurveTestResult {
         comparison_name: format!("territory_{}_vs_{}", left.territory_id, right.territory_id),
@@ -245,24 +244,20 @@ fn no_profile_data_result(
         statistic: None,
         unavailable_reason: Some("no known cell-type labels are available for this territory pair".into()),
         p_difference: None,
-        equivalence_margin,
-        p_equivalence: None,
-        equivalent: None,
-        interpretation: "insufficient territory profile data: no known cell-type labels are available for this pair; equivalence is non-confirmatory".into(),
+        margin,
+        within_margin: None,
+        interpretation: "insufficient territory profile data: no known cell-type labels are available for this pair; a descriptive margin assessment is unavailable".into(),
     }
 }
 
-fn interpretation_for(
-    statistic: f64,
-    equivalence_margin: Option<f64>,
-    equivalent: Option<bool>,
-) -> String {
-    match (equivalence_margin, equivalent) {
+fn interpretation_for(statistic: f64, margin: Option<f64>, within_margin: Option<bool>) -> String {
+    match (margin, within_margin) {
         (Some(_), Some(true)) => {
-            "territory cell-type profiles are equivalent within the requested margin".into()
+            "territory cell-type profile distance is within the requested descriptive margin".into()
         }
         (Some(_), Some(false)) => {
-            "territory cell-type profiles are not equivalent within the requested margin".into()
+            "territory cell-type profile distance is outside the requested descriptive margin"
+                .into()
         }
         _ if statistic > 0.0 => {
             "territory cell-type profiles differ by the reported descriptive statistic".into()

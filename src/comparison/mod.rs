@@ -1,5 +1,3 @@
 pub mod curves;
-#[cfg(feature = "cli")]
 pub mod difference;
-#[cfg(feature = "cli")]
-pub mod equivalence;
+pub mod margin_assessment;

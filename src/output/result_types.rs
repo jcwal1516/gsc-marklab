@@ -397,9 +397,8 @@ pub struct CurveTestResult {
     #[serde(default)]
     pub unavailable_reason: Option<String>,
     pub p_difference: Option<f64>,
-    pub equivalence_margin: Option<f64>,
-    pub p_equivalence: Option<f64>,
-    pub equivalent: Option<bool>,
+    pub margin: Option<f64>,
+    pub within_margin: Option<bool>,
     pub interpretation: String,
 }
 

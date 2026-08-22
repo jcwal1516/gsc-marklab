@@ -191,8 +191,8 @@ mod multimodal {
             rate_pair("registration_jitter", |result| {
                 result.below_resolution_flag_rate
             }),
-            rate_pair("prepost_equivalent_spatial_pattern", |result| {
-                result.equivalence_rate
+            rate_pair("prepost_within_margin_spatial_pattern", |result| {
+                result.within_margin_rate
             }),
             rate_pair("prepost_changed_spatial_pattern", |result| {
                 result.detection_rate

@@ -1,7 +1,7 @@
 use crate::{
     comparison::{
         curves::max_abs_standardized_difference, difference::curve_difference_test,
-        equivalence::curve_equivalence_test,
+        margin_assessment::curve_margin_assessment,
     },
     multimodal::cell_table::{CellSection, FusedCell},
     neighborhood::cross_curves::cross_interaction_curve,
@@ -301,16 +301,17 @@ fn cross_curve_rejects_invalid_bin_width_and_max_distance() {
 }
 
 #[test]
-fn equivalence_requires_margin_and_reports_result() {
+fn margin_assessment_requires_margin_and_reports_result() {
     let a = [1.0, 1.1, 0.9];
     let b = [1.02, 1.05, 0.91];
-    let result = curve_equivalence_test("small_diff", &a, &b, Some(0.2)).expect("equivalence");
-    assert_eq!(result.equivalent, Some(true));
-    assert_eq!(result.equivalence_margin, Some(0.2));
+    let result =
+        curve_margin_assessment("small_diff", &a, &b, Some(0.2)).expect("margin assessment");
+    assert_eq!(result.within_margin, Some(true));
+    assert_eq!(result.margin, Some(0.2));
 
-    let no_margin = curve_equivalence_test("no_margin", &a, &b, None).expect("diagnostic");
-    assert_eq!(no_margin.equivalent, None);
-    assert!(no_margin.interpretation.contains("non-confirmatory"));
+    let no_margin = curve_margin_assessment("no_margin", &a, &b, None).expect("diagnostic");
+    assert_eq!(no_margin.within_margin, None);
+    assert!(no_margin.interpretation.contains("unavailable"));
 }
 
 #[test]
@@ -320,7 +321,7 @@ fn comparison_apis_reject_non_finite_curve_values() {
 
     assert!(max_abs_standardized_difference(&a, &b).is_err());
     assert!(curve_difference_test("nan", &a, &b, 19, 123).is_err());
-    assert!(curve_equivalence_test("nan", &a, &b, Some(0.1)).is_err());
+    assert!(curve_margin_assessment("nan", &a, &b, Some(0.1)).is_err());
 }
 
 #[test]
@@ -332,14 +333,15 @@ fn difference_test_rejects_zero_permutations() {
 }
 
 #[test]
-fn equivalence_rejects_invalid_margins_and_accepts_zero_margin() {
+fn margin_assessment_rejects_invalid_margins_and_accepts_zero_margin() {
     let a = [1.0, 1.1];
     let b = [1.0, 1.1];
 
-    assert!(curve_equivalence_test("negative", &a, &b, Some(-0.1)).is_err());
-    assert!(curve_equivalence_test("nan", &a, &b, Some(f64::NAN)).is_err());
-    let exact = curve_equivalence_test("exact", &a, &b, Some(0.0)).expect("exact equivalence");
-    assert_eq!(exact.equivalent, Some(true));
+    assert!(curve_margin_assessment("negative", &a, &b, Some(-0.1)).is_err());
+    assert!(curve_margin_assessment("nan", &a, &b, Some(f64::NAN)).is_err());
+    let exact =
+        curve_margin_assessment("exact", &a, &b, Some(0.0)).expect("exact margin assessment");
+    assert_eq!(exact.within_margin, Some(true));
 }
 
 #[test]

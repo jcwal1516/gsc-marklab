@@ -53,6 +53,15 @@ exactly when `pair_count == 0`, meaning no cell pair contributed to that physica
 distance bin. Empty bins remain in the curve so bin axes stay explicit, but
 they are excluded from global-envelope inference and have no envelope bounds.
 
+## Descriptive curve margins
+
+Curve comparison rows use `margin` and `within_margin`. The latter is a
+descriptive check of whether `max_abs_standardized_difference <= margin`; it is
+not an inferential equivalence test. The unused 0.2 fields
+`equivalence_margin`, `p_equivalence`, and `equivalent` are absent from format
+0.3. Without a prespecified margin, `margin` and `within_margin` are `null` and
+the interpretation states that no margin assessment is available.
+
 ## Multiscale residual diagnostics
 
 The former wavelet/MODWT fields have been removed because the implementation

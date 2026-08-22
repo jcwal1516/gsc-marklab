@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     common::stats::{mean_all_finite, median_average_even},
-    comparison::{difference::curve_difference_test, equivalence::curve_equivalence_test},
+    comparison::{difference::curve_difference_test, margin_assessment::curve_margin_assessment},
     output::{
         AnalysisSection, CrossInteractionCurve, CurveTestAvailability, CurveTestResult,
         MarkedPatternResult, MultimodalResult, PrePostResult, ResidualTerritory, StatusFlag,
@@ -203,7 +203,7 @@ fn append_curve_tests(
             comparison_name,
             "curve_availability",
             format!(
-                "{comparison_name} curve is absent in both pre/post results; formal difference/equivalence diagnostics were not computed"
+                "{comparison_name} curve is absent in both pre/post results; pooled-bin difference and descriptive margin diagnostics were not computed"
             ),
         ));
         return;
@@ -214,7 +214,7 @@ fn append_curve_tests(
             comparison_name,
             "axis_alignment",
             format!(
-                "{comparison_name} curve axis is not aligned: {reason}; formal difference/equivalence diagnostics were not computed"
+                "{comparison_name} curve axis is not aligned: {reason}; pooled-bin difference and descriptive margin diagnostics were not computed"
             ),
         ));
         return;
@@ -225,7 +225,7 @@ fn append_curve_tests(
             comparison_name,
             "axis_alignment",
             format!(
-                "{comparison_name} curve axis is not aligned: curve lengths differ or one curve is empty; formal difference/equivalence diagnostics were not computed"
+                "{comparison_name} curve axis is not aligned: curve lengths differ or one curve is empty; pooled-bin difference and descriptive margin diagnostics were not computed"
             ),
         ));
         return;
@@ -239,12 +239,12 @@ fn append_curve_tests(
             format!("curve difference diagnostic could not be computed: {err}"),
         )),
     }
-    match curve_equivalence_test(comparison_name, pre_values, post_values, None) {
+    match curve_margin_assessment(comparison_name, pre_values, post_values, None) {
         Ok(test) => tests.push(test),
         Err(err) => tests.push(curve_test_error(
             comparison_name,
             "max_abs_standardized_difference",
-            format!("curve equivalence diagnostic could not be computed: {err}"),
+            format!("curve margin assessment could not be computed: {err}"),
         )),
     }
 }
@@ -261,9 +261,8 @@ fn curve_test_error(
         statistic: None,
         unavailable_reason: Some(interpretation.clone()),
         p_difference: None,
-        equivalence_margin: None,
-        p_equivalence: None,
-        equivalent: None,
+        margin: None,
+        within_margin: None,
         interpretation,
     }
 }
@@ -325,7 +324,7 @@ fn append_cross_interaction_curve_tests_for_sections(
                 &comparison_name,
                 "curve_availability",
                 format!(
-                    "{comparison_name} curve is absent from one pre/post result; formal difference/equivalence diagnostics were not computed"
+                    "{comparison_name} curve is absent from one pre/post result; pooled-bin difference and descriptive margin diagnostics were not computed"
                 ),
             )),
         }

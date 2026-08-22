@@ -9,7 +9,7 @@ pub(super) struct MultimodalOutcome {
     pub(super) detected: bool,
     pub(super) false_positive: bool,
     pub(super) below_registration_resolution: bool,
-    pub(super) equivalent: bool,
+    pub(super) within_margin: bool,
 }
 
 pub(super) fn multimodal_replicate_outcome(
@@ -35,7 +35,7 @@ pub(super) fn multimodal_replicate_outcome(
                 detected,
                 false_positive: detected,
                 below_registration_resolution: false,
-                equivalent: false,
+                within_margin: false,
             }
         }
         "two_related_mmr_territories" => {
@@ -50,7 +50,7 @@ pub(super) fn multimodal_replicate_outcome(
                 detected,
                 false_positive: false,
                 below_registration_resolution: false,
-                equivalent: false,
+                within_margin: false,
             }
         }
         "immune_associated_mmr_territory" => {
@@ -61,7 +61,7 @@ pub(super) fn multimodal_replicate_outcome(
                 detected,
                 false_positive: false,
                 below_registration_resolution: false,
-                equivalent: false,
+                within_margin: false,
             }
         }
         "registration_jitter" => {
@@ -74,30 +74,30 @@ pub(super) fn multimodal_replicate_outcome(
                 detected: apparent_association,
                 false_positive: apparent_association && !below_registration_resolution,
                 below_registration_resolution,
-                equivalent: false,
+                within_margin: false,
             }
         }
-        "prepost_equivalent_spatial_pattern" => {
+        "prepost_within_margin_spatial_pattern" => {
             let curve_delta = (0.085 + rng.centered(0.08)).abs();
-            let equivalence_margin = 0.15;
-            let equivalent = curve_delta <= equivalence_margin;
+            let margin = 0.15;
+            let within_margin = curve_delta <= margin;
             let changed = curve_delta > 0.25;
             MultimodalOutcome {
                 detected: changed,
                 false_positive: changed,
                 below_registration_resolution: false,
-                equivalent,
+                within_margin,
             }
         }
         "prepost_changed_spatial_pattern" => {
             let curve_delta = 0.33 + rng.centered(0.10);
-            let equivalence_margin = 0.15;
+            let margin = 0.15;
             let changed = curve_delta > 0.25;
             MultimodalOutcome {
                 detected: changed,
                 false_positive: false,
                 below_registration_resolution: false,
-                equivalent: curve_delta <= equivalence_margin,
+                within_margin: curve_delta <= margin,
             }
         }
         _ => {

@@ -6,9 +6,10 @@ use crate::{
 
 /// Compare two curves against an optional maximum standardized-difference margin.
 ///
-/// A zero margin is accepted and represents exact equivalence under the
-/// `max_abs_standardized_difference` metric.
-pub fn curve_equivalence_test(
+/// A zero margin is accepted and requires an exact match under the
+/// `max_abs_standardized_difference` metric. This is a descriptive threshold
+/// comparison, not an inferential equivalence test.
+pub fn curve_margin_assessment(
     comparison_name: &str,
     a: &[f64],
     b: &[f64],
@@ -17,18 +18,18 @@ pub fn curve_equivalence_test(
     let statistic = max_abs_standardized_difference(a, b)?;
     validate_margin(margin)?;
 
-    let (equivalent, interpretation) = match margin {
+    let (within_margin, interpretation) = match margin {
         Some(margin) => (
             Some(statistic <= margin),
             if statistic <= margin {
-                "curves are equivalent within the requested margin".into()
+                "curve distance is within the requested descriptive margin".into()
             } else {
-                "curves are not equivalent within the requested margin".into()
+                "curve distance is outside the requested descriptive margin".into()
             },
         ),
         None => (
             None,
-            "equivalence assessment is non-confirmatory without a prespecified margin".into(),
+            "margin assessment is unavailable without a prespecified descriptive margin".into(),
         ),
     };
 
@@ -39,9 +40,8 @@ pub fn curve_equivalence_test(
         statistic: Some(statistic),
         unavailable_reason: None,
         p_difference: None,
-        equivalence_margin: margin,
-        p_equivalence: None,
-        equivalent,
+        margin,
+        within_margin,
         interpretation,
     })
 }
@@ -49,7 +49,7 @@ pub fn curve_equivalence_test(
 fn validate_margin(margin: Option<f64>) -> Result<()> {
     match margin {
         Some(margin) if !margin.is_finite() || margin < 0.0 => Err(MarklabError::Config(
-            "curve equivalence margin must be finite and non-negative".into(),
+            "curve comparison margin must be finite and non-negative".into(),
         )),
         _ => Ok(()),
     }

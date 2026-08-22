@@ -14,7 +14,6 @@ pub(crate) enum SeedEndpoint {
     NeighborhoodEnrichment = 0x6e65_6967_685f_656e,
     #[cfg(feature = "cli")]
     NeighborhoodStratifiedEnrichment = 0x6e65_6967_685f_7374,
-    #[cfg(feature = "cli")]
     CurveDifference = 0x6375_7276_655f_6469,
 }
 
@@ -71,7 +70,6 @@ mod tests {
             SeedEndpoint::NeighborhoodEnrichment,
             #[cfg(feature = "cli")]
             SeedEndpoint::NeighborhoodStratifiedEnrichment,
-            #[cfg(feature = "cli")]
             SeedEndpoint::CurveDifference,
         ];
         let mut seeds = endpoints

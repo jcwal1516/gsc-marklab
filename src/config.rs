@@ -189,12 +189,12 @@ impl Default for NeighborhoodSection {
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ComparisonSection {
-    pub equivalence_margins: EquivalenceMargins,
+    pub margins: CurveMargins,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct EquivalenceMargins {
+pub struct CurveMargins {
     pub spectrum: Option<f64>,
     pub mark_pair_covariance: Option<f64>,
     pub cross_interaction: Option<f64>,
@@ -404,26 +404,26 @@ impl AnalysisConfig {
             reject_duplicates("neighborhood.null_models", &self.neighborhood.null_models)?;
         }
         for (field, margin) in [
-            ("spectrum", self.comparison.equivalence_margins.spectrum),
+            ("spectrum", self.comparison.margins.spectrum),
             (
                 "mark_pair_covariance",
-                self.comparison.equivalence_margins.mark_pair_covariance,
+                self.comparison.margins.mark_pair_covariance,
             ),
             (
                 "cross_interaction",
-                self.comparison.equivalence_margins.cross_interaction,
+                self.comparison.margins.cross_interaction,
             ),
             (
                 "graph_enrichment_log2",
-                self.comparison.equivalence_margins.graph_enrichment_log2,
+                self.comparison.margins.graph_enrichment_log2,
             ),
             (
                 "territory_profile",
-                self.comparison.equivalence_margins.territory_profile,
+                self.comparison.margins.territory_profile,
             ),
         ] {
             if let Some(value) = margin {
-                positive_finite(&format!("comparison.equivalence_margins.{field}"), value)?;
+                nonnegative_finite(&format!("comparison.margins.{field}"), value)?;
             }
         }
         if matches!(self.performance.threads, ThreadSetting::Count(0)) {

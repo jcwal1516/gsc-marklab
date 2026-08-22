@@ -38,7 +38,7 @@ const MULTIMODAL_GENERATORS: [&str; 6] = [
     "two_related_mmr_territories",
     "immune_associated_mmr_territory",
     "registration_jitter",
-    "prepost_equivalent_spatial_pattern",
+    "prepost_within_margin_spatial_pattern",
     "prepost_changed_spatial_pattern",
 ];
 
@@ -96,7 +96,7 @@ pub struct MultimodalSyntheticGeneratorResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub below_resolution_flag_rate: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub equivalence_rate: Option<f64>,
+    pub within_margin_rate: Option<f64>,
     pub note: &'static str,
 }
 
@@ -271,21 +271,21 @@ fn run_multimodal_generator(
     let mut detection_count = 0usize;
     let mut false_positive_count = 0usize;
     let mut below_resolution_count = 0usize;
-    let mut equivalence_count = 0usize;
+    let mut within_margin_count = 0usize;
 
     for replicate in 0..replicates {
         let outcome = multimodal_replicate_outcome(generator, seed, generator_index, replicate)?;
         detection_count += usize::from(outcome.detected);
         false_positive_count += usize::from(outcome.false_positive);
         below_resolution_count += usize::from(outcome.below_registration_resolution);
-        equivalence_count += usize::from(outcome.equivalent);
+        within_margin_count += usize::from(outcome.within_margin);
     }
 
     let denominator = replicates as f64;
     let detection_rate = detection_count as f64 / denominator;
     let false_positive_rate = false_positive_count as f64 / denominator;
     let below_registration_resolution_flag_rate = below_resolution_count as f64 / denominator;
-    let equivalence_rate = equivalence_count as f64 / denominator;
+    let within_margin_rate = within_margin_count as f64 / denominator;
     let passed = match generator {
         "two_unrelated_mmr_territories" => false_positive_rate <= 0.20,
         "two_related_mmr_territories" => detection_rate > 0.70,
@@ -293,10 +293,10 @@ fn run_multimodal_generator(
         "registration_jitter" => {
             below_registration_resolution_flag_rate > 0.80 && false_positive_rate <= 0.20
         }
-        "prepost_equivalent_spatial_pattern" => {
-            equivalence_rate > 0.80 && false_positive_rate <= 0.20
+        "prepost_within_margin_spatial_pattern" => {
+            within_margin_rate > 0.80 && false_positive_rate <= 0.20
         }
-        "prepost_changed_spatial_pattern" => detection_rate > 0.70 && equivalence_rate < 0.20,
+        "prepost_changed_spatial_pattern" => detection_rate > 0.70 && within_margin_rate < 0.20,
         _ => {
             return Err(MarklabError::Validation(format!(
                 "unknown multimodal synthetic generator {generator}"
@@ -304,29 +304,33 @@ fn run_multimodal_generator(
         }
     };
 
-    let (detection_rate, false_positive_rate, below_registration_resolution_rate, equivalence_rate) =
-        match generator {
-            "two_unrelated_mmr_territories" => (None, Some(false_positive_rate), None, None),
-            "two_related_mmr_territories" | "immune_associated_mmr_territory" => {
-                (Some(detection_rate), None, None, None)
-            }
-            "registration_jitter" => (
-                Some(detection_rate),
-                Some(false_positive_rate),
-                Some(below_registration_resolution_flag_rate),
-                None,
-            ),
-            "prepost_equivalent_spatial_pattern" => (
-                None,
-                Some(false_positive_rate),
-                None,
-                Some(equivalence_rate),
-            ),
-            "prepost_changed_spatial_pattern" => {
-                (Some(detection_rate), None, None, Some(equivalence_rate))
-            }
-            _ => unreachable!("unknown generator already rejected"),
-        };
+    let (
+        detection_rate,
+        false_positive_rate,
+        below_registration_resolution_rate,
+        within_margin_rate,
+    ) = match generator {
+        "two_unrelated_mmr_territories" => (None, Some(false_positive_rate), None, None),
+        "two_related_mmr_territories" | "immune_associated_mmr_territory" => {
+            (Some(detection_rate), None, None, None)
+        }
+        "registration_jitter" => (
+            Some(detection_rate),
+            Some(false_positive_rate),
+            Some(below_registration_resolution_flag_rate),
+            None,
+        ),
+        "prepost_within_margin_spatial_pattern" => (
+            None,
+            Some(false_positive_rate),
+            None,
+            Some(within_margin_rate),
+        ),
+        "prepost_changed_spatial_pattern" => {
+            (Some(detection_rate), None, None, Some(within_margin_rate))
+        }
+        _ => unreachable!("unknown generator already rejected"),
+    };
 
     Ok(MultimodalSyntheticGeneratorResult {
         replicates_run: replicates,
@@ -335,7 +339,7 @@ fn run_multimodal_generator(
         false_positive_rate,
         below_registration_resolution_flag_rate: below_registration_resolution_rate,
         below_resolution_flag_rate: below_registration_resolution_rate,
-        equivalence_rate,
+        within_margin_rate,
         note: multimodal_note_for(generator),
     })
 }
@@ -463,8 +467,8 @@ fn multimodal_note_for(generator: &str) -> &'static str {
         "registration_jitter" => {
             "serial-section associations below registration resolution should be flagged"
         }
-        "prepost_equivalent_spatial_pattern" => {
-            "matched pre/post curves inside the equivalence margin should be called equivalent"
+        "prepost_within_margin_spatial_pattern" => {
+            "matched pre/post curves should remain within the configured descriptive margin"
         }
         "prepost_changed_spatial_pattern" => {
             "pre/post curves beyond the difference threshold should be detected as changed"

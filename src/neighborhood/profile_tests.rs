@@ -79,7 +79,7 @@ fn territory_profile_counts_local_cell_type_fractions() {
 }
 
 #[test]
-fn territory_comparison_reports_difference_and_equivalence() {
+fn territory_comparison_reports_distance_and_margin_assessment() {
     let territories = vec![
         TerritoryFeature {
             center_x_um: 0.0,
@@ -111,12 +111,12 @@ fn territory_comparison_reports_difference_and_equivalence() {
     assert!(!tests.is_empty());
     assert!(tests[0].comparison_name.contains("territory_0_vs_1"));
     assert!((tests[0].statistic.expect("statistic") - 1.0).abs() < f64::EPSILON);
-    assert!(tests[0].equivalence_margin.is_some());
-    assert_eq!(tests[0].equivalent, Some(false));
+    assert!(tests[0].margin.is_some());
+    assert_eq!(tests[0].within_margin, Some(false));
 }
 
 #[test]
-fn territory_comparison_with_no_known_labels_is_non_confirmatory() {
+fn territory_comparison_with_no_known_labels_reports_margin_unavailable() {
     let profiles = vec![profile(0, Vec::new()), profile(1, Vec::new())];
 
     let tests = compare_territory_profiles(&profiles, Some(0.25)).expect("comparison");
@@ -128,14 +128,14 @@ fn territory_comparison_with_no_known_labels_is_non_confirmatory() {
     );
     assert_eq!(tests[0].statistic, None);
     assert!(tests[0].unavailable_reason.is_some());
-    assert_eq!(tests[0].equivalence_margin, Some(0.25));
-    assert_eq!(tests[0].equivalent, None);
+    assert_eq!(tests[0].margin, Some(0.25));
+    assert_eq!(tests[0].within_margin, None);
     assert!(tests[0].interpretation.contains("insufficient"));
-    assert!(tests[0].interpretation.contains("non-confirmatory"));
+    assert!(tests[0].interpretation.contains("unavailable"));
 }
 
 #[test]
-fn territory_comparison_with_only_zero_count_rows_is_non_confirmatory() {
+fn territory_comparison_with_only_zero_count_rows_reports_margin_unavailable() {
     let profiles = vec![
         profile(
             0,
@@ -164,10 +164,10 @@ fn territory_comparison_with_only_zero_count_rows_is_non_confirmatory() {
     );
     assert_eq!(tests[0].statistic, None);
     assert!(tests[0].unavailable_reason.is_some());
-    assert_eq!(tests[0].equivalence_margin, Some(0.25));
-    assert_eq!(tests[0].equivalent, None);
+    assert_eq!(tests[0].margin, Some(0.25));
+    assert_eq!(tests[0].within_margin, None);
     assert!(tests[0].interpretation.contains("insufficient"));
-    assert!(tests[0].interpretation.contains("non-confirmatory"));
+    assert!(tests[0].interpretation.contains("unavailable"));
 }
 
 #[test]
@@ -229,7 +229,7 @@ fn territory_profile_registration_resolution_uses_strict_boundary() {
 }
 
 #[test]
-fn territory_comparison_rejects_invalid_equivalence_margins() {
+fn territory_comparison_rejects_invalid_margins() {
     let profiles = vec![profile(
         0,
         vec![LabelFraction {
