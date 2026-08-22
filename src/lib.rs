@@ -35,7 +35,7 @@ mod qc;
 mod registration;
 mod spectra;
 #[cfg(feature = "cli")]
-mod validation;
+mod synthetic_smoke;
 #[cfg(feature = "wsi")]
 mod wsi;
 

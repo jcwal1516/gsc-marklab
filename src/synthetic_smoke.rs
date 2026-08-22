@@ -13,7 +13,7 @@ use crate::{
 mod generators;
 
 #[cfg(test)]
-#[path = "validation/tests.rs"]
+#[path = "synthetic_smoke/tests.rs"]
 mod tests;
 
 use generators::{multimodal_replicate_outcome, synthetic_pattern};
@@ -43,17 +43,17 @@ const MULTIMODAL_GENERATORS: [&str; 6] = [
 ];
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
-pub struct SyntheticValidationSummary {
+pub struct SyntheticSmokeSummary {
     pub suite: String,
     pub replicates: usize,
     pub status: String,
     pub alpha: f64,
     pub generators: Vec<&'static str>,
-    pub results: BTreeMap<String, SyntheticGeneratorResult>,
+    pub results: BTreeMap<String, SyntheticSmokeResult>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
-pub struct SyntheticGeneratorResult {
+pub struct SyntheticSmokeResult {
     pub replicates_run: usize,
     pub passed: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -77,13 +77,14 @@ pub struct SyntheticGeneratorResult {
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
-pub struct MultimodalSyntheticValidationSummary {
+pub struct MultimodalSyntheticSmokeSummary {
+    pub suite: String,
     #[serde(flatten)]
-    pub results: BTreeMap<String, MultimodalSyntheticGeneratorResult>,
+    pub results: BTreeMap<String, MultimodalSyntheticSmokeResult>,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
-pub struct MultimodalSyntheticGeneratorResult {
+pub struct MultimodalSyntheticSmokeResult {
     pub replicates_run: usize,
     pub passed: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -92,22 +93,19 @@ pub struct MultimodalSyntheticGeneratorResult {
     pub false_positive_rate: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub below_registration_resolution_flag_rate: Option<f64>,
-    /// Compatibility alias for the original Task 13 JSON test key.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub below_resolution_flag_rate: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub within_margin_rate: Option<f64>,
     pub note: &'static str,
 }
 
-pub fn run_synthetic_validation(replicates: usize) -> Result<SyntheticValidationSummary> {
+pub fn run_synthetic_smoke(replicates: usize) -> Result<SyntheticSmokeSummary> {
     if replicates == 0 {
         return Err(MarklabError::Validation(
-            "synthetic validation requires at least one replicate".into(),
+            "synthetic generator smoke check requires at least one replicate".into(),
         ));
     }
 
-    let config = validation_config();
+    let config = smoke_config();
     let engine = AnalysisEngine::new(config)?;
     let mut results = BTreeMap::new();
     for generator in GENERATORS {
@@ -123,8 +121,8 @@ pub fn run_synthetic_validation(replicates: usize) -> Result<SyntheticValidation
         "failed"
     };
 
-    Ok(SyntheticValidationSummary {
-        suite: "synthetic".into(),
+    Ok(SyntheticSmokeSummary {
+        suite: "synthetic_generator_smoke".into(),
         replicates,
         status: status.into(),
         alpha: 0.05,
@@ -133,13 +131,13 @@ pub fn run_synthetic_validation(replicates: usize) -> Result<SyntheticValidation
     })
 }
 
-pub fn run_multimodal_synthetic_validation(
+pub fn run_multimodal_synthetic_smoke(
     replicates: usize,
     seed: u64,
-) -> Result<MultimodalSyntheticValidationSummary> {
+) -> Result<MultimodalSyntheticSmokeSummary> {
     if replicates == 0 {
         return Err(MarklabError::Validation(
-            "multimodal synthetic validation requires at least one replicate".into(),
+            "multimodal synthetic generator smoke check requires at least one replicate".into(),
         ));
     }
 
@@ -150,10 +148,13 @@ pub fn run_multimodal_synthetic_validation(
             run_multimodal_generator(generator, replicates, seed, index as u64)?,
         );
     }
-    Ok(MultimodalSyntheticValidationSummary { results })
+    Ok(MultimodalSyntheticSmokeSummary {
+        suite: "multimodal_synthetic_generator_smoke".into(),
+        results,
+    })
 }
 
-fn validation_config() -> AnalysisConfig {
+fn smoke_config() -> AnalysisConfig {
     let mut config = AnalysisConfig::default();
     config.validation.n_min = 16;
     config.validation.n_marked_min = 5;
@@ -164,7 +165,7 @@ fn validation_config() -> AnalysisConfig {
     config.spectrum.k_shells = 5;
     config.spectrum.low_k_shells = 2;
     config.spectrum.anisotropy_low_k_shells = 3;
-    // Fixed validation scenarios retain alpha=0.05 and therefore need at least
+    // Fixed smoke scenarios retain alpha=0.05 and therefore need at least
     // 40 total curves for equal-tail endpoints.
     config.permutation.b = 39;
     config.permutation.seed = 9_001;
@@ -178,7 +179,7 @@ fn run_generator(
     generator: &str,
     replicates: usize,
     engine: &AnalysisEngine,
-) -> Result<SyntheticGeneratorResult> {
+) -> Result<SyntheticSmokeResult> {
     let mut analyses = Vec::with_capacity(replicates);
     for replicate in 0..replicates {
         let pattern = synthetic_pattern(generator, replicate as u64)?;
@@ -267,7 +268,7 @@ fn run_multimodal_generator(
     replicates: usize,
     seed: u64,
     generator_index: u64,
-) -> Result<MultimodalSyntheticGeneratorResult> {
+) -> Result<MultimodalSyntheticSmokeResult> {
     let mut detection_count = 0usize;
     let mut false_positive_count = 0usize;
     let mut below_resolution_count = 0usize;
@@ -332,19 +333,18 @@ fn run_multimodal_generator(
         _ => unreachable!("unknown generator already rejected"),
     };
 
-    Ok(MultimodalSyntheticGeneratorResult {
+    Ok(MultimodalSyntheticSmokeResult {
         replicates_run: replicates,
         passed,
         detection_rate,
         false_positive_rate,
         below_registration_resolution_flag_rate: below_registration_resolution_rate,
-        below_resolution_flag_rate: below_registration_resolution_rate,
         within_margin_rate,
         note: multimodal_note_for(generator),
     })
 }
 
-fn summarize_analyses(analyses: &[MarkedPatternResult]) -> SyntheticGeneratorResult {
+fn summarize_analyses(analyses: &[MarkedPatternResult]) -> SyntheticSmokeResult {
     let mut status_flags = Vec::new();
     for analysis in analyses {
         for flag in &analysis.status_flags {
@@ -406,7 +406,7 @@ fn summarize_analyses(analyses: &[MarkedPatternResult]) -> SyntheticGeneratorRes
         .count() as f64
         / denom;
 
-    SyntheticGeneratorResult {
+    SyntheticSmokeResult {
         replicates_run,
         passed: false,
         mean_low_k_excess,
@@ -449,7 +449,7 @@ fn note_for(generator: &str) -> &'static str {
         "serial_section_misregistration" => {
             "serial-section shifts are descriptive and not same-cell evidence"
         }
-        _ => "synthetic validation generator",
+        _ => "synthetic generator smoke check generator",
     }
 }
 
@@ -473,7 +473,7 @@ fn multimodal_note_for(generator: &str) -> &'static str {
         "prepost_changed_spatial_pattern" => {
             "pre/post curves beyond the difference threshold should be detected as changed"
         }
-        _ => "multimodal synthetic validation generator",
+        _ => "multimodal synthetic generator smoke check generator",
     }
 }
 

@@ -5,7 +5,7 @@ use crate::{
     geom::mask::TumorMask,
     io::csv::load_pattern_csv_with_diagnostics,
     multimodal::{multimodal_analysis_call_count, reset_multimodal_analysis_call_count},
-    validation::run_synthetic_validation,
+    synthetic_smoke::run_synthetic_smoke,
     AnalysisConfig, AnalysisEngine, Pattern, StatusFlag,
 };
 
@@ -113,14 +113,14 @@ write_run_manifest = true
 }
 
 #[test]
-fn synthetic_validation_controls_random_labeling_and_detects_anisotropy() {
-    let summary = run_synthetic_validation(100).expect("synthetic validation");
+fn synthetic_smoke_controls_random_labeling_and_detects_anisotropy() {
+    let summary = run_synthetic_smoke(100).expect("synthetic generator smoke check");
     let random = &summary.results["random_labeling"];
     let stripe = &summary.results["anisotropic_stripe"];
 
     assert!(
         random.passed,
-        "random-labeling calibration failed: {random:?}"
+        "random-labeling smoke check failed: {random:?}"
     );
     assert!(
         stripe.passed,
@@ -132,9 +132,9 @@ mod multimodal {
     use assert_cmd::Command;
 
     #[test]
-    fn validation_detects_immune_associated_mmr_territory() {
+    fn smoke_detects_immune_associated_mmr_territory() {
         let summary =
-            crate::validation::run_multimodal_synthetic_validation(100, 123).expect("validation");
+            crate::synthetic_smoke::run_multimodal_synthetic_smoke(100, 123).expect("smoke check");
         assert!(
             summary.results["immune_associated_mmr_territory"]
                 .detection_rate
@@ -144,23 +144,23 @@ mod multimodal {
     }
 
     #[test]
-    fn validation_flags_below_registration_resolution_associations() {
+    fn smoke_flags_below_registration_resolution_associations() {
         let summary =
-            crate::validation::run_multimodal_synthetic_validation(25, 456).expect("validation");
+            crate::synthetic_smoke::run_multimodal_synthetic_smoke(25, 456).expect("smoke check");
         assert!(
             summary.results["registration_jitter"]
-                .below_resolution_flag_rate
+                .below_registration_resolution_flag_rate
                 .expect("rate")
                 > 0.80
         );
     }
 
     #[test]
-    fn validation_rates_reflect_seeded_replicate_variation() {
-        let seed_123 = crate::validation::run_multimodal_synthetic_validation(100, 123)
-            .expect("seed 123 validation");
-        let seed_124 = crate::validation::run_multimodal_synthetic_validation(100, 124)
-            .expect("seed 124 validation");
+    fn smoke_rates_reflect_seeded_replicate_variation() {
+        let seed_123 = crate::synthetic_smoke::run_multimodal_synthetic_smoke(100, 123)
+            .expect("seed 123 smoke check");
+        let seed_124 = crate::synthetic_smoke::run_multimodal_synthetic_smoke(100, 124)
+            .expect("seed 124 smoke check");
 
         let immune_detection = seed_123.results["immune_associated_mmr_territory"]
             .detection_rate
@@ -171,7 +171,7 @@ mod multimodal {
         );
 
         let jitter_below_resolution = seed_123.results["registration_jitter"]
-            .below_resolution_flag_rate
+            .below_registration_resolution_flag_rate
             .expect("jitter below-resolution rate");
         assert!(
             jitter_below_resolution > 0.80 && jitter_below_resolution < 1.0,
@@ -189,7 +189,7 @@ mod multimodal {
                 result.detection_rate
             }),
             rate_pair("registration_jitter", |result| {
-                result.below_resolution_flag_rate
+                result.below_registration_resolution_flag_rate
             }),
             rate_pair("prepost_within_margin_spatial_pattern", |result| {
                 result.within_margin_rate
@@ -209,37 +209,36 @@ mod multimodal {
         );
 
         let seed_123_json = serde_json::to_value(&seed_123).expect("summary json");
+        assert!(seed_123_json["immune_associated_mmr_territory"]
+            .get("below_resolution_flag_rate")
+            .is_none());
         assert!(
-            seed_123_json["immune_associated_mmr_territory"]["below_resolution_flag_rate"]
-                .is_null()
-        );
-        assert_eq!(
-            seed_123_json["registration_jitter"]["below_resolution_flag_rate"],
             seed_123_json["registration_jitter"]["below_registration_resolution_flag_rate"]
+                .is_number()
         );
     }
 
     struct RateAccessor {
         generator: &'static str,
-        rate: fn(&crate::validation::MultimodalSyntheticGeneratorResult) -> Option<f64>,
+        rate: fn(&crate::synthetic_smoke::MultimodalSyntheticSmokeResult) -> Option<f64>,
     }
 
     fn rate_pair(
         generator: &'static str,
-        rate: fn(&crate::validation::MultimodalSyntheticGeneratorResult) -> Option<f64>,
+        rate: fn(&crate::synthetic_smoke::MultimodalSyntheticSmokeResult) -> Option<f64>,
     ) -> RateAccessor {
         RateAccessor { generator, rate }
     }
 
     #[test]
-    fn validate_cli_writes_multimodal_validation_json() {
+    fn smoke_cli_writes_multimodal_smoke_json() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let out = dir.path().join("validation-multimodal");
+        let out = dir.path().join("smoke-multimodal");
 
         Command::cargo_bin("marklab")
             .expect("binary")
             .args([
-                "validate",
+                "smoke",
                 "--suite",
                 "multimodal",
                 "--replicates",
@@ -251,9 +250,10 @@ mod multimodal {
             .success();
 
         let summary: serde_json::Value = serde_json::from_str(
-            &std::fs::read_to_string(out.join("validation.json")).expect("validation json"),
+            &std::fs::read_to_string(out.join("smoke.json")).expect("smoke json"),
         )
         .expect("json");
+        assert_eq!(summary["suite"], "multimodal_synthetic_generator_smoke");
         assert_eq!(
             summary["immune_associated_mmr_territory"]["passed"].as_bool(),
             Some(true)
@@ -270,7 +270,8 @@ mod multimodal {
 fn remediation_multimodal_validation_calls_the_public_engine() {
     reset_multimodal_analysis_call_count();
 
-    crate::validation::run_multimodal_synthetic_validation(1, 123).expect("multimodal validation");
+    crate::synthetic_smoke::run_multimodal_synthetic_smoke(1, 123)
+        .expect("multimodal synthetic generator smoke check");
 
     assert!(
         multimodal_analysis_call_count() >= 6,

@@ -670,14 +670,14 @@ fn simulate_random_labeling_writes_parquet_when_requested() {
 }
 
 #[test]
-fn validate_synthetic_writes_machine_readable_summary() {
+fn smoke_synthetic_writes_machine_readable_summary() {
     let dir = tempfile::tempdir().expect("temp dir");
-    let out = dir.path().join("validation_run");
+    let out = dir.path().join("smoke_run");
 
     Command::cargo_bin("marklab")
         .expect("bin")
         .args([
-            "validate",
+            "smoke",
             "--suite",
             "synthetic",
             "--replicates",
@@ -689,10 +689,10 @@ fn validate_synthetic_writes_machine_readable_summary() {
         .success();
 
     let result: Value =
-        serde_json::from_str(&fs::read_to_string(out.join("validation.json")).expect("validation"))
+        serde_json::from_str(&fs::read_to_string(out.join("smoke.json")).expect("smoke summary"))
             .expect("json");
 
-    assert_eq!(result["suite"], "synthetic");
+    assert_eq!(result["suite"], "synthetic_generator_smoke");
     assert_eq!(result["replicates"], 5);
     assert_eq!(result["status"], "completed");
     assert_eq!(

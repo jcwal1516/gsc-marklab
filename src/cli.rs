@@ -21,10 +21,6 @@ use crate::{
         landmarks::LandmarkPair,
         transform::{fit_affine, fit_rigid},
     },
-    validation::{
-        run_multimodal_synthetic_validation, run_synthetic_validation,
-        MultimodalSyntheticValidationSummary,
-    },
     AnalysisConfig, AnalysisEngine, MarkedPatternResult, MarklabError, MultimodalEngine,
     MultimodalInput, MultimodalResult, NeighborhoodEnrichmentResult, NeighborhoodNullModel,
     OutputWriter, RegistrationTransform, Result, ResultDocument, ThreadSetting, TimingStage,
@@ -54,8 +50,8 @@ mod simulate;
 #[cfg(feature = "wsi")]
 #[path = "cli/slide.rs"]
 mod slide;
-#[path = "cli/validate.rs"]
-mod validate;
+#[path = "cli/smoke.rs"]
+mod smoke;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Parser)]
@@ -157,7 +153,7 @@ enum Commands {
         #[command(subcommand)]
         command: MultimodalCommands,
     },
-    Validate {
+    Smoke {
         #[arg(long)]
         suite: String,
         #[arg(long)]
@@ -328,11 +324,11 @@ pub fn run_cli() -> Result<()> {
                 multimodal::commands::batch(manifest, out)
             }
         },
-        Commands::Validate {
+        Commands::Smoke {
             suite,
             replicates,
             out,
-        } => validate::run(&suite, replicates, out),
+        } => smoke::run(&suite, replicates, out),
     }
 }
 

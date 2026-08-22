@@ -63,7 +63,7 @@ fn ci_workflow_runs_locked_rust_wsi_and_benchmark_gates() {
         "cargo package --locked",
         "actions/upload-artifact",
         "benchmark-resources.txt",
-        "validation.json",
+        "smoke.json",
     ] {
         assert!(
             workflow.contains(required),

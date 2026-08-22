@@ -80,6 +80,12 @@ periodogram, not a Bartlett averaged-periodogram estimator. It averages mode
 power within physical radial-frequency shells before summarizing the requested
 lowest shells.
 
+`marklab smoke` runs synthetic-generator smoke checks. It is not a formal
+calibration or validation suite: the current multimodal generators synthesize
+scenario outcomes rather than exercising the production multimodal engine.
+Their output is written as `smoke.json` and labeled accordingly until the
+production-pipeline validation rewrite is complete.
+
 ## WSI commands
 
 ```bash

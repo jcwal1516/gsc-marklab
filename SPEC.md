@@ -128,6 +128,12 @@ controls are:
 - `[diagnostics]`: default-off beta posterior group and graph-smoothing diagnostics;
 - typed registration, neighborhood, comparison, performance, and output controls.
 
+The `smoke` command runs deterministic synthetic-generator smoke checks and
+writes `smoke.json`. These checks do not establish calibration. The current
+multimodal smoke generator does not invoke the production multimodal engine;
+that known limitation remains explicit until the real validation workflow
+replaces it.
+
 `registration.transform = "rigid"` is an orientation-preserving least-squares
 two-dimensional rotation plus translation. It never estimates scale or fits a
 reflection. `"affine"` permits the full configured affine model, including

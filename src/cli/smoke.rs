@@ -1,12 +1,19 @@
-use super::*;
+use std::{fs, path::PathBuf};
+
+use crate::{
+    synthetic_smoke::{
+        run_multimodal_synthetic_smoke, run_synthetic_smoke, MultimodalSyntheticSmokeSummary,
+    },
+    MarklabError, Result,
+};
 
 pub(super) fn run(suite: &str, replicates: usize, out: PathBuf) -> Result<()> {
     fs::create_dir_all(&out)?;
     match suite {
         "synthetic" => {
-            let summary = run_synthetic_validation(replicates)?;
+            let summary = run_synthetic_smoke(replicates)?;
             fs::write(
-                out.join("validation.json"),
+                out.join("smoke.json"),
                 serde_json::to_string_pretty(&summary)?,
             )?;
             let failed = summary
@@ -15,18 +22,24 @@ pub(super) fn run(suite: &str, replicates: usize, out: PathBuf) -> Result<()> {
                 .filter_map(|(name, result)| (!result.passed).then_some(name.as_str()))
                 .collect::<Vec<_>>();
             if !failed.is_empty() {
-                bail!("synthetic validation failed for: {}", failed.join(", "));
+                bail!(
+                    "synthetic generator smoke check failed for: {}",
+                    failed.join(", ")
+                );
             }
         }
         "multimodal" => {
-            let summary = run_multimodal_synthetic_validation(replicates, 123)?;
+            let summary = run_multimodal_synthetic_smoke(replicates, 123)?;
             fs::write(
-                out.join("validation.json"),
+                out.join("smoke.json"),
                 serde_json::to_string_pretty(&summary)?,
             )?;
             let failed = failed_multimodal_generators(&summary);
             if !failed.is_empty() {
-                bail!("multimodal validation failed for: {}", failed.join(", "));
+                bail!(
+                    "multimodal synthetic generator smoke check failed for: {}",
+                    failed.join(", ")
+                );
             }
         }
         _ => bail!("--suite must be synthetic or multimodal"),
@@ -34,7 +47,7 @@ pub(super) fn run(suite: &str, replicates: usize, out: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn failed_multimodal_generators(summary: &MultimodalSyntheticValidationSummary) -> Vec<String> {
+fn failed_multimodal_generators(summary: &MultimodalSyntheticSmokeSummary) -> Vec<String> {
     summary
         .results
         .iter()

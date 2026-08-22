@@ -32,7 +32,8 @@ semantics.
   already-aggregated bins rather than cells or spatial labels.
 - Marked-result `prepost_curve_tests` and pre/post-result `curve_tests` become
   `prepost_curve_comparisons` and `curve_comparisons`.
-- `CurveComparisonResult.statistic` is nullable.
+- `CurveComparisonResult.statistic` is nullable. Insufficient comparisons
+  include `unavailable_reason` instead of a fake statistic of zero.
 - Curve comparison fields `equivalence_margin` and `equivalent` are renamed to
   `margin` and `within_margin`. The never-computed `p_equivalence` placeholder
   is removed. These fields describe a threshold comparison, not an inferential
@@ -44,8 +45,13 @@ semantics.
   `BetaBinomialGroupSummary` become `beta_posterior_groups`,
   `BetaPosteriorSummary`, and `BetaPosteriorGroupSummary`. The diagnostic name
   is `beta_posterior_group_summary_v1`.
-  Insufficient comparisons include `unavailable_reason` instead of a fake
-  statistic of zero.
+- The interim `validate` CLI command is renamed to `smoke`, and its artifact is
+  `smoke.json` rather than `validation.json`. Associated Rust types/functions
+  use `SyntheticSmoke` and `run_*_synthetic_smoke` names. These scenarios are
+  smoke checks, not calibration evidence; multimodal outcomes remain directly
+  synthesized until COR-01 is remediated.
+- The Task-derived `below_resolution_flag_rate` compatibility alias is removed;
+  use `below_registration_resolution_flag_rate`.
 - QC results add nullable `valid_tumor_fraction` and `valid_ihc_fraction`.
   Every QC fraction now uses all in-mask cells as its denominator;
   `valid_mask_fraction` specifically means the final retained fraction.

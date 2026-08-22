@@ -71,14 +71,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.96.0
       - run: cargo test --locked --no-default-features --features dhat-heap --lib dhat_ -- --test-threads=1
 
-  synthetic-validation:
+  synthetic-smoke:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.96.0
-      - run: cargo run --release --locked --features wsi --bin marklab -- validate --suite synthetic --replicates 1000 --out validation-ci
+      - run: cargo run --release --locked --features wsi --bin marklab -- smoke --suite synthetic --replicates 1000 --out smoke-ci
       - uses: actions/upload-artifact@v4
         with:
-          name: synthetic-validation
-          path: validation-ci/validation.json
+          name: synthetic-smoke
+          path: smoke-ci/smoke.json
