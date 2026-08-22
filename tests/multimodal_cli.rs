@@ -39,6 +39,42 @@ fn multimodal_analyze_writes_registration_and_neighborhood_outputs() {
 }
 
 #[test]
+fn multimodal_analyze_uses_true_rigid_rotation() {
+    let fixture = MultimodalFixture::new();
+    fixture.update_config("transform = \"affine\"", "transform = \"rigid\"");
+    std::fs::write(
+        &fixture.landmarks,
+        "source_x_um,source_y_um,target_x_um,target_y_um\n\
+         0,0,10,-4\n\
+         50,0,10,46\n\
+         0,50,-40,-4\n\
+         50,50,-40,46\n",
+    )
+    .expect("rotated landmarks");
+
+    fixture.run().assert().success();
+
+    let result: Value = serde_json::from_str(
+        &std::fs::read_to_string(fixture.out.join("result.json")).expect("result"),
+    )
+    .expect("result json");
+    let sidecar: Value = serde_json::from_str(
+        &std::fs::read_to_string(fixture.out.join("registration_transform.json"))
+            .expect("transform"),
+    )
+    .expect("transform json");
+
+    assert_eq!(
+        result["analysis"]["result"]["registration"]["value"]["transform_type"],
+        "rigid"
+    );
+    assert_eq!(sidecar["transform_type"], "rigid");
+    assert!((sidecar["matrix"][0][0].as_f64().expect("m00")).abs() < 1.0e-9);
+    assert!((sidecar["matrix"][0][1].as_f64().expect("m01") + 1.0).abs() < 1.0e-9);
+    assert!((sidecar["matrix"][1][0].as_f64().expect("m10") - 1.0).abs() < 1.0e-9);
+}
+
+#[test]
 fn multimodal_analyze_writes_graph_smoothing_diagnostic_when_enabled() {
     let fixture = MultimodalFixture::new();
     fixture.update_config(

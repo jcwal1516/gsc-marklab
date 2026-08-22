@@ -82,6 +82,12 @@ controls are:
 - `[diagnostics]`: default-off beta-binomial and graph-smoothing diagnostics;
 - typed registration, neighborhood, comparison, performance, and output controls.
 
+`registration.transform = "rigid"` is an orientation-preserving least-squares
+two-dimensional rotation plus translation. It never estimates scale or fits a
+reflection. `"affine"` permits the full configured affine model, including
+scale and shear. Registration summaries serialize these models as `rigid` and
+`affine`, respectively.
+
 Removed 0.1 keys and method-selection strings have no aliases.
 
 ## WSI

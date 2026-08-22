@@ -44,6 +44,7 @@ graph_smoothing = false
 [registration]
 enabled = true
 transform = "affine"
+# "rigid" fits orientation-preserving rotation plus translation; "affine" also permits scale and shear.
 min_landmarks = 3
 max_rmse_um = 25.0
 claim_distance_multiplier = 2.0

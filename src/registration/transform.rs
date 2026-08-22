@@ -1,3 +1,4 @@
+use crate::common::stats::mean_all_finite;
 use crate::errors::{MarklabError, Result};
 use crate::registration::landmarks::LandmarkPair;
 
@@ -34,71 +35,88 @@ impl Transform2D {
     }
 }
 
-/// Fits the Task 3 MVP transform: uniform scale plus translation only.
+/// Fit an orientation-preserving two-dimensional rigid transformation.
 ///
-/// This preserves the spec-compatible `fit_similarity` API name, but it does
-/// not estimate rotation. The returned `transform_type` is `scale_translation`
-/// to make that limitation explicit in downstream summaries.
-pub fn fit_similarity(landmarks: &[LandmarkPair]) -> Result<Transform2D> {
+/// The least-squares fit estimates rotation and translation only. It cannot
+/// absorb scale changes or reflections. Source and target covariance terms
+/// are normalized before accumulation to avoid overflow without changing the
+/// fitted angle.
+pub fn fit_rigid(landmarks: &[LandmarkPair]) -> Result<Transform2D> {
     validate_landmarks(landmarks)?;
-    if landmarks.is_empty() {
+    if landmarks.len() < 2 {
         return Err(MarklabError::Compute(
-            "at least one landmark is required for similarity".into(),
+            "at least two landmarks are required for rigid registration".into(),
         ));
     }
 
-    let count = landmarks.len() as f64;
-    let source_x_mean = landmarks
-        .iter()
-        .map(|landmark| landmark.source_x_um)
-        .sum::<f64>()
-        / count;
-    let source_y_mean = landmarks
-        .iter()
-        .map(|landmark| landmark.source_y_um)
-        .sum::<f64>()
-        / count;
-    let target_x_mean = landmarks
-        .iter()
-        .map(|landmark| landmark.target_x_um)
-        .sum::<f64>()
-        / count;
-    let target_y_mean = landmarks
-        .iter()
-        .map(|landmark| landmark.target_y_um)
-        .sum::<f64>()
-        / count;
+    let source_x_mean = mean_all_finite(landmarks.iter().map(|point| point.source_x_um))
+        .ok_or_else(|| MarklabError::Compute("rigid source x centroid is undefined".into()))?;
+    let source_y_mean = mean_all_finite(landmarks.iter().map(|point| point.source_y_um))
+        .ok_or_else(|| MarklabError::Compute("rigid source y centroid is undefined".into()))?;
+    let target_x_mean = mean_all_finite(landmarks.iter().map(|point| point.target_x_um))
+        .ok_or_else(|| MarklabError::Compute("rigid target x centroid is undefined".into()))?;
+    let target_y_mean = mean_all_finite(landmarks.iter().map(|point| point.target_y_um))
+        .ok_or_else(|| MarklabError::Compute("rigid target y centroid is undefined".into()))?;
 
-    let mut numerator = 0.0;
-    let mut denominator = 0.0;
-    let mut source_scale = 0.0_f64;
-    for landmark in landmarks {
-        let source_dx = landmark.source_x_um - source_x_mean;
-        let source_dy = landmark.source_y_um - source_y_mean;
-        let target_dx = landmark.target_x_um - target_x_mean;
-        let target_dy = landmark.target_y_um - target_y_mean;
-        numerator += source_dx * target_dx + source_dy * target_dy;
-        denominator += source_dx * source_dx + source_dy * source_dy;
-        source_scale = source_scale.max(source_dx.abs()).max(source_dy.abs());
-    }
-
-    let degenerate_threshold =
-        (source_scale * source_scale * landmarks.len() as f64).max(f64::MIN_POSITIVE) * 1.0e-12;
-    if denominator <= degenerate_threshold {
+    let source_scale = landmarks.iter().fold(0.0_f64, |scale, point| {
+        scale
+            .max((point.source_x_um - source_x_mean).abs())
+            .max((point.source_y_um - source_y_mean).abs())
+    });
+    if source_scale == 0.0 || !source_scale.is_finite() {
         return Err(MarklabError::Compute(
-            "source landmarks must span nonzero distance for similarity".into(),
+            "source landmarks must span nonzero distance for rigid registration".into(),
+        ));
+    }
+    let target_scale = landmarks.iter().fold(0.0_f64, |scale, point| {
+        scale
+            .max((point.target_x_um - target_x_mean).abs())
+            .max((point.target_y_um - target_y_mean).abs())
+    });
+    if !target_scale.is_finite() {
+        return Err(MarklabError::Compute(
+            "rigid target landmark spread is non-finite".into(),
         ));
     }
 
-    let scale = numerator / denominator;
+    let (a, b) = if target_scale == 0.0 {
+        (0.0, 0.0)
+    } else {
+        landmarks
+            .iter()
+            .try_fold((0.0, 0.0), |(a, b), point| {
+                let source_x = (point.source_x_um - source_x_mean) / source_scale;
+                let source_y = (point.source_y_um - source_y_mean) / source_scale;
+                let target_x = (point.target_x_um - target_x_mean) / target_scale;
+                let target_y = (point.target_y_um - target_y_mean) / target_scale;
+                let next_a = a + source_x * target_x + source_y * target_y;
+                let next_b = b + source_x * target_y - source_y * target_x;
+                (next_a.is_finite() && next_b.is_finite()).then_some((next_a, next_b))
+            })
+            .ok_or_else(|| {
+                MarklabError::Compute("rigid covariance accumulation is non-finite".into())
+            })?
+    };
+    let theta = b.atan2(a);
+    let cosine = theta.cos();
+    let sine = theta.sin();
+    let translation_x = target_x_mean - cosine * source_x_mean + sine * source_y_mean;
+    let translation_y = target_y_mean - sine * source_x_mean - cosine * source_y_mean;
+    let coefficients = [cosine, -sine, translation_x, sine, cosine, translation_y];
+    if coefficients.iter().any(|value| !value.is_finite()) {
+        return Err(MarklabError::Compute(
+            "rigid fit produced non-finite coefficients".into(),
+        ));
+    }
+
     Ok(Transform2D {
-        transform_type: "scale_translation".to_string(),
-        m00: scale,
-        m01: 0.0,
-        m02: target_x_mean - scale * source_x_mean,
-        m10: 0.0,
-        m11: scale,
-        m12: target_y_mean - scale * source_y_mean,
+        transform_type: "rigid".into(),
+        m00: coefficients[0],
+        m01: coefficients[1],
+        m02: coefficients[2],
+        m10: coefficients[3],
+        m11: coefficients[4],
+        m12: coefficients[5],
     })
 }
 

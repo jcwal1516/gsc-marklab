@@ -38,7 +38,7 @@ pub(in crate::cli) fn run(request: MultimodalAnalyzeRequest) -> Result<()> {
     })?;
     let transform = match config.registration.transform {
         RegistrationTransform::Affine => fit_affine(&landmarks)?,
-        RegistrationTransform::Rigid => fit_similarity(&landmarks)?,
+        RegistrationTransform::Rigid => fit_rigid(&landmarks)?,
     };
     let fused = result.fused_cells.clone();
     let graph = build_spatial_graph(

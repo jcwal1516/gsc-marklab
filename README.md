@@ -64,6 +64,11 @@ Result documents use format 0.2:
 
 Format 0.1 inputs are rejected by `prepost`; re-run the original inputs.
 
+For multimodal serial-section analysis, `registration.transform = "rigid"`
+fits a two-dimensional rotation and translation without scale or reflection.
+Use `"affine"` only when scale or shear is part of the intended registration
+model.
+
 ## WSI commands
 
 ```bash

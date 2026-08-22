@@ -19,7 +19,7 @@ use crate::{
     registration::{
         landmarks::LandmarkPair,
         qc::registration_qc,
-        transform::{fit_affine, fit_similarity},
+        transform::{fit_affine, fit_rigid},
     },
 };
 
@@ -81,7 +81,7 @@ impl MultimodalEngine {
         validate_input(input, &self.config)?;
         let transform = match self.config.registration.transform {
             RegistrationTransform::Affine => fit_affine(&input.landmarks)?,
-            RegistrationTransform::Rigid => fit_similarity(&input.landmarks)?,
+            RegistrationTransform::Rigid => fit_rigid(&input.landmarks)?,
         };
         let registration = registration_qc(
             &input.landmarks,

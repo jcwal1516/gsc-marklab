@@ -19,7 +19,7 @@ use crate::{
     prepost::deltas::{compare_multimodal_prepost, compare_prepost},
     registration::{
         landmarks::LandmarkPair,
-        transform::{fit_affine, fit_similarity},
+        transform::{fit_affine, fit_rigid},
     },
     validation::{
         run_multimodal_synthetic_validation, run_synthetic_validation,
@@ -190,6 +190,7 @@ enum MultimodalCommands {
         ihc_cells: PathBuf,
         #[arg(long)]
         landmarks: PathBuf,
+        /// TOML configuration; registration.transform="rigid" fits rotation and translation only.
         #[arg(long)]
         config: PathBuf,
         #[arg(long)]

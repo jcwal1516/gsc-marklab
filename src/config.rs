@@ -123,7 +123,9 @@ pub struct RegistrationSection {
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum RegistrationTransform {
+    /// Six-parameter affine fit; permits scale, shear, rotation, and translation.
     Affine,
+    /// Orientation-preserving rotation and translation with no scale or reflection.
     Rigid,
 }
 

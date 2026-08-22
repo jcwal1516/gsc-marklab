@@ -2,7 +2,7 @@ use std::fs;
 
 use marklab::{
     AnalysisConfig, AnalysisEngine, HeCell, IhcCell, LandmarkPair, MultimodalEngine,
-    MultimodalInput, Pattern, PatternMeta, ResultDocument, StatusFlag,
+    MultimodalInput, Pattern, PatternMeta, RegistrationTransform, ResultDocument, StatusFlag,
 };
 
 #[test]
@@ -79,6 +79,53 @@ fn public_multimodal_engine_returns_a_distinct_multimodal_result() {
     let json = serde_json::to_value(ResultDocument::multimodal(result)).expect("serialize");
     assert!(json["analysis"]["result"].get("spectrum").is_none());
     assert!(json["analysis"]["result"].get("wavelet").is_none());
+}
+
+#[test]
+fn configured_rigid_registration_recovers_rotation() {
+    let mut config = AnalysisConfig::default();
+    config.registration.transform = RegistrationTransform::Rigid;
+    config.registration.min_landmarks = 3;
+    config.registration.max_rmse_um = 1.0e-6;
+    config.neighborhood.label_pairs.clear();
+    config.permutation.b = 9;
+    config.inference.family_wise_alpha = 0.25;
+    let input = MultimodalInput {
+        he_cells: vec![HeCell {
+            cell_id: "he-rotated".into(),
+            x_um: 1.0,
+            y_um: 2.0,
+            cell_type: Some("tumor".into()),
+            cell_type_probability: Some(1.0),
+        }],
+        ihc_cells: vec![IhcCell {
+            cell_id: "ihc-target".into(),
+            x_um: 8.0,
+            y_um: -3.0,
+            mmr_mark: Some(1),
+            mmr_probability: Some(1.0),
+        }],
+        landmarks: vec![
+            LandmarkPair::new(0.0, 0.0, 10.0, -4.0),
+            LandmarkPair::new(2.0, 0.0, 10.0, -2.0),
+            LandmarkPair::new(0.0, 3.0, 7.0, -4.0),
+            LandmarkPair::new(2.0, 3.0, 7.0, -2.0),
+        ],
+        case_id: "case-rigid".into(),
+        timepoint: "post".into(),
+        protein: "MSH6".into(),
+    };
+
+    let result = MultimodalEngine::new(config)
+        .expect("engine")
+        .analyze(&input)
+        .expect("rigid analysis");
+    let registration = result.registration.value().expect("registration");
+
+    assert_eq!(registration.transform_type, "rigid");
+    assert!(registration.rmse_um < 1.0e-9);
+    assert!((result.fused_cells[0].x_um_registered - 8.0).abs() < 1.0e-9);
+    assert!((result.fused_cells[0].y_um_registered - -3.0).abs() < 1.0e-9);
 }
 
 #[test]
