@@ -4,6 +4,7 @@ use crate::{
     data::{validate::validation_flags, PatternMeta},
     geom::mask::TumorMask,
     io::csv::load_pattern_csv_with_diagnostics,
+    multimodal::{multimodal_analysis_call_count, reset_multimodal_analysis_call_count},
     validation::run_synthetic_validation,
     AnalysisConfig, AnalysisEngine, Pattern, StatusFlag,
 };
@@ -262,6 +263,20 @@ mod multimodal {
             Some(true)
         );
     }
+}
+
+#[test]
+#[ignore = "Phase 0 reproduction: COR-01 production-pipeline validation is fixed in Phase 9"]
+fn remediation_multimodal_validation_calls_the_public_engine() {
+    reset_multimodal_analysis_call_count();
+
+    crate::validation::run_multimodal_synthetic_validation(1, 123).expect("multimodal validation");
+
+    assert!(
+        multimodal_analysis_call_count() >= 6,
+        "each scenario replicate must invoke MultimodalEngine; observed {} calls",
+        multimodal_analysis_call_count()
+    );
 }
 
 #[test]
@@ -566,6 +581,34 @@ fn csv_loader_uses_internal_control_local_as_validity_mask() {
     assert_eq!(pattern.len(), 2);
     assert_eq!(pattern.n_marked(), 1);
     assert_eq!(pattern.window.valid_mask_fraction, 0.5);
+}
+
+#[test]
+#[ignore = "Phase 0 reproduction: COR-07 independent QC counters are fixed in Phase 2"]
+fn remediation_internal_control_fraction_is_not_final_retained_fraction() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let cells = dir.path().join("cells.csv");
+    fs::write(
+        &cells,
+        "x_um,y_um,mark,case_id,timepoint,protein,valid_tumor,valid_ihc,internal_control_local,artifact\n\
+0.0,0.0,1,case_001,post,MSH6,true,true,valid,false\n\
+1.0,0.0,0,case_001,post,MSH6,true,true,valid,false\n\
+2.0,0.0,1,case_001,post,MSH6,true,true,absent,false\n\
+3.0,0.0,0,case_001,post,MSH6,true,true,valid,true\n",
+    )
+    .expect("write cells");
+    let mask = TumorMask::from_geojson_str(
+        r#"{"type":"MultiPolygon","coordinates":[[[[-1,-1],[4,-1],[4,1],[-1,1],[-1,-1]]]]}"#,
+    )
+    .expect("mask");
+
+    let pattern = load_pattern_csv_with_diagnostics(&cells, &mask)
+        .expect("load pattern")
+        .pattern;
+
+    assert_eq!(pattern.len(), 2);
+    assert!((pattern.window.valid_mask_fraction - 0.5).abs() < 1.0e-12);
+    assert_eq!(pattern.internal_control_valid_fraction, Some(0.75));
 }
 
 #[test]

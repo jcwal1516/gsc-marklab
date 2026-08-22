@@ -98,6 +98,25 @@ fn similarity_rejects_degenerate_source_geometry() {
 }
 
 #[test]
+#[ignore = "Phase 0 reproduction: COR-02 is fixed in Phase 2"]
+fn remediation_rigid_registration_recovers_known_rotation() {
+    let landmarks = vec![
+        LandmarkPair::new(0.0, 0.0, 10.0, -4.0),
+        LandmarkPair::new(2.0, 0.0, 10.0, -2.0),
+        LandmarkPair::new(0.0, 3.0, 7.0, -4.0),
+        LandmarkPair::new(2.0, 3.0, 7.0, -2.0),
+    ];
+
+    let transform = fit_similarity(&landmarks).expect("configured rigid fit");
+    let (x, y) = transform.apply(1.0, 2.0);
+
+    assert!((x - 8.0).abs() < 1.0e-9, "x={x}, transform={transform:?}");
+    assert!((y - -3.0).abs() < 1.0e-9, "y={y}, transform={transform:?}");
+    assert!((transform.m00.hypot(transform.m10) - 1.0).abs() < 1.0e-9);
+    assert!((transform.m01.hypot(transform.m11) - 1.0).abs() < 1.0e-9);
+}
+
+#[test]
 fn registration_qc_rejects_empty_landmarks() {
     let transform = Transform2D::identity("identity");
 

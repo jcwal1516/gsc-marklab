@@ -402,6 +402,65 @@ fn engine_flags_confounding_when_cluster_is_explained_by_qc_strata() {
 }
 
 #[test]
+#[ignore = "Phase 0 reproduction: COR-03 distinct null sensitivity is fixed in Phase 2"]
+fn remediation_confounding_compares_unstratified_and_stratified_results() {
+    let mut pattern = Pattern::from_arrays(
+        (0..40).map(|index| index as f64).collect(),
+        vec![0.0; 40],
+        (0..40).map(|index| u8::from(index < 8)).collect(),
+        meta(),
+    )
+    .expect("pattern");
+    pattern.window.l_eff_um = 40.0;
+    pattern.window.d_nn_mean_um = 1.0;
+    pattern.window.area_um2 = 40.0;
+    pattern.qc_bin = Some(
+        (0..40)
+            .map(|index| if index < 9 { 10_u16 } else { 20_u16 })
+            .collect::<Vec<_>>()
+            .into_boxed_slice(),
+    );
+
+    let mut unstratified_config = permissive_config();
+    unstratified_config.permutation.b = 199;
+    unstratified_config.inference.family_wise_alpha = 0.10;
+    let unstratified = AnalysisEngine::new(unstratified_config)
+        .expect("unstratified engine")
+        .analyze_pattern(&pattern)
+        .expect("unstratified analysis");
+
+    let mut stratified_config = permissive_config();
+    stratified_config.permutation.b = 199;
+    stratified_config.inference.family_wise_alpha = 0.10;
+    stratified_config.permutation.stratified = true;
+    stratified_config.permutation.strata_fields = vec![PermutationStratum::QcBin];
+    let stratified = AnalysisEngine::new(stratified_config)
+        .expect("stratified engine")
+        .analyze_pattern(&pattern)
+        .expect("stratified analysis");
+
+    let unstratified_p = unstratified
+        .spectrum
+        .value()
+        .and_then(|summary| summary.low_k_excess_p_value)
+        .expect("unstratified p-value");
+    let stratified_p = stratified
+        .spectrum
+        .value()
+        .and_then(|summary| summary.low_k_excess_p_value)
+        .expect("stratified p-value");
+    assert!(unstratified_p < 0.10, "unstratified p={unstratified_p}");
+    assert!(stratified_p >= 0.10, "stratified p={stratified_p}");
+    assert!(
+        stratified
+            .status_flags
+            .contains(&StatusFlag::ConfoundedBySpatialStrata),
+        "distinct nulls imply confounding, but flags were {:?}",
+        stratified.status_flags
+    );
+}
+
+#[test]
 fn engine_can_stratify_by_component_id_when_qc_bin_is_absent() {
     let mut config = permissive_config();
     config.inference.family_wise_alpha = 0.10;
@@ -521,6 +580,61 @@ fn engine_reports_separate_component_summaries_when_component_mode_is_both() {
         .analyze_pattern(&pattern)
         .expect("pooled analysis");
     assert!(pooled.component_results.value().is_some_and(Vec::is_empty));
+}
+
+#[test]
+#[ignore = "Phase 0 reproduction: MODEL-04 component modes are fixed in Phase 2"]
+fn remediation_separate_component_mode_does_not_behave_like_both() {
+    let mut config = permissive_config();
+    config.analysis.analyze_components = ComponentMode::Separate;
+    config.validation.n_min = 6;
+    config.validation.n_marked_min = 1;
+    config.validation.n_unmarked_min = 1;
+    config.validation.k_shell_min = 1;
+    config.spectrum.k_shells = 8;
+    config.permutation.b = 19;
+    config.inference.family_wise_alpha = 0.25;
+    let mut pattern = Pattern::from_arrays(
+        (0..24)
+            .map(|index| {
+                if index < 12 {
+                    index as f64
+                } else {
+                    100.0 + index as f64
+                }
+            })
+            .collect(),
+        vec![0.0; 24],
+        (0..24)
+            .map(|index| u8::from(index < 4 || (12..16).contains(&index)))
+            .collect(),
+        meta(),
+    )
+    .expect("pattern");
+    pattern.window.l_eff_um = 124.0;
+    pattern.window.d_nn_mean_um = 1.0;
+    pattern.window.area_um2 = 124.0;
+    pattern.component_id = Some(
+        (0..24)
+            .map(|index| if index < 12 { 10_u32 } else { 20_u32 })
+            .collect::<Vec<_>>()
+            .into_boxed_slice(),
+    );
+
+    let result = AnalysisEngine::new(config)
+        .expect("engine")
+        .analyze_pattern(&pattern)
+        .expect("analysis");
+
+    assert!(result
+        .component_results
+        .value()
+        .is_some_and(|components| components.len() == 2));
+    assert!(
+        matches!(result.spectrum, marklab::AnalysisSection::NotApplicable),
+        "Separate must not expose the pooled spectrum as the active analysis: {:?}",
+        result.spectrum
+    );
 }
 
 #[test]

@@ -437,3 +437,44 @@ fn prepost_curve_tests_surface_unaligned_axis_diagnostics() {
         assert!(diagnostic.interpretation.contains("axis"));
     }
 }
+
+#[test]
+#[ignore = "Phase 0 reproduction: COR-06 canonical axis comparison is fixed in Phase 2"]
+fn remediation_prepost_axes_accept_harmless_float_reconstruction() {
+    let mut pre = minimal_analysis_result("case1", "pre");
+    let mut post = minimal_analysis_result("case1", "post");
+    pre.spectrum_curve = vec![SpectrumPoint {
+        k: 0.1 + 0.2,
+        observed_power: 1.0,
+        median_permutation_power: 1.0,
+        whitened_power: 1.0,
+        inference_eligible: true,
+        lower_global_envelope: Some(0.8),
+        upper_global_envelope: Some(1.2),
+    }];
+    post.spectrum_curve = vec![SpectrumPoint {
+        k: 0.3,
+        observed_power: 1.0,
+        median_permutation_power: 1.0,
+        whitened_power: 1.01,
+        inference_eligible: true,
+        lower_global_envelope: Some(0.8),
+        upper_global_envelope: Some(1.2),
+    }];
+
+    let delta = compare_prepost(&pre, &post);
+    let spectrum_tests = delta
+        .curve_tests
+        .iter()
+        .filter(|test| test.comparison_name == "spectrum")
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        spectrum_tests.len(),
+        2,
+        "equivalent reconstructed axes should run difference and equivalence diagnostics: {spectrum_tests:?}"
+    );
+    assert!(spectrum_tests
+        .iter()
+        .all(|test| !test.interpretation.contains("axis")));
+}

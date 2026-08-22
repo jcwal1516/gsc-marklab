@@ -166,6 +166,40 @@ fn output_writer_emits_result_manifest_qc_and_timings_json() {
     }
 }
 
+#[test]
+#[ignore = "Phase 0 reproduction: OUT-01 unified telemetry is fixed in Phase 5"]
+fn remediation_result_and_timings_sidecar_use_the_same_telemetry() {
+    let mut config = AnalysisConfig::default();
+    config.validation.n_min = 4;
+    config.validation.n_marked_min = 1;
+    config.validation.n_unmarked_min = 1;
+    config.validation.area_min_um2 = 1.0;
+    config.validation.k_shell_min = 1;
+    config.permutation.b = 39;
+    let result = AnalysisEngine::new(config.clone())
+        .expect("engine")
+        .analyze_pattern(&pattern("case_001", "post", vec![1, 0, 1, 0]))
+        .expect("analysis");
+    let dir = tempfile::tempdir().expect("temp dir");
+
+    OutputWriter::write(&ResultDocument::marked(result), dir.path(), &config.output)
+        .expect("write outputs");
+
+    let result_document: Value = serde_json::from_str(
+        &fs::read_to_string(dir.path().join("result.json")).expect("result document"),
+    )
+    .expect("result JSON");
+    let timing_sidecar: Value = serde_json::from_str(
+        &fs::read_to_string(dir.path().join("timings.json")).expect("timing sidecar"),
+    )
+    .expect("timing JSON");
+
+    assert_eq!(
+        result_document["analysis"]["result"]["timings"], timing_sidecar["stages"],
+        "persisted timing artifacts must derive from one authoritative telemetry history"
+    );
+}
+
 #[cfg(not(feature = "parquet"))]
 #[test]
 fn output_writer_errors_when_parquet_curves_requested_without_parquet_feature() {

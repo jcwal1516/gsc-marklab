@@ -83,6 +83,29 @@ fn edge(source: usize, target: usize) -> SpatialEdge {
     }
 }
 
+fn sparse_positive_enrichment() -> NeighborhoodEnrichmentResult {
+    let cells = vec![
+        cell("a", 0.0, 0.0, "mmr_abnormal"),
+        cell("b", 1.0, 0.0, "mmr_abnormal"),
+        cell("c", 10.0, 0.0, "lymphocyte"),
+        cell("d", 11.0, 0.0, "lymphocyte"),
+    ];
+    let graph = SpatialGraph {
+        n_nodes: cells.len(),
+        edges: vec![edge(0, 1)],
+    };
+    let pair = [LabelPair::new("mmr_abnormal", "mmr_abnormal")];
+
+    (0..1_024)
+        .find_map(|seed| {
+            let row = edge_enrichment(&cells, &graph, &pair, 1, seed)
+                .expect("sparse enrichment")
+                .remove(0);
+            (row.observed_edges > 0 && row.expected_edges == 0.0).then_some(row)
+        })
+        .expect("a deterministic sparse null with zero expected edges")
+}
+
 #[test]
 fn radius_graph_connects_only_cells_within_radius() {
     let cells = vec![
@@ -136,6 +159,32 @@ fn enrichment_detects_observed_label_pair_edges() {
     assert_eq!(rows[0].label_b, "mmr_abnormal");
     assert_eq!(rows[0].observed_edges, 1);
     assert!(rows[0].p_value.is_some());
+}
+
+#[test]
+#[ignore = "Phase 0 reproduction: COR-04 is fixed in Phase 2"]
+fn remediation_sparse_enrichment_statistics_are_finite_or_typed_undefined() {
+    let row = sparse_positive_enrichment();
+
+    assert!(
+        row.enrichment_ratio.is_finite(),
+        "zero expected edges produced a non-finite ratio: {row:?}"
+    );
+    assert!(
+        row.z_score.is_finite() && row.z_score != 0.0,
+        "zero null variance was represented as an observed z-score of zero: {row:?}"
+    );
+}
+
+#[test]
+#[ignore = "Phase 0 reproduction: COR-04 serialization is fixed in Phase 2"]
+fn remediation_sparse_enrichment_roundtrips_through_json() {
+    let row = sparse_positive_enrichment();
+    let json = serde_json::to_string(&row).expect("serialize sparse enrichment");
+    let roundtrip: NeighborhoodEnrichmentResult =
+        serde_json::from_str(&json).expect("deserialize sparse enrichment");
+
+    assert_eq!(roundtrip, row);
 }
 
 #[test]

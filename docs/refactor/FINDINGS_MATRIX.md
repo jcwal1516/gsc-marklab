@@ -4,13 +4,13 @@ Every registered finding remains present until it is fixed, disproved with speci
 
 | ID | Finding | Reproduced | Resolution | Tests | Benchmark | Commit | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| COR-01 | Multimodal validation bypasses the multimodal engine | Yes — `validation/generators.rs` synthesizes outcome booleans and `run_multimodal_generator` only counts them | Pending remediation | Pending regression test | N/A | — | Confirmed |
-| COR-02 | Configured rigid registration is not rigid | Yes — `Rigid` dispatches to `fit_similarity`, which returns diagonal scale plus translation and explicitly omits rotation | Pending remediation | Existing scale-translation tests; rotation regression pending | N/A | — | Confirmed |
-| COR-03 | Stratified confounding comparison recomputes the same result | Yes — configured strata produce the primary spectrum, then `stratified_confounds` reruns the same stratified spectrum | Pending remediation | Pending regression test | Pending reuse benchmark | — | Confirmed |
-| COR-04 | Non-finite enrichment results can break serialization | Yes — zero expected edges with positive observed edges returns `f64::INFINITY`; zero null variance is forced to z-score zero | Pending remediation | Pending sparse-result and round-trip tests | N/A | — | Confirmed |
-| COR-05 | Unavailable or invalid states are represented by numeric zero | Yes — profile/pre-post errors use `statistic: 0.0`; empty pair bins use `value: 0.0` | Pending remediation | Pending availability and empty-bin tests | N/A | — | Confirmed |
-| COR-06 | Exact floating-point axis equality is used in pre/post comparison | Yes — spectrum, pair-correlation, and cross-curve axes use direct `f64 != f64` checks | Pending remediation | Pending harmless-reconstruction test | N/A | — | Confirmed |
-| COR-07 | Internal-control validity semantics may be conflated with overall retained fraction | Yes — both CSV and Parquet assign `internal_control_valid_fraction = valid_mask_fraction`, whose numerator is final retained rows | Pending remediation | Existing tests encode conflation; corrected denominator tests pending | N/A | — | Confirmed |
+| COR-01 | Multimodal validation bypasses the multimodal engine | Yes — `validation/generators.rs` synthesizes outcome booleans and `run_multimodal_generator` only counts them | Pending remediation | Ignored `remediation_multimodal_validation_calls_the_public_engine` fails with zero calls | N/A | — | Confirmed |
+| COR-02 | Configured rigid registration is not rigid | Yes — `Rigid` dispatches to `fit_similarity`, which returns diagonal scale plus translation and explicitly omits rotation | Pending remediation | Ignored known-rotation regression fails | N/A | — | Confirmed |
+| COR-03 | Stratified confounding comparison recomputes the same result | Yes — configured strata produce the primary spectrum, then `stratified_confounds` reruns the same stratified spectrum | Pending remediation | Ignored distinct-null regression fails after proving unstratified significant / stratified nonsignificant | Pending reuse benchmark | — | Confirmed |
+| COR-04 | Non-finite enrichment results can break serialization | Yes — zero expected edges with positive observed edges returns `f64::INFINITY`; zero null variance is forced to z-score zero | Pending remediation | Ignored finite-state and JSON round-trip regressions both fail | N/A | — | Confirmed |
+| COR-05 | Unavailable or invalid states are represented by numeric zero | Yes — profile/pre-post errors use `statistic: 0.0`; empty pair bins use `value: 0.0` | Pending remediation | Ignored empty-bin regression fails; curve-test availability coverage still pending | N/A | — | Confirmed |
+| COR-06 | Exact floating-point axis equality is used in pre/post comparison | Yes — spectrum, pair-correlation, and cross-curve axes use direct `f64 != f64` checks | Pending remediation | Ignored harmless-reconstruction regression fails | N/A | — | Confirmed |
+| COR-07 | Internal-control validity semantics may be conflated with overall retained fraction | Yes — both CSV and Parquet assign `internal_control_valid_fraction = valid_mask_fraction`, whose numerator is final retained rows | Pending remediation | Ignored independent-denominator regression fails; Parquet parity remains pending | N/A | — | Confirmed |
 | SCI-01 | The MODWT implementation is not an MODWT | Pending | Pending investigation | Pending | Pending | — | Open |
 | SCI-02 | The DoG module does not implement a difference of Gaussians | Pending | Pending investigation | Pending | Pending | — | Open |
 | SCI-03 | Wavelet territories are neighborhood residual heuristics | Pending | Pending investigation | Pending | Pending | — | Open |
@@ -52,10 +52,10 @@ Every registered finding remains present until it is fixed, disproved with speci
 | MODEL-01 | TerritoryFeature overloads unrelated algorithms | Pending | Pending investigation | Pending | Pending | — | Open |
 | MODEL-02 | Public fields are present but not implemented | Pending | Pending investigation | Pending | Pending | — | Open |
 | MODEL-03 | String statuses and interpretation classes | Pending | Pending investigation | Pending | Pending | — | Open |
-| MODEL-04 | Component modes are not behaviorally distinct | Pending | Pending investigation | Pending | Pending | — | Open |
-| OUT-01 | Result and timings artifacts describe different timing histories | Pending | Pending investigation | Pending | Pending | — | Open |
+| MODEL-04 | Component modes are not behaviorally distinct | Yes — `Separate` and `Both` share one branch and pooled analysis always runs | Pending remediation | Ignored `Separate`-versus-`Both` regression fails | N/A | — | Confirmed |
+| OUT-01 | Result and timings artifacts describe different timing histories | Yes — writer clones result timings and appends `write_outputs` only to the sidecar | Pending remediation | Ignored result/sidecar equality regression fails | N/A | — | Confirmed |
 | OUT-02 | Pre/post results are unversioned | Pending | Pending investigation | Pending | Pending | — | Open |
 | OUT-03 | Output writing is non-atomic | Pending | Pending investigation | Pending | Pending | — | Open |
-| OUT-04 | Parquet writer fabricates absent fields | Pending | Pending investigation | Pending | Pending | — | Open |
-| OUT-05 | CSV and Parquet schema definitions can drift | Pending | Pending investigation | Pending | Pending | — | Open |
-| OUT-06 | Batch output IDs may escape the output directory | Pending | Pending investigation | Pending | Pending | — | Open |
+| OUT-04 | Parquet writer fabricates absent fields | Yes — writer emits “valid”, true/false flags, and zero component/QC IDs for absent Pattern fields | Pending remediation | Ignored optional-absence round-trip regression fails | N/A | — | Confirmed |
+| OUT-05 | CSV and Parquet schema definitions can drift | Yes — independently defined CSV DTO and Parquet schema; current writer/loader changes logical absence | Pending shared logical schema | Optional-absence regression fails; full parity cases pending | N/A | — | Confirmed |
+| OUT-06 | Batch output IDs may escape the output directory | Yes — both batch paths join unvalidated manifest IDs directly to the output root | Pending remediation | Ignored `../escaped` CLI regression unexpectedly succeeds | N/A | — | Confirmed |

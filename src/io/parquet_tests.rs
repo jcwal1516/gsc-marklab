@@ -98,6 +98,42 @@ fn parquet_roundtrip_preserves_required_cell_fields() {
 }
 
 #[test]
+#[ignore = "Phase 0 reproduction: OUT-04/OUT-05 optional absence is fixed in Phase 5"]
+fn remediation_parquet_roundtrip_preserves_optional_absence() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let path = dir.path().join("cells.parquet");
+    let mask = TumorMask::from_geojson_str(
+        r#"{"type":"MultiPolygon","coordinates":[[[[-1,-1],[4,-1],[4,1],[-1,1],[-1,-1]]]]}"#,
+    )
+    .expect("mask");
+    let pattern = Pattern::from_arrays(
+        vec![0.0, 1.0, 2.0, 3.0],
+        vec![0.0, 0.0, 0.0, 0.0],
+        vec![1, 0, 1, 0],
+        PatternMeta {
+            case_id: "case_001".into(),
+            timepoint: "post".into(),
+            protein: "MSH6".into(),
+            slide_id: None,
+            section_id: None,
+            stain_batch: None,
+            block_id: None,
+            region_id: None,
+        },
+    )
+    .expect("pattern");
+
+    write_pattern_parquet(&pattern, &path).expect("write parquet");
+    let loaded = load_pattern_parquet_with_diagnostics(&path, &mask)
+        .expect("load parquet")
+        .pattern;
+
+    assert!(loaded.internal_control_valid_fraction.is_none());
+    assert!(loaded.qc_bin.is_none());
+    assert!(loaded.component_id.is_none());
+}
+
+#[test]
 fn parquet_writer_rejects_invalid_tumor_probability_metrics() {
     let dir = tempfile::tempdir().expect("temp dir");
     let path = dir.path().join("cells.parquet");

@@ -778,6 +778,65 @@ fn batch_cli_runs_manifest_rows_into_named_output_dirs() {
     assert!(out.join("case_001_post").join("result.json").exists());
 }
 
+#[test]
+#[ignore = "Phase 0 reproduction: OUT-06 batch path validation is fixed in Phase 5"]
+fn remediation_batch_id_cannot_escape_output_root() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let cells = dir.path().join("cells.csv");
+    let mask = dir.path().join("mask.geojson");
+    let config = dir.path().join("config.toml");
+    let manifest = dir.path().join("manifest.csv");
+    let out = dir.path().join("batch");
+    let escaped = dir.path().join("escaped");
+
+    fs::write(
+        &cells,
+        "x_um,y_um,mark,case_id,timepoint,protein,valid_tumor,valid_ihc\n\
+0.0,0.0,1,case_001,post,MSH6,true,true\n\
+1.0,0.0,0,case_001,post,MSH6,true,true\n\
+2.0,0.0,1,case_001,post,MSH6,true,true\n\
+3.0,0.0,0,case_001,post,MSH6,true,true\n",
+    )
+    .expect("write cells");
+    fs::write(
+        &mask,
+        r#"{"type":"MultiPolygon","coordinates":[[[[-1,-1],[4,-1],[4,1],[-1,1],[-1,-1]]]]}"#,
+    )
+    .expect("write mask");
+    write_config(&config);
+    fs::write(
+        &manifest,
+        format!(
+            "id,cells,mask\n../escaped,{},{}\n",
+            cells.display(),
+            mask.display()
+        ),
+    )
+    .expect("manifest");
+
+    Command::cargo_bin("marklab")
+        .expect("bin")
+        .args([
+            "batch",
+            "--manifest",
+            manifest.to_str().expect("manifest path"),
+            "--config",
+            config.to_str().expect("config path"),
+            "--out",
+            out.to_str().expect("output path"),
+            "--threads",
+            "1",
+        ])
+        .assert()
+        .failure();
+
+    assert!(
+        !escaped.exists(),
+        "manifest ID escaped the configured output root: {}",
+        escaped.display()
+    );
+}
+
 #[cfg(feature = "parallel")]
 #[test]
 fn batch_cli_prefers_batch_level_parallelism_for_multiple_rows() {

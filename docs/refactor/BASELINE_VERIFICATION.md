@@ -1,7 +1,7 @@
 # Phase 0 Baseline Verification
 
-Baseline SHA: `a642fbcdd80b5baf784cd633b707dc0283a24d11`  
-Branch: `refactor/audit-remediation`  
+Baseline SHA: `a642fbcdd80b5baf784cd633b707dc0283a24d11`
+Branch: `refactor/audit-remediation`
 Recorded: 2026-08-21
 
 | Command | Exit | Actual result |

@@ -23,6 +23,22 @@ use crate::{
     },
 };
 
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+#[cfg(test)]
+static MULTIMODAL_ANALYSIS_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+#[cfg(test)]
+pub(crate) fn reset_multimodal_analysis_call_count() {
+    MULTIMODAL_ANALYSIS_CALLS.store(0, Ordering::SeqCst);
+}
+
+#[cfg(test)]
+pub(crate) fn multimodal_analysis_call_count() -> usize {
+    MULTIMODAL_ANALYSIS_CALLS.load(Ordering::SeqCst)
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct MultimodalInput {
     pub he_cells: Vec<HeCell>,
@@ -59,6 +75,9 @@ impl MultimodalEngine {
     }
 
     pub fn analyze(&self, input: &MultimodalInput) -> Result<MultimodalResult> {
+        #[cfg(test)]
+        MULTIMODAL_ANALYSIS_CALLS.fetch_add(1, Ordering::SeqCst);
+
         validate_input(input, &self.config)?;
         let transform = match self.config.registration.transform {
             RegistrationTransform::Affine => fit_affine(&input.landmarks)?,
