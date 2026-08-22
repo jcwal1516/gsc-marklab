@@ -5,7 +5,6 @@ use crate::output::{
 };
 
 pub fn render_analysis_report(result: &MarkedPatternResult) -> String {
-    let curve_comparison_framing = curve_comparison_framing(result);
     let diagnostics = render_diagnostics(&result.diagnostics);
     let spectrum_null_sensitivity =
         render_spectrum_null_sensitivity(&result.spectrum_null_sensitivity);
@@ -68,7 +67,6 @@ Spectrum: xi = {xi}; raw k modes = {n_k_modes}; radial shells = {n_shells}; maxi
 Anisotropy: index = {anisotropy}; theta_deg = {theta}; p-value = {anisotropy_p}\n\n\
 Multiscale residual: block-mean variance fraction = {block_mean}; residual-neighborhood territories = {territories}\n\n\
 Interpretation: {interpretation}\n\n\
-{curve_comparison_framing}\
 {diagnostics}\
 Scientific framing: This report quantifies section-level organization of the configured mark field relative to fixed-position random labeling. Domain-specific biological interpretation requires a separate, explicitly scoped policy.\n",
         case_id = result.case_id,
@@ -95,7 +93,6 @@ Scientific framing: This report quantifies section-level organization of the con
         block_mean = block_mean,
         territories = territories,
         interpretation = result.interpretation.text,
-        curve_comparison_framing = curve_comparison_framing,
         diagnostics = diagnostics,
     )
 }
@@ -275,12 +272,4 @@ fn render_diagnostics(section: &AnalysisSection<DiagnosticsResult>) -> String {
         ));
     }
     text
-}
-
-fn curve_comparison_framing(result: &MarkedPatternResult) -> String {
-    if result.prepost_curve_comparisons.is_empty() {
-        return String::new();
-    }
-
-    "Curve comparisons: pooled-bin permutation diagnostics describe difference, while descriptive margin assessments only report whether the chosen curve distance is within a configured margin. A nonsignificant difference diagnostic is not interpreted as sameness.\n\n".into()
 }

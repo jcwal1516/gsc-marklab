@@ -22,16 +22,17 @@ rules until the crate reaches 1.0.
 | `MarkedPatternResult`, `WindowSummary`, `QcSummary`, `PrimaryEndpoint`, `PrimaryEndpointKind`, `SpectrumSummary`, `SpectrumPoint`, `SpectrumNullModel`, `SpectrumNullInferenceSummary`, `SpectrumNullSensitivitySummary`, `SpectrumConfoundingConclusion`, `FunctionalSummary`, `MarkPairCovariancePoint`, `ScaleEnergyPoint`, `ScaleEnergyBand`, `AnisotropySummary`, `MultiscaleResidualSummary`, `ResidualTerritory`, `ComponentModeSelection`, `ResolvedComponentMode`, `ComponentAnalysisSummary` | Consume the marked result family and its implemented endpoint records. | Shape and serialized names are the 0.3 schema contract. | Result, engine-spectrum, QC, component-mode, output, and schema tests. |
 | `MultimodalResult`, `RegistrationSummary`, `FusedCellSummary`, `NeighborhoodEnrichmentResult`, `EnrichmentStatisticUnavailableReason`, `CrossInteractionCurve`, `CrossInteractionPoint`, `NeighborhoodTerritory`, `TerritoryProfile`, `LabelFraction` | Consume the multimodal result family and typed undefined statistics. | Shape and serialized names are the 0.3 schema contract. | Multimodal engine/CLI, sparse enrichment, territory/profile, output, and schema tests. |
 | `PrePostResult`, `TerritoryPrePostSummary`, `CurveComparisonResult`, `CurveComparisonMethod`, `CurveComparisonAvailability` | Consume versioned marked or multimodal comparison documents. | Shape and serialized names are the 0.3 schema contract. | Pre/post round-trip, axis, margin, diagnostic, file/directory, and CLI tests. |
+| `compare_marked_prepost`, `compare_multimodal_prepost`, `compare_multimodal_prepost_with_margin` | Run the production marked or multimodal comparison service without requiring the CLI feature. | Supported high-level comparison entry points; marked and multimodal inputs remain type-distinct. | No-default build, crate-root API contract, pre/post service, axis, margin, and CLI parity tests. |
 | `DiagnosticsResult`, `BetaPosteriorSummary`, `BetaPosteriorGroupSummary`, `GraphSmoothingSummary`, `GraphSmoothingLabelPairSummary` | Consume explicitly enabled exploratory diagnostic output. | Shape and serialized names are the 0.3 schema contract; diagnostics remain non-primary. | Diagnostic interface, schema, report, and multimodal graph tests. |
 | `OutputWriter`, `OutputManifest`, `ArtifactStatus` | Serialize finite documents and atomically write configured artifacts. | Supported output boundary. | Transaction failure, manifest parity, finite validation, and output integration tests. |
 | `MarklabError`, `Result` | Use the crate's contextual error path. | Error variants are supported for programmatic handling; prose may gain context. | Error-path coverage across config, input, analysis, output, and WSI. |
 | `PlaneSelection`, `RegionRequest`, `RgbaRegion`, `SlideOpenOptions`, `SlideReader`, `SlideSampleType`, `SlideMetadata`, `SlideSceneMetadata`, `SlideSeriesMetadata`, `SlideLevelMetadata` | Inspect metadata, preflight a bounded region request without decoding, and extract WSI regions when the `wsi` feature is enabled. | Supported feature-gated adapter API. | Local codec/oracle, bounds, limit, region-request fuzz target, CLI, and external-fixture tests. |
 
 `AnalysisMetadata` is intentionally internal because it is application-owned
-shared state rather than user input or a serialized result. The low-level
-`comparison` module is also internal: callers consume versioned comparison
-results instead of invoking orchestration helpers whose inferential contract
-may evolve.
+shared state rather than user input or a serialized result. Low-level curve
+statistics and axis orchestration remain internal; callers use the three
+supported comparison services and persist their output in versioned comparison
+documents.
 
 ## Availability policy
 

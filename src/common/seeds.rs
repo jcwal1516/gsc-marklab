@@ -13,7 +13,6 @@ pub(crate) enum SeedEndpoint {
     CrossInteraction = 0x6372_6f73_735f_696e,
     NeighborhoodEnrichment = 0x6e65_6967_685f_656e,
     NeighborhoodStratifiedEnrichment = 0x6e65_6967_685f_7374,
-    #[cfg(any(feature = "cli", test))]
     PooledBinDifference = 0x6375_7276_655f_6469,
 }
 

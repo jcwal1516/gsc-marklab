@@ -1,9 +1,9 @@
 use std::fs;
 
 use marklab::{
-    AnalysisConfig, AnalysisEngine, HeCell, IhcCell, LandmarkPair, MultimodalEngine,
-    MultimodalInput, Pattern, PatternLoader, PatternMeta, RegistrationTransform, ResultDocument,
-    StatusFlag, TumorMask,
+    compare_marked_prepost, compare_multimodal_prepost, AnalysisConfig, AnalysisEngine, HeCell,
+    IhcCell, LandmarkPair, MultimodalEngine, MultimodalInput, Pattern, PatternLoader, PatternMeta,
+    RegistrationTransform, ResultDocument, StatusFlag, TumorMask,
 };
 
 #[test]
@@ -33,6 +33,8 @@ fn public_api_exposes_engine_config_pattern_and_flags() {
     assert!(!result
         .status_flags
         .contains(&StatusFlag::SuppressedBiologicInterpretation));
+    let comparison = compare_marked_prepost(&result, &result);
+    assert!(!comparison.interpretation_text.is_empty());
 }
 
 #[test]
@@ -137,12 +139,17 @@ fn marked_result_uses_multiscale_residual_terms_without_obsolete_aliases() {
         "scalogram",
         "scalogram_curve",
         "wavelet_territories",
+        "prepost_curve_comparisons",
     ] {
         assert!(
             result.get(obsolete_name).is_none(),
             "obsolete {obsolete_name}"
         );
     }
+
+    let mut obsolete_placeholder = json.clone();
+    obsolete_placeholder["analysis"]["result"]["prepost_curve_comparisons"] = serde_json::json!([]);
+    assert!(ResultDocument::from_json(&obsolete_placeholder.to_string()).is_err());
 }
 
 #[test]
@@ -187,6 +194,8 @@ fn public_multimodal_engine_returns_a_distinct_multimodal_result() {
     assert_eq!(result.case_id, "case-mm");
     assert_eq!(result.fused_cells.len(), 2);
     assert!(result.neighborhood_territories.value().is_some());
+    let comparison = compare_multimodal_prepost(&result, &result);
+    assert!(!comparison.interpretation_text.is_empty());
     let json = serde_json::to_value(ResultDocument::multimodal(result)).expect("serialize");
     assert!(json["analysis"]["result"].get("spectrum").is_none());
     assert!(json["analysis"]["result"]

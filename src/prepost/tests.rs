@@ -4,7 +4,7 @@ use crate::{
         pooled_bin_difference::pooled_bin_difference_diagnostic,
     },
     prepost::{
-        compare_multimodal_prepost, compare_multimodal_prepost_with_margin, compare_prepost,
+        compare_marked_prepost, compare_multimodal_prepost, compare_multimodal_prepost_with_margin,
     },
     AnalysisSection, AnalysisStatus, AnisotropySummary, ComponentMode, ComponentModeSelection,
     CrossInteractionCurve, CrossInteractionPoint, CurveComparisonAvailability, FunctionalSummary,
@@ -90,7 +90,6 @@ fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResul
             class: InterpretationClass::RandomLike,
             text: "No unsafe biological mechanism claim.".into(),
         },
-        prepost_curve_comparisons: Vec::new(),
     }
 }
 
@@ -293,7 +292,7 @@ fn prepost_result_includes_curve_comparisons_when_curves_exist() {
         .expect("mark-pair covariance")
         .n_permutations = 7;
 
-    let delta = compare_prepost(&pre, &post);
+    let delta = compare_marked_prepost(&pre, &post);
     assert!(!delta.curve_comparisons.is_empty());
     for comparison_name in ["spectrum", "mark_pair_covariance"] {
         let comparison_tests: Vec<_> = delta
@@ -400,7 +399,7 @@ fn prepost_curve_comparisons_surface_absent_curves_as_diagnostics() {
     let pre = minimal_analysis_result("case1", "pre");
     let post = minimal_analysis_result("case1", "post");
 
-    let delta = compare_prepost(&pre, &post);
+    let delta = compare_marked_prepost(&pre, &post);
 
     for comparison_name in ["spectrum", "mark_pair_covariance"] {
         let comparison_tests: Vec<_> = delta
@@ -467,7 +466,7 @@ fn mark_pair_covariance_difference_uses_mark_pair_covariance_permutation_count()
         pair_count: 10,
     }];
 
-    let delta = compare_prepost(&pre, &post);
+    let delta = compare_marked_prepost(&pre, &post);
     let pair_tests: Vec<_> = delta
         .curve_comparisons
         .iter()
@@ -558,7 +557,7 @@ fn prepost_curve_comparisons_surface_unaligned_axis_diagnostics() {
         pair_count: 10,
     }];
 
-    let delta = compare_prepost(&pre, &post);
+    let delta = compare_marked_prepost(&pre, &post);
 
     for comparison_name in ["spectrum", "mark_pair_covariance"] {
         let comparison_tests: Vec<_> = delta
@@ -629,7 +628,7 @@ fn remediation_prepost_axes_accept_harmless_float_reconstruction() {
         covariance: Some(0.11),
         ..pre.mark_pair_covariance_curve[0].clone()
     }];
-    let delta = compare_prepost(&pre, &post);
+    let delta = compare_marked_prepost(&pre, &post);
     for comparison_name in ["spectrum", "mark_pair_covariance"] {
         let comparison_tests = delta
             .curve_comparisons
@@ -715,7 +714,7 @@ fn prepost_axes_reject_material_numeric_differences() {
         ..pre.spectrum_curve[0].clone()
     }];
 
-    let delta = compare_prepost(&pre, &post);
+    let delta = compare_marked_prepost(&pre, &post);
     let spectrum_tests = delta
         .curve_comparisons
         .iter()

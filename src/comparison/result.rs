@@ -8,7 +8,6 @@ const STANDARDIZED_DIFFERENCE_METRIC: &str = "max_abs_standardized_difference";
 /// descriptive margin or from attaching a numeric statistic to unavailable
 /// data. `into_output` is the single result-DTO construction path.
 pub(crate) enum CurveComparisonAnalysis {
-    #[cfg(any(feature = "cli", test))]
     PooledBin {
         comparison_name: String,
         statistic: f64,
@@ -32,7 +31,6 @@ pub(crate) enum CurveComparisonAnalysis {
 }
 
 impl CurveComparisonAnalysis {
-    #[cfg(any(feature = "cli", test))]
     pub(crate) fn pooled_bin(
         comparison_name: &str,
         statistic: f64,
@@ -92,7 +90,6 @@ impl CurveComparisonAnalysis {
             within_margin,
             interpretation,
         ) = match self {
-            #[cfg(any(feature = "cli", test))]
             Self::PooledBin {
                 comparison_name,
                 statistic,

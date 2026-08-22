@@ -29,7 +29,6 @@ mod output;
 mod perf;
 mod periodogram;
 mod permutation;
-#[cfg(feature = "cli")]
 mod prepost;
 mod qc;
 mod registration;
@@ -75,6 +74,9 @@ pub use output::{
     ScaleEnergyPoint, SpectrumConfoundingConclusion, SpectrumNullInferenceSummary,
     SpectrumNullModel, SpectrumNullSensitivitySummary, SpectrumPoint, SpectrumSummary, StatusFlag,
     TerritoryPrePostSummary, TerritoryProfile, TimingStage, WindowSummary, RESULT_FORMAT_VERSION,
+};
+pub use prepost::{
+    compare_marked_prepost, compare_multimodal_prepost, compare_multimodal_prepost_with_margin,
 };
 pub use registration::{
     landmarks::LandmarkPair,

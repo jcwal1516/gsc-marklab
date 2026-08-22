@@ -4,14 +4,14 @@ use super::{
     context::ComparisonContext, curves::append_cross_interaction_curve_comparisons, territories,
 };
 
-pub(crate) fn compare_multimodal_prepost(
+pub fn compare_multimodal_prepost(
     pre: &MultimodalResult,
     post: &MultimodalResult,
 ) -> PrePostResult {
     compare_multimodal_prepost_with_margin(pre, post, None)
 }
 
-pub(crate) fn compare_multimodal_prepost_with_margin(
+pub fn compare_multimodal_prepost_with_margin(
     pre: &MultimodalResult,
     post: &MultimodalResult,
     cross_interaction_margin: Option<f64>,

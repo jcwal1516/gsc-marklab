@@ -175,6 +175,9 @@ fn result_v02_to_v03_conversion() {
     assert!(value["analysis"]["result"]
         .get("pair_correlation")
         .is_none());
+    assert!(value["analysis"]["result"]
+        .get("prepost_curve_comparisons")
+        .is_none());
 }
 
 #[test]

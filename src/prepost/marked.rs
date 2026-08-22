@@ -7,7 +7,7 @@ use super::{
     numeric_delta, territories,
 };
 
-pub(crate) fn compare_prepost(
+pub fn compare_marked_prepost(
     pre: &MarkedPatternResult,
     post: &MarkedPatternResult,
 ) -> PrePostResult {

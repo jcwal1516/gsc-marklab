@@ -247,3 +247,14 @@ fn lexicographic_cmp(left: &[f64], right: &[f64]) -> std::cmp::Ordering {
         })
         .unwrap_or_else(|| left.len().cmp(&right.len()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::average_ranks;
+
+    #[test]
+    fn erl_pointwise_ties() {
+        assert_eq!(average_ranks(&[1.0, 1.0, 3.0, 4.0]), [1.5, 1.5, 3.0, 4.0]);
+        assert_eq!(average_ranks(&[2.0, 2.0, 2.0]), [2.0, 2.0, 2.0]);
+    }
+}

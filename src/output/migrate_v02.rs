@@ -249,7 +249,6 @@ fn remove_legacy_curve_comparisons(result: &mut Map<String, Value>) -> Result<()
             ));
         }
     }
-    result.insert("prepost_curve_comparisons".into(), Value::Array(Vec::new()));
     Ok(())
 }
 

@@ -65,8 +65,10 @@ converter never inserts scientific results or guesses at lost availability.
   `availability` and `method`. `p_difference` becomes
   `pooled_bin_p_value`; the name exposes that its null shuffles pooled,
   already-aggregated bins rather than cells or spatial labels.
-- Marked-result `prepost_curve_tests` and pre/post-result `curve_tests` become
-  `prepost_curve_comparisons` and `curve_comparisons`.
+- Marked-result `prepost_curve_tests` is removed rather than replaced by an
+  always-empty placeholder. Pre/post-result `curve_tests` becomes
+  `curve_comparisons`; comparisons exist only in the versioned
+  `marked_prepost` and `multimodal_prepost` payloads.
 - Pre/post JSON is no longer an unversioned bare `PrePostResult`. It uses the
   normal 0.3 envelope with analysis kind `marked_prepost` or
   `multimodal_prepost`. Consumers must read the payload from

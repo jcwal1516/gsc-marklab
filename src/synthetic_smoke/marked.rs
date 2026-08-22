@@ -5,7 +5,7 @@ use crate::{
     config::ThreadSetting,
     errors::{MarklabError, Result},
     output::{MarkedPatternResult, StatusFlag},
-    prepost::compare_prepost,
+    prepost::compare_marked_prepost,
     AnalysisConfig, AnalysisEngine,
 };
 
@@ -204,7 +204,7 @@ fn run_marked_prepost_metadata_mismatch(
 
             let pre_result = engine.analyze_pattern(&pre)?;
             let post_result = engine.analyze_pattern(&post)?;
-            let comparison = compare_prepost(&pre_result, &post_result);
+            let comparison = compare_marked_prepost(&pre_result, &post_result);
             Ok((post_result, comparison))
         })();
         match outcome {

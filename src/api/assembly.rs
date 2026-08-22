@@ -129,7 +129,6 @@ pub(super) fn assemble(
         } else {
             crate::output::AnalysisSection::Disabled
         },
-        prepost_curve_comparisons: Vec::new(),
         component_mode_selection: component_plan.selection.clone(),
         component_results: component_results_for(config, pattern, &component_plan)?,
         diagnostics,

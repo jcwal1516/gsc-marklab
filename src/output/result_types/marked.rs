@@ -7,7 +7,6 @@ use super::{
         default_true, AnalysisSection, AnalysisStatus, Interpretation, StatusFlag, TimingStage,
     },
     diagnostics::DiagnosticsResult,
-    prepost::CurveComparisonResult,
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -43,8 +42,6 @@ pub struct MarkedPatternResult {
     pub scale_energy_curve: Vec<ScaleEnergyPoint>,
     #[serde(default)]
     pub residual_territories: AnalysisSection<Vec<ResidualTerritory>>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub prepost_curve_comparisons: Vec<CurveComparisonResult>,
     pub component_mode_selection: ComponentModeSelection,
     pub component_results: AnalysisSection<Vec<ComponentAnalysisSummary>>,
     #[serde(default)]

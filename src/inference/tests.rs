@@ -1,5 +1,6 @@
 use crate::{
     common::seeds::splitmix64,
+    inference::multiple_testing::benjamini_hochberg,
     inference::scalar_pvalues::{
         permutation_p_value, permutation_p_value_with_spec, PermutationTestSpec, Tail,
     },
@@ -181,7 +182,7 @@ fn scalar_permutation_p_values_enforce_an_explicit_minimum() {
 }
 
 #[test]
-fn global_envelope_matches_get_1_0_7_erl_oracle() {
+fn erl_matches_checked_oracle() {
     let oracle: GetErlOracle = serde_json::from_str(include_str!(
         "../../tests/fixtures/get_erl_1_0_7_oracle.json"
     ))
@@ -203,6 +204,61 @@ fn global_envelope_matches_get_1_0_7_erl_oracle() {
         epsilon = 1e-12
     );
     assert_abs_diff_eq!(envelope.p_global, oracle.p_global, epsilon = 1e-12);
+}
+
+#[test]
+fn erl_identical_curves() {
+    let observed = [1.0, 2.0, 3.0];
+    let permutations = vec![observed.to_vec(), observed.to_vec(), observed.to_vec()];
+
+    let envelope = GlobalEnvelope::from_curves(&observed, &permutations, 0.25)
+        .expect("identical curves have a defined ERL envelope");
+
+    assert_eq!(envelope.lower, observed);
+    assert_eq!(envelope.upper, observed);
+    assert_abs_diff_eq!(envelope.p_global, 1.0, epsilon = 1e-12);
+    assert_abs_diff_eq!(envelope.erl_depth, 0.625, epsilon = 1e-12);
+}
+
+#[test]
+fn erl_eligibility_mask() {
+    let observed = [1.0e12, 1.0, 4.0];
+    let permutations = vec![
+        vec![-1.0e12, 2.0, 3.0],
+        vec![5.0e11, 3.0, 2.0],
+        vec![0.0, 4.0, 1.0],
+    ];
+    let eligibility = [false, true, true];
+    let masked =
+        GlobalEnvelope::from_curves_with_eligibility(&observed, &permutations, 0.25, &eligibility)
+            .expect("masked envelope");
+    let reduced = GlobalEnvelope::from_curves(
+        &[observed[1], observed[2]],
+        &permutations
+            .iter()
+            .map(|curve| vec![curve[1], curve[2]])
+            .collect::<Vec<_>>(),
+        0.25,
+    )
+    .expect("reduced envelope");
+
+    assert_abs_diff_eq!(masked.p_global, reduced.p_global, epsilon = 1e-12);
+    assert_abs_diff_eq!(masked.erl_depth, reduced.erl_depth, epsilon = 1e-12);
+    assert_abs_diff_eq!(
+        masked.critical_depth,
+        reduced.critical_depth,
+        epsilon = 1e-12
+    );
+}
+
+#[test]
+fn benjamini_hochberg_known_vector() {
+    let adjusted = benjamini_hochberg(&[0.01, 0.04, 0.03, 0.002]).expect("valid p-values");
+
+    assert_eq!(adjusted, vec![0.02, 0.04, 0.04, 0.008]);
+    assert!(benjamini_hochberg(&[0.01, f64::NAN]).is_err());
+    assert!(benjamini_hochberg(&[-0.01, 0.50]).is_err());
+    assert!(benjamini_hochberg(&[0.01, 1.01]).is_err());
 }
 
 #[test]

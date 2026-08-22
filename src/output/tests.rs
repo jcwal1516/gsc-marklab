@@ -1,11 +1,10 @@
 use std::fs;
 
 use crate::{
-    data::PatternMeta, io::report::render_analysis_report, prepost::compare_prepost,
-    AnalysisConfig, AnalysisEngine, AnalysisSection, CurveComparisonAvailability,
-    CurveComparisonResult, OutputWriter, Pattern, ResultDocument, SpectrumConfoundingConclusion,
-    SpectrumNullInferenceSummary, SpectrumNullModel, SpectrumNullSensitivitySummary, SpectrumPoint,
-    StatusFlag,
+    data::PatternMeta, io::report::render_analysis_report, prepost::compare_marked_prepost,
+    AnalysisConfig, AnalysisEngine, AnalysisSection, CurveComparisonAvailability, OutputWriter,
+    Pattern, ResultDocument, SpectrumConfoundingConclusion, SpectrumNullInferenceSummary,
+    SpectrumNullModel, SpectrumNullSensitivitySummary, SpectrumPoint, StatusFlag,
 };
 #[cfg(feature = "parquet")]
 use crate::{
@@ -578,7 +577,7 @@ fn prepost_interpretation_uses_allowed_descriptive_language_only() {
         ..pre.spectrum_curve[0].clone()
     }];
 
-    let delta = compare_prepost(&pre, &post);
+    let delta = compare_marked_prepost(&pre, &post);
     let text = delta.interpretation_text.to_lowercase();
 
     assert!(delta
@@ -600,37 +599,21 @@ fn prepost_interpretation_uses_allowed_descriptive_language_only() {
 }
 
 #[test]
-fn report_distinguishes_difference_diagnostics_from_margin_assessments() {
+fn marked_report_does_not_embed_prepost_comparison_policy() {
     let mut config = AnalysisConfig::default();
     config.validation.n_min = 4;
     config.validation.n_marked_min = 1;
     config.validation.n_unmarked_min = 1;
     config.output.write_parquet_curves = false;
     let engine = AnalysisEngine::new(config).expect("engine");
-    let mut result = engine
+    let result = engine
         .analyze_pattern(&pattern("case_001", "post", vec![1, 0, 1, 0]))
         .expect("analysis");
 
-    result
-        .prepost_curve_comparisons
-        .push(CurveComparisonResult {
-            comparison_name: "spectrum".into(),
-            method: crate::CurveComparisonMethod::PooledBinPermutation,
-            metric: "max_abs_standardized_difference".into(),
-            availability: CurveComparisonAvailability::Available,
-            statistic: Some(0.1),
-            unavailable_reason: None,
-            pooled_bin_p_value: Some(0.6),
-            margin: None,
-            within_margin: None,
-            interpretation: "nonsignificant diagnostic".into(),
-        });
-
     let report = render_analysis_report(&result);
 
-    assert!(report.contains("pooled-bin permutation diagnostics describe difference"));
-    assert!(report.contains("descriptive margin assessments only report whether"));
-    assert!(report.contains("nonsignificant difference diagnostic is not interpreted as sameness"));
+    assert!(!report.contains("pooled-bin permutation"));
+    assert!(!report.contains("descriptive margin assessment"));
 }
 
 #[test]
@@ -796,7 +779,7 @@ fn prepost_flags_nonmatching_case_or_protein_as_not_anatomically_comparable() {
         .analyze_pattern(&pattern("case_002", "post", vec![1, 0, 1, 0]))
         .expect("post");
 
-    let delta = compare_prepost(&pre, &post);
+    let delta = compare_marked_prepost(&pre, &post);
 
     assert!(delta
         .status_flags

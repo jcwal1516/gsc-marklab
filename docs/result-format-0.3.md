@@ -175,6 +175,11 @@ registration, fused-cell, neighborhood-enrichment, cross-interaction,
 territory-profile, or multimodal territory-comparison placeholders. Those
 fields belong only to `MultimodalResult`.
 
+Marked analysis documents also do not contain a pre/post comparison
+placeholder. Curve comparisons are produced only by the versioned
+`marked_prepost` or `multimodal_prepost` result kinds. The obsolete
+`prepost_curve_comparisons` key is rejected as an unknown marked-result field.
+
 Multimodal DBSCAN territories use the `NeighborhoodTerritory` type with
 `center_x_um`, `center_y_um`, `radius_um`, `supporting_abnormal_cells`, and
 `cluster_id`. The former generic `TerritoryFeature` type and its ambiguous
