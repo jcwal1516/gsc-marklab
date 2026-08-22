@@ -3,7 +3,9 @@ use crate::{
         margin_assessment::curve_margin_assessment,
         pooled_bin_difference::pooled_bin_difference_diagnostic,
     },
-    prepost::{compare_multimodal_prepost, compare_prepost},
+    prepost::{
+        compare_multimodal_prepost, compare_multimodal_prepost_with_margin, compare_prepost,
+    },
     AnalysisSection, AnisotropySummary, ComponentMode, ComponentModeSelection,
     CrossInteractionCurve, CrossInteractionPoint, CurveComparisonAvailability, FunctionalSummary,
     Interpretation, MarkPairCovariancePoint, MarkedPatternResult, MultimodalResult,
@@ -190,6 +192,38 @@ fn curve_margin_assessment_has_no_equivalence_p_value() {
     assert!(value.get("equivalence_margin").is_none());
     assert!(value.get("p_equivalence").is_none());
     assert!(value.get("equivalent").is_none());
+}
+
+#[test]
+fn multimodal_prepost_applies_prespecified_descriptive_margin() {
+    let mut pre = multimodal_result("pre", Vec::new());
+    let mut post = multimodal_result("post", Vec::new());
+    let curve = CrossInteractionCurve {
+        label_a: "lymphocyte".into(),
+        label_b: "mmr_abnormal".into(),
+        points: vec![CrossInteractionPoint {
+            r_min_um: 0.0,
+            r_max_um: 10.0,
+            value: Some(3.0),
+            inference_eligible: true,
+            lower_global_envelope: Some(0.0),
+            upper_global_envelope: Some(4.0),
+            count: 3,
+        }],
+        p_global: Some(0.25),
+    };
+    pre.cross_interaction_curves = AnalysisSection::available(vec![curve.clone()]);
+    post.cross_interaction_curves = AnalysisSection::available(vec![curve]);
+
+    let comparison = compare_multimodal_prepost_with_margin(&pre, &post, Some(0.15));
+    let margin = comparison
+        .curve_comparisons
+        .iter()
+        .find(|comparison| comparison.method == crate::CurveComparisonMethod::DescriptiveMargin)
+        .expect("descriptive comparison");
+
+    assert_eq!(margin.margin, Some(0.15));
+    assert_eq!(margin.within_margin, Some(true));
 }
 
 #[test]

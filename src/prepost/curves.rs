@@ -16,6 +16,13 @@ use super::axes::cross_interaction_axes_aligned;
 const PREPOST_CURVE_COMPARISON_SEED: u64 = 0x7072_6570_6f73_7400;
 const PREPOST_MULTIMODAL_CURVE_PERMUTATIONS: usize = 99;
 
+#[derive(Clone, Copy)]
+pub(super) struct CurveComparisonPlan {
+    pub(super) permutations: usize,
+    pub(super) seed: u64,
+    pub(super) descriptive_margin: Option<f64>,
+}
+
 pub(super) fn base_seed() -> u64 {
     PREPOST_CURVE_COMPARISON_SEED
 }
@@ -26,8 +33,7 @@ pub(super) fn append_curve_comparisons(
     pre_values: &[f64],
     post_values: &[f64],
     axis_alignment: Result<(), String>,
-    permutations: usize,
-    seed: u64,
+    plan: CurveComparisonPlan,
 ) {
     if pre_values.is_empty() && post_values.is_empty() {
         tests.push(curve_comparison_error(
@@ -64,8 +70,8 @@ pub(super) fn append_curve_comparisons(
         comparison_name,
         pre_values,
         post_values,
-        permutations,
-        seed,
+        plan.permutations,
+        plan.seed,
     ) {
         Ok(test) => tests.push(test),
         Err(err) => tests.push(curve_comparison_error(
@@ -74,7 +80,12 @@ pub(super) fn append_curve_comparisons(
             format!("curve difference diagnostic could not be computed: {err}"),
         )),
     }
-    match curve_margin_assessment(comparison_name, pre_values, post_values, None) {
+    match curve_margin_assessment(
+        comparison_name,
+        pre_values,
+        post_values,
+        plan.descriptive_margin,
+    ) {
         Ok(test) => tests.push(test),
         Err(err) => tests.push(curve_comparison_error(
             comparison_name,
@@ -88,6 +99,7 @@ pub(super) fn append_cross_interaction_curve_comparisons(
     tests: &mut Vec<CurveComparisonResult>,
     pre_curves: Option<&[CrossInteractionCurve]>,
     post_curves: Option<&[CrossInteractionCurve]>,
+    descriptive_margin: Option<f64>,
 ) {
     let pre_curves = cross_curve_map(pre_curves.unwrap_or(&[]));
     let post_curves = cross_curve_map(post_curves.unwrap_or(&[]));
@@ -106,8 +118,11 @@ pub(super) fn append_cross_interaction_curve_comparisons(
                 &cross_interaction_values(pre_curve),
                 &cross_interaction_values(post_curve),
                 cross_interaction_axes_aligned(pre_curve, post_curve),
-                PREPOST_MULTIMODAL_CURVE_PERMUTATIONS,
-                PREPOST_CURVE_COMPARISON_SEED ^ cross_curve_seed(&key),
+                CurveComparisonPlan {
+                    permutations: PREPOST_MULTIMODAL_CURVE_PERMUTATIONS,
+                    seed: PREPOST_CURVE_COMPARISON_SEED ^ cross_curve_seed(&key),
+                    descriptive_margin,
+                },
             ),
             _ => tests.push(curve_comparison_error(
                 &comparison_name,

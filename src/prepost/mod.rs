@@ -6,7 +6,7 @@ mod multimodal;
 mod territories;
 
 pub(crate) use marked::compare_prepost;
-pub(crate) use multimodal::compare_multimodal_prepost;
+pub(crate) use multimodal::{compare_multimodal_prepost, compare_multimodal_prepost_with_margin};
 
 use crate::output::AnalysisSection;
 

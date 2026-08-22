@@ -156,78 +156,58 @@ mod multimodal {
     }
 
     #[test]
-    fn smoke_rates_reflect_seeded_replicate_variation() {
-        let seed_123 = crate::synthetic_smoke::run_multimodal_synthetic_smoke(100, 123)
-            .expect("seed 123 smoke check");
-        let seed_124 = crate::synthetic_smoke::run_multimodal_synthetic_smoke(100, 124)
-            .expect("seed 124 smoke check");
+    fn smoke_is_deterministic_and_reports_denominators() {
+        let first = crate::synthetic_smoke::run_multimodal_synthetic_smoke(3, 123)
+            .expect("first smoke check");
+        let repeated = crate::synthetic_smoke::run_multimodal_synthetic_smoke(3, 123)
+            .expect("repeated smoke check");
 
-        let immune_detection = seed_123.results["immune_associated_mmr_territory"]
-            .detection_rate
-            .expect("immune detection rate");
-        assert!(
-            immune_detection > 0.70 && immune_detection < 1.0,
-            "immune-associated detection should pass without being degenerate: {immune_detection}"
-        );
+        assert_eq!(first, repeated);
+        assert_eq!(first.suite_kind, "smoke");
+        assert_eq!(first.seed, 123);
+        assert_eq!(first.engine_version, env!("CARGO_PKG_VERSION"));
+        for result in first.results.values() {
+            assert_eq!(result.replicates_attempted, 3);
+            assert_eq!(result.replicates_completed, 3);
+            assert_eq!(result.replicates_failed, 0);
+            assert!(result.failure_reasons.is_empty());
+            assert!(!result.acceptance_criterion.is_empty());
+        }
 
-        let jitter_below_resolution = seed_123.results["registration_jitter"]
-            .below_registration_resolution_flag_rate
-            .expect("jitter below-resolution rate");
-        assert!(
-            jitter_below_resolution > 0.80 && jitter_below_resolution < 1.0,
-            "registration jitter flag rate should pass without being degenerate: {jitter_below_resolution}"
-        );
-
-        let rate_accessors = [
-            rate_pair("two_unrelated_mmr_territories", |result| {
-                result.false_positive_rate
-            }),
-            rate_pair("two_related_mmr_territories", |result| {
-                result.detection_rate
-            }),
-            rate_pair("immune_associated_mmr_territory", |result| {
-                result.detection_rate
-            }),
-            rate_pair("registration_jitter", |result| {
-                result.below_registration_resolution_flag_rate
-            }),
-            rate_pair("prepost_within_margin_spatial_pattern", |result| {
-                result.within_margin_rate
-            }),
-            rate_pair("prepost_changed_spatial_pattern", |result| {
-                result.detection_rate
-            }),
-        ];
-        let any_rate_changed = rate_accessors.iter().any(|accessor| {
-            let left = (accessor.rate)(&seed_123.results[accessor.generator]).expect("left rate");
-            let right = (accessor.rate)(&seed_124.results[accessor.generator]).expect("right rate");
-            (left - right).abs() > f64::EPSILON
-        });
-        assert!(
-            any_rate_changed,
-            "rates should vary across deterministic seeds"
-        );
-
-        let seed_123_json = serde_json::to_value(&seed_123).expect("summary json");
-        assert!(seed_123_json["immune_associated_mmr_territory"]
+        let first_json = serde_json::to_value(&first).expect("summary json");
+        assert!(first_json["immune_associated_mmr_territory"]
             .get("below_resolution_flag_rate")
             .is_none());
         assert!(
-            seed_123_json["registration_jitter"]["below_registration_resolution_flag_rate"]
+            first_json["registration_jitter"]["below_registration_resolution_flag_rate"]
                 .is_number()
         );
+        assert!(first_json["registration_jitter"]
+            ["below_registration_resolution_confidence_interval"]
+            .is_object());
     }
 
-    struct RateAccessor {
-        generator: &'static str,
-        rate: fn(&crate::synthetic_smoke::MultimodalSyntheticSmokeResult) -> Option<f64>,
-    }
+    #[test]
+    fn failed_replicates_are_reported_and_fail_the_smoke_scenario() {
+        let result = crate::synthetic_smoke::summarize_multimodal_outcomes(
+            "two_unrelated_mmr_territories",
+            2,
+            [
+                Ok(crate::synthetic_smoke::ObservedMultimodalOutcome::default()),
+                Err((
+                    1,
+                    crate::MarklabError::Validation("synthetic execution failure".into()),
+                )),
+            ],
+        )
+        .expect("summarize outcomes");
 
-    fn rate_pair(
-        generator: &'static str,
-        rate: fn(&crate::synthetic_smoke::MultimodalSyntheticSmokeResult) -> Option<f64>,
-    ) -> RateAccessor {
-        RateAccessor { generator, rate }
+        assert_eq!(result.replicates_attempted, 2);
+        assert_eq!(result.replicates_completed, 1);
+        assert_eq!(result.replicates_failed, 1);
+        assert_eq!(result.failure_reasons.len(), 1);
+        assert!(result.failure_reasons[0].contains("replicate 1"));
+        assert!(!result.passed);
     }
 
     #[test]
@@ -253,7 +233,8 @@ mod multimodal {
             &std::fs::read_to_string(out.join("smoke.json")).expect("smoke json"),
         )
         .expect("json");
-        assert_eq!(summary["suite"], "multimodal_synthetic_generator_smoke");
+        assert_eq!(summary["suite"], "multimodal_production_pipeline_smoke");
+        assert_eq!(summary["suite_kind"], "smoke");
         assert_eq!(
             summary["immune_associated_mmr_territory"]["passed"].as_bool(),
             Some(true)
@@ -266,7 +247,6 @@ mod multimodal {
 }
 
 #[test]
-#[ignore = "Phase 0 reproduction: COR-01 production-pipeline validation is fixed in Phase 9"]
 fn remediation_multimodal_validation_calls_the_public_engine() {
     reset_multimodal_analysis_call_count();
 
@@ -274,8 +254,8 @@ fn remediation_multimodal_validation_calls_the_public_engine() {
         .expect("multimodal synthetic generator smoke check");
 
     assert!(
-        multimodal_analysis_call_count() >= 6,
-        "each scenario replicate must invoke MultimodalEngine; observed {} calls",
+        multimodal_analysis_call_count() >= 8,
+        "each scenario input must invoke MultimodalEngine; observed {} calls",
         multimodal_analysis_call_count()
     );
 }

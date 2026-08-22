@@ -3,7 +3,7 @@ use crate::output::{AnalysisSection, CurveComparisonResult, MarkedPatternResult,
 use super::{
     axes::{mark_pair_covariance_axes_aligned, spectrum_axes_aligned},
     context::ComparisonContext,
-    curves::{append_curve_comparisons, base_seed},
+    curves::{append_curve_comparisons, base_seed, CurveComparisonPlan},
     numeric_delta, territories,
 };
 
@@ -83,15 +83,19 @@ fn curve_comparisons(
         &spectrum_values(pre),
         &spectrum_values(post),
         spectrum_axes_aligned(pre, post),
-        pre.spectrum
-            .value()
-            .map_or(0, |value| value.n_permutations)
-            .max(
-                post.spectrum
-                    .value()
-                    .map_or(0, |value| value.n_permutations),
-            ),
-        base_seed(),
+        CurveComparisonPlan {
+            permutations: pre
+                .spectrum
+                .value()
+                .map_or(0, |value| value.n_permutations)
+                .max(
+                    post.spectrum
+                        .value()
+                        .map_or(0, |value| value.n_permutations),
+                ),
+            seed: base_seed(),
+            descriptive_margin: None,
+        },
     );
     append_curve_comparisons(
         &mut tests,
@@ -99,15 +103,19 @@ fn curve_comparisons(
         &mark_pair_covariance_values(pre),
         &mark_pair_covariance_values(post),
         mark_pair_covariance_axes_aligned(pre, post),
-        pre.mark_pair_covariance
-            .value()
-            .map_or(0, |value| value.n_permutations)
-            .max(
-                post.mark_pair_covariance
-                    .value()
-                    .map_or(0, |value| value.n_permutations),
-            ),
-        base_seed() ^ 0x7061_6972,
+        CurveComparisonPlan {
+            permutations: pre
+                .mark_pair_covariance
+                .value()
+                .map_or(0, |value| value.n_permutations)
+                .max(
+                    post.mark_pair_covariance
+                        .value()
+                        .map_or(0, |value| value.n_permutations),
+                ),
+            seed: base_seed() ^ 0x7061_6972,
+            descriptive_margin: None,
+        },
     );
     tests
 }

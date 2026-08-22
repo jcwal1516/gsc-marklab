@@ -1,124 +1,225 @@
 use crate::{
+    config::{NeighborhoodNullModel, RegistrationTransform},
     data::{Pattern, PatternMeta},
     errors::{MarklabError, Result},
+    multimodal::{HeCell, IhcCell, MultimodalInput},
     permutation::labels::permute_fixed_count,
+    registration::landmarks::LandmarkPair,
+    AnalysisConfig,
 };
 
-#[derive(Clone, Copy, Debug, Default)]
-pub(super) struct MultimodalOutcome {
-    pub(super) detected: bool,
-    pub(super) false_positive: bool,
-    pub(super) below_registration_resolution: bool,
-    pub(super) within_margin: bool,
+#[derive(Clone, Debug)]
+pub(super) struct MultimodalScenario {
+    pub(super) config: AnalysisConfig,
+    pub(super) pre: MultimodalInput,
+    pub(super) post: Option<MultimodalInput>,
 }
 
-pub(super) fn multimodal_replicate_outcome(
+pub(super) fn multimodal_replicate_scenario(
     generator: &str,
     seed: u64,
     generator_index: u64,
     replicate: usize,
-) -> Result<MultimodalOutcome> {
+) -> Result<MultimodalScenario> {
     let mut rng = DeterministicRng::new(
         seed ^ (generator_index.wrapping_mul(0x9e37_79b9_7f4a_7c15))
             ^ ((replicate as u64).wrapping_mul(0xbf58_476d_1ce4_e5b9)),
     );
-    let outcome = match generator {
+    let mut config = multimodal_smoke_config(seed);
+    let (pre, post) = match generator {
         "two_unrelated_mmr_territories" => {
-            let centers = [
-                SyntheticPoint { x: 20.0, y: 20.0 },
-                SyntheticPoint { x: 82.0, y: 78.0 },
-            ];
-            let baseline_gap_um = distance(centers[0], centers[1]);
-            let observed_relation_um = baseline_gap_um - 40.0 + rng.centered(12.0);
-            let detected = observed_relation_um < 35.0;
-            MultimodalOutcome {
-                detected,
-                false_positive: detected,
-                below_registration_resolution: false,
-                within_margin: false,
-            }
+            config.neighborhood.label_pairs = vec![["mmr_abnormal".into(), "mmr_abnormal".into()]];
+            (territory_relation_input(false, "pre", &mut rng), None)
         }
         "two_related_mmr_territories" => {
-            let centers = [
-                SyntheticPoint { x: 40.0, y: 48.0 },
-                SyntheticPoint { x: 58.0, y: 51.0 },
-            ];
-            let observed_relation_um = distance(centers[0], centers[1]) + rng.centered(8.0);
-            let bridge_support = 0.70 + rng.centered(0.16);
-            let detected = observed_relation_um < 28.0 && bridge_support > 0.58;
-            MultimodalOutcome {
-                detected,
-                false_positive: false,
-                below_registration_resolution: false,
-                within_margin: false,
-            }
+            config.neighborhood.label_pairs = vec![["mmr_abnormal".into(), "mmr_abnormal".into()]];
+            (territory_relation_input(true, "pre", &mut rng), None)
         }
         "immune_associated_mmr_territory" => {
-            let registration_error_um = 4.0 + rng.unit() * 2.0;
-            let enrichment = 2.45 + rng.centered(0.65);
-            let detected = enrichment > 2.0 && registration_error_um < 10.0;
-            MultimodalOutcome {
-                detected,
-                false_positive: false,
-                below_registration_resolution: false,
-                within_margin: false,
-            }
+            (immune_association_input(true, false, "pre", &mut rng), None)
         }
-        "registration_jitter" => {
-            let registration_error_um = 12.0 + rng.unit() * 6.0;
-            let observed_association_scale_um = 20.0 + rng.centered(8.0);
-            let below_registration_resolution =
-                observed_association_scale_um < 2.0 * registration_error_um;
-            let apparent_association = observed_association_scale_um < 23.0;
-            MultimodalOutcome {
-                detected: apparent_association,
-                false_positive: apparent_association && !below_registration_resolution,
-                below_registration_resolution,
-                within_margin: false,
-            }
-        }
+        "registration_jitter" => (immune_association_input(true, true, "pre", &mut rng), None),
         "prepost_within_margin_spatial_pattern" => {
-            let curve_delta = (0.085 + rng.centered(0.08)).abs();
-            let margin = 0.15;
-            let within_margin = curve_delta <= margin;
-            let changed = curve_delta > 0.25;
-            MultimodalOutcome {
-                detected: changed,
-                false_positive: changed,
-                below_registration_resolution: false,
-                within_margin,
-            }
+            let pre = immune_association_input(true, false, "pre", &mut rng);
+            let mut post = pre.clone();
+            post.timepoint = "post".into();
+            (pre, Some(post))
         }
-        "prepost_changed_spatial_pattern" => {
-            let curve_delta = 0.33 + rng.centered(0.10);
-            let margin = 0.15;
-            let changed = curve_delta > 0.25;
-            MultimodalOutcome {
-                detected: changed,
-                false_positive: false,
-                below_registration_resolution: false,
-                within_margin: curve_delta <= margin,
-            }
-        }
+        "prepost_changed_spatial_pattern" => (
+            immune_association_input(true, false, "pre", &mut rng),
+            Some(immune_association_input(false, false, "post", &mut rng)),
+        ),
         _ => {
             return Err(MarklabError::Validation(format!(
                 "unknown multimodal synthetic generator {generator}"
             )));
         }
     };
-    Ok(outcome)
+    Ok(MultimodalScenario { config, pre, post })
 }
 
-#[derive(Clone, Copy, Debug)]
-struct SyntheticPoint {
-    x: f64,
-    y: f64,
+pub(super) fn multimodal_smoke_config(seed: u64) -> AnalysisConfig {
+    let mut config = AnalysisConfig::default();
+    config.registration.transform = RegistrationTransform::Rigid;
+    config.registration.min_landmarks = 3;
+    config.registration.max_rmse_um = 20.0;
+    config.registration.claim_distance_multiplier = 2.0;
+    config.neighborhood.radius_um = 12.0;
+    config.neighborhood.k_nearest = 0;
+    config.neighborhood.label_pairs = vec![["lymphocyte".into(), "mmr_abnormal".into()]];
+    config.neighborhood.territory_eps_um = 10.0;
+    config.neighborhood.territory_min_cells = 3;
+    config.neighborhood.territory_min_radius_um = 1.0;
+    config.neighborhood.null_models = vec![NeighborhoodNullModel::SourceSection];
+    config.permutation.b = 19;
+    config.permutation.seed = seed;
+    config.permutation.stratified = false;
+    config.spectrum.fit_low_k_alpha = false;
+    config.comparison.margins.cross_interaction = Some(0.15);
+    config
 }
 
-fn distance(a: SyntheticPoint, b: SyntheticPoint) -> f64 {
-    let dx = a.x - b.x;
-    let dy = a.y - b.y;
-    (dx * dx + dy * dy).sqrt()
+fn territory_relation_input(
+    related: bool,
+    timepoint: &str,
+    rng: &mut DeterministicRng,
+) -> MultimodalInput {
+    let first_center = (20.0 + rng.centered(0.25), 20.0 + rng.centered(0.25));
+    let second_center = if related {
+        (28.0 + rng.centered(0.25), 20.0 + rng.centered(0.25))
+    } else {
+        (80.0 + rng.centered(0.25), 80.0 + rng.centered(0.25))
+    };
+    let ihc_cells = territory_cluster("a", first_center)
+        .into_iter()
+        .chain(territory_cluster("b", second_center))
+        .chain(retained_controls())
+        .collect();
+    MultimodalInput {
+        he_cells: background_he_cells(),
+        ihc_cells,
+        landmarks: identity_landmarks(),
+        case_id: "smoke-territory-relation".into(),
+        timepoint: timepoint.into(),
+        protein: "MSH6".into(),
+    }
+}
+
+fn immune_association_input(
+    associated: bool,
+    registration_jitter: bool,
+    timepoint: &str,
+    rng: &mut DeterministicRng,
+) -> MultimodalInput {
+    let abnormal_center = (20.0 + rng.centered(0.25), 20.0 + rng.centered(0.25));
+    let lymphocyte_center = if associated {
+        (20.5 + rng.centered(0.25), 20.5 + rng.centered(0.25))
+    } else {
+        (65.0 + rng.centered(0.25), 65.0 + rng.centered(0.25))
+    };
+    let ihc_cells = territory_cluster("immune", abnormal_center)
+        .into_iter()
+        .chain(retained_controls())
+        .collect();
+    let mut he_cells = cell_cluster("lymph", lymphocyte_center, "lymphocyte");
+    he_cells.extend(cell_cluster("tumor", (65.0, 20.0), "tumor"));
+    MultimodalInput {
+        he_cells,
+        ihc_cells,
+        landmarks: if registration_jitter {
+            jittered_landmarks()
+        } else {
+            identity_landmarks()
+        },
+        case_id: "smoke-immune-association".into(),
+        timepoint: timepoint.into(),
+        protein: "MSH6".into(),
+    }
+}
+
+fn territory_cluster(prefix: &str, center: (f64, f64)) -> Vec<IhcCell> {
+    cluster_offsets()
+        .into_iter()
+        .enumerate()
+        .map(|(index, (dx, dy))| IhcCell {
+            cell_id: format!("{prefix}-abnormal-{index}"),
+            x_um: center.0 + dx,
+            y_um: center.1 + dy,
+            mmr_mark: Some(1),
+            mmr_probability: Some(0.95),
+        })
+        .collect()
+}
+
+fn retained_controls() -> Vec<IhcCell> {
+    [
+        (50.0, 10.0),
+        (60.0, 10.0),
+        (70.0, 10.0),
+        (50.0, 40.0),
+        (60.0, 40.0),
+        (70.0, 40.0),
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(index, (x_um, y_um))| IhcCell {
+        cell_id: format!("retained-{index}"),
+        x_um,
+        y_um,
+        mmr_mark: Some(0),
+        mmr_probability: Some(0.95),
+    })
+    .collect()
+}
+
+fn cell_cluster(prefix: &str, center: (f64, f64), label: &str) -> Vec<HeCell> {
+    cluster_offsets()
+        .into_iter()
+        .enumerate()
+        .map(|(index, (dx, dy))| HeCell {
+            cell_id: format!("{prefix}-{index}"),
+            x_um: center.0 + dx,
+            y_um: center.1 + dy,
+            cell_type: Some(label.into()),
+            cell_type_probability: Some(0.95),
+        })
+        .collect()
+}
+
+fn background_he_cells() -> Vec<HeCell> {
+    cell_cluster("background-a", (45.0, 20.0), "tumor")
+        .into_iter()
+        .chain(cell_cluster("background-b", (65.0, 60.0), "stroma"))
+        .collect()
+}
+
+fn cluster_offsets() -> [(f64, f64); 6] {
+    [
+        (-1.0, 0.0),
+        (0.0, 0.0),
+        (1.0, 0.0),
+        (-1.0, 1.0),
+        (0.0, 1.0),
+        (1.0, 1.0),
+    ]
+}
+
+fn identity_landmarks() -> Vec<LandmarkPair> {
+    vec![
+        LandmarkPair::new(0.0, 0.0, 0.0, 0.0),
+        LandmarkPair::new(100.0, 0.0, 100.0, 0.0),
+        LandmarkPair::new(0.0, 100.0, 0.0, 100.0),
+        LandmarkPair::new(100.0, 100.0, 100.0, 100.0),
+    ]
+}
+
+fn jittered_landmarks() -> Vec<LandmarkPair> {
+    vec![
+        LandmarkPair::new(0.0, 0.0, -4.0, 0.0),
+        LandmarkPair::new(100.0, 0.0, 104.0, 0.0),
+        LandmarkPair::new(0.0, 100.0, 0.0, 104.0),
+        LandmarkPair::new(100.0, 100.0, 100.0, 96.0),
+    ]
 }
 
 #[derive(Clone, Copy, Debug)]

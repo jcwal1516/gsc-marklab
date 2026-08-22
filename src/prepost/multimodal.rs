@@ -8,6 +8,14 @@ pub(crate) fn compare_multimodal_prepost(
     pre: &MultimodalResult,
     post: &MultimodalResult,
 ) -> PrePostResult {
+    compare_multimodal_prepost_with_margin(pre, post, None)
+}
+
+pub(crate) fn compare_multimodal_prepost_with_margin(
+    pre: &MultimodalResult,
+    post: &MultimodalResult,
+    cross_interaction_margin: Option<f64>,
+) -> PrePostResult {
     let context = ComparisonContext::from_metadata(
         &pre.case_id,
         &pre.timepoint,
@@ -28,6 +36,7 @@ pub(crate) fn compare_multimodal_prepost(
         &mut curve_comparisons,
         pre.cross_interaction_curves.value().map(Vec::as_slice),
         post.cross_interaction_curves.value().map(Vec::as_slice),
+        cross_interaction_margin,
     );
     let interpretation_text = context.multimodal_interpretation();
 
