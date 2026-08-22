@@ -111,6 +111,20 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
         root_bins[0].get("name").and_then(toml::Value::as_str),
         Some("marklab")
     );
+    for manifest_path in [
+        "Cargo.toml",
+        "crates/marklab-project/Cargo.toml",
+        "crates/marklab-workflow/Cargo.toml",
+    ] {
+        let manifest = parse_manifest(manifest_path);
+        assert_eq!(
+            table(&manifest, "lib", manifest_path)
+                .get("bench")
+                .and_then(toml::Value::as_bool),
+            Some(false),
+            "{manifest_path} must disable the default library benchmark harness so workspace Criterion flags are not forwarded to it"
+        );
+    }
 
     let workspace_package = workspace
         .get("package")

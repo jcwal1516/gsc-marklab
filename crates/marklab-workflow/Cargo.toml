@@ -6,6 +6,9 @@ rust-version.workspace = true
 license.workspace = true
 description = "Typed local workflow graph and scheduler for Marklab"
 
+[lib]
+bench = false
+
 [dependencies]
 marklab-project = { version = "0.1.0", path = "../marklab-project" }
 thiserror = "2"
