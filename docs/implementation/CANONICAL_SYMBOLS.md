@@ -1,0 +1,41 @@
+# Canonical symbols and ownership
+
+Rows are characterization records at the implementation base. `Active task = none` means read-only during WS-A. A-03 verifies exact callers and tests before WS-B.
+
+| Canonical owner/symbol | Location | Contract | Principal callers | Tests/evidence | Active task |
+|---|---|---|---|---|---|
+| `AnalysisEngine` | `src/api.rs` | Current marked workflow orchestration; no new scientific families | Public library, CLI analyze/batch | `tests/api_contract.rs`, `tests/workflow_contract.rs`, `tests/engine_spectrum.rs` | none |
+| `Config` parse/validate | `src/config.rs`, `src/config/**` | Strict current configuration/default/validation policy | CLI and library workflows | config/unit/integration tests, fuzz config | none |
+| `Pattern` / `PatternMeta` / `TumorWindow` | `src/data/pattern.rs` | Current finite 2-D marked-pattern contract | loaders and analysis engine | data/API/workflow tests | none |
+| `PatternLoader` and row builder | `src/io/**` | Canonical CSV/Parquet-to-pattern conversion | CLI/library ingest | IO parity, fuzz load-cells, pattern-load bench | none |
+| `SpatialIndex2D` | `src/geom/spatial_index.rs` | Exact deterministic 2-D spatial queries | marked/multimodal/neighborhood plans | geom/performance tests | none |
+| scalar permutation p-value policy | `src/inference/scalar_pvalues.rs` | Checked finite permutation inference | spectrum/neighborhood/comparison | inference tests | none |
+| BH multiple testing policy | `src/inference/multiple_testing.rs` | Canonical BH adjustment and invalid-state policy | neighborhood enrichment/results | inference/neighborhood tests | none |
+| deterministic label permutations | `src/permutation/**` | Fixed-position label shuffling, optional strata, stable seed namespaces | marked and multimodal nulls | permutation/ERL tests and bench | none |
+| ERL global envelope | `src/permutation/envelopes.rs` | Checked functional global envelope | spectrum/cross curves | ERL oracle fixture, random-labeling bench | none |
+| structure-factor implementation | `src/spectra/structure_factor/**` | Current Fourier-domain marked endpoint | marked spectrum stage | spectra/engine tests and bench | none |
+| `MarkPairCovariancePlan` | `src/spectra/mark_pair_covariance.rs` | Centered distance-binned mark-pair covariance; not g(r) | marked spatial stage | spectra/tests and performance evidence | none |
+| current periodogram | `src/periodogram/**` | Hann-tapered raster periodogram; not Bartlett/multitaper | spectrum workflow | periodogram tests/bench | none |
+| multiscale residual diagnostic | `src/multiscale_residual/**` | Raster residual energy/territories; not wavelets or domains | marked multiscale stage | unit/integration/bench | none |
+| landmark transform/QC | `src/registration/**` | Rigid/affine 2-D landmark registration with QC | multimodal engine | registration tests | none |
+| multimodal fusion | `src/multimodal/fusion.rs` | Concatenate registered sections in a common frame; no identity matching | multimodal engine | multimodal tests/CLI | none |
+| neighborhood graph | `src/neighborhood/graph.rs` | Current radius/kNN union graph semantics | multimodal enrichment/profiles | neighborhood/performance tests | none |
+| cross-label pair-count curves | `src/neighborhood/cross_curves.rs` | Raw distance-binned cross-label counts; not cross-K/g | multimodal engine | indexed/brute-force and ERL tests | none |
+| territory/profile implementation | `src/neighborhood/territories.rs`, `profiles.rs` | MMR-specific density components and circular profiles | multimodal engine | territory/profile tests | none |
+| pooled-bin diagnostic | `src/comparison/pooled_bin_difference.rs` | Approximate descriptive comparison only | pre/post | comparison/prepost tests | none |
+| descriptive margin assessment | `src/comparison/margin_assessment.rs` | Threshold description; not equivalence/noninferiority | pre/post | comparison/prepost tests | none |
+| `ResultDocument` / result-format 0.3 | `src/output/document.rs`, `src/output/result_types/**` | Strict tagged finite result schema | all workflows/output writer | `tests/result_v03.rs`, output tests, fuzz result | none |
+| output transaction | `src/output/transaction.rs`, `writer.rs` | No partial final output; manifest/artifact consistency | all CLI workflows | output/workflow tests | none |
+| configuration deserializer/validator | `src/config/deserialize.rs`, `validate.rs`, `model.rs` | One strict config 0.2 conversion/default/validation policy | `AnalysisConfig` constructors, CLI | config tests and config fuzz target | none |
+| 0.2-to-0.3 result conversion | `src/output/migrate_v02.rs` | Convert only unambiguous marked states; reject unrecoverable semantics | `ResultDocument::from_json` | `tests/result_v03.rs` | none |
+| result document parser/validator | `src/output/document.rs` | Version gate, strict DTO decode, finite validation, result-file/directory resolver | CLI/prepost/output users | result/output tests and result fuzz target | none |
+| core artifact plan/projection | `src/output/artifact_plan.rs`, `writer.rs` | Required/optional artifacts by result family and output config | `OutputWriter` | output/workflow/CLI tests | none |
+| multimodal artifact projections | `src/output/multimodal_artifacts.rs`, `multimodal_result_artifacts.rs` | Canonical CSV/JSON/Parquet/GeoJSON projections from one retained run/result | multimodal CLI/output writer | multimodal CLI/output tests | none |
+
+## Planned control-plane ownership
+
+| Task | Owner | Writable files | Owned symbols | Concurrent-write exclusion |
+|---|---|---|---|---|
+| A-01/A-03 | `/root` | `AGENTS.md`, `docs/implementation/**` | Documentation registries only | Sole tracked writer during WS-A |
+| A-02 | `a02_baseline` | None | None | Read-only; generated ignored outputs only |
+| SLIDE-INV | `remote_slide_inventory` | None | None | Read-only local/remote inventory |
