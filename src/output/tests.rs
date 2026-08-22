@@ -256,6 +256,132 @@ fn file_and_directory_prepost_inputs_are_consistent() {
     );
 }
 
+#[test]
+fn failed_artifact_write_does_not_commit_final_directory() {
+    let mut config = AnalysisConfig::default();
+    config.validation.n_min = 4;
+    config.validation.n_marked_min = 1;
+    config.validation.n_unmarked_min = 1;
+    config.output.write_parquet_curves = false;
+    config.output.write_geojson_territories = false;
+    config.output.write_figures = false;
+    config.output.write_run_manifest = false;
+    let result = AnalysisEngine::new(config.clone())
+        .expect("engine")
+        .analyze_pattern(&pattern("case_001", "post", vec![1, 0, 1, 0]))
+        .expect("analysis");
+    let parent = tempfile::tempdir().expect("parent");
+    let final_directory = parent.path().join("run");
+
+    let error = OutputWriter::write_transaction(
+        &ResultDocument::marked(result),
+        &final_directory,
+        &config.output,
+        None,
+        |staging| {
+            fs::write(staging.join("partial-artifact.txt"), "partial")?;
+            Err(crate::MarklabError::Compute(
+                "injected artifact failure".into(),
+            ))
+        },
+    )
+    .expect_err("injected artifact failure must abort the transaction");
+
+    assert!(error.to_string().contains("injected artifact failure"));
+    assert!(!final_directory.exists());
+    assert_eq!(
+        fs::read_dir(parent.path()).expect("parent entries").count(),
+        0,
+        "failed transactions must clean temporary siblings"
+    );
+}
+
+#[test]
+fn existing_nonempty_output_directory_is_preserved() {
+    let mut config = AnalysisConfig::default();
+    config.validation.n_min = 4;
+    config.validation.n_marked_min = 1;
+    config.validation.n_unmarked_min = 1;
+    config.output.write_parquet_curves = false;
+    config.output.write_geojson_territories = false;
+    config.output.write_figures = false;
+    config.output.write_run_manifest = false;
+    let result = AnalysisEngine::new(config.clone())
+        .expect("engine")
+        .analyze_pattern(&pattern("case_001", "post", vec![1, 0, 1, 0]))
+        .expect("analysis");
+    let parent = tempfile::tempdir().expect("parent");
+    let final_directory = parent.path().join("run");
+    fs::create_dir(&final_directory).expect("existing directory");
+    let sentinel = final_directory.join("keep.txt");
+    fs::write(&sentinel, "keep").expect("sentinel");
+
+    let error = OutputWriter::write(
+        &ResultDocument::marked(result),
+        &final_directory,
+        &config.output,
+    )
+    .expect_err("non-empty output must not be overwritten");
+
+    assert!(error.to_string().contains("refusing to overwrite"));
+    assert_eq!(
+        fs::read_to_string(sentinel).expect("sentinel preserved"),
+        "keep"
+    );
+    assert!(!final_directory.join("result.json").exists());
+}
+
+#[test]
+fn manifest_matches_written_artifacts() {
+    let mut config = AnalysisConfig::default();
+    config.validation.n_min = 4;
+    config.validation.n_marked_min = 1;
+    config.validation.n_unmarked_min = 1;
+    config.output.write_parquet_curves = false;
+    config.output.write_geojson_territories = false;
+    config.output.write_figures = false;
+    config.output.write_run_manifest = true;
+    let result = AnalysisEngine::new(config.clone())
+        .expect("engine")
+        .analyze_pattern(&pattern("case_001", "post", vec![1, 0, 1, 0]))
+        .expect("analysis");
+    let parent = tempfile::tempdir().expect("parent");
+    let final_directory = parent.path().join("run");
+
+    let manifest = OutputWriter::write(
+        &ResultDocument::marked(result),
+        &final_directory,
+        &config.output,
+    )
+    .expect("transactional output");
+
+    let written_paths = std::iter::once(&manifest.result)
+        .chain(manifest.artifacts.values())
+        .filter_map(|status| match status {
+            crate::ArtifactStatus::Written { path } => Some(path),
+            crate::ArtifactStatus::Disabled
+            | crate::ArtifactStatus::NotApplicable
+            | crate::ArtifactStatus::InsufficientData { .. } => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(!written_paths.is_empty());
+    for path in written_paths {
+        assert!(path.starts_with(&final_directory));
+        assert!(
+            path.is_file(),
+            "missing manifest artifact: {}",
+            path.display()
+        );
+        assert!(!path.to_string_lossy().contains("marklab-tmp"));
+    }
+    assert!(final_directory.join("run_manifest.json").is_file());
+    assert_eq!(
+        fs::read_dir(parent.path()).expect("parent entries").count(),
+        1,
+        "successful commit must leave only the final run directory"
+    );
+}
+
 #[cfg(not(feature = "parquet"))]
 #[test]
 fn output_writer_errors_when_parquet_curves_requested_without_parquet_feature() {

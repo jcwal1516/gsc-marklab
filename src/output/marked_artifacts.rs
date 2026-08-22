@@ -16,17 +16,22 @@ impl OutputWriter {
     }
 
     #[cfg(feature = "cli")]
-    pub(crate) fn write_marked_run_with_manifest_context(
+    pub(crate) fn write_marked_run_with_manifest_context<F>(
         run: MarkedAnalysisRun,
         out: impl AsRef<Path>,
         options: &OutputSection,
         manifest_context: RunManifestContext,
-    ) -> Result<OutputManifest> {
-        Self::write_with_manifest_context(
+        additional_artifacts: F,
+    ) -> Result<OutputManifest>
+    where
+        F: FnOnce(&Path) -> Result<()>,
+    {
+        Self::write_transaction(
             &ResultDocument::marked(run.result),
             out,
             options,
             Some(manifest_context),
+            additional_artifacts,
         )
     }
 }

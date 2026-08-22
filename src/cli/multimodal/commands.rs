@@ -1,11 +1,8 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use crate::{
     output::read_result_document_path_or_dir, prepost::compare_multimodal_prepost, MarklabError,
-    MultimodalResult, Result, ResultDocument,
+    MultimodalResult, OutputWriter, Result, ResultDocument,
 };
 
 use super::super::{
@@ -27,18 +24,16 @@ pub(in crate::cli) fn prepost(pre: PathBuf, post: PathBuf, out: PathBuf) -> Resu
 
     let delta = compare_multimodal_prepost(&pre_result, &post_result);
     let document = ResultDocument::multimodal_prepost(delta);
-    fs::create_dir_all(&out)?;
-    fs::write(out.join("prepost.json"), document.to_json_pretty()?)?;
-    super::analyze::write_pretty_json(
-        &out.join("pre_result_summary.json"),
-        &pre_result.fused_cell_summary,
-    )?;
-    super::analyze::write_pretty_json(
-        &out.join("post_result_summary.json"),
-        &post_result.fused_cell_summary,
-    )?;
-
-    Ok(())
+    OutputWriter::write_comparison_transaction(&document, out, |staging| {
+        super::analyze::write_pretty_json(
+            &staging.join("pre_result_summary.json"),
+            &pre_result.fused_cell_summary,
+        )?;
+        super::analyze::write_pretty_json(
+            &staging.join("post_result_summary.json"),
+            &post_result.fused_cell_summary,
+        )
+    })
 }
 
 pub(in crate::cli) fn batch(manifest: PathBuf, out: PathBuf) -> Result<()> {

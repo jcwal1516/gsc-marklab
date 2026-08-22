@@ -106,10 +106,18 @@ pub(super) fn run(request: AnalyzeRequest) -> Result<()> {
                 .map(|path| path.to_string_lossy().into_owned()),
         },
     };
-    OutputWriter::write_marked_run_with_manifest_context(run, &out, &output, manifest_context)?;
-    if save_intermediates {
-        write_analysis_intermediates(&out, &pattern, &intermediate_config)?;
-    }
+    OutputWriter::write_marked_run_with_manifest_context(
+        run,
+        &out,
+        &output,
+        manifest_context,
+        |staging| {
+            if save_intermediates {
+                write_analysis_intermediates(staging, &pattern, &intermediate_config)?;
+            }
+            Ok(())
+        },
+    )?;
     if let Some(timings) = observability_timings.as_deref() {
         write_observability_outputs(&observability, timings)?;
     }

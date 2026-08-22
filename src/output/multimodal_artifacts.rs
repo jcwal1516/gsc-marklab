@@ -30,23 +30,22 @@ impl OutputWriter {
             extrapolation,
         } = run;
         let document = ResultDocument::multimodal(result);
-        let manifest = Self::write(&document, &out, options)?;
-        let AnalysisResult::Multimodal(result) = &document.analysis else {
-            unreachable!("multimodal constructor returned a non-multimodal document");
-        };
-
-        write_registration_qc_sidecars(
-            out.as_ref(),
-            &transform,
-            &registration_residuals,
-            &extrapolation,
-        )?;
-        write_pretty_json(
-            &out.as_ref().join("null_model_sensitivity.json"),
-            &null_model_sensitivity,
-        )?;
-        write_multimodal_csv_sidecars(out.as_ref(), result, &null_model_sensitivity)?;
-        Ok(manifest)
+        Self::write_transaction(&document, out, options, None, |staging| {
+            let AnalysisResult::Multimodal(result) = &document.analysis else {
+                unreachable!("multimodal constructor returned a non-multimodal document");
+            };
+            write_registration_qc_sidecars(
+                staging,
+                &transform,
+                &registration_residuals,
+                &extrapolation,
+            )?;
+            write_pretty_json(
+                &staging.join("null_model_sensitivity.json"),
+                &null_model_sensitivity,
+            )?;
+            write_multimodal_csv_sidecars(staging, result, &null_model_sensitivity)
+        })
     }
 }
 
