@@ -295,3 +295,26 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Failure/cleanup: The transaction owns its exact staging path and removes it on every error/drop before commit. Marked intermediates, multimodal residual/null/CSV sidecars, and marked/multimodal pre/post outputs all execute inside the transaction. Returned `OutputManifest` paths are rebased from staging to the committed final directory and checked against real files.
 - Evidence: Commit `e9e87b0`; deterministic injected failure leaves no final/staging directory, non-empty sentinel preservation passes, manifest paths exist and contain no temp prefix, direct empty-directory compatibility passes, all 14 output tests, 16 marked CLI tests, 21 multimodal CLI tests, formatting, warnings-denied Clippy, no-default-features, and full Nextest 327/327 with 12 expected skips pass.
 - Status: Accepted; OUT-03 and Phase 5 §§12.7–12.8 closed.
+
+## 2026-08-22 — COR-03 null sensitivity is a persisted inference contract
+
+- Context: The corrected spectrum stage executed distinct unstratified and stratified nulls but discarded the unstratified inference after deriving status flags. Consumers could not audit the confounding conclusion from the persisted result.
+- Decision: Add a compact format-0.3 `SpectrumNullSensitivitySummary` rather than duplicate complete spectrum curves. It records typed primary-null identity, `family_wise_alpha`, typed availability for each null's `p_global` and low-k p-value, and a typed confounding conclusion. A non-stratified run is NotApplicable; mark-homogeneous strata preserve the unstratified inference and make only the stratified member InsufficientData.
+- Evidence: Commit `2a7fa2b`; the pre-existing distinct-execution regression now asserts both exact persisted p-values and a full result-document round trip. Degenerate-strata and report-projection tests pass. Formatting, warnings-denied Clippy, no-default-features, output tests, and full Nextest 328/328 passed.
+- Status: Accepted; COR-03 closed.
+
+## 2026-08-22 — Format 0.3 marked and multimodal schemas are disjoint
+
+- Context: `MarkedPatternResult` still serialized multimodal-only NotApplicable placeholders. The multimodal territory DTO retained duplicate/derived `z_or_power` and `scale_um`, misleading optional component identity, unimplemented QC overlap, and territory profiles always emitted two empty future-analysis vectors.
+- Decision: Remove every multimodal field from the marked payload and stop marked pre/post from invoking cross-interaction comparison. Replace `TerritoryFeature` with `NeighborhoodTerritory { center, radius, supporting_abnormal_cells, cluster_id }`; retain `ResidualTerritory` as the distinct marked type. Remove both unimplemented QC-overlap fields and the never-produced profile enrichment/cross-curve fields without compatibility aliases.
+- Consequences: This is an intentional format-0.3 contract correction documented in the migration guide. Multimodal cross-curve axis/comparison coverage now invokes the multimodal pre/post service. Full result-module decomposition remains ARCH-08/Phase 10, and real multimodal telemetry remains MODEL-02/Phase 8.
+- Evidence: Commit `51564c8`; serialized marked-field absence, multimodal CLI shape, DBSCAN, profiles, GeoJSON, marked/multimodal pre/post, and output tests pass. Formatting, warnings-denied Clippy, no-default-features, doc tests, and full Nextest 329/329 with 12 expected skips pass.
+- Status: Accepted; MODEL-01 fixed and the Phase 5 §12.5 schema boundary closed.
+
+## 2026-08-22 — Phase 5 closed and Phase 6 opened
+
+- Closure: CSV and Parquet decode into one logical row and one `PatternBuilder`; filtered Parquet export semantics are explicit; format 0.3 and both pre/post families are versioned; dual spectrum-null sensitivity is persisted; marked/multimodal schemas are disjoint; output commits transactionally; telemetry and manifests have one in-memory construction path; and batch IDs cannot escape their root.
+- Verification: `cargo +1.96.0 fmt --all --check`, warnings-denied all-target/all-feature Clippy, `cargo +1.96.0 check --locked --no-default-features`, `cargo +1.96.0 test --locked --doc --all-features`, and `cargo +1.96.0 nextest run --locked --all-features` all exit 0. Nextest ran 329/329 tests with 12 expected skips; WSI integration cases were included.
+- Remaining scope: The optional 0.2 converter was not implemented; the required migration document is the supported path and readers reject 0.2. Multimodal telemetry remains explicitly open for Phase 8. These do not invalidate the Phase 5 exit criteria.
+- Phase 6 entry: Begin with PERF-01 backend evidence and brute-force differential contracts. Do not add a dependency or replace consumers until deterministic radius/kNN/duplicate behavior and dependency policy are documented.
+- Status: Accepted; Phase 5 closed and Phase 6 active.
