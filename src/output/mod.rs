@@ -20,12 +20,13 @@ pub(crate) use document::read_result_document_path_or_dir;
 #[cfg(feature = "cli")]
 pub(crate) use manifest::{RunManifestContext, RunManifestExecution, RunManifestInputs};
 pub use result_types::{
-    AnalysisResult, AnalysisSection, AnisotropySummary, ArtifactStatus, BetaPosteriorGroupSummary,
-    BetaPosteriorSummary, ComponentAnalysisSummary, ComponentModeSelection, CrossInteractionCurve,
-    CrossInteractionPoint, CurveComparisonAvailability, CurveComparisonMethod,
-    CurveComparisonResult, DiagnosticsResult, EnrichmentStatisticUnavailableReason,
-    FunctionalSummary, FusedCellSummary, GraphSmoothingLabelPairSummary, GraphSmoothingSummary,
-    Interpretation, LabelFraction, MarkPairCovariancePoint, MarkedPatternResult, MultimodalResult,
+    AnalysisResult, AnalysisSection, AnalysisStatus, AnisotropySummary, ArtifactStatus,
+    BetaPosteriorGroupSummary, BetaPosteriorSummary, ComponentAnalysisSummary,
+    ComponentModeSelection, CrossInteractionCurve, CrossInteractionPoint,
+    CurveComparisonAvailability, CurveComparisonMethod, CurveComparisonResult, DiagnosticsResult,
+    EnrichmentStatisticUnavailableReason, FunctionalSummary, FusedCellSummary,
+    GraphSmoothingLabelPairSummary, GraphSmoothingSummary, Interpretation, InterpretationClass,
+    LabelFraction, MarkPairCovariancePoint, MarkedPatternResult, MultimodalResult,
     MultiscaleResidualSummary, NeighborhoodEnrichmentResult, NeighborhoodTerritory, OutputManifest,
     PrePostResult, PrimaryEndpoint, Provenance, QcSummary, RegistrationSummary, ResidualTerritory,
     ResolvedComponentMode, ResultDocument, ScaleEnergyPoint, SpectrumConfoundingConclusion,

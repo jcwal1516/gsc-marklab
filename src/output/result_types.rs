@@ -5,6 +5,41 @@ use crate::{config::ComponentMode, multimodal::cells::FusedCell};
 
 pub const RESULT_FORMAT_VERSION: &str = "0.3";
 
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AnalysisStatus {
+    Ok,
+    Suppressed,
+}
+
+impl AnalysisStatus {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Ok => "ok",
+            Self::Suppressed => "suppressed",
+        }
+    }
+}
+
+impl std::fmt::Display for AnalysisStatus {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum InterpretationClass {
+    MultimodalSummary,
+    SeparateComponents,
+    SuppressedQcArtifact,
+    Suppressed,
+    InsufficientData,
+    CoarseExcess,
+    LowFrequencySuppression,
+    RandomLike,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ResultDocument {
@@ -38,7 +73,7 @@ pub struct MultimodalResult {
     pub case_id: String,
     pub timepoint: String,
     pub protein: String,
-    pub status: String,
+    pub status: AnalysisStatus,
     pub registration: AnalysisSection<RegistrationSummary>,
     pub fused_cell_summary: AnalysisSection<FusedCellSummary>,
     #[serde(default, skip_serializing, skip_deserializing)]
@@ -109,7 +144,7 @@ pub struct MarkedPatternResult {
     pub timepoint: String,
     pub protein: String,
     pub mark_label: String,
-    pub status: String,
+    pub status: AnalysisStatus,
     pub status_flags: Vec<StatusFlag>,
     pub n_cells: usize,
     pub n_marked: usize,
@@ -341,7 +376,6 @@ pub struct RegistrationSummary {
     pub p95_residual_um: f64,
     pub max_residual_um: f64,
     pub usable_min_distance_um: f64,
-    pub status: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
@@ -577,7 +611,7 @@ pub struct MultiscaleResidualSummary {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Interpretation {
-    pub class: String,
+    pub class: InterpretationClass,
     pub text: String,
 }
 

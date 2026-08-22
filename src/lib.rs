@@ -62,12 +62,13 @@ pub use multimodal::{
 };
 pub use neighborhood::graph::{SpatialEdge, SpatialGraph};
 pub use output::{
-    AnalysisResult, AnalysisSection, AnisotropySummary, ArtifactStatus, BetaPosteriorGroupSummary,
-    BetaPosteriorSummary, ComponentAnalysisSummary, ComponentModeSelection, CrossInteractionCurve,
-    CrossInteractionPoint, CurveComparisonAvailability, CurveComparisonMethod,
-    CurveComparisonResult, DiagnosticsResult, EnrichmentStatisticUnavailableReason,
-    FunctionalSummary, FusedCellSummary, GraphSmoothingLabelPairSummary, GraphSmoothingSummary,
-    Interpretation, LabelFraction, MarkPairCovariancePoint, MarkedPatternResult, MultimodalResult,
+    AnalysisResult, AnalysisSection, AnalysisStatus, AnisotropySummary, ArtifactStatus,
+    BetaPosteriorGroupSummary, BetaPosteriorSummary, ComponentAnalysisSummary,
+    ComponentModeSelection, CrossInteractionCurve, CrossInteractionPoint,
+    CurveComparisonAvailability, CurveComparisonMethod, CurveComparisonResult, DiagnosticsResult,
+    EnrichmentStatisticUnavailableReason, FunctionalSummary, FusedCellSummary,
+    GraphSmoothingLabelPairSummary, GraphSmoothingSummary, Interpretation, InterpretationClass,
+    LabelFraction, MarkPairCovariancePoint, MarkedPatternResult, MultimodalResult,
     MultiscaleResidualSummary, NeighborhoodEnrichmentResult, NeighborhoodTerritory, OutputManifest,
     OutputWriter, PrePostResult, PrimaryEndpoint, Provenance, QcSummary, RegistrationSummary,
     ResidualTerritory, ResolvedComponentMode, ResultDocument, ScaleEnergyPoint,

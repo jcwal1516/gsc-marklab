@@ -6,10 +6,10 @@ use crate::{
     prepost::{
         compare_multimodal_prepost, compare_multimodal_prepost_with_margin, compare_prepost,
     },
-    AnalysisSection, AnisotropySummary, ComponentMode, ComponentModeSelection,
+    AnalysisSection, AnalysisStatus, AnisotropySummary, ComponentMode, ComponentModeSelection,
     CrossInteractionCurve, CrossInteractionPoint, CurveComparisonAvailability, FunctionalSummary,
-    Interpretation, MarkPairCovariancePoint, MarkedPatternResult, MultimodalResult,
-    MultiscaleResidualSummary, NeighborhoodTerritory, PrimaryEndpoint, QcSummary,
+    Interpretation, InterpretationClass, MarkPairCovariancePoint, MarkedPatternResult,
+    MultimodalResult, MultiscaleResidualSummary, NeighborhoodTerritory, PrimaryEndpoint, QcSummary,
     ResolvedComponentMode, ScaleEnergyPoint, SpectrumPoint, SpectrumSummary, WindowSummary,
 };
 
@@ -19,7 +19,7 @@ fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResul
         timepoint: timepoint.into(),
         protein: "MSH6".into(),
         mark_label: "marked".into(),
-        status: "ok".into(),
+        status: AnalysisStatus::Ok,
         status_flags: Vec::new(),
         n_cells: 4,
         n_marked: 2,
@@ -86,7 +86,7 @@ fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResul
         diagnostics: AnalysisSection::Disabled,
         timings: Vec::new(),
         interpretation: Interpretation {
-            class: "random_like".into(),
+            class: InterpretationClass::RandomLike,
             text: "No unsafe biological mechanism claim.".into(),
         },
         prepost_curve_comparisons: Vec::new(),
@@ -98,7 +98,7 @@ fn multimodal_result(timepoint: &str, territories: Vec<NeighborhoodTerritory>) -
         case_id: "case1".into(),
         timepoint: timepoint.into(),
         protein: "MSH6".into(),
-        status: "ok".into(),
+        status: AnalysisStatus::Ok,
         registration: AnalysisSection::NotApplicable,
         fused_cell_summary: AnalysisSection::NotApplicable,
         fused_cells: Vec::new(),
@@ -110,7 +110,7 @@ fn multimodal_result(timepoint: &str, territories: Vec<NeighborhoodTerritory>) -
         diagnostics: AnalysisSection::Disabled,
         timings: Vec::new(),
         interpretation: Interpretation {
-            class: "multimodal_summary".into(),
+            class: InterpretationClass::MultimodalSummary,
             text: "test fixture".into(),
         },
     }

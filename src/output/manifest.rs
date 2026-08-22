@@ -56,7 +56,7 @@ struct RunManifestResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     protein: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    status: Option<String>,
+    status: Option<crate::output::AnalysisStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]
     mark_label: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -90,7 +90,7 @@ impl RunManifest {
                     case_id: Some(result.case_id.clone()),
                     timepoint: Some(result.timepoint.clone()),
                     protein: Some(result.protein.clone()),
-                    status: Some(result.status.clone()),
+                    status: Some(result.status),
                     mark_label: Some(result.mark_label.clone()),
                     status_flags: Some(result.status_flags.clone()),
                     n_cells: Some(result.n_cells),
@@ -105,7 +105,7 @@ impl RunManifest {
                     case_id: Some(result.case_id.clone()),
                     timepoint: Some(result.timepoint.clone()),
                     protein: Some(result.protein.clone()),
-                    status: Some(result.status.clone()),
+                    status: Some(result.status),
                     mark_label: None,
                     status_flags: None,
                     n_cells: None,

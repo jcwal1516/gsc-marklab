@@ -1,8 +1,9 @@
 use std::collections::BTreeSet;
 
 use marklab::{
-    AnalysisResult, AnalysisSection, FusedCellSummary, Interpretation, MultimodalResult,
-    OutputWriter, PrePostResult, Provenance, RegistrationSummary, ResultDocument,
+    AnalysisResult, AnalysisSection, AnalysisStatus, FusedCellSummary, Interpretation,
+    InterpretationClass, MultimodalResult, OutputWriter, PrePostResult, Provenance,
+    RegistrationSummary, ResultDocument,
 };
 
 fn sample_result() -> MultimodalResult {
@@ -10,7 +11,7 @@ fn sample_result() -> MultimodalResult {
         case_id: "multimodal".into(),
         timepoint: "unknown".into(),
         protein: "unknown".into(),
-        status: "ok".into(),
+        status: AnalysisStatus::Ok,
         registration: AnalysisSection::available(RegistrationSummary {
             transform_type: "affine".into(),
             landmark_count: 3,
@@ -19,7 +20,6 @@ fn sample_result() -> MultimodalResult {
             p95_residual_um: 1.0,
             max_residual_um: 1.0,
             usable_min_distance_um: 2.0,
-            status: "ok".into(),
         }),
         fused_cell_summary: AnalysisSection::available(FusedCellSummary {
             n_he_cells: 2,
@@ -38,7 +38,7 @@ fn sample_result() -> MultimodalResult {
         diagnostics: AnalysisSection::Disabled,
         timings: Vec::new(),
         interpretation: Interpretation {
-            class: "multimodal_summary".into(),
+            class: InterpretationClass::MultimodalSummary,
             text: "Multimodal registration, fusion, and neighborhood enrichment summary.".into(),
         },
     }
@@ -81,6 +81,28 @@ fn result_v03_roundtrip() {
     assert_eq!(value["analysis"]["kind"], "multimodal");
     assert!(value["analysis"]["result"].is_object());
     assert!(value["analysis"]["result"].get("format_version").is_none());
+}
+
+#[test]
+fn unknown_machine_status_and_interpretation_class_are_rejected() {
+    let document = ResultDocument::multimodal(sample_result());
+    let mut unknown_status = serde_json::to_value(&document).expect("document value");
+    unknown_status["analysis"]["result"]["status"] = serde_json::json!("invented");
+    assert!(serde_json::from_value::<ResultDocument>(unknown_status).is_err());
+
+    let mut unknown_class = serde_json::to_value(&document).expect("document value");
+    unknown_class["analysis"]["result"]["interpretation"]["class"] = serde_json::json!("invented");
+    assert!(serde_json::from_value::<ResultDocument>(unknown_class).is_err());
+}
+
+#[test]
+fn registration_summary_has_no_redundant_success_status() {
+    let document = ResultDocument::multimodal(sample_result());
+    let value = serde_json::to_value(document).expect("document value");
+
+    assert!(value["analysis"]["result"]["registration"]["value"]
+        .get("status")
+        .is_none());
 }
 
 #[test]

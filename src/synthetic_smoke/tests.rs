@@ -6,7 +6,7 @@ use crate::{
     io::csv::load_pattern_csv_with_diagnostics,
     multimodal::{multimodal_analysis_call_count, reset_multimodal_analysis_call_count},
     synthetic_smoke::run_synthetic_smoke,
-    AnalysisConfig, AnalysisEngine, Pattern, StatusFlag,
+    AnalysisConfig, AnalysisEngine, AnalysisStatus, Pattern, StatusFlag,
 };
 
 fn meta() -> PatternMeta {
@@ -506,7 +506,7 @@ fn engine_suppresses_strong_interpretation_when_validation_flags_are_present() {
 
     let result = engine.analyze_pattern(&pattern).expect("analysis");
 
-    assert_eq!(result.status, "suppressed");
+    assert_eq!(result.status, AnalysisStatus::Suppressed);
     assert!(result
         .status_flags
         .contains(&StatusFlag::UnderpoweredTooFewCells));
@@ -1010,7 +1010,7 @@ fn engine_suppresses_interpretation_when_stain_gradient_is_detected() {
     assert!(result
         .status_flags
         .contains(&StatusFlag::SuppressedBiologicInterpretation));
-    assert_eq!(result.status, "suppressed");
+    assert_eq!(result.status, AnalysisStatus::Suppressed);
 }
 
 #[test]
@@ -1047,5 +1047,5 @@ fn engine_flags_fragmented_component_layouts() {
     assert!(result
         .status_flags
         .contains(&StatusFlag::MaskFragmentationSuspect));
-    assert_eq!(result.status, "suppressed");
+    assert_eq!(result.status, AnalysisStatus::Suppressed);
 }

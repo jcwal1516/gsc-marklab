@@ -5,7 +5,10 @@ use crate::{
     data::Pattern,
     diagnostics::beta_posterior::beta_posterior_group_summary,
     errors::{MarklabError, Result},
-    output::{Interpretation, MarkedPatternResult, StatusFlag, TimingStage},
+    output::{
+        AnalysisStatus, Interpretation, InterpretationClass, MarkedPatternResult, StatusFlag,
+        TimingStage,
+    },
     perf::counters::{estimate_peak_memory, MemoryEstimate, MemoryInputs},
 };
 
@@ -197,9 +200,9 @@ impl AnalysisEngine {
             status_flags.push(StatusFlag::WindowOrGriddingArtifactSuspect);
         }
         let status = if status_flags.is_empty() {
-            "ok"
+            AnalysisStatus::Ok
         } else {
-            "suppressed"
+            AnalysisStatus::Suppressed
         };
         let n_k_modes = spectrum.as_ref().map_or(0, |spectrum| spectrum.n_modes);
         let n_permutations = spectrum
@@ -209,7 +212,7 @@ impl AnalysisEngine {
             interpretation_for(&status_flags, status, low_k_excess)
         } else {
             Interpretation {
-                class: "separate_components".into(),
+                class: InterpretationClass::SeparateComponents,
                 text: "Component spectra are reported separately; no pooled primary endpoint or pooled interpretation was calculated.".into(),
             }
         };

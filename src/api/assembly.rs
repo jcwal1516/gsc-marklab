@@ -9,11 +9,12 @@ use crate::{
     config::AnalysisConfig,
     errors::{MarklabError, Result},
     output::{
-        AnisotropySummary, DiagnosticsResult, FunctionalSummary, Interpretation,
-        MarkPairCovariancePoint, MarkedPatternResult, MultiscaleResidualSummary, PrimaryEndpoint,
-        ResidualTerritory, ScaleEnergyPoint, SpectrumConfoundingConclusion,
-        SpectrumNullInferenceSummary, SpectrumNullModel, SpectrumNullSensitivitySummary,
-        SpectrumPoint, SpectrumSummary, StatusFlag, TimingStage, WindowSummary,
+        AnalysisStatus, AnisotropySummary, DiagnosticsResult, FunctionalSummary, Interpretation,
+        InterpretationClass, MarkPairCovariancePoint, MarkedPatternResult,
+        MultiscaleResidualSummary, PrimaryEndpoint, ResidualTerritory, ScaleEnergyPoint,
+        SpectrumConfoundingConclusion, SpectrumNullInferenceSummary, SpectrumNullModel,
+        SpectrumNullSensitivitySummary, SpectrumPoint, SpectrumSummary, StatusFlag, TimingStage,
+        WindowSummary,
     },
     spectra::{anisotropy::PermutationAnisotropy, structure_factor::PermutationWhitenedSpectrum},
 };
@@ -21,7 +22,7 @@ use crate::{
 use super::context::MarkedAnalysisContext;
 
 pub(super) struct Inputs {
-    pub(super) status: &'static str,
+    pub(super) status: AnalysisStatus,
     pub(super) status_flags: Vec<StatusFlag>,
     pub(super) spectrum: Option<PermutationWhitenedSpectrum>,
     pub(super) spectrum_null_sensitivity: Option<SpectrumNullSensitivity>,
@@ -128,7 +129,7 @@ pub(super) fn assemble(
         timepoint: pattern.meta.timepoint.clone(),
         protein: pattern.meta.protein.clone(),
         mark_label: config.analysis.mark_label.clone(),
-        status: status.into(),
+        status,
         status_flags,
         n_cells: context.n_cells(),
         n_marked: context.n_marked(),
@@ -374,44 +375,44 @@ fn spectrum_curve(spectrum: &PermutationWhitenedSpectrum) -> Result<Vec<Spectrum
 
 pub(super) fn interpretation_for(
     status_flags: &[StatusFlag],
-    status: &str,
+    status: AnalysisStatus,
     low_k_excess: Option<f64>,
 ) -> Interpretation {
-    if status != "ok" {
+    if status != AnalysisStatus::Ok {
         if status_flags.contains(&StatusFlag::InternalControlFailureOverlap)
             || status_flags.contains(&StatusFlag::StainGradientSuspect)
         {
             return Interpretation {
-                class: "suppressed_qc_artifact".into(),
+                class: InterpretationClass::SuppressedQcArtifact,
                 text: "The configured mark field overlaps recorded input-QC artifact structure; interpretation is suppressed.".into(),
             };
         }
         return Interpretation {
-            class: "suppressed".into(),
+            class: InterpretationClass::Suppressed,
             text: "Numeric spatial diagnostics are emitted, but interpretation is suppressed by validation status.".into(),
         };
     }
 
     let Some(low_k_excess) = low_k_excess else {
         return Interpretation {
-            class: "insufficient_data".into(),
+            class: InterpretationClass::InsufficientData,
             text: "Spectrum inference is unavailable at interpretable scales; no spatial-pattern classification is made.".into(),
         };
     };
 
     if low_k_excess >= 1.25 {
         Interpretation {
-            class: "coarse_excess".into(),
+            class: InterpretationClass::CoarseExcess,
             text: "The configured mark field shows coarse-scale spectral excess relative to fixed-position random labeling.".into(),
         }
     } else if low_k_excess <= 0.80 {
         Interpretation {
-            class: "low_frequency_suppression".into(),
+            class: InterpretationClass::LowFrequencySuppression,
             text: "The configured mark field shows low-frequency spectral suppression relative to fixed-position random labeling.".into(),
         }
     } else {
         Interpretation {
-            class: "random_like".into(),
+            class: InterpretationClass::RandomLike,
             text: "The configured mark field is random-like relative to fixed-position random labeling at the analyzed scales.".into(),
         }
     }

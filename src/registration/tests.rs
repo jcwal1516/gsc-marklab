@@ -221,7 +221,6 @@ fn registration_qc_reports_usable_distance_scale() {
     assert_eq!(qc.median_residual_um, 1.0);
     assert_eq!(qc.p95_residual_um, 2.0);
     assert_eq!(qc.usable_min_distance_um, 4.0);
-    assert_eq!(qc.status, "ok");
 }
 
 #[test]

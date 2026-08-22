@@ -1056,7 +1056,7 @@ fn summarize_analyses(
     }));
     let suppression_count = analyses
         .iter()
-        .filter(|analysis| analysis.status != "ok")
+        .filter(|analysis| analysis.status != crate::output::AnalysisStatus::Ok)
         .count();
     let detection_rate = observed_rate(detection_count, replicates_completed);
     let type_i_error_alpha_0_05 = observed_rate(type_i_error_count, replicates_completed);

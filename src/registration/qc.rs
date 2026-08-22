@@ -59,6 +59,5 @@ pub fn registration_qc(
         max_residual_um,
         p95_residual_um,
         usable_min_distance_um: p95_residual_um * claim_distance_multiplier,
-        status: "ok".to_string(),
     })
 }

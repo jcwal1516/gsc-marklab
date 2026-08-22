@@ -21,8 +21,8 @@ use crate::{
         territories::{detect_mmr_abnormal_territories_with_index, TerritoryDomainConfig},
     },
     output::{
-        AnalysisSection, DiagnosticsResult, FusedCellSummary, Interpretation, MultimodalResult,
-        TimingStage,
+        AnalysisSection, AnalysisStatus, DiagnosticsResult, FusedCellSummary, Interpretation,
+        InterpretationClass, MultimodalResult, TimingStage,
     },
     registration::{
         landmarks::LandmarkPair,
@@ -265,7 +265,7 @@ impl MultimodalEngine {
                 case_id: fusion_meta.analysis.case_id,
                 timepoint: fusion_meta.analysis.timepoint,
                 protein: fusion_meta.analysis.protein,
-                status: "ok".into(),
+                status: AnalysisStatus::Ok,
                 registration: AnalysisSection::available(registration),
                 fused_cell_summary: AnalysisSection::available(FusedCellSummary {
                     n_he_cells: input.he_cells.len(),
@@ -282,7 +282,7 @@ impl MultimodalEngine {
                 diagnostics,
                 timings: Vec::new(),
                 interpretation: Interpretation {
-                    class: "multimodal_summary".into(),
+                    class: InterpretationClass::MultimodalSummary,
                     text: "Multimodal registration, fusion, and neighborhood enrichment summary."
                         .into(),
                 },

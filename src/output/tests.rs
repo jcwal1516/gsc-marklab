@@ -672,7 +672,7 @@ fn output_writer_emits_optional_multimodal_parquet_artifacts() {
         case_id: "case_001".into(),
         timepoint: "post".into(),
         protein: "MSH6".into(),
-        status: "ok".into(),
+        status: crate::output::AnalysisStatus::Ok,
         registration: AnalysisSection::available(RegistrationSummary {
             transform_type: "affine".into(),
             landmark_count: 4,
@@ -681,7 +681,6 @@ fn output_writer_emits_optional_multimodal_parquet_artifacts() {
             p95_residual_um: 1.5,
             max_residual_um: 2.0,
             usable_min_distance_um: 3.0,
-            status: "ok".into(),
         }),
         fused_cell_summary: AnalysisSection::available(FusedCellSummary {
             n_he_cells: 1,
@@ -715,7 +714,7 @@ fn output_writer_emits_optional_multimodal_parquet_artifacts() {
         diagnostics: AnalysisSection::Disabled,
         timings: Vec::new(),
         interpretation: Interpretation {
-            class: "multimodal_summary".into(),
+            class: crate::output::InterpretationClass::MultimodalSummary,
             text: "Multimodal registration, fusion, and neighborhood enrichment summary.".into(),
         },
     };

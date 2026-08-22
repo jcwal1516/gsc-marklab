@@ -1,7 +1,8 @@
 use marklab::{
-    AnalysisConfig, AnalysisEngine, AnalysisSection, ComponentMode, OutputWriter, Pattern,
-    PatternMeta, PermutationStratum, ResolvedComponentMode, ResultDocument,
-    SpectrumConfoundingConclusion, SpectrumNullModel, StatusFlag,
+    AnalysisConfig, AnalysisEngine, AnalysisSection, AnalysisStatus, ComponentMode,
+    InterpretationClass, OutputWriter, Pattern, PatternMeta, PermutationStratum,
+    ResolvedComponentMode, ResultDocument, SpectrumConfoundingConclusion, SpectrumNullModel,
+    StatusFlag,
 };
 
 fn meta() -> PatternMeta {
@@ -60,7 +61,7 @@ fn engine_reports_permutation_whitened_low_k_excess_for_clustered_marks() {
         .value()
         .expect("multiscale residual");
 
-    assert_eq!(result.status, "ok");
+    assert_eq!(result.status, AnalysisStatus::Ok);
     assert!(spectrum.low_k_excess > 1.5);
     assert!(*result.primary_endpoint.p_value.value().expect("p-value") < 0.10);
     let xi_um = spectrum.xi_um.expect("xi");
@@ -223,7 +224,10 @@ fn engine_marks_low_k_suppression_when_low_frequency_power_is_below_permutations
     let result = engine.analyze_pattern(&pattern).expect("analysis");
 
     assert!(result.spectrum.value().expect("spectrum").low_k_excess < 1.0);
-    assert_eq!(result.interpretation.class, "low_frequency_suppression");
+    assert_eq!(
+        result.interpretation.class,
+        InterpretationClass::LowFrequencySuppression
+    );
 }
 
 #[test]
@@ -459,7 +463,7 @@ fn homogeneous_strata_report_degenerate_null() {
         AnalysisSection::InsufficientData { reason }
             if reason.contains("degenerate") && reason.contains("mark-homogeneous")
     ));
-    assert_eq!(result.status, "suppressed");
+    assert_eq!(result.status, AnalysisStatus::Suppressed);
 }
 
 #[test]
