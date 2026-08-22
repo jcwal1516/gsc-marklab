@@ -3,15 +3,15 @@
 Plan version: 1.0  
 Base production SHA: `a642fbcdd80b5baf784cd633b707dc0283a24d11`  
 Refactor branch: `refactor/audit-remediation`  
-Closure source SHA: `9a11e11d06a64f3f479564082d5f82186c450980`  
+Closure source SHA: `20fb1f39d064d70653a381336d5a872280bc9636`<br>
 Date: 2026-08-22
 
 ## Executive summary
 
 The remediation converted Marklab from a mixed prototype/CLI workflow into a
 library-first analysis system with explicit scientific, application, adapter,
-and output responsibilities. Every one of the 59 registered findings is
-closed: 58 were fixed and BOUND-05 was disproved with exact dependency and WSI
+and output responsibilities. Every one of the 66 registered findings is
+closed: 65 were fixed and BOUND-05 was disproved with exact dependency and WSI
 integration evidence.
 
 The principal repairs are:
@@ -23,23 +23,25 @@ The principal repairs are:
 - honest multiscale-residual, tapered-periodogram, mark-pair-covariance,
   descriptive-margin, and beta-posterior naming;
 - application-owned marked and multimodal run objects, with one transform,
-  spatial index, graph, telemetry history, and result assembly path;
+  spatial index, graph, compact label encoding, cross-interaction plan,
+  telemetry history, enforced memory budget, and result assembly path;
 - one normalized CSV/Parquet row contract and one `PatternBuilder`;
 - transactional output, safe batch identifiers, versioned pre/post results,
   and a deliberately narrow 0.2-to-0.3 converter;
 - one deterministic `rstar`-backed two-dimensional spatial index reused by
-  nearest-neighbor, graph, covariance, territory, and profile calculations;
+  nearest-neighbor, graph, covariance, cross-interaction, territory, and
+  profile calculations;
 - shell-level contiguous spectral permutation storage with operational mode
-  chunking and reusable scratch;
+  chunking, reusable scratch, and fixed raster assignments;
 - validation scenarios that generate inputs and observe production engine
   results instead of synthesizing outcomes.
 
 Deleted or removed surfaces include the false scale-plus-translation rigid
 fit, `Pattern::from_paths`, fake MODWT/DoG/Bartlett names, multimodal
 placeholders in marked results, unimplemented territory/profile fields,
-sentinel-zero comparison results, the mixed pre/post god file, duplicate CLI
-scientific computations, and compatibility aliases that would conceal the
-0.3 contract.
+the always-empty marked pre/post placeholder, sentinel-zero comparison results,
+the mixed pre/post god file, duplicate CLI scientific computations, and
+compatibility aliases that would conceal the 0.3 contract.
 
 The remaining risks are operational and compatibility limitations rather than
 open registered defects. They are listed explicitly below.
@@ -69,6 +71,7 @@ are in [PERFORMANCE_FINAL.md](PERFORMANCE_FINAL.md).
 | SCI-07 | Renamed equivalence claim to descriptive margin assessment | `src/comparison/margin_assessment.rs`, `src/prepost/` | Margin boundaries, absent/insufficient states, schema/report | N/A | `2191974` |
 | SCI-08 | Renamed beta-binomial claim to fixed-prior beta posterior group summary | `src/diagnostics/beta_posterior.rs` | Posterior fixtures, grouping, schema/config/CLI/report | N/A | `1e8fbbd` |
 | SCI-09 | Renamed curve test to pooled-bin non-spatial diagnostic | `src/comparison/pooled_bin_difference.rs` | Determinism, statistic, zero permutations, output language | N/A | `69005bb` |
+| SCI-10 | Replaced permutation minima/maxima with the checked ERL global envelope and typed empty geometry | `src/neighborhood/cross_curves.rs`, `src/inference/` | ERL oracle/ties/eligibility, empty-bin serialization, plan differential, validation | Cross interaction 65.0–85.5% faster | `00cad21`, `fe7a234` |
 | ARCH-01 | Library and CLI consume one complete multimodal application run | `src/multimodal/engine.rs`, `src/cli/multimodal/` | One fit/index/graph, all nulls, library/CLI equality | Complete corrected run 0.520/1.278/3.445 ms | `698226c`, `b97dfb3` |
 | ARCH-02 | Split marked planning, computation, policy, diagnostics, and assembly | `src/api/` | Public run and 20-test spectrum integration suite | Complete marked run results recorded | `82751fe`, `e29bd2c` |
 | ARCH-03 | Decomposed Fourier kernel, modes, shells, permutations, summaries | `src/spectra/structure_factor/` | Numerical differentials, chunk equality, deterministic parallelism | 99% retained-matrix reduction; final spectrum timings | `38700da`, `89c7421`, `3b790b2`, `8681338`, `efb8187`, `85ed0d1`, `efa1089` |
@@ -83,6 +86,7 @@ are in [PERFORMANCE_FINAL.md](PERFORMANCE_FINAL.md).
 | BOUND-03 | Domain enrichment is independent of the CLI feature | `src/neighborhood/enrichment.rs`, feature wiring | No-default and library configured-null tests | N/A | `698226c` |
 | BOUND-04 | Output receives complete result/artifact models and computes no science | `src/output/`, `src/multimodal/engine.rs` | Source boundary, parity, sidecar suites | Separate output benchmark | `698226c`, `b97dfb3`, `a29885b` |
 | BOUND-05 | Disproved: WSI adapter is cohesive and dependency-clean; preserved unchanged | `src/wsi.rs`, `src/cli/slide.rs` | 10 local WSI oracle tests; external scheduled test | N/A | audit at `085ed40` |
+| BOUND-06 | Pre/post analytical services compile without CLI dependencies and have supported crate-root entry points | `src/lib.rs`, `src/prepost/` | Public API contract, no-default build, comparison suites | N/A | `6d7c13d` |
 | DUP-01 | One average-even median implementation | `src/common/stats.rs` | Odd/even/non-finite median contracts | N/A | `8508671` |
 | DUP-02 | Consolidated only identical mean/variance/extrema semantics with explicit names | `src/common/stats.rs` | Denominator and finite-policy unit tests | N/A | `8508671` |
 | DUP-03 | One scalar permutation p-value implementation with explicit tail/ties/+1 | `src/inference/scalar_pvalues.rs` | High/low/two-sided/ties/non-finite/minimum tests | N/A | `8508671` |
@@ -100,18 +104,23 @@ are in [PERFORMANCE_FINAL.md](PERFORMANCE_FINAL.md).
 | PERF-06 | Territory profiles use shared-index radius visitors | `src/neighborhood/profiles.rs` | Membership brute-force differential | Proportional-profile doubling ratios 1.33–3.67× | `3c4a255`, `10e4932`, `968d014` |
 | PERF-07 | Million-row fixture and CSV ingestion stream; NN is indexed | `benches/pattern_load.rs`, `src/io/csv/decoder.rs` | Streaming visitor, loader, workflow contracts | One million rows 2.569–2.613 s, 430.13 MiB RSS | `eb4f5b0` |
 | PERF-08 | Shell-level contiguous matrices, real chunking, reusable permutation scratch | `src/spectra/structure_factor/`, `src/common/matrix.rs` | Chunk/determinism/oracle/DHAT contracts | 99% matrix and 46.1% measured binary RSS reduction | `efb8187`, `67f83f7`, `85ed0d1`, `43e5d74`, `93cdda9`, `c183942`, `efa1089` |
-| PERF-09 | Shared run metadata and borrowed/compact hot-path labels | `src/multimodal/cells.rs`, `labels.rs`, output adapters | Pointer identity, serialization, flattened exports | Complete multimodal RSS +7.5% while doing more work | `dc9ffeb` |
+| PERF-09 | Shared run metadata and one compact run-level label encoding across every multimodal hot path | `src/multimodal/cells.rs`, `labels.rs`, engine/endpoints | Pointer identity, one-build, compact/string differentials, flattened exports | Complete multimodal 71–77% faster; 8.92 MiB RSS | `dc9ffeb`, `00cad21` |
 | PERF-10 | Output consumes runs and borrows projections; no complete-result/table clone | application and `src/output/` | Public run, CLI, output, source contracts | Transaction benchmark and complete-run RSS | `a29885b`, `82751fe`, `99f6d78` |
+| PERF-11 | One indexed cross-interaction pair/bin plan is reused across label pairs and permutations | `src/neighborhood/cross_curves.rs`, `src/multimodal/engine.rs` | Brute-force differential, one-plan/index, determinism, budget | 3.057/7.285/22.479 ms to 1.071/2.156/3.251 ms | `00cad21` |
+| PERF-12 | One raster assignment plan is reused across observed and null multiscale labels | `src/periodogram/`, `src/api/spatial_stage.rs` | Dense differential, one-build/reuse, accounting, DHAT | 44.099 ms to 43.976 ms; no detectable change (`p = 0.50`) | `97dd3e1` |
+| PERF-13 | Multimodal memory budget is enforced at retained and output-sensitive allocation boundaries | `src/multimodal/memory.rs`, graph/cross/territory builders | Low-budget rejection, builder caps, peak telemetry | 8.92 MiB RSS, +2.2% versus Phase 12 | `00cad21` |
 | MODEL-01 | Distinct residual and neighborhood territory DTOs | `src/output/result_types/marked.rs`, `multimodal.rs` | Schema, DBSCAN, profile, pre/post, GeoJSON | Territory/profile benchmarks | `51564c8` |
 | MODEL-02 | Removed placeholders and populated multimodal telemetry | result types, `src/multimodal/engine.rs` | Schema absence, stage order, sidecar equality, parity | Complete multimodal and output benchmarks | `2191974`, `b71b2f6`, `51564c8`, `8ba7c97` |
 | MODEL-03 | Closed serde enums replace machine-facing status/class strings | `src/output/result_types/` | Unknown enum/nested-field rejection and round trips | N/A | `f7a930f`, `adda397` |
 | MODEL-04 | Pooled, Separate, Both, and Auto have distinct plans and recorded reasons | `src/api/components.rs`, result config/types | All six mandatory component-mode contracts | Separate avoids pooled work; no isolated timing claim | `b56cc60` |
+| MODEL-05 | Removed always-empty marked pre/post field; comparisons exist only in versioned pre/post results | marked result/report/migration modules | Obsolete-key rejection, report absence, migration, round trip | N/A | `6d7c13d` |
 | OUT-01 | Result and timing sidecar derive from one authoritative telemetry vector | `src/output/manifest.rs`, `src/output/writer.rs` | Exact result/sidecar/trace equality | Output time reported separately | `756ecbc`, `3d8ad46`, `99f6d78` |
 | OUT-02 | Marked and multimodal pre/post use versioned 0.3 envelopes; safe 0.2 subset converts | `src/output/document.rs`, `migrate_v02.rs`, CLI pre/post | Round trip, file/directory equality, converter/rejection | N/A | `12d7c4c`, `a2f7132` |
 | OUT-03 | Same-filesystem staged output validates then atomically renames | `src/output/transaction.rs`, `artifact_plan.rs`, `writer.rs` | Failure cleanup, existing target preservation, manifest | 0.874/0.859/0.939 ms; 12.27 MiB RSS | `e9e87b0`, `99f6d78` |
 | OUT-04 | Explicit filtered canonical Parquet export preserves absence | `src/io/parquet/pattern_writer.rs` | Optional absence, supported fields, invalid metrics | Loader/export results recorded | `f4243cd` |
 | OUT-05 | One logical cell schema prevents CSV/Parquet semantic drift | `src/io/row.rs`, adapters, builder | Complete Pattern equality and parity contracts | CSV/Parquet improvements recorded | `f4243cd` |
 | OUT-06 | Batch IDs are validated single components contained by output root | `src/cli/batch.rs`, shared batch path resolver | Traversal, absolute, separator, symlink, valid batch | N/A | `a8d38c5` |
+| AUDIT-01 | Mapped every mandatory regression requirement and added missing BH/ERL/kernel/schema evidence | `docs/refactor/COMPLETION_AUDIT.md`, inference/schema/adapter tests | Exact 402-test matrix and focused oracle/boundary tests | N/A | `6d7c13d`, `fe7a234` |
 
 ## Architecture before and after
 
@@ -139,13 +148,16 @@ The key ownership boundaries are:
   reusable context, and artifact data.
 - `MultimodalEngine` returns one `MultimodalAnalysisRun` containing the fitted
   transform, shared index/graph, all configured null analyses, diagnostics,
-  telemetry, and artifact projections.
+  telemetry, and artifact projections. Its application workflow builds one
+  compact label encoding and one indexed cross-interaction plan, and enforces
+  the configured budget before retaining output-sensitive geometry.
 - `Pattern` is validated data. `PatternLoader`, decoded rows, and
   `PatternBuilder` own filesystem and ingestion behavior.
 - Result-document semantics, family DTOs, artifact planning, atomic
   transactions, manifests, and physical projections have distinct output
   owners.
-- Marked and multimodal pre/post services are separate; only tolerant axes,
+- Marked and multimodal pre/post services are always-compiled public library
+  entry points; only tolerant axes,
   scalar diagnostics, typed errors, and identical territory-summary semantics
   are shared.
 
@@ -172,6 +184,9 @@ uses `use super::*`, and no task/MVP scaffolding comments remain in production.
   confined to explicit multimodal/MMR presentation surfaces.
 - Stratified confounding now compares distinct nulls and persists both
   inferences. Degenerate strata are typed, not converted to a p-value or zero.
+- Cross-interaction curves use the same checked ERL global-envelope method as
+  other functional inference. Empty geometric bins are unavailable rather
+  than observed zero, and one indexed geometry plan is reused for every null.
 - Validation judgments come exclusively from production results. Smoke and
   formal calibration are separate workflows and claims.
 
@@ -187,23 +202,26 @@ and reproducible workload definitions documented in
   4×, with output edge/membership counts recorded;
 - observed plus 19 null evaluations improved 26–72% for mark-pair covariance
   and 69–84% for residual territories because geometry is built once;
+- observed plus 19 cross-interaction null curves improved 65.0–85.5% at
+  256–1,024 points; the final doubling ratios are 2.01× and 1.51×;
 - spectral permutation retention fell from 6,361,632 to 63,936 bytes at 999
   permutations (99.0%); measured binary RSS fell 46.1%;
 - the million-row CSV load completed in 2.569–2.613 seconds at 430.13 MiB peak
   RSS, with streamed fixture generation and separate decode/nearest timings;
 - transactional output for the measured marked run took
   0.874/0.859/0.939 ms at 64/128/256 cells and 12.27 MiB peak RSS;
-- no equivalent default workload regressed by more than 20%. The final
-  multimodal run is 11–35% slower than the incomplete baseline because it now
-  performs every configured analysis once for library and CLI users; peak RSS
-  increased 7.5%.
+- the completion-audit multimodal run improved 71–77% at 48–192 rows after
+  sharing compact labels and indexed cross geometry; peak RSS is 8.92 MiB,
+  2.2% above the Phase 12 comparison;
+- fixed raster assignments remove repeated coordinate mapping, but the whole
+  multiscale benchmark remains statistically unchanged at 43.976 ms versus
+  44.099 ms (`p = 0.50`).
 
-Post-report Phase 13 changes affect result migration, fuzz preflight, CI,
-documentation, and a locked WSI transitive patch. DUP-09 centralized names and
-removed endpoint-specific scale floors but did not change the index, plan, or
-spectral storage hot loops; the benchmark fixtures already supplied a positive
-analysis effective length. The recorded performance conclusions therefore
-remain applicable to the final source.
+Completion-audit changes explicitly measured the newly shared cross and raster
+plans and the complete multimodal application; the unchanged Phase 12 spatial,
+spectrum, loader, and output measurements remain applicable because those hot
+paths did not change. Full methods and raw comparisons are recorded in the
+performance report addendum.
 
 Remaining performance cliffs are explicit: broad-radius/high-density plans are
 output-sensitive and may be rejected by the configured geometry budget, and a
@@ -224,8 +242,8 @@ include:
   mark-pair-covariance, descriptive-margin, pooled-bin-diagnostic, and
   beta-posterior names;
 - removal of marked multimodal placeholders, compatibility aliases,
-  `p_equivalence`, `z_or_power`, empty future profile vectors, and constant QC
-  overlap fields;
+  `p_equivalence`, `z_or_power`, the always-empty marked pre/post collection,
+  empty future profile vectors, and constant QC overlap fields;
 - closed machine-facing enums and consistent analysis availability states.
 
 `ResultDocument::from_json` converts only the unambiguous 0.2 marked subset. It
@@ -240,15 +258,15 @@ different result. See [migration-0.2-to-0.3.md](../migration-0.2-to-0.3.md) and
 ## Final verification commands
 
 All commands below ran in `/Users/user/Bench/marklab-refactor` against source
-SHA `9a11e11d06a64f3f479564082d5f82186c450980` and exited 0 unless a limitation
+SHA `20fb1f39d064d70653a381336d5a872280bc9636` and exited 0 unless a limitation
 is stated.
 
 | Command | Actual result |
 | --- | --- |
 | `cargo +1.96.0 fmt --all --check` | Exit 0; no formatting diff |
 | `cargo +1.96.0 clippy --locked --all-targets --all-features -- -D warnings` | Exit 0 |
-| `cargo +1.96.0 nextest run --locked --all-features` | 380 passed; 21 intentional skips; 1 slow production smoke |
-| `cargo +1.96.0 test --locked --all-features` | 273 library tests passed, 20 ignored; every integration passed; WSI 10 passed/1 external ignored; 0 doctests |
+| `cargo +1.96.0 nextest run --locked --all-features` | 402 passed; 22 intentional skips; 1 slow production smoke |
+| `cargo +1.96.0 test --locked --all-features` | 293 library tests passed, 21 ignored; all 109 integration tests passed with 1 external WSI case ignored; 402 passed total; 0 doctests |
 | `cargo +1.96.0 test --locked --doc --all-features` | Exit 0; 0 doctests defined |
 | `cargo +1.96.0 check --locked --no-default-features` | Exit 0 |
 | `cargo +1.96.0 test --locked --features wsi,cli --test wsi_integration` | 10 passed; 1 checksummed public Aperio/OpenSlide oracle ignored locally |
@@ -259,10 +277,10 @@ is stated.
 | `cargo deny check advisories licenses bans sources` | Exit 0; policy warnings only for reviewed transitive duplicate versions |
 | `cargo machete` | Exit 0; no unused dependencies |
 | `cargo +nightly fuzz check` | Exit 0; all five targets compiled |
-| `cargo +1.96.0 package --locked` | Exit 0; 235 files, 1.6 MiB unpacked/376.0 KiB compressed; archive verification compiled |
+| `cargo +1.96.0 package --locked` | Exit 0 from a clean tree; 238 files, 1.7 MiB unpacked/396.5 KiB compressed; archive verification compiled |
 | `cargo +1.96.0 run --release --locked --all-features --bin marklab -- --help` | Exit 0; all command families listed |
-| `target/release/marklab smoke --suite synthetic --replicates 1 --out <temporary-run>` | Exit 0; completed summary, zero failed replicates; temporary output moved to Trash afterward |
-| `cargo +1.96.0 test --release --locked --features dhat-heap --lib dhat_ -- --nocapture --test-threads=1` | Exit 0; all three allocation contracts passed during Phase 12 |
+| `target/release/marklab smoke --suite synthetic --replicates 1 --out <temporary-run>` | Exit 0; 12/12 scenario replicates completed, 0 failed, no failed scenarios; temporary outputs moved to Trash afterward |
+| `cargo +1.96.0 test --release --locked --features dhat-heap --lib dhat_ -- --nocapture --test-threads=1` | Exit 0; all three allocation contracts passed, including completion-audit raster reuse |
 
 Dependency-policy warnings are not hidden:
 

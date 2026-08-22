@@ -532,3 +532,10 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Scientific consequence: An empty cross-interaction geometry bin is unavailable, whereas an eligible observed count of zero remains an observed zero. Validation's changed pre/post scenario preserves geometry and changes labels, so the production typed-axis contract remains evaluable instead of being bypassed.
 - Evidence: Focused BH/ERL/schema/API/differential/budget/DHAT tests pass. Cross-interaction medians improve 65.0–85.5%; complete multimodal medians improve 71–77% with an 8.92 MiB peak RSS (+2.2% versus Phase 12). The complete multiscale benchmark has no statistically detectable runtime change (`p = 0.50`), despite eliminating repeated assignment work.
 - Status: Accepted; all 66 findings are fixed or disproved. Completion remains contingent on the full final gate and closure-report update.
+
+## 2026-08-22 — Completion audit and final release gate closed
+
+- Closure: All 66 registered findings have fixed or disproved status. The exact requirement mapping is in `COMPLETION_AUDIT.md`; performance changes and tradeoffs are in the completion-audit addendum to `PERFORMANCE_FINAL.md`.
+- Verification: Formatting, denied-warning Clippy, Nextest (402/402; 22 skipped), standard Cargo (402 passed total; 22 ignored/manual), doctests, no-default compilation, exact WSI (10 passed; 1 external skip), CLI suites, examples, Audit, Deny, Machete, all five fuzz targets, release CLI help, one-replicate production smoke (12/12 completed; zero failures), all three DHAT contracts, and clean-tree package verification exit 0.
+- Limitations: Audit still reports the documented unmaintained `encoding` and `paste` transitives; Deny reports reviewed duplicate versions; the public Aperio/OpenSlide fixture was unavailable locally; formal calibration remains scheduled; the 0.2 converter remains intentionally narrow; and broad output-sensitive geometry can be rejected by the enforced memory budget.
+- Status: Accepted; Phase 13 and the completion audit are closed. Final repository-state review and task-owned LSP cleanup are administrative completion steps only.
