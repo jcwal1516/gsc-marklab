@@ -30,6 +30,7 @@ use crate::{
     spectra::{
         anisotropy::{
             permutation_whitened_anisotropy, permutation_whitened_anisotropy_dense_reference,
+            AnisotropyPermutationOptions,
         },
         mark_pair_covariance::{mark_pair_covariance, MarkPairCovariancePlan},
         structure_factor::{
@@ -798,8 +799,19 @@ fn phase7_perf_anisotropy_chunked_against_dense() {
         });
         measure_case("phase7_anisotropy_chunked", n, metadata, || {
             anisotropy_checksum(
-                permutation_whitened_anisotropy(black_box(&pattern), 5, 19, 123, 0.10, None, 256)
-                    .expect("chunked anisotropy"),
+                permutation_whitened_anisotropy(
+                    black_box(&pattern),
+                    None,
+                    AnisotropyPermutationOptions {
+                        low_k_radius: 5,
+                        n_permutations: 19,
+                        seed: 123,
+                        alpha: 0.10,
+                        k_chunk_modes: 256,
+                        n_marked: pattern.n_marked(),
+                    },
+                )
+                .expect("chunked anisotropy"),
             )
         });
     }

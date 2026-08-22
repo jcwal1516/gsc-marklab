@@ -13,6 +13,7 @@ use crate::{
 };
 
 use super::{
+    context::MarkedAnalysisContext,
     qc_pipeline::{
         spectrum_null_sensitivity, strata_are_mark_homogeneous, ConfoundingConclusion,
         SpectrumNullSensitivity,
@@ -28,12 +29,13 @@ pub(super) struct Output {
 
 pub(super) fn run(
     config: &AnalysisConfig,
-    pattern: &Pattern,
+    context: &MarkedAnalysisContext<'_>,
     includes_pooled: bool,
     configured_strata: Option<&[u32]>,
     timings: &mut Vec<TimingStage>,
     threads: usize,
 ) -> Result<Output> {
+    let pattern = context.pattern();
     let modes = timed_stage(timings, "kgrid", threads, || {
         includes_pooled
             .then(|| resolvable_modes_for_pattern(pattern, config.spectrum.k_shells))

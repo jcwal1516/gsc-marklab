@@ -8,19 +8,37 @@ use crate::{
 };
 
 pub fn validation_flags(pattern: &Pattern, config: &AnalysisConfig) -> Vec<StatusFlag> {
+    let n_marked = pattern.mark.iter().filter(|mark| **mark == 1).count();
+    let n_unmarked = pattern.len().saturating_sub(n_marked);
+    let prevalence = if pattern.is_empty() {
+        0.0
+    } else {
+        n_marked as f64 / pattern.len() as f64
+    };
+    validation_flags_with_counts(pattern, config, n_marked, n_unmarked, prevalence)
+}
+
+pub(crate) fn validation_flags_with_counts(
+    pattern: &Pattern,
+    config: &AnalysisConfig,
+    n_marked: usize,
+    n_unmarked: usize,
+    prevalence: f64,
+) -> Vec<StatusFlag> {
     let mut flags = Vec::new();
 
     if pattern.len() < config.validation.n_min {
         flags.push(StatusFlag::UnderpoweredTooFewCells);
     }
-    if pattern.n_marked() < config.validation.n_marked_min {
+    if n_marked < config.validation.n_marked_min {
         flags.push(StatusFlag::UnderpoweredTooFewMarked);
     }
-    if pattern.n_unmarked() < config.validation.n_unmarked_min {
+    if n_unmarked < config.validation.n_unmarked_min {
         flags.push(StatusFlag::UnderpoweredTooFewUnmarked);
     }
-    let p_hat = pattern.p_hat();
-    if !pattern.is_empty() && (p_hat < config.validation.p_min || p_hat > config.validation.p_max) {
+    if !pattern.is_empty()
+        && (prevalence < config.validation.p_min || prevalence > config.validation.p_max)
+    {
         flags.push(StatusFlag::SensitivityUnstable);
     }
     if pattern.window.area_um2.is_finite()

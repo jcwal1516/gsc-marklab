@@ -11,14 +11,56 @@ use crate::{
 
 mod assembly;
 mod components;
+mod context;
 mod diagnostics;
 mod qc_pipeline;
 mod spatial_stage;
 mod spectrum_stage;
 mod stages;
 
+#[cfg(test)]
+mod context_tests {
+    use super::context::MarkedAnalysisContext;
+    use crate::{data::PatternMeta, Pattern};
+
+    #[test]
+    fn marked_analysis_context_caches_counts_prevalence_and_geometry() {
+        let mut pattern = Pattern::from_arrays(
+            vec![0.0, 1.0, 2.0, 3.0],
+            vec![0.0, 0.0, 0.0, 0.0],
+            vec![1, 0, 1, 0],
+            PatternMeta {
+                case_id: "context".into(),
+                timepoint: "post".into(),
+                protein: "MSH6".into(),
+                slide_id: None,
+                section_id: None,
+                stain_batch: None,
+                block_id: None,
+                region_id: None,
+            },
+        )
+        .expect("pattern");
+        pattern.window.area_um2 = 40.0;
+        pattern.window.l_eff_um = 4.0;
+        pattern.window.d_nn_mean_um = 1.0;
+
+        let context = MarkedAnalysisContext::new(&pattern);
+
+        assert_eq!(context.n_cells(), 4);
+        assert_eq!(context.n_marked(), 2);
+        assert_eq!(context.n_unmarked(), 2);
+        assert_eq!(context.prevalence(), 0.5);
+        assert_eq!(context.geometry().area_um2, 40.0);
+        assert_eq!(context.geometry().effective_length_um, 4.0);
+        assert_eq!(context.geometry().mean_nearest_neighbor_um, 1.0);
+        assert!(std::ptr::eq(context.pattern(), &pattern));
+    }
+}
+
 use assembly::interpretation_for;
 use components::component_analysis_plan;
+use context::MarkedAnalysisContext;
 use qc_pipeline::validate_pattern;
 use stages::estimated_raster_pixels;
 
@@ -94,6 +136,7 @@ impl AnalysisEngine {
     }
 
     fn analyze_pattern_inner(&self, pattern: &Pattern) -> Result<MarkedPatternResult> {
+        let analysis_context = MarkedAnalysisContext::new(pattern);
         let memory_estimate = estimate_analysis_memory(pattern, &self.config, self.threads);
         memory_estimate.enforce_budget_mib(self.config.performance.memory_budget_mib)?;
         let configured_memory_bytes = self
@@ -108,7 +151,7 @@ impl AnalysisEngine {
 
         let (mut status_flags, configured_strata) =
             timed_stage(&mut timings, "validate", self.threads, || {
-                validate_pattern(&self.config, pattern)
+                validate_pattern(&self.config, &analysis_context)
             })?;
         let component_plan = component_analysis_plan(&self.config, pattern);
         let includes_pooled = component_plan.includes_pooled();
@@ -119,7 +162,7 @@ impl AnalysisEngine {
             unavailable_reason: spectrum_unavailable_reason,
         } = spectrum_stage::run(
             &self.config,
-            pattern,
+            &analysis_context,
             includes_pooled,
             configured_strata.as_deref(),
             &mut timings,
@@ -140,7 +183,7 @@ impl AnalysisEngine {
 
         let spatial = spatial_stage::run(
             &self.config,
-            pattern,
+            &analysis_context,
             includes_pooled,
             configured_strata.as_deref(),
             low_k_excess,
@@ -179,7 +222,7 @@ impl AnalysisEngine {
             / (1024.0 * 1024.0);
         annotate_timings(
             &mut timings,
-            pattern,
+            &analysis_context,
             n_k_modes,
             n_permutations,
             estimated_peak_memory_mib,
@@ -187,7 +230,7 @@ impl AnalysisEngine {
 
         assembly::assemble(
             &self.config,
-            pattern,
+            &analysis_context,
             assembly::Inputs {
                 status,
                 status_flags,
@@ -244,14 +287,14 @@ fn push_timing(
 
 fn annotate_timings(
     timings: &mut [TimingStage],
-    pattern: &Pattern,
+    context: &MarkedAnalysisContext<'_>,
     n_k_modes: usize,
     n_permutations: usize,
     estimated_peak_memory_mib: f64,
 ) {
     for timing in timings {
-        timing.n_cells = pattern.len();
-        timing.n_marked = pattern.n_marked();
+        timing.n_cells = context.n_cells();
+        timing.n_marked = context.n_marked();
         timing.n_k_modes = n_k_modes;
         timing.n_permutations = n_permutations;
         timing.estimated_peak_memory_mib = estimated_peak_memory_mib;

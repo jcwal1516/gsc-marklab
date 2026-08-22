@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::{
     common::stats::{mean_ignoring_nonfinite, safe_finite_ratio},
     config::{AnalysisConfig, PermutationStratum},
-    data::{validate::validation_flags, Pattern},
+    data::{validate::validation_flags_with_counts, Pattern},
     errors::{MarklabError, Result},
     geom::components::ComponentSummary,
     output::{QcSummary, StatusFlag},
@@ -11,6 +11,8 @@ use crate::{
     qc::stain_gradient::gradient_suspect,
     spectra::structure_factor::PermutationWhitenedSpectrum,
 };
+
+use super::context::MarkedAnalysisContext;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ConfoundingConclusion {
@@ -90,9 +92,16 @@ fn classify_confounding(
 
 pub(super) fn validate_pattern(
     config: &AnalysisConfig,
-    pattern: &Pattern,
+    context: &MarkedAnalysisContext<'_>,
 ) -> Result<(Vec<StatusFlag>, Option<Vec<u32>>)> {
-    let mut status_flags = validation_flags(pattern, config);
+    let pattern = context.pattern();
+    let mut status_flags = validation_flags_with_counts(
+        pattern,
+        config,
+        context.n_marked(),
+        context.n_unmarked(),
+        context.prevalence(),
+    );
     if pattern
         .local_dab_od
         .as_deref()

@@ -10,6 +10,16 @@ pub struct PermutationAnisotropy {
     pub p_value: f64,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct AnisotropyPermutationOptions {
+    pub(crate) low_k_radius: usize,
+    pub(crate) n_permutations: usize,
+    pub(crate) seed: u64,
+    pub(crate) alpha: f64,
+    pub(crate) k_chunk_modes: usize,
+    pub(crate) n_marked: usize,
+}
+
 #[cfg(test)]
 pub fn anisotropy_from_weighted_modes(modes: &[(f64, f64, f64)]) -> Option<AnisotropyReadout> {
     let mut tensor = AnisotropyTensor::default();
@@ -115,14 +125,17 @@ fn observe_chunk_storage(matrix: &F64Matrix, mode_count: usize) {
 
 pub(crate) fn permutation_whitened_anisotropy(
     pattern: &Pattern,
-    low_k_radius: usize,
-    n_permutations: usize,
-    seed: u64,
-    alpha: f64,
     strata: Option<&[u32]>,
-    k_chunk_modes: usize,
+    options: AnisotropyPermutationOptions,
 ) -> Result<Option<PermutationAnisotropy>> {
-    let n_marked = pattern.mark.iter().filter(|mark| **mark == 1).count();
+    let AnisotropyPermutationOptions {
+        low_k_radius,
+        n_permutations,
+        seed,
+        alpha,
+        k_chunk_modes,
+        n_marked,
+    } = options;
     if pattern.len() < 2
         || n_marked == 0
         || n_marked == pattern.len()
@@ -380,6 +393,7 @@ mod tests {
     use super::{
         last_chunk_storage_dimensions, permutation_whitened_anisotropy,
         permutation_whitened_anisotropy_dense_reference, reset_chunk_observation,
+        AnisotropyPermutationOptions,
     };
     use crate::{data::PatternMeta, Pattern};
 
@@ -393,10 +407,20 @@ mod tests {
 
         for chunk_size in [1, 3, 1_000] {
             reset_chunk_observation();
-            let actual =
-                permutation_whitened_anisotropy(&pattern, 3, 7, 912_345, 0.25, None, chunk_size)
-                    .expect("chunked anisotropy")
-                    .expect("anisotropy available");
+            let actual = permutation_whitened_anisotropy(
+                &pattern,
+                None,
+                AnisotropyPermutationOptions {
+                    low_k_radius: 3,
+                    n_permutations: 7,
+                    seed: 912_345,
+                    alpha: 0.25,
+                    k_chunk_modes: chunk_size,
+                    n_marked: pattern.n_marked(),
+                },
+            )
+            .expect("chunked anisotropy")
+            .expect("anisotropy available");
             assert_eq!(actual, expected);
             let (rows, largest_columns, mode_count) = last_chunk_storage_dimensions();
             assert_eq!(rows, 7);
@@ -425,12 +449,15 @@ mod tests {
         for chunk_size in [1, 4, 1_000] {
             let actual = permutation_whitened_anisotropy(
                 &pattern,
-                3,
-                7,
-                912_345,
-                0.25,
                 Some(&strata),
-                chunk_size,
+                AnisotropyPermutationOptions {
+                    low_k_radius: 3,
+                    n_permutations: 7,
+                    seed: 912_345,
+                    alpha: 0.25,
+                    k_chunk_modes: chunk_size,
+                    n_marked: pattern.n_marked(),
+                },
             )
             .expect("chunked anisotropy")
             .expect("anisotropy available");

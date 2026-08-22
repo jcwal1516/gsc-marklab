@@ -7,7 +7,6 @@ use crate::{
         },
     },
     config::AnalysisConfig,
-    data::Pattern,
     errors::{MarklabError, Result},
     output::{
         AnisotropySummary, DiagnosticsResult, FunctionalSummary, Interpretation,
@@ -18,6 +17,8 @@ use crate::{
     },
     spectra::{anisotropy::PermutationAnisotropy, structure_factor::PermutationWhitenedSpectrum},
 };
+
+use super::context::MarkedAnalysisContext;
 
 pub(super) struct Inputs {
     pub(super) status: &'static str,
@@ -40,9 +41,11 @@ pub(super) struct Inputs {
 
 pub(super) fn assemble(
     config: &AnalysisConfig,
-    pattern: &Pattern,
+    context: &MarkedAnalysisContext<'_>,
     inputs: Inputs,
 ) -> Result<MarkedPatternResult> {
+    let pattern = context.pattern();
+    let geometry = context.geometry();
     let Inputs {
         status,
         status_flags,
@@ -127,13 +130,13 @@ pub(super) fn assemble(
         mark_label: config.analysis.mark_label.clone(),
         status: status.into(),
         status_flags,
-        n_cells: pattern.len(),
-        n_marked: pattern.n_marked(),
-        p_hat: pattern.p_hat(),
+        n_cells: context.n_cells(),
+        n_marked: context.n_marked(),
+        p_hat: context.prevalence(),
         window: WindowSummary {
-            area_um2: pattern.window.area_um2,
-            l_eff_um: pattern.window.l_eff_um,
-            d_nn_mean_um: pattern.window.d_nn_mean_um,
+            area_um2: geometry.area_um2,
+            l_eff_um: geometry.effective_length_um,
+            d_nn_mean_um: geometry.mean_nearest_neighbor_um,
         },
         qc: qc_summary(pattern),
         primary_endpoint: PrimaryEndpoint {
@@ -174,7 +177,7 @@ pub(super) fn assemble(
                     max_interpretable_scale_um: config
                         .validation
                         .largest_interpretable_scale_fraction
-                        * pattern.window.l_eff_um,
+                        * geometry.effective_length_um,
                     k_min,
                     k_max,
                     n_k_modes,

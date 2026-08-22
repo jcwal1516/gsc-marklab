@@ -11,10 +11,13 @@ use crate::{
     },
     perf::counters::enforce_storage_budget,
     periodogram::raster::centered_mark_raster,
-    spectra::anisotropy::{permutation_whitened_anisotropy, PermutationAnisotropy},
+    spectra::anisotropy::{
+        permutation_whitened_anisotropy, AnisotropyPermutationOptions, PermutationAnisotropy,
+    },
 };
 
 use super::{
+    context::MarkedAnalysisContext,
     stages::{
         mark_pair_covariance_with_envelope, multiscale_residual_scalar_p_values,
         periodogram_disagrees_with_particle_spectrum, scale_energy_with_envelope, territories_for,
@@ -42,12 +45,13 @@ pub(super) struct ExecutionContext<'a> {
 
 pub(super) fn run(
     config: &AnalysisConfig,
-    pattern: &Pattern,
+    analysis_context: &MarkedAnalysisContext<'_>,
     includes_pooled: bool,
     configured_strata: Option<&[u32]>,
     low_k_excess: Option<f64>,
     context: ExecutionContext<'_>,
 ) -> Result<Output> {
+    let pattern = analysis_context.pattern();
     let ExecutionContext {
         geometry_budget_bytes,
         timings,
@@ -121,12 +125,15 @@ pub(super) fn run(
         if includes_pooled {
             permutation_whitened_anisotropy(
                 pattern,
-                config.spectrum.anisotropy_low_k_shells,
-                config.permutation.b,
-                config.permutation.seed,
-                config.inference.family_wise_alpha,
                 configured_strata,
-                config.performance.k_chunk_modes,
+                AnisotropyPermutationOptions {
+                    low_k_radius: config.spectrum.anisotropy_low_k_shells,
+                    n_permutations: config.permutation.b,
+                    seed: config.permutation.seed,
+                    alpha: config.inference.family_wise_alpha,
+                    k_chunk_modes: config.performance.k_chunk_modes,
+                    n_marked: analysis_context.n_marked(),
+                },
             )
         } else {
             Ok(None)

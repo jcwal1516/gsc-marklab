@@ -471,7 +471,10 @@ impl From<ResidualTerritoryCandidate> for ResidualTerritory {
 #[cfg(test)]
 mod tests {
     use crate::{
-        api::{spatial_stage, stages::mark_pair_covariance_with_envelope},
+        api::{
+            context::MarkedAnalysisContext, spatial_stage,
+            stages::mark_pair_covariance_with_envelope,
+        },
         config::AnalysisConfig,
         data::{Pattern, PatternMeta},
         geom::spatial_index::SpatialIndex2D,
@@ -543,9 +546,10 @@ mod tests {
         reset_residual_plan_build_call_count();
 
         let mut timings = Vec::new();
+        let analysis_context = MarkedAnalysisContext::new(&pattern);
         spatial_stage::run(
             &config,
-            &pattern,
+            &analysis_context,
             true,
             None,
             None,
