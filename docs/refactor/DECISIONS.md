@@ -164,3 +164,10 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Interim COR-01 decision: Until Phase 9 replaces direct outcome synthesis, expose the current workflows only as `marklab smoke`, `SyntheticSmoke*`, and `smoke.json`; state that they are not calibration or validation evidence. Remove the Task-derived below-resolution alias. This contains the claim but does not close COR-01.
 - Verification: `cargo +1.96.0 fmt --all --check`, warnings-denied all-target/all-feature Clippy, `cargo +1.96.0 check --locked --no-default-features`, all-feature doc tests, and `cargo +1.96.0 nextest run --locked --all-features` all exit 0. Nextest ran 299/299 tests with 15 expected skips. Obsolete-name searches return only negative assertions, migration history, or explicit “not this algorithm” documentation.
 - Status: Accepted; Phase 4 may begin.
+
+## 2026-08-22 — Phase 4 opened with orchestration evidence first
+
+- Entry: Re-read Phase 4 §§11.1–11.8 after the clean Phase 3 closure at `7ecca5b`. Begin by mapping the actual marked engine stages, multimodal engine outputs, CLI-only transform/graph/geometry/sidecar calculations, feature gates, cell-table responsibilities, metadata duplication, and pre/post coupling.
+- Decision: Do not start with the target directory tree. First add boundary-focused regressions for one transform fit, one graph build, and library/CLI core-result parity, then introduce the smallest application-run objects needed to make those tests pass. Preserve spectrum numerics while extracting cohesive responsibilities; ARCH-03 decomposition follows evidence from the marked workflow rather than file-size alone.
+- Required constraints: Domain comparison is already no-default/CLI-independent. Further touched domain algorithms must lose CLI feature gates. Refactored production modules use explicit imports. CLI may load inputs and write outputs but may not calculate scientific sidecars.
+- Status: Accepted; Phase 4 active.
