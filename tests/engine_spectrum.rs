@@ -328,7 +328,7 @@ fn engine_marks_out_of_range_wavelet_endpoints_insufficient() {
 }
 
 #[test]
-fn engine_flags_confounding_when_cluster_is_explained_by_qc_strata() {
+fn homogeneous_strata_report_degenerate_null() {
     let mut config = permissive_config();
     config.inference.family_wise_alpha = 0.10;
     config.permutation.stratified = true;
@@ -354,14 +354,18 @@ fn engine_flags_confounding_when_cluster_is_explained_by_qc_strata() {
     let engine = AnalysisEngine::new(config).expect("engine");
     let result = engine.analyze_pattern(&pattern).expect("analysis");
 
+    assert!(
+        matches!(
+            &result.spectrum,
+            marklab::AnalysisSection::InsufficientData { reason }
+                if reason.contains("degenerate") && reason.contains("mark-homogeneous")
+        ),
+        "spectrum={:?}",
+        result.spectrum
+    );
     assert_eq!(
-        result
-            .spectrum
-            .value()
-            .expect("spectrum")
-            .low_k_excess_p_value,
-        Some(1.0),
-        "the configured stratified null must be the primary spectrum null"
+        result.primary_endpoint.null,
+        "stratified_fixed_position_random_labeling"
     );
     assert_eq!(
         result
@@ -390,7 +394,7 @@ fn engine_flags_confounding_when_cluster_is_explained_by_qc_strata() {
     assert!(
         result
             .status_flags
-            .contains(&StatusFlag::ConfoundedBySpatialStrata),
+            .contains(&StatusFlag::DegenerateSpatialStrataNull),
         "flags={:?}, spectral_curve_test={:?}",
         result.status_flags,
         result
@@ -398,12 +402,14 @@ fn engine_flags_confounding_when_cluster_is_explained_by_qc_strata() {
             .value()
             .map(|value| &value.spectral_curve_test)
     );
+    assert!(!result
+        .status_flags
+        .contains(&StatusFlag::ConfoundedBySpatialStrata));
     assert_eq!(result.status, "suppressed");
 }
 
 #[test]
-#[ignore = "Phase 0 reproduction: COR-03 distinct null sensitivity is fixed in Phase 2"]
-fn remediation_confounding_compares_unstratified_and_stratified_results() {
+fn distinct_nulls_are_actually_executed() {
     let mut pattern = Pattern::from_arrays(
         (0..40).map(|index| index as f64).collect(),
         vec![0.0; 40],
@@ -451,6 +457,10 @@ fn remediation_confounding_compares_unstratified_and_stratified_results() {
         .expect("stratified p-value");
     assert!(unstratified_p < 0.10, "unstratified p={unstratified_p}");
     assert!(stratified_p >= 0.10, "stratified p={stratified_p}");
+    assert_eq!(
+        stratified.primary_endpoint.null,
+        "stratified_fixed_position_random_labeling"
+    );
     assert!(
         stratified
             .status_flags
@@ -458,6 +468,32 @@ fn remediation_confounding_compares_unstratified_and_stratified_results() {
         "distinct nulls imply confounding, but flags were {:?}",
         stratified.status_flags
     );
+}
+
+#[test]
+fn missing_strata_report_validation_error() {
+    let mut config = permissive_config();
+    config.permutation.stratified = true;
+    config.permutation.strata_fields = vec![PermutationStratum::QcBin];
+    let mut pattern = Pattern::from_arrays(
+        (0..40).map(|index| index as f64).collect(),
+        vec![0.0; 40],
+        (0..40).map(|index| u8::from(index < 8)).collect(),
+        meta(),
+    )
+    .expect("pattern");
+    pattern.window.l_eff_um = 40.0;
+    pattern.window.d_nn_mean_um = 1.0;
+    pattern.window.area_um2 = 40.0;
+
+    let error = AnalysisEngine::new(config)
+        .expect("engine")
+        .analyze_pattern(&pattern)
+        .expect_err("missing configured strata must fail validation");
+
+    assert!(error
+        .to_string()
+        .contains("configured permutation stratum QcBin is absent"));
 }
 
 #[test]
@@ -490,7 +526,7 @@ fn engine_can_stratify_by_component_id_when_qc_bin_is_absent() {
     assert!(
         result
             .status_flags
-            .contains(&StatusFlag::ConfoundedBySpatialStrata),
+            .contains(&StatusFlag::DegenerateSpatialStrataNull),
         "flags={:?}, p_value={:?}",
         result.status_flags,
         result.primary_endpoint.p_value

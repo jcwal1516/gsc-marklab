@@ -88,6 +88,14 @@ reflection. `"affine"` permits the full configured affine model, including
 scale and shear. Registration summaries serialize these models as `rigid` and
 `affine`, respectively.
 
+When `[permutation].stratified = true`, the stratified fixed-position null is
+the primary spectrum null and an unstratified null is run as a sensitivity
+analysis over the same modes and observed powers. The result is flagged as
+confounded only when the unstratified low-k endpoint is significant at
+`family_wise_alpha` and the evaluable stratified endpoint is not. If every
+configured stratum is mark-homogeneous, the stratified spectrum null is
+reported as degenerate and no numeric spectrum p-value is emitted.
+
 Removed 0.1 keys and method-selection strings have no aliases.
 
 ## WSI

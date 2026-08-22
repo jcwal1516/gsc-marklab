@@ -490,6 +490,7 @@ pub enum StatusFlag {
     WindowOrGriddingArtifactSuspect,
     SensitivityUnstable,
     ConfoundedBySpatialStrata,
+    DegenerateSpatialStrataNull,
     PrePostNotAnatomicallyComparable,
     SuppressedBiologicInterpretation,
 }

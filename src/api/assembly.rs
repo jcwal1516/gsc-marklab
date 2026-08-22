@@ -4,6 +4,7 @@ pub(super) struct Inputs {
     pub(super) status: &'static str,
     pub(super) status_flags: Vec<StatusFlag>,
     pub(super) spectrum: Option<PermutationWhitenedSpectrum>,
+    pub(super) spectrum_unavailable_reason: Option<String>,
     pub(super) pair_correlation: crate::output::AnalysisSection<FunctionalSummary>,
     pub(super) pair_correlation_curve: Vec<PairCorrelationPoint>,
     pub(super) anisotropy: Option<PermutationAnisotropy>,
@@ -25,6 +26,7 @@ pub(super) fn assemble(
         status,
         status_flags,
         spectrum,
+        spectrum_unavailable_reason,
         pair_correlation,
         pair_correlation_curve,
         anisotropy,
@@ -114,24 +116,34 @@ pub(super) fn assemble(
             name: "low_k_excess".into(),
             value: spectrum.as_ref().map_or_else(
                 || crate::output::AnalysisSection::InsufficientData {
-                    reason: "too few eligible spectrum shells or invalid spectrum input".into(),
+                    reason: spectrum_unavailable_reason.clone().unwrap_or_else(|| {
+                        "too few eligible spectrum shells or invalid spectrum input".into()
+                    }),
                 },
                 |value| crate::output::AnalysisSection::available(value.low_k_excess),
             ),
             p_value: low_k_excess_p_value.map_or_else(
                 || crate::output::AnalysisSection::InsufficientData {
-                    reason: "the low-k null statistic was unavailable".into(),
+                    reason: spectrum_unavailable_reason.clone().unwrap_or_else(|| {
+                        "the low-k null statistic was unavailable".into()
+                    }),
                 },
                 crate::output::AnalysisSection::available,
             ),
-            null: "fixed_position_random_labeling".into(),
+            null: if config.permutation.stratified {
+                "stratified_fixed_position_random_labeling".into()
+            } else {
+                "fixed_position_random_labeling".into()
+            },
         },
         spectrum: spectrum.as_ref().map_or_else(
             || crate::output::AnalysisSection::InsufficientData {
-                reason: format!(
-                    "fewer than {} inference-eligible spectrum shells or undefined spectrum input",
-                    config.validation.k_shell_min
-                ),
+                reason: spectrum_unavailable_reason.unwrap_or_else(|| {
+                    format!(
+                        "fewer than {} inference-eligible spectrum shells or undefined spectrum input",
+                        config.validation.k_shell_min
+                    )
+                }),
             },
             |spectrum_value| {
                 crate::output::AnalysisSection::available(SpectrumSummary {

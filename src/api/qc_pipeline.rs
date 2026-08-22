@@ -9,10 +9,84 @@ use crate::{
     output::{QcSummary, StatusFlag},
     permutation::{labels::permute_fixed_count, stratified::permute_within_strata},
     qc::stain_gradient::gradient_suspect,
-    spectra::structure_factor::{
-        stratified_permutation_whitened_spectrum, SpectrumPermutationOptions,
-    },
+    spectra::structure_factor::PermutationWhitenedSpectrum,
 };
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ConfoundingConclusion {
+    ConfoundedBySpatialStrata,
+    BothSignificant,
+    NoUnstratifiedSignal,
+    DegenerateStratifiedNull,
+    NotEvaluable,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct SpectrumInference {
+    pub(super) p_global: f64,
+    pub(super) low_k_excess_p_value: Option<f64>,
+}
+
+impl SpectrumInference {
+    fn from_spectrum(spectrum: &PermutationWhitenedSpectrum) -> Self {
+        Self {
+            p_global: spectrum.p_global,
+            low_k_excess_p_value: spectrum.low_k_excess_p_value,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct SpectrumNullSensitivity {
+    pub(super) unstratified: Option<SpectrumInference>,
+    pub(super) stratified: Option<SpectrumInference>,
+    pub(super) conclusion: ConfoundingConclusion,
+}
+
+pub(super) fn spectrum_null_sensitivity(
+    unstratified: Option<&PermutationWhitenedSpectrum>,
+    stratified: Option<&PermutationWhitenedSpectrum>,
+    alpha: f64,
+    stratified_degenerate: bool,
+) -> SpectrumNullSensitivity {
+    let unstratified = unstratified.map(SpectrumInference::from_spectrum);
+    let stratified = stratified.map(SpectrumInference::from_spectrum);
+    let conclusion = classify_confounding(
+        unstratified.and_then(|value| value.low_k_excess_p_value),
+        stratified.and_then(|value| value.low_k_excess_p_value),
+        alpha,
+        stratified_degenerate,
+    );
+    SpectrumNullSensitivity {
+        unstratified,
+        stratified,
+        conclusion,
+    }
+}
+
+fn classify_confounding(
+    unstratified_p_value: Option<f64>,
+    stratified_p_value: Option<f64>,
+    alpha: f64,
+    stratified_degenerate: bool,
+) -> ConfoundingConclusion {
+    if stratified_degenerate {
+        return ConfoundingConclusion::DegenerateStratifiedNull;
+    }
+    let (Some(unstratified), Some(stratified)) = (unstratified_p_value, stratified_p_value) else {
+        return ConfoundingConclusion::NotEvaluable;
+    };
+    let p_value_is_valid = |value: f64| value.is_finite() && (0.0..=1.0).contains(&value);
+    let alpha_is_valid = alpha.is_finite() && 0.0 < alpha && alpha < 1.0;
+    if !alpha_is_valid || !p_value_is_valid(unstratified) || !p_value_is_valid(stratified) {
+        return ConfoundingConclusion::NotEvaluable;
+    }
+    match (unstratified < alpha, stratified < alpha) {
+        (true, false) => ConfoundingConclusion::ConfoundedBySpatialStrata,
+        (true, true) => ConfoundingConclusion::BothSignificant,
+        (false, _) => ConfoundingConclusion::NoUnstratifiedSignal,
+    }
+}
 
 pub(super) fn validate_pattern(
     config: &AnalysisConfig,
@@ -44,9 +118,6 @@ pub(super) fn validate_pattern(
                 "stratified permutation requires at least one configured stratum".into(),
             )
         })?;
-        if strata_are_mark_homogeneous(&pattern.mark, &strata) {
-            status_flags.push(StatusFlag::ConfoundedBySpatialStrata);
-        }
         Some(strata)
     } else {
         None
@@ -79,41 +150,6 @@ pub(super) fn tumor_cell_density_per_mm2(pattern: &Pattern) -> Option<f64> {
     } else {
         None
     }
-}
-
-pub(super) fn stratified_confounds(config: &AnalysisConfig, pattern: &Pattern) -> Result<bool> {
-    let Some(strata) = combined_strata_for(config, pattern)? else {
-        return Ok(false);
-    };
-
-    // A null that preserves a homogeneous mark count inside every stratum is
-    // degenerate: it reproduces the observed labels exactly. In that case any
-    // unstratified signal is, by construction, completely explained by the
-    // configured strata.
-    if strata_are_mark_homogeneous(&pattern.mark, &strata) {
-        return Ok(true);
-    }
-
-    stratified_permutation_whitened_spectrum(
-        pattern,
-        &strata,
-        SpectrumPermutationOptions {
-            n_shells: config.spectrum.k_shells,
-            low_k_modes: config.spectrum.low_k_shells,
-            n_permutations: config.permutation.b,
-            seed: config.permutation.seed,
-            family_wise_alpha: config.inference.family_wise_alpha,
-            max_scale_um: config.validation.largest_interpretable_scale_fraction
-                * pattern.window.l_eff_um,
-            k_shell_min: config.validation.k_shell_min,
-        },
-    )?
-    .map(|stratified| stratified.p_global >= config.inference.family_wise_alpha)
-    .ok_or_else(|| {
-        MarklabError::Compute(
-            "stratified spectrum could not be evaluated for the configured strata".into(),
-        )
-    })
 }
 
 pub(super) fn strata_are_mark_homogeneous(marks: &[u8], strata: &[u32]) -> bool {
@@ -185,5 +221,42 @@ pub(super) fn stratum_column(field: &PermutationStratum, pattern: &Pattern) -> O
             (values.len() == pattern.len())
                 .then(|| values.iter().map(|value| u64::from(*value)).collect())
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{classify_confounding, ConfoundingConclusion};
+
+    #[test]
+    fn confounding_detected_when_unstratified_disappears_after_stratification() {
+        assert_eq!(
+            classify_confounding(Some(0.01), Some(0.20), 0.05, false),
+            ConfoundingConclusion::ConfoundedBySpatialStrata
+        );
+    }
+
+    #[test]
+    fn confounding_not_detected_when_both_remain_significant() {
+        assert_eq!(
+            classify_confounding(Some(0.01), Some(0.02), 0.05, false),
+            ConfoundingConclusion::BothSignificant
+        );
+    }
+
+    #[test]
+    fn confounding_not_detected_when_neither_is_significant() {
+        assert_eq!(
+            classify_confounding(Some(0.40), Some(0.20), 0.05, false),
+            ConfoundingConclusion::NoUnstratifiedSignal
+        );
+    }
+
+    #[test]
+    fn homogeneous_strata_report_degenerate_null() {
+        assert_eq!(
+            classify_confounding(Some(0.01), Some(1.0), 0.05, true),
+            ConfoundingConclusion::DegenerateStratifiedNull
+        );
     }
 }

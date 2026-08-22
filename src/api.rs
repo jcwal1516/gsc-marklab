@@ -23,7 +23,7 @@ use crate::{
         observed_power_for_modes, observed_value_power_for_modes,
         permutation_whitened_spectrum_from_observed_modes,
         permutation_whitened_value_spectrum_from_observed_modes, resolvable_modes_for_pattern,
-        stratified_permutation_whitened_spectrum, PermutationWhitenedSpectrum,
+        stratified_permutation_whitened_spectrum_from_observed_modes, PermutationWhitenedSpectrum,
         SpectrumPermutationOptions,
     },
     wavelet::{
@@ -40,7 +40,10 @@ mod stages;
 
 use assembly::interpretation_for;
 use components::component_results_for;
-use qc_pipeline::{permutation_labels, qc_summary, stratified_confounds, validate_pattern};
+use qc_pipeline::{
+    permutation_labels, qc_summary, spectrum_null_sensitivity, strata_are_mark_homogeneous,
+    validate_pattern, ConfoundingConclusion,
+};
 use stages::{
     estimated_raster_pixels, pair_correlation_with_envelope,
     periodogram_disagrees_with_particle_spectrum, scalogram_with_envelope, territories_for,
@@ -136,20 +139,20 @@ impl AnalysisEngine {
                 }
             },
         );
-        let spectrum = timed_stage(
+        let (spectrum, spectrum_null_sensitivity, spectrum_unavailable_reason) = timed_stage(
             &mut timings,
             "permutation_spectra",
             self.threads,
             || -> Result<_> {
                 if self.config.analysis.use_probabilistic_marks {
                     let Some(values) = pattern.mark_prob.as_deref() else {
-                        return Ok(None);
+                        return Ok((None, None, None));
                     };
                     let values = values.iter().copied().map(f64::from).collect::<Vec<_>>();
                     let Some(observed_mode_power) = observed_mode_power.clone() else {
-                        return Ok(None);
+                        return Ok((None, None, None));
                     };
-                    permutation_whitened_value_spectrum_from_observed_modes(
+                    let spectrum = permutation_whitened_value_spectrum_from_observed_modes(
                         pattern,
                         &values,
                         &modes,
@@ -167,7 +170,8 @@ impl AnalysisEngine {
                                 * pattern.window.l_eff_um,
                             k_shell_min: self.config.validation.k_shell_min,
                         },
-                    )
+                    )?;
+                    Ok((spectrum, None, None))
                 } else {
                     let options = SpectrumPermutationOptions {
                         n_shells: self.config.spectrum.k_shells,
@@ -179,22 +183,81 @@ impl AnalysisEngine {
                             * pattern.window.l_eff_um,
                         k_shell_min: self.config.validation.k_shell_min,
                     };
+                    let Some(observed_mode_power) = observed_mode_power else {
+                        return Ok((None, None, None));
+                    };
                     if let Some(strata) = configured_strata.as_deref() {
-                        stratified_permutation_whitened_spectrum(pattern, strata, options)
-                    } else {
-                        let Some(observed_mode_power) = observed_mode_power else {
-                            return Ok(None);
+                        let stratified_degenerate =
+                            strata_are_mark_homogeneous(&pattern.mark, strata);
+                        let unstratified = permutation_whitened_spectrum_from_observed_modes(
+                            pattern,
+                            &modes,
+                            observed_mode_power.clone(),
+                            options,
+                        )?;
+                        let stratified = if stratified_degenerate {
+                            None
+                        } else {
+                            stratified_permutation_whitened_spectrum_from_observed_modes(
+                                pattern,
+                                strata,
+                                &modes,
+                                observed_mode_power,
+                                options,
+                            )?
                         };
-                        permutation_whitened_spectrum_from_observed_modes(
+                        let sensitivity = spectrum_null_sensitivity(
+                            unstratified.as_ref(),
+                            stratified.as_ref(),
+                            self.config.inference.family_wise_alpha,
+                            stratified_degenerate,
+                        );
+                        let unavailable_reason = stratified_degenerate.then(|| {
+                            "stratified spectrum null is degenerate because every configured stratum is mark-homogeneous".to_string()
+                        });
+                        Ok((stratified, Some(sensitivity), unavailable_reason))
+                    } else {
+                        let spectrum = permutation_whitened_spectrum_from_observed_modes(
                             pattern,
                             &modes,
                             observed_mode_power,
                             options,
-                        )
+                        )?;
+                        Ok((spectrum, None, None))
                     }
                 }
             },
         )?;
+
+        timed_stage(&mut timings, "inference", self.threads, || {
+            if let Some(sensitivity) = spectrum_null_sensitivity {
+                tracing::debug!(
+                    unstratified_p_global = ?sensitivity
+                        .unstratified
+                        .map(|inference| inference.p_global),
+                    unstratified_low_k_p = ?sensitivity
+                        .unstratified
+                        .and_then(|inference| inference.low_k_excess_p_value),
+                    stratified_p_global = ?sensitivity.stratified.map(|inference| inference.p_global),
+                    stratified_low_k_p = ?sensitivity
+                        .stratified
+                        .and_then(|inference| inference.low_k_excess_p_value),
+                    conclusion = ?sensitivity.conclusion,
+                    "spectrum null-model sensitivity"
+                );
+                match sensitivity.conclusion {
+                    ConfoundingConclusion::ConfoundedBySpatialStrata => {
+                        status_flags.push(StatusFlag::ConfoundedBySpatialStrata);
+                    }
+                    ConfoundingConclusion::DegenerateStratifiedNull => {
+                        status_flags.push(StatusFlag::DegenerateSpatialStrataNull);
+                    }
+                    ConfoundingConclusion::BothSignificant
+                    | ConfoundingConclusion::NoUnstratifiedSignal
+                    | ConfoundingConclusion::NotEvaluable => {}
+                }
+            }
+        });
 
         let low_k_excess = spectrum
             .as_ref()
@@ -210,20 +273,6 @@ impl AnalysisEngine {
         if periodogram_artifact {
             status_flags.push(StatusFlag::WindowOrGriddingArtifactSuspect);
         }
-        timed_stage(&mut timings, "inference", self.threads, || -> Result<()> {
-            if self.config.permutation.stratified
-                && spectrum
-                    .as_ref()
-                    .and_then(|spectrum| finite_option(spectrum.p_global))
-                    .map(|p_global| p_global < self.config.inference.family_wise_alpha)
-                    .unwrap_or(false)
-                && stratified_confounds(&self.config, pattern)?
-            {
-                status_flags.push(StatusFlag::ConfoundedBySpatialStrata);
-            }
-            Ok(())
-        })?;
-
         let status = if status_flags.is_empty() {
             "ok"
         } else {
@@ -347,6 +396,7 @@ impl AnalysisEngine {
                 status,
                 status_flags,
                 spectrum,
+                spectrum_unavailable_reason,
                 pair_correlation,
                 pair_correlation_curve,
                 anisotropy,

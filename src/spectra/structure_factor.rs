@@ -403,9 +403,11 @@ pub fn observed_value_power_for_modes(
         .collect()
 }
 
-pub fn stratified_permutation_whitened_spectrum<T>(
+pub fn stratified_permutation_whitened_spectrum_from_observed_modes<T>(
     pattern: &Pattern,
     strata: &[T],
+    modes: &[KMode],
+    observed_mode_power: Vec<f64>,
     options: SpectrumPermutationOptions,
 ) -> Result<Option<PermutationWhitenedSpectrum>>
 where
@@ -417,25 +419,11 @@ where
         || pattern.n_unmarked() == 0
         || options.n_shells == 0
         || options.n_permutations == 0
+        || modes.is_empty()
+        || observed_mode_power.len() != modes.len()
     {
         return Ok(None);
     }
-
-    let Some(band) = resolvable_band(pattern) else {
-        return Ok(None);
-    };
-    let modes = resolvable_k_modes(band, options.n_shells);
-    if modes.is_empty() {
-        return Ok(None);
-    }
-
-    let Some(observed_mode_power) = modes
-        .iter()
-        .map(|mode| centered_structure_factor(pattern, mode.kx, mode.ky))
-        .collect::<Option<Vec<_>>>()
-    else {
-        return Ok(None);
-    };
 
     let mut permutation_mode_powers = vec![vec![0.0; modes.len()]; options.n_permutations];
     for (perm_index, powers) in permutation_mode_powers.iter_mut().enumerate() {
@@ -456,12 +444,7 @@ where
         }
     }
 
-    summarize_permutation_whitening(
-        &modes,
-        observed_mode_power,
-        permutation_mode_powers,
-        options,
-    )
+    summarize_permutation_whitening(modes, observed_mode_power, permutation_mode_powers, options)
 }
 
 fn summarize_permutation_whitening(
