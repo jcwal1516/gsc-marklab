@@ -40,13 +40,15 @@ impl ResultDocument {
     }
 
     pub fn from_json(text: &str) -> Result<Self> {
-        let value: serde_json::Value = serde_json::from_str(text)
+        let mut value: serde_json::Value = serde_json::from_str(text)
             .map_err(|error| MarklabError::Schema(format!("invalid result JSON: {error}")))?;
         let found = value
             .get("format_version")
             .and_then(serde_json::Value::as_str)
             .ok_or_else(|| MarklabError::Schema("result format_version is required".into()))?;
-        if found != RESULT_FORMAT_VERSION {
+        if found == "0.2" {
+            value = super::migrate_v02::marked_document(value)?;
+        } else if found != RESULT_FORMAT_VERSION {
             return Err(MarklabError::UnsupportedFormatVersion {
                 found: found.into(),
                 supported: RESULT_FORMAT_VERSION.into(),

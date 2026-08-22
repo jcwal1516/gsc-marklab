@@ -24,8 +24,10 @@ OutputWriter::write(&ResultDocument, output_directory, &OutputSection)
 
 Result format 0.3 is fixed by the library and cannot be configured. Its top
 level is `format_version`, `provenance`, and the adjacently tagged `analysis`
-enum (`kind` plus `result`). Older and unknown versions are rejected with
-`UnsupportedFormatVersion` while the 0.2 migration converter is pending.
+enum (`kind` plus `result`). Unknown versions are rejected with
+`UnsupportedFormatVersion`. The reader has a narrow 0.2 marked-pattern
+converter for fields with unambiguous semantics; unsafe legacy states and 0.2
+multimodal documents return a schema error with a rerun requirement.
 The supported kinds are `marked_pattern`, `multimodal`, `marked_prepost`, and
 `multimodal_prepost`. Both pre/post CLIs accept either a result file or the
 directory containing `result.json` through one resolver.

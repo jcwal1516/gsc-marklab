@@ -84,6 +84,122 @@ fn result_v03_roundtrip() {
     assert!(value["analysis"]["result"].get("format_version").is_none());
 }
 
+fn sample_v02_marked_document() -> serde_json::Value {
+    serde_json::json!({
+        "format_version": "0.2",
+        "provenance": {"program": "marklab", "crate_version": "0.0.9"},
+        "analysis": {
+            "kind": "marked_pattern",
+            "result": {
+                "case_id": "legacy-case",
+                "timepoint": "pre",
+                "protein": "MSH6",
+                "mark_label": "marked",
+                "status": "ok",
+                "status_flags": [],
+                "n_cells": 4,
+                "n_marked": 2,
+                "p_hat": 0.5,
+                "window": {"area_um2": 100.0, "l_eff_um": 11.284, "d_nn_mean_um": 2.0},
+                "primary_endpoint": {
+                    "name": "low_k_excess",
+                    "value": {"status": "available", "value": 1.1},
+                    "p_value": {"status": "available", "value": 0.2},
+                    "null": "fixed_position_random_labeling"
+                },
+                "spectrum": {"status": "not_applicable"},
+                "spectrum_curve": [],
+                "pair_correlation": {"status": "available", "value": {"p_global": 0.4, "n_permutations": 19}},
+                "pair_correlation_curve": [{
+                    "r_min_um": 0.0,
+                    "r_max_um": 2.0,
+                    "value": 0.0,
+                    "inference_eligible": false,
+                    "lower_global_envelope": null,
+                    "upper_global_envelope": null,
+                    "count": 0
+                }],
+                "anisotropy": {"status": "disabled"},
+                "wavelet": {"status": "available", "value": {
+                    "fine_variance_fraction": 0.2,
+                    "intermediate_variance_fraction": 0.3,
+                    "coarse_variance_fraction": 0.5,
+                    "coarse_to_fine_ratio": 2.5,
+                    "territory_count": 0,
+                    "coarse_variance_fraction_p_value": {"status": "available", "value": 0.3},
+                    "territory_count_p_value": {"status": "available", "value": 1.0}
+                }},
+                "scalogram": {"status": "not_applicable"},
+                "scalogram_curve": [],
+                "wavelet_territories": {"status": "available", "value": []},
+                "registration": {"status": "not_applicable"},
+                "fused_cell_summary": {"status": "not_applicable"},
+                "neighborhood_enrichment": {"status": "not_applicable"},
+                "cross_interaction_curves": {"status": "not_applicable"},
+                "territory_profiles": {"status": "not_applicable"},
+                "territory_comparisons": {"status": "not_applicable"},
+                "component_results": {"status": "not_applicable"},
+                "diagnostics": {"status": "not_applicable"},
+                "timings": [],
+                "interpretation": {"class": "random_like", "text": "Legacy neutral result."}
+            }
+        }
+    })
+}
+
+#[test]
+fn result_v02_to_v03_conversion() {
+    let old = sample_v02_marked_document();
+
+    let converted = ResultDocument::from_json(&old.to_string()).expect("convert marked 0.2");
+    let value = serde_json::to_value(converted).expect("converted value");
+
+    assert_eq!(value["format_version"], "0.3");
+    assert_eq!(
+        value["analysis"]["result"]["window"]["analysis_effective_length_um"],
+        11.284
+    );
+    assert_eq!(
+        value["analysis"]["result"]["mark_pair_covariance_curve"][0]["covariance"],
+        serde_json::Value::Null
+    );
+    assert_eq!(
+        value["analysis"]["result"]["multiscale_residual"]["value"]["block_mean_variance_fraction"],
+        0.5
+    );
+    assert_eq!(
+        value["analysis"]["result"]["component_mode_selection"]["selected"],
+        "pooled"
+    );
+    assert!(value["analysis"]["result"].get("wavelet").is_none());
+    assert!(value["analysis"]["result"]
+        .get("pair_correlation")
+        .is_none());
+}
+
+#[test]
+fn result_v02_converter_rejects_unsafe_or_unsupported_payloads() {
+    let multimodal = serde_json::json!({
+        "format_version": "0.2",
+        "provenance": {"program": "marklab", "crate_version": "0.0.9"},
+        "analysis": {"kind": "multimodal", "result": {}}
+    });
+    let error = ResultDocument::from_json(&multimodal.to_string())
+        .expect_err("0.2 multimodal conversion is intentionally unsupported");
+    assert!(error.to_string().contains("marked_pattern documents only"));
+
+    let mut populated_placeholder = sample_v02_marked_document();
+    populated_placeholder["analysis"]["result"]["registration"] = serde_json::json!({
+        "status": "available",
+        "value": {"transform_type": "scale_translation"}
+    });
+    let error = ResultDocument::from_json(&populated_placeholder.to_string())
+        .expect_err("populated legacy multimodal placeholder must not be discarded");
+    assert!(error
+        .to_string()
+        .contains("populated 0.2 marked-result registration"));
+}
+
 #[test]
 fn window_uses_explicit_analysis_effective_length_name() {
     let window = WindowSummary {

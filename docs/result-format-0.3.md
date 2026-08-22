@@ -225,5 +225,9 @@ largest component fraction is below 0.80, otherwise to `pooled`.
 
 ## Current scope
 
-The complete 0.2 converter remains open work; readers currently reject older
-versions rather than guessing at removed fields or unavailable-state meaning.
+The reader includes a narrow 0.2 marked-pattern converter. It migrates only
+unambiguous states and then validates the strict 0.3 DTO. It rejects 0.2
+multimodal documents, populated legacy multimodal placeholders, populated old
+curve tests, unsupported null semantics, malformed shapes, and unknown fields.
+Those documents must be regenerated from their original inputs; no unavailable
+state or scientific result is guessed.

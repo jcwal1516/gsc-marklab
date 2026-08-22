@@ -6,6 +6,7 @@ mod document;
 mod figures;
 mod manifest;
 mod marked_artifacts;
+mod migrate_v02;
 #[cfg(feature = "csv")]
 mod multimodal_artifacts;
 mod multimodal_result_artifacts;

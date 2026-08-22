@@ -1,9 +1,24 @@
 # Migrating Result Format 0.2 to 0.3
 
-Marklab now emits result format 0.3. The automatic 0.2 converter is not yet
-implemented; until it is available, rerun the original inputs to produce a 0.3
-document. Readers reject a 0.2 document rather than guessing at missing-state
-semantics.
+Marklab now emits result format 0.3. `ResultDocument::from_json` automatically
+converts a narrow, safe subset of 0.2 marked-pattern documents in memory. The
+converter renames fields whose calculations are unchanged, converts an empty
+pair bin to `covariance: null`, removes only unpopulated legacy placeholders,
+and validates the result against the strict 0.3 schema.
+
+The converter deliberately rejects:
+
+- every 0.2 multimodal document;
+- a marked document with populated registration, fused-cell, neighborhood,
+  cross-interaction, profile, or territory-comparison placeholders;
+- populated 0.2 curve-test rows, because `statistic = 0` cannot distinguish an
+  observed zero from the old unavailable sentinel;
+- a non-fixed-position primary spectrum null that lacks the 0.3 dual-null
+  sensitivity state;
+- unknown fields or malformed legacy shapes.
+
+For a rejected document, rerun the original inputs with the 0.3 engine. The
+converter never inserts scientific results or guesses at lost availability.
 
 ## Changes implemented so far
 

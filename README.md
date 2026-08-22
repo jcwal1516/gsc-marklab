@@ -62,8 +62,11 @@ Result documents use format 0.3:
 }
 ```
 
-Older result formats are rejected by `prepost` until the documented 0.2 to
-0.3 migration path is completed.
+`ResultDocument::from_json` converts supported 0.2 marked-pattern documents to
+0.3 in memory. It rejects 0.2 multimodal documents, populated legacy
+multimodal placeholders inside marked results, and populated legacy curve tests
+because those states cannot be converted without guessing. See the migration
+guide for the exact compatibility boundary.
 
 Both pre/post commands accept either a `result.json` file or its containing
 result directory. Their `prepost.json` output is itself a format 0.3 result
