@@ -1,13 +1,13 @@
 # Implementation status
 
-Last updated: 2026-08-22T18:01:25-04:00
+Last updated: 2026-08-22T18:13:37-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Current SHA: `ac7da28da082f795381da0a03e8437fc4a774262`
+- Current SHA: `3ea2e9849ae024759d871d1e6ce6a566d2c40d92`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
@@ -27,7 +27,7 @@ Last updated: 2026-08-22T18:01:25-04:00
 
 ## Dirty files and reasons
 
-- `docs/implementation/STATUS.md`, `REQUIREMENTS.md`, `VALIDATION_LEDGER.md`, `PERFORMANCE_LEDGER.md`, `CLAIMS_LEDGER.md`, `INTERFACE_CONTRACTS.md`, `task-contracts/B-04.md`, and `handoffs/B-04.md`: B-04/WS-B closure evidence and C-01 activation. Production and test trees are clean at `ac7da28da082f795381da0a03e8437fc4a774262`.
+- `docs/implementation/CANONICAL_SYMBOLS.md`, `DECISIONS.md`, and `task-contracts/C-01.md`: C-01 ownership, audited frozen semantics, and the TMA-safe containment/source decision. Production and test trees are clean at `3ea2e9849ae024759d871d1e6ce6a566d2c40d92`.
 
 ## Recent decisions
 
@@ -41,6 +41,7 @@ Last updated: 2026-08-22T18:01:25-04:00
 - `DEC-0012`: dependencies descend root facade → generic workflow → project; B-04's concrete engine node adapter stays in root.
 - `DEC-0013`: project inputs remain reference-only; only bounded canonical result-0.3 bytes and successful-run records are retained in B-04.
 - `DEC-0014`: use the already-locked reviewed `sha2` 0.10.9 and `thiserror` 2 dependencies; no registry lock delta is accepted.
+- `DEC-0015`: C-01 separates compact containment parents from explicit biological sources so donor cores on multi-donor TMA slides remain attributable without filename inference or false technical-replicate labels.
 
 ## Unresolved questions
 
@@ -52,9 +53,9 @@ Last updated: 2026-08-22T18:01:25-04:00
 
 ## Next three exact actions
 
-1. Read the C-01/FND-01/COH-01 contracts and inventory every existing identity/parent/replication field and caller.
-2. Record C-01 ownership, frozen semantics, package boundary, and behavior-first task contract without coupling to remote filenames.
-3. Add blank/duplicate/missing-parent/cycle/conflicting-parent plus paired/multisite red tests before production types.
+1. Add the C-01 workspace/package and root integration contracts, then confirm the missing members/API fail for the expected reasons.
+2. Implement core IDs, indexed hierarchy validation/design summaries, and atomic project hierarchy installation in dependency order.
+3. Add and run the correctness-checked hierarchy benchmark plus focused workspace/documentation/lock gates.
 
 Next exact verification command:
 

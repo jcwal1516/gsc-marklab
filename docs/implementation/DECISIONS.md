@@ -122,3 +122,12 @@ This file is append-only. Superseding decisions reference the prior decision; ex
 - Decision: Add `sha2 = "0.10.9"` directly to `marklab-project` and use its streaming SHA-256 interface. Add `thiserror = "2"` to both child crates for contextual typed errors; thiserror 2.0.18 is already the root version. Add no graph, UUID, hex, serialization, async, or filesystem dependency.
 - Alternatives: non-cryptographic standard hashing; hand-written SHA-256; new BLAKE/graph/error dependencies.
 - Consequences: expected registry package/checksum set is unchanged; only two local package records and local dependency edges may change in `Cargo.lock`. Any registry version/checksum delta stops B-04.
+
+## DEC-0015 — Separate containment from biological source in the C-01 hierarchy
+
+- Date: 2026-08-22
+- Status: accepted
+- Context: FND-01 requires TMA and multicore fixtures. A TMA core is physically contained by a recipient slide but derives from a donor specimen/patient; those cannot be one parent without losing provenance or falsely calling the slide the biological source. Loose compatibility IDs and filenames cannot repair that ambiguity.
+- Decision: Add `marklab-core` for shared opaque ID types and `marklab-data` for the in-memory hierarchy. Each node has at most one enumerated containment/lineage parent plus an independent replication role: biological unit, biological subsample with explicit source, technical replicate with explicit source, or structural. Sources must name existing biological units but need not be containment ancestors. Structural descendants inherit the nearest declared source. Store compact parent/source indices, validate iteratively in expected linear time, and keep stable root re-exports/persistent schemas deferred.
+- Alternatives: one generic parent relation; classify donor cores as technical replicates; encode donor identity in core/slide names; introduce a general multi-edge ontology before an immediate use.
+- Consequences: C-01 can represent ordinary slides and multi-donor TMA containment without pseudoreplication or filename inference. It does not yet model collection/scanning/assay sites, persistent manifests/digests, cross-artifact drift, result 0.4, or inferential unit selection; C-03 and later cohort tasks own those surfaces.
