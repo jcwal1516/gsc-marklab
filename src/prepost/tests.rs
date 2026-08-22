@@ -1,9 +1,10 @@
 use crate::{
     comparison::{difference::curve_difference_test, equivalence::curve_equivalence_test},
     prepost::deltas::compare_prepost,
-    AnalysisSection, AnisotropySummary, CrossInteractionCurve, CurveTestAvailability,
-    FunctionalSummary, Interpretation, MarkedPatternResult, PairCorrelationPoint, PrimaryEndpoint,
-    QcSummary, ScalogramPoint, SpectrumPoint, SpectrumSummary, TerritoryFeature, WaveletSummary,
+    AnalysisSection, AnisotropySummary, ComponentMode, ComponentModeSelection,
+    CrossInteractionCurve, CurveTestAvailability, FunctionalSummary, Interpretation,
+    MarkedPatternResult, PairCorrelationPoint, PrimaryEndpoint, QcSummary, ResolvedComponentMode,
+    ScalogramPoint, SpectrumPoint, SpectrumSummary, TerritoryFeature, WaveletSummary,
     WindowSummary,
 };
 
@@ -70,6 +71,11 @@ fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResul
         scalogram: AnalysisSection::available(FunctionalSummary::default()),
         scalogram_curve: Vec::<ScalogramPoint>::new(),
         wavelet_territories: AnalysisSection::available(Vec::new()),
+        component_mode_selection: ComponentModeSelection {
+            requested: ComponentMode::Pooled,
+            selected: ResolvedComponentMode::Pooled,
+            reason: "test fixture".into(),
+        },
         component_results: AnalysisSection::available(Vec::new()),
         diagnostics: AnalysisSection::Disabled,
         timings: Vec::new(),

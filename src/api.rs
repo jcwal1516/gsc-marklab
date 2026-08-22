@@ -7,9 +7,9 @@ use crate::{
     errors::{MarklabError, Result},
     inference::scalar_pvalues::{permutation_p_value, Tail},
     output::{
-        AnisotropySummary, DiagnosticsResult, FunctionalSummary, Interpretation,
-        MarkedPatternResult, PairCorrelationPoint, PrimaryEndpoint, ScalogramPoint, SpectrumPoint,
-        SpectrumSummary, StatusFlag, TerritoryFeature, TimingStage, WaveletSummary, WindowSummary,
+        DiagnosticsResult, FunctionalSummary, Interpretation, MarkedPatternResult,
+        PairCorrelationPoint, ScalogramPoint, StatusFlag, TerritoryFeature, TimingStage,
+        WaveletSummary,
     },
     perf::counters::{estimate_peak_memory, MemoryEstimate, MemoryInputs},
     periodogram::{
@@ -17,14 +17,13 @@ use crate::{
         raster::{centered_mark_raster, centered_mark_raster_for_marks},
     },
     permutation::envelopes::GlobalEnvelope,
-    spectra::anisotropy::{permutation_whitened_anisotropy, PermutationAnisotropy},
+    spectra::anisotropy::permutation_whitened_anisotropy,
     spectra::pair_correlation::{pair_correlation, pair_correlation_for_marks},
     spectra::structure_factor::{
         observed_power_for_modes, observed_value_power_for_modes,
         permutation_whitened_spectrum_from_observed_modes,
         permutation_whitened_value_spectrum_from_observed_modes, resolvable_modes_for_pattern,
-        stratified_permutation_whitened_spectrum_from_observed_modes, PermutationWhitenedSpectrum,
-        SpectrumPermutationOptions,
+        stratified_permutation_whitened_spectrum_from_observed_modes, SpectrumPermutationOptions,
     },
     wavelet::{
         modwt::variance_fractions_from_field,
@@ -39,10 +38,10 @@ mod qc_pipeline;
 mod stages;
 
 use assembly::interpretation_for;
-use components::component_results_for;
+use components::component_analysis_plan;
 use qc_pipeline::{
-    permutation_labels, qc_summary, spectrum_null_sensitivity, strata_are_mark_homogeneous,
-    validate_pattern, ConfoundingConclusion,
+    permutation_labels, spectrum_null_sensitivity, strata_are_mark_homogeneous, validate_pattern,
+    ConfoundingConclusion,
 };
 use stages::{
     estimated_raster_pixels, pair_correlation_with_envelope,
@@ -120,16 +119,23 @@ impl AnalysisEngine {
             timed_stage(&mut timings, "validate", self.threads, || {
                 validate_pattern(&self.config, pattern)
             })?;
+        let component_plan = component_analysis_plan(&self.config, pattern);
+        let includes_pooled = component_plan.includes_pooled();
 
         let modes = timed_stage(&mut timings, "kgrid", self.threads, || {
-            resolvable_modes_for_pattern(pattern, self.config.spectrum.k_shells).unwrap_or_default()
+            includes_pooled
+                .then(|| resolvable_modes_for_pattern(pattern, self.config.spectrum.k_shells))
+                .flatten()
+                .unwrap_or_default()
         });
         let observed_mode_power = timed_stage(
             &mut timings,
             "structure_factor_observed",
             self.threads,
             || {
-                if self.config.analysis.use_probabilistic_marks {
+                if !includes_pooled {
+                    None
+                } else if self.config.analysis.use_probabilistic_marks {
                     pattern.mark_prob.as_deref().and_then(|values| {
                         let values = values.iter().copied().map(f64::from).collect::<Vec<_>>();
                         observed_value_power_for_modes(pattern, &values, &modes)
@@ -144,7 +150,9 @@ impl AnalysisEngine {
             "permutation_spectra",
             self.threads,
             || -> Result<_> {
-                if self.config.analysis.use_probabilistic_marks {
+                if !includes_pooled {
+                    Ok((None, None, None))
+                } else if self.config.analysis.use_probabilistic_marks {
                     let Some(values) = pattern.mark_prob.as_deref() else {
                         return Ok((None, None, None));
                     };
@@ -283,8 +291,11 @@ impl AnalysisEngine {
             .as_ref()
             .map_or(0, |spectrum| spectrum.n_permutations);
         let stage_start = Instant::now();
-        let (pair_correlation_curve, pair_correlation) =
-            pair_correlation_with_envelope(&self.config, pattern)?;
+        let (pair_correlation_curve, pair_correlation) = if includes_pooled {
+            pair_correlation_with_envelope(&self.config, pattern)?
+        } else {
+            (Vec::new(), crate::output::AnalysisSection::NotApplicable)
+        };
         push_timing(
             &mut timings,
             "pair_correlation",
@@ -293,20 +304,35 @@ impl AnalysisEngine {
         );
 
         let stage_start = Instant::now();
-        let territories = territories_for(&self.config, pattern);
+        let territories = if includes_pooled {
+            territories_for(&self.config, pattern)
+        } else {
+            Vec::new()
+        };
         push_timing(&mut timings, "wavelet", stage_start.elapsed(), self.threads);
 
-        let interpretation = interpretation_for(&status_flags, status, low_k_excess);
+        let interpretation = if includes_pooled {
+            interpretation_for(&status_flags, status, low_k_excess)
+        } else {
+            Interpretation {
+                class: "separate_components".into(),
+                text: "Component spectra are reported separately; no pooled primary endpoint or pooled interpretation was calculated.".into(),
+            }
+        };
 
         let stage_start = Instant::now();
-        let anisotropy = permutation_whitened_anisotropy(
-            pattern,
-            self.config.spectrum.anisotropy_low_k_shells,
-            self.config.permutation.b,
-            self.config.permutation.seed,
-            self.config.inference.family_wise_alpha,
-            configured_strata.as_deref(),
-        )?;
+        let anisotropy = if includes_pooled {
+            permutation_whitened_anisotropy(
+                pattern,
+                self.config.spectrum.anisotropy_low_k_shells,
+                self.config.permutation.b,
+                self.config.permutation.seed,
+                self.config.inference.family_wise_alpha,
+                configured_strata.as_deref(),
+            )?
+        } else {
+            None
+        };
         push_timing(
             &mut timings,
             "anisotropy",
@@ -315,14 +341,20 @@ impl AnalysisEngine {
         );
 
         let stage_start = Instant::now();
-        let wavelet_fractions = if self.config.wavelet.enabled {
+        let wavelet_fractions = if includes_pooled && self.config.wavelet.enabled {
             centered_mark_raster(pattern, pattern.window.d_nn_mean_um.max(1.0)).and_then(
                 |(spec, raster)| variance_fractions_from_field(&raster, spec.width, spec.height),
             )
         } else {
             None
         };
-        let (wavelet, scalogram_curve, scalogram) = if !self.config.wavelet.enabled {
+        let (wavelet, scalogram_curve, scalogram) = if !includes_pooled {
+            (
+                crate::output::AnalysisSection::NotApplicable,
+                Vec::new(),
+                crate::output::AnalysisSection::NotApplicable,
+            )
+        } else if !self.config.wavelet.enabled {
             (
                 crate::output::AnalysisSection::Disabled,
                 Vec::new(),
@@ -407,6 +439,7 @@ impl AnalysisEngine {
                 diagnostics,
                 timings,
                 interpretation,
+                component_plan,
             },
         )
     }

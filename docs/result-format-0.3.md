@@ -74,6 +74,17 @@ axis values match when `|a-b| <= 1e-12 + 1e-12 * max(|a|, |b|)`. A material
 mismatch produces an `insufficient_data` curve-test result with a null
 statistic and axis diagnostics.
 
+## Component modes
+
+`component_mode_selection` records the requested configuration mode, the
+resolved `pooled`, `separate`, or `both` behavior, and a non-empty selection
+reason. Pooled component results are `not_applicable`, not an available empty
+vector. In `separate` mode, the pooled primary endpoint, spectrum,
+pair-correlation, anisotropy, multiscale summaries, and pooled curves are
+`not_applicable`; component summaries carry the available component-specific
+inference. `auto` resolves to `both` when more than one component exists and the
+largest component fraction is below 0.80, otherwise to `pooled`.
+
 ## Current scope
 
 This document will be expanded as the remaining 0.3 model cleanup is

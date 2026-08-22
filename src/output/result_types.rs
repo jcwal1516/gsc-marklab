@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::PathBuf};
 
-use crate::multimodal::cell_table::FusedCell;
+use crate::{config::ComponentMode, multimodal::cell_table::FusedCell};
 
 pub const RESULT_FORMAT_VERSION: &str = "0.3";
 
@@ -145,7 +145,7 @@ pub struct MarkedPatternResult {
     pub territory_comparisons: AnalysisSection<Vec<CurveTestResult>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub prepost_curve_tests: Vec<CurveTestResult>,
-    #[serde(default)]
+    pub component_mode_selection: ComponentModeSelection,
     pub component_results: AnalysisSection<Vec<ComponentAnalysisSummary>>,
     #[serde(default)]
     pub diagnostics: AnalysisSection<DiagnosticsResult>,
@@ -424,6 +424,21 @@ pub struct ComponentAnalysisSummary {
     pub n_k_modes: usize,
     pub xi_um: Option<f64>,
     pub alpha: Option<f64>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ComponentModeSelection {
+    pub requested: ComponentMode,
+    pub selected: ResolvedComponentMode,
+    pub reason: String,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ResolvedComponentMode {
+    Pooled,
+    Separate,
+    Both,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]

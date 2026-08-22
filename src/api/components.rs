@@ -8,46 +8,135 @@ use crate::{
     data::{validate::validation_flags, Pattern},
     errors::Result,
     geom::{components::ComponentSummary, spatial_index::mean_nearest_neighbor_distance},
-    output::ComponentAnalysisSummary,
+    output::{
+        AnalysisSection, ComponentAnalysisSummary, ComponentModeSelection, ResolvedComponentMode,
+    },
     spectra::structure_factor::{
         permutation_whitened_spectrum, permutation_whitened_value_spectrum,
         SpectrumPermutationOptions,
     },
 };
 
+#[derive(Clone, Debug)]
+pub(super) struct ComponentAnalysisPlan {
+    pub(super) selection: ComponentModeSelection,
+}
+
+impl ComponentAnalysisPlan {
+    pub(super) fn includes_pooled(&self) -> bool {
+        self.selection.selected != ResolvedComponentMode::Separate
+    }
+
+    fn includes_components(&self) -> bool {
+        self.selection.selected != ResolvedComponentMode::Pooled
+    }
+}
+
+pub(super) fn component_analysis_plan(
+    config: &AnalysisConfig,
+    pattern: &Pattern,
+) -> ComponentAnalysisPlan {
+    let requested = config.analysis.analyze_components;
+    let (selected, reason) = match requested {
+        ComponentMode::Pooled => (
+            ResolvedComponentMode::Pooled,
+            "pooled component mode was explicitly requested".to_owned(),
+        ),
+        ComponentMode::Separate => (
+            ResolvedComponentMode::Separate,
+            "separate component mode was explicitly requested; pooled endpoints are not applicable"
+                .to_owned(),
+        ),
+        ComponentMode::Both => (
+            ResolvedComponentMode::Both,
+            "both pooled and separate component modes were explicitly requested".to_owned(),
+        ),
+        ComponentMode::Auto => match pattern.component_id.as_deref() {
+            None => (
+                ResolvedComponentMode::Pooled,
+                "auto selected pooled because component IDs are unavailable".to_owned(),
+            ),
+            Some(component_id) if component_id.len() != pattern.len() => (
+                ResolvedComponentMode::Pooled,
+                format!(
+                    "auto selected pooled because component ID length {} does not match cell count {}",
+                    component_id.len(),
+                    pattern.len()
+                ),
+            ),
+            Some(component_id) => {
+                let summary = ComponentSummary::from_component_ids(component_id);
+                if summary.component_count > 1 && summary.largest_fraction < 0.80 {
+                    (
+                        ResolvedComponentMode::Both,
+                        format!(
+                            "auto selected both because {} components were present and the largest contained {:.3} of cells (< 0.800)",
+                            summary.component_count, summary.largest_fraction
+                        ),
+                    )
+                } else {
+                    (
+                        ResolvedComponentMode::Pooled,
+                        format!(
+                            "auto selected pooled because {} component(s) were present and the largest contained {:.3} of cells (threshold 0.800)",
+                            summary.component_count, summary.largest_fraction
+                        ),
+                    )
+                }
+            }
+        },
+    };
+
+    ComponentAnalysisPlan {
+        selection: ComponentModeSelection {
+            requested,
+            selected,
+            reason,
+        },
+    }
+}
+
 pub(super) fn component_results_for(
     config: &AnalysisConfig,
     pattern: &Pattern,
-) -> Result<Vec<ComponentAnalysisSummary>> {
+    plan: &ComponentAnalysisPlan,
+) -> Result<AnalysisSection<Vec<ComponentAnalysisSummary>>> {
+    if !plan.includes_components() {
+        return Ok(AnalysisSection::NotApplicable);
+    }
     let Some(component_id) = pattern.component_id.as_deref() else {
-        return Ok(Vec::new());
+        return Ok(AnalysisSection::InsufficientData {
+            reason: "separate component analysis requires component IDs".into(),
+        });
     };
-    if component_id.len() != pattern.len() || !should_emit_component_results(config, component_id) {
-        return Ok(Vec::new());
+    if component_id.len() != pattern.len() {
+        return Ok(AnalysisSection::InsufficientData {
+            reason: format!(
+                "component ID length {} does not match cell count {}",
+                component_id.len(),
+                pattern.len()
+            ),
+        });
+    }
+    if component_id.is_empty() {
+        return Ok(AnalysisSection::InsufficientData {
+            reason: "separate component analysis requires at least one cell".into(),
+        });
     }
 
     let mut component_ids = component_id.to_vec();
     component_ids.sort_unstable();
     component_ids.dedup();
 
-    Ok(component_ids
-        .into_iter()
-        .map(|id| component_summary_for(config, pattern, component_id, id))
-        .collect::<Result<Vec<_>>>()?
-        .into_iter()
-        .flatten()
-        .collect())
-}
-
-pub(super) fn should_emit_component_results(config: &AnalysisConfig, component_id: &[u32]) -> bool {
-    match config.analysis.analyze_components {
-        ComponentMode::Pooled => false,
-        ComponentMode::Separate | ComponentMode::Both => true,
-        ComponentMode::Auto => {
-            let summary = ComponentSummary::from_component_ids(component_id);
-            summary.component_count > 1 && summary.largest_fraction < 0.80
-        }
-    }
+    Ok(AnalysisSection::available(
+        component_ids
+            .into_iter()
+            .map(|id| component_summary_for(config, pattern, component_id, id))
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .flatten()
+            .collect(),
+    ))
 }
 
 pub(super) fn component_summary_for(

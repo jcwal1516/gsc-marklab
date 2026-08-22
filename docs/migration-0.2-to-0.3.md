@@ -28,6 +28,9 @@ semantics.
   Every QC fraction now uses all in-mask cells as its denominator;
   `valid_mask_fraction` specifically means the final retained fraction.
   Internal-control validity is no longer copied from that aggregate fraction.
+- Marked results require `component_mode_selection`. `pooled` component results
+  are now `not_applicable` rather than `available` with an empty vector, and
+  `separate` no longer exposes pooled endpoints.
 - A stratified spectrum declares
   `stratified_fixed_position_random_labeling` as its primary null.
 - Mark-homogeneous spectrum strata are reported with

@@ -1,6 +1,6 @@
 use marklab::{
     AnalysisConfig, AnalysisEngine, ComponentMode, OutputWriter, Pattern, PatternMeta,
-    PermutationStratum, ResultDocument, StatusFlag,
+    PermutationStratum, ResolvedComponentMode, ResultDocument, StatusFlag,
 };
 
 fn meta() -> PatternMeta {
@@ -578,6 +578,12 @@ fn engine_reports_separate_component_summaries_when_component_mode_is_both() {
         .expect("analysis");
 
     assert_eq!(result.n_cells, 24);
+    assert_eq!(
+        result.component_mode_selection.selected,
+        ResolvedComponentMode::Both
+    );
+    assert!(!result.component_mode_selection.reason.is_empty());
+    assert!(result.spectrum.value().is_some());
     let components = result.component_results.value().expect("components");
     assert_eq!(components.len(), 2);
     let first = result
@@ -615,11 +621,60 @@ fn engine_reports_separate_component_summaries_when_component_mode_is_both() {
         .expect("pooled engine")
         .analyze_pattern(&pattern)
         .expect("pooled analysis");
-    assert!(pooled.component_results.value().is_some_and(Vec::is_empty));
+    assert!(matches!(
+        pooled.component_results,
+        marklab::AnalysisSection::NotApplicable
+    ));
+    assert_eq!(
+        pooled.component_mode_selection.selected,
+        ResolvedComponentMode::Pooled
+    );
+    assert!(pooled.spectrum.value().is_some());
+
+    let mut auto_config = permissive_config();
+    auto_config.analysis.analyze_components = ComponentMode::Auto;
+    auto_config.validation.n_min = 6;
+    auto_config.validation.n_marked_min = 1;
+    auto_config.validation.n_unmarked_min = 1;
+    auto_config.validation.k_shell_min = 1;
+    auto_config.spectrum.k_shells = 8;
+    auto_config.permutation.b = 19;
+    auto_config.inference.family_wise_alpha = 0.25;
+    let auto_both = AnalysisEngine::new(auto_config.clone())
+        .expect("auto engine")
+        .analyze_pattern(&pattern)
+        .expect("auto analysis");
+    assert_eq!(
+        auto_both.component_mode_selection.selected,
+        ResolvedComponentMode::Both
+    );
+    assert!(auto_both
+        .component_results
+        .value()
+        .is_some_and(|components| components.len() == 2));
+    assert!(auto_both.component_mode_selection.reason.contains("0.500"));
+
+    let mut no_components = pattern.clone();
+    no_components.component_id = None;
+    let auto_pooled = AnalysisEngine::new(auto_config)
+        .expect("auto engine")
+        .analyze_pattern(&no_components)
+        .expect("auto pooled analysis");
+    assert_eq!(
+        auto_pooled.component_mode_selection.selected,
+        ResolvedComponentMode::Pooled
+    );
+    assert!(matches!(
+        auto_pooled.component_results,
+        marklab::AnalysisSection::NotApplicable
+    ));
+    assert!(auto_pooled
+        .component_mode_selection
+        .reason
+        .contains("unavailable"));
 }
 
 #[test]
-#[ignore = "Phase 0 reproduction: MODEL-04 component modes are fixed in Phase 2"]
 fn remediation_separate_component_mode_does_not_behave_like_both() {
     let mut config = permissive_config();
     config.analysis.analyze_components = ComponentMode::Separate;
@@ -671,6 +726,32 @@ fn remediation_separate_component_mode_does_not_behave_like_both() {
         "Separate must not expose the pooled spectrum as the active analysis: {:?}",
         result.spectrum
     );
+    assert_eq!(
+        result.component_mode_selection.selected,
+        ResolvedComponentMode::Separate
+    );
+    assert!(!result.component_mode_selection.reason.is_empty());
+    assert!(matches!(
+        result.primary_endpoint.value,
+        marklab::AnalysisSection::NotApplicable
+    ));
+    assert!(matches!(
+        result.primary_endpoint.p_value,
+        marklab::AnalysisSection::NotApplicable
+    ));
+    assert!(result.spectrum_curve.is_empty());
+    assert!(matches!(
+        result.pair_correlation,
+        marklab::AnalysisSection::NotApplicable
+    ));
+    assert!(matches!(
+        result.anisotropy,
+        marklab::AnalysisSection::NotApplicable
+    ));
+    assert!(matches!(
+        result.wavelet,
+        marklab::AnalysisSection::NotApplicable
+    ));
 }
 
 #[test]

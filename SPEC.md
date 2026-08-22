@@ -52,6 +52,13 @@ exclusions are counted in every applicable fraction, and a present but blank
 internal-control value is invalid. A zero in-mask denominator is an input
 error, not a numeric zero fraction.
 
+Component spectrum modes are behaviorally distinct. `pooled` emits only pooled
+endpoints, `separate` emits component summaries and marks every pooled endpoint
+not applicable, and `both` emits both. `auto` selects `both` only when there are
+multiple components and the largest contains less than 80% of cells; otherwise
+it selects `pooled`. Every result records the requested mode, resolved mode, and
+selection reason.
+
 ## Inference
 
 Extreme-rank-length envelopes match CRAN GET 1.0-7 `type="erl"`: the observed

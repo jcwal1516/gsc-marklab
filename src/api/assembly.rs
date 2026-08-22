@@ -1,4 +1,19 @@
-use super::*;
+use crate::{
+    api::{
+        components::{component_results_for, ComponentAnalysisPlan},
+        finite_option,
+        qc_pipeline::qc_summary,
+    },
+    config::AnalysisConfig,
+    data::Pattern,
+    errors::{MarklabError, Result},
+    output::{
+        AnisotropySummary, DiagnosticsResult, FunctionalSummary, Interpretation,
+        MarkedPatternResult, PairCorrelationPoint, PrimaryEndpoint, ScalogramPoint, SpectrumPoint,
+        SpectrumSummary, StatusFlag, TerritoryFeature, TimingStage, WaveletSummary, WindowSummary,
+    },
+    spectra::{anisotropy::PermutationAnisotropy, structure_factor::PermutationWhitenedSpectrum},
+};
 
 pub(super) struct Inputs {
     pub(super) status: &'static str,
@@ -15,6 +30,7 @@ pub(super) struct Inputs {
     pub(super) diagnostics: crate::output::AnalysisSection<DiagnosticsResult>,
     pub(super) timings: Vec<TimingStage>,
     pub(super) interpretation: Interpretation,
+    pub(super) component_plan: ComponentAnalysisPlan,
 }
 
 pub(super) fn assemble(
@@ -37,7 +53,9 @@ pub(super) fn assemble(
         diagnostics,
         timings,
         interpretation,
+        component_plan,
     } = inputs;
+    let includes_pooled = component_plan.includes_pooled();
 
     let spectral_curve_p_global = spectrum
         .as_ref()
@@ -96,7 +114,7 @@ pub(super) fn assemble(
         .transpose()?
         .unwrap_or_default();
 
-    Ok(MarkedPatternResult {
+    let mut result = MarkedPatternResult {
         case_id: pattern.meta.case_id.clone(),
         timepoint: pattern.meta.timepoint.clone(),
         protein: pattern.meta.protein.clone(),
@@ -216,13 +234,30 @@ pub(super) fn assemble(
         territory_profiles: crate::output::AnalysisSection::NotApplicable,
         territory_comparisons: crate::output::AnalysisSection::NotApplicable,
         prepost_curve_tests: Vec::new(),
-        component_results: crate::output::AnalysisSection::available(component_results_for(
-            config, pattern,
-        )?),
+        component_mode_selection: component_plan.selection.clone(),
+        component_results: component_results_for(config, pattern, &component_plan)?,
         diagnostics,
         timings,
         interpretation,
-    })
+    };
+    if !includes_pooled {
+        result.primary_endpoint = PrimaryEndpoint {
+            name: "component_low_k_excess".into(),
+            value: crate::output::AnalysisSection::NotApplicable,
+            p_value: crate::output::AnalysisSection::NotApplicable,
+            null: "component_specific_fixed_position_random_labeling".into(),
+        };
+        result.spectrum = crate::output::AnalysisSection::NotApplicable;
+        result.spectrum_curve.clear();
+        result.pair_correlation = crate::output::AnalysisSection::NotApplicable;
+        result.pair_correlation_curve.clear();
+        result.anisotropy = crate::output::AnalysisSection::NotApplicable;
+        result.wavelet = crate::output::AnalysisSection::NotApplicable;
+        result.scalogram = crate::output::AnalysisSection::NotApplicable;
+        result.scalogram_curve.clear();
+        result.wavelet_territories = crate::output::AnalysisSection::NotApplicable;
+    }
+    Ok(result)
 }
 
 fn spectrum_curve(spectrum: &PermutationWhitenedSpectrum) -> Result<Vec<SpectrumPoint>> {
