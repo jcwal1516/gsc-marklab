@@ -1,23 +1,23 @@
 # Implementation status
 
-Last updated: 2026-08-22T17:13:00-04:00
+Last updated: 2026-08-22T17:48:35-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Current SHA: `f1bcc94d4a5f96825fae32676630304f31d332ea`
+- Current SHA: `ab3df430deb547a105608cad2f799fcf52fc9e66`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
-- Current phase/workstream/task: Phase 1 / WS-B / B-03 workspace policy
+- Current phase/workstream/task: Phase 1 / WS-B / B-04 project/workflow vertical slice
 
 ## Requirements
 
-- Completed: `A-01`, `A-02`, `A-03`, `B-01`, `B-02`, `SLIDE-INV`, `WS-A`
-- Active: `B-03`, `PLAT-01`, `WF-01`
-- Planned next: `B-04`
+- Completed: `A-01`, `A-02`, `A-03`, `B-01`, `B-02`, `B-03`, `SLIDE-INV`, `WS-A`, `WS-10`
+- Active: `B-04`, `PLAT-01`, `WF-01`, `WS-11`, `WS-12`
+- Planned next: `WS-C` / `C-01`–`C-06`
 
 ## Command state
 
@@ -27,10 +27,11 @@ Last updated: 2026-08-22T17:13:00-04:00
 
 ## Dirty files and reasons
 
-- `.github/workflows/**`, `AGENTS.md`: workspace/package-explicit gates and eight-row feature matrix.
-- `tests/workflow_contract.rs`, `tests/workspace_contract.rs`: workflow, dependency-layer, and recursive CLI-gating policy.
-- `src/cli/batch.rs`: cfg-correct imports for CLI without parallel execution.
-- `docs/implementation/WORKSPACE_POLICY.md`, `REPOSITORY_MAP.md`, `CANONICAL_SYMBOLS.md`, `DECISIONS.md`, `STATUS.md`, `REQUIREMENTS.md`, `VALIDATION_LEDGER.md`, `task-contracts/B-02.md`, `task-contracts/B-03.md`, and `handoffs/B-02.md`: B-02 closure and B-03 policy/evidence.
+- `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`: two real child packages, their descending local dependency edges, and mechanically generated lock records; no registry package/version/checksum delta.
+- `crates/marklab-project/**`, `crates/marklab-workflow/**`: B-04 reference-only project state, digest identity, typed graph, failure-atomic cache, and narrow local scheduler.
+- `src/workflow.rs`, `src/lib.rs`: existing marked engine/result codec adapter and focused re-exports; no scientific implementation copied.
+- `tests/project_workflow.rs`, `tests/workspace_contract.rs`: B-04 red/green behavior and three-package architecture contracts.
+- `docs/implementation/**`: B-03 closure plus B-04 contract, decisions, ownership, status, requirement, and validation evidence.
 
 ## Recent decisions
 
@@ -42,6 +43,8 @@ Last updated: 2026-08-22T17:13:00-04:00
 - `DEC-0010`: the root package remains an implicit workspace/default member so Cargo 1.96 preserves the standalone fuzz boundary.
 - `DEC-0011`: the current private-module facade and delegating binary are the compatibility shell; no production source move is warranted before an immediate owner/caller exists.
 - `DEC-0012`: dependencies descend root facade → generic workflow → project; B-04's concrete engine node adapter stays in root.
+- `DEC-0013`: project inputs remain reference-only; only bounded canonical result-0.3 bytes and successful-run records are retained in B-04.
+- `DEC-0014`: use the already-locked reviewed `sha2` 0.10.9 and `thiserror` 2 dependencies; no registry lock delta is accepted.
 
 ## Unresolved questions
 
@@ -53,12 +56,12 @@ Last updated: 2026-08-22T17:13:00-04:00
 
 ## Next three exact actions
 
-1. Reconcile the final read-only B-03 policy audit and review the complete diff.
-2. Stage-audit and commit the focused B-03 policy change plus B-02 handoff.
-3. Rerun clean `cargo package --locked --workspace`, write the B-03 handoff, and begin B-04 red tests.
+1. Run the final B-04 format, focused test, rustdoc, Clippy, metadata, dependency, fuzz, and scope gate set.
+2. Commit the focused B-04 vertical slice and run clean `cargo +1.96.0 package --locked --workspace`.
+3. Record the B-04 handoff and run the complete WS-B phase-boundary gate set before activating C-01.
 
 Next exact verification command:
 
 ```bash
-git diff --check && git status --short
+cargo +1.96.0 fmt --all --check
 ```

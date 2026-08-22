@@ -1,0 +1,11 @@
+[package]
+name = "marklab-workflow"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Typed local workflow graph and scheduler for Marklab"
+
+[dependencies]
+marklab-project = { version = "0.1.0", path = "../marklab-project" }
+thiserror = "2"

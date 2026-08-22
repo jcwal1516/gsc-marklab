@@ -1,0 +1,11 @@
+[package]
+name = "marklab-project"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Content identity and minimal project state for Marklab"
+
+[dependencies]
+sha2 = "0.10.9"
+thiserror = "2"

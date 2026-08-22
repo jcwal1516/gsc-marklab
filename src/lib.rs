@@ -35,6 +35,7 @@ mod registration;
 mod spectra;
 #[cfg(feature = "cli")]
 mod synthetic_smoke;
+mod workflow;
 #[cfg(feature = "wsi")]
 mod wsi;
 
@@ -54,6 +55,11 @@ pub use data::{Pattern, PatternMeta, TumorWindow};
 pub use errors::{MarklabError, Result};
 pub use geom::mask::TumorMask;
 pub use io::{PatternLoadDiagnostics, PatternLoadResult, PatternLoader};
+pub use marklab_workflow::{
+    ArtifactRef, CacheKeyMaterial, CacheStatus, ContentDigest, ContentDigestWriter, LocalScheduler,
+    MarklabProject, NodeError, NodeId, NodeRun, NodeSpec, ProjectError, SchedulerLimits,
+    SuccessfulRun, WorkflowError, WorkflowGraph, WorkflowNode,
+};
 pub use multimodal::{
     CellExtrapolationRecord, CellSection, FusedCell, HeCell, IhcCell, LandmarkHullAvailability,
     MultimodalAnalysisRun, MultimodalEngine, MultimodalInput, NullModelSensitivityResult,
@@ -82,6 +88,7 @@ pub use registration::{
     landmarks::LandmarkPair,
     transform::{Transform2D, TransformKind},
 };
+pub use workflow::MarkedAnalysisNode;
 #[cfg(feature = "wsi")]
 pub use wsi::{
     PlaneSelection, RegionRequest, RgbaRegion, SlideLevelMetadata, SlideMetadata, SlideOpenOptions,

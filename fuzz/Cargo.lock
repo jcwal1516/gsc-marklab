@@ -793,6 +793,7 @@ dependencies = [
  "csv",
  "geojson",
  "image",
+ "marklab-workflow",
  "num-complex",
  "rstar",
  "rustfft",
@@ -813,6 +814,22 @@ dependencies = [
  "libfuzzer-sys",
  "marklab",
  "tempfile",
+]
+
+[[package]]
+name = "marklab-project"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "marklab-workflow"
+version = "0.1.0"
+dependencies = [
+ "marklab-project",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

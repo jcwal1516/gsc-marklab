@@ -66,9 +66,17 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
         Some("2")
     );
 
-    assert!(
-        workspace.get("members").is_none(),
-        "the root package must remain an implicit member so the nested fuzz exclusion works"
+    let members = workspace
+        .get("members")
+        .and_then(toml::Value::as_array)
+        .expect("workspace.members must list only immediate non-root packages")
+        .iter()
+        .map(|value| value.as_str().expect("workspace path must be a string"))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        members,
+        ["crates/marklab-project", "crates/marklab-workflow"],
+        "the root remains implicit and only packages with immediate B-04 callers are listed"
     );
     assert!(
         workspace.get("default-members").is_none(),
@@ -133,13 +141,17 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
     let default_members = metadata["workspace_default_members"]
         .as_array()
         .expect("metadata workspace_default_members");
-    assert_eq!(workspace_members.len(), 1);
-    assert_eq!(default_members, workspace_members);
+    assert_eq!(workspace_members.len(), 3);
+    assert_eq!(default_members.len(), 1);
 
     let root_manifest = fs::canonicalize("Cargo.toml").expect("canonical root manifest");
     let packages = metadata["packages"].as_array().expect("metadata packages");
-    assert_eq!(packages.len(), 1);
-    let package = &packages[0];
+    assert_eq!(packages.len(), 3);
+    let package = packages
+        .iter()
+        .find(|package| package["name"] == "marklab")
+        .expect("root marklab package");
+    assert_eq!(default_members[0], package["id"]);
     assert_eq!(package["name"].as_str(), Some("marklab"));
     assert_eq!(
         Path::new(package["manifest_path"].as_str().expect("manifest path")),

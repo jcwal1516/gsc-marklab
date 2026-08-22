@@ -62,3 +62,10 @@ Existing canonical scientific/config/parser/result/output symbols remain owned b
 |---|---|---|---|---|
 | B-03 `/root` | `AGENTS.md`, `.github/workflows/**`, `tests/workflow_contract.rs`, `tests/workspace_contract.rs`, `src/cli/batch.rs` import cfg only, `docs/implementation/**` | Workspace command, feature matrix, dependency-layer, and CLI-gating policy only | All manifests, package targets/features, source ownership, current gates | No dependency/lock/schema/API/algorithm change, no source move, no xtask without demonstrated repeated local orchestration |
 | B-03-REVIEW `b03_policy_audit` | None | None | Workflows/manifests/features/tests/docs | Read-only critique; no tracked or remote mutation |
+
+## B-04 active ownership
+
+| Task/agent | Writable files | Owned canonical symbols | Read-only context | Explicit non-goals |
+|---|---|---|---|---|
+| B-04 `/root` | `Cargo.toml`, generated local-package-only `Cargo.lock` and `fuzz/Cargo.lock`, `crates/marklab-project/**`, `crates/marklab-workflow/**`, `src/workflow.rs`, focused `src/lib.rs` re-exports/module declaration, `tests/project_workflow.rs`, `tests/workspace_contract.rs`, `docs/implementation/**` | `ContentDigest`, `ArtifactRef`, `MarklabProject`, `SuccessfulRun`, `NodeId`, `NodeSpec`, `WorkflowGraph`, `WorkflowNode`, `LocalScheduler`, `NodeRun`, `CacheStatus`, `SchedulerLimits`, `MarkedAnalysisNode` | Existing `AnalysisEngine`, `Pattern`, `AnalysisConfig`, result 0.3, `OutputWriter`, manifests/features/CI/fuzz | No algorithm/config/result/output rewrite, persistent project schema, generic multi-node executor, backend/plugin system, remote execution, input payload copies, new result field, or CLI command |
+| B-04-REVIEW `b04_vertical_slice_audit` | None | None | Project/workflow plan, current engine/data/config/result/output/tests/manifests | Read-only design critique; no tracked or remote mutation |

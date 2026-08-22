@@ -58,8 +58,8 @@ Statuses are `planned`, `active`, `blocked`, `complete`, `deferred`, or `rejecte
 | A-03 | Contract and migration inventory | A-01 | Lead + read-only analysis | complete | Implementation docs only | Every current API/CLI/config/result/artifact/feature/workflow/test surface has a disposition |
 | B-01 | Workspace architecture decision | A-01–A-03 | Lead | complete | Root Cargo metadata/architecture test/docs only | Commit `e8d57eed0c4b39bd651b7393e7af25b5a10a7558`; red/green contract, root/fuzz metadata, compatibility, workspace build/Clippy, package, and scope gates pass |
 | B-02 | Compatibility shell | B-01 | Lead | complete | Compatibility parity test/docs only | Commit `f1bcc94d4a5f96825fae32676630304f31d332ea`; direct marked/multimodal parity, 65 default, 26 WSI/CLI, 35 CLI-only, 16 output, and no-default gates pass |
-| B-03 | Workspace policy | B-01 | Lead | active | Workspace CI/policy/architecture tests and cfg-only warning fix | Red/green workflow and CLI-only Clippy, eight-row compile matrix, dependency/CLI-gate architecture tests, and all-feature Clippy pass; focused commit pending |
-| B-04 | Minimal project/workflow vertical slice | B-01–B-03 | Lead | planned | Focused new crates/tests | Existing marked result parity |
+| B-03 | Workspace policy | B-01 | Lead | complete | Workspace CI/policy/architecture tests and cfg-only warning fix | Commit `ab3df430deb547a105608cad2f799fcf52fc9e66`; red/green policy/Clippy, eight-row matrix, architecture tests, YAML parse, and clean package pass |
+| B-04 | Minimal project/workflow vertical slice | B-01–B-03 | Lead | active | Focused project/workflow crates, root adapter, manifests/lock, tests/docs | Implementation and focused gates pass: digest invalidation, graph rejection, failure atomicity/canonical codec, exact marked/output parity; clean package and WS-B exit gate pending |
 | C-01 | Typed identities/hierarchy | WS-B | Lead | planned | Focused core/data files | Red/green hierarchy tests |
 | C-02 | Units/frames/dimensions/transforms | C-01 | Lead | planned | Focused core/data files | Red/green unit/frame tests |
 | C-03 | Artifact catalog/immutable tables | B-04 | Lead | planned | Project/artifact files | Integrity/security tests |
@@ -184,9 +184,9 @@ The tables below ensure every scientific, platform, current-capability, and work
 |---|---|---|
 | WS-00 | complete | Control plane, state, branch, baseline |
 | WS-01 | complete | Legacy characterization and compatibility matrix |
-| WS-10 | active | Workspace boundary complete; compatibility-shell characterization active |
-| WS-11 | planned | Project, artifact, provenance, execution ledger |
-| WS-12 | planned | Typed DAG, cache, resumable local scheduler |
+| WS-10 | complete | Workspace boundary, compatibility shell, policy matrix, and architecture gates complete |
+| WS-11 | active | B-04 minimal reference/digest/bounded-cache slice implemented and green; C-03 owns durable catalog/recovery/storage |
+| WS-12 | active | B-04 typed DAG/key/failure-atomic single-node scheduler implemented and green; general scheduling/resume follows |
 | WS-13 | planned | Backend registry and doctor/validation commands |
 | WS-20 | planned | Identity and cohort hierarchy |
 | WS-21 | planned | Coordinates, units, dimensions, transforms, uncertainty |
