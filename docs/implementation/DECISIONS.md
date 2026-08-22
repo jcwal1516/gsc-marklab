@@ -95,3 +95,12 @@ This file is append-only. Superseding decisions reference the prior decision; ex
 - Decision: Close B-02 without moving production source. Add the missing marked direct-library/CLI result-core equality assertion and use the existing API, CLI, config 0.2, result 0.3, multimodal, WSI, output-transaction, and feature tests as the compatibility proof. Any later source extraction requires an immediate owning caller and a separate history-preserving mechanical commit.
 - Alternatives: rename the root package as legacy; create a second facade package; copy or mechanically move all implementation modules before project/workflow callers exist.
 - Consequences: the supported `marklab` package, library, binary, command names, features, and result/config surfaces remain stable. B-04 can call the canonical existing engine rather than duplicate it. B-03 must add a feature-matrix gate that exposes cfg-specific warnings currently hidden by all-feature Clippy.
+
+## DEC-0012 — Descending workspace layers with the concrete adapter in root
+
+- Date: 2026-08-22
+- Status: accepted
+- Context: B-04 must run the canonical existing marked engine through generic project/workflow infrastructure without copying algorithms or creating a local dependency cycle. Making `marklab-workflow` depend on the compatibility `marklab` package would point a core package upward and prevent the root facade from depending on workflow infrastructure.
+- Decision: Local dependencies descend `marklab` → `marklab-workflow` → `marklab-project`. `marklab-workflow` remains generic and owns DAG/scheduler behavior; the root `marklab` package owns B-04's concrete node adapter that invokes `AnalysisEngine`. Cargo-metadata and recursive source tests reject upward local dependencies and CLI-gated non-root libraries. CI uses a compile matrix for narrow features, plus warnings-denied Clippy for all features and the affected CLI-only combination. Do not add an `xtask`: the declarative Actions matrix is the single repeated-command owner.
+- Alternatives: workflow depends upward on `marklab`; duplicate the engine in workflow; introduce an application/xtask package before an immediate caller exists; claim every narrow feature is warning-clean.
+- Consequences: B-04 has an explicit acyclic integration boundary. Narrow matrix rows are honest compile gates: current no-default/CSV/WSI test targets emit 14 instrumentation warnings, and Parquet-only also emits four internal-writer warnings. Those warnings are recorded but not silently represented as warnings-denied passes.

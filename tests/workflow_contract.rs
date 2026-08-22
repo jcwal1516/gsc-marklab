@@ -54,14 +54,14 @@ fn ci_workflow_runs_locked_rust_wsi_and_benchmark_gates() {
         .expect("scheduled benchmark workflow");
 
     for required in [
-        "cargo fmt --check",
-        "cargo clippy --locked --all-targets --all-features -- -D warnings",
-        "cargo nextest run --locked --all-features",
-        "cargo test --locked --doc --all-features",
-        "cargo check --locked --no-default-features",
-        "cargo test --locked --features wsi,cli --test wsi_integration",
-        "MARKLAB_BENCH_PROFILE=smoke cargo bench --locked --all-features -- --quick",
-        "cargo test --locked --no-default-features --features dhat-heap --lib dhat_ -- --test-threads=1",
+        "cargo fmt --all --check",
+        "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+        "cargo nextest run --locked --workspace --all-features",
+        "cargo test --locked --workspace --doc --all-features",
+        "cargo check --locked --workspace --no-default-features",
+        "cargo test --locked --package marklab --features wsi,cli --test wsi_integration",
+        "MARKLAB_BENCH_PROFILE=smoke cargo bench --locked --workspace --all-features -- --quick",
+        "cargo test --locked --package marklab --no-default-features --features dhat-heap --lib dhat_ -- --test-threads=1",
         "cargo +nightly fuzz check",
         "cargo audit",
         "cargo deny check advisories licenses bans sources",
@@ -79,7 +79,7 @@ fn ci_workflow_runs_locked_rust_wsi_and_benchmark_gates() {
 
     assert!(
         scheduled_benchmarks
-            .contains("MARKLAB_BENCH_PROFILE=full cargo bench --locked --all-features"),
+            .contains("MARKLAB_BENCH_PROFILE=full cargo bench --locked --workspace --all-features"),
         "scheduled workflow should execute the full declared benchmark profile"
     );
     assert!(
@@ -94,6 +94,48 @@ fn ci_workflow_runs_locked_rust_wsi_and_benchmark_gates() {
 }
 
 #[test]
+fn workspace_policy_is_explicit() {
+    let ci = fs::read_to_string(".github/workflows/ci.yml").expect("ci workflow");
+    let benchmarks =
+        fs::read_to_string(".github/workflows/benchmarks.yml").expect("benchmark workflow");
+    let calibration =
+        fs::read_to_string(".github/workflows/calibration.yml").expect("calibration workflow");
+    let release = fs::read_to_string(".github/workflows/release.yml").expect("release workflow");
+    let public_wsi =
+        fs::read_to_string(".github/workflows/wsi-public.yml").expect("public WSI workflow");
+
+    for required in [
+        "cargo fmt --all --check",
+        "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+        "cargo nextest run --locked --workspace --all-features",
+        "cargo test --locked --workspace --doc --all-features",
+        "cargo check --locked --workspace --no-default-features",
+        "cargo package --locked --workspace",
+        "cargo clippy --locked --workspace --all-targets --no-default-features --features cli -- -D warnings",
+        "cargo check --locked --workspace --all-targets ${{ matrix.args }}",
+        "name: default",
+        "args: --no-default-features",
+        "args: --all-features",
+        "args: --no-default-features --features csv",
+        "args: --no-default-features --features parquet",
+        "args: --no-default-features --features cli",
+        "args: --no-default-features --features wsi",
+        "args: --no-default-features --features wsi,cli",
+        "cargo test --locked --package marklab --features wsi,cli --test wsi_integration",
+        "cargo test --locked --package marklab --no-default-features --features dhat-heap",
+        "cargo run --release --locked --package marklab --features wsi --bin marklab",
+    ] {
+        assert!(ci.contains(required), "CI workspace policy should include {required}");
+    }
+
+    assert!(benchmarks.contains("cargo bench --locked --workspace --all-features"));
+    assert!(calibration.contains("cargo test --release --locked --workspace --all-features"));
+    assert!(release.contains("--package marklab"));
+    assert!(public_wsi.contains("cargo test --locked --package marklab --features wsi,cli"));
+    assert!(!ci.contains("cargo xtask"));
+}
+
+#[test]
 fn formal_calibration_is_scheduled_outside_pull_request_ci() {
     let workflow =
         fs::read_to_string(".github/workflows/calibration.yml").expect("calibration workflow");
@@ -101,7 +143,7 @@ fn formal_calibration_is_scheduled_outside_pull_request_ci() {
     for required in [
         "schedule:",
         "workflow_dispatch:",
-        "cargo test --release --locked --all-features negative_control_calibrates",
+        "cargo test --release --locked --workspace --all-features negative_control_calibrates",
         "--ignored --nocapture --test-threads=1",
     ] {
         assert!(
@@ -164,7 +206,7 @@ fn release_workflow_builds_locked_wsi_archives_with_licenses_and_checksums() {
         "aarch64-apple-darwin",
         "x86_64-pc-windows-msvc",
         "houseabsolute/actions-rust-cross@v1",
-        "args: --release --locked --features wsi --bin marklab",
+        "args: --release --locked --package marklab --features wsi --bin marklab",
         "README.md LICENSE-MIT LICENSE-APACHE",
         "sha256sum",
         "Get-FileHash",
@@ -192,6 +234,7 @@ fn public_wsi_workflow_verifies_fixture_and_independent_oracle() {
         "openslide-write-png",
         "MARKLAB_PUBLIC_APERIO_SVS",
         "MARKLAB_PUBLIC_APERIO_ORACLE_PNG",
+        "cargo test --locked --package marklab --features wsi,cli",
         "public_aperio_jp2k_region_matches_openslide_oracle",
         "--ignored --exact",
     ] {

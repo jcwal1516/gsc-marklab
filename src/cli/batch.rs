@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use crate::{AnalysisConfig, MarklabError, Result, ThreadSetting};
+use crate::Result;
+#[cfg(feature = "parallel")]
+use crate::{AnalysisConfig, MarklabError, ThreadSetting};
 
 use super::{analyze, batch_output_path, AnalyzeRequest, ManifestRow, ObservabilityOptions};
 

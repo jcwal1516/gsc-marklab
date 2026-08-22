@@ -14,5 +14,5 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.96.0
       - name: Marked and multimodal 1,000-replicate production controls
         run: >-
-          cargo test --release --locked --all-features negative_control_calibrates
+          cargo test --release --locked --workspace --all-features negative_control_calibrates
           -- --ignored --nocapture --test-threads=1

@@ -40,7 +40,7 @@ jobs:
           command: build
           target: ${{ matrix.target }}
           toolchain: 1.96.0
-          args: --release --locked --features wsi --bin marklab
+          args: --release --locked --package marklab --features wsi --bin marklab
       - name: Package Unix binary
         if: matrix.archive == 'tar.gz'
         run: |

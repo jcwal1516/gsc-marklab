@@ -58,6 +58,29 @@ No command below is marked passing until it executes successfully on this branch
 | Workspace Clippy | `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings` | pass | Exit 0. |
 | Format/scope | `cargo +1.96.0 fmt --all --check` and `git diff --check` | pass | Exit 0; no production source, manifest, dependency, lockfile, config, result DTO, or CI change. |
 
+## B-03 workspace-policy evidence
+
+| Gate | Exact command | Status | Result/evidence |
+|---|---|---|---|
+| Behavior-first workflow policy | `cargo +1.96.0 test --locked --test workflow_contract workspace_policy_is_explicit` | red, then pass | Initial run failed on missing `cargo fmt --all --check`; final run passed after workspace/package-explicit commands and the feature matrix were added. |
+| Affected-feature Clippy | `cargo +1.96.0 clippy --locked --workspace --all-targets --no-default-features --features cli -- -D warnings` | red, then pass | Initial run failed on the parallel-only `AnalysisConfig`, `MarklabError`, and `ThreadSetting` imports in `src/cli/batch.rs`; cfg-correct import gating fixed the warning without runtime change. Final exit 0. |
+| Workflow contracts | `cargo +1.96.0 test --locked --test workflow_contract` | pass | 7 passed, 0 failed; covers PR/scheduled/release/public-WSI commands, matrix rows, fuzz, and benchmarks. |
+| Dependency/CLI-gating architecture | `cargo +1.96.0 test --locked --test workspace_contract` | pass after characterization refinement | 2 passed, 0 failed. Cargo metadata enforces explicit descending package layers; recursive source scanning freezes the root CLI-gated adapter/test files and rejects CLI gating in future non-root libraries. |
+| Compile matrix: default | `cargo +1.96.0 check --locked --workspace --all-targets` | pass | Exit 0 without warnings. |
+| Compile matrix: no default | `cargo +1.96.0 check --locked --workspace --all-targets --no-default-features` | pass with known warnings | Exit 0; 14 existing test-instrumentation unused/dead-code warnings. |
+| Compile matrix: all features | `cargo +1.96.0 check --locked --workspace --all-targets --all-features` | pass | Exit 0 without warnings. |
+| Compile matrix: CSV | `cargo +1.96.0 check --locked --workspace --all-targets --no-default-features --features csv` | pass with known warnings | Exit 0; same 14 test-instrumentation warnings. |
+| Compile matrix: Parquet | `cargo +1.96.0 check --locked --workspace --all-targets --no-default-features --features parquet` | pass with known warnings | Exit 0; 14 test-instrumentation warnings plus four internal Parquet-writer unused/dead-code warnings because its production caller is CLI-gated. |
+| Compile matrix: CLI | `cargo +1.96.0 check --locked --workspace --all-targets --no-default-features --features cli` | pass | Exit 0 without warnings after the import fix. |
+| Compile matrix: WSI | `cargo +1.96.0 check --locked --workspace --all-targets --no-default-features --features wsi` | pass with known warnings | Exit 0; same 14 test-instrumentation warnings. |
+| Compile matrix: WSI CLI | `cargo +1.96.0 check --locked --workspace --all-targets --no-default-features --features wsi,cli` | pass | Exit 0 without warnings after the import fix. |
+| CLI-only behavior | `cargo +1.96.0 test --locked --no-default-features --features cli --test cli --test multimodal_cli` | pass | 35 passed, 0 failed; no compile warnings after the cfg-only import fix. |
+| All-feature Clippy | `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings` | pass | Exit 0. |
+| Workflow YAML syntax | `ruby -e 'require "yaml"; ARGV.each { \|path\| YAML.load_file(path); puts path }' .github/workflows/benchmarks.yml .github/workflows/calibration.yml .github/workflows/ci.yml .github/workflows/release.yml .github/workflows/wsi-public.yml` | pass with limitation | All five files parsed. `actionlint` remains unavailable locally, so this is not claimed as an equivalent Actions semantic lint. |
+| Read-only policy audit | B-03 reviewer inspection plus feature-specific check/Clippy runs | pass with recommendations applied | Confirmed workspace/package command gaps, compile-only matrix limitation, recursive source-scan need, downward dependency direction, category documentation, and no-`xtask` decision. Reviewer made no edits, used no LSP, accessed no remote system, and installed nothing. |
+| Clean workspace package syntax | `cargo +1.96.0 package --locked --workspace` | pass before dirty implementation | At clean B-02 SHA `f1bcc94d4a5f96825fae32676630304f31d332ea`: 244 files, 1.7 MiB/393.4 KiB compressed; verification build passed. Must rerun after B-03 commit. |
+| Format/scope | `cargo +1.96.0 fmt --all --check`; `git diff --check`; protected manifest/lock diff | pass | No manifest, lockfile, dependency, API, result/config/schema, scientific algorithm, or fuzz change. |
+
 ## Harness failures
 
 - 2026-08-22: the first combined WS-A path-check wrapper exited 127 at its final `git` calls because the loop variable `path` shadowed zsh's special `path`/`PATH` array. This did not exercise or fail a repository gate. The wrapper was corrected to use `required_doc`; all assertions and `git diff --check` then exited 0.
@@ -65,6 +88,7 @@ No command below is marked passing until it executes successfully on this branch
 - 2026-08-22: B-01's first Cargo-observed integration test exited 101 for the intended reason: the root manifest had no workspace. Intermediate red runs caught a missing fuzz exclusion, premature project/workflow members, and explicit root membership. The direct fuzz metadata command also exited 101 under explicit root membership. These were test-driven design failures, not ignored gates; final forms pass and neither lockfile changed.
 - 2026-08-22: one intermediate `workspace_contract` run invoked `env!("CARGO")` with a rustup `+1.96.0` argument. The direct toolchain Cargo executable correctly rejected that rustup-only selector. The test now invokes the exact Cargo executable without a selector; the outer test command remains pinned to 1.96.0 and passes.
 - 2026-08-22: default-feature and WSI-feature CLI suites were initially launched concurrently into the same target directory. The default-only `slide_commands_are_absent_without_wsi_feature` assertion then observed the WSI-enabled `target/debug/marklab` and failed 1 of 17 CLI tests. This was a shared-binary harness race, not a product failure: the isolated default rerun passed 65/65 across all B-02 default suites, and the isolated WSI rerun passed 26/26 with one external oracle ignored. Feature-distinct `assert_cmd::cargo_bin` suites are now run serially.
+- 2026-08-22: B-03's first library-source CLI-gating assertion expected two root gates but found three because `synthetic_smoke` is also a legitimate CLI adapter. Recursive scanning then found two additional test-module files that use CLI in compound test cfgs. The final test freezes all nine exact current adapter/test files and recursively rejects additions elsewhere; these were policy-test characterization corrections, not product failures.
 
 ## Tool/environment evidence
 

@@ -34,7 +34,7 @@ CLI -> public facade/application engines -> scientific stages
     -> data/geometry/inference primitives -> output/artifacts
 ```
 
-WS-B target direction is defined in the master plan and will be finalized only after A-03.
+B-03 finalized the first workspace direction as `marklab` → `marklab-workflow` → `marklab-project`. B-04 keeps the generic DAG/scheduler below the compatibility package and places the concrete existing-engine node adapter in root `marklab`; lower packages never depend upward on the facade.
 
 ## Active ownership
 
