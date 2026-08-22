@@ -786,8 +786,7 @@ fn batch_cli_runs_manifest_rows_into_named_output_dirs() {
 }
 
 #[test]
-#[ignore = "Phase 0 reproduction: OUT-06 batch path validation is fixed in Phase 5"]
-fn remediation_batch_id_cannot_escape_output_root() {
+fn batch_id_cannot_escape_output_root() {
     let dir = tempfile::tempdir().expect("temp dir");
     let cells = dir.path().join("cells.csv");
     let mask = dir.path().join("mask.geojson");

@@ -1,4 +1,15 @@
-use super::super::*;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+
+use crate::{
+    prepost::compare_multimodal_prepost, MarklabError, MultimodalResult, Result, ResultDocument,
+};
+
+use super::super::{
+    batch_output_path, HeInputFormat, MultimodalAnalyzeRequest, MultimodalManifestRow,
+};
 
 pub(in crate::cli) fn prepost(pre: PathBuf, post: PathBuf, out: PathBuf) -> Result<()> {
     let pre_result = read_analysis_result_path_or_dir(&pre)?;
@@ -33,10 +44,13 @@ pub(in crate::cli) fn batch(manifest: PathBuf, out: PathBuf) -> Result<()> {
     for (index, row) in reader.deserialize::<MultimodalManifestRow>().enumerate() {
         let row_number = index + 2;
         let row = row?;
-        if row.id.trim().is_empty() {
-            bail!("{} row {}: id is required", manifest.display(), row_number);
-        }
-        let row_out = out.join(row.id.trim());
+        let row_out = batch_output_path(&out, &row.id).map_err(|error| {
+            MarklabError::Validation(format!(
+                "{} row {}: {error}",
+                manifest.display(),
+                row_number
+            ))
+        })?;
         if option_path_is_present(&row.pre) || option_path_is_present(&row.post) {
             let pre = required_manifest_path(&manifest, row_number, "pre", &row.pre)?;
             let post = required_manifest_path(&manifest, row_number, "post", &row.post)?;

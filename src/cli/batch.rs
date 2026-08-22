@@ -1,4 +1,8 @@
-use super::*;
+use std::path::{Path, PathBuf};
+
+use crate::{AnalysisConfig, MarklabError, Result, ThreadSetting};
+
+use super::{analyze, batch_output_path, AnalyzeRequest, ManifestRow, ObservabilityOptions};
 
 pub(super) fn run(
     manifest: PathBuf,
@@ -6,7 +10,13 @@ pub(super) fn run(
     out: PathBuf,
     threads: Option<usize>,
 ) -> Result<()> {
-    let rows = read_manifest_rows(&manifest)?;
+    let rows = read_manifest_rows(&manifest)?
+        .into_iter()
+        .map(|row| {
+            let row_out = batch_output_path(&out, &row.id)?;
+            Ok((row, row_out))
+        })
+        .collect::<Result<Vec<_>>>()?;
     #[cfg(feature = "parallel")]
     let batch_threads = batch_thread_count(&config, threads)?;
 
@@ -21,12 +31,12 @@ pub(super) fn run(
             .map_err(|error| MarklabError::Compute(error.to_string()))?;
 
         return pool.install(|| {
-            rows.into_par_iter().try_for_each(|row| {
+            rows.into_par_iter().try_for_each(|(row, row_out)| {
                 analyze::run(AnalyzeRequest {
                     cells: row.cells,
                     mask: row.mask,
                     config: config.clone(),
-                    out: out.join(row.id),
+                    out: row_out,
                     threads: Some(1),
                     observability: ObservabilityOptions::default(),
                     heap_profile: None,
@@ -35,12 +45,12 @@ pub(super) fn run(
         });
     }
 
-    for row in rows {
+    for (row, row_out) in rows {
         analyze::run(AnalyzeRequest {
             cells: row.cells,
             mask: row.mask,
             config: config.clone(),
-            out: out.join(row.id),
+            out: row_out,
             threads,
             observability: ObservabilityOptions::default(),
             heap_profile: None,
