@@ -473,3 +473,10 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Schema/API consequence: Rename `TumorWindow.l_eff_um` and `WindowSummary.l_eff_um` to `analysis_effective_length_um`, and `TumorMask::effective_diameter_um` to `equivalent_area_diameter_um`, without compatibility aliases. This is recorded as an explicit 0.3 migration change; old nested result fields remain rejected.
 - Evidence: Both new geometry tests failed before the module existed and now cover definitions and invalid inputs. A format test requires the new key and rejects `l_eff_um`. Spectrum, anisotropy, and component-scale regressions pass; formatting, denied-warning Clippy, no-default-features, and full Nextest pass, with Nextest running 376/376 and 21 expected skips.
 - Status: Accepted; DUP-09 closed.
+
+## 2026-08-22 — Preserve the WSI adapter boundary
+
+- Finding audit: `src/wsi.rs` is a cohesive optional adapter over `wsi-rs`. It owns typed metadata mapping, finite/bounds/pixel-limit validation, and bounded region decoding. Its only crate dependency is the shared error path; it imports no analysis, spectrum, neighborhood, result writer, or CLI code. `src/cli/slide.rs` separately owns arguments, path/overwrite policy, and JSON/PNG projections.
+- Decision: Disprove BOUND-05 as a remediation defect and preserve the current adapter rather than split a 296-line cohesive boundary without a growth or testability need.
+- Evidence: The two module validation tests, ten local WSI integration fixtures, the scheduled independent public Aperio/OpenSlide check, and workflow contracts for WSI CI/release coverage define the boundary. The exact WSI command passes ten local tests with one external-fixture skip; no-default library checking is unaffected by the optional feature.
+- Status: Accepted; BOUND-05 closed as disproved with evidence. Every registered finding now has a fixed or disproved status.
