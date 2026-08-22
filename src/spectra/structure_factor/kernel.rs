@@ -122,7 +122,7 @@ pub fn total_phase_sums_for_modes(
     Some(())
 }
 
-#[cfg(all(feature = "dhat-heap", not(feature = "allocator-mimalloc")))]
+#[cfg(all(test, feature = "dhat-heap", not(feature = "allocator-mimalloc")))]
 pub fn permutation_power_for_modes_into(
     pattern: &Pattern,
     modes: &[KMode],

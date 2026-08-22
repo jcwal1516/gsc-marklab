@@ -8,9 +8,12 @@ use crate::{
     geom::mask::TumorMask,
     io::{intermediates::write_analysis_intermediates, PatternLoader},
     output::{RunManifestContext, RunManifestExecution, RunManifestInputs},
-    AnalysisConfig, AnalysisEngine, MarkedPatternResult, MarklabError, OutputWriter, Result,
-    ThreadSetting, TimingStage,
+    AnalysisConfig, AnalysisEngine, MarkedPatternResult, OutputWriter, Result, ThreadSetting,
+    TimingStage,
 };
+
+#[cfg(not(all(feature = "dhat-heap", not(feature = "allocator-mimalloc"))))]
+use crate::MarklabError;
 
 use super::{AnalyzeRequest, LogLevel, ObservabilityOptions};
 
