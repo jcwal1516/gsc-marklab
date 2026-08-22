@@ -247,6 +247,11 @@ pub fn write_cross_interaction_curves_parquet(
     write_record_batch(path, schema, &batch)
 }
 
+/// Writes the retained cells in a `Pattern` as a canonical filtered export.
+///
+/// Every written row is retained. Source rows excluded during ingestion and
+/// unavailable per-row QC states are not recoverable from `Pattern` and are
+/// therefore omitted rather than fabricated. This is not an input round trip.
 pub fn write_filtered_pattern_export_parquet(
     pattern: &Pattern,
     path: impl AsRef<Path>,
