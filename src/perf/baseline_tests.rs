@@ -25,7 +25,7 @@ use crate::{
         profiles::territory_profiles,
         territories::{detect_mmr_abnormal_territories, TerritoryDomainConfig},
     },
-    output::NeighborhoodTerritory,
+    output::{NeighborhoodTerritory, OutputWriter, ResultDocument},
     registration::landmarks::LandmarkPair,
     spectra::{
         anisotropy::{
@@ -958,6 +958,52 @@ fn baseline_perf_complete_multimodal_analysis() {
                 ((result.fused_cells.len() as u64) << 32)
                     ^ result.neighborhood_enrichment.value().map_or(0, Vec::len) as u64
                     ^ result.cross_interaction_curves.value().map_or(0, Vec::len) as u64
+            },
+        );
+    }
+}
+
+#[test]
+#[ignore = "manual Phase 12 output-transaction benchmark"]
+fn phase12_perf_output_writing() {
+    let directory = tempfile::tempdir().expect("output benchmark directory");
+    for n in SPECTRAL_SIZES {
+        let config = marked_config(n);
+        let result = AnalysisEngine::new(config.clone())
+            .expect("marked engine")
+            .analyze_pattern(&pattern(n))
+            .expect("marked analysis");
+        let document = ResultDocument::marked(result);
+        let mut sample_index = 0usize;
+        measure_case(
+            "output_transaction",
+            n,
+            fixed_density_metadata(
+                n,
+                json!({
+                    "analysis_time_excluded": true,
+                    "parquet_curves": config.output.write_parquet_curves,
+                    "geojson_territories": config.output.write_geojson_territories,
+                    "figures": config.output.write_figures,
+                    "run_manifest": config.output.write_run_manifest,
+                }),
+            ),
+            || {
+                let out = directory.path().join(format!("output-{n}-{sample_index}"));
+                sample_index += 1;
+                let manifest = OutputWriter::write(&document, &out, &config.output)
+                    .expect("transactional output");
+                let written_artifacts = manifest
+                    .artifacts
+                    .values()
+                    .filter(|status| {
+                        matches!(status, crate::output::ArtifactStatus::Written { .. })
+                    })
+                    .count();
+                ((written_artifacts as u64) << 32)
+                    ^ std::fs::read(out.join("result.json"))
+                        .expect("committed result")
+                        .len() as u64
             },
         );
     }
