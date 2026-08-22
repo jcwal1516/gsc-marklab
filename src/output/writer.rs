@@ -11,6 +11,7 @@ use crate::{
     errors::{MarklabError, Result},
 };
 
+use super::manifest::{RunManifest, RunManifestContext};
 use super::result_types::*;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -108,38 +109,6 @@ fn write_marked_outputs(
         ));
     }
 
-    if options.write_run_manifest {
-        let manifest = serde_json::json!({
-            "program": "marklab",
-            "crate_version": env!("CARGO_PKG_VERSION"),
-            "format_version": RESULT_FORMAT_VERSION,
-            "result": {
-                "case_id": result.case_id,
-                "timepoint": result.timepoint,
-                "protein": result.protein,
-                "mark_label": result.mark_label,
-                "status": result.status,
-                "status_flags": result.status_flags,
-                "n_cells": result.n_cells,
-                "n_marked": result.n_marked,
-                "p_hat": result.p_hat,
-            },
-            "output": {
-                "write_parquet_curves": options.write_parquet_curves,
-                "write_geojson_territories": options.write_geojson_territories,
-                "write_figures": options.write_figures,
-                "write_run_manifest": options.write_run_manifest,
-            },
-            "timings_stage_count": result.timings.len(),
-        });
-        std::fs::write(
-            out.join("run_manifest.json"),
-            serde_json::to_string_pretty(&manifest)
-                .map_err(|err| MarklabError::Compute(err.to_string()))?,
-        )
-        .map_err(|source| MarklabError::io(out.join("run_manifest.json"), source))?;
-    }
-
     let qc = serde_json::json!({
         "status": result.status,
         "status_flags": result.status_flags,
@@ -187,6 +156,15 @@ impl OutputWriter {
         out: impl AsRef<Path>,
         options: &OutputSection,
     ) -> Result<OutputManifest> {
+        Self::write_with_manifest_context(document, out, options, None)
+    }
+
+    pub(crate) fn write_with_manifest_context(
+        document: &ResultDocument,
+        out: impl AsRef<Path>,
+        options: &OutputSection,
+        manifest_context: Option<RunManifestContext>,
+    ) -> Result<OutputManifest> {
         let out = out.as_ref();
         let result_json = document.validated_json()?;
         match &document.analysis {
@@ -201,6 +179,12 @@ impl OutputWriter {
         let result_path = out.join("result.json");
         std::fs::write(&result_path, result_json)
             .map_err(|source| MarklabError::io(&result_path, source))?;
+        if options.write_run_manifest {
+            write_json(
+                out.join("run_manifest.json"),
+                &RunManifest::from_document(document, options, manifest_context),
+            )?;
+        }
 
         let mut artifacts = BTreeMap::new();
         artifacts.insert(
@@ -338,22 +322,6 @@ fn write_multimodal_outputs(
                 out.join("cross_interaction_curves.parquet"),
             )?;
         }
-    }
-
-    if options.write_run_manifest {
-        write_json(
-            out.join("run_manifest.json"),
-            &serde_json::json!({
-                "program": "marklab",
-                "crate_version": env!("CARGO_PKG_VERSION"),
-                "format_version": RESULT_FORMAT_VERSION,
-                "analysis_kind": "multimodal",
-                "case_id": result.case_id,
-                "timepoint": result.timepoint,
-                "protein": result.protein,
-                "status": result.status,
-            }),
-        )?;
     }
 
     write_timing_sidecar(out, &result.timings)?;

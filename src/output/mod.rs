@@ -1,6 +1,7 @@
 #[cfg(feature = "parquet")]
 mod curve_parquet;
 mod figures;
+mod manifest;
 mod marked_artifacts;
 #[cfg(feature = "csv")]
 mod multimodal_artifacts;
@@ -10,6 +11,8 @@ mod writer;
 #[cfg(all(test, feature = "cli"))]
 mod tests;
 
+#[cfg(feature = "cli")]
+pub(crate) use manifest::{RunManifestContext, RunManifestExecution, RunManifestInputs};
 pub use result_types::{
     AnalysisResult, AnalysisSection, AnisotropySummary, ArtifactStatus, BetaPosteriorGroupSummary,
     BetaPosteriorSummary, ComponentAnalysisSummary, ComponentModeSelection, CrossInteractionCurve,

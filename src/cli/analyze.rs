@@ -7,6 +7,7 @@ use std::{
 use crate::{
     geom::mask::TumorMask,
     io::{intermediates::write_analysis_intermediates, load_pattern_path_with_diagnostics},
+    output::{RunManifestContext, RunManifestExecution, RunManifestInputs},
     AnalysisConfig, AnalysisEngine, MarkedPatternResult, MarklabError, OutputWriter, Result,
     ThreadSetting, TimingStage,
 };
@@ -85,64 +86,33 @@ pub(super) fn run(request: AnalyzeRequest) -> Result<()> {
         || observability.trace_json.is_some())
     .then(|| run.result.timings.clone());
 
-    let mut writer_output = output.clone();
-    if output.write_run_manifest {
-        writer_output.write_run_manifest = false;
-    }
-    let run_manifest = output.write_run_manifest.then(|| {
-        serde_json::json!({
-            "command": "analyze",
-            "program": "marklab",
-            "crate_version": env!("CARGO_PKG_VERSION"),
-            "format_version": crate::RESULT_FORMAT_VERSION,
-            "inputs": {
-                "cells": cells.to_string_lossy(),
-                "mask": mask_path.to_string_lossy(),
-                "config": config_path.to_string_lossy(),
-            },
-            "execution": {
-                "thread_count": run.actual_thread_count,
-                "requested_threads": threads,
-                "permutations": permutation_count,
-                "permutation_seed": permutation_seed,
-                "strict_repro": strict_repro,
-                "save_intermediates": save_intermediates,
-                "log_level": observability.log.map(LogLevel::as_str),
-                "heap_profile": heap_profile.as_ref().map(|path| path.to_string_lossy().to_string()),
-            },
-            "result": {
-                "case_id": &run.result.case_id,
-                "timepoint": &run.result.timepoint,
-                "protein": &run.result.protein,
-                "status": &run.result.status,
-                "status_flags": &run.result.status_flags,
-                "n_cells": run.result.n_cells,
-                "n_marked": run.result.n_marked,
-                "p_hat": run.result.p_hat,
-            },
-            "output": {
-                "write_parquet_curves": output.write_parquet_curves,
-                "write_geojson_territories": output.write_geojson_territories,
-                "write_figures": output.write_figures,
-                "write_run_manifest": output.write_run_manifest,
-            },
-            "timings_stage_count": run.result.timings.len(),
-        })
-    });
-    OutputWriter::write_marked_run(run, &out, &writer_output)?;
+    let manifest_context = RunManifestContext {
+        command: "analyze".into(),
+        inputs: RunManifestInputs {
+            cells: cells.to_string_lossy().into_owned(),
+            mask: mask_path.to_string_lossy().into_owned(),
+            config: config_path.to_string_lossy().into_owned(),
+        },
+        execution: RunManifestExecution {
+            thread_count: run.actual_thread_count,
+            requested_threads: threads,
+            permutations: permutation_count,
+            permutation_seed,
+            strict_repro,
+            save_intermediates,
+            log_level: observability.log.map(LogLevel::as_str).map(str::to_owned),
+            heap_profile: heap_profile
+                .as_ref()
+                .map(|path| path.to_string_lossy().into_owned()),
+        },
+    };
+    OutputWriter::write_marked_run_with_manifest_context(run, &out, &output, manifest_context)?;
     if save_intermediates {
         write_analysis_intermediates(&out, &pattern, &intermediate_config)?;
     }
     if let Some(timings) = observability_timings.as_deref() {
         write_observability_outputs(&observability, timings)?;
     }
-    if let Some(run_manifest) = run_manifest {
-        fs::write(
-            out.join("run_manifest.json"),
-            serde_json::to_string_pretty(&run_manifest)?,
-        )?;
-    }
-
     Ok(())
 }
 

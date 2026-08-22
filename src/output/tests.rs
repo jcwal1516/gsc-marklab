@@ -579,7 +579,7 @@ fn output_writer_emits_optional_multimodal_parquet_artifacts() {
     options.write_parquet_curves = true;
     options.write_geojson_territories = false;
     options.write_figures = false;
-    options.write_run_manifest = false;
+    options.write_run_manifest = true;
     let dir = tempfile::tempdir().expect("temp dir");
 
     OutputWriter::write(&ResultDocument::multimodal(result), dir.path(), &options)
@@ -588,6 +588,14 @@ fn output_writer_emits_optional_multimodal_parquet_artifacts() {
     assert!(dir.path().join("fused_cells.parquet").exists());
     assert!(dir.path().join("neighborhood_enrichment.parquet").exists());
     assert!(dir.path().join("cross_interaction_curves.parquet").exists());
+    let manifest: Value = serde_json::from_str(
+        &fs::read_to_string(dir.path().join("run_manifest.json")).expect("manifest"),
+    )
+    .expect("manifest json");
+    assert_eq!(manifest["analysis_kind"], "multimodal");
+    assert_eq!(manifest["result"]["case_id"], "case_001");
+    assert_eq!(manifest["result"]["timepoint"], "post");
+    assert_eq!(manifest["output"]["write_run_manifest"], true);
 }
 
 #[test]
