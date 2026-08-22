@@ -38,6 +38,13 @@ pub struct RegionRequest {
     pub height: u32,
 }
 
+impl RegionRequest {
+    /// Validate this request against known slide metadata without decoding.
+    pub fn validate_for(&self, metadata: &SlideMetadata, max_region_pixels: u64) -> Result<()> {
+        validate_region_request(metadata, self, max_region_pixels)
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct RgbaRegion {
     pub width: u32,
@@ -122,7 +129,7 @@ impl SlideReader {
     }
 
     pub fn read_region_rgba(&self, request: &RegionRequest) -> Result<RgbaRegion> {
-        validate_region_request(&self.metadata, request, self.max_region_pixels)?;
+        request.validate_for(&self.metadata, self.max_region_pixels)?;
         let upstream = wsi_rs::RegionRequest::new(
             wsi_rs::SceneId::new(request.scene),
             wsi_rs::SeriesId::new(request.series),
@@ -330,7 +337,8 @@ mod tests {
     }
 
     fn assert_invalid_contains(metadata: &SlideMetadata, request: &RegionRequest, expected: &str) {
-        let error = validate_region_request(metadata, request, 16_777_216)
+        let error = request
+            .validate_for(metadata, 16_777_216)
             .expect_err("request should be rejected before decoding");
         assert!(
             error.to_string().contains(expected),
@@ -341,7 +349,7 @@ mod tests {
     #[test]
     fn validates_all_indices_bounds_dimensions_and_limits_before_decode() {
         let metadata = metadata(SlideSampleType::Uint8);
-        assert!(validate_region_request(&metadata, &request(), 400).is_ok());
+        assert!(request().validate_for(&metadata, 400).is_ok());
 
         let mut invalid = request();
         invalid.scene = 1;

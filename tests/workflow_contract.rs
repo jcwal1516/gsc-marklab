@@ -93,6 +93,45 @@ fn ci_workflow_runs_locked_rust_wsi_and_benchmark_gates() {
 }
 
 #[test]
+fn fuzz_manifest_covers_current_public_input_boundaries() {
+    let manifest = fs::read_to_string("fuzz/Cargo.toml").expect("fuzz manifest");
+    let sources = fs::read_dir("fuzz/fuzz_targets")
+        .expect("fuzz target directory")
+        .map(|entry| {
+            let path = entry.expect("fuzz target entry").path();
+            fs::read_to_string(path).expect("fuzz target source")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    for target in [
+        "config",
+        "geojson_mask",
+        "csv_row_parser",
+        "result_document",
+        "wsi_region_request",
+    ] {
+        assert!(
+            manifest.contains(&format!("name = \"{target}\"")),
+            "fuzz manifest should declare {target}"
+        );
+    }
+    for boundary in [
+        "AnalysisConfig::from_toml_overrides",
+        "TumorMask::from_geojson_str",
+        "PatternLoader::new",
+        "ResultDocument::from_json",
+        "validate_for",
+    ] {
+        assert!(
+            sources.contains(boundary),
+            "fuzz targets should cover {boundary}"
+        );
+    }
+    assert!(!sources.contains("Pattern::from_paths"));
+}
+
+#[test]
 fn release_workflow_builds_locked_wsi_archives_with_licenses_and_checksums() {
     let workflow = fs::read_to_string(".github/workflows/release.yml").expect("release workflow");
 

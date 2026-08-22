@@ -10,7 +10,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 tempfile = "3"
-marklab = { path = "..", default-features = false, features = ["csv"] }
+marklab = { path = "..", default-features = false, features = ["csv", "wsi"] }
 
 [[bin]]
 name = "config"
@@ -29,6 +29,20 @@ bench = false
 [[bin]]
 name = "csv_row_parser"
 path = "fuzz_targets/load_cells.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "result_document"
+path = "fuzz_targets/result_document.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "wsi_region_request"
+path = "fuzz_targets/wsi_region_request.rs"
 test = false
 doc = false
 bench = false
