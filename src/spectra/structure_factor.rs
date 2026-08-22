@@ -1,17 +1,18 @@
 use crate::common::{
     seeds::{derive_seed, SeedEndpoint},
-    stats::{median_average_even, min_max_ignoring_nonfinite},
+    stats::median_average_even,
 };
 use crate::data::Pattern;
 use crate::errors::{MarklabError, Result};
-use crate::geom::spatial_index::mean_nearest_neighbor_distance;
 use crate::inference::scalar_pvalues::{permutation_p_value, Tail};
 use crate::permutation::envelopes::GlobalEnvelope;
 use crate::permutation::labels::deterministic_shuffle;
 use crate::permutation::stratified::permute_within_strata;
-use crate::spectra::kgrid::{resolvable_k_modes, KBand, KMode};
+use crate::spectra::kgrid::KMode;
 
 pub(crate) mod kernel;
+mod modes;
+mod shells;
 
 pub use kernel::{
     centered_structure_factor, centered_structure_factor_for_marks, observed_power_for_modes,
@@ -23,6 +24,8 @@ use kernel::{
     centered_structure_factor_for_values, permutation_power_for_modes_into,
     total_phase_sums_for_modes,
 };
+pub use modes::resolvable_modes_for_pattern;
+use shells::{nonempty_shells, shell_mean_k, shell_mean_powers};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PermutationWhitenedSpectrum {
@@ -275,12 +278,6 @@ pub fn permutation_whitened_value_spectrum_from_observed_modes(
     }
 
     summarize_permutation_whitening(modes, observed_mode_power, permutation_mode_powers, options)
-}
-
-pub fn resolvable_modes_for_pattern(pattern: &Pattern, n_shells: usize) -> Option<Vec<KMode>> {
-    let band = resolvable_band(pattern)?;
-    let modes = resolvable_k_modes(band, n_shells);
-    (!modes.is_empty()).then_some(modes)
 }
 
 pub fn stratified_permutation_whitened_spectrum_from_observed_modes<T>(
@@ -578,72 +575,6 @@ fn xi_stability_interval_um(k_values: &[f64], whitened_power: &[f64]) -> Option<
     }
 
     (min_xi.is_finite() && max_xi.is_finite()).then_some([min_xi, max_xi])
-}
-
-fn effective_length_um(pattern: &Pattern) -> Option<f64> {
-    if pattern.window.l_eff_um.is_finite() && pattern.window.l_eff_um > 0.0 {
-        return Some(pattern.window.l_eff_um);
-    }
-    let (min_x, max_x) = min_max_ignoring_nonfinite(&pattern.x_um)?;
-    let (min_y, max_y) = min_max_ignoring_nonfinite(&pattern.y_um)?;
-    let span = (max_x - min_x).max(max_y - min_y);
-    (span > 0.0).then_some(span)
-}
-
-fn resolvable_band(pattern: &Pattern) -> Option<KBand> {
-    let l_eff_um = effective_length_um(pattern)?;
-    let d_nn_mean_um =
-        if pattern.window.d_nn_mean_um.is_finite() && pattern.window.d_nn_mean_um > 0.0 {
-            pattern.window.d_nn_mean_um
-        } else {
-            mean_nearest_neighbor_distance(&pattern.x_um, &pattern.y_um)?
-        };
-    KBand::from_window(l_eff_um, d_nn_mean_um)
-}
-
-fn nonempty_shells(modes: &[KMode], n_shells: usize) -> Vec<usize> {
-    let mut counts = vec![0usize; n_shells];
-    for mode in modes {
-        if mode.shell_index < n_shells {
-            counts[mode.shell_index] += 1;
-        }
-    }
-    counts
-        .into_iter()
-        .enumerate()
-        .filter_map(|(shell, count)| (count > 0).then_some(shell))
-        .collect()
-}
-
-fn shell_mean_k(modes: &[KMode], shell_index: usize) -> Option<f64> {
-    let mut sum = 0.0;
-    let mut count = 0usize;
-    for mode in modes {
-        if mode.shell_index == shell_index {
-            sum += mode.k;
-            count += 1;
-        }
-    }
-    (count > 0).then_some(sum / count as f64)
-}
-
-fn shell_mean_powers(modes: &[KMode], powers: &[f64], shell_index: &[usize]) -> Option<Vec<f64>> {
-    if modes.len() != powers.len() {
-        return None;
-    }
-    let mut output = Vec::with_capacity(shell_index.len());
-    for shell in shell_index {
-        let mut sum = 0.0;
-        let mut count = 0usize;
-        for (mode, power) in modes.iter().zip(powers.iter().copied()) {
-            if mode.shell_index == *shell && power.is_finite() {
-                sum += power;
-                count += 1;
-            }
-        }
-        output.push(if count == 0 { 0.0 } else { sum / count as f64 });
-    }
-    Some(output)
 }
 
 fn leave_one_out_medians(values: &[f64]) -> Option<Vec<f64>> {
