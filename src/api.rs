@@ -16,6 +16,7 @@ mod assembly;
 mod components;
 mod context;
 mod diagnostics;
+mod interpretation;
 mod mark_pair_stage;
 mod multiscale_stage;
 mod qc_pipeline;
@@ -62,9 +63,9 @@ mod context_tests {
     }
 }
 
-use assembly::interpretation_for;
 use components::component_analysis_plan;
 use context::MarkedAnalysisContext;
+use interpretation::interpretation_for;
 use qc_pipeline::validate_pattern;
 use spatial_stage::estimated_raster_pixels;
 
