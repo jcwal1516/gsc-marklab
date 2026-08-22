@@ -203,3 +203,11 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Consequences: Observed quantities, undefined ratio/z-score rules, scalar p-values, and BH adjustment have one owner. There is no trait or speculative null-model framework. Exact deterministic sequences intentionally remain unchanged for both strategies.
 - Evidence: Commit `b233104`; pinned pre-refactor JSON outputs cover both strategies and two label pairs, including a stratified zero-variance null and unstratified adjusted p-values. All 16 enrichment tests, configured-null application test, sidecar integration, formatting, warnings-denied Clippy, and no-default-feature check pass.
 - Status: Accepted; DUP-04 closed.
+
+## 2026-08-22 — Marked run owns execution context and is consumed by output
+
+- Context: `AnalysisEngine::analyze_pattern` returned only `MarkedPatternResult`. The CLI added adapter-level load timings, cloned the complete result into `ResultDocument`, and retained the original solely for manifest fields and actual thread reporting.
+- Decision: Add `MarkedAnalysisRun { result, actual_thread_count }` as the public application return while preserving `analyze_pattern` as the simple convenience API. Prepare the existing CLI manifest value while borrowing the run, then pass ownership to a marked output adapter that moves the result into the versioned document. Keep intermediate pattern exports outside the run until their Phase 5 artifact plan is defined.
+- Consequences: Both output paths now avoid complete result/table clones. Strict-repro and requested-versus-actual thread reporting are preserved. This is an ownership boundary, not a claim that the marked distributed god workflow is decomposed; ARCH-02 remains open for explicit planning/computation/interpretation stages.
+- Evidence: Commit `82751fe`; the public marked-run regression and all 15 enabled marked CLI integration tests pass, including strict-repro manifest, observability, intermediate, Parquet, and batch flows. Formatting, warnings-denied Clippy, and no-default-feature check pass.
+- Status: Accepted; PERF-10 closed and ARCH-02 remains active.
