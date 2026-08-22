@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::{
     errors::{MarklabError, Result},
-    output::{ResidualTerritory, TerritoryFeature},
+    output::{NeighborhoodTerritory, ResidualTerritory},
 };
 
 pub(crate) fn write_residual_territories(
@@ -31,8 +31,7 @@ pub(crate) fn write_residual_territories(
                     "analysis_scale_um": territory.analysis_scale_um,
                     "residual_score": territory.residual_score,
                     "supporting_marked_cells": territory.supporting_marked_cells,
-                    "component_id": territory.component_id,
-                    "qc_overlap_fraction": territory.qc_overlap_fraction
+                    "component_id": territory.component_id
                 }
             }))
         })
@@ -41,7 +40,7 @@ pub(crate) fn write_residual_territories(
 }
 
 pub(crate) fn write_neighborhood_territories(
-    territories: &[TerritoryFeature],
+    territories: &[NeighborhoodTerritory],
     path: impl AsRef<Path>,
 ) -> Result<()> {
     let features = territories
@@ -63,11 +62,8 @@ pub(crate) fn write_neighborhood_territories(
                     "center_x_um": territory.center_x_um,
                     "center_y_um": territory.center_y_um,
                     "radius_um": territory.radius_um,
-                    "scale_um": territory.scale_um,
-                    "z_or_power": territory.z_or_power,
-                    "supporting_cells": territory.supporting_cells,
-                    "component_id": territory.component_id,
-                    "qc_overlap_fraction": territory.qc_overlap_fraction
+                    "supporting_abnormal_cells": territory.supporting_abnormal_cells,
+                    "cluster_id": territory.cluster_id
                 }
             }))
         })

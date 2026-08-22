@@ -4,7 +4,7 @@ use crate::{
         cells::{CellSection, FusedCell},
         labels::primary_label,
     },
-    output::TerritoryFeature,
+    output::NeighborhoodTerritory,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -17,7 +17,7 @@ pub struct TerritoryDomainConfig {
 pub fn detect_mmr_abnormal_territories(
     cells: &[FusedCell],
     config: TerritoryDomainConfig,
-) -> Result<Vec<TerritoryFeature>> {
+) -> Result<Vec<NeighborhoodTerritory>> {
     validate_config(config)?;
     validate_cells(cells)?;
 
@@ -166,7 +166,7 @@ fn territory_from_component(
     component: &[usize],
     cells: &[FusedCell],
     min_radius_um: f64,
-) -> TerritoryFeature {
+) -> NeighborhoodTerritory {
     let supporting_cells = component.len();
     let center_x_um = component
         .iter()
@@ -188,15 +188,12 @@ fn territory_from_component(
         .fold(0.0_f64, f64::max);
     let radius_um = (max_component_distance_um + min_radius_um).max(min_radius_um);
 
-    TerritoryFeature {
+    NeighborhoodTerritory {
         center_x_um,
         center_y_um,
         radius_um,
-        scale_um: radius_um / 2.0_f64.sqrt(),
-        z_or_power: supporting_cells as f64,
-        supporting_cells,
-        component_id: Some(component_id as u32),
-        qc_overlap_fraction: None,
+        supporting_abnormal_cells: supporting_cells,
+        cluster_id: component_id as u32,
     }
 }
 

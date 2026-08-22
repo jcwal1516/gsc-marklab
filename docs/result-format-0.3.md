@@ -114,9 +114,8 @@ does not perform a wavelet transform. Marked results now expose:
 `block_mean_variance_fraction`, and
 `block_mean_to_local_difference_ratio`. These are normalized heuristic scores,
 not wavelet coefficients. `ResidualTerritory` reports `analysis_scale_um`,
-`residual_score`, and `supporting_marked_cells`. Its
-`qc_overlap_fraction` is nullable and remains `null` until an actual QC overlap
-calculation is available.
+`residual_score`, and `supporting_marked_cells`. The unimplemented
+`qc_overlap_fraction` field is not part of format 0.3.
 
 Artifacts are named `scale_energy.parquet`, `scale_energy.svg`,
 `residual_territories.geojson`, and `residual_territory_overlay.svg`.
@@ -125,6 +124,21 @@ The raster spectral QC diagnostic is implemented and named internally as a
 Hann-tapered raster periodogram. It is not serialized as a Bartlett estimator.
 Its low-frequency quantity aggregates all modes into deterministic physical
 radial shells before selecting the configured number of low-k shells.
+
+## Marked and multimodal schema boundaries
+
+`MarkedPatternResult` contains only marked-pattern endpoints and does not carry
+registration, fused-cell, neighborhood-enrichment, cross-interaction,
+territory-profile, or multimodal territory-comparison placeholders. Those
+fields belong only to `MultimodalResult`.
+
+Multimodal DBSCAN territories use the `NeighborhoodTerritory` type with
+`center_x_um`, `center_y_um`, `radius_um`, `supporting_abnormal_cells`, and
+`cluster_id`. The former generic `TerritoryFeature` type and its ambiguous
+`scale_um`, `z_or_power`, optional `component_id`, and unimplemented
+`qc_overlap_fraction` fields are absent. `TerritoryProfile` contains its
+calculated cell-type fractions and registration-resolution flag; its
+never-populated `enrichment` and `cross_curves` vectors are absent.
 
 ## Input QC fractions
 

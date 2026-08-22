@@ -472,7 +472,11 @@ fn multimodal_analyze_uses_configured_domain_detection() {
         .as_array()
         .expect("territories");
     assert_eq!(territories.len(), 1);
-    assert_eq!(territories[0]["supporting_cells"], 2);
+    assert_eq!(territories[0]["supporting_abnormal_cells"], 2);
+    assert_eq!(territories[0]["cluster_id"], 0);
+    assert!(territories[0].get("z_or_power").is_none());
+    assert!(territories[0].get("scale_um").is_none());
+    assert!(territories[0].get("qc_overlap_fraction").is_none());
     assert!((territories[0]["center_x_um"].as_f64().unwrap() - 4.0).abs() < 1.0e-9);
 }
 

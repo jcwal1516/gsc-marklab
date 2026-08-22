@@ -45,7 +45,7 @@ pub struct MultimodalResult {
     pub fused_cells: Vec<FusedCell>,
     pub neighborhood_enrichment: AnalysisSection<Vec<NeighborhoodEnrichmentResult>>,
     pub cross_interaction_curves: AnalysisSection<Vec<CrossInteractionCurve>>,
-    pub neighborhood_territories: AnalysisSection<Vec<TerritoryFeature>>,
+    pub neighborhood_territories: AnalysisSection<Vec<NeighborhoodTerritory>>,
     pub territory_profiles: AnalysisSection<Vec<TerritoryProfile>>,
     pub territory_comparisons: AnalysisSection<Vec<CurveComparisonResult>>,
     pub diagnostics: AnalysisSection<DiagnosticsResult>,
@@ -135,20 +135,6 @@ pub struct MarkedPatternResult {
     pub scale_energy_curve: Vec<ScaleEnergyPoint>,
     #[serde(default)]
     pub residual_territories: AnalysisSection<Vec<ResidualTerritory>>,
-    #[serde(default)]
-    pub registration: AnalysisSection<RegistrationSummary>,
-    #[serde(default)]
-    pub fused_cell_summary: AnalysisSection<FusedCellSummary>,
-    #[serde(default, skip_serializing, skip_deserializing)]
-    pub fused_cells: Vec<FusedCell>,
-    #[serde(default)]
-    pub neighborhood_enrichment: AnalysisSection<Vec<NeighborhoodEnrichmentResult>>,
-    #[serde(default)]
-    pub cross_interaction_curves: AnalysisSection<Vec<CrossInteractionCurve>>,
-    #[serde(default)]
-    pub territory_profiles: AnalysisSection<Vec<TerritoryProfile>>,
-    #[serde(default)]
-    pub territory_comparisons: AnalysisSection<Vec<CurveComparisonResult>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub prepost_curve_comparisons: Vec<CurveComparisonResult>,
     pub component_mode_selection: ComponentModeSelection,
@@ -414,8 +400,6 @@ pub struct CrossInteractionCurve {
 pub struct TerritoryProfile {
     pub territory_id: usize,
     pub cell_type_fractions: Vec<LabelFraction>,
-    pub enrichment: Vec<NeighborhoodEnrichmentResult>,
-    pub cross_curves: Vec<CrossInteractionCurve>,
     pub below_registration_resolution: bool,
 }
 
@@ -457,15 +441,12 @@ pub enum CurveComparisonAvailability {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct TerritoryFeature {
+pub struct NeighborhoodTerritory {
     pub center_x_um: f64,
     pub center_y_um: f64,
     pub radius_um: f64,
-    pub scale_um: f64,
-    pub z_or_power: f64,
-    pub supporting_cells: usize,
-    pub component_id: Option<u32>,
-    pub qc_overlap_fraction: Option<f64>,
+    pub supporting_abnormal_cells: usize,
+    pub cluster_id: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -477,7 +458,6 @@ pub struct ResidualTerritory {
     pub residual_score: f64,
     pub supporting_marked_cells: usize,
     pub component_id: Option<u32>,
-    pub qc_overlap_fraction: Option<f64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]

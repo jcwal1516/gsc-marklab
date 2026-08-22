@@ -1,7 +1,8 @@
 use crate::{
     multimodal::cells::{CellSection, FusedCell},
     neighborhood::profiles::{compare_territory_profiles, territory_profiles},
-    CurveComparisonAvailability, LabelFraction, MarklabError, TerritoryFeature, TerritoryProfile,
+    CurveComparisonAvailability, LabelFraction, MarklabError, NeighborhoodTerritory,
+    TerritoryProfile,
 };
 
 fn fused(id: &str, x: f64, y: f64, label: &str) -> FusedCell {
@@ -23,16 +24,13 @@ fn fused_with_label(id: &str, x: f64, y: f64, label: Option<&str>) -> FusedCell 
     }
 }
 
-fn territory(center_x_um: f64, radius_um: f64) -> TerritoryFeature {
-    TerritoryFeature {
+fn territory(center_x_um: f64, radius_um: f64) -> NeighborhoodTerritory {
+    NeighborhoodTerritory {
         center_x_um,
         center_y_um: 0.0,
         radius_um,
-        scale_um: 3.5,
-        z_or_power: 3.0,
-        supporting_cells: 3,
-        component_id: None,
-        qc_overlap_fraction: None,
+        supporting_abnormal_cells: 3,
+        cluster_id: 0,
     }
 }
 
@@ -40,23 +38,18 @@ fn profile(territory_id: usize, fractions: Vec<LabelFraction>) -> TerritoryProfi
     TerritoryProfile {
         territory_id,
         cell_type_fractions: fractions,
-        enrichment: Vec::new(),
-        cross_curves: Vec::new(),
         below_registration_resolution: false,
     }
 }
 
 #[test]
 fn territory_profile_counts_local_cell_type_fractions() {
-    let territories = vec![TerritoryFeature {
+    let territories = vec![NeighborhoodTerritory {
         center_x_um: 0.0,
         center_y_um: 0.0,
         radius_um: 10.0,
-        scale_um: 7.0,
-        z_or_power: 4.0,
-        supporting_cells: 5,
-        component_id: None,
-        qc_overlap_fraction: None,
+        supporting_abnormal_cells: 5,
+        cluster_id: 0,
     }];
     let cells = vec![
         fused("l1", 1.0, 0.0, "lymphocyte"),
@@ -78,25 +71,19 @@ fn territory_profile_counts_local_cell_type_fractions() {
 #[test]
 fn territory_comparison_reports_distance_and_margin_assessment() {
     let territories = vec![
-        TerritoryFeature {
+        NeighborhoodTerritory {
             center_x_um: 0.0,
             center_y_um: 0.0,
             radius_um: 5.0,
-            scale_um: 3.5,
-            z_or_power: 3.0,
-            supporting_cells: 3,
-            component_id: None,
-            qc_overlap_fraction: None,
+            supporting_abnormal_cells: 3,
+            cluster_id: 0,
         },
-        TerritoryFeature {
+        NeighborhoodTerritory {
             center_x_um: 100.0,
             center_y_um: 0.0,
             radius_um: 5.0,
-            scale_um: 3.5,
-            z_or_power: 3.0,
-            supporting_cells: 3,
-            component_id: None,
-            qc_overlap_fraction: None,
+            supporting_abnormal_cells: 3,
+            cluster_id: 1,
         },
     ];
     let cells = vec![
@@ -193,7 +180,7 @@ fn territory_profiles_reject_invalid_buffer_radius_and_coordinates() {
     let invalid_radius = vec![territory(0.0, -1.0)];
     assert!(territory_profiles(&invalid_radius, &cells, 0.0).is_err());
 
-    let invalid_center = vec![TerritoryFeature {
+    let invalid_center = vec![NeighborhoodTerritory {
         center_x_um: f64::NAN,
         ..territory(0.0, 10.0)
     }];

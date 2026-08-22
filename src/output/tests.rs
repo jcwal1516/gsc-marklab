@@ -538,7 +538,7 @@ fn territories_geojson_writes_polygon_features_with_required_properties() {
         feature["properties"]["supporting_marked_cells"],
         territories[0].supporting_marked_cells
     );
-    assert!(feature["properties"]["qc_overlap_fraction"].is_null());
+    assert!(feature["properties"].get("qc_overlap_fraction").is_none());
     assert!(feature["properties"].get("z_or_power").is_none());
     assert_eq!(feature["properties"]["radius_um"], territories[0].radius_um);
     assert!(

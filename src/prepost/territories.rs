@@ -1,8 +1,8 @@
 use crate::{
     common::stats::{mean_all_finite, median_average_even},
     output::{
-        AnalysisSection, MarkedPatternResult, MultimodalResult, ResidualTerritory,
-        TerritoryFeature, TerritoryPrePostSummary,
+        AnalysisSection, MarkedPatternResult, MultimodalResult, NeighborhoodTerritory,
+        ResidualTerritory, TerritoryPrePostSummary,
     },
 };
 
@@ -140,7 +140,7 @@ impl TerritorySummaryView for ResidualTerritory {
     }
 }
 
-impl TerritorySummaryView for TerritoryFeature {
+impl TerritorySummaryView for NeighborhoodTerritory {
     fn center_x_um(&self) -> f64 {
         self.center_x_um
     }
@@ -151,6 +151,6 @@ impl TerritorySummaryView for TerritoryFeature {
         self.radius_um
     }
     fn supporting_cells(&self) -> usize {
-        self.supporting_cells
+        self.supporting_abnormal_cells
     }
 }

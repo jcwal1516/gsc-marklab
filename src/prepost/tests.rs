@@ -7,9 +7,8 @@ use crate::{
     AnalysisSection, AnisotropySummary, ComponentMode, ComponentModeSelection,
     CrossInteractionCurve, CrossInteractionPoint, CurveComparisonAvailability, FunctionalSummary,
     Interpretation, MarkPairCovariancePoint, MarkedPatternResult, MultimodalResult,
-    MultiscaleResidualSummary, PrimaryEndpoint, QcSummary, ResidualTerritory,
-    ResolvedComponentMode, ScaleEnergyPoint, SpectrumPoint, SpectrumSummary, TerritoryFeature,
-    WindowSummary,
+    MultiscaleResidualSummary, NeighborhoodTerritory, PrimaryEndpoint, QcSummary,
+    ResolvedComponentMode, ScaleEnergyPoint, SpectrumPoint, SpectrumSummary, WindowSummary,
 };
 
 fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResult {
@@ -88,31 +87,11 @@ fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResul
             class: "random_like".into(),
             text: "No unsafe biological mechanism claim.".into(),
         },
-        registration: AnalysisSection::NotApplicable,
-        fused_cell_summary: AnalysisSection::NotApplicable,
-        fused_cells: Vec::new(),
-        neighborhood_enrichment: AnalysisSection::NotApplicable,
-        cross_interaction_curves: AnalysisSection::NotApplicable,
-        territory_profiles: AnalysisSection::NotApplicable,
-        territory_comparisons: AnalysisSection::NotApplicable,
         prepost_curve_comparisons: Vec::new(),
     }
 }
 
-fn territory(center_x_um: f64) -> ResidualTerritory {
-    ResidualTerritory {
-        center_x_um,
-        center_y_um: 0.0,
-        radius_um: 10.0,
-        analysis_scale_um: 7.0,
-        residual_score: 2.0,
-        supporting_marked_cells: 2,
-        component_id: None,
-        qc_overlap_fraction: None,
-    }
-}
-
-fn multimodal_result(timepoint: &str, territories: Vec<TerritoryFeature>) -> MultimodalResult {
+fn multimodal_result(timepoint: &str, territories: Vec<NeighborhoodTerritory>) -> MultimodalResult {
     MultimodalResult {
         case_id: "case1".into(),
         timepoint: timepoint.into(),
@@ -135,19 +114,26 @@ fn multimodal_result(timepoint: &str, territories: Vec<TerritoryFeature>) -> Mul
     }
 }
 
+fn neighborhood_territory(center_x_um: f64, cluster_id: u32) -> NeighborhoodTerritory {
+    NeighborhoodTerritory {
+        center_x_um,
+        center_y_um: 0.0,
+        radius_um: 10.0,
+        supporting_abnormal_cells: 2,
+        cluster_id,
+    }
+}
+
 #[test]
 fn multimodal_prepost_service_uses_only_multimodal_endpoints() {
     let pre = multimodal_result(
         "pre",
-        vec![TerritoryFeature {
+        vec![NeighborhoodTerritory {
             center_x_um: 0.0,
             center_y_um: 0.0,
             radius_um: 10.0,
-            scale_um: 5.0,
-            z_or_power: 2.0,
-            supporting_cells: 2,
-            component_id: Some(0),
-            qc_overlap_fraction: None,
+            supporting_abnormal_cells: 2,
+            cluster_id: 0,
         }],
     );
     let mut post_territories = pre
@@ -155,15 +141,12 @@ fn multimodal_prepost_service_uses_only_multimodal_endpoints() {
         .value()
         .expect("pre territories")
         .clone();
-    post_territories.push(TerritoryFeature {
+    post_territories.push(NeighborhoodTerritory {
         center_x_um: 50.0,
         center_y_um: 0.0,
         radius_um: 8.0,
-        scale_um: 4.0,
-        z_or_power: 3.0,
-        supporting_cells: 3,
-        component_id: Some(1),
-        qc_overlap_fraction: None,
+        supporting_abnormal_cells: 3,
+        cluster_id: 1,
     });
     let post = multimodal_result("post", post_territories);
 
@@ -304,8 +287,14 @@ fn prepost_result_includes_curve_comparisons_when_curves_exist() {
 
 #[test]
 fn prepost_result_includes_multimodal_cross_interaction_tests_and_territory_delta() {
-    let mut pre = minimal_analysis_result("case1", "pre");
-    let mut post = minimal_analysis_result("case1", "post");
+    let mut pre = multimodal_result("pre", vec![neighborhood_territory(0.0, 0)]);
+    let mut post = multimodal_result(
+        "post",
+        vec![
+            neighborhood_territory(0.0, 0),
+            neighborhood_territory(50.0, 1),
+        ],
+    );
 
     pre.cross_interaction_curves = AnalysisSection::available(vec![CrossInteractionCurve {
         label_a: "mmr_abnormal".into(),
@@ -357,10 +346,7 @@ fn prepost_result_includes_multimodal_cross_interaction_tests_and_territory_delt
         ],
         p_global: Some(0.25),
     }]);
-    pre.residual_territories = AnalysisSection::available(vec![territory(0.0)]);
-    post.residual_territories = AnalysisSection::available(vec![territory(0.0), territory(50.0)]);
-
-    let delta = compare_prepost(&pre, &post);
+    let delta = compare_multimodal_prepost(&pre, &post);
 
     assert_eq!(delta.delta_territory_count.value(), Some(&1));
     let cross_tests: Vec<_> = delta
@@ -608,6 +594,29 @@ fn remediation_prepost_axes_accept_harmless_float_reconstruction() {
         covariance: Some(0.11),
         ..pre.mark_pair_covariance_curve[0].clone()
     }];
+    let delta = compare_prepost(&pre, &post);
+    for comparison_name in ["spectrum", "mark_pair_covariance"] {
+        let comparison_tests = delta
+            .curve_comparisons
+            .iter()
+            .filter(|test| test.comparison_name == comparison_name)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            comparison_tests.len(),
+            2,
+            "matching reconstructed axes should run difference and margin diagnostics: {comparison_tests:?}"
+        );
+        assert!(comparison_tests
+            .iter()
+            .all(|test| !test.interpretation.contains("axis")));
+    }
+}
+
+#[test]
+fn multimodal_prepost_axes_accept_harmless_float_reconstruction() {
+    let mut pre = multimodal_result("pre", Vec::new());
+    let mut post = multimodal_result("post", Vec::new());
     pre.cross_interaction_curves = AnalysisSection::available(vec![CrossInteractionCurve {
         label_a: "mmr_abnormal".into(),
         label_b: "lymphocyte".into(),
@@ -639,27 +648,17 @@ fn remediation_prepost_axes_accept_harmless_float_reconstruction() {
         p_global: Some(0.5),
     }]);
 
-    let delta = compare_prepost(&pre, &post);
-    for comparison_name in [
-        "spectrum",
-        "mark_pair_covariance",
-        "cross_interaction:mmr_abnormal/lymphocyte",
-    ] {
-        let comparison_tests = delta
-            .curve_comparisons
-            .iter()
-            .filter(|test| test.comparison_name == comparison_name)
-            .collect::<Vec<_>>();
+    let delta = compare_multimodal_prepost(&pre, &post);
+    let comparison_tests = delta
+        .curve_comparisons
+        .iter()
+        .filter(|test| test.comparison_name == "cross_interaction:mmr_abnormal/lymphocyte")
+        .collect::<Vec<_>>();
 
-        assert_eq!(
-            comparison_tests.len(),
-            2,
-            "matching reconstructed axes should run difference and margin diagnostics: {comparison_tests:?}"
-        );
-        assert!(comparison_tests
-            .iter()
-            .all(|test| !test.interpretation.contains("axis")));
-    }
+    assert_eq!(comparison_tests.len(), 2);
+    assert!(comparison_tests
+        .iter()
+        .all(|test| !test.interpretation.contains("axis")));
 }
 
 #[test]

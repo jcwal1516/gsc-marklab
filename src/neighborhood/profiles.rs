@@ -5,13 +5,13 @@ use crate::{
     errors::{MarklabError, Result},
     multimodal::{cells::FusedCell, labels::primary_label},
     output::{
-        CurveComparisonAvailability, CurveComparisonResult, LabelFraction, TerritoryFeature,
+        CurveComparisonAvailability, CurveComparisonResult, LabelFraction, NeighborhoodTerritory,
         TerritoryProfile,
     },
 };
 
 pub fn territory_profiles(
-    territories: &[TerritoryFeature],
+    territories: &[NeighborhoodTerritory],
     cells: &[FusedCell],
     buffer_um: f64,
 ) -> Result<Vec<TerritoryProfile>> {
@@ -72,7 +72,7 @@ pub fn compare_territory_profiles(
 
 fn profile_for_territory(
     territory_id: usize,
-    territory: &TerritoryFeature,
+    territory: &NeighborhoodTerritory,
     cells: &[FusedCell],
     buffer_um: f64,
 ) -> Result<TerritoryProfile> {
@@ -127,8 +127,6 @@ fn profile_for_territory(
     Ok(TerritoryProfile {
         territory_id,
         cell_type_fractions,
-        enrichment: Vec::new(),
-        cross_curves: Vec::new(),
         below_registration_resolution: territory.radius_um < 2.0 * max_registration_error_um,
     })
 }
@@ -142,7 +140,7 @@ fn validate_buffer(buffer_um: f64) -> Result<()> {
     Ok(())
 }
 
-fn validate_territory(index: usize, territory: &TerritoryFeature) -> Result<()> {
+fn validate_territory(index: usize, territory: &NeighborhoodTerritory) -> Result<()> {
     if !territory.center_x_um.is_finite()
         || !territory.center_y_um.is_finite()
         || !territory.radius_um.is_finite()

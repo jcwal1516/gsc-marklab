@@ -3,7 +3,7 @@ use crate::output::{AnalysisSection, CurveComparisonResult, MarkedPatternResult,
 use super::{
     axes::{mark_pair_covariance_axes_aligned, spectrum_axes_aligned},
     context::ComparisonContext,
-    curves::{append_cross_interaction_curve_comparisons, append_curve_comparisons, base_seed},
+    curves::{append_curve_comparisons, base_seed},
     numeric_delta, territories,
 };
 
@@ -108,11 +108,6 @@ fn curve_comparisons(
                     .map_or(0, |value| value.n_permutations),
             ),
         base_seed() ^ 0x7061_6972,
-    );
-    append_cross_interaction_curve_comparisons(
-        &mut tests,
-        pre.cross_interaction_curves.value().map(Vec::as_slice),
-        post.cross_interaction_curves.value().map(Vec::as_slice),
     );
     tests
 }

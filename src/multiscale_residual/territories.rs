@@ -7,7 +7,6 @@ pub struct ResidualTerritoryCandidate {
     pub residual_score: f64,
     pub supporting_marked_cells: usize,
     pub component_id: Option<u32>,
-    pub qc_overlap_fraction: Option<f64>,
 }
 
 use crate::{
@@ -128,6 +127,5 @@ fn candidate_at(
         residual_score: z,
         supporting_marked_cells: marked,
         component_id,
-        qc_overlap_fraction: None,
     })
 }

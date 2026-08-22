@@ -438,7 +438,6 @@ impl From<ResidualTerritoryCandidate> for ResidualTerritory {
             residual_score: candidate.residual_score,
             supporting_marked_cells: candidate.supporting_marked_cells,
             component_id: candidate.component_id,
-            qc_overlap_fraction: candidate.qc_overlap_fraction,
         }
     }
 }

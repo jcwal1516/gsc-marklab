@@ -25,7 +25,7 @@ use crate::{
         profiles::territory_profiles,
         territories::{detect_mmr_abnormal_territories, TerritoryDomainConfig},
     },
-    output::TerritoryFeature,
+    output::NeighborhoodTerritory,
     registration::landmarks::LandmarkPair,
     spectra::{
         mark_pair_covariance::mark_pair_covariance,
@@ -384,15 +384,12 @@ fn baseline_perf_territories_and_profiles() {
 
         let side = side_for(n);
         let territories = (0..16)
-            .map(|index| TerritoryFeature {
+            .map(|index| NeighborhoodTerritory {
                 center_x_um: (index % 4) as f64 * (side as f64 / 4.0),
                 center_y_um: (index / 4) as f64 * (side as f64 / 4.0),
                 radius_um: 3.0,
-                scale_um: 2.0,
-                z_or_power: 1.0,
-                supporting_cells: 1,
-                component_id: Some(index),
-                qc_overlap_fraction: None,
+                supporting_abnormal_cells: 1,
+                cluster_id: index,
             })
             .collect::<Vec<_>>();
         measure_case(

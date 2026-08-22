@@ -275,12 +275,7 @@ fn render_diagnostics(section: &AnalysisSection<DiagnosticsResult>) -> String {
 }
 
 fn curve_comparison_framing(result: &MarkedPatternResult) -> String {
-    if result.prepost_curve_comparisons.is_empty()
-        && result
-            .territory_comparisons
-            .value()
-            .is_none_or(Vec::is_empty)
-    {
+    if result.prepost_curve_comparisons.is_empty() {
         return String::new();
     }
 

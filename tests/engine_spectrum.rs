@@ -150,6 +150,23 @@ fn engine_records_the_configured_mark_label_in_results_and_reports() {
         .expect("analysis");
 
     assert_eq!(result.mark_label, "MMR loss");
+    let result_value = serde_json::to_value(ResultDocument::marked(result.clone()))
+        .expect("serialize marked result");
+    let marked_payload = &result_value["analysis"]["result"];
+    for multimodal_only_field in [
+        "registration",
+        "fused_cell_summary",
+        "fused_cells",
+        "neighborhood_enrichment",
+        "cross_interaction_curves",
+        "territory_profiles",
+        "territory_comparisons",
+    ] {
+        assert!(
+            marked_payload.get(multimodal_only_field).is_none(),
+            "marked result must not contain multimodal-only field {multimodal_only_field}"
+        );
+    }
     let dir = tempfile::tempdir().expect("output directory");
     OutputWriter::write(&ResultDocument::marked(result), dir.path(), &output)
         .expect("write outputs");
@@ -1134,6 +1151,5 @@ fn engine_detects_multiple_residual_territory_maxima() {
         territory.residual_score.is_finite()
             && territory.analysis_scale_um.is_finite()
             && territory.supporting_marked_cells > 0
-            && territory.qc_overlap_fraction.is_none()
     }));
 }

@@ -55,8 +55,8 @@ fn dbscan_territory_detection_clusters_density_reachable_ihc_abnormal_cells_and_
     .expect("territories");
 
     assert_eq!(territories.len(), 1);
-    assert_eq!(territories[0].supporting_cells, 3);
-    assert_eq!(territories[0].component_id, Some(0));
+    assert_eq!(territories[0].supporting_abnormal_cells, 3);
+    assert_eq!(territories[0].cluster_id, 0);
     assert!((territories[0].center_x_um - 8.0).abs() < 1.0e-9);
     assert_eq!(territories[0].center_y_um, 0.0);
     assert!(territories[0].radius_um >= 9.0);

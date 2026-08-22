@@ -67,12 +67,12 @@ pub use output::{
     CurveComparisonResult, DiagnosticsResult, EnrichmentStatisticUnavailableReason,
     FunctionalSummary, FusedCellSummary, GraphSmoothingLabelPairSummary, GraphSmoothingSummary,
     Interpretation, LabelFraction, MarkPairCovariancePoint, MarkedPatternResult, MultimodalResult,
-    MultiscaleResidualSummary, NeighborhoodEnrichmentResult, OutputManifest, OutputWriter,
-    PrePostResult, PrimaryEndpoint, Provenance, QcSummary, RegistrationSummary, ResidualTerritory,
-    ResolvedComponentMode, ResultDocument, ScaleEnergyPoint, SpectrumConfoundingConclusion,
-    SpectrumNullInferenceSummary, SpectrumNullModel, SpectrumNullSensitivitySummary, SpectrumPoint,
-    SpectrumSummary, StatusFlag, TerritoryFeature, TerritoryPrePostSummary, TerritoryProfile,
-    TimingStage, WindowSummary, RESULT_FORMAT_VERSION,
+    MultiscaleResidualSummary, NeighborhoodEnrichmentResult, NeighborhoodTerritory, OutputManifest,
+    OutputWriter, PrePostResult, PrimaryEndpoint, Provenance, QcSummary, RegistrationSummary,
+    ResidualTerritory, ResolvedComponentMode, ResultDocument, ScaleEnergyPoint,
+    SpectrumConfoundingConclusion, SpectrumNullInferenceSummary, SpectrumNullModel,
+    SpectrumNullSensitivitySummary, SpectrumPoint, SpectrumSummary, StatusFlag,
+    TerritoryPrePostSummary, TerritoryProfile, TimingStage, WindowSummary, RESULT_FORMAT_VERSION,
 };
 pub use registration::{landmarks::LandmarkPair, transform::Transform2D};
 #[cfg(feature = "wsi")]

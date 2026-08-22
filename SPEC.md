@@ -160,6 +160,12 @@ format 0.3 persists both inference summaries, the threshold, primary-null
 identity, and typed conclusion in `spectrum_null_sensitivity`; an unavailable
 member is a tagged state rather than a numeric sentinel.
 
+Marked and multimodal result schemas are disjoint. Marked results do not carry
+registration or neighborhood placeholders. Multimodal DBSCAN output uses a
+`NeighborhoodTerritory` with an explicit abnormal-cell support count and
+cluster ID; unimplemented profile enrichment/cross-curve and QC-overlap fields
+are omitted from format 0.3.
+
 Removed 0.1 keys and method-selection strings have no aliases.
 
 ## WSI

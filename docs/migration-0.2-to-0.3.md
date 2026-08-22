@@ -69,6 +69,18 @@ semantics.
   `residual_territories`. Summary fields use local-difference, residual-energy,
   and block-mean names. Residual territories have a distinct type with
   `analysis_scale_um`, `residual_score`, and `supporting_marked_cells`.
+- Marked results no longer contain multimodal-only placeholders for
+  registration, fused cells, neighborhood enrichment, cross-interaction
+  curves, territory profiles, or territory comparisons.
+- The multimodal `TerritoryFeature` type becomes `NeighborhoodTerritory`.
+  `supporting_cells` becomes `supporting_abnormal_cells`, and required
+  `cluster_id` replaces optional `component_id`. The derived `scale_um`,
+  ambiguous `z_or_power`, and unimplemented `qc_overlap_fraction` fields are
+  removed without aliases.
+- The unimplemented `ResidualTerritory.qc_overlap_fraction`,
+  `TerritoryProfile.enrichment`, and `TerritoryProfile.cross_curves` fields are
+  removed. Empty vectors or nulls from 0.2 must not be interpreted as completed
+  analyses.
 - Configuration `[wavelet]` is rejected; use `[multiscale_residual]`. Artifact
   filenames use the corresponding scale-energy and residual-territory names.
 - Internal/public Rust names referring to a Bartlett periodogram are removed.

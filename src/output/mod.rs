@@ -26,11 +26,11 @@ pub use result_types::{
     CurveComparisonResult, DiagnosticsResult, EnrichmentStatisticUnavailableReason,
     FunctionalSummary, FusedCellSummary, GraphSmoothingLabelPairSummary, GraphSmoothingSummary,
     Interpretation, LabelFraction, MarkPairCovariancePoint, MarkedPatternResult, MultimodalResult,
-    MultiscaleResidualSummary, NeighborhoodEnrichmentResult, OutputManifest, PrePostResult,
-    PrimaryEndpoint, Provenance, QcSummary, RegistrationSummary, ResidualTerritory,
+    MultiscaleResidualSummary, NeighborhoodEnrichmentResult, NeighborhoodTerritory, OutputManifest,
+    PrePostResult, PrimaryEndpoint, Provenance, QcSummary, RegistrationSummary, ResidualTerritory,
     ResolvedComponentMode, ResultDocument, ScaleEnergyPoint, SpectrumConfoundingConclusion,
     SpectrumNullInferenceSummary, SpectrumNullModel, SpectrumNullSensitivitySummary, SpectrumPoint,
-    SpectrumSummary, StatusFlag, TerritoryFeature, TerritoryPrePostSummary, TerritoryProfile,
-    TimingStage, WindowSummary, RESULT_FORMAT_VERSION,
+    SpectrumSummary, StatusFlag, TerritoryPrePostSummary, TerritoryProfile, TimingStage,
+    WindowSummary, RESULT_FORMAT_VERSION,
 };
 pub use writer::OutputWriter;
