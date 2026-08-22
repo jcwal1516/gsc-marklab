@@ -1,4 +1,8 @@
-use super::*;
+use std::{fs, path::PathBuf};
+
+#[cfg(feature = "parquet")]
+use crate::{io::parquet::write_filtered_pattern_export_parquet, Pattern, PatternMeta};
+use crate::{permutation::labels::permute_fixed_count, MarklabError, Result};
 
 pub(super) fn run(n: usize, p: f64, seed: u64, out: PathBuf) -> Result<()> {
     if !(0.0..=1.0).contains(&p) || !p.is_finite() {

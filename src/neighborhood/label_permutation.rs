@@ -1,6 +1,6 @@
 use crate::{
-    multimodal::cells::CellSection,
-    permutation::{labels::deterministic_shuffle, rng::splitmix64},
+    common::seeds::splitmix64, multimodal::cells::CellSection,
+    permutation::labels::deterministic_shuffle,
 };
 
 pub(crate) fn shuffle_labels_within_sections<T: Clone>(

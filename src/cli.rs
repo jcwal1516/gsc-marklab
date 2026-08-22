@@ -3,9 +3,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-#[cfg(feature = "parquet")]
-use crate::{io::parquet::write_filtered_pattern_export_parquet, Pattern, PatternMeta};
-use crate::{permutation::labels::permute_fixed_count, MarklabError, Result};
+use crate::{MarklabError, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 
 macro_rules! bail {

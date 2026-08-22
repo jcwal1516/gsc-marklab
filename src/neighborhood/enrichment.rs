@@ -1,11 +1,9 @@
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
-use crate::permutation::labels::deterministic_shuffle;
-use crate::permutation::rng::splitmix64;
 use crate::{
     common::{
-        seeds::{derive_seed, SeedEndpoint},
+        seeds::{derive_seed, splitmix64, SeedEndpoint},
         stats::{mean_all_finite, safe_finite_ratio, sample_standard_deviation},
     },
     errors::{MarklabError, Result},
@@ -15,6 +13,7 @@ use crate::{
         labels::primary_label,
     },
     output::{EnrichmentStatisticUnavailableReason, NeighborhoodEnrichmentResult},
+    permutation::labels::deterministic_shuffle,
 };
 
 use super::{graph::SpatialGraph, label_permutation::shuffle_labels_within_sections};

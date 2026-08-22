@@ -1,4 +1,5 @@
 use crate::{
+    common::seeds::splitmix64,
     inference::scalar_pvalues::{
         permutation_p_value, permutation_p_value_with_spec, PermutationTestSpec, Tail,
     },
@@ -8,7 +9,6 @@ use crate::{
             marked_count, permute_fixed_count, permute_fixed_count_indices,
             permute_fixed_count_into,
         },
-        rng::splitmix64,
         stratified::{permute_within_strata, StratifiedPermutationPlan},
     },
 };

@@ -3,17 +3,15 @@ use crate::{
     geom::spatial_index::SpatialIndex2D,
     multiscale_residual::{
         energy::relative_scale_energies_from_field,
-        residual_field::standardized_residual,
-        scale_radius::neighborhood_radius_from_scale,
         territories::{
-            detect_residual_territories, ResidualTerritoryCandidate, ResidualTerritoryPlan,
+            detect_residual_territories, neighborhood_radius_from_scale, standardized_residual,
+            ResidualTerritoryCandidate, ResidualTerritoryPlan,
         },
     },
     periodogram::{
         fft2::fft2_power_spectrum,
         raster::{centered_mark_raster, RasterSpec},
-        taper::hann_weight,
-        tapered::hann_tapered_raster_periodogram,
+        tapered::{hann_tapered_raster_periodogram, hann_weight},
     },
     spectra::anisotropy::anisotropy_from_weighted_modes,
     Pattern,

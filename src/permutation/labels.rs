@@ -2,9 +2,10 @@ pub fn marked_count(labels: &[u8]) -> usize {
     labels.iter().filter(|value| **value == 1).count()
 }
 
-use crate::errors::{MarklabError, Result};
-
-use super::rng::splitmix64;
+use crate::{
+    common::seeds::splitmix64,
+    errors::{MarklabError, Result},
+};
 
 pub fn permute_fixed_count(n: usize, n_marked: usize, seed: u64) -> Result<Vec<u8>> {
     let mut indices = Vec::with_capacity(n);

@@ -1,9 +1,11 @@
 use std::collections::BTreeMap;
 
-use crate::errors::{MarklabError, Result};
+use crate::{
+    common::seeds::splitmix64,
+    errors::{MarklabError, Result},
+};
 
 use super::labels::{deterministic_shuffle, marked_count};
-use super::rng::splitmix64;
 
 #[derive(Clone, Debug)]
 pub(crate) struct StratifiedPermutationPlan {

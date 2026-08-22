@@ -2,11 +2,20 @@ use crate::{
     data::Pattern,
     errors::{MarklabError, Result},
     geom::spatial_index::SpatialIndex2D,
-    multiscale_residual::{
-        residual_field::standardized_residual, scale_radius::neighborhood_radius_from_scale,
-    },
     perf::counters::enforce_storage_budget,
 };
+
+pub fn neighborhood_radius_from_scale(scale_um: f64) -> f64 {
+    scale_um * 2.0_f64.sqrt()
+}
+
+pub fn standardized_residual(local_p: f64, global_p: f64, n_eff: f64) -> f64 {
+    if n_eff <= 0.0 {
+        return 0.0;
+    }
+    let denominator = (global_p * (1.0 - global_p) / n_eff + f64::EPSILON).sqrt();
+    (local_p - global_p) / denominator
+}
 
 #[cfg(test)]
 thread_local! {

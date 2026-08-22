@@ -1,4 +1,6 @@
-use super::*;
+use std::{fs, path::PathBuf};
+
+use crate::Result;
 
 pub(super) fn run(workload: &str, out: PathBuf) -> Result<()> {
     let text = format!(
