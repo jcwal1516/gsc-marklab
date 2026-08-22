@@ -1217,9 +1217,9 @@ fn multimodal_note_for(generator: &str) -> &'static str {
 
 fn small_sample_type_i_limit(replicates: usize) -> f64 {
     if replicates < 20 {
-        0.60
-    } else if replicates < 200 {
         0.25
+    } else if replicates < 100 {
+        0.20
     } else {
         0.15
     }

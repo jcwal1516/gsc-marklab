@@ -178,6 +178,19 @@ fn marked_smoke_reports_failed_replicates_without_hiding_denominators() {
 }
 
 #[test]
+#[ignore = "scheduled calibration uses 1,000 production-engine replicates"]
+fn marked_negative_control_calibrates() {
+    let engine = AnalysisEngine::new(crate::synthetic_smoke::smoke_config()).expect("engine");
+    let result = crate::synthetic_smoke::run_generator("random_labeling", 1_000, &engine)
+        .expect("negative-control calibration");
+    let interval = result
+        .type_i_error_confidence_interval
+        .expect("type-I confidence interval");
+
+    assert!(interval.upper <= 0.05, "{result:?}");
+}
+
+#[test]
 fn no_manual_status_flag_injection() {
     let runner_source = include_str!("../synthetic_smoke.rs");
 
