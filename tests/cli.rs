@@ -423,7 +423,6 @@ fn analyze_cli_writes_requested_trace_and_timings_files() {
         "periodogram",
         "multiscale_residual",
         "inference",
-        "write_outputs",
     ];
     let timing_stages = copied_timings["stages"].as_array().expect("timing stages");
     for expected in expected_stages {

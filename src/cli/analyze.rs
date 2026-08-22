@@ -81,6 +81,9 @@ pub(super) fn run(request: AnalyzeRequest) -> Result<()> {
         },
         timing_context,
     );
+    let observability_timings = (observability.timings.is_some()
+        || observability.trace_json.is_some())
+    .then(|| run.result.timings.clone());
 
     let mut writer_output = output.clone();
     if output.write_run_manifest {
@@ -130,7 +133,9 @@ pub(super) fn run(request: AnalyzeRequest) -> Result<()> {
     if save_intermediates {
         write_analysis_intermediates(&out, &pattern, &intermediate_config)?;
     }
-    write_observability_outputs(&out, &observability)?;
+    if let Some(timings) = observability_timings.as_deref() {
+        write_observability_outputs(&observability, timings)?;
+    }
     if let Some(run_manifest) = run_manifest {
         fs::write(
             out.join("run_manifest.json"),
@@ -218,23 +223,20 @@ fn timing_stage(
     }
 }
 
-fn write_observability_outputs(out: &Path, observability: &ObservabilityOptions) -> Result<()> {
-    let timings_path = out.join("timings.json");
-    let timings_text = fs::read_to_string(&timings_path)?;
-
+fn write_observability_outputs(
+    observability: &ObservabilityOptions,
+    timings: &[TimingStage],
+) -> Result<()> {
     if let Some(path) = observability.timings.as_deref() {
+        let timings_text = serde_json::to_string(&serde_json::json!({"stages": timings}))?;
         write_with_parent(path, &timings_text)?;
     }
 
     if let Some(path) = observability.trace_json.as_deref() {
-        let timings_json: serde_json::Value = serde_json::from_str(&timings_text)?;
-        let stages = timings_json["stages"].as_array().ok_or_else(|| {
-            MarklabError::Validation("timings.json does not contain a stages array".into())
-        })?;
         let log_level = observability.log.map(LogLevel::as_str).unwrap_or("info");
         let mut jsonl = String::new();
-        for stage in stages {
-            let mut event = stage.clone();
+        for stage in timings {
+            let mut event = serde_json::to_value(stage)?;
             if let Some(object) = event.as_object_mut() {
                 object.insert("event".into(), serde_json::json!("stage_timing"));
                 object.insert("log_level".into(), serde_json::json!(log_level));
