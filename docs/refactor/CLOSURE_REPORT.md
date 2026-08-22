@@ -259,7 +259,7 @@ is stated.
 | `cargo deny check advisories licenses bans sources` | Exit 0; policy warnings only for reviewed transitive duplicate versions |
 | `cargo machete` | Exit 0; no unused dependencies |
 | `cargo +nightly fuzz check` | Exit 0; all five targets compiled |
-| `cargo +1.96.0 package --locked` | Exit 0; 234 files, 1.6 MiB unpacked/366.6 KiB compressed; archive verification compiled |
+| `cargo +1.96.0 package --locked` | Exit 0; 235 files, 1.6 MiB unpacked/376.0 KiB compressed; archive verification compiled |
 | `cargo +1.96.0 run --release --locked --all-features --bin marklab -- --help` | Exit 0; all command families listed |
 | `target/release/marklab smoke --suite synthetic --replicates 1 --out <temporary-run>` | Exit 0; completed summary, zero failed replicates; temporary output moved to Trash afterward |
 | `cargo +1.96.0 test --release --locked --features dhat-heap --lib dhat_ -- --nocapture --test-threads=1` | Exit 0; all three allocation contracts passed during Phase 12 |
