@@ -182,3 +182,40 @@ approximately with point count. The grouped radius-consumer process peaked at
 14,270,464 bytes (13.61 MiB) RSS. The residual-plan-only process peaked at
 9,388,032 bytes (8.95 MiB); the comparable combined territory/profile group
 was 7.95 MiB in Phase 0, reflecting the deliberate tree/plan storage trade.
+
+### Streaming million-row ingestion checkpoint
+
+Commit `eb4f5b0` removes both benchmark-only and production-wide whole-file row
+buffers. The fixture is written incrementally through `BufWriter`, outside the
+Criterion measurement. CSV decoding invokes `PatternBuilder` for each row
+instead of collecting `Vec<DecodedCellRow>`, and indexed nearest-neighbor
+finalization remains a separately timed stage. The former `mask_filter` timing
+is accurately renamed `decode_and_filter` because it includes physical decode,
+validation, QC/mask filtering, and retained-array construction.
+
+The smoke profile at 10,000 rows reported:
+
+| Stage | Criterion interval |
+| --- | --- |
+| Complete load | 8.486–8.506 ms |
+| Decode and filter | 2.665–2.683 ms |
+| Indexed nearest neighbor | 5.814–5.825 ms |
+
+The manual full command was:
+
+`/usr/bin/time -l env MARKLAB_BENCH_PROFILE=full cargo +1.96.0 bench --locked --all-features --bench pattern_load -- --quick`
+
+It completed successfully on 1,000,000 rows and reported:
+
+| Stage | Criterion interval |
+| --- | --- |
+| Complete load | 2.548–2.571 s |
+| Decode and filter | 266.35–267.88 ms |
+| Indexed nearest neighbor | 2.268–2.275 s |
+
+The benchmark process completed in 23.46 seconds including streamed fixture
+generation and repeated Criterion work, with 448,856,064 bytes (428.06 MiB)
+maximum resident set size. These figures establish that the named million-row
+path is operational; they are a manual checkpoint rather than a pull-request
+latency gate. Final Phase 12 comparisons must repeat the same profile and
+record allocator-level memory where practical.
