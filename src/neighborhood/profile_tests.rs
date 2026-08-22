@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::{
     multimodal::cells::{CellSection, FusedCell},
     neighborhood::profiles::{compare_territory_profiles, territory_profiles},
@@ -66,6 +68,44 @@ fn territory_profile_counts_local_cell_type_fractions() {
         .expect("lymphocyte");
     assert_eq!(lymphocyte.count, 2);
     assert_eq!(lymphocyte.fraction, 1.0);
+}
+
+#[test]
+fn territory_neighbors_match_bruteforce() {
+    let cells = (0..200)
+        .map(|index| {
+            let label = if index % 3 == 0 {
+                "lymphocyte"
+            } else {
+                "stroma"
+            };
+            let mut cell = fused(
+                &format!("cell_{index}"),
+                ((index * 17) % 53) as f64 - 20.0,
+                ((index * 31) % 47) as f64 - 18.0,
+                label,
+            );
+            cell.registration_error_um = Some((index % 7) as f64 * 0.2);
+            cell
+        })
+        .collect::<Vec<_>>();
+    let territories = vec![
+        territory(-10.0, 4.0),
+        territory(0.0, 8.0),
+        territory(15.0, 12.0),
+    ];
+    let buffer_um = 1.25;
+
+    let actual = territory_profiles(&territories, &cells, buffer_um).expect("profiles");
+    let expected = territories
+        .iter()
+        .enumerate()
+        .map(|(territory_id, territory)| {
+            brute_force_territory_profile(territory_id, territory, &cells, buffer_um)
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(actual, expected);
 }
 
 #[test]
@@ -210,6 +250,43 @@ fn territory_profile_registration_resolution_uses_strict_boundary() {
 
     assert!(below[0].below_registration_resolution);
     assert!(!boundary[0].below_registration_resolution);
+}
+
+fn brute_force_territory_profile(
+    territory_id: usize,
+    territory: &NeighborhoodTerritory,
+    cells: &[FusedCell],
+    buffer_um: f64,
+) -> TerritoryProfile {
+    let radius = territory.radius_um + buffer_um;
+    let mut counts = BTreeMap::<&str, usize>::new();
+    let mut known_cell_count = 0usize;
+    let mut max_registration_error_um = 0.0_f64;
+    for cell in cells {
+        let distance = (cell.x_um_registered - territory.center_x_um)
+            .hypot(cell.y_um_registered - territory.center_y_um);
+        if distance > radius {
+            continue;
+        }
+        max_registration_error_um =
+            max_registration_error_um.max(cell.registration_error_um.unwrap_or(0.0));
+        if let Some(label) = cell.cell_type.as_deref() {
+            *counts.entry(label).or_insert(0) += 1;
+            known_cell_count += 1;
+        }
+    }
+    TerritoryProfile {
+        territory_id,
+        cell_type_fractions: counts
+            .into_iter()
+            .map(|(label, count)| LabelFraction {
+                label: label.into(),
+                fraction: count as f64 / known_cell_count as f64,
+                count,
+            })
+            .collect(),
+        below_registration_resolution: territory.radius_um < 2.0 * max_registration_error_um,
+    }
 }
 
 #[test]

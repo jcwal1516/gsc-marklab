@@ -1,7 +1,8 @@
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 
 use crate::{
     errors::{MarklabError, Result},
+    geom::spatial_index::SpatialIndex2D,
     multimodal::cells::FusedCell,
 };
 
@@ -77,17 +78,22 @@ pub fn build_spatial_graph(cells: &[FusedCell], config: GraphConfig) -> Result<S
     validate_config(config)?;
     validate_cells(cells)?;
 
-    let mut pairs = BTreeSet::new();
+    let index = SpatialIndex2D::from_points(
+        cells
+            .iter()
+            .map(|cell| [cell.x_um_registered, cell.y_um_registered]),
+    )?;
+    let mut pairs = BTreeMap::new();
     if let Some(radius_um) = config.radius_um {
-        add_radius_edges(cells, radius_um, &mut pairs);
+        add_radius_edges(&index, radius_um, &mut pairs)?;
     }
     if let Some(k_nearest) = config.k_nearest {
-        add_knn_edges(cells, k_nearest, &mut pairs);
+        add_knn_edges(&index, k_nearest, &mut pairs)?;
     }
 
     let edges = pairs
         .into_iter()
-        .map(|(source, target)| build_edge(cells, source, target))
+        .map(|((source, target), distance_um)| build_edge(cells, source, target, distance_um))
         .collect();
 
     Ok(SpatialGraph {
@@ -138,38 +144,39 @@ fn validate_cells(cells: &[FusedCell]) -> Result<()> {
     Ok(())
 }
 
-fn add_radius_edges(cells: &[FusedCell], radius_um: f64, pairs: &mut BTreeSet<(usize, usize)>) {
-    for source in 0..cells.len() {
-        for target in (source + 1)..cells.len() {
-            if distance_um(&cells[source], &cells[target]) <= radius_um {
-                pairs.insert((source, target));
+fn add_radius_edges(
+    index: &SpatialIndex2D,
+    radius_um: f64,
+    pairs: &mut BTreeMap<(usize, usize), f64>,
+) -> Result<()> {
+    for source in 0..index.len() {
+        for neighbor in index.within_radius(source, radius_um)? {
+            if neighbor.index > source {
+                pairs.insert((source, neighbor.index), neighbor.distance_um);
             }
         }
     }
+    Ok(())
 }
 
-fn add_knn_edges(cells: &[FusedCell], k_nearest: usize, pairs: &mut BTreeSet<(usize, usize)>) {
-    for source in 0..cells.len() {
-        let mut neighbors: Vec<_> = (0..cells.len())
-            .filter(|&target| target != source)
-            .map(|target| (target, distance_um(&cells[source], &cells[target])))
-            .collect();
-        neighbors.sort_by(|left, right| {
-            left.1
-                .total_cmp(&right.1)
-                .then_with(|| left.0.cmp(&right.0))
-        });
-
-        for (target, _) in neighbors.into_iter().take(k_nearest) {
-            pairs.insert(normalized_pair(source, target));
+fn add_knn_edges(
+    index: &SpatialIndex2D,
+    k_nearest: usize,
+    pairs: &mut BTreeMap<(usize, usize), f64>,
+) -> Result<()> {
+    for source in 0..index.len() {
+        for neighbor in index.k_nearest(source, k_nearest)? {
+            pairs
+                .entry(normalized_pair(source, neighbor.index))
+                .or_insert(neighbor.distance_um);
         }
     }
+    Ok(())
 }
 
-fn build_edge(cells: &[FusedCell], source: usize, target: usize) -> SpatialEdge {
+fn build_edge(cells: &[FusedCell], source: usize, target: usize, distance_um: f64) -> SpatialEdge {
     let dx = cells[target].x_um_registered - cells[source].x_um_registered;
     let dy = cells[target].y_um_registered - cells[source].y_um_registered;
-    let distance_um = dx.hypot(dy);
     let max_registration_error_um = cells[source]
         .registration_error_um
         .unwrap_or(0.0)
@@ -182,11 +189,6 @@ fn build_edge(cells: &[FusedCell], source: usize, target: usize) -> SpatialEdge 
         angle_rad: dy.atan2(dx),
         below_registration_resolution: distance_um < 2.0 * max_registration_error_um,
     }
-}
-
-fn distance_um(left: &FusedCell, right: &FusedCell) -> f64 {
-    (right.x_um_registered - left.x_um_registered)
-        .hypot(right.y_um_registered - left.y_um_registered)
 }
 
 fn normalized_pair(left: usize, right: usize) -> (usize, usize) {

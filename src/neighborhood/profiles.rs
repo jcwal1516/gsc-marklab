@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     comparison::curves::max_abs_standardized_difference,
     errors::{MarklabError, Result},
+    geom::spatial_index::SpatialIndex2D,
     multimodal::{cells::FusedCell, labels::primary_label},
     output::{
         CurveComparisonAvailability, CurveComparisonResult, LabelFraction, NeighborhoodTerritory,
@@ -17,12 +18,17 @@ pub fn territory_profiles(
 ) -> Result<Vec<TerritoryProfile>> {
     validate_buffer(buffer_um)?;
     validate_cells(cells)?;
+    let index = SpatialIndex2D::from_points(
+        cells
+            .iter()
+            .map(|cell| [cell.x_um_registered, cell.y_um_registered]),
+    )?;
 
     territories
         .iter()
         .enumerate()
         .map(|(territory_id, territory)| {
-            profile_for_territory(territory_id, territory, cells, buffer_um)
+            profile_for_territory(territory_id, territory, cells, &index, buffer_um)
         })
         .collect()
 }
@@ -74,6 +80,7 @@ fn profile_for_territory(
     territory_id: usize,
     territory: &NeighborhoodTerritory,
     cells: &[FusedCell],
+    index: &SpatialIndex2D,
     buffer_um: f64,
 ) -> Result<TerritoryProfile> {
     validate_territory(territory_id, territory)?;
@@ -94,12 +101,12 @@ fn profile_for_territory(
     let mut known_cell_count = 0usize;
     let mut max_registration_error_um = 0.0_f64;
 
-    for cell in cells {
-        let dx = cell.x_um_registered - territory.center_x_um;
-        let dy = cell.y_um_registered - territory.center_y_um;
-        if dx.mul_add(dx, dy * dy) > inclusion_radius_sq {
-            continue;
-        }
+    for neighbor in index.points_within_radius(
+        territory.center_x_um,
+        territory.center_y_um,
+        inclusion_radius_um,
+    )? {
+        let cell = &cells[neighbor.index];
 
         if let Some(registration_error_um) = cell.registration_error_um {
             max_registration_error_um = max_registration_error_um.max(registration_error_um);

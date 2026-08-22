@@ -39,6 +39,7 @@ use crate::{
 };
 
 const SPATIAL_SIZES: [usize; 3] = [256, 512, 1_024];
+const PHASE6_INDEX_SIZES: [usize; 5] = [1_024, 2_048, 4_096, 8_192, 16_384];
 const SPECTRAL_SIZES: [usize; 3] = [64, 128, 256];
 const COMPLETE_MULTIMODAL_SIZES: [usize; 3] = [24, 48, 96];
 
@@ -275,6 +276,24 @@ fn baseline_perf_nearest_neighbor() {
             "nearest_neighbor",
             n,
             fixed_density_metadata(n, json!({})),
+            || {
+                mean_nearest_neighbor_distance(black_box(&x), black_box(&y))
+                    .expect("nearest-neighbor distance")
+                    .to_bits()
+            },
+        );
+    }
+}
+
+#[test]
+#[ignore = "manual Phase 6 spatial-index scaling benchmark"]
+fn phase6_perf_spatial_index_nearest_neighbor_scaling() {
+    for n in PHASE6_INDEX_SIZES {
+        let (x, y) = coordinates(n);
+        measure_case(
+            "phase6_nearest_neighbor",
+            n,
+            fixed_density_metadata(n, json!({"backend": "rstar_0.13.0"})),
             || {
                 mean_nearest_neighbor_distance(black_box(&x), black_box(&y))
                     .expect("nearest-neighbor distance")

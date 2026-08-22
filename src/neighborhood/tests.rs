@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use crate::{
     multimodal::cells::{CellSection, FusedCell},
     neighborhood::{
@@ -781,4 +783,106 @@ fn registration_resolution_flag_uses_strict_boundary() {
 
         assert_eq!(graph.edges[0].below_registration_resolution, expected);
     }
+}
+
+#[test]
+fn graph_matches_bruteforce() {
+    let cells = (0..73)
+        .map(|index| {
+            let x = ((index * 37) % 29) as f64 - 11.0;
+            let y = ((index * 19) % 31) as f64 - 13.0;
+            cell_with_registration_error(
+                &format!("cell_{index}"),
+                x,
+                y,
+                Some((index % 5) as f64 * 0.25),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    for config in [
+        GraphConfig {
+            radius_um: Some(3.5),
+            k_nearest: None,
+        },
+        GraphConfig {
+            radius_um: None,
+            k_nearest: Some(7),
+        },
+        GraphConfig {
+            radius_um: Some(3.5),
+            k_nearest: Some(7),
+        },
+        GraphConfig {
+            radius_um: None,
+            k_nearest: Some(cells.len() + 5),
+        },
+    ] {
+        assert_eq!(
+            build_spatial_graph(&cells, config).expect("indexed graph"),
+            brute_force_graph(&cells, config),
+            "graph mismatch for {config:?}"
+        );
+    }
+}
+
+fn brute_force_graph(cells: &[FusedCell], config: GraphConfig) -> SpatialGraph {
+    let mut pairs = BTreeSet::new();
+    if let Some(radius_um) = config.radius_um {
+        for source in 0..cells.len() {
+            for target in (source + 1)..cells.len() {
+                if brute_force_distance(&cells[source], &cells[target]) <= radius_um {
+                    pairs.insert((source, target));
+                }
+            }
+        }
+    }
+    if let Some(k_nearest) = config.k_nearest {
+        for source in 0..cells.len() {
+            let mut neighbors = (0..cells.len())
+                .filter(|target| *target != source)
+                .map(|target| (target, brute_force_distance(&cells[source], &cells[target])))
+                .collect::<Vec<_>>();
+            neighbors.sort_by(|left, right| {
+                left.1
+                    .total_cmp(&right.1)
+                    .then_with(|| left.0.cmp(&right.0))
+            });
+            for (target, _) in neighbors.into_iter().take(k_nearest) {
+                pairs.insert(if source < target {
+                    (source, target)
+                } else {
+                    (target, source)
+                });
+            }
+        }
+    }
+
+    SpatialGraph {
+        n_nodes: cells.len(),
+        edges: pairs
+            .into_iter()
+            .map(|(source, target)| {
+                let dx = cells[target].x_um_registered - cells[source].x_um_registered;
+                let dy = cells[target].y_um_registered - cells[source].y_um_registered;
+                let distance_um = dx.hypot(dy);
+                let max_registration_error_um = cells[source]
+                    .registration_error_um
+                    .unwrap_or(0.0)
+                    .max(cells[target].registration_error_um.unwrap_or(0.0));
+                SpatialEdge {
+                    source,
+                    target,
+                    distance_um,
+                    angle_rad: dy.atan2(dx),
+                    below_registration_resolution: distance_um < 2.0 * max_registration_error_um,
+                }
+            })
+            .collect(),
+    }
+}
+
+fn brute_force_distance(left: &FusedCell, right: &FusedCell) -> f64 {
+    (right.x_um_registered - left.x_um_registered)
+        .hypot(right.y_um_registered - left.y_um_registered)
 }
