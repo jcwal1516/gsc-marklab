@@ -69,6 +69,11 @@ Both pre/post commands accept either a `result.json` file or its containing
 result directory. Their `prepost.json` output is itself a format 0.3 result
 document with a distinct marked or multimodal comparison kind.
 
+For configured stratified marked analyses, format 0.3 also persists the
+unstratified sensitivity inference alongside the stratified primary inference
+in `spectrum_null_sensitivity`, including a typed confounding conclusion and
+typed unavailable states for degenerate strata.
+
 Run directories are committed transactionally from a temporary sibling on the
 same filesystem. Failed writes are cleaned up and never appear as a successful
 final directory. An existing empty directory may be replaced; a non-empty or

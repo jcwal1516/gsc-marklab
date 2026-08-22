@@ -26,6 +26,29 @@ undefined scientific statistic is represented by an absent numeric value and,
 where applicable, a typed reason. It is never represented by zero, infinity,
 NaN, or a string containing one of those values.
 
+## Spectrum null-model sensitivity
+
+When stratified spectrum permutations are requested,
+`MarkedPatternResult.spectrum_null_sensitivity` is available and contains:
+
+- `primary_null`, which is
+  `stratified_fixed_position_random_labeling`;
+- the configured `family_wise_alpha` used for the conclusion;
+- typed `unstratified` and `stratified` inference sections, each containing
+  `p_global` and the nullable `low_k_excess_p_value` when evaluable;
+- a typed `conclusion`: `confounded_by_spatial_strata`, `both_significant`,
+  `no_unstratified_signal`, `degenerate_stratified_null`, or `not_evaluable`.
+
+The confounding conclusion is `confounded_by_spatial_strata` only when the
+unstratified low-k endpoint is significant at `family_wise_alpha` and the
+stratified endpoint is evaluable but not significant. The two inference
+sections are calculated with distinct permutation strategies over the same
+resolved modes and observed powers. Mark-homogeneous strata produce an
+available sensitivity summary with an available unstratified inference, an
+`insufficient_data` stratified section, and a
+`degenerate_stratified_null` conclusion. When stratification was not requested,
+the sensitivity section is `not_applicable`.
+
 ## Neighborhood enrichment
 
 `NeighborhoodEnrichmentResult` has these statistic fields:

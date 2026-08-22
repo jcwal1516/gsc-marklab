@@ -155,7 +155,10 @@ analysis over the same modes and observed powers. The result is flagged as
 confounded only when the unstratified low-k endpoint is significant at
 `family_wise_alpha` and the evaluable stratified endpoint is not. If every
 configured stratum is mark-homogeneous, the stratified spectrum null is
-reported as degenerate and no numeric spectrum p-value is emitted.
+reported as degenerate and no numeric spectrum p-value is emitted. Result
+format 0.3 persists both inference summaries, the threshold, primary-null
+identity, and typed conclusion in `spectrum_null_sensitivity`; an unavailable
+member is a tagged state rather than a numeric sentinel.
 
 Removed 0.1 keys and method-selection strings have no aliases.
 

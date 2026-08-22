@@ -28,8 +28,9 @@ pub use result_types::{
     Interpretation, LabelFraction, MarkPairCovariancePoint, MarkedPatternResult, MultimodalResult,
     MultiscaleResidualSummary, NeighborhoodEnrichmentResult, OutputManifest, PrePostResult,
     PrimaryEndpoint, Provenance, QcSummary, RegistrationSummary, ResidualTerritory,
-    ResolvedComponentMode, ResultDocument, ScaleEnergyPoint, SpectrumPoint, SpectrumSummary,
-    StatusFlag, TerritoryFeature, TerritoryPrePostSummary, TerritoryProfile, TimingStage,
-    WindowSummary, RESULT_FORMAT_VERSION,
+    ResolvedComponentMode, ResultDocument, ScaleEnergyPoint, SpectrumConfoundingConclusion,
+    SpectrumNullInferenceSummary, SpectrumNullModel, SpectrumNullSensitivitySummary, SpectrumPoint,
+    SpectrumSummary, StatusFlag, TerritoryFeature, TerritoryPrePostSummary, TerritoryProfile,
+    TimingStage, WindowSummary, RESULT_FORMAT_VERSION,
 };
 pub use writer::OutputWriter;

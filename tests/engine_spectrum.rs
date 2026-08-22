@@ -1,6 +1,7 @@
 use marklab::{
-    AnalysisConfig, AnalysisEngine, ComponentMode, OutputWriter, Pattern, PatternMeta,
-    PermutationStratum, ResolvedComponentMode, ResultDocument, StatusFlag,
+    AnalysisConfig, AnalysisEngine, AnalysisSection, ComponentMode, OutputWriter, Pattern,
+    PatternMeta, PermutationStratum, ResolvedComponentMode, ResultDocument,
+    SpectrumConfoundingConclusion, SpectrumNullModel, StatusFlag,
 };
 
 fn meta() -> PatternMeta {
@@ -427,6 +428,20 @@ fn homogeneous_strata_report_degenerate_null() {
     assert!(!result
         .status_flags
         .contains(&StatusFlag::ConfoundedBySpatialStrata));
+    let sensitivity = result
+        .spectrum_null_sensitivity
+        .value()
+        .expect("degenerate sensitivity summary");
+    assert_eq!(
+        sensitivity.conclusion,
+        SpectrumConfoundingConclusion::DegenerateStratifiedNull
+    );
+    assert!(sensitivity.unstratified.value().is_some());
+    assert!(matches!(
+        &sensitivity.stratified,
+        AnalysisSection::InsufficientData { reason }
+            if reason.contains("degenerate") && reason.contains("mark-homogeneous")
+    ));
     assert_eq!(result.status, "suppressed");
 }
 
@@ -482,6 +497,46 @@ fn distinct_nulls_are_actually_executed() {
     assert_eq!(
         stratified.primary_endpoint.null,
         "stratified_fixed_position_random_labeling"
+    );
+    let sensitivity = stratified
+        .spectrum_null_sensitivity
+        .value()
+        .expect("stratified spectrum sensitivity summary");
+    assert_eq!(
+        sensitivity.primary_null,
+        SpectrumNullModel::StratifiedFixedPositionRandomLabeling
+    );
+    assert_eq!(
+        sensitivity.conclusion,
+        SpectrumConfoundingConclusion::ConfoundedBySpatialStrata
+    );
+    let reported_unstratified = sensitivity
+        .unstratified
+        .value()
+        .expect("unstratified sensitivity inference");
+    let reported_stratified = sensitivity
+        .stratified
+        .value()
+        .expect("stratified primary inference");
+    assert_eq!(
+        reported_unstratified.low_k_excess_p_value,
+        Some(unstratified_p)
+    );
+    assert_eq!(reported_stratified.low_k_excess_p_value, Some(stratified_p));
+    assert!(matches!(
+        unstratified.spectrum_null_sensitivity,
+        AnalysisSection::NotApplicable
+    ));
+
+    let document = ResultDocument::marked(stratified.clone());
+    let json = serde_json::to_string(&document).expect("serialize sensitivity result");
+    let roundtrip = ResultDocument::from_json(&json)
+        .expect("deserialize sensitivity result")
+        .into_marked_pattern()
+        .expect("marked result");
+    assert_eq!(
+        roundtrip.spectrum_null_sensitivity,
+        stratified.spectrum_null_sensitivity
     );
     assert!(
         stratified

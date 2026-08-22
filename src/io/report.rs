@@ -1,8 +1,14 @@
-use crate::output::{AnalysisSection, DiagnosticsResult, MarkedPatternResult, MultimodalResult};
+use crate::output::{
+    AnalysisSection, DiagnosticsResult, MarkedPatternResult, MultimodalResult,
+    SpectrumConfoundingConclusion, SpectrumNullInferenceSummary, SpectrumNullModel,
+    SpectrumNullSensitivitySummary,
+};
 
 pub fn render_analysis_report(result: &MarkedPatternResult) -> String {
     let curve_comparison_framing = curve_comparison_framing(result);
     let diagnostics = render_diagnostics(&result.diagnostics);
+    let spectrum_null_sensitivity =
+        render_spectrum_null_sensitivity(&result.spectrum_null_sensitivity);
     let p_global = result
         .primary_endpoint
         .p_value
@@ -58,6 +64,7 @@ Cells: {n_cells} total, {n_marked} {mark_label}, p_hat = {p_hat:.4}\n\n\
 Window: L_eff = {l_eff:.3} um, mean nearest-neighbor distance = {dnn:.3} um\n\n\
 Primary endpoint: low-k excess = {low_k}; scalar p-value = {p_global}; null = {null_model}\n\n\
 Spectrum: xi = {xi}; raw k modes = {n_k_modes}; radial shells = {n_shells}; maximum interpretable scale = {max_scale}\n\n\
+{spectrum_null_sensitivity}\
 Anisotropy: index = {anisotropy}; theta_deg = {theta}; p-value = {anisotropy_p}\n\n\
 Multiscale residual: block-mean variance fraction = {block_mean}; residual-neighborhood territories = {territories}\n\n\
 Interpretation: {interpretation}\n\n\
@@ -81,6 +88,7 @@ Scientific framing: This report quantifies section-level organization of the con
         n_k_modes = n_k_modes,
         n_shells = n_shells,
         max_scale = max_scale,
+        spectrum_null_sensitivity = spectrum_null_sensitivity,
         anisotropy = anisotropy_index,
         theta = theta,
         anisotropy_p = anisotropy_p,
@@ -90,6 +98,69 @@ Scientific framing: This report quantifies section-level organization of the con
         curve_comparison_framing = curve_comparison_framing,
         diagnostics = diagnostics,
     )
+}
+
+fn render_spectrum_null_sensitivity(
+    section: &AnalysisSection<SpectrumNullSensitivitySummary>,
+) -> String {
+    let AnalysisSection::Available { value } = section else {
+        return match section {
+            AnalysisSection::InsufficientData { reason } => {
+                format!("Spectrum null sensitivity: unavailable ({reason})\n\n")
+            }
+            AnalysisSection::Disabled | AnalysisSection::NotApplicable => String::new(),
+            AnalysisSection::Available { .. } => unreachable!(),
+        };
+    };
+
+    format!(
+        "Spectrum null sensitivity: primary null = {}; family-wise alpha = {:.4}; {}; {}; conclusion = {}\n\n",
+        spectrum_null_model_name(value.primary_null),
+        value.family_wise_alpha,
+        render_spectrum_null_inference("unstratified", &value.unstratified),
+        render_spectrum_null_inference("stratified", &value.stratified),
+        spectrum_confounding_conclusion_name(value.conclusion),
+    )
+}
+
+fn render_spectrum_null_inference(
+    name: &str,
+    section: &AnalysisSection<SpectrumNullInferenceSummary>,
+) -> String {
+    match section {
+        AnalysisSection::Available { value } => format!(
+            "{name} p_global = {:.4}, low-k p-value = {}",
+            value.p_global,
+            value
+                .low_k_excess_p_value
+                .map(|p_value| format!("{p_value:.4}"))
+                .unwrap_or_else(|| "not available".into())
+        ),
+        AnalysisSection::Disabled => format!("{name} = disabled"),
+        AnalysisSection::NotApplicable => format!("{name} = not applicable"),
+        AnalysisSection::InsufficientData { reason } => {
+            format!("{name} = insufficient data ({reason})")
+        }
+    }
+}
+
+fn spectrum_null_model_name(model: SpectrumNullModel) -> &'static str {
+    match model {
+        SpectrumNullModel::FixedPositionRandomLabeling => "fixed_position_random_labeling",
+        SpectrumNullModel::StratifiedFixedPositionRandomLabeling => {
+            "stratified_fixed_position_random_labeling"
+        }
+    }
+}
+
+fn spectrum_confounding_conclusion_name(conclusion: SpectrumConfoundingConclusion) -> &'static str {
+    match conclusion {
+        SpectrumConfoundingConclusion::ConfoundedBySpatialStrata => "confounded_by_spatial_strata",
+        SpectrumConfoundingConclusion::BothSignificant => "both_significant",
+        SpectrumConfoundingConclusion::NoUnstratifiedSignal => "no_unstratified_signal",
+        SpectrumConfoundingConclusion::DegenerateStratifiedNull => "degenerate_stratified_null",
+        SpectrumConfoundingConclusion::NotEvaluable => "not_evaluable",
+    }
 }
 
 pub fn render_multimodal_report(result: &MultimodalResult) -> String {

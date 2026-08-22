@@ -119,6 +119,8 @@ pub struct MarkedPatternResult {
     pub qc: QcSummary,
     pub primary_endpoint: PrimaryEndpoint,
     pub spectrum: AnalysisSection<SpectrumSummary>,
+    #[serde(default)]
+    pub spectrum_null_sensitivity: AnalysisSection<SpectrumNullSensitivitySummary>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub spectrum_curve: Vec<SpectrumPoint>,
     #[serde(default)]
@@ -265,6 +267,38 @@ pub struct SpectrumSummary {
     pub xi_um_p_value: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub alpha_p_value: Option<f64>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SpectrumNullModel {
+    FixedPositionRandomLabeling,
+    StratifiedFixedPositionRandomLabeling,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SpectrumConfoundingConclusion {
+    ConfoundedBySpatialStrata,
+    BothSignificant,
+    NoUnstratifiedSignal,
+    DegenerateStratifiedNull,
+    NotEvaluable,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
+pub struct SpectrumNullInferenceSummary {
+    pub p_global: f64,
+    pub low_k_excess_p_value: Option<f64>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct SpectrumNullSensitivitySummary {
+    pub primary_null: SpectrumNullModel,
+    pub family_wise_alpha: f64,
+    pub unstratified: AnalysisSection<SpectrumNullInferenceSummary>,
+    pub stratified: AnalysisSection<SpectrumNullInferenceSummary>,
+    pub conclusion: SpectrumConfoundingConclusion,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]

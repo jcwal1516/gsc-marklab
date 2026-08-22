@@ -2,7 +2,9 @@ use crate::{
     api::{
         components::{component_results_for, ComponentAnalysisPlan},
         finite_option,
-        qc_pipeline::qc_summary,
+        qc_pipeline::{
+            qc_summary, ConfoundingConclusion, SpectrumInference, SpectrumNullSensitivity,
+        },
     },
     config::AnalysisConfig,
     data::Pattern,
@@ -10,8 +12,9 @@ use crate::{
     output::{
         AnisotropySummary, DiagnosticsResult, FunctionalSummary, Interpretation,
         MarkPairCovariancePoint, MarkedPatternResult, MultiscaleResidualSummary, PrimaryEndpoint,
-        ResidualTerritory, ScaleEnergyPoint, SpectrumPoint, SpectrumSummary, StatusFlag,
-        TimingStage, WindowSummary,
+        ResidualTerritory, ScaleEnergyPoint, SpectrumConfoundingConclusion,
+        SpectrumNullInferenceSummary, SpectrumNullModel, SpectrumNullSensitivitySummary,
+        SpectrumPoint, SpectrumSummary, StatusFlag, TimingStage, WindowSummary,
     },
     spectra::{anisotropy::PermutationAnisotropy, structure_factor::PermutationWhitenedSpectrum},
 };
@@ -20,6 +23,7 @@ pub(super) struct Inputs {
     pub(super) status: &'static str,
     pub(super) status_flags: Vec<StatusFlag>,
     pub(super) spectrum: Option<PermutationWhitenedSpectrum>,
+    pub(super) spectrum_null_sensitivity: Option<SpectrumNullSensitivity>,
     pub(super) spectrum_unavailable_reason: Option<String>,
     pub(super) mark_pair_covariance: crate::output::AnalysisSection<FunctionalSummary>,
     pub(super) mark_pair_covariance_curve: Vec<MarkPairCovariancePoint>,
@@ -43,6 +47,7 @@ pub(super) fn assemble(
         status,
         status_flags,
         spectrum,
+        spectrum_null_sensitivity,
         spectrum_unavailable_reason,
         mark_pair_covariance,
         mark_pair_covariance_curve,
@@ -200,6 +205,11 @@ pub(super) fn assemble(
                 })
             },
         ),
+        spectrum_null_sensitivity: spectrum_null_sensitivity_section(
+            config,
+            includes_pooled,
+            spectrum_null_sensitivity,
+        ),
         spectrum_curve,
         mark_pair_covariance,
         mark_pair_covariance_curve,
@@ -259,6 +269,64 @@ pub(super) fn assemble(
         result.residual_territories = crate::output::AnalysisSection::NotApplicable;
     }
     Ok(result)
+}
+
+fn spectrum_null_sensitivity_section(
+    config: &AnalysisConfig,
+    includes_pooled: bool,
+    sensitivity: Option<SpectrumNullSensitivity>,
+) -> crate::output::AnalysisSection<SpectrumNullSensitivitySummary> {
+    if !includes_pooled || !config.permutation.stratified {
+        return crate::output::AnalysisSection::NotApplicable;
+    }
+    let Some(sensitivity) = sensitivity else {
+        return crate::output::AnalysisSection::InsufficientData {
+            reason: "the requested spectrum null-model sensitivity was unavailable".into(),
+        };
+    };
+
+    let unavailable = |reason: &str| crate::output::AnalysisSection::InsufficientData {
+        reason: reason.into(),
+    };
+    let inference = |value: SpectrumInference| {
+        crate::output::AnalysisSection::available(SpectrumNullInferenceSummary {
+            p_global: value.p_global,
+            low_k_excess_p_value: value.low_k_excess_p_value,
+        })
+    };
+    let stratified_unavailable_reason = match sensitivity.conclusion {
+        ConfoundingConclusion::DegenerateStratifiedNull => {
+            "the stratified null is degenerate because every configured stratum is mark-homogeneous"
+        }
+        _ => "the stratified spectrum inference was unavailable",
+    };
+
+    crate::output::AnalysisSection::available(SpectrumNullSensitivitySummary {
+        primary_null: SpectrumNullModel::StratifiedFixedPositionRandomLabeling,
+        family_wise_alpha: config.inference.family_wise_alpha,
+        unstratified: sensitivity.unstratified.map_or_else(
+            || unavailable("the unstratified spectrum inference was unavailable"),
+            inference,
+        ),
+        stratified: sensitivity
+            .stratified
+            .map_or_else(|| unavailable(stratified_unavailable_reason), inference),
+        conclusion: match sensitivity.conclusion {
+            ConfoundingConclusion::ConfoundedBySpatialStrata => {
+                SpectrumConfoundingConclusion::ConfoundedBySpatialStrata
+            }
+            ConfoundingConclusion::BothSignificant => {
+                SpectrumConfoundingConclusion::BothSignificant
+            }
+            ConfoundingConclusion::NoUnstratifiedSignal => {
+                SpectrumConfoundingConclusion::NoUnstratifiedSignal
+            }
+            ConfoundingConclusion::DegenerateStratifiedNull => {
+                SpectrumConfoundingConclusion::DegenerateStratifiedNull
+            }
+            ConfoundingConclusion::NotEvaluable => SpectrumConfoundingConclusion::NotEvaluable,
+        },
+    })
 }
 
 fn spectrum_curve(spectrum: &PermutationWhitenedSpectrum) -> Result<Vec<SpectrumPoint>> {

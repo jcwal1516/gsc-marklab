@@ -177,6 +177,7 @@ impl AnalysisEngine {
                 status,
                 status_flags,
                 spectrum,
+                spectrum_null_sensitivity,
                 spectrum_unavailable_reason,
                 mark_pair_covariance: spatial.mark_pair_covariance,
                 mark_pair_covariance_curve: spatial.mark_pair_covariance_curve,

@@ -55,6 +55,7 @@ fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResul
             xi_um_p_value: Some(1.0),
             alpha_p_value: Some(1.0),
         }),
+        spectrum_null_sensitivity: AnalysisSection::NotApplicable,
         spectrum_curve: Vec::new(),
         mark_pair_covariance: AnalysisSection::available(FunctionalSummary::default()),
         mark_pair_covariance_curve: Vec::new(),

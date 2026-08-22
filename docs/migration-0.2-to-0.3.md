@@ -76,9 +76,15 @@ semantics.
   counts radial shells rather than individual modes sorted by radius.
 - A stratified spectrum declares
   `stratified_fixed_position_random_labeling` as its primary null.
+- Marked results add `spectrum_null_sensitivity`. For a configured stratified
+  spectrum this field records the primary-null identity, inference threshold,
+  separate unstratified and stratified `p_global`/low-k p-values, and a typed
+  confounding conclusion. It is `not_applicable` when stratification is not
+  requested.
 - Mark-homogeneous spectrum strata are reported with
   `DegenerateSpatialStrataNull` and an insufficient-data spectrum rather than a
-  numeric p-value of one.
+  numeric p-value of one. Their sensitivity summary retains the evaluable
+  unstratified inference and marks only the stratified inference insufficient.
 
 Further field removals and renames required by the remediation plan will be
 added here before 0.3 is release-ready.

@@ -2,15 +2,17 @@ use std::fs;
 
 use crate::{
     data::PatternMeta, io::report::render_analysis_report, prepost::compare_prepost,
-    AnalysisConfig, AnalysisEngine, CurveComparisonAvailability, CurveComparisonResult,
-    OutputWriter, Pattern, ResultDocument, SpectrumPoint, StatusFlag,
+    AnalysisConfig, AnalysisEngine, AnalysisSection, CurveComparisonAvailability,
+    CurveComparisonResult, OutputWriter, Pattern, ResultDocument, SpectrumConfoundingConclusion,
+    SpectrumNullInferenceSummary, SpectrumNullModel, SpectrumNullSensitivitySummary, SpectrumPoint,
+    StatusFlag,
 };
 #[cfg(feature = "parquet")]
 use crate::{
     multimodal::cells::{CellSection, FusedCell},
-    AnalysisSection, CrossInteractionCurve, CrossInteractionPoint,
-    EnrichmentStatisticUnavailableReason, FusedCellSummary, Interpretation, MultimodalResult,
-    NeighborhoodEnrichmentResult, RegistrationSummary,
+    CrossInteractionCurve, CrossInteractionPoint, EnrichmentStatisticUnavailableReason,
+    FusedCellSummary, Interpretation, MultimodalResult, NeighborhoodEnrichmentResult,
+    RegistrationSummary,
 };
 use serde_json::Value;
 
@@ -629,6 +631,38 @@ fn report_distinguishes_difference_diagnostics_from_margin_assessments() {
     assert!(report.contains("pooled-bin permutation diagnostics describe difference"));
     assert!(report.contains("descriptive margin assessments only report whether"));
     assert!(report.contains("nonsignificant difference diagnostic is not interpreted as sameness"));
+}
+
+#[test]
+fn report_exposes_both_spectrum_null_inferences() {
+    let mut config = AnalysisConfig::default();
+    config.validation.n_min = 4;
+    config.validation.n_marked_min = 1;
+    config.validation.n_unmarked_min = 1;
+    let mut result = AnalysisEngine::new(config)
+        .expect("engine")
+        .analyze_pattern(&pattern("case_001", "post", vec![1, 0, 1, 0]))
+        .expect("analysis");
+    result.spectrum_null_sensitivity = AnalysisSection::available(SpectrumNullSensitivitySummary {
+        primary_null: SpectrumNullModel::StratifiedFixedPositionRandomLabeling,
+        family_wise_alpha: 0.05,
+        unstratified: AnalysisSection::available(SpectrumNullInferenceSummary {
+            p_global: 0.02,
+            low_k_excess_p_value: Some(0.01),
+        }),
+        stratified: AnalysisSection::available(SpectrumNullInferenceSummary {
+            p_global: 0.20,
+            low_k_excess_p_value: Some(0.25),
+        }),
+        conclusion: SpectrumConfoundingConclusion::ConfoundedBySpatialStrata,
+    });
+
+    let report = render_analysis_report(&result);
+
+    assert!(report.contains("Spectrum null sensitivity"));
+    assert!(report.contains("unstratified p_global = 0.0200, low-k p-value = 0.0100"));
+    assert!(report.contains("stratified p_global = 0.2000, low-k p-value = 0.2500"));
+    assert!(report.contains("conclusion = confounded_by_spatial_strata"));
 }
 
 #[cfg(feature = "parquet")]
