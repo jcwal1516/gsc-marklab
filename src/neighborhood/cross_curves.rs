@@ -2,7 +2,7 @@ use crate::{
     common::seeds::{derive_seed, SeedEndpoint},
     errors::{MarklabError, Result},
     inference::scalar_pvalues::{permutation_p_value_with_spec, PermutationTestSpec, Tail},
-    multimodal::cell_table::{primary_label, FusedCell},
+    multimodal::{cells::FusedCell, labels::primary_label},
     output::{CrossInteractionCurve, CrossInteractionPoint},
 };
 
@@ -83,7 +83,7 @@ pub fn cross_interaction_curve(
 
 fn count_pair_bins(
     cells: &[FusedCell],
-    labels: &[Option<String>],
+    labels: &[Option<&str>],
     label_a: &str,
     label_b: &str,
     bin_width_um: f64,
@@ -93,12 +93,7 @@ fn count_pair_bins(
     let mut counts = vec![0usize; bin_count];
     for source in 0..cells.len() {
         for target in (source + 1)..cells.len() {
-            if !labels_match_pair(
-                labels[source].as_deref(),
-                labels[target].as_deref(),
-                label_a,
-                label_b,
-            ) {
+            if !labels_match_pair(labels[source], labels[target], label_a, label_b) {
                 continue;
             }
 
@@ -134,8 +129,8 @@ struct NullSummary {
 
 fn permutation_summary(
     cells: &[FusedCell],
-    labels: &[Option<String>],
-    sections: &[crate::multimodal::cell_table::CellSection],
+    labels: &[Option<&str>],
+    sections: &[crate::multimodal::cells::CellSection],
     pair: PairSpec<'_>,
     observed_counts: &[usize],
     permutations: usize,

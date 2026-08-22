@@ -3,7 +3,7 @@ use crate::{
     diagnostics::graph_smoothing::graph_smoothing,
     errors::{MarklabError, Result},
     multimodal::{
-        cell_table::{HeCell, IhcCell},
+        cells::{AnalysisMetadata, HeCell, IhcCell},
         fusion::{fuse_registered_cells, FusionMeta},
         null_sensitivity::{analyze_null_model_sensitivity, NullModelSensitivityResult},
         registration_artifacts::{
@@ -114,17 +114,16 @@ impl MultimodalEngine {
         }
 
         let registration_error_um = registration.usable_min_distance_um / 2.0;
-        let fused = fuse_registered_cells(
-            &input.he_cells,
-            &input.ihc_cells,
-            &transform,
-            &FusionMeta {
+        let fusion_meta = FusionMeta {
+            analysis: AnalysisMetadata {
                 case_id: input.case_id.clone(),
                 timepoint: input.timepoint.clone(),
                 protein: input.protein.clone(),
-                registration_error_um: Some(registration_error_um),
             },
-        )?;
+            registration_error_um: Some(registration_error_um),
+        };
+        let fused =
+            fuse_registered_cells(&input.he_cells, &input.ihc_cells, &transform, &fusion_meta)?;
         let graph = build_spatial_graph(
             &fused,
             GraphConfig {
@@ -205,9 +204,9 @@ impl MultimodalEngine {
         };
 
         let result = MultimodalResult {
-            case_id: input.case_id.clone(),
-            timepoint: input.timepoint.clone(),
-            protein: input.protein.clone(),
+            case_id: fusion_meta.analysis.case_id,
+            timepoint: fusion_meta.analysis.timepoint,
+            protein: fusion_meta.analysis.protein,
             status: "ok".into(),
             registration: AnalysisSection::available(registration),
             fused_cell_summary: AnalysisSection::available(FusedCellSummary {

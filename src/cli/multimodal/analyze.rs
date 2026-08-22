@@ -6,9 +6,7 @@ use crate::{
     config::AnalysisConfig,
     errors::{MarklabError, Result},
     multimodal::{
-        cell_table::{
-            load_cellvit_he_cell_table_csv, load_he_cell_table_csv, load_ihc_cell_table_csv,
-        },
+        load_cellvit_he_cell_table_csv, load_he_cell_table_csv, load_ihc_cell_table_csv,
         MultimodalEngine, MultimodalInput,
     },
     output::OutputWriter,

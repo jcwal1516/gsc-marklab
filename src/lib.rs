@@ -55,9 +55,9 @@ pub use data::{Pattern, PatternMeta, TumorWindow};
 pub use errors::{MarklabError, Result};
 pub use geom::mask::TumorMask;
 pub use multimodal::{
-    cell_table::{CellSection, FusedCell, HeCell, IhcCell},
-    CellExtrapolationRecord, LandmarkHullAvailability, MultimodalAnalysisRun, MultimodalEngine,
-    MultimodalInput, NullModelSensitivityResult, RegistrationExtrapolation, RegistrationResidual,
+    AnalysisMetadata, CellExtrapolationRecord, CellSection, FusedCell, HeCell, IhcCell,
+    LandmarkHullAvailability, MultimodalAnalysisRun, MultimodalEngine, MultimodalInput,
+    NullModelSensitivityResult, RegistrationExtrapolation, RegistrationResidual,
 };
 pub use neighborhood::graph::{SpatialEdge, SpatialGraph};
 pub use output::{

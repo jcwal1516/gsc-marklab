@@ -12,7 +12,7 @@ use parquet::arrow::arrow_writer::ArrowWriter;
 use crate::{
     data::Pattern,
     errors::{MarklabError, Result},
-    multimodal::cell_table::{CellSection, FusedCell},
+    multimodal::cells::{CellSection, FusedCell},
     output::{CrossInteractionCurve, NeighborhoodEnrichmentResult},
 };
 
@@ -21,7 +21,13 @@ mod row;
 mod schema;
 pub use loader::load_pattern_parquet_with_diagnostics;
 
-pub fn write_fused_cells_parquet(cells: &[FusedCell], path: impl AsRef<Path>) -> Result<()> {
+pub fn write_fused_cells_parquet(
+    cells: &[FusedCell],
+    case_id: &str,
+    timepoint: &str,
+    protein: &str,
+    path: impl AsRef<Path>,
+) -> Result<()> {
     let path = path.as_ref();
     let schema = Arc::new(Schema::new(vec![
         Field::new("source_section", DataType::Utf8, false),
@@ -101,24 +107,9 @@ pub fn write_fused_cells_parquet(cells: &[FusedCell], path: impl AsRef<Path>) ->
                     .map(|cell| cell.registration_error_um)
                     .collect::<Vec<_>>(),
             )),
-            Arc::new(StringArray::from(
-                cells
-                    .iter()
-                    .map(|cell| cell.timepoint.as_str())
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(StringArray::from(
-                cells
-                    .iter()
-                    .map(|cell| cell.case_id.as_str())
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(StringArray::from(
-                cells
-                    .iter()
-                    .map(|cell| cell.protein.as_str())
-                    .collect::<Vec<_>>(),
-            )),
+            Arc::new(StringArray::from(vec![timepoint; cells.len()])),
+            Arc::new(StringArray::from(vec![case_id; cells.len()])),
+            Arc::new(StringArray::from(vec![protein; cells.len()])),
         ],
     )
     .map_err(|err| MarklabError::Schema(err.to_string()))?;

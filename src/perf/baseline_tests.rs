@@ -16,7 +16,7 @@ use crate::{
         parquet::{load_pattern_parquet_with_diagnostics, write_pattern_parquet},
     },
     multimodal::{
-        cell_table::{CellSection, FusedCell, HeCell, IhcCell},
+        cells::{CellSection, FusedCell, HeCell, IhcCell},
         MultimodalEngine, MultimodalInput,
     },
     multiscale_residual::territories::detect_residual_territories,
@@ -156,9 +156,6 @@ fn fused_cells(n: usize) -> Vec<FusedCell> {
                 cell_type_probability: (!ihc).then_some(0.9),
                 same_section: false,
                 registration_error_um: Some(0.25),
-                timepoint: "post".into(),
-                case_id: "baseline".into(),
-                protein: "MSH6".into(),
             }
         })
         .collect()

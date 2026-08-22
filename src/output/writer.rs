@@ -336,6 +336,9 @@ fn write_multimodal_outputs(
         if !result.fused_cells.is_empty() {
             crate::io::parquet::write_fused_cells_parquet(
                 &result.fused_cells,
+                &result.case_id,
+                &result.timepoint,
+                &result.protein,
                 out.join("fused_cells.parquet"),
             )?;
         }

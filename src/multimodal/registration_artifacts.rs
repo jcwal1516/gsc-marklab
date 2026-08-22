@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     errors::Result,
     geom::convex_hull::{ConvexHull2D, Point2},
-    multimodal::cell_table::{CellSection, FusedCell},
+    multimodal::cells::{CellSection, FusedCell},
     registration::{landmarks::LandmarkPair, transform::Transform2D},
 };
 
@@ -140,7 +140,7 @@ fn registration_residuals(
 #[cfg(test)]
 mod tests {
     use crate::{
-        multimodal::cell_table::{CellSection, FusedCell},
+        multimodal::cells::{CellSection, FusedCell},
         registration::{landmarks::LandmarkPair, transform::fit_affine},
     };
 
@@ -307,9 +307,6 @@ mod tests {
             cell_type_probability: Some(0.9),
             same_section: false,
             registration_error_um: Some(0.1),
-            timepoint: "post".into(),
-            case_id: "case".into(),
-            protein: "MSH6".into(),
         }
     }
 }

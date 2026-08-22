@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::PathBuf};
 
-use crate::{config::ComponentMode, multimodal::cell_table::FusedCell};
+use crate::{config::ComponentMode, multimodal::cells::FusedCell};
 
 pub const RESULT_FORMAT_VERSION: &str = "0.3";
 

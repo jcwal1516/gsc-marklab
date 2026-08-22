@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use crate::{
     errors::{MarklabError, Result},
-    multimodal::cell_table::FusedCell,
+    multimodal::cells::FusedCell,
 };
 
 #[cfg(test)]

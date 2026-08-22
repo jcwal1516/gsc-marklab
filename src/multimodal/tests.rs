@@ -1,11 +1,9 @@
 use crate::{
     multimodal::{
-        cell_table::{
-            load_he_cell_table_csv, load_ihc_cell_table_csv, CellSection, FusedCell, HeCell,
-            IhcCell,
-        },
+        cells::{AnalysisMetadata, CellSection, FusedCell, HeCell, IhcCell},
         fusion::{fuse_registered_cells, FusionMeta},
-        MultimodalEngine, MultimodalInput,
+        labels::primary_label,
+        load_he_cell_table_csv, load_ihc_cell_table_csv, MultimodalEngine, MultimodalInput,
     },
     neighborhood::graph::{graph_build_call_count, reset_graph_build_call_count},
     registration::{
@@ -252,13 +250,54 @@ fn fused_cell_preserves_serial_section_identity() {
         cell_type_probability: Some(0.91),
         same_section: false,
         registration_error_um: Some(12.0),
-        timepoint: "pre".into(),
-        case_id: "case1".into(),
-        protein: "MSH6".into(),
     };
 
     assert_eq!(fused.source_section, CellSection::He);
     assert!(!fused.same_section);
+}
+
+#[test]
+fn label_access_is_allocation_free_in_hot_path() {
+    let cell = FusedCell {
+        source_section: CellSection::He,
+        source_cell_id: "he-label".into(),
+        x_um_registered: 0.0,
+        y_um_registered: 0.0,
+        mmr_mark: None,
+        mmr_probability: None,
+        cell_type: Some("lymphocyte".into()),
+        cell_type_probability: Some(0.9),
+        same_section: false,
+        registration_error_um: Some(1.0),
+    };
+
+    let label = primary_label(&cell).expect("label");
+    let stored = cell.cell_type.as_deref().expect("stored label");
+
+    assert_eq!(label, stored);
+    assert!(std::ptr::eq(label.as_ptr(), stored.as_ptr()));
+}
+
+#[test]
+fn fused_cell_domain_serialization_does_not_repeat_run_metadata() {
+    let cell = FusedCell {
+        source_section: CellSection::He,
+        source_cell_id: "he-metadata".into(),
+        x_um_registered: 0.0,
+        y_um_registered: 0.0,
+        mmr_mark: None,
+        mmr_probability: None,
+        cell_type: Some("tumor".into()),
+        cell_type_probability: Some(0.9),
+        same_section: false,
+        registration_error_um: Some(1.0),
+    };
+
+    let value = serde_json::to_value(cell).expect("fused cell");
+
+    assert!(value.get("case_id").is_none());
+    assert!(value.get("timepoint").is_none());
+    assert!(value.get("protein").is_none());
 }
 
 #[test]
@@ -287,9 +326,7 @@ fn fusion_maps_he_cells_into_ihc_coordinate_space() {
         m12: 200.0,
     };
     let meta = FusionMeta {
-        case_id: "case1".into(),
-        timepoint: "pre".into(),
-        protein: "MSH6".into(),
+        analysis: analysis_metadata("case1", "pre", "MSH6"),
         registration_error_um: Some(8.0),
     };
 
@@ -316,27 +353,21 @@ fn fusion_rejects_blank_metadata_fields() {
         (
             "case_id",
             FusionMeta {
-                case_id: "   ".into(),
-                timepoint: "pre".into(),
-                protein: "MSH6".into(),
+                analysis: analysis_metadata("   ", "pre", "MSH6"),
                 registration_error_um: Some(8.0),
             },
         ),
         (
             "timepoint",
             FusionMeta {
-                case_id: "case1".into(),
-                timepoint: "\t".into(),
-                protein: "MSH6".into(),
+                analysis: analysis_metadata("case1", "\t", "MSH6"),
                 registration_error_um: Some(8.0),
             },
         ),
         (
             "protein",
             FusionMeta {
-                case_id: "case1".into(),
-                timepoint: "pre".into(),
-                protein: " ".into(),
+                analysis: analysis_metadata("case1", "pre", " "),
                 registration_error_um: Some(8.0),
             },
         ),
@@ -383,10 +414,16 @@ fn fusion_rejects_invalid_registration_error() {
 
 fn valid_fusion_meta() -> FusionMeta {
     FusionMeta {
-        case_id: "case1".into(),
-        timepoint: "pre".into(),
-        protein: "MSH6".into(),
+        analysis: analysis_metadata("case1", "pre", "MSH6"),
         registration_error_um: Some(8.0),
+    }
+}
+
+fn analysis_metadata(case_id: &str, timepoint: &str, protein: &str) -> AnalysisMetadata {
+    AnalysisMetadata {
+        case_id: case_id.into(),
+        timepoint: timepoint.into(),
+        protein: protein.into(),
     }
 }
 

@@ -1,5 +1,5 @@
 use crate::{
-    multimodal::cell_table::CellSection,
+    multimodal::cells::CellSection,
     permutation::{labels::deterministic_shuffle, rng::splitmix64},
 };
 

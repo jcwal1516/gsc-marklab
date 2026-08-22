@@ -7,8 +7,8 @@ use crate::{
     config::OutputSection,
     errors::{MarklabError, Result},
     multimodal::{
-        MultimodalAnalysisRun, NullModelSensitivityResult, RegistrationExtrapolation,
-        RegistrationResidual,
+        CellSection, FusedCell, MultimodalAnalysisRun, NullModelSensitivityResult,
+        RegistrationExtrapolation, RegistrationResidual,
     },
     registration::transform::Transform2D,
 };
@@ -81,7 +81,7 @@ fn write_multimodal_csv_sidecars(
     result: &MultimodalResult,
     null_model_sensitivity: &[NullModelSensitivityResult],
 ) -> Result<()> {
-    write_csv_records(&out.join("fused_cells.csv"), &result.fused_cells)?;
+    write_fused_cells_csv(&out.join("fused_cells.csv"), result)?;
     if let Some(territories) = result
         .neighborhood_territories
         .value()
@@ -122,6 +122,53 @@ fn write_multimodal_csv_sidecars(
         null_model_sensitivity,
     )?;
     Ok(())
+}
+
+#[derive(Serialize)]
+struct FusedCellExportRow<'a> {
+    source_section: CellSection,
+    source_cell_id: &'a str,
+    x_um_registered: f64,
+    y_um_registered: f64,
+    mmr_mark: Option<u8>,
+    mmr_probability: Option<f64>,
+    cell_type: Option<&'a str>,
+    cell_type_probability: Option<f64>,
+    same_section: bool,
+    registration_error_um: Option<f64>,
+    timepoint: &'a str,
+    case_id: &'a str,
+    protein: &'a str,
+}
+
+fn write_fused_cells_csv(path: &Path, result: &MultimodalResult) -> Result<()> {
+    let mut writer = csv::Writer::from_path(path)?;
+    for cell in &result.fused_cells {
+        writer.serialize(fused_cell_export_row(cell, result))?;
+    }
+    writer.flush()?;
+    Ok(())
+}
+
+fn fused_cell_export_row<'a>(
+    cell: &'a FusedCell,
+    result: &'a MultimodalResult,
+) -> FusedCellExportRow<'a> {
+    FusedCellExportRow {
+        source_section: cell.source_section,
+        source_cell_id: &cell.source_cell_id,
+        x_um_registered: cell.x_um_registered,
+        y_um_registered: cell.y_um_registered,
+        mmr_mark: cell.mmr_mark,
+        mmr_probability: cell.mmr_probability,
+        cell_type: cell.cell_type.as_deref(),
+        cell_type_probability: cell.cell_type_probability,
+        same_section: cell.same_section,
+        registration_error_um: cell.registration_error_um,
+        timepoint: &result.timepoint,
+        case_id: &result.case_id,
+        protein: &result.protein,
+    }
 }
 
 fn write_pretty_json<T: Serialize + ?Sized>(path: &Path, value: &T) -> Result<()> {

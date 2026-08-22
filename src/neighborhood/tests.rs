@@ -1,5 +1,5 @@
 use crate::{
-    multimodal::cell_table::{CellSection, FusedCell},
+    multimodal::cells::{CellSection, FusedCell},
     neighborhood::{
         enrichment::{edge_enrichment, edge_enrichment_with_strata, LabelPair},
         graph::{build_spatial_graph, GraphConfig, SpatialEdge, SpatialGraph},
@@ -19,9 +19,6 @@ fn cell(id: &str, x: f64, y: f64, label: &str) -> FusedCell {
         cell_type_probability: Some(1.0),
         same_section: false,
         registration_error_um: Some(5.0),
-        timepoint: "pre".into(),
-        case_id: "case1".into(),
-        protein: "MSH6".into(),
     }
 }
 
@@ -49,9 +46,6 @@ fn ihc_cell(id: &str, x: f64, y: f64, mmr_mark: u8, cell_type: Option<&str>) -> 
         cell_type_probability: None,
         same_section: false,
         registration_error_um: Some(5.0),
-        timepoint: "pre".into(),
-        case_id: "case1".into(),
-        protein: "MSH6".into(),
     }
 }
 
@@ -67,9 +61,6 @@ fn ihc_probability_cell(id: &str, x: f64, y: f64, mmr_probability: f64) -> Fused
         cell_type_probability: None,
         same_section: false,
         registration_error_um: Some(5.0),
-        timepoint: "pre".into(),
-        case_id: "case1".into(),
-        protein: "MSH6".into(),
     }
 }
 

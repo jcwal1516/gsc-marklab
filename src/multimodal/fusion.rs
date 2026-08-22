@@ -1,12 +1,10 @@
 use crate::errors::{MarklabError, Result};
-use crate::multimodal::cell_table::{CellSection, FusedCell, HeCell, IhcCell};
+use crate::multimodal::cells::{AnalysisMetadata, CellSection, FusedCell, HeCell, IhcCell};
 use crate::registration::transform::Transform2D;
 
 #[derive(Clone, Debug)]
 pub struct FusionMeta {
-    pub case_id: String,
-    pub timepoint: String,
-    pub protein: String,
+    pub analysis: AnalysisMetadata,
     pub registration_error_um: Option<f64>,
 }
 
@@ -40,9 +38,6 @@ pub fn fuse_registered_cells(
             cell_type_probability: cell.cell_type_probability,
             same_section: false,
             registration_error_um: meta.registration_error_um,
-            timepoint: meta.timepoint.clone(),
-            case_id: meta.case_id.clone(),
-            protein: meta.protein.clone(),
         });
     }
 
@@ -59,9 +54,6 @@ pub fn fuse_registered_cells(
             cell_type_probability: None,
             same_section: true,
             registration_error_um: meta.registration_error_um,
-            timepoint: meta.timepoint.clone(),
-            case_id: meta.case_id.clone(),
-            protein: meta.protein.clone(),
         });
     }
 
@@ -87,9 +79,9 @@ fn validate_transform(transform: &Transform2D) -> Result<()> {
 }
 
 fn validate_meta(meta: &FusionMeta) -> Result<()> {
-    validate_required_meta_field("case_id", &meta.case_id)?;
-    validate_required_meta_field("timepoint", &meta.timepoint)?;
-    validate_required_meta_field("protein", &meta.protein)?;
+    validate_required_meta_field("case_id", &meta.analysis.case_id)?;
+    validate_required_meta_field("timepoint", &meta.analysis.timepoint)?;
+    validate_required_meta_field("protein", &meta.analysis.protein)?;
 
     if let Some(error_um) = meta.registration_error_um {
         if !error_um.is_finite() || error_um < 0.0 {

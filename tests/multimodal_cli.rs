@@ -245,6 +245,17 @@ fn multimodal_analyze_writes_qc_csv_and_null_sensitivity_sidecars() {
         .expect("sensitivity rows")
         .iter()
         .any(|row| row["null_model"] == "source_section_density"));
+
+    let fused_csv =
+        std::fs::read_to_string(fixture.out.join("fused_cells.csv")).expect("fused CSV");
+    let header = fused_csv.lines().next().expect("fused CSV header");
+    assert!(header.contains("case_id"));
+    assert!(header.contains("timepoint"));
+    assert!(header.contains("protein"));
+    assert!(fused_csv
+        .lines()
+        .skip(1)
+        .all(|row| row.contains("case_001") && row.contains("post") && row.contains("MSH6")));
 }
 
 #[test]

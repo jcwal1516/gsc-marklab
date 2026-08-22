@@ -10,7 +10,10 @@ use crate::{
     },
     errors::{MarklabError, Result},
     inference::scalar_pvalues::{permutation_p_value_with_spec, PermutationTestSpec, Tail},
-    multimodal::cell_table::{primary_label, CellSection, FusedCell},
+    multimodal::{
+        cells::{CellSection, FusedCell},
+        labels::primary_label,
+    },
     output::{EnrichmentStatisticUnavailableReason, NeighborhoodEnrichmentResult},
 };
 
@@ -188,7 +191,7 @@ fn normalized_edge(source: usize, target: usize) -> (usize, usize) {
 }
 
 fn permuted_counts(
-    labels: &[Option<String>],
+    labels: &[Option<&str>],
     graph: &SpatialGraph,
     pair: &LabelPair,
     permutations: usize,
@@ -247,17 +250,11 @@ fn shuffle_labels_within_strata<T: Clone>(
     }
 }
 
-fn count_pair_edges(labels: &[Option<String>], graph: &SpatialGraph, pair: &LabelPair) -> usize {
+fn count_pair_edges(labels: &[Option<&str>], graph: &SpatialGraph, pair: &LabelPair) -> usize {
     graph
         .edges
         .iter()
-        .filter(|edge| {
-            edge_matches_pair(
-                labels[edge.source].as_deref(),
-                labels[edge.target].as_deref(),
-                pair,
-            )
-        })
+        .filter(|edge| edge_matches_pair(labels[edge.source], labels[edge.target], pair))
         .count()
 }
 

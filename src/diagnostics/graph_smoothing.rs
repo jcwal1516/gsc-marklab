@@ -2,12 +2,12 @@ use std::collections::BTreeMap;
 
 use crate::{
     errors::{MarklabError, Result},
-    multimodal::cell_table::FusedCell,
+    multimodal::cells::FusedCell,
     neighborhood::{enrichment::LabelPair, graph::SpatialGraph},
     output::GraphSmoothingSummary,
 };
 
-use crate::multimodal::cell_table::primary_label;
+use crate::multimodal::labels::primary_label;
 use crate::output::GraphSmoothingLabelPairSummary;
 
 pub fn graph_smoothing(
@@ -20,7 +20,7 @@ pub fn graph_smoothing(
     let labels = cells
         .iter()
         .map(primary_label)
-        .collect::<Vec<Option<String>>>();
+        .collect::<Vec<Option<&str>>>();
     let label_index = label_index(&labels);
     let mut embeddings = initial_embeddings(&labels, &label_index);
     let adjacency = adjacency(graph.n_nodes, graph);
@@ -75,24 +75,24 @@ fn validate_input(cells: &[FusedCell], graph: &SpatialGraph) -> Result<()> {
     Ok(())
 }
 
-fn label_index(labels: &[Option<String>]) -> BTreeMap<String, usize> {
+fn label_index<'a>(labels: &[Option<&'a str>]) -> BTreeMap<&'a str, usize> {
     let mut index = BTreeMap::new();
     for label in labels.iter().flatten() {
         let next = index.len();
-        index.entry(label.clone()).or_insert(next);
+        index.entry(*label).or_insert(next);
     }
     index
 }
 
 fn initial_embeddings(
-    labels: &[Option<String>],
-    label_index: &BTreeMap<String, usize>,
+    labels: &[Option<&str>],
+    label_index: &BTreeMap<&str, usize>,
 ) -> Vec<Vec<f64>> {
     labels
         .iter()
         .map(|label| {
             let mut row = vec![0.0; label_index.len()];
-            if let Some(index) = label.as_ref().and_then(|label| label_index.get(label)) {
+            if let Some(index) = label.and_then(|label| label_index.get(label)) {
                 row[*index] = 1.0;
             }
             row
@@ -140,8 +140,8 @@ fn propagate(embeddings: &[Vec<f64>], adjacency: &[Vec<usize>]) -> Vec<Vec<f64>>
 
 fn score_pair(
     pair: &LabelPair,
-    labels: &[Option<String>],
-    label_index: &BTreeMap<String, usize>,
+    labels: &[Option<&str>],
+    label_index: &BTreeMap<&str, usize>,
     embeddings: &[Vec<f64>],
     graph: &SpatialGraph,
 ) -> GraphSmoothingLabelPairSummary {
@@ -150,7 +150,7 @@ fn score_pair(
         .iter()
         .filter(|edge| labels_match_pair(labels, edge.source, edge.target, pair))
         .count();
-    let Some(index_a) = label_index.get(&pair.label_a).copied() else {
+    let Some(index_a) = label_index.get(pair.label_a.as_str()).copied() else {
         return GraphSmoothingLabelPairSummary {
             label_a: pair.label_a.clone(),
             label_b: pair.label_b.clone(),
@@ -158,7 +158,7 @@ fn score_pair(
             message_passing_score: 0.0,
         };
     };
-    let Some(index_b) = label_index.get(&pair.label_b).copied() else {
+    let Some(index_b) = label_index.get(pair.label_b.as_str()).copied() else {
         return GraphSmoothingLabelPairSummary {
             label_a: pair.label_a.clone(),
             label_b: pair.label_b.clone(),
@@ -193,13 +193,13 @@ fn score_pair(
 }
 
 fn labels_match_pair(
-    labels: &[Option<String>],
+    labels: &[Option<&str>],
     source: usize,
     target: usize,
     pair: &LabelPair,
 ) -> bool {
-    let left = labels.get(source).and_then(Option::as_deref);
-    let right = labels.get(target).and_then(Option::as_deref);
+    let left = labels.get(source).copied().flatten();
+    let right = labels.get(target).copied().flatten();
     match (left, right) {
         (Some(left), Some(right)) if pair.label_a == pair.label_b => {
             left == pair.label_a && right == pair.label_a
@@ -215,7 +215,7 @@ fn labels_match_pair(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{multimodal::cell_table::CellSection, neighborhood::graph::SpatialEdge};
+    use crate::{multimodal::cells::CellSection, neighborhood::graph::SpatialEdge};
 
     fn cell(
         source_section: CellSection,
@@ -235,9 +235,6 @@ mod tests {
             cell_type_probability: cell_type.map(|_| 0.9),
             same_section: false,
             registration_error_um: Some(1.0),
-            timepoint: "post".into(),
-            case_id: "case_001".into(),
-            protein: "MSH6".into(),
         }
     }
 

@@ -1,5 +1,5 @@
 use crate::{
-    multimodal::cell_table::{CellSection, FusedCell},
+    multimodal::cells::{CellSection, FusedCell},
     neighborhood::territories::{detect_mmr_abnormal_territories, TerritoryDomainConfig},
 };
 
@@ -15,9 +15,6 @@ fn ihc_cell(id: &str, x_um: f64, y_um: f64, mmr_probability: f64) -> FusedCell {
         cell_type_probability: None,
         same_section: true,
         registration_error_um: Some(2.0),
-        timepoint: "post".into(),
-        case_id: "case1".into(),
-        protein: "MSH6".into(),
     }
 }
 
@@ -33,9 +30,6 @@ fn he_cell(id: &str, x_um: f64, y_um: f64, cell_type: &str) -> FusedCell {
         cell_type_probability: Some(0.95),
         same_section: false,
         registration_error_um: Some(2.0),
-        timepoint: "post".into(),
-        case_id: "case1".into(),
-        protein: "MSH6".into(),
     }
 }
 

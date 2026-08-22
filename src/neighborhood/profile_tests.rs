@@ -1,5 +1,5 @@
 use crate::{
-    multimodal::cell_table::{CellSection, FusedCell},
+    multimodal::cells::{CellSection, FusedCell},
     neighborhood::profiles::{compare_territory_profiles, territory_profiles},
     CurveComparisonAvailability, LabelFraction, MarklabError, TerritoryFeature, TerritoryProfile,
 };
@@ -20,9 +20,6 @@ fn fused_with_label(id: &str, x: f64, y: f64, label: Option<&str>) -> FusedCell 
         cell_type_probability: Some(1.0),
         same_section: false,
         registration_error_um: Some(3.0),
-        timepoint: "post".into(),
-        case_id: "case1".into(),
-        protein: "MSH6".into(),
     }
 }
 

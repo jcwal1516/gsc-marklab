@@ -1,6 +1,9 @@
 use crate::{
     errors::{MarklabError, Result},
-    multimodal::cell_table::{primary_label, CellSection, FusedCell},
+    multimodal::{
+        cells::{CellSection, FusedCell},
+        labels::primary_label,
+    },
     output::TerritoryFeature,
 };
 
@@ -99,8 +102,7 @@ fn validate_cells(cells: &[FusedCell]) -> Result<()> {
 }
 
 fn is_mmr_abnormal_ihc_cell(cell: &FusedCell) -> bool {
-    cell.source_section == CellSection::Ihc
-        && primary_label(cell).as_deref() == Some("mmr_abnormal")
+    cell.source_section == CellSection::Ihc && primary_label(cell) == Some("mmr_abnormal")
 }
 
 fn abnormal_neighbor_lists(

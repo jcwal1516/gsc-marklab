@@ -7,7 +7,7 @@ use crate::{
 };
 #[cfg(feature = "parquet")]
 use crate::{
-    multimodal::cell_table::{CellSection, FusedCell},
+    multimodal::cells::{CellSection, FusedCell},
     AnalysisSection, CrossInteractionCurve, CrossInteractionPoint,
     EnrichmentStatisticUnavailableReason, FusedCellSummary, Interpretation, MultimodalResult,
     NeighborhoodEnrichmentResult, RegistrationSummary,
@@ -547,9 +547,6 @@ fn output_writer_emits_optional_multimodal_parquet_artifacts() {
             cell_type_probability: Some(0.9),
             same_section: false,
             registration_error_um: Some(1.0),
-            timepoint: "post".into(),
-            case_id: "case_001".into(),
-            protein: "MSH6".into(),
         },
         FusedCell {
             source_section: CellSection::Ihc,
@@ -562,9 +559,6 @@ fn output_writer_emits_optional_multimodal_parquet_artifacts() {
             cell_type_probability: None,
             same_section: false,
             registration_error_um: Some(1.0),
-            timepoint: "post".into(),
-            case_id: "case_001".into(),
-            protein: "MSH6".into(),
         },
     ];
     result.cross_interaction_curves =

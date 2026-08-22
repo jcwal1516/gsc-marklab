@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     comparison::curves::max_abs_standardized_difference,
     errors::{MarklabError, Result},
-    multimodal::cell_table::{primary_label, FusedCell},
+    multimodal::{cells::FusedCell, labels::primary_label},
     output::{
         CurveComparisonAvailability, CurveComparisonResult, LabelFraction, TerritoryFeature,
         TerritoryProfile,
@@ -90,7 +90,7 @@ fn profile_for_territory(
             "territory {territory_id} squared inclusion radius is not finite"
         )));
     }
-    let mut counts = BTreeMap::<String, usize>::new();
+    let mut counts = BTreeMap::<&str, usize>::new();
     let mut known_cell_count = 0usize;
     let mut max_registration_error_um = 0.0_f64;
 
@@ -114,7 +114,7 @@ fn profile_for_territory(
     let cell_type_fractions = counts
         .into_iter()
         .map(|(label, count)| LabelFraction {
-            label,
+            label: label.to_owned(),
             fraction: if known_cell_count == 0 {
                 0.0
             } else {

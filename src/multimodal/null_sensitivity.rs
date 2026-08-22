@@ -3,7 +3,10 @@ use serde::{Deserialize, Serialize};
 use crate::{
     config::NeighborhoodNullModel,
     errors::Result,
-    multimodal::cell_table::{primary_label, CellSection, FusedCell},
+    multimodal::{
+        cells::{CellSection, FusedCell},
+        labels::primary_label,
+    },
     neighborhood::{
         enrichment::{edge_enrichment_with_strata, LabelPair},
         graph::SpatialGraph,
@@ -91,10 +94,7 @@ fn source_section_cell_class_strata(fused: &[FusedCell]) -> Vec<String> {
     fused
         .iter()
         .map(|cell| match cell.source_section {
-            CellSection::He => format!(
-                "he:{}",
-                primary_label(cell).unwrap_or_else(|| "unknown".into())
-            ),
+            CellSection::He => format!("he:{}", primary_label(cell).unwrap_or("unknown")),
             CellSection::Ihc => "ihc:mmr_status".into(),
         })
         .collect()

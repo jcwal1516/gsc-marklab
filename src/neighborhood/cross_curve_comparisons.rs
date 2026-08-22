@@ -3,7 +3,7 @@ use crate::{
         curves::max_abs_standardized_difference, margin_assessment::curve_margin_assessment,
         pooled_bin_difference::pooled_bin_difference_diagnostic,
     },
-    multimodal::cell_table::{CellSection, FusedCell},
+    multimodal::cells::{CellSection, FusedCell},
     neighborhood::cross_curves::cross_interaction_curve,
 };
 
@@ -22,9 +22,6 @@ fn cell(id: &str, x: f64, y: f64, label: &str) -> FusedCell {
         cell_type_probability: Some(1.0),
         same_section: false,
         registration_error_um: Some(4.0),
-        timepoint: "post".into(),
-        case_id: "case1".into(),
-        protein: "MSH6".into(),
     }
 }
 
@@ -40,9 +37,6 @@ fn ihc_cell(id: &str, x: f64, y: f64, mmr_mark: u8) -> FusedCell {
         cell_type_probability: None,
         same_section: false,
         registration_error_um: Some(4.0),
-        timepoint: "post".into(),
-        case_id: "case1".into(),
-        protein: "MSH6".into(),
     }
 }
 
@@ -58,9 +52,6 @@ fn ihc_probability_cell(id: &str, x: f64, y: f64, mmr_probability: f64) -> Fused
         cell_type_probability: None,
         same_section: false,
         registration_error_um: Some(4.0),
-        timepoint: "post".into(),
-        case_id: "case1".into(),
-        protein: "MSH6".into(),
     }
 }
 
