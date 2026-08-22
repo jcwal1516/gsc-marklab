@@ -18,7 +18,12 @@ semantics.
   `z_score_unavailable_reason` explain undefined values.
 - Sparse enrichment no longer serializes infinity, and zero null variance no
   longer appears as a z-score of zero.
-- `PairCorrelationPoint.value` is nullable. `null` with `count == 0` means the
+- `pair_correlation` and `pair_correlation_curve` are renamed to
+  `mark_pair_covariance` and `mark_pair_covariance_curve`. The old keys are not
+  accepted as aliases. `PairCorrelationPoint` is replaced by the semantically
+  scoped `MarkPairCovariancePoint` and `CrossInteractionPoint` types.
+- `MarkPairCovariancePoint.covariance` is nullable. `null` with
+  `pair_count == 0` means the
   bin had no contributing cell pairs; it is not an observed correlation of
   zero.
 - `CurveTestResult.statistic` is nullable and `availability` is typed.

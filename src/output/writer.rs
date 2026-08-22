@@ -160,7 +160,7 @@ fn write_marked_outputs(
     }
     #[cfg(feature = "parquet")]
     if options.write_parquet_curves {
-        result.write_pair_correlation_parquet(out)?;
+        result.write_mark_pair_covariance_parquet(out)?;
     }
     #[cfg(feature = "parquet")]
     if options.write_parquet_curves {

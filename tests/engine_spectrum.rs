@@ -49,7 +49,10 @@ fn engine_reports_permutation_whitened_low_k_excess_for_clustered_marks() {
     let engine = AnalysisEngine::new(permissive_config()).expect("engine");
     let result = engine.analyze_pattern(&pattern).expect("analysis");
     let spectrum = result.spectrum.value().expect("spectrum");
-    let pair_correlation = result.pair_correlation.value().expect("pair correlation");
+    let mark_pair_covariance = result
+        .mark_pair_covariance
+        .value()
+        .expect("mark-pair covariance");
     let scale_energy = result.scale_energy.value().expect("scale energy");
     let multiscale_residual = result
         .multiscale_residual
@@ -91,11 +94,11 @@ fn engine_reports_permutation_whitened_low_k_excess_for_clustered_marks() {
             && point.observed_power >= 0.0
             && point.whitened_power >= 0.0
     }));
-    assert_eq!(pair_correlation.n_permutations, 99);
-    assert!(pair_correlation.p_global.expect("pair p") > 0.0);
-    assert!(pair_correlation.erl_depth.is_some());
+    assert_eq!(mark_pair_covariance.n_permutations, 99);
+    assert!(mark_pair_covariance.p_global.expect("pair p") > 0.0);
+    assert!(mark_pair_covariance.erl_depth.is_some());
     assert!(result
-        .pair_correlation_curve
+        .mark_pair_covariance_curve
         .iter()
         .all(|point| { point.lower_global_envelope <= point.upper_global_envelope }));
     assert_eq!(scale_energy.n_permutations, 99);
@@ -388,11 +391,11 @@ fn homogeneous_strata_report_degenerate_null() {
     );
     assert_eq!(
         result
-            .pair_correlation
+            .mark_pair_covariance
             .value()
             .and_then(|summary| summary.p_global),
         Some(1.0),
-        "pair-correlation inference must use the configured stratified null"
+        "mark-pair-covariance inference must use the configured stratified null"
     );
     assert!(
         matches!(
@@ -760,7 +763,7 @@ fn remediation_separate_component_mode_does_not_behave_like_both() {
     ));
     assert!(result.spectrum_curve.is_empty());
     assert!(matches!(
-        result.pair_correlation,
+        result.mark_pair_covariance,
         marklab::AnalysisSection::NotApplicable
     ));
     assert!(matches!(

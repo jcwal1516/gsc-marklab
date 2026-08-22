@@ -28,7 +28,7 @@ use crate::{
     output::TerritoryFeature,
     registration::landmarks::LandmarkPair,
     spectra::{
-        pair_correlation::pair_correlation,
+        mark_pair_covariance::mark_pair_covariance,
         structure_factor::{
             observed_power_for_modes, permutation_whitened_spectrum,
             permutation_whitened_value_spectrum, resolvable_modes_for_pattern,
@@ -331,16 +331,16 @@ fn baseline_perf_radius_and_knn_graph() {
 
 #[test]
 #[ignore = "manual Phase 0 performance baseline"]
-fn baseline_perf_pair_correlation() {
+fn baseline_perf_mark_pair_covariance() {
     for n in SPATIAL_SIZES {
         let pattern = pattern(n);
         measure_case(
-            "pair_correlation",
+            "mark_pair_covariance",
             n,
             fixed_density_metadata(n, json!({"bin_width_um": 1.0, "max_r_um": 5.0})),
             || {
-                let bins =
-                    pair_correlation(black_box(&pattern), 1.0, 5.0).expect("pair correlation");
+                let bins = mark_pair_covariance(black_box(&pattern), 1.0, 5.0)
+                    .expect("mark-pair covariance");
                 let pair_count = bins.iter().map(|bin| bin.count).sum::<usize>();
                 (pair_count as u64)
                     ^ checksum_f64(

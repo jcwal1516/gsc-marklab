@@ -71,7 +71,7 @@ label_pairs = [
 
 [comparison.equivalence_margins]
 spectrum = 0.20
-pair_correlation = 0.20
+mark_pair_covariance = 0.20
 cross_interaction = 0.25
 graph_enrichment_log2 = 0.50
 territory_profile = 0.25

@@ -10,12 +10,12 @@ mod tests;
 pub use result_types::{
     AnalysisResult, AnalysisSection, AnisotropySummary, ArtifactStatus, BetaBinomialGroupSummary,
     BetaBinomialSummary, ComponentAnalysisSummary, ComponentModeSelection, CrossInteractionCurve,
-    CurveTestAvailability, CurveTestResult, DiagnosticsResult,
+    CrossInteractionPoint, CurveTestAvailability, CurveTestResult, DiagnosticsResult,
     EnrichmentStatisticUnavailableReason, FunctionalSummary, FusedCellSummary,
     GraphSmoothingLabelPairSummary, GraphSmoothingSummary, Interpretation, LabelFraction,
-    MarkedPatternResult, MultimodalResult, MultiscaleResidualSummary, NeighborhoodEnrichmentResult,
-    OutputManifest, PairCorrelationPoint, PrePostResult, PrimaryEndpoint, Provenance, QcSummary,
-    RegistrationSummary, ResidualTerritory, ResolvedComponentMode, ResultDocument,
+    MarkPairCovariancePoint, MarkedPatternResult, MultimodalResult, MultiscaleResidualSummary,
+    NeighborhoodEnrichmentResult, OutputManifest, PrePostResult, PrimaryEndpoint, Provenance,
+    QcSummary, RegistrationSummary, ResidualTerritory, ResolvedComponentMode, ResultDocument,
     ScaleEnergyPoint, SpectrumPoint, SpectrumSummary, StatusFlag, TerritoryFeature,
     TerritoryPrePostSummary, TerritoryProfile, TimingStage, WindowSummary, RESULT_FORMAT_VERSION,
 };

@@ -8,9 +8,9 @@ use crate::{
 #[cfg(feature = "parquet")]
 use crate::{
     multimodal::cell_table::{CellSection, FusedCell},
-    AnalysisSection, CrossInteractionCurve, EnrichmentStatisticUnavailableReason, FusedCellSummary,
-    Interpretation, MultimodalResult, NeighborhoodEnrichmentResult, PairCorrelationPoint,
-    RegistrationSummary,
+    AnalysisSection, CrossInteractionCurve, CrossInteractionPoint,
+    EnrichmentStatisticUnavailableReason, FusedCellSummary, Interpretation, MultimodalResult,
+    NeighborhoodEnrichmentResult, RegistrationSummary,
 };
 use serde_json::Value;
 
@@ -34,6 +34,36 @@ fn pattern(case_id: &str, timepoint: &str, marks: Vec<u8>) -> Pattern {
     pattern.qc_bin = Some(vec![0; pattern.len()].into_boxed_slice());
     pattern.component_id = Some(vec![0; pattern.len()].into_boxed_slice());
     pattern
+}
+
+#[test]
+fn result_uses_mark_pair_covariance_schema() {
+    let mut config = AnalysisConfig::default();
+    config.validation.n_min = 4;
+    config.validation.n_marked_min = 1;
+    config.validation.n_unmarked_min = 1;
+    let result = AnalysisEngine::new(config)
+        .expect("engine")
+        .analyze_pattern(&pattern("case_001", "post", vec![1, 0, 1, 0]))
+        .expect("analysis");
+
+    let document = serde_json::to_value(ResultDocument::marked(result)).expect("result json");
+    let marked = document["analysis"]["result"]
+        .as_object()
+        .expect("marked result object");
+
+    assert!(marked.contains_key("mark_pair_covariance"));
+    assert!(!marked.contains_key("pair_correlation"));
+    assert!(!marked.contains_key("pair_correlation_curve"));
+    let point = marked["mark_pair_covariance_curve"]
+        .as_array()
+        .and_then(|points| points.first())
+        .and_then(Value::as_object)
+        .expect("mark-pair covariance point");
+    assert!(point.contains_key("covariance"));
+    assert!(point.contains_key("pair_count"));
+    assert!(!point.contains_key("value"));
+    assert!(!point.contains_key("count"));
 }
 
 #[test]
@@ -70,8 +100,8 @@ fn output_writer_emits_result_manifest_qc_and_timings_json() {
         cfg!(feature = "parquet") && !result.scale_energy_curve.is_empty()
     );
     assert_eq!(
-        dir.path().join("pair_correlation.parquet").exists(),
-        cfg!(feature = "parquet") && !result.pair_correlation_curve.is_empty()
+        dir.path().join("mark_pair_covariance.parquet").exists(),
+        cfg!(feature = "parquet") && !result.mark_pair_covariance_curve.is_empty()
     );
     assert_eq!(
         dir.path().join("residual_territories.geojson").exists(),
@@ -250,7 +280,7 @@ fn output_writer_respects_optional_artifact_flags() {
     assert!(!dir.path().join("run_manifest.json").exists());
     assert!(!dir.path().join("spectra.parquet").exists());
     assert!(!dir.path().join("scale_energy.parquet").exists());
-    assert!(!dir.path().join("pair_correlation.parquet").exists());
+    assert!(!dir.path().join("mark_pair_covariance.parquet").exists());
     assert!(!dir.path().join("territories.geojson").exists());
     assert!(!dir.path().join("figures").exists());
 }
@@ -541,7 +571,7 @@ fn output_writer_emits_optional_multimodal_parquet_artifacts() {
         crate::AnalysisSection::available(vec![CrossInteractionCurve {
             label_a: "mmr_abnormal".into(),
             label_b: "lymphocyte".into(),
-            points: vec![PairCorrelationPoint {
+            points: vec![CrossInteractionPoint {
                 r_min_um: 0.0,
                 r_max_um: 10.0,
                 value: Some(1.2),

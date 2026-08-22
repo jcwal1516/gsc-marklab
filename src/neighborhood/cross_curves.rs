@@ -3,7 +3,7 @@ use crate::{
     errors::{MarklabError, Result},
     inference::scalar_pvalues::{permutation_p_value_with_spec, PermutationTestSpec, Tail},
     multimodal::cell_table::{primary_label, FusedCell},
-    output::{CrossInteractionCurve, PairCorrelationPoint},
+    output::{CrossInteractionCurve, CrossInteractionPoint},
 };
 
 use super::label_permutation::shuffle_labels_within_sections;
@@ -13,7 +13,7 @@ use super::label_permutation::shuffle_labels_within_sections;
 /// Bins are half-open intervals `[r_min, r_max)`. Distances greater than or
 /// equal to `max_r_um` are excluded, including the right edge of the final
 /// partial bin.
-pub fn cross_pair_correlation_curve(
+pub fn cross_interaction_curve(
     cells: &[FusedCell],
     label_a: &str,
     label_b: &str,
@@ -61,7 +61,7 @@ pub fn cross_pair_correlation_curve(
         .enumerate()
         .map(|(index, count)| {
             let r_min_um = index as f64 * bin_width_um;
-            PairCorrelationPoint {
+            CrossInteractionPoint {
                 r_min_um,
                 r_max_um: (r_min_um + bin_width_um).min(max_r_um),
                 value: Some(*count as f64),

@@ -4,7 +4,7 @@ use crate::{
         equivalence::curve_equivalence_test,
     },
     multimodal::cell_table::{CellSection, FusedCell},
-    neighborhood::cross_curves::cross_pair_correlation_curve,
+    neighborhood::cross_curves::cross_interaction_curve,
 };
 
 const TEST_PERMUTATIONS: usize = 99;
@@ -72,7 +72,7 @@ fn cross_curve_counts_label_pairs_by_distance_bin() {
         cell("c", 25.0, 0.0, "lymphocyte"),
     ];
 
-    let curve = cross_pair_correlation_curve(
+    let curve = cross_interaction_curve(
         &cells,
         "mmr_abnormal",
         "lymphocyte",
@@ -99,7 +99,7 @@ fn cross_curve_uses_half_open_bins_and_excludes_max_distance() {
         cell("d", 25.0, 0.0, "lymphocyte"),
     ];
 
-    let curve = cross_pair_correlation_curve(
+    let curve = cross_interaction_curve(
         &cells,
         "mmr_abnormal",
         "lymphocyte",
@@ -126,7 +126,7 @@ fn cross_curve_counts_same_label_pairs_once() {
         cell("c", 2.0, 0.0, "tumor"),
     ];
 
-    let curve = cross_pair_correlation_curve(
+    let curve = cross_interaction_curve(
         &cells,
         "tumor",
         "tumor",
@@ -148,7 +148,7 @@ fn cross_curve_allows_reversed_label_order() {
         cell("b", 5.0, 0.0, "lymphocyte"),
     ];
 
-    let curve = cross_pair_correlation_curve(
+    let curve = cross_interaction_curve(
         &cells,
         "lymphocyte",
         "mmr_abnormal",
@@ -168,7 +168,7 @@ fn cross_curve_allows_reversed_label_order() {
 fn cross_curve_maps_ihc_mmr_marks_to_primary_labels() {
     let cells = vec![ihc_cell("a", 0.0, 0.0, 1), ihc_cell("b", 5.0, 0.0, 0)];
 
-    let curve = cross_pair_correlation_curve(
+    let curve = cross_interaction_curve(
         &cells,
         "mmr_abnormal",
         "mmr_retained",
@@ -189,7 +189,7 @@ fn cross_curve_maps_probability_only_ihc_labels() {
         ihc_probability_cell("b", 5.0, 0.0, 0.2),
     ];
 
-    let curve = cross_pair_correlation_curve(
+    let curve = cross_interaction_curve(
         &cells,
         "mmr_abnormal",
         "mmr_retained",
@@ -212,7 +212,7 @@ fn cross_curve_reports_global_permutation_diagnostic() {
         cell("d", 50.0, 0.0, "stroma"),
     ];
 
-    let curve = cross_pair_correlation_curve(
+    let curve = cross_interaction_curve(
         &cells,
         "mmr_abnormal",
         "lymphocyte",
@@ -236,7 +236,7 @@ fn cross_curve_reports_global_permutation_diagnostic() {
 fn cross_curve_rejects_blank_labels() {
     let cells = vec![cell("a", 0.0, 0.0, "tumor")];
 
-    assert!(cross_pair_correlation_curve(
+    assert!(cross_interaction_curve(
         &cells,
         " ",
         "tumor",
@@ -246,7 +246,7 @@ fn cross_curve_rejects_blank_labels() {
         TEST_SEED,
     )
     .is_err());
-    assert!(cross_pair_correlation_curve(
+    assert!(cross_interaction_curve(
         &cells,
         "tumor",
         "\t",
@@ -265,7 +265,7 @@ fn cross_curve_rejects_non_finite_registered_coordinates() {
         cell("b", f64::NAN, 0.0, "lymphocyte"),
     ];
 
-    assert!(cross_pair_correlation_curve(
+    assert!(cross_interaction_curve(
         &cells,
         "mmr_abnormal",
         "lymphocyte",
@@ -287,7 +287,7 @@ fn cross_curve_rejects_invalid_bin_width_and_max_distance() {
         (f64::NAN, 20.0),
         (10.0, f64::INFINITY),
     ] {
-        assert!(cross_pair_correlation_curve(
+        assert!(cross_interaction_curve(
             &cells,
             "tumor",
             "tumor",

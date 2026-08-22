@@ -42,10 +42,14 @@ CSV exports add the two reason columns. Parquet exports make the ratio and
 z-score columns nullable and add nullable UTF-8 reason columns. Reports print
 `undefined (<reason>)` instead of a numeric placeholder.
 
-## Pair correlation
+## Mark-pair covariance
 
-`PairCorrelationPoint.value` is a finite number or `null`. A value is `null`
-exactly when `count == 0`, meaning no cell pair contributed to that physical
+`MarkedPatternResult.mark_pair_covariance` contains the global-envelope summary,
+and `mark_pair_covariance_curve` contains `MarkPairCovariancePoint` values.
+Each point's `covariance` is the mean centered mark product
+`(m_i - p_hat) * (m_j - p_hat)` for contributing pairs in that distance bin;
+it is a finite number or `null`. A covariance is `null`
+exactly when `pair_count == 0`, meaning no cell pair contributed to that physical
 distance bin. Empty bins remain in the curve so bin axes stay explicit, but
 they are excluded from global-envelope inference and have no envelope bounds.
 
@@ -107,7 +111,7 @@ statistic and axis diagnostics.
 resolved `pooled`, `separate`, or `both` behavior, and a non-empty selection
 reason. Pooled component results are `not_applicable`, not an available empty
 vector. In `separate` mode, the pooled primary endpoint, spectrum,
-pair-correlation, anisotropy, multiscale residual summaries, and pooled curves are
+mark-pair-covariance, anisotropy, multiscale residual summaries, and pooled curves are
 `not_applicable`; component summaries carry the available component-specific
 inference. `auto` resolves to `both` when more than one component exists and the
 largest component fraction is below 0.80, otherwise to `pooled`.

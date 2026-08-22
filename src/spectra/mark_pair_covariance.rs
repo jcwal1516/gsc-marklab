@@ -1,27 +1,33 @@
 use crate::data::Pattern;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct PairCorrelationBin {
+pub struct MarkPairCovarianceBin {
     pub r_min_um: f64,
     pub r_max_um: f64,
     pub value: Option<f64>,
     pub count: usize,
 }
 
-pub fn pair_correlation(
+/// Average centered binary-mark products in half-open distance bins.
+///
+/// For prevalence `p_hat`, each contributing pair adds
+/// `(mark_i - p_hat) * (mark_j - p_hat)`. This is a mark covariance summary;
+/// it is not a density-normalized point-process pair-correlation function.
+pub fn mark_pair_covariance(
     pattern: &Pattern,
     bin_width_um: f64,
     max_r_um: f64,
-) -> Option<Vec<PairCorrelationBin>> {
-    pair_correlation_for_marks(pattern, &pattern.mark, bin_width_um, max_r_um)
+) -> Option<Vec<MarkPairCovarianceBin>> {
+    mark_pair_covariance_for_marks(pattern, &pattern.mark, bin_width_um, max_r_um)
 }
 
-pub fn pair_correlation_for_marks(
+/// Evaluate mark-pair covariance for an alternate binary mark assignment.
+pub fn mark_pair_covariance_for_marks(
     pattern: &Pattern,
     marks: &[u8],
     bin_width_um: f64,
     max_r_um: f64,
-) -> Option<Vec<PairCorrelationBin>> {
+) -> Option<Vec<MarkPairCovarianceBin>> {
     if pattern.len() < 2
         || marks.len() != pattern.len()
         || marks.iter().any(|mark| *mark != 0 && *mark != 1)
@@ -66,7 +72,7 @@ pub fn pair_correlation_for_marks(
         sums.into_iter()
             .zip(counts)
             .enumerate()
-            .map(|(index, (sum, count))| PairCorrelationBin {
+            .map(|(index, (sum, count))| MarkPairCovarianceBin {
                 r_min_um: index as f64 * bin_width_um,
                 r_max_um: (index + 1) as f64 * bin_width_um,
                 value: (count > 0).then_some(sum / count as f64),

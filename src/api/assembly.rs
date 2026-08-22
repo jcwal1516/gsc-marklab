@@ -9,7 +9,7 @@ use crate::{
     errors::{MarklabError, Result},
     output::{
         AnisotropySummary, DiagnosticsResult, FunctionalSummary, Interpretation,
-        MarkedPatternResult, MultiscaleResidualSummary, PairCorrelationPoint, PrimaryEndpoint,
+        MarkPairCovariancePoint, MarkedPatternResult, MultiscaleResidualSummary, PrimaryEndpoint,
         ResidualTerritory, ScaleEnergyPoint, SpectrumPoint, SpectrumSummary, StatusFlag,
         TimingStage, WindowSummary,
     },
@@ -21,8 +21,8 @@ pub(super) struct Inputs {
     pub(super) status_flags: Vec<StatusFlag>,
     pub(super) spectrum: Option<PermutationWhitenedSpectrum>,
     pub(super) spectrum_unavailable_reason: Option<String>,
-    pub(super) pair_correlation: crate::output::AnalysisSection<FunctionalSummary>,
-    pub(super) pair_correlation_curve: Vec<PairCorrelationPoint>,
+    pub(super) mark_pair_covariance: crate::output::AnalysisSection<FunctionalSummary>,
+    pub(super) mark_pair_covariance_curve: Vec<MarkPairCovariancePoint>,
     pub(super) anisotropy: Option<PermutationAnisotropy>,
     pub(super) multiscale_residual: crate::output::AnalysisSection<MultiscaleResidualSummary>,
     pub(super) scale_energy: crate::output::AnalysisSection<FunctionalSummary>,
@@ -44,8 +44,8 @@ pub(super) fn assemble(
         status_flags,
         spectrum,
         spectrum_unavailable_reason,
-        pair_correlation,
-        pair_correlation_curve,
+        mark_pair_covariance,
+        mark_pair_covariance_curve,
         anisotropy,
         multiscale_residual,
         scale_energy,
@@ -201,8 +201,8 @@ pub(super) fn assemble(
             },
         ),
         spectrum_curve,
-        pair_correlation,
-        pair_correlation_curve,
+        mark_pair_covariance,
+        mark_pair_covariance_curve,
         anisotropy: anisotropy.map_or_else(
             || crate::output::AnalysisSection::InsufficientData {
                 reason: "anisotropy could not be estimated from the eligible modes".into(),
@@ -250,8 +250,8 @@ pub(super) fn assemble(
         };
         result.spectrum = crate::output::AnalysisSection::NotApplicable;
         result.spectrum_curve.clear();
-        result.pair_correlation = crate::output::AnalysisSection::NotApplicable;
-        result.pair_correlation_curve.clear();
+        result.mark_pair_covariance = crate::output::AnalysisSection::NotApplicable;
+        result.mark_pair_covariance_curve.clear();
         result.anisotropy = crate::output::AnalysisSection::NotApplicable;
         result.multiscale_residual = crate::output::AnalysisSection::NotApplicable;
         result.scale_energy = crate::output::AnalysisSection::NotApplicable;

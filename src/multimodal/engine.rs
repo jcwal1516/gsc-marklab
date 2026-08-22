@@ -7,7 +7,7 @@ use crate::{
         fusion::{fuse_registered_cells, FusionMeta},
     },
     neighborhood::{
-        cross_curves::cross_pair_correlation_curve,
+        cross_curves::cross_interaction_curve,
         enrichment::{edge_enrichment, LabelPair},
         graph::{build_spatial_graph, GraphConfig},
         profiles::{compare_territory_profiles, territory_profiles},
@@ -133,7 +133,7 @@ impl MultimodalEngine {
         let cross_interaction_curves = label_pairs
             .iter()
             .map(|pair| {
-                cross_pair_correlation_curve(
+                cross_interaction_curve(
                     &fused,
                     &pair.label_a,
                     &pair.label_b,

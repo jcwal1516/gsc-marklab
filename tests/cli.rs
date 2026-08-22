@@ -159,7 +159,7 @@ fn analyze_cli_writes_result_json_from_csv_and_geojson_mask() {
     assert_eq!(manifest["output"]["write_run_manifest"], true);
     assert!(!out.join("residual_territories.geojson").exists());
     assert!(!out.join("spectra.parquet").exists());
-    assert!(!out.join("pair_correlation.parquet").exists());
+    assert!(!out.join("mark_pair_covariance.parquet").exists());
     assert!(!out.join("scale_energy.parquet").exists());
     assert!(!out.join("figures").exists());
 }

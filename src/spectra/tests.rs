@@ -2,7 +2,7 @@ use crate::{
     data::PatternMeta,
     spectra::{
         kgrid::{resolvable_k_modes, KBand},
-        pair_correlation::pair_correlation,
+        mark_pair_covariance::mark_pair_covariance,
         structure_factor::centered_structure_factor,
     },
     Pattern,
@@ -89,11 +89,11 @@ fn resolvable_k_modes_cover_2d_grid_and_radial_shells() {
 }
 
 #[test]
-fn pair_correlation_averages_centered_mark_products_by_distance_bin() {
+fn mark_pair_covariance_averages_centered_mark_products_by_distance_bin() {
     let pattern =
         Pattern::from_arrays(vec![0.0, 1.0], vec![0.0, 0.0], vec![1, 0], meta()).expect("pattern");
 
-    let bins = pair_correlation(&pattern, 1.0, 2.0).expect("pair correlation");
+    let bins = mark_pair_covariance(&pattern, 1.0, 2.0).expect("mark-pair covariance");
 
     assert_eq!(bins.len(), 2);
     assert_eq!(bins[1].count, 1);
@@ -101,11 +101,11 @@ fn pair_correlation_averages_centered_mark_products_by_distance_bin() {
 }
 
 #[test]
-fn remediation_pair_correlation_does_not_report_empty_bins_as_observed_zero() {
+fn remediation_mark_pair_covariance_does_not_report_empty_bins_as_observed_zero() {
     let pattern =
         Pattern::from_arrays(vec![0.0, 1.0], vec![0.0, 0.0], vec![1, 0], meta()).expect("pattern");
 
-    let bins = pair_correlation(&pattern, 1.0, 2.0).expect("pair correlation");
+    let bins = mark_pair_covariance(&pattern, 1.0, 2.0).expect("mark-pair covariance");
 
     assert_eq!(bins[0].count, 0);
     assert_eq!(bins[0].value, None);

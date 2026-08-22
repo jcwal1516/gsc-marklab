@@ -7,6 +7,9 @@ pub(crate) enum SeedEndpoint {
     SpectrumStratified = 0x7370_6563_5f73_7472,
     SpectrumComponent = 0x7370_6563_5f63_6d70,
     Anisotropy = 0x616e_6973_6f74_726f,
+    MarkPairCovariance = 0x6d61_726b_5f63_6f76,
+    ScaleEnergy = 0x7363_616c_655f_656e,
+    ResidualTerritory = 0x7265_7369_645f_7465,
     CrossInteraction = 0x6372_6f73_735f_696e,
     NeighborhoodEnrichment = 0x6e65_6967_685f_656e,
     #[cfg(feature = "cli")]
@@ -61,6 +64,9 @@ mod tests {
             SeedEndpoint::SpectrumStratified,
             SeedEndpoint::SpectrumComponent,
             SeedEndpoint::Anisotropy,
+            SeedEndpoint::MarkPairCovariance,
+            SeedEndpoint::ScaleEnergy,
+            SeedEndpoint::ResidualTerritory,
             SeedEndpoint::CrossInteraction,
             SeedEndpoint::NeighborhoodEnrichment,
             #[cfg(feature = "cli")]

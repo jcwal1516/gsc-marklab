@@ -32,12 +32,15 @@ Optional analysis and artifact state uses `available`, `disabled`,
 errors. Artifact write failures abort the operation. Empty analyses do not
 create synthetic Parquet rows or placeholder territory data.
 
-Pair-correlation bins with no contributing pairs remain on the physical axis
+Mark-pair covariance at a distance bin is the mean of
+`(m_i - p_hat) * (m_j - p_hat)` over contributing cell pairs. It is not the
+density-normalized point-process function commonly denoted `g(r)`.
+Bins with no contributing pairs remain on the physical axis
 with `count = 0` and `value = null`; they are excluded from inference. Curve
 comparisons use typed availability and a nullable statistic, so an unavailable
 test cannot be mistaken for an observed statistic of zero.
 
-Pre/post spectrum, pair-correlation, and cross-interaction axes compare finite
+Pre/post spectrum, mark-pair-covariance, and cross-interaction axes compare finite
 values with `|a-b| <= 1e-12 + 1e-12 * max(|a|, |b|)`. This accepts harmless
 floating-point reconstruction while preserving a typed axis-mismatch result
 for materially different bins or modes.
@@ -106,7 +109,7 @@ finite seed space.
 
 The maximum interpretable scale is
 `largest_interpretable_scale_fraction * L_eff_um`. Spectrum wavelength is
-`2*pi/k`. Only shells whose wavelength is within the limit, pair-correlation
+`2*pi/k`. Only shells whose wavelength is within the limit, mark-pair-covariance
 points whose upper radius is within the limit, and multiscale residual scales
 within the limit are inference eligible. Curve points may remain in output with
 `inference_eligible: false`; they do not affect inference.

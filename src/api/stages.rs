@@ -1,5 +1,6 @@
 use crate::{
     api::{finite_option, qc_pipeline::permutation_labels},
+    common::seeds::SeedEndpoint,
     config::AnalysisConfig,
     data::Pattern,
     errors::{MarklabError, Result},
@@ -8,28 +9,28 @@ use crate::{
         energy::relative_scale_energies_from_field,
         territories::{detect_residual_territories, ResidualTerritoryCandidate},
     },
-    output::{FunctionalSummary, PairCorrelationPoint, ResidualTerritory, ScaleEnergyPoint},
+    output::{FunctionalSummary, MarkPairCovariancePoint, ResidualTerritory, ScaleEnergyPoint},
     periodogram::raster::{centered_mark_raster, centered_mark_raster_for_marks},
     periodogram::tapered::hann_tapered_raster_periodogram,
     permutation::envelopes::GlobalEnvelope,
-    spectra::pair_correlation::{pair_correlation, pair_correlation_for_marks},
+    spectra::mark_pair_covariance::{mark_pair_covariance, mark_pair_covariance_for_marks},
 };
 
-pub(super) fn pair_correlation_with_envelope(
+pub(super) fn mark_pair_covariance_with_envelope(
     config: &AnalysisConfig,
     pattern: &Pattern,
 ) -> Result<(
-    Vec<PairCorrelationPoint>,
+    Vec<MarkPairCovariancePoint>,
     crate::output::AnalysisSection<FunctionalSummary>,
 )> {
     let bin_width_um = pattern.window.d_nn_mean_um.max(1.0);
     let max_r_um =
         (pattern.window.l_eff_um * config.validation.largest_interpretable_scale_fraction).max(1.0);
-    let Some(observed_bins) = pair_correlation(pattern, bin_width_um, max_r_um) else {
+    let Some(observed_bins) = mark_pair_covariance(pattern, bin_width_um, max_r_um) else {
         return Ok((
             Vec::new(),
             crate::output::AnalysisSection::InsufficientData {
-                reason: "pair correlation could not be estimated".into(),
+                reason: "mark-pair covariance could not be estimated".into(),
             },
         ));
     };
@@ -48,10 +49,10 @@ pub(super) fn pair_correlation_with_envelope(
         .any(|value| !value.is_finite())
     {
         return Err(MarklabError::Compute(
-            "observed pair-correlation curve contains a non-finite value".into(),
+            "observed mark-pair-covariance curve contains a non-finite value".into(),
         ));
     }
-    let permutation_curves = pair_correlation_permutation_curves(
+    let permutation_curves = mark_pair_covariance_permutation_curves(
         config,
         pattern,
         bin_width_um,
@@ -72,7 +73,7 @@ pub(super) fn pair_correlation_with_envelope(
     };
     let summary = envelope.as_ref().map_or_else(
         || crate::output::AnalysisSection::InsufficientData {
-            reason: "at least one required pair-correlation null curve was undefined".into(),
+            reason: "at least one required mark-pair-covariance null curve was undefined".into(),
         },
         |envelope| {
             crate::output::AnalysisSection::available(FunctionalSummary {
@@ -94,17 +95,17 @@ pub(super) fn pair_correlation_with_envelope(
             });
             if !bin.r_min_um.is_finite() || !bin.r_max_um.is_finite() {
                 return Err(MarklabError::Compute(format!(
-                    "pair-correlation bin {index} has non-finite bounds"
+                    "mark-pair-covariance bin {index} has non-finite bounds"
                 )));
             }
-            Ok(PairCorrelationPoint {
+            Ok(MarkPairCovariancePoint {
                 r_min_um: bin.r_min_um,
                 r_max_um: bin.r_max_um,
-                value: bin.value,
+                covariance: bin.value,
                 inference_eligible: inference_eligible[index],
                 lower_global_envelope: envelope_bounds.map(|bounds| bounds.0),
                 upper_global_envelope: envelope_bounds.map(|bounds| bounds.1),
-                count: bin.count,
+                pair_count: bin.count,
             })
         })
         .collect::<Result<Vec<_>>>()?;
@@ -112,7 +113,7 @@ pub(super) fn pair_correlation_with_envelope(
     Ok((points, summary))
 }
 
-pub(super) fn pair_correlation_permutation_curves(
+pub(super) fn mark_pair_covariance_permutation_curves(
     config: &AnalysisConfig,
     pattern: &Pattern,
     bin_width_um: f64,
@@ -125,8 +126,13 @@ pub(super) fn pair_correlation_permutation_curves(
 
     let mut curves = Vec::with_capacity(config.permutation.b);
     for perm_index in 0..config.permutation.b {
-        let labels = permutation_labels(config, pattern, perm_index, 0x2d35_8dcc_aa6c_78a5)?;
-        let Some(bins) = pair_correlation_for_marks(pattern, &labels, bin_width_um, max_r_um)
+        let labels = permutation_labels(
+            config,
+            pattern,
+            perm_index,
+            SeedEndpoint::MarkPairCovariance,
+        )?;
+        let Some(bins) = mark_pair_covariance_for_marks(pattern, &labels, bin_width_um, max_r_um)
         else {
             return Ok(None);
         };
@@ -239,7 +245,7 @@ pub(super) fn scale_energy_permutation_curves(
     let cell_size_um = pattern.window.d_nn_mean_um.max(1.0);
     let mut curves = Vec::with_capacity(config.permutation.b);
     for perm_index in 0..config.permutation.b {
-        let labels = permutation_labels(config, pattern, perm_index, 0x8a5c_62d7_3d1f_4c0b)?;
+        let labels = permutation_labels(config, pattern, perm_index, SeedEndpoint::ScaleEnergy)?;
         let Some((spec, raster)) = centered_mark_raster_for_marks(pattern, &labels, cell_size_um)
         else {
             return Ok(None);
@@ -300,7 +306,12 @@ pub(super) fn multiscale_residual_scalar_p_values(
     let mut territory_null = (config.multiscale_residual.territory_detection && territory_eligible)
         .then(|| Vec::with_capacity(config.permutation.b));
     for permutation_index in 0..config.permutation.b {
-        let labels = permutation_labels(config, pattern, permutation_index, 0xd6e8_feb8_6659_fd93)?;
+        let labels = permutation_labels(
+            config,
+            pattern,
+            permutation_index,
+            SeedEndpoint::ResidualTerritory,
+        )?;
         let mut permuted = pattern.clone();
         permuted.mark = labels.into_boxed_slice();
 

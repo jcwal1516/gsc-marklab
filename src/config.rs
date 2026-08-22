@@ -196,7 +196,7 @@ pub struct ComparisonSection {
 #[serde(deny_unknown_fields)]
 pub struct EquivalenceMargins {
     pub spectrum: Option<f64>,
-    pub pair_correlation: Option<f64>,
+    pub mark_pair_covariance: Option<f64>,
     pub cross_interaction: Option<f64>,
     pub graph_enrichment_log2: Option<f64>,
     pub territory_profile: Option<f64>,
@@ -406,8 +406,8 @@ impl AnalysisConfig {
         for (field, margin) in [
             ("spectrum", self.comparison.equivalence_margins.spectrum),
             (
-                "pair_correlation",
-                self.comparison.equivalence_margins.pair_correlation,
+                "mark_pair_covariance",
+                self.comparison.equivalence_margins.mark_pair_covariance,
             ),
             (
                 "cross_interaction",

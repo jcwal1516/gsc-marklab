@@ -1,6 +1,6 @@
 pub mod anisotropy;
 pub mod kgrid;
-pub mod pair_correlation;
+pub mod mark_pair_covariance;
 pub mod structure_factor;
 
 #[cfg(all(test, feature = "dhat-heap", not(feature = "allocator-mimalloc")))]

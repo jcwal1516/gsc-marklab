@@ -33,8 +33,9 @@ use qc_pipeline::{
     spectrum_null_sensitivity, strata_are_mark_homogeneous, validate_pattern, ConfoundingConclusion,
 };
 use stages::{
-    estimated_raster_pixels, multiscale_residual_scalar_p_values, pair_correlation_with_envelope,
-    periodogram_disagrees_with_particle_spectrum, scale_energy_with_envelope, territories_for,
+    estimated_raster_pixels, mark_pair_covariance_with_envelope,
+    multiscale_residual_scalar_p_values, periodogram_disagrees_with_particle_spectrum,
+    scale_energy_with_envelope, territories_for,
 };
 
 pub struct AnalysisEngine {
@@ -279,14 +280,14 @@ impl AnalysisEngine {
             .as_ref()
             .map_or(0, |spectrum| spectrum.n_permutations);
         let stage_start = Instant::now();
-        let (pair_correlation_curve, pair_correlation) = if includes_pooled {
-            pair_correlation_with_envelope(&self.config, pattern)?
+        let (mark_pair_covariance_curve, mark_pair_covariance) = if includes_pooled {
+            mark_pair_covariance_with_envelope(&self.config, pattern)?
         } else {
             (Vec::new(), crate::output::AnalysisSection::NotApplicable)
         };
         push_timing(
             &mut timings,
-            "pair_correlation",
+            "mark_pair_covariance",
             stage_start.elapsed(),
             self.threads,
         );
@@ -429,8 +430,8 @@ impl AnalysisEngine {
                 status_flags,
                 spectrum,
                 spectrum_unavailable_reason,
-                pair_correlation,
-                pair_correlation_curve,
+                mark_pair_covariance,
+                mark_pair_covariance_curve,
                 anisotropy,
                 multiscale_residual,
                 scale_energy,

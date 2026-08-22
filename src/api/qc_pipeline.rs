@@ -167,9 +167,10 @@ pub(super) fn permutation_labels(
     config: &AnalysisConfig,
     pattern: &Pattern,
     permutation_index: usize,
-    seed_salt: u64,
+    endpoint: crate::common::seeds::SeedEndpoint,
 ) -> Result<Vec<u8>> {
-    let seed = config.permutation.seed ^ (permutation_index as u64).wrapping_mul(seed_salt);
+    let seed =
+        crate::common::seeds::derive_seed(config.permutation.seed, endpoint, permutation_index);
     if config.permutation.stratified {
         let strata = combined_strata_for(config, pattern)?.ok_or_else(|| {
             MarklabError::Validation(

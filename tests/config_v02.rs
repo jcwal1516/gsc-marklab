@@ -134,3 +134,20 @@ fn config_uses_multiscale_residual_terms_without_obsolete_aliases() {
     assert!(value.get("wavelet").is_none());
     assert!(AnalysisConfig::from_toml_overrides("[wavelet]\nenabled = false").is_err());
 }
+
+#[test]
+fn config_uses_mark_pair_covariance_margin_without_obsolete_alias() {
+    let config = AnalysisConfig::from_toml_overrides(
+        "[comparison.equivalence_margins]\nmark_pair_covariance = 0.25",
+    )
+    .expect("accurately named mark-pair covariance margin");
+
+    assert_eq!(
+        config.comparison.equivalence_margins.mark_pair_covariance,
+        Some(0.25)
+    );
+    assert!(AnalysisConfig::from_toml_overrides(
+        "[comparison.equivalence_margins]\npair_correlation = 0.25"
+    )
+    .is_err());
+}

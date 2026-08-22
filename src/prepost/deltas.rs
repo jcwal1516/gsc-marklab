@@ -170,15 +170,15 @@ fn prepost_curve_tests(
     );
     append_curve_tests(
         &mut tests,
-        "pair_correlation",
-        &pair_correlation_values(pre),
-        &pair_correlation_values(post),
-        pair_correlation_axes_aligned(pre, post),
-        pre.pair_correlation
+        "mark_pair_covariance",
+        &mark_pair_covariance_values(pre),
+        &mark_pair_covariance_values(post),
+        mark_pair_covariance_axes_aligned(pre, post),
+        pre.mark_pair_covariance
             .value()
             .map_or(0, |value| value.n_permutations)
             .max(
-                post.pair_correlation
+                post.mark_pair_covariance
                     .value()
                     .map_or(0, |value| value.n_permutations),
             ),
@@ -276,11 +276,11 @@ fn spectrum_values(result: &MarkedPatternResult) -> Vec<f64> {
         .collect()
 }
 
-fn pair_correlation_values(result: &MarkedPatternResult) -> Vec<f64> {
+fn mark_pair_covariance_values(result: &MarkedPatternResult) -> Vec<f64> {
     result
-        .pair_correlation_curve
+        .mark_pair_covariance_curve
         .iter()
-        .filter_map(|point| point.value)
+        .filter_map(|point| point.covariance)
         .collect()
 }
 
@@ -571,22 +571,22 @@ fn spectrum_axes_aligned(
     Ok(())
 }
 
-fn pair_correlation_axes_aligned(
+fn mark_pair_covariance_axes_aligned(
     pre: &MarkedPatternResult,
     post: &MarkedPatternResult,
 ) -> Result<(), String> {
-    if pre.pair_correlation_curve.len() != post.pair_correlation_curve.len() {
+    if pre.mark_pair_covariance_curve.len() != post.mark_pair_covariance_curve.len() {
         return Err(format!(
-            "pair-correlation bin counts differ: {} vs {}",
-            pre.pair_correlation_curve.len(),
-            post.pair_correlation_curve.len()
+            "mark-pair-covariance bin counts differ: {} vs {}",
+            pre.mark_pair_covariance_curve.len(),
+            post.mark_pair_covariance_curve.len()
         ));
     }
 
     for (index, (pre_point, post_point)) in pre
-        .pair_correlation_curve
+        .mark_pair_covariance_curve
         .iter()
-        .zip(&post.pair_correlation_curve)
+        .zip(&post.mark_pair_covariance_curve)
         .enumerate()
     {
         if !pre_point.r_min_um.is_finite()
@@ -595,20 +595,20 @@ fn pair_correlation_axes_aligned(
             || !post_point.r_max_um.is_finite()
         {
             return Err(format!(
-                "pair-correlation axis contains non-finite bin edge at index {index}"
+                "mark-pair-covariance axis contains non-finite bin edge at index {index}"
             ));
         }
         if !axis_values_match(pre_point.r_min_um, post_point.r_min_um)
             || !axis_values_match(pre_point.r_max_um, post_point.r_max_um)
         {
             return Err(format!(
-                "pair-correlation axis differs at index {index}: [{}, {}) vs [{}, {})",
+                "mark-pair-covariance axis differs at index {index}: [{}, {}) vs [{}, {})",
                 pre_point.r_min_um, pre_point.r_max_um, post_point.r_min_um, post_point.r_max_um
             ));
         }
-        if pre_point.value.is_some() != post_point.value.is_some() {
+        if pre_point.covariance.is_some() != post_point.covariance.is_some() {
             return Err(format!(
-                "pair-correlation availability differs at index {index}"
+                "mark-pair-covariance availability differs at index {index}"
             ));
         }
     }

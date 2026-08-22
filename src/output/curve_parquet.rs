@@ -78,7 +78,7 @@ impl MarkedPatternResult {
         Ok(())
     }
 
-    pub(super) fn write_pair_correlation_parquet(&self, out: &Path) -> Result<()> {
+    pub(super) fn write_mark_pair_covariance_parquet(&self, out: &Path) -> Result<()> {
         use std::{fs::File, sync::Arc};
 
         use arrow::{
@@ -87,17 +87,17 @@ impl MarkedPatternResult {
         };
         use parquet::arrow::arrow_writer::ArrowWriter;
 
-        if self.pair_correlation_curve.is_empty() {
+        if self.mark_pair_covariance_curve.is_empty() {
             return Ok(());
         }
-        let points = &self.pair_correlation_curve;
+        let points = &self.mark_pair_covariance_curve;
         let schema = Arc::new(Schema::new(vec![
             Field::new("r_min_um", DataType::Float64, false),
             Field::new("r_max_um", DataType::Float64, false),
-            Field::new("value", DataType::Float64, true),
+            Field::new("covariance", DataType::Float64, true),
             Field::new("lower_global_envelope", DataType::Float64, true),
             Field::new("upper_global_envelope", DataType::Float64, true),
-            Field::new("count", DataType::UInt64, false),
+            Field::new("pair_count", DataType::UInt64, false),
         ]));
         let batch = RecordBatch::try_new(
             Arc::clone(&schema),
@@ -115,7 +115,10 @@ impl MarkedPatternResult {
                         .collect::<Vec<_>>(),
                 )),
                 Arc::new(Float64Array::from(
-                    points.iter().map(|point| point.value).collect::<Vec<_>>(),
+                    points
+                        .iter()
+                        .map(|point| point.covariance)
+                        .collect::<Vec<_>>(),
                 )),
                 Arc::new(Float64Array::from(
                     points
@@ -132,13 +135,13 @@ impl MarkedPatternResult {
                 Arc::new(UInt64Array::from(
                     points
                         .iter()
-                        .map(|point| point.count as u64)
+                        .map(|point| point.pair_count as u64)
                         .collect::<Vec<_>>(),
                 )),
             ],
         )
         .map_err(|err| MarklabError::Compute(err.to_string()))?;
-        let path = out.join("pair_correlation.parquet");
+        let path = out.join("mark_pair_covariance.parquet");
         let file = File::create(&path).map_err(|source| MarklabError::io(&path, source))?;
         let mut writer = ArrowWriter::try_new(file, schema, None)
             .map_err(|err| MarklabError::Compute(err.to_string()))?;

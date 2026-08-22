@@ -118,9 +118,9 @@ pub struct MarkedPatternResult {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub spectrum_curve: Vec<SpectrumPoint>,
     #[serde(default)]
-    pub pair_correlation: AnalysisSection<FunctionalSummary>,
+    pub mark_pair_covariance: AnalysisSection<FunctionalSummary>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub pair_correlation_curve: Vec<PairCorrelationPoint>,
+    pub mark_pair_covariance_curve: Vec<MarkPairCovariancePoint>,
     pub anisotropy: AnalysisSection<AnisotropySummary>,
     pub multiscale_residual: AnalysisSection<MultiscaleResidualSummary>,
     #[serde(default)]
@@ -285,7 +285,19 @@ pub struct FunctionalSummary {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct PairCorrelationPoint {
+pub struct MarkPairCovariancePoint {
+    pub r_min_um: f64,
+    pub r_max_um: f64,
+    pub covariance: Option<f64>,
+    #[serde(default = "default_true")]
+    pub inference_eligible: bool,
+    pub lower_global_envelope: Option<f64>,
+    pub upper_global_envelope: Option<f64>,
+    pub pair_count: usize,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct CrossInteractionPoint {
     pub r_min_um: f64,
     pub r_max_um: f64,
     pub value: Option<f64>,
@@ -356,7 +368,7 @@ impl EnrichmentStatisticUnavailableReason {
 pub struct CrossInteractionCurve {
     pub label_a: String,
     pub label_b: String,
-    pub points: Vec<PairCorrelationPoint>,
+    pub points: Vec<CrossInteractionPoint>,
     pub p_global: Option<f64>,
 }
 

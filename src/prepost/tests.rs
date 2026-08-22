@@ -2,10 +2,10 @@ use crate::{
     comparison::{difference::curve_difference_test, equivalence::curve_equivalence_test},
     prepost::deltas::compare_prepost,
     AnalysisSection, AnisotropySummary, ComponentMode, ComponentModeSelection,
-    CrossInteractionCurve, CurveTestAvailability, FunctionalSummary, Interpretation,
-    MarkedPatternResult, MultiscaleResidualSummary, PairCorrelationPoint, PrimaryEndpoint,
-    QcSummary, ResidualTerritory, ResolvedComponentMode, ScaleEnergyPoint, SpectrumPoint,
-    SpectrumSummary, WindowSummary,
+    CrossInteractionCurve, CrossInteractionPoint, CurveTestAvailability, FunctionalSummary,
+    Interpretation, MarkPairCovariancePoint, MarkedPatternResult, MultiscaleResidualSummary,
+    PrimaryEndpoint, QcSummary, ResidualTerritory, ResolvedComponentMode, ScaleEnergyPoint,
+    SpectrumPoint, SpectrumSummary, WindowSummary,
 };
 
 fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResult {
@@ -52,8 +52,8 @@ fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResul
             alpha_p_value: Some(1.0),
         }),
         spectrum_curve: Vec::new(),
-        pair_correlation: AnalysisSection::available(FunctionalSummary::default()),
-        pair_correlation_curve: Vec::new(),
+        mark_pair_covariance: AnalysisSection::available(FunctionalSummary::default()),
+        mark_pair_covariance_curve: Vec::new(),
         anisotropy: AnalysisSection::available(AnisotropySummary {
             index: 1.0,
             theta_deg: None,
@@ -149,36 +149,36 @@ fn prepost_result_includes_curve_tests_when_curves_exist() {
     post.spectrum_curve = pre.spectrum_curve.clone();
     post.spectrum_curve[1].whitened_power = 1.12;
 
-    pre.pair_correlation_curve = vec![PairCorrelationPoint {
+    pre.mark_pair_covariance_curve = vec![MarkPairCovariancePoint {
         r_min_um: 0.0,
         r_max_um: 10.0,
-        value: Some(0.1),
+        covariance: Some(0.1),
         inference_eligible: true,
         lower_global_envelope: Some(0.0),
         upper_global_envelope: Some(0.2),
-        count: 10,
+        pair_count: 10,
     }];
-    pre.pair_correlation
+    pre.mark_pair_covariance
         .value_mut()
-        .expect("pair correlation")
+        .expect("mark-pair covariance")
         .n_permutations = 7;
-    post.pair_correlation_curve = vec![PairCorrelationPoint {
+    post.mark_pair_covariance_curve = vec![MarkPairCovariancePoint {
         r_min_um: 0.0,
         r_max_um: 10.0,
-        value: Some(0.11),
+        covariance: Some(0.11),
         inference_eligible: true,
         lower_global_envelope: Some(0.0),
         upper_global_envelope: Some(0.2),
-        count: 10,
+        pair_count: 10,
     }];
-    post.pair_correlation
+    post.mark_pair_covariance
         .value_mut()
-        .expect("pair correlation")
+        .expect("mark-pair covariance")
         .n_permutations = 7;
 
     let delta = compare_prepost(&pre, &post);
     assert!(!delta.curve_tests.is_empty());
-    for comparison_name in ["spectrum", "pair_correlation"] {
+    for comparison_name in ["spectrum", "mark_pair_covariance"] {
         let comparison_tests: Vec<_> = delta
             .curve_tests
             .iter()
@@ -212,7 +212,7 @@ fn prepost_result_includes_multimodal_cross_interaction_tests_and_territory_delt
         label_a: "mmr_abnormal".into(),
         label_b: "lymphocyte".into(),
         points: vec![
-            PairCorrelationPoint {
+            CrossInteractionPoint {
                 r_min_um: 0.0,
                 r_max_um: 10.0,
                 value: Some(2.0),
@@ -221,7 +221,7 @@ fn prepost_result_includes_multimodal_cross_interaction_tests_and_territory_delt
                 upper_global_envelope: Some(3.0),
                 count: 2,
             },
-            PairCorrelationPoint {
+            CrossInteractionPoint {
                 r_min_um: 10.0,
                 r_max_um: 20.0,
                 value: Some(1.0),
@@ -237,7 +237,7 @@ fn prepost_result_includes_multimodal_cross_interaction_tests_and_territory_delt
         label_a: "mmr_abnormal".into(),
         label_b: "lymphocyte".into(),
         points: vec![
-            PairCorrelationPoint {
+            CrossInteractionPoint {
                 r_min_um: 0.0,
                 r_max_um: 10.0,
                 value: Some(3.0),
@@ -246,7 +246,7 @@ fn prepost_result_includes_multimodal_cross_interaction_tests_and_territory_delt
                 upper_global_envelope: Some(4.0),
                 count: 3,
             },
-            PairCorrelationPoint {
+            CrossInteractionPoint {
                 r_min_um: 10.0,
                 r_max_um: 20.0,
                 value: Some(1.0),
@@ -280,7 +280,7 @@ fn prepost_curve_tests_surface_absent_curves_as_diagnostics() {
 
     let delta = compare_prepost(&pre, &post);
 
-    for comparison_name in ["spectrum", "pair_correlation"] {
+    for comparison_name in ["spectrum", "mark_pair_covariance"] {
         let comparison_tests: Vec<_> = delta
             .curve_tests
             .iter()
@@ -311,45 +311,45 @@ fn prepost_curve_tests_surface_absent_curves_as_diagnostics() {
 }
 
 #[test]
-fn pair_correlation_difference_uses_pair_correlation_permutation_count() {
+fn mark_pair_covariance_difference_uses_mark_pair_covariance_permutation_count() {
     let mut pre = minimal_analysis_result("case1", "pre");
     let mut post = minimal_analysis_result("case1", "post");
 
     pre.spectrum.value_mut().expect("spectrum").n_permutations = 19;
     post.spectrum.value_mut().expect("spectrum").n_permutations = 19;
-    pre.pair_correlation
+    pre.mark_pair_covariance
         .value_mut()
-        .expect("pair correlation")
+        .expect("mark-pair covariance")
         .n_permutations = 0;
-    post.pair_correlation
+    post.mark_pair_covariance
         .value_mut()
-        .expect("pair correlation")
+        .expect("mark-pair covariance")
         .n_permutations = 0;
 
-    pre.pair_correlation_curve = vec![PairCorrelationPoint {
+    pre.mark_pair_covariance_curve = vec![MarkPairCovariancePoint {
         r_min_um: 0.0,
         r_max_um: 10.0,
-        value: Some(0.1),
+        covariance: Some(0.1),
         inference_eligible: true,
         lower_global_envelope: Some(0.0),
         upper_global_envelope: Some(0.2),
-        count: 10,
+        pair_count: 10,
     }];
-    post.pair_correlation_curve = vec![PairCorrelationPoint {
+    post.mark_pair_covariance_curve = vec![MarkPairCovariancePoint {
         r_min_um: 0.0,
         r_max_um: 10.0,
-        value: Some(0.2),
+        covariance: Some(0.2),
         inference_eligible: true,
         lower_global_envelope: Some(0.0),
         upper_global_envelope: Some(0.2),
-        count: 10,
+        pair_count: 10,
     }];
 
     let delta = compare_prepost(&pre, &post);
     let pair_tests: Vec<_> = delta
         .curve_tests
         .iter()
-        .filter(|test| test.comparison_name == "pair_correlation")
+        .filter(|test| test.comparison_name == "mark_pair_covariance")
         .collect();
 
     assert_eq!(pair_tests.len(), 2);
@@ -417,28 +417,28 @@ fn prepost_curve_tests_surface_unaligned_axis_diagnostics() {
         },
     ];
 
-    pre.pair_correlation_curve = vec![PairCorrelationPoint {
+    pre.mark_pair_covariance_curve = vec![MarkPairCovariancePoint {
         r_min_um: 0.0,
         r_max_um: 10.0,
-        value: Some(0.1),
+        covariance: Some(0.1),
         inference_eligible: true,
         lower_global_envelope: Some(0.0),
         upper_global_envelope: Some(0.2),
-        count: 10,
+        pair_count: 10,
     }];
-    post.pair_correlation_curve = vec![PairCorrelationPoint {
+    post.mark_pair_covariance_curve = vec![MarkPairCovariancePoint {
         r_min_um: 5.0,
         r_max_um: 15.0,
-        value: Some(0.11),
+        covariance: Some(0.11),
         inference_eligible: true,
         lower_global_envelope: Some(0.0),
         upper_global_envelope: Some(0.2),
-        count: 10,
+        pair_count: 10,
     }];
 
     let delta = compare_prepost(&pre, &post);
 
-    for comparison_name in ["spectrum", "pair_correlation"] {
+    for comparison_name in ["spectrum", "mark_pair_covariance"] {
         let comparison_tests: Vec<_> = delta
             .curve_tests
             .iter()
@@ -484,33 +484,33 @@ fn remediation_prepost_axes_accept_harmless_float_reconstruction() {
         lower_global_envelope: Some(0.8),
         upper_global_envelope: Some(1.2),
     }];
-    pre.pair_correlation
+    pre.mark_pair_covariance
         .value_mut()
-        .expect("pair correlation")
+        .expect("mark-pair covariance")
         .n_permutations = 19;
-    post.pair_correlation
+    post.mark_pair_covariance
         .value_mut()
-        .expect("pair correlation")
+        .expect("mark-pair covariance")
         .n_permutations = 19;
-    pre.pair_correlation_curve = vec![PairCorrelationPoint {
+    pre.mark_pair_covariance_curve = vec![MarkPairCovariancePoint {
         r_min_um: 0.1 + 0.2,
         r_max_um: 0.2 + 0.2,
-        value: Some(0.1),
+        covariance: Some(0.1),
         inference_eligible: true,
         lower_global_envelope: Some(0.0),
         upper_global_envelope: Some(0.2),
-        count: 1,
+        pair_count: 1,
     }];
-    post.pair_correlation_curve = vec![PairCorrelationPoint {
+    post.mark_pair_covariance_curve = vec![MarkPairCovariancePoint {
         r_min_um: 0.3,
         r_max_um: 0.4,
-        value: Some(0.11),
-        ..pre.pair_correlation_curve[0].clone()
+        covariance: Some(0.11),
+        ..pre.mark_pair_covariance_curve[0].clone()
     }];
     pre.cross_interaction_curves = AnalysisSection::available(vec![CrossInteractionCurve {
         label_a: "mmr_abnormal".into(),
         label_b: "lymphocyte".into(),
-        points: vec![PairCorrelationPoint {
+        points: vec![CrossInteractionPoint {
             r_min_um: 0.1 + 0.2,
             r_max_um: 0.2 + 0.2,
             value: Some(2.0),
@@ -524,7 +524,7 @@ fn remediation_prepost_axes_accept_harmless_float_reconstruction() {
     post.cross_interaction_curves = AnalysisSection::available(vec![CrossInteractionCurve {
         label_a: "mmr_abnormal".into(),
         label_b: "lymphocyte".into(),
-        points: vec![PairCorrelationPoint {
+        points: vec![CrossInteractionPoint {
             r_min_um: 0.3,
             r_max_um: 0.4,
             value: Some(2.1),
@@ -541,7 +541,7 @@ fn remediation_prepost_axes_accept_harmless_float_reconstruction() {
     let delta = compare_prepost(&pre, &post);
     for comparison_name in [
         "spectrum",
-        "pair_correlation",
+        "mark_pair_covariance",
         "cross_interaction:mmr_abnormal/lymphocyte",
     ] {
         let comparison_tests = delta
