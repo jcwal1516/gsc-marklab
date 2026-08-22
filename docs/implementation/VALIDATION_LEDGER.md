@@ -145,6 +145,25 @@ Implementation commit: `a1260445a383c59381b2c7c7881cebb10e10c156`.
 | Clean five-package archive | `cargo +1.96.0 package --locked --workspace` | pass | At clean `a1260445`, core packaged 6 files/10.9 KiB, data 7/41.0 KiB, project 5/23.6 KiB, workflow 5/28.3 KiB, and root 255/1.8 MiB; every archive verification-compiled. Child metadata warnings remain non-fatal. |
 | Independent C-01 audit | `c01_identity_audit` read-only design/implementation/final re-review | pass after findings applied | Added TMA-safe biological subsamples, role-kind enforcement, unit/kind repeated-set uniqueness, missing/reused/deep boundary tests, and bounded nested biological ancestry. Final review found no material issue; reviewer edited no files and used no remote service or LSP. |
 
+## C-02 coordinate substrate evidence
+
+Implementation commit: `c676cfd732d02d6202bff8cea47fcf74b5bfd8e7`.
+
+| Gate | Exact command | Status | Result/evidence |
+|---|---|---|---|
+| Behavior-first coordinate API | `cargo +1.96.0 test --locked --test coordinate_frames` | red in three waves, then pass | Missing IDs/frames, then transform/registry, then serial-section APIs each failed to compile before implementation. Final suite: 10 passed. It covers exact typed-ID bounds, axes/units/spaces, finite coordinates/matrices, explicit 2-D/3-D chains, declaration errors and precedence, target-frame uncertainty, iterative deep cycles, serial state/order/cross-references, gaps/distortion, and axis-permuted embedding. |
+| Duplicate/reference precedence regression | focused declaration-order test | red, then pass | Audit case `[uncertainty -> missing frame, duplicate uncertainty]` initially returned the missing reference. Frame, uncertainty, and transform ID indexing now completes before reference validation; same-kind and cross-kind competition tests pass. |
+| Affected package tests | `cargo +1.96.0 test --locked -p marklab-core -p marklab-data` | pass | Core 1/1 and data 1/1 unit tests passed; both doc-test binaries passed with 0 executable tests. |
+| Compatibility contracts | `cargo +1.96.0 test --locked --test api_contract --test result_v03 --test workspace_contract` | pass | 21 passed: API 6, result 13, workspace 2. Current registration, config/result, and workspace layers remain unchanged. |
+| Full all-feature workspace tests | `cargo +1.96.0 nextest run --locked --workspace --all-features` | pass | 440/440 passed, 22 skipped, 1 existing slow synthetic smoke; 63.613 s summary. |
+| Public documentation | `RUSTDOCFLAGS='-D missing-docs' cargo +1.96.0 doc --locked --no-deps -p marklab-core -p marklab-data` | pass | Every new public coordinate and serial-section symbol documents successfully. |
+| All-feature and CLI-only Clippy | both contract commands with `--workspace --all-targets` and `-D warnings` | pass | All-feature and no-default/CLI configurations exited 0. |
+| Fuzz build | `cargo +nightly fuzz check` | pass | Root and standalone fuzz dependency graph compiled in release fuzz mode. |
+| Format/scope | `cargo +1.96.0 fmt --all --check`; `git diff --check`; staged/final scope review | pass | Only core/data coordinate sources, focused exports, the integration test, and implementation docs changed. No manifest/lock/current root source changed. |
+| Exact clean workspace package | `cargo +1.96.0 package --locked --workspace` | blocked | All five archives were created; verification exited 101 when normalized data resolved published `marklab-core 0.1.0` without C-02 IDs. The exact gate is not claimed green and remains release-blocking under DEC-0018. |
+| Supplemental local package verification | exact workspace command plus ephemeral CLI `patch.crates-io` paths for core/data/project/workflow | pass | All five archives and verification builds completed against the current local dependency graph. A data-only run with a local core patch also passed. No tracked patch, manifest, lock, CI, or registry state changed. |
+| Independent C-02 audit | `c02_coordinate_audit` design/implementation/final read-only review | pass after findings applied | Replaced dishonest axis-only serial embedding before freeze; later fixed validation-phase ordering and coverage. Final recheck found both findings resolved and no other correctness, complexity, placement, scope, or API drift issue. Reviewer edited no files and used no remote service. |
+
 ## Harness failures
 
 - 2026-08-22: the first combined WS-A path-check wrapper exited 127 at its final `git` calls because the loop variable `path` shadowed zsh's special `path`/`PATH` array. This did not exercise or fail a repository gate. The wrapper was corrected to use `required_doc`; all assertions and `git diff --check` then exited 0.
@@ -158,6 +177,7 @@ Implementation commit: `a1260445a383c59381b2c7c7881cebb10e10c156`.
 - 2026-08-22: the first WS-B workspace benchmark exit run measured all eight Criterion workloads successfully but then exited 101 when Cargo ran `marklab-project`'s implicit library benchmark harness with Criterion's `--quick` argument. A new manifest contract failed first on the missing child `[lib]` table. Both child crates now set `bench = false`; commit `ac7da28` contains that focused fix, and the exact workspace command then exited 0.
 - 2026-08-22: C-01's root metadata-only fuzz query succeeded despite the independent fuzz lock being stale. The real `cargo +1.96.0 check --locked --manifest-path fuzz/Cargo.toml` correctly exited 101. Offline regeneration added only the expected local `marklab-core`/`marklab-data` records and project edge; locked compilation and nightly fuzz then passed.
 - 2026-08-22: the first C-01 role-matrix test compile exited 101 because the new typed role category/error did not exist; the first nested-biological-level run then failed with `ObservationDoesNotResolve`, and the membership-query refinement compile failed on the absent method. These were intended behavior-first failures. Final focused and full suites pass without weakening assertions.
+- 2026-08-22: C-02's clean unpatched `cargo +1.96.0 package --locked --workspace` created all five archives and then exited 101 because Cargo removed the data crate's core path and resolved the published pre-C-02 `marklab-core 0.1.0`. An ephemeral CLI-patched verification passed for every archive. DEC-0018 keeps the exact registry-resolution failure visible until an authorized version and dependency-ordered publication boundary; no tracked release configuration was weakened.
 
 ## Tool/environment evidence
 

@@ -65,3 +65,12 @@ Status: characterization freeze for WS-A. Exact field/symbol inventory is active
 - Nested levels: nearest resolution remains specific, while explicit lineage membership permits downstream selection of an enclosing declared patient above biological specimens. C-01 itself performs no randomization or population inference.
 - Repeated designs: declarations contain at least two distinct same-kind observations, one set per biological-unit/observation-kind pair, and globally unique observation membership. Retained order is deterministic but not temporal.
 - Persistence: this is an immutable in-memory 0.1 boundary installed once into `MarklabProject`. Serialization, schema evolution, cross-artifact drift, and result-format 0.4 are deferred to C-03.
+
+## IC-0009 — Explicit in-memory coordinate substrate
+
+- Identity and frames: opaque typed frame/transform/uncertainty IDs name ordered X/Y or X/Y/Z frames. Every frame declares image-versus-physical space, exact unit, and an image pixel-center/corner convention where applicable; names never supply semantics.
+- Coordinates and maps: finite fixed-arity coordinates carry a frame ID. Forward affine matrices are finite, same-dimensional, explicitly directed, and interpreted in declared source-column/target-row axis order. Callers provide every transform chain; no inverse, path search, equal-unit identity, or missing-MPP calibration is inferred.
+- Uncertainty: an optional reference is metadata expressed in a transform target frame. An absent conservative radius is not zero, and C-02 does not compose or propagate uncertainty.
+- Serial sections: observed/distorted entries use a specialized physical 2-D placement into semantic volume X/Y plus explicit finite Z; missing entries retain a gap without placement. Distortion requires target-volume uncertainty. Only parallel sections are represented; no correspondence, interpolation, or oblique plane is implied.
+- Validation: declaration duplicates precede missing/incompatible references; transform cycles use iterative declaration-order DFS; serial ordinals and Z are strictly ordered. Operations reject wrong dimension, space, frame, unit, and non-finite results through typed errors.
+- Compatibility and persistence: this is an immutable `marklab-core`/`marklab-data` 0.1 substrate. Current root registration/config/result APIs are unchanged. Durable schemas, digests, migrations, interchange conformance, and result references are C-03/WS-25 responsibilities.

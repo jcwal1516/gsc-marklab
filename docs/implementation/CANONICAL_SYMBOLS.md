@@ -77,7 +77,7 @@ Existing canonical scientific/config/parser/result/output symbols remain owned b
 | C-01 `/root` | Workspace/local lock metadata; `crates/marklab-core/**`, `crates/marklab-data/**`; focused `marklab-project` hierarchy ownership; root dev dependency only; `tests/data_hierarchy.rs`, architecture/workflow contract updates; one hierarchy benchmark; implementation docs | Typed ID newtypes, `HierarchyId`, `HierarchyNode`, `ReplicationRole`/`ReplicationRoleKind`, independent biological-source relation, bounded lineage membership, `RepeatedMeasureSet`, `CohortHierarchy`, `CohortDesignSummary`, hierarchy validation/errors, project hierarchy slot | Current loose metadata/cell IDs, project/workflow APIs, compatibility facade, manifests/CI/bench patterns, remote inventory handoff | No root stable re-export, current adapter/schema/result/CLI/science change, filename inference, patient-level inference, persistence, remote ingest, or new registry dependency |
 | C-01-REVIEW `c01_identity_audit` | None | None | C-01/FND-01/COH-01 plan, current identity fields/callers, proposed contract/package graph | Read-only critique; no tracked or remote mutation, no LSP server |
 
-## C-02 active ownership
+## C-02 completed ownership
 
 | Task/agent | Writable files | Owned canonical symbols | Read-only context | Explicit non-goals |
 |---|---|---|---|---|
