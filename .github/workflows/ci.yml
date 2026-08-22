@@ -77,7 +77,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.96.0
-      - run: cargo run --release --locked --features wsi --bin marklab -- smoke --suite synthetic --replicates 1000 --out smoke-ci
+      - run: cargo run --release --locked --features wsi --bin marklab -- smoke --suite synthetic --replicates 10 --out smoke-ci
       - uses: actions/upload-artifact@v4
         with:
           name: synthetic-smoke

@@ -495,3 +495,10 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Dependency consequence: The fuzz-only Marklab dependency enables `wsi` in addition to `csv`, so `fuzz/Cargo.lock` records the already pinned production WSI dependency graph. No production manifest or lockfile changes.
 - Evidence: `cargo +nightly fuzz check` builds all five targets. The workflow contract asserts each target/current entry point and rejects the obsolete filesystem constructor. Result-schema, WSI module, formatting, denied-warning Clippy, and no-default checks pass.
 - Status: Accepted; Phase 13 fuzz-build coverage is current and reproducible.
+
+## 2026-08-22 — Calibration runs on a scheduled workflow
+
+- Context: Main-branch CI ran the synthetic CLI with 1,000 replicates even though the validation contract distinguishes quick smoke checks from formal calibration and requires large replicate counts to run on scheduled CI.
+- Decision: Main CI writes a ten-replicate production smoke artifact. A weekly and manually dispatched calibration workflow runs the two ignored 1,000-replicate negative controls serially in release mode. Pull-request verification remains fast and makes no calibration claim.
+- Evidence: A workflow regression failed before `calibration.yml` existed and now requires its schedule/manual triggers, exact release test filter, ignored execution, and single test thread. The six workflow contracts pass. `docs/validation-methodology.md` records both commands and their distinct claims.
+- Status: Accepted; Phase 13 smoke/calibration CI separation is explicit.

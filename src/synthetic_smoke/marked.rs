@@ -114,7 +114,12 @@ pub(super) fn run_generator(
         }
     }
 
-    let mut result = summarize_analyses(&analyses, replicates, failure_reasons);
+    let mut result = summarize_analyses(
+        &analyses,
+        replicates,
+        failure_reasons,
+        marked_acceptance_criterion(generator),
+    );
     result.notes.push(note_for(generator).into());
     match generator {
         "random_labeling" => {
@@ -177,7 +182,6 @@ pub(super) fn run_generator(
         }
     }
     result.passed &= result.replicates_failed == 0;
-    result.acceptance_criterion = marked_acceptance_criterion(generator);
     Ok(result)
 }
 
@@ -218,7 +222,12 @@ fn run_marked_prepost_metadata_mismatch(
         }
     }
 
-    let mut result = summarize_analyses(&post_analyses, replicates, failure_reasons);
+    let mut result = summarize_analyses(
+        &post_analyses,
+        replicates,
+        failure_reasons,
+        marked_acceptance_criterion("prepost_metadata_mismatch"),
+    );
     for flag in comparison_flags {
         push_unique_flag(&mut result.status_flags, flag);
     }
@@ -227,7 +236,6 @@ fn run_marked_prepost_metadata_mismatch(
     result.prepost_incomparable_confidence_interval = incomparable_rate
         .and_then(|_| wilson_interval(incomparable_count, result.replicates_completed));
     result.passed = result.replicates_failed == 0 && incomparable_rate == Some(1.0);
-    result.acceptance_criterion = marked_acceptance_criterion("prepost_metadata_mismatch");
     result
         .notes
         .push(note_for("prepost_metadata_mismatch").into());
@@ -238,6 +246,7 @@ pub(super) fn summarize_analyses(
     analyses: &[MarkedPatternResult],
     replicates_attempted: usize,
     failure_reasons: Vec<String>,
+    acceptance_criterion: &'static str,
 ) -> SyntheticSmokeResult {
     let mut status_flags = Vec::new();
     for analysis in analyses {
@@ -320,7 +329,7 @@ pub(super) fn summarize_analyses(
             .and_then(|_| wilson_interval(suppression_count, replicates_completed)),
         prepost_incomparable_rate: None,
         prepost_incomparable_confidence_interval: None,
-        acceptance_criterion: "pending scenario evaluation",
+        acceptance_criterion,
         status_flags,
         notes: Vec::new(),
     }

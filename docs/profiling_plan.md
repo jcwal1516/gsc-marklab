@@ -61,7 +61,7 @@ cargo asm marklab::AnalysisEngine::analyze_pattern --profile profiling
 cargo bench --bench structure_factor
 cargo bench --bench permutation_engine
 cargo bench --bench periodogram
-cargo bench --bench wavelet
+cargo bench --bench multiscale_residual
 cargo bench --bench random_labeling_envelope
 cargo bench --bench pattern_load
 ```

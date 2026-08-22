@@ -1,0 +1,18 @@
+name: Scheduled calibration
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "43 5 * * 1"
+
+jobs:
+  negative-controls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.96.0
+      - name: Marked and multimodal 1,000-replicate production controls
+        run: >-
+          cargo test --release --locked --all-features negative_control_calibrates
+          -- --ignored --nocapture --test-threads=1

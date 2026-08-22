@@ -81,7 +81,8 @@ regressions; they are not nominal error-rate claims.
 
 ## Scheduled calibration
 
-The scheduled tests run 1,000 full production replicates per engine. The marked
+The weekly and manually dispatched `.github/workflows/calibration.yml` workflow
+runs 1,000 full production replicates per engine outside pull-request CI. The marked
 control uses fixed-count random marks at fixed positions. The multimodal control
 independently randomizes both H&E class labels and IHC MMR marks at fixed counts
 because the production source-section null permutes both label fields. The
@@ -108,8 +109,11 @@ Run the scheduled calibration contract with:
 
 ```text
 cargo +1.96.0 test --locked --all-features negative_control_calibrates \
-  -- --ignored --nocapture
+  -- --ignored --nocapture --test-threads=1
 ```
+
+Ordinary main-branch CI runs only the ten-replicate CLI smoke artifact. It does
+not make or gate on a formal calibration claim.
 
 ## Limitations
 

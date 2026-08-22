@@ -168,6 +168,7 @@ fn marked_smoke_reports_failed_replicates_without_hiding_denominators() {
         &[analysis],
         2,
         vec!["replicate 1: synthetic execution failure".into()],
+        "test acceptance criterion",
     );
 
     assert_eq!(result.replicates_attempted, 2);
@@ -175,6 +176,7 @@ fn marked_smoke_reports_failed_replicates_without_hiding_denominators() {
     assert_eq!(result.replicates_failed, 1);
     assert_eq!(result.failure_reasons.len(), 1);
     assert!(result.type_i_error_confidence_interval.is_some());
+    assert_eq!(result.acceptance_criterion, "test acceptance criterion");
 }
 
 #[test]

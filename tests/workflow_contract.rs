@@ -90,6 +90,25 @@ fn ci_workflow_runs_locked_rust_wsi_and_benchmark_gates() {
 
     assert!(!workflow.contains("maturin"));
     assert!(!workflow.contains("python/tests"));
+    assert!(!workflow.contains("--replicates 1000"));
+}
+
+#[test]
+fn formal_calibration_is_scheduled_outside_pull_request_ci() {
+    let workflow =
+        fs::read_to_string(".github/workflows/calibration.yml").expect("calibration workflow");
+
+    for required in [
+        "schedule:",
+        "workflow_dispatch:",
+        "cargo test --release --locked --all-features negative_control_calibrates",
+        "--ignored --nocapture --test-threads=1",
+    ] {
+        assert!(
+            workflow.contains(required),
+            "calibration workflow should include {required}"
+        );
+    }
 }
 
 #[test]
