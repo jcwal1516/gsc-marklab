@@ -98,13 +98,36 @@ fn library_and_cli_core_results_match() {
             protein: "MSH6".into(),
         })
         .expect("library analysis");
-    let library_document =
+    let mut library_document =
         serde_json::to_value(ResultDocument::multimodal(library_result)).expect("library result");
+    let mut cli_core = cli_document["analysis"]["result"].clone();
+    let cli_timings = cli_core
+        .as_object_mut()
+        .expect("CLI result object")
+        .remove("timings")
+        .expect("CLI timings");
+    let library_timings = library_document["analysis"]["result"]
+        .as_object_mut()
+        .expect("library result object")
+        .remove("timings")
+        .expect("library timings");
 
     assert_eq!(
-        cli_document["analysis"]["result"],
-        library_document["analysis"]["result"]
+        cli_timings
+            .as_array()
+            .expect("CLI timing stages")
+            .iter()
+            .map(|stage| &stage["stage_name"])
+            .collect::<Vec<_>>(),
+        library_timings
+            .as_array()
+            .expect("library timing stages")
+            .iter()
+            .map(|stage| &stage["stage_name"])
+            .collect::<Vec<_>>()
     );
+
+    assert_eq!(cli_core, library_document["analysis"]["result"]);
 }
 
 #[test]
@@ -245,6 +268,20 @@ fn multimodal_analyze_writes_qc_csv_and_null_sensitivity_sidecars() {
         .expect("sensitivity rows")
         .iter()
         .any(|row| row["null_model"] == "source_section_density"));
+
+    let result: Value = serde_json::from_str(
+        &std::fs::read_to_string(fixture.out.join("result.json")).expect("result"),
+    )
+    .expect("result JSON");
+    let timings: Value = serde_json::from_str(
+        &std::fs::read_to_string(fixture.out.join("timings.json")).expect("timings"),
+    )
+    .expect("timings JSON");
+    let result_stages = &result["analysis"]["result"]["timings"];
+    assert!(result_stages
+        .as_array()
+        .is_some_and(|stages| !stages.is_empty()));
+    assert_eq!(result_stages, &timings["stages"]);
 
     let fused_csv =
         std::fs::read_to_string(fixture.out.join("fused_cells.csv")).expect("fused CSV");

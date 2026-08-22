@@ -77,6 +77,54 @@ fn all_configured_null_models_are_present_in_the_application_run() {
 }
 
 #[test]
+fn multimodal_telemetry_populates_every_application_stage_in_order() {
+    let run = multimodal_engine()
+        .analyze_run(&multimodal_input())
+        .expect("multimodal run");
+    let names = run
+        .result
+        .timings
+        .iter()
+        .map(|stage| stage.stage_name.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        names,
+        vec![
+            "validate_input",
+            "registration_fit",
+            "registration_qc",
+            "fusion",
+            "spatial_index",
+            "graph",
+            "artifact_projections",
+            "enrichment_primary",
+            "enrichment_null_source_section",
+            "enrichment_null_source_section_density",
+            "enrichment_null_source_section_cell_class",
+            "enrichment_null_source_section_registration_qc",
+            "cross_interaction_curves",
+            "territory_detection",
+            "territory_profiles",
+            "territory_comparison",
+            "diagnostics",
+            "result_assembly",
+        ]
+    );
+    assert!(run.result.timings.iter().all(|stage| {
+        stage.wall_ms.is_finite()
+            && stage.wall_ms >= 0.0
+            && stage.cpu_threads == 1
+            && stage.n_cells == 4
+            && stage.n_marked == 1
+            && stage.n_k_modes == 0
+            && stage.n_permutations == 39
+            && stage.estimated_peak_memory_mib.is_finite()
+            && stage.estimated_peak_memory_mib > 0.0
+    }));
+}
+
+#[test]
 fn multimodal_config_defaults_are_conservative() {
     let config = AnalysisConfig::default();
     assert!(config.registration.enabled);

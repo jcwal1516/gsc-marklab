@@ -20,52 +20,46 @@ pub struct NullModelSensitivityResult {
     pub results: Vec<NeighborhoodEnrichmentResult>,
 }
 
-pub(super) fn analyze_null_model_sensitivity(
+pub(super) fn analyze_null_model(
     fused: &[FusedCell],
     graph: &SpatialGraph,
     label_pairs: &[LabelPair],
-    null_models: &[NeighborhoodNullModel],
+    null_model: NeighborhoodNullModel,
     primary_source_section: &[NeighborhoodEnrichmentResult],
     permutations: usize,
     seed: u64,
-) -> Result<Vec<NullModelSensitivityResult>> {
-    null_models
-        .iter()
-        .copied()
-        .map(|null_model| {
-            let results = match null_model {
-                NeighborhoodNullModel::SourceSection => primary_source_section.to_vec(),
-                NeighborhoodNullModel::SourceSectionDensity => edge_enrichment_with_strata(
-                    fused,
-                    graph,
-                    label_pairs,
-                    permutations,
-                    seed,
-                    &source_section_density_strata(fused, graph),
-                )?,
-                NeighborhoodNullModel::SourceSectionCellClass => edge_enrichment_with_strata(
-                    fused,
-                    graph,
-                    label_pairs,
-                    permutations,
-                    seed,
-                    &source_section_cell_class_strata(fused),
-                )?,
-                NeighborhoodNullModel::SourceSectionRegistrationQc => edge_enrichment_with_strata(
-                    fused,
-                    graph,
-                    label_pairs,
-                    permutations,
-                    seed,
-                    &source_section_registration_qc_strata(fused, graph),
-                )?,
-            };
-            Ok(NullModelSensitivityResult {
-                null_model,
-                results,
-            })
-        })
-        .collect()
+) -> Result<NullModelSensitivityResult> {
+    let results = match null_model {
+        NeighborhoodNullModel::SourceSection => primary_source_section.to_vec(),
+        NeighborhoodNullModel::SourceSectionDensity => edge_enrichment_with_strata(
+            fused,
+            graph,
+            label_pairs,
+            permutations,
+            seed,
+            &source_section_density_strata(fused, graph),
+        )?,
+        NeighborhoodNullModel::SourceSectionCellClass => edge_enrichment_with_strata(
+            fused,
+            graph,
+            label_pairs,
+            permutations,
+            seed,
+            &source_section_cell_class_strata(fused),
+        )?,
+        NeighborhoodNullModel::SourceSectionRegistrationQc => edge_enrichment_with_strata(
+            fused,
+            graph,
+            label_pairs,
+            permutations,
+            seed,
+            &source_section_registration_qc_strata(fused, graph),
+        )?,
+    };
+    Ok(NullModelSensitivityResult {
+        null_model,
+        results,
+    })
 }
 
 fn source_section_density_strata(fused: &[FusedCell], graph: &SpatialGraph) -> Vec<String> {
