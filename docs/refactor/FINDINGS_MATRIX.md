@@ -39,16 +39,16 @@ Every registered finding remains present until it is fixed, disproved with speci
 | DUP-07 | Timing and manifest construction are duplicated | Pending | Pending investigation | Pending | Pending | — | Open |
 | DUP-08 | Curve-test DTO construction is duplicated | Pending | Pending investigation | Pending | Pending | — | Open |
 | DUP-09 | Effective geometry is calculated using inconsistent definitions | Pending | Pending investigation | Pending | Pending | — | Open |
-| PERF-01 | spatial_index.rs is quadratic and is not a spatial index | Pending | Pending investigation | Pending | Pending | — | Open |
-| PERF-02 | Radius graph construction is quadratic | Pending | Pending investigation | Pending | Pending | — | Open |
-| PERF-03 | kNN graph construction sorts all other cells for every cell | Pending | Pending investigation | Pending | Pending | — | Open |
-| PERF-04 | Pair correlation recalculates all pair distances | Pending | Pending investigation | Pending | Pending | — | Open |
-| PERF-05 | Territory detection repeats neighborhood scans | Pending | Pending investigation | Pending | Pending | — | Open |
-| PERF-06 | Profile membership repeatedly scans every cell | Pending | Pending investigation | Pending | Pending | — | Open |
-| PERF-07 | Million-cell benchmark is not credible with quadratic nearest-neighbor calculation | Pending | Pending investigation | Pending | Pending | — | Open |
-| PERF-08 | Spectrum stores large nested mode-power matrices | Pending | Pending investigation | Pending | Pending | — | Open |
-| PERF-09 | Repeated metadata and label allocations | Pending | Pending investigation | Pending | Pending | — | Open |
-| PERF-10 | Complete results and cell tables are cloned for output | Pending | Pending investigation | Pending | Pending | — | Open |
+| PERF-01 | spatial_index.rs is quadratic and is not a spatial index | Yes — source is a nested all-pairs loop; doubling took 3.45× and 3.30× | Pending Phase 6 index | Existing example test; differential suite pending | Baseline 256/512/1,024 | — | Confirmed |
+| PERF-02 | Radius graph construction is quadratic | Yes — inspected all-pairs graph builder; doubling took 3.53× and 3.51× at fixed density | Pending Phase 6 radius queries | Existing graph examples; brute-force differential pending | 930/1,913/3,906 edges recorded | — | Confirmed |
+| PERF-03 | kNN graph construction sorts all other cells for every cell | Yes — source sorts per node; doubling took 4.02× and 4.28× | Pending Phase 6 indexed kNN | Existing deterministic tie tests; differential pending | Baseline k=8 | — | Confirmed |
+| PERF-04 | Pair correlation recalculates all pair distances | Yes — nested pair loop rebuilt per labels; doubling took 3.55× and 3.89× | Pending PairCorrelationPlan | Existing numerical example; plan differential pending | Baseline radius 5 | — | Confirmed |
+| PERF-05 | Territory detection repeats neighborhood scans | Yes — marked candidates scan every cell and multimodal neighbor lists are all-pairs; scaling is strongly superlinear | Pending shared index/neighborhood plans | Existing territory examples; differential pending | Three-size marked/multimodal baselines | — | Confirmed |
+| PERF-06 | Profile membership repeatedly scans every cell | Yes — `profile_for_territory` iterates all fused cells for every territory | Pending indexed radius lookup | Existing profile examples; indexed differential pending | Initial fixture is below timing noise; larger workload required | — | Confirmed |
+| PERF-07 | Million-cell benchmark is not credible with quadratic nearest-neighbor calculation | Yes — existing bench builds one giant CSV String and loading invokes quadratic nearest-neighbor finalization | Pending Phase 6/12 remediation | Manual scheduled workload pending | Deliberately not run; infeasible claim documented | — | Confirmed |
+| PERF-08 | Spectrum stores large nested mode-power matrices | Yes — three paths allocate `B × modes` nested vectors | Pending Phase 7 shell-level storage | Existing numerical tests; storage differential pending | Baseline observed/binary/probabilistic paths and RSS recorded | — | Confirmed |
+| PERF-09 | Repeated metadata and label allocations | Yes — `FusedCell` repeats run strings and `primary_label` allocates a String for every access | Pending compact labels/shared metadata | Allocation-focused coverage pending | Complete multimodal baseline recorded | — | Confirmed |
+| PERF-10 | Complete results and cell tables are cloned for output | Yes — CLI clones marked/multimodal results and fused-cell tables before output | Pending ownership/borrowing refactor | Output equivalence tests pending | Complete-run baseline recorded | — | Confirmed |
 | MODEL-01 | TerritoryFeature overloads unrelated algorithms | Pending | Pending investigation | Pending | Pending | — | Open |
 | MODEL-02 | Public fields are present but not implemented | Pending | Pending investigation | Pending | Pending | — | Open |
 | MODEL-03 | String statuses and interpretation classes | Pending | Pending investigation | Pending | Pending | — | Open |

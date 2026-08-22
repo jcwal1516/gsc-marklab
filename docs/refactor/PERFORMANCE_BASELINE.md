@@ -1,27 +1,89 @@
 # Performance Baseline
 
-## Baseline environment
+## Baseline identity
 
 - Plan version: 1.0
-- Git SHA: `a642fbcdd80b5baf784cd633b707dc0283a24d11`
+- Production baseline SHA: `a642fbcdd80b5baf784cd633b707dc0283a24d11`
+- Benchmark-harness SHA: `ba7dd9fcc661affa4f4cdb910a590b043eef0681`
 - Branch: `refactor/audit-remediation`
-- Timestamp: 2026-08-21T21:53:08-04:00
+- Recorded: 2026-08-21
 - OS: macOS 26.5.2 (build 25F84), Darwin 25.5.0, arm64
 - CPU: Apple M4 Pro
 - Memory: 51,539,607,552 bytes (48 GiB)
 - Rust: `rustc 1.96.0 (ac68faa20 2026-05-25)`
 - Cargo: `cargo 1.96.0 (30a34c682 2026-05-25)`
-- Compiler profile: To be recorded per benchmark; Criterion defaults are not assumed to represent every production workload
-- Thread count: To be recorded per benchmark
+- Compiler profile: release, optimized with the repository's release profile
+- Thread count: 1
+- Repeated samples: 5 timed samples after one untimed warm-up
+- Point layout: deterministic unit-spaced grids at approximately one point per square unit
+- Peak-memory measure: macOS `/usr/bin/time -l` maximum resident set size for each grouped benchmark process
 
-## Methodology
+The harness is test-only and does not expose private algorithms through the public library API. Each repeated operation must return the same checksum as its warm-up, so timing samples cannot silently measure different work.
 
-For every required workload, record at least three representative input sizes where scaling is material, with point density, edge count, permutation count, thread count, repeated wall-time samples, peak memory, compiler profile, and exact command. Benchmarks must verify equivalent outputs before comparisons are treated as performance evidence.
+## Exact execution pattern
 
-## Baseline results
+The release test binary was built with:
 
-Baseline measurements have not yet been run. Results will be added for nearest-neighbor distance, radius graph, kNN graph, pair correlation, marked and multimodal territories, territory profiles, observed and permutation structure-factor paths, probabilistic-mark spectrum, CSV and Parquet loading, and complete marked and multimodal analyses.
+`cargo +1.96.0 test --release --locked --all-features --lib --no-run`
 
-## Known measurement limitations
+The resulting binary was `target/release/deps/marklab-2ec00e9ec7e4aad3`. Each group was run as:
 
-No baseline performance claim has been made. Peak-memory tooling, stable fixture generators, and feasible workload ranges must be established before Phase 0 closes.
+`/usr/bin/time -l env MARKLAB_BASELINE_SAMPLES=5 target/release/deps/marklab-2ec00e9ec7e4aad3 <filter> --ignored --nocapture --test-threads=1`
+
+Filters were `baseline_perf_nearest_neighbor`, `baseline_perf_radius_and_knn_graph`, `baseline_perf_pair_correlation`, `baseline_perf_territories_and_profiles`, `baseline_perf_structure_factor_observed`, `baseline_perf_structure_factor_permutations`, `baseline_perf_probabilistic_spectrum`, `baseline_perf_csv_and_parquet_load`, `baseline_perf_complete_marked_analysis`, and `baseline_perf_complete_multimodal_analysis`. All final runs exited 0.
+
+## Median wall time
+
+Times are median milliseconds. Ratios compare each size with the preceding size.
+
+| Workload | Sizes | Median ms | Doubling ratios | Output/workload details |
+| --- | --- | --- | --- | --- |
+| Nearest-neighbor distance | 256 / 512 / 1,024 points | 0.167 / 0.578 / 1.904 | 3.45× / 3.30× | Mean distance checksum identical at all sizes |
+| Radius graph | 256 / 512 / 1,024 points | 0.080 / 0.283 / 0.992 | 3.53× / 3.51× | Radius 1.5; 930 / 1,913 / 3,906 undirected edges |
+| kNN graph | 256 / 512 / 1,024 points | 0.957 / 3.850 / 16.462 | 4.02× / 4.28× | k=8; 1,062 / 2,103 / 4,166 normalized undirected edges |
+| Pair correlation | 256 / 512 / 1,024 points | 0.034 / 0.119 / 0.463 | 3.55× / 3.89× | Bin width 1.0; maximum radius 5.0 |
+| Marked residual territories | 256 / 512 / 1,024 points | 0.031 / 0.159 / 0.625 | 5.12× / 3.93× | Three scales, min z=0; 11 / 25 / 25 territories |
+| Multimodal territories | 256 / 512 / 1,024 fused cells | 0.048 / 0.154 / 0.414 | 3.21× / 2.70× | eps=1.5; half the fixture is MMR-abnormal IHC |
+| Territory profiles | 256 / 512 / 1,024 fused cells | 0.044 / 0.050 / 0.048 | 1.14× / 0.95× | 16 fixed territories; timings are near the measurement-noise floor |
+| Structure factor, observed | 64 / 128 / 256 cells | 0.067 / 0.305 / 1.242 | 4.58× / 4.07× | 196 / 440 / 796 modes, 8 shells |
+| Structure-factor permutations | 64 / 128 / 256 cells | 0.350 / 1.012 / 3.056 | 2.90× / 3.02× | 19 permutations, 8 shells |
+| Probabilistic-mark spectrum | 64 / 128 / 256 cells | 0.473 / 1.262 / 4.153 | 2.67× / 3.29× | 19 permutations, 8 shells |
+| CSV load | 256 / 512 / 1,024 rows | 0.177 / 0.453 / 1.372 | 2.55× / 3.03× | Includes filtering and quadratic nearest-neighbor finalization; fixture generation excluded |
+| Parquet load | 256 / 512 / 1,024 rows | 0.283 / 0.544 / 1.436 | 1.92× / 2.64× | Includes filtering and quadratic nearest-neighbor finalization; fixture generation excluded |
+| Complete marked analysis | 64 / 128 / 256 cells | 0.795 / 2.340 / 7.636 | 2.94× / 3.26× | 19 permutations, one thread |
+| Complete multimodal analysis | 48 / 96 / 192 fused output cells | 0.386 / 1.040 / 3.096 | 2.70× / 2.98× | Equal H&E/IHC inputs, 19 permutations, one thread |
+
+## Peak resident memory
+
+These figures include the release test process, fixtures retained by the grouped test, and allocator/runtime overhead. They are suitable for before/after comparisons on the same machine and command, not as isolated algorithm allocation counts.
+
+| Group | Maximum resident set size |
+| --- | ---: |
+| Nearest neighbor | 7,192,576 bytes (6.86 MiB) |
+| Radius and kNN graphs | 8,159,232 bytes (7.78 MiB) |
+| Pair correlation | 7,372,800 bytes (7.03 MiB) |
+| Marked/multimodal territories and profiles | 8,339,456 bytes (7.95 MiB) |
+| Observed structure factor | 7,520,256 bytes (7.17 MiB) |
+| Structure-factor permutations | 8,978,432 bytes (8.56 MiB) |
+| Probabilistic-mark spectrum | 8,896,512 bytes (8.48 MiB) |
+| CSV and Parquet loading | 12,320,768 bytes (11.75 MiB) |
+| Complete marked analysis | 9,469,952 bytes (9.03 MiB) |
+| Complete multimodal analysis | 8,519,680 bytes (8.13 MiB) |
+
+## Baseline conclusions
+
+- The kNN graph is unambiguously quadratic at these sizes: both doublings are approximately 4×.
+- Radius graph, pair correlation, nearest-neighbor distance, marked territories, and multimodal territories also exhibit strongly superlinear growth consistent with the inspected all-pairs implementations.
+- CSV and Parquet loading inherit quadratic nearest-neighbor finalization, so decoder throughput cannot be interpreted independently from geometry at larger sizes.
+- Spectral observed work grows with both cells and mode count; the measured mode counts increase from 196 to 796 across the three sizes.
+- Permutation spectra are already material but these small baselines do not isolate allocation cost or mode-level matrix peak memory. Phase 7 must retain shell/mode counts and use DHAT or equivalent allocation evidence.
+- Territory-profile timings are too small and noisy for a defensible scaling claim at the current radius and 16-territory fixture. A larger profile-specific workload is required before PERF-06 is closed.
+- The multimodal “million-cell” claim is not exercised because the production nearest-neighbor, graph, pair, and territory paths are still quadratic. Running that workload now would be misleading and impractical.
+
+## Known limitations
+
+- Five samples are enough to establish the large algorithmic gaps above, but not to claim small percentage improvements.
+- Peak RSS is grouped-process memory, not per-function allocation attribution.
+- Fixed-density grids cover a representative bounded-radius case but not sparse, clustered, duplicate-coordinate, or adversarial distributions.
+- Complete-run fixtures use 19 permutations so Phase 0 remains practical; final performance work must report production-relevant permutation counts.
+- Baseline measurements were made after the test-only harness was committed. Production algorithm code remained identical to the base SHA.

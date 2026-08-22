@@ -1,18 +1,18 @@
 # Current Refactor Status
 
 Plan version: 1.0
-Current repository SHA: `1ff9459aa260096bd14c737c7cec093af243bd66`
+Current repository SHA: `ba7dd9fcc661affa4f4cdb910a590b043eef0681`
 Current branch: `refactor/audit-remediation`
-Current phase: Phase 0 — Baseline, evidence, and reproducibility
-Current workstream: Performance-baseline coverage and measurement
-Last completed requirement IDs: Phase 0 §§7.1–7.4; COR-01–COR-07, MODEL-04, OUT-01, OUT-04/05, and OUT-06 have explicit failing regressions or direct reproduction evidence
-Requirements currently in progress: Phase 0 §7.5 benchmark coverage, scaling measurements, peak-memory capture, and baseline report
+Current phase: Phase 1 — Foundational shared utilities and invariants
+Current workstream: Canonical statistics semantics, seed namespaces, and finite result boundary
+Last completed requirement IDs: Phase 0 §§7.1–7.5; COR-01–COR-07, MODEL-04, OUT-01, OUT-04/05, OUT-06, and PERF-01–PERF-10 reproduced; performance baseline recorded
+Requirements currently in progress: Phase 1 §§8.1–8.4; DUP-01, DUP-02, DUP-03, finite-value policy, touched-endpoint seed derivation, and explicit imports
 Known failing commands: `lsp outline src/spectra/structure_factor.rs --project /Users/user/Bench/marklab-refactor` failed with a client capability error after the initial `src/lib.rs` outline succeeded; textual fallback is in use. All mandated baseline verification commands passed.
 Known failing tests: Twelve ignored `remediation_*` tests fail intentionally when run with `--ignored`: COR-01 engine calls, COR-02 rotation, COR-03 distinct nulls, COR-04 finite enrichment and JSON round-trip, COR-05 empty bins, COR-06 axes, COR-07 QC denominator, MODEL-04 component mode, OUT-01 telemetry, OUT-04/05 optional absence, and OUT-06 traversal. Exact evidence is in `docs/refactor/REGRESSION_REPRODUCTIONS.md`.
-Dirty files: Phase 0 regression changes in `src/io/parquet_tests.rs`, `src/multimodal/{engine.rs,mod.rs}`, `src/neighborhood/tests.rs`, `src/output/tests.rs`, `src/prepost/tests.rs`, `src/registration/tests.rs`, `src/spectra/tests.rs`, `src/validation/tests.rs`, `tests/{cli.rs,engine_spectrum.rs}`; records in `docs/refactor/{BASELINE_VERIFICATION.md,FINDINGS_MATRIX.md,REGRESSION_REPRODUCTIONS.md,STATUS.md}`
-Recent decisions: Preserve the dirty `branch/spatial-phenotype-recovery` checkout untouched; use the clean linked worktree. Treat RUSTSEC-2026-0253 as a real transitive risk but not a currently triggerable Marklab path because the reachable WSI cache keys have non-panicking drops and no relevant `catch_unwind`; evaluate the patched dependency separately from baseline capture.
-Unresolved technical questions: Precise result-0.3 availability representation, confounding sensitivity result ownership, spatial-index backend, benchmark peak-memory mechanism, feasible pre-index baseline sizes, and safe transitive `lru` upgrade path remain undecided pending measurements
-Next three concrete actions: (1) commit the verified Phase 0 failing-regression checkpoint; (2) add missing benchmark coverage with correctness checks and at least three scaling sizes; (3) run the baseline benchmarks and record wall time, scaling, memory, density, edge counts, permutations, threads, profile, and SHA
-Next verification command: `cargo +1.96.0 bench --locked --all-features --no-run`
+Dirty files: `docs/refactor/PERFORMANCE_BASELINE.md`, `docs/refactor/FINDINGS_MATRIX.md`, `docs/refactor/DECISIONS.md`, and `docs/refactor/STATUS.md` contain the Phase 0 closure and Phase 1 transition
+Recent decisions: Phase 0 is closed at harness SHA `ba7dd9f`; desired-contract regressions remain ignored until fixed. The finite/statistical foundation will use concrete functions with explicit missing/non-finite and denominator semantics, not a generic statistics framework.
+Unresolved technical questions: Exact equivalence among existing median definitions, which call sites intentionally ignore non-finite inputs, historical seed-output compatibility, and the narrowest authoritative serialized-float validation boundary must be resolved by call-site inspection and tests
+Next three concrete actions: (1) map every existing statistic and permutation p-value helper to its actual semantics and callers; (2) add red tests for canonical statistics, safe ratios, finite validation, and domain-separated seeds; (3) implement the smallest common modules and migrate only semantically equivalent callers
+Next verification command: `cargo +1.96.0 test --locked --all-features --lib common::stats -- --test-threads=1`
 Performance baseline location: `docs/refactor/PERFORMANCE_BASELINE.md`
-Last updated: 2026-08-21T22:13:47-04:00
+Last updated: 2026-08-21T22:28:22-04:00
