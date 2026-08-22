@@ -5,7 +5,7 @@ These tests encode the corrected contract but remain ignored until their owning 
 | Requirement | Test | Observed failing evidence |
 | --- | --- | --- |
 | COR-01 | `validation::tests::remediation_multimodal_validation_calls_the_public_engine` | Six scenario replicates produced zero `MultimodalEngine::analyze` calls. |
-| COR-02 | `registration::tests::remediation_rigid_registration_recovers_known_rotation` | The configured path produced `scale_translation` with zero scale and mapped the known rotated point to x=8.5 instead of x=8.0. |
+| COR-02 | `registration::tests::rigid_rotation` (formerly ignored as `remediation_rigid_registration_recovers_known_rotation`) | Baseline produced `scale_translation` with zero scale and mapped the known rotated point to x=8.5 instead of x=8.0. The enabled test now passes through the true rigid fit in `53e2348`. |
 | COR-03 | `remediation_confounding_compares_unstratified_and_stratified_results` | The fixture's unstratified endpoint was significant and its stratified endpoint was not, but the result had no `ConfoundedBySpatialStrata` flag because the primary stratified result was compared with a stratified recomputation. |
 | COR-04 | `neighborhood::tests::remediation_sparse_enrichment_statistics_are_finite_or_typed_undefined` | A positive observed edge count with zero expected edges produced `enrichment_ratio: inf` and a fabricated zero z-score. |
 | COR-04 | `neighborhood::tests::remediation_sparse_enrichment_roundtrips_through_json` | Serde emitted the infinite ratio as JSON `null`; deserialization then failed with “invalid type: null, expected f64”. |
