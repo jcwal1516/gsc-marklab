@@ -39,6 +39,9 @@ semantics.
   `analysis_scale_um`, `residual_score`, and `supporting_marked_cells`.
 - Configuration `[wavelet]` is rejected; use `[multiscale_residual]`. Artifact
   filenames use the corresponding scale-energy and residual-territory names.
+- Internal/public Rust names referring to a Bartlett periodogram are removed.
+  The diagnostic is a Hann-tapered raster periodogram, and `low_k_shells` now
+  counts radial shells rather than individual modes sorted by radius.
 - A stratified spectrum declares
   `stratified_fixed_position_random_labeling` as its primary null.
 - Mark-homogeneous spectrum strata are reported with

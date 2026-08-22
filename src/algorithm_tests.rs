@@ -5,10 +5,10 @@ use crate::{
         scale_radius::neighborhood_radius_from_scale, territories::detect_residual_territories,
     },
     periodogram::{
-        bartlett::marked_bartlett_periodogram,
         fft2::fft2_power_spectrum,
         raster::{centered_mark_raster, RasterSpec},
         taper::hann_weight,
+        tapered::hann_tapered_raster_periodogram,
     },
     spectra::anisotropy::anisotropy_from_weighted_modes,
     Pattern,
@@ -95,7 +95,7 @@ fn centered_mark_raster_accumulates_centered_labels_into_cells() {
 }
 
 #[test]
-fn marked_bartlett_periodogram_reports_finite_low_k_summary() {
+fn hann_tapered_raster_periodogram_reports_finite_low_k_summary() {
     let mut x = Vec::new();
     let mut y = Vec::new();
     let mut marks = Vec::new();
@@ -109,13 +109,61 @@ fn marked_bartlett_periodogram_reports_finite_low_k_summary() {
     let mut pattern = Pattern::from_arrays(x, y, marks, meta()).expect("pattern");
     pattern.window.d_nn_mean_um = 1.0;
 
-    let summary = marked_bartlett_periodogram(&pattern, 1.0, 2).expect("periodogram");
+    let summary = hann_tapered_raster_periodogram(&pattern, 1.0, 2).expect("periodogram");
 
     assert_eq!(summary.raster_width, 4);
     assert_eq!(summary.raster_height, 4);
     assert!(summary.n_modes > 0);
+    assert!(summary.n_radial_shells > 0);
+    assert!(summary.n_modes > summary.n_radial_shells);
     assert!(summary.low_k_power.is_finite());
     assert!(summary.normalized_low_k_power.is_finite());
+}
+
+#[test]
+fn tapered_periodogram_groups_all_modes_in_each_radial_shell() {
+    let mut x_um = Vec::new();
+    let mut y_um = Vec::new();
+    let mut marks = Vec::new();
+    for y in 0..5 {
+        for x in 0..5 {
+            x_um.push(x as f64);
+            y_um.push(y as f64);
+            marks.push(u8::from((x + 2 * y) % 5 <= 1));
+        }
+    }
+    let pattern = Pattern::from_arrays(x_um, y_um, marks, meta()).expect("pattern");
+    let summary = hann_tapered_raster_periodogram(&pattern, 1.0, 1).expect("periodogram");
+
+    let (spec, mut raster) = centered_mark_raster(&pattern, 1.0).expect("raster");
+    for y in 0..spec.height {
+        for x in 0..spec.width {
+            raster[y * spec.width + x] *=
+                (hann_weight(x, spec.width) * hann_weight(y, spec.height)) as f32;
+        }
+    }
+    let power = fft2_power_spectrum(&raster, spec.width, spec.height).expect("power");
+    let shell_width = 1.0 / spec.width.max(spec.height) as f64;
+    let mut shells = std::collections::BTreeMap::<usize, (f64, usize)>::new();
+    for y in 0..spec.height {
+        for x in 0..spec.width {
+            if x == 0 && y == 0 {
+                continue;
+            }
+            let fx = x.min(spec.width - x) as f64 / spec.width as f64;
+            let fy = y.min(spec.height - y) as f64 / spec.height as f64;
+            let shell = (fx.hypot(fy) / shell_width).floor() as usize;
+            let entry = shells.entry(shell).or_default();
+            entry.0 += power[y * spec.width + x];
+            entry.1 += 1;
+        }
+    }
+    let (sum, count) = shells
+        .into_values()
+        .find(|(_, count)| *count > 0)
+        .expect("first nonempty radial shell");
+
+    assert_abs_diff_eq!(summary.low_k_power, sum / count as f64, epsilon = 1e-12);
 }
 
 #[test]

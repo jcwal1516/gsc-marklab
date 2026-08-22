@@ -68,6 +68,13 @@ marked-cell neighborhoods whose binomial standardized residual exceeds
 rule is `radius_um = sqrt(2) * analysis_scale_um`; no Gaussian filtering is
 performed. QC overlap is `null` until an actual overlap calculation exists.
 
+The periodogram diagnostic rasterizes centered marks, applies one separable
+Hann taper, and computes one 2-D FFT. Radial annuli use width
+`1 / (max(raster_width, raster_height) * cell_size_um)`. Power is averaged over
+all modes in each nonempty annulus, and `spectrum.low_k_shells` selects the
+lowest nonempty shell means with equal weight. This is a Hann-tapered raster
+periodogram, not a Bartlett segment-averaged estimator.
+
 ## Inference
 
 Extreme-rank-length envelopes match CRAN GET 1.0-7 `type="erl"`: the observed

@@ -75,6 +75,11 @@ Difference-of-Gaussians transform. It combines local neighbor-difference energy,
 variance of 2x2 block means, and a residual share, then evaluates the resulting
 three-point scale-energy curve under label permutations.
 
+The optional raster spectral cross-check is a single Hann-tapered 2-D
+periodogram, not a Bartlett averaged-periodogram estimator. It averages mode
+power within physical radial-frequency shells before summarizing the requested
+lowest shells.
+
 ## WSI commands
 
 ```bash

@@ -71,6 +71,11 @@ calculation is available.
 Artifacts are named `scale_energy.parquet`, `scale_energy.svg`,
 `residual_territories.geojson`, and `residual_territory_overlay.svg`.
 
+The raster spectral QC diagnostic is implemented and named internally as a
+Hann-tapered raster periodogram. It is not serialized as a Bartlett estimator.
+Its low-frequency quantity aggregates all modes into deterministic physical
+radial shells before selecting the configured number of low-k shells.
+
 ## Input QC fractions
 
 Every input QC fraction uses the number of cells inside the tumor mask as its

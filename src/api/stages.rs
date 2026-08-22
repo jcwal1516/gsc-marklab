@@ -9,8 +9,8 @@ use crate::{
         territories::{detect_residual_territories, ResidualTerritoryCandidate},
     },
     output::{FunctionalSummary, PairCorrelationPoint, ResidualTerritory, ScaleEnergyPoint},
-    periodogram::bartlett::marked_bartlett_periodogram,
     periodogram::raster::{centered_mark_raster, centered_mark_raster_for_marks},
+    periodogram::tapered::hann_tapered_raster_periodogram,
     permutation::envelopes::GlobalEnvelope,
     spectra::pair_correlation::{pair_correlation, pair_correlation_for_marks},
 };
@@ -387,7 +387,7 @@ pub(super) fn periodogram_disagrees_with_particle_spectrum(
 ) -> bool {
     let cell_size_um = pattern.window.d_nn_mean_um.max(1.0) * 0.5;
     let Some(periodogram) =
-        marked_bartlett_periodogram(pattern, cell_size_um, config.spectrum.low_k_shells)
+        hann_tapered_raster_periodogram(pattern, cell_size_um, config.spectrum.low_k_shells)
     else {
         return false;
     };
