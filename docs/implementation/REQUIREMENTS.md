@@ -56,7 +56,7 @@ Statuses are `planned`, `active`, `blocked`, `complete`, `deferred`, or `rejecte
 | A-01 | Install authoritative state/control plane | PLAT-01 | Lead | complete | `AGENTS.md`, `docs/implementation/**` | Required files, immutable-plan hash, ID coverage, and scope check recorded |
 | A-02 | Reproduce current baseline | A-01 | `a02_baseline` (read-only runner) | complete | No tracked writes; generated build output only | All gates passed after clean-tree package rerun; exact evidence in validation/performance ledgers |
 | A-03 | Contract and migration inventory | A-01 | Lead + read-only analysis | complete | Implementation docs only | Every current API/CLI/config/result/artifact/feature/workflow/test surface has a disposition |
-| B-01 | Workspace architecture decision | A-01–A-03 | Lead | active | Cargo/architecture/new immediate crates/CI | Existing root commands pass |
+| B-01 | Workspace architecture decision | A-01–A-03 | Lead | active | Root Cargo metadata/architecture test/docs only | Red/green workspace test, root/fuzz metadata, compatibility suites, workspace build/Clippy, and scope audit pass; focused commit pending |
 | B-02 | Compatibility shell | B-01 | Lead | planned | Manifests/facade/tests | Characterization parity |
 | B-03 | Workspace policy | B-01 | Lead | planned | Workspace CI/policy/tests | Feature/dependency matrix passes |
 | B-04 | Minimal project/workflow vertical slice | B-01–B-03 | Lead | planned | Focused new crates/tests | Existing marked result parity |

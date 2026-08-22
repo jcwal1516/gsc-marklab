@@ -39,3 +39,12 @@ Rows are characterization records at the implementation base. `Active task = non
 | A-01/A-03 | `/root` | `AGENTS.md`, `docs/implementation/**` | Documentation registries only | Sole tracked writer during WS-A |
 | A-02 | `a02_baseline` | None | None | Read-only; generated ignored outputs only |
 | SLIDE-INV | `remote_slide_inventory` | None | None | Read-only local/remote inventory |
+
+## WS-B active ownership
+
+| Task/agent | Writable files | Owned canonical symbols | Read-only context | Explicit non-goals |
+|---|---|---|---|---|
+| B-01 `/root` | `Cargo.toml`, `tests/workspace_contract.rs`, implementation docs | Root workspace/default-member/fuzz-boundary metadata only | All current source/tests/CI, `Cargo.lock`, and future crate roots | No new crate, lock change, scientific move, dependency change, public behavior, result/config/CLI change |
+| B-01-REVIEW `b01_architecture_review` | None | None | Cargo/public API/tests/CI and B-01 contract | Read-only critique; no edits or commands that mutate tracked state |
+
+Existing canonical scientific/config/parser/result/output symbols remain owned by the compatibility package and are read-only during B-01.

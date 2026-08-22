@@ -59,3 +59,30 @@ This file is append-only. Superseding decisions reference the prior decision; ex
 - Context: Read-only discovery found no presentation decks but found hundreds of pathology whole-slide images, CellViT outputs, embedding matrices, and provenance manifests on the authorized remote Mac.
 - Decision: Treat the remote corpus as access-controlled scientific input. Reference remote artifacts by verified digest and privacy-safe identity; never copy patient data into the repository. Do not deserialize untrusted PyTorch `.pt`/pickle files in the implementation process. A trusted, pinned converter must emit non-executable typed artifacts before ingestion.
 - Consequences: WS-C can target real CellViT/WSI contracts. Stable scientific promotion remains gated on deterministic `CellId` alignment, explicit observation windows, complete extraction semantics, and patch-embedding links.
+
+## DEC-0008 — Mechanical lock update and standalone fuzz exclusion for B-01
+
+- Date: 2026-08-22
+- Status: superseded by DEC-0009 before implementation
+- Context: Adding path-only workspace members causes Cargo to add their local package records to `Cargo.lock`. The existing `fuzz/` package has its own lockfile and must remain outside the root workspace for `cargo +nightly fuzz check`.
+- Decision: Permit the minimal generated `Cargo.lock` delta containing only `marklab-project` and `marklab-workflow` path package entries. Add `exclude = ["fuzz"]` to the root workspace. Do not change any registry dependency/version/checksum or `fuzz/Cargo.toml`/`fuzz/Cargo.lock`.
+- Alternatives: omit real workspace members; absorb fuzz into the root workspace; add a nested `[workspace]` to the fuzz manifest.
+- Consequences: locked root commands resolve every workspace member, while the existing standalone cargo-fuzz gate retains its current ownership and lockfile.
+
+## DEC-0009 — Defer project/workflow member creation until their first behavior
+
+- Date: 2026-08-22
+- Status: accepted; supersedes DEC-0008's unused permission for a B-01 path-package lock delta, while retaining the fuzz exclusion
+- Context: A read-only architecture review found that doc-only `marklab-project` and `marklab-workflow` packages would be temporarily ceremonial and contradict DEC-0006's immediate-caller rule. The master plan assigns their first real types/callers to B-04.
+- Decision: B-01 creates a root-only, non-virtual workspace with an implicit root/default member, resolver 2, shared package metadata, and `exclude = ["fuzz"]`. B-04 adds `marklab-project` and `marklab-workflow` together with failing behavior tests and their first real implementation. Restore `Cargo.lock` to no B-01 delta.
+- Alternatives: keep two time-bounded empty ownership packages; put project/workflow infrastructure in the root crate.
+- Consequences: B-01 proves Cargo/compatibility/fuzz boundaries without empty scaffolding. B-04 owns the intentional local-package lock update and dependency direction.
+
+## DEC-0010 — Keep the root package implicit in the B-01 workspace
+
+- Date: 2026-08-22
+- Status: accepted; refines DEC-0009
+- Context: With Cargo 1.96.0, explicitly listing `"."` in `workspace.members` reproduces the known nested-exclusion edge case: direct metadata for `fuzz/Cargo.toml` fails even when `exclude = ["fuzz"]` is present. Cargo's [workspace contract](https://doc.rust-lang.org/cargo/reference/workspaces.html) treats the root package of a non-virtual workspace as an implicit member and default member. The observed failure is consistent with Cargo's documented [nested-workspace `exclude` issue](https://github.com/rust-lang/cargo/issues/6745).
+- Decision: Omit `workspace.members` and `workspace.default-members` in B-01. Retain `resolver = "2"`, shared package metadata, and `exclude = ["fuzz"]`. Verify resolved/default membership through `cargo metadata` and verify the fuzz manifest independently.
+- Alternatives: add an empty `[workspace]` to `fuzz/Cargo.toml`; include fuzz in the root workspace; keep explicit `"."` and break the fuzz gate.
+- Consequences: current root commands remain root-only, the standalone fuzz manifest resolves, and B-04 can add real member paths without listing `"."`. Exact local evidence: root `cargo +1.96.0 metadata --locked --format-version 1 --no-deps` and standalone `cargo +1.96.0 metadata --locked --format-version 1 --no-deps --manifest-path fuzz/Cargo.toml` both pass in the final B-01 state; the latter failed when `members = ["."]` was present.

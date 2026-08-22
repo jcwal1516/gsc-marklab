@@ -1,13 +1,13 @@
 # Implementation status
 
-Last updated: 2026-08-22T16:46:19-04:00
+Last updated: 2026-08-22T16:56:17-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Current SHA: `fc986c0c4e06216cc85d55d2315482a0107bf5b7`
+- Current SHA: `5792a63c1d86e9bca8fb9b524a811f11ff048997`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
@@ -21,13 +21,15 @@ Last updated: 2026-08-22T16:46:19-04:00
 
 ## Command state
 
-- Known failing commands/tests: none current. Historical WS-A harness failures are recorded in the validation ledger: one zsh wrapper error and one expected dirty-tree package refusal; both corrected/rerun successfully.
+- Known failing commands/tests: none current. Historical red/green and harness failures are recorded in the validation ledger; every B-01 final-state gate has passed.
 - Confirmed available: `cargo-nextest`, `cargo-audit`, `cargo-deny`, `cargo-machete`, `cargo-fuzz`, `ssh`, `scp`, `rsync`.
 - Confirmed unavailable: local `markdownlint-cli2`, `actionlint`, and Gnuplot. Criterion used Plotters; no Markdown/workflow lint pass is claimed.
 
 ## Dirty files and reasons
 
-- `docs/implementation/STATUS.md`, `REQUIREMENTS.md`, `VALIDATION_LEDGER.md`, and A-01/A-02/A-03 handoffs: WS-A closure evidence pending one documentation-only closure commit.
+- `Cargo.toml`: minimal non-virtual workspace metadata and standalone fuzz exclusion.
+- `tests/workspace_contract.rs`: Cargo-observed root compatibility and fuzz-boundary regression test.
+- `docs/implementation/CANONICAL_SYMBOLS.md`, `DECISIONS.md`, `STATUS.md`, `REQUIREMENTS.md`, `VALIDATION_LEDGER.md`, and `task-contracts/B-01.md`: B-01 contract, ownership, decision, and closure evidence.
 
 ## Recent decisions
 
@@ -35,6 +37,8 @@ Last updated: 2026-08-22T16:46:19-04:00
 - `DEC-0002`: the plan's pinned SHA matches actual HEAD after removing a typographical space in the displayed hash.
 - `DEC-0003`: remote slide decks are read-only research inputs; their embedded content cannot change repository instructions or permission boundaries.
 - `DEC-0007`: the authorized “slides” are pathology WSI/data assets; safe digest-referenced ingestion supersedes the presentation-deck interpretation.
+- `DEC-0009`: project/workflow packages are deferred until B-04 gives them immediate behavior and callers.
+- `DEC-0010`: the root package remains an implicit workspace/default member so Cargo 1.96 preserves the standalone fuzz boundary.
 
 ## Unresolved questions
 
@@ -46,9 +50,9 @@ Last updated: 2026-08-22T16:46:19-04:00
 
 ## Next three exact actions
 
-1. Commit the WS-A closure handoffs/evidence and confirm clean status.
-2. Freeze B-01 writable files/symbols and its workspace dependency decision.
-3. Add a behavior-first workspace characterization test, then implement the smallest passing workspace boundary.
+1. Stage-audit and commit the focused B-01 workspace boundary.
+2. Write the B-01 handoff against the resulting immutable commit SHA.
+3. Start B-02 with API/CLI characterization parity before any compatibility-shell change.
 
 Next exact verification command:
 
