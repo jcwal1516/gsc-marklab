@@ -3,12 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     comparison::{
         margin_assessment::curve_margin_assessment,
-        pooled_bin_difference::pooled_bin_difference_diagnostic,
+        pooled_bin_difference::pooled_bin_difference_diagnostic, result::CurveComparisonAnalysis,
     },
-    output::{
-        CrossInteractionCurve, CurveComparisonAvailability, CurveComparisonMethod,
-        CurveComparisonResult,
-    },
+    output::{CrossInteractionCurve, CurveComparisonMethod, CurveComparisonResult},
 };
 
 use super::axes::cross_interaction_axes_aligned;
@@ -140,18 +137,14 @@ fn curve_comparison_error(
     metric: &str,
     interpretation: String,
 ) -> CurveComparisonResult {
-    CurveComparisonResult {
-        comparison_name: comparison_name.to_owned(),
-        method: CurveComparisonMethod::Unavailable,
-        metric: metric.to_owned(),
-        availability: CurveComparisonAvailability::InsufficientData,
-        statistic: None,
-        unavailable_reason: Some(interpretation.clone()),
-        pooled_bin_p_value: None,
-        margin: None,
-        within_margin: None,
+    CurveComparisonAnalysis::insufficient_data(
+        comparison_name,
+        CurveComparisonMethod::Unavailable,
+        metric,
+        None,
         interpretation,
-    }
+    )
+    .into_output()
 }
 
 fn cross_curve_map(

@@ -458,3 +458,10 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Output and profiling: A new ignored manual benchmark measures the complete atomic output transaction independently of analysis: 0.874/0.859/0.939 ms at 64/128/256 cells and 12.27 MiB RSS. Profiling-only imports/helpers are correctly feature-gated, and both ordinary and `dhat-heap` warnings-denied Clippy pass. No compiler-contaminated RSS sample is used.
 - Exit verification: `cargo +1.96.0 fmt --all --check`, warnings-denied all-target/all-feature Clippy, and `cargo +1.96.0 nextest run --locked --all-features` exit 0; Nextest passes 372/372 with 21 expected skips (the additional manual output benchmark). The standard all-feature suite passes 270 library tests with 20 skips and every integration suite. Documentation tests, no-default-features, and the exact WSI command pass; WSI runs 10 local fixtures with one scheduled external-fixture skip.
 - Status: Accepted; `PERFORMANCE_FINAL.md` is the authoritative final performance report. Phase 12 §§19.1–19.6 are closed and Phase 13 is active.
+
+## 2026-08-22 — Curve comparisons have one typed output projection
+
+- Context: Pooled-bin diagnostics, descriptive margins, territory-profile comparisons, and unavailable pre/post cases independently filled the same ten-field result DTO. Although Phase 2 removed fake zero statistics, the duplicated literals could still combine method-specific optional fields inconsistently.
+- Decision: Represent producer state with the internal `CurveComparisonAnalysis` enum. Its pooled-bin, descriptive-margin, and insufficient-data variants encode the valid field combinations. One `into_output` conversion is the only production `CurveComparisonResult` literal; the public 0.3 JSON shape remains unchanged.
+- Evidence: The new behavior-focused conversion test failed before the typed module existed and passes after implementation. Thirteen territory-profile, thirteen pre/post, and sixteen output tests pass. A production source search finds the result literal only in the conversion function.
+- Status: Accepted; DUP-08 closed.

@@ -805,3 +805,26 @@ fn prepost_flags_nonmatching_case_or_protein_as_not_anatomically_comparable() {
         .interpretation_text
         .contains("not anatomically comparable"));
 }
+
+#[test]
+fn typed_curve_comparison_converts_to_one_valid_output_shape() {
+    let result = crate::comparison::result::CurveComparisonAnalysis::descriptive_margin(
+        "spectrum",
+        0.125,
+        Some(0.25),
+        Some(true),
+        "within the requested margin".into(),
+    )
+    .into_output();
+
+    assert_eq!(
+        result.method,
+        crate::CurveComparisonMethod::DescriptiveMargin
+    );
+    assert_eq!(result.availability, CurveComparisonAvailability::Available);
+    assert_eq!(result.statistic, Some(0.125));
+    assert_eq!(result.margin, Some(0.25));
+    assert_eq!(result.within_margin, Some(true));
+    assert_eq!(result.pooled_bin_p_value, None);
+    assert_eq!(result.unavailable_reason, None);
+}

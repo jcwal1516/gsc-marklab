@@ -1,12 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    comparison::curves::max_abs_standardized_difference,
+    comparison::{curves::max_abs_standardized_difference, result::CurveComparisonAnalysis},
     errors::{MarklabError, Result},
     geom::spatial_index::SpatialIndex2D,
     multimodal::{cells::FusedCell, labels::primary_label},
     output::{
-        CurveComparisonAvailability, CurveComparisonResult, LabelFraction, NeighborhoodTerritory,
+        CurveComparisonMethod, CurveComparisonResult, LabelFraction, NeighborhoodTerritory,
         TerritoryProfile,
     },
 };
@@ -83,21 +83,16 @@ pub fn compare_territory_profiles(
             let statistic = max_abs_standardized_difference(&left_vector, &right_vector)?;
             let within_margin = margin.map(|margin| statistic <= margin);
 
-            tests.push(CurveComparisonResult {
-                comparison_name: format!(
-                    "territory_{}_vs_{}",
-                    left.territory_id, right.territory_id
-                ),
-                method: crate::output::CurveComparisonMethod::DescriptiveMargin,
-                metric: "max_abs_standardized_difference".into(),
-                availability: CurveComparisonAvailability::Available,
-                statistic: Some(statistic),
-                unavailable_reason: None,
-                pooled_bin_p_value: None,
-                margin,
-                within_margin,
-                interpretation: interpretation_for(statistic, margin, within_margin),
-            });
+            tests.push(
+                CurveComparisonAnalysis::descriptive_margin(
+                    &format!("territory_{}_vs_{}", left.territory_id, right.territory_id),
+                    statistic,
+                    margin,
+                    within_margin,
+                    interpretation_for(statistic, margin, within_margin),
+                )
+                .into_output(),
+            );
         }
     }
     Ok(tests)
@@ -272,18 +267,14 @@ fn no_profile_data_result(
     right: &TerritoryProfile,
     margin: Option<f64>,
 ) -> CurveComparisonResult {
-    CurveComparisonResult {
-        comparison_name: format!("territory_{}_vs_{}", left.territory_id, right.territory_id),
-        method: crate::output::CurveComparisonMethod::DescriptiveMargin,
-        metric: "max_abs_standardized_difference".into(),
-        availability: CurveComparisonAvailability::InsufficientData,
-        statistic: None,
-        unavailable_reason: Some("no known cell-type labels are available for this territory pair".into()),
-        pooled_bin_p_value: None,
+    CurveComparisonAnalysis::insufficient_data(
+        &format!("territory_{}_vs_{}", left.territory_id, right.territory_id),
+        CurveComparisonMethod::DescriptiveMargin,
+        "max_abs_standardized_difference",
         margin,
-        within_margin: None,
-        interpretation: "insufficient territory profile data: no known cell-type labels are available for this pair; a descriptive margin assessment is unavailable".into(),
-    }
+        "insufficient territory profile data: no known cell-type labels are available for this pair; a descriptive margin assessment is unavailable".into(),
+    )
+    .into_output()
 }
 
 fn interpretation_for(statistic: f64, margin: Option<f64>, within_margin: Option<bool>) -> String {

@@ -1,7 +1,7 @@
 use crate::{
-    comparison::curves::max_abs_standardized_difference,
+    comparison::{curves::max_abs_standardized_difference, result::CurveComparisonAnalysis},
     errors::{MarklabError, Result},
-    output::{CurveComparisonAvailability, CurveComparisonResult},
+    output::CurveComparisonResult,
 };
 
 /// Compare two curves against an optional maximum standardized-difference margin.
@@ -33,18 +33,14 @@ pub fn curve_margin_assessment(
         ),
     };
 
-    Ok(CurveComparisonResult {
-        comparison_name: comparison_name.to_owned(),
-        method: crate::output::CurveComparisonMethod::DescriptiveMargin,
-        metric: "max_abs_standardized_difference".into(),
-        availability: CurveComparisonAvailability::Available,
-        statistic: Some(statistic),
-        unavailable_reason: None,
-        pooled_bin_p_value: None,
+    Ok(CurveComparisonAnalysis::descriptive_margin(
+        comparison_name,
+        statistic,
         margin,
         within_margin,
         interpretation,
-    })
+    )
+    .into_output())
 }
 
 fn validate_margin(margin: Option<f64>) -> Result<()> {

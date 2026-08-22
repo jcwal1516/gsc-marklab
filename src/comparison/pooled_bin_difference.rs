@@ -1,9 +1,12 @@
 use crate::{
     common::seeds::{derive_seed, SeedEndpoint},
-    comparison::curves::{max_abs_standardized_difference, validate_curves},
+    comparison::{
+        curves::{max_abs_standardized_difference, validate_curves},
+        result::CurveComparisonAnalysis,
+    },
     errors::{MarklabError, Result},
     inference::scalar_pvalues::{permutation_p_value_with_spec, PermutationTestSpec, Tail},
-    output::{CurveComparisonAvailability, CurveComparisonResult},
+    output::CurveComparisonResult,
     permutation::labels::deterministic_shuffle,
 };
 
@@ -34,22 +37,17 @@ pub fn pooled_bin_difference_diagnostic(
         PermutationTestSpec::new(Tail::OneSidedHigh, 1),
     )?;
 
-    Ok(CurveComparisonResult {
-        comparison_name: comparison_name.to_owned(),
-        method: crate::output::CurveComparisonMethod::PooledBinPermutation,
-        metric: "max_abs_standardized_difference".into(),
-        availability: CurveComparisonAvailability::Available,
-        statistic: Some(statistic),
-        unavailable_reason: None,
-        pooled_bin_p_value: Some(pooled_bin_p_value),
-        margin: None,
-        within_margin: None,
-        interpretation: if pooled_bin_p_value < 0.05 {
+    Ok(CurveComparisonAnalysis::pooled_bin(
+        comparison_name,
+        statistic,
+        pooled_bin_p_value,
+        if pooled_bin_p_value < 0.05 {
             "difference detected by approximate pooled-bin permutation diagnostic; this is not a spatial or per-cell permutation test and does not prove biological causality".into()
         } else {
             "approximate pooled-bin permutation diagnostic was non-significant; this is not a spatial or per-cell permutation test and does not establish equivalence".into()
         },
-    })
+    )
+    .into_output())
 }
 
 fn permuted_statistics(a: &[f64], b: &[f64], permutations: usize, seed: u64) -> Result<Vec<f64>> {
