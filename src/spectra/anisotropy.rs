@@ -299,7 +299,7 @@ fn weighted_modes(modes: &[KMode], powers: &[f64], baselines: &[f64]) -> Vec<(f6
 }
 
 #[cfg(test)]
-fn permutation_whitened_anisotropy_dense_reference(
+pub(crate) fn permutation_whitened_anisotropy_dense_reference(
     pattern: &Pattern,
     low_k_radius: usize,
     n_permutations: usize,

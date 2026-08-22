@@ -28,6 +28,9 @@ use crate::{
     output::NeighborhoodTerritory,
     registration::landmarks::LandmarkPair,
     spectra::{
+        anisotropy::{
+            permutation_whitened_anisotropy, permutation_whitened_anisotropy_dense_reference,
+        },
         mark_pair_covariance::{mark_pair_covariance, MarkPairCovariancePlan},
         structure_factor::{
             observed_power_for_modes, permutation_whitened_spectrum,
@@ -765,6 +768,51 @@ fn phase7_perf_spectrum_memory_probe() {
             "checksum": checksum_f64(&spectrum.observed_power),
         })
     );
+}
+
+#[test]
+#[ignore = "manual Phase 7 anisotropy dense/chunked comparison"]
+fn phase7_perf_anisotropy_chunked_against_dense() {
+    for n in SPECTRAL_SIZES {
+        let pattern = pattern(n);
+        let metadata = fixed_density_metadata(
+            n,
+            json!({
+                "permutation_count": 19,
+                "low_k_radius": 5,
+                "k_chunk_modes": 256,
+            }),
+        );
+        measure_case("phase7_anisotropy_dense", n, metadata.clone(), || {
+            anisotropy_checksum(
+                permutation_whitened_anisotropy_dense_reference(
+                    black_box(&pattern),
+                    5,
+                    19,
+                    123,
+                    0.10,
+                    None,
+                )
+                .expect("dense anisotropy"),
+            )
+        });
+        measure_case("phase7_anisotropy_chunked", n, metadata, || {
+            anisotropy_checksum(
+                permutation_whitened_anisotropy(black_box(&pattern), 5, 19, 123, 0.10, None, 256)
+                    .expect("chunked anisotropy"),
+            )
+        });
+    }
+}
+
+fn anisotropy_checksum(
+    anisotropy: Option<crate::spectra::anisotropy::PermutationAnisotropy>,
+) -> u64 {
+    anisotropy.map_or(0, |value| {
+        value.readout.index.to_bits()
+            ^ value.readout.theta_deg.map_or(0, f64::to_bits)
+            ^ value.p_value.to_bits()
+    })
 }
 
 fn environment_usize(name: &str, default: usize) -> usize {
