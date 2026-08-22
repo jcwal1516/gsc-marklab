@@ -100,3 +100,12 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Verification: `cargo +1.96.0 fmt --check`, warnings-denied all-target/all-feature Clippy, `cargo +1.96.0 nextest run --locked --all-features` (290/290, 15 expected skips), `cargo +1.96.0 check --locked --no-default-features`, `cargo +1.96.0 test --locked --doc --all-features`, and the 20-test engine-spectrum integration suite all exit 0 on `b56cc60`.
 - Phase 3 entry: Begin with a source-to-public-surface naming audit. No scientific rename will be made until the implementation and accepted technical meaning are recorded with evidence.
 - Status: Accepted; Phase 3 may begin.
+
+## 2026-08-22 — Phase 3 algorithm naming audit
+
+- Context: Phase 3 requires names to describe implemented operations, including names not called out by the original static audit.
+- Decision: Adopt the detailed evidence table in `docs/refactor/ALGORITHM_NAMING_AUDIT.md`. Follow the plan's default path for SCI-01 through SCI-03: rename the heuristic family to multiscale residual/scale-energy terms rather than implementing a wavelet or Gaussian-difference transform without a product requirement. For SCI-04, rename the one-window FFT to a Hann-tapered raster periodogram and correct its radial shell aggregation. For SCI-05, make the core interpretation neutral and retain MMR prose only in an MMR policy/report layer.
+- Additional findings: Register SCI-06 (centered mark-pair covariance mislabeled pair correlation), SCI-07 (margin assessment mislabeled equivalence test), SCI-08 (beta posterior summaries mislabeled beta-binomial), and SCI-09 (pooled-bin diagnostic mislabeled difference test). Validation overstatement remains COR-01 and is scheduled for Phase 9; the current user-facing suite will be called a smoke check until then.
+- Consequences: Phase 3 will make coordinated format-0.3, config, CLI/report, artifact, and documentation changes. Search-based negative assertions will ensure obsolete scientific terms do not survive in public surfaces. Numerical behavior is preserved for pure renames; the periodogram shell correction requires a failing fixture and benchmark rebaseline.
+- Evidence: Audit performed against `b56cc60`; implementation sources and primary terminology references are recorded in the audit document.
+- Status: Accepted; remediation may begin.
