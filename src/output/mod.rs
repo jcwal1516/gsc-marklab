@@ -1,6 +1,8 @@
 #[cfg(feature = "parquet")]
 mod curve_parquet;
 mod figures;
+#[cfg(feature = "csv")]
+mod multimodal_artifacts;
 mod result_types;
 mod writer;
 
