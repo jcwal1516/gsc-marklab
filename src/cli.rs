@@ -39,7 +39,7 @@ mod simulate;
 mod slide;
 #[path = "cli/smoke.rs"]
 mod smoke;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -386,35 +386,6 @@ struct MultimodalManifestRow {
     protein: Option<String>,
     pre: Option<PathBuf>,
     post: Option<PathBuf>,
-}
-
-#[derive(Debug, Serialize)]
-struct RegistrationResidualRecord {
-    landmark_index: usize,
-    source_x_um: f64,
-    source_y_um: f64,
-    target_x_um: f64,
-    target_y_um: f64,
-    transformed_x_um: f64,
-    transformed_y_um: f64,
-    residual_dx_um: f64,
-    residual_dy_um: f64,
-    residual_um: f64,
-}
-
-#[derive(Debug, Serialize)]
-struct CellExtrapolationRecord {
-    source_section: String,
-    source_cell_id: String,
-    x_um_registered: f64,
-    y_um_registered: f64,
-    outside_landmark_hull: bool,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct Point2 {
-    x: f64,
-    y: f64,
 }
 
 #[derive(Debug, Default)]

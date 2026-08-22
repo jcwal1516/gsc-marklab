@@ -6,6 +6,9 @@ use crate::{
         cell_table::{HeCell, IhcCell},
         fusion::{fuse_registered_cells, FusionMeta},
         null_sensitivity::{analyze_null_model_sensitivity, NullModelSensitivityResult},
+        registration_artifacts::{
+            analyze_registration_artifacts, RegistrationExtrapolation, RegistrationResidual,
+        },
     },
     neighborhood::{
         cross_curves::cross_interaction_curve,
@@ -60,6 +63,8 @@ pub struct MultimodalAnalysisRun {
     pub transform: Transform2D,
     pub graph: SpatialGraph,
     pub null_model_sensitivity: Vec<NullModelSensitivityResult>,
+    pub registration_residuals: Vec<RegistrationResidual>,
+    pub extrapolation: RegistrationExtrapolation,
 }
 
 impl MultimodalEngine {
@@ -128,6 +133,8 @@ impl MultimodalEngine {
                     .then_some(self.config.neighborhood.k_nearest),
             },
         )?;
+        let registration_artifacts =
+            analyze_registration_artifacts(&input.landmarks, &transform, &fused)?;
         let label_pairs = self
             .config
             .neighborhood
@@ -229,6 +236,8 @@ impl MultimodalEngine {
             transform,
             graph,
             null_model_sensitivity,
+            registration_residuals: registration_artifacts.residuals,
+            extrapolation: registration_artifacts.extrapolation,
         })
     }
 }

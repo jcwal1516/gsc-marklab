@@ -56,7 +56,8 @@ pub use errors::{MarklabError, Result};
 pub use geom::mask::TumorMask;
 pub use multimodal::{
     cell_table::{CellSection, FusedCell, HeCell, IhcCell},
-    MultimodalAnalysisRun, MultimodalEngine, MultimodalInput, NullModelSensitivityResult,
+    CellExtrapolationRecord, LandmarkHullAvailability, MultimodalAnalysisRun, MultimodalEngine,
+    MultimodalInput, NullModelSensitivityResult, RegistrationExtrapolation, RegistrationResidual,
 };
 pub use neighborhood::graph::{SpatialEdge, SpatialGraph};
 pub use output::{

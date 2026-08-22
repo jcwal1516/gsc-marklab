@@ -8,18 +8,15 @@ use crate::{
     multimodal::{
         cell_table::{
             load_cellvit_he_cell_table_csv, load_he_cell_table_csv, load_ihc_cell_table_csv,
-            CellSection, FusedCell,
         },
-        MultimodalEngine, MultimodalInput, NullModelSensitivityResult,
+        MultimodalEngine, MultimodalInput, NullModelSensitivityResult, RegistrationExtrapolation,
+        RegistrationResidual,
     },
     output::{MultimodalResult, OutputWriter, ResultDocument},
     registration::landmarks::LandmarkPair,
 };
 
-use super::super::{
-    CellExtrapolationRecord, HeInputFormat, LandmarkRow, MultimodalAnalyzeRequest, Point2,
-    RegistrationResidualRecord,
-};
+use super::super::{HeInputFormat, LandmarkRow, MultimodalAnalyzeRequest};
 
 pub(in crate::cli) fn run(request: MultimodalAnalyzeRequest) -> Result<()> {
     let MultimodalAnalyzeRequest {
@@ -52,19 +49,23 @@ pub(in crate::cli) fn run(request: MultimodalAnalyzeRequest) -> Result<()> {
     let run = engine.analyze_run(&MultimodalInput {
         he_cells: he,
         ihc_cells: ihc,
-        landmarks: landmarks.clone(),
+        landmarks,
         case_id,
         timepoint,
         protein,
     })?;
     let result = run.result;
-    let fused = &result.fused_cells;
     OutputWriter::write(
         &ResultDocument::multimodal(result.clone()),
         &out,
         &config.output,
     )?;
-    write_registration_qc_sidecars(&out, &landmarks, &run.transform, fused)?;
+    write_registration_qc_sidecars(
+        &out,
+        &run.transform,
+        &run.registration_residuals,
+        &run.extrapolation,
+    )?;
     write_pretty_json(
         &out.join("null_model_sensitivity.json"),
         &run.null_model_sensitivity,
@@ -73,20 +74,19 @@ pub(in crate::cli) fn run(request: MultimodalAnalyzeRequest) -> Result<()> {
     Ok(())
 }
 
-pub(super) fn write_pretty_json<T: Serialize>(path: &Path, value: &T) -> Result<()> {
+pub(super) fn write_pretty_json<T: Serialize + ?Sized>(path: &Path, value: &T) -> Result<()> {
     fs::write(path, serde_json::to_string_pretty(value)?)?;
     Ok(())
 }
 
 fn write_registration_qc_sidecars(
     out: &Path,
-    landmarks: &[LandmarkPair],
     transform: &crate::registration::transform::Transform2D,
-    fused: &[FusedCell],
+    residuals: &[RegistrationResidual],
+    extrapolation: &RegistrationExtrapolation,
 ) -> Result<()> {
-    let residuals = registration_residual_records(landmarks, transform);
-    write_pretty_json(&out.join("registration_residuals.json"), &residuals)?;
-    write_csv_records(&out.join("registration_residuals.csv"), &residuals)?;
+    write_pretty_json(&out.join("registration_residuals.json"), residuals)?;
+    write_csv_records(&out.join("registration_residuals.csv"), residuals)?;
     write_pretty_json(
         &out.join("registration_transform.json"),
         &serde_json::json!({
@@ -97,151 +97,12 @@ fn write_registration_qc_sidecars(
             ]
         }),
     )?;
-
-    let extrapolation = cell_extrapolation_records(landmarks, fused);
-    let outside = extrapolation
-        .iter()
-        .filter(|record| record.outside_landmark_hull)
-        .count();
-    write_csv_records(&out.join("registration_extrapolation.csv"), &extrapolation)?;
-    write_pretty_json(
-        &out.join("registration_extrapolation.json"),
-        &serde_json::json!({
-            "n_cells": extrapolation.len(),
-            "n_outside_landmark_hull": outside,
-            "fraction_outside_landmark_hull": if extrapolation.is_empty() {
-                0.0
-            } else {
-                outside as f64 / extrapolation.len() as f64
-            },
-            "cell_flags": extrapolation,
-        }),
+    write_csv_records(
+        &out.join("registration_extrapolation.csv"),
+        &extrapolation.cell_flags,
     )?;
+    write_pretty_json(&out.join("registration_extrapolation.json"), extrapolation)?;
     Ok(())
-}
-
-fn registration_residual_records(
-    landmarks: &[LandmarkPair],
-    transform: &crate::registration::transform::Transform2D,
-) -> Vec<RegistrationResidualRecord> {
-    landmarks
-        .iter()
-        .enumerate()
-        .map(|(index, landmark)| {
-            let (transformed_x_um, transformed_y_um) =
-                transform.apply(landmark.source_x_um, landmark.source_y_um);
-            let residual_dx_um = transformed_x_um - landmark.target_x_um;
-            let residual_dy_um = transformed_y_um - landmark.target_y_um;
-            RegistrationResidualRecord {
-                landmark_index: index,
-                source_x_um: landmark.source_x_um,
-                source_y_um: landmark.source_y_um,
-                target_x_um: landmark.target_x_um,
-                target_y_um: landmark.target_y_um,
-                transformed_x_um,
-                transformed_y_um,
-                residual_dx_um,
-                residual_dy_um,
-                residual_um: residual_dx_um.hypot(residual_dy_um),
-            }
-        })
-        .collect()
-}
-
-fn cell_extrapolation_records(
-    landmarks: &[LandmarkPair],
-    fused: &[FusedCell],
-) -> Vec<CellExtrapolationRecord> {
-    let hull = convex_hull(
-        &landmarks
-            .iter()
-            .map(|landmark| Point2 {
-                x: landmark.target_x_um,
-                y: landmark.target_y_um,
-            })
-            .collect::<Vec<_>>(),
-    );
-    fused
-        .iter()
-        .map(|cell| {
-            let point = Point2 {
-                x: cell.x_um_registered,
-                y: cell.y_um_registered,
-            };
-            CellExtrapolationRecord {
-                source_section: match cell.source_section {
-                    CellSection::He => "he".into(),
-                    CellSection::Ihc => "ihc".into(),
-                },
-                source_cell_id: cell.source_cell_id.clone(),
-                x_um_registered: cell.x_um_registered,
-                y_um_registered: cell.y_um_registered,
-                outside_landmark_hull: !point_in_hull(point, &hull),
-            }
-        })
-        .collect()
-}
-
-fn convex_hull(points: &[Point2]) -> Vec<Point2> {
-    let mut points = points.to_vec();
-    points.sort_by(|left, right| {
-        left.x
-            .total_cmp(&right.x)
-            .then_with(|| left.y.total_cmp(&right.y))
-    });
-    points.dedup_by(|left, right| left.x == right.x && left.y == right.y);
-    if points.len() <= 1 {
-        return points;
-    }
-
-    let mut lower = Vec::new();
-    for point in &points {
-        while lower.len() >= 2
-            && cross(lower[lower.len() - 2], lower[lower.len() - 1], *point) <= 0.0
-        {
-            lower.pop();
-        }
-        lower.push(*point);
-    }
-    let mut upper = Vec::new();
-    for point in points.iter().rev() {
-        while upper.len() >= 2
-            && cross(upper[upper.len() - 2], upper[upper.len() - 1], *point) <= 0.0
-        {
-            upper.pop();
-        }
-        upper.push(*point);
-    }
-    lower.pop();
-    upper.pop();
-    lower.extend(upper);
-    lower
-}
-
-fn cross(origin: Point2, left: Point2, right: Point2) -> f64 {
-    (left.x - origin.x) * (right.y - origin.y) - (left.y - origin.y) * (right.x - origin.x)
-}
-
-fn point_in_hull(point: Point2, hull: &[Point2]) -> bool {
-    if hull.len() < 3 {
-        return true;
-    }
-    let mut sign = 0_i8;
-    for index in 0..hull.len() {
-        let left = hull[index];
-        let right = hull[(index + 1) % hull.len()];
-        let value = cross(left, right, point);
-        if value.abs() <= 1.0e-9 {
-            continue;
-        }
-        let current_sign = if value > 0.0 { 1 } else { -1 };
-        if sign == 0 {
-            sign = current_sign;
-        } else if sign != current_sign {
-            return false;
-        }
-    }
-    true
 }
 
 fn write_multimodal_csv_sidecars(

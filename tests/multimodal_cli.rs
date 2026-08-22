@@ -248,6 +248,39 @@ fn multimodal_analyze_writes_qc_csv_and_null_sensitivity_sidecars() {
 }
 
 #[test]
+fn multimodal_extrapolation_does_not_classify_degenerate_hull_as_inside() {
+    let fixture = MultimodalFixture::new();
+    fixture.update_config("transform = \"affine\"", "transform = \"rigid\"");
+    std::fs::write(
+        &fixture.landmarks,
+        "source_x_um,source_y_um,target_x_um,target_y_um\n\
+         0,0,0,0\n\
+         25,0,25,0\n\
+         50,0,50,0\n",
+    )
+    .expect("collinear landmarks");
+
+    fixture.run().assert().success();
+
+    let extrapolation: Value = serde_json::from_str(
+        &std::fs::read_to_string(fixture.out.join("registration_extrapolation.json"))
+            .expect("extrapolation"),
+    )
+    .expect("extrapolation JSON");
+    assert_eq!(
+        extrapolation["availability"],
+        "degenerate_collinear_landmarks"
+    );
+    assert!(extrapolation["n_outside_landmark_hull"].is_null());
+    assert!(extrapolation["fraction_outside_landmark_hull"].is_null());
+    assert!(extrapolation["cell_flags"]
+        .as_array()
+        .expect("cell flags")
+        .iter()
+        .all(|cell| cell["outside_landmark_hull"].is_null()));
+}
+
+#[test]
 fn multimodal_report_uses_multimodal_wording_without_single_modality_placeholders() {
     let fixture = MultimodalFixture::new();
 
