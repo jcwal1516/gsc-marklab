@@ -1,18 +1,18 @@
 # Current Refactor Status
 
 Plan version: 1.0
-Current repository SHA: `efb81872965efc7c64fd3878505dc2cc0468b2cc`
+Current repository SHA: `efa10899a0ba8fea15ba5800cec52b5be5c1f509`
 Current branch: `refactor/audit-remediation`
-Current phase: Phase 7 — Spectral and permutation optimization
-Current workstream: PERF-08 §§14.1–14.5 — finish bounded mode storage, compact mark-field reuse, and scratch-buffer verification
-Last completed requirement IDs: Phase 0 §§7.1–7.5; Phase 1 §§8.1–8.4; Phase 2 §§9.1–9.7; Phase 3 §§10.1–10.5; Phase 4 §§11.1–11.8; Phase 5 §§12.1–12.10; Phase 6 §§13.1–13.8; BOUND-01; PERF-01–07; COR-03; MODEL-01; DUP-05/07; OUT-01–06
-Requirements currently in progress: PERF-08 and Phase 7 §§14.1, 14.5, and 14.7–14.10. Primary spectrum §§14.2–14.4 are implemented and verified; anisotropy still retains a mode matrix. COR-01 remains open after honest smoke labeling; MODEL-02 remains open only for multimodal telemetry.
+Current phase: Phase 8 — Multimodal model completion
+Current workstream: MODEL-02 §15.4 — add authoritative multimodal stage telemetry to the application run and result
+Last completed requirement IDs: Phase 0 §§7.1–7.5; Phase 1 §§8.1–8.4; Phase 2 §§9.1–9.7; Phase 3 §§10.1–10.5; Phase 4 §§11.1–11.8; Phase 5 §§12.1–12.10; Phase 6 §§13.1–13.8; Phase 7 §§14.1–14.10; BOUND-01; PERF-01–08; COR-03; MODEL-01; DUP-05/07; OUT-01–06
+Requirements currently in progress: Phase 8 §15.4 and MODEL-02 multimodal telemetry. Phase 8 §§15.1–15.3 and 15.5–15.7 were already completed during boundary/schema/spatial remediation and must be regression-checked at closure. COR-01 remains open for Phase 9.
 Known failing commands: `lsp outline src/spectra/structure_factor.rs --project /Users/user/Bench/marklab-refactor` failed with a client capability error after the initial `src/lib.rs` outline succeeded; textual fallback is in use. All mandated baseline verification commands passed.
-Known failing tests: Only the COR-01 ignored remediation remains; other expected skips are manual performance/validation workloads. Phase 7 checkpoint: the all-feature library suite passes 254/254 with 15 expected skips; exact chunk-size/storage tests, formatting, denied-warning all-target Clippy, and no-default-features check pass. Phase 6 full-suite evidence remains Nextest 349/349 with 16 expected skips.
-Dirty files: This status, findings matrix, and Phase 7 shell-storage decision are dirty to record verified commit `efb8187`.
-Recent decisions: Primary binary, continuous, and stratified spectrum permutations store only contiguous shell rows. Mode power is produced in configured chunks, accumulated in original mode order, normalized once, and then consumed by matrix-native ERL and scalar summaries. This preserves exact output across chunk sizes while bounding mode scratch.
-Unresolved technical questions: Anisotropy genuinely consumes directional mode values but should retain only `B × k_chunk_modes` at once and accumulate tensor summaries before discarding each chunk. Measure the CPU cost of regenerating deterministic permutations per chunk against the memory reduction.
-Next three concrete actions: (1) add an anisotropy dense-reference/chunk-storage contract and replace its `B × modes` matrix; (2) introduce the smallest shared binary/continuous mark-field execution boundary without obscuring optimized binary subsets; (3) run DHAT, serial/parallel equality, spectrum timing, and RSS comparisons
-Next verification command: `rg -n 'Vec<Vec<f64>>|permutation_powers|weighted_modes|k_chunk_modes' src/spectra/anisotropy.rs src/spectra/structure_factor src/perf`
+Known failing tests: Only the COR-01 remediation test remains ignored; the other expected skips are manual performance workloads and one external WSI oracle. Phase 7 exit: Nextest passes 358/358 with 19 skips; standard all-feature Cargo tests pass every unit/integration/doc suite (259 library tests, 18 library skips; WSI 10/10 local plus one external skip); formatting, denied-warning Clippy, no-default-features, doc tests, and three DHAT contracts pass. The DHAT feature-only command emits nine pre-existing unused test-counter warnings but exits 0.
+Dirty files: Phase 7 closure updates in status, findings, decisions, and performance evidence.
+Recent decisions: Structure-factor nulls retain shell rows, directional anisotropy retains only a bounded mode chunk, and both use reusable scratch. A local immutable marked-analysis context caches cell counts, prevalence, and geometry without placing an invalidatable cache in `Pattern`.
+Unresolved technical questions: Define whether multimodal artifact-projection time belongs in the domain application telemetry or only in output transaction telemetry while ensuring result and sidecar histories remain identical.
+Next three concrete actions: (1) inventory all multimodal application stages and current timing producers/consumers; (2) add a red contract requiring populated, ordered telemetry in the application run, result document, and CLI artifacts; (3) time each scientific stage once without moving output-writing work into domain code
+Next verification command: `rg -n 'timings|TimingStage|Instant|timed' src/multimodal src/cli/multimodal src/output tests/multimodal_cli.rs`
 Performance baseline location: `docs/refactor/PERFORMANCE_BASELINE.md`
-Last updated: 2026-08-22T05:31:46-04:00
+Last updated: 2026-08-22T06:15:17-04:00

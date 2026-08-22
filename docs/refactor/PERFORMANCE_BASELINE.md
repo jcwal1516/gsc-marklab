@@ -254,3 +254,62 @@ speedup is attributed to the budget guard; the acceptance claim is only that
 the guard introduces no observed regression. Allocator growth and temporary
 reallocation are still estimates rather than a hard process-RSS cap and remain
 part of Phase 12 memory profiling.
+
+## Phase 7 spectral storage and chunking checkpoint
+
+Primary code commits are `efb8187`, `67f83f7`, `85ed0d1`, `43e5d74`,
+`93cdda9`, and `efa1089`; the retained anisotropy comparison is `c183942`.
+All measurements use Rust 1.96.0, the repository release profile, all
+features, and the same Apple M4 Pro. Direct spectrum functions execute on the
+global 12-thread Rayon pool. This corrects the inherited Phase 0 JSON field:
+`--test-threads=1` serialized test cases but did not limit Rayon's pool.
+
+The retained chunk benchmark runs five timed samples after one warm-up and
+checks the same output checksum for every sample and chunk size. Primary
+before/after medians in milliseconds are:
+
+| Field and chunk | 64 cells / 196 modes | 128 cells / 440 modes | 256 cells / 796 modes |
+| --- | ---: | ---: | ---: |
+| Phase 0 binary, chunk value then ceremonial | 0.350 | 1.012 | 3.056 |
+| Phase 7 binary, configured default chunk 256 | 0.262 | 0.947 | 3.115 |
+| Phase 7 binary, tight chunk 64 | 0.427 | 1.229 | 3.922 |
+| Phase 7 binary, one full mode chunk | 0.257 | 0.807 | 2.701 |
+| Phase 0 continuous | 0.473 | 1.262 | 4.153 |
+| Phase 7 continuous, configured default chunk 256 | 0.412 | 1.275 | 4.354 |
+| Phase 7 continuous, tight chunk 64 | 0.470 | 1.780 | 5.454 |
+| Phase 7 continuous, one full mode chunk | 0.418 | 1.091 | 4.051 |
+
+At the default 256-mode cap, binary changes are −25.2%, −6.4%, and +1.9%;
+continuous changes are −12.9%, +1.0%, and +4.8%. A deliberately tighter
+64-mode cap has a documented 20–41% cost in the larger small-test cases
+because deterministic labels and Rayon work are restarted for each chunk.
+Chunk size 1 is intentionally supported for memory-bound execution but is
+pathological (7.46/17.48/32.75 ms binary and 7.60/17.05/33.41 ms continuous).
+This is a configurable memory/time trade-off, not the default path.
+
+The exact same 256-cell, 796-mode, 999-permutation binary workload was run in
+a temporary detached Phase 6 worktree (`875541c`) and in the Phase 7 test
+binary with `/usr/bin/time -l`. The old `B × modes` matrix was 6,361,632
+theoretical bytes; the primary Phase 7 `B × 8 shells` matrix is 63,936 bytes,
+a 99.0% retained-matrix reduction. Process RSS fell from 16,515,072 to
+8,896,512 bytes (−46.1%). The continuous Phase 7 workload used 8,863,744
+bytes RSS. Summary/ERL matrices and runtime/allocator overhead explain why
+process RSS does not fall by the full matrix ratio.
+
+Directional anisotropy cannot collapse modes into radial shells. Its retained
+benchmark compares the former dense algorithm with the bounded tensor
+algorithm at low-k radius 5 and 19 permutations; exact output checksums match:
+
+| Cells | Dense median ms | Bounded median ms | Speedup |
+| ---: | ---: | ---: | ---: |
+| 64 | 1.551 | 0.303 | 5.12× |
+| 128 | 2.210 | 0.415 | 5.33× |
+| 256 | 3.513 | 0.723 | 4.86× |
+
+The application memory estimator now accounts for four simultaneous
+shell-summary/ERL matrices, the bounded anisotropy `B × k_chunk_modes`
+workspace, shared phase scratch, and conservative per-worker mark-field
+scratch. The three existing DHAT contracts still prove allocation-free inner
+mode/permutation/raster kernels after scratch setup. Phase 12 must repeat
+larger system-level profiles and assess the tight-chunk crossover at realistic
+cell/mode/permutation counts.
