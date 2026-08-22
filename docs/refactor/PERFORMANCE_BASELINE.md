@@ -146,3 +146,39 @@ plan is slower at 256, near the crossover at 512, and about 55% faster at 1,024;
 the advantage grows with the configured permutation count. The retained
 `phase6_perf_mark_pair_covariance_plan` workload reports build and evaluation
 separately so future changes cannot hide either cost.
+
+### Residual-territory and indexed radius-consumer checkpoint
+
+At commit `968d014`, marked residual territories use a contiguous per-scale
+offset/neighbor plan. A complete plan build plus observed evaluation took
+0.145 / 0.955 / 1.590 ms at 256 / 512 / 1,024 points. With that plan retained,
+one observed evaluation took 0.002 / 0.005 / 0.011 ms and 19 alternate label
+evaluations took 0.077 / 0.131 / 0.423 ms. The resulting observed-plus-19-null
+totals are approximately 0.222 / 1.086 / 2.013 ms. Repeating the Phase 0
+brute-force detector 20 times would take approximately 0.620 / 3.180 / 12.500
+ms, so the reusable plan reduces this fixture by about 64%, 66%, and 84%.
+The observed output counts remain exactly 11 / 25 / 25, and the independent
+oracle compares complete candidate values and selection order across three
+label assignments.
+
+The plan-build-only scaling remains output-sensitive because the broadest
+physical scale grows with the analysis window; it is not claimed to be a
+bounded-radius linear workload. Production stores only configuration-eligible
+scales. An explicit geometry-storage budget guard remains required before
+Phase 6 closure.
+
+Larger fixed-density bounded-radius measurements use 1,024 / 2,048 / 4,096 /
+8,192 points:
+
+| Workload | Median ms | Doubling ratios | Output size |
+| --- | --- | --- | --- |
+| Radius graph, radius 1.5 | 0.439 / 1.257 / 1.975 / 5.342 | 2.87× / 1.57× / 2.71× | 3,906 / 7,922 / 16,002 / 32,225 edges |
+| Multimodal territories, eps 1.5 | 0.173 / 0.531 / 0.719 / 2.315 | 3.06× / 1.35× / 3.22× | 16 / 23 / 32 / 1 territories on the truncated-grid fixture |
+| Profiles, radius 4.0 total | 0.192 / 0.573 / 0.781 / 2.530 | 2.98× / 1.36× / 3.24× | 128 / 256 / 512 / 1,024 territories and 5,342 / 11,644 / 23,198 / 48,372 returned memberships |
+
+Every adjacent ratio remains below the 4× signature of the prior quadratic
+scans even though profile territory count and returned membership both grow
+approximately with point count. The grouped radius-consumer process peaked at
+14,270,464 bytes (13.61 MiB) RSS. The residual-plan-only process peaked at
+9,388,032 bytes (8.95 MiB); the comparable combined territory/profile group
+was 7.95 MiB in Phase 0, reflecting the deliberate tree/plan storage trade.
