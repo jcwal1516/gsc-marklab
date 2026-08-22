@@ -1,7 +1,7 @@
 use crate::{
     multimodal::cell_table::{CellSection, FusedCell},
     neighborhood::{
-        enrichment::{edge_enrichment, LabelPair},
+        enrichment::{edge_enrichment, edge_enrichment_with_strata, LabelPair},
         graph::{build_spatial_graph, GraphConfig, SpatialEdge, SpatialGraph},
     },
     EnrichmentStatisticUnavailableReason, NeighborhoodEnrichmentResult,
@@ -464,6 +464,131 @@ fn enrichment_allows_empty_label_pairs_as_noop() {
     let rows = edge_enrichment(&cells, &graph, &[], 1, 123).expect("empty label pairs");
 
     assert!(rows.is_empty());
+}
+
+#[test]
+fn enrichment_strategies_preserve_deterministic_reference_outputs() {
+    let cells = vec![
+        ihc_cell("ihc-a", 0.0, 0.0, 1, None),
+        ihc_cell("ihc-b", 1.0, 0.0, 0, None),
+        ihc_cell("ihc-c", 2.0, 0.0, 1, None),
+        cell("he-a", 0.0, 1.0, "lymphocyte"),
+        cell("he-b", 1.0, 1.0, "stroma"),
+        cell("he-c", 2.0, 1.0, "lymphocyte"),
+    ];
+    let graph = SpatialGraph {
+        n_nodes: cells.len(),
+        edges: vec![
+            edge(0, 1),
+            edge(0, 3),
+            edge(1, 2),
+            edge(1, 4),
+            edge(2, 5),
+            edge(3, 4),
+            edge(4, 5),
+        ],
+    };
+    let pairs = vec![
+        LabelPair::new("mmr_abnormal", "lymphocyte"),
+        LabelPair::new("lymphocyte", "stroma"),
+    ];
+    let strata = vec![
+        "ihc-left".into(),
+        "ihc-center".into(),
+        "ihc-left".into(),
+        "he-edge".into(),
+        "he-center".into(),
+        "he-edge".into(),
+    ];
+
+    let unstratified = edge_enrichment(&cells, &graph, &pairs, 19, 77).expect("unstratified");
+    let stratified =
+        edge_enrichment_with_strata(&cells, &graph, &pairs, 19, 77, &strata).expect("stratified");
+
+    assert_eq!(
+        serde_json::to_value(unstratified).unwrap(),
+        serde_json::json!([
+            {
+                "label_a": "lymphocyte",
+                "label_b": "mmr_abnormal",
+                "observed_edges": 2,
+                "expected_edges": 1.1578947368421053,
+                "enrichment_ratio": 1.7272727272727273,
+                "enrichment_ratio_unavailable_reason": null,
+                "z_score": 2.2478059477960652,
+                "z_score_unavailable_reason": null,
+                "p_value": 0.2,
+                "q_value": 0.4
+            },
+            {
+                "label_a": "lymphocyte",
+                "label_b": "stroma",
+                "observed_edges": 2,
+                "expected_edges": 1.4210526315789473,
+                "enrichment_ratio": 1.4074074074074074,
+                "enrichment_ratio_unavailable_reason": null,
+                "z_score": 1.141328865379023,
+                "z_score_unavailable_reason": null,
+                "p_value": 0.45,
+                "q_value": 0.45
+            }
+        ])
+    );
+    assert_eq!(
+        serde_json::to_value(stratified).unwrap(),
+        serde_json::json!([
+            {
+                "label_a": "lymphocyte",
+                "label_b": "mmr_abnormal",
+                "observed_edges": 2,
+                "expected_edges": 2.0,
+                "enrichment_ratio": 1.0,
+                "enrichment_ratio_unavailable_reason": null,
+                "z_score": null,
+                "z_score_unavailable_reason": "zero_null_variance",
+                "p_value": 1.0,
+                "q_value": 1.0
+            },
+            {
+                "label_a": "lymphocyte",
+                "label_b": "stroma",
+                "observed_edges": 2,
+                "expected_edges": 2.0,
+                "enrichment_ratio": 1.0,
+                "enrichment_ratio_unavailable_reason": null,
+                "z_score": null,
+                "z_score_unavailable_reason": "zero_null_variance",
+                "p_value": 1.0,
+                "q_value": 1.0
+            }
+        ])
+    );
+}
+
+#[test]
+fn stratified_enrichment_rejects_mismatched_strata() {
+    let cells = vec![
+        cell("a", 0.0, 0.0, "lymphocyte"),
+        cell("b", 1.0, 0.0, "stroma"),
+    ];
+    let graph = SpatialGraph {
+        n_nodes: cells.len(),
+        edges: vec![edge(0, 1)],
+    };
+
+    let error = edge_enrichment_with_strata(
+        &cells,
+        &graph,
+        &[LabelPair::new("lymphocyte", "stroma")],
+        19,
+        77,
+        &["only-one".into()],
+    )
+    .expect_err("mismatched strata");
+
+    assert!(error
+        .to_string()
+        .contains("null-model stratum count 1 does not match cell count 2"));
 }
 
 #[test]
