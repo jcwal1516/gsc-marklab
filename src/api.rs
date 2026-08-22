@@ -313,7 +313,8 @@ fn estimate_analysis_memory(
 ) -> MemoryEstimate {
     estimate_peak_memory(MemoryInputs {
         n_points: pattern.len(),
-        optional_point_bytes: optional_point_bytes(pattern),
+        optional_point_bytes: optional_point_bytes(pattern)
+            + usize::from(config.multiscale_residual.enabled) * std::mem::size_of::<usize>(),
         raster_pixels: estimated_raster_pixels(pattern),
         raster_bytes_per_pixel: 4,
         active_raster_buffers: 3,

@@ -13,7 +13,7 @@ use crate::{
         ResidualTerritory, ScaleEnergyPoint, TimingStage,
     },
     perf::counters::enforce_storage_budget,
-    periodogram::{raster::centered_mark_raster, tapered::hann_tapered_raster_periodogram},
+    periodogram::{raster::RasterAssignmentPlan, tapered::hann_tapered_raster_periodogram},
     spectra::anisotropy::{
         permutation_whitened_anisotropy, AnisotropyPermutationOptions, PermutationAnisotropy,
     },
@@ -197,10 +197,29 @@ fn multiscale_analysis(
             AnalysisSection::Disabled,
         ));
     }
-    let relative_scale_energies =
-        centered_mark_raster(pattern, pattern.window.d_nn_mean_um.max(1.0)).and_then(
-            |(spec, raster)| relative_scale_energies_from_field(&raster, spec.width, spec.height),
-        );
+    let Some(raster_plan) =
+        RasterAssignmentPlan::new(pattern, pattern.window.d_nn_mean_um.max(1.0))
+    else {
+        let reason = "multiscale residual raster assignment could not be planned".to_string();
+        return Ok((
+            AnalysisSection::InsufficientData {
+                reason: reason.clone(),
+            },
+            Vec::new(),
+            AnalysisSection::InsufficientData { reason },
+        ));
+    };
+    debug_assert_eq!(
+        raster_plan.estimated_storage_bytes(),
+        pattern.len().saturating_mul(std::mem::size_of::<usize>())
+    );
+    let mut observed_raster = Vec::with_capacity(raster_plan.pixel_count());
+    let relative_scale_energies = raster_plan
+        .fill_centered_binary_marks(&pattern.mark, &mut observed_raster)
+        .and_then(|()| {
+            let spec = raster_plan.spec();
+            relative_scale_energies_from_field(&observed_raster, spec.width, spec.height)
+        });
     let Some(energies) = relative_scale_energies.filter(|energies| {
         [
             energies.local_difference,
@@ -226,6 +245,7 @@ fn multiscale_analysis(
     let (curve, scale_energy) = scale_energy_with_envelope(
         config,
         pattern,
+        &raster_plan,
         energies.local_difference,
         energies.residual,
         energies.block_mean,
@@ -234,6 +254,7 @@ fn multiscale_analysis(
         multiscale_residual_scalar_p_values(
             config,
             pattern,
+            &raster_plan,
             territory_plan,
             energies.block_mean,
             territory_count,
@@ -302,6 +323,10 @@ mod tests {
         multiscale_residual::territories::{
             plan_build_call_count as residual_plan_build_call_count,
             reset_plan_build_call_count as reset_residual_plan_build_call_count,
+        },
+        periodogram::raster::{
+            plan_build_call_count as raster_plan_build_call_count,
+            reset_plan_build_call_count as reset_raster_plan_build_call_count,
         },
         spectra::mark_pair_covariance::{plan_build_call_count, reset_plan_build_call_count},
     };
@@ -388,5 +413,52 @@ mod tests {
         .expect("spatial stage");
 
         assert_eq!(residual_plan_build_call_count(), 1);
+    }
+
+    #[test]
+    fn raster_assignment_plan_is_reused_for_observed_and_permutations() {
+        let mut config = AnalysisConfig::default();
+        config.permutation.b = 19;
+        config.permutation.stratified = false;
+        config.multiscale_residual.enabled = true;
+        config.multiscale_residual.territory_detection = false;
+        let mut pattern = Pattern::from_arrays(
+            (0..40).map(|index| (index % 8) as f64).collect(),
+            (0..40).map(|index| (index / 8) as f64).collect(),
+            (0..40).map(|index| u8::from(index % 4 == 0)).collect(),
+            PatternMeta {
+                case_id: "case".into(),
+                timepoint: "post".into(),
+                protein: "MSH6".into(),
+                slide_id: None,
+                section_id: None,
+                stain_batch: None,
+                block_id: None,
+                region_id: None,
+            },
+        )
+        .expect("pattern");
+        pattern.window.analysis_effective_length_um = 8.0;
+        pattern.window.d_nn_mean_um = 1.0;
+        pattern.window.area_um2 = 40.0;
+        reset_raster_plan_build_call_count();
+
+        let mut timings = Vec::new();
+        let analysis_context = MarkedAnalysisContext::new(&pattern);
+        spatial_stage::run(
+            &config,
+            &analysis_context,
+            true,
+            None,
+            None,
+            spatial_stage::ExecutionContext {
+                geometry_budget_bytes: usize::MAX,
+                timings: &mut timings,
+                threads: 1,
+            },
+        )
+        .expect("spatial stage");
+
+        assert_eq!(raster_plan_build_call_count(), 1);
     }
 }

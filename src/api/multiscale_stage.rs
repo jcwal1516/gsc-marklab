@@ -15,13 +15,14 @@ use crate::{
     output::{
         AnalysisSection, FunctionalSummary, ResidualTerritory, ScaleEnergyBand, ScaleEnergyPoint,
     },
-    periodogram::raster::centered_mark_raster_for_marks,
+    periodogram::raster::RasterAssignmentPlan,
     permutation::envelopes::GlobalEnvelope,
 };
 
 pub(super) fn scale_energy_with_envelope(
     config: &AnalysisConfig,
     pattern: &Pattern,
+    raster_plan: &RasterAssignmentPlan,
     local_difference_energy_fraction: f64,
     residual_energy_fraction: f64,
     block_mean_variance_fraction: f64,
@@ -37,7 +38,7 @@ pub(super) fn scale_energy_with_envelope(
         ));
     }
     let permutation_curves =
-        scale_energy_permutation_curves(config, pattern, observed_values.len())?;
+        scale_energy_permutation_curves(config, pattern, raster_plan, observed_values.len())?;
     let max_scale_um = maximum_interpretable_scale_for_points_um(
         pattern.window.analysis_effective_length_um,
         &pattern.x_um,
@@ -119,20 +120,24 @@ pub(super) fn scale_energy_with_envelope(
 fn scale_energy_permutation_curves(
     config: &AnalysisConfig,
     pattern: &Pattern,
+    raster_plan: &RasterAssignmentPlan,
     expected_len: usize,
 ) -> Result<Option<Vec<Vec<f64>>>> {
     if config.permutation.b == 0 || pattern.n_marked() == 0 || pattern.n_unmarked() == 0 {
         return Ok(None);
     }
 
-    let cell_size_um = pattern.window.d_nn_mean_um.max(1.0);
     let mut curves = Vec::with_capacity(config.permutation.b);
+    let mut raster = Vec::with_capacity(raster_plan.pixel_count());
     for perm_index in 0..config.permutation.b {
         let labels = permutation_labels(config, pattern, perm_index, SeedEndpoint::ScaleEnergy)?;
-        let Some((spec, raster)) = centered_mark_raster_for_marks(pattern, &labels, cell_size_um)
-        else {
+        if raster_plan
+            .fill_centered_binary_marks(&labels, &mut raster)
+            .is_none()
+        {
             return Ok(None);
-        };
+        }
+        let spec = raster_plan.spec();
         let Some(energies) = relative_scale_energies_from_field(&raster, spec.width, spec.height)
         else {
             return Ok(None);
@@ -153,6 +158,7 @@ fn scale_energy_permutation_curves(
 pub(super) fn multiscale_residual_scalar_p_values(
     config: &AnalysisConfig,
     pattern: &Pattern,
+    raster_plan: &RasterAssignmentPlan,
     territory_plan: Option<&ResidualTerritoryPlan>,
     observed_block_mean_variance_fraction: f64,
     observed_territory_count: usize,
@@ -197,6 +203,7 @@ pub(super) fn multiscale_residual_scalar_p_values(
     let mut block_mean_null_complete = block_mean_eligible;
     let mut territory_null = (config.multiscale_residual.territory_detection && territory_eligible)
         .then(|| Vec::with_capacity(config.permutation.b));
+    let mut raster = Vec::with_capacity(raster_plan.pixel_count());
     for permutation_index in 0..config.permutation.b {
         let labels = permutation_labels(
             config,
@@ -205,7 +212,7 @@ pub(super) fn multiscale_residual_scalar_p_values(
             SeedEndpoint::ResidualTerritory,
         )?;
         if block_mean_null_complete {
-            match block_mean_variance_fraction_for_marks(pattern, &labels) {
+            match block_mean_variance_fraction_for_marks(raster_plan, &labels, &mut raster) {
                 Some(block_mean_fraction) => block_mean_null
                     .as_mut()
                     .expect("eligible block-mean endpoint has null storage")
@@ -268,11 +275,14 @@ pub(super) fn multiscale_residual_scalar_p_values(
     ))
 }
 
-fn block_mean_variance_fraction_for_marks(pattern: &Pattern, marks: &[u8]) -> Option<f64> {
-    centered_mark_raster_for_marks(pattern, marks, pattern.window.d_nn_mean_um.max(1.0))
-        .and_then(|(spec, raster)| {
-            relative_scale_energies_from_field(&raster, spec.width, spec.height)
-        })
+fn block_mean_variance_fraction_for_marks(
+    raster_plan: &RasterAssignmentPlan,
+    marks: &[u8],
+    raster: &mut Vec<f32>,
+) -> Option<f64> {
+    raster_plan.fill_centered_binary_marks(marks, raster)?;
+    let spec = raster_plan.spec();
+    relative_scale_energies_from_field(raster, spec.width, spec.height)
         .map(|energies| energies.block_mean)
         .filter(|value| value.is_finite())
 }

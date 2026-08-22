@@ -10,7 +10,9 @@ use crate::{
     },
     periodogram::{
         fft2::fft2_power_spectrum,
-        raster::{centered_mark_raster, RasterSpec},
+        raster::{
+            centered_mark_raster, centered_mark_raster_for_marks, RasterAssignmentPlan, RasterSpec,
+        },
         tapered::{hann_tapered_raster_periodogram, hann_weight},
     },
     spectra::anisotropy::anisotropy_from_weighted_modes,
@@ -95,6 +97,28 @@ fn centered_mark_raster_accumulates_centered_labels_into_cells() {
         }
     );
     assert_eq!(raster, vec![0.5, -0.5]);
+}
+
+#[test]
+fn raster_assignment_plan_matches_direct_mapping_for_alternate_marks() {
+    let pattern = Pattern::from_arrays(
+        vec![0.0, 0.4, 1.0, 1.4],
+        vec![0.0, 0.0, 1.0, 1.0],
+        vec![1, 0, 1, 0],
+        meta(),
+    )
+    .expect("pattern");
+    let alternate = [0, 1, 0, 1];
+    let expected = centered_mark_raster_for_marks(&pattern, &alternate, 1.0).expect("direct");
+    let plan = RasterAssignmentPlan::new(&pattern, 1.0).expect("assignment plan");
+    let mut actual = Vec::new();
+
+    plan.fill_centered_binary_marks(&alternate, &mut actual)
+        .expect("planned fill");
+
+    assert_eq!(plan.spec(), &expected.0);
+    assert_eq!(actual, expected.1);
+    assert!(plan.estimated_storage_bytes() >= pattern.len() * std::mem::size_of::<usize>());
 }
 
 #[test]

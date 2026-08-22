@@ -1,18 +1,19 @@
 #![cfg(all(feature = "dhat-heap", not(feature = "allocator-mimalloc")))]
 
-use crate::{data::PatternMeta, periodogram::raster::centered_mark_raster_for_marks_into, Pattern};
+use crate::{data::PatternMeta, periodogram::raster::RasterAssignmentPlan, Pattern};
 
 #[test]
 fn dhat_raster_fill_does_not_allocate_after_raster_allocation() {
     let pattern = small_pattern();
+    let plan = RasterAssignmentPlan::new(&pattern, 1.0).expect("raster plan");
     let mut raster = Vec::with_capacity(64);
 
     let _profiler = dhat::Profiler::builder().testing().build();
     let before = dhat::HeapStats::get();
 
-    let spec = centered_mark_raster_for_marks_into(&pattern, &pattern.mark, 1.0, &mut raster)
+    plan.fill_centered_binary_marks(&pattern.mark, &mut raster)
         .expect("raster");
-    std::hint::black_box((&spec, &raster));
+    std::hint::black_box((&plan, &raster));
 
     let after = dhat::HeapStats::get();
     dhat::assert_eq!(after.total_blocks, before.total_blocks);
