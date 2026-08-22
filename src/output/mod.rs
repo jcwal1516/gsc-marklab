@@ -28,10 +28,10 @@ pub use result_types::{
     GraphSmoothingLabelPairSummary, GraphSmoothingSummary, Interpretation, InterpretationClass,
     LabelFraction, MarkPairCovariancePoint, MarkedPatternResult, MultimodalResult,
     MultiscaleResidualSummary, NeighborhoodEnrichmentResult, NeighborhoodTerritory, OutputManifest,
-    PrePostResult, PrimaryEndpoint, Provenance, QcSummary, RegistrationSummary, ResidualTerritory,
-    ResolvedComponentMode, ResultDocument, ScaleEnergyPoint, SpectrumConfoundingConclusion,
-    SpectrumNullInferenceSummary, SpectrumNullModel, SpectrumNullSensitivitySummary, SpectrumPoint,
-    SpectrumSummary, StatusFlag, TerritoryPrePostSummary, TerritoryProfile, TimingStage,
-    WindowSummary, RESULT_FORMAT_VERSION,
+    PrePostResult, PrimaryEndpoint, PrimaryEndpointKind, Provenance, QcSummary,
+    RegistrationSummary, ResidualTerritory, ResolvedComponentMode, ResultDocument, ScaleEnergyBand,
+    ScaleEnergyPoint, SpectrumConfoundingConclusion, SpectrumNullInferenceSummary,
+    SpectrumNullModel, SpectrumNullSensitivitySummary, SpectrumPoint, SpectrumSummary, StatusFlag,
+    TerritoryPrePostSummary, TerritoryProfile, TimingStage, WindowSummary, RESULT_FORMAT_VERSION,
 };
 pub use writer::OutputWriter;

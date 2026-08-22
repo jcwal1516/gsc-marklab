@@ -75,7 +75,7 @@ pub(super) fn render_scale_energy_svg(result: &MarkedPatternResult) -> String {
         let y = 124.0 - height;
         bars.push_str(&format!(
             r##"<rect x="{x:.2}" y="{y:.2}" width="46" height="{height:.2}" fill="#2ca02c"/><text x="{x:.2}" y="144">{band}</text>"##,
-            band = xml_text(&point.band)
+            band = xml_text(point.band.as_str())
         ));
     }
 

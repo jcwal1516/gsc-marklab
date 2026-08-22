@@ -22,9 +22,33 @@ fn record_transform_fit_call() {
     TRANSFORM_FIT_CALLS.set(TRANSFORM_FIT_CALLS.get() + 1);
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TransformKind {
+    Identity,
+    Rigid,
+    Affine,
+}
+
+impl TransformKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Identity => "identity",
+            Self::Rigid => "rigid",
+            Self::Affine => "affine",
+        }
+    }
+}
+
+impl std::fmt::Display for TransformKind {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Transform2D {
-    pub transform_type: String,
+    pub transform_type: TransformKind,
     pub m00: f64,
     pub m01: f64,
     pub m02: f64,
@@ -35,9 +59,9 @@ pub struct Transform2D {
 
 impl Transform2D {
     #[cfg(test)]
-    pub fn identity(transform_type: impl Into<String>) -> Self {
+    pub fn identity() -> Self {
         Self {
-            transform_type: transform_type.into(),
+            transform_type: TransformKind::Identity,
             m00: 1.0,
             m01: 0.0,
             m02: 0.0,
@@ -132,7 +156,7 @@ pub fn fit_rigid(landmarks: &[LandmarkPair]) -> Result<Transform2D> {
     }
 
     Ok(Transform2D {
-        transform_type: "rigid".into(),
+        transform_type: TransformKind::Rigid,
         m00: coefficients[0],
         m01: coefficients[1],
         m02: coefficients[2],
@@ -171,7 +195,7 @@ pub fn fit_affine(landmarks: &[LandmarkPair]) -> Result<Transform2D> {
     let y_coefficients = solve_3x3(normal, target_y)?;
 
     Ok(Transform2D {
-        transform_type: "affine".to_string(),
+        transform_type: TransformKind::Affine,
         m00: x_coefficients[0],
         m01: x_coefficients[1],
         m02: x_coefficients[2],
@@ -248,3 +272,4 @@ fn solve_3x3(mut matrix: [[f64; 3]; 3], mut rhs: [f64; 3]) -> Result<[f64; 3]> {
         ))
     }
 }
+use serde::{Deserialize, Serialize};

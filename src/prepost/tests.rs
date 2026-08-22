@@ -9,8 +9,9 @@ use crate::{
     AnalysisSection, AnalysisStatus, AnisotropySummary, ComponentMode, ComponentModeSelection,
     CrossInteractionCurve, CrossInteractionPoint, CurveComparisonAvailability, FunctionalSummary,
     Interpretation, InterpretationClass, MarkPairCovariancePoint, MarkedPatternResult,
-    MultimodalResult, MultiscaleResidualSummary, NeighborhoodTerritory, PrimaryEndpoint, QcSummary,
-    ResolvedComponentMode, ScaleEnergyPoint, SpectrumPoint, SpectrumSummary, WindowSummary,
+    MultimodalResult, MultiscaleResidualSummary, NeighborhoodTerritory, PrimaryEndpoint,
+    PrimaryEndpointKind, QcSummary, ResolvedComponentMode, ScaleEnergyPoint, SpectrumNullModel,
+    SpectrumPoint, SpectrumSummary, WindowSummary,
 };
 
 fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResult {
@@ -31,10 +32,10 @@ fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResul
         },
         qc: QcSummary::default(),
         primary_endpoint: PrimaryEndpoint {
-            name: "low_k_excess".into(),
+            name: PrimaryEndpointKind::LowKExcess,
             value: AnalysisSection::available(1.0),
             p_value: AnalysisSection::available(1.0),
-            null: "fixed_position_random_labeling".into(),
+            null: SpectrumNullModel::FixedPositionRandomLabeling,
         },
         spectrum: AnalysisSection::available(SpectrumSummary {
             max_interpretable_scale_um: 10.0,

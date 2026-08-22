@@ -103,6 +103,9 @@ configuration, and engine version. The quick suite is not formal calibration;
 the scheduled random-label calibration and its acceptance rule are documented
 in [docs/validation-methodology.md](docs/validation-methodology.md).
 
+The supported crate-root Rust surface and result availability rules are listed
+in [docs/public-api.md](docs/public-api.md).
+
 ## WSI commands
 
 ```bash

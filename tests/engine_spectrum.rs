@@ -409,7 +409,7 @@ fn homogeneous_strata_report_degenerate_null() {
     );
     assert_eq!(
         result.primary_endpoint.null,
-        "stratified_fixed_position_random_labeling"
+        SpectrumNullModel::StratifiedFixedPositionRandomLabeling
     );
     assert_eq!(
         result
@@ -517,7 +517,7 @@ fn distinct_nulls_are_actually_executed() {
     assert!(stratified_p >= 0.10, "stratified p={stratified_p}");
     assert_eq!(
         stratified.primary_endpoint.null,
-        "stratified_fixed_position_random_labeling"
+        SpectrumNullModel::StratifiedFixedPositionRandomLabeling
     );
     let sensitivity = stratified
         .spectrum_null_sensitivity

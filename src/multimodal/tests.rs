@@ -23,7 +23,7 @@ fn application_builds_transform_once() {
         .expect("multimodal run");
 
     assert_eq!(transform_fit_call_count(), 1);
-    assert_eq!(run.transform.transform_type, "rigid");
+    assert_eq!(run.transform.transform_type, crate::TransformKind::Rigid);
 }
 
 #[test]
@@ -377,7 +377,7 @@ fn fusion_maps_he_cells_into_ihc_coordinate_space() {
         mmr_probability: Some(0.99),
     }];
     let transform = Transform2D {
-        transform_type: "test".into(),
+        transform_type: crate::TransformKind::Identity,
         m00: 1.0,
         m01: 0.0,
         m02: 100.0,
@@ -432,7 +432,7 @@ fn fusion_rejects_blank_metadata_fields() {
             },
         ),
     ] {
-        let err = fuse_registered_cells(&[], &[], &Transform2D::identity("test"), &meta)
+        let err = fuse_registered_cells(&[], &[], &Transform2D::identity(), &meta)
             .expect_err("blank metadata field should fail");
         let message = err.to_string();
         assert!(message.contains("input schema error"));
@@ -443,7 +443,7 @@ fn fusion_rejects_blank_metadata_fields() {
 
 #[test]
 fn fusion_rejects_non_finite_transform_coefficient() {
-    let mut transform = Transform2D::identity("test");
+    let mut transform = Transform2D::identity();
     transform.m02 = f64::INFINITY;
     let meta = valid_fusion_meta();
 
@@ -463,7 +463,7 @@ fn fusion_rejects_invalid_registration_error() {
             ..valid_fusion_meta()
         };
 
-        let err = fuse_registered_cells(&[], &[], &Transform2D::identity("test"), &meta)
+        let err = fuse_registered_cells(&[], &[], &Transform2D::identity(), &meta)
             .expect_err("invalid registration_error_um should fail");
 
         assert!(err

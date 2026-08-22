@@ -52,7 +52,7 @@ pub fn registration_qc(
     })?;
 
     Ok(RegistrationSummary {
-        transform_type: transform.transform_type.clone(),
+        transform_type: transform.transform_type,
         landmark_count: landmarks.len(),
         rmse_um,
         median_residual_um,

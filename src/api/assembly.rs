@@ -11,10 +11,10 @@ use crate::{
     output::{
         AnalysisStatus, AnisotropySummary, DiagnosticsResult, FunctionalSummary, Interpretation,
         InterpretationClass, MarkPairCovariancePoint, MarkedPatternResult,
-        MultiscaleResidualSummary, PrimaryEndpoint, ResidualTerritory, ScaleEnergyPoint,
-        SpectrumConfoundingConclusion, SpectrumNullInferenceSummary, SpectrumNullModel,
-        SpectrumNullSensitivitySummary, SpectrumPoint, SpectrumSummary, StatusFlag, TimingStage,
-        WindowSummary,
+        MultiscaleResidualSummary, PrimaryEndpoint, PrimaryEndpointKind, ResidualTerritory,
+        ScaleEnergyPoint, SpectrumConfoundingConclusion, SpectrumNullInferenceSummary,
+        SpectrumNullModel, SpectrumNullSensitivitySummary, SpectrumPoint, SpectrumSummary,
+        StatusFlag, TimingStage, WindowSummary,
     },
     spectra::{anisotropy::PermutationAnisotropy, structure_factor::PermutationWhitenedSpectrum},
 };
@@ -141,7 +141,7 @@ pub(super) fn assemble(
         },
         qc: qc_summary(pattern),
         primary_endpoint: PrimaryEndpoint {
-            name: "low_k_excess".into(),
+            name: PrimaryEndpointKind::LowKExcess,
             value: spectrum.as_ref().map_or_else(
                 || crate::output::AnalysisSection::InsufficientData {
                     reason: spectrum_unavailable_reason.clone().unwrap_or_else(|| {
@@ -159,9 +159,9 @@ pub(super) fn assemble(
                 crate::output::AnalysisSection::available,
             ),
             null: if config.permutation.stratified {
-                "stratified_fixed_position_random_labeling".into()
+                SpectrumNullModel::StratifiedFixedPositionRandomLabeling
             } else {
-                "fixed_position_random_labeling".into()
+                SpectrumNullModel::FixedPositionRandomLabeling
             },
         },
         spectrum: spectrum.as_ref().map_or_else(
@@ -250,10 +250,10 @@ pub(super) fn assemble(
     };
     if !includes_pooled {
         result.primary_endpoint = PrimaryEndpoint {
-            name: "component_low_k_excess".into(),
+            name: PrimaryEndpointKind::ComponentLowKExcess,
             value: crate::output::AnalysisSection::NotApplicable,
             p_value: crate::output::AnalysisSection::NotApplicable,
-            null: "component_specific_fixed_position_random_labeling".into(),
+            null: SpectrumNullModel::ComponentSpecificFixedPositionRandomLabeling,
         };
         result.spectrum = crate::output::AnalysisSection::NotApplicable;
         result.spectrum_curve.clear();

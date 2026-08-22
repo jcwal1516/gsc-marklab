@@ -10,6 +10,19 @@ semantics.
 - A configured `rigid` registration now means orientation-preserving rotation
   plus translation. It no longer performs scale plus translation, and its
   `transform_type` metadata is `rigid`.
+- Rust and JSON analysis statuses, interpretation classes, and transform kinds
+  are closed enums. Unknown values and unknown nested result fields are
+  rejected rather than retained as arbitrary strings.
+- Primary endpoint kinds, spectrum null models, and scale-energy bands are also
+  closed enums with their existing snake-case serialized names.
+- The constant `RegistrationSummary.status = "ok"` field is removed. An
+  available registration section already represents success; registration
+  failures prevent a successful result document.
+- Result DTOs are organized into common, marked, multimodal, pre/post,
+  diagnostic, and artifact modules behind the unchanged crate-root re-exports.
+- The low-level public `comparison` module and `AnalysisMetadata` root
+  re-export are removed. Use versioned comparison results and
+  `MultimodalAnalysisRun` artifacts instead.
 - `NeighborhoodEnrichmentResult.enrichment_ratio` changed from a required
   number to a nullable finite number.
 - `NeighborhoodEnrichmentResult.z_score` changed from a required number to a

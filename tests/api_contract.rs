@@ -235,7 +235,7 @@ fn configured_rigid_registration_recovers_rotation() {
         .expect("rigid analysis");
     let registration = result.registration.value().expect("registration");
 
-    assert_eq!(registration.transform_type, "rigid");
+    assert_eq!(registration.transform_type, marklab::TransformKind::Rigid);
     assert!(registration.rmse_um < 1.0e-9);
     assert!((result.fused_cells[0].x_um_registered - 8.0).abs() < 1.0e-9);
     assert!((result.fused_cells[0].y_um_registered - -3.0).abs() < 1.0e-9);

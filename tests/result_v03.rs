@@ -2,8 +2,9 @@ use std::collections::BTreeSet;
 
 use marklab::{
     AnalysisResult, AnalysisSection, AnalysisStatus, FusedCellSummary, Interpretation,
-    InterpretationClass, MultimodalResult, OutputWriter, PrePostResult, Provenance,
-    RegistrationSummary, ResultDocument,
+    InterpretationClass, MultimodalResult, OutputWriter, PrePostResult, PrimaryEndpointKind,
+    Provenance, RegistrationSummary, ResultDocument, ScaleEnergyBand, SpectrumNullModel,
+    TransformKind,
 };
 
 fn sample_result() -> MultimodalResult {
@@ -13,7 +14,7 @@ fn sample_result() -> MultimodalResult {
         protein: "unknown".into(),
         status: AnalysisStatus::Ok,
         registration: AnalysisSection::available(RegistrationSummary {
-            transform_type: "affine".into(),
+            transform_type: TransformKind::Affine,
             landmark_count: 3,
             rmse_um: 1.0,
             median_residual_um: 1.0,
@@ -93,6 +94,40 @@ fn unknown_machine_status_and_interpretation_class_are_rejected() {
     let mut unknown_class = serde_json::to_value(&document).expect("document value");
     unknown_class["analysis"]["result"]["interpretation"]["class"] = serde_json::json!("invented");
     assert!(serde_json::from_value::<ResultDocument>(unknown_class).is_err());
+
+    let mut unknown_transform = serde_json::to_value(&document).expect("document value");
+    unknown_transform["analysis"]["result"]["registration"]["value"]["transform_type"] =
+        serde_json::json!("invented");
+    assert!(serde_json::from_value::<ResultDocument>(unknown_transform).is_err());
+
+    for rejects_unknown in [
+        serde_json::from_str::<PrimaryEndpointKind>("\"invented\"").is_err(),
+        serde_json::from_str::<SpectrumNullModel>("\"invented\"").is_err(),
+        serde_json::from_str::<ScaleEnergyBand>("\"invented\"").is_err(),
+    ] {
+        assert!(rejects_unknown);
+    }
+}
+
+#[test]
+fn unknown_fields_rejected() {
+    let document = ResultDocument::multimodal(sample_result());
+    let mut unknown_result_field = serde_json::to_value(&document).expect("document value");
+    unknown_result_field["analysis"]["result"]["invented"] = serde_json::json!(true);
+    assert!(serde_json::from_value::<ResultDocument>(unknown_result_field).is_err());
+
+    let mut unknown_registration_field = serde_json::to_value(&document).expect("document value");
+    unknown_registration_field["analysis"]["result"]["registration"]["value"]["invented"] =
+        serde_json::json!(true);
+    assert!(serde_json::from_value::<ResultDocument>(unknown_registration_field).is_err());
+    assert!(
+        serde_json::from_value::<AnalysisSection<u8>>(serde_json::json!({
+            "status": "available",
+            "value": 3,
+            "invented": true
+        }))
+        .is_err()
+    );
 }
 
 #[test]

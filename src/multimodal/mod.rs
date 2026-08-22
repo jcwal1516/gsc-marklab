@@ -11,7 +11,7 @@ pub(crate) mod labels;
 mod null_sensitivity;
 mod registration_artifacts;
 
-pub use cells::{AnalysisMetadata, CellSection, FusedCell, HeCell, IhcCell};
+pub use cells::{CellSection, FusedCell, HeCell, IhcCell};
 #[cfg(test)]
 pub(crate) use engine::{multimodal_analysis_call_count, reset_multimodal_analysis_call_count};
 pub use engine::{MultimodalAnalysisRun, MultimodalEngine, MultimodalInput};

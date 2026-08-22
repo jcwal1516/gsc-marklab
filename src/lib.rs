@@ -14,7 +14,7 @@ mod api;
 #[cfg(feature = "cli")]
 mod cli;
 mod common;
-pub mod comparison;
+mod comparison;
 mod config;
 mod data;
 mod diagnostics;
@@ -56,9 +56,9 @@ pub use errors::{MarklabError, Result};
 pub use geom::mask::TumorMask;
 pub use io::{PatternLoadDiagnostics, PatternLoadResult, PatternLoader};
 pub use multimodal::{
-    AnalysisMetadata, CellExtrapolationRecord, CellSection, FusedCell, HeCell, IhcCell,
-    LandmarkHullAvailability, MultimodalAnalysisRun, MultimodalEngine, MultimodalInput,
-    NullModelSensitivityResult, RegistrationExtrapolation, RegistrationResidual,
+    CellExtrapolationRecord, CellSection, FusedCell, HeCell, IhcCell, LandmarkHullAvailability,
+    MultimodalAnalysisRun, MultimodalEngine, MultimodalInput, NullModelSensitivityResult,
+    RegistrationExtrapolation, RegistrationResidual,
 };
 pub use neighborhood::graph::{SpatialEdge, SpatialGraph};
 pub use output::{
@@ -70,13 +70,16 @@ pub use output::{
     GraphSmoothingLabelPairSummary, GraphSmoothingSummary, Interpretation, InterpretationClass,
     LabelFraction, MarkPairCovariancePoint, MarkedPatternResult, MultimodalResult,
     MultiscaleResidualSummary, NeighborhoodEnrichmentResult, NeighborhoodTerritory, OutputManifest,
-    OutputWriter, PrePostResult, PrimaryEndpoint, Provenance, QcSummary, RegistrationSummary,
-    ResidualTerritory, ResolvedComponentMode, ResultDocument, ScaleEnergyPoint,
-    SpectrumConfoundingConclusion, SpectrumNullInferenceSummary, SpectrumNullModel,
-    SpectrumNullSensitivitySummary, SpectrumPoint, SpectrumSummary, StatusFlag,
+    OutputWriter, PrePostResult, PrimaryEndpoint, PrimaryEndpointKind, Provenance, QcSummary,
+    RegistrationSummary, ResidualTerritory, ResolvedComponentMode, ResultDocument, ScaleEnergyBand,
+    ScaleEnergyPoint, SpectrumConfoundingConclusion, SpectrumNullInferenceSummary,
+    SpectrumNullModel, SpectrumNullSensitivitySummary, SpectrumPoint, SpectrumSummary, StatusFlag,
     TerritoryPrePostSummary, TerritoryProfile, TimingStage, WindowSummary, RESULT_FORMAT_VERSION,
 };
-pub use registration::{landmarks::LandmarkPair, transform::Transform2D};
+pub use registration::{
+    landmarks::LandmarkPair,
+    transform::{Transform2D, TransformKind},
+};
 #[cfg(feature = "wsi")]
 pub use wsi::{
     PlaneSelection, RegionRequest, RgbaRegion, SlideLevelMetadata, SlideMetadata, SlideOpenOptions,

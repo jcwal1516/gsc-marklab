@@ -237,7 +237,11 @@ pub(super) fn scale_energy_with_envelope(
                 Some((lower, upper))
             });
             ScaleEnergyPoint {
-                band: bands[index].0.into(),
+                band: match index {
+                    0 => crate::output::ScaleEnergyBand::LocalDifference,
+                    1 => crate::output::ScaleEnergyBand::Residual,
+                    _ => crate::output::ScaleEnergyBand::BlockMean,
+                },
                 scale_um: bands[index].1,
                 energy_fraction,
                 inference_eligible: eligibility[index],

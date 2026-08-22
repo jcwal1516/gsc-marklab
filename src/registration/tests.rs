@@ -1,7 +1,7 @@
 use crate::registration::{
     landmarks::LandmarkPair,
     qc::registration_qc,
-    transform::{fit_affine, fit_rigid, Transform2D},
+    transform::{fit_affine, fit_rigid, Transform2D, TransformKind},
 };
 
 const RIGID_TOLERANCE: f64 = 1.0e-9;
@@ -40,7 +40,7 @@ fn rigid_identity() {
 
     let transform = fit_rigid(&landmarks).expect("rigid identity");
 
-    assert_eq!(transform.transform_type, "rigid");
+    assert_eq!(transform.transform_type, TransformKind::Rigid);
     assert_maps_landmarks(&transform, &landmarks, RIGID_TOLERANCE);
 }
 
@@ -207,7 +207,7 @@ fn affine_transform_recovers_shear() {
 
 #[test]
 fn registration_qc_reports_usable_distance_scale() {
-    let transform = Transform2D::identity("identity");
+    let transform = Transform2D::identity();
     let landmarks = vec![
         LandmarkPair::new(0.0, 0.0, 0.0, 0.0),
         LandmarkPair::new(10.0, 0.0, 11.0, 0.0),
@@ -215,7 +215,7 @@ fn registration_qc_reports_usable_distance_scale() {
     ];
 
     let qc = registration_qc(&landmarks, &transform, 2.0).expect("qc");
-    assert_eq!(qc.transform_type, "identity");
+    assert_eq!(qc.transform_type, TransformKind::Identity);
     assert_eq!(qc.landmark_count, 3);
     assert!((qc.rmse_um - (5.0_f64 / 3.0).sqrt()).abs() < 1.0e-9);
     assert_eq!(qc.median_residual_um, 1.0);
@@ -276,14 +276,14 @@ fn rigid_rotation() {
 
 #[test]
 fn registration_qc_rejects_empty_landmarks() {
-    let transform = Transform2D::identity("identity");
+    let transform = Transform2D::identity();
 
     assert!(registration_qc(&[], &transform, 2.0).is_err());
 }
 
 #[test]
 fn registration_qc_rejects_non_finite_or_non_positive_multiplier() {
-    let transform = Transform2D::identity("identity");
+    let transform = Transform2D::identity();
     let landmarks = vec![LandmarkPair::new(0.0, 0.0, 0.0, 0.0)];
 
     assert!(registration_qc(&landmarks, &transform, f64::NAN).is_err());

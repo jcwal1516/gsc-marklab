@@ -150,6 +150,9 @@ fn spectrum_null_model_name(model: SpectrumNullModel) -> &'static str {
         SpectrumNullModel::StratifiedFixedPositionRandomLabeling => {
             "stratified_fixed_position_random_labeling"
         }
+        SpectrumNullModel::ComponentSpecificFixedPositionRandomLabeling => {
+            "component_specific_fixed_position_random_labeling"
+        }
     }
 }
 

@@ -674,7 +674,7 @@ fn output_writer_emits_optional_multimodal_parquet_artifacts() {
         protein: "MSH6".into(),
         status: crate::output::AnalysisStatus::Ok,
         registration: AnalysisSection::available(RegistrationSummary {
-            transform_type: "affine".into(),
+            transform_type: crate::TransformKind::Affine,
             landmark_count: 4,
             rmse_um: 1.0,
             median_residual_um: 0.5,

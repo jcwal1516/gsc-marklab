@@ -26,6 +26,34 @@ undefined scientific statistic is represented by an absent numeric value and,
 where applicable, a typed reason. It is never represented by zero, infinity,
 NaN, or a string containing one of those values.
 
+Machine statuses are closed enums. Analysis `status` is `ok` or `suppressed`,
+and interpretation `class` is one of `multimodal_summary`,
+`separate_components`, `suppressed_qc_artifact`, `suppressed`,
+`insufficient_data`, `coarse_excess`, `low_frequency_suppression`, or
+`random_like`. Registration `transform_type` is `identity`, `rigid`, or
+`affine`. Primary endpoint names, spectrum nulls, and scale-energy bands are
+also closed enums rather than arbitrary strings. Unknown status, class,
+transform, endpoint, null, band, result-kind, section-status, and nested field
+names are rejected. `RegistrationSummary` has no redundant
+success status: an available registration section is successful, while a fit
+or QC error prevents a successful document from being committed.
+
+## Analysis availability
+
+`AnalysisSection` uses one policy throughout the schema:
+
+- `available` means the requested computation completed;
+- `disabled` means configuration disabled it;
+- `not_applicable` means it does not apply to the analysis family or selected
+  component mode;
+- `insufficient_data` means it was requested but documented preconditions were
+  not met.
+
+An available empty vector is valid only for a completed set-valued endpoint
+whose scientific result can be empty, such as no detected territories or no
+configured label pairs. Routine computation failures return an error and do
+not produce or commit a successful result document.
+
 ## Spectrum null-model sensitivity
 
 When stratified spectrum permutations are requested,
@@ -182,6 +210,5 @@ largest component fraction is below 0.80, otherwise to `pooled`.
 
 ## Current scope
 
-This document will be expanded as the remaining 0.3 model cleanup is
-implemented. The complete 0.2 converter remains open work; readers currently
-reject older versions.
+The complete 0.2 converter remains open work; readers currently reject older
+versions rather than guessing at removed fields or unavailable-state meaning.
