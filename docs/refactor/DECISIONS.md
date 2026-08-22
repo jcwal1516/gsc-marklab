@@ -518,3 +518,17 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Residual risk: The closure report directly records the two unmaintained transitive packages, external WSI oracle dependency, narrow 0.2 converter, broader calibration need, output-sensitive geometry budget, and absence of doctests. None is hidden as a passing claim or an undocumented open critical finding.
 - Package evidence: The first post-report package attempt correctly refused the dirty tree. After commit `1ec7a42`, the exact clean-tree command packaged 235 files (1.6 MiB unpacked, 376.0 KiB compressed), compiled the extracted archive, and exited 0.
 - Status: Accepted; Phase 13 §§20.1–20.5 and the full remediation plan are closed. Only final repository-state and task-created LSP cleanup remain.
+
+## 2026-08-22 — Completion audit supersedes the closure claim
+
+- Context: A requirement-by-requirement audit of current source, rather than the prior closure narrative, found untracked contradictions: the marked schema still has an always-empty pre/post field; comparison services are CLI-gated; cross-interaction geometry is quadratic and rebuilt per permutation; raster assignments are recomputed per multiscale permutation; multimodal memory limits are telemetry-only; and multimodal graph endpoints still compare strings instead of sharing compact run-level labels. The mandatory BH and focused ERL regression evidence is also incomplete.
+- Decision: Withdraw the Phase 13 completion claim while preserving its valid evidence. Reopen PERF-09, add AUDIT-01, BOUND-06, MODEL-05, and PERF-11–13 to the findings matrix, reproduce each with a red test or benchmark, and close them only after implementation plus the full release matrix.
+- Consequence: `5cb961d` is a verified prior checkpoint, not the completed objective. The closure report must be revised after the new findings close; no goal-complete status is justified yet.
+- Status: Accepted; completion audit remediation is active.
+
+## 2026-08-22 — Completion-audit findings are implemented
+
+- Decision: Support the comparison services as always-compiled crate-root APIs; remove the always-empty marked pre/post placeholder; share one compact label encoding across multimodal endpoints; replace repeated cross-interaction all-pairs scans with one indexed, budgeted plan and checked ERL envelope; retain one raster assignment plan across multiscale permutations; and enforce the multimodal memory budget at retained and output-sensitive allocation boundaries.
+- Scientific consequence: An empty cross-interaction geometry bin is unavailable, whereas an eligible observed count of zero remains an observed zero. Validation's changed pre/post scenario preserves geometry and changes labels, so the production typed-axis contract remains evaluable instead of being bypassed.
+- Evidence: Focused BH/ERL/schema/API/differential/budget/DHAT tests pass. Cross-interaction medians improve 65.0–85.5%; complete multimodal medians improve 71–77% with an 8.92 MiB peak RSS (+2.2% versus Phase 12). The complete multiscale benchmark has no statistically detectable runtime change (`p = 0.50`), despite eliminating repeated assignment work.
+- Status: Accepted; all 66 findings are fixed or disproved. Completion remains contingent on the full final gate and closure-report update.

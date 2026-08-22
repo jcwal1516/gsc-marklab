@@ -213,3 +213,57 @@ effective length. The remaining Phase 13 changes are tests, workflows,
 documentation, and a semver-compatible locked transitive WSI patch. Therefore
 the recorded scaling, storage, and equivalent-workload conclusions remain
 applicable to closure source SHA `9a11e11`.
+
+## Completion-audit addendum
+
+The requirement-by-requirement audit after the first closure claim found two
+unmeasured hot-path defects: cross-interaction curves rebuilt an all-pairs scan
+for every permutation, and multiscale residual permutations recalculated every
+cell-to-raster assignment. It also found that multimodal memory telemetry did
+not enforce `performance.memory_budget_mib`. Production remediation is commit
+`00cad21`; raster-plan remediation is `97dd3e1`. Evidence-only commit `fe7a234`
+does not change these hot paths.
+
+All completion-audit timing measurements use the same Apple M4 Pro release
+profile and five-sample median method as the report above.
+
+| Completion-audit workload | Size | Before audit ms | Final ms | Change |
+| --- | ---: | ---: | ---: | ---: |
+| Cross interaction, observed + 19 null curves | 256 | 3.057 | 1.071 | −65.0% |
+| Cross interaction, observed + 19 null curves | 512 | 7.285 | 2.156 | −70.4% |
+| Cross interaction, observed + 19 null curves | 1,024 | 22.479 | 3.251 | −85.5% |
+| Complete multimodal application | 48 fused rows | 1.142 | 0.262 | −77.0% |
+| Complete multimodal application | 96 fused rows | 2.154 | 0.507 | −76.4% |
+| Complete multimodal application | 192 fused rows | 4.487 | 1.293 | −71.2% |
+
+Cross-interaction doubling ratios are 2.01× and 1.51×, compared with 2.38×
+and 3.09× before the audit. The final plan visits indexed neighbors within the
+configured maximum radius and evaluates all labels over retained source,
+target, and bin assignments. Output size remains the same five physical bins.
+
+The complete multimodal direct release-test process used 9,355,264 bytes
+(8.92 MiB) maximum RSS. The comparable Phase 12 value was 8.73 MiB, a 2.2%
+increase, while the full application median fell by 71–77%. The added memory
+is conservative compact-label catalogs and enforced plan-accounting state; no
+all-pairs matrix is retained. Successful telemetry is test-enforced at or below
+the configured budget, and dense graph/cross/territory builders fail before
+their next over-budget entry.
+
+The whole marked multiscale benchmark changed from a 44.099 ms baseline median
+to a 43.976 ms estimate with interval 43.933–44.149 ms. Criterion reported
+`p = 0.50` and no detectable performance change. This is recorded honestly:
+the assignment plan removes repeated coordinate mapping, but the complete
+workload remains dominated by other multiscale computation. The exact DHAT
+test `periodogram::dhat_raster_fill::dhat_raster_fill_does_not_allocate_after_raster_allocation`
+passes after plan/raster setup.
+
+Completion-audit commands:
+
+- `env MARKLAB_BASELINE_SAMPLES=5 cargo +1.96.0 test --release --locked --all-features --lib perf::baseline_tests::completion_audit_perf_cross_interaction -- --ignored --exact --nocapture --test-threads=1`
+- `env MARKLAB_BENCH_PROFILE=smoke cargo +1.96.0 bench --locked --all-features --bench multiscale_residual -- --quick`
+- `/usr/bin/time -l env MARKLAB_BASELINE_SAMPLES=5 target/release/deps/marklab-e7db9bfd8582443c perf::baseline_tests::baseline_perf_complete_multimodal_analysis --ignored --exact --nocapture --test-threads=1`
+- `cargo +1.96.0 test --release --locked --features dhat-heap --lib periodogram::dhat_raster_fill::dhat_raster_fill_does_not_allocate_after_raster_allocation -- --exact --nocapture --test-threads=1`
+
+Every listed command exited 0. The first DHAT invocation used an incomplete
+filter and ran zero tests; it is not counted as verification. The exact fully
+qualified rerun above executed one test and passed.

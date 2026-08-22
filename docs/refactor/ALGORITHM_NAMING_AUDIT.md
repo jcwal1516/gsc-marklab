@@ -1,9 +1,9 @@
 # Algorithm Naming Audit
 
 Audit date: 2026-08-22<br>
-Evidence SHA: `00cad21`<br>
+Evidence SHA: `fe7a234`<br>
 Remediation reviewed through: completion-audit commits `6d7c13d`, `97dd3e1`,
-and `00cad21`<br>
+`00cad21`, and evidence commit `fe7a234`<br>
 Scope: analytical functions, configuration, result fields, CLI/report language, and validation names.
 
 The audit compares observable implementation with the ordinary technical meaning

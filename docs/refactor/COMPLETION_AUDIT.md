@@ -1,8 +1,8 @@
 # Completion Evidence Audit
 
 Audit date: 2026-08-22<br>
-Evidence base: completion-audit commits `6d7c13d`, `97dd3e1`, and `00cad21`,
-plus the focused evidence tests listed below.<br>
+Evidence base: completion-audit commits `6d7c13d`, `97dd3e1`, `00cad21`, and
+`fe7a234`.<br>
 Scope: the mandatory regression matrix, definition-of-done invariants, public
 deliverables, and the seven findings discovered after the first Phase 13
 closure claim.
