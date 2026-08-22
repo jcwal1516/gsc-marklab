@@ -261,3 +261,11 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Compatibility: CSV and Parquet now reject non-finite coordinates/non-binary marks at the shared boundary. Optional scientific metrics are validated only for in-mask retained rows in both formats, eliminating a prior adapter discrepancy. Valid accepted inputs and categorical first-seen encoding remain unchanged.
 - Evidence: Commit `f4243cd`; the formerly ignored absence test is enabled, equivalent CSV/Parquet rows produce equal complete Patterns, all seven Parquet I/O and nine CSV loader tests pass, both simulation output tests pass, warnings-denied Clippy and no-default-features pass, and all-feature Nextest passes 317/317 with 14 expected skips.
 - Status: Accepted; DUP-05, OUT-04, and OUT-05 closed.
+
+## 2026-08-22 — Batch IDs are one safe output component
+
+- Context: Both batch workflows joined manifest-provided IDs directly to the output root. A marked manifest ID of `../escaped` completed successfully outside the configured directory.
+- Decision: Treat a batch ID as one trimmed normal path component, not a relative path. Reject blank, absolute, current/parent, forward-slash, backslash, and multi-component values. Reject an existing target symlink and, for existing targets, canonicalize and verify containment under the canonical root.
+- Execution behavior: Both marked and multimodal batch flows call the same resolver. Marked batch resolves every job before starting sequential or parallel analysis, so a later invalid ID cannot follow earlier writes. Valid ID trimming and named output directories remain unchanged.
+- Evidence: Commit `a8d38c5`; the formerly ignored traversal regression is enabled and green. A unit table covers blank/absolute/dot/parent/both separators and a valid trimmed ID; a Unix test covers an existing outward symlink. Valid marked sequential/parallel batch tests, the multimodal batch integration, warnings-denied Clippy, and no-default-features check pass.
+- Status: Accepted; OUT-06 closed.

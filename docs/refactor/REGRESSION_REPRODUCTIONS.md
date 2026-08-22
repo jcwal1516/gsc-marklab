@@ -15,7 +15,7 @@ These tests encode the corrected contract but remain ignored until their owning 
 | MODEL-04 | Enabled `remediation_separate_component_mode_does_not_behave_like_both` | Baseline returned component analyses plus the active pooled spectrum. In `b56cc60`, Separate returns components while every pooled endpoint is NotApplicable; Pooled, Both, and both Auto resolutions have explicit coverage and a recorded reason. |
 | OUT-01 | `output::tests::remediation_result_and_timings_sidecar_use_the_same_telemetry` | `timings.json` contained an extra `write_outputs` stage absent from the result document's timing history. |
 | OUT-04 / OUT-05 | Enabled `io::parquet_tests::optional_absence_preserved` plus `csv_parquet_equivalent_rows_produce_equal_pattern` | Baseline reloaded an absent internal control and zero QC/component IDs as measured values. Commit `f4243cd` routes both formats through one logical row/builder, omits unavailable states from the explicitly filtered export, records provenance, and proves full logical parity for equivalent rows. |
-| OUT-06 | `remediation_batch_id_cannot_escape_output_root` | A manifest ID of `../escaped` completed successfully instead of being rejected. |
+| OUT-06 | Enabled `tests/cli.rs::batch_id_cannot_escape_output_root` plus shared resolver unit tests | Baseline accepted `../escaped`, exited successfully, and wrote outside the configured root. Commit `a8d38c5` rejects unsafe components and symlink targets through one marked/multimodal resolver while retaining valid sequential/parallel behavior. |
 
 ## Commands and results
 
