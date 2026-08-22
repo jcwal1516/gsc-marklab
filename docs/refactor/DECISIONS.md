@@ -244,3 +244,11 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Evidence: Commits `38700da`, `89c7421`, `3b790b2`, and `8681338`; nine structure-factor numerical/property tests and all 20 engine-spectrum tests pass. Phase exit commands all returned exit 0: `cargo +1.96.0 fmt --check`; warnings-denied all-target/all-feature Clippy; no-default-features check; all-feature doc tests; and all-feature Nextest with 316/316 passed and 15 expected skips.
 - Closure: ARCH-01/02/03/04/06, BOUND-02/03/04, DUP-04/06, and PERF-09/10 are fixed. The CLI contains no multimodal scientific computation, the transform and graph are each built once, library/CLI core results agree, analytical enrichment is not CLI-gated, and marked/multimodal pre/post services are separate.
 - Status: Accepted; Phase 4 closed and Phase 5 may begin.
+
+## 2026-08-22 — Phase 5 opened at the shared logical cell boundary
+
+- Entry evidence: The ignored optional-absence regression fails because `write_pattern_parquet` always fabricates `internal_control_local = "valid"`, valid tumor/IHC flags, false exclusions, and zero QC/component IDs. CSV and Parquet loaders independently repeat mask filtering, QC counters, metadata validation, dense optional-column consistency, categorical encoding, retained arrays, nearest-neighbor geometry, and final Pattern assembly.
+- Decision: Define one normalized decoded cell row with typed internal-control and exclusion state, then route both physical decoders through one `PatternBuilder`. Preserve format-specific parsing/type diagnostics in adapters, but give shared scientific/data semantics exactly one owner.
+- Export contract: A `Pattern` contains retained cells and aggregate QC fractions, not excluded source rows or their per-row flags. Its Parquet projection is therefore a filtered canonical export, not a full input round trip. The API and provenance must say so; optional columns must remain nullable/absent instead of receiving fabricated meaningful values.
+- Verification-first sequence: Keep the reproduced optional-absence failure red, add full logical CSV/Parquet parity around the shared builder, implement the smallest passing boundary, then rerun all loader, CLI, benchmark-compilation, and no-default-feature checks.
+- Status: Accepted; Phase 5 active with DUP-05/OUT-04/OUT-05 in progress.
