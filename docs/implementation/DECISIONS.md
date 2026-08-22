@@ -140,3 +140,12 @@ This file is append-only. Superseding decisions reference the prior decision; ex
 - Decision: restrict `BiologicalUnit` to patient/specimen objects, retain the nearest unit for specific lookup, and store the enclosing biological parent for explicit membership tests. Repeated sets may name any unit in that bounded lineage, and factual core/region summaries count every declared level to which an object belongs. No level is chosen as an inferential unit.
 - Alternatives: forbid nested biological units; return an allocated lineage per query; introduce an unbounded graph ontology or inferential design layer in C-01.
 - Consequences: specimen → patient ancestry is bounded, validation and summary expansion remain expected-linear, and downstream FND-06 can choose a randomization unit explicitly. A future additional biological level requires a reviewed role-matrix/API change rather than silent reinterpretation.
+
+## DEC-0017 — Use explicit directed frame maps and specialized parallel-section placement
+
+- Date: 2026-08-22
+- Status: accepted
+- Context: C-02 must represent pixel/physical calibration, 2-D/3-D frame chains, and serial-section placement without mutating the compatibility `Transform2D` or silently equating frames that share axis names. OME-NGFF's expanded named-coordinate model remains a 0.6 RFC, and SpatialData's automatic path/inverse behavior is broader than the immediate native need.
+- Decision: declare ordered axes/units on every named frame; retain forward same-dimensional affine maps in an acyclic graph; require callers to provide transform chains explicitly; and represent each present parallel serial section with a separate 2-D affine map into semantic volume X/Y plus explicit z. Transform and placement uncertainty are references in the target frame and are not propagated in C-02. Missing pixel calibration remains absence, never an identity/default scale.
+- Alternatives: infer by axis/frame name; auto-select shortest paths/inverses; treat equal units as equal origins; use a full oblique 2-D→3-D affine; mutate/move the current registration type; claim premature NGFF/SpatialData conformance.
+- Consequences: matrix direction, axis order, unit conversion, serial origins, z placement, and unavailable calibration are explicit while validation remains iterative and expected-linear. Oblique planes, inversion, deformation fields, covariance propagation, persistence, interchange adapters, and current-workflow migration require later reviewed tasks.

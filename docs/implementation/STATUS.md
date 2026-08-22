@@ -1,13 +1,13 @@
 # Implementation status
 
-Last updated: 2026-08-22T18:43:37-04:00
+Last updated: 2026-08-22T18:57:17-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Current SHA: `f2290fe4607d9747246a92e9bc1422b1b3a78780`
+- Current SHA: `1ef60116f4ea5b31f2eae1fb314a91b897336560`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
@@ -27,7 +27,7 @@ Last updated: 2026-08-22T18:43:37-04:00
 
 ## Dirty files and reasons
 
-- Production, tests, manifests, and locks are clean at `f2290fe4607d9747246a92e9bc1422b1b3a78780`. Current dirty files are only the proposed C-02 task contract, ownership row, and this activation-state update.
+- Production, tests, manifests, and locks are clean at `1ef60116f4ea5b31f2eae1fb314a91b897336560`. Current dirty files are only the audited C-02 contract corrections, `DEC-0017`, ownership precision, and this state update.
 
 ## Recent decisions
 
@@ -43,6 +43,7 @@ Last updated: 2026-08-22T18:43:37-04:00
 - `DEC-0014`: use the already-locked reviewed `sha2` 0.10.9 and `thiserror` 2 dependencies; no registry lock delta is accepted.
 - `DEC-0015`: C-01 separates compact containment parents from explicit biological sources so donor cores on multi-donor TMA slides remain attributable without filename inference or false technical-replicate labels.
 - `DEC-0016`: only patient/specimen objects may be biological units; nearest resolution and bounded enclosing lineage coexist so downstream designs select a level explicitly without pseudoreplication.
+- `DEC-0017`: C-02 uses named directed affine maps and explicit parallel-section placement; missing calibration, inverse/path selection, and uncertainty propagation are never inferred.
 
 ## Unresolved questions
 
@@ -54,9 +55,9 @@ Last updated: 2026-08-22T18:43:37-04:00
 
 ## Next three exact actions
 
-1. Run a read-only C-02 design audit against the proposed explicit-axis/frame graph and current compatibility owners; freeze or correct the contract.
-2. Add behavior-first 2-D/3-D unit, frame, transform-chain, uncertainty-reference, and serial-section contract tests.
-3. Implement the smallest core/data boundary and run focused plus workspace compatibility gates.
+1. Add the C-02 coordinate-identity and framed-coordinate integration contract, then confirm the absent API fails for the expected reason.
+2. Implement frames/transforms/uncertainty and their iterative graph validation; turn the focused tests green.
+3. Add explicit parallel serial-section placement/embedding tests and implementation, then run focused plus workspace compatibility gates.
 
 Next exact verification command:
 
