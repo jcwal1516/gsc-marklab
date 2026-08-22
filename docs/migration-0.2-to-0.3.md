@@ -52,8 +52,13 @@ semantics.
 - The interim `validate` CLI command is renamed to `smoke`, and its artifact is
   `smoke.json` rather than `validation.json`. Associated Rust types/functions
   use `SyntheticSmoke` and `run_*_synthetic_smoke` names. These scenarios are
-  smoke checks, not calibration evidence; multimodal outcomes remain directly
-  synthesized until COR-01 is remediated.
+  smoke checks, not calibration evidence. Multimodal generators now construct
+  inputs and execute the production engine; direct outcome synthesis was
+  removed. Smoke result objects replace `replicates_run` with attempted,
+  completed, and failed denominators and add failure reasons, Wilson intervals,
+  seed, configuration, and engine version. The marked
+  `serial_section_misregistration` scenario is replaced by the accurately named
+  `prepost_metadata_mismatch` production-comparison control.
 - The Task-derived `below_resolution_flag_rate` compatibility alias is removed;
   use `below_registration_resolution_flag_rate`.
 - QC results add nullable `valid_tumor_fraction` and `valid_ihc_fraction`.

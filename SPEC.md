@@ -138,10 +138,13 @@ controls are:
 - typed registration, neighborhood, comparison, performance, and output controls.
 
 The `smoke` command runs deterministic synthetic-generator smoke checks and
-writes `smoke.json`. These checks do not establish calibration. The current
-multimodal smoke generator does not invoke the production multimodal engine;
-that known limitation remains explicit until the real validation workflow
-replaces it.
+writes `smoke.json`. Marked and multimodal scenarios invoke their production
+engines, and pre/post scenarios use production comparison services. The output
+retains attempted/completed/failed denominators, failure reasons, Wilson
+intervals, seed, configuration, and engine version. Quick smoke thresholds do
+not establish calibration; the separate 1,000-replicate scheduled
+random-label control and its one-sided nominal-alpha acceptance are defined in
+`docs/validation-methodology.md`.
 
 `registration.transform = "rigid"` is an orientation-preserving least-squares
 two-dimensional rotation plus translation. It never estimates scale or fits a
