@@ -54,6 +54,7 @@ pub use config::{
 pub use data::{Pattern, PatternMeta, TumorWindow};
 pub use errors::{MarklabError, Result};
 pub use geom::mask::TumorMask;
+pub use io::{PatternLoadDiagnostics, PatternLoadResult, PatternLoader};
 pub use multimodal::{
     AnalysisMetadata, CellExtrapolationRecord, CellSection, FusedCell, HeCell, IhcCell,
     LandmarkHullAvailability, MultimodalAnalysisRun, MultimodalEngine, MultimodalInput,

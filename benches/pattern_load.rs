@@ -1,6 +1,11 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use marklab::Pattern;
-use std::{fmt::Write as _, hint::black_box};
+use marklab::{PatternLoader, TumorMask};
+use std::{
+    fs::File,
+    hint::black_box,
+    io::{BufWriter, Write},
+    time::Duration,
+};
 
 fn bench_pattern_csv_load_1m_cells(c: &mut Criterion) {
     let full = std::env::var("MARKLAB_BENCH_PROFILE").as_deref() == Ok("full");
@@ -8,8 +13,12 @@ fn bench_pattern_csv_load_1m_cells(c: &mut Criterion) {
     let dir = tempfile::tempdir().expect("benchmark temp directory");
     let cells = dir.path().join("cells.csv");
     let mask = dir.path().join("mask.geojson");
-    let mut csv = String::with_capacity(n_cells * 48);
-    csv.push_str("x_um,y_um,mark,case_id,timepoint,protein,valid_tumor,valid_ihc\n");
+    let mut csv = BufWriter::new(File::create(&cells).expect("create CSV fixture"));
+    writeln!(
+        csv,
+        "x_um,y_um,mark,case_id,timepoint,protein,valid_tumor,valid_ihc"
+    )
+    .expect("write CSV header");
     for index in 0..n_cells {
         writeln!(
             csv,
@@ -20,7 +29,8 @@ fn bench_pattern_csv_load_1m_cells(c: &mut Criterion) {
         )
         .expect("write CSV row");
     }
-    std::fs::write(&cells, csv).expect("write CSV fixture");
+    csv.flush().expect("flush CSV fixture");
+    drop(csv);
     std::fs::write(
         &mask,
         format!(
@@ -30,13 +40,35 @@ fn bench_pattern_csv_load_1m_cells(c: &mut Criterion) {
         ),
     )
     .expect("write mask fixture");
+    let mask_text = std::fs::read_to_string(&mask).expect("read mask fixture");
+    let mask = TumorMask::from_geojson_str(&mask_text).expect("parse mask fixture");
+    let loader = PatternLoader::new(&mask);
 
     let mut group = c.benchmark_group("pattern_csv_load");
     group.sample_size(10);
     group.bench_function(format!("pattern_csv_load_{n_cells}_cells"), |b| {
-        b.iter(|| {
-            black_box(Pattern::from_paths(black_box(&cells), black_box(&mask)))
-                .expect("load CSV fixture")
+        b.iter(|| black_box(loader.load(black_box(&cells))).expect("load CSV fixture"));
+    });
+    group.bench_function(format!("pattern_csv_decode_filter_{n_cells}_cells"), |b| {
+        b.iter_custom(|iterations| {
+            (0..iterations).fold(Duration::ZERO, |elapsed, _| {
+                let result = loader
+                    .load_with_diagnostics(black_box(&cells))
+                    .expect("load CSV fixture for decode timing");
+                assert_eq!(result.pattern.len(), n_cells);
+                elapsed + result.diagnostics.decode_and_filter
+            })
+        });
+    });
+    group.bench_function(format!("pattern_nearest_neighbor_{n_cells}_cells"), |b| {
+        b.iter_custom(|iterations| {
+            (0..iterations).fold(Duration::ZERO, |elapsed, _| {
+                let result = loader
+                    .load_with_diagnostics(black_box(&cells))
+                    .expect("load CSV fixture for nearest-neighbor timing");
+                assert_eq!(result.pattern.len(), n_cells);
+                elapsed + result.diagnostics.nearest_neighbor
+            })
         });
     });
     group.finish();

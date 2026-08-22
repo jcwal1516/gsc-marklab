@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     geom::mask::TumorMask,
-    io::{intermediates::write_analysis_intermediates, load_pattern_path_with_diagnostics},
+    io::{intermediates::write_analysis_intermediates, PatternLoader},
     output::{RunManifestContext, RunManifestExecution, RunManifestInputs},
     AnalysisConfig, AnalysisEngine, MarkedPatternResult, MarklabError, OutputWriter, Result,
     ThreadSetting, TimingStage,
@@ -60,7 +60,7 @@ pub(super) fn run(request: AnalyzeRequest) -> Result<()> {
     let mask_path = mask;
     let mask_text = fs::read_to_string(&mask_path)?;
     let mask = TumorMask::from_geojson_str(&mask_text)?;
-    let load_result = load_pattern_path_with_diagnostics(&cells, &mask)?;
+    let load_result = PatternLoader::new(&mask).load_with_diagnostics(&cells)?;
     drop(load_enter);
     let load_elapsed = load_start.elapsed();
     let pattern = load_result.pattern;
@@ -77,7 +77,7 @@ pub(super) fn run(request: AnalyzeRequest) -> Result<()> {
         &mut run.result.timings,
         LoadStageDurations {
             load: load_elapsed,
-            mask_filter: load_result.diagnostics.mask_filter,
+            decode_and_filter: load_result.diagnostics.decode_and_filter,
             nearest_neighbor: load_result.diagnostics.nearest_neighbor,
         },
         timing_context,
@@ -136,7 +136,7 @@ fn init_logging(log: Option<LogLevel>) {
 #[derive(Clone, Copy, Debug)]
 struct LoadStageDurations {
     load: Duration,
-    mask_filter: Duration,
+    decode_and_filter: Duration,
     nearest_neighbor: Duration,
 }
 
@@ -177,7 +177,7 @@ fn prepend_load_timings(
 ) {
     let mut prefixed = vec![
         timing_stage("load", durations.load, context),
-        timing_stage("mask_filter", durations.mask_filter, context),
+        timing_stage("decode_and_filter", durations.decode_and_filter, context),
         timing_stage("nearest_neighbor", durations.nearest_neighbor, context),
     ];
     prefixed.append(timings);

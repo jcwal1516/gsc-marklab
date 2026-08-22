@@ -1,12 +1,8 @@
-use std::{collections::BTreeMap, path::Path};
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    errors::{MarklabError, Result},
-    geom::mask::TumorMask,
-    io::load_pattern_path,
-};
+use crate::errors::{MarklabError, Result};
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Pattern {
@@ -66,14 +62,6 @@ impl Default for TumorWindow {
 }
 
 impl Pattern {
-    pub fn from_paths(cells: impl AsRef<Path>, mask: impl AsRef<Path>) -> Result<Self> {
-        let mask_path = mask.as_ref();
-        let mask_text = std::fs::read_to_string(mask_path)
-            .map_err(|source| MarklabError::io(mask_path, source))?;
-        let mask = TumorMask::from_geojson_str(&mask_text)?;
-        load_pattern_path(cells, &mask)
-    }
-
     pub fn from_arrays(
         x_um: Vec<f64>,
         y_um: Vec<f64>,

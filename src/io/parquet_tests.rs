@@ -6,8 +6,8 @@ use crate::{
     data::PatternMeta,
     geom::mask::TumorMask,
     io::{
-        load_pattern_path,
         parquet::{load_pattern_parquet_with_diagnostics, write_filtered_pattern_export_parquet},
+        PatternLoader,
     },
     Pattern,
 };
@@ -282,8 +282,9 @@ fn csv_parquet_equivalent_rows_produce_equal_pattern() {
     .expect("pattern");
     write_filtered_pattern_export_parquet(&pattern, &parquet_path).expect("write parquet");
 
-    let csv_loaded = load_pattern_path(&csv_path, &mask).expect("load csv by path");
-    let parquet_loaded = load_pattern_path(&parquet_path, &mask).expect("load parquet by path");
+    let loader = PatternLoader::new(&mask);
+    let csv_loaded = loader.load(&csv_path).expect("load csv by path");
+    let parquet_loaded = loader.load(&parquet_path).expect("load parquet by path");
 
     assert_eq!(csv_loaded.len(), 4);
     assert_eq!(parquet_loaded.len(), 4);

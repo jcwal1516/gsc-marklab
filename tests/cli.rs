@@ -2,7 +2,7 @@ use std::{fs, path::Path};
 
 use assert_cmd::Command;
 #[cfg(feature = "parquet")]
-use marklab::Pattern;
+use marklab::{PatternLoader, TumorMask};
 #[cfg(not(feature = "wsi"))]
 use predicates::prelude::PredicateBooleanExt;
 use serde_json::Value;
@@ -414,7 +414,7 @@ fn analyze_cli_writes_requested_trace_and_timings_files() {
 
     let expected_stages = [
         "load",
-        "mask_filter",
+        "decode_and_filter",
         "nearest_neighbor",
         "validate",
         "kgrid",
@@ -552,7 +552,11 @@ fn analyze_cli_writes_requested_intermediate_artifacts() {
     assert!(kgrid.exists());
     assert!(raster.exists());
 
-    let filtered_pattern = Pattern::from_paths(&filtered, &mask).expect("filtered cells parquet");
+    let mask_text = fs::read_to_string(&mask).expect("read mask");
+    let parsed_mask = TumorMask::from_geojson_str(&mask_text).expect("parse mask");
+    let filtered_pattern = PatternLoader::new(&parsed_mask)
+        .load(&filtered)
+        .expect("filtered cells parquet");
     assert_eq!(filtered_pattern.len(), 4);
     assert!(fs::metadata(kgrid).expect("kgrid metadata").len() > 0);
     assert_eq!(&fs::read(raster).expect("raster npy")[0..6], b"\x93NUMPY");
@@ -661,7 +665,11 @@ fn simulate_random_labeling_writes_parquet_when_requested() {
         r#"{"type":"MultiPolygon","coordinates":[[[[-1,-1],[11,-1],[11,1],[-1,1],[-1,-1]]]]}"#,
     )
     .expect("mask");
-    let pattern = Pattern::from_paths(&out, &mask).expect("load simulated parquet");
+    let mask_text = fs::read_to_string(&mask).expect("read mask");
+    let parsed_mask = TumorMask::from_geojson_str(&mask_text).expect("parse mask");
+    let pattern = PatternLoader::new(&parsed_mask)
+        .load(&out)
+        .expect("load simulated parquet");
 
     assert_eq!(pattern.len(), 10);
     assert_eq!(pattern.n_marked(), 3);

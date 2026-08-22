@@ -22,38 +22,54 @@ use crate::{
     geom::mask::TumorMask,
 };
 
+/// Timings for format decoding/filtering and indexed geometry finalization.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct PatternLoadDiagnostics {
-    pub mask_filter: Duration,
+    /// Time spent decoding physical rows, validating/filtering them, and building retained arrays.
+    pub decode_and_filter: Duration,
+    /// Time spent building the spatial index and evaluating mean nearest-neighbor distance.
     pub nearest_neighbor: Duration,
 }
 
+/// A validated domain pattern together with input-adapter timings.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PatternLoadResult {
     pub pattern: Pattern,
     pub diagnostics: PatternLoadDiagnostics,
 }
 
-pub fn load_pattern_path(path: impl AsRef<Path>, mask: &TumorMask) -> Result<Pattern> {
-    Ok(load_pattern_path_with_diagnostics(path, mask)?.pattern)
+/// Filesystem input adapter that builds validated [`Pattern`] values against one tumor mask.
+#[derive(Clone, Copy, Debug)]
+pub struct PatternLoader<'mask> {
+    mask: &'mask TumorMask,
 }
 
-pub fn load_pattern_path_with_diagnostics(
-    path: impl AsRef<Path>,
-    mask: &TumorMask,
-) -> Result<PatternLoadResult> {
-    let path = path.as_ref();
-    let extension = path
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(str::to_ascii_lowercase);
+impl<'mask> PatternLoader<'mask> {
+    /// Bind subsequent cell-table loads to `mask`.
+    pub fn new(mask: &'mask TumorMask) -> Self {
+        Self { mask }
+    }
 
-    match extension.as_deref() {
-        Some("csv") => load_csv_path(path, mask),
-        Some("parquet") => load_parquet_path(path, mask),
-        _ => Err(MarklabError::Schema(
-            "cell input extension must be .parquet or .csv".into(),
-        )),
+    /// Decode and validate a `.csv` or `.parquet` cell table.
+    pub fn load(&self, path: impl AsRef<Path>) -> Result<Pattern> {
+        Ok(self.load_with_diagnostics(path)?.pattern)
+    }
+
+    /// Decode a cell table while retaining adapter-stage timings.
+    pub fn load_with_diagnostics(&self, path: impl AsRef<Path>) -> Result<PatternLoadResult> {
+        let path = path.as_ref();
+        let extension = path
+            .extension()
+            .and_then(|value| value.to_str())
+            .map(str::to_ascii_lowercase);
+
+        match extension.as_deref() {
+            Some("csv") => load_csv_path(path, self.mask),
+            Some("parquet") => load_parquet_path(path, self.mask),
+            _ => Err(MarklabError::Schema(
+                "cell input extension must be .parquet or .csv".into(),
+            )),
+        }
     }
 }
 

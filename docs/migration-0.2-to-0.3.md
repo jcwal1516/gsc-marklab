@@ -97,6 +97,14 @@ semantics.
   `DegenerateSpatialStrataNull` and an insufficient-data spectrum rather than a
   numeric p-value of one. Their sensitivity summary retains the evaluable
   unstratified inference and marks only the stratified inference insufficient.
+- The Rust `Pattern::from_paths` filesystem constructor is removed. Parse the
+  mask as a `TumorMask`, construct `PatternLoader::new(&mask)`, and call `load`
+  or `load_with_diagnostics`. `Pattern` remains the validated domain value and
+  no longer owns input-adapter behavior.
+- Loader telemetry stage `mask_filter` is renamed to `decode_and_filter` because
+  it includes physical-format decoding, row validation, QC/mask filtering, and
+  retained-array construction. Indexed nearest-neighbor finalization remains a
+  separate `nearest_neighbor` stage.
 
 Further field removals and renames required by the remediation plan will be
 added here before 0.3 is release-ready.

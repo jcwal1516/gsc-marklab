@@ -21,8 +21,9 @@ pub fn load_pattern_parquet_with_diagnostics(
         .map_err(|error| MarklabError::Schema(error.to_string()))?;
 
     let mut pattern_builder = PatternBuilder::new(mask, "Parquet");
-    let mask_filter_span = tracing::info_span!("marklab_stage", stage_name = "mask_filter");
-    let mask_filter_enter = mask_filter_span.enter();
+    let decode_and_filter_span =
+        tracing::info_span!("marklab_stage", stage_name = "decode_and_filter");
+    let decode_and_filter_enter = decode_and_filter_span.enter();
     let mut source_row = 0;
     for batch in reader {
         let batch = batch.map_err(|error| MarklabError::Schema(error.to_string()))?;
@@ -32,6 +33,6 @@ pub fn load_pattern_parquet_with_diagnostics(
             pattern_builder.push(super::row::decode_cell_row(&columns, row_index), source_row)?;
         }
     }
-    drop(mask_filter_enter);
+    drop(decode_and_filter_enter);
     pattern_builder.finish()
 }

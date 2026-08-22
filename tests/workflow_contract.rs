@@ -39,6 +39,12 @@ fn criterion_benchmarks_cover_required_spec_workloads() {
             "benches should include {workload}"
         );
     }
+
+    let pattern_load = fs::read_to_string("benches/pattern_load.rs").expect("pattern benchmark");
+    assert!(pattern_load.contains("BufWriter"));
+    assert!(pattern_load.contains("pattern_csv_decode_filter"));
+    assert!(pattern_load.contains("pattern_nearest_neighbor"));
+    assert!(!pattern_load.contains("String::with_capacity"));
 }
 
 #[test]

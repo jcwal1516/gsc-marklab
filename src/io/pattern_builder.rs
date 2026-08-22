@@ -143,7 +143,7 @@ impl PatternBuildCounters {
 pub(crate) struct PatternBuilder<'a> {
     mask: &'a TumorMask,
     source_name: &'static str,
-    mask_filter_start: Instant,
+    decode_and_filter_start: Instant,
     x: Vec<f64>,
     y: Vec<f64>,
     marks: Vec<u8>,
@@ -168,7 +168,7 @@ impl<'a> PatternBuilder<'a> {
         Self {
             mask,
             source_name,
-            mask_filter_start: Instant::now(),
+            decode_and_filter_start: Instant::now(),
             x: Vec::new(),
             y: Vec::new(),
             marks: Vec::new(),
@@ -305,7 +305,7 @@ impl<'a> PatternBuilder<'a> {
     }
 
     pub(crate) fn finish(self) -> Result<PatternLoadResult> {
-        let mask_filter = self.mask_filter_start.elapsed();
+        let decode_and_filter = self.decode_and_filter_start.elapsed();
         self.qc_counters.validate_denominator()?;
         let meta = self.meta.ok_or_else(|| {
             MarklabError::Validation(
@@ -367,7 +367,7 @@ impl<'a> PatternBuilder<'a> {
         Ok(PatternLoadResult {
             pattern,
             diagnostics: PatternLoadDiagnostics {
-                mask_filter,
+                decode_and_filter,
                 nearest_neighbor,
             },
         })

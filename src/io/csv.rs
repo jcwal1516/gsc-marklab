@@ -14,11 +14,12 @@ pub fn load_pattern_csv_with_diagnostics(
     mask: &TumorMask,
 ) -> Result<PatternLoadResult> {
     let mut builder = PatternBuilder::new(mask, "CSV");
-    let mask_filter_span = tracing::info_span!("marklab_stage", stage_name = "mask_filter");
-    let mask_filter_enter = mask_filter_span.enter();
-    for (index, row) in decoder::read_rows(path.as_ref())?.into_iter().enumerate() {
-        builder.push(row, index + 2)?;
-    }
-    drop(mask_filter_enter);
+    let decode_and_filter_span =
+        tracing::info_span!("marklab_stage", stage_name = "decode_and_filter");
+    let decode_and_filter_enter = decode_and_filter_span.enter();
+    decoder::visit_decoded_rows(path.as_ref(), |row, row_number| {
+        builder.push(row, row_number)
+    })?;
+    drop(decode_and_filter_enter);
     builder.finish()
 }

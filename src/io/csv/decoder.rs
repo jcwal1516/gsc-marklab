@@ -7,7 +7,10 @@ use crate::{
 
 use super::schema::CellRow;
 
-pub(super) fn read_rows(path: &Path) -> Result<Vec<DecodedCellRow>> {
+pub(super) fn visit_decoded_rows(
+    path: &Path,
+    mut visit: impl FnMut(DecodedCellRow, usize) -> Result<()>,
+) -> Result<()> {
     let mut reader =
         ::csv::Reader::from_path(path).map_err(|error| MarklabError::io(path, error.into()))?;
     let headers = reader
@@ -21,14 +24,13 @@ pub(super) fn read_rows(path: &Path) -> Result<Vec<DecodedCellRow>> {
     let has_fold_artifact = has_column("fold_artifact");
     let has_necrosis = has_column("necrosis");
     let has_nonviable_therapy_effect = has_column("nonviable_therapy_effect");
-    reader
-        .deserialize::<CellRow>()
-        .enumerate()
-        .map(|(index, row)| {
-            let row = row.map_err(|error| {
-                MarklabError::Schema(format!("{} row {}: {error}", path.display(), index + 2))
-            })?;
-            Ok(DecodedCellRow {
+    for (index, row) in reader.deserialize::<CellRow>().enumerate() {
+        let row_number = index + 2;
+        let row = row.map_err(|error| {
+            MarklabError::Schema(format!("{} row {row_number}: {error}", path.display()))
+        })?;
+        visit(
+            DecodedCellRow {
                 x_um: row.x_um,
                 y_um: row.y_um,
                 mark: row.mark,
@@ -63,7 +65,40 @@ pub(super) fn read_rows(path: &Path) -> Result<Vec<DecodedCellRow>> {
                 component_id: row.component_id,
                 local_dab_od: row.local_dab_od,
                 local_hematoxylin_od: row.local_hematoxylin_od,
-            })
+            },
+            row_number,
+        )?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use crate::errors::MarklabError;
+
+    use super::visit_decoded_rows;
+
+    #[test]
+    fn csv_rows_are_visited_before_later_rows_are_decoded() {
+        let dir = tempfile::tempdir().expect("temporary directory");
+        let path = dir.path().join("cells.csv");
+        fs::write(
+            &path,
+            "x_um,y_um,mark,case_id,timepoint,protein,valid_tumor,valid_ihc\n\
+0,0,1,case,post,MSH6,true,true\n\
+not-a-number,1,0,case,post,MSH6,true,true\n",
+        )
+        .expect("write fixture");
+
+        let error = visit_decoded_rows(&path, |_row, _row_number| {
+            Err(MarklabError::Compute("stop after first row".into()))
         })
-        .collect()
+        .expect_err("visitor should stop decoding");
+
+        assert!(
+            matches!(error, MarklabError::Compute(message) if message == "stop after first row")
+        );
+    }
 }

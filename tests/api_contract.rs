@@ -2,7 +2,8 @@ use std::fs;
 
 use marklab::{
     AnalysisConfig, AnalysisEngine, HeCell, IhcCell, LandmarkPair, MultimodalEngine,
-    MultimodalInput, Pattern, PatternMeta, RegistrationTransform, ResultDocument, StatusFlag,
+    MultimodalInput, Pattern, PatternLoader, PatternMeta, RegistrationTransform, ResultDocument,
+    StatusFlag, TumorMask,
 };
 
 #[test]
@@ -241,7 +242,7 @@ fn configured_rigid_registration_recovers_rotation() {
 }
 
 #[test]
-fn public_pattern_api_loads_from_cell_and_mask_paths() {
+fn public_pattern_loader_keeps_filesystem_io_out_of_pattern() {
     let dir = tempfile::tempdir().expect("temp dir");
     let cells = dir.path().join("cells.csv");
     let mask = dir.path().join("mask.geojson");
@@ -260,7 +261,11 @@ fn public_pattern_api_loads_from_cell_and_mask_paths() {
     )
     .expect("write mask");
 
-    let pattern = Pattern::from_paths(&cells, &mask).expect("load pattern from paths");
+    let mask_text = fs::read_to_string(mask).expect("read mask");
+    let mask = TumorMask::from_geojson_str(&mask_text).expect("parse mask");
+    let pattern = PatternLoader::new(&mask)
+        .load(&cells)
+        .expect("load pattern from input adapter");
 
     assert_eq!(pattern.len(), 4);
     assert_eq!(pattern.n_marked(), 2);
