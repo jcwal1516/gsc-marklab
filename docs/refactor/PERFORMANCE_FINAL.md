@@ -3,7 +3,7 @@
 ## Measurement identity
 
 - Plan version: 1.0
-- Production benchmark SHA: `99f6d78` (production code is unchanged through profiling-hygiene commit `f061ec0`)
+- Production benchmark SHA: `99f6d78` (benchmark and allocation-contract source is unchanged through profiling-hygiene commit `f061ec0`)
 - Baseline production SHA: `a642fbcdd80b5baf784cd633b707dc0283a24d11`
 - OS: macOS 26.5.2, Darwin 25.5.0, arm64
 - CPU: Apple M4 Pro
@@ -201,3 +201,15 @@ RSS. That value measures the compiler, not Marklab, and is excluded explicitly.
 All listed benchmark/test commands exited 0. Gnuplot was unavailable, so
 Criterion used its Plotters backend; timing and statistical analysis were not
 affected.
+
+## Post-report source audit
+
+The later Phase 13 source changes add narrow result 0.2 conversion, WSI request
+preflight for fuzzing, and canonical geometry naming/scale ownership. The
+geometry change removes endpoint-specific scale floors but does not change the
+spatial-index, reusable-plan, permutation-storage, chunking, or scratch hot
+loops; every timed benchmark fixture already supplied a positive analysis
+effective length. The remaining Phase 13 changes are tests, workflows,
+documentation, and a semver-compatible locked transitive WSI patch. Therefore
+the recorded scaling, storage, and equivalent-workload conclusions remain
+applicable to closure source SHA `9a11e11`.
