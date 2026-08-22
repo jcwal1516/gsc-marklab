@@ -2,7 +2,9 @@ use crate::{
     data::PatternMeta,
     spectra::{
         kgrid::{resolvable_k_modes, KBand},
-        mark_pair_covariance::mark_pair_covariance,
+        mark_pair_covariance::{
+            mark_pair_covariance, MarkPairCovarianceBin, MarkPairCovariancePlan,
+        },
         structure_factor::centered_structure_factor,
     },
     Pattern,
@@ -111,4 +113,76 @@ fn remediation_mark_pair_covariance_does_not_report_empty_bins_as_observed_zero(
     assert_eq!(bins[0].value, None);
     assert_eq!(bins[1].count, 1);
     assert_eq!(bins[1].value, Some(-0.25));
+}
+
+#[test]
+fn pair_plan_matches_bruteforce() {
+    let x = (0..53)
+        .map(|index| ((index * 17) % 31) as f64 - 11.0)
+        .collect::<Vec<_>>();
+    let y = (0..53)
+        .map(|index| ((index * 29) % 37) as f64 - 13.0)
+        .collect::<Vec<_>>();
+    let marks = (0..53).map(|index| u8::from(index % 4 == 0)).collect();
+    let pattern = Pattern::from_arrays(x, y, marks, meta()).expect("pattern");
+    let plan = MarkPairCovariancePlan::new(&pattern, 1.75, 9.0).expect("pair plan");
+
+    for marks in [
+        pattern.mark.to_vec(),
+        pattern.mark.iter().copied().rev().collect(),
+        (0..pattern.len())
+            .map(|index| u8::from(index % 3 == 0))
+            .collect(),
+    ] {
+        assert_eq!(
+            plan.evaluate(&marks).expect("planned covariance"),
+            brute_force_mark_pair_covariance(&pattern, &marks, 1.75, 9.0)
+                .expect("brute-force covariance")
+        );
+    }
+}
+
+fn brute_force_mark_pair_covariance(
+    pattern: &Pattern,
+    marks: &[u8],
+    bin_width_um: f64,
+    max_r_um: f64,
+) -> Option<Vec<MarkPairCovarianceBin>> {
+    if pattern.len() < 2 || marks.len() != pattern.len() {
+        return None;
+    }
+    let n_bins = (max_r_um / bin_width_um).ceil() as usize;
+    let mut sums = vec![0.0; n_bins];
+    let mut counts = vec![0usize; n_bins];
+    let p_hat = marks.iter().filter(|mark| **mark == 1).count() as f64 / marks.len() as f64;
+    let centered = marks
+        .iter()
+        .map(|mark| f64::from(*mark) - p_hat)
+        .collect::<Vec<_>>();
+
+    for source in 0..pattern.len() {
+        for target in (source + 1)..pattern.len() {
+            let distance = (pattern.x_um[target] - pattern.x_um[source])
+                .hypot(pattern.y_um[target] - pattern.y_um[source]);
+            if distance >= max_r_um {
+                continue;
+            }
+            let bin = (distance / bin_width_um).floor() as usize;
+            sums[bin] += centered[source] * centered[target];
+            counts[bin] += 1;
+        }
+    }
+
+    Some(
+        sums.into_iter()
+            .zip(counts)
+            .enumerate()
+            .map(|(index, (sum, count))| MarkPairCovarianceBin {
+                r_min_um: index as f64 * bin_width_um,
+                r_max_um: (index + 1) as f64 * bin_width_um,
+                value: (count > 0).then_some(sum / count as f64),
+                count,
+            })
+            .collect(),
+    )
 }

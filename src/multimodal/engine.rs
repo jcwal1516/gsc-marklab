@@ -2,6 +2,7 @@ use crate::{
     config::{AnalysisConfig, RegistrationTransform},
     diagnostics::graph_smoothing::graph_smoothing,
     errors::{MarklabError, Result},
+    geom::spatial_index::SpatialIndex2D,
     multimodal::{
         cells::{AnalysisMetadata, HeCell, IhcCell},
         fusion::{fuse_registered_cells, FusionMeta},
@@ -13,9 +14,9 @@ use crate::{
     neighborhood::{
         cross_curves::cross_interaction_curve,
         enrichment::{edge_enrichment, LabelPair},
-        graph::{build_spatial_graph, GraphConfig, SpatialGraph},
-        profiles::{compare_territory_profiles, territory_profiles},
-        territories::{detect_mmr_abnormal_territories, TerritoryDomainConfig},
+        graph::{build_spatial_graph_with_index, GraphConfig, SpatialGraph},
+        profiles::{compare_territory_profiles, territory_profiles_with_index},
+        territories::{detect_mmr_abnormal_territories_with_index, TerritoryDomainConfig},
     },
     output::{
         AnalysisSection, DiagnosticsResult, FusedCellSummary, Interpretation, MultimodalResult,
@@ -124,8 +125,14 @@ impl MultimodalEngine {
         };
         let fused =
             fuse_registered_cells(&input.he_cells, &input.ihc_cells, &transform, &fusion_meta)?;
-        let graph = build_spatial_graph(
+        let spatial_index = SpatialIndex2D::from_points(
+            fused
+                .iter()
+                .map(|cell| [cell.x_um_registered, cell.y_um_registered]),
+        )?;
+        let graph = build_spatial_graph_with_index(
             &fused,
+            &spatial_index,
             GraphConfig {
                 radius_um: Some(self.config.neighborhood.radius_um),
                 k_nearest: (self.config.neighborhood.k_nearest > 0)
@@ -172,15 +179,17 @@ impl MultimodalEngine {
                 )
             })
             .collect::<Result<Vec<_>>>()?;
-        let neighborhood_territories = detect_mmr_abnormal_territories(
+        let neighborhood_territories = detect_mmr_abnormal_territories_with_index(
             &fused,
+            &spatial_index,
             TerritoryDomainConfig {
                 eps_um: self.config.neighborhood.territory_eps_um,
                 min_cells: self.config.neighborhood.territory_min_cells,
                 min_radius_um: self.config.neighborhood.territory_min_radius_um,
             },
         )?;
-        let territory_profiles = territory_profiles(&neighborhood_territories, &fused, 0.0)?;
+        let territory_profiles =
+            territory_profiles_with_index(&neighborhood_territories, &fused, &spatial_index, 0.0)?;
         let territory_comparisons = compare_territory_profiles(
             &territory_profiles,
             self.config.comparison.margins.territory_profile,

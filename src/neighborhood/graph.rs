@@ -72,9 +72,8 @@ pub struct SpatialGraph {
 /// are the union of per-node nearest-neighbor choices, stored once as sorted
 /// undirected index pairs. The registration-resolution flag uses strict
 /// `distance < 2 * max(endpoint registration_error_um)` semantics.
+#[cfg(test)]
 pub fn build_spatial_graph(cells: &[FusedCell], config: GraphConfig) -> Result<SpatialGraph> {
-    #[cfg(test)]
-    GRAPH_BUILD_CALLS.set(GRAPH_BUILD_CALLS.get() + 1);
     validate_config(config)?;
     validate_cells(cells)?;
 
@@ -83,12 +82,33 @@ pub fn build_spatial_graph(cells: &[FusedCell], config: GraphConfig) -> Result<S
             .iter()
             .map(|cell| [cell.x_um_registered, cell.y_um_registered]),
     )?;
+    build_validated_spatial_graph(cells, &index, config)
+}
+
+pub(crate) fn build_spatial_graph_with_index(
+    cells: &[FusedCell],
+    index: &SpatialIndex2D,
+    config: GraphConfig,
+) -> Result<SpatialGraph> {
+    validate_config(config)?;
+    validate_cells(cells)?;
+    validate_index_length(cells, index)?;
+    build_validated_spatial_graph(cells, index, config)
+}
+
+fn build_validated_spatial_graph(
+    cells: &[FusedCell],
+    index: &SpatialIndex2D,
+    config: GraphConfig,
+) -> Result<SpatialGraph> {
+    #[cfg(test)]
+    GRAPH_BUILD_CALLS.set(GRAPH_BUILD_CALLS.get() + 1);
     let mut pairs = BTreeMap::new();
     if let Some(radius_um) = config.radius_um {
-        add_radius_edges(&index, radius_um, &mut pairs)?;
+        add_radius_edges(index, radius_um, &mut pairs)?;
     }
     if let Some(k_nearest) = config.k_nearest {
-        add_knn_edges(&index, k_nearest, &mut pairs)?;
+        add_knn_edges(index, k_nearest, &mut pairs)?;
     }
 
     let edges = pairs
@@ -100,6 +120,17 @@ pub fn build_spatial_graph(cells: &[FusedCell], config: GraphConfig) -> Result<S
         n_nodes: cells.len(),
         edges,
     })
+}
+
+fn validate_index_length(cells: &[FusedCell], index: &SpatialIndex2D) -> Result<()> {
+    if index.len() != cells.len() {
+        return Err(MarklabError::Geometry(format!(
+            "spatial index has {} points for {} graph cells",
+            index.len(),
+            cells.len()
+        )));
+    }
+    Ok(())
 }
 
 fn validate_config(config: GraphConfig) -> Result<()> {
@@ -150,11 +181,11 @@ fn add_radius_edges(
     pairs: &mut BTreeMap<(usize, usize), f64>,
 ) -> Result<()> {
     for source in 0..index.len() {
-        for neighbor in index.within_radius(source, radius_um)? {
+        index.visit_within_radius(source, radius_um, |neighbor| {
             if neighbor.index > source {
                 pairs.insert((source, neighbor.index), neighbor.distance_um);
             }
-        }
+        })?;
     }
     Ok(())
 }

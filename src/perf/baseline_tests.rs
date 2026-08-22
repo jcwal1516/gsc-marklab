@@ -28,7 +28,7 @@ use crate::{
     output::NeighborhoodTerritory,
     registration::landmarks::LandmarkPair,
     spectra::{
-        mark_pair_covariance::mark_pair_covariance,
+        mark_pair_covariance::{mark_pair_covariance, MarkPairCovariancePlan},
         structure_factor::{
             observed_power_for_modes, permutation_whitened_spectrum,
             permutation_whitened_value_spectrum, resolvable_modes_for_pattern,
@@ -368,6 +368,49 @@ fn baseline_perf_mark_pair_covariance() {
             },
         );
     }
+}
+
+#[test]
+#[ignore = "manual Phase 6 pair-plan build and evaluation benchmark"]
+fn phase6_perf_mark_pair_covariance_plan() {
+    for n in SPATIAL_SIZES {
+        let pattern = pattern(n);
+        let plan = MarkPairCovariancePlan::new(&pattern, 1.0, 5.0).expect("pair plan");
+        measure_case(
+            "pair_plan_observed_evaluation",
+            n,
+            fixed_density_metadata(
+                n,
+                json!({"pair_count": plan.evaluate(&pattern.mark).expect("observed").iter().map(|bin| bin.count).sum::<usize>()}),
+            ),
+            || pair_bin_checksum(&plan.evaluate(black_box(&pattern.mark)).expect("observed")),
+        );
+
+        let permutation_marks = (0..19)
+            .map(|permutation| {
+                (0..n)
+                    .map(|index| u8::from((index + 7 * permutation) % 5 == 0))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        measure_case(
+            "pair_plan_19_label_evaluations",
+            n,
+            fixed_density_metadata(n, json!({"evaluations": permutation_marks.len()})),
+            || {
+                permutation_marks.iter().fold(0_u64, |checksum, marks| {
+                    checksum
+                        ^ pair_bin_checksum(&plan.evaluate(black_box(marks)).expect("permutation"))
+                })
+            },
+        );
+    }
+}
+
+fn pair_bin_checksum(bins: &[crate::spectra::mark_pair_covariance::MarkPairCovarianceBin]) -> u64 {
+    bins.iter().fold(0_u64, |checksum, bin| {
+        checksum.rotate_left(7) ^ bin.value.unwrap_or(0.0).to_bits() ^ bin.count as u64
+    })
 }
 
 #[test]

@@ -1,5 +1,6 @@
 use crate::{
     errors::{MarklabError, Result},
+    geom::spatial_index::SpatialIndex2D,
     multimodal::{
         cells::{CellSection, FusedCell},
         labels::primary_label,
@@ -14,13 +15,43 @@ pub struct TerritoryDomainConfig {
     pub min_radius_um: f64,
 }
 
+#[cfg(test)]
 pub fn detect_mmr_abnormal_territories(
     cells: &[FusedCell],
     config: TerritoryDomainConfig,
 ) -> Result<Vec<NeighborhoodTerritory>> {
     validate_config(config)?;
     validate_cells(cells)?;
+    let index = SpatialIndex2D::from_points(
+        cells
+            .iter()
+            .map(|cell| [cell.x_um_registered, cell.y_um_registered]),
+    )?;
+    detect_validated_mmr_abnormal_territories(cells, &index, config)
+}
 
+pub(crate) fn detect_mmr_abnormal_territories_with_index(
+    cells: &[FusedCell],
+    index: &SpatialIndex2D,
+    config: TerritoryDomainConfig,
+) -> Result<Vec<NeighborhoodTerritory>> {
+    validate_config(config)?;
+    validate_cells(cells)?;
+    if index.len() != cells.len() {
+        return Err(MarklabError::Geometry(format!(
+            "spatial index has {} points for {} territory cells",
+            index.len(),
+            cells.len()
+        )));
+    }
+    detect_validated_mmr_abnormal_territories(cells, index, config)
+}
+
+fn detect_validated_mmr_abnormal_territories(
+    cells: &[FusedCell],
+    index: &SpatialIndex2D,
+    config: TerritoryDomainConfig,
+) -> Result<Vec<NeighborhoodTerritory>> {
     let abnormal_indices = cells
         .iter()
         .enumerate()
@@ -30,7 +61,7 @@ pub fn detect_mmr_abnormal_territories(
         return Ok(Vec::new());
     }
 
-    let neighbors = abnormal_neighbor_lists(cells, &abnormal_indices, config.eps_um);
+    let neighbors = abnormal_neighbor_lists_with_index(index, &abnormal_indices, config.eps_um)?;
     let mut visited = vec![false; abnormal_indices.len()];
     let mut assigned = vec![false; abnormal_indices.len()];
     let mut clusters = Vec::new();
@@ -105,25 +136,53 @@ fn is_mmr_abnormal_ihc_cell(cell: &FusedCell) -> bool {
     cell.source_section == CellSection::Ihc && primary_label(cell) == Some("mmr_abnormal")
 }
 
-fn abnormal_neighbor_lists(
+#[cfg(test)]
+pub(super) fn abnormal_neighbor_lists(
     cells: &[FusedCell],
     abnormal_indices: &[usize],
     eps_um: f64,
-) -> Vec<Vec<usize>> {
-    let mut neighbors = vec![Vec::new(); abnormal_indices.len()];
-    for left in 0..abnormal_indices.len() {
-        for right in left..abnormal_indices.len() {
-            let left_index = abnormal_indices[left];
-            let right_index = abnormal_indices[right];
-            if fused_cell_distance_um(&cells[left_index], &cells[right_index]) <= eps_um {
-                neighbors[left].push(right);
-                if left != right {
-                    neighbors[right].push(left);
-                }
-            }
+) -> Result<Vec<Vec<usize>>> {
+    let index = SpatialIndex2D::from_points(
+        cells
+            .iter()
+            .map(|cell| [cell.x_um_registered, cell.y_um_registered]),
+    )?;
+    abnormal_neighbor_lists_with_index(&index, abnormal_indices, eps_um)
+}
+
+fn abnormal_neighbor_lists_with_index(
+    index: &SpatialIndex2D,
+    abnormal_indices: &[usize],
+    eps_um: f64,
+) -> Result<Vec<Vec<usize>>> {
+    let mut abnormal_position = vec![None; index.len()];
+    for (position, cell_index) in abnormal_indices.iter().copied().enumerate() {
+        if cell_index >= index.len() {
+            return Err(MarklabError::Geometry(format!(
+                "abnormal cell index {cell_index} is out of bounds for {} indexed cells",
+                index.len()
+            )));
         }
+        abnormal_position[cell_index] = Some(position);
     }
-    neighbors
+
+    abnormal_indices
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(position, cell_index)| {
+            let mut neighbors = Vec::new();
+            index.visit_within_radius(cell_index, eps_um, |neighbor| {
+                if let Some(position) = abnormal_position[neighbor.index] {
+                    neighbors.push(position);
+                }
+            })?;
+            neighbors.push(position);
+            neighbors.sort_unstable();
+            neighbors.dedup();
+            Ok(neighbors)
+        })
+        .collect()
 }
 
 fn expand_cluster(
@@ -195,10 +254,4 @@ fn territory_from_component(
         supporting_abnormal_cells: supporting_cells,
         cluster_id: component_id as u32,
     }
-}
-
-fn fused_cell_distance_um(left: &FusedCell, right: &FusedCell) -> f64 {
-    let dx = left.x_um_registered - right.x_um_registered;
-    let dy = left.y_um_registered - right.y_um_registered;
-    dx.hypot(dy)
 }

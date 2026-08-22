@@ -1,4 +1,5 @@
 use crate::{
+    geom::spatial_index::{index_build_call_count, reset_index_build_call_count},
     multimodal::{
         cells::{AnalysisMetadata, CellSection, FusedCell, HeCell, IhcCell},
         fusion::{fuse_registered_cells, FusionMeta},
@@ -35,6 +36,17 @@ fn application_builds_graph_once() {
 
     assert_eq!(graph_build_call_count(), 1);
     assert_eq!(run.graph.n_nodes, run.result.fused_cells.len());
+}
+
+#[test]
+fn application_builds_spatial_index_once() {
+    reset_index_build_call_count();
+
+    multimodal_engine()
+        .analyze_run(&multimodal_input())
+        .expect("multimodal run");
+
+    assert_eq!(index_build_call_count(), 1);
 }
 
 #[test]

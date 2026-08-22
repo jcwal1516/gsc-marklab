@@ -1,6 +1,8 @@
 use crate::{
     multimodal::cells::{CellSection, FusedCell},
-    neighborhood::territories::{detect_mmr_abnormal_territories, TerritoryDomainConfig},
+    neighborhood::territories::{
+        abnormal_neighbor_lists, detect_mmr_abnormal_territories, TerritoryDomainConfig,
+    },
 };
 
 fn ihc_cell(id: &str, x_um: f64, y_um: f64, mmr_probability: f64) -> FusedCell {
@@ -84,4 +86,45 @@ fn dbscan_territory_detection_rejects_invalid_config() {
         },
     )
     .is_err());
+}
+
+#[test]
+fn territory_neighbors_match_bruteforce() {
+    let cells = (0..101)
+        .map(|index| {
+            ihc_cell(
+                &format!("cell_{index}"),
+                ((index * 23) % 41) as f64 - 17.0,
+                ((index * 29) % 43) as f64 - 19.0,
+                if index % 4 == 0 { 0.1 } else { 0.9 },
+            )
+        })
+        .collect::<Vec<_>>();
+    let abnormal_indices = (0..cells.len())
+        .filter(|index| index % 4 != 0)
+        .collect::<Vec<_>>();
+    let eps_um = 4.5;
+
+    let actual =
+        abnormal_neighbor_lists(&cells, &abnormal_indices, eps_um).expect("indexed neighbors");
+    let expected = abnormal_indices
+        .iter()
+        .map(|left_index| {
+            abnormal_indices
+                .iter()
+                .enumerate()
+                .filter_map(|(right_position, right_index)| {
+                    let distance = (cells[*right_index].x_um_registered
+                        - cells[*left_index].x_um_registered)
+                        .hypot(
+                            cells[*right_index].y_um_registered
+                                - cells[*left_index].y_um_registered,
+                        );
+                    (distance <= eps_um).then_some(right_position)
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(actual, expected);
 }

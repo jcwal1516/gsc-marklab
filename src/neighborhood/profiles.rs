@@ -11,6 +11,7 @@ use crate::{
     },
 };
 
+#[cfg(test)]
 pub fn territory_profiles(
     territories: &[NeighborhoodTerritory],
     cells: &[FusedCell],
@@ -23,12 +24,38 @@ pub fn territory_profiles(
             .iter()
             .map(|cell| [cell.x_um_registered, cell.y_um_registered]),
     )?;
+    territory_profiles_validated(territories, cells, &index, buffer_um)
+}
 
+pub(crate) fn territory_profiles_with_index(
+    territories: &[NeighborhoodTerritory],
+    cells: &[FusedCell],
+    index: &SpatialIndex2D,
+    buffer_um: f64,
+) -> Result<Vec<TerritoryProfile>> {
+    validate_buffer(buffer_um)?;
+    validate_cells(cells)?;
+    if index.len() != cells.len() {
+        return Err(MarklabError::Geometry(format!(
+            "spatial index has {} points for {} territory-profile cells",
+            index.len(),
+            cells.len()
+        )));
+    }
+    territory_profiles_validated(territories, cells, index, buffer_um)
+}
+
+fn territory_profiles_validated(
+    territories: &[NeighborhoodTerritory],
+    cells: &[FusedCell],
+    index: &SpatialIndex2D,
+    buffer_um: f64,
+) -> Result<Vec<TerritoryProfile>> {
     territories
         .iter()
         .enumerate()
         .map(|(territory_id, territory)| {
-            profile_for_territory(territory_id, territory, cells, &index, buffer_um)
+            profile_for_territory(territory_id, territory, cells, index, buffer_um)
         })
         .collect()
 }
@@ -101,22 +128,23 @@ fn profile_for_territory(
     let mut known_cell_count = 0usize;
     let mut max_registration_error_um = 0.0_f64;
 
-    for neighbor in index.points_within_radius(
+    index.visit_points_within_radius(
         territory.center_x_um,
         territory.center_y_um,
         inclusion_radius_um,
-    )? {
-        let cell = &cells[neighbor.index];
+        |neighbor| {
+            let cell = &cells[neighbor.index];
 
-        if let Some(registration_error_um) = cell.registration_error_um {
-            max_registration_error_um = max_registration_error_um.max(registration_error_um);
-        }
+            if let Some(registration_error_um) = cell.registration_error_um {
+                max_registration_error_um = max_registration_error_um.max(registration_error_um);
+            }
 
-        if let Some(label) = primary_label(cell) {
-            *counts.entry(label).or_insert(0) += 1;
-            known_cell_count += 1;
-        }
-    }
+            if let Some(label) = primary_label(cell) {
+                *counts.entry(label).or_insert(0) += 1;
+                known_cell_count += 1;
+            }
+        },
+    )?;
 
     let cell_type_fractions = counts
         .into_iter()

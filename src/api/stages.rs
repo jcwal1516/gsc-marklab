@@ -13,7 +13,7 @@ use crate::{
     periodogram::raster::{centered_mark_raster, centered_mark_raster_for_marks},
     periodogram::tapered::hann_tapered_raster_periodogram,
     permutation::envelopes::GlobalEnvelope,
-    spectra::mark_pair_covariance::{mark_pair_covariance, mark_pair_covariance_for_marks},
+    spectra::mark_pair_covariance::MarkPairCovariancePlan,
 };
 
 pub(super) fn mark_pair_covariance_with_envelope(
@@ -26,7 +26,15 @@ pub(super) fn mark_pair_covariance_with_envelope(
     let bin_width_um = pattern.window.d_nn_mean_um.max(1.0);
     let max_r_um =
         (pattern.window.l_eff_um * config.validation.largest_interpretable_scale_fraction).max(1.0);
-    let Some(observed_bins) = mark_pair_covariance(pattern, bin_width_um, max_r_um) else {
+    let Some(plan) = MarkPairCovariancePlan::new(pattern, bin_width_um, max_r_um) else {
+        return Ok((
+            Vec::new(),
+            crate::output::AnalysisSection::InsufficientData {
+                reason: "mark-pair covariance geometry could not be planned".into(),
+            },
+        ));
+    };
+    let Some(observed_bins) = plan.evaluate(&pattern.mark) else {
         return Ok((
             Vec::new(),
             crate::output::AnalysisSection::InsufficientData {
@@ -52,13 +60,8 @@ pub(super) fn mark_pair_covariance_with_envelope(
             "observed mark-pair-covariance curve contains a non-finite value".into(),
         ));
     }
-    let permutation_curves = mark_pair_covariance_permutation_curves(
-        config,
-        pattern,
-        bin_width_um,
-        max_r_um,
-        observed_values.len(),
-    )?;
+    let permutation_curves =
+        mark_pair_covariance_permutation_curves(config, pattern, &plan, observed_values.len())?;
     let envelope = match permutation_curves {
         Some(permutation_curves) if inference_eligible.iter().any(|eligible| *eligible) => {
             Some(GlobalEnvelope::from_curves_with_eligibility(
@@ -116,8 +119,7 @@ pub(super) fn mark_pair_covariance_with_envelope(
 pub(super) fn mark_pair_covariance_permutation_curves(
     config: &AnalysisConfig,
     pattern: &Pattern,
-    bin_width_um: f64,
-    max_r_um: f64,
+    plan: &MarkPairCovariancePlan,
     expected_len: usize,
 ) -> Result<Option<Vec<Vec<f64>>>> {
     if config.permutation.b == 0 || pattern.n_marked() == 0 || pattern.n_unmarked() == 0 {
@@ -132,8 +134,7 @@ pub(super) fn mark_pair_covariance_permutation_curves(
             perm_index,
             SeedEndpoint::MarkPairCovariance,
         )?;
-        let Some(bins) = mark_pair_covariance_for_marks(pattern, &labels, bin_width_um, max_r_um)
-        else {
+        let Some(bins) = plan.evaluate(&labels) else {
             return Ok(None);
         };
         if bins.len() != expected_len
@@ -439,5 +440,46 @@ impl From<ResidualTerritoryCandidate> for ResidualTerritory {
             supporting_marked_cells: candidate.supporting_marked_cells,
             component_id: candidate.component_id,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        api::stages::mark_pair_covariance_with_envelope,
+        config::AnalysisConfig,
+        data::{Pattern, PatternMeta},
+        spectra::mark_pair_covariance::{plan_build_call_count, reset_plan_build_call_count},
+    };
+
+    #[test]
+    fn pair_geometry_is_reused_for_observed_and_permutations() {
+        let mut config = AnalysisConfig::default();
+        config.permutation.b = 19;
+        config.permutation.stratified = false;
+        let mut pattern = Pattern::from_arrays(
+            (0..40).map(|index| index as f64).collect(),
+            (0..40).map(|index| (index % 5) as f64).collect(),
+            (0..40).map(|index| u8::from(index % 4 == 0)).collect(),
+            PatternMeta {
+                case_id: "case".into(),
+                timepoint: "post".into(),
+                protein: "MSH6".into(),
+                slide_id: None,
+                section_id: None,
+                stain_batch: None,
+                block_id: None,
+                region_id: None,
+            },
+        )
+        .expect("pattern");
+        pattern.window.l_eff_um = 40.0;
+        pattern.window.d_nn_mean_um = 1.0;
+        pattern.window.area_um2 = 200.0;
+        reset_plan_build_call_count();
+
+        mark_pair_covariance_with_envelope(&config, &pattern).expect("covariance envelope");
+
+        assert_eq!(plan_build_call_count(), 1);
     }
 }

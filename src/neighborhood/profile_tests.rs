@@ -71,7 +71,7 @@ fn territory_profile_counts_local_cell_type_fractions() {
 }
 
 #[test]
-fn territory_neighbors_match_bruteforce() {
+fn territory_profile_membership_matches_bruteforce() {
     let cells = (0..200)
         .map(|index| {
             let label = if index % 3 == 0 {
