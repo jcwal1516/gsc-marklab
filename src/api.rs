@@ -44,6 +44,12 @@ pub struct AnalysisEngine {
     pool: rayon::ThreadPool,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct MarkedAnalysisRun {
+    pub result: MarkedPatternResult,
+    pub actual_thread_count: usize,
+}
+
 impl AnalysisEngine {
     pub fn new(config: AnalysisConfig) -> Result<Self> {
         config.validate()?;
@@ -86,15 +92,20 @@ impl AnalysisEngine {
     }
 
     pub fn analyze_pattern(&self, pattern: &Pattern) -> Result<MarkedPatternResult> {
+        Ok(self.analyze_pattern_run(pattern)?.result)
+    }
+
+    pub fn analyze_pattern_run(&self, pattern: &Pattern) -> Result<MarkedAnalysisRun> {
         #[cfg(feature = "parallel")]
-        {
-            self.pool.install(|| self.analyze_pattern_inner(pattern))
-        }
+        let result = self.pool.install(|| self.analyze_pattern_inner(pattern))?;
 
         #[cfg(not(feature = "parallel"))]
-        {
-            self.analyze_pattern_inner(pattern)
-        }
+        let result = self.analyze_pattern_inner(pattern)?;
+
+        Ok(MarkedAnalysisRun {
+            result,
+            actual_thread_count: self.threads,
+        })
     }
 
     fn analyze_pattern_inner(&self, pattern: &Pattern) -> Result<MarkedPatternResult> {
@@ -442,11 +453,6 @@ impl AnalysisEngine {
                 component_plan,
             },
         )
-    }
-
-    #[cfg(feature = "cli")]
-    pub(crate) fn thread_count(&self) -> usize {
-        self.threads
     }
 }
 

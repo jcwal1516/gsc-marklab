@@ -43,7 +43,7 @@ mod wsi;
 #[doc(hidden)]
 pub use cli::run_cli;
 
-pub use api::AnalysisEngine;
+pub use api::{AnalysisEngine, MarkedAnalysisRun};
 pub use config::{
     AnalysisConfig, AnalysisConfigSection, ComparisonSection, ComponentMode, CurveMargins,
     DiagnosticsSection, InferenceSection, MultiscaleResidualSection, NeighborhoodNullModel,

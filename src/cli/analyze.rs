@@ -57,10 +57,10 @@ pub(super) fn run(request: AnalyzeRequest) -> Result<()> {
     let strict_repro = config.performance.strict_repro;
     let intermediate_config = config.clone();
     let engine = AnalysisEngine::new(config)?;
-    let mut result = engine.analyze_pattern(&pattern)?;
-    let timing_context = TimingContext::from_result(&result, engine.thread_count());
+    let mut run = engine.analyze_pattern_run(&pattern)?;
+    let timing_context = TimingContext::from_result(&run.result, run.actual_thread_count);
     prepend_load_timings(
-        &mut result.timings,
+        &mut run.result.timings,
         LoadStageDurations {
             load: load_elapsed,
             mask_filter: load_result.diagnostics.mask_filter,
@@ -73,56 +73,55 @@ pub(super) fn run(request: AnalyzeRequest) -> Result<()> {
     if output.write_run_manifest {
         writer_output.write_run_manifest = false;
     }
-    OutputWriter::write(
-        &ResultDocument::marked(result.clone()),
-        &out,
-        &writer_output,
-    )?;
+    let run_manifest = output.write_run_manifest.then(|| {
+        serde_json::json!({
+            "command": "analyze",
+            "program": "marklab",
+            "crate_version": env!("CARGO_PKG_VERSION"),
+            "format_version": crate::RESULT_FORMAT_VERSION,
+            "inputs": {
+                "cells": cells.to_string_lossy(),
+                "mask": mask_path.to_string_lossy(),
+                "config": config_path.to_string_lossy(),
+            },
+            "execution": {
+                "thread_count": run.actual_thread_count,
+                "requested_threads": threads,
+                "permutations": permutation_count,
+                "permutation_seed": permutation_seed,
+                "strict_repro": strict_repro,
+                "save_intermediates": save_intermediates,
+                "log_level": observability.log.map(LogLevel::as_str),
+                "heap_profile": heap_profile.as_ref().map(|path| path.to_string_lossy().to_string()),
+            },
+            "result": {
+                "case_id": &run.result.case_id,
+                "timepoint": &run.result.timepoint,
+                "protein": &run.result.protein,
+                "status": &run.result.status,
+                "status_flags": &run.result.status_flags,
+                "n_cells": run.result.n_cells,
+                "n_marked": run.result.n_marked,
+                "p_hat": run.result.p_hat,
+            },
+            "output": {
+                "write_parquet_curves": output.write_parquet_curves,
+                "write_geojson_territories": output.write_geojson_territories,
+                "write_figures": output.write_figures,
+                "write_run_manifest": output.write_run_manifest,
+            },
+            "timings_stage_count": run.result.timings.len(),
+        })
+    });
+    OutputWriter::write_marked_run(run, &out, &writer_output)?;
     if save_intermediates {
         write_analysis_intermediates(&out, &pattern, &intermediate_config)?;
     }
     write_observability_outputs(&out, &observability)?;
-    if output.write_run_manifest {
+    if let Some(run_manifest) = run_manifest {
         fs::write(
             out.join("run_manifest.json"),
-            serde_json::to_string_pretty(&serde_json::json!({
-                "command": "analyze",
-                "program": "marklab",
-                "crate_version": env!("CARGO_PKG_VERSION"),
-                "format_version": crate::RESULT_FORMAT_VERSION,
-                "inputs": {
-                    "cells": cells.to_string_lossy(),
-                    "mask": mask_path.to_string_lossy(),
-                    "config": config_path.to_string_lossy(),
-                },
-                "execution": {
-                    "thread_count": engine.thread_count(),
-                    "requested_threads": threads,
-                    "permutations": permutation_count,
-                    "permutation_seed": permutation_seed,
-                    "strict_repro": strict_repro,
-                    "save_intermediates": save_intermediates,
-                    "log_level": observability.log.map(LogLevel::as_str),
-                    "heap_profile": heap_profile.as_ref().map(|path| path.to_string_lossy().to_string()),
-                },
-                "result": {
-                    "case_id": result.case_id,
-                    "timepoint": result.timepoint,
-                    "protein": result.protein,
-                    "status": result.status,
-                    "status_flags": result.status_flags,
-                    "n_cells": result.n_cells,
-                    "n_marked": result.n_marked,
-                    "p_hat": result.p_hat,
-                },
-                "output": {
-                    "write_parquet_curves": output.write_parquet_curves,
-                    "write_geojson_territories": output.write_geojson_territories,
-                    "write_figures": output.write_figures,
-                    "write_run_manifest": output.write_run_manifest,
-                },
-                "timings_stage_count": result.timings.len(),
-            }))?,
+            serde_json::to_string_pretty(&run_manifest)?,
         )?;
     }
 

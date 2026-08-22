@@ -35,6 +35,53 @@ fn public_api_exposes_engine_config_pattern_and_flags() {
 }
 
 #[test]
+fn public_marked_analysis_run_retains_result_and_execution_context() {
+    let mut config = AnalysisConfig::default();
+    config.permutation.stratified = false;
+    config.performance.threads = marklab::ThreadSetting::Count(2);
+    config.performance.strict_repro = false;
+    config.validation.n_min = 4;
+    config.validation.n_marked_min = 1;
+    config.validation.n_unmarked_min = 1;
+    config.validation.area_min_um2 = 1.0;
+    config.validation.k_shell_min = 1;
+    config.spectrum.k_shells = 4;
+    config.spectrum.low_k_shells = 2;
+    config.spectrum.anisotropy_low_k_shells = 2;
+    config.permutation.b = 9;
+    config.inference.family_wise_alpha = 0.25;
+    let mut pattern = Pattern::from_arrays(
+        vec![0.0, 1.0, 0.0, 1.0],
+        vec![0.0, 0.0, 1.0, 1.0],
+        vec![1, 0, 0, 1],
+        PatternMeta {
+            case_id: "case-run".into(),
+            timepoint: "post".into(),
+            protein: "generic".into(),
+            slide_id: None,
+            section_id: None,
+            stain_batch: None,
+            block_id: None,
+            region_id: None,
+        },
+    )
+    .expect("pattern");
+    pattern.window.area_um2 = 4.0;
+    pattern.window.l_eff_um = 2.0;
+    pattern.window.d_nn_mean_um = 1.0;
+
+    let run = AnalysisEngine::new(config)
+        .expect("engine")
+        .analyze_pattern_run(&pattern)
+        .expect("marked run");
+
+    assert_eq!(run.result.case_id, "case-run");
+    assert_eq!(run.result.n_cells, 4);
+    assert_eq!(run.actual_thread_count, 2);
+    assert!(!run.result.timings.is_empty());
+}
+
+#[test]
 fn marked_result_uses_multiscale_residual_terms_without_obsolete_aliases() {
     let mut config = AnalysisConfig::default();
     config.permutation.stratified = false;
