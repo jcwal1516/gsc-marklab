@@ -502,3 +502,10 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Decision: Main CI writes a ten-replicate production smoke artifact. A weekly and manually dispatched calibration workflow runs the two ignored 1,000-replicate negative controls serially in release mode. Pull-request verification remains fast and makes no calibration claim.
 - Evidence: A workflow regression failed before `calibration.yml` existed and now requires its schedule/manual triggers, exact release test filter, ignored execution, and single test thread. The six workflow contracts pass. `docs/validation-methodology.md` records both commands and their distinct claims.
 - Status: Accepted; Phase 13 smoke/calibration CI separation is explicit.
+
+## 2026-08-22 — Patch the reachable transitive LRU advisory
+
+- Context: Final `cargo audit` still reported `RUSTSEC-2026-0253` for `lru 0.18.1` through optional `wsi-rs 0.5.0`. Phase 0 had confirmed reachable `LruCache::pop()` calls but found no panicking-drop trigger in the concrete key types. A semver-compatible patched 0.18.2 release is available.
+- Decision: Update only the locked transitive `lru` package to 0.18.2. Do not change the Marklab manifest or broaden the WSI dependency. This removes the unsound implementation rather than retaining an exception based only on current reachability.
+- Evidence: `cargo audit` now exits 0 with only two documented unmaintained-package warnings. `cargo deny check advisories licenses bans sources` exits 0 with known duplicate-version warnings; `cargo machete` reports no unused dependencies. Exact WSI integration passes 10 local fixtures with one external skip after rebuilding `wsi-rs` against `lru 0.18.2`.
+- Status: Accepted; dependency advisories documentation is current as of 2026-08-22.

@@ -1,6 +1,6 @@
 # Reviewed dependency advisories
 
-Review date: 2026-07-15. Owner: marklab maintainers. These exceptions expire on
+Review date: 2026-08-22. Owner: marklab maintainers. These exceptions expire on
 2027-01-15 and must be removed or renewed after reviewing the then-current resolved graph.
 
 | Advisory | Dependency path | Impact | Mitigation |
@@ -10,3 +10,9 @@ Review date: 2026-07-15. Owner: marklab maintainers. These exceptions expire on
 
 `RUSTSEC-2026-0190` was resolved by updating transitive `anyhow` from 1.0.102 to
 1.0.103. Production code does not depend directly on `anyhow`.
+
+`RUSTSEC-2026-0253` was resolved by updating the locked transitive `lru` version
+from 0.18.1 to 0.18.2. No manifest constraint changed. The exact WSI integration
+suite passed after the update (10 local fixtures, one scheduled external
+fixture), and dependency policy now reports only the two reviewed maintenance
+warnings above.
