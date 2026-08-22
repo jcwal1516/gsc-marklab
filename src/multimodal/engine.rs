@@ -56,9 +56,9 @@ pub struct MultimodalEngine {
 impl MultimodalEngine {
     pub fn new(config: AnalysisConfig) -> Result<Self> {
         config.validate()?;
-        if config.diagnostics.beta_binomial {
+        if config.diagnostics.beta_posterior_groups {
             return Err(MarklabError::Config(
-                "beta_binomial diagnostic requires marked-pattern input; multimodal analyze supports graph_smoothing only".into(),
+                "beta_posterior_groups diagnostic requires marked-pattern input; multimodal analyze supports graph_smoothing only".into(),
             ));
         }
         if !config.registration.enabled {
@@ -168,7 +168,7 @@ impl MultimodalEngine {
         };
         let diagnostics = if self.config.diagnostics.graph_smoothing {
             AnalysisSection::available(DiagnosticsResult {
-                beta_binomial: None,
+                beta_posterior_groups: None,
                 graph_smoothing: Some(graph_smoothing(&fused, &graph, &label_pairs)?),
             })
         } else {

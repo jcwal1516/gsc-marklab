@@ -38,7 +38,7 @@ strata_fields = ["qc_bin", "component_id"]
 family_wise_alpha = 0.05
 
 [diagnostics]
-beta_binomial = false
+beta_posterior_groups = false
 graph_smoothing = false
 
 [registration]

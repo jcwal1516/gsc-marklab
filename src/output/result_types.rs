@@ -467,13 +467,13 @@ pub enum ResolvedComponentMode {
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct DiagnosticsResult {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub beta_binomial: Option<BetaBinomialSummary>,
+    pub beta_posterior_groups: Option<BetaPosteriorSummary>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graph_smoothing: Option<GraphSmoothingSummary>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct BetaBinomialSummary {
+pub struct BetaPosteriorSummary {
     pub diagnostic_name: String,
     pub n_cells: usize,
     pub n_marked: usize,
@@ -482,12 +482,12 @@ pub struct BetaBinomialSummary {
     pub posterior_mean: f64,
     pub credible_interval_95: [f64; 2],
     pub group_posterior_mean_range: f64,
-    pub groups: Vec<BetaBinomialGroupSummary>,
+    pub groups: Vec<BetaPosteriorGroupSummary>,
     pub diagnostics: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct BetaBinomialGroupSummary {
+pub struct BetaPosteriorGroupSummary {
     pub group: String,
     pub n_cells: usize,
     pub n_marked: usize,

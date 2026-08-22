@@ -33,6 +33,11 @@ semantics.
   equivalence test.
 - `[comparison.equivalence_margins]` is renamed to `[comparison.margins]`
   without a compatibility alias.
+- `[diagnostics].beta_binomial` is renamed to `beta_posterior_groups` without
+  an alias. `DiagnosticsResult.beta_binomial`, `BetaBinomialSummary`, and
+  `BetaBinomialGroupSummary` become `beta_posterior_groups`,
+  `BetaPosteriorSummary`, and `BetaPosteriorGroupSummary`. The diagnostic name
+  is `beta_posterior_group_summary_v1`.
   Insufficient comparisons include `unavailable_reason` instead of a fake
   statistic of zero.
 - QC results add nullable `valid_tumor_fraction` and `valid_ihc_fraction`.

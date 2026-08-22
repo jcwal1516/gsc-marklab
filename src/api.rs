@@ -3,12 +3,11 @@ use std::time::{Duration, Instant};
 use crate::{
     config::{AnalysisConfig, ThreadSetting},
     data::Pattern,
-    diagnostics::beta_binomial::beta_binomial,
+    diagnostics::beta_posterior::beta_posterior_group_summary,
     errors::{MarklabError, Result},
     multiscale_residual::energy::relative_scale_energies_from_field,
     output::{
-        DiagnosticsResult, Interpretation, MarkedPatternResult, MultiscaleResidualSummary,
-        StatusFlag, TimingStage,
+        Interpretation, MarkedPatternResult, MultiscaleResidualSummary, StatusFlag, TimingStage,
     },
     perf::counters::{estimate_peak_memory, MemoryEstimate, MemoryInputs},
     periodogram::raster::centered_mark_raster,

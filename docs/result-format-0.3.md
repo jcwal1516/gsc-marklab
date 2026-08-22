@@ -62,6 +62,15 @@ not an inferential equivalence test. The unused 0.2 fields
 0.3. Without a prespecified margin, `margin` and `within_margin` are `null` and
 the interpretation states that no margin assessment is available.
 
+## Beta posterior group diagnostic
+
+The optional marked-pattern diagnostic is serialized as
+`DiagnosticsResult.beta_posterior_groups: BetaPosteriorSummary`. It reports
+independent conjugate beta posteriors for the pooled mark prevalence and for
+component or coordinate-quadrant groups under a fixed `Beta(1, 1)` prior. It
+does not fit a beta-binomial marginal model or a shared overdispersion
+parameter, and it remains exploratory rather than a primary endpoint.
+
 ## Multiscale residual diagnostics
 
 The former wavelet/MODWT fields have been removed because the implementation

@@ -8,7 +8,7 @@ fn default_config_matches_the_supported_v02_controls() {
 
     assert_eq!(config.analysis.mark_label, "marked");
     assert_eq!(config.inference.family_wise_alpha, 0.05);
-    assert!(!config.diagnostics.beta_binomial);
+    assert!(!config.diagnostics.beta_posterior_groups);
     assert!(!config.diagnostics.graph_smoothing);
     assert_eq!(config.registration.transform, RegistrationTransform::Affine);
     assert_eq!(config.performance.threads, ThreadSetting::Auto);
@@ -154,4 +154,13 @@ fn config_uses_mark_pair_covariance_margin_without_obsolete_alias() {
     let exact = AnalysisConfig::from_toml_overrides("[comparison.margins]\nspectrum = 0.0")
         .expect("zero is a valid exact-match descriptive margin");
     assert_eq!(exact.comparison.margins.spectrum, Some(0.0));
+}
+
+#[test]
+fn config_uses_beta_posterior_group_diagnostic_without_obsolete_alias() {
+    let config = AnalysisConfig::from_toml_overrides("[diagnostics]\nbeta_posterior_groups = true")
+        .expect("accurately named beta posterior group diagnostic");
+
+    assert!(config.diagnostics.beta_posterior_groups);
+    assert!(AnalysisConfig::from_toml_overrides("[diagnostics]\nbeta_binomial = true").is_err());
 }

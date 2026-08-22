@@ -23,7 +23,7 @@ fn multimodal_config_defaults_are_conservative() {
     assert_eq!(config.neighborhood.radius_um, 50.0);
     assert_eq!(config.neighborhood.k_nearest, 8);
     assert!(config.comparison.margins.territory_profile.is_none());
-    assert!(!config.diagnostics.beta_binomial);
+    assert!(!config.diagnostics.beta_posterior_groups);
     assert!(!config.diagnostics.graph_smoothing);
 }
 

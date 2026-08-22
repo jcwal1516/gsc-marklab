@@ -59,8 +59,8 @@ pub use multimodal::{
     MultimodalEngine, MultimodalInput,
 };
 pub use output::{
-    AnalysisResult, AnalysisSection, AnisotropySummary, ArtifactStatus, BetaBinomialGroupSummary,
-    BetaBinomialSummary, ComponentAnalysisSummary, ComponentModeSelection, CrossInteractionCurve,
+    AnalysisResult, AnalysisSection, AnisotropySummary, ArtifactStatus, BetaPosteriorGroupSummary,
+    BetaPosteriorSummary, ComponentAnalysisSummary, ComponentModeSelection, CrossInteractionCurve,
     CrossInteractionPoint, CurveTestAvailability, CurveTestResult, DiagnosticsResult,
     EnrichmentStatisticUnavailableReason, FunctionalSummary, FusedCellSummary,
     GraphSmoothingLabelPairSummary, GraphSmoothingSummary, Interpretation, LabelFraction,

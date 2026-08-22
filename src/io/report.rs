@@ -180,14 +180,14 @@ fn render_diagnostics(section: &AnalysisSection<DiagnosticsResult>) -> String {
     };
 
     let mut text = String::from("Optional diagnostics: exploratory summaries only; primary statistical endpoints remain unchanged.\n\n");
-    if let Some(beta_binomial) = &diagnostics.beta_binomial {
+    if let Some(beta_posterior_groups) = &diagnostics.beta_posterior_groups {
         text.push_str(&format!(
-            "Beta-binomial summary: {diagnostic_name}; posterior mean = {posterior_mean:.4}; 95% interval = [{lower:.4}, {upper:.4}]; group posterior mean range = {range:.4}.\n\n",
-            diagnostic_name = beta_binomial.diagnostic_name,
-            posterior_mean = beta_binomial.posterior_mean,
-            lower = beta_binomial.credible_interval_95[0],
-            upper = beta_binomial.credible_interval_95[1],
-            range = beta_binomial.group_posterior_mean_range,
+            "Beta posterior group summary: {diagnostic_name}; posterior mean = {posterior_mean:.4}; 95% interval = [{lower:.4}, {upper:.4}]; group posterior mean range = {range:.4}.\n\n",
+            diagnostic_name = beta_posterior_groups.diagnostic_name,
+            posterior_mean = beta_posterior_groups.posterior_mean,
+            lower = beta_posterior_groups.credible_interval_95[0],
+            upper = beta_posterior_groups.credible_interval_95[1],
+            range = beta_posterior_groups.group_posterior_mean_range,
         ));
     }
     if let Some(graph_smoothing) = &diagnostics.graph_smoothing {

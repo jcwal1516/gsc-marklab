@@ -78,8 +78,8 @@ fn multimodal_analyze_uses_true_rigid_rotation() {
 fn multimodal_analyze_writes_graph_smoothing_diagnostic_when_enabled() {
     let fixture = MultimodalFixture::new();
     fixture.update_config(
-        "[diagnostics]\nbeta_binomial = false\ngraph_smoothing = false",
-        "[diagnostics]\nbeta_binomial = false\ngraph_smoothing = true",
+        "[diagnostics]\nbeta_posterior_groups = false\ngraph_smoothing = false",
+        "[diagnostics]\nbeta_posterior_groups = false\ngraph_smoothing = true",
     );
 
     fixture.run().assert().success();
@@ -109,16 +109,16 @@ fn multimodal_analyze_writes_graph_smoothing_diagnostic_when_enabled() {
 }
 
 #[test]
-fn multimodal_analyze_rejects_beta_binomial_diagnostic() {
+fn multimodal_analyze_rejects_beta_posterior_groups_diagnostic() {
     let fixture = MultimodalFixture::new();
     fixture.update_config(
-        "[diagnostics]\nbeta_binomial = false\ngraph_smoothing = false",
-        "[diagnostics]\nbeta_binomial = true\ngraph_smoothing = false",
+        "[diagnostics]\nbeta_posterior_groups = false\ngraph_smoothing = false",
+        "[diagnostics]\nbeta_posterior_groups = true\ngraph_smoothing = false",
     );
 
     let output = fixture.run().assert().failure().get_output().stderr.clone();
     let stderr = String::from_utf8(output).expect("stderr");
-    assert!(stderr.contains("beta_binomial diagnostic requires marked-pattern input"));
+    assert!(stderr.contains("beta_posterior_groups diagnostic requires marked-pattern input"));
 }
 
 #[test]

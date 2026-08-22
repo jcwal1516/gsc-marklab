@@ -165,7 +165,7 @@ fn analyze_cli_writes_result_json_from_csv_and_geojson_mask() {
 }
 
 #[test]
-fn analyze_cli_writes_beta_binomial_diagnostic_when_enabled() {
+fn analyze_cli_writes_beta_posterior_groups_diagnostic_when_enabled() {
     let dir = tempfile::tempdir().expect("temp dir");
     let cells = dir.path().join("cells.csv");
     let mask = dir.path().join("mask.geojson");
@@ -191,7 +191,7 @@ fn analyze_cli_writes_beta_binomial_diagnostic_when_enabled() {
     write_config(&config);
     let config_text = fs::read_to_string(&config).expect("config").replace(
         "[performance]",
-        "[diagnostics]\nbeta_binomial = true\ngraph_smoothing = false\n\n[performance]",
+        "[diagnostics]\nbeta_posterior_groups = true\ngraph_smoothing = false\n\n[performance]",
     );
     fs::write(&config, config_text).expect("rewrite config");
 
@@ -216,17 +216,24 @@ fn analyze_cli_writes_beta_binomial_diagnostic_when_enabled() {
     let document: Value =
         serde_json::from_str(&fs::read_to_string(out.join("result.json")).expect("result json"))
             .expect("json");
-    let beta_binomial = &document["analysis"]["result"]["diagnostics"]["value"]["beta_binomial"];
+    let beta_posterior_groups =
+        &document["analysis"]["result"]["diagnostics"]["value"]["beta_posterior_groups"];
     assert_eq!(
-        beta_binomial["diagnostic_name"],
-        "beta_binomial_group_summary_v1"
+        beta_posterior_groups["diagnostic_name"],
+        "beta_posterior_group_summary_v1"
     );
-    assert_eq!(beta_binomial["n_cells"], 6);
-    assert_eq!(beta_binomial["groups"].as_array().expect("groups").len(), 2);
+    assert_eq!(beta_posterior_groups["n_cells"], 6);
+    assert_eq!(
+        beta_posterior_groups["groups"]
+            .as_array()
+            .expect("groups")
+            .len(),
+        2
+    );
 
     let report = fs::read_to_string(out.join("report.md")).expect("report");
     assert!(report.contains("Optional diagnostics"));
-    assert!(report.contains("Beta-binomial summary"));
+    assert!(report.contains("Beta posterior group summary"));
     assert!(!report.to_lowercase().contains("proof"));
 }
 
@@ -255,7 +262,7 @@ fn analyze_cli_rejects_graph_smoothing_without_multimodal_graph() {
     write_config(&config);
     let config_text = fs::read_to_string(&config).expect("config").replace(
         "[performance]",
-        "[diagnostics]\nbeta_binomial = false\ngraph_smoothing = true\n\n[performance]",
+        "[diagnostics]\nbeta_posterior_groups = false\ngraph_smoothing = true\n\n[performance]",
     );
     fs::write(&config, config_text).expect("rewrite config");
 

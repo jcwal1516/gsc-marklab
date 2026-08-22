@@ -125,7 +125,7 @@ controls are:
 - `[spectrum]`, `[periodogram]`, `[multiscale_residual]`;
 - `[permutation]`: count, seed, stratification, typed strata fields;
 - `[inference]`: `family_wise_alpha`;
-- `[diagnostics]`: default-off beta-binomial and graph-smoothing diagnostics;
+- `[diagnostics]`: default-off beta posterior group and graph-smoothing diagnostics;
 - typed registration, neighborhood, comparison, performance, and output controls.
 
 `registration.transform = "rigid"` is an orientation-preserving least-squares

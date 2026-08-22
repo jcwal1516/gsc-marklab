@@ -26,9 +26,9 @@ fn component_pattern() -> Pattern {
 }
 
 #[test]
-fn analysis_engine_runs_enabled_beta_binomial_diagnostic() {
+fn analysis_engine_runs_enabled_beta_posterior_groups_diagnostic() {
     let mut config = AnalysisConfig::default();
-    config.diagnostics.beta_binomial = true;
+    config.diagnostics.beta_posterior_groups = true;
     config.permutation.stratified = false;
     config.performance.threads = marklab::ThreadSetting::Count(1);
 
@@ -38,12 +38,32 @@ fn analysis_engine_runs_enabled_beta_binomial_diagnostic() {
         .expect("analysis");
     let diagnostics = result.diagnostics.value().expect("diagnostics result");
 
-    assert!(diagnostics.beta_binomial.is_some());
+    assert!(diagnostics.beta_posterior_groups.is_some());
     assert!(diagnostics.graph_smoothing.is_none());
     assert!(result
         .timings
         .iter()
-        .any(|stage| stage.stage_name == "diagnostic_beta_binomial"));
+        .any(|stage| stage.stage_name == "diagnostic_beta_posterior_groups"));
+}
+
+#[test]
+fn beta_posterior_group_summary_uses_accurate_schema() {
+    let mut config = AnalysisConfig::default();
+    config.diagnostics.beta_posterior_groups = true;
+    config.permutation.stratified = false;
+    let result = AnalysisEngine::new(config)
+        .expect("engine")
+        .analyze_pattern(&component_pattern())
+        .expect("analysis");
+    let json = serde_json::to_value(result.diagnostics).expect("diagnostics json");
+    let diagnostic = &json["value"];
+
+    assert!(diagnostic.get("beta_posterior_groups").is_some());
+    assert!(diagnostic.get("beta_binomial").is_none());
+    assert_eq!(
+        diagnostic["beta_posterior_groups"]["diagnostic_name"],
+        "beta_posterior_group_summary_v1"
+    );
 }
 
 #[test]

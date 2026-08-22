@@ -1,2 +1,2 @@
-pub mod beta_binomial;
+pub mod beta_posterior;
 pub mod graph_smoothing;

@@ -106,7 +106,7 @@ pub struct InferenceSection {
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct DiagnosticsSection {
-    pub beta_binomial: bool,
+    pub beta_posterior_groups: bool,
     pub graph_smoothing: bool,
 }
 

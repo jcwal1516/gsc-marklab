@@ -2,15 +2,17 @@ use crate::{
     common::stats::{median_ignoring_nonfinite, min_max_ignoring_nonfinite},
     data::Pattern,
     errors::{MarklabError, Result},
-    output::BetaBinomialSummary,
+    output::{BetaPosteriorGroupSummary, BetaPosteriorSummary},
 };
 
-use crate::output::BetaBinomialGroupSummary;
-
-pub fn beta_binomial(pattern: &Pattern) -> Result<BetaBinomialSummary> {
+/// Summarize independent group prevalences under a fixed Beta(1, 1) prior.
+///
+/// Each group is modeled separately with a beta posterior for its binomial
+/// mark probability. No shared beta-binomial dispersion model is fitted.
+pub fn beta_posterior_group_summary(pattern: &Pattern) -> Result<BetaPosteriorSummary> {
     if pattern.is_empty() {
         return Err(MarklabError::Validation(
-            "beta-binomial diagnostic requires at least one cell".into(),
+            "beta posterior group diagnostic requires at least one cell".into(),
         ));
     }
 
@@ -21,7 +23,7 @@ pub fn beta_binomial(pattern: &Pattern) -> Result<BetaBinomialSummary> {
     let groups = group_summaries(pattern, prior_alpha, prior_beta)?;
     let group_posterior_mean_range = posterior_mean_range(&groups);
     let mut diagnostics = vec![
-        "Beta-binomial diagnostic with fixed Beta(1,1) prior.".into(),
+        "Beta posterior group diagnostic with fixed Beta(1,1) prior.".into(),
         "Diagnostic output is exploratory and does not change the primary endpoint.".into(),
     ];
     if pattern.component_id.is_some() && groups.len() >= 2 {
@@ -34,8 +36,8 @@ pub fn beta_binomial(pattern: &Pattern) -> Result<BetaBinomialSummary> {
         );
     }
 
-    Ok(BetaBinomialSummary {
-        diagnostic_name: "beta_binomial_group_summary_v1".into(),
+    Ok(BetaPosteriorSummary {
+        diagnostic_name: "beta_posterior_group_summary_v1".into(),
         n_cells: pattern.len(),
         n_marked: pattern.n_marked(),
         prior_alpha,
@@ -52,7 +54,7 @@ fn group_summaries(
     pattern: &Pattern,
     prior_alpha: f64,
     prior_beta: f64,
-) -> Result<Vec<BetaBinomialGroupSummary>> {
+) -> Result<Vec<BetaPosteriorGroupSummary>> {
     use std::collections::{BTreeMap, BTreeSet};
 
     let mut groups: BTreeMap<String, (usize, usize)> = BTreeMap::new();
@@ -74,10 +76,10 @@ fn group_summaries(
         }
     } else {
         let median_x = median_ignoring_nonfinite(pattern.x_um.as_ref()).ok_or_else(|| {
-            MarklabError::Compute("beta-binomial x-coordinate median is undefined".into())
+            MarklabError::Compute("beta posterior group x-coordinate median is undefined".into())
         })?;
         let median_y = median_ignoring_nonfinite(pattern.y_um.as_ref()).ok_or_else(|| {
-            MarklabError::Compute("beta-binomial y-coordinate median is undefined".into())
+            MarklabError::Compute("beta posterior group y-coordinate median is undefined".into())
         })?;
         for index in 0..pattern.len() {
             let x_bin = if pattern.x_um[index] <= median_x {
@@ -103,7 +105,7 @@ fn group_summaries(
         .map(|(group, (n_cells, n_marked))| {
             let (posterior_mean, credible_interval_95) =
                 beta_posterior_summary(n_marked, n_cells, prior_alpha, prior_beta)?;
-            Ok(BetaBinomialGroupSummary {
+            Ok(BetaPosteriorGroupSummary {
                 group,
                 n_cells,
                 n_marked,
@@ -146,7 +148,7 @@ fn beta_posterior_summary(
     ))
 }
 
-fn posterior_mean_range(groups: &[BetaBinomialGroupSummary]) -> f64 {
+fn posterior_mean_range(groups: &[BetaPosteriorGroupSummary]) -> f64 {
     if groups.len() < 2 {
         return 0.0;
     }
@@ -184,9 +186,10 @@ mod tests {
         .expect("pattern");
         pattern.component_id = Some(vec![1, 1, 1, 2, 2, 2].into_boxed_slice());
 
-        let output = beta_binomial(&pattern).expect("beta-binomial diagnostic");
+        let output =
+            beta_posterior_group_summary(&pattern).expect("beta posterior group diagnostic");
 
-        assert_eq!(output.diagnostic_name, "beta_binomial_group_summary_v1");
+        assert_eq!(output.diagnostic_name, "beta_posterior_group_summary_v1");
         assert_eq!(output.n_cells, 6);
         assert_eq!(output.n_marked, 3);
         assert!((output.posterior_mean - 0.5).abs() < 1.0e-12);
@@ -219,7 +222,8 @@ mod tests {
         )
         .expect("pattern");
 
-        let output = beta_binomial(&pattern).expect("beta-binomial diagnostic");
+        let output =
+            beta_posterior_group_summary(&pattern).expect("beta posterior group diagnostic");
         let mut group_sizes = output
             .groups
             .iter()
