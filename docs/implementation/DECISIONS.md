@@ -131,3 +131,12 @@ This file is append-only. Superseding decisions reference the prior decision; ex
 - Decision: Add `marklab-core` for shared opaque ID types and `marklab-data` for the in-memory hierarchy. Each node has at most one enumerated containment/lineage parent plus an independent replication role: biological unit, biological subsample with explicit source, technical replicate with explicit source, or structural. Sources must name existing biological units but need not be containment ancestors. Structural descendants inherit the nearest declared source. Store compact parent/source indices, validate iteratively in expected linear time, and keep stable root re-exports/persistent schemas deferred.
 - Alternatives: one generic parent relation; classify donor cores as technical replicates; encode donor identity in core/slide names; introduce a general multi-edge ontology before an immediate use.
 - Consequences: C-01 can represent ordinary slides and multi-donor TMA containment without pseudoreplication or filename inference. It does not yet model collection/scanning/assay sites, persistent manifests/digests, cross-artifact drift, result 0.4, or inferential unit selection; C-03 and later cohort tasks own those surfaces.
+
+## DEC-0016 — Bound biological levels while preserving explicit ancestry
+
+- Date: 2026-08-22
+- Status: accepted
+- Context: the first C-01 audit showed that allowing nested patient and specimen biological units while retaining only one nearest-unit index would shadow patient-level paired designs and summaries. Forbidding nested units would make the API simpler but would discard a real study-design distinction.
+- Decision: restrict `BiologicalUnit` to patient/specimen objects, retain the nearest unit for specific lookup, and store the enclosing biological parent for explicit membership tests. Repeated sets may name any unit in that bounded lineage, and factual core/region summaries count every declared level to which an object belongs. No level is chosen as an inferential unit.
+- Alternatives: forbid nested biological units; return an allocated lineage per query; introduce an unbounded graph ontology or inferential design layer in C-01.
+- Consequences: specimen → patient ancestry is bounded, validation and summary expansion remain expected-linear, and downstream FND-06 can choose a randomization unit explicitly. A future additional biological level requires a reviewed role-matrix/API change rather than silent reinterpretation.

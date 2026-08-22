@@ -1,33 +1,33 @@
 # Implementation status
 
-Last updated: 2026-08-22T18:13:37-04:00
+Last updated: 2026-08-22T18:43:37-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Current SHA: `3ea2e9849ae024759d871d1e6ce6a566d2c40d92`
+- Current SHA: `a1260445a383c59381b2c7c7881cebb10e10c156`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
-- Current phase/workstream/task: Phase 2 / WS-C / C-01 typed identities and hierarchy activation
+- Current phase/workstream/task: Phase 2 / WS-C / C-02 units, frames, dimensions, and transforms activation
 
 ## Requirements
 
-- Completed: `A-01`, `A-02`, `A-03`, `B-01`, `B-02`, `B-03`, `B-04`, `SLIDE-INV`, `WS-A`, `WS-B`, `WS-10`
-- Active: `C-01`, `DATA-01`, `FND-01`, `COH-01`, `PLAT-01`, `WF-01`, `WS-11`, `WS-12`, `WS-20`
-- Planned next: `C-02`–`C-06`
+- Completed: `A-01`, `A-02`, `A-03`, `B-01`, `B-02`, `B-03`, `B-04`, `C-01`, `FND-01`, `SLIDE-INV`, `WS-A`, `WS-B`, `WS-10`, `WS-20`
+- Active: `C-02`, `DATA-01`, `COH-01`, `PLAT-01`, `WF-01`, `WS-11`, `WS-12`, `WS-21`
+- Planned next: `C-03`–`C-06`
 
 ## Command state
 
-- Known failing commands/tests: none current. Historical red/green and harness failures are recorded in the validation ledger. The WS-B feature matrix passes; narrow no-default/CSV/Parquet/WSI all-target checks retain explicitly recorded warnings and are not claimed warning-clean.
+- Known failing commands/tests: none current. C-01 closes with 430/430 all-feature workspace tests, both warnings-denied Clippy rows, locked standalone fuzz, smoke/full hierarchy benchmarks, and clean five-package packaging. Historical red/green and harness failures are recorded in the validation ledger. The WS-B feature matrix still has the explicitly recorded narrow warnings and is not claimed warning-clean.
 - Confirmed available: `cargo-nextest`, `cargo-audit`, `cargo-deny`, `cargo-machete`, `cargo-fuzz`, `ssh`, `scp`, `rsync`.
 - Confirmed unavailable: local `markdownlint-cli2`, `actionlint`, and Gnuplot. Criterion used Plotters; no Markdown/workflow lint pass is claimed.
 
 ## Dirty files and reasons
 
-- `docs/implementation/CANONICAL_SYMBOLS.md`, `DECISIONS.md`, and `task-contracts/C-01.md`: C-01 ownership, audited frozen semantics, and the TMA-safe containment/source decision. Production and test trees are clean at `3ea2e9849ae024759d871d1e6ce6a566d2c40d92`.
+- C-01 production, tests, manifests, and locks are clean at `a1260445a383c59381b2c7c7881cebb10e10c156`. Current dirty files are the C-01 append-only closure ledgers/handoff and C-02 activation state only.
 
 ## Recent decisions
 
@@ -42,6 +42,7 @@ Last updated: 2026-08-22T18:13:37-04:00
 - `DEC-0013`: project inputs remain reference-only; only bounded canonical result-0.3 bytes and successful-run records are retained in B-04.
 - `DEC-0014`: use the already-locked reviewed `sha2` 0.10.9 and `thiserror` 2 dependencies; no registry lock delta is accepted.
 - `DEC-0015`: C-01 separates compact containment parents from explicit biological sources so donor cores on multi-donor TMA slides remain attributable without filename inference or false technical-replicate labels.
+- `DEC-0016`: only patient/specimen objects may be biological units; nearest resolution and bounded enclosing lineage coexist so downstream designs select a level explicitly without pseudoreplication.
 
 ## Unresolved questions
 
@@ -53,12 +54,12 @@ Last updated: 2026-08-22T18:13:37-04:00
 
 ## Next three exact actions
 
-1. Add the C-01 workspace/package and root integration contracts, then confirm the missing members/API fail for the expected reasons.
-2. Implement core IDs, indexed hierarchy validation/design summaries, and atomic project hierarchy installation in dependency order.
-3. Add and run the correctness-checked hierarchy benchmark plus focused workspace/documentation/lock gates.
+1. Freeze C-02 semantics against the current coordinate/registration types and the remote physical-scale evidence without changing the compatibility API.
+2. Add behavior-first 2-D/3-D unit, frame, transform-chain, uncertainty-reference, and serial-section contract tests.
+3. Implement the smallest core/data boundary and run focused plus workspace compatibility gates.
 
 Next exact verification command:
 
 ```bash
-cargo +1.96.0 test --locked --test data_hierarchy
+cargo +1.96.0 test --locked --test coordinate_frames
 ```

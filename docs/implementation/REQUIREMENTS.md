@@ -9,7 +9,7 @@ Statuses are `planned`, `active`, `blocked`, `complete`, `deferred`, or `rejecte
 | PLAT-01 | Project, artifact, and workflow operating system | WS-A baseline | Lead | active | New project/workflow surface | Pending |
 | WF-01 | Typed composable workflow DAG | PLAT-01 | Lead | active | New workflow schema/API | B-04 single-node typed slice complete; general composition/resume remains |
 | BACK-01 | Versioned backend registry | PLAT-01, WF-01 | Lead | planned | Backend manifests/CLI | Pending |
-| DATA-01 | Identity, hierarchy, modalities, coordinates, and units | WS-B | Lead | active | New stable data contracts | C-01 activation after WS-B exit |
+| DATA-01 | Identity, hierarchy, modalities, coordinates, and units | WS-B | Lead | active | New stable data contracts | C-01 identity/hierarchy complete; C-02–C-06 remain |
 | GEO-01 | Exact windows, compartments, boundaries, and geometry plans | DATA-01 | Lead | planned | New geometry/result families | Pending |
 | EMB-CORE | CellViT single-cell embedding modality | DATA-01, artifact layer | Lead | planned | New artifact contract | Real vectors/checkpoint/manifests found; safe conversion, stable `CellId`, and extraction semantics pending |
 | EMB-PATCH | Patch/region/slide embeddings and links | DATA-01, artifact layer | Lead | planned | New artifact contract | Pending |
@@ -21,7 +21,7 @@ Statuses are `planned`, `active`, `blocked`, `complete`, `deferred`, or `rejecte
 
 | ID | Requirement | Prerequisites | Owner | Status | Claim ceiling before closure | Closure evidence |
 |---|---|---|---|---|---|---|
-| FND-01 | Typed identity and cohort hierarchy | DATA-01 | Lead | active | Infrastructure only | C-01 activation after WS-B exit |
+| FND-01 | Typed identity and cohort hierarchy | DATA-01 | Lead | complete | Infrastructure only | Commit `a1260445a383c59381b2c7c7881cebb10e10c156`; `handoffs/C-01.md` |
 | FND-02 | ObservationWindow2D | FND-01 | Lead | planned | Infrastructure only | Remote sampled-patch geometry exists; explicit union-window reconstruction and tissue-mask boundary pending |
 | FND-03 | Reusable exact spatial geometry plan | FND-02 | Lead | planned | Infrastructure only | Pending |
 | FND-04 | Typed marks and measurement provenance | FND-01 | Lead | planned | Infrastructure only | Pending |
@@ -35,7 +35,7 @@ Statuses are `planned`, `active`, `blocked`, `complete`, `deferred`, or `rejecte
 | MRK-01 | General marked-process functions | FND-04, PP plans | Lead | planned | Current narrow endpoints only | Pending |
 | SIG-01 | Spatial autocorrelation and variograms | FND-04, weights | Lead | planned | Unsupported | Pending |
 | NIC-01 | Multiscale neighborhoods/niches | FND-03, FND-04 | Lead | planned | Current MMR-specific descriptions only | Pending |
-| COH-01 | Patient-level cohort inference | FND-01, FND-06 | Lead | active | No population claim | C-01 activates hierarchy/replication substrate only; inference remains pending FND-06 |
+| COH-01 | Patient-level cohort inference | FND-01, FND-06 | Lead | active | No population claim | FND-01 hierarchy/replication substrate complete; inference remains pending FND-06 |
 | CMP-01 | Spatial fingerprints/two-sample tests | COH-01 | Lead | planned | Descriptive current comparison only | Pending |
 | EQV-01 | Equivalence/noninferiority | COH-01, CMP-01 | Lead | planned | Descriptive margins only | Pending |
 | EMB-01 | Spatial dependence of embeddings | FND-05, SIG-01 | Lead | planned | Unsupported without provenance | Pending |
@@ -60,8 +60,8 @@ Statuses are `planned`, `active`, `blocked`, `complete`, `deferred`, or `rejecte
 | B-02 | Compatibility shell | B-01 | Lead | complete | Compatibility parity test/docs only | Commit `f1bcc94d4a5f96825fae32676630304f31d332ea`; direct marked/multimodal parity, 65 default, 26 WSI/CLI, 35 CLI-only, 16 output, and no-default gates pass |
 | B-03 | Workspace policy | B-01 | Lead | complete | Workspace CI/policy/architecture tests and cfg-only warning fix | Commit `ab3df430deb547a105608cad2f799fcf52fc9e66`; red/green policy/Clippy, eight-row matrix, architecture tests, YAML parse, and clean package pass |
 | B-04 | Minimal project/workflow vertical slice | B-01–B-03 | Lead | complete | Focused project/workflow crates, root adapter, manifests/lock, tests/docs | Commits `bcc9450ef0a2ba89f3383904a78834925f3fcf17` and `ac7da28da082f795381da0a03e8437fc4a774262`; all focused and WS-B exit gates pass |
-| C-01 | Typed identities/hierarchy | WS-B | Lead | active | Focused core/data files | Red/green hierarchy tests next; no filename inference |
-| C-02 | Units/frames/dimensions/transforms | C-01 | Lead | planned | Focused core/data files | Red/green unit/frame tests |
+| C-01 | Typed identities/hierarchy | WS-B | Lead | complete | Focused core/data files | Commit `a1260445a383c59381b2c7c7881cebb10e10c156`; 14 hierarchy regressions, 430-test workspace gate, full benchmark, independent re-review |
+| C-02 | Units/frames/dimensions/transforms | C-01 | Lead | active | Focused core/data files | Red/green unit/frame tests next |
 | C-03 | Artifact catalog/immutable tables | B-04 | Lead | planned | Project/artifact files | Integrity/security tests |
 | C-04 | CellViT embedding table | C-01, C-03 | Lead | planned | Data/artifact/import tests | Real remote assets identified; trusted conversion, stable row linkage, schema, provenance, and scale gates |
 | C-05 | Patch/region/slide embedding links | C-02–C-04 | Lead | planned | Data/artifact tests | Overlap/link tests |
@@ -188,8 +188,8 @@ The tables below ensure every scientific, platform, current-capability, and work
 | WS-11 | active | B-04 minimal reference/digest/bounded-cache slice implemented and green; C-03 owns durable catalog/recovery/storage |
 | WS-12 | active | B-04 typed DAG/key/failure-atomic single-node scheduler implemented and green; general scheduling/resume follows |
 | WS-13 | planned | Backend registry and doctor/validation commands |
-| WS-20 | active | C-01 typed identity and hierarchy slice |
-| WS-21 | planned | Coordinates, units, dimensions, transforms, uncertainty |
+| WS-20 | complete | C-01 typed identity and hierarchy slice; commit `a1260445a383c59381b2c7c7881cebb10e10c156` |
+| WS-21 | active | C-02 coordinates, units, dimensions, transforms, uncertainty |
 | WS-22 | planned | Windows, compartments, exact geometry |
 | WS-23 | planned | General marks and measurement provenance |
 | WS-24 | planned/data available with blockers | CellViT vectors/checkpoint/manifests exist; safe conversion, stable identity, extraction semantics, and patch links remain |

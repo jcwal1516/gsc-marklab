@@ -56,3 +56,12 @@ Status: characterization freeze for WS-A. Exact field/symbol inventory is active
 - Canonical output: a miss reaches a decode/re-encode fixed point before commit; a hit verifies digest/length and decodes the exact retained bytes. The inline cap bounds retained artifact size, not codec peak allocation.
 - Failure: invalid/cyclic graph, missing/digest-mismatched input, resource failure, unstable codec, or analysis error remains an error; no successful node/result entry is committed.
 - Non-goals: broad plugin system, remote scheduler, general schema registry, scientific migration, or arbitrary task runner.
+
+## IC-0008 — Typed in-memory cohort hierarchy
+
+- Identity: opaque, exact, 1–255-byte typed IDs for site, patient, timepoint, specimen, block, slide, section, core, region, cell, and patch; text never supplies parentage or replication.
+- Relations: one enumerated containment parent plus an independent biological source for biological subsamples and technical replicates. A donor TMA core may therefore belong to a donor unit while being contained by a recipient slide.
+- Replication safety: only patient/specimen objects may be declared biological units; cell/patch/site/timepoint objects are structural, and lower physical objects cannot become independent units from row count.
+- Nested levels: nearest resolution remains specific, while explicit lineage membership permits downstream selection of an enclosing declared patient above biological specimens. C-01 itself performs no randomization or population inference.
+- Repeated designs: declarations contain at least two distinct same-kind observations, one set per biological-unit/observation-kind pair, and globally unique observation membership. Retained order is deterministic but not temporal.
+- Persistence: this is an immutable in-memory 0.1 boundary installed once into `MarklabProject`. Serialization, schema evolution, cross-artifact drift, and result-format 0.4 are deferred to C-03.

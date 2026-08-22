@@ -49,3 +49,21 @@ Environment and workload definitions are unchanged from the baseline above. The 
 The first workspace attempt measured these same Criterion targets but was not a passing gate: Cargo subsequently forwarded `--quick` to the new child crates' implicit libtest benchmark harnesses, which rejected the flag. The red manifest regression and `bench = false` fix in `ac7da28` restrict the command to real Criterion targets; the table records the final passing rerun. These quick intervals are noisy smoke measurements, not an optimization claim.
 
 The phase-boundary DHAT command passed 3/3 assertions (180 filtered) after a 7.12 s test-profile build, with the same 14 narrow-feature warnings. The WSI-enabled release synthetic smoke rebuilt in 1m07s and completed 12/12 scenarios and 120/120 replicates with zero failed replicates; it is validation smoke rather than a timing benchmark.
+
+## C-01 hierarchy construction
+
+Commands:
+
+```text
+env MARKLAB_BENCH_PROFILE=smoke cargo +1.96.0 bench --locked --workspace --all-features --bench cohort_hierarchy -- --quick
+env MARKLAB_BENCH_PROFILE=full cargo +1.96.0 bench --locked --workspace --all-features --bench cohort_hierarchy -- --quick
+```
+
+The fixture is built outside the timed closure. Each Criterion iteration clones the declarative input using `BatchSize::LargeInput`, constructs and validates a new hierarchy, and asserts exact patient/specimen/block/slide/cell and pair/repeated counts. `sample_size(10)` and cell-count throughput are declared. The smoke shape is 100 patients/specimens × 100 cells = 10,000 cells; the permitted full fallback is 10,000 patients/specimens × 100 cells = 1,000,000 cells. Both include one block and slide per specimen. This measures hierarchy construction/validation, not embedding storage or a 10-million-cell claim.
+
+| Shape | Final quick interval | Throughput | Status |
+|---|---:|---:|---|
+| 10,000 cells / 100 specimens | 1.1645–1.1726 ms | 8.5282–8.5873 million cells/s | pass |
+| 1,000,000 cells / 10,000 specimens | 147.13–147.27 ms | 6.7900–6.7969 million cells/s | pass |
+
+Environment matches the ledger header. Gnuplot remained unavailable and Criterion used Plotters. The implementation uses shared ID storage, indexed vectors/maps, iterative parent traversal, and a role-matrix-bounded specimen → patient biological lineage. The benchmark verifies equivalent output but does not measure peak memory, serialization, persistence, remote I/O, or inferential workloads; no broader performance claim is made.

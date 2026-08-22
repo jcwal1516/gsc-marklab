@@ -36,6 +36,18 @@ CLI -> public facade/application engines -> scientific stages
 
 B-03 finalized the first workspace direction as `marklab` → `marklab-workflow` → `marklab-project`. B-04 keeps the generic DAG/scheduler below the compatibility package and places the concrete existing-engine node adapter in root `marklab`; lower packages never depend upward on the facade.
 
+C-01 extends the descending workspace layers without changing the root facade:
+
+```text
+marklab (compatibility facade and current engine adapter)
+  -> marklab-workflow (typed DAG and local scheduler)
+    -> marklab-project (project state, references, cache, hierarchy slot)
+      -> marklab-data (validated cohort hierarchy and design facts)
+        -> marklab-core (opaque typed identities)
+```
+
+`marklab-data` is a root dev-dependency only for integration tests and the hierarchy benchmark; C-01 adds no stable root re-export. The two new packages use only already-locked `thiserror` 2.
+
 ## Active ownership
 
 | Task/agent | Writable tracked files | Canonical symbols | Read-only scope | Non-goals |
