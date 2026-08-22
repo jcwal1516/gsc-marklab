@@ -16,10 +16,11 @@ mod assembly;
 mod components;
 mod context;
 mod diagnostics;
+mod mark_pair_stage;
+mod multiscale_stage;
 mod qc_pipeline;
 mod spatial_stage;
 mod spectrum_stage;
-mod stages;
 
 #[cfg(test)]
 mod context_tests {
@@ -65,7 +66,7 @@ use assembly::interpretation_for;
 use components::component_analysis_plan;
 use context::MarkedAnalysisContext;
 use qc_pipeline::validate_pattern;
-use stages::estimated_raster_pixels;
+use spatial_stage::estimated_raster_pixels;
 
 pub struct AnalysisEngine {
     config: AnalysisConfig,
