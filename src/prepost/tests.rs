@@ -457,7 +457,6 @@ fn prepost_curve_tests_surface_unaligned_axis_diagnostics() {
 }
 
 #[test]
-#[ignore = "Phase 0 reproduction: COR-06 canonical axis comparison is fixed in Phase 2"]
 fn remediation_prepost_axes_accept_harmless_float_reconstruction() {
     let mut pre = minimal_analysis_result("case1", "pre");
     let mut post = minimal_analysis_result("case1", "post");
@@ -479,6 +478,101 @@ fn remediation_prepost_axes_accept_harmless_float_reconstruction() {
         lower_global_envelope: Some(0.8),
         upper_global_envelope: Some(1.2),
     }];
+    pre.pair_correlation
+        .value_mut()
+        .expect("pair correlation")
+        .n_permutations = 19;
+    post.pair_correlation
+        .value_mut()
+        .expect("pair correlation")
+        .n_permutations = 19;
+    pre.pair_correlation_curve = vec![PairCorrelationPoint {
+        r_min_um: 0.1 + 0.2,
+        r_max_um: 0.2 + 0.2,
+        value: Some(0.1),
+        inference_eligible: true,
+        lower_global_envelope: Some(0.0),
+        upper_global_envelope: Some(0.2),
+        count: 1,
+    }];
+    post.pair_correlation_curve = vec![PairCorrelationPoint {
+        r_min_um: 0.3,
+        r_max_um: 0.4,
+        value: Some(0.11),
+        ..pre.pair_correlation_curve[0].clone()
+    }];
+    pre.cross_interaction_curves = AnalysisSection::available(vec![CrossInteractionCurve {
+        label_a: "mmr_abnormal".into(),
+        label_b: "lymphocyte".into(),
+        points: vec![PairCorrelationPoint {
+            r_min_um: 0.1 + 0.2,
+            r_max_um: 0.2 + 0.2,
+            value: Some(2.0),
+            inference_eligible: true,
+            lower_global_envelope: Some(1.0),
+            upper_global_envelope: Some(3.0),
+            count: 2,
+        }],
+        p_global: Some(0.5),
+    }]);
+    post.cross_interaction_curves = AnalysisSection::available(vec![CrossInteractionCurve {
+        label_a: "mmr_abnormal".into(),
+        label_b: "lymphocyte".into(),
+        points: vec![PairCorrelationPoint {
+            r_min_um: 0.3,
+            r_max_um: 0.4,
+            value: Some(2.1),
+            ..pre
+                .cross_interaction_curves
+                .value()
+                .expect("cross interaction")[0]
+                .points[0]
+                .clone()
+        }],
+        p_global: Some(0.5),
+    }]);
+
+    let delta = compare_prepost(&pre, &post);
+    for comparison_name in [
+        "spectrum",
+        "pair_correlation",
+        "cross_interaction:mmr_abnormal/lymphocyte",
+    ] {
+        let comparison_tests = delta
+            .curve_tests
+            .iter()
+            .filter(|test| test.comparison_name == comparison_name)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            comparison_tests.len(),
+            2,
+            "equivalent reconstructed axes should run difference and equivalence diagnostics: {comparison_tests:?}"
+        );
+        assert!(comparison_tests
+            .iter()
+            .all(|test| !test.interpretation.contains("axis")));
+    }
+}
+
+#[test]
+fn prepost_axes_reject_material_numeric_differences() {
+    let mut pre = minimal_analysis_result("case1", "pre");
+    let mut post = minimal_analysis_result("case1", "post");
+    pre.spectrum_curve = vec![SpectrumPoint {
+        k: 0.3,
+        observed_power: 1.0,
+        median_permutation_power: 1.0,
+        whitened_power: 1.0,
+        inference_eligible: true,
+        lower_global_envelope: Some(0.8),
+        upper_global_envelope: Some(1.2),
+    }];
+    post.spectrum_curve = vec![SpectrumPoint {
+        k: 0.3 + 1e-8,
+        whitened_power: 1.01,
+        ..pre.spectrum_curve[0].clone()
+    }];
 
     let delta = compare_prepost(&pre, &post);
     let spectrum_tests = delta
@@ -487,12 +581,13 @@ fn remediation_prepost_axes_accept_harmless_float_reconstruction() {
         .filter(|test| test.comparison_name == "spectrum")
         .collect::<Vec<_>>();
 
+    assert_eq!(spectrum_tests.len(), 1);
     assert_eq!(
-        spectrum_tests.len(),
-        2,
-        "equivalent reconstructed axes should run difference and equivalence diagnostics: {spectrum_tests:?}"
+        spectrum_tests[0].availability,
+        CurveTestAvailability::InsufficientData
     );
-    assert!(spectrum_tests
-        .iter()
-        .all(|test| !test.interpretation.contains("axis")));
+    assert!(spectrum_tests[0]
+        .unavailable_reason
+        .as_deref()
+        .is_some_and(|reason| reason.contains("axis differs")));
 }

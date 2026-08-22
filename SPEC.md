@@ -37,6 +37,11 @@ with `count = 0` and `value = null`; they are excluded from inference. Curve
 comparisons use typed availability and a nullable statistic, so an unavailable
 test cannot be mistaken for an observed statistic of zero.
 
+Pre/post spectrum, pair-correlation, and cross-interaction axes compare finite
+values with `|a-b| <= 1e-12 + 1e-12 * max(|a|, |b|)`. This accepts harmless
+floating-point reconstruction while preserving a typed axis-mismatch result
+for materially different bins or modes.
+
 ## Inference
 
 Extreme-rank-length envelopes match CRAN GET 1.0-7 `type="erl"`: the observed

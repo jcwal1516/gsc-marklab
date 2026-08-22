@@ -10,6 +10,12 @@ use crate::{
     },
 };
 
+// Result documents may reconstruct the same decimal axis through different
+// floating-point operations. This tolerance is deliberately much smaller than
+// any configured physical bin width or spectral-mode spacing.
+const AXIS_ABSOLUTE_TOLERANCE: f64 = 1e-12;
+const AXIS_RELATIVE_TOLERANCE: f64 = 1e-12;
+
 const PREPOST_CURVE_TEST_SEED: u64 = 0x7072_6570_6f73_7400;
 const PREPOST_MULTIMODAL_CURVE_PERMUTATIONS: usize = 99;
 
@@ -364,7 +370,9 @@ fn cross_interaction_axes_aligned(
                 "cross-interaction axis contains non-finite bin edge at index {index}"
             ));
         }
-        if pre_point.r_min_um != post_point.r_min_um || pre_point.r_max_um != post_point.r_max_um {
+        if !axis_values_match(pre_point.r_min_um, post_point.r_min_um)
+            || !axis_values_match(pre_point.r_max_um, post_point.r_max_um)
+        {
             return Err(format!(
                 "cross-interaction axis differs at index {index}: [{}, {}) vs [{}, {})",
                 pre_point.r_min_um, pre_point.r_max_um, post_point.r_min_um, post_point.r_max_um
@@ -508,7 +516,7 @@ fn spectrum_axes_aligned(
                 "spectrum k-axis contains non-finite value at index {index}"
             ));
         }
-        if pre_point.k != post_point.k {
+        if !axis_values_match(pre_point.k, post_point.k) {
             return Err(format!(
                 "spectrum k-axis differs at index {index}: {} vs {}",
                 pre_point.k, post_point.k
@@ -546,7 +554,9 @@ fn pair_correlation_axes_aligned(
                 "pair-correlation axis contains non-finite bin edge at index {index}"
             ));
         }
-        if pre_point.r_min_um != post_point.r_min_um || pre_point.r_max_um != post_point.r_max_um {
+        if !axis_values_match(pre_point.r_min_um, post_point.r_min_um)
+            || !axis_values_match(pre_point.r_max_um, post_point.r_max_um)
+        {
             return Err(format!(
                 "pair-correlation axis differs at index {index}: [{}, {}) vs [{}, {})",
                 pre_point.r_min_um, pre_point.r_max_um, post_point.r_min_um, post_point.r_max_um
@@ -560,4 +570,9 @@ fn pair_correlation_axes_aligned(
     }
 
     Ok(())
+}
+
+fn axis_values_match(left: f64, right: f64) -> bool {
+    let tolerance = AXIS_ABSOLUTE_TOLERANCE + AXIS_RELATIVE_TOLERANCE * left.abs().max(right.abs());
+    (left - right).abs() <= tolerance
 }

@@ -57,6 +57,11 @@ Every `CurveTestResult` has an `availability` of `available` or
 diagnostic reason. Failed or inapplicable comparisons never use a statistic of
 zero as a placeholder.
 
+Pre/post axis alignment requires equal lengths and finite values. Corresponding
+axis values match when `|a-b| <= 1e-12 + 1e-12 * max(|a|, |b|)`. A material
+mismatch produces an `insufficient_data` curve-test result with a null
+statistic and axis diagnostics.
+
 ## Current scope
 
 This document will be expanded as the remaining 0.3 model cleanup is
