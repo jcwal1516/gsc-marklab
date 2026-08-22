@@ -5,37 +5,22 @@ use crate::{
     data::Pattern,
     diagnostics::beta_posterior::beta_posterior_group_summary,
     errors::{MarklabError, Result},
-    multiscale_residual::energy::relative_scale_energies_from_field,
-    output::{
-        Interpretation, MarkedPatternResult, MultiscaleResidualSummary, StatusFlag, TimingStage,
-    },
+    output::{Interpretation, MarkedPatternResult, StatusFlag, TimingStage},
     perf::counters::{estimate_peak_memory, MemoryEstimate, MemoryInputs},
-    periodogram::raster::centered_mark_raster,
-    spectra::anisotropy::permutation_whitened_anisotropy,
-    spectra::structure_factor::{
-        observed_power_for_modes, observed_value_power_for_modes,
-        permutation_whitened_spectrum_from_observed_modes,
-        permutation_whitened_value_spectrum_from_observed_modes, resolvable_modes_for_pattern,
-        stratified_permutation_whitened_spectrum_from_observed_modes, SpectrumPermutationOptions,
-    },
 };
 
 mod assembly;
 mod components;
 mod diagnostics;
 mod qc_pipeline;
+mod spatial_stage;
+mod spectrum_stage;
 mod stages;
 
 use assembly::interpretation_for;
 use components::component_analysis_plan;
-use qc_pipeline::{
-    spectrum_null_sensitivity, strata_are_mark_homogeneous, validate_pattern, ConfoundingConclusion,
-};
-use stages::{
-    estimated_raster_pixels, mark_pair_covariance_with_envelope,
-    multiscale_residual_scalar_p_values, periodogram_disagrees_with_particle_spectrum,
-    scale_energy_with_envelope, territories_for,
-};
+use qc_pipeline::validate_pattern;
+use stages::estimated_raster_pixels;
 
 pub struct AnalysisEngine {
     config: AnalysisConfig,
@@ -121,149 +106,24 @@ impl AnalysisEngine {
         let component_plan = component_analysis_plan(&self.config, pattern);
         let includes_pooled = component_plan.includes_pooled();
 
-        let modes = timed_stage(&mut timings, "kgrid", self.threads, || {
-            includes_pooled
-                .then(|| resolvable_modes_for_pattern(pattern, self.config.spectrum.k_shells))
-                .flatten()
-                .unwrap_or_default()
-        });
-        let observed_mode_power = timed_stage(
+        let spectrum_stage::Output {
+            spectrum,
+            null_sensitivity: spectrum_null_sensitivity,
+            unavailable_reason: spectrum_unavailable_reason,
+        } = spectrum_stage::run(
+            &self.config,
+            pattern,
+            includes_pooled,
+            configured_strata.as_deref(),
             &mut timings,
-            "structure_factor_observed",
             self.threads,
-            || {
-                if !includes_pooled {
-                    None
-                } else if self.config.analysis.use_probabilistic_marks {
-                    pattern.mark_prob.as_deref().and_then(|values| {
-                        let values = values.iter().copied().map(f64::from).collect::<Vec<_>>();
-                        observed_value_power_for_modes(pattern, &values, &modes)
-                    })
-                } else {
-                    Some(observed_power_for_modes(pattern, &modes))
-                }
-            },
-        );
-        let (spectrum, spectrum_null_sensitivity, spectrum_unavailable_reason) = timed_stage(
-            &mut timings,
-            "permutation_spectra",
-            self.threads,
-            || -> Result<_> {
-                if !includes_pooled {
-                    Ok((None, None, None))
-                } else if self.config.analysis.use_probabilistic_marks {
-                    let Some(values) = pattern.mark_prob.as_deref() else {
-                        return Ok((None, None, None));
-                    };
-                    let values = values.iter().copied().map(f64::from).collect::<Vec<_>>();
-                    let Some(observed_mode_power) = observed_mode_power.clone() else {
-                        return Ok((None, None, None));
-                    };
-                    let spectrum = permutation_whitened_value_spectrum_from_observed_modes(
-                        pattern,
-                        &values,
-                        &modes,
-                        observed_mode_power,
-                        SpectrumPermutationOptions {
-                            n_shells: self.config.spectrum.k_shells,
-                            low_k_modes: self.config.spectrum.low_k_shells,
-                            n_permutations: self.config.permutation.b,
-                            seed: self.config.permutation.seed,
-                            family_wise_alpha: self.config.inference.family_wise_alpha,
-                            max_scale_um: self
-                                .config
-                                .validation
-                                .largest_interpretable_scale_fraction
-                                * pattern.window.l_eff_um,
-                            k_shell_min: self.config.validation.k_shell_min,
-                        },
-                    )?;
-                    Ok((spectrum, None, None))
-                } else {
-                    let options = SpectrumPermutationOptions {
-                        n_shells: self.config.spectrum.k_shells,
-                        low_k_modes: self.config.spectrum.low_k_shells,
-                        n_permutations: self.config.permutation.b,
-                        seed: self.config.permutation.seed,
-                        family_wise_alpha: self.config.inference.family_wise_alpha,
-                        max_scale_um: self.config.validation.largest_interpretable_scale_fraction
-                            * pattern.window.l_eff_um,
-                        k_shell_min: self.config.validation.k_shell_min,
-                    };
-                    let Some(observed_mode_power) = observed_mode_power else {
-                        return Ok((None, None, None));
-                    };
-                    if let Some(strata) = configured_strata.as_deref() {
-                        let stratified_degenerate =
-                            strata_are_mark_homogeneous(&pattern.mark, strata);
-                        let unstratified = permutation_whitened_spectrum_from_observed_modes(
-                            pattern,
-                            &modes,
-                            observed_mode_power.clone(),
-                            options,
-                        )?;
-                        let stratified = if stratified_degenerate {
-                            None
-                        } else {
-                            stratified_permutation_whitened_spectrum_from_observed_modes(
-                                pattern,
-                                strata,
-                                &modes,
-                                observed_mode_power,
-                                options,
-                            )?
-                        };
-                        let sensitivity = spectrum_null_sensitivity(
-                            unstratified.as_ref(),
-                            stratified.as_ref(),
-                            self.config.inference.family_wise_alpha,
-                            stratified_degenerate,
-                        );
-                        let unavailable_reason = stratified_degenerate.then(|| {
-                            "stratified spectrum null is degenerate because every configured stratum is mark-homogeneous".to_string()
-                        });
-                        Ok((stratified, Some(sensitivity), unavailable_reason))
-                    } else {
-                        let spectrum = permutation_whitened_spectrum_from_observed_modes(
-                            pattern,
-                            &modes,
-                            observed_mode_power,
-                            options,
-                        )?;
-                        Ok((spectrum, None, None))
-                    }
-                }
-            },
         )?;
 
         timed_stage(&mut timings, "inference", self.threads, || {
-            if let Some(sensitivity) = spectrum_null_sensitivity {
-                tracing::debug!(
-                    unstratified_p_global = ?sensitivity
-                        .unstratified
-                        .map(|inference| inference.p_global),
-                    unstratified_low_k_p = ?sensitivity
-                        .unstratified
-                        .and_then(|inference| inference.low_k_excess_p_value),
-                    stratified_p_global = ?sensitivity.stratified.map(|inference| inference.p_global),
-                    stratified_low_k_p = ?sensitivity
-                        .stratified
-                        .and_then(|inference| inference.low_k_excess_p_value),
-                    conclusion = ?sensitivity.conclusion,
-                    "spectrum null-model sensitivity"
-                );
-                match sensitivity.conclusion {
-                    ConfoundingConclusion::ConfoundedBySpatialStrata => {
-                        status_flags.push(StatusFlag::ConfoundedBySpatialStrata);
-                    }
-                    ConfoundingConclusion::DegenerateStratifiedNull => {
-                        status_flags.push(StatusFlag::DegenerateSpatialStrataNull);
-                    }
-                    ConfoundingConclusion::BothSignificant
-                    | ConfoundingConclusion::NoUnstratifiedSignal
-                    | ConfoundingConclusion::NotEvaluable => {}
-                }
-            }
+            spectrum_stage::apply_null_sensitivity_status(
+                spectrum_null_sensitivity,
+                &mut status_flags,
+            );
         });
 
         let low_k_excess = spectrum
@@ -271,13 +131,16 @@ impl AnalysisEngine {
             .map(|value| value.low_k_excess)
             .filter(|value| value.is_finite());
 
-        let periodogram_artifact = timed_stage(&mut timings, "periodogram", self.threads, || {
-            self.config.periodogram.enabled
-                && low_k_excess.is_some_and(|value| {
-                    periodogram_disagrees_with_particle_spectrum(&self.config, pattern, value)
-                })
-        });
-        if periodogram_artifact {
+        let spatial = spatial_stage::run(
+            &self.config,
+            pattern,
+            includes_pooled,
+            configured_strata.as_deref(),
+            low_k_excess,
+            &mut timings,
+            self.threads,
+        )?;
+        if spatial.periodogram_artifact {
             status_flags.push(StatusFlag::WindowOrGriddingArtifactSuspect);
         }
         let status = if status_flags.is_empty() {
@@ -289,32 +152,6 @@ impl AnalysisEngine {
         let n_permutations = spectrum
             .as_ref()
             .map_or(0, |spectrum| spectrum.n_permutations);
-        let stage_start = Instant::now();
-        let (mark_pair_covariance_curve, mark_pair_covariance) = if includes_pooled {
-            mark_pair_covariance_with_envelope(&self.config, pattern)?
-        } else {
-            (Vec::new(), crate::output::AnalysisSection::NotApplicable)
-        };
-        push_timing(
-            &mut timings,
-            "mark_pair_covariance",
-            stage_start.elapsed(),
-            self.threads,
-        );
-
-        let stage_start = Instant::now();
-        let territories = if includes_pooled {
-            territories_for(&self.config, pattern)
-        } else {
-            Vec::new()
-        };
-        push_timing(
-            &mut timings,
-            "multiscale_residual",
-            stage_start.elapsed(),
-            self.threads,
-        );
-
         let interpretation = if includes_pooled {
             interpretation_for(&status_flags, status, low_k_excess)
         } else {
@@ -324,105 +161,6 @@ impl AnalysisEngine {
             }
         };
 
-        let stage_start = Instant::now();
-        let anisotropy = if includes_pooled {
-            permutation_whitened_anisotropy(
-                pattern,
-                self.config.spectrum.anisotropy_low_k_shells,
-                self.config.permutation.b,
-                self.config.permutation.seed,
-                self.config.inference.family_wise_alpha,
-                configured_strata.as_deref(),
-            )?
-        } else {
-            None
-        };
-        push_timing(
-            &mut timings,
-            "anisotropy",
-            stage_start.elapsed(),
-            self.threads,
-        );
-
-        let stage_start = Instant::now();
-        let relative_scale_energies = if includes_pooled && self.config.multiscale_residual.enabled
-        {
-            centered_mark_raster(pattern, pattern.window.d_nn_mean_um.max(1.0)).and_then(
-                |(spec, raster)| {
-                    relative_scale_energies_from_field(&raster, spec.width, spec.height)
-                },
-            )
-        } else {
-            None
-        };
-        let (multiscale_residual, scale_energy_curve, scale_energy) = if !includes_pooled {
-            (
-                crate::output::AnalysisSection::NotApplicable,
-                Vec::new(),
-                crate::output::AnalysisSection::NotApplicable,
-            )
-        } else if !self.config.multiscale_residual.enabled {
-            (
-                crate::output::AnalysisSection::Disabled,
-                Vec::new(),
-                crate::output::AnalysisSection::Disabled,
-            )
-        } else if let Some(energies) = relative_scale_energies.filter(|energies| {
-            [
-                energies.local_difference,
-                energies.residual,
-                energies.block_mean,
-            ]
-            .iter()
-            .all(|value| value.is_finite())
-        }) {
-            let block_mean_to_local_difference_ratio = (energies.local_difference > 0.0)
-                .then_some(energies.block_mean / energies.local_difference)
-                .filter(|value| value.is_finite());
-            let (curve, scale_energy) = scale_energy_with_envelope(
-                &self.config,
-                pattern,
-                energies.local_difference,
-                energies.residual,
-                energies.block_mean,
-            )?;
-            let (block_mean_variance_fraction_p_value, territory_count_p_value) =
-                multiscale_residual_scalar_p_values(
-                    &self.config,
-                    pattern,
-                    energies.block_mean,
-                    territories.len(),
-                )?;
-            (
-                crate::output::AnalysisSection::available(MultiscaleResidualSummary {
-                    local_difference_energy_fraction: energies.local_difference,
-                    residual_energy_fraction: energies.residual,
-                    block_mean_variance_fraction: energies.block_mean,
-                    block_mean_to_local_difference_ratio,
-                    territory_count: territories.len(),
-                    block_mean_variance_fraction_p_value,
-                    territory_count_p_value,
-                }),
-                curve,
-                scale_energy,
-            )
-        } else {
-            (
-                crate::output::AnalysisSection::InsufficientData {
-                    reason: "multiscale residual scale energies could not be estimated".into(),
-                },
-                Vec::new(),
-                crate::output::AnalysisSection::InsufficientData {
-                    reason: "multiscale residual scale energies could not be estimated".into(),
-                },
-            )
-        };
-        push_timing(
-            &mut timings,
-            "multiscale_residual_energy",
-            stage_start.elapsed(),
-            self.threads,
-        );
         let diagnostics = diagnostics::run(&self.config, pattern, &mut timings, self.threads)?;
         annotate_timings(
             &mut timings,
@@ -440,13 +178,13 @@ impl AnalysisEngine {
                 status_flags,
                 spectrum,
                 spectrum_unavailable_reason,
-                mark_pair_covariance,
-                mark_pair_covariance_curve,
-                anisotropy,
-                multiscale_residual,
-                scale_energy,
-                scale_energy_curve,
-                territories,
+                mark_pair_covariance: spatial.mark_pair_covariance,
+                mark_pair_covariance_curve: spatial.mark_pair_covariance_curve,
+                anisotropy: spatial.anisotropy,
+                multiscale_residual: spatial.multiscale_residual,
+                scale_energy: spatial.scale_energy,
+                scale_energy_curve: spatial.scale_energy_curve,
+                territories: spatial.territories,
                 diagnostics,
                 timings,
                 interpretation,

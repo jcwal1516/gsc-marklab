@@ -1,19 +1,15 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    time::{Duration, Instant},
 };
 
-use crate::{
-    geom::mask::TumorMask,
-    io::{intermediates::write_analysis_intermediates, load_pattern_path_with_diagnostics},
-    permutation::labels::permute_fixed_count,
-    prepost::deltas::{compare_multimodal_prepost, compare_prepost},
-    AnalysisConfig, AnalysisEngine, MarkedPatternResult, MarklabError, MultimodalResult,
-    OutputWriter, Result, ResultDocument, ThreadSetting, TimingStage,
-};
 #[cfg(feature = "parquet")]
 use crate::{io::parquet::write_pattern_parquet, Pattern, PatternMeta};
+use crate::{
+    permutation::labels::permute_fixed_count,
+    prepost::deltas::{compare_multimodal_prepost, compare_prepost},
+    AnalysisConfig, MarklabError, MultimodalResult, Result, ResultDocument, ThreadSetting,
+};
 use clap::{Parser, Subcommand, ValueEnum};
 
 macro_rules! bail {
