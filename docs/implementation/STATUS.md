@@ -1,6 +1,6 @@
 # Implementation status
 
-Last updated: 2026-08-22T19:20:52-04:00
+Last updated: 2026-08-22T20:03:00-04:00
 
 ## Identity
 
@@ -27,7 +27,7 @@ Last updated: 2026-08-22T19:20:52-04:00
 
 ## Dirty files and reasons
 
-- Production, tests, manifests, and locks are clean at `c676cfd732d02d6202bff8cea47fcf74b5bfd8e7`. Current dirty files are C-02 closure evidence only: handoff, decision/package finding, validation ledger, ownership/status, and task-contract status.
+- Production, tests, manifests, and locks are clean at closure SHA `15365da47348c70aec321709d340d11794231258`. Current dirty files are C-03's independently reviewed frozen task contract, ownership, dependency/storage decisions, and this state update only.
 
 ## Recent decisions
 
@@ -45,6 +45,8 @@ Last updated: 2026-08-22T19:20:52-04:00
 - `DEC-0016`: only patient/specimen objects may be biological units; nearest resolution and bounded enclosing lineage coexist so downstream designs select a level explicitly without pseudoreplication.
 - `DEC-0017`: C-02 uses named directed affine maps and explicit parallel-section placement; missing calibration, inverse/path selection, and uncertainty propagation are never inferred.
 - `DEC-0018`: keep unpublished workspace registry resolution explicit; supplemental local patch verification cannot turn the exact package gate green, and no version/publish action is inferred.
+- Accepted `DEC-0019`: keep compatibility run outputs separate from schema-bound immutable project objects and portable store-relative locators; verify store-backed semantic inputs before cache lookup.
+- Accepted `DEC-0020`: use exact `cap-std 4.0.3` for descriptor-relative local artifact confinement and hard-link/directory-sync publication; add no live cloud or columnar dependency to `marklab-project`.
 
 ## Unresolved questions
 
@@ -57,12 +59,12 @@ Last updated: 2026-08-22T19:20:52-04:00
 
 ## Next three exact actions
 
-1. Audit current B-04 `ArtifactRef`/digest/project ownership, C-01/C-02 durable-reference needs, existing Arrow/Parquet dependencies, filesystem transaction policy, and authorized remote provenance without reading executable `.pt` payloads.
-2. Freeze C-03 schemas, digest/version semantics, local/object-store boundary, partial-write recovery, symlink/path controls, and migration rejection in a task contract before production edits.
-3. Add failing digest/schema/partial-write/stale-cache/path-boundary tests, then implement the smallest immutable artifact catalog and table-manifest slice.
+1. Commit the independently reviewed C-03 contract and accepted decisions without production, test, manifest, or lock changes.
+2. Add failing digest/schema/table/catalog tests and confirm their intended compile/behavior failures.
+3. Implement the smallest immutable catalog slice, then repeat red/green waves for the capability store and store-verified workflow integration.
 
 Next exact verification command:
 
 ```bash
-rg -n "ArtifactRef|ContentDigest|OutputWriter|Parquet|object.store|symlink|canonical" crates src tests docs/implementation
+cargo +1.96.0 test --locked -p marklab-project --test artifact_catalog
 ```

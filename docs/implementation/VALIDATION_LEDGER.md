@@ -164,6 +164,13 @@ Implementation commit: `c676cfd732d02d6202bff8cea47fcf74b5bfd8e7`.
 | Supplemental local package verification | exact workspace command plus ephemeral CLI `patch.crates-io` paths for core/data/project/workflow | pass | All five archives and verification builds completed against the current local dependency graph. A data-only run with a local core patch also passed. No tracked patch, manifest, lock, CI, or registry state changed. |
 | Independent C-02 audit | `c02_coordinate_audit` design/implementation/final read-only review | pass after findings applied | Replaced dishonest axis-only serial embedding before freeze; later fixed validation-phase ordering and coverage. Final recheck found both findings resolved and no other correctness, complexity, placement, scope, or API drift issue. Reviewer edited no files and used no remote service. |
 
+## C-03 artifact-catalog contract evidence
+
+| Gate | Exact command | Status | Result/evidence |
+|---|---|---|---|
+| Independent ownership/security contract audit | `c03_artifact_audit` read-only owner/contract review | pass after findings applied | The frozen boundary now requires store verification before cache lookup, hard-link no-replace plus directory sync, iterative hostile-cycle checks, deterministic replica union, exact primary-key types, catalog-valid versus available state separation, reserved/file-type recovery controls, privacy-bounded metadata, and an exact legacy cache-key vector. It explicitly does not close DATA-01, FND-07, WS-11, WS-25, WS-C, physical table conformance, or C-01/C-02 codecs. Reviewer edited no files, accessed no remote system, and created no LSP server. |
+| Contract scope/format | `git diff --check`; targeted status/diff review | pass | Production, tests, manifests, and locks remain clean at the C-02 closure SHA; only C-03 contract/control-plane documents changed before red tests. |
+
 ## Harness failures
 
 - 2026-08-22: the first combined WS-A path-check wrapper exited 127 at its final `git` calls because the loop variable `path` shadowed zsh's special `path`/`PATH` array. This did not exercise or fail a repository gate. The wrapper was corrected to use `required_doc`; all assertions and `git diff --check` then exited 0.

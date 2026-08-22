@@ -62,7 +62,7 @@ Statuses are `planned`, `active`, `blocked`, `complete`, `deferred`, or `rejecte
 | B-04 | Minimal project/workflow vertical slice | B-01–B-03 | Lead | complete | Focused project/workflow crates, root adapter, manifests/lock, tests/docs | Commits `bcc9450ef0a2ba89f3383904a78834925f3fcf17` and `ac7da28da082f795381da0a03e8437fc4a774262`; all focused and WS-B exit gates pass |
 | C-01 | Typed identities/hierarchy | WS-B | Lead | complete | Focused core/data files | Commit `a1260445a383c59381b2c7c7881cebb10e10c156`; 14 hierarchy regressions, 430-test workspace gate, full benchmark, independent re-review |
 | C-02 | Units/frames/dimensions/transforms | C-01 | Lead | complete | Focused core/data files | Commit `c676cfd732d02d6202bff8cea47fcf74b5bfd8e7`; 10 coordinate regressions, 440-test workspace gate, independent re-review; exact registry package resolution deferred by DEC-0018 |
-| C-03 | Artifact catalog/immutable tables | B-04 | Lead | active | Project/artifact files | Contract/integrity/security audit next |
+| C-03 | Artifact catalog/immutable tables | B-04 | Lead | active | Project/artifact files | Independently reviewed bounded contract frozen; does not close DATA-01, FND-07, WS-11, WS-25, or WS-C |
 | C-04 | CellViT embedding table | C-01, C-03 | Lead | planned | Data/artifact/import tests | Real remote assets identified; trusted conversion, stable row linkage, schema, provenance, and scale gates |
 | C-05 | Patch/region/slide embedding links | C-02–C-04 | Lead | planned | Data/artifact tests | Overlap/link tests |
 | C-06 | General marks/status | C-01, C-03 | Lead | planned | Data/artifact tests | Measurement-status tests |
