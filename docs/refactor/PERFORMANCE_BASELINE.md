@@ -125,3 +125,24 @@ Peak RSS for the comparable 256–1,024 groups changed from 6.86 to 7.70 MiB for
 nearest neighbor and from 7.78 to 8.38 MiB for the combined radius/kNN process.
 The index trades linear memory for subquadratic queries; larger-workload peak
 memory and one-build application reuse remain Phase 6 acceptance work.
+
+### Mark-pair covariance plan checkpoint
+
+`MarkPairCovariancePlan` builds indexed source/target/bin assignments once and
+then evaluates label vectors without geometry. At 256 / 512 / 1,024 points:
+
+| Work | Median ms |
+| --- | --- |
+| Indexed plan build plus one observed evaluation | 0.682 / 1.676 / 2.313 |
+| One evaluation of a retained plan | 0.031 / 0.056 / 0.109 |
+| Nineteen label evaluations over one plan | 0.560 / 1.038 / 1.815 |
+
+The Phase 0 observed-only brute scan was 0.034 / 0.119 / 0.463 ms, so indexed
+plan construction has a substantial small-input crossover and must not be
+presented as an observed-only speedup. For one observed plus 19 null curves,
+the measured indexed totals are approximately 1.242 / 2.714 / 4.128 ms versus
+an estimated 0.680 / 2.380 / 9.260 ms for 20 repeated Phase 0 scans. Thus the
+plan is slower at 256, near the crossover at 512, and about 55% faster at 1,024;
+the advantage grows with the configured permutation count. The retained
+`phase6_perf_mark_pair_covariance_plan` workload reports build and evaluation
+separately so future changes cannot hide either cost.
