@@ -32,6 +32,10 @@ semantics.
   already-aggregated bins rather than cells or spatial labels.
 - Marked-result `prepost_curve_tests` and pre/post-result `curve_tests` become
   `prepost_curve_comparisons` and `curve_comparisons`.
+- Pre/post JSON is no longer an unversioned bare `PrePostResult`. It uses the
+  normal 0.3 envelope with analysis kind `marked_prepost` or
+  `multimodal_prepost`. Consumers must read the payload from
+  `analysis.result`.
 - `CurveComparisonResult.statistic` is nullable. Insufficient comparisons
   include `unavailable_reason` instead of a fake statistic of zero.
 - Curve comparison fields `equivalence_margin` and `equivalent` are renamed to

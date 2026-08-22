@@ -56,7 +56,7 @@ Result documents use format 0.3:
   "format_version": "0.3",
   "provenance": {},
   "analysis": {
-    "kind": "marked_pattern",
+    "kind": "marked_pattern | multimodal | marked_prepost | multimodal_prepost",
     "result": {}
   }
 }
@@ -64,6 +64,10 @@ Result documents use format 0.3:
 
 Older result formats are rejected by `prepost` until the documented 0.2 to
 0.3 migration path is completed.
+
+Both pre/post commands accept either a `result.json` file or its containing
+result directory. Their `prepost.json` output is itself a format 0.3 result
+document with a distinct marked or multimodal comparison kind.
 
 For multimodal serial-section analysis, `registration.transform = "rigid"`
 fits a two-dimensional rotation and translation without scale or reflection.

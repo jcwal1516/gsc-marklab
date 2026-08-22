@@ -26,6 +26,9 @@ Result format 0.3 is fixed by the library and cannot be configured. Its top
 level is `format_version`, `provenance`, and the adjacently tagged `analysis`
 enum (`kind` plus `result`). Older and unknown versions are rejected with
 `UnsupportedFormatVersion` while the 0.2 migration converter is pending.
+The supported kinds are `marked_pattern`, `multimodal`, `marked_prepost`, and
+`multimodal_prepost`. Both pre/post CLIs accept either a result file or the
+directory containing `result.json` through one resolver.
 
 Optional analysis and artifact state uses `available`, `disabled`,
 `not_applicable`, or `insufficient_data`. Computation and I/O failures are

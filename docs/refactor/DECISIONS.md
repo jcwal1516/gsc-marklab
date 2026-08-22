@@ -278,3 +278,11 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Consequences: The CLI no longer disables writer manifests, writes a second manifest, or reads/parses `timings.json`. When external observability output is requested, only the small timing vector is cloned before the owning analysis run is consumed; no complete result is cloned.
 - Evidence: Commits `756ecbc`, `3d8ad46`, and `5d5f8d2`; enabled telemetry equality, marked/multimodal manifest assertions, external timing equality/trace, all eight analyze CLI tests, warnings-denied Clippy, no-default-features, and full Nextest 322/322 with 12 expected skips pass.
 - Status: Accepted; OUT-01 and DUP-07 closed.
+
+## 2026-08-22 — Pre/post outputs are typed format 0.3 documents
+
+- Context: Marked and multimodal CLIs serialized a bare, unversioned `PrePostResult`. Marked accepted only explicit files; multimodal separately implemented file-or-directory resolution.
+- Decision: Add `marked_prepost` and `multimodal_prepost` variants to the existing format 0.3 `AnalysisResult` envelope. The variants currently share the established descriptive payload but preserve comparison-family identity. Constructors, typed extraction, finite validation, generic writer handling, and manifest analysis kinds are explicit.
+- Input/output behavior: One output-document resolver accepts either a result file or a directory containing `result.json`; both CLI services use it. `prepost.json` now contains the normal top-level format/provenance/analysis envelope, so former consumers must read `analysis.result`.
+- Evidence: Commit `12d7c4c`; red/green `prepost_result_roundtrip`, file/directory resolver equality, marked and multimodal CLI version/kind/payload assertions, multimodal batch pre/post, 11 output tests, warnings-denied Clippy, and no-default-features pass.
+- Status: Accepted; OUT-02 closed.

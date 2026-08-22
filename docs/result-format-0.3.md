@@ -10,11 +10,16 @@ Result documents have one top-level version and one tagged analysis payload:
     "crate_version": "..."
   },
   "analysis": {
-    "kind": "marked_pattern | multimodal",
+    "kind": "marked_pattern | multimodal | marked_prepost | multimodal_prepost",
     "result": {}
   }
 }
 ```
+
+`marked_prepost` and `multimodal_prepost` contain a `PrePostResult` payload and
+are deliberately distinct kinds so consumers cannot silently mix comparison
+families. The CLI writes this envelope to `prepost.json`. Both pre/post commands
+accept either a result document file or a directory containing `result.json`.
 
 The writer rejects non-finite floating-point values before serialization. An
 undefined scientific statistic is represented by an absent numeric value and,
@@ -141,5 +146,5 @@ largest component fraction is below 0.80, otherwise to `pooled`.
 ## Current scope
 
 This document will be expanded as the remaining 0.3 model cleanup is
-implemented. Pre/post document versioning and the complete 0.2 converter remain
-open work; readers currently reject older versions.
+implemented. The complete 0.2 converter remains open work; readers currently
+reject older versions.
