@@ -128,6 +128,28 @@ fn synthetic_smoke_controls_random_labeling_and_detects_anisotropy() {
     );
 }
 
+#[test]
+fn marked_smoke_uses_production_qc_and_prepost_outcomes() {
+    let summary = run_synthetic_smoke(1).expect("synthetic generator smoke check");
+    let internal_control = &summary.results["internal_control_dropout_artifact"];
+    let many_foci = &summary.results["many_small_foci"];
+    let metadata_mismatch = &summary.results["prepost_metadata_mismatch"];
+
+    assert!(internal_control
+        .status_flags
+        .contains(&StatusFlag::InternalControlFailureOverlap));
+    assert!(!internal_control
+        .status_flags
+        .contains(&StatusFlag::InvalidIhcMask));
+    assert!(many_foci
+        .mean_territory_count
+        .is_some_and(|count| count >= 4.0));
+    assert!(metadata_mismatch
+        .status_flags
+        .contains(&StatusFlag::PrePostNotAnatomicallyComparable));
+    assert_eq!(metadata_mismatch.prepost_incomparable_rate, Some(1.0));
+}
+
 mod multimodal {
     use assert_cmd::Command;
 

@@ -720,7 +720,7 @@ fn smoke_synthetic_writes_machine_readable_summary() {
         "internal_control_dropout_artifact",
         "fragmented_tumor_islands",
         "rare_phenotype",
-        "serial_section_misregistration",
+        "prepost_metadata_mismatch",
     ] {
         assert!(results.contains_key(generator), "missing {generator}");
         assert_eq!(results[generator]["replicates_run"], 5);

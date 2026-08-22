@@ -8,7 +8,7 @@ use crate::{
     errors::{MarklabError, Result},
     multimodal::{MultimodalAnalysisRun, MultimodalEngine},
     output::{CurveComparisonMethod, MarkedPatternResult, MultimodalResult, StatusFlag},
-    prepost::compare_multimodal_prepost_with_margin,
+    prepost::{compare_multimodal_prepost_with_margin, compare_prepost},
     AnalysisConfig, AnalysisEngine,
 };
 
@@ -32,7 +32,7 @@ const GENERATORS: [&str; 12] = [
     "internal_control_dropout_artifact",
     "fragmented_tumor_islands",
     "rare_phenotype",
-    "serial_section_misregistration",
+    "prepost_metadata_mismatch",
 ];
 
 const MULTIMODAL_GENERATORS: [&str; 6] = [
@@ -71,7 +71,7 @@ pub struct SyntheticSmokeResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub suppression_rate: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub expected_shift_um: Option<f64>,
+    pub prepost_incomparable_rate: Option<f64>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub status_flags: Vec<StatusFlag>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -234,6 +234,10 @@ fn run_generator(
     replicates: usize,
     engine: &AnalysisEngine,
 ) -> Result<SyntheticSmokeResult> {
+    if generator == "prepost_metadata_mismatch" {
+        return run_marked_prepost_metadata_mismatch(replicates, engine);
+    }
+
     let mut analyses = Vec::with_capacity(replicates);
     for replicate in 0..replicates {
         let pattern = synthetic_pattern(generator, replicate as u64)?;
@@ -257,7 +261,7 @@ fn run_generator(
         "many_small_foci" => {
             result.passed = result
                 .mean_territory_count
-                .is_some_and(|count| count >= 0.0)
+                .is_some_and(|count| count >= 4.0)
                 && result.mean_low_k_excess.is_some_and(f64::is_finite);
         }
         "anisotropic_stripe" => {
@@ -282,10 +286,6 @@ fn run_generator(
                     .contains(&StatusFlag::StainGradientSuspect);
         }
         "internal_control_dropout_artifact" => {
-            push_unique_flag(
-                &mut result.status_flags,
-                StatusFlag::InternalControlFailureOverlap,
-            );
             result.passed = result
                 .status_flags
                 .contains(&StatusFlag::InternalControlFailureOverlap);
@@ -300,20 +300,53 @@ fn run_generator(
                 .status_flags
                 .contains(&StatusFlag::UnderpoweredTooFewMarked);
         }
-        "serial_section_misregistration" => {
-            push_unique_flag(
-                &mut result.status_flags,
-                StatusFlag::PrePostNotAnatomicallyComparable,
-            );
-            result.expected_shift_um = Some(25.0);
-            result.passed = true;
-        }
         _ => {
             return Err(MarklabError::Validation(format!(
                 "unknown synthetic generator {generator}"
             )));
         }
     }
+    Ok(result)
+}
+
+fn run_marked_prepost_metadata_mismatch(
+    replicates: usize,
+    engine: &AnalysisEngine,
+) -> Result<SyntheticSmokeResult> {
+    let mut post_analyses = Vec::with_capacity(replicates);
+    let mut incomparable_count = 0usize;
+    let mut comparison_flags = Vec::new();
+    for replicate in 0..replicates {
+        let mut pre = synthetic_pattern("prepost_metadata_mismatch", replicate as u64)?;
+        pre.meta.case_id = "synthetic_pre_section".into();
+        pre.meta.timepoint = "pre".into();
+        let mut post = synthetic_pattern("prepost_metadata_mismatch", replicate as u64)?;
+        post.meta.case_id = "synthetic_post_section".into();
+        post.meta.timepoint = "post".into();
+
+        let pre_result = engine.analyze_pattern(&pre)?;
+        let post_result = engine.analyze_pattern(&post)?;
+        let comparison = compare_prepost(&pre_result, &post_result);
+        let incomparable = comparison
+            .status_flags
+            .contains(&StatusFlag::PrePostNotAnatomicallyComparable);
+        incomparable_count += usize::from(incomparable);
+        for flag in comparison.status_flags {
+            push_unique_flag(&mut comparison_flags, flag);
+        }
+        post_analyses.push(post_result);
+    }
+
+    let mut result = summarize_analyses(&post_analyses);
+    for flag in comparison_flags {
+        push_unique_flag(&mut result.status_flags, flag);
+    }
+    let incomparable_rate = incomparable_count as f64 / replicates as f64;
+    result.prepost_incomparable_rate = Some(incomparable_rate);
+    result.passed = incomparable_rate == 1.0;
+    result
+        .notes
+        .push(note_for("prepost_metadata_mismatch").into());
     Ok(result)
 }
 
@@ -697,7 +730,7 @@ fn summarize_analyses(analyses: &[MarkedPatternResult]) -> SyntheticSmokeResult 
         mean_anisotropy_index,
         mean_territory_count,
         suppression_rate: Some(suppression_rate),
-        expected_shift_um: None,
+        prepost_incomparable_rate: None,
         status_flags,
         notes: Vec::new(),
     }
@@ -728,8 +761,8 @@ fn note_for(generator: &str) -> &'static str {
             "fragmented component layouts should trigger a mask/window flag"
         }
         "rare_phenotype" => "rare phenotypes should be labeled low-power/unstable",
-        "serial_section_misregistration" => {
-            "serial-section shifts are descriptive and not same-cell evidence"
+        "prepost_metadata_mismatch" => {
+            "mismatched pre/post identifiers must be reported as not anatomically comparable"
         }
         _ => "synthetic generator smoke check generator",
     }

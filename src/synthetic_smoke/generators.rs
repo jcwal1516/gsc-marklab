@@ -282,7 +282,7 @@ pub(super) fn synthetic_pattern(generator: &str, replicate: u64) -> Result<Patte
         }
         "fragmented_tumor_islands" => permute_fixed_count(width * height, 16, seed)?,
         "rare_phenotype" => rare_marks(width, height),
-        "serial_section_misregistration" => shifted_section_marks(width, height),
+        "prepost_metadata_mismatch" => clustered_marks(width, height, &[(5.5, 5.5, 3.0)]),
         _ => {
             return Err(MarklabError::Validation(format!(
                 "unknown synthetic generator {generator}"
@@ -305,7 +305,7 @@ pub(super) fn synthetic_pattern(generator: &str, replicate: u64) -> Result<Patte
             );
         }
         "internal_control_dropout_artifact" => {
-            pattern.window.valid_mask_fraction = 0.20;
+            pattern.internal_control_valid_fraction = Some(0.20);
         }
         "fragmented_tumor_islands" => {
             pattern.component_id = Some(
@@ -403,22 +403,6 @@ fn rare_marks(width: usize, height: usize) -> Vec<u8> {
     let mut marks = vec![0; width * height];
     if !marks.is_empty() {
         marks[width.min(width * height - 1)] = 1;
-    }
-    marks
-}
-
-fn shifted_section_marks(width: usize, height: usize) -> Vec<u8> {
-    let mut marks = Vec::with_capacity(width * height);
-    let row_start = height / 4;
-    let row_end = (row_start + height / 3).min(height);
-    let col_start = width / 3;
-    let col_end = (col_start + width / 3).min(width);
-    for row in 0..height {
-        for col in 0..width {
-            marks.push(u8::from(
-                (row_start..row_end).contains(&row) && (col_start..col_end).contains(&col),
-            ));
-        }
     }
     marks
 }
