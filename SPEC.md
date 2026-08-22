@@ -35,6 +35,12 @@ Optional analysis and artifact state uses `available`, `disabled`,
 errors. Artifact write failures abort the operation. Empty analyses do not
 create synthetic Parquet rows or placeholder territory data.
 
+Output writers validate the result and core artifact plan before commit, write
+all configured run artifacts into a temporary sibling directory, validate
+required files, and rename the completed directory into place. They reject
+non-empty and symbolic-link targets. A failed transaction removes its temporary
+directory and does not expose a new final run directory.
+
 Mark-pair covariance at a distance bin is the mean of
 `(m_i - p_hat) * (m_j - p_hat)` over contributing cell pairs. It is not the
 density-normalized point-process function commonly denoted `g(r)`.

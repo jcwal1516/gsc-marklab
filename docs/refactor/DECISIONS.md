@@ -286,3 +286,12 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Input/output behavior: One output-document resolver accepts either a result file or a directory containing `result.json`; both CLI services use it. `prepost.json` now contains the normal top-level format/provenance/analysis envelope, so former consumers must read `analysis.result`.
 - Evidence: Commit `12d7c4c`; red/green `prepost_result_roundtrip`, file/directory resolver equality, marked and multimodal CLI version/kind/payload assertions, multimodal batch pre/post, 11 output tests, warnings-denied Clippy, and no-default-features pass.
 - Status: Accepted; OUT-02 closed.
+
+## 2026-08-22 — Run directories commit from a validated same-filesystem transaction
+
+- Context: Generic writers created the final directory before writing. Marked intermediates and multimodal run sidecars were written after the core writer returned, so a late artifact failure left a directory that looked successful.
+- Decision: Build an `ArtifactPlan` before filesystem mutation. It finite-validates and serializes the result, constructs the one run manifest, and lists required core files. Reserve a unique hidden sibling directory with `create_dir`, write every configured core and run-specific artifact there, validate required/declared-written paths, then rename the completed sibling to the final name.
+- Target policy: A missing or existing empty final directory is accepted. A non-empty target, non-directory, or symbolic link is rejected and preserved; implicit destructive overwrite is not supported. Existing output paths are therefore safe by default until an explicit overwrite policy is designed.
+- Failure/cleanup: The transaction owns its exact staging path and removes it on every error/drop before commit. Marked intermediates, multimodal residual/null/CSV sidecars, and marked/multimodal pre/post outputs all execute inside the transaction. Returned `OutputManifest` paths are rebased from staging to the committed final directory and checked against real files.
+- Evidence: Commit `e9e87b0`; deterministic injected failure leaves no final/staging directory, non-empty sentinel preservation passes, manifest paths exist and contain no temp prefix, direct empty-directory compatibility passes, all 14 output tests, 16 marked CLI tests, 21 multimodal CLI tests, formatting, warnings-denied Clippy, no-default-features, and full Nextest 327/327 with 12 expected skips pass.
+- Status: Accepted; OUT-03 and Phase 5 §§12.7–12.8 closed.

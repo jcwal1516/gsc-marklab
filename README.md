@@ -69,6 +69,11 @@ Both pre/post commands accept either a `result.json` file or its containing
 result directory. Their `prepost.json` output is itself a format 0.3 result
 document with a distinct marked or multimodal comparison kind.
 
+Run directories are committed transactionally from a temporary sibling on the
+same filesystem. Failed writes are cleaned up and never appear as a successful
+final directory. An existing empty directory may be replaced; a non-empty or
+symbolic-link target is rejected rather than overwritten.
+
 For multimodal serial-section analysis, `registration.transform = "rigid"`
 fits a two-dimensional rotation and translation without scale or reflection.
 Use `"affine"` only when scale or shear is part of the intended registration
