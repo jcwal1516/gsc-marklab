@@ -4,6 +4,9 @@ use crate::{
     config::AnalysisConfig,
     data::Pattern,
     errors::{MarklabError, Result},
+    geom::length_scales::{
+        analysis_effective_length_um, maximum_interpretable_scale_for_points_um,
+    },
     inference::scalar_pvalues::{permutation_p_value, Tail},
     multiscale_residual::{
         energy::relative_scale_energies_from_field,
@@ -35,8 +38,19 @@ pub(super) fn scale_energy_with_envelope(
     }
     let permutation_curves =
         scale_energy_permutation_curves(config, pattern, observed_values.len())?;
-    let max_scale_um =
-        config.validation.largest_interpretable_scale_fraction * pattern.window.l_eff_um;
+    let max_scale_um = maximum_interpretable_scale_for_points_um(
+        pattern.window.analysis_effective_length_um,
+        &pattern.x_um,
+        &pattern.y_um,
+        config.validation.largest_interpretable_scale_fraction,
+    )
+    .unwrap_or(0.0);
+    let analysis_effective_length_um = analysis_effective_length_um(
+        pattern.window.analysis_effective_length_um,
+        &pattern.x_um,
+        &pattern.y_um,
+    )
+    .unwrap_or(0.0);
     let bands = [
         (
             ScaleEnergyBand::LocalDifference,
@@ -48,7 +62,7 @@ pub(super) fn scale_energy_with_envelope(
         ),
         (
             ScaleEnergyBand::BlockMean,
-            pattern.window.l_eff_um.max(1.0) / 4.0,
+            analysis_effective_length_um.max(1.0) / 4.0,
         ),
     ];
     let eligibility = bands
@@ -162,9 +176,20 @@ pub(super) fn multiscale_residual_scalar_p_values(
         ));
     }
 
-    let max_scale_um =
-        config.validation.largest_interpretable_scale_fraction * pattern.window.l_eff_um;
-    let block_mean_scale_um = pattern.window.l_eff_um.max(1.0) / 4.0;
+    let max_scale_um = maximum_interpretable_scale_for_points_um(
+        pattern.window.analysis_effective_length_um,
+        &pattern.x_um,
+        &pattern.y_um,
+        config.validation.largest_interpretable_scale_fraction,
+    )
+    .unwrap_or(0.0);
+    let analysis_effective_length_um = analysis_effective_length_um(
+        pattern.window.analysis_effective_length_um,
+        &pattern.x_um,
+        &pattern.y_um,
+    )
+    .unwrap_or(0.0);
+    let block_mean_scale_um = analysis_effective_length_um.max(1.0) / 4.0;
     let block_mean_eligible = block_mean_scale_um <= max_scale_um;
     let territory_eligible = pattern.window.d_nn_mean_um.max(1.0) <= max_scale_um;
 
@@ -262,8 +287,13 @@ pub(super) fn territories_for(
         return Ok(Vec::new());
     }
 
-    let max_scale_um =
-        config.validation.largest_interpretable_scale_fraction * pattern.window.l_eff_um;
+    let max_scale_um = maximum_interpretable_scale_for_points_um(
+        pattern.window.analysis_effective_length_um,
+        &pattern.x_um,
+        &pattern.y_um,
+        config.validation.largest_interpretable_scale_fraction,
+    )
+    .unwrap_or(0.0);
     Ok(plan
         .detect_for_marks(pattern, marks, config.multiscale_residual.min_territory_z)?
         .into_iter()

@@ -23,6 +23,13 @@ semantics.
 - The low-level public `comparison` module and `AnalysisMetadata` root
   re-export are removed. Use versioned comparison results and
   `MultimodalAnalysisRun` artifacts instead.
+- `WindowSummary.l_eff_um` is renamed to
+  `analysis_effective_length_um`. Loaded analyses define it as the tumor-mask
+  equivalent-area diameter; component and mask-less programmatic analyses use
+  the cell-coordinate bounding-box diagonal. The Rust
+  `TumorWindow.l_eff_um` field and `TumorMask::effective_diameter_um` method are
+  likewise renamed to `analysis_effective_length_um` and
+  `equivalent_area_diameter_um` without aliases.
 - `NeighborhoodEnrichmentResult.enrichment_ratio` changed from a required
   number to a nullable finite number.
 - `NeighborhoodEnrichmentResult.z_score` changed from a required number to a

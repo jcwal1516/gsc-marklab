@@ -478,7 +478,7 @@ fn validation_flags_area_and_resolvable_k_shell_failures() {
     )
     .expect("pattern");
     pattern.window.area_um2 = 25.0;
-    pattern.window.l_eff_um = 4.0;
+    pattern.window.analysis_effective_length_um = 4.0;
     pattern.window.d_nn_mean_um = 4.0;
 
     let flags = validation_flags(&pattern, &config);
@@ -852,7 +852,7 @@ fn csv_loader_excludes_artifact_and_nonviable_rows_from_analysis_window() {
     assert_eq!(pattern.nonviable_excluded_fraction, Some(2.0 / 7.0));
 
     pattern.window.area_um2 = 7.0;
-    pattern.window.l_eff_um = 7.0;
+    pattern.window.analysis_effective_length_um = 7.0;
     pattern.window.d_nn_mean_um = 1.0;
     let mut config = AnalysisConfig::default();
     config.permutation.stratified = false;
@@ -896,7 +896,7 @@ fn engine_flags_internal_control_dropout_with_required_suppression_wording() {
     let mut pattern = load_pattern_csv_with_diagnostics(&cells, &mask)
         .expect("load pattern")
         .pattern;
-    pattern.window.l_eff_um = 6.0;
+    pattern.window.analysis_effective_length_um = 6.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 6.0;
     let mut config = AnalysisConfig::default();
@@ -947,7 +947,7 @@ fn engine_reports_local_tumor_cellularity_metrics() {
     )
     .expect("pattern");
     pattern.window.area_um2 = 2_000_000.0;
-    pattern.window.l_eff_um = 4.0;
+    pattern.window.analysis_effective_length_um = 4.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.valid_mask_fraction = 0.75;
     pattern.valid_tumor_fraction = Some(0.90);
@@ -989,7 +989,7 @@ fn engine_suppresses_interpretation_when_stain_gradient_is_detected() {
         meta(),
     )
     .expect("pattern");
-    pattern.window.l_eff_um = 20.0;
+    pattern.window.analysis_effective_length_um = 20.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 20.0;
     pattern.local_dab_od = Some(
@@ -1029,7 +1029,7 @@ fn engine_flags_fragmented_component_layouts() {
         meta(),
     )
     .expect("pattern");
-    pattern.window.l_eff_um = 6.0;
+    pattern.window.analysis_effective_length_um = 6.0;
     pattern.window.d_nn_mean_um = 2.0;
     pattern.window.area_um2 = 30.0;
     pattern.component_id = Some(

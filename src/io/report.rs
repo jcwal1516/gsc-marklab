@@ -61,7 +61,7 @@ Protein: {protein}\n\n\
 Mark label: {mark_label}\n\n\
 Status: {status}\n\n\
 Cells: {n_cells} total, {n_marked} {mark_label}, p_hat = {p_hat:.4}\n\n\
-Window: L_eff = {l_eff:.3} um, mean nearest-neighbor distance = {dnn:.3} um\n\n\
+Window: analysis effective length = {analysis_effective_length:.3} um, mean nearest-neighbor distance = {dnn:.3} um\n\n\
 Primary endpoint: low-k excess = {low_k}; scalar p-value = {p_global}; null = {null_model}\n\n\
 Spectrum: xi = {xi}; raw k modes = {n_k_modes}; radial shells = {n_shells}; maximum interpretable scale = {max_scale}\n\n\
 {spectrum_null_sensitivity}\
@@ -79,7 +79,7 @@ Scientific framing: This report quantifies section-level organization of the con
         n_cells = result.n_cells,
         n_marked = result.n_marked,
         p_hat = result.p_hat,
-        l_eff = result.window.l_eff_um,
+        analysis_effective_length = result.window.analysis_effective_length_um,
         dnn = result.window.d_nn_mean_um,
         low_k = low_k,
         p_global = p_global,

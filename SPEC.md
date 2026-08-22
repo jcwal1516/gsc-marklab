@@ -116,9 +116,16 @@ reproducible pseudorandom generator; it is not an exact-uniform sampling
 certificate, so that mathematical guarantee does not apply literally to its
 finite seed space.
 
-The maximum interpretable scale is
-`largest_interpretable_scale_fraction * L_eff_um`. Spectrum wavelength is
-`2*pi/k`. Only shells whose wavelength is within the limit, mark-pair-covariance
+`analysis_effective_length_um` has one explicit precedence rule. Loaded cell
+tables use the equivalent-area diameter of the tumor mask,
+`sqrt(4 * area_um2 / pi)`. Component analyses, and programmatically constructed
+patterns without a positive recorded mask length, use the diagonal of the
+axis-aligned cell-coordinate bounding box. A degenerate point set has no
+component effective length.
+
+The maximum interpretable scale is calculated in one shared path as
+`largest_interpretable_scale_fraction * analysis_effective_length_um`.
+Spectrum wavelength is `2*pi/k`. Only shells whose wavelength is within the limit, mark-pair-covariance
 points whose upper radius is within the limit, and multiscale residual scales
 within the limit are inference eligible. Curve points may remain in output with
 `inference_eligible: false`; they do not affect inference.

@@ -1,5 +1,9 @@
 use crate::geom::{
     components::ComponentSummary,
+    length_scales::{
+        analysis_effective_length_um, bounding_box_diagonal_um, equivalent_area_diameter_um,
+        maximum_interpretable_scale_um,
+    },
     mask::TumorMask,
     spatial_index::{mean_nearest_neighbor_distance, Neighbor, SpatialIndex2D},
 };
@@ -30,7 +34,7 @@ fn geojson_multipolygon_mask_respects_holes_and_area() {
     assert!(!mask.contains(30.0, 30.0));
     assert_abs_diff_eq!(mask.area_um2(), 100.0 - 16.0 + 16.0, epsilon = 1e-9);
     assert_abs_diff_eq!(
-        mask.effective_diameter_um(),
+        mask.equivalent_area_diameter_um(),
         (4.0 * 100.0 / std::f64::consts::PI).sqrt(),
         epsilon = 1e-9
     );
@@ -43,6 +47,46 @@ fn geojson_mask_rejects_non_multipolygon_input() {
     let err = TumorMask::from_geojson_str(point).expect_err("point should be rejected");
 
     assert!(err.to_string().contains("MultiPolygon"));
+}
+
+#[test]
+fn named_length_scales_have_distinct_geometric_definitions() {
+    assert_abs_diff_eq!(
+        equivalent_area_diameter_um(100.0).expect("area-equivalent diameter"),
+        (400.0 / std::f64::consts::PI).sqrt(),
+        epsilon = 1e-12
+    );
+    assert_abs_diff_eq!(
+        bounding_box_diagonal_um(&[0.0, 3.0], &[0.0, 4.0]).expect("bounding diagonal"),
+        5.0,
+        epsilon = 1e-12
+    );
+    assert_abs_diff_eq!(
+        analysis_effective_length_um(7.0, &[0.0, 3.0], &[0.0, 4.0])
+            .expect("configured analysis length"),
+        7.0,
+        epsilon = 1e-12
+    );
+    assert_abs_diff_eq!(
+        analysis_effective_length_um(0.0, &[0.0, 3.0], &[0.0, 4.0]).expect("bounding fallback"),
+        5.0,
+        epsilon = 1e-12
+    );
+    assert_abs_diff_eq!(
+        maximum_interpretable_scale_um(10.0, 0.33).expect("maximum scale"),
+        3.3,
+        epsilon = 1e-12
+    );
+}
+
+#[test]
+fn named_length_scales_reject_undefined_inputs() {
+    assert_eq!(equivalent_area_diameter_um(0.0), None);
+    assert_eq!(equivalent_area_diameter_um(f64::NAN), None);
+    assert_eq!(bounding_box_diagonal_um(&[0.0], &[0.0]), None);
+    assert_eq!(bounding_box_diagonal_um(&[0.0, 1.0], &[0.0]), None);
+    assert_eq!(maximum_interpretable_scale_um(10.0, 0.0), None);
+    assert_eq!(maximum_interpretable_scale_um(10.0, 1.0), None);
 }
 
 #[test]

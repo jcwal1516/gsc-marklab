@@ -45,7 +45,9 @@ pub struct PatternMeta {
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
 pub struct TumorWindow {
     pub area_um2: f64,
-    pub l_eff_um: f64,
+    /// Analysis length scale: the mask equivalent-area diameter for loaded
+    /// patterns and the point bounding-box diagonal for component analyses.
+    pub analysis_effective_length_um: f64,
     pub d_nn_mean_um: f64,
     pub valid_mask_fraction: f64,
 }
@@ -54,7 +56,7 @@ impl Default for TumorWindow {
     fn default() -> Self {
         Self {
             area_um2: 0.0,
-            l_eff_um: 0.0,
+            analysis_effective_length_um: 0.0,
             d_nn_mean_um: 0.0,
             valid_mask_fraction: 1.0,
         }

@@ -58,7 +58,7 @@ pub struct MarkedPatternResult {
 #[serde(deny_unknown_fields)]
 pub struct WindowSummary {
     pub area_um2: f64,
-    pub l_eff_um: f64,
+    pub analysis_effective_length_um: f64,
     pub d_nn_mean_um: f64,
 }
 

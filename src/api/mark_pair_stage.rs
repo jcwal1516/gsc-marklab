@@ -4,7 +4,9 @@ use crate::{
     config::AnalysisConfig,
     data::Pattern,
     errors::{MarklabError, Result},
-    geom::spatial_index::SpatialIndex2D,
+    geom::{
+        length_scales::maximum_interpretable_scale_for_points_um, spatial_index::SpatialIndex2D,
+    },
     output::{AnalysisSection, FunctionalSummary, MarkPairCovariancePoint},
     permutation::envelopes::GlobalEnvelope,
     spectra::mark_pair_covariance::MarkPairCovariancePlan,
@@ -21,8 +23,13 @@ pub(super) fn mark_pair_covariance_with_envelope(
     usize,
 )> {
     let bin_width_um = pattern.window.d_nn_mean_um.max(1.0);
-    let max_r_um =
-        (pattern.window.l_eff_um * config.validation.largest_interpretable_scale_fraction).max(1.0);
+    let max_r_um = maximum_interpretable_scale_for_points_um(
+        pattern.window.analysis_effective_length_um,
+        &pattern.x_um,
+        &pattern.y_um,
+        config.validation.largest_interpretable_scale_fraction,
+    )
+    .unwrap_or(0.0);
     let index_storage_bytes = spatial_index.estimated_storage_bytes();
     let plan_budget_bytes = geometry_budget_bytes.saturating_sub(index_storage_bytes);
     let Some(plan) = MarkPairCovariancePlan::new_with_index(

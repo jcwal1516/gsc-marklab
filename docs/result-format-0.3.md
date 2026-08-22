@@ -54,6 +54,21 @@ whose scientific result can be empty, such as no detected territories or no
 configured label pairs. Routine computation failures return an error and do
 not produce or commit a successful result document.
 
+## Window length scales
+
+`WindowSummary.analysis_effective_length_um` replaces the ambiguous 0.2
+`l_eff_um` field. For a loaded whole-pattern analysis it is the equivalent-area
+diameter of the tumor mask, `sqrt(4 * area_um2 / pi)`. A component analysis,
+or a programmatically constructed pattern without a positive recorded mask
+length, uses the diagonal of the axis-aligned cell-coordinate bounding box.
+Degenerate point sets have no component effective length and therefore cannot
+produce a component spectrum.
+
+`SpectrumSummary.max_interpretable_scale_um` is always
+`largest_interpretable_scale_fraction * analysis_effective_length_um` through
+one finite checked implementation. Endpoints no longer apply independent
+floors or alternate length definitions.
+
 ## Spectrum null-model sensitivity
 
 When stratified spectrum permutations are requested,

@@ -76,7 +76,7 @@ pub(super) fn assemble(
 
     let spectrum_assembly = assemble_spectrum(
         config,
-        geometry.effective_length_um,
+        geometry.analysis_effective_length_um,
         spectrum.as_ref(),
         spectrum_null_sensitivity,
         spectrum_unavailable_reason,
@@ -95,7 +95,7 @@ pub(super) fn assemble(
         p_hat: context.prevalence(),
         window: WindowSummary {
             area_um2: geometry.area_um2,
-            l_eff_um: geometry.effective_length_um,
+            analysis_effective_length_um: geometry.analysis_effective_length_um,
             d_nn_mean_um: geometry.mean_nearest_neighbor_um,
         },
         qc: qc_summary(pattern),
@@ -142,7 +142,7 @@ pub(super) fn assemble(
 
 fn assemble_spectrum(
     config: &AnalysisConfig,
-    effective_length_um: f64,
+    analysis_effective_length_um: f64,
     spectrum: Option<&PermutationWhitenedSpectrum>,
     sensitivity: Option<SpectrumNullSensitivity>,
     unavailable_reason: Option<String>,
@@ -227,8 +227,12 @@ fn assemble_spectrum(
         },
         |value| {
             AnalysisSection::available(SpectrumSummary {
-                max_interpretable_scale_um: config.validation.largest_interpretable_scale_fraction
-                    * effective_length_um,
+                max_interpretable_scale_um:
+                    crate::geom::length_scales::maximum_interpretable_scale_um(
+                        analysis_effective_length_um,
+                        config.validation.largest_interpretable_scale_fraction,
+                    )
+                    .unwrap_or(0.0),
                 k_min,
                 k_max,
                 n_k_modes,

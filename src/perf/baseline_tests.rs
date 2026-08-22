@@ -128,7 +128,7 @@ fn pattern(n: usize) -> Pattern {
     )
     .expect("benchmark pattern");
     pattern.window.area_um2 = (side * side) as f64;
-    pattern.window.l_eff_um = side as f64;
+    pattern.window.analysis_effective_length_um = side as f64;
     pattern.window.d_nn_mean_um = 1.0;
     pattern
 }

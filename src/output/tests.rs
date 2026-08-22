@@ -493,7 +493,7 @@ fn territories_geojson_writes_polygon_features_with_required_properties() {
         "post",
         (0..40).map(|index| u8::from(index < 8)).collect(),
     );
-    clustered.window.l_eff_um = 40.0;
+    clustered.window.analysis_effective_length_um = 40.0;
     clustered.window.d_nn_mean_um = 1.0;
     clustered.window.area_um2 = 40.0;
 

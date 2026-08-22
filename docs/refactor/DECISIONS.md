@@ -465,3 +465,11 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Decision: Represent producer state with the internal `CurveComparisonAnalysis` enum. Its pooled-bin, descriptive-margin, and insufficient-data variants encode the valid field combinations. One `into_output` conversion is the only production `CurveComparisonResult` literal; the public 0.3 JSON shape remains unchanged.
 - Evidence: The new behavior-focused conversion test failed before the typed module existed and passes after implementation. Thirteen territory-profile, thirteen pre/post, and sixteen output tests pass. A production source search finds the result literal only in the conversion function.
 - Status: Accepted; DUP-08 closed.
+
+## 2026-08-22 — Geometry names encode their definitions
+
+- Context: `l_eff_um` denoted mask equivalent-area diameter for loaded patterns, a bounding-box diagonal with an arbitrary 1 µm floor for components, and duplicated maximum-axis-span fallbacks in structure factor and anisotropy. Six stages calculated the maximum interpretable scale independently, and mark-pair covariance applied its own 1 µm floor.
+- Decision: Define equivalent-area diameter, axis-aligned bounding-box diagonal, analysis effective-length precedence, and maximum interpretable scale in one geometry module. A loaded pattern records the mask equivalent-area diameter. Components and mask-less programmatic patterns use the point bounding-box diagonal; degenerate point sets have no component effective length. Every endpoint uses the same finite checked `fraction * analysis_effective_length` calculation without endpoint-specific floors.
+- Schema/API consequence: Rename `TumorWindow.l_eff_um` and `WindowSummary.l_eff_um` to `analysis_effective_length_um`, and `TumorMask::effective_diameter_um` to `equivalent_area_diameter_um`, without compatibility aliases. This is recorded as an explicit 0.3 migration change; old nested result fields remain rejected.
+- Evidence: Both new geometry tests failed before the module existed and now cover definitions and invalid inputs. A format test requires the new key and rejects `l_eff_um`. Spectrum, anisotropy, and component-scale regressions pass; formatting, denied-warning Clippy, no-default-features, and full Nextest pass, with Nextest running 376/376 and 21 expected skips.
+- Status: Accepted; DUP-09 closed.

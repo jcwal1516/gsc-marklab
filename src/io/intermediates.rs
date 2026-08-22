@@ -41,7 +41,10 @@ fn write_filtered_cells(_dir: &Path, _pattern: &Pattern) -> Result<()> {
 fn write_kgrid(dir: &Path, pattern: &Pattern, config: &AnalysisConfig) -> Result<()> {
     use std::{fs::File, sync::Arc};
 
-    use crate::spectra::kgrid::{resolvable_k_modes, KBand};
+    use crate::{
+        geom::length_scales::analysis_effective_length_um,
+        spectra::kgrid::{resolvable_k_modes, KBand},
+    };
 
     use arrow::{
         array::{Float64Array, RecordBatch, UInt32Array},
@@ -49,9 +52,14 @@ fn write_kgrid(dir: &Path, pattern: &Pattern, config: &AnalysisConfig) -> Result
     };
     use parquet::arrow::arrow_writer::ArrowWriter;
 
-    let modes = KBand::from_window(pattern.window.l_eff_um, pattern.window.d_nn_mean_um)
-        .map(|band| resolvable_k_modes(band, config.spectrum.k_shells))
-        .unwrap_or_default();
+    let modes = analysis_effective_length_um(
+        pattern.window.analysis_effective_length_um,
+        &pattern.x_um,
+        &pattern.y_um,
+    )
+    .and_then(|length| KBand::from_window(length, pattern.window.d_nn_mean_um))
+    .map(|band| resolvable_k_modes(band, config.spectrum.k_shells))
+    .unwrap_or_default();
     let schema = Arc::new(Schema::new(vec![
         Field::new("kx", DataType::Float64, false),
         Field::new("ky", DataType::Float64, false),

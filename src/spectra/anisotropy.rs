@@ -88,6 +88,7 @@ use crate::{
     common::stats::median_average_even,
     data::Pattern,
     errors::{MarklabError, Result},
+    geom::length_scales::analysis_effective_length_um,
     inference::scalar_pvalues::{permutation_p_value, Tail},
     permutation::{labels::permute_fixed_count_into, stratified::StratifiedPermutationPlan},
     spectra::kgrid::KMode,
@@ -146,10 +147,14 @@ pub(crate) fn permutation_whitened_anisotropy(
         return Ok(None);
     }
 
-    let Some(l_eff_um) = effective_length_um(pattern) else {
+    let Some(analysis_effective_length_um) = analysis_effective_length_um(
+        pattern.window.analysis_effective_length_um,
+        &pattern.x_um,
+        &pattern.y_um,
+    ) else {
         return Ok(None);
     };
-    let k_step = 2.0 * std::f64::consts::PI / l_eff_um;
+    let k_step = 2.0 * std::f64::consts::PI / analysis_effective_length_um;
     let modes = low_k_modes(low_k_radius, k_step);
     if modes.is_empty() {
         return Ok(None);
@@ -320,10 +325,17 @@ pub(crate) fn permutation_whitened_anisotropy_dense_reference(
     alpha: f64,
     strata: Option<&[u32]>,
 ) -> Result<Option<PermutationAnisotropy>> {
-    let Some(l_eff_um) = effective_length_um(pattern) else {
+    let Some(analysis_effective_length_um) = analysis_effective_length_um(
+        pattern.window.analysis_effective_length_um,
+        &pattern.x_um,
+        &pattern.y_um,
+    ) else {
         return Ok(None);
     };
-    let modes = low_k_modes(low_k_radius, 2.0 * std::f64::consts::PI / l_eff_um);
+    let modes = low_k_modes(
+        low_k_radius,
+        2.0 * std::f64::consts::PI / analysis_effective_length_um,
+    );
     let Some(observed) = modes
         .iter()
         .map(|mode| centered_structure_factor(pattern, mode.kx, mode.ky))
@@ -374,18 +386,6 @@ pub(crate) fn permutation_whitened_anisotropy_dense_reference(
     };
     let p_value = permutation_p_value(readout.index, &null, Tail::OneSidedHigh, alpha)?;
     Ok(Some(PermutationAnisotropy { readout, p_value }))
-}
-
-fn effective_length_um(pattern: &Pattern) -> Option<f64> {
-    if pattern.window.l_eff_um.is_finite() && pattern.window.l_eff_um > 0.0 {
-        return Some(pattern.window.l_eff_um);
-    }
-    let min_x = pattern.x_um.iter().copied().reduce(f64::min)?;
-    let max_x = pattern.x_um.iter().copied().reduce(f64::max)?;
-    let min_y = pattern.y_um.iter().copied().reduce(f64::min)?;
-    let max_y = pattern.y_um.iter().copied().reduce(f64::max)?;
-    let span = (max_x - min_x).max(max_y - min_y);
-    (span > 0.0).then_some(span)
 }
 
 #[cfg(test)]
@@ -482,7 +482,7 @@ mod tests {
             },
         )
         .expect("pattern");
-        pattern.window.l_eff_um = 3.0;
+        pattern.window.analysis_effective_length_um = 3.0;
         pattern
     }
 }

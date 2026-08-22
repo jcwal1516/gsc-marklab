@@ -33,7 +33,7 @@ fn bench_marked_analysis_multiscale_residual_grid1024(c: &mut Criterion) {
     )
     .expect("pattern");
     pattern.window.area_um2 = (side * side) as f64;
-    pattern.window.l_eff_um = side as f64;
+    pattern.window.analysis_effective_length_um = side as f64;
     pattern.window.d_nn_mean_um = 1.0;
 
     let mut config = AnalysisConfig::default();

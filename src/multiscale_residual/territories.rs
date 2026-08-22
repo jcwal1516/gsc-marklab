@@ -1,7 +1,7 @@
 use crate::{
     data::Pattern,
     errors::{MarklabError, Result},
-    geom::spatial_index::SpatialIndex2D,
+    geom::{length_scales::analysis_effective_length_um, spatial_index::SpatialIndex2D},
     perf::counters::enforce_storage_budget,
 };
 
@@ -292,7 +292,13 @@ pub fn detect_residual_territories(
 
 fn territory_scales(pattern: &Pattern) -> Vec<f64> {
     let d_nn = pattern.window.d_nn_mean_um.max(1.0);
-    let block_mean_scale = (pattern.window.l_eff_um.max(d_nn) / 8.0).max(d_nn);
+    let analysis_effective_length_um = analysis_effective_length_um(
+        pattern.window.analysis_effective_length_um,
+        &pattern.x_um,
+        &pattern.y_um,
+    )
+    .unwrap_or(d_nn);
+    let block_mean_scale = (analysis_effective_length_um.max(d_nn) / 8.0).max(d_nn);
     let mut scales = vec![d_nn, d_nn * 2.0, block_mean_scale];
     scales.sort_by(f64::total_cmp);
     scales.dedup_by(|left, right| (*left - *right).abs() < 1.0e-9);

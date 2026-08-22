@@ -370,7 +370,7 @@ mod tests {
     #[test]
     fn chunk_sizes_produce_same_binary_and_continuous_spectrum() {
         let mut pattern = pattern(vec![1, 0, 1, 0]);
-        pattern.window.l_eff_um = 4.0;
+        pattern.window.analysis_effective_length_um = 4.0;
         pattern.window.d_nn_mean_um = 1.0;
         let modes = resolvable_modes_for_pattern(&pattern, 4).expect("modes");
 
@@ -414,7 +414,7 @@ mod tests {
     #[test]
     fn chunk_sizes_produce_same_stratified_spectrum() {
         let mut pattern = pattern(vec![1, 0, 0, 1]);
-        pattern.window.l_eff_um = 4.0;
+        pattern.window.analysis_effective_length_um = 4.0;
         pattern.window.d_nn_mean_um = 1.0;
         let modes = resolvable_modes_for_pattern(&pattern, 4).expect("modes");
         let observed = observed_power_for_modes(&pattern, &modes);
@@ -448,7 +448,7 @@ mod tests {
     #[test]
     fn zero_mode_chunk_is_rejected_without_evaluating_permutations() {
         let mut pattern = pattern(vec![1, 0, 1, 0]);
-        pattern.window.l_eff_um = 4.0;
+        pattern.window.analysis_effective_length_um = 4.0;
         pattern.window.d_nn_mean_um = 1.0;
 
         assert!(

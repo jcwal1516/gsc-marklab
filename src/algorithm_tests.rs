@@ -199,7 +199,7 @@ fn residual_territory_detector_keeps_separated_local_maxima() {
     }
     let mut pattern = Pattern::from_arrays(x, y, marks, meta()).expect("pattern");
     pattern.window.d_nn_mean_um = 1.0;
-    pattern.window.l_eff_um = 10.0;
+    pattern.window.analysis_effective_length_um = 10.0;
 
     let territories = detect_residual_territories(&pattern, 2.0);
 
@@ -236,7 +236,7 @@ fn residual_territory_plan_matches_bruteforce() {
             .into_boxed_slice(),
     );
     pattern.window.d_nn_mean_um = 1.1;
-    pattern.window.l_eff_um = 24.0;
+    pattern.window.analysis_effective_length_um = 24.0;
     let plan = ResidualTerritoryPlan::new(&pattern).expect("territory plan");
     let mark_assignments = [
         first_marks,
@@ -268,7 +268,7 @@ fn residual_territory_plan_rejects_storage_over_budget() {
     )
     .expect("pattern");
     pattern.window.d_nn_mean_um = 1.0;
-    pattern.window.l_eff_um = 8.0;
+    pattern.window.analysis_effective_length_um = 8.0;
     let index = SpatialIndex2D::new(&pattern.x_um, &pattern.y_um).expect("index");
 
     let error = ResidualTerritoryPlan::new_with_index(&pattern, &index, 3.0, 64)
@@ -295,7 +295,7 @@ fn brute_force_residual_territories(
 
     let p_hat = marks.iter().filter(|mark| **mark == 1).count() as f64 / marks.len() as f64;
     let d_nn = pattern.window.d_nn_mean_um.max(1.0);
-    let block_mean_scale = (pattern.window.l_eff_um.max(d_nn) / 8.0).max(d_nn);
+    let block_mean_scale = (pattern.window.analysis_effective_length_um.max(d_nn) / 8.0).max(d_nn);
     let mut scales = vec![d_nn, d_nn * 2.0, block_mean_scale];
     scales.sort_by(f64::total_cmp);
     scales.dedup_by(|left, right| (*left - *right).abs() < 1.0e-9);

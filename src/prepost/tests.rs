@@ -27,7 +27,7 @@ fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResul
         p_hat: 0.5,
         window: WindowSummary {
             area_um2: 100.0,
-            l_eff_um: 10.0,
+            analysis_effective_length_um: 10.0,
             d_nn_mean_um: 1.0,
         },
         qc: QcSummary::default(),

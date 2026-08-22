@@ -1,13 +1,14 @@
 use crate::{
     api::finite_option,
-    common::{
-        seeds::{derive_seed, SeedEndpoint},
-        stats::min_max_ignoring_nonfinite,
-    },
+    common::seeds::{derive_seed, SeedEndpoint},
     config::{AnalysisConfig, ComponentMode},
     data::{validate::validation_flags, Pattern},
     errors::Result,
-    geom::{components::ComponentSummary, spatial_index::mean_nearest_neighbor_distance},
+    geom::{
+        components::ComponentSummary,
+        length_scales::{bounding_box_diagonal_um, maximum_interpretable_scale_for_points_um},
+        spatial_index::mean_nearest_neighbor_distance,
+    },
     output::{
         AnalysisSection, ComponentAnalysisSummary, ComponentModeSelection, ResolvedComponentMode,
     },
@@ -190,8 +191,13 @@ pub(super) fn component_summary_for(
             target_component_id as usize,
         ),
         family_wise_alpha: config.inference.family_wise_alpha,
-        max_scale_um: config.validation.largest_interpretable_scale_fraction
-            * component.window.l_eff_um,
+        max_scale_um: maximum_interpretable_scale_for_points_um(
+            component.window.analysis_effective_length_um,
+            &component.x_um,
+            &component.y_um,
+            config.validation.largest_interpretable_scale_fraction,
+        )
+        .unwrap_or(0.0),
         k_shell_min: config.validation.k_shell_min,
         k_chunk_modes: config.performance.k_chunk_modes,
     };
@@ -257,18 +263,13 @@ pub(super) fn component_window(parent: &Pattern, component: &Pattern) -> crate::
     let area_um2 = parent.window.area_um2 * area_fraction;
     crate::data::TumorWindow {
         area_um2,
-        l_eff_um: component_l_eff_um(component).unwrap_or(parent.window.l_eff_um),
+        analysis_effective_length_um: component_bounding_box_diagonal_um(component).unwrap_or(0.0),
         d_nn_mean_um: mean_nearest_neighbor_distance(&component.x_um, &component.y_um)
             .unwrap_or(parent.window.d_nn_mean_um),
         valid_mask_fraction: parent.window.valid_mask_fraction,
     }
 }
 
-pub(super) fn component_l_eff_um(pattern: &Pattern) -> Option<f64> {
-    if pattern.is_empty() {
-        return None;
-    }
-    let (min_x, max_x) = min_max_ignoring_nonfinite(&pattern.x_um)?;
-    let (min_y, max_y) = min_max_ignoring_nonfinite(&pattern.y_um)?;
-    Some((max_x - min_x).hypot(max_y - min_y).max(1.0))
+pub(super) fn component_bounding_box_diagonal_um(pattern: &Pattern) -> Option<f64> {
+    bounding_box_diagonal_um(&pattern.x_um, &pattern.y_um)
 }

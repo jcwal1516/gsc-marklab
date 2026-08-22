@@ -60,7 +60,7 @@ fn structure_factor_matches_two_point_closed_form() {
 }
 
 #[test]
-fn kband_uses_window_diameter_and_mean_nearest_neighbor() {
+fn kband_uses_analysis_effective_length_and_mean_nearest_neighbor() {
     let band = KBand::from_window(100.0, 5.0).expect("band");
 
     assert_abs_diff_eq!(

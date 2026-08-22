@@ -1,9 +1,9 @@
-use crate::data::Pattern;
+use crate::{data::Pattern, geom::length_scales::analysis_effective_length_um};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct GeometrySummary {
     pub(super) area_um2: f64,
-    pub(super) effective_length_um: f64,
+    pub(super) analysis_effective_length_um: f64,
     pub(super) mean_nearest_neighbor_um: f64,
 }
 
@@ -33,7 +33,12 @@ impl<'pattern> MarkedAnalysisContext<'pattern> {
             },
             geometry: GeometrySummary {
                 area_um2: pattern.window.area_um2,
-                effective_length_um: pattern.window.l_eff_um,
+                analysis_effective_length_um: analysis_effective_length_um(
+                    pattern.window.analysis_effective_length_um,
+                    &pattern.x_um,
+                    &pattern.y_um,
+                )
+                .unwrap_or(0.0),
                 mean_nearest_neighbor_um: pattern.window.d_nn_mean_um,
             },
         }

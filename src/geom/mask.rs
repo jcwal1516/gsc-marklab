@@ -54,12 +54,8 @@ impl TumorMask {
         self.area_um2
     }
 
-    pub fn effective_diameter_um(&self) -> f64 {
-        if self.area_um2 <= 0.0 {
-            0.0
-        } else {
-            (4.0 * self.area_um2 / std::f64::consts::PI).sqrt()
-        }
+    pub fn equivalent_area_diameter_um(&self) -> f64 {
+        super::length_scales::equivalent_area_diameter_um(self.area_um2).unwrap_or(0.0)
     }
 
     fn from_geometry(geometry: Geometry) -> Result<Self> {

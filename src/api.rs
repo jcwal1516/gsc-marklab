@@ -47,7 +47,7 @@ mod context_tests {
         )
         .expect("pattern");
         pattern.window.area_um2 = 40.0;
-        pattern.window.l_eff_um = 4.0;
+        pattern.window.analysis_effective_length_um = 4.0;
         pattern.window.d_nn_mean_um = 1.0;
 
         let context = MarkedAnalysisContext::new(&pattern);
@@ -57,7 +57,7 @@ mod context_tests {
         assert_eq!(context.n_unmarked(), 2);
         assert_eq!(context.prevalence(), 0.5);
         assert_eq!(context.geometry().area_um2, 40.0);
-        assert_eq!(context.geometry().effective_length_um, 4.0);
+        assert_eq!(context.geometry().analysis_effective_length_um, 4.0);
         assert_eq!(context.geometry().mean_nearest_neighbor_um, 1.0);
         assert!(std::ptr::eq(context.pattern(), &pattern));
     }

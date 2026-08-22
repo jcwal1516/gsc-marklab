@@ -5,17 +5,17 @@ pub struct KBand {
 }
 
 impl KBand {
-    pub fn from_window(l_eff_um: f64, d_nn_mean_um: f64) -> Option<Self> {
-        if l_eff_um <= 0.0
+    pub fn from_window(analysis_effective_length_um: f64, d_nn_mean_um: f64) -> Option<Self> {
+        if analysis_effective_length_um <= 0.0
             || d_nn_mean_um <= 0.0
-            || !l_eff_um.is_finite()
+            || !analysis_effective_length_um.is_finite()
             || !d_nn_mean_um.is_finite()
         {
             return None;
         }
 
         Some(Self {
-            k_min: 2.0 * std::f64::consts::PI / l_eff_um,
+            k_min: 2.0 * std::f64::consts::PI / analysis_effective_length_um,
             k_max: 2.0 * std::f64::consts::PI / d_nn_mean_um,
         })
     }

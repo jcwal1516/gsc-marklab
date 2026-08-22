@@ -44,7 +44,7 @@ fn engine_reports_permutation_whitened_low_k_excess_for_clustered_marks() {
         meta(),
     )
     .expect("pattern");
-    pattern.window.l_eff_um = 40.0;
+    pattern.window.analysis_effective_length_um = 40.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 40.0;
 
@@ -141,7 +141,7 @@ fn engine_records_the_configured_mark_label_in_results_and_reports() {
         meta(),
     )
     .expect("pattern");
-    pattern.window.l_eff_um = 40.0;
+    pattern.window.analysis_effective_length_um = 40.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 40.0;
 
@@ -185,7 +185,7 @@ fn engine_uses_fixed_one_sided_high_test_for_low_k_excess() {
         meta(),
     )
     .expect("pattern");
-    pattern.window.l_eff_um = 40.0;
+    pattern.window.analysis_effective_length_um = 40.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 40.0;
 
@@ -216,7 +216,7 @@ fn engine_marks_low_k_suppression_when_low_frequency_power_is_below_permutations
         meta(),
     )
     .expect("pattern");
-    pattern.window.l_eff_um = 40.0;
+    pattern.window.analysis_effective_length_um = 40.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 40.0;
 
@@ -241,7 +241,7 @@ fn engine_omits_alpha_when_low_k_alpha_fit_is_disabled() {
         meta(),
     )
     .expect("pattern");
-    pattern.window.l_eff_um = 40.0;
+    pattern.window.analysis_effective_length_um = 40.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 40.0;
 
@@ -267,7 +267,7 @@ fn engine_omits_multiscale_residual_outputs_when_multiscale_residual_is_disabled
         meta(),
     )
     .expect("pattern");
-    pattern.window.l_eff_um = 40.0;
+    pattern.window.analysis_effective_length_um = 40.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 40.0;
 
@@ -303,7 +303,7 @@ fn engine_omits_territories_when_territory_detection_is_disabled() {
         meta(),
     )
     .expect("pattern");
-    pattern.window.l_eff_um = 40.0;
+    pattern.window.analysis_effective_length_um = 40.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 40.0;
 
@@ -348,7 +348,7 @@ fn engine_marks_out_of_range_multiscale_residual_endpoints_insufficient() {
         meta(),
     )
     .expect("pattern");
-    pattern.window.l_eff_um = 40.0;
+    pattern.window.analysis_effective_length_um = 40.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 40.0;
 
@@ -385,7 +385,7 @@ fn homogeneous_strata_report_degenerate_null() {
         meta(),
     )
     .expect("pattern");
-    pattern.window.l_eff_um = 40.0;
+    pattern.window.analysis_effective_length_um = 40.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 40.0;
     pattern.qc_bin = Some(
@@ -475,7 +475,7 @@ fn distinct_nulls_are_actually_executed() {
         meta(),
     )
     .expect("pattern");
-    pattern.window.l_eff_um = 40.0;
+    pattern.window.analysis_effective_length_um = 40.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 40.0;
     pattern.qc_bin = Some(
@@ -580,7 +580,7 @@ fn missing_strata_report_validation_error() {
         meta(),
     )
     .expect("pattern");
-    pattern.window.l_eff_um = 40.0;
+    pattern.window.analysis_effective_length_um = 40.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 40.0;
 
@@ -608,7 +608,7 @@ fn engine_can_stratify_by_component_id_when_qc_bin_is_absent() {
         meta(),
     )
     .expect("pattern");
-    pattern.window.l_eff_um = 40.0;
+    pattern.window.analysis_effective_length_um = 40.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 40.0;
     pattern.component_id = Some(
@@ -660,7 +660,7 @@ fn engine_reports_separate_component_summaries_when_component_mode_is_both() {
         meta(),
     )
     .expect("pattern");
-    pattern.window.l_eff_um = 124.0;
+    pattern.window.analysis_effective_length_um = 124.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 124.0;
     pattern.component_id = Some(
@@ -800,7 +800,7 @@ fn remediation_separate_component_mode_does_not_behave_like_both() {
         meta(),
     )
     .expect("pattern");
-    pattern.window.l_eff_um = 124.0;
+    pattern.window.analysis_effective_length_um = 124.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 124.0;
     pattern.component_id = Some(
@@ -880,7 +880,7 @@ fn component_summaries_use_the_configured_interpretable_scale() {
         }
     }
     let mut pattern = Pattern::from_arrays(x, y, marks, meta()).expect("pattern");
-    pattern.window.l_eff_um = 108.0;
+    pattern.window.analysis_effective_length_um = 108.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 128.0;
     pattern.component_id = Some(component_ids.into_boxed_slice());
@@ -921,7 +921,7 @@ fn engine_reports_permutation_whitened_anisotropy_for_oriented_pattern() {
     }
 
     let mut pattern = Pattern::from_arrays(x, y, marks, meta()).expect("pattern");
-    pattern.window.l_eff_um = 20.0;
+    pattern.window.analysis_effective_length_um = 20.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 200.0;
 
@@ -953,7 +953,7 @@ fn engine_uses_probabilistic_marks_when_configured() {
 
     let mut pattern = Pattern::from_arrays(x, y, marks, meta()).expect("pattern");
     pattern.mark_prob = Some(probabilities.into_boxed_slice());
-    pattern.window.l_eff_um = 10.0;
+    pattern.window.analysis_effective_length_um = 10.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 100.0;
 
@@ -1003,7 +1003,7 @@ fn engine_records_permutation_stage_when_probabilistic_marks_are_missing() {
         meta(),
     )
     .expect("pattern");
-    pattern.window.l_eff_um = 20.0;
+    pattern.window.analysis_effective_length_um = 20.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 100.0;
 
@@ -1058,7 +1058,7 @@ fn engine_marks_spectrum_insufficient_when_all_scales_are_out_of_range() {
     }
 
     let mut pattern = Pattern::from_arrays(x, y, marks, meta()).expect("pattern");
-    pattern.window.l_eff_um = 8.0;
+    pattern.window.analysis_effective_length_um = 8.0;
     pattern.window.d_nn_mean_um = 8.0;
     pattern.window.area_um2 = 64.0;
 
@@ -1105,7 +1105,7 @@ fn engine_detects_multiple_residual_territory_maxima() {
     }
 
     let mut pattern = Pattern::from_arrays(x, y, marks, meta()).expect("pattern");
-    pattern.window.l_eff_um = 10.0;
+    pattern.window.analysis_effective_length_um = 10.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.area_um2 = 100.0;
 

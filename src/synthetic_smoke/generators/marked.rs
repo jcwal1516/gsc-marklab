@@ -111,7 +111,7 @@ fn grid_pattern(name: &str, width: usize, height: usize, marks: Vec<u8>) -> Resu
         },
     )?;
     pattern.window.area_um2 = (width * height) as f64;
-    pattern.window.l_eff_um = width.max(height) as f64;
+    pattern.window.analysis_effective_length_um = (width as f64).hypot(height as f64);
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.valid_mask_fraction = 1.0;
     Ok(pattern)

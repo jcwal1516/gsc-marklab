@@ -68,7 +68,7 @@ fn public_marked_analysis_run_retains_result_and_execution_context() {
     )
     .expect("pattern");
     pattern.window.area_um2 = 4.0;
-    pattern.window.l_eff_um = 2.0;
+    pattern.window.analysis_effective_length_um = 2.0;
     pattern.window.d_nn_mean_um = 1.0;
 
     let run = AnalysisEngine::new(config)
@@ -114,7 +114,7 @@ fn marked_result_uses_multiscale_residual_terms_without_obsolete_aliases() {
     )
     .expect("pattern");
     pattern.window.area_um2 = 4.0;
-    pattern.window.l_eff_um = 2.0;
+    pattern.window.analysis_effective_length_um = 2.0;
     pattern.window.d_nn_mean_um = 1.0;
 
     let result = engine.analyze_pattern(&pattern).expect("analysis");

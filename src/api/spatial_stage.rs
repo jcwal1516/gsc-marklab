@@ -2,7 +2,10 @@ use crate::{
     config::AnalysisConfig,
     data::Pattern,
     errors::{MarklabError, Result},
-    geom::spatial_index::SpatialIndex2D,
+    geom::{
+        length_scales::{analysis_effective_length_um, maximum_interpretable_scale_for_points_um},
+        spatial_index::SpatialIndex2D,
+    },
     multiscale_residual::energy::relative_scale_energies_from_field,
     multiscale_residual::territories::ResidualTerritoryPlan,
     output::{
@@ -98,8 +101,13 @@ pub(super) fn run(
                         "pooled residual territories require a spatial index".into(),
                     )
                 })?;
-                let max_scale_um = config.validation.largest_interpretable_scale_fraction
-                    * pattern.window.l_eff_um;
+                let max_scale_um = maximum_interpretable_scale_for_points_um(
+                    pattern.window.analysis_effective_length_um,
+                    &pattern.x_um,
+                    &pattern.y_um,
+                    config.validation.largest_interpretable_scale_fraction,
+                )
+                .unwrap_or(0.0);
                 let index_storage_bytes = index.estimated_storage_bytes();
                 let plan = ResidualTerritoryPlan::new_with_index(
                     pattern,
@@ -259,15 +267,26 @@ fn periodogram_disagrees_with_particle_spectrum(
 
     let coarse_grid = periodogram.raster_width < 4 || periodogram.raster_height < 4;
     let low_k_mismatch = low_k_excess >= 1.25 && periodogram.normalized_low_k_power <= 0.75;
-    let max_scale_um =
-        config.validation.largest_interpretable_scale_fraction * pattern.window.l_eff_um;
+    let max_scale_um = maximum_interpretable_scale_for_points_um(
+        pattern.window.analysis_effective_length_um,
+        &pattern.x_um,
+        &pattern.y_um,
+        config.validation.largest_interpretable_scale_fraction,
+    )
+    .unwrap_or(0.0);
     let grid_exceeds_interpretable_scale = pattern.window.d_nn_mean_um >= max_scale_um;
     coarse_grid && (grid_exceeds_interpretable_scale || low_k_excess >= 1.10 || low_k_mismatch)
 }
 
 pub(super) fn estimated_raster_pixels(pattern: &Pattern) -> usize {
     let cell_size = pattern.window.d_nn_mean_um.max(1.0);
-    let side = (pattern.window.l_eff_um.max(cell_size) / cell_size)
+    let analysis_effective_length_um = analysis_effective_length_um(
+        pattern.window.analysis_effective_length_um,
+        &pattern.x_um,
+        &pattern.y_um,
+    )
+    .unwrap_or(cell_size);
+    let side = (analysis_effective_length_um.max(cell_size) / cell_size)
         .ceil()
         .max(1.0) as usize;
     side.saturating_mul(side).max(pattern.len())
@@ -308,7 +327,7 @@ mod tests {
             },
         )
         .expect("pattern");
-        pattern.window.l_eff_um = 40.0;
+        pattern.window.analysis_effective_length_um = 40.0;
         pattern.window.d_nn_mean_um = 1.0;
         pattern.window.area_um2 = 200.0;
         let spatial_index =
@@ -347,7 +366,7 @@ mod tests {
             },
         )
         .expect("pattern");
-        pattern.window.l_eff_um = 40.0;
+        pattern.window.analysis_effective_length_um = 40.0;
         pattern.window.d_nn_mean_um = 1.0;
         pattern.window.area_um2 = 200.0;
         reset_residual_plan_build_call_count();

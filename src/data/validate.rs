@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use crate::{
     config::AnalysisConfig,
     data::Pattern,
+    geom::length_scales::analysis_effective_length_um,
     output::StatusFlag,
     spectra::kgrid::{resolvable_k_modes, KBand},
 };
@@ -47,7 +48,13 @@ pub(crate) fn validation_flags_with_counts(
     {
         flags.push(StatusFlag::UnderpoweredAreaTooSmall);
     }
-    if let Some(band) = KBand::from_window(pattern.window.l_eff_um, pattern.window.d_nn_mean_um) {
+    if let Some(band) = analysis_effective_length_um(
+        pattern.window.analysis_effective_length_um,
+        &pattern.x_um,
+        &pattern.y_um,
+    )
+    .and_then(|length| KBand::from_window(length, pattern.window.d_nn_mean_um))
+    {
         let shell_count = resolvable_k_modes(band, config.spectrum.k_shells)
             .into_iter()
             .map(|mode| mode.shell_index)

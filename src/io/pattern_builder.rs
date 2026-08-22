@@ -347,7 +347,7 @@ impl<'a> PatternBuilder<'a> {
         pattern.local_dab_od = self.local_dab.finish();
         pattern.local_hematoxylin_od = self.local_hema.finish();
         pattern.window.area_um2 = self.mask.area_um2();
-        pattern.window.l_eff_um = self.mask.effective_diameter_um();
+        pattern.window.analysis_effective_length_um = self.mask.equivalent_area_diameter_um();
 
         let nearest_neighbor_start = Instant::now();
         let nearest_neighbor_span =

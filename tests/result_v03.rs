@@ -4,7 +4,7 @@ use marklab::{
     AnalysisResult, AnalysisSection, AnalysisStatus, FusedCellSummary, Interpretation,
     InterpretationClass, MultimodalResult, OutputWriter, PrePostResult, PrimaryEndpointKind,
     Provenance, RegistrationSummary, ResultDocument, ScaleEnergyBand, SpectrumNullModel,
-    TransformKind,
+    TransformKind, WindowSummary,
 };
 
 fn sample_result() -> MultimodalResult {
@@ -82,6 +82,25 @@ fn result_v03_roundtrip() {
     assert_eq!(value["analysis"]["kind"], "multimodal");
     assert!(value["analysis"]["result"].is_object());
     assert!(value["analysis"]["result"].get("format_version").is_none());
+}
+
+#[test]
+fn window_uses_explicit_analysis_effective_length_name() {
+    let window = WindowSummary {
+        area_um2: 100.0,
+        analysis_effective_length_um: 11.284,
+        d_nn_mean_um: 2.0,
+    };
+    let value = serde_json::to_value(&window).expect("window value");
+
+    assert_eq!(value["analysis_effective_length_um"], 11.284);
+    assert!(value.get("l_eff_um").is_none());
+    assert!(serde_json::from_value::<WindowSummary>(serde_json::json!({
+        "area_um2": 100.0,
+        "l_eff_um": 11.284,
+        "d_nn_mean_um": 2.0
+    }))
+    .is_err());
 }
 
 #[test]

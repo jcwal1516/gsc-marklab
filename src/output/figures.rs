@@ -101,14 +101,14 @@ pub(super) fn render_territory_overlay_svg(result: &MarkedPatternResult) -> Stri
         let x = scale(
             territory.center_x_um,
             0.0,
-            result.window.l_eff_um.max(1.0),
+            result.window.analysis_effective_length_um.max(1.0),
             40.0,
             300.0,
         );
         let y = scale(
             territory.center_y_um,
             0.0,
-            result.window.l_eff_um.max(1.0),
+            result.window.analysis_effective_length_um.max(1.0),
             124.0,
             30.0,
         );

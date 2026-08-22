@@ -2,6 +2,7 @@ use crate::{
     config::AnalysisConfig,
     data::Pattern,
     errors::Result,
+    geom::length_scales::maximum_interpretable_scale_for_points_um,
     output::{StatusFlag, TimingStage},
     spectra::structure_factor::{
         observed_power_for_modes, observed_value_power_for_modes,
@@ -197,8 +198,13 @@ fn permutation_options(config: &AnalysisConfig, pattern: &Pattern) -> SpectrumPe
         n_permutations: config.permutation.b,
         seed: config.permutation.seed,
         family_wise_alpha: config.inference.family_wise_alpha,
-        max_scale_um: config.validation.largest_interpretable_scale_fraction
-            * pattern.window.l_eff_um,
+        max_scale_um: maximum_interpretable_scale_for_points_um(
+            pattern.window.analysis_effective_length_um,
+            &pattern.x_um,
+            &pattern.y_um,
+            config.validation.largest_interpretable_scale_fraction,
+        )
+        .unwrap_or(0.0),
         k_shell_min: config.validation.k_shell_min,
         k_chunk_modes: config.performance.k_chunk_modes,
     }

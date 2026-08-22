@@ -64,7 +64,7 @@ fn dense_geometry_pattern() -> Pattern {
     )
     .expect("pattern");
     pattern.window.area_um2 = 100.0;
-    pattern.window.l_eff_um = 10.0;
+    pattern.window.analysis_effective_length_um = 10.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern
 }

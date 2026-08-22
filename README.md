@@ -94,6 +94,12 @@ periodogram, not a Bartlett averaged-periodogram estimator. It averages mode
 power within physical radial-frequency shells before summarizing the requested
 lowest shells.
 
+The reported `analysis_effective_length_um` is the tumor mask's
+equivalent-area diameter. Component analyses and mask-less programmatic inputs
+use the cell-coordinate bounding-box diagonal. Every endpoint derives its
+maximum interpretable scale from that named length through the same configured
+fraction.
+
 `marklab smoke` runs deterministic production-pipeline smoke checks. Marked
 scenarios invoke `AnalysisEngine`; multimodal scenarios construct H&E/IHC
 cells and landmarks, invoke `MultimodalEngine`, and use the production pre/post
