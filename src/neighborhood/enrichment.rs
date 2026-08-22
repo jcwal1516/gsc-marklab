@@ -1,10 +1,7 @@
-#[cfg(feature = "cli")]
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
-#[cfg(feature = "cli")]
 use crate::permutation::labels::deterministic_shuffle;
-#[cfg(feature = "cli")]
 use crate::permutation::rng::splitmix64;
 use crate::{
     common::{
@@ -75,7 +72,6 @@ pub fn edge_enrichment(
     Ok(rows)
 }
 
-#[cfg(feature = "cli")]
 pub fn edge_enrichment_with_strata(
     cells: &[FusedCell],
     graph: &SpatialGraph,
@@ -194,7 +190,6 @@ fn permuted_counts(
     counts
 }
 
-#[cfg(feature = "cli")]
 fn permuted_counts_with_strata(
     labels: &[Option<String>],
     strata: &[String],
@@ -223,7 +218,6 @@ fn permuted_counts_with_strata(
     counts
 }
 
-#[cfg(feature = "cli")]
 fn shuffle_labels_within_strata<T: Clone>(
     labels: &[T],
     strata: &[String],

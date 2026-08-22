@@ -5,6 +5,21 @@ use crate::{
     multimodal::cell_table::FusedCell,
 };
 
+#[cfg(test)]
+thread_local! {
+    static GRAPH_BUILD_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn reset_graph_build_call_count() {
+    GRAPH_BUILD_CALLS.set(0);
+}
+
+#[cfg(test)]
+pub(crate) fn graph_build_call_count() -> usize {
+    GRAPH_BUILD_CALLS.get()
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 /// Configuration for spatial neighborhood graph construction.
 ///
@@ -57,6 +72,8 @@ pub struct SpatialGraph {
 /// undirected index pairs. The registration-resolution flag uses strict
 /// `distance < 2 * max(endpoint registration_error_um)` semantics.
 pub fn build_spatial_graph(cells: &[FusedCell], config: GraphConfig) -> Result<SpatialGraph> {
+    #[cfg(test)]
+    GRAPH_BUILD_CALLS.set(GRAPH_BUILD_CALLS.get() + 1);
     validate_config(config)?;
     validate_cells(cells)?;
 

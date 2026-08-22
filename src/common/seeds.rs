@@ -12,7 +12,6 @@ pub(crate) enum SeedEndpoint {
     ResidualTerritory = 0x7265_7369_645f_7465,
     CrossInteraction = 0x6372_6f73_735f_696e,
     NeighborhoodEnrichment = 0x6e65_6967_685f_656e,
-    #[cfg(feature = "cli")]
     NeighborhoodStratifiedEnrichment = 0x6e65_6967_685f_7374,
     PooledBinDifference = 0x6375_7276_655f_6469,
 }
@@ -68,7 +67,6 @@ mod tests {
             SeedEndpoint::ResidualTerritory,
             SeedEndpoint::CrossInteraction,
             SeedEndpoint::NeighborhoodEnrichment,
-            #[cfg(feature = "cli")]
             SeedEndpoint::NeighborhoodStratifiedEnrichment,
             SeedEndpoint::PooledBinDifference,
         ];

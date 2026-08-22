@@ -1,4 +1,8 @@
 use assert_cmd::Command;
+use marklab::{
+    AnalysisConfig, HeCell, IhcCell, LandmarkPair, MultimodalEngine, MultimodalInput,
+    ResultDocument,
+};
 use serde_json::Value;
 
 #[test]
@@ -36,6 +40,71 @@ fn multimodal_analyze_writes_registration_and_neighborhood_outputs() {
     );
     assert!(fixture.out.join("territory_profiles.json").exists());
     assert!(!fixture.out.join("territory_comparisons.json").exists());
+}
+
+#[test]
+fn library_and_cli_core_results_match() {
+    let fixture = MultimodalFixture::new();
+    fixture.run().assert().success();
+
+    let cli_document: Value = serde_json::from_str(
+        &std::fs::read_to_string(fixture.out.join("result.json")).expect("CLI result"),
+    )
+    .expect("CLI result JSON");
+    let config = AnalysisConfig::from_toml_path(&fixture.config).expect("config");
+    let library_result = MultimodalEngine::new(config)
+        .expect("engine")
+        .analyze(&MultimodalInput {
+            he_cells: vec![
+                HeCell {
+                    cell_id: "h1".into(),
+                    x_um: 0.0,
+                    y_um: 0.0,
+                    cell_type: Some("lymphocyte".into()),
+                    cell_type_probability: Some(0.9),
+                },
+                HeCell {
+                    cell_id: "h2".into(),
+                    x_um: 50.0,
+                    y_um: 0.0,
+                    cell_type: Some("stroma".into()),
+                    cell_type_probability: Some(0.8),
+                },
+            ],
+            ihc_cells: vec![
+                IhcCell {
+                    cell_id: "m1".into(),
+                    x_um: 0.0,
+                    y_um: 0.0,
+                    mmr_mark: Some(1),
+                    mmr_probability: Some(0.99),
+                },
+                IhcCell {
+                    cell_id: "m2".into(),
+                    x_um: 50.0,
+                    y_um: 0.0,
+                    mmr_mark: Some(0),
+                    mmr_probability: Some(0.01),
+                },
+            ],
+            landmarks: vec![
+                LandmarkPair::new(0.0, 0.0, 0.0, 0.0),
+                LandmarkPair::new(50.0, 0.0, 50.0, 0.0),
+                LandmarkPair::new(0.0, 50.0, 0.0, 50.0),
+                LandmarkPair::new(50.0, 50.0, 50.0, 50.0),
+            ],
+            case_id: "case_001".into(),
+            timepoint: "post".into(),
+            protein: "MSH6".into(),
+        })
+        .expect("library analysis");
+    let library_document =
+        serde_json::to_value(ResultDocument::multimodal(library_result)).expect("library result");
+
+    assert_eq!(
+        cli_document["analysis"]["result"],
+        library_document["analysis"]["result"]
+    );
 }
 
 #[test]

@@ -1,4 +1,25 @@
-use super::super::*;
+use std::{fs, path::Path};
+
+use serde::Serialize;
+
+use crate::{
+    config::AnalysisConfig,
+    errors::{MarklabError, Result},
+    multimodal::{
+        cell_table::{
+            load_cellvit_he_cell_table_csv, load_he_cell_table_csv, load_ihc_cell_table_csv,
+            CellSection, FusedCell,
+        },
+        MultimodalEngine, MultimodalInput, NullModelSensitivityResult,
+    },
+    output::{MultimodalResult, OutputWriter, ResultDocument},
+    registration::landmarks::LandmarkPair,
+};
+
+use super::super::{
+    CellExtrapolationRecord, HeInputFormat, LandmarkRow, MultimodalAnalyzeRequest, Point2,
+    RegistrationResidualRecord,
+};
 
 pub(in crate::cli) fn run(request: MultimodalAnalyzeRequest) -> Result<()> {
     let MultimodalAnalyzeRequest {
@@ -28,7 +49,7 @@ pub(in crate::cli) fn run(request: MultimodalAnalyzeRequest) -> Result<()> {
     };
     let ihc = load_ihc_cell_table_csv(&ihc_cells)?;
     let landmarks = read_landmark_pairs(&landmarks)?;
-    let result = engine.analyze(&MultimodalInput {
+    let run = engine.analyze_run(&MultimodalInput {
         he_cells: he,
         ihc_cells: ihc,
         landmarks: landmarks.clone(),
@@ -36,43 +57,19 @@ pub(in crate::cli) fn run(request: MultimodalAnalyzeRequest) -> Result<()> {
         timepoint,
         protein,
     })?;
-    let transform = match config.registration.transform {
-        RegistrationTransform::Affine => fit_affine(&landmarks)?,
-        RegistrationTransform::Rigid => fit_rigid(&landmarks)?,
-    };
-    let fused = result.fused_cells.clone();
-    let graph = build_spatial_graph(
-        &fused,
-        GraphConfig {
-            radius_um: Some(config.neighborhood.radius_um),
-            k_nearest: nonzero_option(config.neighborhood.k_nearest),
-        },
-    )?;
-    let label_pairs = config
-        .neighborhood
-        .label_pairs
-        .iter()
-        .map(|pair| LabelPair::new(pair[0].clone(), pair[1].clone()))
-        .collect::<Vec<_>>();
-    let null_model_sensitivity = null_model_sensitivity_results(
-        &fused,
-        &graph,
-        &label_pairs,
-        &config.neighborhood.null_models,
-        config.permutation.b,
-        config.permutation.seed,
-    )?;
+    let result = run.result;
+    let fused = &result.fused_cells;
     OutputWriter::write(
         &ResultDocument::multimodal(result.clone()),
         &out,
         &config.output,
     )?;
-    write_registration_qc_sidecars(&out, &landmarks, &transform, &fused)?;
+    write_registration_qc_sidecars(&out, &landmarks, &run.transform, fused)?;
     write_pretty_json(
         &out.join("null_model_sensitivity.json"),
-        &null_model_sensitivity,
+        &run.null_model_sensitivity,
     )?;
-    write_multimodal_csv_sidecars(&out, &result, &null_model_sensitivity)?;
+    write_multimodal_csv_sidecars(&out, &result, &run.null_model_sensitivity)?;
     Ok(())
 }
 
@@ -404,140 +401,6 @@ fn write_null_model_sensitivity_csv(
     Ok(())
 }
 
-fn null_model_sensitivity_results(
-    fused: &[FusedCell],
-    graph: &SpatialGraph,
-    label_pairs: &[LabelPair],
-    null_models: &[NeighborhoodNullModel],
-    permutations: usize,
-    seed: u64,
-) -> Result<Vec<NullModelSensitivityResult>> {
-    null_models
-        .iter()
-        .map(|model| {
-            let (name, results) = match model {
-                NeighborhoodNullModel::SourceSection => (
-                    "source_section",
-                    edge_enrichment(fused, graph, label_pairs, permutations, seed)?,
-                ),
-                NeighborhoodNullModel::SourceSectionDensity => (
-                    "source_section_density",
-                    edge_enrichment_with_strata(
-                        fused,
-                        graph,
-                        label_pairs,
-                        permutations,
-                        seed,
-                        &source_section_density_strata(fused, graph),
-                    )?,
-                ),
-                NeighborhoodNullModel::SourceSectionCellClass => (
-                    "source_section_cell_class",
-                    edge_enrichment_with_strata(
-                        fused,
-                        graph,
-                        label_pairs,
-                        permutations,
-                        seed,
-                        &source_section_cell_class_strata(fused),
-                    )?,
-                ),
-                NeighborhoodNullModel::SourceSectionRegistrationQc => (
-                    "source_section_registration_qc",
-                    edge_enrichment_with_strata(
-                        fused,
-                        graph,
-                        label_pairs,
-                        permutations,
-                        seed,
-                        &source_section_registration_qc_strata(fused, graph),
-                    )?,
-                ),
-            };
-            Ok(NullModelSensitivityResult {
-                null_model: name.into(),
-                results,
-            })
-        })
-        .collect()
-}
-
-fn source_section_density_strata(fused: &[FusedCell], graph: &SpatialGraph) -> Vec<String> {
-    let degrees = graph_degrees(fused.len(), graph);
-    let mut sorted = degrees.clone();
-    sorted.sort_unstable();
-    let median_degree = sorted.get(sorted.len() / 2).copied().unwrap_or(0);
-    fused
-        .iter()
-        .enumerate()
-        .map(|(index, cell)| {
-            format!(
-                "{}:{}",
-                section_name(cell.source_section),
-                if degrees[index] <= median_degree {
-                    "low_density"
-                } else {
-                    "high_density"
-                }
-            )
-        })
-        .collect()
-}
-
-fn source_section_cell_class_strata(fused: &[FusedCell]) -> Vec<String> {
-    fused
-        .iter()
-        .map(|cell| match cell.source_section {
-            CellSection::He => format!(
-                "he:{}",
-                primary_label(cell).unwrap_or_else(|| "unknown".into())
-            ),
-            CellSection::Ihc => "ihc:mmr_status".into(),
-        })
-        .collect()
-}
-
-fn source_section_registration_qc_strata(fused: &[FusedCell], graph: &SpatialGraph) -> Vec<String> {
-    let mut below_resolution_incident = vec![false; fused.len()];
-    for edge in &graph.edges {
-        if edge.below_registration_resolution {
-            below_resolution_incident[edge.source] = true;
-            below_resolution_incident[edge.target] = true;
-        }
-    }
-    fused
-        .iter()
-        .enumerate()
-        .map(|(index, cell)| {
-            format!(
-                "{}:{}",
-                section_name(cell.source_section),
-                if below_resolution_incident[index] {
-                    "below_resolution_edge"
-                } else {
-                    "above_resolution_edges"
-                }
-            )
-        })
-        .collect()
-}
-
-fn graph_degrees(n_cells: usize, graph: &SpatialGraph) -> Vec<usize> {
-    let mut degrees = vec![0usize; n_cells];
-    for edge in &graph.edges {
-        degrees[edge.source] += 1;
-        degrees[edge.target] += 1;
-    }
-    degrees
-}
-
-fn section_name(section: CellSection) -> &'static str {
-    match section {
-        CellSection::He => "he",
-        CellSection::Ihc => "ihc",
-    }
-}
-
 fn read_landmark_pairs(path: &Path) -> Result<Vec<LandmarkPair>> {
     let mut reader = ::csv::Reader::from_path(path)?;
     let headers = reader.headers()?.clone();
@@ -579,12 +442,4 @@ fn read_landmark_pairs(path: &Path) -> Result<Vec<LandmarkPair>> {
         ));
     }
     Ok(landmarks)
-}
-
-fn nonzero_option(value: usize) -> Option<usize> {
-    if value == 0 {
-        None
-    } else {
-        Some(value)
-    }
 }

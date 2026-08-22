@@ -5,11 +5,12 @@ use crate::{
     multimodal::{
         cell_table::{HeCell, IhcCell},
         fusion::{fuse_registered_cells, FusionMeta},
+        null_sensitivity::{analyze_null_model_sensitivity, NullModelSensitivityResult},
     },
     neighborhood::{
         cross_curves::cross_interaction_curve,
         enrichment::{edge_enrichment, LabelPair},
-        graph::{build_spatial_graph, GraphConfig},
+        graph::{build_spatial_graph, GraphConfig, SpatialGraph},
         profiles::{compare_territory_profiles, territory_profiles},
         territories::{detect_mmr_abnormal_territories, TerritoryDomainConfig},
     },
@@ -19,7 +20,7 @@ use crate::{
     registration::{
         landmarks::LandmarkPair,
         qc::registration_qc,
-        transform::{fit_affine, fit_rigid},
+        transform::{fit_affine, fit_rigid, Transform2D},
     },
 };
 
@@ -53,6 +54,14 @@ pub struct MultimodalEngine {
     config: AnalysisConfig,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct MultimodalAnalysisRun {
+    pub result: MultimodalResult,
+    pub transform: Transform2D,
+    pub graph: SpatialGraph,
+    pub null_model_sensitivity: Vec<NullModelSensitivityResult>,
+}
+
 impl MultimodalEngine {
     pub fn new(config: AnalysisConfig) -> Result<Self> {
         config.validate()?;
@@ -75,6 +84,10 @@ impl MultimodalEngine {
     }
 
     pub fn analyze(&self, input: &MultimodalInput) -> Result<MultimodalResult> {
+        Ok(self.analyze_run(input)?.result)
+    }
+
+    pub fn analyze_run(&self, input: &MultimodalInput) -> Result<MultimodalAnalysisRun> {
         #[cfg(test)]
         MULTIMODAL_ANALYSIS_CALLS.fetch_add(1, Ordering::SeqCst);
 
@@ -129,6 +142,15 @@ impl MultimodalEngine {
             self.config.permutation.b,
             self.config.permutation.seed,
         )?;
+        let null_model_sensitivity = analyze_null_model_sensitivity(
+            &fused,
+            &graph,
+            &label_pairs,
+            &self.config.neighborhood.null_models,
+            &enrichment,
+            self.config.permutation.b,
+            self.config.permutation.seed,
+        )?;
         let cross_bin_width_um = (self.config.neighborhood.radius_um / 5.0).max(1.0);
         let cross_interaction_curves = label_pairs
             .iter()
@@ -175,7 +197,7 @@ impl MultimodalEngine {
             AnalysisSection::Disabled
         };
 
-        Ok(MultimodalResult {
+        let result = MultimodalResult {
             case_id: input.case_id.clone(),
             timepoint: input.timepoint.clone(),
             protein: input.protein.clone(),
@@ -200,6 +222,13 @@ impl MultimodalEngine {
                 text: "Multimodal registration, fusion, and neighborhood enrichment summary."
                     .into(),
             },
+        };
+
+        Ok(MultimodalAnalysisRun {
+            result,
+            transform,
+            graph,
+            null_model_sensitivity,
         })
     }
 }

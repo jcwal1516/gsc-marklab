@@ -7,23 +7,10 @@ use std::{
 use crate::{
     geom::mask::TumorMask,
     io::{intermediates::write_analysis_intermediates, load_pattern_path_with_diagnostics},
-    multimodal::cell_table::{
-        load_cellvit_he_cell_table_csv, load_he_cell_table_csv, load_ihc_cell_table_csv,
-        primary_label, CellSection, FusedCell,
-    },
-    neighborhood::{
-        enrichment::{edge_enrichment, edge_enrichment_with_strata, LabelPair},
-        graph::{build_spatial_graph, GraphConfig, SpatialGraph},
-    },
     permutation::labels::permute_fixed_count,
     prepost::deltas::{compare_multimodal_prepost, compare_prepost},
-    registration::{
-        landmarks::LandmarkPair,
-        transform::{fit_affine, fit_rigid},
-    },
-    AnalysisConfig, AnalysisEngine, MarkedPatternResult, MarklabError, MultimodalEngine,
-    MultimodalInput, MultimodalResult, NeighborhoodEnrichmentResult, NeighborhoodNullModel,
-    OutputWriter, RegistrationTransform, Result, ResultDocument, ThreadSetting, TimingStage,
+    AnalysisConfig, AnalysisEngine, MarkedPatternResult, MarklabError, MultimodalResult,
+    OutputWriter, Result, ResultDocument, ThreadSetting, TimingStage,
 };
 #[cfg(feature = "parquet")]
 use crate::{io::parquet::write_pattern_parquet, Pattern, PatternMeta};
@@ -399,12 +386,6 @@ struct MultimodalManifestRow {
     protein: Option<String>,
     pre: Option<PathBuf>,
     post: Option<PathBuf>,
-}
-
-#[derive(Debug, Serialize)]
-struct NullModelSensitivityResult {
-    null_model: String,
-    results: Vec<NeighborhoodEnrichmentResult>,
 }
 
 #[derive(Debug, Serialize)]

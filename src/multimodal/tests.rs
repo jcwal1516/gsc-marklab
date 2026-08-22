@@ -5,10 +5,66 @@ use crate::{
             IhcCell,
         },
         fusion::{fuse_registered_cells, FusionMeta},
+        MultimodalEngine, MultimodalInput,
     },
-    registration::transform::Transform2D,
-    AnalysisConfig, RegistrationTransform,
+    neighborhood::graph::{graph_build_call_count, reset_graph_build_call_count},
+    registration::{
+        landmarks::LandmarkPair,
+        transform::{reset_transform_fit_call_count, transform_fit_call_count, Transform2D},
+    },
+    AnalysisConfig, NeighborhoodNullModel, RegistrationTransform,
 };
+
+#[test]
+fn application_builds_transform_once() {
+    reset_transform_fit_call_count();
+
+    let run = multimodal_engine()
+        .analyze_run(&multimodal_input())
+        .expect("multimodal run");
+
+    assert_eq!(transform_fit_call_count(), 1);
+    assert_eq!(run.transform.transform_type, "rigid");
+}
+
+#[test]
+fn application_builds_graph_once() {
+    reset_graph_build_call_count();
+
+    let run = multimodal_engine()
+        .analyze_run(&multimodal_input())
+        .expect("multimodal run");
+
+    assert_eq!(graph_build_call_count(), 1);
+    assert_eq!(run.graph.n_nodes, run.result.fused_cells.len());
+}
+
+#[test]
+fn all_configured_null_models_are_present_in_the_application_run() {
+    let run = multimodal_engine()
+        .analyze_run(&multimodal_input())
+        .expect("multimodal run");
+
+    assert_eq!(
+        run.null_model_sensitivity
+            .iter()
+            .map(|result| result.null_model)
+            .collect::<Vec<_>>(),
+        vec![
+            NeighborhoodNullModel::SourceSection,
+            NeighborhoodNullModel::SourceSectionDensity,
+            NeighborhoodNullModel::SourceSectionCellClass,
+            NeighborhoodNullModel::SourceSectionRegistrationQc,
+        ]
+    );
+    assert_eq!(
+        &run.null_model_sensitivity[0].results,
+        run.result
+            .neighborhood_enrichment
+            .value()
+            .expect("primary enrichment")
+    );
+}
 
 #[test]
 fn multimodal_config_defaults_are_conservative() {
@@ -331,5 +387,58 @@ fn valid_fusion_meta() -> FusionMeta {
         timepoint: "pre".into(),
         protein: "MSH6".into(),
         registration_error_um: Some(8.0),
+    }
+}
+
+fn multimodal_engine() -> MultimodalEngine {
+    let mut config = AnalysisConfig::default();
+    config.registration.transform = RegistrationTransform::Rigid;
+    config.registration.min_landmarks = 2;
+    config.permutation.stratified = false;
+    config.permutation.b = 39;
+    MultimodalEngine::new(config).expect("multimodal engine")
+}
+
+fn multimodal_input() -> MultimodalInput {
+    MultimodalInput {
+        he_cells: vec![
+            HeCell {
+                cell_id: "he-1".into(),
+                x_um: 0.0,
+                y_um: 0.0,
+                cell_type: Some("lymphocyte".into()),
+                cell_type_probability: Some(0.9),
+            },
+            HeCell {
+                cell_id: "he-2".into(),
+                x_um: 20.0,
+                y_um: 0.0,
+                cell_type: Some("tumor".into()),
+                cell_type_probability: Some(0.9),
+            },
+        ],
+        ihc_cells: vec![
+            IhcCell {
+                cell_id: "ihc-1".into(),
+                x_um: 5.0,
+                y_um: 5.0,
+                mmr_mark: Some(1),
+                mmr_probability: Some(0.95),
+            },
+            IhcCell {
+                cell_id: "ihc-2".into(),
+                x_um: 25.0,
+                y_um: 5.0,
+                mmr_mark: Some(0),
+                mmr_probability: Some(0.95),
+            },
+        ],
+        landmarks: vec![
+            LandmarkPair::new(0.0, 0.0, 0.0, 0.0),
+            LandmarkPair::new(20.0, 0.0, 20.0, 0.0),
+        ],
+        case_id: "case-run".into(),
+        timepoint: "post".into(),
+        protein: "MSH6".into(),
     }
 }

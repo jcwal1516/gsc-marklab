@@ -2,6 +2,26 @@ use crate::common::stats::mean_all_finite;
 use crate::errors::{MarklabError, Result};
 use crate::registration::landmarks::LandmarkPair;
 
+#[cfg(test)]
+thread_local! {
+    static TRANSFORM_FIT_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn reset_transform_fit_call_count() {
+    TRANSFORM_FIT_CALLS.set(0);
+}
+
+#[cfg(test)]
+pub(crate) fn transform_fit_call_count() -> usize {
+    TRANSFORM_FIT_CALLS.get()
+}
+
+#[cfg(test)]
+fn record_transform_fit_call() {
+    TRANSFORM_FIT_CALLS.set(TRANSFORM_FIT_CALLS.get() + 1);
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Transform2D {
     pub transform_type: String,
@@ -42,6 +62,8 @@ impl Transform2D {
 /// are normalized before accumulation to avoid overflow without changing the
 /// fitted angle.
 pub fn fit_rigid(landmarks: &[LandmarkPair]) -> Result<Transform2D> {
+    #[cfg(test)]
+    record_transform_fit_call();
     validate_landmarks(landmarks)?;
     if landmarks.len() < 2 {
         return Err(MarklabError::Compute(
@@ -121,6 +143,8 @@ pub fn fit_rigid(landmarks: &[LandmarkPair]) -> Result<Transform2D> {
 }
 
 pub fn fit_affine(landmarks: &[LandmarkPair]) -> Result<Transform2D> {
+    #[cfg(test)]
+    record_transform_fit_call();
     validate_landmarks(landmarks)?;
     if landmarks.len() < 3 {
         return Err(MarklabError::Compute(

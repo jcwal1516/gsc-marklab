@@ -56,8 +56,9 @@ pub use errors::{MarklabError, Result};
 pub use geom::mask::TumorMask;
 pub use multimodal::{
     cell_table::{CellSection, FusedCell, HeCell, IhcCell},
-    MultimodalEngine, MultimodalInput,
+    MultimodalAnalysisRun, MultimodalEngine, MultimodalInput, NullModelSensitivityResult,
 };
+pub use neighborhood::graph::{SpatialEdge, SpatialGraph};
 pub use output::{
     AnalysisResult, AnalysisSection, AnisotropySummary, ArtifactStatus, BetaPosteriorGroupSummary,
     BetaPosteriorSummary, ComponentAnalysisSummary, ComponentModeSelection, CrossInteractionCurve,
@@ -71,7 +72,7 @@ pub use output::{
     StatusFlag, TerritoryFeature, TerritoryPrePostSummary, TerritoryProfile, TimingStage,
     WindowSummary, RESULT_FORMAT_VERSION,
 };
-pub use registration::landmarks::LandmarkPair;
+pub use registration::{landmarks::LandmarkPair, transform::Transform2D};
 #[cfg(feature = "wsi")]
 pub use wsi::{
     PlaneSelection, RegionRequest, RgbaRegion, SlideLevelMetadata, SlideMetadata, SlideOpenOptions,
