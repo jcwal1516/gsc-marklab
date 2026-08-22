@@ -18,6 +18,12 @@ semantics.
   `z_score_unavailable_reason` explain undefined values.
 - Sparse enrichment no longer serializes infinity, and zero null variance no
   longer appears as a z-score of zero.
+- `PairCorrelationPoint.value` is nullable. `null` with `count == 0` means the
+  bin had no contributing cell pairs; it is not an observed correlation of
+  zero.
+- `CurveTestResult.statistic` is nullable and `availability` is typed.
+  Insufficient comparisons include `unavailable_reason` instead of a fake
+  statistic of zero.
 - A stratified spectrum declares
   `stratified_fixed_position_random_labeling` as its primary null.
 - Mark-homogeneous spectrum strata are reported with

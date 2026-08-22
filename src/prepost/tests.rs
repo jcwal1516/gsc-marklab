@@ -1,9 +1,10 @@
 use crate::{
     comparison::{difference::curve_difference_test, equivalence::curve_equivalence_test},
     prepost::deltas::compare_prepost,
-    AnalysisSection, AnisotropySummary, CrossInteractionCurve, FunctionalSummary, Interpretation,
-    MarkedPatternResult, PairCorrelationPoint, PrimaryEndpoint, QcSummary, ScalogramPoint,
-    SpectrumPoint, SpectrumSummary, TerritoryFeature, WaveletSummary, WindowSummary,
+    AnalysisSection, AnisotropySummary, CrossInteractionCurve, CurveTestAvailability,
+    FunctionalSummary, Interpretation, MarkedPatternResult, PairCorrelationPoint, PrimaryEndpoint,
+    QcSummary, ScalogramPoint, SpectrumPoint, SpectrumSummary, TerritoryFeature, WaveletSummary,
+    WindowSummary,
 };
 
 fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResult {
@@ -145,7 +146,7 @@ fn prepost_result_includes_curve_tests_when_curves_exist() {
     pre.pair_correlation_curve = vec![PairCorrelationPoint {
         r_min_um: 0.0,
         r_max_um: 10.0,
-        value: 0.1,
+        value: Some(0.1),
         inference_eligible: true,
         lower_global_envelope: Some(0.0),
         upper_global_envelope: Some(0.2),
@@ -158,7 +159,7 @@ fn prepost_result_includes_curve_tests_when_curves_exist() {
     post.pair_correlation_curve = vec![PairCorrelationPoint {
         r_min_um: 0.0,
         r_max_um: 10.0,
-        value: 0.11,
+        value: Some(0.11),
         inference_eligible: true,
         lower_global_envelope: Some(0.0),
         upper_global_envelope: Some(0.2),
@@ -208,7 +209,7 @@ fn prepost_result_includes_multimodal_cross_interaction_tests_and_territory_delt
             PairCorrelationPoint {
                 r_min_um: 0.0,
                 r_max_um: 10.0,
-                value: 2.0,
+                value: Some(2.0),
                 inference_eligible: true,
                 lower_global_envelope: Some(0.0),
                 upper_global_envelope: Some(3.0),
@@ -217,7 +218,7 @@ fn prepost_result_includes_multimodal_cross_interaction_tests_and_territory_delt
             PairCorrelationPoint {
                 r_min_um: 10.0,
                 r_max_um: 20.0,
-                value: 1.0,
+                value: Some(1.0),
                 inference_eligible: true,
                 lower_global_envelope: Some(0.0),
                 upper_global_envelope: Some(3.0),
@@ -233,7 +234,7 @@ fn prepost_result_includes_multimodal_cross_interaction_tests_and_territory_delt
             PairCorrelationPoint {
                 r_min_um: 0.0,
                 r_max_um: 10.0,
-                value: 3.0,
+                value: Some(3.0),
                 inference_eligible: true,
                 lower_global_envelope: Some(0.0),
                 upper_global_envelope: Some(4.0),
@@ -242,7 +243,7 @@ fn prepost_result_includes_multimodal_cross_interaction_tests_and_territory_delt
             PairCorrelationPoint {
                 r_min_um: 10.0,
                 r_max_um: 20.0,
-                value: 1.0,
+                value: Some(1.0),
                 inference_eligible: true,
                 lower_global_envelope: Some(0.0),
                 upper_global_envelope: Some(3.0),
@@ -285,10 +286,20 @@ fn prepost_curve_tests_surface_absent_curves_as_diagnostics() {
             "{comparison_name} should emit one absent-curve diagnostic"
         );
         let diagnostic = comparison_tests[0];
+        assert_eq!(
+            diagnostic.availability,
+            CurveTestAvailability::InsufficientData
+        );
+        assert_eq!(diagnostic.statistic, None);
+        assert!(diagnostic.unavailable_reason.is_some());
         assert_eq!(diagnostic.metric, "curve_availability");
         assert!(diagnostic.p_difference.is_none());
         assert!(diagnostic.equivalence_margin.is_none());
         assert!(diagnostic.equivalent.is_none());
+        let encoded = serde_json::to_value(diagnostic).expect("diagnostic JSON");
+        assert_eq!(encoded["availability"], "insufficient_data");
+        assert!(encoded["statistic"].is_null());
+        assert!(encoded["unavailable_reason"].is_string());
         assert!(diagnostic.interpretation.contains("absent"));
     }
 }
@@ -312,7 +323,7 @@ fn pair_correlation_difference_uses_pair_correlation_permutation_count() {
     pre.pair_correlation_curve = vec![PairCorrelationPoint {
         r_min_um: 0.0,
         r_max_um: 10.0,
-        value: 0.1,
+        value: Some(0.1),
         inference_eligible: true,
         lower_global_envelope: Some(0.0),
         upper_global_envelope: Some(0.2),
@@ -321,7 +332,7 @@ fn pair_correlation_difference_uses_pair_correlation_permutation_count() {
     post.pair_correlation_curve = vec![PairCorrelationPoint {
         r_min_um: 0.0,
         r_max_um: 10.0,
-        value: 0.2,
+        value: Some(0.2),
         inference_eligible: true,
         lower_global_envelope: Some(0.0),
         upper_global_envelope: Some(0.2),
@@ -337,7 +348,9 @@ fn pair_correlation_difference_uses_pair_correlation_permutation_count() {
 
     assert_eq!(pair_tests.len(), 2);
     assert!(pair_tests.iter().any(|test| {
-        test.p_difference.is_none()
+        test.availability == CurveTestAvailability::InsufficientData
+            && test.statistic.is_none()
+            && test.p_difference.is_none()
             && test
                 .interpretation
                 .contains("permutations must be greater than zero")
@@ -401,7 +414,7 @@ fn prepost_curve_tests_surface_unaligned_axis_diagnostics() {
     pre.pair_correlation_curve = vec![PairCorrelationPoint {
         r_min_um: 0.0,
         r_max_um: 10.0,
-        value: 0.1,
+        value: Some(0.1),
         inference_eligible: true,
         lower_global_envelope: Some(0.0),
         upper_global_envelope: Some(0.2),
@@ -410,7 +423,7 @@ fn prepost_curve_tests_surface_unaligned_axis_diagnostics() {
     post.pair_correlation_curve = vec![PairCorrelationPoint {
         r_min_um: 5.0,
         r_max_um: 15.0,
-        value: 0.11,
+        value: Some(0.11),
         inference_eligible: true,
         lower_global_envelope: Some(0.0),
         upper_global_envelope: Some(0.2),
@@ -431,6 +444,11 @@ fn prepost_curve_tests_surface_unaligned_axis_diagnostics() {
             "{comparison_name} should emit one unaligned-axis diagnostic"
         );
         let diagnostic = comparison_tests[0];
+        assert_eq!(
+            diagnostic.availability,
+            CurveTestAvailability::InsufficientData
+        );
+        assert_eq!(diagnostic.statistic, None);
         assert!(diagnostic.p_difference.is_none());
         assert!(diagnostic.equivalence_margin.is_none());
         assert!(diagnostic.equivalent.is_none());

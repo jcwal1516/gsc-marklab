@@ -32,6 +32,11 @@ Optional analysis and artifact state uses `available`, `disabled`,
 errors. Artifact write failures abort the operation. Empty analyses do not
 create synthetic Parquet rows or placeholder territory data.
 
+Pair-correlation bins with no contributing pairs remain on the physical axis
+with `count = 0` and `value = null`; they are excluded from inference. Curve
+comparisons use typed availability and a nullable statistic, so an unavailable
+test cannot be mistaken for an observed statistic of zero.
+
 ## Inference
 
 Extreme-rank-length envelopes match CRAN GET 1.0-7 `type="erl"`: the observed

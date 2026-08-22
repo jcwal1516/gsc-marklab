@@ -1,7 +1,7 @@
 use crate::{
     multimodal::cell_table::{CellSection, FusedCell},
     neighborhood::profiles::{compare_territory_profiles, territory_profiles},
-    LabelFraction, MarklabError, TerritoryFeature, TerritoryProfile,
+    CurveTestAvailability, LabelFraction, MarklabError, TerritoryFeature, TerritoryProfile,
 };
 
 fn fused(id: &str, x: f64, y: f64, label: &str) -> FusedCell {
@@ -110,7 +110,7 @@ fn territory_comparison_reports_difference_and_equivalence() {
     let tests = compare_territory_profiles(&profiles, Some(0.25)).expect("comparison");
     assert!(!tests.is_empty());
     assert!(tests[0].comparison_name.contains("territory_0_vs_1"));
-    assert!((tests[0].statistic - 1.0).abs() < f64::EPSILON);
+    assert!((tests[0].statistic.expect("statistic") - 1.0).abs() < f64::EPSILON);
     assert!(tests[0].equivalence_margin.is_some());
     assert_eq!(tests[0].equivalent, Some(false));
 }
@@ -122,7 +122,12 @@ fn territory_comparison_with_no_known_labels_is_non_confirmatory() {
     let tests = compare_territory_profiles(&profiles, Some(0.25)).expect("comparison");
 
     assert_eq!(tests.len(), 1);
-    assert_eq!(tests[0].statistic, 0.0);
+    assert_eq!(
+        tests[0].availability,
+        CurveTestAvailability::InsufficientData
+    );
+    assert_eq!(tests[0].statistic, None);
+    assert!(tests[0].unavailable_reason.is_some());
     assert_eq!(tests[0].equivalence_margin, Some(0.25));
     assert_eq!(tests[0].equivalent, None);
     assert!(tests[0].interpretation.contains("insufficient"));
@@ -153,7 +158,12 @@ fn territory_comparison_with_only_zero_count_rows_is_non_confirmatory() {
     let tests = compare_territory_profiles(&profiles, Some(0.25)).expect("comparison");
 
     assert_eq!(tests.len(), 1);
-    assert_eq!(tests[0].statistic, 0.0);
+    assert_eq!(
+        tests[0].availability,
+        CurveTestAvailability::InsufficientData
+    );
+    assert_eq!(tests[0].statistic, None);
+    assert!(tests[0].unavailable_reason.is_some());
     assert_eq!(tests[0].equivalence_margin, Some(0.25));
     assert_eq!(tests[0].equivalent, None);
     assert!(tests[0].interpretation.contains("insufficient"));

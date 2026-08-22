@@ -11,6 +11,7 @@ pub struct GlobalEnvelope {
 use crate::errors::{MarklabError, Result};
 
 impl GlobalEnvelope {
+    #[cfg(test)]
     pub fn from_curves(observed: &[f64], permutations: &[Vec<f64>], alpha: f64) -> Result<Self> {
         Self::from_curves_with_eligibility(
             observed,

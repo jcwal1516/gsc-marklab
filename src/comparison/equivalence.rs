@@ -1,7 +1,7 @@
 use crate::{
     comparison::curves::max_abs_standardized_difference,
     errors::{MarklabError, Result},
-    output::CurveTestResult,
+    output::{CurveTestAvailability, CurveTestResult},
 };
 
 /// Compare two curves against an optional maximum standardized-difference margin.
@@ -35,7 +35,9 @@ pub fn curve_equivalence_test(
     Ok(CurveTestResult {
         comparison_name: comparison_name.to_owned(),
         metric: "max_abs_standardized_difference".into(),
-        statistic,
+        availability: CurveTestAvailability::Available,
+        statistic: Some(statistic),
+        unavailable_reason: None,
         p_difference: None,
         equivalence_margin: margin,
         p_equivalence: None,

@@ -21,9 +21,17 @@ pub(super) fn pair_correlation_with_envelope(
 
     let observed_values = observed_bins
         .iter()
-        .map(|bin| bin.value)
+        .map(|bin| bin.value.unwrap_or(0.0))
         .collect::<Vec<_>>();
-    if observed_values.iter().any(|value| !value.is_finite()) {
+    let inference_eligible = observed_bins
+        .iter()
+        .map(|bin| bin.value.is_some() && bin.r_max_um <= max_r_um)
+        .collect::<Vec<_>>();
+    if observed_bins
+        .iter()
+        .filter_map(|bin| bin.value)
+        .any(|value| !value.is_finite())
+    {
         return Err(MarklabError::Compute(
             "observed pair-correlation curve contains a non-finite value".into(),
         ));
@@ -36,12 +44,16 @@ pub(super) fn pair_correlation_with_envelope(
         observed_values.len(),
     )?;
     let envelope = match permutation_curves {
-        Some(permutation_curves) => Some(GlobalEnvelope::from_curves(
-            &observed_values,
-            &permutation_curves,
-            config.inference.family_wise_alpha,
-        )?),
+        Some(permutation_curves) if inference_eligible.iter().any(|eligible| *eligible) => {
+            Some(GlobalEnvelope::from_curves_with_eligibility(
+                &observed_values,
+                &permutation_curves,
+                config.inference.family_wise_alpha,
+                &inference_eligible,
+            )?)
+        }
         None => None,
+        Some(_) => None,
     };
     let summary = envelope.as_ref().map_or_else(
         || crate::output::AnalysisSection::InsufficientData {
@@ -60,8 +72,7 @@ pub(super) fn pair_correlation_with_envelope(
         .into_iter()
         .enumerate()
         .map(|(index, bin)| {
-            let value = observed_values[index];
-            let envelope_bounds = envelope.as_ref().and_then(|envelope| {
+            let envelope_bounds = bin.value.and(envelope.as_ref()).and_then(|envelope| {
                 let lower = envelope.lower.get(index).copied().and_then(finite_option)?;
                 let upper = envelope.upper.get(index).copied().and_then(finite_option)?;
                 Some((lower, upper))
@@ -74,8 +85,8 @@ pub(super) fn pair_correlation_with_envelope(
             Ok(PairCorrelationPoint {
                 r_min_um: bin.r_min_um,
                 r_max_um: bin.r_max_um,
-                value,
-                inference_eligible: bin.r_max_um <= max_r_um,
+                value: bin.value,
+                inference_eligible: inference_eligible[index],
                 lower_global_envelope: envelope_bounds.map(|bounds| bounds.0),
                 upper_global_envelope: envelope_bounds.map(|bounds| bounds.1),
                 count: bin.count,
@@ -104,10 +115,19 @@ pub(super) fn pair_correlation_permutation_curves(
         else {
             return Ok(None);
         };
-        if bins.len() != expected_len || bins.iter().any(|bin| !bin.value.is_finite()) {
+        if bins.len() != expected_len
+            || bins
+                .iter()
+                .filter_map(|bin| bin.value)
+                .any(|value| !value.is_finite())
+        {
             return Ok(None);
         }
-        curves.push(bins.into_iter().map(|bin| bin.value).collect());
+        curves.push(
+            bins.into_iter()
+                .map(|bin| bin.value.unwrap_or(0.0))
+                .collect(),
+        );
     }
     Ok(Some(curves))
 }

@@ -343,7 +343,12 @@ fn baseline_perf_pair_correlation() {
                     pair_correlation(black_box(&pattern), 1.0, 5.0).expect("pair correlation");
                 let pair_count = bins.iter().map(|bin| bin.count).sum::<usize>();
                 (pair_count as u64)
-                    ^ checksum_f64(&bins.iter().map(|bin| bin.value).collect::<Vec<_>>())
+                    ^ checksum_f64(
+                        &bins
+                            .iter()
+                            .map(|bin| bin.value.unwrap_or(0.0))
+                            .collect::<Vec<_>>(),
+                    )
             },
         );
     }

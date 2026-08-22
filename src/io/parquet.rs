@@ -232,7 +232,7 @@ pub fn write_cross_interaction_curves_parquet(
         Field::new("label_b", DataType::Utf8, false),
         Field::new("r_min_um", DataType::Float64, false),
         Field::new("r_max_um", DataType::Float64, false),
-        Field::new("value", DataType::Float64, false),
+        Field::new("value", DataType::Float64, true),
         Field::new("lower_global_envelope", DataType::Float64, true),
         Field::new("upper_global_envelope", DataType::Float64, true),
         Field::new("count", DataType::UInt64, false),

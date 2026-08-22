@@ -4,8 +4,9 @@ use crate::{
     common::stats::{mean_all_finite, median_average_even},
     comparison::{difference::curve_difference_test, equivalence::curve_equivalence_test},
     output::{
-        AnalysisSection, CrossInteractionCurve, CurveTestResult, MarkedPatternResult,
-        MultimodalResult, PrePostResult, StatusFlag, TerritoryFeature, TerritoryPrePostSummary,
+        AnalysisSection, CrossInteractionCurve, CurveTestAvailability, CurveTestResult,
+        MarkedPatternResult, MultimodalResult, PrePostResult, StatusFlag, TerritoryFeature,
+        TerritoryPrePostSummary,
     },
 };
 
@@ -249,7 +250,9 @@ fn curve_test_error(
     CurveTestResult {
         comparison_name: comparison_name.to_owned(),
         metric: metric.to_owned(),
-        statistic: 0.0,
+        availability: CurveTestAvailability::InsufficientData,
+        statistic: None,
+        unavailable_reason: Some(interpretation.clone()),
         p_difference: None,
         equivalence_margin: None,
         p_equivalence: None,
@@ -270,7 +273,7 @@ fn pair_correlation_values(result: &MarkedPatternResult) -> Vec<f64> {
     result
         .pair_correlation_curve
         .iter()
-        .map(|point| point.value)
+        .filter_map(|point| point.value)
         .collect()
 }
 
@@ -332,7 +335,11 @@ fn cross_curve_map(
 }
 
 fn cross_interaction_values(curve: &CrossInteractionCurve) -> Vec<f64> {
-    curve.points.iter().map(|point| point.value).collect()
+    curve
+        .points
+        .iter()
+        .filter_map(|point| point.value)
+        .collect()
 }
 
 fn cross_interaction_axes_aligned(
@@ -361,6 +368,11 @@ fn cross_interaction_axes_aligned(
             return Err(format!(
                 "cross-interaction axis differs at index {index}: [{}, {}) vs [{}, {})",
                 pre_point.r_min_um, pre_point.r_max_um, post_point.r_min_um, post_point.r_max_um
+            ));
+        }
+        if pre_point.value.is_some() != post_point.value.is_some() {
+            return Err(format!(
+                "cross-interaction availability differs at index {index}"
             ));
         }
     }
@@ -538,6 +550,11 @@ fn pair_correlation_axes_aligned(
             return Err(format!(
                 "pair-correlation axis differs at index {index}: [{}, {}) vs [{}, {})",
                 pre_point.r_min_um, pre_point.r_max_um, post_point.r_min_um, post_point.r_max_um
+            ));
+        }
+        if pre_point.value.is_some() != post_point.value.is_some() {
+            return Err(format!(
+                "pair-correlation availability differs at index {index}"
             ));
         }
     }

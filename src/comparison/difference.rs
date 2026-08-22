@@ -3,7 +3,7 @@ use crate::{
     comparison::curves::{max_abs_standardized_difference, validate_curves},
     errors::{MarklabError, Result},
     inference::scalar_pvalues::{permutation_p_value_with_spec, PermutationTestSpec, Tail},
-    output::CurveTestResult,
+    output::{CurveTestAvailability, CurveTestResult},
     permutation::labels::deterministic_shuffle,
 };
 
@@ -37,7 +37,9 @@ pub fn curve_difference_test(
     Ok(CurveTestResult {
         comparison_name: comparison_name.to_owned(),
         metric: "max_abs_standardized_difference".into(),
-        statistic,
+        availability: CurveTestAvailability::Available,
+        statistic: Some(statistic),
+        unavailable_reason: None,
         p_difference: Some(p_difference),
         equivalence_margin: None,
         p_equivalence: None,

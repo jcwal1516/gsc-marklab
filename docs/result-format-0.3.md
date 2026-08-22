@@ -42,6 +42,21 @@ CSV exports add the two reason columns. Parquet exports make the ratio and
 z-score columns nullable and add nullable UTF-8 reason columns. Reports print
 `undefined (<reason>)` instead of a numeric placeholder.
 
+## Pair correlation
+
+`PairCorrelationPoint.value` is a finite number or `null`. A value is `null`
+exactly when `count == 0`, meaning no cell pair contributed to that physical
+distance bin. Empty bins remain in the curve so bin axes stay explicit, but
+they are excluded from global-envelope inference and have no envelope bounds.
+
+## Curve tests
+
+Every `CurveTestResult` has an `availability` of `available` or
+`insufficient_data`. Available tests contain a finite `statistic` and no
+`unavailable_reason`. An unavailable test contains `statistic: null` plus a
+diagnostic reason. Failed or inapplicable comparisons never use a statistic of
+zero as a placeholder.
+
 ## Current scope
 
 This document will be expanded as the remaining 0.3 model cleanup is

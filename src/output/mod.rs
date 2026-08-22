@@ -9,11 +9,11 @@ mod tests;
 
 pub use result_types::{
     AnalysisResult, AnalysisSection, AnisotropySummary, ArtifactStatus, BetaBinomialGroupSummary,
-    BetaBinomialSummary, ComponentAnalysisSummary, CrossInteractionCurve, CurveTestResult,
-    DiagnosticsResult, EnrichmentStatisticUnavailableReason, FunctionalSummary, FusedCellSummary,
-    GraphSmoothingLabelPairSummary, GraphSmoothingSummary, Interpretation, LabelFraction,
-    MarkedPatternResult, MultimodalResult, NeighborhoodEnrichmentResult, OutputManifest,
-    PairCorrelationPoint, PrePostResult, PrimaryEndpoint, Provenance, QcSummary,
+    BetaBinomialSummary, ComponentAnalysisSummary, CrossInteractionCurve, CurveTestAvailability,
+    CurveTestResult, DiagnosticsResult, EnrichmentStatisticUnavailableReason, FunctionalSummary,
+    FusedCellSummary, GraphSmoothingLabelPairSummary, GraphSmoothingSummary, Interpretation,
+    LabelFraction, MarkedPatternResult, MultimodalResult, NeighborhoodEnrichmentResult,
+    OutputManifest, PairCorrelationPoint, PrePostResult, PrimaryEndpoint, Provenance, QcSummary,
     RegistrationSummary, ResultDocument, ScalogramPoint, SpectrumPoint, SpectrumSummary,
     StatusFlag, TerritoryFeature, TerritoryPrePostSummary, TerritoryProfile, TimingStage,
     WaveletSummary, WindowSummary, RESULT_FORMAT_VERSION,

@@ -2,8 +2,8 @@ use std::fs;
 
 use crate::{
     data::PatternMeta, io::report::render_analysis_report, prepost::deltas::compare_prepost,
-    AnalysisConfig, AnalysisEngine, CurveTestResult, OutputWriter, Pattern, ResultDocument,
-    StatusFlag,
+    AnalysisConfig, AnalysisEngine, CurveTestAvailability, CurveTestResult, OutputWriter, Pattern,
+    ResultDocument, SpectrumPoint, StatusFlag,
 };
 #[cfg(feature = "parquet")]
 use crate::{
@@ -360,12 +360,26 @@ fn prepost_interpretation_uses_allowed_descriptive_language_only() {
     config.validation.n_marked_min = 1;
     config.validation.n_unmarked_min = 1;
     let engine = AnalysisEngine::new(config).expect("engine");
-    let pre = engine
+    let mut pre = engine
         .analyze_pattern(&pattern("case_001", "pre", vec![1, 0, 0, 0]))
         .expect("pre");
-    let post = engine
+    let mut post = engine
         .analyze_pattern(&pattern("case_001", "post", vec![1, 0, 1, 0]))
         .expect("post");
+
+    pre.spectrum_curve = vec![SpectrumPoint {
+        k: 1.0,
+        observed_power: 1.0,
+        median_permutation_power: 1.0,
+        whitened_power: 1.0,
+        inference_eligible: true,
+        lower_global_envelope: Some(0.8),
+        upper_global_envelope: Some(1.2),
+    }];
+    post.spectrum_curve = vec![SpectrumPoint {
+        whitened_power: 1.01,
+        ..pre.spectrum_curve[0].clone()
+    }];
 
     let delta = compare_prepost(&pre, &post);
     let text = delta.interpretation_text.to_lowercase();
@@ -403,7 +417,9 @@ fn report_explains_difference_and_equivalence_tests_when_curve_tests_exist() {
     result.prepost_curve_tests.push(CurveTestResult {
         comparison_name: "spectrum".into(),
         metric: "max_abs_standardized_difference".into(),
-        statistic: 0.1,
+        availability: CurveTestAvailability::Available,
+        statistic: Some(0.1),
+        unavailable_reason: None,
         p_difference: Some(0.6),
         equivalence_margin: None,
         p_equivalence: None,
@@ -513,7 +529,7 @@ fn output_writer_emits_optional_multimodal_parquet_artifacts() {
             points: vec![PairCorrelationPoint {
                 r_min_um: 0.0,
                 r_max_um: 10.0,
-                value: 1.2,
+                value: Some(1.2),
                 inference_eligible: true,
                 lower_global_envelope: Some(0.8),
                 upper_global_envelope: Some(1.6),

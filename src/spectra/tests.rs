@@ -97,19 +97,18 @@ fn pair_correlation_averages_centered_mark_products_by_distance_bin() {
 
     assert_eq!(bins.len(), 2);
     assert_eq!(bins[1].count, 1);
-    assert_abs_diff_eq!(bins[1].value, -0.25, epsilon = 1e-12);
+    assert_abs_diff_eq!(bins[1].value.expect("observed bin"), -0.25, epsilon = 1e-12);
 }
 
 #[test]
-#[ignore = "Phase 0 reproduction: COR-05 empty-bin availability is fixed in Phase 2"]
 fn remediation_pair_correlation_does_not_report_empty_bins_as_observed_zero() {
     let pattern =
         Pattern::from_arrays(vec![0.0, 1.0], vec![0.0, 0.0], vec![1, 0], meta()).expect("pattern");
 
     let bins = pair_correlation(&pattern, 1.0, 2.0).expect("pair correlation");
 
-    assert!(
-        bins.iter().all(|bin| bin.count > 0),
-        "empty bins must be omitted or carry typed unavailability: {bins:?}"
-    );
+    assert_eq!(bins[0].count, 0);
+    assert_eq!(bins[0].value, None);
+    assert_eq!(bins[1].count, 1);
+    assert_eq!(bins[1].value, Some(-0.25));
 }

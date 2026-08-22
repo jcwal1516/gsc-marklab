@@ -282,7 +282,7 @@ pub struct FunctionalSummary {
 pub struct PairCorrelationPoint {
     pub r_min_um: f64,
     pub r_max_um: f64,
-    pub value: f64,
+    pub value: Option<f64>,
     #[serde(default = "default_true")]
     pub inference_eligible: bool,
     pub lower_global_envelope: Option<f64>,
@@ -370,16 +370,26 @@ pub struct LabelFraction {
     pub count: usize,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct CurveTestResult {
     pub comparison_name: String,
     pub metric: String,
-    pub statistic: f64,
+    pub availability: CurveTestAvailability,
+    pub statistic: Option<f64>,
+    #[serde(default)]
+    pub unavailable_reason: Option<String>,
     pub p_difference: Option<f64>,
     pub equivalence_margin: Option<f64>,
     pub p_equivalence: Option<f64>,
     pub equivalent: Option<bool>,
     pub interpretation: String,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CurveTestAvailability {
+    Available,
+    InsufficientData,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]

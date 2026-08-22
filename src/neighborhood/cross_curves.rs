@@ -64,7 +64,7 @@ pub fn cross_pair_correlation_curve(
             PairCorrelationPoint {
                 r_min_um,
                 r_max_um: (r_min_um + bin_width_um).min(max_r_um),
-                value: *count as f64,
+                value: Some(*count as f64),
                 inference_eligible: true,
                 lower_global_envelope: Some(null_summary.lower[index] as f64),
                 upper_global_envelope: Some(null_summary.upper[index] as f64),

@@ -4,7 +4,9 @@ use crate::{
     comparison::curves::max_abs_standardized_difference,
     errors::{MarklabError, Result},
     multimodal::cell_table::{primary_label, FusedCell},
-    output::{CurveTestResult, LabelFraction, TerritoryFeature, TerritoryProfile},
+    output::{
+        CurveTestAvailability, CurveTestResult, LabelFraction, TerritoryFeature, TerritoryProfile,
+    },
 };
 
 pub fn territory_profiles(
@@ -53,7 +55,9 @@ pub fn compare_territory_profiles(
                     left.territory_id, right.territory_id
                 ),
                 metric: "max_abs_standardized_difference".into(),
-                statistic,
+                availability: CurveTestAvailability::Available,
+                statistic: Some(statistic),
+                unavailable_reason: None,
                 p_difference: None,
                 equivalence_margin,
                 p_equivalence: None,
@@ -237,7 +241,9 @@ fn no_profile_data_result(
     CurveTestResult {
         comparison_name: format!("territory_{}_vs_{}", left.territory_id, right.territory_id),
         metric: "max_abs_standardized_difference".into(),
-        statistic: 0.0,
+        availability: CurveTestAvailability::InsufficientData,
+        statistic: None,
+        unavailable_reason: Some("no known cell-type labels are available for this territory pair".into()),
         p_difference: None,
         equivalence_margin,
         p_equivalence: None,

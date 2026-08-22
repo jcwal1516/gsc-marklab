@@ -4,7 +4,7 @@ use crate::data::Pattern;
 pub struct PairCorrelationBin {
     pub r_min_um: f64,
     pub r_max_um: f64,
-    pub value: f64,
+    pub value: Option<f64>,
     pub count: usize,
 }
 
@@ -69,7 +69,7 @@ pub fn pair_correlation_for_marks(
             .map(|(index, (sum, count))| PairCorrelationBin {
                 r_min_um: index as f64 * bin_width_um,
                 r_max_um: (index + 1) as f64 * bin_width_um,
-                value: if count == 0 { 0.0 } else { sum / count as f64 },
+                value: (count > 0).then_some(sum / count as f64),
                 count,
             })
             .collect(),

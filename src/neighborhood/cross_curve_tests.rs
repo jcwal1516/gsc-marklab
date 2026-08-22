@@ -358,6 +358,6 @@ fn difference_test_reports_nonzero_statistic() {
     let a = [1.0, 1.0, 1.0];
     let b = [2.0, 1.0, 0.0];
     let result = curve_difference_test("changed", &a, &b, 19, 123).expect("difference");
-    assert!(result.statistic > 0.0);
+    assert!(result.statistic.is_some_and(|statistic| statistic > 0.0));
     assert!(result.p_difference.is_some());
 }
