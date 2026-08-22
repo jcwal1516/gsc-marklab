@@ -126,6 +126,7 @@ pub(super) fn run(
                 config.permutation.seed,
                 config.inference.family_wise_alpha,
                 configured_strata,
+                config.performance.k_chunk_modes,
             )
         } else {
             Ok(None)

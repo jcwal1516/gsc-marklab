@@ -4,9 +4,12 @@ use crate::{
     },
     permutation::{
         envelopes::GlobalEnvelope,
-        labels::{marked_count, permute_fixed_count, permute_fixed_count_indices},
+        labels::{
+            marked_count, permute_fixed_count, permute_fixed_count_indices,
+            permute_fixed_count_into,
+        },
         rng::splitmix64,
-        stratified::permute_within_strata,
+        stratified::{permute_within_strata, StratifiedPermutationPlan},
     },
 };
 use approx::assert_abs_diff_eq;
@@ -84,6 +87,20 @@ fn fixed_count_permutation_indices_can_reuse_caller_scratch() {
 }
 
 #[test]
+fn fixed_count_permutation_labels_can_reuse_caller_scratch() {
+    let expected = permute_fixed_count(12, 5, 123).expect("labels");
+    let mut indices = Vec::with_capacity(12);
+    let mut labels = Vec::with_capacity(12);
+
+    permute_fixed_count_into(12, 5, 123, &mut indices, &mut labels).expect("labels");
+
+    assert_eq!(labels, expected);
+    let capacities = (indices.capacity(), labels.capacity());
+    permute_fixed_count_into(12, 5, 456, &mut indices, &mut labels).expect("reused labels");
+    assert_eq!((indices.capacity(), labels.capacity()), capacities);
+}
+
+#[test]
 fn stratified_permutation_preserves_mark_count_per_stratum() {
     let labels = [1, 1, 0, 0, 1, 0, 0, 0];
     let strata = [10_u16, 10, 10, 10, 20, 20, 20, 20];
@@ -93,6 +110,24 @@ fn stratified_permutation_preserves_mark_count_per_stratum() {
     assert_eq!(permuted.len(), labels.len());
     assert_eq!(marked_count(&permuted[0..4]), 2);
     assert_eq!(marked_count(&permuted[4..8]), 1);
+}
+
+#[test]
+fn stratified_permutation_plan_matches_wrapper_and_reuses_scratch() {
+    let labels = [1, 1, 0, 0, 1, 0, 0, 0];
+    let strata = [10_u16, 10, 10, 10, 20, 20, 20, 20];
+    let plan = StratifiedPermutationPlan::new(&labels, &strata).expect("plan");
+    let mut output = Vec::with_capacity(labels.len());
+    let mut stratum_labels = Vec::with_capacity(plan.maximum_stratum_size());
+
+    for seed in [123, 456, 789] {
+        let expected = permute_within_strata(&labels, &strata, seed).expect("wrapper");
+        plan.permute_into(seed, &mut output, &mut stratum_labels)
+            .expect("planned permutation");
+        assert_eq!(output, expected);
+    }
+    assert_eq!(output.capacity(), labels.len());
+    assert_eq!(stratum_labels.capacity(), plan.maximum_stratum_size());
 }
 
 #[test]

@@ -3,7 +3,7 @@ use crate::{
     common::seeds::{derive_seed, SeedEndpoint},
     data::Pattern,
     errors::{MarklabError, Result},
-    permutation::{labels::deterministic_shuffle, stratified::permute_within_strata},
+    permutation::{labels::deterministic_shuffle, stratified::StratifiedPermutationPlan},
     spectra::kgrid::KMode,
 };
 
@@ -411,6 +411,7 @@ where
     let Some(context) = BinaryMarkContext::new(pattern.len(), pattern.n_marked()) else {
         return Ok(None);
     };
+    let stratified_plan = StratifiedPermutationPlan::new(&pattern.mark, strata)?;
     let Some(shell_plan) = ShellPlan::new(modes, options.n_shells) else {
         return Ok(None);
     };
@@ -423,6 +424,8 @@ where
         })?;
     let mut total_phase_sums = Vec::with_capacity(options.k_chunk_modes.min(modes.len()));
     let mut selected_indices = Vec::with_capacity(pattern.len());
+    let mut labels = Vec::with_capacity(pattern.len());
+    let mut stratum_labels = Vec::with_capacity(stratified_plan.maximum_stratum_size());
     let mut powers = Vec::with_capacity(options.k_chunk_modes.min(modes.len()));
     let mut mode_offset = 0usize;
     for mode_chunk in modes.chunks(options.k_chunk_modes) {
@@ -432,14 +435,14 @@ where
         observe_chunk_and_storage(mode_chunk.len(), &permutation_shell_powers, modes.len());
         for (permutation_index, shell_sums) in permutation_shell_powers.iter_rows_mut().enumerate()
         {
-            let labels = permute_within_strata(
-                &pattern.mark,
-                strata,
+            stratified_plan.permute_into(
                 derive_seed(
                     options.seed,
                     SeedEndpoint::SpectrumStratified,
                     permutation_index,
                 ),
+                &mut labels,
+                &mut stratum_labels,
             )?;
             selected_indices_for_marks_into(
                 &labels,

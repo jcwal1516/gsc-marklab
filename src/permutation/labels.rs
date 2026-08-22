@@ -7,14 +7,29 @@ use crate::errors::{MarklabError, Result};
 use super::rng::splitmix64;
 
 pub fn permute_fixed_count(n: usize, n_marked: usize, seed: u64) -> Result<Vec<u8>> {
-    let indices = permute_fixed_count_indices(n, n_marked, seed)?;
-    let mut labels = vec![0_u8; n];
-    for index in indices {
-        labels[index] = 1;
-    }
+    let mut indices = Vec::with_capacity(n);
+    let mut labels = Vec::with_capacity(n);
+    permute_fixed_count_into(n, n_marked, seed, &mut indices, &mut labels)?;
     Ok(labels)
 }
 
+pub(crate) fn permute_fixed_count_into(
+    n: usize,
+    n_marked: usize,
+    seed: u64,
+    indices: &mut Vec<usize>,
+    labels: &mut Vec<u8>,
+) -> Result<()> {
+    permute_fixed_count_indices_into(n, n_marked, seed, indices)?;
+    labels.clear();
+    labels.resize(n, 0);
+    for index in indices.iter().copied() {
+        labels[index] = 1;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
 pub fn permute_fixed_count_indices(n: usize, n_marked: usize, seed: u64) -> Result<Vec<usize>> {
     let mut indices = Vec::with_capacity(n);
     permute_fixed_count_indices_into(n, n_marked, seed, &mut indices)?;
