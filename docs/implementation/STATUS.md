@@ -1,34 +1,33 @@
 # Implementation status
 
-Last updated: 2026-08-22T16:39:30-04:00
+Last updated: 2026-08-22T16:46:19-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Current SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
+- Current SHA: `fc986c0c4e06216cc85d55d2315482a0107bf5b7`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
-- Current phase/workstream/task: Phase 0 / WS-A / A-02 baseline reproduction
+- Current phase/workstream/task: Phase 1 / WS-B / B-01 workspace architecture decision
 
 ## Requirements
 
-- Completed: `A-01`, `A-03`
-- Active: `A-02`, `PLAT-01`
-- Planned next: close WS-A, then `B-01`
+- Completed: `A-01`, `A-02`, `A-03`, `SLIDE-INV`, `WS-A`
+- Active: `B-01`, `PLAT-01`, `WF-01`
+- Planned next: `B-02`, `B-03`, `B-04`
 
 ## Command state
 
-- Known failing commands/tests: no repository test failure established. One WS-A verification wrapper exited 127 after a zsh `path` loop variable removed command lookup; the corrected wrapper passed. `cargo package --locked` exited 101 because the required WS-A files are intentionally uncommitted; rerun after the bootstrap commit. All other A-02 gates passed.
+- Known failing commands/tests: none current. Historical WS-A harness failures are recorded in the validation ledger: one zsh wrapper error and one expected dirty-tree package refusal; both corrected/rerun successfully.
 - Confirmed available: `cargo-nextest`, `cargo-audit`, `cargo-deny`, `cargo-machete`, `cargo-fuzz`, `ssh`, `scp`, `rsync`.
 - Confirmed unavailable: local `markdownlint-cli2`, `actionlint`, and Gnuplot. Criterion used Plotters; no Markdown/workflow lint pass is claimed.
 
 ## Dirty files and reasons
 
-- `docs/implementation/MASTER_PLAN.md`: user-supplied authoritative charter, untracked at branch creation.
-- `AGENTS.md` and remaining `docs/implementation/**`: WS-A control-plane bootstrap.
+- `docs/implementation/STATUS.md`, `REQUIREMENTS.md`, `VALIDATION_LEDGER.md`, and A-01/A-02/A-03 handoffs: WS-A closure evidence pending one documentation-only closure commit.
 
 ## Recent decisions
 
@@ -47,12 +46,12 @@ Last updated: 2026-08-22T16:39:30-04:00
 
 ## Next three exact actions
 
-1. Add immutable A-01/A-02/A-03/SLIDE-INV handoffs and perform the final WS-A scope audit.
-2. Commit the verified WS-A bootstrap.
-3. Rerun `cargo package --locked`, record the clean-tree result, and close WS-A.
+1. Commit the WS-A closure handoffs/evidence and confirm clean status.
+2. Freeze B-01 writable files/symbols and its workspace dependency decision.
+3. Add a behavior-first workspace characterization test, then implement the smallest passing workspace boundary.
 
 Next exact verification command:
 
 ```bash
-git add --intent-to-add AGENTS.md docs/implementation && git diff --check
+git diff --check && git status --short
 ```

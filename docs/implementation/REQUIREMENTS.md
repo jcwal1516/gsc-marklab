@@ -54,9 +54,9 @@ Statuses are `planned`, `active`, `blocked`, `complete`, `deferred`, or `rejecte
 | ID | Task/workstream | Parent requirements | Owner | Status | Writable scope | Acceptance |
 |---|---|---|---|---|---|---|
 | A-01 | Install authoritative state/control plane | PLAT-01 | Lead | complete | `AGENTS.md`, `docs/implementation/**` | Required files, immutable-plan hash, ID coverage, and scope check recorded |
-| A-02 | Reproduce current baseline | A-01 | `a02_baseline` (read-only runner) | active | No tracked writes; generated build output only | Correctness/policy gates green; benchmark/smoke and clean-tree package rerun pending |
+| A-02 | Reproduce current baseline | A-01 | `a02_baseline` (read-only runner) | complete | No tracked writes; generated build output only | All gates passed after clean-tree package rerun; exact evidence in validation/performance ledgers |
 | A-03 | Contract and migration inventory | A-01 | Lead + read-only analysis | complete | Implementation docs only | Every current API/CLI/config/result/artifact/feature/workflow/test surface has a disposition |
-| B-01 | Workspace architecture decision | A-01–A-03 | Lead | planned | Cargo/architecture/new immediate crates/CI | Existing root commands pass |
+| B-01 | Workspace architecture decision | A-01–A-03 | Lead | active | Cargo/architecture/new immediate crates/CI | Existing root commands pass |
 | B-02 | Compatibility shell | B-01 | Lead | planned | Manifests/facade/tests | Characterization parity |
 | B-03 | Workspace policy | B-01 | Lead | planned | Workspace CI/policy/tests | Feature/dependency matrix passes |
 | B-04 | Minimal project/workflow vertical slice | B-01–B-03 | Lead | planned | Focused new crates/tests | Existing marked result parity |
@@ -182,8 +182,8 @@ The tables below ensure every scientific, platform, current-capability, and work
 
 | Workstream | Status | Exit/role summary |
 |---|---|---|
-| WS-00 | active via WS-A | Control plane, state, branch, baseline |
-| WS-01 | active via A-03/A-02 | Legacy characterization and compatibility matrix |
+| WS-00 | complete | Control plane, state, branch, baseline |
+| WS-01 | complete | Legacy characterization and compatibility matrix |
 | WS-10 | planned | Workspace and existing-package compatibility shell |
 | WS-11 | planned | Project, artifact, provenance, execution ledger |
 | WS-12 | planned | Typed DAG, cache, resumable local scheduler |
