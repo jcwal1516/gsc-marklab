@@ -4,10 +4,13 @@ use serde::Serialize;
 
 use crate::{
     common::stats::mean_all_finite,
-    config::{NeighborhoodNullModel, ThreadSetting},
+    config::{NeighborhoodNullModel, RegistrationTransform, ThreadSetting},
     errors::{MarklabError, Result},
     multimodal::{MultimodalAnalysisRun, MultimodalEngine},
-    output::{CurveComparisonMethod, MarkedPatternResult, MultimodalResult, StatusFlag},
+    output::{
+        CurveComparisonMethod, EnrichmentStatisticUnavailableReason, MarkedPatternResult,
+        MultimodalResult, NeighborhoodEnrichmentResult, StatusFlag,
+    },
     prepost::{compare_multimodal_prepost_with_margin, compare_prepost},
     AnalysisConfig, AnalysisEngine,
 };
@@ -35,13 +38,29 @@ const GENERATORS: [&str; 12] = [
     "prepost_metadata_mismatch",
 ];
 
-const MULTIMODAL_GENERATORS: [&str; 6] = [
+const MULTIMODAL_GENERATORS: [&str; 22] = [
+    "random_labels_no_association",
     "two_unrelated_mmr_territories",
+    "immune_independent_mmr_territory",
+    "registration_jitter_no_association",
     "two_related_mmr_territories",
     "immune_associated_mmr_territory",
+    "cross_interaction_enrichment",
     "registration_jitter",
     "prepost_within_margin_spatial_pattern",
     "prepost_changed_spatial_pattern",
+    "registration_residual_above_threshold",
+    "too_few_landmarks",
+    "degenerate_landmarks",
+    "empty_he_cells",
+    "empty_ihc_cells",
+    "no_abnormal_cells",
+    "sparse_graph",
+    "zero_expected_edge_count",
+    "multiple_cell_classes",
+    "multiple_null_models",
+    "rigid_rotation",
+    "affine_deformation",
 ];
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
@@ -116,7 +135,8 @@ pub struct MultimodalSyntheticSmokeSummary {
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct MultimodalSmokeConfiguration {
     pub permutations: usize,
-    pub permutation_seed: u64,
+    pub permutation_seed_base: u64,
+    pub permutation_seed_policy: &'static str,
     pub radius_um: f64,
     pub null_models: Vec<String>,
     pub cross_interaction_margin: f64,
@@ -135,7 +155,12 @@ pub struct MultimodalSyntheticSmokeResult {
     pub replicates_completed: usize,
     pub replicates_failed: usize,
     pub failure_reasons: Vec<String>,
+    pub scenario_configuration: MultimodalScenarioConfiguration,
     pub passed: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub criterion_met_rate: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub criterion_met_confidence_interval: Option<BinomialConfidenceInterval>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detection_rate: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -154,6 +179,22 @@ pub struct MultimodalSyntheticSmokeResult {
     pub within_margin_confidence_interval: Option<BinomialConfidenceInterval>,
     pub acceptance_criterion: &'static str,
     pub note: &'static str,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct MultimodalScenarioConfiguration {
+    pub transform: &'static str,
+    pub registration_max_rmse_um: f64,
+    pub registration_min_landmarks: usize,
+    pub radius_um: f64,
+    pub label_pairs: Vec<[String; 2]>,
+    pub null_models: Vec<String>,
+    pub permutations: usize,
+    pub cross_interaction_margin: Option<f64>,
+    pub n_he_cells: usize,
+    pub n_ihc_cells: usize,
+    pub n_landmarks: usize,
+    pub has_post: bool,
 }
 
 pub fn run_synthetic_smoke(replicates: usize) -> Result<SyntheticSmokeSummary> {
@@ -223,7 +264,8 @@ pub fn run_multimodal_synthetic_smoke(
         engine_version: env!("CARGO_PKG_VERSION"),
         configuration: MultimodalSmokeConfiguration {
             permutations: config.permutation.b,
-            permutation_seed: config.permutation.seed,
+            permutation_seed_base: config.permutation.seed,
+            permutation_seed_policy: "domain-derived from suite seed, scenario, and replicate",
             radius_um: config.neighborhood.radius_um,
             null_models: config
                 .neighborhood
@@ -408,21 +450,25 @@ fn run_multimodal_generator(
     seed: u64,
     generator_index: u64,
 ) -> Result<MultimodalSyntheticSmokeResult> {
+    let report_scenario = multimodal_replicate_scenario(generator, seed, generator_index, 0)?;
+    let scenario_configuration = multimodal_scenario_configuration(&report_scenario);
     let outcomes = (0..replicates).map(|replicate| {
         run_multimodal_replicate(generator, seed, generator_index, replicate)
             .map_err(|error| (replicate, error))
     });
-    summarize_multimodal_outcomes(generator, replicates, outcomes)
+    summarize_multimodal_outcomes(generator, replicates, scenario_configuration, outcomes)
 }
 
 fn summarize_multimodal_outcomes(
     generator: &str,
     replicates: usize,
+    scenario_configuration: MultimodalScenarioConfiguration,
     outcomes: impl IntoIterator<
         Item = std::result::Result<ObservedMultimodalOutcome, (usize, MarklabError)>,
     >,
 ) -> Result<MultimodalSyntheticSmokeResult> {
     let mut detection_count = 0usize;
+    let mut criterion_met_count = 0usize;
     let mut false_positive_count = 0usize;
     let mut below_resolution_count = 0usize;
     let mut within_margin_count = 0usize;
@@ -431,6 +477,7 @@ fn summarize_multimodal_outcomes(
     for outcome in outcomes {
         match outcome {
             Ok(outcome) => {
+                criterion_met_count += usize::from(outcome.criterion_met);
                 detection_count += usize::from(outcome.detected);
                 false_positive_count += usize::from(outcome.false_positive);
                 below_resolution_count += usize::from(outcome.below_registration_resolution);
@@ -445,39 +492,14 @@ fn summarize_multimodal_outcomes(
     let replicates_failed = failure_reasons.len();
     let replicates_completed = replicates.saturating_sub(replicates_failed);
     let detection_rate = observed_rate(detection_count, replicates_completed);
+    let criterion_met_rate = observed_rate(criterion_met_count, replicates_completed);
     let false_positive_rate = observed_rate(false_positive_count, replicates_completed);
     let below_registration_resolution_flag_rate =
         observed_rate(below_resolution_count, replicates_completed);
     let within_margin_rate = observed_rate(within_margin_count, replicates_completed);
     let no_failed_replicates = replicates_failed == 0;
-    let passed = match generator {
-        "two_unrelated_mmr_territories" => {
-            no_failed_replicates && false_positive_rate.is_some_and(|rate| rate <= 0.20)
-        }
-        "two_related_mmr_territories" | "immune_associated_mmr_territory" => {
-            no_failed_replicates && detection_rate.is_some_and(|rate| rate > 0.70)
-        }
-        "registration_jitter" => {
-            no_failed_replicates
-                && below_registration_resolution_flag_rate.is_some_and(|rate| rate > 0.80)
-                && false_positive_rate.is_some_and(|rate| rate <= 0.20)
-        }
-        "prepost_within_margin_spatial_pattern" => {
-            no_failed_replicates
-                && within_margin_rate.is_some_and(|rate| rate > 0.80)
-                && false_positive_rate.is_some_and(|rate| rate <= 0.20)
-        }
-        "prepost_changed_spatial_pattern" => {
-            no_failed_replicates
-                && detection_rate.is_some_and(|rate| rate > 0.70)
-                && within_margin_rate.is_some_and(|rate| rate < 0.20)
-        }
-        _ => {
-            return Err(MarklabError::Validation(format!(
-                "unknown multimodal synthetic generator {generator}"
-            )));
-        }
-    };
+    let passed = no_failed_replicates
+        && criterion_met_rate.is_some_and(|rate| rate >= multimodal_min_criterion_rate(generator));
 
     let (
         detection_rate,
@@ -486,9 +508,12 @@ fn summarize_multimodal_outcomes(
         within_margin_rate,
     ) = match generator {
         "two_unrelated_mmr_territories" => (None, false_positive_rate, None, None),
-        "two_related_mmr_territories" | "immune_associated_mmr_territory" => {
-            (detection_rate, None, None, None)
-        }
+        "random_labels_no_association"
+        | "immune_independent_mmr_territory"
+        | "registration_jitter_no_association" => (None, false_positive_rate, None, None),
+        "two_related_mmr_territories"
+        | "immune_associated_mmr_territory"
+        | "cross_interaction_enrichment" => (detection_rate, None, None, None),
         "registration_jitter" => (
             detection_rate,
             false_positive_rate,
@@ -499,6 +524,18 @@ fn summarize_multimodal_outcomes(
             (None, false_positive_rate, None, within_margin_rate)
         }
         "prepost_changed_spatial_pattern" => (detection_rate, None, None, within_margin_rate),
+        "registration_residual_above_threshold"
+        | "too_few_landmarks"
+        | "degenerate_landmarks"
+        | "empty_he_cells"
+        | "empty_ihc_cells"
+        | "no_abnormal_cells"
+        | "sparse_graph"
+        | "zero_expected_edge_count"
+        | "multiple_cell_classes"
+        | "multiple_null_models"
+        | "rigid_rotation"
+        | "affine_deformation" => (None, None, None, None),
         _ => unreachable!("unknown generator already rejected"),
     };
 
@@ -509,7 +546,11 @@ fn summarize_multimodal_outcomes(
         replicates_completed,
         replicates_failed,
         failure_reasons,
+        scenario_configuration,
         passed,
+        criterion_met_rate,
+        criterion_met_confidence_interval: criterion_met_rate
+            .and_then(|_| wilson_interval(criterion_met_count, replicates_completed)),
         detection_rate,
         detection_confidence_interval: detection_rate
             .and_then(|_| wilson_interval(detection_count, replicates_completed)),
@@ -527,8 +568,37 @@ fn summarize_multimodal_outcomes(
     })
 }
 
+fn multimodal_scenario_configuration(
+    scenario: &generators::MultimodalScenario,
+) -> MultimodalScenarioConfiguration {
+    MultimodalScenarioConfiguration {
+        transform: match scenario.config.registration.transform {
+            RegistrationTransform::Rigid => "rigid",
+            RegistrationTransform::Affine => "affine",
+        },
+        registration_max_rmse_um: scenario.config.registration.max_rmse_um,
+        registration_min_landmarks: scenario.config.registration.min_landmarks,
+        radius_um: scenario.config.neighborhood.radius_um,
+        label_pairs: scenario.config.neighborhood.label_pairs.clone(),
+        null_models: scenario
+            .config
+            .neighborhood
+            .null_models
+            .iter()
+            .map(|null_model| multimodal_null_model_name(*null_model).to_owned())
+            .collect(),
+        permutations: scenario.config.permutation.b,
+        cross_interaction_margin: scenario.config.comparison.margins.cross_interaction,
+        n_he_cells: scenario.pre.he_cells.len(),
+        n_ihc_cells: scenario.pre.ihc_cells.len(),
+        n_landmarks: scenario.pre.landmarks.len(),
+        has_post: scenario.post.is_some(),
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 struct ObservedMultimodalOutcome {
+    criterion_met: bool,
     detected: bool,
     false_positive: bool,
     below_registration_resolution: bool,
@@ -543,21 +613,72 @@ fn run_multimodal_replicate(
 ) -> Result<ObservedMultimodalOutcome> {
     let scenario = multimodal_replicate_scenario(generator, seed, generator_index, replicate)?;
     let engine = MultimodalEngine::new(scenario.config.clone())?;
-    let pre = engine.analyze_run(&scenario.pre)?;
+    let pre = match generator {
+        "registration_residual_above_threshold" => {
+            return expected_engine_error_outcome(
+                engine.analyze_run(&scenario.pre),
+                "exceeds configured max_rmse_um",
+            );
+        }
+        "too_few_landmarks" => {
+            return expected_engine_error_outcome(
+                engine.analyze_run(&scenario.pre),
+                "registration requires at least",
+            );
+        }
+        "degenerate_landmarks" => {
+            return expected_engine_error_outcome(
+                engine.analyze_run(&scenario.pre),
+                "must span nonzero distance",
+            );
+        }
+        _ => engine.analyze_run(&scenario.pre)?,
+    };
 
     match generator {
-        "two_unrelated_mmr_territories" => Ok(ObservedMultimodalOutcome {
-            false_positive: territory_count(&pre.result)? == 1,
-            ..ObservedMultimodalOutcome::default()
-        }),
-        "two_related_mmr_territories" => Ok(ObservedMultimodalOutcome {
-            detected: territory_count(&pre.result)? == 1,
-            ..ObservedMultimodalOutcome::default()
-        }),
-        "immune_associated_mmr_territory" => Ok(ObservedMultimodalOutcome {
-            detected: immune_enrichment_detected(&pre.result)?,
-            ..ObservedMultimodalOutcome::default()
-        }),
+        "random_labels_no_association"
+        | "immune_independent_mmr_territory"
+        | "registration_jitter_no_association" => {
+            let detected = immune_enrichment_detected(&pre.result)?;
+            Ok(ObservedMultimodalOutcome {
+                criterion_met: !detected,
+                detected,
+                false_positive: detected,
+                ..ObservedMultimodalOutcome::default()
+            })
+        }
+        "two_unrelated_mmr_territories" => {
+            let false_positive = territory_count(&pre.result)? == 1;
+            Ok(ObservedMultimodalOutcome {
+                criterion_met: !false_positive,
+                false_positive,
+                ..ObservedMultimodalOutcome::default()
+            })
+        }
+        "two_related_mmr_territories" => {
+            let detected = territory_count(&pre.result)? == 1;
+            Ok(ObservedMultimodalOutcome {
+                criterion_met: detected,
+                detected,
+                ..ObservedMultimodalOutcome::default()
+            })
+        }
+        "immune_associated_mmr_territory" => {
+            let detected = immune_enrichment_detected(&pre.result)?;
+            Ok(ObservedMultimodalOutcome {
+                criterion_met: detected,
+                detected,
+                ..ObservedMultimodalOutcome::default()
+            })
+        }
+        "cross_interaction_enrichment" => {
+            let detected = cross_interaction_detected(&pre.result)?;
+            Ok(ObservedMultimodalOutcome {
+                criterion_met: detected,
+                detected,
+                ..ObservedMultimodalOutcome::default()
+            })
+        }
         "registration_jitter" => {
             let detected = immune_enrichment_detected(&pre.result)?;
             let below_registration_resolution = pre
@@ -565,19 +686,87 @@ fn run_multimodal_replicate(
                 .edges
                 .iter()
                 .any(|edge| edge.below_registration_resolution);
+            let false_positive = detected && !below_registration_resolution;
             Ok(ObservedMultimodalOutcome {
+                criterion_met: below_registration_resolution && !false_positive,
                 detected,
-                false_positive: detected && !below_registration_resolution,
+                false_positive,
                 below_registration_resolution,
                 within_margin: false,
             })
         }
         "prepost_within_margin_spatial_pattern" | "prepost_changed_spatial_pattern" => {
-            prepost_outcome(&scenario, &engine, &pre)
+            prepost_outcome(generator, &scenario, &engine, &pre)
         }
+        "empty_he_cells" => {
+            let summary = fused_cell_summary(&pre.result)?;
+            Ok(criterion_outcome(
+                summary.n_he_cells == 0 && summary.n_ihc_cells > 0,
+            ))
+        }
+        "empty_ihc_cells" => {
+            let summary = fused_cell_summary(&pre.result)?;
+            Ok(criterion_outcome(
+                summary.n_ihc_cells == 0 && summary.n_he_cells > 0,
+            ))
+        }
+        "no_abnormal_cells" => Ok(criterion_outcome(territory_count(&pre.result)? == 0)),
+        "sparse_graph" => Ok(criterion_outcome(pre.graph.edges.is_empty())),
+        "zero_expected_edge_count" => {
+            let row = lymphocyte_enrichment(&pre.result)?;
+            Ok(criterion_outcome(
+                row.expected_edges == 0.0
+                    && row.enrichment_ratio.is_none()
+                    && row.enrichment_ratio_unavailable_reason
+                        == Some(EnrichmentStatisticUnavailableReason::ZeroExpectedEdges),
+            ))
+        }
+        "multiple_cell_classes" => Ok(criterion_outcome(
+            pre.result
+                .neighborhood_enrichment
+                .value()
+                .is_some_and(|rows| rows.len() == 3),
+        )),
+        "multiple_null_models" => Ok(criterion_outcome(pre.null_model_sensitivity.len() == 4)),
+        "rigid_rotation" => Ok(criterion_outcome(
+            approximately(pre.transform.m00, 0.0)
+                && approximately(pre.transform.m01, -1.0)
+                && approximately(pre.transform.m10, 1.0)
+                && approximately(pre.transform.m11, 0.0)
+                && approximately(pre.transform.m02, 10.0)
+                && approximately(pre.transform.m12, -5.0),
+        )),
+        "affine_deformation" => Ok(criterion_outcome(
+            approximately(pre.transform.m00, 1.1)
+                && approximately(pre.transform.m01, 0.2)
+                && approximately(pre.transform.m10, -0.1)
+                && approximately(pre.transform.m11, 0.9)
+                && approximately(pre.transform.m02, 3.0)
+                && approximately(pre.transform.m12, -4.0),
+        )),
         _ => Err(MarklabError::Validation(format!(
             "unknown multimodal synthetic generator {generator}"
         ))),
+    }
+}
+
+fn expected_engine_error_outcome(
+    result: Result<MultimodalAnalysisRun>,
+    expected_message: &str,
+) -> Result<ObservedMultimodalOutcome> {
+    match result {
+        Err(error) if error.to_string().contains(expected_message) => Ok(criterion_outcome(true)),
+        Err(error) => Err(MarklabError::Validation(format!(
+            "production engine returned an unexpected error: {error}"
+        ))),
+        Ok(_) => Ok(criterion_outcome(false)),
+    }
+}
+
+fn criterion_outcome(criterion_met: bool) -> ObservedMultimodalOutcome {
+    ObservedMultimodalOutcome {
+        criterion_met,
+        ..ObservedMultimodalOutcome::default()
     }
 }
 
@@ -594,6 +783,16 @@ fn territory_count(result: &MultimodalResult) -> Result<usize> {
 }
 
 fn immune_enrichment_detected(result: &MultimodalResult) -> Result<bool> {
+    let row = lymphocyte_enrichment(result)?;
+    let p_value = row.q_value.or(row.p_value).ok_or_else(|| {
+        MarklabError::Validation(
+            "production lymphocyte/mmr_abnormal enrichment was not evaluable".into(),
+        )
+    })?;
+    Ok(p_value <= 0.05)
+}
+
+fn lymphocyte_enrichment(result: &MultimodalResult) -> Result<&NeighborhoodEnrichmentResult> {
     let enrichment = result.neighborhood_enrichment.value().ok_or_else(|| {
         MarklabError::Validation(
             "production multimodal result did not provide neighborhood enrichment".into(),
@@ -607,15 +806,43 @@ fn immune_enrichment_detected(result: &MultimodalResult) -> Result<bool> {
                 "production multimodal result omitted lymphocyte/mmr_abnormal enrichment".into(),
             )
         })?;
-    let p_value = row.q_value.or(row.p_value).ok_or_else(|| {
+    Ok(row)
+}
+
+fn cross_interaction_detected(result: &MultimodalResult) -> Result<bool> {
+    result
+        .cross_interaction_curves
+        .value()
+        .and_then(|curves| {
+            curves.iter().find(|curve| {
+                curve.label_a == "lymphocyte" && curve.label_b == "mmr_abnormal"
+                    || curve.label_a == "mmr_abnormal" && curve.label_b == "lymphocyte"
+            })
+        })
+        .and_then(|curve| curve.p_global)
+        .map(|p_value| p_value <= 0.05)
+        .ok_or_else(|| {
+            MarklabError::Validation(
+                "production multimodal result omitted evaluable lymphocyte/mmr_abnormal cross interaction"
+                    .into(),
+            )
+        })
+}
+
+fn fused_cell_summary(result: &MultimodalResult) -> Result<&crate::output::FusedCellSummary> {
+    result.fused_cell_summary.value().ok_or_else(|| {
         MarklabError::Validation(
-            "production lymphocyte/mmr_abnormal enrichment was not evaluable".into(),
+            "production multimodal result did not provide a fused-cell summary".into(),
         )
-    })?;
-    Ok(p_value <= 0.05)
+    })
+}
+
+fn approximately(left: f64, right: f64) -> bool {
+    (left - right).abs() <= 1.0e-10
 }
 
 fn prepost_outcome(
+    generator: &str,
     scenario: &generators::MultimodalScenario,
     engine: &MultimodalEngine,
     pre: &MultimodalAnalysisRun,
@@ -641,6 +868,11 @@ fn prepost_outcome(
         })?;
 
     Ok(ObservedMultimodalOutcome {
+        criterion_met: if generator == "prepost_within_margin_spatial_pattern" {
+            within_margin
+        } else {
+            !within_margin
+        },
         detected: !within_margin,
         false_positive: !within_margin,
         below_registration_resolution: false,
@@ -689,25 +921,78 @@ const fn multimodal_null_model_name(null_model: NeighborhoodNullModel) -> &'stat
 
 fn multimodal_acceptance_criterion(generator: &str) -> &'static str {
     match generator {
+        "random_labels_no_association" => {
+            "smoke only: production enrichment does not detect an association in at least 90% of replicates"
+        }
         "two_unrelated_mmr_territories" => {
-            "smoke only: production territory-merger false-positive rate <= 0.20"
+            "smoke only: production keeps unrelated territories separate in at least 80% of replicates"
         }
         "two_related_mmr_territories" => {
-            "smoke only: production single-territory detection rate > 0.70"
+            "smoke only: production merges the related territory in at least 80% of replicates"
         }
         "immune_associated_mmr_territory" => {
-            "smoke only: production q-value <= 0.05 detection rate > 0.70"
+            "smoke only: production q-value <= 0.05 in at least 80% of replicates"
+        }
+        "immune_independent_mmr_territory" => {
+            "smoke only: production enrichment does not detect independent immune cells in at least 80% of replicates"
+        }
+        "registration_jitter_no_association" => {
+            "smoke only: noisy registration without association remains negative in at least 80% of replicates"
+        }
+        "cross_interaction_enrichment" => {
+            "smoke only: production cross-interaction global p-value detects enrichment in at least 80% of replicates"
         }
         "registration_jitter" => {
-            "smoke only: production below-resolution edge rate > 0.80 and unflagged detection rate <= 0.20"
+            "smoke only: production flags the association below registration resolution in at least 80% of replicates"
         }
         "prepost_within_margin_spatial_pattern" => {
-            "smoke only: production descriptive-margin rate > 0.80 and outside-margin false-positive rate <= 0.20"
+            "smoke only: production keeps matched pre/post curves within the descriptive margin in at least 80% of replicates"
         }
         "prepost_changed_spatial_pattern" => {
-            "smoke only: production outside-margin detection rate > 0.70 and descriptive-margin rate < 0.20"
+            "smoke only: production puts changed pre/post curves outside the descriptive margin in at least 80% of replicates"
+        }
+        "registration_residual_above_threshold" => {
+            "smoke only: production engine rejects registration RMSE above the configured threshold"
+        }
+        "too_few_landmarks" => {
+            "smoke only: production engine rejects fewer than the configured landmark minimum"
+        }
+        "degenerate_landmarks" => {
+            "smoke only: production registration rejects degenerate landmark geometry"
+        }
+        "empty_he_cells" => {
+            "smoke only: production result truthfully reports an empty H&E section"
+        }
+        "empty_ihc_cells" => {
+            "smoke only: production result truthfully reports an empty IHC section"
+        }
+        "no_abnormal_cells" => {
+            "smoke only: production territory result is an available empty set when no abnormal cells exist"
+        }
+        "sparse_graph" => "smoke only: production graph is empty under a sub-spacing radius",
+        "zero_expected_edge_count" => {
+            "smoke only: production enrichment types zero expectation instead of emitting a non-finite ratio"
+        }
+        "multiple_cell_classes" => {
+            "smoke only: production result contains every configured cell-class enrichment pair"
+        }
+        "multiple_null_models" => {
+            "smoke only: production run contains every configured null-model sensitivity"
+        }
+        "rigid_rotation" => {
+            "smoke only: production rigid fit recovers the known rotation and translation"
+        }
+        "affine_deformation" => {
+            "smoke only: production affine fit recovers the known deformation"
         }
         _ => "unknown smoke acceptance criterion",
+    }
+}
+
+fn multimodal_min_criterion_rate(generator: &str) -> f64 {
+    match generator {
+        "random_labels_no_association" => 0.90,
+        _ => 0.80,
     }
 }
 
@@ -872,6 +1157,9 @@ fn note_for(generator: &str) -> &'static str {
 
 fn multimodal_note_for(generator: &str) -> &'static str {
     match generator {
+        "random_labels_no_association" => {
+            "random H&E labels without designed association are a negative enrichment control"
+        }
         "two_unrelated_mmr_territories" => {
             "spatially separated MMR territories should not be called related"
         }
@@ -881,6 +1169,15 @@ fn multimodal_note_for(generator: &str) -> &'static str {
         "immune_associated_mmr_territory" => {
             "MMR territory with local lymphocyte enrichment should be detected"
         }
+        "immune_independent_mmr_territory" => {
+            "immune cells spatially independent of the MMR territory should remain negative"
+        }
+        "registration_jitter_no_association" => {
+            "registration noise must not manufacture an absent immune/MMR association"
+        }
+        "cross_interaction_enrichment" => {
+            "a known local immune/MMR association should alter the production cross-interaction curve"
+        }
         "registration_jitter" => {
             "serial-section associations below registration resolution should be flagged"
         }
@@ -889,6 +1186,30 @@ fn multimodal_note_for(generator: &str) -> &'static str {
         }
         "prepost_changed_spatial_pattern" => {
             "pre/post curves beyond the difference threshold should be detected as changed"
+        }
+        "registration_residual_above_threshold" => {
+            "registration residuals above the configured maximum must fail production analysis"
+        }
+        "too_few_landmarks" => "too few landmarks must fail production input validation",
+        "degenerate_landmarks" => "degenerate landmarks must fail production registration",
+        "empty_he_cells" => "an empty H&E section must remain explicit in production results",
+        "empty_ihc_cells" => "an empty IHC section must remain explicit in production results",
+        "no_abnormal_cells" => {
+            "absence of abnormal IHC cells should produce no neighborhood territories"
+        }
+        "sparse_graph" => "a radius below all cell spacings should produce no graph edges",
+        "zero_expected_edge_count" => {
+            "zero expected edges must produce a typed unavailable enrichment ratio"
+        }
+        "multiple_cell_classes" => {
+            "every configured cell-class pair should appear in production enrichment"
+        }
+        "multiple_null_models" => {
+            "every configured null model should appear in production sensitivity results"
+        }
+        "rigid_rotation" => "the rigid production path should recover a known 90-degree rotation",
+        "affine_deformation" => {
+            "the affine production path should recover a known shear and anisotropic scale"
         }
         _ => "multimodal synthetic generator smoke check generator",
     }

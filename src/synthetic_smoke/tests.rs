@@ -177,11 +177,20 @@ fn marked_smoke_reports_failed_replicates_without_hiding_denominators() {
     assert!(result.type_i_error_confidence_interval.is_some());
 }
 
+#[test]
+fn no_manual_status_flag_injection() {
+    let runner_source = include_str!("../synthetic_smoke.rs");
+
+    assert!(!runner_source.contains("result.passed = true"));
+    assert!(!runner_source.contains("status_flags.push(StatusFlag::"));
+    assert!(!runner_source.contains("statistic: 0.0"));
+}
+
 mod multimodal {
     use assert_cmd::Command;
 
     #[test]
-    fn smoke_detects_immune_associated_mmr_territory() {
+    fn positive_control_detects_signal() {
         let summary =
             crate::synthetic_smoke::run_multimodal_synthetic_smoke(100, 123).expect("smoke check");
         assert!(
@@ -205,6 +214,91 @@ mod multimodal {
     }
 
     #[test]
+    fn rotation_scenario_requires_real_rigid_transform() {
+        let result = crate::synthetic_smoke::run_multimodal_generator("rigid_rotation", 1, 123, 20)
+            .expect("rigid rotation scenario");
+
+        assert_eq!(result.criterion_met_rate, Some(1.0));
+    }
+
+    #[test]
+    fn registration_jitter_uses_actual_registration_output() {
+        let result =
+            crate::synthetic_smoke::run_multimodal_generator("registration_jitter", 1, 123, 7)
+                .expect("registration jitter scenario");
+
+        assert_eq!(result.below_registration_resolution_flag_rate, Some(1.0));
+    }
+
+    #[test]
+    fn prepost_equivalence_uses_actual_comparison() {
+        let result = crate::synthetic_smoke::run_multimodal_generator(
+            "prepost_within_margin_spatial_pattern",
+            1,
+            123,
+            8,
+        )
+        .expect("pre/post margin scenario");
+
+        assert_eq!(result.within_margin_rate, Some(1.0));
+        assert!(result.note.contains("descriptive margin"));
+    }
+
+    #[test]
+    fn smoke_covers_required_negative_positive_and_edge_scenarios() {
+        let summary =
+            crate::synthetic_smoke::run_multimodal_synthetic_smoke(1, 123).expect("smoke check");
+
+        for scenario in [
+            "random_labels_no_association",
+            "immune_independent_mmr_territory",
+            "registration_jitter_no_association",
+            "cross_interaction_enrichment",
+            "registration_residual_above_threshold",
+            "too_few_landmarks",
+            "degenerate_landmarks",
+            "empty_he_cells",
+            "empty_ihc_cells",
+            "no_abnormal_cells",
+            "sparse_graph",
+            "zero_expected_edge_count",
+            "multiple_cell_classes",
+            "multiple_null_models",
+            "rigid_rotation",
+            "affine_deformation",
+        ] {
+            let result = &summary.results[scenario];
+            assert_eq!(result.replicates_completed, 1, "{scenario}: {result:?}");
+            assert_eq!(result.replicates_failed, 0, "{scenario}: {result:?}");
+            assert!(result.passed, "{scenario}: {result:?}");
+        }
+        assert_eq!(
+            summary.results["multiple_null_models"]
+                .scenario_configuration
+                .null_models
+                .len(),
+            4
+        );
+    }
+
+    #[test]
+    #[ignore = "scheduled calibration uses 1,000 production-engine replicates"]
+    fn negative_control_calibrates() {
+        let result = crate::synthetic_smoke::run_multimodal_generator(
+            "random_labels_no_association",
+            1_000,
+            123,
+            0,
+        )
+        .expect("negative-control calibration");
+        let interval = result
+            .false_positive_confidence_interval
+            .expect("false-positive confidence interval");
+
+        assert!(interval.upper <= 0.05, "{result:?}");
+    }
+
+    #[test]
     fn smoke_is_deterministic_and_reports_denominators() {
         let first = crate::synthetic_smoke::run_multimodal_synthetic_smoke(3, 123)
             .expect("first smoke check");
@@ -221,6 +315,8 @@ mod multimodal {
             assert_eq!(result.replicates_failed, 0);
             assert!(result.failure_reasons.is_empty());
             assert!(!result.acceptance_criterion.is_empty());
+            assert_eq!(result.criterion_met_rate, Some(1.0));
+            assert!(result.criterion_met_confidence_interval.is_some());
         }
 
         let first_json = serde_json::to_value(&first).expect("summary json");
@@ -238,9 +334,17 @@ mod multimodal {
 
     #[test]
     fn failed_replicates_are_reported_and_fail_the_smoke_scenario() {
+        let scenario = crate::synthetic_smoke::generators::multimodal_replicate_scenario(
+            "two_unrelated_mmr_territories",
+            123,
+            1,
+            0,
+        )
+        .expect("scenario");
         let result = crate::synthetic_smoke::summarize_multimodal_outcomes(
             "two_unrelated_mmr_territories",
             2,
+            crate::synthetic_smoke::multimodal_scenario_configuration(&scenario),
             [
                 Ok(crate::synthetic_smoke::ObservedMultimodalOutcome::default()),
                 Err((
@@ -303,7 +407,7 @@ fn remediation_multimodal_validation_calls_the_public_engine() {
         .expect("multimodal synthetic generator smoke check");
 
     assert!(
-        multimodal_analysis_call_count() >= 8,
+        multimodal_analysis_call_count() >= 24,
         "each scenario input must invoke MultimodalEngine; observed {} calls",
         multimodal_analysis_call_count()
     );

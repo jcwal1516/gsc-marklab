@@ -1,4 +1,5 @@
 use crate::{
+    common::seeds::splitmix64,
     config::{NeighborhoodNullModel, RegistrationTransform},
     data::{Pattern, PatternMeta},
     errors::{MarklabError, Result},
@@ -21,12 +22,16 @@ pub(super) fn multimodal_replicate_scenario(
     generator_index: u64,
     replicate: usize,
 ) -> Result<MultimodalScenario> {
-    let mut rng = DeterministicRng::new(
-        seed ^ (generator_index.wrapping_mul(0x9e37_79b9_7f4a_7c15))
-            ^ ((replicate as u64).wrapping_mul(0xbf58_476d_1ce4_e5b9)),
-    );
+    let scenario_seed = seed
+        ^ (generator_index.wrapping_mul(0x9e37_79b9_7f4a_7c15))
+        ^ ((replicate as u64).wrapping_mul(0xbf58_476d_1ce4_e5b9));
+    let mut rng = DeterministicRng::new(scenario_seed);
     let mut config = multimodal_smoke_config(seed);
+    config.permutation.seed = splitmix64(scenario_seed ^ 0x6e75_6c6c_5f73_6565);
     let (pre, post) = match generator {
+        "random_labels_no_association" => {
+            (random_label_input("pre", splitmix64(scenario_seed))?, None)
+        }
         "two_unrelated_mmr_territories" => {
             config.neighborhood.label_pairs = vec![["mmr_abnormal".into(), "mmr_abnormal".into()]];
             (territory_relation_input(false, "pre", &mut rng), None)
@@ -36,6 +41,16 @@ pub(super) fn multimodal_replicate_scenario(
             (territory_relation_input(true, "pre", &mut rng), None)
         }
         "immune_associated_mmr_territory" => {
+            (immune_association_input(true, false, "pre", &mut rng), None)
+        }
+        "immune_independent_mmr_territory" => (
+            immune_association_input(false, false, "pre", &mut rng),
+            None,
+        ),
+        "registration_jitter_no_association" => {
+            (immune_association_input(false, true, "pre", &mut rng), None)
+        }
+        "cross_interaction_enrichment" => {
             (immune_association_input(true, false, "pre", &mut rng), None)
         }
         "registration_jitter" => (immune_association_input(true, true, "pre", &mut rng), None),
@@ -49,6 +64,84 @@ pub(super) fn multimodal_replicate_scenario(
             immune_association_input(true, false, "pre", &mut rng),
             Some(immune_association_input(false, false, "post", &mut rng)),
         ),
+        "registration_residual_above_threshold" => {
+            config.registration.max_rmse_um = 1.0;
+            (immune_association_input(false, true, "pre", &mut rng), None)
+        }
+        "too_few_landmarks" => {
+            let mut input = immune_association_input(false, false, "pre", &mut rng);
+            input.landmarks.truncate(2);
+            (input, None)
+        }
+        "degenerate_landmarks" => {
+            let mut input = immune_association_input(false, false, "pre", &mut rng);
+            input.landmarks = degenerate_landmarks();
+            (input, None)
+        }
+        "empty_he_cells" => {
+            let mut input = immune_association_input(false, false, "pre", &mut rng);
+            input.he_cells.clear();
+            (input, None)
+        }
+        "empty_ihc_cells" => {
+            let mut input = immune_association_input(false, false, "pre", &mut rng);
+            input.ihc_cells.clear();
+            (input, None)
+        }
+        "no_abnormal_cells" => {
+            let mut input = immune_association_input(false, false, "pre", &mut rng);
+            for cell in &mut input.ihc_cells {
+                cell.mmr_mark = Some(0);
+                cell.mmr_probability = Some(0.05);
+            }
+            (input, None)
+        }
+        "sparse_graph" => {
+            config.neighborhood.radius_um = 0.25;
+            (
+                immune_association_input(false, false, "pre", &mut rng),
+                None,
+            )
+        }
+        "zero_expected_edge_count" => {
+            let mut input = immune_association_input(false, false, "pre", &mut rng);
+            for cell in &mut input.he_cells {
+                cell.cell_type = Some("tumor".into());
+            }
+            (input, None)
+        }
+        "multiple_cell_classes" => {
+            config.neighborhood.label_pairs = vec![
+                ["lymphocyte".into(), "mmr_abnormal".into()],
+                ["tumor".into(), "mmr_abnormal".into()],
+                ["stroma".into(), "mmr_abnormal".into()],
+            ];
+            let mut input = immune_association_input(true, false, "pre", &mut rng);
+            input
+                .he_cells
+                .extend(cell_cluster("stroma", (45.0, 65.0), "stroma"));
+            (input, None)
+        }
+        "multiple_null_models" => {
+            config.neighborhood.null_models = vec![
+                NeighborhoodNullModel::SourceSection,
+                NeighborhoodNullModel::SourceSectionDensity,
+                NeighborhoodNullModel::SourceSectionCellClass,
+                NeighborhoodNullModel::SourceSectionRegistrationQc,
+            ];
+            (immune_association_input(true, false, "pre", &mut rng), None)
+        }
+        "rigid_rotation" => {
+            let mut input = immune_association_input(false, false, "pre", &mut rng);
+            input.landmarks = rigid_rotation_landmarks();
+            (input, None)
+        }
+        "affine_deformation" => {
+            config.registration.transform = RegistrationTransform::Affine;
+            let mut input = immune_association_input(false, false, "pre", &mut rng);
+            input.landmarks = affine_landmarks();
+            (input, None)
+        }
         _ => {
             return Err(MarklabError::Validation(format!(
                 "unknown multimodal synthetic generator {generator}"
@@ -56,6 +149,46 @@ pub(super) fn multimodal_replicate_scenario(
         }
     };
     Ok(MultimodalScenario { config, pre, post })
+}
+
+fn random_label_input(timepoint: &str, seed: u64) -> Result<MultimodalInput> {
+    let labels = permute_fixed_count(25, 12, seed)?;
+    let mut he_cells = Vec::new();
+    for row in 0..5 {
+        for column in 0..5 {
+            let index = row * 5 + column;
+            he_cells.push(HeCell {
+                cell_id: format!("random-{row}-{column}"),
+                x_um: 10.0 + column as f64 * 15.0,
+                y_um: 10.0 + row as f64 * 15.0,
+                cell_type: Some(if labels[index] == 1 {
+                    "lymphocyte".into()
+                } else {
+                    "tumor".into()
+                }),
+                cell_type_probability: Some(0.95),
+            });
+        }
+    }
+    let mut ihc_cells = territory_cluster("random", (20.0, 20.0))
+        .into_iter()
+        .chain(retained_controls())
+        .collect::<Vec<_>>();
+    let ihc_marks =
+        permute_fixed_count(ihc_cells.len(), 6, splitmix64(seed ^ 0x6968_635f_6d61_726b))?;
+    for (cell, mark) in ihc_cells.iter_mut().zip(ihc_marks) {
+        cell.mmr_mark = Some(mark);
+        cell.mmr_probability = Some(if mark == 1 { 0.95 } else { 0.05 });
+    }
+
+    Ok(MultimodalInput {
+        he_cells,
+        ihc_cells,
+        landmarks: identity_landmarks(),
+        case_id: "smoke-random-labels".into(),
+        timepoint: timepoint.into(),
+        protein: "MSH6".into(),
+    })
 }
 
 pub(super) fn multimodal_smoke_config(seed: u64) -> AnalysisConfig {
@@ -71,7 +204,7 @@ pub(super) fn multimodal_smoke_config(seed: u64) -> AnalysisConfig {
     config.neighborhood.territory_min_cells = 3;
     config.neighborhood.territory_min_radius_um = 1.0;
     config.neighborhood.null_models = vec![NeighborhoodNullModel::SourceSection];
-    config.permutation.b = 19;
+    config.permutation.b = 99;
     config.permutation.seed = seed;
     config.permutation.stratified = false;
     config.spectrum.fit_low_k_alpha = false;
@@ -220,6 +353,28 @@ fn jittered_landmarks() -> Vec<LandmarkPair> {
         LandmarkPair::new(0.0, 100.0, 0.0, 104.0),
         LandmarkPair::new(100.0, 100.0, 100.0, 96.0),
     ]
+}
+
+fn degenerate_landmarks() -> Vec<LandmarkPair> {
+    vec![
+        LandmarkPair::new(0.0, 0.0, 0.0, 0.0),
+        LandmarkPair::new(0.0, 0.0, 1.0, 0.0),
+        LandmarkPair::new(0.0, 0.0, 0.0, 1.0),
+    ]
+}
+
+fn rigid_rotation_landmarks() -> Vec<LandmarkPair> {
+    [(0.0, 0.0), (100.0, 0.0), (0.0, 100.0), (100.0, 100.0)]
+        .into_iter()
+        .map(|(x, y)| LandmarkPair::new(x, y, -y + 10.0, x - 5.0))
+        .collect()
+}
+
+fn affine_landmarks() -> Vec<LandmarkPair> {
+    [(0.0, 0.0), (100.0, 0.0), (0.0, 100.0), (100.0, 100.0)]
+        .into_iter()
+        .map(|(x, y)| LandmarkPair::new(x, y, 1.1 * x + 0.2 * y + 3.0, -0.1 * x + 0.9 * y - 4.0))
+        .collect()
 }
 
 #[derive(Clone, Copy, Debug)]
