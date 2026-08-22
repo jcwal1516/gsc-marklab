@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
+    common::stats::{mean_all_finite, median_average_even},
     comparison::{difference::curve_difference_test, equivalence::curve_equivalence_test},
     output::{
         AnalysisSection, CrossInteractionCurve, CurveTestResult, MarkedPatternResult,
@@ -427,17 +428,7 @@ fn territory_prepost_summary_from_slices(
 }
 
 fn mean_territory_radius(territories: &[TerritoryFeature]) -> Option<f64> {
-    if territories.is_empty() {
-        None
-    } else {
-        Some(
-            territories
-                .iter()
-                .map(|territory| territory.radius_um)
-                .sum::<f64>()
-                / territories.len() as f64,
-        )
-    }
+    mean_all_finite(territories.iter().map(|territory| territory.radius_um))
 }
 
 fn median_territory_radius(territories: &[TerritoryFeature]) -> Option<f64> {
@@ -445,21 +436,15 @@ fn median_territory_radius(territories: &[TerritoryFeature]) -> Option<f64> {
         .iter()
         .map(|territory| territory.radius_um)
         .collect::<Vec<_>>();
-    median(&mut values)
+    median_average_even(&mut values)
 }
 
 fn mean_supporting_cells(territories: &[TerritoryFeature]) -> Option<f64> {
-    if territories.is_empty() {
-        None
-    } else {
-        Some(
-            territories
-                .iter()
-                .map(|territory| territory.supporting_cells as f64)
-                .sum::<f64>()
-                / territories.len() as f64,
-        )
-    }
+    mean_all_finite(
+        territories
+            .iter()
+            .map(|territory| territory.supporting_cells as f64),
+    )
 }
 
 fn median_supporting_cells(territories: &[TerritoryFeature]) -> Option<f64> {
@@ -467,20 +452,7 @@ fn median_supporting_cells(territories: &[TerritoryFeature]) -> Option<f64> {
         .iter()
         .map(|territory| territory.supporting_cells as f64)
         .collect::<Vec<_>>();
-    median(&mut values)
-}
-
-fn median(values: &mut [f64]) -> Option<f64> {
-    if values.is_empty() {
-        return None;
-    }
-    values.sort_by(f64::total_cmp);
-    let midpoint = values.len() / 2;
-    if values.len().is_multiple_of(2) {
-        Some((values[midpoint - 1] + values[midpoint]) / 2.0)
-    } else {
-        Some(values[midpoint])
-    }
+    median_average_even(&mut values)
 }
 
 fn unmatched_domain_count(query: &[TerritoryFeature], reference: &[TerritoryFeature]) -> usize {

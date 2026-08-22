@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use serde::Serialize;
 
 use crate::{
+    common::stats::mean_all_finite,
     config::ThreadSetting,
     errors::{MarklabError, Result},
     output::{MarkedPatternResult, StatusFlag},
@@ -349,7 +350,7 @@ fn summarize_analyses(analyses: &[MarkedPatternResult]) -> SyntheticGeneratorRes
 
     let replicates_run = analyses.len();
     let denom = replicates_run.max(1) as f64;
-    let mean_low_k_excess = finite_mean(
+    let mean_low_k_excess = mean_all_finite(
         analyses
             .iter()
             .filter_map(|analysis| analysis.spectrum.value().map(|value| value.low_k_excess)),
@@ -384,12 +385,12 @@ fn summarize_analyses(analyses: &[MarkedPatternResult]) -> SyntheticGeneratorRes
         })
         .count() as f64
         / denom;
-    let mean_anisotropy_index = finite_mean(
+    let mean_anisotropy_index = mean_all_finite(
         analyses
             .iter()
             .filter_map(|analysis| analysis.anisotropy.value().map(|value| value.index)),
     );
-    let mean_territory_count = finite_mean(analyses.iter().filter_map(|analysis| {
+    let mean_territory_count = mean_all_finite(analyses.iter().filter_map(|analysis| {
         analysis
             .wavelet
             .value()
@@ -480,19 +481,6 @@ fn small_sample_type_i_limit(replicates: usize) -> f64 {
     } else {
         0.15
     }
-}
-
-fn finite_mean(values: impl Iterator<Item = f64>) -> Option<f64> {
-    let mut total = 0.0;
-    let mut count = 0usize;
-    for value in values {
-        if !value.is_finite() {
-            return None;
-        }
-        total += value;
-        count += 1;
-    }
-    (count > 0).then_some(total / count as f64)
 }
 
 fn push_unique_flag(flags: &mut Vec<StatusFlag>, flag: StatusFlag) {

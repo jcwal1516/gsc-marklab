@@ -1,4 +1,19 @@
-use super::*;
+use crate::{
+    api::finite_option,
+    common::{
+        seeds::{derive_seed, SeedEndpoint},
+        stats::min_max_ignoring_nonfinite,
+    },
+    config::{AnalysisConfig, ComponentMode},
+    data::{validate::validation_flags, Pattern},
+    errors::Result,
+    geom::{components::ComponentSummary, spatial_index::mean_nearest_neighbor_distance},
+    output::ComponentAnalysisSummary,
+    spectra::structure_factor::{
+        permutation_whitened_spectrum, permutation_whitened_value_spectrum,
+        SpectrumPermutationOptions,
+    },
+};
 
 pub(super) fn component_results_for(
     config: &AnalysisConfig,
@@ -80,7 +95,11 @@ pub(super) fn component_summary_for(
         n_shells: config.spectrum.k_shells,
         low_k_modes: config.spectrum.low_k_shells,
         n_permutations: config.permutation.b,
-        seed: config.permutation.seed ^ u64::from(target_component_id),
+        seed: derive_seed(
+            config.permutation.seed,
+            SeedEndpoint::SpectrumComponent,
+            target_component_id as usize,
+        ),
         family_wise_alpha: config.inference.family_wise_alpha,
         max_scale_um: config.validation.largest_interpretable_scale_fraction
             * component.window.l_eff_um,
@@ -159,19 +178,7 @@ pub(super) fn component_l_eff_um(pattern: &Pattern) -> Option<f64> {
     if pattern.is_empty() {
         return None;
     }
-    let (min_x, max_x) = min_max(&pattern.x_um)?;
-    let (min_y, max_y) = min_max(&pattern.y_um)?;
+    let (min_x, max_x) = min_max_ignoring_nonfinite(&pattern.x_um)?;
+    let (min_y, max_y) = min_max_ignoring_nonfinite(&pattern.y_um)?;
     Some((max_x - min_x).hypot(max_y - min_y).max(1.0))
-}
-
-pub(super) fn min_max(values: &[f64]) -> Option<(f64, f64)> {
-    let mut finite = values.iter().copied().filter(|value| value.is_finite());
-    let first = finite.next()?;
-    let mut min = first;
-    let mut max = first;
-    for value in finite {
-        min = min.min(value);
-        max = max.max(value);
-    }
-    Some((min, max))
 }

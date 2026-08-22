@@ -1,8 +1,10 @@
 use crate::{
+    common::seeds::{derive_seed, SeedEndpoint},
     comparison::curves::{max_abs_standardized_difference, validate_curves},
     errors::{MarklabError, Result},
+    inference::scalar_pvalues::{permutation_p_value_with_spec, PermutationTestSpec, Tail},
     output::CurveTestResult,
-    permutation::{labels::deterministic_shuffle, rng::splitmix64},
+    permutation::labels::deterministic_shuffle,
 };
 
 /// Compare two already-aggregated curves with a pooled-bin permutation diagnostic.
@@ -26,11 +28,11 @@ pub fn curve_difference_test(
 
     let statistic = max_abs_standardized_difference(a, b)?;
     let null_statistics = permuted_statistics(a, b, permutations, seed)?;
-    let extreme_count = null_statistics
-        .iter()
-        .filter(|null_statistic| **null_statistic >= statistic)
-        .count();
-    let p_difference = (extreme_count as f64 + 1.0) / (permutations as f64 + 1.0);
+    let p_difference = permutation_p_value_with_spec(
+        statistic,
+        &null_statistics,
+        PermutationTestSpec::new(Tail::OneSidedHigh, 1),
+    )?;
 
     Ok(CurveTestResult {
         comparison_name: comparison_name.to_owned(),
@@ -57,7 +59,10 @@ fn permuted_statistics(a: &[f64], b: &[f64], permutations: usize, seed: u64) -> 
     let mut null_statistics = Vec::with_capacity(permutations);
     for permutation in 0..permutations {
         let mut shuffled = pooled.clone();
-        deterministic_shuffle(&mut shuffled, splitmix64(seed ^ permutation as u64));
+        deterministic_shuffle(
+            &mut shuffled,
+            derive_seed(seed, SeedEndpoint::CurveDifference, permutation),
+        );
         let left = &shuffled[..curve_len];
         let right = &shuffled[curve_len..];
         null_statistics.push(max_abs_standardized_difference(left, right)?);

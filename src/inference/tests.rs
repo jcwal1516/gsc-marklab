@@ -1,5 +1,7 @@
 use crate::{
-    inference::scalar_pvalues::{permutation_p_value, Tail},
+    inference::scalar_pvalues::{
+        permutation_p_value, permutation_p_value_with_spec, PermutationTestSpec, Tail,
+    },
     permutation::{
         envelopes::GlobalEnvelope,
         labels::{marked_count, permute_fixed_count, permute_fixed_count_indices},
@@ -94,19 +96,26 @@ fn stratified_permutation_preserves_mark_count_per_stratum() {
 }
 
 #[test]
-fn scalar_permutation_p_values_use_plus_one_correction_and_declared_tail() {
-    let null = [1.0, 2.0, 3.0, 4.0];
+fn permutation_high_tail_inclusive_ties() {
+    assert_abs_diff_eq!(
+        permutation_p_value(3.0, &[2.0, 3.0], Tail::OneSidedHigh, 0.5).expect("high-tail p-value"),
+        2.0 / 3.0,
+        epsilon = 1e-12
+    );
+}
 
+#[test]
+fn permutation_low_tail_inclusive_ties() {
     assert_abs_diff_eq!(
-        permutation_p_value(3.5, &null, Tail::OneSidedHigh, 0.5).expect("high-tail p-value"),
-        0.4,
+        permutation_p_value(2.0, &[2.0, 3.0], Tail::OneSidedLow, 0.5).expect("low-tail p-value"),
+        2.0 / 3.0,
         epsilon = 1e-12
     );
-    assert_abs_diff_eq!(
-        permutation_p_value(1.5, &null, Tail::OneSidedLow, 0.5).expect("low-tail p-value"),
-        0.4,
-        epsilon = 1e-12
-    );
+}
+
+#[test]
+fn permutation_two_sided_equal_tail() {
+    let null = [1.0, 2.0, 3.0, 4.0];
     assert_abs_diff_eq!(
         permutation_p_value(4.0, &null, Tail::TwoSided, 0.5).expect("two-sided p-value"),
         0.8,
@@ -115,10 +124,25 @@ fn scalar_permutation_p_values_use_plus_one_correction_and_declared_tail() {
 }
 
 #[test]
-fn scalar_permutation_p_values_reject_undefined_or_underpowered_inputs() {
+fn permutation_rejects_nonfinite() {
     assert!(permutation_p_value(f64::NAN, &[1.0], Tail::OneSidedHigh, 0.5).is_err());
     assert!(permutation_p_value(1.0, &[f64::INFINITY], Tail::OneSidedHigh, 0.5).is_err());
+}
+
+#[test]
+fn scalar_permutation_p_values_reject_underpowered_inputs() {
     assert!(permutation_p_value(1.0, &[1.0, 2.0], Tail::TwoSided, 0.5).is_err());
+}
+
+#[test]
+fn scalar_permutation_p_values_enforce_an_explicit_minimum() {
+    let specification = PermutationTestSpec::new(Tail::OneSidedHigh, 2);
+
+    assert!(permutation_p_value_with_spec(1.0, &[1.0], specification).is_err());
+    assert_eq!(
+        permutation_p_value_with_spec(1.0, &[1.0, 2.0], specification).expect("resolved test"),
+        1.0
+    );
 }
 
 #[test]

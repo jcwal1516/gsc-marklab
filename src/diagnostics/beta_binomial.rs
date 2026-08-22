@@ -1,4 +1,5 @@
 use crate::{
+    common::stats::{median_ignoring_nonfinite, min_max_ignoring_nonfinite},
     data::Pattern,
     errors::{MarklabError, Result},
     output::BetaBinomialSummary,
@@ -72,10 +73,10 @@ fn group_summaries(
             );
         }
     } else {
-        let median_x = median(pattern.x_um.as_ref()).ok_or_else(|| {
+        let median_x = median_ignoring_nonfinite(pattern.x_um.as_ref()).ok_or_else(|| {
             MarklabError::Compute("beta-binomial x-coordinate median is undefined".into())
         })?;
-        let median_y = median(pattern.y_um.as_ref()).ok_or_else(|| {
+        let median_y = median_ignoring_nonfinite(pattern.y_um.as_ref()).ok_or_else(|| {
             MarklabError::Compute("beta-binomial y-coordinate median is undefined".into())
         })?;
         for index in 0..pattern.len() {
@@ -149,32 +150,13 @@ fn posterior_mean_range(groups: &[BetaBinomialGroupSummary]) -> f64 {
     if groups.len() < 2 {
         return 0.0;
     }
-    let min = groups
+    let posterior_means = groups
         .iter()
         .map(|group| group.posterior_mean)
-        .fold(f64::INFINITY, f64::min);
-    let max = groups
-        .iter()
-        .map(|group| group.posterior_mean)
-        .fold(f64::NEG_INFINITY, f64::max);
-    if min.is_finite() && max.is_finite() {
-        max - min
-    } else {
-        0.0
-    }
-}
-
-fn median(values: &[f64]) -> Option<f64> {
-    let mut values = values
-        .iter()
-        .copied()
-        .filter(|value| value.is_finite())
         .collect::<Vec<_>>();
-    if values.is_empty() {
-        return None;
-    }
-    values.sort_by(f64::total_cmp);
-    Some(values[values.len() / 2])
+    min_max_ignoring_nonfinite(&posterior_means)
+        .map(|(min, max)| max - min)
+        .unwrap_or(0.0)
 }
 
 #[cfg(test)]
@@ -216,5 +198,35 @@ mod tests {
         assert!((output.group_posterior_mean_range - 0.2).abs() < 1.0e-12);
         assert!(output.credible_interval_95[0] < output.posterior_mean);
         assert!(output.credible_interval_95[1] > output.posterior_mean);
+    }
+
+    #[test]
+    fn coordinate_groups_use_average_even_medians() {
+        let pattern = Pattern::from_arrays(
+            vec![0.0, 1.0, 100.0, 101.0],
+            vec![0.0, 1.0, 100.0, 101.0],
+            vec![1, 0, 1, 0],
+            PatternMeta {
+                case_id: "case_even_median".into(),
+                timepoint: "post".into(),
+                protein: "MSH6".into(),
+                slide_id: None,
+                section_id: None,
+                stain_batch: None,
+                block_id: None,
+                region_id: None,
+            },
+        )
+        .expect("pattern");
+
+        let output = beta_binomial(&pattern).expect("beta-binomial diagnostic");
+        let mut group_sizes = output
+            .groups
+            .iter()
+            .map(|group| group.n_cells)
+            .collect::<Vec<_>>();
+        group_sizes.sort_unstable();
+
+        assert_eq!(group_sizes, vec![2, 2]);
     }
 }

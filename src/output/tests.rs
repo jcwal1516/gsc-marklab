@@ -254,7 +254,7 @@ fn output_writer_respects_optional_artifact_flags() {
 }
 
 #[test]
-fn output_writer_rejects_an_unserializable_document_before_writing_artifacts() {
+fn all_result_floats_are_finite() {
     let mut config = AnalysisConfig::default();
     config.validation.n_min = 4;
     config.validation.n_marked_min = 1;
@@ -278,7 +278,7 @@ fn output_writer_rejects_an_unserializable_document_before_writing_artifacts() {
         .expect("engine")
         .analyze_pattern(&pattern("case_001", "post", vec![1, 0, 1, 0]))
         .expect("analysis");
-    result.p_hat = f64::NAN;
+    result.qc.mean_tumor_probability = Some(f64::INFINITY);
     let dir = tempfile::tempdir().expect("temp dir");
 
     OutputWriter::write(&ResultDocument::marked(result), dir.path(), &config.output)

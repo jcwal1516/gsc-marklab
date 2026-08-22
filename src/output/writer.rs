@@ -7,6 +7,7 @@ use std::{
 use serde::Serialize;
 
 use crate::{
+    common::finite::validate_serializable_finite,
     config::OutputSection,
     errors::{MarklabError, Result},
 };
@@ -78,6 +79,11 @@ impl ResultDocument {
                 supported: RESULT_FORMAT_VERSION.into(),
             });
         }
+        validate_serializable_finite(self).map_err(|error| {
+            MarklabError::Compute(format!(
+                "result document contains invalid floating-point data: {error}"
+            ))
+        })?;
         let json = serde_json::to_string_pretty(self)
             .map_err(|error| MarklabError::Compute(error.to_string()))?;
         serde_json::from_str::<Self>(&json).map_err(|error| {
@@ -391,6 +397,11 @@ fn write_available_json<T: Serialize>(
 }
 
 fn write_json(path: PathBuf, value: &impl Serialize) -> Result<()> {
+    validate_serializable_finite(value).map_err(|error| {
+        MarklabError::Compute(format!(
+            "output artifact contains invalid floating-point data: {error}"
+        ))
+    })?;
     let json = serde_json::to_string_pretty(value)
         .map_err(|error| MarklabError::Compute(error.to_string()))?;
     std::fs::write(&path, json).map_err(|source| MarklabError::io(&path, source))

@@ -1,4 +1,18 @@
-use super::*;
+use std::collections::BTreeMap;
+
+use crate::{
+    common::stats::{mean_ignoring_nonfinite, safe_finite_ratio},
+    config::{AnalysisConfig, PermutationStratum},
+    data::{validate::validation_flags, Pattern},
+    errors::{MarklabError, Result},
+    geom::components::ComponentSummary,
+    output::{QcSummary, StatusFlag},
+    permutation::{labels::permute_fixed_count, stratified::permute_within_strata},
+    qc::stain_gradient::gradient_suspect,
+    spectra::structure_factor::{
+        stratified_permutation_whitened_spectrum, SpectrumPermutationOptions,
+    },
+};
 
 pub(super) fn validate_pattern(
     config: &AnalysisConfig,
@@ -47,26 +61,21 @@ pub(super) fn qc_summary(pattern: &Pattern) -> QcSummary {
         internal_control_valid_fraction: pattern.internal_control_valid_fraction,
         artifact_excluded_fraction: pattern.artifact_excluded_fraction,
         nonviable_excluded_fraction: pattern.nonviable_excluded_fraction,
-        mean_tumor_probability: finite_mean(pattern.tumor_probability.as_deref()),
-        mean_nucleus_area_um2: finite_mean(pattern.nucleus_area_um2.as_deref()),
+        mean_tumor_probability: pattern
+            .tumor_probability
+            .as_deref()
+            .and_then(|values| mean_ignoring_nonfinite(values.iter().copied().map(f64::from))),
+        mean_nucleus_area_um2: pattern
+            .nucleus_area_um2
+            .as_deref()
+            .and_then(|values| mean_ignoring_nonfinite(values.iter().copied().map(f64::from))),
         tumor_cell_density_per_mm2: tumor_cell_density_per_mm2(pattern),
     }
 }
 
-pub(super) fn finite_mean(values: Option<&[f32]>) -> Option<f64> {
-    let values = values?;
-    let mut sum = 0.0;
-    let mut count = 0_usize;
-    for value in values.iter().copied().filter(|value| value.is_finite()) {
-        sum += f64::from(value);
-        count += 1;
-    }
-    (count > 0).then_some(sum / count as f64)
-}
-
 pub(super) fn tumor_cell_density_per_mm2(pattern: &Pattern) -> Option<f64> {
     if pattern.window.area_um2.is_finite() && pattern.window.area_um2 > 0.0 {
-        Some(pattern.len() as f64 / (pattern.window.area_um2 / 1_000_000.0))
+        safe_finite_ratio(pattern.len() as f64, pattern.window.area_um2 / 1_000_000.0)
     } else {
         None
     }

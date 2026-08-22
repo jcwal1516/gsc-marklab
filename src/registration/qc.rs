@@ -1,3 +1,6 @@
+use crate::common::stats::{
+    mean_all_finite, median_sorted_average_even, percentile_nearest_rank_sorted,
+};
 use crate::errors::{MarklabError, Result};
 use crate::output::RegistrationSummary;
 use crate::registration::landmarks::LandmarkPair;
@@ -34,17 +37,19 @@ pub fn registration_qc(
     }
 
     residuals.sort_by(f64::total_cmp);
-    let mean_squared_residual_um = residuals
-        .iter()
-        .map(|residual| residual * residual)
-        .sum::<f64>()
-        / residuals.len() as f64;
+    let mean_squared_residual_um =
+        mean_all_finite(residuals.iter().map(|residual| residual * residual)).ok_or_else(|| {
+            MarklabError::Compute("registration residual mean is undefined".into())
+        })?;
     let rmse_um = mean_squared_residual_um.sqrt();
-    let median_residual_um = median(&residuals);
+    let median_residual_um = median_sorted_average_even(&residuals)
+        .ok_or_else(|| MarklabError::Compute("registration residual median is undefined".into()))?;
     let max_residual_um = *residuals
         .last()
         .expect("registration QC has at least one residual");
-    let p95_residual_um = percentile_nearest_rank(&residuals, 0.95);
+    let p95_residual_um = percentile_nearest_rank_sorted(&residuals, 0.95).ok_or_else(|| {
+        MarklabError::Compute("registration residual percentile is undefined".into())
+    })?;
 
     Ok(RegistrationSummary {
         transform_type: transform.transform_type.clone(),
@@ -56,18 +61,4 @@ pub fn registration_qc(
         usable_min_distance_um: p95_residual_um * claim_distance_multiplier,
         status: "ok".to_string(),
     })
-}
-
-fn median(sorted_values: &[f64]) -> f64 {
-    let midpoint = sorted_values.len() / 2;
-    if sorted_values.len().is_multiple_of(2) {
-        (sorted_values[midpoint - 1] + sorted_values[midpoint]) / 2.0
-    } else {
-        sorted_values[midpoint]
-    }
-}
-
-fn percentile_nearest_rank(sorted_values: &[f64], percentile: f64) -> f64 {
-    let rank = (percentile * sorted_values.len() as f64).ceil() as usize;
-    sorted_values[rank.saturating_sub(1).min(sorted_values.len() - 1)]
 }

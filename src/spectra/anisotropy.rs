@@ -47,6 +47,8 @@ pub fn anisotropy_from_weighted_modes(modes: &[(f64, f64, f64)]) -> Option<Aniso
 }
 
 use crate::{
+    common::seeds::{derive_seed, SeedEndpoint},
+    common::stats::median_average_even,
     data::Pattern,
     errors::{MarklabError, Result},
     inference::scalar_pvalues::{permutation_p_value, Tail},
@@ -89,7 +91,7 @@ pub(crate) fn permutation_whitened_anisotropy(
     };
     let mut permutation_powers = vec![vec![0.0; modes.len()]; n_permutations];
     for (perm_index, powers) in permutation_powers.iter_mut().enumerate() {
-        let permutation_seed = seed ^ (perm_index as u64).wrapping_mul(0xd6e8_feb8_6659_fd93);
+        let permutation_seed = derive_seed(seed, SeedEndpoint::Anisotropy, perm_index);
         let labels = if let Some(strata) = strata {
             permute_within_strata(&pattern.mark, strata, permutation_seed)
         } else {
@@ -116,7 +118,7 @@ pub(crate) fn permutation_whitened_anisotropy(
                 .iter()
                 .map(|powers| powers[mode_index])
                 .collect::<Vec<_>>();
-            median(&mut values)
+            median_average_even(&mut values)
         })
         .collect::<Option<Vec<_>>>();
     let Some(baselines) = baselines else {
@@ -188,17 +190,4 @@ fn effective_length_um(pattern: &Pattern) -> Option<f64> {
     let max_y = pattern.y_um.iter().copied().reduce(f64::max)?;
     let span = (max_x - min_x).max(max_y - min_y);
     (span > 0.0).then_some(span)
-}
-
-fn median(values: &mut [f64]) -> Option<f64> {
-    if values.is_empty() {
-        return None;
-    }
-    values.sort_by(f64::total_cmp);
-    let mid = values.len() / 2;
-    if values.len().is_multiple_of(2) {
-        Some((values[mid - 1] + values[mid]) * 0.5)
-    } else {
-        Some(values[mid])
-    }
 }

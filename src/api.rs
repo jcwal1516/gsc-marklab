@@ -1,35 +1,27 @@
-use std::{
-    collections::BTreeMap,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use crate::{
-    config::{AnalysisConfig, ComponentMode, PermutationStratum, ThreadSetting},
-    data::{validate::validation_flags, Pattern},
+    config::{AnalysisConfig, ThreadSetting},
+    data::Pattern,
     diagnostics::beta_binomial::beta_binomial,
     errors::{MarklabError, Result},
-    geom::{components::ComponentSummary, spatial_index::mean_nearest_neighbor_distance},
     inference::scalar_pvalues::{permutation_p_value, Tail},
     output::{
-        AnisotropySummary, ComponentAnalysisSummary, DiagnosticsResult, FunctionalSummary,
-        Interpretation, MarkedPatternResult, PairCorrelationPoint, PrimaryEndpoint, QcSummary,
-        ScalogramPoint, SpectrumPoint, SpectrumSummary, StatusFlag, TerritoryFeature, TimingStage,
-        WaveletSummary, WindowSummary,
+        AnisotropySummary, DiagnosticsResult, FunctionalSummary, Interpretation,
+        MarkedPatternResult, PairCorrelationPoint, PrimaryEndpoint, ScalogramPoint, SpectrumPoint,
+        SpectrumSummary, StatusFlag, TerritoryFeature, TimingStage, WaveletSummary, WindowSummary,
     },
     perf::counters::{estimate_peak_memory, MemoryEstimate, MemoryInputs},
     periodogram::{
         bartlett::marked_bartlett_periodogram,
         raster::{centered_mark_raster, centered_mark_raster_for_marks},
     },
-    permutation::{
-        envelopes::GlobalEnvelope, labels::permute_fixed_count, stratified::permute_within_strata,
-    },
-    qc::stain_gradient::gradient_suspect,
+    permutation::envelopes::GlobalEnvelope,
     spectra::anisotropy::{permutation_whitened_anisotropy, PermutationAnisotropy},
     spectra::pair_correlation::{pair_correlation, pair_correlation_for_marks},
     spectra::structure_factor::{
-        observed_power_for_modes, observed_value_power_for_modes, permutation_whitened_spectrum,
-        permutation_whitened_spectrum_from_observed_modes, permutation_whitened_value_spectrum,
+        observed_power_for_modes, observed_value_power_for_modes,
+        permutation_whitened_spectrum_from_observed_modes,
         permutation_whitened_value_spectrum_from_observed_modes, resolvable_modes_for_pattern,
         stratified_permutation_whitened_spectrum, PermutationWhitenedSpectrum,
         SpectrumPermutationOptions,

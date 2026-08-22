@@ -1,8 +1,9 @@
 use crate::{
+    common::seeds::{derive_seed, SeedEndpoint},
     errors::{MarklabError, Result},
+    inference::scalar_pvalues::{permutation_p_value_with_spec, PermutationTestSpec, Tail},
     multimodal::cell_table::{primary_label, FusedCell},
     output::{CrossInteractionCurve, PairCorrelationPoint},
-    permutation::rng::splitmix64,
 };
 
 use super::label_permutation::shuffle_labels_within_sections;
@@ -53,7 +54,7 @@ pub fn cross_pair_correlation_curve(
         &observed_counts,
         permutations,
         seed,
-    );
+    )?;
 
     let points = observed_counts
         .iter()
@@ -139,11 +140,11 @@ fn permutation_summary(
     observed_counts: &[usize],
     permutations: usize,
     seed: u64,
-) -> NullSummary {
+) -> Result<NullSummary> {
     let mut lower = observed_counts.to_vec();
     let mut upper = observed_counts.to_vec();
     let observed_stat = max_bin_count(observed_counts);
-    let mut extreme_count = 0usize;
+    let mut null_statistics = Vec::with_capacity(permutations);
     let mut shuffled = labels.to_vec();
 
     for permutation in 0..permutations {
@@ -151,7 +152,7 @@ fn permutation_summary(
             labels,
             sections,
             &mut shuffled,
-            splitmix64(seed ^ permutation as u64),
+            derive_seed(seed, SeedEndpoint::CrossInteraction, permutation),
         );
         let null_counts = count_pair_bins(
             cells,
@@ -162,20 +163,22 @@ fn permutation_summary(
             pair.max_r_um,
             pair.bin_count,
         );
-        if max_bin_count(&null_counts) >= observed_stat {
-            extreme_count += 1;
-        }
+        null_statistics.push(max_bin_count(&null_counts) as f64);
         for index in 0..pair.bin_count {
             lower[index] = lower[index].min(null_counts[index]);
             upper[index] = upper[index].max(null_counts[index]);
         }
     }
 
-    NullSummary {
+    Ok(NullSummary {
         lower,
         upper,
-        p_global: (extreme_count as f64 + 1.0) / (permutations as f64 + 1.0),
-    }
+        p_global: permutation_p_value_with_spec(
+            observed_stat as f64,
+            &null_statistics,
+            PermutationTestSpec::new(Tail::OneSidedHigh, 1),
+        )?,
+    })
 }
 
 fn max_bin_count(counts: &[usize]) -> usize {

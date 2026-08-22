@@ -10,26 +10,63 @@ pub enum Tail {
     TwoSided,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PermutationTestSpec {
+    pub tail: Tail,
+    pub minimum_permutations: usize,
+}
+
+impl PermutationTestSpec {
+    pub const fn new(tail: Tail, minimum_permutations: usize) -> Self {
+        Self {
+            tail,
+            minimum_permutations,
+        }
+    }
+
+    pub fn for_alpha(tail: Tail, alpha: f64) -> Result<Self> {
+        if !(alpha.is_finite() && 0.0 < alpha && alpha < 1.0) {
+            return Err(MarklabError::Validation(
+                "permutation-test alpha must be finite and strictly between zero and one".into(),
+            ));
+        }
+        let numerator = if tail == Tail::TwoSided { 2.0 } else { 1.0 };
+        let minimum_permutations = (numerator / alpha).ceil() as usize - 1;
+        Ok(Self::new(tail, minimum_permutations))
+    }
+}
+
 pub fn permutation_p_value(
     observed: f64,
     null_values: &[f64],
     tail: Tail,
     alpha: f64,
 ) -> Result<f64> {
-    if !(alpha.is_finite() && 0.0 < alpha && alpha < 1.0) {
-        return Err(MarklabError::Validation(
-            "permutation-test alpha must be finite and strictly between zero and one".into(),
-        ));
-    }
+    let specification = PermutationTestSpec::for_alpha(tail, alpha)?;
+    permutation_p_value_with_spec(observed, null_values, specification)
+}
+
+pub fn permutation_p_value_with_spec(
+    observed: f64,
+    null_values: &[f64],
+    specification: PermutationTestSpec,
+) -> Result<f64> {
     if !observed.is_finite() {
         return Err(MarklabError::Compute(
             "observed permutation statistic is not finite".into(),
         ));
     }
-    if null_values.is_empty() {
+    if specification.minimum_permutations == 0 {
         return Err(MarklabError::Validation(
-            "permutation test requires at least one null statistic".into(),
+            "permutation test minimum must be greater than zero".into(),
         ));
+    }
+    if null_values.len() < specification.minimum_permutations {
+        return Err(MarklabError::Validation(format!(
+            "permutation test requires at least {} null statistics (got {})",
+            specification.minimum_permutations,
+            null_values.len()
+        )));
     }
     if null_values.iter().any(|value| !value.is_finite()) {
         return Err(MarklabError::Compute(
@@ -38,13 +75,7 @@ pub fn permutation_p_value(
     }
 
     let denominator = null_values.len() + 1;
-    if tail == Tail::TwoSided && (denominator as f64) < 2.0 / alpha {
-        return Err(MarklabError::Validation(format!(
-            "equal-tail permutation test requires B + 1 >= 2 / alpha (got {denominator} and alpha {alpha})"
-        )));
-    }
-
-    let p_value = match tail {
+    let p_value = match specification.tail {
         Tail::OneSidedHigh => {
             let count = null_values
                 .iter()

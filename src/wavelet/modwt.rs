@@ -1,3 +1,5 @@
+use crate::common::stats::population_variance;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct VarianceFractions {
     pub fine: f64,
@@ -14,13 +16,13 @@ pub fn variance_fractions_from_field(
         return None;
     }
 
-    let total = variance(
+    let total = population_variance(
         field
             .iter()
             .map(|value| f64::from(*value))
             .collect::<Vec<_>>()
             .as_slice(),
-    );
+    )?;
     if total <= f64::EPSILON {
         return Some(VarianceFractions {
             fine: 0.0,
@@ -31,7 +33,7 @@ pub fn variance_fractions_from_field(
 
     let fine_energy = neighbor_difference_energy(field, width, height);
     let coarse_field = block_means(field, width, height, 2);
-    let coarse_energy = variance(&coarse_field);
+    let coarse_energy = population_variance(&coarse_field)?;
     let fine_raw = fine_energy / (fine_energy + total);
     let coarse_raw = coarse_energy / total;
     let fine = fine_raw.clamp(0.0, 1.0);
@@ -44,21 +46,6 @@ pub fn variance_fractions_from_field(
         intermediate: intermediate / sum,
         coarse: coarse / sum,
     })
-}
-
-fn variance(values: &[f64]) -> f64 {
-    if values.is_empty() {
-        return 0.0;
-    }
-    let mean = values.iter().sum::<f64>() / values.len() as f64;
-    values
-        .iter()
-        .map(|value| {
-            let delta = value - mean;
-            delta * delta
-        })
-        .sum::<f64>()
-        / values.len() as f64
 }
 
 fn neighbor_difference_energy(field: &[f32], width: usize, height: usize) -> f64 {

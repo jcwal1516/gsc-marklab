@@ -4,11 +4,17 @@ use std::collections::BTreeSet;
 
 #[cfg(feature = "cli")]
 use crate::permutation::labels::deterministic_shuffle;
+#[cfg(feature = "cli")]
+use crate::permutation::rng::splitmix64;
 use crate::{
+    common::{
+        seeds::{derive_seed, SeedEndpoint},
+        stats::{mean_all_finite, sample_standard_deviation},
+    },
     errors::{MarklabError, Result},
+    inference::scalar_pvalues::{permutation_p_value_with_spec, PermutationTestSpec, Tail},
     multimodal::cell_table::{primary_label, FusedCell},
     output::NeighborhoodEnrichmentResult,
-    permutation::rng::splitmix64,
 };
 
 use super::{graph::SpatialGraph, label_permutation::shuffle_labels_within_sections};
@@ -62,9 +68,18 @@ pub fn edge_enrichment(
     for pair in label_pairs {
         let observed_edges = count_pair_edges(&labels, graph, pair);
         let null_counts = permuted_counts(&labels, &sections, graph, pair, permutations, seed);
-        let expected_edges = mean(&null_counts);
-        let null_sd = sample_standard_deviation(&null_counts, expected_edges);
-        let p_value = one_sided_high_p_value(observed_edges, &null_counts);
+        let null_counts_f64 = null_counts
+            .iter()
+            .map(|count| *count as f64)
+            .collect::<Vec<_>>();
+        let expected_edges = mean_all_finite(null_counts_f64.iter().copied())
+            .expect("validated permutation count produces a non-empty null distribution");
+        let null_sd = sample_standard_deviation(&null_counts_f64).unwrap_or(0.0);
+        let p_value = permutation_p_value_with_spec(
+            observed_edges as f64,
+            &null_counts_f64,
+            PermutationTestSpec::new(Tail::OneSidedHigh, 1),
+        )?;
         let z_score = if null_sd > 0.0 {
             (observed_edges as f64 - expected_edges) / null_sd
         } else {
@@ -112,9 +127,18 @@ pub fn edge_enrichment_with_strata(
         let observed_edges = count_pair_edges(&labels, graph, pair);
         let null_counts =
             permuted_counts_with_strata(&labels, strata, graph, pair, permutations, seed);
-        let expected_edges = mean(&null_counts);
-        let null_sd = sample_standard_deviation(&null_counts, expected_edges);
-        let p_value = one_sided_high_p_value(observed_edges, &null_counts);
+        let null_counts_f64 = null_counts
+            .iter()
+            .map(|count| *count as f64)
+            .collect::<Vec<_>>();
+        let expected_edges = mean_all_finite(null_counts_f64.iter().copied())
+            .expect("validated permutation count produces a non-empty null distribution");
+        let null_sd = sample_standard_deviation(&null_counts_f64).unwrap_or(0.0);
+        let p_value = permutation_p_value_with_spec(
+            observed_edges as f64,
+            &null_counts_f64,
+            PermutationTestSpec::new(Tail::OneSidedHigh, 1),
+        )?;
         let z_score = if null_sd > 0.0 {
             (observed_edges as f64 - expected_edges) / null_sd
         } else {
@@ -216,7 +240,7 @@ fn permuted_counts(
             labels,
             sections,
             &mut shuffled,
-            splitmix64(seed ^ permutation as u64),
+            derive_seed(seed, SeedEndpoint::NeighborhoodEnrichment, permutation),
         );
         counts.push(count_pair_edges(&shuffled, graph, pair));
     }
@@ -241,7 +265,11 @@ fn permuted_counts_with_strata(
             labels,
             strata,
             &mut shuffled,
-            splitmix64(seed ^ permutation as u64),
+            derive_seed(
+                seed,
+                SeedEndpoint::NeighborhoodStratifiedEnrichment,
+                permutation,
+            ),
         );
         counts.push(count_pair_edges(&shuffled, graph, pair));
     }
@@ -299,43 +327,6 @@ fn edge_matches_pair(left: Option<&str>, right: Option<&str>, pair: &LabelPair) 
         }
         _ => false,
     }
-}
-
-fn mean(values: &[usize]) -> f64 {
-    if values.is_empty() {
-        return 0.0;
-    }
-
-    values.iter().sum::<usize>() as f64 / values.len() as f64
-}
-
-fn sample_standard_deviation(values: &[usize], mean: f64) -> f64 {
-    if values.len() < 2 {
-        return 0.0;
-    }
-
-    let variance = values
-        .iter()
-        .map(|value| {
-            let delta = *value as f64 - mean;
-            delta * delta
-        })
-        .sum::<f64>()
-        / (values.len() - 1) as f64;
-
-    if variance > 0.0 {
-        variance.sqrt()
-    } else {
-        0.0
-    }
-}
-
-fn one_sided_high_p_value(observed: usize, null_counts: &[usize]) -> f64 {
-    let extreme_count = null_counts
-        .iter()
-        .filter(|count| **count >= observed)
-        .count();
-    (extreme_count as f64 + 1.0) / (null_counts.len() as f64 + 1.0)
 }
 
 fn enrichment_ratio(observed_edges: usize, expected_edges: f64) -> f64 {

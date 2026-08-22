@@ -1,3 +1,7 @@
+use crate::common::{
+    seeds::{derive_seed, SeedEndpoint},
+    stats::{median_average_even, min_max_ignoring_nonfinite},
+};
 use crate::data::Pattern;
 use crate::errors::{MarklabError, Result};
 use crate::geom::spatial_index::mean_nearest_neighbor_distance;
@@ -165,8 +169,7 @@ pub fn permutation_whitened_spectrum_from_observed_modes(
             .map_init(
                 || Vec::with_capacity(pattern.len()),
                 |selected_indices, (perm_index, powers)| {
-                    let seed =
-                        options.seed ^ (perm_index as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15);
+                    let seed = derive_seed(options.seed, SeedEndpoint::SpectrumBinary, perm_index);
                     permutation_power_for_modes_into(
                         pattern,
                         modes,
@@ -190,7 +193,7 @@ pub fn permutation_whitened_spectrum_from_observed_modes(
     {
         let mut selected_indices = Vec::with_capacity(pattern.len());
         for (perm_index, powers) in permutation_mode_powers.iter_mut().enumerate() {
-            let seed = options.seed ^ (perm_index as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15);
+            let seed = derive_seed(options.seed, SeedEndpoint::SpectrumBinary, perm_index);
             if permutation_power_for_modes_into(
                 pattern,
                 modes,
@@ -245,7 +248,7 @@ pub fn permutation_whitened_value_spectrum_from_observed_modes(
                     permuted.extend_from_slice(values);
                     deterministic_shuffle(
                         permuted,
-                        options.seed ^ (perm_index as u64).wrapping_mul(0x94d0_49bb_1331_11eb),
+                        derive_seed(options.seed, SeedEndpoint::SpectrumContinuous, perm_index),
                     );
                     for (mode_index, mode) in modes.iter().copied().enumerate() {
                         let Some(power) = centered_structure_factor_for_values(
@@ -274,7 +277,7 @@ pub fn permutation_whitened_value_spectrum_from_observed_modes(
             permuted.extend_from_slice(values);
             deterministic_shuffle(
                 &mut permuted,
-                options.seed ^ (perm_index as u64).wrapping_mul(0x94d0_49bb_1331_11eb),
+                derive_seed(options.seed, SeedEndpoint::SpectrumContinuous, perm_index),
             );
             for (mode_index, mode) in modes.iter().copied().enumerate() {
                 let Some(power) =
@@ -439,7 +442,7 @@ where
         let labels = permute_within_strata(
             &pattern.mark,
             strata,
-            options.seed ^ (perm_index as u64).wrapping_mul(0xbf58_476d_1ce4_e5b9),
+            derive_seed(options.seed, SeedEndpoint::SpectrumStratified, perm_index),
         )?;
         for (mode_index, mode) in modes.iter().copied().enumerate() {
             let Some(power) =
@@ -520,7 +523,7 @@ fn summarize_permutation_whitening(
                 .iter()
                 .map(|powers| powers[shell_position])
                 .collect::<Vec<_>>();
-            median(&mut values)
+            median_average_even(&mut values)
         })
         .collect::<Option<Vec<_>>>();
     let Some(median_permutation_power) = median_permutation_power else {
@@ -865,8 +868,8 @@ fn effective_length_um(pattern: &Pattern) -> Option<f64> {
     if pattern.window.l_eff_um.is_finite() && pattern.window.l_eff_um > 0.0 {
         return Some(pattern.window.l_eff_um);
     }
-    let (min_x, max_x) = min_max(&pattern.x_um)?;
-    let (min_y, max_y) = min_max(&pattern.y_um)?;
+    let (min_x, max_x) = min_max_ignoring_nonfinite(&pattern.x_um)?;
+    let (min_y, max_y) = min_max_ignoring_nonfinite(&pattern.y_um)?;
     let span = (max_x - min_x).max(max_y - min_y);
     (span > 0.0).then_some(span)
 }
@@ -925,31 +928,6 @@ fn shell_mean_powers(modes: &[KMode], powers: &[f64], shell_index: &[usize]) -> 
         output.push(if count == 0 { 0.0 } else { sum / count as f64 });
     }
     Some(output)
-}
-
-fn min_max(values: &[f64]) -> Option<(f64, f64)> {
-    let mut iter = values.iter().copied().filter(|value| value.is_finite());
-    let first = iter.next()?;
-    let mut min = first;
-    let mut max = first;
-    for value in iter {
-        min = min.min(value);
-        max = max.max(value);
-    }
-    Some((min, max))
-}
-
-fn median(values: &mut [f64]) -> Option<f64> {
-    if values.is_empty() {
-        return None;
-    }
-    values.sort_by(f64::total_cmp);
-    let mid = values.len() / 2;
-    if values.len().is_multiple_of(2) {
-        Some((values[mid - 1] + values[mid]) * 0.5)
-    } else {
-        Some(values[mid])
-    }
 }
 
 fn leave_one_out_medians(values: &[f64]) -> Option<Vec<f64>> {
@@ -1136,7 +1114,10 @@ mod tests {
                     .enumerate()
                     .filter_map(|(index, value)| (index != excluded).then_some(value))
                     .collect::<Vec<_>>();
-                assert_eq!(baseline, median(&mut remaining).expect("median"));
+                assert_eq!(
+                    baseline,
+                    median_average_even(&mut remaining).expect("median")
+                );
             }
         }
     }
@@ -1159,7 +1140,10 @@ mod tests {
                     .enumerate()
                     .filter_map(|(index, value)| (index != excluded).then_some(value))
                     .collect::<Vec<_>>();
-                prop_assert_eq!(baseline, median(&mut remaining).expect("median"));
+                prop_assert_eq!(
+                    baseline,
+                    median_average_even(&mut remaining).expect("median")
+                );
             }
         }
 
@@ -1324,7 +1308,7 @@ mod tests {
                 .iter()
                 .map(|curve| curve[shell])
                 .collect::<Vec<_>>();
-            median(&mut values).expect("shared permutation baseline")
+            median_average_even(&mut values).expect("shared permutation baseline")
         });
         let score = |curve: &[f64; 2]| {
             curve

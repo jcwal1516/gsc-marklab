@@ -13,6 +13,7 @@ mod algorithm_tests;
 mod api;
 #[cfg(feature = "cli")]
 mod cli;
+mod common;
 mod comparison;
 mod config;
 mod data;
