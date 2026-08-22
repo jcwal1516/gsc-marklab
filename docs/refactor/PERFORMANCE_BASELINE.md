@@ -219,3 +219,38 @@ maximum resident set size. These figures establish that the named million-row
 path is operational; they are a manual checkpoint rather than a pull-request
 latency gate. Final Phase 12 comparisons must repeat the same profile and
 record allocator-level memory where practical.
+
+### Geometry-budget acceptance checkpoint
+
+Commit `9d01b04` makes `performance.memory_budget_mib` operational for Phase 6
+geometry. The pre-existing base estimate is reserved first. Before building the
+shared index, a conservative backend-independent tree estimate must fit in the
+remaining allowance. Pair and residual plans then account for their exact
+stored bin/offset/index entries and stop before adding the first entry that
+would exceed their plan allowance. Because pair and residual plans execute
+sequentially, reported peak geometry is the shared index plus the larger plan,
+not their sum. Every timing record now reports base plus peak geometry.
+
+A dense 400-cell public-engine regression that previously completed under a
+1 MiB budget now rejects the 79,800-pair plan with required/available byte
+context. The same workload completes under 8 MiB and reports more than 3 MiB
+of geometry-inclusive estimated peak storage consistently across stages.
+Separate unit contracts reject pair and residual plans independently.
+
+Post-guard release checkpoints show no material hot-path regression:
+
+| Work | Median ms at 256 / 512 / 1,024 |
+| --- | --- |
+| Pair plan build plus observed | 0.255 / 0.772 / 1.400 |
+| Pair plan observed evaluation | 0.030 / 0.057 / 0.107 |
+| Pair plan 19 evaluations | 0.561 / 1.064 / 1.829 |
+| Residual plan build plus observed | 0.113 / 0.797 / 1.491 |
+| Residual plan observed evaluation | 0.002 / 0.004 / 0.009 |
+| Residual plan 19 evaluations | 0.067 / 0.112 / 0.386 |
+
+The evaluation figures match or improve on the prior checkpoint within normal
+short-workload noise. Build figures are lower in this fresh-process run, but no
+speedup is attributed to the budget guard; the acceptance claim is only that
+the guard introduces no observed regression. Allocator growth and temporary
+reallocation are still estimates rather than a hard process-RSS cap and remain
+part of Phase 12 memory profiling.
