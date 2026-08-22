@@ -87,3 +87,41 @@ These figures include the release test process, fixtures retained by the grouped
 - Fixed-density grids cover a representative bounded-radius case but not sparse, clustered, duplicate-coordinate, or adversarial distributions.
 - Complete-run fixtures use 19 permutations so Phase 0 remains practical; final performance work must report production-relevant permutation counts.
 - Baseline measurements were made after the test-only harness was committed. Production algorithm code remained identical to the base SHA.
+
+## Phase 6 indexed-geometry checkpoint
+
+This is a remediation checkpoint, not a rewrite of the immutable Phase 0
+baseline above. It was measured at commit `3c4a255` on the same machine,
+compiler profile, thread count, fixture generator, and five-sample method. The
+release test binary was built with:
+
+`cargo +1.96.0 test --release --locked --all-features --lib <filter> -- --ignored --nocapture --test-threads=1`
+
+Steady-state medians were then recorded with `/usr/bin/time -l` around the
+already-built test binary. Checksums and edge counts exactly match the baseline.
+
+| Workload | Sizes | Phase 0 median ms | Indexed median ms | Indexed doubling ratios |
+| --- | --- | --- | --- | --- |
+| Nearest-neighbor distance | 256 / 512 / 1,024 | 0.167 / 0.578 / 1.904 | 0.096 / 0.283 / 0.427 | 2.94× / 1.51× |
+| Radius graph, radius 1.5 | 256 / 512 / 1,024 | 0.080 / 0.283 / 0.992 | 0.109 / 0.311 / 0.565 | 2.85× / 1.82× |
+| kNN graph, k=8 | 256 / 512 / 1,024 | 0.957 / 3.850 / 16.462 | 0.172 / 0.635 / 0.841 | 3.70× / 1.32× |
+| Territory profiles, 16 territories | 256 / 512 / 1,024 | 0.044 / 0.050 / 0.048 | 0.043 / 0.081 / 0.097 | 1.90× / 1.21× |
+
+The radius graph has a 36% small-input overhead at 256 points and 10% at 512,
+then is 43% faster at 1,024. This is the expected build/query crossover and is
+retained rather than hidden. The original profile fixture remains too small and
+now exposes index-build overhead; a larger territory-count workload is still
+required before PERF-06 closure.
+
+The retained manual `phase6_perf_spatial_index_nearest_neighbor_scaling`
+workload measured 1,024 / 2,048 / 4,096 / 8,192 / 16,384 points at 0.421 /
+1.549 / 1.763 / 6.637 / 8.062 ms. Adjacent ratios are 3.68× / 1.14× / 3.76× /
+1.21× because the deterministic truncated-square fixture alternates tree shape;
+the 4×-input ratios are 4.19× and 4.57×, far below the 16× growth expected from
+the old quadratic scan. Phase 6 final scaling will add representative
+non-grid/clustered workloads and report this fixture effect explicitly.
+
+Peak RSS for the comparable 256–1,024 groups changed from 6.86 to 7.70 MiB for
+nearest neighbor and from 7.78 to 8.38 MiB for the combined radius/kNN process.
+The index trades linear memory for subquadratic queries; larger-workload peak
+memory and one-build application reuse remain Phase 6 acceptance work.
