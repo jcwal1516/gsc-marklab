@@ -581,10 +581,12 @@ fn csv_loader_uses_internal_control_local_as_validity_mask() {
     assert_eq!(pattern.len(), 2);
     assert_eq!(pattern.n_marked(), 1);
     assert_eq!(pattern.window.valid_mask_fraction, 0.5);
+    assert_eq!(pattern.valid_tumor_fraction, Some(1.0));
+    assert_eq!(pattern.valid_ihc_fraction, Some(1.0));
+    assert_eq!(pattern.internal_control_valid_fraction, Some(0.5));
 }
 
 #[test]
-#[ignore = "Phase 0 reproduction: COR-07 independent QC counters are fixed in Phase 2"]
 fn remediation_internal_control_fraction_is_not_final_retained_fraction() {
     let dir = tempfile::tempdir().expect("temp dir");
     let cells = dir.path().join("cells.csv");
@@ -609,6 +611,65 @@ fn remediation_internal_control_fraction_is_not_final_retained_fraction() {
     assert_eq!(pattern.len(), 2);
     assert!((pattern.window.valid_mask_fraction - 0.5).abs() < 1.0e-12);
     assert_eq!(pattern.internal_control_valid_fraction, Some(0.75));
+}
+
+#[test]
+fn csv_loader_tracks_each_qc_fraction_against_all_in_mask_cells() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let cells = dir.path().join("cells.csv");
+    fs::write(
+        &cells,
+        "x_um,y_um,mark,case_id,timepoint,protein,valid_tumor,valid_ihc,internal_control_local,artifact,necrosis\n\
+0.0,0.0,1,case_001,post,MSH6,true,true,valid,false,false\n\
+1.0,0.0,0,case_001,post,MSH6,true,true,valid,false,false\n\
+2.0,0.0,1,case_001,post,MSH6,false,true,valid,false,false\n\
+3.0,0.0,0,case_001,post,MSH6,true,false,valid,false,false\n\
+4.0,0.0,1,case_001,post,MSH6,true,true,absent,false,false\n\
+5.0,0.0,0,case_001,post,MSH6,true,true,valid,true,false\n\
+6.0,0.0,1,case_001,post,MSH6,true,true,valid,false,true\n\
+7.0,0.0,0,case_001,post,MSH6,false,false,absent,true,true\n",
+    )
+    .expect("write cells");
+    let mask = TumorMask::from_geojson_str(
+        r#"{"type":"MultiPolygon","coordinates":[[[[-1,-1],[8,-1],[8,1],[-1,1],[-1,-1]]]]}"#,
+    )
+    .expect("mask");
+
+    let pattern = load_pattern_csv_with_diagnostics(&cells, &mask)
+        .expect("load pattern")
+        .pattern;
+
+    assert_eq!(pattern.len(), 2);
+    assert_eq!(pattern.valid_tumor_fraction, Some(6.0 / 8.0));
+    assert_eq!(pattern.valid_ihc_fraction, Some(6.0 / 8.0));
+    assert_eq!(pattern.internal_control_valid_fraction, Some(6.0 / 8.0));
+    assert_eq!(pattern.artifact_excluded_fraction, Some(2.0 / 8.0));
+    assert_eq!(pattern.nonviable_excluded_fraction, Some(2.0 / 8.0));
+    assert_eq!(pattern.window.valid_mask_fraction, 2.0 / 8.0);
+}
+
+#[test]
+fn csv_loader_rejects_an_empty_in_mask_qc_denominator() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let cells = dir.path().join("cells.csv");
+    fs::write(
+        &cells,
+        "x_um,y_um,mark,case_id,timepoint,protein,valid_tumor,valid_ihc\n\
+10.0,10.0,1,case_001,post,MSH6,true,true\n\
+11.0,10.0,0,case_001,post,MSH6,true,true\n",
+    )
+    .expect("write cells");
+    let mask = TumorMask::from_geojson_str(
+        r#"{"type":"MultiPolygon","coordinates":[[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]]}"#,
+    )
+    .expect("mask");
+
+    let error = load_pattern_csv_with_diagnostics(&cells, &mask)
+        .expect_err("a zero in-mask denominator must not produce numeric QC fractions");
+
+    assert!(error
+        .to_string()
+        .contains("no cells fell inside the tumor mask"));
 }
 
 #[test]
@@ -638,6 +699,8 @@ fn csv_loader_excludes_artifact_and_nonviable_rows_from_analysis_window() {
 
     assert_eq!(pattern.mark.as_ref(), &[1, 0]);
     assert!((pattern.window.valid_mask_fraction - (2.0 / 7.0)).abs() < 1e-12);
+    assert_eq!(pattern.valid_tumor_fraction, Some(1.0));
+    assert_eq!(pattern.valid_ihc_fraction, Some(1.0));
     assert_eq!(pattern.artifact_excluded_fraction, Some(3.0 / 7.0));
     assert_eq!(pattern.nonviable_excluded_fraction, Some(2.0 / 7.0));
 
@@ -740,6 +803,8 @@ fn engine_reports_local_tumor_cellularity_metrics() {
     pattern.window.l_eff_um = 4.0;
     pattern.window.d_nn_mean_um = 1.0;
     pattern.window.valid_mask_fraction = 0.75;
+    pattern.valid_tumor_fraction = Some(0.90);
+    pattern.valid_ihc_fraction = Some(0.85);
     pattern.internal_control_valid_fraction = Some(0.80);
     pattern.tumor_probability = Some(vec![0.90, 0.80, 0.70, 0.60].into_boxed_slice());
     pattern.nucleus_area_um2 = Some(vec![40.0, 42.0, 44.0, 46.0].into_boxed_slice());
@@ -750,6 +815,8 @@ fn engine_reports_local_tumor_cellularity_metrics() {
         .expect("analysis");
 
     assert_eq!(result.qc.valid_mask_fraction, 0.75);
+    assert_eq!(result.qc.valid_tumor_fraction, Some(0.90));
+    assert_eq!(result.qc.valid_ihc_fraction, Some(0.85));
     assert_eq!(result.qc.internal_control_valid_fraction, Some(0.80));
     assert_eq!(result.qc.mean_tumor_probability, Some(0.75));
     assert_eq!(result.qc.mean_nucleus_area_um2, Some(43.0));

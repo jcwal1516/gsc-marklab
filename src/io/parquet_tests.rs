@@ -302,8 +302,8 @@ fn parquet_loader_uses_internal_control_local_as_validity_mask() {
             Arc::new(StringArray::from(vec!["case_001"; 4])),
             Arc::new(StringArray::from(vec!["post"; 4])),
             Arc::new(StringArray::from(vec!["MSH6"; 4])),
-            Arc::new(BooleanArray::from(vec![true; 4])),
-            Arc::new(BooleanArray::from(vec![true; 4])),
+            Arc::new(BooleanArray::from(vec![true, true, false, true])),
+            Arc::new(BooleanArray::from(vec![true, true, true, false])),
             Arc::new(StringArray::from(vec![
                 Some("valid"),
                 Some("valid"),
@@ -325,6 +325,41 @@ fn parquet_loader_uses_internal_control_local_as_validity_mask() {
     assert_eq!(loaded.len(), 2);
     assert_eq!(loaded.n_marked(), 1);
     assert_eq!(loaded.window.valid_mask_fraction, 0.5);
+    assert_eq!(loaded.valid_tumor_fraction, Some(0.75));
+    assert_eq!(loaded.valid_ihc_fraction, Some(0.75));
+    assert_eq!(loaded.internal_control_valid_fraction, Some(0.5));
+
+    #[cfg(feature = "csv")]
+    {
+        let csv_path = dir.path().join("cells.csv");
+        std::fs::write(
+            &csv_path,
+            "x_um,y_um,mark,case_id,timepoint,protein,valid_tumor,valid_ihc,internal_control_local\n\
+0.0,0.0,1,case_001,post,MSH6,true,true,valid\n\
+1.0,0.0,0,case_001,post,MSH6,true,true,valid\n\
+2.0,0.0,1,case_001,post,MSH6,false,true,absent\n\
+3.0,0.0,0,case_001,post,MSH6,true,false,unknown\n",
+        )
+        .expect("write CSV parity input");
+        let csv_loaded = super::csv::load_pattern_csv_with_diagnostics(&csv_path, &mask)
+            .expect("load CSV parity input")
+            .pattern;
+
+        assert_eq!(
+            (
+                csv_loaded.valid_tumor_fraction,
+                csv_loaded.valid_ihc_fraction,
+                csv_loaded.internal_control_valid_fraction,
+                csv_loaded.window.valid_mask_fraction,
+            ),
+            (
+                loaded.valid_tumor_fraction,
+                loaded.valid_ihc_fraction,
+                loaded.internal_control_valid_fraction,
+                loaded.window.valid_mask_fraction,
+            )
+        );
+    }
 }
 
 #[test]
@@ -428,6 +463,8 @@ fn parquet_loader_excludes_artifact_and_nonviable_rows_from_analysis_window() {
 
     assert_eq!(loaded.mark.as_ref(), &[1, 0]);
     assert!((loaded.window.valid_mask_fraction - (2.0 / 7.0)).abs() < 1e-12);
+    assert_eq!(loaded.valid_tumor_fraction, Some(1.0));
+    assert_eq!(loaded.valid_ihc_fraction, Some(1.0));
     assert_eq!(loaded.artifact_excluded_fraction, Some(3.0 / 7.0));
     assert_eq!(loaded.nonviable_excluded_fraction, Some(2.0 / 7.0));
 }

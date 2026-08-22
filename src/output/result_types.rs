@@ -205,6 +205,10 @@ pub struct WindowSummary {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct QcSummary {
     pub valid_mask_fraction: f64,
+    #[serde(default)]
+    pub valid_tumor_fraction: Option<f64>,
+    #[serde(default)]
+    pub valid_ihc_fraction: Option<f64>,
     pub internal_control_valid_fraction: Option<f64>,
     pub artifact_excluded_fraction: Option<f64>,
     pub nonviable_excluded_fraction: Option<f64>,
@@ -217,6 +221,8 @@ impl Default for QcSummary {
     fn default() -> Self {
         Self {
             valid_mask_fraction: 1.0,
+            valid_tumor_fraction: None,
+            valid_ihc_fraction: None,
             internal_control_valid_fraction: None,
             artifact_excluded_fraction: None,
             nonviable_excluded_fraction: None,

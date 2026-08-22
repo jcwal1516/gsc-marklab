@@ -49,6 +49,18 @@ exactly when `count == 0`, meaning no cell pair contributed to that physical
 distance bin. Empty bins remain in the curve so bin axes stay explicit, but
 they are excluded from global-envelope inference and have no envelope bounds.
 
+## Input QC fractions
+
+Every input QC fraction uses the number of cells inside the tumor mask as its
+denominator. `valid_tumor_fraction`, `valid_ihc_fraction`, and
+`internal_control_valid_fraction` count their respective valid states.
+`artifact_excluded_fraction` and `nonviable_excluded_fraction` count each
+independent exclusion flag, including overlaps. The existing
+`valid_mask_fraction` is the final retained fraction after all validity and
+exclusion filters. Optional fractions are `null` only when the corresponding
+input state is unavailable. No result is constructed for a zero in-mask
+denominator.
+
 ## Curve tests
 
 Every `CurveTestResult` has an `availability` of `available` or

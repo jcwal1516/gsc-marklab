@@ -96,7 +96,7 @@ impl DecodedRow {
     pub(super) fn internal_control_is_valid(&self) -> bool {
         self.internal_control
             .as_deref()
-            .is_none_or(|value| value.eq_ignore_ascii_case("valid"))
+            .is_some_and(|value| value.eq_ignore_ascii_case("valid"))
     }
 }
 

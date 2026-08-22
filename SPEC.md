@@ -42,6 +42,16 @@ values with `|a-b| <= 1e-12 + 1e-12 * max(|a|, |b|)`. This accepts harmless
 floating-point reconstruction while preserving a typed axis-mismatch result
 for materially different bins or modes.
 
+Input QC fractions use all cells inside the tumor mask as their denominator.
+`valid_tumor_fraction`, `valid_ihc_fraction`, and
+`internal_control_valid_fraction` count each independent validity flag;
+artifact and nonviable fractions count their independent exclusion flags; and
+`valid_mask_fraction` is the final retained fraction after all filters. An
+optional fraction is absent when its source column is unavailable. Overlapping
+exclusions are counted in every applicable fraction, and a present but blank
+internal-control value is invalid. A zero in-mask denominator is an input
+error, not a numeric zero fraction.
+
 ## Inference
 
 Extreme-rank-length envelopes match CRAN GET 1.0-7 `type="erl"`: the observed

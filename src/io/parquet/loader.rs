@@ -9,7 +9,8 @@ use crate::{
 };
 
 use super::super::{
-    CategoricalStratumEncoder, DenseOptionalColumn, PatternLoadDiagnostics, PatternLoadResult,
+    CategoricalStratumEncoder, DenseOptionalColumn, PatternBuildCounters, PatternLoadDiagnostics,
+    PatternLoadResult, PatternRowQc,
 };
 
 pub fn load_pattern_parquet_with_diagnostics(
@@ -35,13 +36,7 @@ pub fn load_pattern_parquet_with_diagnostics(
     let mut local_dab = DenseOptionalColumn::default();
     let mut local_hema = DenseOptionalColumn::default();
     let mut meta: Option<PatternMeta> = None;
-    let mut total_rows_in_mask = 0_usize;
-    let mut retained_rows = 0_usize;
-    let mut saw_internal_control = false;
-    let mut saw_artifact_exclusion = false;
-    let mut artifact_excluded_rows = 0_usize;
-    let mut saw_nonviable_exclusion = false;
-    let mut nonviable_excluded_rows = 0_usize;
+    let mut qc_counters = PatternBuildCounters::default();
     let mut internal_control_bin = CategoricalStratumEncoder::default();
     let mut block_id_strata = CategoricalStratumEncoder::default();
     let mut slide_region_strata = CategoricalStratumEncoder::default();
@@ -54,31 +49,28 @@ pub fn load_pattern_parquet_with_diagnostics(
     for batch in reader {
         let batch = batch.map_err(|err| MarklabError::Schema(err.to_string()))?;
         let columns = super::schema::BatchColumns::try_new(&batch)?;
-        saw_internal_control |= columns.internal_control.is_some();
-        saw_artifact_exclusion |= columns.has_artifact_columns();
-        saw_nonviable_exclusion |= columns.has_nonviable_columns();
-
         for row_index in 0..batch.num_rows() {
             let row = super::row::DecodedRow::decode(&columns, row_index)?;
             if !mask.contains(row.x_um, row.y_um) {
                 continue;
             }
-            total_rows_in_mask += 1;
-            if row.artifact_excluded {
-                artifact_excluded_rows += 1;
-            }
-            if row.nonviable_excluded {
-                nonviable_excluded_rows += 1;
-            }
-            if !row.valid_tumor
-                || !row.valid_ihc
-                || !row.internal_control_is_valid()
-                || row.artifact_excluded
-                || row.nonviable_excluded
-            {
+            let row_qc = PatternRowQc {
+                valid_tumor: row.valid_tumor,
+                valid_ihc: row.valid_ihc,
+                internal_control_valid: columns
+                    .internal_control
+                    .is_some()
+                    .then(|| row.internal_control_is_valid()),
+                artifact_excluded: columns
+                    .has_artifact_columns()
+                    .then_some(row.artifact_excluded),
+                nonviable_excluded: columns
+                    .has_nonviable_columns()
+                    .then_some(row.nonviable_excluded),
+            };
+            if !qc_counters.observe(row_qc) {
                 continue;
             }
-            retained_rows += 1;
 
             if let Some(existing) = &meta {
                 if existing.case_id != row.case_id
@@ -123,6 +115,7 @@ pub fn load_pattern_parquet_with_diagnostics(
     drop(mask_filter_enter);
     let mask_filter = mask_filter_start.elapsed();
 
+    qc_counters.validate_denominator()?;
     let meta = meta.ok_or_else(|| {
         MarklabError::Validation("no valid tumor/IHC cells remained after mask filtering".into())
     })?;
@@ -170,23 +163,7 @@ pub fn load_pattern_parquet_with_diagnostics(
         })?;
     drop(nearest_neighbor_enter);
     let nearest_neighbor = nearest_neighbor_start.elapsed();
-    pattern.window.valid_mask_fraction =
-        crate::qc::ihc_validity::validity_fraction(retained_rows, total_rows_in_mask);
-    if saw_internal_control {
-        pattern.internal_control_valid_fraction = Some(pattern.window.valid_mask_fraction);
-    }
-    if saw_artifact_exclusion {
-        pattern.artifact_excluded_fraction = Some(crate::qc::ihc_validity::validity_fraction(
-            artifact_excluded_rows,
-            total_rows_in_mask,
-        ));
-    }
-    if saw_nonviable_exclusion {
-        pattern.nonviable_excluded_fraction = Some(crate::qc::ihc_validity::validity_fraction(
-            nonviable_excluded_rows,
-            total_rows_in_mask,
-        ));
-    }
+    qc_counters.apply_to(&mut pattern)?;
 
     Ok(PatternLoadResult {
         pattern,

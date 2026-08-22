@@ -7,7 +7,8 @@ use crate::{
 };
 
 use super::{
-    CategoricalStratumEncoder, DenseOptionalColumn, PatternLoadDiagnostics, PatternLoadResult,
+    CategoricalStratumEncoder, DenseOptionalColumn, PatternBuildCounters, PatternLoadDiagnostics,
+    PatternLoadResult, PatternRowQc,
 };
 
 mod decoder;
@@ -29,13 +30,7 @@ pub fn load_pattern_csv_with_diagnostics(
     let mut local_dab = DenseOptionalColumn::default();
     let mut local_hema = DenseOptionalColumn::default();
     let mut meta: Option<PatternMeta> = None;
-    let mut total_rows_in_mask = 0_usize;
-    let mut retained_rows = 0_usize;
-    let mut saw_internal_control = false;
-    let mut saw_artifact_exclusion = false;
-    let mut artifact_excluded_rows = 0_usize;
-    let mut saw_nonviable_exclusion = false;
-    let mut nonviable_excluded_rows = 0_usize;
+    let mut qc_counters = PatternBuildCounters::default();
     let mut internal_control_bin = CategoricalStratumEncoder::default();
     let mut block_id_strata = CategoricalStratumEncoder::default();
     let mut slide_region_strata = CategoricalStratumEncoder::default();
@@ -45,35 +40,28 @@ pub fn load_pattern_csv_with_diagnostics(
     let mask_filter_start = Instant::now();
     let mask_filter_span = tracing::info_span!("marklab_stage", stage_name = "mask_filter");
     let mask_filter_enter = mask_filter_span.enter();
-    for row in decoder::read_rows(path_ref)? {
+    let decoded = decoder::read_rows(path_ref)?;
+    for row in decoded.rows {
         if !mask.contains(row.x_um, row.y_um) {
             continue;
         }
-        total_rows_in_mask += 1;
-        saw_internal_control |= row.internal_control_local.is_some();
-        saw_artifact_exclusion |=
-            row.artifact.is_some() || row.edge_artifact.is_some() || row.fold_artifact.is_some();
-        saw_nonviable_exclusion |= row.necrosis.is_some() || row.nonviable_therapy_effect.is_some();
         let artifact_excluded = row.artifact.unwrap_or(false)
             || row.edge_artifact.unwrap_or(false)
             || row.fold_artifact.unwrap_or(false);
         let nonviable_excluded =
             row.necrosis.unwrap_or(false) || row.nonviable_therapy_effect.unwrap_or(false);
-        if artifact_excluded {
-            artifact_excluded_rows += 1;
-        }
-        if nonviable_excluded {
-            nonviable_excluded_rows += 1;
-        }
-        if !row.valid_tumor
-            || !row.valid_ihc
-            || !internal_control_is_valid(&row.internal_control_local)
-            || artifact_excluded
-            || nonviable_excluded
-        {
+        let row_qc = PatternRowQc {
+            valid_tumor: row.valid_tumor,
+            valid_ihc: row.valid_ihc,
+            internal_control_valid: decoded
+                .has_internal_control
+                .then(|| internal_control_is_valid(&row.internal_control_local)),
+            artifact_excluded: decoded.has_artifact_columns.then_some(artifact_excluded),
+            nonviable_excluded: decoded.has_nonviable_columns.then_some(nonviable_excluded),
+        };
+        if !qc_counters.observe(row_qc) {
             continue;
         }
-        retained_rows += 1;
 
         if let Some(existing) = &meta {
             if existing.case_id != row.case_id
@@ -141,6 +129,7 @@ pub fn load_pattern_csv_with_diagnostics(
     drop(mask_filter_enter);
     let mask_filter = mask_filter_start.elapsed();
 
+    qc_counters.validate_denominator()?;
     let meta = meta.ok_or_else(|| {
         MarklabError::Validation("no valid tumor/IHC cells remained after mask filtering".into())
     })?;
@@ -189,23 +178,7 @@ pub fn load_pattern_csv_with_diagnostics(
         })?;
     drop(nearest_neighbor_enter);
     let nearest_neighbor = nearest_neighbor_start.elapsed();
-    pattern.window.valid_mask_fraction =
-        crate::qc::ihc_validity::validity_fraction(retained_rows, total_rows_in_mask);
-    if saw_internal_control {
-        pattern.internal_control_valid_fraction = Some(pattern.window.valid_mask_fraction);
-    }
-    if saw_artifact_exclusion {
-        pattern.artifact_excluded_fraction = Some(crate::qc::ihc_validity::validity_fraction(
-            artifact_excluded_rows,
-            total_rows_in_mask,
-        ));
-    }
-    if saw_nonviable_exclusion {
-        pattern.nonviable_excluded_fraction = Some(crate::qc::ihc_validity::validity_fraction(
-            nonviable_excluded_rows,
-            total_rows_in_mask,
-        ));
-    }
+    qc_counters.apply_to(&mut pattern)?;
 
     Ok(PatternLoadResult {
         pattern,
@@ -228,7 +201,7 @@ fn insert_finished_stratum(
 
 fn internal_control_is_valid(value: &Option<String>) -> bool {
     match value.as_deref().map(str::trim).map(str::to_ascii_lowercase) {
-        None => true,
+        None => false,
         Some(value) => value == "valid",
     }
 }

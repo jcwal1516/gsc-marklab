@@ -129,6 +129,8 @@ pub(super) fn validate_pattern(
 pub(super) fn qc_summary(pattern: &Pattern) -> QcSummary {
     QcSummary {
         valid_mask_fraction: pattern.window.valid_mask_fraction,
+        valid_tumor_fraction: pattern.valid_tumor_fraction,
+        valid_ihc_fraction: pattern.valid_ihc_fraction,
         internal_control_valid_fraction: pattern.internal_control_valid_fraction,
         artifact_excluded_fraction: pattern.artifact_excluded_fraction,
         nonviable_excluded_fraction: pattern.nonviable_excluded_fraction,

@@ -23,6 +23,10 @@ pub struct Pattern {
     pub categorical_strata: BTreeMap<String, Box<[u32]>>,
     pub local_dab_od: Option<Box<[f32]>>,
     pub local_hematoxylin_od: Option<Box<[f32]>>,
+    #[serde(default)]
+    pub valid_tumor_fraction: Option<f64>,
+    #[serde(default)]
+    pub valid_ihc_fraction: Option<f64>,
     pub internal_control_valid_fraction: Option<f64>,
     pub artifact_excluded_fraction: Option<f64>,
     pub nonviable_excluded_fraction: Option<f64>,
@@ -113,6 +117,8 @@ impl Pattern {
             categorical_strata: BTreeMap::new(),
             local_dab_od: None,
             local_hematoxylin_od: None,
+            valid_tumor_fraction: None,
+            valid_ihc_fraction: None,
             internal_control_valid_fraction: None,
             artifact_excluded_fraction: None,
             nonviable_excluded_fraction: None,

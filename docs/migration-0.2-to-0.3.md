@@ -24,6 +24,10 @@ semantics.
 - `CurveTestResult.statistic` is nullable and `availability` is typed.
   Insufficient comparisons include `unavailable_reason` instead of a fake
   statistic of zero.
+- QC results add nullable `valid_tumor_fraction` and `valid_ihc_fraction`.
+  Every QC fraction now uses all in-mask cells as its denominator;
+  `valid_mask_fraction` specifically means the final retained fraction.
+  Internal-control validity is no longer copied from that aggregate fraction.
 - A stratified spectrum declares
   `stratified_fixed_position_random_labeling` as its primary null.
 - Mark-homogeneous spectrum strata are reported with
