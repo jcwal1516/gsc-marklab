@@ -3,12 +3,13 @@ use crate::{
         margin_assessment::curve_margin_assessment,
         pooled_bin_difference::pooled_bin_difference_diagnostic,
     },
-    prepost::deltas::compare_prepost,
+    prepost::{compare_multimodal_prepost, compare_prepost},
     AnalysisSection, AnisotropySummary, ComponentMode, ComponentModeSelection,
     CrossInteractionCurve, CrossInteractionPoint, CurveComparisonAvailability, FunctionalSummary,
-    Interpretation, MarkPairCovariancePoint, MarkedPatternResult, MultiscaleResidualSummary,
-    PrimaryEndpoint, QcSummary, ResidualTerritory, ResolvedComponentMode, ScaleEnergyPoint,
-    SpectrumPoint, SpectrumSummary, WindowSummary,
+    Interpretation, MarkPairCovariancePoint, MarkedPatternResult, MultimodalResult,
+    MultiscaleResidualSummary, PrimaryEndpoint, QcSummary, ResidualTerritory,
+    ResolvedComponentMode, ScaleEnergyPoint, SpectrumPoint, SpectrumSummary, TerritoryFeature,
+    WindowSummary,
 };
 
 fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResult {
@@ -108,6 +109,75 @@ fn territory(center_x_um: f64) -> ResidualTerritory {
         component_id: None,
         qc_overlap_fraction: None,
     }
+}
+
+fn multimodal_result(timepoint: &str, territories: Vec<TerritoryFeature>) -> MultimodalResult {
+    MultimodalResult {
+        case_id: "case1".into(),
+        timepoint: timepoint.into(),
+        protein: "MSH6".into(),
+        status: "ok".into(),
+        registration: AnalysisSection::NotApplicable,
+        fused_cell_summary: AnalysisSection::NotApplicable,
+        fused_cells: Vec::new(),
+        neighborhood_enrichment: AnalysisSection::NotApplicable,
+        cross_interaction_curves: AnalysisSection::available(Vec::new()),
+        neighborhood_territories: AnalysisSection::available(territories),
+        territory_profiles: AnalysisSection::NotApplicable,
+        territory_comparisons: AnalysisSection::NotApplicable,
+        diagnostics: AnalysisSection::Disabled,
+        timings: Vec::new(),
+        interpretation: Interpretation {
+            class: "multimodal_summary".into(),
+            text: "test fixture".into(),
+        },
+    }
+}
+
+#[test]
+fn multimodal_prepost_service_uses_only_multimodal_endpoints() {
+    let pre = multimodal_result(
+        "pre",
+        vec![TerritoryFeature {
+            center_x_um: 0.0,
+            center_y_um: 0.0,
+            radius_um: 10.0,
+            scale_um: 5.0,
+            z_or_power: 2.0,
+            supporting_cells: 2,
+            component_id: Some(0),
+            qc_overlap_fraction: None,
+        }],
+    );
+    let mut post_territories = pre
+        .neighborhood_territories
+        .value()
+        .expect("pre territories")
+        .clone();
+    post_territories.push(TerritoryFeature {
+        center_x_um: 50.0,
+        center_y_um: 0.0,
+        radius_um: 8.0,
+        scale_um: 4.0,
+        z_or_power: 3.0,
+        supporting_cells: 3,
+        component_id: Some(1),
+        qc_overlap_fraction: None,
+    });
+    let post = multimodal_result("post", post_territories);
+
+    let comparison = compare_multimodal_prepost(&pre, &post);
+
+    assert_eq!(comparison.delta_territory_count.value(), Some(&1));
+    assert!(matches!(
+        comparison.delta_xi_um,
+        AnalysisSection::NotApplicable
+    ));
+    assert!(matches!(
+        comparison.delta_low_k_excess,
+        AnalysisSection::NotApplicable
+    ));
+    assert!(comparison.status_flags.is_empty());
 }
 
 #[test]

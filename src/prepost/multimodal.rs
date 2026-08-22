@@ -1,0 +1,46 @@
+use crate::output::{AnalysisSection, MultimodalResult, PrePostResult};
+
+use super::{
+    context::ComparisonContext, curves::append_cross_interaction_curve_comparisons, territories,
+};
+
+pub(crate) fn compare_multimodal_prepost(
+    pre: &MultimodalResult,
+    post: &MultimodalResult,
+) -> PrePostResult {
+    let context = ComparisonContext::from_metadata(
+        &pre.case_id,
+        &pre.timepoint,
+        &pre.protein,
+        &post.case_id,
+        &post.timepoint,
+        &post.protein,
+    );
+    let territory_summary = territories::multimodal_summary(pre, post);
+    let delta_territory_count = territory_summary
+        .value()
+        .map(|summary| AnalysisSection::available(summary.delta_count))
+        .unwrap_or_else(|| AnalysisSection::InsufficientData {
+            reason: "neighborhood territories are unavailable in one or both results".into(),
+        });
+    let mut curve_comparisons = Vec::new();
+    append_cross_interaction_curve_comparisons(
+        &mut curve_comparisons,
+        pre.cross_interaction_curves.value().map(Vec::as_slice),
+        post.cross_interaction_curves.value().map(Vec::as_slice),
+    );
+    let interpretation_text = context.multimodal_interpretation();
+
+    PrePostResult {
+        status_flags: context.status_flags,
+        curve_comparisons,
+        delta_xi_um: AnalysisSection::NotApplicable,
+        delta_low_k_excess: AnalysisSection::NotApplicable,
+        delta_alpha: AnalysisSection::NotApplicable,
+        delta_anisotropy_index: AnalysisSection::NotApplicable,
+        delta_block_mean_variance_fraction: AnalysisSection::NotApplicable,
+        delta_territory_count,
+        territory_summary,
+        interpretation_text,
+    }
+}

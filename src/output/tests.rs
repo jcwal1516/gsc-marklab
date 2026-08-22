@@ -1,7 +1,7 @@
 use std::fs;
 
 use crate::{
-    data::PatternMeta, io::report::render_analysis_report, prepost::deltas::compare_prepost,
+    data::PatternMeta, io::report::render_analysis_report, prepost::compare_prepost,
     AnalysisConfig, AnalysisEngine, CurveComparisonAvailability, CurveComparisonResult,
     OutputWriter, Pattern, ResultDocument, SpectrumPoint, StatusFlag,
 };

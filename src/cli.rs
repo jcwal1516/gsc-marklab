@@ -7,7 +7,7 @@ use std::{
 use crate::{io::parquet::write_pattern_parquet, Pattern, PatternMeta};
 use crate::{
     permutation::labels::permute_fixed_count,
-    prepost::deltas::{compare_multimodal_prepost, compare_prepost},
+    prepost::{compare_multimodal_prepost, compare_prepost},
     AnalysisConfig, MarklabError, MultimodalResult, Result, ResultDocument, ThreadSetting,
 };
 use clap::{Parser, Subcommand, ValueEnum};
