@@ -68,6 +68,10 @@ impl AnisotropyTensor {
 
 #[cfg(test)]
 use crate::permutation::{labels::permute_fixed_count, stratified::permute_within_strata};
+#[cfg(test)]
+use crate::spectra::structure_factor::{
+    centered_structure_factor, centered_structure_factor_for_marks,
+};
 use crate::{
     common::matrix::F64Matrix,
     common::seeds::{derive_seed, SeedEndpoint},
@@ -76,7 +80,11 @@ use crate::{
     errors::{MarklabError, Result},
     inference::scalar_pvalues::{permutation_p_value, Tail},
     permutation::{labels::permute_fixed_count_into, stratified::StratifiedPermutationPlan},
-    spectra::structure_factor::{centered_structure_factor, centered_structure_factor_for_marks},
+    spectra::kgrid::KMode,
+    spectra::structure_factor::kernel::{
+        centered_structure_factor_with_prevalence, power_for_selected_modes_into,
+        selected_indices_for_marks_into, total_phase_sums_for_modes, BinaryMarkContext,
+    },
 };
 
 #[cfg(test)]
@@ -114,9 +122,10 @@ pub(crate) fn permutation_whitened_anisotropy(
     strata: Option<&[u32]>,
     k_chunk_modes: usize,
 ) -> Result<Option<PermutationAnisotropy>> {
+    let n_marked = pattern.mark.iter().filter(|mark| **mark == 1).count();
     if pattern.len() < 2
-        || pattern.n_marked() == 0
-        || pattern.n_unmarked() == 0
+        || n_marked == 0
+        || n_marked == pattern.len()
         || low_k_radius == 0
         || n_permutations == 0
         || k_chunk_modes == 0
@@ -132,6 +141,10 @@ pub(crate) fn permutation_whitened_anisotropy(
     if modes.is_empty() {
         return Ok(None);
     }
+    let Some(mark_context) = BinaryMarkContext::new(pattern.len(), n_marked) else {
+        return Ok(None);
+    };
+    let p_hat = n_marked as f64 / pattern.len() as f64;
 
     let stratified_plan = strata
         .map(|strata| StratifiedPermutationPlan::new(&pattern.mark, strata))
@@ -143,6 +156,9 @@ pub(crate) fn permutation_whitened_anisotropy(
     let mut observed = Vec::with_capacity(chunk_capacity);
     let mut labels = Vec::with_capacity(pattern.len());
     let mut fixed_indices = Vec::with_capacity(pattern.len());
+    let mut selected_indices = Vec::with_capacity(pattern.len());
+    let mut powers_scratch = Vec::with_capacity(chunk_capacity);
+    let mut total_phase_sums = Vec::with_capacity(chunk_capacity);
     let mut stratum_labels = Vec::with_capacity(
         stratified_plan
             .as_ref()
@@ -152,12 +168,16 @@ pub(crate) fn permutation_whitened_anisotropy(
     let mut observed_tensor = AnisotropyTensor::default();
     let mut permutation_tensors = vec![AnisotropyTensor::default(); n_permutations];
     for mode_chunk in modes.chunks(k_chunk_modes) {
+        total_phase_sums_for_modes(pattern, mode_chunk, &mut total_phase_sums)
+            .ok_or_else(|| MarklabError::Compute("anisotropy mode chunk is invalid".into()))?;
         observed.clear();
-        for (kx, ky) in mode_chunk {
-            let Some(power) = centered_structure_factor(pattern, *kx, *ky) else {
-                return Ok(None);
-            };
-            observed.push(power);
+        for mode in mode_chunk {
+            observed.push(
+                centered_structure_factor_with_prevalence(pattern, p_hat, mode.kx, mode.ky)
+                    .ok_or_else(|| {
+                        MarklabError::Compute("observed anisotropy is undefined".into())
+                    })?,
+            );
         }
         for (permutation_index, powers) in permutation_powers.iter_rows_mut().enumerate() {
             let permutation_seed = derive_seed(seed, SeedEndpoint::Anisotropy, permutation_index);
@@ -166,7 +186,7 @@ pub(crate) fn permutation_whitened_anisotropy(
             } else {
                 permute_fixed_count_into(
                     pattern.len(),
-                    pattern.n_marked(),
+                    n_marked,
                     permutation_seed,
                     &mut fixed_indices,
                     &mut labels,
@@ -177,18 +197,30 @@ pub(crate) fn permutation_whitened_anisotropy(
                     "anisotropy permutation {permutation_index} failed: {error}"
                 ))
             })?;
-            for (mode_index, (kx, ky)) in mode_chunk.iter().copied().enumerate() {
-                let Some(power) = centered_structure_factor_for_marks(pattern, &labels, kx, ky)
-                else {
-                    return Err(MarklabError::Compute(format!(
-                        "anisotropy permutation {permutation_index} produced an undefined mode"
-                    )));
-                };
-                powers[mode_index] = power;
-            }
+            selected_indices_for_marks_into(
+                &labels,
+                mark_context.use_unmarked_subset(),
+                &mut selected_indices,
+            )
+            .and_then(|()| {
+                power_for_selected_modes_into(
+                    pattern,
+                    mode_chunk,
+                    &total_phase_sums,
+                    &selected_indices,
+                    mark_context,
+                    &mut powers_scratch,
+                )
+            })
+            .ok_or_else(|| {
+                MarklabError::Compute(format!(
+                    "anisotropy permutation {permutation_index} produced an undefined mode"
+                ))
+            })?;
+            powers[..mode_chunk.len()].copy_from_slice(&powers_scratch);
         }
 
-        for (mode_index, (kx, ky)) in mode_chunk.iter().copied().enumerate() {
+        for (mode_index, mode) in mode_chunk.iter().enumerate() {
             baseline_values.clear();
             baseline_values.extend(
                 permutation_powers
@@ -200,12 +232,12 @@ pub(crate) fn permutation_whitened_anisotropy(
                     "anisotropy permutation baseline is undefined".into(),
                 ));
             };
-            observed_tensor.accumulate_whitened(kx, ky, observed[mode_index], baseline);
+            observed_tensor.accumulate_whitened(mode.kx, mode.ky, observed[mode_index], baseline);
             for (tensor, powers) in permutation_tensors
                 .iter_mut()
                 .zip(permutation_powers.iter_rows())
             {
-                tensor.accumulate_whitened(kx, ky, powers[mode_index], baseline);
+                tensor.accumulate_whitened(mode.kx, mode.ky, powers[mode_index], baseline);
             }
         }
     }
@@ -229,7 +261,7 @@ pub(crate) fn permutation_whitened_anisotropy(
     }))
 }
 
-fn low_k_modes(radius: usize, k_step: f64) -> Vec<(f64, f64)> {
+fn low_k_modes(radius: usize, k_step: f64) -> Vec<KMode> {
     let radius_i = radius as isize;
     let mut modes = Vec::new();
     for mx in -radius_i..=radius_i {
@@ -239,7 +271,14 @@ fn low_k_modes(radius: usize, k_step: f64) -> Vec<(f64, f64)> {
             }
             let shell = ((mx * mx + my * my) as f64).sqrt();
             if shell <= radius as f64 {
-                modes.push((mx as f64 * k_step, my as f64 * k_step));
+                let kx = mx as f64 * k_step;
+                let ky = my as f64 * k_step;
+                modes.push(KMode {
+                    kx,
+                    ky,
+                    k: kx.hypot(ky),
+                    shell_index: shell.floor() as usize,
+                });
             }
         }
     }
@@ -247,15 +286,14 @@ fn low_k_modes(radius: usize, k_step: f64) -> Vec<(f64, f64)> {
 }
 
 #[cfg(test)]
-fn weighted_modes(modes: &[(f64, f64)], powers: &[f64], baselines: &[f64]) -> Vec<(f64, f64, f64)> {
+fn weighted_modes(modes: &[KMode], powers: &[f64], baselines: &[f64]) -> Vec<(f64, f64, f64)> {
     modes
         .iter()
-        .copied()
         .zip(powers.iter().copied())
         .zip(baselines.iter().copied())
-        .map(|(((kx, ky), power), baseline)| {
+        .map(|((mode, power), baseline)| {
             let whitened_excess = power / baseline.max(f64::EPSILON) - 1.0;
-            (kx, ky, whitened_excess.max(0.0))
+            (mode.kx, mode.ky, whitened_excess.max(0.0))
         })
         .collect()
 }
@@ -275,7 +313,7 @@ fn permutation_whitened_anisotropy_dense_reference(
     let modes = low_k_modes(low_k_radius, 2.0 * std::f64::consts::PI / l_eff_um);
     let Some(observed) = modes
         .iter()
-        .map(|(kx, ky)| centered_structure_factor(pattern, *kx, *ky))
+        .map(|mode| centered_structure_factor(pattern, mode.kx, mode.ky))
         .collect::<Option<Vec<_>>>()
     else {
         return Ok(None);
@@ -288,8 +326,10 @@ fn permutation_whitened_anisotropy_dense_reference(
         } else {
             permute_fixed_count(pattern.len(), pattern.n_marked(), permutation_seed)
         }?;
-        for (mode_index, (kx, ky)) in modes.iter().copied().enumerate() {
-            let Some(power) = centered_structure_factor_for_marks(pattern, &labels, kx, ky) else {
+        for (mode_index, mode) in modes.iter().enumerate() {
+            let Some(power) =
+                centered_structure_factor_for_marks(pattern, &labels, mode.kx, mode.ky)
+            else {
                 return Ok(None);
             };
             powers[mode_index] = power;

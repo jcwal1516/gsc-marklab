@@ -699,6 +699,7 @@ fn phase7_perf_spectrum_chunk_sizes() {
                     "shell_count": 8,
                     "mode_count": mode_count,
                     "k_chunk_modes": k_chunk_modes,
+                    "executor_threads": spectrum_executor_threads(),
                 }),
             );
             measure_case("phase7_binary_spectrum_chunks", n, metadata.clone(), || {
@@ -758,6 +759,7 @@ fn phase7_perf_spectrum_memory_probe() {
             "shell_count": spectrum.observed_power.len(),
             "permutation_count": n_permutations,
             "k_chunk_modes": k_chunk_modes,
+            "executor_threads": spectrum_executor_threads(),
             "previous_mode_matrix_bytes": n_permutations.saturating_mul(mode_count).saturating_mul(8),
             "current_shell_matrix_bytes": n_permutations.saturating_mul(spectrum.observed_power.len()).saturating_mul(8),
             "checksum": checksum_f64(&spectrum.observed_power),
@@ -770,6 +772,17 @@ fn environment_usize(name: &str, default: usize) -> usize {
         .ok()
         .and_then(|value| value.parse().ok())
         .unwrap_or(default)
+}
+
+fn spectrum_executor_threads() -> usize {
+    #[cfg(feature = "parallel")]
+    {
+        rayon::current_num_threads()
+    }
+    #[cfg(not(feature = "parallel"))]
+    {
+        1
+    }
 }
 
 fn write_csv_fixture(path: &std::path::Path, n: usize) {

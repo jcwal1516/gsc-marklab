@@ -9,14 +9,14 @@ pub struct PhaseSum {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct BinaryMarkContext {
+pub(crate) struct BinaryMarkContext {
     n_marked: usize,
     use_unmarked_subset: bool,
     selected_count: usize,
 }
 
 impl BinaryMarkContext {
-    pub(super) fn new(n_cells: usize, n_marked: usize) -> Option<Self> {
+    pub(crate) fn new(n_cells: usize, n_marked: usize) -> Option<Self> {
         if n_cells < 2 || n_marked == 0 || n_marked >= n_cells {
             return None;
         }
@@ -33,17 +33,31 @@ impl BinaryMarkContext {
         })
     }
 
-    pub(super) fn use_unmarked_subset(self) -> bool {
+    pub(crate) fn use_unmarked_subset(self) -> bool {
         self.use_unmarked_subset
     }
 }
 
+#[cfg(test)]
 pub fn centered_structure_factor(pattern: &Pattern, kx: f64, ky: f64) -> Option<f64> {
-    if pattern.is_empty() || !kx.is_finite() || !ky.is_finite() {
+    centered_structure_factor_with_prevalence(pattern, pattern.p_hat(), kx, ky)
+}
+
+pub(crate) fn centered_structure_factor_with_prevalence(
+    pattern: &Pattern,
+    p_hat: f64,
+    kx: f64,
+    ky: f64,
+) -> Option<f64> {
+    if pattern.is_empty()
+        || !p_hat.is_finite()
+        || !(0.0..=1.0).contains(&p_hat)
+        || !kx.is_finite()
+        || !ky.is_finite()
+    {
         return None;
     }
 
-    let p_hat = pattern.p_hat();
     let mut re = 0.0;
     let mut im = 0.0;
     for ((x, y), mark) in pattern
@@ -145,7 +159,7 @@ pub(super) fn permutation_selected_indices_into(
     permute_fixed_count_indices_into(n_cells, context.selected_count, seed, selected_indices).ok()
 }
 
-pub(super) fn selected_indices_for_marks_into(
+pub(crate) fn selected_indices_for_marks_into(
     marks: &[u8],
     use_unmarked_subset: bool,
     selected_indices: &mut Vec<usize>,
@@ -170,7 +184,7 @@ pub(super) fn selected_indices_for_marks_into(
     Some(())
 }
 
-pub(super) fn power_for_selected_modes_into(
+pub(crate) fn power_for_selected_modes_into(
     pattern: &Pattern,
     modes: &[KMode],
     total_phase_sums: &[PhaseSum],
@@ -209,6 +223,7 @@ pub fn observed_value_power_for_modes(
         .collect()
 }
 
+#[cfg(test)]
 pub fn centered_structure_factor_for_marks(
     pattern: &Pattern,
     marks: &[u8],

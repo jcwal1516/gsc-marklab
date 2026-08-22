@@ -7,12 +7,11 @@ mod permutation;
 mod shells;
 mod summaries;
 
-pub use kernel::{
-    centered_structure_factor, centered_structure_factor_for_marks, observed_power_for_modes,
-    observed_value_power_for_modes,
-};
+#[cfg(test)]
+pub use kernel::{centered_structure_factor, centered_structure_factor_for_marks};
 #[cfg(test)]
 use kernel::{centered_structure_factor_for_index_subset, total_phase_sum};
+pub use kernel::{observed_power_for_modes, observed_value_power_for_modes};
 pub use modes::resolvable_modes_for_pattern;
 pub use permutation::{
     permutation_whitened_spectrum, permutation_whitened_spectrum_from_observed_modes,
