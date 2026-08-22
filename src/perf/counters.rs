@@ -13,6 +13,7 @@ pub struct MemoryInputs {
     pub n_scalar_stats: usize,
     pub k_chunk_modes: usize,
     pub scratch_per_mode_bytes: usize,
+    pub worker_threads: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -69,11 +70,32 @@ pub fn estimate_peak_memory(inputs: MemoryInputs) -> MemoryEstimate {
         .saturating_mul(8);
     let permutation_summary_bytes = inputs
         .n_permutations
-        .saturating_mul(inputs.n_scalar_stats)
+        .saturating_mul(
+            inputs
+                .n_shells
+                .saturating_mul(4)
+                .saturating_add(inputs.n_scalar_stats),
+        )
         .saturating_mul(8);
-    let k_chunk_bytes = inputs
+    let anisotropy_chunk_bytes = inputs
+        .n_permutations
+        .saturating_mul(inputs.k_chunk_modes)
+        .saturating_mul(8);
+    let shared_mode_chunk_bytes = inputs
         .k_chunk_modes
         .saturating_mul(inputs.scratch_per_mode_bytes);
+    // The largest mark-field worker uses one index vector plus reusable label
+    // and stratum-label bytes. Continuous workers use one f64 value vector and
+    // are bounded by the same conservative per-point estimate.
+    let worker_scratch_bytes = inputs.worker_threads.saturating_mul(
+        inputs
+            .n_points
+            .saturating_mul(10)
+            .saturating_add(inputs.k_chunk_modes.saturating_mul(8)),
+    );
+    let k_chunk_bytes = anisotropy_chunk_bytes
+        .saturating_add(shared_mode_chunk_bytes)
+        .saturating_add(worker_scratch_bytes);
     let total_bytes = points_bytes
         .saturating_add(raster_bytes)
         .saturating_add(spectrum_bytes)
@@ -108,9 +130,20 @@ mod tests {
             n_scalar_stats: 6,
             k_chunk_modes: 16,
             scratch_per_mode_bytes: 32,
+            worker_threads: 4,
         });
 
-        assert!(estimate.total_bytes > estimate.points_bytes);
+        assert_eq!(estimate.spectrum_bytes, 2_048);
+        assert_eq!(estimate.permutation_summary_bytes, 207_504);
+        assert_eq!(estimate.k_chunk_bytes, 17_696);
+        assert_eq!(
+            estimate.total_bytes,
+            estimate.points_bytes
+                + estimate.raster_bytes
+                + estimate.spectrum_bytes
+                + estimate.permutation_summary_bytes
+                + estimate.k_chunk_bytes
+        );
         assert!(estimate.total_mib() > 0.0);
         assert!(estimate.enforce_budget_mib(1).is_ok());
         assert!(estimate.enforce_budget_mib(0).is_err());

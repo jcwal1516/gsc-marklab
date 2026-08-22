@@ -94,7 +94,7 @@ impl AnalysisEngine {
     }
 
     fn analyze_pattern_inner(&self, pattern: &Pattern) -> Result<MarkedPatternResult> {
-        let memory_estimate = estimate_analysis_memory(pattern, &self.config);
+        let memory_estimate = estimate_analysis_memory(pattern, &self.config, self.threads);
         memory_estimate.enforce_budget_mib(self.config.performance.memory_budget_mib)?;
         let configured_memory_bytes = self
             .config
@@ -258,7 +258,11 @@ fn annotate_timings(
     }
 }
 
-fn estimate_analysis_memory(pattern: &Pattern, config: &AnalysisConfig) -> MemoryEstimate {
+fn estimate_analysis_memory(
+    pattern: &Pattern,
+    config: &AnalysisConfig,
+    worker_threads: usize,
+) -> MemoryEstimate {
     estimate_peak_memory(MemoryInputs {
         n_points: pattern.len(),
         optional_point_bytes: optional_point_bytes(pattern),
@@ -271,6 +275,7 @@ fn estimate_analysis_memory(pattern: &Pattern, config: &AnalysisConfig) -> Memor
         n_scalar_stats: 6,
         k_chunk_modes: config.performance.k_chunk_modes,
         scratch_per_mode_bytes: 32,
+        worker_threads,
     })
 }
 

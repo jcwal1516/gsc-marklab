@@ -169,6 +169,13 @@ fn checksum_f64(values: &[f64]) -> u64 {
 }
 
 fn permutation_options(n_permutations: usize) -> SpectrumPermutationOptions {
+    permutation_options_with_chunk(n_permutations, 64)
+}
+
+fn permutation_options_with_chunk(
+    n_permutations: usize,
+    k_chunk_modes: usize,
+) -> SpectrumPermutationOptions {
     SpectrumPermutationOptions {
         n_shells: 8,
         low_k_modes: 2,
@@ -177,7 +184,7 @@ fn permutation_options(n_permutations: usize) -> SpectrumPermutationOptions {
         family_wise_alpha: 0.10,
         max_scale_um: f64::INFINITY,
         k_shell_min: 1,
-        k_chunk_modes: 64,
+        k_chunk_modes,
     }
 }
 
@@ -671,6 +678,98 @@ fn baseline_perf_probabilistic_spectrum() {
             },
         );
     }
+}
+
+#[test]
+#[ignore = "manual Phase 7 spectrum chunk-size benchmark"]
+fn phase7_perf_spectrum_chunk_sizes() {
+    for n in SPECTRAL_SIZES {
+        let pattern = pattern(n);
+        let values = (0..n)
+            .map(|index| if index % 7 == 0 { 0.9 } else { 0.1 })
+            .collect::<Vec<_>>();
+        let mode_count = resolvable_modes_for_pattern(&pattern, 8)
+            .expect("resolvable modes")
+            .len();
+        for k_chunk_modes in [1, 64, 256, 4_096] {
+            let metadata = fixed_density_metadata(
+                n,
+                json!({
+                    "permutation_count": 19,
+                    "shell_count": 8,
+                    "mode_count": mode_count,
+                    "k_chunk_modes": k_chunk_modes,
+                }),
+            );
+            measure_case("phase7_binary_spectrum_chunks", n, metadata.clone(), || {
+                let spectrum = permutation_whitened_spectrum(
+                    black_box(&pattern),
+                    permutation_options_with_chunk(19, k_chunk_modes),
+                )
+                .expect("permutation spectrum")
+                .expect("evaluable spectrum");
+                checksum_f64(&spectrum.observed_power) ^ spectrum.n_permutations as u64
+            });
+            measure_case("phase7_continuous_spectrum_chunks", n, metadata, || {
+                let spectrum = permutation_whitened_value_spectrum(
+                    black_box(&pattern),
+                    black_box(&values),
+                    permutation_options_with_chunk(19, k_chunk_modes),
+                )
+                .expect("probabilistic spectrum")
+                .expect("evaluable spectrum");
+                checksum_f64(&spectrum.observed_power) ^ spectrum.n_permutations as u64
+            });
+        }
+    }
+}
+
+#[test]
+#[ignore = "manual Phase 7 spectrum peak-memory probe"]
+fn phase7_perf_spectrum_memory_probe() {
+    let n = environment_usize("MARKLAB_SPECTRUM_MEMORY_N", 256);
+    let n_permutations = environment_usize("MARKLAB_SPECTRUM_MEMORY_B", 999);
+    let k_chunk_modes = environment_usize("MARKLAB_SPECTRUM_MEMORY_CHUNK", 256);
+    let field = std::env::var("MARKLAB_SPECTRUM_MEMORY_FIELD").unwrap_or_else(|_| "binary".into());
+    let pattern = pattern(n);
+    let mode_count = resolvable_modes_for_pattern(&pattern, 8)
+        .expect("resolvable modes")
+        .len();
+    let options = permutation_options_with_chunk(n_permutations, k_chunk_modes);
+    let spectrum = match field.as_str() {
+        "binary" => permutation_whitened_spectrum(&pattern, options),
+        "continuous" => {
+            let values = (0..n)
+                .map(|index| if index % 7 == 0 { 0.9 } else { 0.1 })
+                .collect::<Vec<_>>();
+            permutation_whitened_value_spectrum(&pattern, &values, options)
+        }
+        value => panic!("unsupported MARKLAB_SPECTRUM_MEMORY_FIELD {value}"),
+    }
+    .expect("spectrum")
+    .expect("spectrum available");
+
+    println!(
+        "MARKLAB_MEMORY_PROBE {}",
+        json!({
+            "field": field,
+            "input_size": n,
+            "mode_count": mode_count,
+            "shell_count": spectrum.observed_power.len(),
+            "permutation_count": n_permutations,
+            "k_chunk_modes": k_chunk_modes,
+            "previous_mode_matrix_bytes": n_permutations.saturating_mul(mode_count).saturating_mul(8),
+            "current_shell_matrix_bytes": n_permutations.saturating_mul(spectrum.observed_power.len()).saturating_mul(8),
+            "checksum": checksum_f64(&spectrum.observed_power),
+        })
+    );
+}
+
+fn environment_usize(name: &str, default: usize) -> usize {
+    std::env::var(name)
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(default)
 }
 
 fn write_csv_fixture(path: &std::path::Path, n: usize) {
