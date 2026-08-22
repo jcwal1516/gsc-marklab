@@ -1,194 +1,20 @@
-use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-};
-
-use serde::Serialize;
+use std::{collections::BTreeMap, path::Path};
 
 use crate::{
-    common::finite::validate_serializable_finite,
     config::OutputSection,
     errors::{MarklabError, Result},
 };
 
+use super::artifact_io::write_json;
 use super::artifact_plan::ArtifactPlan;
 use super::manifest::RunManifestContext;
-use super::result_types::*;
+use super::marked_artifacts::write_core_marked_outputs;
+use super::multimodal_result_artifacts::write_core_multimodal_outputs;
+use super::result_types::{AnalysisResult, ArtifactStatus, OutputManifest, ResultDocument};
 use super::transaction::OutputTransaction;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct OutputWriter;
-
-impl ResultDocument {
-    pub fn marked(result: MarkedPatternResult) -> Self {
-        Self::new(AnalysisResult::MarkedPattern(result))
-    }
-
-    pub fn multimodal(result: MultimodalResult) -> Self {
-        Self::new(AnalysisResult::Multimodal(result))
-    }
-
-    pub fn marked_prepost(result: PrePostResult) -> Self {
-        Self::new(AnalysisResult::MarkedPrePost(result))
-    }
-
-    pub fn multimodal_prepost(result: PrePostResult) -> Self {
-        Self::new(AnalysisResult::MultimodalPrePost(result))
-    }
-
-    fn new(analysis: AnalysisResult) -> Self {
-        Self {
-            format_version: RESULT_FORMAT_VERSION.into(),
-            provenance: Provenance {
-                program: "marklab".into(),
-                crate_version: env!("CARGO_PKG_VERSION").into(),
-            },
-            analysis,
-        }
-    }
-
-    pub fn from_json(text: &str) -> Result<Self> {
-        let value: serde_json::Value = serde_json::from_str(text)
-            .map_err(|error| MarklabError::Schema(format!("invalid result JSON: {error}")))?;
-        let found = value
-            .get("format_version")
-            .and_then(serde_json::Value::as_str)
-            .ok_or_else(|| MarklabError::Schema("result format_version is required".into()))?;
-        if found != RESULT_FORMAT_VERSION {
-            return Err(MarklabError::UnsupportedFormatVersion {
-                found: found.into(),
-                supported: RESULT_FORMAT_VERSION.into(),
-            });
-        }
-        serde_json::from_value(value)
-            .map_err(|error| MarklabError::Schema(format!("invalid result document: {error}")))
-    }
-
-    pub fn into_marked_pattern(self) -> Result<MarkedPatternResult> {
-        match self.analysis {
-            AnalysisResult::MarkedPattern(result) => Ok(result),
-            AnalysisResult::Multimodal(_)
-            | AnalysisResult::MarkedPrePost(_)
-            | AnalysisResult::MultimodalPrePost(_) => Err(MarklabError::Validation(
-                "expected a marked_pattern result document".into(),
-            )),
-        }
-    }
-
-    pub fn into_multimodal(self) -> Result<MultimodalResult> {
-        match self.analysis {
-            AnalysisResult::Multimodal(result) => Ok(result),
-            AnalysisResult::MarkedPattern(_)
-            | AnalysisResult::MarkedPrePost(_)
-            | AnalysisResult::MultimodalPrePost(_) => Err(MarklabError::Validation(
-                "expected a multimodal result document".into(),
-            )),
-        }
-    }
-
-    pub fn into_marked_prepost(self) -> Result<PrePostResult> {
-        match self.analysis {
-            AnalysisResult::MarkedPrePost(result) => Ok(result),
-            AnalysisResult::MarkedPattern(_)
-            | AnalysisResult::Multimodal(_)
-            | AnalysisResult::MultimodalPrePost(_) => Err(MarklabError::Validation(
-                "expected a marked_prepost result document".into(),
-            )),
-        }
-    }
-
-    pub fn into_multimodal_prepost(self) -> Result<PrePostResult> {
-        match self.analysis {
-            AnalysisResult::MultimodalPrePost(result) => Ok(result),
-            AnalysisResult::MarkedPattern(_)
-            | AnalysisResult::Multimodal(_)
-            | AnalysisResult::MarkedPrePost(_) => Err(MarklabError::Validation(
-                "expected a multimodal_prepost result document".into(),
-            )),
-        }
-    }
-
-    pub fn to_json_pretty(&self) -> Result<String> {
-        self.validated_json()
-    }
-
-    pub(super) fn validated_json(&self) -> Result<String> {
-        if self.format_version != RESULT_FORMAT_VERSION {
-            return Err(MarklabError::UnsupportedFormatVersion {
-                found: self.format_version.clone(),
-                supported: RESULT_FORMAT_VERSION.into(),
-            });
-        }
-        validate_serializable_finite(self).map_err(|error| {
-            MarklabError::Compute(format!(
-                "result document contains invalid floating-point data: {error}"
-            ))
-        })?;
-        let json = serde_json::to_string_pretty(self)
-            .map_err(|error| MarklabError::Compute(error.to_string()))?;
-        serde_json::from_str::<Self>(&json).map_err(|error| {
-            MarklabError::Schema(format!(
-                "result document cannot be represented by format 0.3: {error}"
-            ))
-        })?;
-        Ok(json)
-    }
-}
-
-fn write_marked_outputs(
-    result: &MarkedPatternResult,
-    out: &Path,
-    options: &OutputSection,
-) -> Result<()> {
-    std::fs::create_dir_all(out).map_err(|source| MarklabError::io(out, source))?;
-
-    #[cfg(not(feature = "parquet"))]
-    if options.write_parquet_curves {
-        return Err(MarklabError::Config(
-            "Parquet curve output requires the parquet feature".into(),
-        ));
-    }
-
-    let qc = serde_json::json!({
-        "status": result.status,
-        "status_flags": result.status_flags,
-        "metrics": result.qc,
-    });
-    std::fs::write(out.join("qc.json"), qc.to_string())
-        .map_err(|source| MarklabError::io(out.join("qc.json"), source))?;
-
-    let report = crate::io::report::render_analysis_report(result);
-    std::fs::write(out.join("report.md"), report)
-        .map_err(|source| MarklabError::io(out.join("report.md"), source))?;
-
-    #[cfg(feature = "parquet")]
-    if options.write_parquet_curves {
-        result.write_spectra_parquet(out)?;
-    }
-    #[cfg(feature = "parquet")]
-    if options.write_parquet_curves {
-        result.write_mark_pair_covariance_parquet(out)?;
-    }
-    #[cfg(feature = "parquet")]
-    if options.write_parquet_curves {
-        result.write_scale_energy_parquet(out)?;
-    }
-    if options.write_geojson_territories {
-        if let Some(territories) = result.residual_territories.value() {
-            crate::io::geojson::write_residual_territories(
-                territories,
-                out.join("residual_territories.geojson"),
-            )?;
-        }
-    }
-    if options.write_figures {
-        super::figures::write(result, out)?;
-    }
-
-    write_timing_sidecar(out, &result.timings)?;
-
-    Ok(())
-}
 
 impl OutputWriter {
     pub fn write(
@@ -261,10 +87,10 @@ impl OutputWriter {
     ) -> Result<OutputManifest> {
         match &plan.document.analysis {
             AnalysisResult::MarkedPattern(result) => {
-                write_marked_outputs(result, out, options)?;
+                write_core_marked_outputs(result, out, options)?;
             }
             AnalysisResult::Multimodal(result) => {
-                write_multimodal_outputs(result, out, options)?;
+                write_core_multimodal_outputs(result, out, options)?;
             }
             AnalysisResult::MarkedPrePost(_) | AnalysisResult::MultimodalPrePost(_) => {
                 std::fs::create_dir_all(out).map_err(|source| MarklabError::io(out, source))?;
@@ -386,127 +212,6 @@ fn rebase_artifact_status(
         *path = final_path.join(relative);
     }
     Ok(())
-}
-
-fn write_multimodal_outputs(
-    result: &MultimodalResult,
-    out: &Path,
-    options: &OutputSection,
-) -> Result<()> {
-    std::fs::create_dir_all(out).map_err(|source| MarklabError::io(out, source))?;
-
-    #[cfg(not(feature = "parquet"))]
-    if options.write_parquet_curves {
-        return Err(MarklabError::Config(
-            "multimodal Parquet output requires the parquet feature".into(),
-        ));
-    }
-
-    write_json(out.join("registration_qc.json"), &result.registration)?;
-    write_available_json(
-        out.join("neighborhood_enrichment.json"),
-        &result.neighborhood_enrichment,
-    )?;
-    write_available_json(
-        out.join("cross_interaction_curves.json"),
-        &result.cross_interaction_curves,
-    )?;
-    write_available_json(
-        out.join("neighborhood_territories.json"),
-        &result.neighborhood_territories,
-    )?;
-    write_available_json(
-        out.join("territory_profiles.json"),
-        &result.territory_profiles,
-    )?;
-    write_available_json(
-        out.join("territory_comparisons.json"),
-        &result.territory_comparisons,
-    )?;
-
-    let report_path = out.join("report.md");
-    std::fs::write(
-        &report_path,
-        crate::io::report::render_multimodal_report(result),
-    )
-    .map_err(|source| MarklabError::io(&report_path, source))?;
-
-    if options.write_geojson_territories {
-        if let Some(territories) = result
-            .neighborhood_territories
-            .value()
-            .filter(|value| !value.is_empty())
-        {
-            crate::io::geojson::write_neighborhood_territories(
-                territories,
-                out.join("neighborhood_territories.geojson"),
-            )?;
-        }
-    }
-
-    #[cfg(feature = "parquet")]
-    if options.write_parquet_curves {
-        if !result.fused_cells.is_empty() {
-            crate::io::parquet::write_fused_cells_parquet(
-                &result.fused_cells,
-                &result.case_id,
-                &result.timepoint,
-                &result.protein,
-                out.join("fused_cells.parquet"),
-            )?;
-        }
-        if let Some(enrichment) = result
-            .neighborhood_enrichment
-            .value()
-            .filter(|value| !value.is_empty())
-        {
-            crate::io::parquet::write_neighborhood_enrichment_parquet(
-                enrichment,
-                out.join("neighborhood_enrichment.parquet"),
-            )?;
-        }
-        if let Some(curves) = result
-            .cross_interaction_curves
-            .value()
-            .filter(|value| !value.is_empty())
-        {
-            crate::io::parquet::write_cross_interaction_curves_parquet(
-                curves,
-                out.join("cross_interaction_curves.parquet"),
-            )?;
-        }
-    }
-
-    write_timing_sidecar(out, &result.timings)?;
-    Ok(())
-}
-
-fn write_timing_sidecar(out: &Path, timings: &[TimingStage]) -> Result<()> {
-    write_json(
-        out.join("timings.json"),
-        &serde_json::json!({"stages": timings}),
-    )
-}
-
-fn write_available_json<T: Serialize>(
-    path: PathBuf,
-    section: &AnalysisSection<Vec<T>>,
-) -> Result<()> {
-    if section.value().is_some_and(|value| !value.is_empty()) {
-        write_json(path, section)?;
-    }
-    Ok(())
-}
-
-fn write_json(path: PathBuf, value: &impl Serialize) -> Result<()> {
-    validate_serializable_finite(value).map_err(|error| {
-        MarklabError::Compute(format!(
-            "output artifact contains invalid floating-point data: {error}"
-        ))
-    })?;
-    let json = serde_json::to_string_pretty(value)
-        .map_err(|error| MarklabError::Compute(error.to_string()))?;
-    std::fs::write(&path, json).map_err(|source| MarklabError::io(&path, source))
 }
 
 fn artifact_group_status(out: &Path, enabled: bool, representative: &str) -> ArtifactStatus {

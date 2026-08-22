@@ -1,13 +1,14 @@
+mod artifact_io;
 mod artifact_plan;
 #[cfg(feature = "parquet")]
 mod curve_parquet;
-#[cfg(feature = "cli")]
 mod document;
 mod figures;
 mod manifest;
 mod marked_artifacts;
 #[cfg(feature = "csv")]
 mod multimodal_artifacts;
+mod multimodal_result_artifacts;
 mod result_types;
 mod transaction;
 mod writer;
