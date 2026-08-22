@@ -1,8 +1,7 @@
 use std::{fs, path::Path};
 
 use assert_cmd::Command;
-#[cfg(feature = "parquet")]
-use marklab::{PatternLoader, TumorMask};
+use marklab::{AnalysisConfig, AnalysisEngine, PatternLoader, ResultDocument, TumorMask};
 #[cfg(not(feature = "wsi"))]
 use predicates::prelude::PredicateBooleanExt;
 use serde_json::Value;
@@ -162,6 +161,34 @@ fn analyze_cli_writes_result_json_from_csv_and_geojson_mask() {
     assert!(!out.join("mark_pair_covariance.parquet").exists());
     assert!(!out.join("scale_energy.parquet").exists());
     assert!(!out.join("figures").exists());
+
+    let parsed_mask =
+        TumorMask::from_geojson_str(&fs::read_to_string(&mask).expect("read compatibility mask"))
+            .expect("parse compatibility mask");
+    let pattern = PatternLoader::new(&parsed_mask)
+        .load(&cells)
+        .expect("load compatibility pattern");
+    let config = AnalysisConfig::from_toml_path(&config).expect("load compatibility config");
+    let library_result = AnalysisEngine::new(config)
+        .expect("compatibility engine")
+        .analyze_pattern(&pattern)
+        .expect("compatibility analysis");
+    let mut library_document =
+        serde_json::to_value(ResultDocument::marked(library_result)).expect("library result");
+    let mut cli_core = document["analysis"]["result"].clone();
+    // The CLI adds adapter stages; timing observations are not result-core values.
+    cli_core
+        .as_object_mut()
+        .expect("CLI result object")
+        .remove("timings")
+        .expect("CLI timings");
+    library_document["analysis"]["result"]
+        .as_object_mut()
+        .expect("library result object")
+        .remove("timings")
+        .expect("library timings");
+
+    assert_eq!(cli_core, library_document["analysis"]["result"]);
 }
 
 #[test]

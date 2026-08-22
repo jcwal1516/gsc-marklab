@@ -56,8 +56,8 @@ Statuses are `planned`, `active`, `blocked`, `complete`, `deferred`, or `rejecte
 | A-01 | Install authoritative state/control plane | PLAT-01 | Lead | complete | `AGENTS.md`, `docs/implementation/**` | Required files, immutable-plan hash, ID coverage, and scope check recorded |
 | A-02 | Reproduce current baseline | A-01 | `a02_baseline` (read-only runner) | complete | No tracked writes; generated build output only | All gates passed after clean-tree package rerun; exact evidence in validation/performance ledgers |
 | A-03 | Contract and migration inventory | A-01 | Lead + read-only analysis | complete | Implementation docs only | Every current API/CLI/config/result/artifact/feature/workflow/test surface has a disposition |
-| B-01 | Workspace architecture decision | A-01–A-03 | Lead | active | Root Cargo metadata/architecture test/docs only | Red/green workspace test, root/fuzz metadata, compatibility suites, workspace build/Clippy, and scope audit pass; focused commit pending |
-| B-02 | Compatibility shell | B-01 | Lead | planned | Manifests/facade/tests | Characterization parity |
+| B-01 | Workspace architecture decision | A-01–A-03 | Lead | complete | Root Cargo metadata/architecture test/docs only | Commit `e8d57eed0c4b39bd651b7393e7af25b5a10a7558`; red/green contract, root/fuzz metadata, compatibility, workspace build/Clippy, package, and scope gates pass |
+| B-02 | Compatibility shell | B-01 | Lead | active | Compatibility parity test/docs only | 65 default and 26 WSI/CLI tests pass, direct marked/multimodal parity proven, no-default build passes; focused commit pending |
 | B-03 | Workspace policy | B-01 | Lead | planned | Workspace CI/policy/tests | Feature/dependency matrix passes |
 | B-04 | Minimal project/workflow vertical slice | B-01–B-03 | Lead | planned | Focused new crates/tests | Existing marked result parity |
 | C-01 | Typed identities/hierarchy | WS-B | Lead | planned | Focused core/data files | Red/green hierarchy tests |
@@ -184,7 +184,7 @@ The tables below ensure every scientific, platform, current-capability, and work
 |---|---|---|
 | WS-00 | complete | Control plane, state, branch, baseline |
 | WS-01 | complete | Legacy characterization and compatibility matrix |
-| WS-10 | planned | Workspace and existing-package compatibility shell |
+| WS-10 | active | Workspace boundary complete; compatibility-shell characterization active |
 | WS-11 | planned | Project, artifact, provenance, execution ledger |
 | WS-12 | planned | Typed DAG, cache, resumable local scheduler |
 | WS-13 | planned | Backend registry and doctor/validation commands |

@@ -48,3 +48,10 @@ Rows are characterization records at the implementation base. `Active task = non
 | B-01-REVIEW `b01_architecture_review` | None | None | Cargo/public API/tests/CI and B-01 contract | Read-only critique; no edits or commands that mutate tracked state |
 
 Existing canonical scientific/config/parser/result/output symbols remain owned by the compatibility package and are read-only during B-01.
+
+## B-02 active ownership
+
+| Task/agent | Writable files | Owned canonical symbols | Read-only context | Explicit non-goals |
+|---|---|---|---|---|
+| B-02 `/root` | `tests/cli.rs`, `docs/implementation/**` | Compatibility characterization only; no production owner moves | `Cargo.toml`, `src/lib.rs`, `src/bin/marklab.rs`, current facade/CLI/config/result/output implementations | No source move/copy, dependency/lock change, API/config/result/CLI change, algorithm change, or new crate |
+| B-02-REVIEW `b02_compatibility_audit` | None | None | Public facade/binary/features and API/CLI/config/result tests | Read-only critique; no tracked or remote mutation |

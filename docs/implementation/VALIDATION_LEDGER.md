@@ -39,8 +39,24 @@ No command below is marked passing until it executes successfully on this branch
 | Workspace Clippy | `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings` | pass | Exit 0. |
 | Format | `cargo +1.96.0 fmt --all --check` | pass | Exit 0. |
 | Fuzz build | `cargo +nightly fuzz check` | pass | Exit 0; existing standalone package and targets compile unchanged. |
+| Clean package | `cargo +1.96.0 package --locked` | pass | At clean commit `e8d57eed0c4b39bd651b7393e7af25b5a10a7558`: exit 0; 242 files, 1.7 MiB/389.6 KiB compressed; package verification compiled successfully. |
 | Scope/diff | `git diff --check` and targeted `git diff -- Cargo.lock src/lib.rs src/config src/output .github/workflows fuzz/Cargo.toml fuzz/Cargo.lock` | pass | No whitespace error; no lockfile, production API/config/result/output, workflow, or fuzz-manifest delta. |
 | Read-only architecture review | B-01 reviewer inspection of Cargo/public API/tests/CI | pass with recommendation applied | No edits. Confirmed fuzz must remain standalone; recommended deferring ceremonial crates to B-04 and using Cargo-observed assertions. Review-created semantic server was stopped. |
+
+## B-02 compatibility-shell evidence
+
+| Gate | Exact command | Status | Result/evidence |
+|---|---|---|---|
+| Marked direct/CLI parity | `cargo +1.96.0 test --locked --test cli analyze_cli_writes_result_json_from_csv_and_geojson_mask` | pass | 1 passed; identical mask/table/config produce exact CLI versus direct-library result-core equality after excluding execution timing telemetry. |
+| Default API/config/result/CLI parity | `cargo +1.96.0 test --locked --test api_contract --test cli --test config_v02 --test result_v03 --test multimodal_cli` | pass | 65 passed, 0 failed: API 6, CLI 17, config 8, multimodal CLI 21, result 0.3 13. Includes exact marked and multimodal library/CLI core parity. |
+| WSI feature/CLI parity | `cargo +1.96.0 test --locked --features wsi,cli --test wsi_integration --test cli` | pass with scheduled oracle ignored | CLI 16/16 and local WSI 10/10 passed; one public Aperio/OpenSlide oracle remains explicitly ignored because the checksummed external fixture/oracle is not local. |
+| Output transactions/artifacts | `cargo +1.96.0 test --locked --lib output::tests` | pass | Read-only reviewer run: 16 passed, 0 failed. |
+| No-default library | `cargo +1.96.0 check --locked --no-default-features` | pass | Exit 0; root library remains independently buildable. |
+| CLI without default features | `cargo +1.96.0 test --locked --no-default-features --features cli --test cli --test multimodal_cli` | pass with existing warnings | Read-only reviewer run: 35/35 passed (13 CLI, 22 multimodal). Build emitted cfg-specific unused-import warnings in `src/cli/batch.rs`; B-03 owns the feature-matrix policy/fix because all-feature Clippy does not observe this combination. |
+| Read-only shell audit | `git diff --exit-code 55fce12f10684a9081ca1f744f87d6f5feedcb24..HEAD -- src Cargo.lock fuzz .github` plus facade/target inspection | pass | No compatibility-surface delta through B-01; root library keeps private modules and re-exports, and the configured binary delegates only to `marklab::run_cli()`. Reviewer made no edits, accessed no remote system, and created no LSP server. |
+| Workspace/workflow continuity | `cargo +1.96.0 test --locked --test workflow_contract --test workspace_contract` | pass | 7 passed, 0 failed. |
+| Workspace Clippy | `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings` | pass | Exit 0. |
+| Format/scope | `cargo +1.96.0 fmt --all --check` and `git diff --check` | pass | Exit 0; no production source, manifest, dependency, lockfile, config, result DTO, or CI change. |
 
 ## Harness failures
 
@@ -48,6 +64,7 @@ No command below is marked passing until it executes successfully on this branch
 - 2026-08-22: the first `cargo package --locked` exited 101 solely because the required WS-A bootstrap was uncommitted. It was not weakened with `--allow-dirty`. The exact command passed after commit `fc986c0c4e06216cc85d55d2315482a0107bf5b7`.
 - 2026-08-22: B-01's first Cargo-observed integration test exited 101 for the intended reason: the root manifest had no workspace. Intermediate red runs caught a missing fuzz exclusion, premature project/workflow members, and explicit root membership. The direct fuzz metadata command also exited 101 under explicit root membership. These were test-driven design failures, not ignored gates; final forms pass and neither lockfile changed.
 - 2026-08-22: one intermediate `workspace_contract` run invoked `env!("CARGO")` with a rustup `+1.96.0` argument. The direct toolchain Cargo executable correctly rejected that rustup-only selector. The test now invokes the exact Cargo executable without a selector; the outer test command remains pinned to 1.96.0 and passes.
+- 2026-08-22: default-feature and WSI-feature CLI suites were initially launched concurrently into the same target directory. The default-only `slide_commands_are_absent_without_wsi_feature` assertion then observed the WSI-enabled `target/debug/marklab` and failed 1 of 17 CLI tests. This was a shared-binary harness race, not a product failure: the isolated default rerun passed 65/65 across all B-02 default suites, and the isolated WSI rerun passed 26/26 with one external oracle ignored. Feature-distinct `assert_cmd::cargo_bin` suites are now run serially.
 
 ## Tool/environment evidence
 

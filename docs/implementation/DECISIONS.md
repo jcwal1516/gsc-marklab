@@ -86,3 +86,12 @@ This file is append-only. Superseding decisions reference the prior decision; ex
 - Decision: Omit `workspace.members` and `workspace.default-members` in B-01. Retain `resolver = "2"`, shared package metadata, and `exclude = ["fuzz"]`. Verify resolved/default membership through `cargo metadata` and verify the fuzz manifest independently.
 - Alternatives: add an empty `[workspace]` to `fuzz/Cargo.toml`; include fuzz in the root workspace; keep explicit `"."` and break the fuzz gate.
 - Consequences: current root commands remain root-only, the standalone fuzz manifest resolves, and B-04 can add real member paths without listing `"."`. Exact local evidence: root `cargo +1.96.0 metadata --locked --format-version 1 --no-deps` and standalone `cargo +1.96.0 metadata --locked --format-version 1 --no-deps --manifest-path fuzz/Cargo.toml` both pass in the final B-01 state; the latter failed when `members = ["."]` was present.
+
+## DEC-0011 — Recognize the existing root facade as the compatibility shell
+
+- Date: 2026-08-22
+- Status: accepted
+- Context: The root library already keeps implementation modules private and exposes one documented re-export facade; the binary delegates to the facade's hidden CLI launcher. B-01 made this package the implicit workspace/default member. A read-only B-02 audit found no immediate caller or ownership benefit from moving or copying the implementation into another package.
+- Decision: Close B-02 without moving production source. Add the missing marked direct-library/CLI result-core equality assertion and use the existing API, CLI, config 0.2, result 0.3, multimodal, WSI, output-transaction, and feature tests as the compatibility proof. Any later source extraction requires an immediate owning caller and a separate history-preserving mechanical commit.
+- Alternatives: rename the root package as legacy; create a second facade package; copy or mechanically move all implementation modules before project/workflow callers exist.
+- Consequences: the supported `marklab` package, library, binary, command names, features, and result/config surfaces remain stable. B-04 can call the canonical existing engine rather than duplicate it. B-03 must add a feature-matrix gate that exposes cfg-specific warnings currently hidden by all-feature Clippy.
