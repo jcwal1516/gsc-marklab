@@ -176,7 +176,7 @@ fn output_writer_emits_result_manifest_qc_and_timings_json() {
     let stages = timings["stages"].as_array().expect("timing stages");
     assert!(!stages.is_empty());
     assert!(stages.iter().any(|stage| stage["stage_name"] == "validate"));
-    assert!(stages
+    assert!(!stages
         .iter()
         .any(|stage| stage["stage_name"] == "write_outputs"));
     for stage in stages {
@@ -199,8 +199,7 @@ fn output_writer_emits_result_manifest_qc_and_timings_json() {
 }
 
 #[test]
-#[ignore = "Phase 0 reproduction: OUT-01 unified telemetry is fixed in Phase 5"]
-fn remediation_result_and_timings_sidecar_use_the_same_telemetry() {
+fn result_and_timings_use_same_telemetry() {
     let mut config = AnalysisConfig::default();
     config.validation.n_min = 4;
     config.validation.n_marked_min = 1;

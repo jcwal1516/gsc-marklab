@@ -1,7 +1,6 @@
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
-    time::Instant,
 };
 
 use serde::Serialize;
@@ -100,7 +99,6 @@ fn write_marked_outputs(
     out: &Path,
     options: &OutputSection,
 ) -> Result<()> {
-    let write_start = Instant::now();
     std::fs::create_dir_all(out).map_err(|source| MarklabError::io(out, source))?;
 
     #[cfg(not(feature = "parquet"))]
@@ -178,29 +176,7 @@ fn write_marked_outputs(
         super::figures::write(result, out)?;
     }
 
-    let mut timings = result.timings.clone();
-    timings.push(TimingStage {
-        stage_name: "write_outputs".into(),
-        wall_ms: write_start.elapsed().as_secs_f64() * 1000.0,
-        cpu_threads: 1,
-        n_cells: result.n_cells,
-        n_marked: result.n_marked,
-        n_k_modes: result.spectrum.value().map_or(0, |value| value.n_k_modes),
-        n_permutations: result
-            .spectrum
-            .value()
-            .map_or(0, |value| value.n_permutations),
-        estimated_peak_memory_mib: result
-            .timings
-            .first()
-            .map(|stage| stage.estimated_peak_memory_mib)
-            .unwrap_or(0.0),
-    });
-    let timings_json = serde_json::json!({
-        "stages": timings,
-    });
-    std::fs::write(out.join("timings.json"), timings_json.to_string())
-        .map_err(|source| MarklabError::io(out.join("timings.json"), source))?;
+    write_timing_sidecar(out, &result.timings)?;
 
     Ok(())
 }
@@ -380,13 +356,15 @@ fn write_multimodal_outputs(
         )?;
     }
 
-    if !result.timings.is_empty() {
-        write_json(
-            out.join("timings.json"),
-            &serde_json::json!({"stages": result.timings}),
-        )?;
-    }
+    write_timing_sidecar(out, &result.timings)?;
     Ok(())
+}
+
+fn write_timing_sidecar(out: &Path, timings: &[TimingStage]) -> Result<()> {
+    write_json(
+        out.join("timings.json"),
+        &serde_json::json!({"stages": timings}),
+    )
 }
 
 fn write_available_json<T: Serialize>(
