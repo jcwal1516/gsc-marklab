@@ -45,7 +45,7 @@ pub(super) fn run(n: usize, p: f64, seed: u64, out: PathBuf) -> Result<()> {
                         region_id: None,
                     },
                 )?;
-                write_pattern_parquet(&pattern, out)?;
+                write_filtered_pattern_export_parquet(&pattern, out)?;
             }
             #[cfg(not(feature = "parquet"))]
             bail!("Parquet simulation output requires the parquet feature");

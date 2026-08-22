@@ -69,14 +69,6 @@ impl<'a> BatchColumns<'a> {
             local_hematoxylin_od: optional(batch, "local_hematoxylin_od")?,
         })
     }
-
-    pub(super) fn has_artifact_columns(&self) -> bool {
-        self.artifact.is_some() || self.edge_artifact.is_some() || self.fold_artifact.is_some()
-    }
-
-    pub(super) fn has_nonviable_columns(&self) -> bool {
-        self.necrosis.is_some() || self.nonviable_therapy_effect.is_some()
-    }
 }
 
 fn required<'a, T: Array + 'static>(batch: &'a RecordBatch, name: &str) -> Result<&'a T> {

@@ -13,7 +13,7 @@ use crate::{
     geom::{mask::TumorMask, spatial_index::mean_nearest_neighbor_distance},
     io::{
         csv::load_pattern_csv_with_diagnostics,
-        parquet::{load_pattern_parquet_with_diagnostics, write_pattern_parquet},
+        parquet::{load_pattern_parquet_with_diagnostics, write_filtered_pattern_export_parquet},
     },
     multimodal::{
         cells::{CellSection, FusedCell, HeCell, IhcCell},
@@ -533,7 +533,7 @@ fn baseline_perf_csv_and_parquet_load() {
         );
 
         let parquet_path = directory.path().join(format!("cells-{n}.parquet"));
-        write_pattern_parquet(&pattern(n), &parquet_path).expect("Parquet fixture");
+        write_filtered_pattern_export_parquet(&pattern(n), &parquet_path).expect("Parquet fixture");
         measure_case(
             "parquet_load",
             n,

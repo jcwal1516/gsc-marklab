@@ -4,7 +4,7 @@ use std::{
 };
 
 #[cfg(feature = "parquet")]
-use crate::{io::parquet::write_pattern_parquet, Pattern, PatternMeta};
+use crate::{io::parquet::write_filtered_pattern_export_parquet, Pattern, PatternMeta};
 use crate::{
     permutation::labels::permute_fixed_count,
     prepost::{compare_multimodal_prepost, compare_prepost},

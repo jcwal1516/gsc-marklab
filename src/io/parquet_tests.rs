@@ -7,13 +7,13 @@ use crate::{
     geom::mask::TumorMask,
     io::{
         load_pattern_path,
-        parquet::{load_pattern_parquet_with_diagnostics, write_pattern_parquet},
+        parquet::{load_pattern_parquet_with_diagnostics, write_filtered_pattern_export_parquet},
     },
     Pattern,
 };
 
 #[test]
-fn parquet_roundtrip_preserves_required_cell_fields() {
+fn filtered_parquet_export_preserves_supported_pattern_fields() {
     let dir = tempfile::tempdir().expect("temp dir");
     let path = dir.path().join("cells.parquet");
     let mask = TumorMask::from_geojson_str(
@@ -45,7 +45,7 @@ fn parquet_roundtrip_preserves_required_cell_fields() {
     pattern.local_dab_od = Some(vec![1.1, 0.2, 1.0, 0.3].into_boxed_slice());
     pattern.local_hematoxylin_od = Some(vec![0.7, 0.8, 0.6, 0.9].into_boxed_slice());
 
-    write_pattern_parquet(&pattern, &path).expect("write parquet");
+    write_filtered_pattern_export_parquet(&pattern, &path).expect("write parquet");
     let loaded = load_pattern_parquet_with_diagnostics(&path, &mask)
         .expect("load parquet")
         .pattern;
@@ -63,12 +63,7 @@ fn parquet_roundtrip_preserves_required_cell_fields() {
     assert_eq!(loaded.meta.region_id.as_deref(), Some("region_a"));
     assert_eq!(loaded.qc_bin.as_deref(), Some(&[10, 10, 20, 20][..]));
     assert_eq!(loaded.component_id.as_deref(), Some(&[1, 1, 2, 2][..]));
-    for field in [
-        "internal_control_bin",
-        "block_id",
-        "slide_region",
-        "stain_batch",
-    ] {
+    for field in ["block_id", "slide_region", "stain_batch"] {
         assert!(
             loaded.categorical_strata.contains_key(field),
             "missing {field}"
@@ -98,8 +93,11 @@ fn parquet_roundtrip_preserves_required_cell_fields() {
 }
 
 #[test]
-#[ignore = "Phase 0 reproduction: OUT-04/OUT-05 optional absence is fixed in Phase 5"]
-fn remediation_parquet_roundtrip_preserves_optional_absence() {
+fn optional_absence_preserved() {
+    use std::fs::File;
+
+    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+
     let dir = tempfile::tempdir().expect("temp dir");
     let path = dir.path().join("cells.parquet");
     let mask = TumorMask::from_geojson_str(
@@ -123,7 +121,33 @@ fn remediation_parquet_roundtrip_preserves_optional_absence() {
     )
     .expect("pattern");
 
-    write_pattern_parquet(&pattern, &path).expect("write parquet");
+    write_filtered_pattern_export_parquet(&pattern, &path).expect("write parquet");
+    let schema = ParquetRecordBatchReaderBuilder::try_new(File::open(&path).expect("open export"))
+        .expect("read export metadata")
+        .schema()
+        .clone();
+    assert_eq!(
+        schema
+            .metadata()
+            .get("marklab.export_kind")
+            .map(String::as_str),
+        Some("filtered_canonical_pattern")
+    );
+    for absent in [
+        "internal_control_local",
+        "artifact",
+        "edge_artifact",
+        "fold_artifact",
+        "necrosis",
+        "nonviable_therapy_effect",
+        "qc_bin",
+        "component_id",
+    ] {
+        assert!(
+            schema.field_with_name(absent).is_err(),
+            "fabricated {absent}"
+        );
+    }
     let loaded = load_pattern_parquet_with_diagnostics(&path, &mask)
         .expect("load parquet")
         .pattern;
@@ -155,13 +179,14 @@ fn parquet_writer_rejects_invalid_tumor_probability_metrics() {
     .expect("pattern");
 
     pattern.tumor_probability = Some(vec![1.20].into_boxed_slice());
-    let probability_error =
-        write_pattern_parquet(&pattern, &path).expect_err("invalid tumor_probability");
+    let probability_error = write_filtered_pattern_export_parquet(&pattern, &path)
+        .expect_err("invalid tumor_probability");
     assert!(probability_error.to_string().contains("tumor_probability"));
 
     pattern.tumor_probability = Some(vec![0.80].into_boxed_slice());
     pattern.nucleus_area_um2 = Some(vec![-1.0].into_boxed_slice());
-    let area_error = write_pattern_parquet(&pattern, &path).expect_err("invalid nucleus_area_um2");
+    let area_error = write_filtered_pattern_export_parquet(&pattern, &path)
+        .expect_err("invalid nucleus_area_um2");
     assert!(area_error.to_string().contains("nucleus_area_um2"));
 }
 
@@ -220,7 +245,7 @@ fn parquet_loader_rejects_partially_populated_dense_optional_metrics() {
 }
 
 #[test]
-fn load_pattern_path_accepts_csv_and_parquet_extensions() {
+fn csv_parquet_equivalent_rows_produce_equal_pattern() {
     let dir = tempfile::tempdir().expect("temp dir");
     let csv_path = dir.path().join("cells.csv");
     let parquet_path = dir.path().join("cells.parquet");
@@ -255,7 +280,7 @@ fn load_pattern_path_accepts_csv_and_parquet_extensions() {
         },
     )
     .expect("pattern");
-    write_pattern_parquet(&pattern, &parquet_path).expect("write parquet");
+    write_filtered_pattern_export_parquet(&pattern, &parquet_path).expect("write parquet");
 
     let csv_loaded = load_pattern_path(&csv_path, &mask).expect("load csv by path");
     let parquet_loaded = load_pattern_path(&parquet_path, &mask).expect("load parquet by path");
@@ -264,6 +289,7 @@ fn load_pattern_path_accepts_csv_and_parquet_extensions() {
     assert_eq!(parquet_loaded.len(), 4);
     assert_eq!(csv_loaded.meta.case_id, "case_001");
     assert_eq!(parquet_loaded.meta.case_id, "case_001");
+    assert_eq!(csv_loaded, parquet_loaded);
 }
 
 #[test]

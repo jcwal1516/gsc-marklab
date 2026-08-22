@@ -24,7 +24,10 @@ pub fn write_analysis_intermediates(
 
 #[cfg(feature = "parquet")]
 fn write_filtered_cells(dir: &Path, pattern: &Pattern) -> Result<()> {
-    crate::io::parquet::write_pattern_parquet(pattern, dir.join("filtered_cells.parquet"))
+    crate::io::parquet::write_filtered_pattern_export_parquet(
+        pattern,
+        dir.join("filtered_cells.parquet"),
+    )
 }
 
 #[cfg(not(feature = "parquet"))]
