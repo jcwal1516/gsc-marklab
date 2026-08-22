@@ -1,5 +1,10 @@
 [workspace]
-members = ["crates/marklab-project", "crates/marklab-workflow"]
+members = [
+    "crates/marklab-core",
+    "crates/marklab-data",
+    "crates/marklab-project",
+    "crates/marklab-workflow",
+]
 exclude = ["fuzz"]
 resolver = "2"
 
@@ -84,6 +89,7 @@ predicates = "3"
 tempfile = "3"
 dicom-core = "0.9.1"
 dicom-object = "0.9.1"
+marklab-data = { version = "0.1.0", path = "crates/marklab-data" }
 
 [[example]]
 name = "generate_dicom_wsi_fixture"
@@ -114,6 +120,10 @@ harness = false
 name = "pattern_load"
 harness = false
 required-features = ["csv"]
+
+[[bench]]
+name = "cohort_hierarchy"
+harness = false
 
 [profile.release]
 opt-level = 3

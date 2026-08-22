@@ -1,0 +1,13 @@
+[package]
+name = "marklab-core"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Typed identities and foundational contracts for Marklab"
+
+[lib]
+bench = false
+
+[dependencies]
+thiserror = "2"

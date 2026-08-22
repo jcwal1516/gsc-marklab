@@ -10,5 +10,6 @@ description = "Content identity and minimal project state for Marklab"
 bench = false
 
 [dependencies]
+marklab-data = { version = "0.1.0", path = "../marklab-data" }
 sha2 = "0.10.9"
 thiserror = "2"

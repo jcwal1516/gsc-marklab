@@ -75,8 +75,13 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
         .collect::<Vec<_>>();
     assert_eq!(
         members,
-        ["crates/marklab-project", "crates/marklab-workflow"],
-        "the root remains implicit and only packages with immediate B-04 callers are listed"
+        [
+            "crates/marklab-core",
+            "crates/marklab-data",
+            "crates/marklab-project",
+            "crates/marklab-workflow",
+        ],
+        "the root remains implicit and only packages with immediate callers are listed"
     );
     assert!(
         workspace.get("default-members").is_none(),
@@ -113,6 +118,8 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
     );
     for manifest_path in [
         "Cargo.toml",
+        "crates/marklab-core/Cargo.toml",
+        "crates/marklab-data/Cargo.toml",
         "crates/marklab-project/Cargo.toml",
         "crates/marklab-workflow/Cargo.toml",
     ] {
@@ -155,12 +162,12 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
     let default_members = metadata["workspace_default_members"]
         .as_array()
         .expect("metadata workspace_default_members");
-    assert_eq!(workspace_members.len(), 3);
+    assert_eq!(workspace_members.len(), 5);
     assert_eq!(default_members.len(), 1);
 
     let root_manifest = fs::canonicalize("Cargo.toml").expect("canonical root manifest");
     let packages = metadata["packages"].as_array().expect("metadata packages");
-    assert_eq!(packages.len(), 3);
+    assert_eq!(packages.len(), 5);
     let package = packages
         .iter()
         .find(|package| package["name"] == "marklab")
@@ -203,9 +210,11 @@ fn workspace_dependencies_descend_layers_and_core_libraries_are_not_cli_gated() 
         .map(|package| package["name"].as_str().expect("workspace package name"))
         .collect::<HashSet<_>>();
     let layers = HashMap::from([
-        ("marklab-project", 0_u8),
-        ("marklab-workflow", 1_u8),
-        ("marklab", 2_u8),
+        ("marklab-core", 0_u8),
+        ("marklab-data", 1_u8),
+        ("marklab-project", 2_u8),
+        ("marklab-workflow", 3_u8),
+        ("marklab", 4_u8),
     ]);
 
     for package in workspace_packages {

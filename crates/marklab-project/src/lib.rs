@@ -11,6 +11,7 @@ use std::{
     io::{self, Write},
 };
 
+use marklab_data::CohortHierarchy;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
@@ -197,6 +198,7 @@ impl SuccessfulRun {
 /// Minimal project state for the first workflow vertical slice.
 pub struct MarklabProject {
     max_inline_artifact_bytes: usize,
+    hierarchy: Option<CohortHierarchy>,
     references: BTreeSet<ArtifactRef>,
     inline_artifacts: BTreeMap<ArtifactRef, Box<[u8]>>,
     successful_runs: BTreeMap<(String, ContentDigest), SuccessfulRun>,
@@ -206,6 +208,7 @@ impl Default for MarklabProject {
     fn default() -> Self {
         Self {
             max_inline_artifact_bytes: DEFAULT_MAX_INLINE_ARTIFACT_BYTES,
+            hierarchy: None,
             references: BTreeSet::new(),
             inline_artifacts: BTreeMap::new(),
             successful_runs: BTreeMap::new(),
@@ -235,6 +238,20 @@ impl MarklabProject {
     /// Maximum bytes this project will retain for one inline artifact.
     pub fn max_inline_artifact_bytes(&self) -> usize {
         self.max_inline_artifact_bytes
+    }
+
+    /// Install one validated hierarchy without permitting silent replacement.
+    pub fn install_hierarchy(&mut self, hierarchy: CohortHierarchy) -> Result<(), ProjectError> {
+        if self.hierarchy.is_some() {
+            return Err(ProjectError::HierarchyAlreadyInstalled);
+        }
+        self.hierarchy = Some(hierarchy);
+        Ok(())
+    }
+
+    /// Borrow the installed cohort hierarchy, if one has been installed.
+    pub fn hierarchy(&self) -> Option<&CohortHierarchy> {
+        self.hierarchy.as_ref()
     }
 
     /// Catalog immutable artifact metadata without copying its content.
@@ -348,6 +365,9 @@ impl MarklabProject {
 /// Project identity, integrity, and commit failures.
 #[derive(Debug, Error)]
 pub enum ProjectError {
+    /// Project already owns an immutable cohort hierarchy.
+    #[error("project cohort hierarchy is already installed")]
+    HierarchyAlreadyInstalled,
     /// Artifact kind is empty, too long, or contains non-visible ASCII.
     #[error("artifact kind must be 1-255 visible ASCII bytes")]
     InvalidArtifactKind,

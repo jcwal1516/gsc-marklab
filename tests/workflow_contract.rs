@@ -19,6 +19,7 @@ fn criterion_benchmarks_cover_required_spec_workloads() {
         "multiscale_residual",
         "random_labeling_envelope",
         "pattern_load",
+        "cohort_hierarchy",
     ] {
         assert!(
             manifest.contains(&format!("name = \"{target}\"")),
@@ -33,6 +34,7 @@ fn criterion_benchmarks_cover_required_spec_workloads() {
         "bench_marked_analysis_multiscale_residual_grid1024",
         "bench_marked_analysis_erl_b999",
         "bench_pattern_csv_load_1m_cells",
+        "bench_cohort_hierarchy_1m_cells_10k_specimens",
     ] {
         assert!(
             bench_sources.contains(workload),
