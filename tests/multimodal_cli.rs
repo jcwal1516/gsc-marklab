@@ -546,9 +546,9 @@ fn multimodal_prepost_cli_writes_cross_curve_delta_result() {
             "multimodal",
             "prepost",
             "--pre",
-            pre.out.join("result.json").to_str().unwrap(),
+            pre.out.to_str().unwrap(),
             "--post",
-            post.out.join("result.json").to_str().unwrap(),
+            post.out.to_str().unwrap(),
             "--out",
             delta_out.to_str().unwrap(),
         ])
@@ -559,17 +559,20 @@ fn multimodal_prepost_cli_writes_cross_curve_delta_result() {
         &std::fs::read_to_string(delta_out.join("prepost.json")).expect("delta"),
     )
     .expect("json");
-    assert!(delta["curve_comparisons"]
+    assert_eq!(delta["format_version"], "0.3");
+    assert_eq!(delta["analysis"]["kind"], "multimodal_prepost");
+    let result = &delta["analysis"]["result"];
+    assert!(result["curve_comparisons"]
         .as_array()
         .expect("curve comparisons")
         .iter()
         .any(|test| test["comparison_name"]
             .as_str()
             .is_some_and(|name| name.starts_with("cross_interaction:"))));
-    assert_eq!(delta["delta_territory_count"]["value"], 1);
-    assert_eq!(delta["territory_summary"]["value"]["delta_count"], 1);
+    assert_eq!(result["delta_territory_count"]["value"], 1);
+    assert_eq!(result["territory_summary"]["value"]["delta_count"], 1);
     assert!(
-        delta["territory_summary"]["value"]["new_domain_count"]
+        result["territory_summary"]["value"]["new_domain_count"]
             .as_u64()
             .expect("new domains")
             >= 1

@@ -5,10 +5,7 @@ use std::{
 
 #[cfg(feature = "parquet")]
 use crate::{io::parquet::write_filtered_pattern_export_parquet, Pattern, PatternMeta};
-use crate::{
-    permutation::labels::permute_fixed_count, prepost::compare_prepost, MarklabError, Result,
-    ResultDocument,
-};
+use crate::{permutation::labels::permute_fixed_count, MarklabError, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 
 macro_rules! bail {

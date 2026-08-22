@@ -976,9 +976,9 @@ fn prepost_cli_writes_delta_result_with_safe_language() {
         .args([
             "prepost",
             "--pre",
-            pre_out.join("result.json").to_str().unwrap(),
+            pre_out.to_str().unwrap(),
             "--post",
-            post_out.join("result.json").to_str().unwrap(),
+            post_out.to_str().unwrap(),
             "--out",
             delta_out.to_str().unwrap(),
         ])
@@ -986,6 +986,9 @@ fn prepost_cli_writes_delta_result_with_safe_language() {
         .success();
 
     let text = fs::read_to_string(delta_out.join("prepost.json")).expect("delta");
+    let document: Value = serde_json::from_str(&text).expect("versioned delta");
+    assert_eq!(document["format_version"], "0.3");
+    assert_eq!(document["analysis"]["kind"], "marked_prepost");
     let lower = text.to_lowercase();
     assert!(lower.contains("coarse-scale organization"));
     assert!(!lower.contains("same cells"));

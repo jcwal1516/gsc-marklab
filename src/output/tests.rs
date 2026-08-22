@@ -231,6 +231,31 @@ fn result_and_timings_use_same_telemetry() {
     );
 }
 
+#[test]
+fn file_and_directory_prepost_inputs_are_consistent() {
+    let mut config = AnalysisConfig::default();
+    config.validation.n_min = 4;
+    config.validation.n_marked_min = 1;
+    config.validation.n_unmarked_min = 1;
+    let result = AnalysisEngine::new(config)
+        .expect("engine")
+        .analyze_pattern(&pattern("case_001", "pre", vec![1, 0, 1, 0]))
+        .expect("analysis");
+    let document = ResultDocument::marked(result);
+    let directory = tempfile::tempdir().expect("result directory");
+    let result_path = directory.path().join("result.json");
+    fs::write(
+        &result_path,
+        document.to_json_pretty().expect("result JSON"),
+    )
+    .expect("write result");
+
+    assert_eq!(
+        super::read_result_document_path_or_dir(&result_path).expect("file input"),
+        super::read_result_document_path_or_dir(directory.path()).expect("directory input")
+    );
+}
+
 #[cfg(not(feature = "parquet"))]
 #[test]
 fn output_writer_errors_when_parquet_curves_requested_without_parquet_feature() {

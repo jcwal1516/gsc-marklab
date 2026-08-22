@@ -1,5 +1,7 @@
 #[cfg(feature = "parquet")]
 mod curve_parquet;
+#[cfg(feature = "cli")]
+mod document;
 mod figures;
 mod manifest;
 mod marked_artifacts;
@@ -11,6 +13,8 @@ mod writer;
 #[cfg(all(test, feature = "cli"))]
 mod tests;
 
+#[cfg(feature = "cli")]
+pub(crate) use document::read_result_document_path_or_dir;
 #[cfg(feature = "cli")]
 pub(crate) use manifest::{RunManifestContext, RunManifestExecution, RunManifestInputs};
 pub use result_types::{

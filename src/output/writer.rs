@@ -26,6 +26,14 @@ impl ResultDocument {
         Self::new(AnalysisResult::Multimodal(result))
     }
 
+    pub fn marked_prepost(result: PrePostResult) -> Self {
+        Self::new(AnalysisResult::MarkedPrePost(result))
+    }
+
+    pub fn multimodal_prepost(result: PrePostResult) -> Self {
+        Self::new(AnalysisResult::MultimodalPrePost(result))
+    }
+
     fn new(analysis: AnalysisResult) -> Self {
         Self {
             format_version: RESULT_FORMAT_VERSION.into(),
@@ -57,7 +65,9 @@ impl ResultDocument {
     pub fn into_marked_pattern(self) -> Result<MarkedPatternResult> {
         match self.analysis {
             AnalysisResult::MarkedPattern(result) => Ok(result),
-            AnalysisResult::Multimodal(_) => Err(MarklabError::Validation(
+            AnalysisResult::Multimodal(_)
+            | AnalysisResult::MarkedPrePost(_)
+            | AnalysisResult::MultimodalPrePost(_) => Err(MarklabError::Validation(
                 "expected a marked_pattern result document".into(),
             )),
         }
@@ -66,10 +76,38 @@ impl ResultDocument {
     pub fn into_multimodal(self) -> Result<MultimodalResult> {
         match self.analysis {
             AnalysisResult::Multimodal(result) => Ok(result),
-            AnalysisResult::MarkedPattern(_) => Err(MarklabError::Validation(
+            AnalysisResult::MarkedPattern(_)
+            | AnalysisResult::MarkedPrePost(_)
+            | AnalysisResult::MultimodalPrePost(_) => Err(MarklabError::Validation(
                 "expected a multimodal result document".into(),
             )),
         }
+    }
+
+    pub fn into_marked_prepost(self) -> Result<PrePostResult> {
+        match self.analysis {
+            AnalysisResult::MarkedPrePost(result) => Ok(result),
+            AnalysisResult::MarkedPattern(_)
+            | AnalysisResult::Multimodal(_)
+            | AnalysisResult::MultimodalPrePost(_) => Err(MarklabError::Validation(
+                "expected a marked_prepost result document".into(),
+            )),
+        }
+    }
+
+    pub fn into_multimodal_prepost(self) -> Result<PrePostResult> {
+        match self.analysis {
+            AnalysisResult::MultimodalPrePost(result) => Ok(result),
+            AnalysisResult::MarkedPattern(_)
+            | AnalysisResult::Multimodal(_)
+            | AnalysisResult::MarkedPrePost(_) => Err(MarklabError::Validation(
+                "expected a multimodal_prepost result document".into(),
+            )),
+        }
+    }
+
+    pub fn to_json_pretty(&self) -> Result<String> {
+        self.validated_json()
     }
 
     fn validated_json(&self) -> Result<String> {
@@ -174,6 +212,9 @@ impl OutputWriter {
             AnalysisResult::Multimodal(result) => {
                 write_multimodal_outputs(result, out, options)?;
             }
+            AnalysisResult::MarkedPrePost(_) | AnalysisResult::MultimodalPrePost(_) => {
+                std::fs::create_dir_all(out).map_err(|source| MarklabError::io(out, source))?;
+            }
         }
 
         let result_path = out.join("result.json");
@@ -196,12 +237,18 @@ impl OutputWriter {
                 AnalysisResult::Multimodal(_) => {
                     artifact_group_status(out, options.write_parquet_curves, "fused_cells.parquet")
                 }
+                AnalysisResult::MarkedPrePost(_) | AnalysisResult::MultimodalPrePost(_) => {
+                    ArtifactStatus::NotApplicable
+                }
             },
         );
         artifacts.insert(
             match &document.analysis {
                 AnalysisResult::MarkedPattern(_) => "residual_territories".into(),
                 AnalysisResult::Multimodal(_) => "neighborhood_territories".into(),
+                AnalysisResult::MarkedPrePost(_) | AnalysisResult::MultimodalPrePost(_) => {
+                    "comparison_artifacts".into()
+                }
             },
             match &document.analysis {
                 AnalysisResult::MarkedPattern(_) => artifact_group_status(
@@ -214,6 +261,9 @@ impl OutputWriter {
                     options.write_geojson_territories,
                     "neighborhood_territories.geojson",
                 ),
+                AnalysisResult::MarkedPrePost(_) | AnalysisResult::MultimodalPrePost(_) => {
+                    ArtifactStatus::NotApplicable
+                }
             },
         );
         artifacts.insert(
@@ -223,6 +273,9 @@ impl OutputWriter {
                     artifact_group_status(out, options.write_figures, "figures/spectrum.svg")
                 }
                 AnalysisResult::Multimodal(_) => ArtifactStatus::NotApplicable,
+                AnalysisResult::MarkedPrePost(_) | AnalysisResult::MultimodalPrePost(_) => {
+                    ArtifactStatus::NotApplicable
+                }
             },
         );
 

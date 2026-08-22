@@ -27,6 +27,10 @@ pub struct Provenance {
 pub enum AnalysisResult {
     MarkedPattern(MarkedPatternResult),
     Multimodal(MultimodalResult),
+    #[serde(rename = "marked_prepost")]
+    MarkedPrePost(PrePostResult),
+    #[serde(rename = "multimodal_prepost")]
+    MultimodalPrePost(PrePostResult),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]

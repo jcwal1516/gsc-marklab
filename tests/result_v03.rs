@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use marklab::{
     AnalysisResult, AnalysisSection, FusedCellSummary, Interpretation, MultimodalResult,
-    OutputWriter, Provenance, RegistrationSummary, ResultDocument,
+    OutputWriter, PrePostResult, Provenance, RegistrationSummary, ResultDocument,
 };
 
 fn sample_result() -> MultimodalResult {
@@ -44,6 +44,21 @@ fn sample_result() -> MultimodalResult {
     }
 }
 
+fn sample_prepost_result() -> PrePostResult {
+    PrePostResult {
+        status_flags: Vec::new(),
+        curve_comparisons: Vec::new(),
+        delta_xi_um: AnalysisSection::NotApplicable,
+        delta_low_k_excess: AnalysisSection::available(0.25),
+        delta_alpha: AnalysisSection::NotApplicable,
+        delta_anisotropy_index: AnalysisSection::NotApplicable,
+        delta_block_mean_variance_fraction: AnalysisSection::NotApplicable,
+        delta_territory_count: AnalysisSection::available(1),
+        territory_summary: AnalysisSection::NotApplicable,
+        interpretation_text: "Descriptive comparison.".into(),
+    }
+}
+
 #[test]
 fn result_v03_roundtrip() {
     let document = ResultDocument::multimodal(sample_result());
@@ -66,6 +81,28 @@ fn result_v03_roundtrip() {
     assert_eq!(value["analysis"]["kind"], "multimodal");
     assert!(value["analysis"]["result"].is_object());
     assert!(value["analysis"]["result"].get("format_version").is_none());
+}
+
+#[test]
+fn prepost_result_roundtrip() {
+    for (expected_kind, document) in [
+        (
+            "marked_prepost",
+            ResultDocument::marked_prepost(sample_prepost_result()),
+        ),
+        (
+            "multimodal_prepost",
+            ResultDocument::multimodal_prepost(sample_prepost_result()),
+        ),
+    ] {
+        let json = serde_json::to_string(&document).expect("serialize pre/post document");
+        let parsed = ResultDocument::from_json(&json).expect("parse pre/post document");
+        let value = serde_json::to_value(&parsed).expect("pre/post value");
+
+        assert_eq!(value["format_version"], "0.3");
+        assert_eq!(value["analysis"]["kind"], expected_kind);
+        assert_eq!(parsed, document);
+    }
 }
 
 #[test]

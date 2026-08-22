@@ -49,10 +49,14 @@ pub(crate) struct RunManifestContext {
 
 #[derive(Clone, Debug, Serialize)]
 struct RunManifestResult {
-    case_id: String,
-    timepoint: String,
-    protein: String,
-    status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    case_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    timepoint: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    protein: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    status: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     mark_label: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -83,10 +87,10 @@ impl RunManifest {
             AnalysisResult::MarkedPattern(result) => (
                 "marked_pattern",
                 RunManifestResult {
-                    case_id: result.case_id.clone(),
-                    timepoint: result.timepoint.clone(),
-                    protein: result.protein.clone(),
-                    status: result.status.clone(),
+                    case_id: Some(result.case_id.clone()),
+                    timepoint: Some(result.timepoint.clone()),
+                    protein: Some(result.protein.clone()),
+                    status: Some(result.status.clone()),
                     mark_label: Some(result.mark_label.clone()),
                     status_flags: Some(result.status_flags.clone()),
                     n_cells: Some(result.n_cells),
@@ -98,10 +102,10 @@ impl RunManifest {
             AnalysisResult::Multimodal(result) => (
                 "multimodal",
                 RunManifestResult {
-                    case_id: result.case_id.clone(),
-                    timepoint: result.timepoint.clone(),
-                    protein: result.protein.clone(),
-                    status: result.status.clone(),
+                    case_id: Some(result.case_id.clone()),
+                    timepoint: Some(result.timepoint.clone()),
+                    protein: Some(result.protein.clone()),
+                    status: Some(result.status.clone()),
                     mark_label: None,
                     status_flags: None,
                     n_cells: None,
@@ -109,6 +113,36 @@ impl RunManifest {
                     p_hat: None,
                 },
                 result.timings.len(),
+            ),
+            AnalysisResult::MarkedPrePost(_) => (
+                "marked_prepost",
+                RunManifestResult {
+                    case_id: None,
+                    timepoint: None,
+                    protein: None,
+                    status: None,
+                    mark_label: None,
+                    status_flags: None,
+                    n_cells: None,
+                    n_marked: None,
+                    p_hat: None,
+                },
+                0,
+            ),
+            AnalysisResult::MultimodalPrePost(_) => (
+                "multimodal_prepost",
+                RunManifestResult {
+                    case_id: None,
+                    timepoint: None,
+                    protein: None,
+                    status: None,
+                    mark_label: None,
+                    status_flags: None,
+                    n_cells: None,
+                    n_marked: None,
+                    p_hat: None,
+                },
+                0,
             ),
         };
         let (command, inputs, execution) = match context {

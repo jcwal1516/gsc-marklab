@@ -4,7 +4,8 @@ use std::{
 };
 
 use crate::{
-    prepost::compare_multimodal_prepost, MarklabError, MultimodalResult, Result, ResultDocument,
+    output::read_result_document_path_or_dir, prepost::compare_multimodal_prepost, MarklabError,
+    MultimodalResult, Result, ResultDocument,
 };
 
 use super::super::{
@@ -25,8 +26,9 @@ pub(in crate::cli) fn prepost(pre: PathBuf, post: PathBuf, out: PathBuf) -> Resu
     }
 
     let delta = compare_multimodal_prepost(&pre_result, &post_result);
+    let document = ResultDocument::multimodal_prepost(delta);
     fs::create_dir_all(&out)?;
-    super::analyze::write_pretty_json(&out.join("prepost.json"), &delta)?;
+    fs::write(out.join("prepost.json"), document.to_json_pretty()?)?;
     super::analyze::write_pretty_json(
         &out.join("pre_result_summary.json"),
         &pre_result.fused_cell_summary,
@@ -143,10 +145,5 @@ fn option_path_is_present(value: &Option<PathBuf>) -> bool {
 }
 
 fn read_analysis_result_path_or_dir(path: &Path) -> Result<MultimodalResult> {
-    let result_path = if path.is_dir() {
-        path.join("result.json")
-    } else {
-        path.to_path_buf()
-    };
-    ResultDocument::from_json(&fs::read_to_string(result_path)?)?.into_multimodal()
+    read_result_document_path_or_dir(path)?.into_multimodal()
 }
