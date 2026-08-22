@@ -85,3 +85,18 @@ Architectural and scientific decisions are append-only entries. Superseded decis
 - Consequences: Result format 0.3 adds nullable `valid_tumor_fraction` and `valid_ihc_fraction`; `valid_mask_fraction` is explicitly documented as final retained/in-mask. The obsolete `qc::ihc_validity::validity_fraction`, which mapped a zero denominator to numeric zero, was deleted. The broader CSV/Parquet row builder unification remains Phase 5 work, but filter and counter semantics no longer diverge.
 - Evidence: Commit `6000cc8`; the enabled reproduction, combined-exclusion, tumor/IHC, internal-control, zero-denominator, CSV/Parquet parity, and result-propagation tests pass. Formatting, warnings-denied all-feature Clippy, CSV-only and Parquet-only checks, and no-default-features pass. The Parquet-only check retains three pre-existing dead-writer warnings. All-feature Nextest passes 289/289 with 16 expected skips.
 - Status: Accepted; COR-07 closed.
+
+## 2026-08-22 — MODEL-04 component mode execution contract
+
+- Context: `Separate` and `Both` shared the same component-emission branch while the engine always calculated and presented pooled endpoints. `Pooled` returned an available empty component list, and `Auto` made an undocumented decision that was absent from the result.
+- Decision: Resolve every request into a typed `Pooled`, `Separate`, or `Both` plan before endpoint execution. `Pooled` calculates pooled endpoints and makes component results NotApplicable. `Separate` calculates component spectra, skips pooled spectrum, pair-correlation, anisotropy, and multiscale execution, and marks every pooled endpoint NotApplicable. `Both` calculates both. `Auto` selects Both only when more than one component exists and the largest contains less than 0.80 of cells; otherwise it selects Pooled. Persist the requested mode, resolved mode, and reason in result format 0.3.
+- Consequences: Separate results have no aggregate primary statistic; their primary endpoint fields are NotApplicable and component summaries own the available values. Missing component IDs under an explicit component mode are InsufficientData, not an available empty vector. `src/api/assembly.rs` now has explicit imports instead of its prior parent wildcard. Formal timing improvements from skipped pooled work remain for the performance phase.
+- Evidence: Commit `b56cc60`; Pooled, Separate, Both, Auto-pooled, Auto-both, and reason assertions pass, as does the 20-test engine-spectrum suite. Phase exit formatting, warnings-denied Clippy, no-default-features, doc tests, and all-feature Nextest pass; Nextest ran 290/290 with 15 expected skips.
+- Status: Accepted; MODEL-04 closed.
+
+## 2026-08-22 — Phase 2 closed and Phase 3 opened
+
+- Closure: True rigid registration, distinct confounding execution, finite enrichment states, typed curve unavailability, tolerant pre/post axes, independent QC denominators, and distinct component modes are implemented. Result-shape changes are documented under format 0.3. COR-03's persisted dual-null sensitivity field remains intentionally staged for Phase 5 and is still visible as in progress in the findings matrix.
+- Verification: `cargo +1.96.0 fmt --check`, warnings-denied all-target/all-feature Clippy, `cargo +1.96.0 nextest run --locked --all-features` (290/290, 15 expected skips), `cargo +1.96.0 check --locked --no-default-features`, `cargo +1.96.0 test --locked --doc --all-features`, and the 20-test engine-spectrum integration suite all exit 0 on `b56cc60`.
+- Phase 3 entry: Begin with a source-to-public-surface naming audit. No scientific rename will be made until the implementation and accepted technical meaning are recorded with evidence.
+- Status: Accepted; Phase 3 may begin.
