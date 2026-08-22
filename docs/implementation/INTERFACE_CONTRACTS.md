@@ -52,6 +52,7 @@ Status: characterization freeze for WS-A. Exact field/symbol inventory is active
 
 - Input: an immutable reference to the current marked-analysis inputs and configuration, plus one typed workflow node that owns the invocation.
 - Output: the same current `MarkedPatternResult`/0.3 result and artifacts as direct `AnalysisEngine` execution.
-- Cache identity: a deterministic content key over node version/specification, input/config content, execution policy, and implementation identity. Cache support is added only for the demonstrated slice.
-- Failure: invalid/cyclic graph, missing/digest-mismatched input, resource failure, or analysis error remains an error; no successful node/result entry is committed.
+- Cache identity: a deterministic content key over node version/specification, input/config content, declared execution policy, scheduler retained-artifact limit, and implementation identity. Cache support is added only for the demonstrated slice.
+- Canonical output: a miss reaches a decode/re-encode fixed point before commit; a hit verifies digest/length and decodes the exact retained bytes. The inline cap bounds retained artifact size, not codec peak allocation.
+- Failure: invalid/cyclic graph, missing/digest-mismatched input, resource failure, unstable codec, or analysis error remains an error; no successful node/result entry is committed.
 - Non-goals: broad plugin system, remote scheduler, general schema registry, scientific migration, or arbitrary task runner.

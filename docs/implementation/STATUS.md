@@ -1,37 +1,33 @@
 # Implementation status
 
-Last updated: 2026-08-22T17:48:35-04:00
+Last updated: 2026-08-22T18:01:25-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Current SHA: `ab3df430deb547a105608cad2f799fcf52fc9e66`
+- Current SHA: `ac7da28da082f795381da0a03e8437fc4a774262`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
-- Current phase/workstream/task: Phase 1 / WS-B / B-04 project/workflow vertical slice
+- Current phase/workstream/task: Phase 2 / WS-C / C-01 typed identities and hierarchy activation
 
 ## Requirements
 
-- Completed: `A-01`, `A-02`, `A-03`, `B-01`, `B-02`, `B-03`, `SLIDE-INV`, `WS-A`, `WS-10`
-- Active: `B-04`, `PLAT-01`, `WF-01`, `WS-11`, `WS-12`
-- Planned next: `WS-C` / `C-01`–`C-06`
+- Completed: `A-01`, `A-02`, `A-03`, `B-01`, `B-02`, `B-03`, `B-04`, `SLIDE-INV`, `WS-A`, `WS-B`, `WS-10`
+- Active: `C-01`, `DATA-01`, `FND-01`, `COH-01`, `PLAT-01`, `WF-01`, `WS-11`, `WS-12`, `WS-20`
+- Planned next: `C-02`–`C-06`
 
 ## Command state
 
-- Known failing commands/tests: none current. Historical red/green and harness failures are recorded in the validation ledger. B-03's compile matrix passes; narrow no-default/CSV/Parquet/WSI all-target checks retain explicitly recorded warnings and are not claimed warning-clean.
+- Known failing commands/tests: none current. Historical red/green and harness failures are recorded in the validation ledger. The WS-B feature matrix passes; narrow no-default/CSV/Parquet/WSI all-target checks retain explicitly recorded warnings and are not claimed warning-clean.
 - Confirmed available: `cargo-nextest`, `cargo-audit`, `cargo-deny`, `cargo-machete`, `cargo-fuzz`, `ssh`, `scp`, `rsync`.
 - Confirmed unavailable: local `markdownlint-cli2`, `actionlint`, and Gnuplot. Criterion used Plotters; no Markdown/workflow lint pass is claimed.
 
 ## Dirty files and reasons
 
-- `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`: two real child packages, their descending local dependency edges, and mechanically generated lock records; no registry package/version/checksum delta.
-- `crates/marklab-project/**`, `crates/marklab-workflow/**`: B-04 reference-only project state, digest identity, typed graph, failure-atomic cache, and narrow local scheduler.
-- `src/workflow.rs`, `src/lib.rs`: existing marked engine/result codec adapter and focused re-exports; no scientific implementation copied.
-- `tests/project_workflow.rs`, `tests/workspace_contract.rs`: B-04 red/green behavior and three-package architecture contracts.
-- `docs/implementation/**`: B-03 closure plus B-04 contract, decisions, ownership, status, requirement, and validation evidence.
+- `docs/implementation/STATUS.md`, `REQUIREMENTS.md`, `VALIDATION_LEDGER.md`, `PERFORMANCE_LEDGER.md`, `CLAIMS_LEDGER.md`, `INTERFACE_CONTRACTS.md`, `task-contracts/B-04.md`, and `handoffs/B-04.md`: B-04/WS-B closure evidence and C-01 activation. Production and test trees are clean at `ac7da28da082f795381da0a03e8437fc4a774262`.
 
 ## Recent decisions
 
@@ -56,12 +52,12 @@ Last updated: 2026-08-22T17:48:35-04:00
 
 ## Next three exact actions
 
-1. Run the final B-04 format, focused test, rustdoc, Clippy, metadata, dependency, fuzz, and scope gate set.
-2. Commit the focused B-04 vertical slice and run clean `cargo +1.96.0 package --locked --workspace`.
-3. Record the B-04 handoff and run the complete WS-B phase-boundary gate set before activating C-01.
+1. Read the C-01/FND-01/COH-01 contracts and inventory every existing identity/parent/replication field and caller.
+2. Record C-01 ownership, frozen semantics, package boundary, and behavior-first task contract without coupling to remote filenames.
+3. Add blank/duplicate/missing-parent/cycle/conflicting-parent plus paired/multisite red tests before production types.
 
 Next exact verification command:
 
 ```bash
-cargo +1.96.0 fmt --all --check
+cargo +1.96.0 test --locked --test data_hierarchy
 ```
