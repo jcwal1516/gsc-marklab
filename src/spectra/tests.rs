@@ -1,5 +1,6 @@
 use crate::{
     data::PatternMeta,
+    geom::spatial_index::SpatialIndex2D,
     spectra::{
         kgrid::{resolvable_k_modes, KBand},
         mark_pair_covariance::{
@@ -140,6 +141,26 @@ fn pair_plan_matches_bruteforce() {
                 .expect("brute-force covariance")
         );
     }
+}
+
+#[test]
+fn pair_plan_rejects_storage_over_budget() {
+    let pattern = Pattern::from_arrays(
+        vec![0.0, 0.1, 0.2, 0.3],
+        vec![0.0; 4],
+        vec![1, 0, 1, 0],
+        meta(),
+    )
+    .expect("pattern");
+    let index = SpatialIndex2D::new(&pattern.x_um, &pattern.y_um).expect("index");
+
+    let error = MarkPairCovariancePlan::new_with_index(&pattern, &index, 1.0, 2.0, 64)
+        .expect_err("pair plan should exceed budget");
+
+    assert!(error.to_string().contains("mark-pair covariance plan"));
+    assert!(error
+        .to_string()
+        .contains("remaining geometry memory budget"));
 }
 
 fn brute_force_mark_pair_covariance(

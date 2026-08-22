@@ -96,6 +96,13 @@ impl AnalysisEngine {
     fn analyze_pattern_inner(&self, pattern: &Pattern) -> Result<MarkedPatternResult> {
         let memory_estimate = estimate_analysis_memory(pattern, &self.config);
         memory_estimate.enforce_budget_mib(self.config.performance.memory_budget_mib)?;
+        let configured_memory_bytes = self
+            .config
+            .performance
+            .memory_budget_mib
+            .saturating_mul(1024 * 1024);
+        let geometry_budget_bytes =
+            configured_memory_bytes.saturating_sub(memory_estimate.total_bytes);
 
         let mut timings = Vec::new();
 
@@ -137,8 +144,11 @@ impl AnalysisEngine {
             includes_pooled,
             configured_strata.as_deref(),
             low_k_excess,
-            &mut timings,
-            self.threads,
+            spatial_stage::ExecutionContext {
+                geometry_budget_bytes,
+                timings: &mut timings,
+                threads: self.threads,
+            },
         )?;
         if spatial.periodogram_artifact {
             status_flags.push(StatusFlag::WindowOrGriddingArtifactSuspect);
@@ -162,12 +172,17 @@ impl AnalysisEngine {
         };
 
         let diagnostics = diagnostics::run(&self.config, pattern, &mut timings, self.threads)?;
+        let estimated_peak_memory_mib = memory_estimate
+            .total_bytes
+            .saturating_add(spatial.estimated_geometry_storage_bytes)
+            as f64
+            / (1024.0 * 1024.0);
         annotate_timings(
             &mut timings,
             pattern,
             n_k_modes,
             n_permutations,
-            memory_estimate.total_mib(),
+            estimated_peak_memory_mib,
         );
 
         assembly::assemble(

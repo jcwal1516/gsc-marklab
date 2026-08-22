@@ -39,6 +39,36 @@ fn contract_pattern() -> Pattern {
     .expect("pattern")
 }
 
+fn dense_geometry_pattern() -> Pattern {
+    let side = 20;
+    let mut pattern = Pattern::from_arrays(
+        (0..side * side)
+            .map(|index| (index % side) as f64 * 0.01)
+            .collect(),
+        (0..side * side)
+            .map(|index| (index / side) as f64 * 0.01)
+            .collect(),
+        (0..side * side)
+            .map(|index| u8::from(index % 2 == 0))
+            .collect(),
+        PatternMeta {
+            case_id: "geometry-budget".into(),
+            timepoint: "post".into(),
+            protein: "MSH6".into(),
+            slide_id: None,
+            section_id: None,
+            stain_batch: None,
+            block_id: None,
+            region_id: None,
+        },
+    )
+    .expect("pattern");
+    pattern.window.area_um2 = 100.0;
+    pattern.window.l_eff_um = 10.0;
+    pattern.window.d_nn_mean_um = 1.0;
+    pattern
+}
+
 #[test]
 fn analysis_engine_honors_user_thread_count() {
     let mut config = contract_config();
@@ -105,4 +135,48 @@ fn analysis_engine_rejects_a_zero_memory_budget_at_configuration_time() {
         .expect("zero memory budget should be invalid");
 
     assert!(err.to_string().contains("memory_budget_mib"));
+}
+
+#[test]
+fn analysis_engine_rejects_geometry_plans_over_memory_budget() {
+    let mut config = contract_config();
+    config.performance.memory_budget_mib = 1;
+    config.multiscale_residual.enabled = true;
+    config.multiscale_residual.territory_detection = true;
+    config.multiscale_residual.min_territory_z = 0.1;
+
+    let error = AnalysisEngine::new(config)
+        .expect("engine")
+        .analyze_pattern(&dense_geometry_pattern())
+        .expect_err("geometry plan should exceed the remaining budget");
+
+    assert!(error
+        .to_string()
+        .contains("remaining geometry memory budget"));
+}
+
+#[test]
+fn analysis_telemetry_accounts_for_peak_geometry_storage() {
+    let mut config = contract_config();
+    config.performance.memory_budget_mib = 8;
+    config.multiscale_residual.enabled = true;
+    config.multiscale_residual.territory_detection = true;
+    config.multiscale_residual.min_territory_z = 0.1;
+
+    let result = AnalysisEngine::new(config)
+        .expect("engine")
+        .analyze_pattern(&dense_geometry_pattern())
+        .expect("analysis within budget");
+    let estimated_peak_mib = result
+        .timings
+        .first()
+        .expect("timing")
+        .estimated_peak_memory_mib;
+
+    assert!(estimated_peak_mib > 3.0, "{estimated_peak_mib}");
+    assert!(estimated_peak_mib <= 8.0, "{estimated_peak_mib}");
+    assert!(result
+        .timings
+        .iter()
+        .all(|timing| timing.estimated_peak_memory_mib == estimated_peak_mib));
 }

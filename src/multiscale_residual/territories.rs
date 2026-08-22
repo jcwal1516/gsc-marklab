@@ -5,6 +5,7 @@ use crate::{
     multiscale_residual::{
         residual_field::standardized_residual, scale_radius::neighborhood_radius_from_scale,
     },
+    perf::counters::enforce_storage_budget,
 };
 
 #[cfg(test)]
@@ -51,23 +52,29 @@ impl ResidualTerritoryPlan {
     #[cfg(test)]
     pub(crate) fn new(pattern: &Pattern) -> Result<Self> {
         let index = SpatialIndex2D::new(&pattern.x_um, &pattern.y_um)?;
-        Self::build(pattern, &index, None)
+        Self::build(pattern, &index, None, usize::MAX)
     }
 
     pub(crate) fn new_with_index(
         pattern: &Pattern,
         index: &SpatialIndex2D,
         max_scale_um: f64,
+        storage_budget_bytes: usize,
     ) -> Result<Self> {
         if !max_scale_um.is_finite() || max_scale_um < 0.0 {
             return Err(MarklabError::Geometry(
                 "maximum residual territory scale must be finite and non-negative".into(),
             ));
         }
-        Self::build(pattern, index, Some(max_scale_um))
+        Self::build(pattern, index, Some(max_scale_um), storage_budget_bytes)
     }
 
-    fn build(pattern: &Pattern, index: &SpatialIndex2D, max_scale_um: Option<f64>) -> Result<Self> {
+    fn build(
+        pattern: &Pattern,
+        index: &SpatialIndex2D,
+        max_scale_um: Option<f64>,
+        storage_budget_bytes: usize,
+    ) -> Result<Self> {
         #[cfg(test)]
         PLAN_BUILD_CALLS.set(PLAN_BUILD_CALLS.get() + 1);
         if index.len() != pattern.len() {
@@ -79,6 +86,7 @@ impl ResidualTerritoryPlan {
         }
 
         let mut scales = Vec::new();
+        let mut stored_bytes = 0usize;
         for scale_um in territory_scales(pattern)
             .into_iter()
             .filter(|scale_um| max_scale_um.is_none_or(|maximum| *scale_um <= maximum))
@@ -89,18 +97,71 @@ impl ResidualTerritoryPlan {
                     "residual territory scales must be finite and non-negative".into(),
                 ));
             }
+            let fixed_scale_bytes = std::mem::size_of::<ScaleNeighborhoods>().saturating_add(
+                pattern
+                    .len()
+                    .saturating_add(1)
+                    .saturating_mul(std::mem::size_of::<usize>()),
+            );
+            enforce_storage_budget(
+                "residual territory plan",
+                stored_bytes.saturating_add(fixed_scale_bytes),
+                storage_budget_bytes,
+            )?;
+            let max_neighbor_entries = storage_budget_bytes
+                .saturating_sub(stored_bytes)
+                .saturating_sub(fixed_scale_bytes)
+                / std::mem::size_of::<usize>();
             let mut offsets = Vec::with_capacity(pattern.len().saturating_add(1));
             let mut neighbors = Vec::new();
             offsets.push(0);
             for center in 0..pattern.len() {
+                let mut over_budget_bytes = None;
                 index.visit_within_radius(center, radius_um, |neighbor| {
+                    if neighbors.len() >= max_neighbor_entries {
+                        over_budget_bytes = Some(
+                            stored_bytes
+                                .saturating_add(fixed_scale_bytes)
+                                .saturating_add(
+                                    neighbors
+                                        .len()
+                                        .saturating_add(1)
+                                        .saturating_mul(std::mem::size_of::<usize>()),
+                                ),
+                        );
+                        return;
+                    }
                     neighbors.push(neighbor.index);
                 })?;
+                if let Some(required_bytes) = over_budget_bytes {
+                    enforce_storage_budget(
+                        "residual territory plan",
+                        required_bytes,
+                        storage_budget_bytes,
+                    )?;
+                }
+                if neighbors.len() >= max_neighbor_entries {
+                    enforce_storage_budget(
+                        "residual territory plan",
+                        stored_bytes
+                            .saturating_add(fixed_scale_bytes)
+                            .saturating_add(
+                                neighbors
+                                    .len()
+                                    .saturating_add(1)
+                                    .saturating_mul(std::mem::size_of::<usize>()),
+                            ),
+                        storage_budget_bytes,
+                    )?;
+                }
                 neighbors.push(center);
                 let start = offsets.last().copied().unwrap_or(0);
                 neighbors[start..].sort_unstable();
                 offsets.push(neighbors.len());
             }
+            stored_bytes = stored_bytes
+                .saturating_add(fixed_scale_bytes)
+                .saturating_add(neighbors.len().saturating_mul(std::mem::size_of::<usize>()));
             scales.push(ScaleNeighborhoods {
                 scale_um,
                 radius_um,
@@ -109,9 +170,34 @@ impl ResidualTerritoryPlan {
             });
         }
 
-        Ok(Self {
+        let plan = Self {
             point_count: pattern.len(),
             scales: scales.into_boxed_slice(),
+        };
+        enforce_storage_budget(
+            "residual territory plan",
+            plan.estimated_storage_bytes(),
+            storage_budget_bytes,
+        )?;
+        Ok(plan)
+    }
+
+    pub(crate) fn estimated_storage_bytes(&self) -> usize {
+        self.scales.iter().fold(0usize, |bytes, scale| {
+            bytes
+                .saturating_add(std::mem::size_of::<ScaleNeighborhoods>())
+                .saturating_add(
+                    scale
+                        .offsets
+                        .len()
+                        .saturating_mul(std::mem::size_of::<usize>()),
+                )
+                .saturating_add(
+                    scale
+                        .neighbors
+                        .len()
+                        .saturating_mul(std::mem::size_of::<usize>()),
+                )
         })
     }
 

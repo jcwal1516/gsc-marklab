@@ -42,6 +42,19 @@ impl MemoryEstimate {
     }
 }
 
+pub(crate) fn enforce_storage_budget(
+    label: &str,
+    required_bytes: usize,
+    budget_bytes: usize,
+) -> Result<()> {
+    if required_bytes > budget_bytes {
+        return Err(MarklabError::Validation(format!(
+            "estimated {label} storage {required_bytes} bytes exceeds remaining geometry memory budget {budget_bytes} bytes"
+        )));
+    }
+    Ok(())
+}
+
 pub fn estimate_peak_memory(inputs: MemoryInputs) -> MemoryEstimate {
     let points_bytes = inputs
         .n_points
@@ -101,5 +114,19 @@ mod tests {
         assert!(estimate.total_mib() > 0.0);
         assert!(estimate.enforce_budget_mib(1).is_ok());
         assert!(estimate.enforce_budget_mib(0).is_err());
+    }
+
+    #[test]
+    fn geometry_storage_budget_reports_required_and_available_bytes() {
+        enforce_storage_budget("pair plan", 1024, 1024).expect("exact budget");
+        let error =
+            enforce_storage_budget("pair plan", 1025, 1024).expect_err("over-budget storage");
+
+        assert!(error
+            .to_string()
+            .contains("estimated pair plan storage 1025"));
+        assert!(error
+            .to_string()
+            .contains("remaining geometry memory budget 1024"));
     }
 }

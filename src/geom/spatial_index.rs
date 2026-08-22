@@ -35,6 +35,21 @@ pub struct SpatialIndex2D {
 }
 
 impl SpatialIndex2D {
+    pub(crate) fn estimated_storage_bytes_for_len(point_count: usize) -> usize {
+        let coordinate_bytes = point_count.saturating_mul(std::mem::size_of::<[f64; 2]>());
+        // R-tree node occupancy is backend-controlled. Three indexed-point
+        // records per input point conservatively account for leaves, internal
+        // bounds, and vector/node bookkeeping without depending on internals.
+        let tree_bytes = point_count
+            .saturating_mul(std::mem::size_of::<IndexedPoint>())
+            .saturating_mul(3);
+        coordinate_bytes.saturating_add(tree_bytes)
+    }
+
+    pub(crate) fn estimated_storage_bytes(&self) -> usize {
+        Self::estimated_storage_bytes_for_len(self.len())
+    }
+
     pub fn new(x: &[f64], y: &[f64]) -> Result<Self> {
         if x.len() != y.len() {
             return Err(MarklabError::Geometry(format!(

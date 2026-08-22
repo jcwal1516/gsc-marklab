@@ -9,6 +9,7 @@ use crate::{
         AnalysisSection, FunctionalSummary, MarkPairCovariancePoint, MultiscaleResidualSummary,
         ResidualTerritory, ScaleEnergyPoint, TimingStage,
     },
+    perf::counters::enforce_storage_budget,
     periodogram::raster::centered_mark_raster,
     spectra::anisotropy::{permutation_whitened_anisotropy, PermutationAnisotropy},
 };
@@ -30,6 +31,13 @@ pub(super) struct Output {
     pub(super) scale_energy: AnalysisSection<FunctionalSummary>,
     pub(super) scale_energy_curve: Vec<ScaleEnergyPoint>,
     pub(super) territories: Vec<ResidualTerritory>,
+    pub(super) estimated_geometry_storage_bytes: usize,
+}
+
+pub(super) struct ExecutionContext<'a> {
+    pub(super) geometry_budget_bytes: usize,
+    pub(super) timings: &'a mut Vec<TimingStage>,
+    pub(super) threads: usize,
 }
 
 pub(super) fn run(
@@ -38,13 +46,23 @@ pub(super) fn run(
     includes_pooled: bool,
     configured_strata: Option<&[u32]>,
     low_k_excess: Option<f64>,
-    timings: &mut Vec<TimingStage>,
-    threads: usize,
+    context: ExecutionContext<'_>,
 ) -> Result<Output> {
+    let ExecutionContext {
+        geometry_budget_bytes,
+        timings,
+        threads,
+    } = context;
     let spatial_index = timed_stage(timings, "spatial_index", threads, || -> Result<_> {
-        includes_pooled
-            .then(|| SpatialIndex2D::new(&pattern.x_um, &pattern.y_um))
-            .transpose()
+        if !includes_pooled {
+            return Ok(None);
+        }
+        enforce_storage_budget(
+            "spatial index",
+            SpatialIndex2D::estimated_storage_bytes_for_len(pattern.len()),
+            geometry_budget_bytes,
+        )?;
+        Ok(Some(SpatialIndex2D::new(&pattern.x_um, &pattern.y_um)?))
     })?;
     let periodogram_artifact = timed_stage(timings, "periodogram", threads, || {
         config.periodogram.enabled
@@ -52,7 +70,7 @@ pub(super) fn run(
                 periodogram_disagrees_with_particle_spectrum(config, pattern, value)
             })
     });
-    let (mark_pair_covariance_curve, mark_pair_covariance) =
+    let (mark_pair_covariance_curve, mark_pair_covariance, pair_geometry_storage_bytes) =
         timed_stage(timings, "mark_pair_covariance", threads, || -> Result<_> {
             if includes_pooled {
                 let index = spatial_index.as_ref().ok_or_else(|| {
@@ -60,12 +78,12 @@ pub(super) fn run(
                         "pooled mark-pair covariance requires a spatial index".into(),
                     )
                 })?;
-                mark_pair_covariance_with_envelope(config, pattern, index)
+                mark_pair_covariance_with_envelope(config, pattern, index, geometry_budget_bytes)
             } else {
-                Ok((Vec::new(), AnalysisSection::NotApplicable))
+                Ok((Vec::new(), AnalysisSection::NotApplicable, 0))
             }
         })?;
-    let (territory_plan, territories) =
+    let (territory_plan, territories, territory_geometry_storage_bytes) =
         timed_stage(timings, "multiscale_residual", threads, || -> Result<_> {
             if includes_pooled
                 && config.multiscale_residual.enabled
@@ -78,11 +96,25 @@ pub(super) fn run(
                 })?;
                 let max_scale_um = config.validation.largest_interpretable_scale_fraction
                     * pattern.window.l_eff_um;
-                let plan = ResidualTerritoryPlan::new_with_index(pattern, index, max_scale_um)?;
+                let index_storage_bytes = index.estimated_storage_bytes();
+                let plan = ResidualTerritoryPlan::new_with_index(
+                    pattern,
+                    index,
+                    max_scale_um,
+                    geometry_budget_bytes.saturating_sub(index_storage_bytes),
+                )?;
                 let territories = territories_for(config, pattern, &plan, &pattern.mark)?;
-                Ok((Some(plan), territories))
+                let storage_bytes =
+                    index_storage_bytes.saturating_add(plan.estimated_storage_bytes());
+                Ok((Some(plan), territories, storage_bytes))
             } else {
-                Ok((None, Vec::new()))
+                Ok((
+                    None,
+                    Vec::new(),
+                    spatial_index
+                        .as_ref()
+                        .map_or(0, SpatialIndex2D::estimated_storage_bytes),
+                ))
             }
         })?;
     let anisotropy = timed_stage(timings, "anisotropy", threads, || -> Result<_> {
@@ -119,6 +151,8 @@ pub(super) fn run(
         scale_energy,
         scale_energy_curve,
         territories,
+        estimated_geometry_storage_bytes: pair_geometry_storage_bytes
+            .max(territory_geometry_storage_bytes),
     })
 }
 

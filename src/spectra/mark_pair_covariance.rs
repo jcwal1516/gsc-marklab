@@ -1,4 +1,7 @@
-use crate::{data::Pattern, geom::spatial_index::SpatialIndex2D};
+use crate::{
+    data::Pattern, errors::Result, geom::spatial_index::SpatialIndex2D,
+    perf::counters::enforce_storage_budget,
+};
 
 #[cfg(test)]
 thread_local! {
@@ -42,7 +45,9 @@ impl MarkPairCovariancePlan {
     #[cfg(test)]
     pub fn new(pattern: &Pattern, bin_width_um: f64, max_r_um: f64) -> Option<Self> {
         let index = SpatialIndex2D::new(&pattern.x_um, &pattern.y_um).ok()?;
-        Self::new_with_index(pattern, &index, bin_width_um, max_r_um)
+        Self::new_with_index(pattern, &index, bin_width_um, max_r_um, usize::MAX)
+            .ok()
+            .flatten()
     }
 
     pub(crate) fn new_with_index(
@@ -50,7 +55,8 @@ impl MarkPairCovariancePlan {
         index: &SpatialIndex2D,
         bin_width_um: f64,
         max_r_um: f64,
-    ) -> Option<Self> {
+        storage_budget_bytes: usize,
+    ) -> Result<Option<Self>> {
         #[cfg(test)]
         PLAN_BUILD_CALLS.set(PLAN_BUILD_CALLS.get() + 1);
         if pattern.len() < 2
@@ -60,44 +66,100 @@ impl MarkPairCovariancePlan {
             || !bin_width_um.is_finite()
             || !max_r_um.is_finite()
         {
-            return None;
+            return Ok(None);
         }
         let n_bins = (max_r_um / bin_width_um).ceil() as usize;
         if n_bins == 0 {
-            return None;
+            return Ok(None);
         }
+        let Some(edge_count) = n_bins.checked_add(1) else {
+            return Ok(None);
+        };
 
+        let fixed_storage_bytes = edge_count
+            .saturating_mul(std::mem::size_of::<f64>())
+            .saturating_add(n_bins.saturating_mul(std::mem::size_of::<usize>()));
+        enforce_storage_budget(
+            "mark-pair covariance plan",
+            fixed_storage_bytes,
+            storage_budget_bytes,
+        )?;
+        let max_pair_entries = storage_budget_bytes.saturating_sub(fixed_storage_bytes)
+            / std::mem::size_of::<PairBin>();
         let mut pairs = Vec::new();
         let mut pair_counts = vec![0usize; n_bins];
         for source in 0..pattern.len() {
-            index
-                .visit_within_radius(source, max_r_um, |neighbor| {
-                    if neighbor.index <= source || neighbor.distance_um >= max_r_um {
+            let mut over_budget_bytes = None;
+            index.visit_within_radius(source, max_r_um, |neighbor| {
+                if over_budget_bytes.is_some()
+                    || neighbor.index <= source
+                    || neighbor.distance_um >= max_r_um
+                {
+                    return;
+                }
+                let bin_index = (neighbor.distance_um / bin_width_um).floor() as usize;
+                if bin_index < n_bins {
+                    if pairs.len() >= max_pair_entries {
+                        over_budget_bytes = Some(
+                            fixed_storage_bytes.saturating_add(
+                                pairs
+                                    .len()
+                                    .saturating_add(1)
+                                    .saturating_mul(std::mem::size_of::<PairBin>()),
+                            ),
+                        );
                         return;
                     }
-                    let bin_index = (neighbor.distance_um / bin_width_um).floor() as usize;
-                    if bin_index < n_bins {
-                        pairs.push(PairBin {
-                            source,
-                            target: neighbor.index,
-                            bin_index,
-                        });
-                        pair_counts[bin_index] += 1;
-                    }
-                })
-                .ok()?;
+                    pairs.push(PairBin {
+                        source,
+                        target: neighbor.index,
+                        bin_index,
+                    });
+                    pair_counts[bin_index] += 1;
+                }
+            })?;
+            if let Some(required_bytes) = over_budget_bytes {
+                enforce_storage_budget(
+                    "mark-pair covariance plan",
+                    required_bytes,
+                    storage_budget_bytes,
+                )?;
+            }
         }
         pairs.sort_unstable_by_key(|pair| (pair.source, pair.target));
-        let bin_edges = (0..=n_bins)
+        pairs.shrink_to_fit();
+        let bin_edges = (0..edge_count)
             .map(|index| index as f64 * bin_width_um)
             .collect();
 
-        Some(Self {
+        let plan = Self {
             point_count: pattern.len(),
             pairs,
             bin_edges,
             pair_counts,
-        })
+        };
+        enforce_storage_budget(
+            "mark-pair covariance plan",
+            plan.estimated_storage_bytes(),
+            storage_budget_bytes,
+        )?;
+        Ok(Some(plan))
+    }
+
+    pub(crate) fn estimated_storage_bytes(&self) -> usize {
+        self.pairs
+            .capacity()
+            .saturating_mul(std::mem::size_of::<PairBin>())
+            .saturating_add(
+                self.bin_edges
+                    .capacity()
+                    .saturating_mul(std::mem::size_of::<f64>()),
+            )
+            .saturating_add(
+                self.pair_counts
+                    .capacity()
+                    .saturating_mul(std::mem::size_of::<usize>()),
+            )
     }
 
     pub fn evaluate(&self, marks: &[u8]) -> Option<Vec<MarkPairCovarianceBin>> {

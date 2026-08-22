@@ -1,5 +1,6 @@
 use crate::{
     data::PatternMeta,
+    geom::spatial_index::SpatialIndex2D,
     multiscale_residual::{
         energy::relative_scale_energies_from_field,
         residual_field::standardized_residual,
@@ -257,6 +258,28 @@ fn residual_territory_plan_matches_bruteforce() {
 
         assert_eq!(indexed, brute);
     }
+}
+
+#[test]
+fn residual_territory_plan_rejects_storage_over_budget() {
+    let mut pattern = Pattern::from_arrays(
+        vec![0.0, 0.1, 0.2, 0.3],
+        vec![0.0; 4],
+        vec![1, 0, 1, 0],
+        meta(),
+    )
+    .expect("pattern");
+    pattern.window.d_nn_mean_um = 1.0;
+    pattern.window.l_eff_um = 8.0;
+    let index = SpatialIndex2D::new(&pattern.x_um, &pattern.y_um).expect("index");
+
+    let error = ResidualTerritoryPlan::new_with_index(&pattern, &index, 3.0, 64)
+        .expect_err("territory plan should exceed budget");
+
+    assert!(error.to_string().contains("residual territory plan"));
+    assert!(error
+        .to_string()
+        .contains("remaining geometry memory budget"));
 }
 
 fn brute_force_residual_territories(

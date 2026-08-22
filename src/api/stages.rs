@@ -21,29 +21,41 @@ pub(super) fn mark_pair_covariance_with_envelope(
     config: &AnalysisConfig,
     pattern: &Pattern,
     spatial_index: &SpatialIndex2D,
+    geometry_budget_bytes: usize,
 ) -> Result<(
     Vec<MarkPairCovariancePoint>,
     crate::output::AnalysisSection<FunctionalSummary>,
+    usize,
 )> {
     let bin_width_um = pattern.window.d_nn_mean_um.max(1.0);
     let max_r_um =
         (pattern.window.l_eff_um * config.validation.largest_interpretable_scale_fraction).max(1.0);
-    let Some(plan) =
-        MarkPairCovariancePlan::new_with_index(pattern, spatial_index, bin_width_um, max_r_um)
+    let index_storage_bytes = spatial_index.estimated_storage_bytes();
+    let plan_budget_bytes = geometry_budget_bytes.saturating_sub(index_storage_bytes);
+    let Some(plan) = MarkPairCovariancePlan::new_with_index(
+        pattern,
+        spatial_index,
+        bin_width_um,
+        max_r_um,
+        plan_budget_bytes,
+    )?
     else {
         return Ok((
             Vec::new(),
             crate::output::AnalysisSection::InsufficientData {
                 reason: "mark-pair covariance geometry could not be planned".into(),
             },
+            index_storage_bytes,
         ));
     };
+    let geometry_storage_bytes = index_storage_bytes.saturating_add(plan.estimated_storage_bytes());
     let Some(observed_bins) = plan.evaluate(&pattern.mark) else {
         return Ok((
             Vec::new(),
             crate::output::AnalysisSection::InsufficientData {
                 reason: "mark-pair covariance could not be estimated".into(),
             },
+            geometry_storage_bytes,
         ));
     };
 
@@ -117,7 +129,7 @@ pub(super) fn mark_pair_covariance_with_envelope(
         })
         .collect::<Result<Vec<_>>>()?;
 
-    Ok((points, summary))
+    Ok((points, summary, geometry_storage_bytes))
 }
 
 pub(super) fn mark_pair_covariance_permutation_curves(
@@ -498,7 +510,7 @@ mod tests {
             SpatialIndex2D::new(&pattern.x_um, &pattern.y_um).expect("spatial index");
         reset_plan_build_call_count();
 
-        mark_pair_covariance_with_envelope(&config, &pattern, &spatial_index)
+        mark_pair_covariance_with_envelope(&config, &pattern, &spatial_index, usize::MAX)
             .expect("covariance envelope");
 
         assert_eq!(plan_build_call_count(), 1);
@@ -531,8 +543,19 @@ mod tests {
         reset_residual_plan_build_call_count();
 
         let mut timings = Vec::new();
-        spatial_stage::run(&config, &pattern, true, None, None, &mut timings, 1)
-            .expect("spatial stage");
+        spatial_stage::run(
+            &config,
+            &pattern,
+            true,
+            None,
+            None,
+            spatial_stage::ExecutionContext {
+                geometry_budget_bytes: usize::MAX,
+                timings: &mut timings,
+                threads: 1,
+            },
+        )
+        .expect("spatial stage");
 
         assert_eq!(residual_plan_build_call_count(), 1);
     }
