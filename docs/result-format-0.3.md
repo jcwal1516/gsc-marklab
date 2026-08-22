@@ -49,6 +49,28 @@ exactly when `count == 0`, meaning no cell pair contributed to that physical
 distance bin. Empty bins remain in the curve so bin axes stay explicit, but
 they are excluded from global-envelope inference and have no envelope bounds.
 
+## Multiscale residual diagnostics
+
+The former wavelet/MODWT fields have been removed because the implementation
+does not perform a wavelet transform. Marked results now expose:
+
+- `multiscale_residual: AnalysisSection<MultiscaleResidualSummary>`;
+- `scale_energy: AnalysisSection<FunctionalSummary>`;
+- `scale_energy_curve: ScaleEnergyPoint[]`;
+- `residual_territories: AnalysisSection<ResidualTerritory[]>`.
+
+`MultiscaleResidualSummary` reports
+`local_difference_energy_fraction`, `residual_energy_fraction`,
+`block_mean_variance_fraction`, and
+`block_mean_to_local_difference_ratio`. These are normalized heuristic scores,
+not wavelet coefficients. `ResidualTerritory` reports `analysis_scale_um`,
+`residual_score`, and `supporting_marked_cells`. Its
+`qc_overlap_fraction` is nullable and remains `null` until an actual QC overlap
+calculation is available.
+
+Artifacts are named `scale_energy.parquet`, `scale_energy.svg`,
+`residual_territories.geojson`, and `residual_territory_overlay.svg`.
+
 ## Input QC fractions
 
 Every input QC fraction uses the number of cells inside the tumor mask as its
@@ -80,7 +102,7 @@ statistic and axis diagnostics.
 resolved `pooled`, `separate`, or `both` behavior, and a non-empty selection
 reason. Pooled component results are `not_applicable`, not an available empty
 vector. In `separate` mode, the pooled primary endpoint, spectrum,
-pair-correlation, anisotropy, multiscale summaries, and pooled curves are
+pair-correlation, anisotropy, multiscale residual summaries, and pooled curves are
 `not_applicable`; component summaries carry the available component-specific
 inference. `auto` resolves to `both` when more than one component exists and the
 largest component fraction is below 0.80, otherwise to `pooled`.

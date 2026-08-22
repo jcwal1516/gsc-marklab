@@ -1,4 +1,19 @@
-use super::*;
+use crate::{
+    api::{finite_option, qc_pipeline::permutation_labels},
+    config::AnalysisConfig,
+    data::Pattern,
+    errors::{MarklabError, Result},
+    inference::scalar_pvalues::{permutation_p_value, Tail},
+    multiscale_residual::{
+        energy::relative_scale_energies_from_field,
+        territories::{detect_residual_territories, ResidualTerritoryCandidate},
+    },
+    output::{FunctionalSummary, PairCorrelationPoint, ResidualTerritory, ScaleEnergyPoint},
+    periodogram::bartlett::marked_bartlett_periodogram,
+    periodogram::raster::{centered_mark_raster, centered_mark_raster_for_marks},
+    permutation::envelopes::GlobalEnvelope,
+    spectra::pair_correlation::{pair_correlation, pair_correlation_for_marks},
+};
 
 pub(super) fn pair_correlation_with_envelope(
     config: &AnalysisConfig,
@@ -132,33 +147,34 @@ pub(super) fn pair_correlation_permutation_curves(
     Ok(Some(curves))
 }
 
-pub(super) fn scalogram_with_envelope(
+pub(super) fn scale_energy_with_envelope(
     config: &AnalysisConfig,
     pattern: &Pattern,
-    fine_variance_fraction: f64,
-    intermediate_variance_fraction: f64,
-    coarse_variance_fraction: f64,
+    local_difference_energy_fraction: f64,
+    residual_energy_fraction: f64,
+    block_mean_variance_fraction: f64,
 ) -> Result<(
-    Vec<ScalogramPoint>,
+    Vec<ScaleEnergyPoint>,
     crate::output::AnalysisSection<FunctionalSummary>,
 )> {
     let observed_values = vec![
-        fine_variance_fraction,
-        intermediate_variance_fraction,
-        coarse_variance_fraction,
+        local_difference_energy_fraction,
+        residual_energy_fraction,
+        block_mean_variance_fraction,
     ];
     if observed_values.iter().any(|value| !value.is_finite()) {
         return Err(MarklabError::Compute(
-            "observed scalogram contains a non-finite value".into(),
+            "observed scale-energy curve contains a non-finite value".into(),
         ));
     }
-    let permutation_curves = scalogram_permutation_curves(config, pattern, observed_values.len())?;
+    let permutation_curves =
+        scale_energy_permutation_curves(config, pattern, observed_values.len())?;
     let max_scale_um =
         config.validation.largest_interpretable_scale_fraction * pattern.window.l_eff_um;
     let bands = [
-        ("fine", pattern.window.d_nn_mean_um.max(1.0)),
-        ("intermediate", pattern.window.d_nn_mean_um.max(1.0) * 2.0),
-        ("coarse", pattern.window.l_eff_um.max(1.0) / 4.0),
+        ("local_difference", pattern.window.d_nn_mean_um.max(1.0)),
+        ("residual", pattern.window.d_nn_mean_um.max(1.0) * 2.0),
+        ("block_mean", pattern.window.l_eff_um.max(1.0) / 4.0),
     ];
     let eligibility = bands
         .iter()
@@ -176,7 +192,7 @@ pub(super) fn scalogram_with_envelope(
     };
     let summary = envelope.as_ref().map_or_else(
         || crate::output::AnalysisSection::InsufficientData {
-            reason: "at least one required scalogram null curve was undefined".into(),
+            reason: "at least one required scale-energy null curve was undefined".into(),
         },
         |envelope| {
             crate::output::AnalysisSection::available(FunctionalSummary {
@@ -197,7 +213,7 @@ pub(super) fn scalogram_with_envelope(
                 let upper = envelope.upper.get(index).copied().and_then(finite_option)?;
                 Some((lower, upper))
             });
-            ScalogramPoint {
+            ScaleEnergyPoint {
                 band: bands[index].0.into(),
                 scale_um: bands[index].1,
                 energy_fraction,
@@ -211,7 +227,7 @@ pub(super) fn scalogram_with_envelope(
     Ok((points, summary))
 }
 
-pub(super) fn scalogram_permutation_curves(
+pub(super) fn scale_energy_permutation_curves(
     config: &AnalysisConfig,
     pattern: &Pattern,
     expected_len: usize,
@@ -228,11 +244,15 @@ pub(super) fn scalogram_permutation_curves(
         else {
             return Ok(None);
         };
-        let Some(fractions) = variance_fractions_from_field(&raster, spec.width, spec.height)
+        let Some(energies) = relative_scale_energies_from_field(&raster, spec.width, spec.height)
         else {
             return Ok(None);
         };
-        let curve = vec![fractions.fine, fractions.intermediate, fractions.coarse];
+        let curve = vec![
+            energies.local_difference,
+            energies.residual,
+            energies.block_mean,
+        ];
         if curve.len() != expected_len || curve.iter().any(|value| !value.is_finite()) {
             return Ok(None);
         }
@@ -241,19 +261,19 @@ pub(super) fn scalogram_permutation_curves(
     Ok(Some(curves))
 }
 
-pub(super) fn wavelet_scalar_p_values(
+pub(super) fn multiscale_residual_scalar_p_values(
     config: &AnalysisConfig,
     pattern: &Pattern,
-    observed_coarse_variance_fraction: f64,
+    observed_block_mean_variance_fraction: f64,
     observed_territory_count: usize,
 ) -> Result<(
     crate::output::AnalysisSection<f64>,
     crate::output::AnalysisSection<f64>,
 )> {
     let unavailable = || crate::output::AnalysisSection::InsufficientData {
-        reason: "the required wavelet null statistic was undefined".into(),
+        reason: "the required multiscale residual null statistic was undefined".into(),
     };
-    if !config.wavelet.enabled
+    if !config.multiscale_residual.enabled
         || pattern.len() < 2
         || pattern.n_marked() == 0
         || pattern.n_unmarked() == 0
@@ -261,7 +281,7 @@ pub(super) fn wavelet_scalar_p_values(
     {
         return Ok((
             unavailable(),
-            if config.wavelet.territory_detection {
+            if config.multiscale_residual.territory_detection {
                 unavailable()
             } else {
                 crate::output::AnalysisSection::Disabled
@@ -271,28 +291,28 @@ pub(super) fn wavelet_scalar_p_values(
 
     let max_scale_um =
         config.validation.largest_interpretable_scale_fraction * pattern.window.l_eff_um;
-    let coarse_scale_um = pattern.window.l_eff_um.max(1.0) / 4.0;
-    let coarse_eligible = coarse_scale_um <= max_scale_um;
+    let block_mean_scale_um = pattern.window.l_eff_um.max(1.0) / 4.0;
+    let block_mean_eligible = block_mean_scale_um <= max_scale_um;
     let territory_eligible = pattern.window.d_nn_mean_um.max(1.0) <= max_scale_um;
 
-    let mut coarse_null = coarse_eligible.then(|| Vec::with_capacity(config.permutation.b));
-    let mut coarse_null_complete = coarse_eligible;
-    let mut territory_null = (config.wavelet.territory_detection && territory_eligible)
+    let mut block_mean_null = block_mean_eligible.then(|| Vec::with_capacity(config.permutation.b));
+    let mut block_mean_null_complete = block_mean_eligible;
+    let mut territory_null = (config.multiscale_residual.territory_detection && territory_eligible)
         .then(|| Vec::with_capacity(config.permutation.b));
     for permutation_index in 0..config.permutation.b {
         let labels = permutation_labels(config, pattern, permutation_index, 0xd6e8_feb8_6659_fd93)?;
         let mut permuted = pattern.clone();
         permuted.mark = labels.into_boxed_slice();
 
-        if coarse_null_complete {
-            match coarse_variance_fraction_for(&permuted) {
-                Some(coarse_fraction) => coarse_null
+        if block_mean_null_complete {
+            match block_mean_variance_fraction_for(&permuted) {
+                Some(block_mean_fraction) => block_mean_null
                     .as_mut()
-                    .expect("eligible coarse endpoint has null storage")
-                    .push(coarse_fraction),
+                    .expect("eligible block-mean endpoint has null storage")
+                    .push(block_mean_fraction),
                 None => {
-                    coarse_null = None;
-                    coarse_null_complete = false;
+                    block_mean_null = None;
+                    block_mean_null_complete = false;
                 }
             }
         }
@@ -301,7 +321,7 @@ pub(super) fn wavelet_scalar_p_values(
         }
     }
 
-    let territory_count_p_value = if !config.wavelet.territory_detection {
+    let territory_count_p_value = if !config.multiscale_residual.territory_detection {
         crate::output::AnalysisSection::Disabled
     } else if !territory_eligible {
         crate::output::AnalysisSection::InsufficientData {
@@ -320,16 +340,16 @@ pub(super) fn wavelet_scalar_p_values(
         unavailable()
     };
 
-    let coarse_variance_fraction_p_value = if !coarse_eligible {
+    let block_mean_variance_fraction_p_value = if !block_mean_eligible {
         crate::output::AnalysisSection::InsufficientData {
             reason: format!(
-                "coarse wavelet scale {coarse_scale_um:.3} um exceeds the maximum interpretable scale {max_scale_um:.3} um"
+                "block-mean multiscale residual scale {block_mean_scale_um:.3} um exceeds the maximum interpretable scale {max_scale_um:.3} um"
             ),
         }
-    } else if let Some(coarse_null) = coarse_null {
+    } else if let Some(block_mean_null) = block_mean_null {
         crate::output::AnalysisSection::available(permutation_p_value(
-            observed_coarse_variance_fraction,
-            &coarse_null,
+            observed_block_mean_variance_fraction,
+            &block_mean_null,
             Tail::OneSidedHigh,
             config.inference.family_wise_alpha,
         )?)
@@ -337,13 +357,18 @@ pub(super) fn wavelet_scalar_p_values(
         unavailable()
     };
 
-    Ok((coarse_variance_fraction_p_value, territory_count_p_value))
+    Ok((
+        block_mean_variance_fraction_p_value,
+        territory_count_p_value,
+    ))
 }
 
-pub(super) fn coarse_variance_fraction_for(pattern: &Pattern) -> Option<f64> {
+pub(super) fn block_mean_variance_fraction_for(pattern: &Pattern) -> Option<f64> {
     centered_mark_raster(pattern, pattern.window.d_nn_mean_um.max(1.0))
-        .and_then(|(spec, raster)| variance_fractions_from_field(&raster, spec.width, spec.height))
-        .map(|fractions| fractions.coarse)
+        .and_then(|(spec, raster)| {
+            relative_scale_energies_from_field(&raster, spec.width, spec.height)
+        })
+        .map(|energies| energies.block_mean)
         .filter(|value| value.is_finite())
 }
 
@@ -375,29 +400,32 @@ pub(super) fn periodogram_disagrees_with_particle_spectrum(
     coarse_grid && (grid_exceeds_interpretable_scale || low_k_excess >= 1.10 || low_k_mismatch)
 }
 
-pub(super) fn territories_for(config: &AnalysisConfig, pattern: &Pattern) -> Vec<TerritoryFeature> {
-    if !config.wavelet.enabled || !config.wavelet.territory_detection {
+pub(super) fn territories_for(
+    config: &AnalysisConfig,
+    pattern: &Pattern,
+) -> Vec<ResidualTerritory> {
+    if !config.multiscale_residual.enabled || !config.multiscale_residual.territory_detection {
         return Vec::new();
     }
 
     let max_scale_um =
         config.validation.largest_interpretable_scale_fraction * pattern.window.l_eff_um;
-    detect_residual_territories(pattern, config.wavelet.min_territory_z)
+    detect_residual_territories(pattern, config.multiscale_residual.min_territory_z)
         .into_iter()
-        .filter(|territory| territory.scale_um <= max_scale_um)
-        .map(TerritoryFeature::from)
+        .filter(|territory| territory.analysis_scale_um <= max_scale_um)
+        .map(ResidualTerritory::from)
         .collect()
 }
 
-impl From<CandidateTerritory> for TerritoryFeature {
-    fn from(candidate: CandidateTerritory) -> Self {
+impl From<ResidualTerritoryCandidate> for ResidualTerritory {
+    fn from(candidate: ResidualTerritoryCandidate) -> Self {
         Self {
             center_x_um: candidate.center_x_um,
             center_y_um: candidate.center_y_um,
             radius_um: candidate.radius_um,
-            scale_um: candidate.scale_um,
-            z_or_power: candidate.z_or_power,
-            supporting_cells: candidate.supporting_cells,
+            analysis_scale_um: candidate.analysis_scale_um,
+            residual_score: candidate.residual_score,
+            supporting_marked_cells: candidate.supporting_marked_cells,
             component_id: candidate.component_id,
             qc_overlap_fraction: candidate.qc_overlap_fraction,
         }

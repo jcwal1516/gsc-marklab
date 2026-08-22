@@ -31,6 +31,14 @@ semantics.
 - Marked results require `component_mode_selection`. `pooled` component results
   are now `not_applicable` rather than `available` with an empty vector, and
   `separate` no longer exposes pooled endpoints.
+- Misleading wavelet terminology is removed without aliases:
+  `wavelet` → `multiscale_residual`, `scalogram` → `scale_energy`,
+  `scalogram_curve` → `scale_energy_curve`, and `wavelet_territories` →
+  `residual_territories`. Summary fields use local-difference, residual-energy,
+  and block-mean names. Residual territories have a distinct type with
+  `analysis_scale_um`, `residual_score`, and `supporting_marked_cells`.
+- Configuration `[wavelet]` is rejected; use `[multiscale_residual]`. Artifact
+  filenames use the corresponding scale-energy and residual-territory names.
 - A stratified spectrum declares
   `stratified_fixed_position_random_labeling` as its primary null.
 - Mark-homogeneous spectrum strata are reported with

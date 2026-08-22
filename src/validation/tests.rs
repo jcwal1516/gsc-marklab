@@ -71,7 +71,7 @@ anisotropy_low_k_shells = 6
 [periodogram]
 enabled = true
 
-[wavelet]
+[multiscale_residual]
 enabled = true
 territory_detection = true
 min_territory_z = 3.0
@@ -366,7 +366,7 @@ fn engine_suppresses_strong_interpretation_when_validation_flags_are_present() {
     assert!(result
         .interpretation
         .text
-        .contains("not a clonality result"));
+        .contains("suppressed by validation status"));
 }
 
 #[test]
@@ -777,7 +777,7 @@ fn engine_flags_internal_control_dropout_with_required_suppression_wording() {
     assert!(result
         .interpretation
         .text
-        .contains("overlaps IHC/QC artifact structure"));
+        .contains("overlaps recorded input-QC artifact structure"));
 }
 
 #[test]

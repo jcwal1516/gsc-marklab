@@ -16,7 +16,7 @@ fn criterion_benchmarks_cover_required_spec_workloads() {
         "structure_factor",
         "permutation_engine",
         "periodogram",
-        "wavelet",
+        "multiscale_residual",
         "random_labeling_envelope",
         "pattern_load",
     ] {
@@ -30,7 +30,7 @@ fn criterion_benchmarks_cover_required_spec_workloads() {
         "bench_marked_analysis_structure_factor_n10k_k1k",
         "bench_marked_analysis_permutations_n10k_k1k_b999",
         "bench_marked_analysis_periodogram_grid1024",
-        "bench_marked_analysis_wavelet_grid1024",
+        "bench_marked_analysis_multiscale_residual_grid1024",
         "bench_marked_analysis_erl_b999",
         "bench_pattern_csv_load_1m_cells",
     ] {

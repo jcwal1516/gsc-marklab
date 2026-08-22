@@ -23,7 +23,7 @@ anisotropy_low_k_shells = 5
 [periodogram]
 enabled = true
 
-[wavelet]
+[multiscale_residual]
 enabled = true
 territory_detection = true
 min_territory_z = 2.5

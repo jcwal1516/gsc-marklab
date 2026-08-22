@@ -48,7 +48,7 @@ anisotropy_low_k_shells = 3
 [periodogram]
 enabled = false
 
-[wavelet]
+[multiscale_residual]
 enabled = false
 territory_detection = false
 min_territory_z = 2.5
@@ -157,10 +157,10 @@ fn analyze_cli_writes_result_json_from_csv_and_geojson_mask() {
     assert_eq!(manifest["execution"]["permutation_seed"], 123);
     assert_eq!(manifest["result"]["case_id"], "case_001");
     assert_eq!(manifest["output"]["write_run_manifest"], true);
-    assert!(!out.join("wavelet_territories.geojson").exists());
+    assert!(!out.join("residual_territories.geojson").exists());
     assert!(!out.join("spectra.parquet").exists());
     assert!(!out.join("pair_correlation.parquet").exists());
-    assert!(!out.join("scalogram.parquet").exists());
+    assert!(!out.join("scale_energy.parquet").exists());
     assert!(!out.join("figures").exists());
 }
 
@@ -414,7 +414,7 @@ fn analyze_cli_writes_requested_trace_and_timings_files() {
         "structure_factor_observed",
         "permutation_spectra",
         "periodogram",
-        "wavelet",
+        "multiscale_residual",
         "inference",
         "write_outputs",
     ];
@@ -982,6 +982,6 @@ fn prepost_cli_writes_delta_result_with_safe_language() {
 
     let text = fs::read_to_string(delta_out.join("prepost.json")).expect("delta");
     let lower = text.to_lowercase();
-    assert!(lower.contains("coarse-scale spatial organization"));
+    assert!(lower.contains("coarse-scale organization"));
     assert!(!lower.contains("same cells"));
 }

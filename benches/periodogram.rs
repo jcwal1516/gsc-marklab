@@ -49,7 +49,7 @@ fn bench_marked_analysis_periodogram_grid1024(c: &mut Criterion) {
     config.permutation.stratified = false;
     config.inference.family_wise_alpha = 0.25;
     config.periodogram.enabled = true;
-    config.wavelet.enabled = false;
+    config.multiscale_residual.enabled = false;
     config.performance.threads = ThreadSetting::Count(1);
     let engine = AnalysisEngine::new(config).expect("engine");
 

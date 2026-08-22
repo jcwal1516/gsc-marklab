@@ -164,13 +164,13 @@ fn write_marked_outputs(
     }
     #[cfg(feature = "parquet")]
     if options.write_parquet_curves {
-        result.write_scalogram_parquet(out)?;
+        result.write_scale_energy_parquet(out)?;
     }
     if options.write_geojson_territories {
-        if let Some(territories) = result.wavelet_territories.value() {
-            crate::io::geojson::write_territory_features(
+        if let Some(territories) = result.residual_territories.value() {
+            crate::io::geojson::write_residual_territories(
                 territories,
-                out.join("wavelet_territories.geojson"),
+                out.join("residual_territories.geojson"),
             )?;
         }
     }
@@ -240,14 +240,14 @@ impl OutputWriter {
         );
         artifacts.insert(
             match &document.analysis {
-                AnalysisResult::MarkedPattern(_) => "wavelet_territories".into(),
+                AnalysisResult::MarkedPattern(_) => "residual_territories".into(),
                 AnalysisResult::Multimodal(_) => "neighborhood_territories".into(),
             },
             match &document.analysis {
                 AnalysisResult::MarkedPattern(_) => artifact_group_status(
                     out,
                     options.write_geojson_territories,
-                    "wavelet_territories.geojson",
+                    "residual_territories.geojson",
                 ),
                 AnalysisResult::Multimodal(_) => artifact_group_status(
                     out,
@@ -324,7 +324,7 @@ fn write_multimodal_outputs(
             .value()
             .filter(|value| !value.is_empty())
         {
-            crate::io::geojson::write_territory_features(
+            crate::io::geojson::write_neighborhood_territories(
                 territories,
                 out.join("neighborhood_territories.geojson"),
             )?;

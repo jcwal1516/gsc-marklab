@@ -9,8 +9,9 @@ use crate::{
     errors::{MarklabError, Result},
     output::{
         AnisotropySummary, DiagnosticsResult, FunctionalSummary, Interpretation,
-        MarkedPatternResult, PairCorrelationPoint, PrimaryEndpoint, ScalogramPoint, SpectrumPoint,
-        SpectrumSummary, StatusFlag, TerritoryFeature, TimingStage, WaveletSummary, WindowSummary,
+        MarkedPatternResult, MultiscaleResidualSummary, PairCorrelationPoint, PrimaryEndpoint,
+        ResidualTerritory, ScaleEnergyPoint, SpectrumPoint, SpectrumSummary, StatusFlag,
+        TimingStage, WindowSummary,
     },
     spectra::{anisotropy::PermutationAnisotropy, structure_factor::PermutationWhitenedSpectrum},
 };
@@ -23,10 +24,10 @@ pub(super) struct Inputs {
     pub(super) pair_correlation: crate::output::AnalysisSection<FunctionalSummary>,
     pub(super) pair_correlation_curve: Vec<PairCorrelationPoint>,
     pub(super) anisotropy: Option<PermutationAnisotropy>,
-    pub(super) wavelet: crate::output::AnalysisSection<WaveletSummary>,
-    pub(super) scalogram: crate::output::AnalysisSection<FunctionalSummary>,
-    pub(super) scalogram_curve: Vec<ScalogramPoint>,
-    pub(super) territories: Vec<TerritoryFeature>,
+    pub(super) multiscale_residual: crate::output::AnalysisSection<MultiscaleResidualSummary>,
+    pub(super) scale_energy: crate::output::AnalysisSection<FunctionalSummary>,
+    pub(super) scale_energy_curve: Vec<ScaleEnergyPoint>,
+    pub(super) territories: Vec<ResidualTerritory>,
     pub(super) diagnostics: crate::output::AnalysisSection<DiagnosticsResult>,
     pub(super) timings: Vec<TimingStage>,
     pub(super) interpretation: Interpretation,
@@ -46,9 +47,9 @@ pub(super) fn assemble(
         pair_correlation,
         pair_correlation_curve,
         anisotropy,
-        wavelet,
-        scalogram,
-        scalogram_curve,
+        multiscale_residual,
+        scale_energy,
+        scale_energy_curve,
         territories,
         diagnostics,
         timings,
@@ -214,11 +215,11 @@ pub(super) fn assemble(
                 })
             },
         ),
-        wavelet,
-        scalogram,
-        scalogram_curve,
-        wavelet_territories: if config.wavelet.enabled {
-            if config.wavelet.territory_detection {
+        multiscale_residual,
+        scale_energy,
+        scale_energy_curve,
+        residual_territories: if config.multiscale_residual.enabled {
+            if config.multiscale_residual.territory_detection {
                 crate::output::AnalysisSection::available(territories)
             } else {
                 crate::output::AnalysisSection::Disabled
@@ -252,10 +253,10 @@ pub(super) fn assemble(
         result.pair_correlation = crate::output::AnalysisSection::NotApplicable;
         result.pair_correlation_curve.clear();
         result.anisotropy = crate::output::AnalysisSection::NotApplicable;
-        result.wavelet = crate::output::AnalysisSection::NotApplicable;
-        result.scalogram = crate::output::AnalysisSection::NotApplicable;
-        result.scalogram_curve.clear();
-        result.wavelet_territories = crate::output::AnalysisSection::NotApplicable;
+        result.multiscale_residual = crate::output::AnalysisSection::NotApplicable;
+        result.scale_energy = crate::output::AnalysisSection::NotApplicable;
+        result.scale_energy_curve.clear();
+        result.residual_territories = crate::output::AnalysisSection::NotApplicable;
     }
     Ok(result)
 }
@@ -318,36 +319,36 @@ pub(super) fn interpretation_for(
         {
             return Interpretation {
                 class: "suppressed_qc_artifact".into(),
-                text: "Spatial organization is present in the mark field but overlaps IHC/QC artifact structure; biologic interpretation is suppressed. This is not a clonality result.".into(),
+                text: "The configured mark field overlaps recorded input-QC artifact structure; interpretation is suppressed.".into(),
             };
         }
         return Interpretation {
             class: "suppressed".into(),
-            text: "Numeric diagnostics are emitted, but strong biologic interpretation is suppressed. This is not a clonality result.".into(),
+            text: "Numeric spatial diagnostics are emitted, but interpretation is suppressed by validation status.".into(),
         };
     }
 
     let Some(low_k_excess) = low_k_excess else {
         return Interpretation {
             class: "insufficient_data".into(),
-            text: "Spectrum inference is unavailable at interpretable scales; no spatial organization claim is made. This is not a clonality result.".into(),
+            text: "Spectrum inference is unavailable at interpretable scales; no spatial-pattern classification is made.".into(),
         };
     };
 
     if low_k_excess >= 1.25 {
         Interpretation {
-            class: "coarse_clustered".into(),
-            text: "The configured MMR-IHC phenotype shows coarse-scale spatial organization relative to random labeling. This is not a clonality result.".into(),
+            class: "coarse_excess".into(),
+            text: "The configured mark field shows coarse-scale spectral excess relative to fixed-position random labeling.".into(),
         }
     } else if low_k_excess <= 0.80 {
         Interpretation {
-            class: "low_k_suppressed_or_dispersed".into(),
-            text: "The configured MMR-IHC phenotype shows low-k suppression / dispersed pattern relative to random labeling. This is not a clonality result.".into(),
+            class: "low_frequency_suppression".into(),
+            text: "The configured mark field shows low-frequency spectral suppression relative to fixed-position random labeling.".into(),
         }
     } else {
         Interpretation {
             class: "random_like".into(),
-            text: "The configured MMR-IHC phenotype is random-like relative to fixed-position random labeling. This is not a clonality result.".into(),
+            text: "The configured mark field is random-like relative to fixed-position random labeling at the analyzed scales.".into(),
         }
     }
 }

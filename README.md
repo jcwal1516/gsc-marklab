@@ -2,7 +2,7 @@
 
 `marklab` is a Rust library and CLI for section-level spatial analysis of marked
 cell patterns in pathology. It reports organization, dispersion, anisotropy,
-wavelet diagnostics, and descriptive pre/post differences relative to
+multiscale residual diagnostics, and descriptive pre/post differences relative to
 fixed-position random labeling. The current multimodal workflow has first-class
 MMR-IHC inputs, but the core marked-pattern analysis is not tied to one marker.
 
@@ -69,6 +69,11 @@ For multimodal serial-section analysis, `registration.transform = "rigid"`
 fits a two-dimensional rotation and translation without scale or reflection.
 Use `"affine"` only when scale or shear is part of the intended registration
 model.
+
+The multiscale residual diagnostic is a documented heuristic, not a wavelet or
+Difference-of-Gaussians transform. It combines local neighbor-difference energy,
+variance of 2x2 block means, and a residual share, then evaluates the resulting
+three-point scale-energy curve under label permutations.
 
 ## WSI commands
 

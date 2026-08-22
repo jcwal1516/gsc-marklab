@@ -35,7 +35,7 @@ fn territory(center_x_um: f64, radius_um: f64) -> TerritoryFeature {
         z_or_power: 3.0,
         supporting_cells: 3,
         component_id: None,
-        qc_overlap_fraction: 0.0,
+        qc_overlap_fraction: None,
     }
 }
 
@@ -59,7 +59,7 @@ fn territory_profile_counts_local_cell_type_fractions() {
         z_or_power: 4.0,
         supporting_cells: 5,
         component_id: None,
-        qc_overlap_fraction: 0.0,
+        qc_overlap_fraction: None,
     }];
     let cells = vec![
         fused("l1", 1.0, 0.0, "lymphocyte"),
@@ -89,7 +89,7 @@ fn territory_comparison_reports_difference_and_equivalence() {
             z_or_power: 3.0,
             supporting_cells: 3,
             component_id: None,
-            qc_overlap_fraction: 0.0,
+            qc_overlap_fraction: None,
         },
         TerritoryFeature {
             center_x_um: 100.0,
@@ -99,7 +99,7 @@ fn territory_comparison_reports_difference_and_equivalence() {
             z_or_power: 3.0,
             supporting_cells: 3,
             component_id: None,
-            qc_overlap_fraction: 0.0,
+            qc_overlap_fraction: None,
         },
     ];
     let cells = vec![

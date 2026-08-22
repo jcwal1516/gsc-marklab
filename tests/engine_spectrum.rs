@@ -50,8 +50,11 @@ fn engine_reports_permutation_whitened_low_k_excess_for_clustered_marks() {
     let result = engine.analyze_pattern(&pattern).expect("analysis");
     let spectrum = result.spectrum.value().expect("spectrum");
     let pair_correlation = result.pair_correlation.value().expect("pair correlation");
-    let scalogram = result.scalogram.value().expect("scalogram");
-    let wavelet = result.wavelet.value().expect("wavelet");
+    let scale_energy = result.scale_energy.value().expect("scale energy");
+    let multiscale_residual = result
+        .multiscale_residual
+        .value()
+        .expect("multiscale residual");
 
     assert_eq!(result.status, "ok");
     assert!(spectrum.low_k_excess > 1.5);
@@ -95,21 +98,24 @@ fn engine_reports_permutation_whitened_low_k_excess_for_clustered_marks() {
         .pair_correlation_curve
         .iter()
         .all(|point| { point.lower_global_envelope <= point.upper_global_envelope }));
-    assert_eq!(scalogram.n_permutations, 99);
-    assert!(scalogram.p_global.expect("scalogram p") > 0.0);
-    assert!(scalogram.erl_depth.is_some());
+    assert_eq!(scale_energy.n_permutations, 99);
+    assert!(scale_energy.p_global.expect("scale-energy p") > 0.0);
+    assert!(scale_energy.erl_depth.is_some());
     assert!(result
-        .scalogram_curve
+        .scale_energy_curve
         .iter()
         .all(|point| { point.lower_global_envelope <= point.upper_global_envelope }));
-    assert!(wavelet.coarse_variance_fraction > 0.0);
+    assert!(multiscale_residual.block_mean_variance_fraction > 0.0);
     assert!(
-        wavelet.fine_variance_fraction
-            + wavelet.intermediate_variance_fraction
-            + wavelet.coarse_variance_fraction
+        multiscale_residual.local_difference_energy_fraction
+            + multiscale_residual.residual_energy_fraction
+            + multiscale_residual.block_mean_variance_fraction
             <= 1.000001
     );
-    assert!(wavelet.coarse_to_fine_ratio.expect("ratio").is_finite());
+    assert!(multiscale_residual
+        .block_mean_to_local_difference_ratio
+        .expect("ratio")
+        .is_finite());
 }
 
 #[test]
@@ -196,7 +202,7 @@ fn engine_marks_low_k_suppression_when_low_frequency_power_is_below_permutations
     let result = engine.analyze_pattern(&pattern).expect("analysis");
 
     assert!(result.spectrum.value().expect("spectrum").low_k_excess < 1.0);
-    assert_eq!(result.interpretation.class, "low_k_suppressed_or_dispersed");
+    assert_eq!(result.interpretation.class, "low_frequency_suppression");
 }
 
 #[test]
@@ -225,10 +231,10 @@ fn engine_omits_alpha_when_low_k_alpha_fit_is_disabled() {
 }
 
 #[test]
-fn engine_omits_wavelet_outputs_when_wavelet_is_disabled() {
+fn engine_omits_multiscale_residual_outputs_when_multiscale_residual_is_disabled() {
     let mut config = permissive_config();
-    config.wavelet.enabled = false;
-    config.wavelet.territory_detection = true;
+    config.multiscale_residual.enabled = false;
+    config.multiscale_residual.territory_detection = true;
     let mut pattern = Pattern::from_arrays(
         (0..40).map(|value| value as f64).collect(),
         vec![0.0; 40],
@@ -245,14 +251,17 @@ fn engine_omits_wavelet_outputs_when_wavelet_is_disabled() {
         .analyze_pattern(&pattern)
         .expect("analysis");
 
-    assert!(matches!(result.wavelet, marklab::AnalysisSection::Disabled));
-    assert!(result.scalogram_curve.is_empty());
     assert!(matches!(
-        result.scalogram,
+        result.multiscale_residual,
+        marklab::AnalysisSection::Disabled
+    ));
+    assert!(result.scale_energy_curve.is_empty());
+    assert!(matches!(
+        result.scale_energy,
         marklab::AnalysisSection::Disabled
     ));
     assert!(matches!(
-        result.wavelet_territories,
+        result.residual_territories,
         marklab::AnalysisSection::Disabled
     ));
 }
@@ -260,8 +269,8 @@ fn engine_omits_wavelet_outputs_when_wavelet_is_disabled() {
 #[test]
 fn engine_omits_territories_when_territory_detection_is_disabled() {
     let mut config = permissive_config();
-    config.wavelet.enabled = true;
-    config.wavelet.territory_detection = false;
+    config.multiscale_residual.enabled = true;
+    config.multiscale_residual.territory_detection = false;
     let mut pattern = Pattern::from_arrays(
         (0..40).map(|value| value as f64).collect(),
         vec![0.0; 40],
@@ -278,24 +287,31 @@ fn engine_omits_territories_when_territory_detection_is_disabled() {
         .analyze_pattern(&pattern)
         .expect("analysis");
 
-    assert_eq!(result.wavelet.value().expect("wavelet").territory_count, 0);
+    assert_eq!(
+        result
+            .multiscale_residual
+            .value()
+            .expect("multiscale_residual")
+            .territory_count,
+        0
+    );
     assert!(matches!(
-        result.wavelet_territories,
+        result.residual_territories,
         marklab::AnalysisSection::Disabled
     ));
     assert!(
         result
-            .wavelet
+            .multiscale_residual
             .value()
-            .expect("wavelet")
-            .coarse_variance_fraction
+            .expect("multiscale_residual")
+            .block_mean_variance_fraction
             > 0.0
     );
-    assert!(!result.scalogram_curve.is_empty());
+    assert!(!result.scale_energy_curve.is_empty());
 }
 
 #[test]
-fn engine_marks_out_of_range_wavelet_endpoints_insufficient() {
+fn engine_marks_out_of_range_multiscale_residual_endpoints_insufficient() {
     let mut config = permissive_config();
     config.permutation.b = 19;
     config.inference.family_wise_alpha = 0.25;
@@ -315,14 +331,17 @@ fn engine_marks_out_of_range_wavelet_endpoints_insufficient() {
         .expect("engine")
         .analyze_pattern(&pattern)
         .expect("analysis");
-    let wavelet = result.wavelet.value().expect("wavelet");
+    let multiscale_residual = result
+        .multiscale_residual
+        .value()
+        .expect("multiscale_residual");
 
     assert!(matches!(
-        wavelet.coarse_variance_fraction_p_value,
+        multiscale_residual.block_mean_variance_fraction_p_value,
         marklab::AnalysisSection::InsufficientData { .. }
     ));
     assert!(matches!(
-        wavelet.territory_count_p_value,
+        multiscale_residual.territory_count_p_value,
         marklab::AnalysisSection::Available { .. }
     ));
 }
@@ -384,12 +403,12 @@ fn homogeneous_strata_report_degenerate_null() {
     );
     assert_eq!(
         result
-            .wavelet
+            .multiscale_residual
             .value()
-            .and_then(|summary| summary.coarse_variance_fraction_p_value.value())
+            .and_then(|summary| summary.block_mean_variance_fraction_p_value.value())
             .copied(),
         Some(1.0),
-        "wavelet inference must use the configured stratified null"
+        "multiscale_residual inference must use the configured stratified null"
     );
     assert!(
         result
@@ -749,7 +768,7 @@ fn remediation_separate_component_mode_does_not_behave_like_both() {
         marklab::AnalysisSection::NotApplicable
     ));
     assert!(matches!(
-        result.wavelet,
+        result.multiscale_residual,
         marklab::AnalysisSection::NotApplicable
     ));
 }
@@ -989,9 +1008,9 @@ fn engine_detects_multiple_residual_territory_maxima() {
     config.spectrum.low_k_shells = 2;
     config.permutation.b = 19;
     config.inference.family_wise_alpha = 0.25;
-    config.wavelet.enabled = true;
-    config.wavelet.territory_detection = true;
-    config.wavelet.min_territory_z = 2.0;
+    config.multiscale_residual.enabled = true;
+    config.multiscale_residual.territory_detection = true;
+    config.multiscale_residual.min_territory_z = 2.0;
 
     let mut x = Vec::new();
     let mut y = Vec::new();
@@ -1017,40 +1036,46 @@ fn engine_detects_multiple_residual_territory_maxima() {
         .expect("analysis");
 
     let territories = result
-        .wavelet_territories
+        .residual_territories
         .value()
-        .expect("wavelet territories");
+        .expect("multiscale residual territories");
     assert!(territories.len() >= 2, "{territories:?}");
     assert!(
         *result
-            .wavelet
+            .multiscale_residual
             .value()
-            .expect("wavelet")
-            .coarse_variance_fraction_p_value
+            .expect("multiscale residual")
+            .block_mean_variance_fraction_p_value
             .value()
-            .expect("coarse variance p-value")
+            .expect("block-mean variance p-value")
             > 0.0
     );
     assert!(
         *result
-            .wavelet
+            .multiscale_residual
             .value()
-            .expect("wavelet")
+            .expect("multiscale residual")
             .territory_count_p_value
             .value()
             .expect("territory count p-value")
             > 0.0
     );
     assert!(result
-        .wavelet_territories
+        .residual_territories
         .value()
-        .expect("wavelet territories")
+        .expect("multiscale residual territories")
         .iter()
         .any(|territory| territory.center_x_um < 3.0 && territory.center_y_um < 3.0));
     assert!(result
-        .wavelet_territories
+        .residual_territories
         .value()
-        .expect("wavelet territories")
+        .expect("multiscale residual territories")
         .iter()
         .any(|territory| territory.center_x_um > 6.0 && territory.center_y_um > 6.0));
+    assert!(territories.iter().all(|territory| {
+        territory.residual_score.is_finite()
+            && territory.analysis_scale_um.is_finite()
+            && territory.supporting_marked_cells > 0
+            && territory.qc_overlap_fraction.is_none()
+    }));
 }

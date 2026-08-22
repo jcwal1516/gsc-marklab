@@ -5,29 +5,19 @@ use crate::{
     data::Pattern,
     diagnostics::beta_binomial::beta_binomial,
     errors::{MarklabError, Result},
-    inference::scalar_pvalues::{permutation_p_value, Tail},
+    multiscale_residual::energy::relative_scale_energies_from_field,
     output::{
-        DiagnosticsResult, FunctionalSummary, Interpretation, MarkedPatternResult,
-        PairCorrelationPoint, ScalogramPoint, StatusFlag, TerritoryFeature, TimingStage,
-        WaveletSummary,
+        DiagnosticsResult, Interpretation, MarkedPatternResult, MultiscaleResidualSummary,
+        StatusFlag, TimingStage,
     },
     perf::counters::{estimate_peak_memory, MemoryEstimate, MemoryInputs},
-    periodogram::{
-        bartlett::marked_bartlett_periodogram,
-        raster::{centered_mark_raster, centered_mark_raster_for_marks},
-    },
-    permutation::envelopes::GlobalEnvelope,
+    periodogram::raster::centered_mark_raster,
     spectra::anisotropy::permutation_whitened_anisotropy,
-    spectra::pair_correlation::{pair_correlation, pair_correlation_for_marks},
     spectra::structure_factor::{
         observed_power_for_modes, observed_value_power_for_modes,
         permutation_whitened_spectrum_from_observed_modes,
         permutation_whitened_value_spectrum_from_observed_modes, resolvable_modes_for_pattern,
         stratified_permutation_whitened_spectrum_from_observed_modes, SpectrumPermutationOptions,
-    },
-    wavelet::{
-        modwt::variance_fractions_from_field,
-        territories::{detect_residual_territories, CandidateTerritory},
     },
 };
 
@@ -40,13 +30,11 @@ mod stages;
 use assembly::interpretation_for;
 use components::component_analysis_plan;
 use qc_pipeline::{
-    permutation_labels, spectrum_null_sensitivity, strata_are_mark_homogeneous, validate_pattern,
-    ConfoundingConclusion,
+    spectrum_null_sensitivity, strata_are_mark_homogeneous, validate_pattern, ConfoundingConclusion,
 };
 use stages::{
-    estimated_raster_pixels, pair_correlation_with_envelope,
-    periodogram_disagrees_with_particle_spectrum, scalogram_with_envelope, territories_for,
-    wavelet_scalar_p_values,
+    estimated_raster_pixels, multiscale_residual_scalar_p_values, pair_correlation_with_envelope,
+    periodogram_disagrees_with_particle_spectrum, scale_energy_with_envelope, territories_for,
 };
 
 pub struct AnalysisEngine {
@@ -309,7 +297,12 @@ impl AnalysisEngine {
         } else {
             Vec::new()
         };
-        push_timing(&mut timings, "wavelet", stage_start.elapsed(), self.threads);
+        push_timing(
+            &mut timings,
+            "multiscale_residual",
+            stage_start.elapsed(),
+            self.threads,
+        );
 
         let interpretation = if includes_pooled {
             interpretation_for(&status_flags, status, low_k_excess)
@@ -341,74 +334,81 @@ impl AnalysisEngine {
         );
 
         let stage_start = Instant::now();
-        let wavelet_fractions = if includes_pooled && self.config.wavelet.enabled {
+        let relative_scale_energies = if includes_pooled && self.config.multiscale_residual.enabled
+        {
             centered_mark_raster(pattern, pattern.window.d_nn_mean_um.max(1.0)).and_then(
-                |(spec, raster)| variance_fractions_from_field(&raster, spec.width, spec.height),
+                |(spec, raster)| {
+                    relative_scale_energies_from_field(&raster, spec.width, spec.height)
+                },
             )
         } else {
             None
         };
-        let (wavelet, scalogram_curve, scalogram) = if !includes_pooled {
+        let (multiscale_residual, scale_energy_curve, scale_energy) = if !includes_pooled {
             (
                 crate::output::AnalysisSection::NotApplicable,
                 Vec::new(),
                 crate::output::AnalysisSection::NotApplicable,
             )
-        } else if !self.config.wavelet.enabled {
+        } else if !self.config.multiscale_residual.enabled {
             (
                 crate::output::AnalysisSection::Disabled,
                 Vec::new(),
                 crate::output::AnalysisSection::Disabled,
             )
-        } else if let Some(fractions) = wavelet_fractions.filter(|fractions| {
-            [fractions.fine, fractions.intermediate, fractions.coarse]
-                .iter()
-                .all(|value| value.is_finite())
+        } else if let Some(energies) = relative_scale_energies.filter(|energies| {
+            [
+                energies.local_difference,
+                energies.residual,
+                energies.block_mean,
+            ]
+            .iter()
+            .all(|value| value.is_finite())
         }) {
-            let coarse_to_fine_ratio = (fractions.fine > 0.0)
-                .then_some(fractions.coarse / fractions.fine)
+            let block_mean_to_local_difference_ratio = (energies.local_difference > 0.0)
+                .then_some(energies.block_mean / energies.local_difference)
                 .filter(|value| value.is_finite());
-            let (curve, scalogram) = scalogram_with_envelope(
+            let (curve, scale_energy) = scale_energy_with_envelope(
                 &self.config,
                 pattern,
-                fractions.fine,
-                fractions.intermediate,
-                fractions.coarse,
+                energies.local_difference,
+                energies.residual,
+                energies.block_mean,
             )?;
-            let (coarse_variance_fraction_p_value, territory_count_p_value) =
-                wavelet_scalar_p_values(
+            let (block_mean_variance_fraction_p_value, territory_count_p_value) =
+                multiscale_residual_scalar_p_values(
                     &self.config,
                     pattern,
-                    fractions.coarse,
+                    energies.block_mean,
                     territories.len(),
                 )?;
             (
-                crate::output::AnalysisSection::available(WaveletSummary {
-                    fine_variance_fraction: fractions.fine,
-                    intermediate_variance_fraction: fractions.intermediate,
-                    coarse_variance_fraction: fractions.coarse,
-                    coarse_to_fine_ratio,
+                crate::output::AnalysisSection::available(MultiscaleResidualSummary {
+                    local_difference_energy_fraction: energies.local_difference,
+                    residual_energy_fraction: energies.residual,
+                    block_mean_variance_fraction: energies.block_mean,
+                    block_mean_to_local_difference_ratio,
                     territory_count: territories.len(),
-                    coarse_variance_fraction_p_value,
+                    block_mean_variance_fraction_p_value,
                     territory_count_p_value,
                 }),
                 curve,
-                scalogram,
+                scale_energy,
             )
         } else {
             (
                 crate::output::AnalysisSection::InsufficientData {
-                    reason: "wavelet variance fractions could not be estimated".into(),
+                    reason: "multiscale residual scale energies could not be estimated".into(),
                 },
                 Vec::new(),
                 crate::output::AnalysisSection::InsufficientData {
-                    reason: "wavelet variance fractions could not be estimated".into(),
+                    reason: "multiscale residual scale energies could not be estimated".into(),
                 },
             )
         };
         push_timing(
             &mut timings,
-            "modwt_variance",
+            "multiscale_residual_energy",
             stage_start.elapsed(),
             self.threads,
         );
@@ -432,9 +432,9 @@ impl AnalysisEngine {
                 pair_correlation,
                 pair_correlation_curve,
                 anisotropy,
-                wavelet,
-                scalogram,
-                scalogram_curve,
+                multiscale_residual,
+                scale_energy,
+                scale_energy_curve,
                 territories,
                 diagnostics,
                 timings,

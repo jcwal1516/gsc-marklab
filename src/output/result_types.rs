@@ -122,13 +122,13 @@ pub struct MarkedPatternResult {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pair_correlation_curve: Vec<PairCorrelationPoint>,
     pub anisotropy: AnalysisSection<AnisotropySummary>,
-    pub wavelet: AnalysisSection<WaveletSummary>,
+    pub multiscale_residual: AnalysisSection<MultiscaleResidualSummary>,
     #[serde(default)]
-    pub scalogram: AnalysisSection<FunctionalSummary>,
+    pub scale_energy: AnalysisSection<FunctionalSummary>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub scalogram_curve: Vec<ScalogramPoint>,
+    pub scale_energy_curve: Vec<ScaleEnergyPoint>,
     #[serde(default)]
-    pub wavelet_territories: AnalysisSection<Vec<TerritoryFeature>>,
+    pub residual_territories: AnalysisSection<Vec<ResidualTerritory>>,
     #[serde(default)]
     pub registration: AnalysisSection<RegistrationSummary>,
     #[serde(default)]
@@ -164,7 +164,7 @@ pub struct PrePostResult {
     pub delta_low_k_excess: AnalysisSection<f64>,
     pub delta_alpha: AnalysisSection<f64>,
     pub delta_anisotropy_index: AnalysisSection<f64>,
-    pub delta_coarse_variance_fraction: AnalysisSection<f64>,
+    pub delta_block_mean_variance_fraction: AnalysisSection<f64>,
     pub delta_territory_count: AnalysisSection<isize>,
     pub territory_summary: AnalysisSection<TerritoryPrePostSummary>,
     pub interpretation_text: String,
@@ -407,7 +407,19 @@ pub struct TerritoryFeature {
     pub z_or_power: f64,
     pub supporting_cells: usize,
     pub component_id: Option<u32>,
-    pub qc_overlap_fraction: f64,
+    pub qc_overlap_fraction: Option<f64>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ResidualTerritory {
+    pub center_x_um: f64,
+    pub center_y_um: f64,
+    pub radius_um: f64,
+    pub analysis_scale_um: f64,
+    pub residual_score: f64,
+    pub supporting_marked_cells: usize,
+    pub component_id: Option<u32>,
+    pub qc_overlap_fraction: Option<f64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -493,7 +505,7 @@ pub struct GraphSmoothingLabelPairSummary {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct ScalogramPoint {
+pub struct ScaleEnergyPoint {
     pub band: String,
     pub scale_um: f64,
     pub energy_fraction: f64,
@@ -515,13 +527,13 @@ pub struct AnisotropySummary {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct WaveletSummary {
-    pub fine_variance_fraction: f64,
-    pub intermediate_variance_fraction: f64,
-    pub coarse_variance_fraction: f64,
-    pub coarse_to_fine_ratio: Option<f64>,
+pub struct MultiscaleResidualSummary {
+    pub local_difference_energy_fraction: f64,
+    pub residual_energy_fraction: f64,
+    pub block_mean_variance_fraction: f64,
+    pub block_mean_to_local_difference_ratio: Option<f64>,
     pub territory_count: usize,
-    pub coarse_variance_fraction_p_value: AnalysisSection<f64>,
+    pub block_mean_variance_fraction_p_value: AnalysisSection<f64>,
     pub territory_count_p_value: AnalysisSection<f64>,
 }
 

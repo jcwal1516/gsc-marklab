@@ -35,6 +35,69 @@ fn public_api_exposes_engine_config_pattern_and_flags() {
 }
 
 #[test]
+fn marked_result_uses_multiscale_residual_terms_without_obsolete_aliases() {
+    let mut config = AnalysisConfig::default();
+    config.permutation.stratified = false;
+    config.validation.n_min = 4;
+    config.validation.n_marked_min = 1;
+    config.validation.n_unmarked_min = 1;
+    config.validation.area_min_um2 = 1.0;
+    config.validation.k_shell_min = 1;
+    config.spectrum.k_shells = 4;
+    config.spectrum.low_k_shells = 2;
+    config.spectrum.anisotropy_low_k_shells = 2;
+    config.permutation.b = 9;
+    config.inference.family_wise_alpha = 0.25;
+    let engine = AnalysisEngine::new(config).expect("engine");
+    let mut pattern = Pattern::from_arrays(
+        vec![0.0, 1.0, 0.0, 1.0],
+        vec![0.0, 0.0, 1.0, 1.0],
+        vec![1, 0, 0, 1],
+        PatternMeta {
+            case_id: "case_terms".into(),
+            timepoint: "post".into(),
+            protein: "generic".into(),
+            slide_id: None,
+            section_id: None,
+            stain_batch: None,
+            block_id: None,
+            region_id: None,
+        },
+    )
+    .expect("pattern");
+    pattern.window.area_um2 = 4.0;
+    pattern.window.l_eff_um = 2.0;
+    pattern.window.d_nn_mean_um = 1.0;
+
+    let result = engine.analyze_pattern(&pattern).expect("analysis");
+    let json = serde_json::to_value(ResultDocument::marked(result)).expect("serialize result");
+    let result = &json["analysis"]["result"];
+
+    for accurate_name in [
+        "multiscale_residual",
+        "scale_energy",
+        "scale_energy_curve",
+        "residual_territories",
+    ] {
+        assert!(
+            result.get(accurate_name).is_some(),
+            "missing {accurate_name}: {result}"
+        );
+    }
+    for obsolete_name in [
+        "wavelet",
+        "scalogram",
+        "scalogram_curve",
+        "wavelet_territories",
+    ] {
+        assert!(
+            result.get(obsolete_name).is_none(),
+            "obsolete {obsolete_name}"
+        );
+    }
+}
+
+#[test]
 fn public_multimodal_engine_returns_a_distinct_multimodal_result() {
     let mut config = AnalysisConfig::default();
     config.registration.enabled = true;
@@ -78,7 +141,9 @@ fn public_multimodal_engine_returns_a_distinct_multimodal_result() {
     assert!(result.neighborhood_territories.value().is_some());
     let json = serde_json::to_value(ResultDocument::multimodal(result)).expect("serialize");
     assert!(json["analysis"]["result"].get("spectrum").is_none());
-    assert!(json["analysis"]["result"].get("wavelet").is_none());
+    assert!(json["analysis"]["result"]
+        .get("multiscale_residual")
+        .is_none());
 }
 
 #[test]

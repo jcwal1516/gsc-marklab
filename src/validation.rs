@@ -392,7 +392,7 @@ fn summarize_analyses(analyses: &[MarkedPatternResult]) -> SyntheticGeneratorRes
     );
     let mean_territory_count = mean_all_finite(analyses.iter().filter_map(|analysis| {
         analysis
-            .wavelet
+            .multiscale_residual
             .value()
             .map(|value| value.territory_count as f64)
     }));
@@ -428,7 +428,7 @@ fn note_for(generator: &str) -> &'static str {
         "single_matern_cluster" => {
             "cluster-process-like labels should produce residual territories at interpretable scales"
         }
-        "many_small_foci" => "many small foci should increase fine/intermediate spatial structure",
+        "many_small_foci" => "many small foci should increase local-difference or residual scale energy",
         "anisotropic_stripe" => "stripe labels should elevate the anisotropy index",
         "low_k_suppressed_dispersed" => "regularly dispersed labels should suppress low-k power",
         "cell_density_gradient_random_labels" => {

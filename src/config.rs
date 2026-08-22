@@ -12,7 +12,7 @@ pub struct AnalysisConfig {
     pub validation: ValidationSection,
     pub spectrum: SpectrumSection,
     pub periodogram: PeriodogramSection,
-    pub wavelet: WaveletSection,
+    pub multiscale_residual: MultiscaleResidualSection,
     pub permutation: PermutationSection,
     pub inference: InferenceSection,
     #[serde(default)]
@@ -75,7 +75,7 @@ pub struct PeriodogramSection {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct WaveletSection {
+pub struct MultiscaleResidualSection {
     pub enabled: bool,
     pub territory_detection: bool,
     pub min_territory_z: f64,
@@ -348,8 +348,11 @@ impl AnalysisConfig {
         {
             return config_error("spectrum shell subsets must not exceed spectrum.k_shells");
         }
-        if self.wavelet.enabled {
-            positive_finite("wavelet.min_territory_z", self.wavelet.min_territory_z)?;
+        if self.multiscale_residual.enabled {
+            positive_finite(
+                "multiscale_residual.min_territory_z",
+                self.multiscale_residual.min_territory_z,
+            )?;
         }
         if !unit_interval_open(self.inference.family_wise_alpha) {
             return config_error("inference.family_wise_alpha must be finite and inside (0, 1)");
@@ -531,7 +534,7 @@ impl Default for AnalysisConfig {
                 anisotropy_low_k_shells: 5,
             },
             periodogram: PeriodogramSection { enabled: true },
-            wavelet: WaveletSection {
+            multiscale_residual: MultiscaleResidualSection {
                 enabled: true,
                 territory_detection: true,
                 min_territory_z: 2.5,

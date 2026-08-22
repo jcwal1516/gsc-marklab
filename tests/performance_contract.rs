@@ -15,7 +15,7 @@ fn contract_config() -> AnalysisConfig {
     config.permutation.stratified = false;
     config.inference.family_wise_alpha = 0.25;
     config.periodogram.enabled = false;
-    config.wavelet.enabled = false;
+    config.multiscale_residual.enabled = false;
     config.performance.memory_budget_mib = 128;
     config
 }

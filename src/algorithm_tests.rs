@@ -1,5 +1,9 @@
 use crate::{
     data::PatternMeta,
+    multiscale_residual::{
+        energy::relative_scale_energies_from_field, residual_field::standardized_residual,
+        scale_radius::neighborhood_radius_from_scale, territories::detect_residual_territories,
+    },
     periodogram::{
         bartlett::marked_bartlett_periodogram,
         fft2::fft2_power_spectrum,
@@ -7,10 +11,6 @@ use crate::{
         taper::hann_weight,
     },
     spectra::anisotropy::anisotropy_from_weighted_modes,
-    wavelet::{
-        dog::territory_radius_from_scale, modwt::variance_fractions_from_field,
-        residual_field::standardized_residual, territories::detect_residual_territories,
-    },
     Pattern,
 };
 use approx::assert_abs_diff_eq;
@@ -126,9 +126,9 @@ fn standardized_residual_uses_binomial_local_variance() {
 }
 
 #[test]
-fn dog_scale_converts_to_candidate_territory_radius() {
+fn analysis_scale_converts_to_candidate_territory_radius() {
     assert_abs_diff_eq!(
-        territory_radius_from_scale(10.0),
+        neighborhood_radius_from_scale(10.0),
         10.0 * 2.0_f64.sqrt(),
         epsilon = 1e-12
     );
@@ -161,32 +161,32 @@ fn residual_territory_detector_keeps_separated_local_maxima() {
         .any(|territory| territory.center_x_um > 6.0 && territory.center_y_um > 6.0));
     assert!(territories
         .iter()
-        .all(|territory| territory.z_or_power >= 2.0));
+        .all(|territory| territory.residual_score >= 2.0));
 }
 
 #[test]
-fn variance_fractions_identify_fine_checkerboard_structure() {
-    let fractions =
-        variance_fractions_from_field(&[1.0, -1.0, -1.0, 1.0], 2, 2).expect("fractions");
+fn relative_scale_energy_emphasizes_local_differences_for_checkerboard() {
+    let energies = relative_scale_energies_from_field(&[1.0, -1.0, -1.0, 1.0], 2, 2)
+        .expect("relative scale energies");
 
-    assert!(fractions.fine > fractions.coarse);
+    assert!(energies.local_difference > energies.block_mean);
     assert_abs_diff_eq!(
-        fractions.fine + fractions.intermediate + fractions.coarse,
+        energies.local_difference + energies.residual + energies.block_mean,
         1.0,
         epsilon = 1e-6
     );
 }
 
 #[test]
-fn variance_fractions_identify_coarse_gradient_structure() {
-    let fractions = variance_fractions_from_field(
+fn relative_scale_energy_emphasizes_block_means_for_broad_gradient() {
+    let energies = relative_scale_energies_from_field(
         &[
             -1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0,
         ],
         4,
         4,
     )
-    .expect("fractions");
+    .expect("relative scale energies");
 
-    assert!(fractions.coarse > fractions.fine);
+    assert!(energies.block_mean > energies.local_difference);
 }

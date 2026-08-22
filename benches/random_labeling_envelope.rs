@@ -39,7 +39,7 @@ fn bench_marked_analysis_erl_b999(c: &mut Criterion) {
     config.permutation.stratified = false;
     config.inference.family_wise_alpha = if full { 0.05 } else { 0.25 };
     config.periodogram.enabled = false;
-    config.wavelet.enabled = false;
+    config.multiscale_residual.enabled = false;
     config.performance.threads = ThreadSetting::Count(1);
     let engine = AnalysisEngine::new(config).expect("engine");
 

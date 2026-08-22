@@ -12,7 +12,7 @@ pub fn render_analysis_report(result: &MarkedPatternResult) -> String {
         .unwrap_or_else(|| "not available".into());
     let spectrum = result.spectrum.value();
     let anisotropy = result.anisotropy.value();
-    let wavelet = result.wavelet.value();
+    let multiscale_residual = result.multiscale_residual.value();
     let xi = spectrum
         .and_then(|value| value.xi_um)
         .map(|value| format!("{value:.3} um"))
@@ -40,10 +40,10 @@ pub fn render_analysis_report(result: &MarkedPatternResult) -> String {
     let anisotropy_index = anisotropy
         .map(|value| format!("{:.4}", value.index))
         .unwrap_or_else(|| "not available".into());
-    let coarse = wavelet
-        .map(|value| format!("{:.4}", value.coarse_variance_fraction))
+    let block_mean = multiscale_residual
+        .map(|value| format!("{:.4}", value.block_mean_variance_fraction))
         .unwrap_or_else(|| "not available".into());
-    let territories = wavelet
+    let territories = multiscale_residual
         .map(|value| value.territory_count.to_string())
         .unwrap_or_else(|| "not available".into());
 
@@ -59,11 +59,11 @@ Window: L_eff = {l_eff:.3} um, mean nearest-neighbor distance = {dnn:.3} um\n\n\
 Primary endpoint: low-k excess = {low_k}; scalar p-value = {p_global}; null = {null_model}\n\n\
 Spectrum: xi = {xi}; raw k modes = {n_k_modes}; radial shells = {n_shells}; maximum interpretable scale = {max_scale}\n\n\
 Anisotropy: index = {anisotropy}; theta_deg = {theta}; p-value = {anisotropy_p}\n\n\
-Wavelet: coarse variance fraction = {coarse}; candidate MMR-IHC phenotype territories = {territories}\n\n\
+Multiscale residual: block-mean variance fraction = {block_mean}; residual-neighborhood territories = {territories}\n\n\
 Interpretation: {interpretation}\n\n\
 {curve_test_framing}\
 {diagnostics}\
-Scientific framing: This report quantifies section-level spatial organization of configured MMR-IHC labels relative to fixed-position random labeling. It is not molecular confirmation and is not cell tracking.\n",
+Scientific framing: This report quantifies section-level organization of the configured mark field relative to fixed-position random labeling. Domain-specific biological interpretation requires a separate, explicitly scoped policy.\n",
         case_id = result.case_id,
         timepoint = result.timepoint,
         protein = result.protein,
@@ -84,7 +84,7 @@ Scientific framing: This report quantifies section-level spatial organization of
         anisotropy = anisotropy_index,
         theta = theta,
         anisotropy_p = anisotropy_p,
-        coarse = coarse,
+        block_mean = block_mean,
         territories = territories,
         interpretation = result.interpretation.text,
         curve_test_framing = curve_test_framing,

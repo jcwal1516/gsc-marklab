@@ -151,7 +151,7 @@ impl MarkedPatternResult {
         Ok(())
     }
 
-    pub(super) fn write_scalogram_parquet(&self, out: &Path) -> Result<()> {
+    pub(super) fn write_scale_energy_parquet(&self, out: &Path) -> Result<()> {
         use std::{fs::File, sync::Arc};
 
         use arrow::{
@@ -160,10 +160,10 @@ impl MarkedPatternResult {
         };
         use parquet::arrow::arrow_writer::ArrowWriter;
 
-        if self.scalogram_curve.is_empty() {
+        if self.scale_energy_curve.is_empty() {
             return Ok(());
         }
-        let points = &self.scalogram_curve;
+        let points = &self.scale_energy_curve;
         let schema = Arc::new(Schema::new(vec![
             Field::new("band", DataType::Utf8, false),
             Field::new("scale_um", DataType::Float64, false),
@@ -207,7 +207,7 @@ impl MarkedPatternResult {
             ],
         )
         .map_err(|err| MarklabError::Compute(err.to_string()))?;
-        let path = out.join("scalogram.parquet");
+        let path = out.join("scale_energy.parquet");
         let file = File::create(&path).map_err(|source| MarklabError::io(&path, source))?;
         let mut writer = ArrowWriter::try_new(file, schema, None)
             .map_err(|err| MarklabError::Compute(err.to_string()))?;

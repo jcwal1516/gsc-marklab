@@ -43,7 +43,7 @@ fn bench_marked_analysis_structure_factor_n10k_k1k(c: &mut Criterion) {
     config.inference.family_wise_alpha = 0.25;
     config.permutation.stratified = false;
     config.periodogram.enabled = false;
-    config.wavelet.enabled = false;
+    config.multiscale_residual.enabled = false;
     config.performance.threads = ThreadSetting::Count(1);
     let engine = AnalysisEngine::new(config).expect("engine");
 

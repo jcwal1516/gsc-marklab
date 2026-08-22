@@ -23,6 +23,7 @@ mod geom;
 mod inference;
 mod io;
 mod multimodal;
+mod multiscale_residual;
 mod neighborhood;
 mod output;
 mod perf;
@@ -35,7 +36,6 @@ mod registration;
 mod spectra;
 #[cfg(feature = "cli")]
 mod validation;
-mod wavelet;
 #[cfg(feature = "wsi")]
 mod wsi;
 
@@ -46,10 +46,10 @@ pub use cli::run_cli;
 pub use api::AnalysisEngine;
 pub use config::{
     AnalysisConfig, AnalysisConfigSection, ComparisonSection, ComponentMode, DiagnosticsSection,
-    EquivalenceMargins, InferenceSection, NeighborhoodNullModel, NeighborhoodSection,
-    OutputSection, PerformanceSection, PeriodogramSection, PermutationSection, PermutationStratum,
-    RegistrationSection, RegistrationTransform, SpectrumSection, ThreadSetting, ValidationSection,
-    WaveletSection,
+    EquivalenceMargins, InferenceSection, MultiscaleResidualSection, NeighborhoodNullModel,
+    NeighborhoodSection, OutputSection, PerformanceSection, PeriodogramSection, PermutationSection,
+    PermutationStratum, RegistrationSection, RegistrationTransform, SpectrumSection, ThreadSetting,
+    ValidationSection,
 };
 pub use data::{Pattern, PatternMeta, TumorWindow};
 pub use errors::{MarklabError, Result};
@@ -64,11 +64,11 @@ pub use output::{
     CurveTestAvailability, CurveTestResult, DiagnosticsResult,
     EnrichmentStatisticUnavailableReason, FunctionalSummary, FusedCellSummary,
     GraphSmoothingLabelPairSummary, GraphSmoothingSummary, Interpretation, LabelFraction,
-    MarkedPatternResult, MultimodalResult, NeighborhoodEnrichmentResult, OutputManifest,
-    OutputWriter, PairCorrelationPoint, PrePostResult, PrimaryEndpoint, Provenance, QcSummary,
-    RegistrationSummary, ResolvedComponentMode, ResultDocument, ScalogramPoint, SpectrumPoint,
-    SpectrumSummary, StatusFlag, TerritoryFeature, TerritoryPrePostSummary, TerritoryProfile,
-    TimingStage, WaveletSummary, WindowSummary, RESULT_FORMAT_VERSION,
+    MarkedPatternResult, MultimodalResult, MultiscaleResidualSummary, NeighborhoodEnrichmentResult,
+    OutputManifest, OutputWriter, PairCorrelationPoint, PrePostResult, PrimaryEndpoint, Provenance,
+    QcSummary, RegistrationSummary, ResidualTerritory, ResolvedComponentMode, ResultDocument,
+    ScaleEnergyPoint, SpectrumPoint, SpectrumSummary, StatusFlag, TerritoryFeature,
+    TerritoryPrePostSummary, TerritoryProfile, TimingStage, WindowSummary, RESULT_FORMAT_VERSION,
 };
 pub use registration::landmarks::LandmarkPair;
 #[cfg(feature = "wsi")]

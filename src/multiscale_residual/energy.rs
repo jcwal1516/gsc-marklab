@@ -1,17 +1,17 @@
 use crate::common::stats::population_variance;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct VarianceFractions {
-    pub fine: f64,
-    pub intermediate: f64,
-    pub coarse: f64,
+pub struct RelativeScaleEnergies {
+    pub local_difference: f64,
+    pub residual: f64,
+    pub block_mean: f64,
 }
 
-pub fn variance_fractions_from_field(
+pub fn relative_scale_energies_from_field(
     field: &[f32],
     width: usize,
     height: usize,
-) -> Option<VarianceFractions> {
+) -> Option<RelativeScaleEnergies> {
     if width == 0 || height == 0 || field.len() != width.checked_mul(height)? {
         return None;
     }
@@ -24,27 +24,27 @@ pub fn variance_fractions_from_field(
             .as_slice(),
     )?;
     if total <= f64::EPSILON {
-        return Some(VarianceFractions {
-            fine: 0.0,
-            intermediate: 0.0,
-            coarse: 0.0,
+        return Some(RelativeScaleEnergies {
+            local_difference: 0.0,
+            residual: 0.0,
+            block_mean: 0.0,
         });
     }
 
-    let fine_energy = neighbor_difference_energy(field, width, height);
-    let coarse_field = block_means(field, width, height, 2);
-    let coarse_energy = population_variance(&coarse_field)?;
-    let fine_raw = fine_energy / (fine_energy + total);
-    let coarse_raw = coarse_energy / total;
-    let fine = fine_raw.clamp(0.0, 1.0);
-    let coarse = coarse_raw.clamp(0.0, 1.0 - fine);
-    let intermediate = (1.0 - fine - coarse).max(0.0);
-    let sum = fine + intermediate + coarse;
+    let local_difference_energy = neighbor_difference_energy(field, width, height);
+    let block_mean_field = block_means(field, width, height, 2);
+    let block_mean_variance = population_variance(&block_mean_field)?;
+    let local_difference_raw = local_difference_energy / (local_difference_energy + total);
+    let block_mean_raw = block_mean_variance / total;
+    let local_difference = local_difference_raw.clamp(0.0, 1.0);
+    let block_mean = block_mean_raw.clamp(0.0, 1.0 - local_difference);
+    let residual = (1.0 - local_difference - block_mean).max(0.0);
+    let sum = local_difference + residual + block_mean;
 
-    Some(VarianceFractions {
-        fine: fine / sum,
-        intermediate: intermediate / sum,
-        coarse: coarse / sum,
+    Some(RelativeScaleEnergies {
+        local_difference: local_difference / sum,
+        residual: residual / sum,
+        block_mean: block_mean / sum,
     })
 }
 

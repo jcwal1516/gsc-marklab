@@ -66,17 +66,17 @@ fn output_writer_emits_result_manifest_qc_and_timings_json() {
         cfg!(feature = "parquet") && !result.spectrum_curve.is_empty()
     );
     assert_eq!(
-        dir.path().join("scalogram.parquet").exists(),
-        cfg!(feature = "parquet") && !result.scalogram_curve.is_empty()
+        dir.path().join("scale_energy.parquet").exists(),
+        cfg!(feature = "parquet") && !result.scale_energy_curve.is_empty()
     );
     assert_eq!(
         dir.path().join("pair_correlation.parquet").exists(),
         cfg!(feature = "parquet") && !result.pair_correlation_curve.is_empty()
     );
     assert_eq!(
-        dir.path().join("wavelet_territories.geojson").exists(),
+        dir.path().join("residual_territories.geojson").exists(),
         result
-            .wavelet_territories
+            .residual_territories
             .value()
             .is_some_and(|value| !value.is_empty())
     );
@@ -122,11 +122,12 @@ fn output_writer_emits_result_manifest_qc_and_timings_json() {
         assert!(spectrum_svg.contains("<polyline"));
         assert!(spectrum_svg.contains("low-k excess"));
     }
-    if !result.scalogram_curve.is_empty() {
-        let scalogram_svg = fs::read_to_string(dir.path().join("figures").join("scalogram.svg"))
-            .expect("scalogram svg");
-        assert!(scalogram_svg.contains("fine"));
-        assert!(scalogram_svg.contains("coarse"));
+    if !result.scale_energy_curve.is_empty() {
+        let scale_energy_svg =
+            fs::read_to_string(dir.path().join("figures").join("scale_energy.svg"))
+                .expect("scale_energy svg");
+        assert!(scale_energy_svg.contains("local_difference"));
+        assert!(scale_energy_svg.contains("block_mean"));
     }
 
     let result_json = fs::read_to_string(dir.path().join("result.json")).expect("result");
@@ -134,7 +135,7 @@ fn output_writer_emits_result_manifest_qc_and_timings_json() {
     let report = fs::read_to_string(dir.path().join("report.md")).expect("report");
     let report_lower = report.to_lowercase();
     assert!(report_lower.contains("low-k excess"));
-    assert!(report_lower.contains("section-level spatial organization"));
+    assert!(report_lower.contains("section-level organization"));
     assert!(!report_lower.contains("same cells"));
     assert!(!report_lower.contains("directional growth"));
 
@@ -248,7 +249,7 @@ fn output_writer_respects_optional_artifact_flags() {
     assert!(dir.path().join("report.md").exists());
     assert!(!dir.path().join("run_manifest.json").exists());
     assert!(!dir.path().join("spectra.parquet").exists());
-    assert!(!dir.path().join("scalogram.parquet").exists());
+    assert!(!dir.path().join("scale_energy.parquet").exists());
     assert!(!dir.path().join("pair_correlation.parquet").exists());
     assert!(!dir.path().join("territories.geojson").exists());
     assert!(!dir.path().join("figures").exists());
@@ -269,7 +270,7 @@ fn all_result_floats_are_finite() {
     config.permutation.stratified = false;
     config.inference.family_wise_alpha = 0.25;
     config.periodogram.enabled = false;
-    config.wavelet.enabled = false;
+    config.multiscale_residual.enabled = false;
     config.output.write_parquet_curves = false;
     config.output.write_geojson_territories = false;
     config.output.write_figures = false;
@@ -319,9 +320,9 @@ fn territories_geojson_writes_polygon_features_with_required_properties() {
         .analyze_pattern(&clustered)
         .expect("analysis");
     let territories = result
-        .wavelet_territories
+        .residual_territories
         .value()
-        .expect("wavelet territories")
+        .expect("multiscale residual territories")
         .clone();
     assert!(!territories.is_empty());
 
@@ -329,7 +330,7 @@ fn territories_geojson_writes_polygon_features_with_required_properties() {
     OutputWriter::write(&ResultDocument::marked(result), dir.path(), &config.output)
         .expect("write outputs");
     let geojson: Value = serde_json::from_str(
-        &fs::read_to_string(dir.path().join("wavelet_territories.geojson")).expect("territories"),
+        &fs::read_to_string(dir.path().join("residual_territories.geojson")).expect("territories"),
     )
     .expect("geojson");
     let feature = &geojson["features"][0];
@@ -343,6 +344,20 @@ fn territories_geojson_writes_polygon_features_with_required_properties() {
         feature["properties"]["center_y_um"],
         territories[0].center_y_um
     );
+    assert_eq!(
+        feature["properties"]["analysis_scale_um"],
+        territories[0].analysis_scale_um
+    );
+    assert_eq!(
+        feature["properties"]["residual_score"],
+        territories[0].residual_score
+    );
+    assert_eq!(
+        feature["properties"]["supporting_marked_cells"],
+        territories[0].supporting_marked_cells
+    );
+    assert!(feature["properties"]["qc_overlap_fraction"].is_null());
+    assert!(feature["properties"].get("z_or_power").is_none());
     assert_eq!(feature["properties"]["radius_um"], territories[0].radius_um);
     assert!(
         feature["geometry"]["coordinates"][0]
@@ -394,7 +409,7 @@ fn prepost_interpretation_uses_allowed_descriptive_language_only() {
     let delta_json = serde_json::to_value(&delta).expect("delta json");
     assert!(delta_json["curve_tests"].is_array());
 
-    assert!(text.contains("coarse-scale spatial organization"));
+    assert!(text.contains("coarse-scale organization"));
     assert!(!text.contains("same cells"));
     assert!(!text.contains("clone"));
     assert!(!text.contains("directional growth"));

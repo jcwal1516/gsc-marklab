@@ -59,6 +59,15 @@ multiple components and the largest contains less than 80% of cells; otherwise
 it selects `pooled`. Every result records the requested mode, resolved mode, and
 selection reason.
 
+The `[multiscale_residual]` analysis is a three-part heuristic. It computes
+mean squared horizontal/vertical neighbor differences, variance across 2x2
+block means relative to total raster variance, and a normalized residual share.
+These values are not transform coefficients. Residual territories are circular
+marked-cell neighborhoods whose binomial standardized residual exceeds
+`min_territory_z`, followed by greedy overlap suppression. The scale-to-radius
+rule is `radius_um = sqrt(2) * analysis_scale_um`; no Gaussian filtering is
+performed. QC overlap is `null` until an actual overlap calculation exists.
+
 ## Inference
 
 Extreme-rank-length envelopes match CRAN GET 1.0-7 `type="erl"`: the observed
@@ -70,7 +79,7 @@ identical-vector cases.
 
 Scalar alternatives are fixed:
 
-- one-sided high: low-k excess, anisotropy, coarse variance fraction, territory count;
+- one-sided high: low-k excess, anisotropy, block-mean variance fraction, territory count;
 - equal-tail two-sided: `xi_um` and fitted low-k exponent.
 
 All scalar tests use inclusive ties and the plus-one correction. Spectrum
@@ -91,8 +100,8 @@ finite seed space.
 The maximum interpretable scale is
 `largest_interpretable_scale_fraction * L_eff_um`. Spectrum wavelength is
 `2*pi/k`. Only shells whose wavelength is within the limit, pair-correlation
-points whose upper radius is within the limit, and wavelet scales within the
-limit are inference eligible. Curve points may remain in output with
+points whose upper radius is within the limit, and multiscale residual scales
+within the limit are inference eligible. Curve points may remain in output with
 `inference_eligible: false`; they do not affect inference.
 
 ## Configuration 0.2
@@ -103,7 +112,7 @@ controls are:
 
 - `[analysis]`: `mark_label`, probabilistic marks, component mode;
 - `[validation]`: sample, prevalence, area, shell, mask, and scale limits;
-- `[spectrum]`, `[periodogram]`, `[wavelet]`;
+- `[spectrum]`, `[periodogram]`, `[multiscale_residual]`;
 - `[permutation]`: count, seed, stratification, typed strata fields;
 - `[inference]`: `family_wise_alpha`;
 - `[diagnostics]`: default-off beta-binomial and graph-smoothing diagnostics;

@@ -1,21 +1,26 @@
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CandidateTerritory {
+pub struct ResidualTerritoryCandidate {
     pub center_x_um: f64,
     pub center_y_um: f64,
     pub radius_um: f64,
-    pub scale_um: f64,
-    pub z_or_power: f64,
-    pub supporting_cells: usize,
+    pub analysis_scale_um: f64,
+    pub residual_score: f64,
+    pub supporting_marked_cells: usize,
     pub component_id: Option<u32>,
-    pub qc_overlap_fraction: f64,
+    pub qc_overlap_fraction: Option<f64>,
 }
 
 use crate::{
     data::Pattern,
-    wavelet::{dog::territory_radius_from_scale, residual_field::standardized_residual},
+    multiscale_residual::{
+        residual_field::standardized_residual, scale_radius::neighborhood_radius_from_scale,
+    },
 };
 
-pub fn detect_residual_territories(pattern: &Pattern, min_z: f64) -> Vec<CandidateTerritory> {
+pub fn detect_residual_territories(
+    pattern: &Pattern,
+    min_z: f64,
+) -> Vec<ResidualTerritoryCandidate> {
     if pattern.is_empty() || pattern.n_marked() == 0 || pattern.n_unmarked() == 0 {
         return Vec::new();
     }
@@ -23,7 +28,7 @@ pub fn detect_residual_territories(pattern: &Pattern, min_z: f64) -> Vec<Candida
     let scales = territory_scales(pattern);
     let mut candidates = Vec::new();
     for scale_um in scales {
-        let radius_um = territory_radius_from_scale(scale_um);
+        let radius_um = neighborhood_radius_from_scale(scale_um);
         for index in 0..pattern.len() {
             if pattern.mark[index] != 1 {
                 continue;
@@ -36,12 +41,16 @@ pub fn detect_residual_territories(pattern: &Pattern, min_z: f64) -> Vec<Candida
 
     candidates.sort_by(|left, right| {
         right
-            .z_or_power
-            .total_cmp(&left.z_or_power)
-            .then_with(|| right.supporting_cells.cmp(&left.supporting_cells))
+            .residual_score
+            .total_cmp(&left.residual_score)
+            .then_with(|| {
+                right
+                    .supporting_marked_cells
+                    .cmp(&left.supporting_marked_cells)
+            })
     });
 
-    let mut selected: Vec<CandidateTerritory> = Vec::new();
+    let mut selected: Vec<ResidualTerritoryCandidate> = Vec::new();
     for candidate in candidates {
         let overlaps_existing = selected.iter().any(|existing| {
             let dx = existing.center_x_um - candidate.center_x_um;
@@ -59,8 +68,8 @@ pub fn detect_residual_territories(pattern: &Pattern, min_z: f64) -> Vec<Candida
 
 fn territory_scales(pattern: &Pattern) -> Vec<f64> {
     let d_nn = pattern.window.d_nn_mean_um.max(1.0);
-    let coarse = (pattern.window.l_eff_um.max(d_nn) / 8.0).max(d_nn);
-    let mut scales = vec![d_nn, d_nn * 2.0, coarse];
+    let block_mean_scale = (pattern.window.l_eff_um.max(d_nn) / 8.0).max(d_nn);
+    let mut scales = vec![d_nn, d_nn * 2.0, block_mean_scale];
     scales.sort_by(f64::total_cmp);
     scales.dedup_by(|left, right| (*left - *right).abs() < 1.0e-9);
     scales
@@ -72,7 +81,7 @@ fn candidate_at(
     scale_um: f64,
     radius_um: f64,
     min_z: f64,
-) -> Option<CandidateTerritory> {
+) -> Option<ResidualTerritoryCandidate> {
     let center_x = pattern.x_um[index];
     let center_y = pattern.y_um[index];
     let radius2 = radius_um * radius_um;
@@ -111,14 +120,14 @@ fn candidate_at(
         return None;
     }
 
-    Some(CandidateTerritory {
+    Some(ResidualTerritoryCandidate {
         center_x_um: marked_x / marked as f64,
         center_y_um: marked_y / marked as f64,
         radius_um,
-        scale_um,
-        z_or_power: z,
-        supporting_cells: marked,
+        analysis_scale_um: scale_um,
+        residual_score: z,
+        supporting_marked_cells: marked,
         component_id,
-        qc_overlap_fraction: 0.0,
+        qc_overlap_fraction: None,
     })
 }

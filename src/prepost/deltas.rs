@@ -5,8 +5,8 @@ use crate::{
     comparison::{difference::curve_difference_test, equivalence::curve_equivalence_test},
     output::{
         AnalysisSection, CrossInteractionCurve, CurveTestAvailability, CurveTestResult,
-        MarkedPatternResult, MultimodalResult, PrePostResult, StatusFlag, TerritoryFeature,
-        TerritoryPrePostSummary,
+        MarkedPatternResult, MultimodalResult, PrePostResult, ResidualTerritory, StatusFlag,
+        TerritoryFeature, TerritoryPrePostSummary,
     },
 };
 
@@ -29,7 +29,7 @@ pub fn compare_prepost(pre: &MarkedPatternResult, post: &MarkedPatternResult) ->
         status_flags.push(StatusFlag::PrePostNotAnatomicallyComparable);
     }
     let interpretation_text = if anatomically_comparable {
-        "The post-treatment section shows descriptive change in coarse-scale spatial organization of the configured MMR-IHC phenotype compared with the pretreatment section.".into()
+        "The post-treatment section shows descriptive change in coarse-scale organization of the configured mark field compared with the pretreatment section.".into()
     } else {
         "The pre/post sections are not anatomically comparable; numeric deltas are emitted as diagnostics only.".into()
     };
@@ -40,7 +40,8 @@ pub fn compare_prepost(pre: &MarkedPatternResult, post: &MarkedPatternResult) ->
         .map(|summary| summary.delta_count)
         .map_or_else(
             || AnalysisSection::InsufficientData {
-                reason: "wavelet territories are unavailable in one or both results".into(),
+                reason: "multiscale residual territories are unavailable in one or both results"
+                    .into(),
             },
             AnalysisSection::available,
         );
@@ -48,8 +49,8 @@ pub fn compare_prepost(pre: &MarkedPatternResult, post: &MarkedPatternResult) ->
     let post_spectrum = post.spectrum.value();
     let pre_anisotropy = pre.anisotropy.value();
     let post_anisotropy = post.anisotropy.value();
-    let pre_wavelet = pre.wavelet.value();
-    let post_wavelet = post.wavelet.value();
+    let pre_multiscale_residual = pre.multiscale_residual.value();
+    let post_multiscale_residual = post.multiscale_residual.value();
 
     PrePostResult {
         status_flags,
@@ -74,10 +75,10 @@ pub fn compare_prepost(pre: &MarkedPatternResult, post: &MarkedPatternResult) ->
             post_anisotropy.map(|value| value.index),
             "anisotropy is unavailable in one or both results",
         ),
-        delta_coarse_variance_fraction: numeric_delta(
-            pre_wavelet.map(|value| value.coarse_variance_fraction),
-            post_wavelet.map(|value| value.coarse_variance_fraction),
-            "wavelet analysis is unavailable in one or both results",
+        delta_block_mean_variance_fraction: numeric_delta(
+            pre_multiscale_residual.map(|value| value.block_mean_variance_fraction),
+            post_multiscale_residual.map(|value| value.block_mean_variance_fraction),
+            "multiscale residual analysis is unavailable in one or both results",
         ),
         delta_territory_count,
         territory_summary,
@@ -123,7 +124,7 @@ pub fn compare_multimodal_prepost(
         delta_low_k_excess: AnalysisSection::NotApplicable,
         delta_alpha: AnalysisSection::NotApplicable,
         delta_anisotropy_index: AnalysisSection::NotApplicable,
-        delta_coarse_variance_fraction: AnalysisSection::NotApplicable,
+        delta_block_mean_variance_fraction: AnalysisSection::NotApplicable,
         delta_territory_count,
         territory_summary,
         interpretation_text: if anatomically_comparable {
@@ -399,15 +400,15 @@ fn territory_prepost_summary(
     post: &MarkedPatternResult,
 ) -> AnalysisSection<TerritoryPrePostSummary> {
     territory_prepost_summary_from_slices(
-        pre.wavelet_territories.value().map(Vec::as_slice),
-        post.wavelet_territories.value().map(Vec::as_slice),
-        "wavelet territories are unavailable in one or both results",
+        pre.residual_territories.value().map(Vec::as_slice),
+        post.residual_territories.value().map(Vec::as_slice),
+        "multiscale residual territories are unavailable in one or both results",
     )
 }
 
-fn territory_prepost_summary_from_slices(
-    pre_territories: Option<&[TerritoryFeature]>,
-    post_territories: Option<&[TerritoryFeature]>,
+fn territory_prepost_summary_from_slices<T: TerritorySummaryView>(
+    pre_territories: Option<&[T]>,
+    post_territories: Option<&[T]>,
     unavailable_reason: &str,
 ) -> AnalysisSection<TerritoryPrePostSummary> {
     let (Some(pre_territories), Some(post_territories)) = (pre_territories, post_territories)
@@ -447,50 +448,93 @@ fn territory_prepost_summary_from_slices(
     })
 }
 
-fn mean_territory_radius(territories: &[TerritoryFeature]) -> Option<f64> {
-    mean_all_finite(territories.iter().map(|territory| territory.radius_um))
+fn mean_territory_radius(territories: &[impl TerritorySummaryView]) -> Option<f64> {
+    mean_all_finite(territories.iter().map(TerritorySummaryView::radius_um))
 }
 
-fn median_territory_radius(territories: &[TerritoryFeature]) -> Option<f64> {
+fn median_territory_radius(territories: &[impl TerritorySummaryView]) -> Option<f64> {
     let mut values = territories
         .iter()
-        .map(|territory| territory.radius_um)
+        .map(TerritorySummaryView::radius_um)
         .collect::<Vec<_>>();
     median_average_even(&mut values)
 }
 
-fn mean_supporting_cells(territories: &[TerritoryFeature]) -> Option<f64> {
+fn mean_supporting_cells(territories: &[impl TerritorySummaryView]) -> Option<f64> {
     mean_all_finite(
         territories
             .iter()
-            .map(|territory| territory.supporting_cells as f64),
+            .map(|territory| territory.supporting_cells() as f64),
     )
 }
 
-fn median_supporting_cells(territories: &[TerritoryFeature]) -> Option<f64> {
+fn median_supporting_cells(territories: &[impl TerritorySummaryView]) -> Option<f64> {
     let mut values = territories
         .iter()
-        .map(|territory| territory.supporting_cells as f64)
+        .map(|territory| territory.supporting_cells() as f64)
         .collect::<Vec<_>>();
     median_average_even(&mut values)
 }
 
-fn unmatched_domain_count(query: &[TerritoryFeature], reference: &[TerritoryFeature]) -> usize {
+fn unmatched_domain_count<T: TerritorySummaryView>(query: &[T], reference: &[T]) -> usize {
     query
         .iter()
         .filter(|territory| {
             !reference
                 .iter()
-                .any(|candidate| domains_match(territory, candidate))
+                .any(|candidate| domains_match(*territory, candidate))
         })
         .count()
 }
 
-fn domains_match(left: &TerritoryFeature, right: &TerritoryFeature) -> bool {
-    let dx = left.center_x_um - right.center_x_um;
-    let dy = left.center_y_um - right.center_y_um;
-    let tolerance = left.radius_um.max(right.radius_um);
+fn domains_match(left: &impl TerritorySummaryView, right: &impl TerritorySummaryView) -> bool {
+    let dx = left.center_x_um() - right.center_x_um();
+    let dy = left.center_y_um() - right.center_y_um();
+    let tolerance = left.radius_um().max(right.radius_um());
     dx.hypot(dy) <= tolerance
+}
+
+trait TerritorySummaryView {
+    fn center_x_um(&self) -> f64;
+    fn center_y_um(&self) -> f64;
+    fn radius_um(&self) -> f64;
+    fn supporting_cells(&self) -> usize;
+}
+
+impl TerritorySummaryView for ResidualTerritory {
+    fn center_x_um(&self) -> f64 {
+        self.center_x_um
+    }
+
+    fn center_y_um(&self) -> f64 {
+        self.center_y_um
+    }
+
+    fn radius_um(&self) -> f64 {
+        self.radius_um
+    }
+
+    fn supporting_cells(&self) -> usize {
+        self.supporting_marked_cells
+    }
+}
+
+impl TerritorySummaryView for TerritoryFeature {
+    fn center_x_um(&self) -> f64 {
+        self.center_x_um
+    }
+
+    fn center_y_um(&self) -> f64 {
+        self.center_y_um
+    }
+
+    fn radius_um(&self) -> f64 {
+        self.radius_um
+    }
+
+    fn supporting_cells(&self) -> usize {
+        self.supporting_cells
+    }
 }
 
 fn spectrum_axes_aligned(

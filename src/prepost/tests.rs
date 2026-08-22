@@ -3,9 +3,9 @@ use crate::{
     prepost::deltas::compare_prepost,
     AnalysisSection, AnisotropySummary, ComponentMode, ComponentModeSelection,
     CrossInteractionCurve, CurveTestAvailability, FunctionalSummary, Interpretation,
-    MarkedPatternResult, PairCorrelationPoint, PrimaryEndpoint, QcSummary, ResolvedComponentMode,
-    ScalogramPoint, SpectrumPoint, SpectrumSummary, TerritoryFeature, WaveletSummary,
-    WindowSummary,
+    MarkedPatternResult, MultiscaleResidualSummary, PairCorrelationPoint, PrimaryEndpoint,
+    QcSummary, ResidualTerritory, ResolvedComponentMode, ScaleEnergyPoint, SpectrumPoint,
+    SpectrumSummary, WindowSummary,
 };
 
 fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResult {
@@ -59,18 +59,18 @@ fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResul
             theta_deg: None,
             p_value: Some(1.0),
         }),
-        wavelet: AnalysisSection::available(WaveletSummary {
-            fine_variance_fraction: 0.0,
-            intermediate_variance_fraction: 0.0,
-            coarse_variance_fraction: 0.0,
-            coarse_to_fine_ratio: None,
+        multiscale_residual: AnalysisSection::available(MultiscaleResidualSummary {
+            local_difference_energy_fraction: 0.0,
+            residual_energy_fraction: 0.0,
+            block_mean_variance_fraction: 0.0,
+            block_mean_to_local_difference_ratio: None,
             territory_count: 0,
-            coarse_variance_fraction_p_value: AnalysisSection::available(1.0),
+            block_mean_variance_fraction_p_value: AnalysisSection::available(1.0),
             territory_count_p_value: AnalysisSection::available(1.0),
         }),
-        scalogram: AnalysisSection::available(FunctionalSummary::default()),
-        scalogram_curve: Vec::<ScalogramPoint>::new(),
-        wavelet_territories: AnalysisSection::available(Vec::new()),
+        scale_energy: AnalysisSection::available(FunctionalSummary::default()),
+        scale_energy_curve: Vec::<ScaleEnergyPoint>::new(),
+        residual_territories: AnalysisSection::available(Vec::new()),
         component_mode_selection: ComponentModeSelection {
             requested: ComponentMode::Pooled,
             selected: ResolvedComponentMode::Pooled,
@@ -94,16 +94,16 @@ fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResul
     }
 }
 
-fn territory(center_x_um: f64) -> TerritoryFeature {
-    TerritoryFeature {
+fn territory(center_x_um: f64) -> ResidualTerritory {
+    ResidualTerritory {
         center_x_um,
         center_y_um: 0.0,
         radius_um: 10.0,
-        scale_um: 7.0,
-        z_or_power: 2.0,
-        supporting_cells: 2,
+        analysis_scale_um: 7.0,
+        residual_score: 2.0,
+        supporting_marked_cells: 2,
         component_id: None,
-        qc_overlap_fraction: 0.0,
+        qc_overlap_fraction: None,
     }
 }
 
@@ -258,8 +258,8 @@ fn prepost_result_includes_multimodal_cross_interaction_tests_and_territory_delt
         ],
         p_global: Some(0.25),
     }]);
-    pre.wavelet_territories = AnalysisSection::available(vec![territory(0.0)]);
-    post.wavelet_territories = AnalysisSection::available(vec![territory(0.0), territory(50.0)]);
+    pre.residual_territories = AnalysisSection::available(vec![territory(0.0)]);
+    post.residual_territories = AnalysisSection::available(vec![territory(0.0), territory(50.0)]);
 
     let delta = compare_prepost(&pre, &post);
 

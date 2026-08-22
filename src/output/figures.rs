@@ -60,8 +60,8 @@ pub(super) fn render_anisotropy_svg(result: &MarkedPatternResult) -> String {
     )
 }
 
-pub(super) fn render_scalogram_svg(result: &MarkedPatternResult) -> String {
-    let points = &result.scalogram_curve;
+pub(super) fn render_scale_energy_svg(result: &MarkedPatternResult) -> String {
+    let points = &result.scale_energy_curve;
     let max_energy = points
         .iter()
         .map(|point| point.energy_fraction)
@@ -80,14 +80,14 @@ pub(super) fn render_scalogram_svg(result: &MarkedPatternResult) -> String {
     }
 
     format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 160"><title>marklab scalogram</title><rect width="340" height="160" fill="white"/><text x="14" y="22">variance fractions</text><line x1="36" y1="126" x2="316" y2="126" stroke="#333"/>{bars}</svg>"##,
+        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 160"><title>marklab scale energy</title><rect width="340" height="160" fill="white"/><text x="14" y="22">relative scale energy</text><line x1="36" y1="126" x2="316" y2="126" stroke="#333"/>{bars}</svg>"##,
         bars = bars
     )
 }
 
 pub(super) fn render_territory_overlay_svg(result: &MarkedPatternResult) -> String {
     let territories = result
-        .wavelet_territories
+        .residual_territories
         .value()
         .expect("territory figure requires available territories");
     let mut circles = String::new();
@@ -178,18 +178,18 @@ pub(super) fn write(result: &MarkedPatternResult, out: &Path) -> Result<()> {
             .map_err(|source| MarklabError::io(&anisotropy_path, source))?;
     }
 
-    if !result.scalogram_curve.is_empty() {
-        let scalogram_path = figures.join("scalogram.svg");
-        std::fs::write(&scalogram_path, render_scalogram_svg(result))
-            .map_err(|source| MarklabError::io(&scalogram_path, source))?;
+    if !result.scale_energy_curve.is_empty() {
+        let scale_energy_path = figures.join("scale_energy.svg");
+        std::fs::write(&scale_energy_path, render_scale_energy_svg(result))
+            .map_err(|source| MarklabError::io(&scale_energy_path, source))?;
     }
 
     if result
-        .wavelet_territories
+        .residual_territories
         .value()
         .is_some_and(|territories| !territories.is_empty())
     {
-        let territory_path = figures.join("wavelet_territory_overlay.svg");
+        let territory_path = figures.join("residual_territory_overlay.svg");
         std::fs::write(&territory_path, render_territory_overlay_svg(result))
             .map_err(|source| MarklabError::io(&territory_path, source))?;
     }

@@ -19,6 +19,7 @@ use crate::{
         cell_table::{CellSection, FusedCell, HeCell, IhcCell},
         MultimodalEngine, MultimodalInput,
     },
+    multiscale_residual::territories::detect_residual_territories,
     neighborhood::{
         graph::{build_spatial_graph, GraphConfig},
         profiles::territory_profiles,
@@ -34,7 +35,6 @@ use crate::{
             SpectrumPermutationOptions,
         },
     },
-    wavelet::territories::detect_residual_territories,
     AnalysisEngine,
 };
 
@@ -395,7 +395,7 @@ fn baseline_perf_territories_and_profiles() {
                 z_or_power: 1.0,
                 supporting_cells: 1,
                 component_id: Some(index),
-                qc_overlap_fraction: 0.0,
+                qc_overlap_fraction: None,
             })
             .collect::<Vec<_>>();
         measure_case(

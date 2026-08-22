@@ -13,10 +13,10 @@ pub use result_types::{
     CurveTestAvailability, CurveTestResult, DiagnosticsResult,
     EnrichmentStatisticUnavailableReason, FunctionalSummary, FusedCellSummary,
     GraphSmoothingLabelPairSummary, GraphSmoothingSummary, Interpretation, LabelFraction,
-    MarkedPatternResult, MultimodalResult, NeighborhoodEnrichmentResult, OutputManifest,
-    PairCorrelationPoint, PrePostResult, PrimaryEndpoint, Provenance, QcSummary,
-    RegistrationSummary, ResolvedComponentMode, ResultDocument, ScalogramPoint, SpectrumPoint,
-    SpectrumSummary, StatusFlag, TerritoryFeature, TerritoryPrePostSummary, TerritoryProfile,
-    TimingStage, WaveletSummary, WindowSummary, RESULT_FORMAT_VERSION,
+    MarkedPatternResult, MultimodalResult, MultiscaleResidualSummary, NeighborhoodEnrichmentResult,
+    OutputManifest, PairCorrelationPoint, PrePostResult, PrimaryEndpoint, Provenance, QcSummary,
+    RegistrationSummary, ResidualTerritory, ResolvedComponentMode, ResultDocument,
+    ScaleEnergyPoint, SpectrumPoint, SpectrumSummary, StatusFlag, TerritoryFeature,
+    TerritoryPrePostSummary, TerritoryProfile, TimingStage, WindowSummary, RESULT_FORMAT_VERSION,
 };
 pub use writer::OutputWriter;

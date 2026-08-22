@@ -91,7 +91,7 @@ name = "periodogram"
 harness = false
 
 [[bench]]
-name = "wavelet"
+name = "multiscale_residual"
 harness = false
 
 [[bench]]

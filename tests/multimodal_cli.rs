@@ -193,7 +193,7 @@ fn multimodal_report_uses_multimodal_wording_without_single_modality_placeholder
     assert!(report.contains("not same-cell matches"));
     assert!(!report.contains("same physical cells"));
     assert!(!report.contains("Spectrum:"));
-    assert!(!report.contains("Wavelet:"));
+    assert!(!report.contains("Multiscale residual:"));
     assert!(!report.contains("Primary endpoint: low-k excess"));
     assert!(!report.contains("marked, p_hat"));
     assert!(!report.to_lowercase().contains("clonality"));

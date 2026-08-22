@@ -194,7 +194,7 @@ fn territory_from_component(
         z_or_power: supporting_cells as f64,
         supporting_cells,
         component_id: Some(component_id as u32),
-        qc_overlap_fraction: 0.0,
+        qc_overlap_fraction: None,
     }
 }
 

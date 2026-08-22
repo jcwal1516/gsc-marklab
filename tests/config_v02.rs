@@ -121,3 +121,16 @@ threads = 4
         .expect_err("unsupported transform");
     assert!(invalid.to_string().contains("registration.transform"));
 }
+
+#[test]
+fn config_uses_multiscale_residual_terms_without_obsolete_aliases() {
+    let config = AnalysisConfig::from_toml_overrides(
+        "[multiscale_residual]\nenabled = false\nterritory_detection = false\nmin_territory_z = 3.0",
+    )
+    .expect("accurately named multiscale residual section");
+    let value = toml::Value::try_from(&config).expect("serialize config");
+
+    assert!(value.get("multiscale_residual").is_some());
+    assert!(value.get("wavelet").is_none());
+    assert!(AnalysisConfig::from_toml_overrides("[wavelet]\nenabled = false").is_err());
+}
