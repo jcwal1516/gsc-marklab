@@ -1,23 +1,23 @@
 # Implementation status
 
-Last updated: 2026-08-23T05:35:06-04:00
+Last updated: 2026-08-23T06:42:40-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Committed baseline before the current checkpoint: `55d1c8b8a07b2dbf40f77b5590127456f9042295`
+- Committed baseline before the current checkpoint: `e3dadae179957d7d4704a00531ed07f29b919934`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
-- Current phase/workstream/task: Phase 2 / WS-C / C-05 contract activation after C-04 closure
+- Current phase/workstream/task: Phase 2 / WS-C / C-05 behavior-first implementation after contract freeze
 
 ## Requirements
 
 - Completed: `A-01`, `A-02`, `A-03`, `B-01`, `B-02`, `B-03`, `B-04`, `C-01`, `C-02`, `C-03`, `C-04`, `EMB-CORE`, `FND-01`, `SLIDE-INV`, `WS-A`, `WS-B`, `WS-10`, `WS-20`, `WS-21`
-- Active: `DATA-01`, `FND-05`, `COH-01`, `PLAT-01`, `WF-01`, `WS-11`, `WS-12`, `WS-24`
-- Planned next: `C-05`–`C-06`
+- Active: `C-05`, `EMB-PATCH`, `DATA-01`, `FND-05`, `COH-01`, `PLAT-01`, `WF-01`, `WS-11`, `WS-12`, `WS-24`
+- Planned next: `C-06`
 
 ## Command state
 
@@ -30,7 +30,12 @@ Last updated: 2026-08-23T05:35:06-04:00
 
 - C-04 delivers exact cell-table/validity/expected/identity/context/link/provenance owners, bounded non-pickle source import, embedding-specific Arrow/Parquet validation/publication/scans, fuzz/differential/resource evidence, and pinned scale workloads.
 - The authorized 32-bundle source profile reconciles exactly but remains aggregate-only and non-promotable because `canonical_identity_mapping`, `input_normalization_and_run_configuration`, `reviewed_source_snapshot`, and `license_record` are absent.
-- C-05 is next in dependency order. It must freeze patch/region/slide embedding tables and `CellPatchLink` semantics against the actual inventory without inventing vectors, overlap identity, or observation windows.
+- C-05's frozen contract owns typed per-slide patch/region/slide tables, once-per-patch support and overlap clusters, explicit zero-state cell assignments plus vector-free edges, declared patch-region overlap, an acyclic direct-patch/derived-region/derived-slide graph, and eight exact Arrow/Parquet profile families. Dual independent review approved the corrected semantic, digest, resource, physical, compatibility, and claim boundaries; no production C-05 edit has begun.
+- A later aggregate/header audit found candidate patch-feature matrices at widths 384 and 1,024 plus patch image/coordinate containers. It found no promotable patch/region/slide table or canonical link. The evidence has no pinned digest and no production source grammar; the validation ledger records the exact claim ceiling and one bounded recursive-key-output audit defect.
+
+## Dirty files and reason
+
+- C-05 contract freeze only: frozen task contract/accepted DEC-0032–0034/ownership/interface; current inventory qualification in repository map, prior-inventory handoff, and append-only validation evidence. No production source, test, manifest, dependency, or lockfile is dirty.
 
 ## Recent decisions
 
@@ -58,24 +63,28 @@ Last updated: 2026-08-23T05:35:06-04:00
 - Accepted `DEC-0029`: use the stable cached-metadata Parquet builder with exact row-group selection and a checked virtual row-group window after bounded raw validation; do not enable Parquet's broad experimental feature.
 - Accepted `DEC-0030`: freeze block/scan exposure, benchmark profile selection, fixed arithmetic/order/checksum semantics, DHAT ownership, and the host RSS threshold before implementing scale evidence.
 - Accepted `DEC-0031`: freeze deterministic fixture values, the observable 4,096-row random-access reduction, both profile goldens, and current-binary runtime RSS separately from cold compile/link memory.
+- Accepted `DEC-0032`: distinct typed multiscale tables over a sealed private core; preserve C-04 behavior/goldens.
+- Accepted `DEC-0033`: own exact patch support/overlap once; explicit grouped cell assignments and vector-free links; region overlap remains declared pending FND-02 geometry.
+- Accepted `DEC-0034`: record candidate patch features as inventory-only evidence and require eight narrow C-05 Arrow/Parquet profile families without admitting a real source adapter.
 
 ## Unresolved questions
 
 - Thirty-two authorized Schürch NPY/CSV source bundles have explicit unique source-local identifiers and exact native/embedding row alignment, but no reviewed mapping into canonical typed `CellId`/hierarchy membership; three later aggregate arrays reuse source rows and are not canonical raw sources.
 - The source code establishes CellViT-SAM-H layer-32 `z4` extraction and bounding-box token-mean pooling, but complete checkpoint-run input normalization/source-license provenance remains unavailable without a separately reviewed manifest.
-- Canonical patch embeddings and `CellPatchLink`; patch images/metadata exist but vectors/links were not found.
+- Candidate patch vectors exist, but there is no reviewed canonical `PatchId` mapping, exact C-02 frame/transform, stride/overlap/receptive field, observation support, complete provenance, canonical patch table, or `CellPatchLink`.
+- Region-path candidates are cell-row or unbound bundles, and the slide-path candidate is multirow; no admissible region/slide source profile exists.
 - Exact sampled-patch observation windows/tissue masks; the full WSI is not the honest inference window.
 - Seven-slide CPTAC advertised/accessibility discrepancy and the recorded adapter wrapper failure/promotion deviation.
 - Authorized internal-crate versioning and dependency-ordered publication are required before the unpatched workspace package gate can become release-ready.
 
 ## Next three exact actions
 
-1. Commit the reviewed C-04 closure handoff and ledger/requirements/interface/claims updates.
-2. Freeze the C-05 task contract against the authorized patch/region/slide inventory and C-04/C-02 owners.
-3. Implement C-05 behavior-first without promoting absent patch vectors or inferring sampled observation windows.
+1. Commit the documentation-only C-05 contract/inventory checkpoint with a clean worktree.
+2. Add `tests/multiscale_embedding_tables.rs` and run the exact focused command red for missing public owners.
+3. Implement only the expected-set/context/support/table slice, then rerun the focused contract green before adding links or physical formats.
 
 Next exact verification command:
 
 ```bash
-rg -n "C-05|CellPatchLink|patch embedding|sampled-patch" docs/implementation crates tests
+cargo +1.96.0 test --locked --test multiscale_embedding_tables
 ```

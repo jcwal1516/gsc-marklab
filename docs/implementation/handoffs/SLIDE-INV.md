@@ -368,3 +368,7 @@ Complete WS-B, then freeze C-01/C-03/C-04 contracts against these manifests befo
 - Duplicate canonical implementation introduced: no.
 - Unsupported claim introduced: no.
 - Worktree status: repository content unchanged by this task; lead-owned WS-A documentation remained the only dirty scope.
+
+## 2026-08-23 C-05 evidence qualification
+
+The original inventory statement “patch embeddings/links were not found” is retained above as historical checkpoint wording. A later allowlisted aggregate/header audit found candidate C-order `f32` patch-feature matrices at widths 384 and 1,024 plus patch image/coordinate containers. It still found no canonical or promotable `PatchEmbeddingTable`, `CellPatchLink`, or `PatchRegionLink`, and no admissible region- or slide-level table. Exact missing identity, frame, stride/overlap, receptive-field, observation-support, and provenance evidence is recorded in `VALIDATION_LEDGER.md` and the C-05 task contract. No real artifact was promoted.
