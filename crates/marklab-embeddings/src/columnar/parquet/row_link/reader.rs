@@ -16,7 +16,7 @@ use parquet::{
     file::metadata::RowGroupMetaData,
 };
 
-use crate::{CellEmbeddingRowLink, ExpectedCellSet};
+use crate::{CellEmbeddingRowLink, ExpectedCellSet, VerifiedCellEmbeddingRowLinkArtifact};
 
 use super::{
     super::{profile::ROW_GROUP_ROWS, reader::RowGroupWindow},
@@ -88,6 +88,38 @@ pub fn validate_cell_embedding_row_link_parquet_from_store(
         validate_preflight_identity(&prepared, record)?;
         decode_row_link_parquet(reader, row_link, prepared, budgets)
     })
+}
+
+/// Fully verify borrowed Parquet row-link bytes and return an exact artifact-bound receipt.
+pub fn verify_cell_embedding_row_link_parquet_bytes(
+    bytes: &[u8],
+    record: &ArtifactRecord,
+    expected: &ExpectedCellSet,
+    row_link: &CellEmbeddingRowLink,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<VerifiedCellEmbeddingRowLinkArtifact, EmbeddingColumnarError> {
+    validate_cell_embedding_row_link_parquet_bytes(bytes, record, expected, row_link, budgets)?;
+    Ok(VerifiedCellEmbeddingRowLinkArtifact::new(
+        record.id(),
+        row_link,
+    ))
+}
+
+/// Fully verify a managed Parquet row link and return an exact artifact-bound receipt.
+pub fn verify_cell_embedding_row_link_parquet_from_store(
+    store: &LocalArtifactStore,
+    record: &ArtifactRecord,
+    expected: &ExpectedCellSet,
+    row_link: &CellEmbeddingRowLink,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<VerifiedCellEmbeddingRowLinkArtifact, VerifiedReaderError<EmbeddingColumnarError>> {
+    validate_cell_embedding_row_link_parquet_from_store(
+        store, record, expected, row_link, budgets,
+    )?;
+    Ok(VerifiedCellEmbeddingRowLinkArtifact::new(
+        record.id(),
+        row_link,
+    ))
 }
 
 fn validate_preflight_identity(

@@ -11,5 +11,7 @@ pub use publication::publish_cell_embedding_row_link_parquet;
 pub use reader::{
     validate_cell_embedding_row_link_parquet_bytes,
     validate_cell_embedding_row_link_parquet_from_store,
+    verify_cell_embedding_row_link_parquet_bytes,
+    verify_cell_embedding_row_link_parquet_from_store,
 };
 pub use writer::write_cell_embedding_row_link_parquet;

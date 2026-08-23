@@ -3,6 +3,7 @@
 use std::{
     fs,
     io::{self, Write},
+    ops::Range,
     process::Command,
     str::FromStr,
 };
@@ -17,6 +18,7 @@ use marklab::{
     ExpectedCellSet, HierarchyId, HierarchyNode, LocalArtifactStore, PatientId,
     PublicationDisposition, ReplicationRole, SlideId, StoreId, TableFormat, VerifiedReaderError,
 };
+use parquet::file::metadata::ParquetMetaDataReader;
 use proptest::prelude::*;
 use tempfile::TempDir;
 
@@ -68,6 +70,28 @@ fn replace_all_same_length(bytes: &mut [u8], from: &[u8], to: &[u8]) -> usize {
         bytes[*offset..*offset + to.len()].copy_from_slice(to);
     }
     offsets.len()
+}
+
+fn column_chunk_range(bytes: &[u8], column_index: usize) -> Range<usize> {
+    let mut file = tempfile::tempfile().expect("temporary Parquet file");
+    file.write_all(bytes).expect("write temporary Parquet");
+    let metadata = ParquetMetaDataReader::new()
+        .parse_and_finish(&file)
+        .expect("parse trusted fixture metadata");
+    let (start, length) = metadata.row_group(0).column(column_index).byte_range();
+    let start = usize::try_from(start).expect("column start");
+    let length = usize::try_from(length).expect("column length");
+    start..start.checked_add(length).expect("column end")
+}
+
+fn unique_pattern_offset(bytes: &[u8], range: Range<usize>, pattern: [u8; 8]) -> usize {
+    let offsets = bytes[range.clone()]
+        .windows(pattern.len())
+        .enumerate()
+        .filter_map(|(offset, window)| (window == pattern).then_some(range.start + offset))
+        .collect::<Vec<_>>();
+    assert_eq!(offsets.len(), 1, "unique PLAIN value in selected chunk");
+    offsets[0]
 }
 
 fn fixture() -> (ExpectedCellSet, CellEmbeddingRowLink) {
@@ -453,6 +477,38 @@ fn borrowed_and_managed_row_link_parquet_reject_the_same_hostile_page_header() {
 }
 
 #[test]
+fn row_link_parquet_managed_reader_prioritizes_store_integrity_failure() {
+    let root = TempDir::new().expect("store root");
+    let store = LocalArtifactStore::open(
+        root.path(),
+        StoreId::new("row-link-parquet-integrity").expect("store ID"),
+    )
+    .expect("store");
+    let (expected, row_link) = fixture();
+    let publication = publish_cell_embedding_row_link_parquet(&store, &row_link, budgets())
+        .expect("publish row link");
+    let path = root
+        .path()
+        .join(publication.record().locations()[0].key().as_str());
+    let mut bytes = fs::read(&path).expect("managed row-link bytes");
+    bytes[0] ^= 1;
+    fs::write(path, bytes).expect("tamper managed row link");
+
+    assert!(matches!(
+        validate_cell_embedding_row_link_parquet_from_store(
+            &store,
+            publication.record(),
+            &expected,
+            &row_link,
+            budgets(),
+        ),
+        Err(VerifiedReaderError::Store(
+            marklab::ArtifactStoreError::ContentIntegrity { .. }
+        ))
+    ));
+}
+
+#[test]
 fn row_link_parquet_reader_rejects_cell_and_source_row_drift_after_preflight() {
     let root = TempDir::new().expect("store root");
     let store = LocalArtifactStore::open(
@@ -496,12 +552,12 @@ fn row_link_parquet_reader_rejects_cell_and_source_row_drift_after_preflight() {
         })
     ));
 
-    let source_pattern = 2_u64.to_le_bytes();
-    let source_offset = canonical
-        .windows(source_pattern.len())
-        .position(|window| window == source_pattern)
-        .expect("source-cell PLAIN value");
-    let mut wrong_source = canonical;
+    let source_offset = unique_pattern_offset(
+        &canonical,
+        column_chunk_range(&canonical, 1),
+        2_u64.to_le_bytes(),
+    );
+    let mut wrong_source = canonical.clone();
     wrong_source[source_offset..source_offset + 8].copy_from_slice(&9_u64.to_le_bytes());
     assert!(matches!(
         validate_cell_embedding_row_link_parquet_bytes(
@@ -513,6 +569,26 @@ fn row_link_parquet_reader_rejects_cell_and_source_row_drift_after_preflight() {
         ),
         Err(EmbeddingColumnarError::Parquet {
             reason: marklab::ParquetFailure::InvalidComponent,
+        })
+    ));
+
+    let embedding_offset = unique_pattern_offset(
+        &canonical,
+        column_chunk_range(&canonical, 2),
+        1_u64.to_le_bytes(),
+    );
+    let mut wrong_embedding = canonical;
+    wrong_embedding[embedding_offset..embedding_offset + 8].copy_from_slice(&9_u64.to_le_bytes());
+    assert!(matches!(
+        validate_cell_embedding_row_link_parquet_bytes(
+            &wrong_embedding,
+            &record_for_bytes(publication.record(), &wrong_embedding),
+            &expected,
+            &row_link,
+            budgets(),
+        ),
+        Err(EmbeddingColumnarError::Parquet {
+            reason: marklab::ParquetFailure::InvalidStatus,
         })
     ));
 }

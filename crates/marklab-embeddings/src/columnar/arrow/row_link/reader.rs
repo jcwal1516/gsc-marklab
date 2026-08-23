@@ -7,7 +7,7 @@ use marklab_project::{
     VerifiedReaderError,
 };
 
-use crate::{CellEmbeddingRowLink, ExpectedCellSet};
+use crate::{CellEmbeddingRowLink, ExpectedCellSet, VerifiedCellEmbeddingRowLinkArtifact};
 
 use super::{
     super::{
@@ -75,6 +75,36 @@ pub fn validate_cell_embedding_row_link_arrow_from_store(
     })
 }
 
+/// Fully verify borrowed Arrow row-link bytes and return an exact artifact-bound receipt.
+pub fn verify_cell_embedding_row_link_arrow_bytes(
+    bytes: &[u8],
+    record: &ArtifactRecord,
+    expected: &ExpectedCellSet,
+    row_link: &CellEmbeddingRowLink,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<VerifiedCellEmbeddingRowLinkArtifact, EmbeddingColumnarError> {
+    validate_cell_embedding_row_link_arrow_bytes(bytes, record, expected, row_link, budgets)?;
+    Ok(VerifiedCellEmbeddingRowLinkArtifact::new(
+        record.id(),
+        row_link,
+    ))
+}
+
+/// Fully verify a managed Arrow row link and return an exact artifact-bound receipt.
+pub fn verify_cell_embedding_row_link_arrow_from_store(
+    store: &LocalArtifactStore,
+    record: &ArtifactRecord,
+    expected: &ExpectedCellSet,
+    row_link: &CellEmbeddingRowLink,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<VerifiedCellEmbeddingRowLinkArtifact, VerifiedReaderError<EmbeddingColumnarError>> {
+    validate_cell_embedding_row_link_arrow_from_store(store, record, expected, row_link, budgets)?;
+    Ok(VerifiedCellEmbeddingRowLinkArtifact::new(
+        record.id(),
+        row_link,
+    ))
+}
+
 fn validate_preflight_identity(
     preflight: CellEmbeddingRowLinkArrowPreflight,
     record: &ArtifactRecord,
@@ -93,9 +123,13 @@ fn decode_row_link_arrow<R: Read + Seek>(
     preflight: CellEmbeddingRowLinkArrowPreflight,
     budgets: EmbeddingColumnarBudgets,
 ) -> Result<CellEmbeddingRowLinkArrowPreflight, EmbeddingColumnarError> {
-    if preflight.retained_preflight_bytes > budgets.maximum_retained_bytes() {
+    let required_retained = preflight
+        .retained_preflight_bytes
+        .checked_add(preflight.maximum_batch_decoded_bytes)
+        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+    if required_retained > budgets.maximum_retained_bytes() {
         return Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
-            required: preflight.retained_preflight_bytes,
+            required: required_retained,
             maximum: budgets.maximum_retained_bytes(),
         });
     }

@@ -29,6 +29,7 @@ pub struct CellEmbeddingArrowPreflight {
     encoded_byte_len: u64,
     content_digest: ContentDigest,
     pub(super) retained_preflight_bytes: usize,
+    pub(super) maximum_batch_decoded_bytes: usize,
 }
 
 impl CellEmbeddingArrowPreflight {
@@ -39,6 +40,7 @@ impl CellEmbeddingArrowPreflight {
         encoded_byte_len: u64,
         content_digest: ContentDigest,
         retained_preflight_bytes: usize,
+        maximum_batch_decoded_bytes: usize,
     ) -> Self {
         Self {
             row_count,
@@ -47,6 +49,7 @@ impl CellEmbeddingArrowPreflight {
             encoded_byte_len,
             content_digest,
             retained_preflight_bytes,
+            maximum_batch_decoded_bytes,
         }
     }
 

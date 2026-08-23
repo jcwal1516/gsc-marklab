@@ -1,23 +1,36 @@
-use std::collections::BTreeMap;
+#![cfg(feature = "parquet")]
 
+use std::{collections::BTreeMap, fs, mem::size_of};
+
+#[cfg(feature = "csv")]
 use marklab::{
-    preflight_cell_embedding_table_arrow_bytes, read_cell_embedding_table_arrow_bytes,
-    read_cell_embedding_table_arrow_from_store, read_cell_embedding_table_parquet_bytes,
-    read_cell_embedding_table_parquet_from_store, write_cell_embedding_table_arrow,
+    import_cellvit_he_bundle_bytes, CellVitHeArtifactBindings, CellVitHeImportRequest,
+    SourceBundleBudgets,
+};
+use marklab::{
+    preflight_cell_embedding_table_arrow_bytes, publish_cell_embedding_row_link_arrow,
+    read_cell_embedding_table_arrow_bytes, read_cell_embedding_table_arrow_from_store,
+    read_cell_embedding_table_parquet_bytes, read_cell_embedding_table_parquet_from_store,
+    scan_cell_embedding_table_arrow_bytes, scan_cell_embedding_table_arrow_from_store,
+    scan_cell_embedding_table_parquet_bytes, scan_cell_embedding_table_parquet_from_store,
+    verify_cell_embedding_row_link_arrow_from_store, verify_cell_embedding_table_arrow_bytes,
+    verify_cell_embedding_table_parquet_bytes, write_cell_embedding_table_arrow,
     write_cell_embedding_table_parquet, ArrowIpcFailure, ArtifactAvailabilityFailure,
     ArtifactCatalog, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef, ArtifactSchema,
-    CanonicalDecimal, CellEmbeddingArtifactRole, CellEmbeddingExecutionProvenance,
-    CellEmbeddingInputArtifacts, CellEmbeddingModelProvenance, CellEmbeddingProvenance,
-    CellEmbeddingRow, CellEmbeddingRowLink, CellEmbeddingRowLinkEntry, CellEmbeddingTable,
-    CellEmbeddingTablePhysicalBindings, CellEmbeddingTensorContract, CellId, CellIdentityMap,
-    CellIdentityMapEntry, CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry,
-    CoordinateSpace, CoordinateUnit, EmbeddingArtifactGraphError, EmbeddingColumnarBudgets,
-    EmbeddingColumnarError, EmbeddingSpatialContext, EmbeddingStatus, ExpectedCellSet,
-    FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention, LocalArtifactStore,
-    PatchBoundaryPolicy, PatientId, PositiveRational, ReplicationRole, SlideId, SpatialAxis,
-    StoreId, TableColumn, TableColumnType, TableFormat, TableManifest, TableScalarType,
-    TransformId, TransformMatrix, VerifiedCellEmbeddingArtifactGraph, VerifiedReaderError,
+    ArtifactStoreError, CanonicalDecimal, CellEmbeddingArtifact, CellEmbeddingArtifactRole,
+    CellEmbeddingExecutionProvenance, CellEmbeddingInputArtifacts, CellEmbeddingModelProvenance,
+    CellEmbeddingProvenance, CellEmbeddingRow, CellEmbeddingRowLink, CellEmbeddingRowLinkEntry,
+    CellEmbeddingTable, CellEmbeddingTablePhysicalBindings, CellEmbeddingTensorContract, CellId,
+    CellIdentityMap, CellIdentityMapEntry, CohortHierarchy, CoordinateFrame, CoordinateFrameId,
+    CoordinateRegistry, CoordinateSpace, CoordinateUnit, EmbeddingArtifactGraphError,
+    EmbeddingColumnarBudgets, EmbeddingColumnarError, EmbeddingDtype, EmbeddingSpatialContext,
+    EmbeddingStatus, ExpectedCellSet, FrameTransform, HierarchyId, HierarchyNode,
+    ImageCoordinateConvention, LocalArtifactStore, PatchBoundaryPolicy, PatientId,
+    PositiveRational, ReplicationRole, SlideId, SpatialAxis, StoreId, TableColumn, TableColumnType,
+    TableFormat, TableManifest, TableScalarType, TransformId, TransformMatrix,
+    VerifiedCellEmbeddingArtifactGraph, VerifiedReaderError,
 };
+use proptest::prelude::*;
 use tempfile::TempDir;
 
 struct Fixture {
@@ -30,6 +43,7 @@ struct Fixture {
     identity_map: CellIdentityMap,
     context: EmbeddingSpatialContext,
     row_link: CellEmbeddingRowLink,
+    dimension: u32,
 }
 
 #[derive(Clone, Copy)]
@@ -43,6 +57,27 @@ enum LicenseAvailability {
 enum FixtureEmbeddingStatus {
     Present,
     MissingVector,
+    ExtractionFailed,
+    QcRejected,
+}
+
+impl FixtureEmbeddingStatus {
+    fn domain_status(self) -> EmbeddingStatus {
+        match self {
+            Self::Present => EmbeddingStatus::Present,
+            Self::MissingVector => EmbeddingStatus::MissingVector,
+            Self::ExtractionFailed => EmbeddingStatus::ExtractionFailed,
+            Self::QcRejected => EmbeddingStatus::QcRejected,
+        }
+    }
+
+    fn table_row(self, cell_id: CellId, dimension: u32) -> CellEmbeddingRow {
+        match self {
+            Self::Present => CellEmbeddingRow::present(cell_id, vec![0.25; dimension as usize]),
+            status => CellEmbeddingRow::non_present(cell_id, status.domain_status())
+                .expect("non-present fixture row"),
+        }
+    }
 }
 
 fn cell(value: &str) -> CellId {
@@ -246,6 +281,38 @@ fn build_fixture_with_status(
     license_availability: LicenseAvailability,
     embedding_status: FixtureEmbeddingStatus,
 ) -> Fixture {
+    build_fixture_with_rows(
+        checkpoint_schema,
+        license_availability,
+        1_280,
+        vec![(cell("cell-a"), embedding_status)],
+    )
+}
+
+fn build_fixture_with_rows(
+    checkpoint_schema: &str,
+    license_availability: LicenseAvailability,
+    dimension: u32,
+    rows: Vec<(CellId, FixtureEmbeddingStatus)>,
+) -> Fixture {
+    build_fixture_with_rows_and_sources(
+        checkpoint_schema,
+        license_availability,
+        dimension,
+        rows,
+        b"source-cells",
+        b"source-vectors",
+    )
+}
+
+fn build_fixture_with_rows_and_sources(
+    checkpoint_schema: &str,
+    license_availability: LicenseAvailability,
+    dimension: u32,
+    rows: Vec<(CellId, FixtureEmbeddingStatus)>,
+    source_cells_bytes: &[u8],
+    source_vectors_bytes: &[u8],
+) -> Fixture {
     let root = TempDir::new().expect("temporary store");
     let store =
         LocalArtifactStore::open(root.path(), StoreId::new("local").expect("local store ID"))
@@ -337,7 +404,7 @@ fn build_fixture_with_status(
         &store,
         "marklab.cell_embedding_source_cells",
         "text/csv;profile=marklab-cellvit-he-bundle-v1",
-        b"source-cells",
+        source_cells_bytes,
         Vec::new(),
         None,
     );
@@ -345,12 +412,16 @@ fn build_fixture_with_status(
         &store,
         "marklab.cell_embedding_source_npy",
         "application/x-npy;profile=marklab-cellvit-he-f4-v1",
-        b"source-vectors",
+        source_vectors_bytes,
         Vec::new(),
         None,
     );
 
-    let expected = ExpectedCellSet::new("all.v1", vec![cell("cell-a")]).expect("expected");
+    let expected = ExpectedCellSet::new(
+        "all.v1",
+        rows.iter().map(|(cell_id, _)| cell_id.clone()).collect(),
+    )
+    .expect("expected");
     let expected_bytes = expected.to_bytes().expect("expected bytes");
     let expected_record = publish_record(
         &store,
@@ -364,7 +435,13 @@ fn build_fixture_with_status(
         source_cells.id(),
         expected_record.id(),
         &expected,
-        vec![CellIdentityMapEntry::new("source-a", cell("cell-a")).expect("identity")],
+        rows.iter()
+            .enumerate()
+            .map(|(index, (cell_id, _))| {
+                CellIdentityMapEntry::new(format!("source-{index:08}"), cell_id.clone())
+                    .expect("identity")
+            })
+            .collect(),
     )
     .expect("identity map");
     let identity_bytes = identity_map.to_bytes().expect("identity bytes");
@@ -387,6 +464,40 @@ fn build_fixture_with_status(
         None,
     );
     let hierarchy = hierarchy(&expected);
+    let mut next_embedding_row = 0_u64;
+    let row_link_entries = rows
+        .iter()
+        .enumerate()
+        .map(|(index, (cell_id, status))| {
+            let source_cell_row = u64::try_from(index).expect("fixture row index");
+            match status {
+                FixtureEmbeddingStatus::Present => {
+                    let entry = CellEmbeddingRowLinkEntry::present(
+                        cell_id.clone(),
+                        source_cell_row,
+                        next_embedding_row,
+                    );
+                    next_embedding_row += 1;
+                    entry
+                }
+                FixtureEmbeddingStatus::MissingVector => {
+                    CellEmbeddingRowLinkEntry::missing_vector(cell_id.clone(), source_cell_row)
+                }
+                FixtureEmbeddingStatus::ExtractionFailed => {
+                    CellEmbeddingRowLinkEntry::extraction_failed(cell_id.clone(), source_cell_row)
+                }
+                FixtureEmbeddingStatus::QcRejected => {
+                    let entry = CellEmbeddingRowLinkEntry::qc_rejected(
+                        cell_id.clone(),
+                        source_cell_row,
+                        next_embedding_row,
+                    );
+                    next_embedding_row += 1;
+                    entry
+                }
+            }
+        })
+        .collect();
     let row_link = CellEmbeddingRowLink::new(
         source_cells.id(),
         source_vectors.id(),
@@ -395,25 +506,22 @@ fn build_fixture_with_status(
         converter.id(),
         &expected,
         &hierarchy,
-        vec![match embedding_status {
-            FixtureEmbeddingStatus::Present => {
-                CellEmbeddingRowLinkEntry::present(cell("cell-a"), 0, 0)
-            }
-            FixtureEmbeddingStatus::MissingVector => {
-                CellEmbeddingRowLinkEntry::missing_vector(cell("cell-a"), 0)
-            }
-        }],
-        4_096,
+        row_link_entries,
+        16 * 1024 * 1024,
     )
     .expect("row link");
-    let row_link_record = publish_record(
+    let row_link_record = publish_cell_embedding_row_link_arrow(
         &store,
-        "marklab.cell_embedding_row_link",
-        "application/vnd.marklab.embedding-row-link.v1+arrow",
-        b"validated-row-link-physical-bytes",
-        row_link.direct_dependencies().to_vec(),
-        Some(row_link_manifest(1)),
-    );
+        &row_link,
+        EmbeddingColumnarBudgets::new(
+            64 * 1024 * 1024,
+            64 * 1024 * 1024,
+            64 * 1024 * 1024,
+            64 * 1024 * 1024,
+        ),
+    )
+    .expect("publish canonical row link")
+    .into_record();
 
     let model = CellEmbeddingModelProvenance::new(
         "cellvit_sam_h",
@@ -431,7 +539,7 @@ fn build_fixture_with_status(
     .expect("model provenance");
     let decimal = |value| CanonicalDecimal::new(value).expect("decimal");
     let tensor = CellEmbeddingTensorContract::rgb_he_raw(
-        1_280,
+        dimension,
         [decimal("0.485"), decimal("0.456"), decimal("0.406")],
         [decimal("0.229"), decimal("0.224"), decimal("0.225")],
     )
@@ -494,6 +602,7 @@ fn build_fixture_with_status(
         identity_map,
         context,
         row_link,
+        dimension,
     }
 }
 
@@ -576,20 +685,74 @@ fn embedding_budgets() -> EmbeddingColumnarBudgets {
     )
 }
 
+#[cfg(feature = "csv")]
+fn all_present_source_csv(row_count: usize) -> Vec<u8> {
+    let mut bytes = concat!(
+        "cell_id,case_id,specimen_id,timepoint,fragment_id,roi_id,native_row,",
+        "embedding_row,x_px,y_px,x_um,y_um,cell_type_id,cell_type_label,",
+        "type_probability,nucleus_area_um2,nucleus_perimeter_um,eccentricity,",
+        "solidity,circularity,qc_pass,block_500_id,split\r\n"
+    )
+    .as_bytes()
+    .to_vec();
+    for row in 0..row_count {
+        bytes.extend_from_slice(
+            format!(
+                "source-{row:08},case,synthetic,time,fragment,roi,{row},{row},1,2,3,4,1,label,0.5,10,5,0.2,0.8,0.7,True,block,train\r\n"
+            )
+            .as_bytes(),
+        );
+    }
+    bytes
+}
+
+#[cfg(feature = "csv")]
+fn all_present_source_npy(rows: &[Vec<f32>]) -> Vec<u8> {
+    let dictionary = format!(
+        "{{'descr': '<f4', 'fortran_order': False, 'shape': ({}, 1280), }}",
+        rows.len()
+    );
+    let padding = (16 - ((10 + dictionary.len() + 1) % 16)) % 16;
+    let mut header = dictionary.into_bytes();
+    header.resize(header.len() + padding, b' ');
+    header.push(b'\n');
+    let mut bytes = b"\x93NUMPY\x01\x00".to_vec();
+    bytes.extend_from_slice(
+        &u16::try_from(header.len())
+            .expect("small NPY header")
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(&header);
+    for row in rows {
+        for value in row {
+            bytes.extend_from_slice(&value.to_bits().to_le_bytes());
+        }
+    }
+    bytes
+}
+
 fn write_embedding_table(
     fixture: &Fixture,
     row: CellEmbeddingRow,
 ) -> (CellEmbeddingTable, Vec<u8>, ArtifactRecord) {
+    write_embedding_rows_arrow(fixture, vec![row], embedding_budgets())
+}
+
+fn write_embedding_rows_arrow(
+    fixture: &Fixture,
+    rows: Vec<CellEmbeddingRow>,
+    budgets: EmbeddingColumnarBudgets,
+) -> (CellEmbeddingTable, Vec<u8>, ArtifactRecord) {
     let expected_record = record_with_schema(fixture, "marklab.cell_embedding_expected_cells");
     let row_link_record = record_with_schema(fixture, "marklab.cell_embedding_row_link");
     let table = CellEmbeddingTable::from_rows(
-        1_280,
+        fixture.dimension,
         &fixture.expected,
         expected_record.id(),
         fixture.provenance_artifact_id,
         fixture.row_link.logical_digest(),
-        vec![row],
-        1_000_000,
+        rows,
+        budgets.maximum_retained_bytes(),
     )
     .expect("embedding table");
     let bindings = CellEmbeddingTablePhysicalBindings::new(
@@ -601,7 +764,7 @@ fn write_embedding_table(
     )
     .expect("physical bindings");
     let mut bytes = Vec::new();
-    write_cell_embedding_table_arrow(&mut bytes, &table, bindings, embedding_budgets())
+    write_cell_embedding_table_arrow(&mut bytes, &table, bindings, budgets)
         .expect("write Arrow table");
     let record = embedding_table_record(fixture, &bytes);
     (table, bytes, record)
@@ -619,7 +782,10 @@ fn embedding_table_record(fixture: &Fixture, bytes: &[u8]) -> ArtifactRecord {
             fixture.provenance_artifact_id,
             row_link_record.id(),
         ],
-        Some(embedding_manifest(1, 1_280)),
+        Some(embedding_manifest(
+            fixture.row_link.row_count(),
+            fixture.dimension,
+        )),
     )
 }
 
@@ -627,16 +793,24 @@ fn write_embedding_table_parquet_fixture(
     fixture: &Fixture,
     row: CellEmbeddingRow,
 ) -> (CellEmbeddingTable, Vec<u8>, ArtifactRecord) {
+    write_embedding_rows_parquet(fixture, vec![row], embedding_budgets())
+}
+
+fn write_embedding_rows_parquet(
+    fixture: &Fixture,
+    rows: Vec<CellEmbeddingRow>,
+    budgets: EmbeddingColumnarBudgets,
+) -> (CellEmbeddingTable, Vec<u8>, ArtifactRecord) {
     let expected_record = record_with_schema(fixture, "marklab.cell_embedding_expected_cells");
     let row_link_record = record_with_schema(fixture, "marklab.cell_embedding_row_link");
     let table = CellEmbeddingTable::from_rows(
-        1_280,
+        fixture.dimension,
         &fixture.expected,
         expected_record.id(),
         fixture.provenance_artifact_id,
         fixture.row_link.logical_digest(),
-        vec![row],
-        1_000_000,
+        rows,
+        budgets.maximum_retained_bytes(),
     )
     .expect("embedding table");
     let bindings = CellEmbeddingTablePhysicalBindings::new(
@@ -648,10 +822,801 @@ fn write_embedding_table_parquet_fixture(
     )
     .expect("physical bindings");
     let mut bytes = Vec::new();
-    write_cell_embedding_table_parquet(&mut bytes, &table, bindings, embedding_budgets())
+    write_cell_embedding_table_parquet(&mut bytes, &table, bindings, budgets)
         .expect("write Parquet table");
     let record = embedding_parquet_record(fixture, &bytes);
     (table, bytes, record)
+}
+
+fn exact_retained_limit<T: std::fmt::Debug>(
+    mut operation: impl FnMut(usize) -> Result<T, EmbeddingColumnarError>,
+) -> usize {
+    let mut maximum = 0_usize;
+    for _ in 0..8 {
+        match operation(maximum) {
+            Ok(_) => return maximum,
+            Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
+                required,
+                maximum: observed_maximum,
+            }) => {
+                assert_eq!(observed_maximum, maximum);
+                assert!(required > maximum);
+                maximum = required;
+            }
+            result => panic!("expected retained-budget convergence, observed {result:?}"),
+        }
+    }
+    panic!("retained-budget convergence exceeded eight charged allocation stages")
+}
+
+#[test]
+fn compact_embedding_artifact_binds_records_shape_dtype_digest_and_qc() {
+    let fixture = build_fixture("marklab.model_checkpoint", LicenseAvailability::Managed);
+    let verified = verified_graph(&fixture);
+    let (table, bytes, embedding_record) = write_embedding_table(
+        &fixture,
+        CellEmbeddingRow::present(cell("cell-a"), vec![0.25; 1_280]),
+    );
+    let row_link_record = record_with_schema(&fixture, "marklab.cell_embedding_row_link");
+    let embedding_receipt = verify_cell_embedding_table_arrow_bytes(
+        &bytes,
+        &embedding_record,
+        &fixture.expected,
+        &fixture.row_link,
+        verified,
+        embedding_budgets(),
+    )
+    .expect("verified embedding receipt");
+    let row_link_receipt = verify_cell_embedding_row_link_arrow_from_store(
+        &fixture.store,
+        row_link_record,
+        &fixture.expected,
+        &fixture.row_link,
+        embedding_budgets(),
+    )
+    .expect("verified row-link receipt");
+    let artifact = CellEmbeddingArtifact::new(embedding_receipt, row_link_receipt, verified)
+        .expect("embedding artifact binding");
+
+    assert_eq!(artifact.embedding_artifact_id(), embedding_record.id());
+    assert_eq!(artifact.row_link_artifact_id(), row_link_record.id());
+    assert_eq!(
+        artifact.provenance_artifact_id(),
+        fixture.provenance_artifact_id
+    );
+    assert_eq!(artifact.row_count(), 1);
+    assert_eq!(artifact.dimension(), 1_280);
+    assert_eq!(artifact.dtype(), EmbeddingDtype::F32);
+    assert_eq!(
+        artifact.logical_digest(),
+        table.qc_summary().logical_digest()
+    );
+    assert_eq!(artifact.qc_summary(), table.qc_summary());
+
+    let (parquet_table, parquet_bytes, parquet_record) = write_embedding_table_parquet_fixture(
+        &fixture,
+        CellEmbeddingRow::present(cell("cell-a"), vec![0.25; 1_280]),
+    );
+    let parquet_receipt = verify_cell_embedding_table_parquet_bytes(
+        &parquet_bytes,
+        &parquet_record,
+        &fixture.expected,
+        &fixture.row_link,
+        verified,
+        embedding_budgets(),
+    )
+    .expect("verified Parquet embedding receipt");
+    let parquet_artifact = CellEmbeddingArtifact::new(parquet_receipt, row_link_receipt, verified)
+        .expect("Parquet embedding artifact binding");
+    assert_eq!(parquet_artifact.qc_summary(), parquet_table.qc_summary());
+    assert_eq!(parquet_artifact.logical_digest(), artifact.logical_digest());
+    assert_ne!(
+        parquet_artifact.embedding_artifact_id(),
+        artifact.embedding_artifact_id()
+    );
+
+    let wrong_row_link = record_with_schema(&fixture, "marklab.cell_embedding_expected_cells");
+    assert!(matches!(
+        verify_cell_embedding_row_link_arrow_from_store(
+            &fixture.store,
+            wrong_row_link,
+            &fixture.expected,
+            &fixture.row_link,
+            embedding_budgets(),
+        ),
+        Err(VerifiedReaderError::Callback(
+            EmbeddingColumnarError::ArtifactBindingMismatch
+        ))
+    ));
+
+    let unrelated = build_fixture_with_status(
+        "marklab.model_checkpoint",
+        LicenseAvailability::Managed,
+        FixtureEmbeddingStatus::MissingVector,
+    );
+    let unrelated_row_link = record_with_schema(&unrelated, "marklab.cell_embedding_row_link");
+    let unrelated_receipt = verify_cell_embedding_row_link_arrow_from_store(
+        &unrelated.store,
+        unrelated_row_link,
+        &unrelated.expected,
+        &unrelated.row_link,
+        embedding_budgets(),
+    )
+    .expect("unrelated verified row-link receipt");
+    assert_eq!(
+        CellEmbeddingArtifact::new(embedding_receipt, unrelated_receipt, verified),
+        Err(marklab::EmbeddingError::ArtifactBindingMismatch)
+    );
+}
+
+#[test]
+fn verified_graph_rejects_embedding_dimension_drift_from_provenance() {
+    let fixture = build_fixture("marklab.model_checkpoint", LicenseAvailability::Managed);
+    let verified = verified_graph(&fixture);
+    let expected_record = record_with_schema(&fixture, "marklab.cell_embedding_expected_cells");
+    let row_link_record = record_with_schema(&fixture, "marklab.cell_embedding_row_link");
+    let table = CellEmbeddingTable::from_rows(
+        1,
+        &fixture.expected,
+        expected_record.id(),
+        fixture.provenance_artifact_id,
+        fixture.row_link.logical_digest(),
+        vec![CellEmbeddingRow::present(cell("cell-a"), vec![0.25])],
+        1_024,
+    )
+    .expect("one-dimensional table");
+    let bindings = CellEmbeddingTablePhysicalBindings::new(
+        expected_record.id(),
+        fixture.provenance_artifact_id,
+        row_link_record.id(),
+        fixture.row_link.logical_digest(),
+        table.qc_summary().logical_digest(),
+    )
+    .expect("one-dimensional bindings");
+    let mut bytes = Vec::new();
+    write_cell_embedding_table_arrow(&mut bytes, &table, bindings, embedding_budgets())
+        .expect("one-dimensional Arrow table");
+    let record = draft_record(
+        "marklab.cell_embedding_table",
+        "application/vnd.marklab.cell-embedding-table.v1+arrow",
+        &bytes,
+        vec![
+            expected_record.id(),
+            fixture.provenance_artifact_id,
+            row_link_record.id(),
+        ],
+        Some(embedding_manifest(1, 1)),
+    );
+
+    assert_eq!(
+        verify_cell_embedding_table_arrow_bytes(
+            &bytes,
+            &record,
+            &fixture.expected,
+            &fixture.row_link,
+            verified,
+            embedding_budgets(),
+        ),
+        Err(EmbeddingColumnarError::ArtifactBindingMismatch)
+    );
+}
+
+#[test]
+fn streaming_arrow_and_parquet_scans_match_materialized_qc_without_retaining_the_table() {
+    let fixture = build_fixture("marklab.model_checkpoint", LicenseAvailability::Managed);
+    let verified = verified_graph(&fixture);
+    let row = || CellEmbeddingRow::present(cell("cell-a"), vec![0.25; 1_280]);
+    let (arrow_table, arrow_bytes, arrow_draft) = write_embedding_table(&fixture, row());
+    let arrow_record = fixture
+        .store
+        .publish(&arrow_draft, |writer| writer.write_all(&arrow_bytes))
+        .expect("publish Arrow table")
+        .into_record();
+    let (parquet_table, parquet_bytes, parquet_draft) =
+        write_embedding_table_parquet_fixture(&fixture, row());
+    let parquet_record = fixture
+        .store
+        .publish(&parquet_draft, |writer| writer.write_all(&parquet_bytes))
+        .expect("publish Parquet table")
+        .into_record();
+
+    let arrow_borrowed = scan_cell_embedding_table_arrow_bytes(
+        &arrow_bytes,
+        &arrow_draft,
+        &fixture.expected,
+        &fixture.row_link,
+        verified,
+        embedding_budgets(),
+    )
+    .expect("borrowed Arrow scan");
+    let arrow_managed = scan_cell_embedding_table_arrow_from_store(
+        &fixture.store,
+        &arrow_record,
+        &fixture.expected,
+        &fixture.row_link,
+        verified,
+        embedding_budgets(),
+    )
+    .expect("managed Arrow scan");
+    let parquet_borrowed = scan_cell_embedding_table_parquet_bytes(
+        &parquet_bytes,
+        &parquet_draft,
+        &fixture.expected,
+        &fixture.row_link,
+        verified,
+        embedding_budgets(),
+    )
+    .expect("borrowed Parquet scan");
+    let parquet_managed = scan_cell_embedding_table_parquet_from_store(
+        &fixture.store,
+        &parquet_record,
+        &fixture.expected,
+        &fixture.row_link,
+        verified,
+        embedding_budgets(),
+    )
+    .expect("managed Parquet scan");
+
+    assert_eq!(arrow_borrowed, arrow_table.qc_summary());
+    assert_eq!(arrow_managed, arrow_borrowed);
+    assert_eq!(parquet_borrowed, parquet_table.qc_summary());
+    assert_eq!(parquet_managed, parquet_borrowed);
+    assert_eq!(parquet_borrowed, arrow_borrowed);
+}
+
+#[test]
+fn managed_embedding_scans_report_store_integrity_before_columnar_callbacks() {
+    let fixture = build_fixture("marklab.model_checkpoint", LicenseAvailability::Managed);
+    let graph = verified_graph(&fixture);
+    let row = || CellEmbeddingRow::present(cell("cell-a"), vec![0.25; 1_280]);
+    let (_, arrow_bytes, arrow_draft) = write_embedding_table(&fixture, row());
+    let arrow_record = fixture
+        .store
+        .publish(&arrow_draft, |writer| writer.write_all(&arrow_bytes))
+        .expect("publish Arrow table")
+        .into_record();
+    let (_, parquet_bytes, parquet_draft) = write_embedding_table_parquet_fixture(&fixture, row());
+    let parquet_record = fixture
+        .store
+        .publish(&parquet_draft, |writer| writer.write_all(&parquet_bytes))
+        .expect("publish Parquet table")
+        .into_record();
+
+    let corrupt = |record: &ArtifactRecord, bytes: &[u8]| {
+        let mut corrupted = bytes.to_vec();
+        corrupted[0] ^= 1;
+        fs::write(managed_path(&fixture._root, record), corrupted).expect("corrupt managed object");
+    };
+    corrupt(&arrow_record, &arrow_bytes);
+    assert!(matches!(
+        scan_cell_embedding_table_arrow_from_store(
+            &fixture.store,
+            &arrow_record,
+            &fixture.expected,
+            &fixture.row_link,
+            graph,
+            embedding_budgets(),
+        ),
+        Err(VerifiedReaderError::Store(
+            ArtifactStoreError::ContentIntegrity { .. }
+        ))
+    ));
+
+    corrupt(&parquet_record, &parquet_bytes);
+    assert!(matches!(
+        scan_cell_embedding_table_parquet_from_store(
+            &fixture.store,
+            &parquet_record,
+            &fixture.expected,
+            &fixture.row_link,
+            graph,
+            embedding_budgets(),
+        ),
+        Err(VerifiedReaderError::Store(
+            ArtifactStoreError::ContentIntegrity { .. }
+        ))
+    ));
+}
+
+#[test]
+fn every_embedding_status_has_identical_domain_arrow_and_parquet_qc() {
+    let rows = vec![
+        (cell("cell-a"), FixtureEmbeddingStatus::Present),
+        (cell("cell-b"), FixtureEmbeddingStatus::MissingVector),
+        (cell("cell-c"), FixtureEmbeddingStatus::ExtractionFailed),
+        (cell("cell-d"), FixtureEmbeddingStatus::QcRejected),
+    ];
+    let fixture = build_fixture_with_rows(
+        "marklab.model_checkpoint",
+        LicenseAvailability::Managed,
+        1_280,
+        rows.clone(),
+    );
+    let verified = verified_graph(&fixture);
+    let domain_rows = rows
+        .into_iter()
+        .map(|(cell_id, status)| status.table_row(cell_id, fixture.dimension))
+        .collect::<Vec<_>>();
+    let (arrow_table, arrow_bytes, arrow_record) =
+        write_embedding_rows_arrow(&fixture, domain_rows.clone(), embedding_budgets());
+    let (parquet_table, parquet_bytes, parquet_record) =
+        write_embedding_rows_parquet(&fixture, domain_rows, embedding_budgets());
+
+    let arrow_qc = scan_cell_embedding_table_arrow_bytes(
+        &arrow_bytes,
+        &arrow_record,
+        &fixture.expected,
+        &fixture.row_link,
+        verified,
+        embedding_budgets(),
+    )
+    .expect("mixed Arrow scan");
+    let parquet_qc = scan_cell_embedding_table_parquet_bytes(
+        &parquet_bytes,
+        &parquet_record,
+        &fixture.expected,
+        &fixture.row_link,
+        verified,
+        embedding_budgets(),
+    )
+    .expect("mixed Parquet scan");
+
+    assert_eq!(arrow_qc, arrow_table.qc_summary());
+    assert_eq!(parquet_qc, parquet_table.qc_summary());
+    assert_eq!(parquet_qc, arrow_qc);
+    assert_eq!(arrow_qc.row_count(), 4);
+    assert_eq!(arrow_qc.present_count(), 1);
+    assert_eq!(arrow_qc.missing_vector_count(), 1);
+    assert_eq!(arrow_qc.extraction_failed_count(), 1);
+    assert_eq!(arrow_qc.qc_rejected_count(), 1);
+    assert_eq!(arrow_qc.all_zero_present_count(), 0);
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(12))]
+
+    #[test]
+    fn property_generated_domain_arrow_and_parquet_rows_are_semantically_identical(
+        raw_statuses in any::<[u8; 4]>(),
+        seeds in any::<[u16; 4]>(),
+    ) {
+        let cells = [cell("cell-a"), cell("cell-b"), cell("cell-c"), cell("cell-d")];
+        let statuses = raw_statuses.map(|code| match code % 4 {
+            0 => FixtureEmbeddingStatus::Present,
+            1 => FixtureEmbeddingStatus::MissingVector,
+            2 => FixtureEmbeddingStatus::ExtractionFailed,
+            _ => FixtureEmbeddingStatus::QcRejected,
+        });
+        let fixture_rows = cells
+            .iter()
+            .cloned()
+            .zip(statuses)
+            .collect::<Vec<_>>();
+        let fixture = build_fixture_with_rows(
+            "marklab.model_checkpoint",
+            LicenseAvailability::Managed,
+            1_280,
+            fixture_rows.clone(),
+        );
+        let graph = verified_graph(&fixture);
+        let domain_rows = fixture_rows
+            .into_iter()
+            .zip(seeds)
+            .map(|((cell_id, status), seed)| match status {
+                FixtureEmbeddingStatus::Present => CellEmbeddingRow::present(
+                    cell_id,
+                    (0..1_280)
+                        .map(|column| {
+                            if column == 0 && seed % 2 == 0 {
+                                -0.0
+                            } else {
+                                let column = u16::try_from(column).expect("property column");
+                                f32::from(seed.wrapping_add(column)) / 16.0 + 0.25
+                            }
+                        })
+                        .collect(),
+                ),
+                status => CellEmbeddingRow::non_present(cell_id, status.domain_status())
+                    .expect("non-present property row"),
+            })
+            .collect::<Vec<_>>();
+        let (domain, arrow_bytes, arrow_record) = write_embedding_rows_arrow(
+            &fixture,
+            domain_rows.clone(),
+            embedding_budgets(),
+        );
+        let (_, parquet_bytes, parquet_record) = write_embedding_rows_parquet(
+            &fixture,
+            domain_rows,
+            embedding_budgets(),
+        );
+        let arrow_qc = scan_cell_embedding_table_arrow_bytes(
+            &arrow_bytes,
+            &arrow_record,
+            &fixture.expected,
+            &fixture.row_link,
+            graph,
+            embedding_budgets(),
+        )
+        .expect("property Arrow scan");
+        let parquet_qc = scan_cell_embedding_table_parquet_bytes(
+            &parquet_bytes,
+            &parquet_record,
+            &fixture.expected,
+            &fixture.row_link,
+            graph,
+            embedding_budgets(),
+        )
+        .expect("property Parquet scan");
+        let arrow_table = read_cell_embedding_table_arrow_bytes(
+            &arrow_bytes,
+            &arrow_record,
+            &fixture.expected,
+            &fixture.row_link,
+            graph,
+            embedding_budgets(),
+        )
+        .expect("property Arrow read");
+        let parquet_table = read_cell_embedding_table_parquet_bytes(
+            &parquet_bytes,
+            &parquet_record,
+            &fixture.expected,
+            &fixture.row_link,
+            graph,
+            embedding_budgets(),
+        )
+        .expect("property Parquet read");
+
+        prop_assert_eq!(arrow_qc, domain.qc_summary());
+        prop_assert_eq!(parquet_qc, arrow_qc);
+        prop_assert_eq!(&arrow_table, &domain);
+        prop_assert_eq!(&parquet_table, &arrow_table);
+    }
+}
+
+#[cfg(feature = "csv")]
+#[test]
+fn all_present_npy_csv_domain_arrow_and_parquet_paths_share_exact_semantics() {
+    let mut source_rows = vec![
+        (0..1_280)
+            .map(|column| column as f32 + 0.25)
+            .collect::<Vec<_>>(),
+        (0..1_280)
+            .map(|column| -(column as f32) - 0.5)
+            .collect::<Vec<_>>(),
+    ];
+    source_rows[0][3] = -0.0;
+    source_rows[1][7] = -0.0;
+    let expected_values = source_rows
+        .iter()
+        .flatten()
+        .map(|value| if *value == 0.0 { 0.0 } else { *value })
+        .collect::<Vec<_>>();
+    let csv_bytes = all_present_source_csv(2);
+    let npy_bytes = all_present_source_npy(&source_rows);
+    let fixture = build_fixture_with_rows_and_sources(
+        "marklab.model_checkpoint",
+        LicenseAvailability::Managed,
+        1_280,
+        vec![
+            (cell("cell-a"), FixtureEmbeddingStatus::Present),
+            (cell("cell-b"), FixtureEmbeddingStatus::Present),
+        ],
+        &csv_bytes,
+        &npy_bytes,
+    );
+    let graph = verified_graph(&fixture);
+    let source_bindings = CellVitHeArtifactBindings::from_records(
+        record_with_schema(&fixture, "marklab.cell_embedding_source_cells").clone(),
+        record_with_schema(&fixture, "marklab.cell_embedding_source_npy").clone(),
+        record_with_schema(&fixture, "marklab.cell_embedding_expected_cells").clone(),
+        record_with_schema(&fixture, "marklab.cell_embedding_identity_map").clone(),
+        record_with_schema(&fixture, "marklab.converter_manifest").clone(),
+    )
+    .expect("source artifact bindings");
+    let hierarchy = hierarchy(&fixture.expected);
+    let source_budgets = SourceBundleBudgets::new(
+        u64::try_from(npy_bytes.len()).expect("NPY length"),
+        u64::try_from(csv_bytes.len()).expect("CSV length"),
+        64 * 1024,
+        8 * 1024 * 1024,
+        2 * 1_280 * 4,
+    );
+    let request = CellVitHeImportRequest::new(
+        &fixture.expected,
+        &fixture.identity_map,
+        &hierarchy,
+        &source_bindings,
+        source_budgets,
+    );
+    let candidate = import_cellvit_he_bundle_bytes(&npy_bytes, &csv_bytes, request)
+        .expect("bounded NPY/CSV import");
+    assert_eq!(candidate.canonical_values(), expected_values);
+    assert_eq!(candidate.row_link(), &fixture.row_link);
+    let imported = candidate
+        .finalize(&fixture.expected, &graph)
+        .expect("verified source finalization");
+    let table = imported.table();
+    assert_eq!(
+        table.scan_qc(1).expect("single-row blocks"),
+        table.qc_summary()
+    );
+
+    let expected_record = record_with_schema(&fixture, "marklab.cell_embedding_expected_cells");
+    let row_link_record = record_with_schema(&fixture, "marklab.cell_embedding_row_link");
+    let physical_bindings = CellEmbeddingTablePhysicalBindings::new(
+        expected_record.id(),
+        fixture.provenance_artifact_id,
+        row_link_record.id(),
+        fixture.row_link.logical_digest(),
+        table.qc_summary().logical_digest(),
+    )
+    .expect("physical table bindings");
+    let mut arrow_bytes = Vec::new();
+    write_cell_embedding_table_arrow(
+        &mut arrow_bytes,
+        table,
+        physical_bindings,
+        embedding_budgets(),
+    )
+    .expect("write imported Arrow table");
+    let arrow_record = embedding_table_record(&fixture, &arrow_bytes);
+    let mut parquet_bytes = Vec::new();
+    write_cell_embedding_table_parquet(
+        &mut parquet_bytes,
+        table,
+        physical_bindings,
+        embedding_budgets(),
+    )
+    .expect("write imported Parquet table");
+    let parquet_record = embedding_parquet_record(&fixture, &parquet_bytes);
+
+    let arrow_qc = scan_cell_embedding_table_arrow_bytes(
+        &arrow_bytes,
+        &arrow_record,
+        &fixture.expected,
+        &fixture.row_link,
+        graph,
+        embedding_budgets(),
+    )
+    .expect("scan imported Arrow table");
+    let parquet_qc = scan_cell_embedding_table_parquet_bytes(
+        &parquet_bytes,
+        &parquet_record,
+        &fixture.expected,
+        &fixture.row_link,
+        graph,
+        embedding_budgets(),
+    )
+    .expect("scan imported Parquet table");
+    let arrow_table = read_cell_embedding_table_arrow_bytes(
+        &arrow_bytes,
+        &arrow_record,
+        &fixture.expected,
+        &fixture.row_link,
+        graph,
+        embedding_budgets(),
+    )
+    .expect("read imported Arrow table");
+    let parquet_table = read_cell_embedding_table_parquet_bytes(
+        &parquet_bytes,
+        &parquet_record,
+        &fixture.expected,
+        &fixture.row_link,
+        graph,
+        embedding_budgets(),
+    )
+    .expect("read imported Parquet table");
+
+    assert_eq!(arrow_qc, table.qc_summary());
+    assert_eq!(parquet_qc, arrow_qc);
+    for observed in [table, &arrow_table, &parquet_table] {
+        let mut values = Vec::with_capacity(expected_values.len());
+        for row in 0..observed.row_count() {
+            values.extend_from_slice(
+                observed
+                    .row(row)
+                    .expect("canonical row")
+                    .vector()
+                    .expect("all-present vector"),
+            );
+        }
+        assert_eq!(values, expected_values);
+    }
+}
+
+#[test]
+fn multi_group_scans_succeed_at_a_retained_limit_that_rejects_materialization() {
+    let rows = (0..8_193)
+        .map(|index| {
+            let status = match index % 4 {
+                0 => FixtureEmbeddingStatus::Present,
+                1 => FixtureEmbeddingStatus::MissingVector,
+                2 => FixtureEmbeddingStatus::ExtractionFailed,
+                _ => FixtureEmbeddingStatus::QcRejected,
+            };
+            (cell(&format!("cell-{index:08}")), status)
+        })
+        .collect::<Vec<_>>();
+    let fixture = build_fixture_with_rows(
+        "marklab.model_checkpoint",
+        LicenseAvailability::Managed,
+        1_280,
+        rows.clone(),
+    );
+    let verified = verified_graph(&fixture);
+    let domain_rows = rows
+        .into_iter()
+        .map(|(cell_id, status)| status.table_row(cell_id, fixture.dimension))
+        .collect::<Vec<_>>();
+    let generous = EmbeddingColumnarBudgets::new(
+        512 * 1024 * 1024,
+        512 * 1024 * 1024,
+        512 * 1024 * 1024,
+        512 * 1024 * 1024,
+    );
+    let (_, arrow_bytes, arrow_record) =
+        write_embedding_rows_arrow(&fixture, domain_rows.clone(), generous);
+    let (_, parquet_bytes, parquet_record) =
+        write_embedding_rows_parquet(&fixture, domain_rows, generous);
+
+    let arrow_retained = exact_retained_limit(|maximum_retained_bytes| {
+        scan_cell_embedding_table_arrow_bytes(
+            &arrow_bytes,
+            &arrow_record,
+            &fixture.expected,
+            &fixture.row_link,
+            verified,
+            EmbeddingColumnarBudgets::new(
+                generous.maximum_file_bytes(),
+                maximum_retained_bytes,
+                generous.maximum_row_group_bytes(),
+                generous.maximum_decoded_bytes(),
+            ),
+        )
+    });
+    let parquet_retained = exact_retained_limit(|maximum_retained_bytes| {
+        scan_cell_embedding_table_parquet_bytes(
+            &parquet_bytes,
+            &parquet_record,
+            &fixture.expected,
+            &fixture.row_link,
+            verified,
+            EmbeddingColumnarBudgets::new(
+                generous.maximum_file_bytes(),
+                maximum_retained_bytes,
+                generous.maximum_row_group_bytes(),
+                generous.maximum_decoded_bytes(),
+            ),
+        )
+    });
+
+    for (retained, result) in [
+        (
+            arrow_retained,
+            read_cell_embedding_table_arrow_bytes(
+                &arrow_bytes,
+                &arrow_record,
+                &fixture.expected,
+                &fixture.row_link,
+                verified,
+                EmbeddingColumnarBudgets::new(
+                    generous.maximum_file_bytes(),
+                    arrow_retained,
+                    generous.maximum_row_group_bytes(),
+                    generous.maximum_decoded_bytes(),
+                ),
+            ),
+        ),
+        (
+            parquet_retained,
+            read_cell_embedding_table_parquet_bytes(
+                &parquet_bytes,
+                &parquet_record,
+                &fixture.expected,
+                &fixture.row_link,
+                verified,
+                EmbeddingColumnarBudgets::new(
+                    generous.maximum_file_bytes(),
+                    parquet_retained,
+                    generous.maximum_row_group_bytes(),
+                    generous.maximum_decoded_bytes(),
+                ),
+            ),
+        ),
+    ] {
+        assert!(matches!(
+            result,
+            Err(EmbeddingColumnarError::RetainedByteBudgetExceeded { required, maximum })
+                if maximum == retained && required > maximum
+        ));
+    }
+}
+
+#[test]
+fn arrow_materialization_charges_the_decoded_batch_alongside_the_final_table() {
+    let fixture = build_fixture("marklab.model_checkpoint", LicenseAvailability::Managed);
+    let verified = verified_graph(&fixture);
+    let (table, bytes, draft) = write_embedding_table(
+        &fixture,
+        CellEmbeddingRow::present(cell("cell-a"), vec![0.25; 1_280]),
+    );
+    let expected_record = record_with_schema(&fixture, "marklab.cell_embedding_expected_cells");
+    let row_link_record = record_with_schema(&fixture, "marklab.cell_embedding_row_link");
+    let bindings = CellEmbeddingTablePhysicalBindings::new(
+        expected_record.id(),
+        fixture.provenance_artifact_id,
+        row_link_record.id(),
+        fixture.row_link.logical_digest(),
+        table.qc_summary().logical_digest(),
+    )
+    .expect("physical bindings");
+
+    let mut retained_preflight_bytes = 0_usize;
+    loop {
+        let budgets = EmbeddingColumnarBudgets::new(
+            8 * 1024 * 1024,
+            retained_preflight_bytes,
+            8 * 1024 * 1024,
+            8 * 1024 * 1024,
+        );
+        match preflight_cell_embedding_table_arrow_bytes(
+            &bytes,
+            &fixture.expected,
+            bindings,
+            budgets,
+        ) {
+            Ok(_) => break,
+            Err(EmbeddingColumnarError::RetainedByteBudgetExceeded { required, maximum }) => {
+                assert!(required > maximum);
+                retained_preflight_bytes = required;
+            }
+            result => panic!("expected retained preflight edge, observed {result:?}"),
+        }
+    }
+
+    let final_table_bytes = fixture
+        .expected
+        .cells()
+        .len()
+        .checked_mul(fixture.dimension as usize)
+        .and_then(|components| components.checked_mul(size_of::<f32>()))
+        .and_then(|value_bytes| {
+            value_bytes.checked_add(
+                fixture.expected.cells().len()
+                    * (size_of::<CellId>() + size_of::<EmbeddingStatus>()),
+            )
+        })
+        .and_then(|retained| {
+            fixture
+                .expected
+                .cells()
+                .iter()
+                .try_fold(retained, |total, cell_id| {
+                    total.checked_add(cell_id.as_str().len())
+                })
+        })
+        .expect("final table retained bytes");
+    let previously_undercounted_peak = retained_preflight_bytes + final_table_bytes;
+    assert!(matches!(
+        read_cell_embedding_table_arrow_bytes(
+            &bytes,
+            &draft,
+            &fixture.expected,
+            &fixture.row_link,
+            verified,
+            EmbeddingColumnarBudgets::new(
+                8 * 1024 * 1024,
+                previously_undercounted_peak,
+                8 * 1024 * 1024,
+                8 * 1024 * 1024,
+            ),
+        ),
+        Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
+            required,
+            maximum,
+        }) if required > maximum && maximum == previously_undercounted_peak
+    ));
 }
 
 fn embedding_parquet_record(fixture: &Fixture, bytes: &[u8]) -> ArtifactRecord {
@@ -666,7 +1631,10 @@ fn embedding_parquet_record(fixture: &Fixture, bytes: &[u8]) -> ArtifactRecord {
             fixture.provenance_artifact_id,
             row_link_record.id(),
         ],
-        Some(embedding_parquet_manifest(1, 1_280)),
+        Some(embedding_parquet_manifest(
+            fixture.row_link.row_count(),
+            fixture.dimension,
+        )),
     )
 }
 
@@ -1020,6 +1988,28 @@ fn borrowed_and_managed_parquet_paths_reject_the_same_hostile_page_header() {
         result => panic!("expected managed callback failure, observed {result:?}"),
     };
     assert_eq!(managed, borrowed);
+    let borrowed_scan = scan_cell_embedding_table_parquet_bytes(
+        &bytes,
+        &draft,
+        &fixture.expected,
+        &fixture.row_link,
+        verified,
+        embedding_budgets(),
+    )
+    .expect_err("borrowed hostile scan");
+    let managed_scan = match scan_cell_embedding_table_parquet_from_store(
+        &fixture.store,
+        &record,
+        &fixture.expected,
+        &fixture.row_link,
+        verified,
+        embedding_budgets(),
+    ) {
+        Err(VerifiedReaderError::Callback(error)) => error,
+        result => panic!("expected managed scan callback failure, observed {result:?}"),
+    };
+    assert_eq!(borrowed_scan, borrowed);
+    assert_eq!(managed_scan, borrowed);
     assert!(matches!(
         managed,
         EmbeddingColumnarError::Parquet {
@@ -1175,6 +2165,28 @@ fn verified_store_and_borrowed_arrow_paths_reject_the_same_hostile_block() {
         result => panic!("expected managed callback failure, observed {result:?}"),
     };
     assert_eq!(managed_error, borrowed_error);
+    let borrowed_scan = scan_cell_embedding_table_arrow_bytes(
+        &bytes,
+        &draft,
+        &fixture.expected,
+        &fixture.row_link,
+        verified,
+        embedding_budgets(),
+    )
+    .expect_err("borrowed hostile scan");
+    let managed_scan = match scan_cell_embedding_table_arrow_from_store(
+        &fixture.store,
+        &record,
+        &fixture.expected,
+        &fixture.row_link,
+        verified,
+        embedding_budgets(),
+    ) {
+        Err(VerifiedReaderError::Callback(error)) => error,
+        result => panic!("expected managed scan callback failure, observed {result:?}"),
+    };
+    assert_eq!(borrowed_scan, borrowed_error);
+    assert_eq!(managed_scan, borrowed_error);
     assert!(matches!(
         managed_error,
         EmbeddingColumnarError::Arrow {

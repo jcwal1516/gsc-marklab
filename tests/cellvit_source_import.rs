@@ -9,9 +9,9 @@ use marklab::{
     import_cellvit_he_bundle_bytes, import_cellvit_he_bundle_from_store,
     import_cellvit_he_bundle_readers, ArtifactId, ArtifactKey, ArtifactLocator, ArtifactRecord,
     ArtifactRef, ArtifactSchema, CellId, CellIdentityMap, CellIdentityMapEntry, CellVitCsvSummary,
-    CellVitHeArtifactBindings, CellVitHeImportRequest, CohortHierarchy, ExpectedCellSet,
-    HierarchyId, HierarchyNode, ImportFailure, LocalArtifactStore, PatientId, ReplicationRole,
-    SlideId, SourceBundleBudgets, SourceBundleError, StoreId,
+    CellVitHeArtifactBindings, CellVitHeImportRequest, CohortHierarchy, EmbeddingStatus,
+    ExpectedCellSet, HierarchyId, HierarchyNode, ImportFailure, LocalArtifactStore, PatientId,
+    ReplicationRole, SlideId, SourceBundleBudgets, SourceBundleError, StoreId,
 };
 
 const HEADER: &str = "cell_id,case_id,specimen_id,timepoint,fragment_id,roi_id,native_row,embedding_row,x_px,y_px,x_um,y_um,cell_type_id,cell_type_label,type_probability,nucleus_area_um2,nucleus_perimeter_um,eccentricity,solidity,circularity,qc_pass,block_500_id,split\r\n";
@@ -206,10 +206,19 @@ impl Seek for ChunkedCursor {
 #[test]
 fn source_import_maps_explicit_ids_into_one_canonical_present_matrix() {
     let csv = csv();
-    let mut source_zero = vec![0.0; 1_280];
-    source_zero[0] = 10.0;
-    let mut source_one = vec![-0.0; 1_280];
-    source_one[0] = 20.0;
+    let mut source_zero = (0..1_280)
+        .map(|column| column as f32 + 0.25)
+        .collect::<Vec<_>>();
+    source_zero[1] = -0.0;
+    let mut source_one = (0..1_280)
+        .map(|column| -(column as f32) - 0.5)
+        .collect::<Vec<_>>();
+    source_one[2] = -0.0;
+    let expected_values = source_one
+        .iter()
+        .chain(&source_zero)
+        .map(|value| if *value == 0.0 { 0.0 } else { *value })
+        .collect::<Vec<_>>();
     let npy = npy(&[source_zero, source_one]);
     let expected = expected();
     let (bindings, identity_map) = bound_domain(&npy, &csv, &expected);
@@ -225,24 +234,31 @@ fn source_import_maps_explicit_ids_into_one_canonical_present_matrix() {
         import_cellvit_he_bundle_bytes(&npy, &csv, request).expect("borrowed source import");
     assert_eq!(imported.row_count(), 2);
     assert_eq!(imported.dimension(), 1_280);
-    assert_eq!(imported.canonical_vector(0).expect("cell-a")[0], 20.0);
-    assert_eq!(imported.canonical_vector(1).expect("cell-b")[0], 10.0);
+    assert_eq!(imported.canonical_values(), expected_values);
+    let links = imported.row_link().entries();
+    assert!(links
+        .iter()
+        .all(|entry| entry.status() == EmbeddingStatus::Present));
     assert_eq!(
-        imported.canonical_vector(0).expect("cell-a")[1].to_bits(),
-        0
+        links
+            .iter()
+            .map(|entry| (entry.source_cell_row(), entry.source_embedding_row()))
+            .collect::<Vec<_>>(),
+        [(1, Some(1)), (0, Some(0))]
     );
-    assert_eq!(imported.row_link().entries()[0].source_cell_row(), 1);
-    assert_eq!(imported.row_link().entries()[1].source_cell_row(), 0);
 
     let mut npy_reader = ChunkedCursor::new(npy, 1);
     let mut csv_reader = ChunkedCursor::new(csv, 3);
     let streamed = import_cellvit_he_bundle_readers(&mut npy_reader, &mut csv_reader, request)
         .expect("chunked source import");
     assert_eq!(streamed.canonical_values(), imported.canonical_values());
+    assert_eq!(streamed.npy_summary(), imported.npy_summary());
+    assert_eq!(streamed.csv_summary(), imported.csv_summary());
     assert_eq!(
         streamed.row_link().logical_digest(),
         imported.row_link().logical_digest()
     );
+    assert_eq!(streamed.row_link().entries(), imported.row_link().entries());
 }
 
 #[test]
@@ -452,9 +468,18 @@ fn managed_store_import_verifies_both_sources_and_rejects_unmanaged_bindings() {
         &bindings,
         budgets(npy.len(), csv.len(), 4 * 1024 * 1024),
     );
+    let borrowed =
+        import_cellvit_he_bundle_bytes(&npy, &csv, request).expect("borrowed source import");
     let imported =
         import_cellvit_he_bundle_from_store(&store, request).expect("managed source import");
-    assert_eq!(imported.row_count(), 2);
+    assert_eq!(imported.canonical_values(), borrowed.canonical_values());
+    assert_eq!(imported.npy_summary(), borrowed.npy_summary());
+    assert_eq!(imported.csv_summary(), borrowed.csv_summary());
+    assert_eq!(
+        imported.row_link().logical_digest(),
+        borrowed.row_link().logical_digest()
+    );
+    assert_eq!(imported.row_link().entries(), borrowed.row_link().entries());
 
     let (unmanaged_bindings, unmanaged_map) = bound_domain(&npy, &csv, &expected);
     let request = CellVitHeImportRequest::new(

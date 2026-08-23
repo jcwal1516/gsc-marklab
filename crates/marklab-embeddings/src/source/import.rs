@@ -231,6 +231,7 @@ impl CellVitHeImportCandidate {
             || graph.expected_cells_artifact_id != self.row_link.expected_cells_artifact_id()
             || graph.identity_map_artifact_id != self.row_link.identity_map_artifact_id()
             || graph.converter_artifact_id != self.row_link.converter_artifact_id()
+            || graph.output_dimension != self.dimension
         {
             return Err(import_error(ImportFailure::VerifiedGraphMismatch));
         }
@@ -739,6 +740,7 @@ mod tests {
             row_link_artifact_id,
             expected_cells_logical_digest: expected.logical_digest(),
             row_link_logical_digest: row_link.logical_digest(),
+            output_dimension: 1_280,
         };
         let candidate = CellVitHeImportCandidate {
             values: vec![0.0; 1_280],
@@ -790,6 +792,18 @@ mod tests {
         let (expected, candidate, graph) = fixture();
         let mismatched = VerifiedCellEmbeddingArtifactGraph {
             row_link_logical_digest: ContentDigest::from_bytes(b"other-row-link"),
+            ..graph
+        };
+        assert!(matches!(
+            candidate.finalize(&expected, &mismatched),
+            Err(SourceBundleError::Import {
+                reason: ImportFailure::VerifiedGraphMismatch,
+            })
+        ));
+
+        let (expected, candidate, graph) = fixture();
+        let mismatched = VerifiedCellEmbeddingArtifactGraph {
+            output_dimension: 1,
             ..graph
         };
         assert!(matches!(

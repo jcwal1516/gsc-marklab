@@ -2,6 +2,7 @@
 #![deny(missing_docs)]
 //! Canonical cell-embedding values and bounded artifact encodings.
 
+mod artifact;
 #[cfg(feature = "parquet")]
 mod columnar;
 mod context;
@@ -14,6 +15,10 @@ mod row_link;
 mod source;
 mod table;
 
+pub use artifact::{
+    CellEmbeddingArtifact, EmbeddingDtype, VerifiedCellEmbeddingRowLinkArtifact,
+    VerifiedCellEmbeddingTableArtifact,
+};
 #[cfg(feature = "parquet")]
 pub use columnar::{
     preflight_cell_embedding_row_link_arrow_bytes, preflight_cell_embedding_row_link_parquet_bytes,
@@ -22,10 +27,17 @@ pub use columnar::{
     publish_cell_embedding_table_arrow, publish_cell_embedding_table_parquet,
     read_cell_embedding_table_arrow_bytes, read_cell_embedding_table_arrow_from_store,
     read_cell_embedding_table_parquet_bytes, read_cell_embedding_table_parquet_from_store,
+    scan_cell_embedding_table_arrow_bytes, scan_cell_embedding_table_arrow_from_store,
+    scan_cell_embedding_table_parquet_bytes, scan_cell_embedding_table_parquet_from_store,
     validate_cell_embedding_row_link_arrow_bytes,
     validate_cell_embedding_row_link_arrow_from_store,
     validate_cell_embedding_row_link_parquet_bytes,
-    validate_cell_embedding_row_link_parquet_from_store, write_cell_embedding_row_link_arrow,
+    validate_cell_embedding_row_link_parquet_from_store,
+    verify_cell_embedding_row_link_arrow_bytes, verify_cell_embedding_row_link_arrow_from_store,
+    verify_cell_embedding_row_link_parquet_bytes,
+    verify_cell_embedding_row_link_parquet_from_store, verify_cell_embedding_table_arrow_bytes,
+    verify_cell_embedding_table_arrow_from_store, verify_cell_embedding_table_parquet_bytes,
+    verify_cell_embedding_table_parquet_from_store, write_cell_embedding_row_link_arrow,
     write_cell_embedding_row_link_parquet, write_cell_embedding_table_arrow,
     write_cell_embedding_table_parquet, ArrowIpcFailure, CellEmbeddingArrowPreflight,
     CellEmbeddingParquetPreflight, CellEmbeddingRowLinkArrowPreflight,
@@ -57,5 +69,6 @@ pub use source::{
     SourceBundleError, SourceFileKind, SourceIoFailure, SourceIoOperation,
 };
 pub use table::{
-    CellEmbeddingRow, CellEmbeddingTable, CellEmbeddingView, EmbeddingQcSummary, EmbeddingStatus,
+    CellEmbeddingBlock, CellEmbeddingRow, CellEmbeddingTable, CellEmbeddingView,
+    EmbeddingQcSummary, EmbeddingStatus,
 };

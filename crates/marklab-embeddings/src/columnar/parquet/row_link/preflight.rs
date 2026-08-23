@@ -370,18 +370,13 @@ where
                 .meta_data
                 .as_ref()
                 .ok_or_else(|| parquet_failure(ParquetFailure::InvalidColumnChunk))?;
-            if column_metadata.type_ != types[column_index]
-                || column_metadata.encodings != [Encoding::PLAIN, Encoding::RLE]
-                || column_metadata
-                    .path_in_schema
-                    .iter()
-                    .map(String::as_str)
-                    .ne(paths[column_index].iter().copied())
-                || column_metadata.codec != CompressionCodec::UNCOMPRESSED
-                || usize::try_from(column_metadata.num_values).ok() != Some(rows)
-                || column_metadata.total_compressed_size <= 0
-                || column_metadata.total_compressed_size != column_metadata.total_uncompressed_size
-                || column_metadata.key_value_metadata.is_some()
+            if column_metadata.codec != CompressionCodec::UNCOMPRESSED {
+                return Err(parquet_failure(ParquetFailure::UnsupportedCompression));
+            }
+            if column_metadata.encodings != [Encoding::PLAIN, Encoding::RLE] {
+                return Err(parquet_failure(ParquetFailure::UnsupportedEncoding));
+            }
+            if column_metadata.key_value_metadata.is_some()
                 || column_metadata.index_page_offset.is_some()
                 || column_metadata.dictionary_page_offset.is_some()
                 || column_metadata.statistics.is_some()
@@ -389,6 +384,18 @@ where
                 || column_metadata.bloom_filter_length.is_some()
                 || column_metadata.size_statistics.is_some()
                 || column_metadata.geospatial_statistics.is_some()
+            {
+                return Err(parquet_failure(ParquetFailure::ForbiddenAuxiliaryData));
+            }
+            if column_metadata.type_ != types[column_index]
+                || column_metadata
+                    .path_in_schema
+                    .iter()
+                    .map(String::as_str)
+                    .ne(paths[column_index].iter().copied())
+                || usize::try_from(column_metadata.num_values).ok() != Some(rows)
+                || column_metadata.total_compressed_size <= 0
+                || column_metadata.total_compressed_size != column_metadata.total_uncompressed_size
                 || column_metadata
                     .encoding_stats
                     .as_ref()
@@ -1018,6 +1025,60 @@ mod tests {
         assert!(definitions > 0);
         let body_start = page_start + header_bytes;
         body_start..body_start + definitions
+    }
+
+    #[test]
+    fn preflight_rejects_row_link_schema_metadata_codec_encoding_and_auxiliary_drift() {
+        let (expected, row_link, budgets, canonical) = fixture();
+        let assert_rejected = |metadata: &FileMetaData, reason| {
+            assert!(matches!(
+                preflight_cell_embedding_row_link_parquet_bytes(
+                    &replace_footer(&canonical, metadata),
+                    &expected,
+                    &row_link,
+                    budgets,
+                ),
+                Err(EmbeddingColumnarError::Parquet { reason: observed }) if observed == reason
+            ));
+        };
+
+        let (_, mut wrong_schema) = raw_footer(&canonical);
+        wrong_schema.schema[0].name = "wrong_root".to_owned();
+        assert_rejected(&wrong_schema, ParquetFailure::InvalidSchema);
+
+        let (_, mut wrong_metadata) = raw_footer(&canonical);
+        wrong_metadata.created_by = Some("wrong-writer".to_owned());
+        assert_rejected(&wrong_metadata, ParquetFailure::InvalidMetadata);
+
+        let (_, mut compressed) = raw_footer(&canonical);
+        compressed.row_groups[0].columns[0]
+            .meta_data
+            .as_mut()
+            .expect("column")
+            .codec = CompressionCodec::SNAPPY;
+        assert_rejected(&compressed, ParquetFailure::UnsupportedCompression);
+
+        let (_, mut dictionary_encoding) = raw_footer(&canonical);
+        dictionary_encoding.row_groups[0].columns[0]
+            .meta_data
+            .as_mut()
+            .expect("column")
+            .encodings
+            .push(Encoding::RLE_DICTIONARY);
+        assert_rejected(&dictionary_encoding, ParquetFailure::UnsupportedEncoding);
+
+        let (_, mut dictionary_page) = raw_footer(&canonical);
+        dictionary_page.row_groups[0].columns[0]
+            .meta_data
+            .as_mut()
+            .expect("column")
+            .dictionary_page_offset = Some(4);
+        assert_rejected(&dictionary_page, ParquetFailure::ForbiddenAuxiliaryData);
+
+        let (_, mut indexes) = raw_footer(&canonical);
+        indexes.row_groups[0].columns[0].offset_index_offset = Some(4);
+        indexes.row_groups[0].columns[0].offset_index_length = Some(8);
+        assert_rejected(&indexes, ParquetFailure::ForbiddenAuxiliaryData);
     }
 
     #[test]

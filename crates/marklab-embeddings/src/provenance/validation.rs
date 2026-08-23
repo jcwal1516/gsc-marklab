@@ -69,6 +69,7 @@ impl CellEmbeddingProvenance {
             row_link_artifact_id: self.inputs.row_link_artifact_id,
             expected_cells_logical_digest: expected.logical_digest(),
             row_link_logical_digest: row_link.logical_digest(),
+            output_dimension: self.tensor.output_dimension(),
         })
     }
 

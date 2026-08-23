@@ -31,6 +31,7 @@ pub struct CellEmbeddingRowLinkArrowPreflight {
     encoded_byte_len: u64,
     content_digest: ContentDigest,
     pub(super) retained_preflight_bytes: usize,
+    pub(super) maximum_batch_decoded_bytes: usize,
 }
 
 impl CellEmbeddingRowLinkArrowPreflight {
@@ -150,6 +151,7 @@ pub(super) fn preflight_cell_embedding_row_link_arrow_reader<R: Read + Seek + ?S
     let mut next_offset = schema_end;
     let mut aggregate_rows = 0_usize;
     let mut decoded_bytes = 0_u64;
+    let mut maximum_batch_decoded_bytes = 0_u64;
     for (batch_index, block) in batches.iter().enumerate() {
         let offset = nonnegative_usize(block.offset(), ArrowIpcFailure::InvalidBlock)?;
         let metadata_length =
@@ -197,6 +199,7 @@ pub(super) fn preflight_cell_embedding_row_link_arrow_reader<R: Read + Seek + ?S
             .checked_sub(start)
             .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidRowCount))?
             .min(RECORD_BATCH_ROWS);
+        let decoded_before = decoded_bytes;
         validate_record_batch(
             message_bytes,
             body_bytes,
@@ -206,6 +209,11 @@ pub(super) fn preflight_cell_embedding_row_link_arrow_reader<R: Read + Seek + ?S
             rows,
             &mut decoded_bytes,
         )?;
+        maximum_batch_decoded_bytes = maximum_batch_decoded_bytes.max(
+            decoded_bytes
+                .checked_sub(decoded_before)
+                .ok_or(EmbeddingColumnarError::SizeOverflow)?,
+        );
         aggregate_rows = aggregate_rows
             .checked_add(rows)
             .ok_or(EmbeddingColumnarError::SizeOverflow)?;
@@ -223,6 +231,8 @@ pub(super) fn preflight_cell_embedding_row_link_arrow_reader<R: Read + Seek + ?S
         encoded_byte_len,
         content_digest,
         retained_preflight_bytes: retained_required,
+        maximum_batch_decoded_bytes: usize::try_from(maximum_batch_decoded_bytes)
+            .map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
     })
 }
 

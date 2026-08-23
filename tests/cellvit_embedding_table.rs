@@ -277,6 +277,40 @@ fn table_uses_explicit_statuses_and_never_exposes_private_fillers() {
     assert_eq!(table.qc_summary().missing_vector_count(), 1);
     assert_eq!(table.qc_summary().qc_rejected_count(), 1);
     assert_eq!(table.qc_summary().all_zero_present_count(), 0);
+
+    let block = table.block(1, 2).expect("status-aware block");
+    assert_eq!(block.row_count(), 2);
+    assert_eq!(block.dimension(), 3);
+    assert_eq!(
+        block.row(0).expect("block missing row").status(),
+        EmbeddingStatus::MissingVector
+    );
+    assert!(block.row(0).expect("block missing row").vector().is_none());
+    assert!(block.row(1).expect("block rejected row").vector().is_none());
+    assert_eq!(block.rows().len(), 2);
+    assert!(block.rows().all(|row| row.vector().is_none()));
+    for debug in [format!("{table:?}"), format!("{block:?}")] {
+        assert!(!debug.contains("values"));
+        assert!(!debug.contains("1.0"));
+        assert!(!debug.contains("3.0"));
+    }
+
+    let empty = table.block(table.row_count(), 0).expect("empty tail block");
+    assert_eq!(empty.row_count(), 0);
+    assert!(empty.rows().next().is_none());
+    assert!(table.block(table.row_count() + 1, 0).is_err());
+    assert!(table.block(2, 2).is_err());
+    assert!(table.block(usize::MAX, 2).is_err());
+
+    for maximum_block_rows in [1, 2, 3, 8_192] {
+        assert_eq!(
+            table
+                .scan_qc(maximum_block_rows)
+                .expect("chunk-independent QC scan"),
+            table.qc_summary()
+        );
+    }
+    assert!(table.scan_qc(0).is_err());
 }
 
 #[test]
@@ -337,4 +371,42 @@ fn table_rejects_row_set_status_dimension_finiteness_and_budget_errors() {
         1,
     )
     .is_err());
+}
+
+#[test]
+fn contiguous_present_values_construct_without_per_row_vectors() {
+    let expected = expected_cells();
+    let expected_id = artifact_id(b"expected-cells");
+    let provenance_id = artifact_id(b"provenance");
+    let row_link_digest = ContentDigest::from_bytes(b"row-link");
+    let contiguous = CellEmbeddingTable::from_present_values(
+        2,
+        &expected,
+        expected_id,
+        provenance_id,
+        row_link_digest,
+        vec![1.0, -0.0, 3.0, 4.0, 0.0, 0.0],
+        1_024,
+    )
+    .expect("contiguous table");
+    let rowwise = CellEmbeddingTable::from_rows(
+        2,
+        &expected,
+        expected_id,
+        provenance_id,
+        row_link_digest,
+        vec![
+            CellEmbeddingRow::present(cell("cell-a"), vec![1.0, 0.0]),
+            CellEmbeddingRow::present(cell("cell-b"), vec![3.0, 4.0]),
+            CellEmbeddingRow::present(cell("cell-c"), vec![0.0, 0.0]),
+        ],
+        1_024,
+    )
+    .expect("rowwise table");
+    assert_eq!(contiguous, rowwise);
+    assert_eq!(contiguous.qc_summary().all_zero_present_count(), 1);
+    assert_eq!(
+        contiguous.row(0).expect("first row").vector(),
+        Some(&[1.0, 0.0][..])
+    );
 }

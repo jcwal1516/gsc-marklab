@@ -21,8 +21,9 @@ use parquet::{
 };
 
 use crate::{
-    CellEmbeddingRowLink, CellEmbeddingTable, EmbeddingError, EmbeddingStatus, ExpectedCellSet,
-    VerifiedCellEmbeddingArtifactGraph,
+    table::EmbeddingQcAccumulator, CellEmbeddingRowLink, CellEmbeddingTable, EmbeddingError,
+    EmbeddingQcSummary, EmbeddingStatus, ExpectedCellSet, VerifiedCellEmbeddingArtifactGraph,
+    VerifiedCellEmbeddingTableArtifact,
 };
 
 use super::{
@@ -139,6 +140,142 @@ pub fn read_cell_embedding_table_parquet_from_store(
     })
 }
 
+/// Stream-scan fully preflighted borrowed Parquet bytes without retaining the table.
+pub fn scan_cell_embedding_table_parquet_bytes(
+    bytes: &[u8],
+    record: &ArtifactRecord,
+    expected: &ExpectedCellSet,
+    row_link: &CellEmbeddingRowLink,
+    graph: VerifiedCellEmbeddingArtifactGraph,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<EmbeddingQcSummary, EmbeddingColumnarError> {
+    let encoded_byte_len =
+        u64::try_from(bytes.len()).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+    if encoded_byte_len > budgets.maximum_file_bytes() {
+        return Err(EmbeddingColumnarError::FileByteBudgetExceeded {
+            observed: encoded_byte_len,
+            maximum: budgets.maximum_file_bytes(),
+        });
+    }
+    let dimension = validate_embedding_record(record, encoded_byte_len, expected, row_link, graph)?;
+    let mut source = Cursor::new(bytes);
+    let declared_logical_digest = declared_table_logical_digest_parquet_reader(
+        &mut source,
+        encoded_byte_len,
+        expected,
+        budgets,
+    )?;
+    let bindings = physical_bindings(graph, declared_logical_digest)?;
+    let prepared = prepare_cell_embedding_table_parquet_reader(
+        &mut source,
+        encoded_byte_len,
+        marklab_project::ContentDigest::from_bytes(bytes),
+        expected,
+        dimension,
+        bindings,
+        budgets,
+    )?;
+    validate_preflight_identity(&prepared, record, dimension)?;
+    scan_cell_embedding_table_parquet(
+        &mut source,
+        expected,
+        row_link,
+        graph,
+        dimension,
+        declared_logical_digest,
+        prepared,
+        budgets,
+    )
+}
+
+/// Stream-scan a managed Parquet table through one pre/post-verified descriptor.
+pub fn scan_cell_embedding_table_parquet_from_store(
+    store: &LocalArtifactStore,
+    record: &ArtifactRecord,
+    expected: &ExpectedCellSet,
+    row_link: &CellEmbeddingRowLink,
+    graph: VerifiedCellEmbeddingArtifactGraph,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<EmbeddingQcSummary, VerifiedReaderError<EmbeddingColumnarError>> {
+    let encoded_byte_len = record.content().byte_len();
+    if encoded_byte_len > budgets.maximum_file_bytes() {
+        return Err(VerifiedReaderError::Callback(
+            EmbeddingColumnarError::FileByteBudgetExceeded {
+                observed: encoded_byte_len,
+                maximum: budgets.maximum_file_bytes(),
+            },
+        ));
+    }
+    let dimension = validate_embedding_record(record, encoded_byte_len, expected, row_link, graph)
+        .map_err(VerifiedReaderError::Callback)?;
+    store.with_verified_reader(record, |reader| {
+        let declared_logical_digest = declared_table_logical_digest_parquet_reader(
+            reader,
+            encoded_byte_len,
+            expected,
+            budgets,
+        )?;
+        let bindings = physical_bindings(graph, declared_logical_digest)?;
+        let prepared = prepare_cell_embedding_table_parquet_reader(
+            reader,
+            encoded_byte_len,
+            record.content().digest(),
+            expected,
+            dimension,
+            bindings,
+            budgets,
+        )?;
+        validate_preflight_identity(&prepared, record, dimension)?;
+        scan_cell_embedding_table_parquet(
+            reader,
+            expected,
+            row_link,
+            graph,
+            dimension,
+            declared_logical_digest,
+            prepared,
+            budgets,
+        )
+    })
+}
+
+/// Fully verify borrowed Parquet bytes and return a receipt bound to the exact artifact record.
+pub fn verify_cell_embedding_table_parquet_bytes(
+    bytes: &[u8],
+    record: &ArtifactRecord,
+    expected: &ExpectedCellSet,
+    row_link: &CellEmbeddingRowLink,
+    graph: VerifiedCellEmbeddingArtifactGraph,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<VerifiedCellEmbeddingTableArtifact, EmbeddingColumnarError> {
+    let qc_summary =
+        scan_cell_embedding_table_parquet_bytes(bytes, record, expected, row_link, graph, budgets)?;
+    Ok(VerifiedCellEmbeddingTableArtifact::new(
+        record.id(),
+        graph,
+        qc_summary,
+    ))
+}
+
+/// Fully verify a managed Parquet table and return an exact artifact-bound receipt.
+pub fn verify_cell_embedding_table_parquet_from_store(
+    store: &LocalArtifactStore,
+    record: &ArtifactRecord,
+    expected: &ExpectedCellSet,
+    row_link: &CellEmbeddingRowLink,
+    graph: VerifiedCellEmbeddingArtifactGraph,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<VerifiedCellEmbeddingTableArtifact, VerifiedReaderError<EmbeddingColumnarError>> {
+    let qc_summary = scan_cell_embedding_table_parquet_from_store(
+        store, record, expected, row_link, graph, budgets,
+    )?;
+    Ok(VerifiedCellEmbeddingTableArtifact::new(
+        record.id(),
+        graph,
+        qc_summary,
+    ))
+}
+
 fn physical_bindings(
     graph: VerifiedCellEmbeddingArtifactGraph,
     declared_logical_digest: marklab_project::ContentDigest,
@@ -191,17 +328,6 @@ fn materialize_cell_embedding_table_parquet<R: Read + Seek + ?Sized>(
         .ok_or(EmbeddingColumnarError::SizeOverflow)?;
     let required_retained = materialization_peak.max(prepared.summary.retained_preflight_bytes);
     enforce_retained_budget(required_retained, budgets)?;
-    let expected_schema = embedding_schema(dimension)?;
-    let PreparedCellEmbeddingParquet {
-        summary: _,
-        metadata,
-    } = prepared;
-    let metadata = Arc::new(metadata);
-    let reader_metadata = ArrowReaderMetadata::try_new(
-        Arc::clone(&metadata),
-        ArrowReaderOptions::new().with_schema(Arc::new(expected_schema.clone())),
-    )
-    .map_err(|_| parquet_failure(ParquetFailure::StockDecode))?;
 
     let component_count = expected
         .cells()
@@ -224,6 +350,122 @@ fn materialize_cell_embedding_table_parquet<R: Read + Seek + ?Sized>(
                 .saturating_mul(size_of::<EmbeddingStatus>()),
         })?;
 
+    visit_cell_embedding_table_parquet(
+        source,
+        expected,
+        row_link,
+        dimension,
+        prepared,
+        budgets,
+        |_, status, vector| {
+            statuses.push(status);
+            values.extend_from_slice(vector);
+            Ok(())
+        },
+    )?;
+    if values.len() != component_count || statuses.len() != expected.cells().len() {
+        return Err(parquet_failure(ParquetFailure::InvalidRowCount));
+    }
+    let table = CellEmbeddingTable::from_physical_values(
+        dimension,
+        expected,
+        graph.expected_cells_artifact_id,
+        graph.provenance_artifact_id,
+        graph.row_link_logical_digest,
+        statuses,
+        values,
+        budgets.maximum_retained_bytes(),
+    )
+    .map_err(map_table_construction_error)?;
+    if table.qc_summary().logical_digest() != declared_logical_digest {
+        return Err(parquet_failure(ParquetFailure::LogicalDigestMismatch));
+    }
+    Ok(table)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn scan_cell_embedding_table_parquet<R: Read + Seek + ?Sized>(
+    source: &mut R,
+    expected: &ExpectedCellSet,
+    row_link: &CellEmbeddingRowLink,
+    graph: VerifiedCellEmbeddingArtifactGraph,
+    dimension: u32,
+    declared_logical_digest: marklab_project::ContentDigest,
+    prepared: PreparedCellEmbeddingParquet,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<EmbeddingQcSummary, EmbeddingColumnarError> {
+    let maximum_group_peak = estimate_maximum_group_peak(&prepared, dimension)?;
+    let metadata_bytes = prepared
+        .metadata
+        .memory_size()
+        .checked_mul(2)
+        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+    let scan_peak = metadata_bytes
+        .checked_add(maximum_group_peak)
+        .and_then(|value| value.checked_add(64 * 1024))
+        .and_then(|value| value.checked_add(size_of::<EmbeddingQcAccumulator>()))
+        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+    enforce_retained_budget(
+        scan_peak.max(prepared.summary.retained_preflight_bytes),
+        budgets,
+    )?;
+    let mut accumulator = EmbeddingQcAccumulator::new(
+        graph.expected_cells_artifact_id,
+        graph.provenance_artifact_id,
+        graph.row_link_logical_digest,
+        dimension,
+        expected.cells().len(),
+    )
+    .map_err(map_table_construction_error)?;
+    visit_cell_embedding_table_parquet(
+        source,
+        expected,
+        row_link,
+        dimension,
+        prepared,
+        budgets,
+        |cell_id, status, vector| {
+            accumulator
+                .push(
+                    cell_id,
+                    status,
+                    (status == EmbeddingStatus::Present).then_some(vector),
+                )
+                .map_err(map_table_construction_error)
+        },
+    )?;
+    let summary = accumulator.finish().map_err(map_table_construction_error)?;
+    if summary.logical_digest() != declared_logical_digest {
+        return Err(parquet_failure(ParquetFailure::LogicalDigestMismatch));
+    }
+    Ok(summary)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn visit_cell_embedding_table_parquet<R, F>(
+    source: &mut R,
+    expected: &ExpectedCellSet,
+    row_link: &CellEmbeddingRowLink,
+    dimension: u32,
+    prepared: PreparedCellEmbeddingParquet,
+    budgets: EmbeddingColumnarBudgets,
+    mut visit: F,
+) -> Result<(), EmbeddingColumnarError>
+where
+    R: Read + Seek + ?Sized,
+    F: FnMut(&marklab_data::CellId, EmbeddingStatus, &[f32]) -> Result<(), EmbeddingColumnarError>,
+{
+    let expected_schema = embedding_schema(dimension)?;
+    let PreparedCellEmbeddingParquet {
+        summary: _,
+        metadata,
+    } = prepared;
+    let metadata = Arc::new(metadata);
+    let reader_metadata = ArrowReaderMetadata::try_new(
+        Arc::clone(&metadata),
+        ArrowReaderOptions::new().with_schema(Arc::new(expected_schema.clone())),
+    )
+    .map_err(|_| parquet_failure(ParquetFailure::StockDecode))?;
     let mut global_row = 0_usize;
     for (group_index, row_group) in metadata.row_groups().iter().enumerate() {
         let rows = usize::try_from(row_group.num_rows())
@@ -266,8 +508,7 @@ fn materialize_cell_embedding_table_parquet<R: Read + Seek + ?Sized>(
                 row_link,
                 dimension,
                 &mut global_row,
-                &mut statuses,
-                &mut values,
+                &mut visit,
             )?;
         }
         if global_row
@@ -278,38 +519,23 @@ fn materialize_cell_embedding_table_parquet<R: Read + Seek + ?Sized>(
             return Err(parquet_failure(ParquetFailure::InvalidRowCount));
         }
     }
-    if global_row != expected.cells().len()
-        || values.len() != component_count
-        || statuses.len() != expected.cells().len()
-    {
+    if global_row != expected.cells().len() {
         return Err(parquet_failure(ParquetFailure::InvalidRowCount));
     }
-    let table = CellEmbeddingTable::from_physical_values(
-        dimension,
-        expected,
-        graph.expected_cells_artifact_id,
-        graph.provenance_artifact_id,
-        graph.row_link_logical_digest,
-        statuses,
-        values,
-        budgets.maximum_retained_bytes(),
-    )
-    .map_err(map_table_construction_error)?;
-    if table.qc_summary().logical_digest() != declared_logical_digest {
-        return Err(parquet_failure(ParquetFailure::LogicalDigestMismatch));
-    }
-    Ok(table)
+    Ok(())
 }
 
-fn validate_batch(
+fn validate_batch<F>(
     batch: &arrow::record_batch::RecordBatch,
     expected: &ExpectedCellSet,
     row_link: &CellEmbeddingRowLink,
     dimension: u32,
     global_row: &mut usize,
-    statuses: &mut Vec<EmbeddingStatus>,
-    values: &mut Vec<f32>,
-) -> Result<(), EmbeddingColumnarError> {
+    visit: &mut F,
+) -> Result<(), EmbeddingColumnarError>
+where
+    F: FnMut(&marklab_data::CellId, EmbeddingStatus, &[f32]) -> Result<(), EmbeddingColumnarError>,
+{
     if batch.num_columns() != 3 {
         return Err(parquet_failure(ParquetFailure::StockDecode));
     }
@@ -370,20 +596,18 @@ fn validate_batch(
         let end = start
             .checked_add(dimension)
             .ok_or(EmbeddingColumnarError::SizeOverflow)?;
-        if end > components.len() {
-            return Err(parquet_failure(ParquetFailure::StockDecode));
-        }
-        for index in start..end {
-            let value = components.value(index);
-            if !value.is_finite()
-                || (value == 0.0 && value.to_bits() != 0)
+        let vector = components
+            .values()
+            .get(start..end)
+            .ok_or_else(|| parquet_failure(ParquetFailure::StockDecode))?;
+        if vector.iter().any(|value| {
+            !value.is_finite()
+                || (*value == 0.0 && value.to_bits() != 0)
                 || (status != EmbeddingStatus::Present && value.to_bits() != 0)
-            {
-                return Err(parquet_failure(ParquetFailure::InvalidComponent));
-            }
-            values.push(value);
+        }) {
+            return Err(parquet_failure(ParquetFailure::InvalidComponent));
         }
-        statuses.push(status);
+        visit(expected_cell, status, vector)?;
         *global_row = global_row
             .checked_add(1)
             .ok_or(EmbeddingColumnarError::SizeOverflow)?;
@@ -453,7 +677,11 @@ fn validate_embedding_record(
         } => *length,
         _ => return Err(EmbeddingColumnarError::ArtifactBindingMismatch),
     };
-    if dimension == 0 || dimension > MAXIMUM_DIMENSION || expected.cells().len() > MAXIMUM_ROWS {
+    if dimension != graph.output_dimension
+        || dimension == 0
+        || dimension > MAXIMUM_DIMENSION
+        || expected.cells().len() > MAXIMUM_ROWS
+    {
         return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
     }
     Ok(dimension)
@@ -662,7 +890,19 @@ fn bounded_range_error() -> ParquetError {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use marklab_data::CellId;
+    use marklab_project::{ArtifactId, ContentDigest};
+
+    use crate::{CellEmbeddingTable, ExpectedCellSet};
+
+    use super::super::writer::write_cell_embedding_table_parquet;
     use super::*;
+
+    fn artifact_id(label: &[u8]) -> ArtifactId {
+        ArtifactId::from_str(&ContentDigest::from_bytes(label).to_string()).expect("artifact ID")
+    }
 
     fn window() -> RowGroupWindow {
         RowGroupWindow {
@@ -689,5 +929,102 @@ mod tests {
             window.get_bytes(11, 2).expect("translated bytes"),
             Bytes::from_static(&[2, 3])
         );
+    }
+
+    #[test]
+    fn cached_metadata_decodes_only_the_selected_middle_row_group_window() {
+        let row_count = 16_385_usize;
+        let cells = (0..row_count)
+            .map(|index| CellId::new(format!("cell-{index:08}")).expect("cell"))
+            .collect::<Vec<_>>();
+        let expected = ExpectedCellSet::new("middle-window.v1", cells).expect("expected");
+        let expected_id = artifact_id(b"middle-expected");
+        let provenance_id = artifact_id(b"middle-provenance");
+        let row_link_id = artifact_id(b"middle-row-link");
+        let row_link_digest = ContentDigest::from_bytes(b"middle-row-link-logical");
+        let values = (0..row_count).map(|index| index as f32).collect();
+        let table = CellEmbeddingTable::from_present_values(
+            1,
+            &expected,
+            expected_id,
+            provenance_id,
+            row_link_digest,
+            values,
+            8 * 1024 * 1024,
+        )
+        .expect("table");
+        let bindings = CellEmbeddingTablePhysicalBindings::new(
+            expected_id,
+            provenance_id,
+            row_link_id,
+            row_link_digest,
+            table.qc_summary().logical_digest(),
+        )
+        .expect("bindings");
+        let budgets = EmbeddingColumnarBudgets::new(
+            64 * 1024 * 1024,
+            128 * 1024 * 1024,
+            64 * 1024 * 1024,
+            64 * 1024 * 1024,
+        );
+        let mut bytes = Vec::new();
+        write_cell_embedding_table_parquet(&mut bytes, &table, bindings, budgets)
+            .expect("write Parquet");
+        let mut source = Cursor::new(bytes.as_slice());
+        let prepared = prepare_cell_embedding_table_parquet_reader(
+            &mut source,
+            u64::try_from(bytes.len()).expect("file length"),
+            ContentDigest::from_bytes(&bytes),
+            &expected,
+            1,
+            bindings,
+            budgets,
+        )
+        .expect("prepare reader");
+        assert_eq!(prepared.metadata.num_row_groups(), 3);
+
+        let metadata = Arc::new(prepared.metadata);
+        let expected_schema = embedding_schema(1).expect("schema");
+        let reader_metadata = ArrowReaderMetadata::try_new(
+            Arc::clone(&metadata),
+            ArrowReaderOptions::new().with_schema(Arc::new(expected_schema.clone())),
+        )
+        .expect("cached reader metadata");
+        let (start, length) = validated_group_range(metadata.row_group(1)).expect("middle range");
+        let start_index = usize::try_from(start).expect("middle start");
+        let end_index = start_index.checked_add(length).expect("middle end");
+        let window = RowGroupWindow::new(
+            start,
+            start
+                .checked_add(u64::try_from(length).expect("middle length"))
+                .expect("absolute middle end"),
+            Bytes::copy_from_slice(&bytes[start_index..end_index]),
+        );
+        let mut reader =
+            ParquetRecordBatchReaderBuilder::new_with_metadata(window, reader_metadata)
+                .with_row_groups(vec![1])
+                .with_batch_size(ROW_GROUP_ROWS)
+                .build()
+                .expect("middle-only reader");
+        assert_eq!(reader.schema().as_ref(), &expected_schema);
+        let mut observed = 0_usize;
+        let mut first = None;
+        let mut last = None;
+        for batch in &mut reader {
+            let batch = batch.expect("middle batch");
+            let ids = batch
+                .column(0)
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .expect("cell IDs");
+            if !ids.is_empty() {
+                first.get_or_insert_with(|| ids.value(0).to_owned());
+                last = Some(ids.value(ids.len() - 1).to_owned());
+            }
+            observed = observed.checked_add(batch.num_rows()).expect("row count");
+        }
+        assert_eq!(observed, ROW_GROUP_ROWS);
+        assert_eq!(first.as_deref(), Some("cell-00008192"));
+        assert_eq!(last.as_deref(), Some("cell-00016383"));
     }
 }

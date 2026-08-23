@@ -13,6 +13,16 @@ use marklab_embeddings::{
 use marklab_project::{ArtifactId, ContentDigest};
 use proptest::prelude::*;
 
+#[derive(Debug, Eq, PartialEq)]
+struct ReferenceQc {
+    present: u64,
+    missing: u64,
+    failed: u64,
+    rejected: u64,
+    all_zero_present: u64,
+    digest: ContentDigest,
+}
+
 fn artifact_id(label: &[u8]) -> ArtifactId {
     ArtifactId::from_str(&ContentDigest::from_bytes(label).to_string()).expect("artifact ID")
 }
@@ -77,6 +87,78 @@ fn context(registry: &CoordinateRegistry) -> EmbeddingSpatialContext {
         PatchBoundaryPolicy::FullyContainedOnly,
     )
     .expect("context")
+}
+
+fn reference_qc(
+    table: &CellEmbeddingTable,
+    expected_cells_artifact_id: ArtifactId,
+    provenance_artifact_id: ArtifactId,
+    row_link_digest: ContentDigest,
+) -> ReferenceQc {
+    let mut fields = vec![
+        b"marklab-cell-embedding-logical-v1".to_vec(),
+        provenance_artifact_id.digest().as_bytes().to_vec(),
+        row_link_digest.as_bytes().to_vec(),
+        expected_cells_artifact_id.digest().as_bytes().to_vec(),
+        table.dimension().to_be_bytes().to_vec(),
+        (table.row_count() as u64).to_be_bytes().to_vec(),
+    ];
+    let mut reference = ReferenceQc {
+        present: 0,
+        missing: 0,
+        failed: 0,
+        rejected: 0,
+        all_zero_present: 0,
+        digest: ContentDigest::from_bytes(&[]),
+    };
+    for index in 0..table.row_count() {
+        let row = table.row(index).expect("reference row");
+        fields.push(row.cell_id().as_str().as_bytes().to_vec());
+        let wire = match row.status() {
+            EmbeddingStatus::Present => {
+                reference.present += 1;
+                "present"
+            }
+            EmbeddingStatus::MissingVector => {
+                reference.missing += 1;
+                "missing_vector"
+            }
+            EmbeddingStatus::ExtractionFailed => {
+                reference.failed += 1;
+                "extraction_failed"
+            }
+            EmbeddingStatus::QcRejected => {
+                reference.rejected += 1;
+                "qc_rejected"
+            }
+        };
+        fields.push(wire.as_bytes().to_vec());
+        if let Some(vector) = row.vector() {
+            reference.all_zero_present +=
+                u64::from(vector.iter().all(|value| value.to_bits() == 0));
+            fields.extend(
+                vector
+                    .iter()
+                    .map(|value| value.to_bits().to_be_bytes().to_vec()),
+            );
+        }
+    }
+    reference.digest = ContentDigest::from_framed(fields.iter().map(Vec::as_slice));
+    reference
+}
+
+fn assert_matches_reference(
+    table: &CellEmbeddingTable,
+    reference: &ReferenceQc,
+    maximum_block_rows: usize,
+) {
+    let summary = table.scan_qc(maximum_block_rows).expect("QC scan");
+    assert_eq!(summary.present_count(), reference.present);
+    assert_eq!(summary.missing_vector_count(), reference.missing);
+    assert_eq!(summary.extraction_failed_count(), reference.failed);
+    assert_eq!(summary.qc_rejected_count(), reference.rejected);
+    assert_eq!(summary.all_zero_present_count(), reference.all_zero_present);
+    assert_eq!(summary.logical_digest(), reference.digest);
 }
 
 #[test]
@@ -204,9 +286,20 @@ fn table_digest_status_counts_and_signed_zero_are_fixed() {
         0
     );
     assert!(table.row(1).expect("row").vector().is_none());
+    let reference = reference_qc(
+        &table,
+        artifact_id(b"expected-cells"),
+        artifact_id(b"provenance"),
+        ContentDigest::from_bytes(b"row-link"),
+    );
+    for maximum_block_rows in [1, 2, 3, 8_192] {
+        assert_matches_reference(&table, &reference, maximum_block_rows);
+    }
 }
 
 proptest! {
+    #![proptest_config(ProptestConfig::with_cases(64))]
+
     #[test]
     fn finite_present_vectors_round_trip_with_only_signed_zero_canonicalized(
         values in prop::collection::vec(any::<f32>().prop_filter("finite", |value| value.is_finite()), 1..32)
@@ -229,5 +322,61 @@ proptest! {
         )
         .expect("table");
         prop_assert_eq!(table.row(0).expect("row").vector(), Some(canonical.as_slice()));
+    }
+
+    #[test]
+    fn chunked_qc_matches_an_obvious_framed_reference(
+        case in (1_usize..9, 0_usize..33).prop_flat_map(|(dimension, rows)| {
+            (
+                Just(dimension),
+                prop::collection::vec(
+                    (
+                        0_u8..4,
+                        prop::collection::vec(
+                            any::<f32>().prop_filter("finite", |value| value.is_finite()),
+                            dimension,
+                        ),
+                    ),
+                    rows,
+                ),
+            )
+        })
+    ) {
+        let (dimension, cases) = case;
+        let cells = (0..cases.len())
+            .map(|index| cell(&format!("cell-{index:04}")))
+            .collect::<Vec<_>>();
+        let expected = ExpectedCellSet::new("property-qc.v1", cells.clone())
+            .expect("expected cells");
+        let rows = cells
+            .into_iter()
+            .zip(cases)
+            .map(|(cell_id, (status, values))| match status {
+                0 => CellEmbeddingRow::present(cell_id, values),
+                1 => CellEmbeddingRow::non_present(cell_id, EmbeddingStatus::MissingVector)
+                    .expect("missing"),
+                2 => CellEmbeddingRow::non_present(cell_id, EmbeddingStatus::ExtractionFailed)
+                    .expect("failed"),
+                _ => CellEmbeddingRow::non_present(cell_id, EmbeddingStatus::QcRejected)
+                    .expect("rejected"),
+            })
+            .collect();
+        let expected_id = artifact_id(b"property-expected");
+        let provenance_id = artifact_id(b"property-provenance");
+        let row_link_digest = ContentDigest::from_bytes(b"property-row-link");
+        let table = CellEmbeddingTable::from_rows(
+            u32::try_from(dimension).expect("dimension"),
+            &expected,
+            expected_id,
+            provenance_id,
+            row_link_digest,
+            rows,
+            1024 * 1024,
+        )
+        .expect("property table");
+        let reference = reference_qc(&table, expected_id, provenance_id, row_link_digest);
+        for maximum_block_rows in [1, 2, 3, 8_192] {
+            assert_matches_reference(&table, &reference, maximum_block_rows);
+        }
     }
 }

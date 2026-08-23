@@ -1060,6 +1060,59 @@ fn row_link_arrow_writer_and_preflight_enforce_exact_resource_edges() {
         ),
         Err(EmbeddingColumnarError::RetainedByteBudgetExceeded { .. })
     ));
+
+    let root = TempDir::new().expect("reader budget store root");
+    let store = LocalArtifactStore::open(
+        root.path(),
+        StoreId::new("row-link-reader-budget").expect("store ID"),
+    )
+    .expect("reader budget store");
+    let publication = publish_cell_embedding_row_link_arrow(&store, &row_link, generous)
+        .expect("publish reader budget link");
+    let reader_retained_required = match validate_cell_embedding_row_link_arrow_bytes(
+        &bytes,
+        publication.record(),
+        &expected,
+        &row_link,
+        exact_retained,
+    ) {
+        Err(EmbeddingColumnarError::RetainedByteBudgetExceeded { required, maximum })
+            if maximum == block_retained_required && required > maximum =>
+        {
+            required
+        }
+        result => panic!("expected decoded-batch retained failure, observed {result:?}"),
+    };
+    let exact_reader_retained = EmbeddingColumnarBudgets::new(
+        generous.maximum_file_bytes(),
+        reader_retained_required,
+        generous.maximum_row_group_bytes(),
+        generous.maximum_decoded_bytes(),
+    );
+    validate_cell_embedding_row_link_arrow_bytes(
+        &bytes,
+        publication.record(),
+        &expected,
+        &row_link,
+        exact_reader_retained,
+    )
+    .expect("exact full-reader retained budget");
+    assert!(matches!(
+        validate_cell_embedding_row_link_arrow_bytes(
+            &bytes,
+            publication.record(),
+            &expected,
+            &row_link,
+            EmbeddingColumnarBudgets::new(
+                generous.maximum_file_bytes(),
+                reader_retained_required - 1,
+                generous.maximum_row_group_bytes(),
+                generous.maximum_decoded_bytes(),
+            ),
+        ),
+        Err(EmbeddingColumnarError::RetainedByteBudgetExceeded { required, maximum })
+            if required == reader_retained_required && maximum == reader_retained_required - 1
+    ));
 }
 
 #[test]

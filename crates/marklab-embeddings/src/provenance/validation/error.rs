@@ -151,6 +151,7 @@ pub struct VerifiedCellEmbeddingArtifactGraph {
     pub(crate) row_link_artifact_id: ArtifactId,
     pub(crate) expected_cells_logical_digest: ContentDigest,
     pub(crate) row_link_logical_digest: ContentDigest,
+    pub(crate) output_dimension: u32,
 }
 
 impl VerifiedCellEmbeddingArtifactGraph {
@@ -162,5 +163,10 @@ impl VerifiedCellEmbeddingArtifactGraph {
     /// Number of verified direct provenance dependencies.
     pub fn dependency_count(self) -> u8 {
         self.dependency_count
+    }
+
+    /// Verified provenance-declared embedding width.
+    pub fn output_dimension(self) -> u32 {
+        self.output_dimension
     }
 }

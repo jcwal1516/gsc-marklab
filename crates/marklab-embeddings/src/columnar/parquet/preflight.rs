@@ -570,20 +570,13 @@ where
                 .as_ref()
                 .ok_or_else(|| parquet_failure(ParquetFailure::InvalidColumnChunk))?;
             let expected_path = expected_paths[column_index];
-            if column_metadata.type_ != expected_types[column_index]
-                || column_metadata.encodings != [Encoding::PLAIN, Encoding::RLE]
-                || column_metadata.path_in_schema.len() != expected_path.len()
-                || column_metadata
-                    .path_in_schema
-                    .iter()
-                    .map(String::as_str)
-                    .ne(expected_path.iter().copied())
-                || column_metadata.codec != CompressionCodec::UNCOMPRESSED
-                || usize::try_from(column_metadata.num_values).ok()
-                    != Some(expected_values[column_index])
-                || column_metadata.total_compressed_size <= 0
-                || column_metadata.total_compressed_size != column_metadata.total_uncompressed_size
-                || column_metadata.key_value_metadata.is_some()
+            if column_metadata.codec != CompressionCodec::UNCOMPRESSED {
+                return Err(parquet_failure(ParquetFailure::UnsupportedCompression));
+            }
+            if column_metadata.encodings != [Encoding::PLAIN, Encoding::RLE] {
+                return Err(parquet_failure(ParquetFailure::UnsupportedEncoding));
+            }
+            if column_metadata.key_value_metadata.is_some()
                 || column_metadata.index_page_offset.is_some()
                 || column_metadata.dictionary_page_offset.is_some()
                 || column_metadata.statistics.is_some()
@@ -591,6 +584,20 @@ where
                 || column_metadata.bloom_filter_length.is_some()
                 || column_metadata.size_statistics.is_some()
                 || column_metadata.geospatial_statistics.is_some()
+            {
+                return Err(parquet_failure(ParquetFailure::ForbiddenAuxiliaryData));
+            }
+            if column_metadata.type_ != expected_types[column_index]
+                || column_metadata.path_in_schema.len() != expected_path.len()
+                || column_metadata
+                    .path_in_schema
+                    .iter()
+                    .map(String::as_str)
+                    .ne(expected_path.iter().copied())
+                || usize::try_from(column_metadata.num_values).ok()
+                    != Some(expected_values[column_index])
+                || column_metadata.total_compressed_size <= 0
+                || column_metadata.total_compressed_size != column_metadata.total_uncompressed_size
                 || column_metadata
                     .encoding_stats
                     .as_ref()
@@ -1422,7 +1429,7 @@ mod tests {
             .dictionary_page_offset = Some(4);
         assert_rejected(
             &replace_footer(&canonical, &auxiliary),
-            ParquetFailure::InvalidColumnChunk,
+            ParquetFailure::ForbiddenAuxiliaryData,
         );
 
         let (_, mut gap) = raw_footer(&canonical);

@@ -79,6 +79,21 @@ pub enum EmbeddingError {
         /// Available row count.
         row_count: usize,
     },
+    /// A requested borrowed row block is outside the table or overflows.
+    #[error(
+        "embedding row block start {start} with count {row_count} is outside table rows {table_row_count}"
+    )]
+    RowBlockOutOfBounds {
+        /// Requested zero-based starting row.
+        start: usize,
+        /// Requested number of rows.
+        row_count: usize,
+        /// Available table rows.
+        table_row_count: usize,
+    },
+    /// A sequential QC scan requires a positive maximum block size.
+    #[error("embedding QC scan maximum block rows must be positive")]
+    ZeroScanBlockRows,
     /// A positive rational is zero, unreduced, or has a zero denominator.
     #[error("positive rational must be nonzero, reduced, and have a nonzero denominator")]
     InvalidPositiveRational,
@@ -114,6 +129,9 @@ pub enum EmbeddingError {
     /// Artifact roles do not resolve to a set of distinct dependencies.
     #[error("embedding artifact dependencies must be distinct")]
     DuplicateArtifactDependency,
+    /// Compact embedding-artifact metadata does not match its records or table.
+    #[error("cell-embedding artifact records, shape, or logical identity do not match")]
+    ArtifactBindingMismatch,
     /// A fixed-point decimal is malformed or noncanonical.
     #[error("embedding canonical decimal is invalid")]
     InvalidCanonicalDecimal,

@@ -1,10 +1,13 @@
+use std::fmt;
+
 use marklab_data::CellId;
 use marklab_project::{ArtifactId, ContentDigest};
 
-use crate::{
-    digest::{canonical_positive_zero, FramedDigest},
-    EmbeddingError, ExpectedCellSet,
-};
+use crate::{digest::canonical_positive_zero, EmbeddingError, ExpectedCellSet};
+
+mod scan;
+pub use scan::CellEmbeddingBlock;
+pub(crate) use scan::EmbeddingQcAccumulator;
 
 const LOGICAL_DIGEST_DOMAIN: &[u8] = b"marklab-cell-embedding-logical-v1";
 
@@ -144,13 +147,33 @@ impl EmbeddingQcSummary {
 }
 
 /// Canonical row-major cell-embedding table with status-owned validity.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct CellEmbeddingTable {
     cells: Box<[CellId]>,
     statuses: Box<[EmbeddingStatus]>,
     values: Vec<f32>,
     dimension: u32,
     qc_summary: EmbeddingQcSummary,
+    expected_cells_artifact_id: ArtifactId,
+    provenance_artifact_id: ArtifactId,
+    row_link_digest: ContentDigest,
+}
+
+impl fmt::Debug for CellEmbeddingTable {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CellEmbeddingTable")
+            .field("row_count", &self.cells.len())
+            .field("dimension", &self.dimension)
+            .field("qc_summary", &self.qc_summary)
+            .field(
+                "expected_cells_artifact_id",
+                &self.expected_cells_artifact_id,
+            )
+            .field("provenance_artifact_id", &self.provenance_artifact_id)
+            .field("row_link_digest", &self.row_link_digest)
+            .finish()
+    }
 }
 
 impl CellEmbeddingTable {
@@ -217,14 +240,21 @@ impl CellEmbeddingTable {
             .map_err(|_| EmbeddingError::AllocationFailed {
                 requested: rows.len().saturating_mul(size_of::<EmbeddingStatus>()),
             })?;
-        let mut present_count = 0_u64;
-        let mut missing_vector_count = 0_u64;
-        let mut extraction_failed_count = 0_u64;
-        let mut qc_rejected_count = 0_u64;
-        let mut all_zero_present_count = 0_u64;
+        let mut accumulator = EmbeddingQcAccumulator::new(
+            expected_cells_artifact_id,
+            provenance_artifact_id,
+            row_link_digest,
+            dimension,
+            expected.cells().len(),
+        )?;
         for (row_index, row) in rows.into_iter().enumerate() {
-            statuses.push(row.status);
-            match (row.status, row.vector) {
+            let CellEmbeddingRow {
+                cell_id,
+                status,
+                vector,
+            } = row;
+            statuses.push(status);
+            match (status, vector) {
                 (EmbeddingStatus::Present, Some(vector)) => {
                     if vector.len() != dimension_usize {
                         return Err(EmbeddingError::DimensionMismatch {
@@ -232,7 +262,7 @@ impl CellEmbeddingTable {
                             observed: vector.len(),
                         });
                     }
-                    let mut all_zero = true;
+                    let start = values.len();
                     for (column, value) in vector.into_iter().enumerate() {
                         if !value.is_finite() {
                             return Err(EmbeddingError::NonFiniteComponent {
@@ -241,61 +271,44 @@ impl CellEmbeddingTable {
                             });
                         }
                         let value = canonical_positive_zero(value);
-                        all_zero &= value.to_bits() == 0;
                         values.push(value);
                     }
-                    present_count += 1;
-                    all_zero_present_count += u64::from(all_zero);
+                    accumulator.push(&cell_id, status, Some(&values[start..]))?;
                 }
                 (EmbeddingStatus::MissingVector, None) => {
-                    missing_vector_count += 1;
                     values.resize(values.len() + dimension_usize, 0.0);
+                    accumulator.push(&cell_id, status, None)?;
                 }
                 (EmbeddingStatus::ExtractionFailed, None) => {
-                    extraction_failed_count += 1;
                     values.resize(values.len() + dimension_usize, 0.0);
+                    accumulator.push(&cell_id, status, None)?;
                 }
                 (EmbeddingStatus::QcRejected, None) => {
-                    qc_rejected_count += 1;
                     values.resize(values.len() + dimension_usize, 0.0);
+                    accumulator.push(&cell_id, status, None)?;
                 }
                 _ => return Err(EmbeddingError::StatusVectorMismatch),
             }
         }
-        let row_count =
-            u64::try_from(expected.cells().len()).map_err(|_| EmbeddingError::SizeOverflow)?;
-        let logical_digest = logical_digest(
-            provenance_artifact_id,
-            row_link_digest,
-            expected_cells_artifact_id,
-            dimension,
-            row_count,
-            expected.cells(),
-            &statuses,
-            &values,
-        );
-        let qc_summary = EmbeddingQcSummary {
-            row_count,
-            present_count,
-            missing_vector_count,
-            extraction_failed_count,
-            qc_rejected_count,
-            all_zero_present_count,
-            dimension,
-            logical_digest,
-        };
+        let qc_summary = accumulator.finish()?;
         Ok(Self {
             cells: clone_cells(expected.cells())?,
             statuses: statuses.into_boxed_slice(),
             values,
             dimension,
             qc_summary,
+            expected_cells_artifact_id,
+            provenance_artifact_id,
+            row_link_digest,
         })
     }
 
-    #[cfg(feature = "csv")]
+    /// Validate one row-major contiguous matrix whose every expected row is present.
+    ///
+    /// Values are consumed without constructing per-row vectors. Every component must
+    /// be finite; signed zero is canonicalized to positive zero.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn from_present_values(
+    pub fn from_present_values(
         dimension: u32,
         expected: &ExpectedCellSet,
         expected_cells_artifact_id: ArtifactId,
@@ -343,19 +356,26 @@ impl CellEmbeddingTable {
                 maximum: maximum_retained_bytes,
             });
         }
-        let mut all_zero_present_count = 0_u64;
-        for (row, vector) in values.chunks_exact_mut(dimension_usize).enumerate() {
-            let mut all_zero = true;
+        let mut accumulator = EmbeddingQcAccumulator::new(
+            expected_cells_artifact_id,
+            provenance_artifact_id,
+            row_link_digest,
+            dimension,
+            expected.cells().len(),
+        )?;
+        for (row, (cell_id, vector)) in expected
+            .cells()
+            .iter()
+            .zip(values.chunks_exact_mut(dimension_usize))
+            .enumerate()
+        {
             for (column, value) in vector.iter_mut().enumerate() {
                 if !value.is_finite() {
                     return Err(EmbeddingError::NonFiniteComponent { row, column });
                 }
                 *value = canonical_positive_zero(*value);
-                all_zero &= value.to_bits() == 0;
             }
-            all_zero_present_count = all_zero_present_count
-                .checked_add(u64::from(all_zero))
-                .ok_or(EmbeddingError::SizeOverflow)?;
+            accumulator.push(cell_id, EmbeddingStatus::Present, Some(vector))?;
         }
         let mut statuses = Vec::new();
         statuses
@@ -367,33 +387,16 @@ impl CellEmbeddingTable {
                     .saturating_mul(size_of::<EmbeddingStatus>()),
             })?;
         statuses.resize(expected.cells().len(), EmbeddingStatus::Present);
-        let row_count =
-            u64::try_from(expected.cells().len()).map_err(|_| EmbeddingError::SizeOverflow)?;
-        let logical_digest = logical_digest(
-            provenance_artifact_id,
-            row_link_digest,
-            expected_cells_artifact_id,
-            dimension,
-            row_count,
-            expected.cells(),
-            &statuses,
-            &values,
-        );
+        let qc_summary = accumulator.finish()?;
         Ok(Self {
             cells: clone_cells(expected.cells())?,
             statuses: statuses.into_boxed_slice(),
             values,
             dimension,
-            qc_summary: EmbeddingQcSummary {
-                row_count,
-                present_count: row_count,
-                missing_vector_count: 0,
-                extraction_failed_count: 0,
-                qc_rejected_count: 0,
-                all_zero_present_count,
-                dimension,
-                logical_digest,
-            },
+            qc_summary,
+            expected_cells_artifact_id,
+            provenance_artifact_id,
+            row_link_digest,
         })
     }
 
@@ -452,18 +455,20 @@ impl CellEmbeddingTable {
             });
         }
 
-        let mut present_count = 0_u64;
-        let mut missing_vector_count = 0_u64;
-        let mut extraction_failed_count = 0_u64;
-        let mut qc_rejected_count = 0_u64;
-        let mut all_zero_present_count = 0_u64;
-        for (row, (status, vector)) in statuses
+        let mut accumulator = EmbeddingQcAccumulator::new(
+            expected_cells_artifact_id,
+            provenance_artifact_id,
+            row_link_digest,
+            dimension,
+            expected.cells().len(),
+        )?;
+        for (row, ((cell_id, status), vector)) in expected
+            .cells()
             .iter()
-            .copied()
+            .zip(statuses.iter().copied())
             .zip(values.chunks_exact_mut(dimension_usize))
             .enumerate()
         {
-            let mut all_zero = true;
             for (column, value) in vector.iter_mut().enumerate() {
                 if !value.is_finite() {
                     return Err(EmbeddingError::NonFiniteComponent { row, column });
@@ -473,61 +478,23 @@ impl CellEmbeddingTable {
                 } else if value.to_bits() != 0 {
                     return Err(EmbeddingError::StatusVectorMismatch);
                 }
-                all_zero &= value.to_bits() == 0;
             }
-            match status {
-                EmbeddingStatus::Present => {
-                    present_count = present_count
-                        .checked_add(1)
-                        .ok_or(EmbeddingError::SizeOverflow)?;
-                    all_zero_present_count = all_zero_present_count
-                        .checked_add(u64::from(all_zero))
-                        .ok_or(EmbeddingError::SizeOverflow)?;
-                }
-                EmbeddingStatus::MissingVector => {
-                    missing_vector_count = missing_vector_count
-                        .checked_add(1)
-                        .ok_or(EmbeddingError::SizeOverflow)?;
-                }
-                EmbeddingStatus::ExtractionFailed => {
-                    extraction_failed_count = extraction_failed_count
-                        .checked_add(1)
-                        .ok_or(EmbeddingError::SizeOverflow)?;
-                }
-                EmbeddingStatus::QcRejected => {
-                    qc_rejected_count = qc_rejected_count
-                        .checked_add(1)
-                        .ok_or(EmbeddingError::SizeOverflow)?;
-                }
-            }
+            accumulator.push(
+                cell_id,
+                status,
+                (status == EmbeddingStatus::Present).then_some(&*vector),
+            )?;
         }
-        let row_count =
-            u64::try_from(expected.cells().len()).map_err(|_| EmbeddingError::SizeOverflow)?;
-        let logical_digest = logical_digest(
-            provenance_artifact_id,
-            row_link_digest,
-            expected_cells_artifact_id,
-            dimension,
-            row_count,
-            expected.cells(),
-            &statuses,
-            &values,
-        );
+        let qc_summary = accumulator.finish()?;
         Ok(Self {
             cells: clone_cells(expected.cells())?,
             statuses: statuses.into_boxed_slice(),
             values,
             dimension,
-            qc_summary: EmbeddingQcSummary {
-                row_count,
-                present_count,
-                missing_vector_count,
-                extraction_failed_count,
-                qc_rejected_count,
-                all_zero_present_count,
-                dimension,
-                logical_digest,
-            },
+            qc_summary,
+            expected_cells_artifact_id,
+            provenance_artifact_id,
+            row_link_digest,
         })
     }
 
@@ -577,19 +544,9 @@ impl CellEmbeddingTable {
         provenance_artifact_id: ArtifactId,
         row_link_digest: ContentDigest,
     ) -> bool {
-        let Ok(row_count) = u64::try_from(self.cells.len()) else {
-            return false;
-        };
-        logical_digest(
-            provenance_artifact_id,
-            row_link_digest,
-            expected_cells_artifact_id,
-            self.dimension,
-            row_count,
-            &self.cells,
-            &self.statuses,
-            &self.values,
-        ) == self.qc_summary.logical_digest
+        self.expected_cells_artifact_id == expected_cells_artifact_id
+            && self.provenance_artifact_id == provenance_artifact_id
+            && self.row_link_digest == row_link_digest
     }
 }
 
@@ -604,36 +561,4 @@ fn clone_cells(cells: &[CellId]) -> Result<Box<[CellId]>, EmbeddingError> {
         .map_err(|_| EmbeddingError::AllocationFailed { requested })?;
     cloned.extend(cells.iter().cloned());
     Ok(cloned.into_boxed_slice())
-}
-
-#[allow(clippy::too_many_arguments)]
-fn logical_digest(
-    provenance_artifact_id: ArtifactId,
-    row_link_digest: ContentDigest,
-    expected_cells_artifact_id: ArtifactId,
-    dimension: u32,
-    row_count: u64,
-    cells: &[CellId],
-    statuses: &[EmbeddingStatus],
-    values: &[f32],
-) -> ContentDigest {
-    let mut digest = FramedDigest::new();
-    digest.field(LOGICAL_DIGEST_DOMAIN);
-    digest.field(provenance_artifact_id.digest().as_bytes());
-    digest.field(row_link_digest.as_bytes());
-    digest.field(expected_cells_artifact_id.digest().as_bytes());
-    digest.field(&dimension.to_be_bytes());
-    digest.field(&row_count.to_be_bytes());
-    let dimension = dimension as usize;
-    for (index, (cell, status)) in cells.iter().zip(statuses).enumerate() {
-        digest.field(cell.as_str().as_bytes());
-        digest.field(status.wire_name().as_bytes());
-        if *status == EmbeddingStatus::Present {
-            let start = index * dimension;
-            for value in &values[start..start + dimension] {
-                digest.field(&value.to_bits().to_be_bytes());
-            }
-        }
-    }
-    digest.finish()
 }
