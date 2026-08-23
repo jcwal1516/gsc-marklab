@@ -64,7 +64,7 @@ Status: characterization freeze for WS-A. Exact field/symbol inventory is active
 - Replication safety: only patient/specimen objects may be declared biological units; cell/patch/site/timepoint objects are structural, and lower physical objects cannot become independent units from row count.
 - Nested levels: nearest resolution remains specific, while explicit lineage membership permits downstream selection of an enclosing declared patient above biological specimens. C-01 itself performs no randomization or population inference.
 - Repeated designs: declarations contain at least two distinct same-kind observations, one set per biological-unit/observation-kind pair, and globally unique observation membership. Retained order is deterministic but not temporal.
-- Persistence: this is an immutable in-memory 0.1 boundary installed once into `MarklabProject`. Serialization, schema evolution, cross-artifact drift, and result-format 0.4 are deferred to C-03.
+- Persistence: this is an immutable in-memory 0.1 boundary installed once into `MarklabProject`. C-03 supplies the schema-bound artifact substrate but does not serialize the hierarchy; a later DATA-01/WS-25 producer must define a streaming durable codec, schema evolution, and cross-artifact alignment. Result-format 0.4 remains separately gated.
 
 ## IC-0009 — Explicit in-memory coordinate substrate
 
@@ -73,4 +73,14 @@ Status: characterization freeze for WS-A. Exact field/symbol inventory is active
 - Uncertainty: an optional reference is metadata expressed in a transform target frame. An absent conservative radius is not zero, and C-02 does not compose or propagate uncertainty.
 - Serial sections: observed/distorted entries use a specialized physical 2-D placement into semantic volume X/Y plus explicit finite Z; missing entries retain a gap without placement. Distortion requires target-volume uncertainty. Only parallel sections are represented; no correspondence, interpolation, or oblique plane is implied.
 - Validation: declaration duplicates precede missing/incompatible references; transform cycles use iterative declaration-order DFS; serial ordinals and Z are strictly ordered. Operations reject wrong dimension, space, frame, unit, and non-finite results through typed errors.
-- Compatibility and persistence: this is an immutable `marklab-core`/`marklab-data` 0.1 substrate. Current root registration/config/result APIs are unchanged. Durable schemas, digests, migrations, interchange conformance, and result references are C-03/WS-25 responsibilities.
+- Compatibility and persistence: this is an immutable `marklab-core`/`marklab-data` 0.1 substrate. Current root registration/config/result APIs are unchanged. C-03 supplies generic artifact digests/catalogs but no coordinate payload codec; durable coordinate schemas, migrations, interchange conformance, and result references remain DATA-01/WS-25 work.
+
+## IC-0010 — Immutable artifact catalog and verified local store
+
+- Identity: `ArtifactRef` binds exact encoded bytes; `ArtifactId` separately binds schema/version, content identity, exact table declaration, dependencies, and bounded semantic metadata. Locations never affect identity.
+- Tables: Arrow IPC file and Parquet file manifests declare exact encoding version, row count, ordered columns, and stable scalar primary keys. A declaration is not physical-format proof; C-04/WS-25 must parse bounded file metadata and require exact agreement.
+- Catalog: format `marklab.artifact_catalog` version 1 is strict, bounded, dependency-valid, and canonical to one final-newline JSON fixed point. No prior-version migration is invented.
+- Location: catalogs contain portable store-relative keys and optional provenance versions, never absolute paths, endpoints, queries, credentials, or authorization tokens. Managed keys derive only from the artifact ID.
+- Local integrity: one capability root confines operations; verification streams a regular file and checks length plus digest. Publication is synchronized, atomic no-replace, and directory-synced; recovery exclusively quarantines only recognized regular staging entries and reports partial states.
+- Workflow: catalog-aware nodes must bind a store and verify every semantic input before cache lookup. Integrity failure executes nothing and never degrades to a miss. Nodes with no semantic inputs retain the exact B-04 cache-key path.
+- Compatibility and limits: result 0.3, config 0.2, `OutputWriter`, current CSV/Parquet IO, and scientific methods remain unchanged. Mutable project heads/ledgers, physical columnar validation, C-01/C-02 codecs, live cloud, and Windows runtime durability evidence are separately gated.

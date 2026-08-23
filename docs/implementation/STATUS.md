@@ -1,33 +1,33 @@
 # Implementation status
 
-Last updated: 2026-08-22T20:03:00-04:00
+Last updated: 2026-08-22T20:23:56-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Current implementation SHA: `c676cfd732d02d6202bff8cea47fcf74b5bfd8e7`
+- Current implementation SHA: `488d3bd65b5a9e17c7cc1849700e13d2d8eb771f`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
-- Current phase/workstream/task: Phase 2 / WS-C / C-03 artifact catalog and immutable-table contract activation
+- Current phase/workstream/task: Phase 2 / WS-C / C-04 CellViT embedding-table contract activation
 
 ## Requirements
 
-- Completed: `A-01`, `A-02`, `A-03`, `B-01`, `B-02`, `B-03`, `B-04`, `C-01`, `C-02`, `FND-01`, `SLIDE-INV`, `WS-A`, `WS-B`, `WS-10`, `WS-20`, `WS-21`
-- Active: `C-03`, `DATA-01`, `COH-01`, `PLAT-01`, `WF-01`, `WS-11`, `WS-12`
-- Planned next: `C-04`–`C-06`
+- Completed: `A-01`, `A-02`, `A-03`, `B-01`, `B-02`, `B-03`, `B-04`, `C-01`, `C-02`, `C-03`, `FND-01`, `SLIDE-INV`, `WS-A`, `WS-B`, `WS-10`, `WS-20`, `WS-21`
+- Active: `C-04`, `DATA-01`, `EMB-CORE`, `FND-05`, `COH-01`, `PLAT-01`, `WF-01`, `WS-11`, `WS-12`, `WS-24`
+- Planned next: `C-05`–`C-06`
 
 ## Command state
 
-- Known failing commands/tests: clean unpatched `cargo +1.96.0 package --locked --workspace` creates all five archives but exits 101 while verifying data against the published pre-C-02 `marklab-core 0.1.0`. DEC-0018 makes this release-blocking until an authorized version/dependency-ordered publication boundary; ephemeral local patches verified every archive successfully and are not claimed equivalent to registry resolvability. C-02 otherwise closes with 440/440 all-feature workspace tests, both warnings-denied Clippy rows, nightly fuzz, docs, and compatibility gates. Historical red/green and harness failures are recorded in the validation ledger. The WS-B feature matrix still has the explicitly recorded narrow warnings and is not claimed warning-clean.
+- Known failing commands/tests: clean unpatched `cargo +1.96.0 package --locked --workspace` creates all five archives but exits 101 while verifying data against the published pre-C-02 `marklab-core 0.1.0`. DEC-0018 makes this release-blocking until an authorized version/dependency-ordered publication boundary; ephemeral local patches verified every archive successfully and are not claimed equivalent to registry resolvability. The Windows cross-target C-03 check also exits 101 before project compilation because `x86_64-pc-windows-msvc` is not installed; DEC-0021 requires Windows publication/recovery runtime evidence before target support is claimed. C-03 otherwise closes with 471/471 all-feature workspace tests, both warnings-denied Clippy rows, nightly fuzz, docs, dependency, compatibility, no-default, and WSI gates. Historical red/green and harness failures are recorded in the validation ledger. The WS-B feature matrix still has the explicitly recorded narrow warnings and is not claimed warning-clean.
 - Confirmed available: `cargo-nextest`, `cargo-audit`, `cargo-deny`, `cargo-machete`, `cargo-fuzz`, `ssh`, `scp`, `rsync`.
 - Confirmed unavailable: local `markdownlint-cli2`, `actionlint`, and Gnuplot. Criterion used Plotters; no Markdown/workflow lint pass is claimed.
 
 ## Dirty files and reasons
 
-- Production, tests, manifests, and locks are clean at closure SHA `15365da47348c70aec321709d340d11794231258`. Current dirty files are C-03's independently reviewed frozen task contract, ownership, dependency/storage decisions, and this state update only.
+- Production, tests, manifests, and locks are clean at final implementation SHA `488d3bd65b5a9e17c7cc1849700e13d2d8eb771f`. Current dirty files are C-03 closure evidence/control-plane updates only; C-04 has not changed production or tests.
 
 ## Recent decisions
 
@@ -47,6 +47,7 @@ Last updated: 2026-08-22T20:03:00-04:00
 - `DEC-0018`: keep unpublished workspace registry resolution explicit; supplemental local patch verification cannot turn the exact package gate green, and no version/publish action is inferred.
 - Accepted `DEC-0019`: keep compatibility run outputs separate from schema-bound immutable project objects and portable store-relative locators; verify store-backed semantic inputs before cache lookup.
 - Accepted `DEC-0020`: use exact `cap-std 4.0.3` for descriptor-relative local artifact confinement and hard-link/directory-sync publication; add no live cloud or columnar dependency to `marklab-project`.
+- Accepted `DEC-0021`: keep Windows directory durability conditional on target compilation and runtime publication/recovery evidence; do not infer support from source review.
 
 ## Unresolved questions
 
@@ -59,12 +60,12 @@ Last updated: 2026-08-22T20:03:00-04:00
 
 ## Next three exact actions
 
-1. Commit the independently reviewed C-03 contract and accepted decisions without production, test, manifest, or lock changes.
-2. Add failing digest/schema/table/catalog tests and confirm their intended compile/behavior failures.
-3. Implement the smallest immutable catalog slice, then repeat red/green waves for the capability store and store-verified workflow integration.
+1. Commit C-03's append-only closure evidence and handoff after ledger consistency/format review.
+2. Reconcile C-04's exact parent requirements and remote CellViT evidence without reading executable `.pt`/pickle content, then freeze stable row identity, schema, provenance, and physical-format promotion semantics.
+3. Add the first behavior-focused C-04 schema/import regression and confirm the expected failure before production edits.
 
 Next exact verification command:
 
 ```bash
-cargo +1.96.0 test --locked -p marklab-project --test artifact_catalog
+cargo +1.96.0 test --locked --test cellvit_embedding_table
 ```
