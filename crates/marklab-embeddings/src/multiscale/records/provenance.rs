@@ -1,4 +1,4 @@
-use std::{fmt, mem::size_of};
+use std::{fmt, io::Read, mem::size_of};
 
 use marklab_data::SlideId;
 use marklab_project::{ArtifactId, ContentDigest};
@@ -28,7 +28,10 @@ use super::{
 use crate::multiscale::{
     entity::EmbeddingEntityKind,
     error::MultiscaleEmbeddingError,
-    json::{canonical_json_len, encode_canonical_json, matches_canonical_json},
+    json::{
+        canonical_json_len, compare_canonical_json_reader, encode_canonical_json,
+        matches_canonical_json, CanonicalJsonReaderError,
+    },
 };
 
 const FORMAT: &str = "marklab.multiscale_embedding_provenance";
@@ -78,6 +81,24 @@ pub struct MultiscaleEmbeddingProvenance {
     evidence: ProvenanceEvidence,
     logical_digest: ContentDigest,
     encoded_len: usize,
+}
+
+pub(in crate::multiscale) struct DirectPatchArtifactRoles {
+    pub(in crate::multiscale) checkpoint: ArtifactId,
+    pub(in crate::multiscale) checkpoint_content_digest: ContentDigest,
+    pub(in crate::multiscale) source_snapshot: ArtifactId,
+    pub(in crate::multiscale) license_record: ArtifactId,
+    pub(in crate::multiscale) input_normalization: ArtifactId,
+    pub(in crate::multiscale) preprocessing: ArtifactId,
+    pub(in crate::multiscale) run_config: ArtifactId,
+    pub(in crate::multiscale) environment: ArtifactId,
+    pub(in crate::multiscale) converter: ArtifactId,
+    pub(in crate::multiscale) source_entities: ArtifactId,
+    pub(in crate::multiscale) source_vectors: ArtifactId,
+    pub(in crate::multiscale) expected_patches: ArtifactId,
+    pub(in crate::multiscale) identity_map: ArtifactId,
+    pub(in crate::multiscale) source_row_link: ArtifactId,
+    pub(in crate::multiscale) patch_support: ArtifactId,
 }
 
 impl fmt::Debug for MultiscaleEmbeddingProvenance {
@@ -306,6 +327,18 @@ impl MultiscaleEmbeddingProvenance {
         encode_canonical_json(&self.wire(), self.encoded_len, MAX_SMALL_RECORD_BYTES)
     }
 
+    pub(in crate::multiscale) fn compare_canonical_json_reader<R: Read + ?Sized>(
+        &self,
+        reader: &mut R,
+    ) -> Result<(), CanonicalJsonReaderError> {
+        compare_canonical_json_reader(
+            &self.wire(),
+            self.encoded_len,
+            MAX_SMALL_RECORD_BYTES,
+            reader,
+        )
+    }
+
     /// Closed provenance variant.
     pub fn variant(&self) -> MultiscaleEmbeddingProvenanceVariant {
         self.evidence.variant()
@@ -341,6 +374,31 @@ impl MultiscaleEmbeddingProvenance {
     /// Format-independent logical identity.
     pub fn logical_digest(&self) -> ContentDigest {
         self.logical_digest
+    }
+
+    pub(in crate::multiscale) fn direct_patch_artifact_roles(
+        &self,
+    ) -> Option<DirectPatchArtifactRoles> {
+        let ProvenanceEvidence::DirectPatch(evidence) = &self.evidence else {
+            return None;
+        };
+        Some(DirectPatchArtifactRoles {
+            checkpoint: evidence.model.checkpoint_artifact_id,
+            checkpoint_content_digest: evidence.model.checkpoint_content_sha256,
+            source_snapshot: evidence.model.source_snapshot_artifact_id,
+            license_record: evidence.model.license_record_artifact_id,
+            input_normalization: evidence.inputs.input_normalization_artifact_id,
+            preprocessing: evidence.preprocessing_artifact_id,
+            run_config: evidence.execution.run_config_artifact_id,
+            environment: evidence.execution.environment_artifact_id,
+            converter: evidence.execution.converter_artifact_id,
+            source_entities: evidence.inputs.source_entities_artifact_id,
+            source_vectors: evidence.inputs.source_vectors_artifact_id,
+            expected_patches: evidence.inputs.expected_patches_artifact_id,
+            identity_map: evidence.inputs.identity_map_artifact_id,
+            source_row_link: evidence.inputs.source_row_link_artifact_id,
+            patch_support: evidence.inputs.patch_support_artifact_id,
+        })
     }
 
     fn finish(

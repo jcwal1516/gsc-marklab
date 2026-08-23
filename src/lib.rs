@@ -109,6 +109,7 @@ pub use marklab_embeddings::{
     EmbeddingSpatialContext, EmbeddingStatus, ExpectedCellSet, ExpectedPatchSet, ExpectedRegionSet,
     ExpectedSlideSet, ImportFailure, ManifestFailure, MultiscaleArtifactBinding,
     MultiscaleDirectPatchInputArtifacts, MultiscaleDirectPatchModelProvenance,
+    MultiscaleEmbeddingArtifactGraphError, MultiscaleEmbeddingArtifactRole,
     MultiscaleEmbeddingDerivationContract, MultiscaleEmbeddingError,
     MultiscaleEmbeddingExecutionProvenance, MultiscaleEmbeddingProvenance,
     MultiscaleEmbeddingProvenanceVariant, MultiscaleEmbeddingQcSummary, MultiscaleEmbeddingSupport,
@@ -123,7 +124,7 @@ pub use marklab_embeddings::{
     RegionEmbeddingView, SlideEmbeddingBlock, SlideEmbeddingRow, SlideEmbeddingTable,
     SlideEmbeddingView, SourceBundleBudgets, SourceBundleError, SourceFileKind, SourceIoFailure,
     SourceIoOperation, VerifiedCellEmbeddingArtifactGraph, VerifiedCellEmbeddingRowLinkArtifact,
-    VerifiedCellEmbeddingTableArtifact,
+    VerifiedCellEmbeddingTableArtifact, VerifiedDirectPatchEmbeddingArtifactGraph,
 };
 pub use marklab_workflow::{
     ArtifactCatalog, ArtifactCatalogError, ArtifactDraft, ArtifactId, ArtifactKey, ArtifactLocator,

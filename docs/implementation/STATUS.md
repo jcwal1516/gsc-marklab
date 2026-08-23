@@ -1,13 +1,13 @@
 # Implementation status
 
-Last updated: 2026-08-23T12:15:18-04:00
+Last updated: 2026-08-23T13:20:28-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Committed baseline before the current checkpoint: `b3f3177341b8bc16a0e56f41deef1e0e1690d0c1`
+- Committed baseline before the current checkpoint: `22358e1366ae8585b0bf557d5333042ae765b228`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
@@ -30,12 +30,12 @@ Last updated: 2026-08-23T12:15:18-04:00
 
 - C-04 delivers exact cell-table/validity/expected/identity/context/link/provenance owners, bounded non-pickle source import, embedding-specific Arrow/Parquet validation/publication/scans, fuzz/differential/resource evidence, and pinned scale workloads.
 - The authorized 32-bundle source profile reconciles exactly but remains aggregate-only and non-promotable because `canonical_identity_mapping`, `input_normalization_and_run_configuration`, `reviewed_source_snapshot`, and `license_record` are absent.
-- C-05's approved logical and record substrate includes distinct expected patch/region/slide sets, exact patch context/footprints/overlap, three typed embedding tables, vector-free links, strict patch source-identity/normalization values, all four canonical support variants, deterministic weighted/arithmetic derivation contracts, both cell-link producer modes, the exhaustive patch-region assessment descriptor, and all four strict multiscale provenance variants. The current checkpoint freezes the provenance suffix wires, 128-bit-framed logical digests, exact sorted dependency roles, support/derivation coupling, token/citation/dimension limits, the 256-KiB hard cap, and exact constructor/decode budgets including escaped-JSON scratch capacity. Both independent reviewers approve only this bounded provenance-value checkpoint. Artifact-record profiles, graph verification, runtime receipts, physical formats, scale evidence, and closure remain open.
+- C-05's approved logical and record substrate includes distinct expected patch/region/slide sets, exact patch context/footprints/overlap, three typed embedding tables, vector-free links, strict patch source-identity/normalization values, all four canonical support variants, deterministic weighted/arithmetic derivation contracts, both cell-link producer modes, the exhaustive patch-region assessment descriptor, and all four strict multiscale provenance variants. The current checkpoint adds the direct-patch structural artifact graph: eighteen exact roles, all nested dependency shapes, exact non-table records, structural Arrow/Parquet footprint and overlap manifests, constant-memory canonical payload comparison through the supplied managed store, cross-value binding checks, privacy-safe errors, and one runtime-only unforgeable graph token. Both independent reviewers approve only this direct-patch structural boundary. It does not decode physical bytes, issue a support/table receipt, establish source-vector correspondence, admit a source adapter, or cover derived/cell/link graphs; those physical receipts, remaining graphs, scale evidence, and closure remain open.
 - A later aggregate/header audit found candidate patch-feature matrices at widths 384 and 1,024 plus patch image/coordinate containers. It found no promotable patch/region/slide table or canonical link. The evidence has no pinned digest and no production source grammar; the validation ledger records the exact claim ceiling and one bounded recursive-key-output audit defect.
 
 ## Dirty files and reason
 
-- C-05 provenance-value checkpoint: additive `multiscale/records/provenance{,/**}`, a conservative escaped-string scratch bound in the shared JSON preflight, focused exports/errors, and modular wire/digest/dependency/constraint/resource/privacy tests. No manifest, dependency, lockfile, artifact record/profile, graph, receipt, physical format, source adapter, or real-corpus promotion change is dirty.
+- C-05 direct-patch structural-graph checkpoint: additive `multiscale/records/artifact_graph/**`, crate-private streaming canonical comparison hooks on the eight owned JSON values, focused public role/error/token exports, and modular graph/profile/resource/privacy tests. The footprint and overlap `TableManifest` checks are structural only; no dependency/lockfile, physical reader/writer, physical/support/table receipt, source adapter, real-corpus promotion, or scientific-result change is dirty.
 
 ## Recent decisions
 
@@ -80,12 +80,12 @@ Last updated: 2026-08-23T12:15:18-04:00
 
 ## Next three exact actions
 
-1. Commit the independently approved C-05 provenance-value checkpoint with a clean worktree.
-2. Add behavior-first cases for the exact C-05 artifact-record profiles and acyclic cross-artifact graph.
-3. Implement graph verification and runtime-only receipts before beginning the eight physical profile families.
+1. Commit the independently approved C-05 direct-patch structural-graph checkpoint with a clean worktree.
+2. Add behavior-first physical validation/publication for the footprint and overlap Arrow/Parquet profiles, then issue their separate runtime receipts.
+3. Extend separate structural/physical receipts across cell-patch, patch-region, derived-region, and derived-slide publication order without creating a monolithic graph.
 
 Next exact verification command:
 
 ```bash
-cargo +1.96.0 test --locked --test multiscale_embedding_records
+cargo +1.96.0 test --locked --test multiscale_embedding_artifact_graph
 ```

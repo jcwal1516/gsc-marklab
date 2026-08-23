@@ -1,4 +1,4 @@
-use std::{fmt, mem::size_of};
+use std::{fmt, io::Read, mem::size_of};
 
 mod wire;
 use wire::{parse_collect, parse_preflight, EntrySlice, WireRef};
@@ -11,7 +11,10 @@ use super::super::codec::{
 use crate::multiscale::{
     digest::LogicalDigest,
     error::MultiscaleEmbeddingError,
-    json::{canonical_json_len, encode_canonical_json, matches_canonical_json},
+    json::{
+        canonical_json_len, compare_canonical_json_reader, encode_canonical_json,
+        matches_canonical_json, CanonicalJsonReaderError,
+    },
 };
 use marklab_project::ContentDigest;
 
@@ -166,6 +169,18 @@ impl PatchSourceEntitySet {
     /// Encode the exact version-one canonical JSON with one final newline.
     pub fn to_canonical_json(&self) -> Result<Vec<u8>, MultiscaleEmbeddingError> {
         encode_canonical_json(&self.wire(), self.encoded_len, MAX_SOURCE_RECORD_BYTES)
+    }
+
+    pub(in crate::multiscale) fn compare_canonical_json_reader<R: Read + ?Sized>(
+        &self,
+        reader: &mut R,
+    ) -> Result<(), CanonicalJsonReaderError> {
+        compare_canonical_json_reader(
+            &self.wire(),
+            self.encoded_len,
+            MAX_SOURCE_RECORD_BYTES,
+            reader,
+        )
     }
 
     /// Explicit bounded source-profile token.

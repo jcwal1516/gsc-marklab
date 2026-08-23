@@ -1,4 +1,4 @@
-use std::{fmt, mem::size_of};
+use std::{fmt, io::Read, mem::size_of};
 
 use marklab_data::SlideId;
 use marklab_project::{ArtifactId, ContentDigest};
@@ -17,7 +17,10 @@ use crate::multiscale::{
     digest::LogicalDigest,
     entity::EmbeddingEntityKind,
     error::MultiscaleEmbeddingError,
-    json::{canonical_json_len, encode_canonical_json, matches_canonical_json},
+    json::{
+        canonical_json_len, compare_canonical_json_reader, encode_canonical_json,
+        matches_canonical_json, CanonicalJsonReaderError,
+    },
 };
 
 const FORMAT: &str = "marklab.multiscale_embedding_support";
@@ -91,6 +94,12 @@ pub struct MultiscaleEmbeddingSupport {
     evidence: SupportEvidence,
     logical_digest: ContentDigest,
     encoded_len: usize,
+}
+
+pub(in crate::multiscale) struct PatchSupportBindings {
+    pub(in crate::multiscale) context: MultiscaleArtifactBinding,
+    pub(in crate::multiscale) footprints: MultiscaleArtifactBinding,
+    pub(in crate::multiscale) overlap: MultiscaleArtifactBinding,
 }
 
 impl fmt::Debug for MultiscaleEmbeddingSupport {
@@ -208,6 +217,18 @@ impl MultiscaleEmbeddingSupport {
         encode_canonical_json(&self.wire(), self.encoded_len, MAX_SMALL_RECORD_BYTES)
     }
 
+    pub(in crate::multiscale) fn compare_canonical_json_reader<R: Read + ?Sized>(
+        &self,
+        reader: &mut R,
+    ) -> Result<(), CanonicalJsonReaderError> {
+        compare_canonical_json_reader(
+            &self.wire(),
+            self.encoded_len,
+            MAX_SMALL_RECORD_BYTES,
+            reader,
+        )
+    }
+
     /// Closed support variant.
     pub fn variant(&self) -> MultiscaleEmbeddingSupportVariant {
         self.evidence.variant()
@@ -237,6 +258,17 @@ impl MultiscaleEmbeddingSupport {
     /// Format-independent logical identity.
     pub fn logical_digest(&self) -> ContentDigest {
         self.logical_digest
+    }
+
+    pub(in crate::multiscale) fn patch_bindings(&self) -> Option<PatchSupportBindings> {
+        let SupportEvidence::Patch([context, footprints, overlap]) = self.evidence else {
+            return None;
+        };
+        Some(PatchSupportBindings {
+            context,
+            footprints,
+            overlap,
+        })
     }
 
     fn new(

@@ -1,10 +1,13 @@
-use std::{fmt, mem::size_of};
+use std::{fmt, io::Read, mem::size_of};
 
 use super::{
     digest::LogicalDigest,
     entity::{EmbeddingEntityKind, EntitySpec},
     error::MultiscaleEmbeddingError,
-    json::{canonical_json_len, encode_canonical_json, matches_canonical_json},
+    json::{
+        canonical_json_len, compare_canonical_json_reader, encode_canonical_json,
+        matches_canonical_json, CanonicalJsonReaderError,
+    },
 };
 use marklab_data::{CohortHierarchy, HierarchyKind, PatchId, RegionId, SlideId};
 use marklab_project::ContentDigest;
@@ -88,6 +91,13 @@ impl<I: EntitySpec> ExpectedEntitySet<I> {
 
     fn to_canonical_json(&self) -> Result<Vec<u8>, MultiscaleEmbeddingError> {
         encode_canonical_json(&self.wire(), self.encoded_len, MAX_EXPECTED_BYTES)
+    }
+
+    fn compare_canonical_json_reader<R: Read + ?Sized>(
+        &self,
+        reader: &mut R,
+    ) -> Result<(), CanonicalJsonReaderError> {
+        compare_canonical_json_reader(&self.wire(), self.encoded_len, MAX_EXPECTED_BYTES, reader)
     }
 
     fn from_canonical_json(
@@ -329,6 +339,15 @@ define_expected_set!(
     PatchId,
     "Canonical expected patch identities for one owning slide."
 );
+
+impl ExpectedPatchSet {
+    pub(in crate::multiscale) fn compare_canonical_json_reader<R: Read + ?Sized>(
+        &self,
+        reader: &mut R,
+    ) -> Result<(), CanonicalJsonReaderError> {
+        self.0.compare_canonical_json_reader(reader)
+    }
+}
 define_expected_set!(
     ExpectedRegionSet,
     RegionId,

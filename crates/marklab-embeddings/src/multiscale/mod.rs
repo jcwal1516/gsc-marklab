@@ -28,12 +28,14 @@ pub use patch_region::{
 };
 pub use records::{
     CellPatchLinkProducer, MultiscaleArtifactBinding, MultiscaleDirectPatchInputArtifacts,
-    MultiscaleDirectPatchModelProvenance, MultiscaleEmbeddingDerivationContract,
+    MultiscaleDirectPatchModelProvenance, MultiscaleEmbeddingArtifactGraphError,
+    MultiscaleEmbeddingArtifactRole, MultiscaleEmbeddingDerivationContract,
     MultiscaleEmbeddingExecutionProvenance, MultiscaleEmbeddingProvenance,
     MultiscaleEmbeddingProvenanceVariant, MultiscaleEmbeddingSupport,
     MultiscaleEmbeddingSupportVariant, PatchEmbeddingInputNormalization,
     PatchEmbeddingSourceRowLink, PatchEmbeddingSourceRowLinkEntry, PatchIdentityMap,
     PatchIdentityMapEntry, PatchNormalizationDecimal, PatchSourceEntityEntry, PatchSourceEntitySet,
+    VerifiedDirectPatchEmbeddingArtifactGraph,
 };
 pub use table::{
     MultiscaleEmbeddingQcSummary, PatchEmbeddingBlock, PatchEmbeddingRow, PatchEmbeddingTable,

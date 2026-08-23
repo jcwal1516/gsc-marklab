@@ -1,3 +1,4 @@
+mod artifact_graph;
 mod binding;
 pub(super) mod codec;
 mod derivation;
@@ -7,6 +8,10 @@ mod provenance;
 mod source;
 mod support;
 
+pub use artifact_graph::{
+    MultiscaleEmbeddingArtifactGraphError, MultiscaleEmbeddingArtifactRole,
+    VerifiedDirectPatchEmbeddingArtifactGraph,
+};
 pub use binding::MultiscaleArtifactBinding;
 pub use derivation::MultiscaleEmbeddingDerivationContract;
 pub use normalization::{PatchEmbeddingInputNormalization, PatchNormalizationDecimal};

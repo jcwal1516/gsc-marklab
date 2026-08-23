@@ -1,4 +1,4 @@
-use std::{fmt, mem::size_of};
+use std::{fmt, io::Read, mem::size_of};
 
 use marklab_project::ContentDigest;
 use serde::{Deserialize, Serialize};
@@ -10,7 +10,10 @@ use super::codec::{
 use crate::multiscale::{
     digest::LogicalDigest,
     error::MultiscaleEmbeddingError,
-    json::{canonical_json_len, encode_canonical_json, matches_canonical_json},
+    json::{
+        canonical_json_len, compare_canonical_json_reader, encode_canonical_json,
+        matches_canonical_json, CanonicalJsonReaderError,
+    },
 };
 
 const FORMAT: &str = "marklab.patch_embedding_input_normalization";
@@ -153,6 +156,18 @@ impl PatchEmbeddingInputNormalization {
     /// Encode the exact version-one canonical JSON with one final newline.
     pub fn to_canonical_json(&self) -> Result<Vec<u8>, MultiscaleEmbeddingError> {
         encode_canonical_json(&self.wire(), self.encoded_len, MAX_NORMALIZATION_BYTES)
+    }
+
+    pub(in crate::multiscale) fn compare_canonical_json_reader<R: Read + ?Sized>(
+        &self,
+        reader: &mut R,
+    ) -> Result<(), CanonicalJsonReaderError> {
+        compare_canonical_json_reader(
+            &self.wire(),
+            self.encoded_len,
+            MAX_NORMALIZATION_BYTES,
+            reader,
+        )
     }
 
     /// Exact channel means in r/g/b order.

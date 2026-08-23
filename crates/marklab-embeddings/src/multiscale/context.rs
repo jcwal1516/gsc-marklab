@@ -1,4 +1,4 @@
-use std::{fmt, mem::size_of};
+use std::{fmt, io::Read, mem::size_of};
 
 use marklab_data::{
     CohortHierarchy, CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit,
@@ -11,7 +11,10 @@ use crate::{PatchBoundaryPolicy, PositiveRational};
 use super::{
     digest::LogicalDigest,
     error::MultiscaleEmbeddingError,
-    json::{canonical_json_len, encode_canonical_json, matches_canonical_json},
+    json::{
+        canonical_json_len, compare_canonical_json_reader, encode_canonical_json,
+        matches_canonical_json, CanonicalJsonReaderError,
+    },
 };
 
 mod wire;
@@ -260,6 +263,18 @@ impl PatchEmbeddingContext {
             &WireContext::from(self),
             self.encoded_len,
             MAX_CONTEXT_BYTES,
+        )
+    }
+
+    pub(in crate::multiscale) fn compare_canonical_json_reader<R: Read + ?Sized>(
+        &self,
+        reader: &mut R,
+    ) -> Result<(), CanonicalJsonReaderError> {
+        compare_canonical_json_reader(
+            &WireContext::from(self),
+            self.encoded_len,
+            MAX_CONTEXT_BYTES,
+            reader,
         )
     }
 

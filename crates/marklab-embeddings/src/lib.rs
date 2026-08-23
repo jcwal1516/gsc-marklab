@@ -56,7 +56,8 @@ pub use multiscale::{
     CellPatchLinkProducer, CellPatchWeight, DeclaredCellPatchAssignment, EffectiveReceptiveField,
     EmbeddingEntityKind, ExpectedPatchSet, ExpectedRegionSet, ExpectedSlideSet,
     MultiscaleArtifactBinding, MultiscaleDirectPatchInputArtifacts,
-    MultiscaleDirectPatchModelProvenance, MultiscaleEmbeddingDerivationContract,
+    MultiscaleDirectPatchModelProvenance, MultiscaleEmbeddingArtifactGraphError,
+    MultiscaleEmbeddingArtifactRole, MultiscaleEmbeddingDerivationContract,
     MultiscaleEmbeddingError, MultiscaleEmbeddingExecutionProvenance,
     MultiscaleEmbeddingProvenance, MultiscaleEmbeddingProvenanceVariant,
     MultiscaleEmbeddingQcSummary, MultiscaleEmbeddingSupport, MultiscaleEmbeddingSupportVariant,
@@ -68,6 +69,7 @@ pub use multiscale::{
     PatchRegionRelation, PatchSourceEntityEntry, PatchSourceEntitySet, RegionEmbeddingBlock,
     RegionEmbeddingRow, RegionEmbeddingTable, RegionEmbeddingView, SlideEmbeddingBlock,
     SlideEmbeddingRow, SlideEmbeddingTable, SlideEmbeddingView,
+    VerifiedDirectPatchEmbeddingArtifactGraph,
 };
 pub use provenance::{
     ArtifactAvailabilityFailure, CanonicalDecimal, CellEmbeddingArtifactRole,

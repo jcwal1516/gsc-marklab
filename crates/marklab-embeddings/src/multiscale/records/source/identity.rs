@@ -1,4 +1,4 @@
-use std::{fmt, mem::size_of};
+use std::{fmt, io::Read, mem::size_of};
 
 use super::entity::PatchSourceEntitySet;
 use marklab_data::PatchId;
@@ -9,7 +9,10 @@ use crate::multiscale::{
     digest::LogicalDigest,
     error::MultiscaleEmbeddingError,
     expected::ExpectedPatchSet,
-    json::{canonical_json_len, encode_canonical_json, matches_canonical_json},
+    json::{
+        canonical_json_len, compare_canonical_json_reader, encode_canonical_json,
+        matches_canonical_json, CanonicalJsonReaderError,
+    },
     records::codec::{
         checked_slots, preflight_json_strings, require_decoded, require_retained, try_vec_capacity,
         valid_source_key, validate_source_row_count, MAX_RAW_SOURCE_JSON_STRING_BYTES,
@@ -225,6 +228,18 @@ impl PatchIdentityMap {
     /// Encode the exact version-one canonical JSON with one final newline.
     pub fn to_canonical_json(&self) -> Result<Vec<u8>, MultiscaleEmbeddingError> {
         encode_canonical_json(&self.wire(), self.encoded_len, MAX_SOURCE_RECORD_BYTES)
+    }
+
+    pub(in crate::multiscale) fn compare_canonical_json_reader<R: Read + ?Sized>(
+        &self,
+        reader: &mut R,
+    ) -> Result<(), CanonicalJsonReaderError> {
+        compare_canonical_json_reader(
+            &self.wire(),
+            self.encoded_len,
+            MAX_SOURCE_RECORD_BYTES,
+            reader,
+        )
     }
 
     /// Bound source-entity artifact identity.
