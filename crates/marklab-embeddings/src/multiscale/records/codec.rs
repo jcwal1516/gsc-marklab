@@ -74,8 +74,16 @@ pub(in crate::multiscale) fn preflight_json_strings(
     bytes: &[u8],
     maximum_raw_string_bytes: usize,
 ) -> Result<(), MultiscaleEmbeddingError> {
+    preflight_json_strings_with_scratch(bytes, maximum_raw_string_bytes).map(|_| ())
+}
+
+pub(in crate::multiscale) fn preflight_json_strings_with_scratch(
+    bytes: &[u8],
+    maximum_raw_string_bytes: usize,
+) -> Result<usize, MultiscaleEmbeddingError> {
     let mut index = 0_usize;
     let mut depth = 0_usize;
+    let mut maximum_scratch_bytes = 0_usize;
     let mut containers = [0_u8; MAX_JSON_DEPTH];
     let mut field_counts = [0_usize; MAX_JSON_DEPTH];
     while index < bytes.len() {
@@ -84,6 +92,7 @@ pub(in crate::multiscale) fn preflight_json_strings(
                 index += 1;
                 let start = index;
                 let mut escaped = false;
+                let mut contains_escape = false;
                 while index < bytes.len() {
                     let byte = bytes[index];
                     if !escaped && byte == b'"' {
@@ -93,6 +102,7 @@ pub(in crate::multiscale) fn preflight_json_strings(
                         escaped = false;
                     } else if byte == b'\\' {
                         escaped = true;
+                        contains_escape = true;
                     }
                     index += 1;
                     if index.saturating_sub(start) > maximum_raw_string_bytes {
@@ -101,6 +111,16 @@ pub(in crate::multiscale) fn preflight_json_strings(
                 }
                 if index == bytes.len() {
                     return Err(MultiscaleEmbeddingError::InvalidCanonicalJson);
+                }
+                if contains_escape {
+                    let raw_string_bytes = index.saturating_sub(start);
+                    // serde_json appends into one reusable Vec<u8>. Rust's amortized Vec growth
+                    // can retain twice the requested bytes, with an eight-byte minimum for u8.
+                    let scratch_capacity_bound = raw_string_bytes
+                        .checked_mul(2)
+                        .ok_or(MultiscaleEmbeddingError::SizeOverflow)?
+                        .max(8);
+                    maximum_scratch_bytes = maximum_scratch_bytes.max(scratch_capacity_bound);
                 }
             }
             b'{' | b'[' => {
@@ -139,7 +159,7 @@ pub(in crate::multiscale) fn preflight_json_strings(
         index += 1;
     }
     if depth == 0 {
-        Ok(())
+        Ok(maximum_scratch_bytes)
     } else {
         Err(MultiscaleEmbeddingError::InvalidCanonicalJson)
     }

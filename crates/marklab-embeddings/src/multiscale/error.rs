@@ -215,6 +215,18 @@ pub enum MultiscaleEmbeddingError {
     /// Canonical patch-region assessment content disagrees with the complete assessment value.
     #[error("patch-region assessment record does not match the complete assessment")]
     PatchRegionAssessmentRecordMismatch,
+    /// A multiscale provenance record violates its exact closed variant contract.
+    #[error("multiscale embedding provenance is invalid")]
+    InvalidMultiscaleEmbeddingProvenance,
+    /// Provenance artifact roles alias where the selected variant requires distinct dependencies.
+    #[error("multiscale provenance artifact dependency roles must be distinct")]
+    DuplicateMultiscaleProvenanceArtifactDependency,
+    /// Provenance variant, entity, owning slide, and support evidence do not agree.
+    #[error("multiscale provenance support does not match its closed variant")]
+    MultiscaleProvenanceSupportMismatch,
+    /// Derived provenance uses a derivation algorithm forbidden for that variant.
+    #[error("multiscale provenance derivation does not match its closed variant")]
+    MultiscaleProvenanceDerivationMismatch,
     /// Table rows do not exactly match the expected typed set.
     #[error("multiscale embedding rows must exactly match the expected set")]
     RowSetMismatch,
