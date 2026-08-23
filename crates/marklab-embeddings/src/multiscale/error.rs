@@ -227,6 +227,9 @@ pub enum MultiscaleEmbeddingError {
     /// Derived provenance uses a derivation algorithm forbidden for that variant.
     #[error("multiscale provenance derivation does not match its closed variant")]
     MultiscaleProvenanceDerivationMismatch,
+    /// Expected-set, support, and provenance table roles must name distinct artifacts.
+    #[error("multiscale table artifact dependency roles must be distinct")]
+    DuplicateMultiscaleTableArtifactDependency,
     /// Table rows do not exactly match the expected typed set.
     #[error("multiscale embedding rows must exactly match the expected set")]
     RowSetMismatch,

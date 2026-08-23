@@ -12,7 +12,7 @@ pub enum EmbeddingEntityKind {
 }
 
 impl EmbeddingEntityKind {
-    pub(super) fn wire_name(self) -> &'static str {
+    pub(crate) fn wire_name(self) -> &'static str {
         match self {
             Self::Patch => "patch",
             Self::Region => "region",
@@ -21,7 +21,7 @@ impl EmbeddingEntityKind {
     }
 }
 
-pub(super) trait EntitySpec: Clone + Eq + Ord {
+pub(crate) trait EntitySpec: Clone + Eq + Ord {
     const KIND: EmbeddingEntityKind;
     const EXPECTED_FORMAT: &'static str;
     const EXPECTED_DOMAIN: &'static [u8];

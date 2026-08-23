@@ -5,6 +5,8 @@ use marklab_project::{ArtifactId, ContentDigest};
 
 use crate::{digest::canonical_positive_zero, EmbeddingStatus};
 
+#[cfg(feature = "parquet")]
+use super::physical::MatrixPhysicalProfile;
 use super::{
     entity::{EmbeddingEntityKind, EntitySpec},
     error::MultiscaleEmbeddingError,
@@ -12,7 +14,8 @@ use super::{
 
 mod scan;
 mod wrappers;
-use scan::{MatrixBlock, MatrixView, TableSummaryAccumulator};
+pub(crate) use scan::MatrixSummaryAccumulator;
+use scan::{MatrixBlock, MatrixView};
 pub use wrappers::*;
 
 const MAX_ROWS: usize = 100_000_000;
@@ -85,6 +88,50 @@ trait OwnedRow<I> {
     fn into_parts(self) -> (I, EmbeddingStatus, Option<Vec<f32>>);
 }
 
+#[cfg(feature = "parquet")]
+#[derive(Clone, Copy)]
+pub(crate) struct MultiscaleMatrixRow<'a> {
+    id: &'a str,
+    status: EmbeddingStatus,
+    vector: Option<&'a [f32]>,
+}
+
+#[cfg(feature = "parquet")]
+impl<'a> MultiscaleMatrixRow<'a> {
+    pub(crate) fn id(self) -> &'a str {
+        self.id
+    }
+
+    pub(crate) fn status(self) -> EmbeddingStatus {
+        self.status
+    }
+
+    pub(crate) fn vector(self) -> Option<&'a [f32]> {
+        self.vector
+    }
+}
+
+#[cfg(feature = "parquet")]
+pub(crate) trait MultiscaleMatrixTable {
+    fn profile(&self) -> MatrixPhysicalProfile;
+    fn entity_kind(&self) -> EmbeddingEntityKind;
+    fn owning_slide_id(&self) -> &SlideId;
+    fn row_count(&self) -> usize;
+    fn dimension(&self) -> u32;
+    fn row(&self, index: usize) -> Result<MultiscaleMatrixRow<'_>, MultiscaleEmbeddingError>;
+    fn qc_summary(&self) -> MultiscaleEmbeddingQcSummary;
+    fn expected_entities_artifact_id(&self) -> ArtifactId;
+    fn expected_entities_logical_digest(&self) -> ContentDigest;
+    fn support_artifact_id(&self) -> ArtifactId;
+    fn support_logical_digest(&self) -> ContentDigest;
+    fn provenance_artifact_id(&self) -> ArtifactId;
+    fn provenance_logical_digest(&self) -> ContentDigest;
+
+    fn logical_digest(&self) -> ContentDigest {
+        self.qc_summary().logical_digest()
+    }
+}
+
 struct MatrixCore<I> {
     owning_slide_id: SlideId,
     ids: Box<[I]>,
@@ -132,6 +179,12 @@ impl<I: EntitySpec> MatrixCore<I> {
         rows: Vec<R>,
         maximum_retained_bytes: usize,
     ) -> Result<Self, MultiscaleEmbeddingError> {
+        if expected_entities_artifact_id == support_artifact_id
+            || expected_entities_artifact_id == provenance_artifact_id
+            || support_artifact_id == provenance_artifact_id
+        {
+            return Err(MultiscaleEmbeddingError::DuplicateMultiscaleTableArtifactDependency);
+        }
         validate_shape(dimension, rows.len())?;
         if rows.len() != expected_ids.len()
             || rows
@@ -176,7 +229,9 @@ impl<I: EntitySpec> MatrixCore<I> {
             }
         })?;
 
-        let mut accumulator = TableSummaryAccumulator::<I>::new(
+        let mut accumulator = MatrixSummaryAccumulator::new(
+            I::KIND,
+            I::TABLE_DOMAIN,
             owning_slide_id,
             expected_entities_artifact_id,
             expected_entities_logical_digest,
@@ -208,19 +263,19 @@ impl<I: EntitySpec> MatrixCore<I> {
                         let value = canonical_positive_zero(value);
                         values.push(value);
                     }
-                    accumulator.push(&id, status, Some(&values[start..]))?;
+                    accumulator.push(id.as_str(), status, Some(&values[start..]))?;
                 }
                 (EmbeddingStatus::MissingVector, None) => {
                     values.resize(values.len() + dimension_usize, 0.0);
-                    accumulator.push(&id, status, None)?;
+                    accumulator.push(id.as_str(), status, None)?;
                 }
                 (EmbeddingStatus::ExtractionFailed, None) => {
                     values.resize(values.len() + dimension_usize, 0.0);
-                    accumulator.push(&id, status, None)?;
+                    accumulator.push(id.as_str(), status, None)?;
                 }
                 (EmbeddingStatus::QcRejected, None) => {
                     values.resize(values.len() + dimension_usize, 0.0);
-                    accumulator.push(&id, status, None)?;
+                    accumulator.push(id.as_str(), status, None)?;
                 }
                 _ => return Err(MultiscaleEmbeddingError::StatusVectorMismatch),
             }
@@ -305,7 +360,9 @@ impl<I: EntitySpec> MatrixCore<I> {
         if maximum_block_rows == 0 {
             return Err(MultiscaleEmbeddingError::ZeroScanBlockRows);
         }
-        let mut accumulator = TableSummaryAccumulator::<I>::new(
+        let mut accumulator = MatrixSummaryAccumulator::new(
+            I::KIND,
+            I::TABLE_DOMAIN,
             &self.owning_slide_id,
             self.expected_entities_artifact_id,
             self.expected_entities_logical_digest,
@@ -320,7 +377,7 @@ impl<I: EntitySpec> MatrixCore<I> {
         while start < self.ids.len() {
             let rows = self.ids.len().saturating_sub(start).min(maximum_block_rows);
             for view in self.block(start, rows)?.rows() {
-                accumulator.push(view.id, view.status, view.vector)?;
+                accumulator.push(view.id.as_str(), view.status, view.vector)?;
             }
             start = start
                 .checked_add(rows)

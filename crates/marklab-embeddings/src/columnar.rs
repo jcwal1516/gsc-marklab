@@ -37,6 +37,16 @@ pub use arrow::{
     MultiscaleColumnarPublicationError, PatchFootprintArrowPreflight, PatchOverlapArrowPreflight,
     PatchRegionArrowPreflight,
 };
+pub use arrow::{
+    preflight_patch_embedding_table_arrow_bytes, preflight_region_embedding_table_arrow_bytes,
+    preflight_slide_embedding_table_arrow_bytes, publish_patch_embedding_table_arrow,
+    publish_region_embedding_table_arrow, publish_slide_embedding_table_arrow,
+    validate_patch_embedding_table_arrow_bytes, validate_patch_embedding_table_arrow_from_store,
+    validate_region_embedding_table_arrow_bytes, validate_region_embedding_table_arrow_from_store,
+    validate_slide_embedding_table_arrow_bytes, validate_slide_embedding_table_arrow_from_store,
+    write_patch_embedding_table_arrow, write_region_embedding_table_arrow,
+    write_slide_embedding_table_arrow, MultiscaleMatrixArrowPreflight,
+};
 pub use error::{ArrowIpcFailure, EmbeddingColumnarError, ParquetFailure};
 pub use multiscale::{
     MultiscaleColumnarError, SpatialArrowFailure, SpatialColumnarWriteSummary,
@@ -76,6 +86,19 @@ pub use parquet::{
     CellEmbeddingRowLinkParquetPreflight, CellPatchAssignmentParquetPreflight,
     CellPatchEdgeParquetPreflight, PatchFootprintParquetPreflight, PatchOverlapParquetPreflight,
     PatchRegionParquetPreflight,
+};
+pub use parquet::{
+    preflight_patch_embedding_table_parquet_bytes, preflight_region_embedding_table_parquet_bytes,
+    preflight_slide_embedding_table_parquet_bytes, publish_patch_embedding_table_parquet,
+    publish_region_embedding_table_parquet, publish_slide_embedding_table_parquet,
+    validate_patch_embedding_table_parquet_bytes,
+    validate_patch_embedding_table_parquet_from_store,
+    validate_region_embedding_table_parquet_bytes,
+    validate_region_embedding_table_parquet_from_store,
+    validate_slide_embedding_table_parquet_bytes,
+    validate_slide_embedding_table_parquet_from_store, write_patch_embedding_table_parquet,
+    write_region_embedding_table_parquet, write_slide_embedding_table_parquet,
+    MultiscaleMatrixParquetPreflight,
 };
 
 use marklab_project::{ArtifactId, ContentDigest};

@@ -2,11 +2,17 @@ use marklab_project::ContentDigest;
 use thiserror::Error;
 
 mod cell_patch;
+pub(crate) mod matrix;
 mod patch_region;
 
+pub(crate) use crate::multiscale::physical::MatrixPhysicalProfile;
 pub(crate) use cell_patch::{
     assignment_decoded_bytes, cell_patch_dependencies, cell_patch_metadata, edge_decoded_bytes,
     validate_cell_patch_domain, CELL_PATCH_METADATA_KEYS,
+};
+pub(crate) use matrix::{
+    matrix_decoded_bytes, matrix_dependencies, matrix_metadata, validate_matrix_domain,
+    MatrixPhysicalAccumulator, MultiscaleMatrixTable, MATRIX_METADATA_KEYS,
 };
 pub(crate) use patch_region::{
     patch_region_decoded_bytes, patch_region_dependencies, patch_region_metadata,

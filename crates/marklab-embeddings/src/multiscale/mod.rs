@@ -50,6 +50,8 @@ pub use records::{
     PatchIdentityMapEntry, PatchNormalizationDecimal, PatchSourceEntityEntry, PatchSourceEntitySet,
     VerifiedDirectPatchEmbeddingArtifactGraph,
 };
+#[cfg(feature = "parquet")]
+pub(crate) use table::{MatrixSummaryAccumulator, MultiscaleMatrixTable};
 pub use table::{
     MultiscaleEmbeddingQcSummary, PatchEmbeddingBlock, PatchEmbeddingRow, PatchEmbeddingTable,
     PatchEmbeddingView, RegionEmbeddingBlock, RegionEmbeddingRow, RegionEmbeddingTable,

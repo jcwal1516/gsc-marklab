@@ -6,6 +6,8 @@ use marklab_project::{ArtifactId, ContentDigest};
 use crate::EmbeddingStatus;
 
 use super::{MatrixBlock, MatrixCore, MatrixView, MultiscaleEmbeddingQcSummary, OwnedRow};
+#[cfg(feature = "parquet")]
+use super::{MultiscaleMatrixRow, MultiscaleMatrixTable};
 use crate::multiscale::{
     entity::{EmbeddingEntityKind, EntitySpec},
     error::MultiscaleEmbeddingError,
@@ -269,6 +271,71 @@ macro_rules! define_typed_table {
 
             /// Exact provenance logical identity bound by this table.
             pub fn provenance_logical_digest(&self) -> ContentDigest {
+                self.0.provenance_logical_digest
+            }
+        }
+
+        #[cfg(feature = "parquet")]
+        impl MultiscaleMatrixTable for $table {
+            fn profile(&self) -> crate::multiscale::physical::MatrixPhysicalProfile {
+                crate::multiscale::physical::MatrixPhysicalProfile::from_entity_kind(
+                    <$id as EntitySpec>::KIND,
+                )
+            }
+
+            fn entity_kind(&self) -> EmbeddingEntityKind {
+                <$id as EntitySpec>::KIND
+            }
+
+            fn owning_slide_id(&self) -> &SlideId {
+                &self.0.owning_slide_id
+            }
+
+            fn row_count(&self) -> usize {
+                self.0.ids.len()
+            }
+
+            fn dimension(&self) -> u32 {
+                self.0.dimension
+            }
+
+            fn row(
+                &self,
+                index: usize,
+            ) -> Result<MultiscaleMatrixRow<'_>, MultiscaleEmbeddingError> {
+                let row = self.0.row(index)?;
+                Ok(MultiscaleMatrixRow {
+                    id: row.id.as_str(),
+                    status: row.status,
+                    vector: row.vector,
+                })
+            }
+
+            fn qc_summary(&self) -> MultiscaleEmbeddingQcSummary {
+                self.0.qc_summary
+            }
+
+            fn expected_entities_artifact_id(&self) -> ArtifactId {
+                self.0.expected_entities_artifact_id
+            }
+
+            fn expected_entities_logical_digest(&self) -> ContentDigest {
+                self.0.expected_entities_logical_digest
+            }
+
+            fn support_artifact_id(&self) -> ArtifactId {
+                self.0.support_artifact_id
+            }
+
+            fn support_logical_digest(&self) -> ContentDigest {
+                self.0.support_logical_digest
+            }
+
+            fn provenance_artifact_id(&self) -> ArtifactId {
+                self.0.provenance_artifact_id
+            }
+
+            fn provenance_logical_digest(&self) -> ContentDigest {
                 self.0.provenance_logical_digest
             }
         }

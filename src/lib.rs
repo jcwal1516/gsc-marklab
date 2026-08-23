@@ -142,6 +142,27 @@ pub use marklab_embeddings::{
     SpatialColumnarWriteSummary, SpatialParquetFailure, VerifiedCellPatchInputArtifactGraph,
     VerifiedPatchRegionInputArtifactGraph,
 };
+#[cfg(feature = "parquet")]
+pub use marklab_embeddings::{
+    preflight_patch_embedding_table_arrow_bytes, preflight_patch_embedding_table_parquet_bytes,
+    preflight_region_embedding_table_arrow_bytes, preflight_region_embedding_table_parquet_bytes,
+    preflight_slide_embedding_table_arrow_bytes, preflight_slide_embedding_table_parquet_bytes,
+    publish_patch_embedding_table_arrow, publish_patch_embedding_table_parquet,
+    publish_region_embedding_table_arrow, publish_region_embedding_table_parquet,
+    publish_slide_embedding_table_arrow, publish_slide_embedding_table_parquet,
+    validate_patch_embedding_table_arrow_bytes, validate_patch_embedding_table_arrow_from_store,
+    validate_patch_embedding_table_parquet_bytes,
+    validate_patch_embedding_table_parquet_from_store, validate_region_embedding_table_arrow_bytes,
+    validate_region_embedding_table_arrow_from_store,
+    validate_region_embedding_table_parquet_bytes,
+    validate_region_embedding_table_parquet_from_store, validate_slide_embedding_table_arrow_bytes,
+    validate_slide_embedding_table_arrow_from_store, validate_slide_embedding_table_parquet_bytes,
+    validate_slide_embedding_table_parquet_from_store, write_patch_embedding_table_arrow,
+    write_patch_embedding_table_parquet, write_region_embedding_table_arrow,
+    write_region_embedding_table_parquet, write_slide_embedding_table_arrow,
+    write_slide_embedding_table_parquet, MultiscaleMatrixArrowPreflight,
+    MultiscaleMatrixParquetPreflight,
+};
 pub use marklab_embeddings::{
     ArtifactAvailabilityFailure, CanonicalDecimal, CellEmbeddingArtifact,
     CellEmbeddingArtifactRole, CellEmbeddingBlock, CellEmbeddingExecutionProvenance,

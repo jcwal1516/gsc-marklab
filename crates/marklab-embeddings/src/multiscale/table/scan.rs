@@ -7,7 +7,7 @@ use crate::EmbeddingStatus;
 
 use super::MultiscaleEmbeddingQcSummary;
 use crate::multiscale::{
-    digest::LogicalDigest, entity::EntitySpec, error::MultiscaleEmbeddingError,
+    digest::LogicalDigest, entity::EmbeddingEntityKind, error::MultiscaleEmbeddingError,
 };
 
 pub(super) struct MatrixView<'a, I> {
@@ -94,18 +94,20 @@ struct StatusCounts {
     all_zero_present: u64,
 }
 
-pub(super) struct TableSummaryAccumulator<I> {
+pub(crate) struct MatrixSummaryAccumulator {
+    entity_kind: EmbeddingEntityKind,
     dimension: usize,
     expected_rows: usize,
     next_row: usize,
     counts: StatusCounts,
     digest: LogicalDigest,
-    marker: std::marker::PhantomData<I>,
 }
 
-impl<I: EntitySpec> TableSummaryAccumulator<I> {
+impl MatrixSummaryAccumulator {
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn new(
+    pub(crate) fn new(
+        entity_kind: EmbeddingEntityKind,
+        logical_domain: &'static [u8],
         owning_slide_id: &SlideId,
         expected_entities_artifact_id: ArtifactId,
         expected_entities_logical_digest: ContentDigest,
@@ -118,8 +120,8 @@ impl<I: EntitySpec> TableSummaryAccumulator<I> {
     ) -> Result<Self, MultiscaleEmbeddingError> {
         let row_count =
             u64::try_from(expected_rows).map_err(|_| MultiscaleEmbeddingError::SizeOverflow)?;
-        let mut digest = LogicalDigest::new(I::TABLE_DOMAIN);
-        digest.text(I::KIND.wire_name());
+        let mut digest = LogicalDigest::new(logical_domain);
+        digest.text(entity_kind.wire_name());
         digest.text(owning_slide_id.as_str());
         digest.artifact_id(expected_entities_artifact_id);
         digest.content_digest(expected_entities_logical_digest);
@@ -130,26 +132,26 @@ impl<I: EntitySpec> TableSummaryAccumulator<I> {
         digest.u32(dimension);
         digest.u64(row_count);
         Ok(Self {
+            entity_kind,
             dimension: usize::try_from(dimension)
                 .map_err(|_| MultiscaleEmbeddingError::SizeOverflow)?,
             expected_rows,
             next_row: 0,
             counts: StatusCounts::default(),
             digest,
-            marker: std::marker::PhantomData,
         })
     }
 
-    pub(super) fn push(
+    pub(crate) fn push(
         &mut self,
-        id: &I,
+        id: &str,
         status: EmbeddingStatus,
         vector: Option<&[f32]>,
     ) -> Result<(), MultiscaleEmbeddingError> {
         if self.next_row >= self.expected_rows {
             return Err(MultiscaleEmbeddingError::RowSetMismatch);
         }
-        self.digest.text(id.as_str());
+        self.digest.text(id);
         self.digest.text(status.wire_name());
         match (status, vector) {
             (EmbeddingStatus::Present, Some(vector)) => {
@@ -196,7 +198,7 @@ impl<I: EntitySpec> TableSummaryAccumulator<I> {
         Ok(())
     }
 
-    pub(super) fn finish(self) -> Result<MultiscaleEmbeddingQcSummary, MultiscaleEmbeddingError> {
+    pub(crate) fn finish(self) -> Result<MultiscaleEmbeddingQcSummary, MultiscaleEmbeddingError> {
         if self.next_row != self.expected_rows {
             return Err(MultiscaleEmbeddingError::RowSetMismatch);
         }
@@ -213,7 +215,7 @@ impl<I: EntitySpec> TableSummaryAccumulator<I> {
             return Err(MultiscaleEmbeddingError::RowSetMismatch);
         }
         Ok(MultiscaleEmbeddingQcSummary {
-            entity_kind: I::KIND,
+            entity_kind: self.entity_kind,
             row_count,
             present_count: self.counts.present,
             missing_vector_count: self.counts.missing,

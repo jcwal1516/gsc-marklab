@@ -3,6 +3,158 @@ use marklab_project::{
     TableScalarType,
 };
 
+#[cfg(feature = "parquet")]
+use super::EmbeddingEntityKind;
+
+/// Closed physical profiles for the three typed C-05 embedding matrices.
+#[cfg(feature = "parquet")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum MatrixPhysicalProfile {
+    Patch,
+    Region,
+    Slide,
+}
+
+#[cfg(feature = "parquet")]
+impl MatrixPhysicalProfile {
+    pub(crate) fn from_entity_kind(kind: EmbeddingEntityKind) -> Self {
+        match kind {
+            EmbeddingEntityKind::Patch => Self::Patch,
+            EmbeddingEntityKind::Region => Self::Region,
+            EmbeddingEntityKind::Slide => Self::Slide,
+        }
+    }
+
+    pub(crate) fn entity_kind(self) -> EmbeddingEntityKind {
+        match self {
+            Self::Patch => EmbeddingEntityKind::Patch,
+            Self::Region => EmbeddingEntityKind::Region,
+            Self::Slide => EmbeddingEntityKind::Slide,
+        }
+    }
+
+    pub(crate) fn logical_domain(self) -> &'static [u8] {
+        match self {
+            Self::Patch => b"marklab-patch-embedding-logical-v1",
+            Self::Region => b"marklab-region-embedding-logical-v1",
+            Self::Slide => b"marklab-slide-embedding-logical-v1",
+        }
+    }
+
+    pub(crate) fn id_column(self) -> &'static str {
+        match self {
+            Self::Patch => "patch_id",
+            Self::Region => "region_id",
+            Self::Slide => "slide_id",
+        }
+    }
+
+    pub(crate) fn schema_id(self) -> &'static str {
+        match self {
+            Self::Patch => "marklab.patch_embedding_table",
+            Self::Region => "marklab.region_embedding_table",
+            Self::Slide => "marklab.slide_embedding_table",
+        }
+    }
+
+    pub(crate) fn encoding_version(self, encoding: SpatialPhysicalEncoding) -> &'static str {
+        match (self, encoding) {
+            (Self::Patch, SpatialPhysicalEncoding::Arrow) => {
+                "marklab.arrow-ipc.patch-embedding-table.v1"
+            }
+            (Self::Patch, SpatialPhysicalEncoding::Parquet) => {
+                "marklab.parquet.patch-embedding-table.v1"
+            }
+            (Self::Region, SpatialPhysicalEncoding::Arrow) => {
+                "marklab.arrow-ipc.region-embedding-table.v1"
+            }
+            (Self::Region, SpatialPhysicalEncoding::Parquet) => {
+                "marklab.parquet.region-embedding-table.v1"
+            }
+            (Self::Slide, SpatialPhysicalEncoding::Arrow) => {
+                "marklab.arrow-ipc.slide-embedding-table.v1"
+            }
+            (Self::Slide, SpatialPhysicalEncoding::Parquet) => {
+                "marklab.parquet.slide-embedding-table.v1"
+            }
+        }
+    }
+
+    pub(crate) fn content_kind(self, encoding: SpatialPhysicalEncoding) -> &'static str {
+        match (self, encoding) {
+            (Self::Patch, SpatialPhysicalEncoding::Arrow) => {
+                "application/vnd.marklab.patch-embedding-table.v1+arrow"
+            }
+            (Self::Patch, SpatialPhysicalEncoding::Parquet) => {
+                "application/vnd.marklab.patch-embedding-table.v1+parquet"
+            }
+            (Self::Region, SpatialPhysicalEncoding::Arrow) => {
+                "application/vnd.marklab.region-embedding-table.v1+arrow"
+            }
+            (Self::Region, SpatialPhysicalEncoding::Parquet) => {
+                "application/vnd.marklab.region-embedding-table.v1+parquet"
+            }
+            (Self::Slide, SpatialPhysicalEncoding::Arrow) => {
+                "application/vnd.marklab.slide-embedding-table.v1+arrow"
+            }
+            (Self::Slide, SpatialPhysicalEncoding::Parquet) => {
+                "application/vnd.marklab.slide-embedding-table.v1+parquet"
+            }
+        }
+    }
+
+    pub(crate) fn parquet_root(self) -> &'static str {
+        match self {
+            Self::Patch => "marklab_patch_embedding_table",
+            Self::Region => "marklab_region_embedding_table",
+            Self::Slide => "marklab_slide_embedding_table",
+        }
+    }
+
+    pub(crate) fn table_manifest(
+        self,
+        encoding: SpatialPhysicalEncoding,
+        row_count: u64,
+        dimension: u32,
+    ) -> Result<TableManifest, TableManifestError> {
+        let columns = vec![
+            scalar_column(self.id_column(), TableScalarType::Utf8)?,
+            TableColumn::new(
+                "embedding",
+                TableColumnType::FixedSizeList {
+                    element: TableScalarType::F32,
+                    length: dimension,
+                },
+                false,
+            )?,
+            scalar_column("embedding_status", TableScalarType::Utf8)?,
+        ];
+        TableManifest::new(
+            table_format(encoding),
+            self.encoding_version(encoding),
+            row_count,
+            columns,
+            vec![self.id_column().to_owned()],
+        )
+    }
+
+    pub(crate) fn record_matches_encoding(
+        self,
+        record: &ArtifactRecord,
+        encoding: SpatialPhysicalEncoding,
+        row_count: u64,
+        dimension: u32,
+    ) -> bool {
+        record.content().kind() == self.content_kind(encoding)
+            && record.schema().id() == self.schema_id()
+            && record.schema().version() == 1
+            && record.semantic_metadata().is_empty()
+            && self
+                .table_manifest(encoding, row_count, dimension)
+                .is_ok_and(|expected| record.table() == Some(&expected))
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SpatialArtifactRole {
     Footprint,

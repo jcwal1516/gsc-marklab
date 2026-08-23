@@ -196,3 +196,39 @@ fn table_blocks_recompute_all_statuses_with_partition_invariant_identity() {
     assert!(block.rows().all(|row| row.vector().is_none()));
     assert!(table.block(3, 2).is_err());
 }
+
+#[test]
+fn typed_tables_reject_expected_support_and_provenance_role_aliases() {
+    let (hierarchy, slide) = hierarchy();
+    let expected = expected_patches(&hierarchy, &slide);
+    let expected_id = artifact_id(b"matrix-alias-expected");
+    let support_id = artifact_id(b"matrix-alias-support");
+    let provenance_id = artifact_id(b"matrix-alias-provenance");
+    let rows = || {
+        vec![
+            PatchEmbeddingRow::present(patch("patch-a"), vec![1.0]),
+            PatchEmbeddingRow::non_present(patch("patch-b"), EmbeddingStatus::MissingVector)
+                .expect("missing row"),
+        ]
+    };
+    for (expected_role, support_role, provenance_role) in [
+        (expected_id, expected_id, provenance_id),
+        (expected_id, support_id, expected_id),
+        (expected_id, support_id, support_id),
+    ] {
+        assert!(matches!(
+            PatchEmbeddingTable::from_rows(
+                1,
+                &expected,
+                expected_role,
+                support_role,
+                ContentDigest::from_bytes(b"matrix-alias-support-logical"),
+                provenance_role,
+                ContentDigest::from_bytes(b"matrix-alias-provenance-logical"),
+                rows(),
+                RETAINED_BUDGET,
+            ),
+            Err(MultiscaleEmbeddingError::DuplicateMultiscaleTableArtifactDependency)
+        ));
+    }
+}
