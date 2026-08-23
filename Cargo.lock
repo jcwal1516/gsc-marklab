@@ -1695,7 +1695,10 @@ dependencies = [
 name = "marklab-embeddings"
 version = "0.1.0"
 dependencies = [
+ "arrow",
+ "arrow-ipc",
  "csv",
+ "flatbuffers",
  "marklab-data",
  "marklab-project",
  "proptest",

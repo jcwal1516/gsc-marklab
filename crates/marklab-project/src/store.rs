@@ -16,7 +16,7 @@ use cap_std::{
 use thiserror::Error;
 
 use crate::{
-    ArtifactId, ArtifactLocator, ArtifactRecord, ArtifactRecordError, ContentDigest,
+    ArtifactDraft, ArtifactId, ArtifactLocator, ArtifactRecord, ArtifactRecordError, ContentDigest,
     ContentDigestWriter, ProjectError, StoreId,
 };
 
@@ -122,6 +122,23 @@ impl LocalArtifactStore {
         F: FnOnce(&mut (dyn Write + Send)) -> io::Result<()>,
     {
         self.publish_inner(record, |writer| write(writer), PublishFault::None)
+    }
+
+    /// Stream, verify, and durably publish a location-free fresh artifact declaration.
+    ///
+    /// No `ArtifactRecord` is returned unless the managed object already exists with exact
+    /// identity or this call completes durable publication and cleanup successfully.
+    pub fn publish_new_send<F>(
+        &self,
+        draft: &ArtifactDraft,
+        write: F,
+    ) -> Result<ArtifactPublication, ArtifactStoreError>
+    where
+        F: FnOnce(&mut (dyn Write + Send)) -> io::Result<()>,
+    {
+        let managed = ArtifactLocator::managed(self.store_id.clone(), draft.id());
+        let record = draft.located_record(managed);
+        self.publish_inner(&record, |writer| write(writer), PublishFault::None)
     }
 
     fn publish_inner<F>(

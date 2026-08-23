@@ -8,12 +8,12 @@ use std::{
 };
 
 pub use marklab_project::{
-    ArtifactCatalog, ArtifactCatalogError, ArtifactId, ArtifactKey, ArtifactLocator,
+    ArtifactCatalog, ArtifactCatalogError, ArtifactDraft, ArtifactId, ArtifactKey, ArtifactLocator,
     ArtifactPublication, ArtifactRecord, ArtifactRecordError, ArtifactRef, ArtifactSchema,
     ArtifactStoreError, ContentDigest, ContentDigestParseError, ContentDigestWriter,
     LocalArtifactStore, MarklabProject, ProjectError, PublicationDisposition, RecoveryIssue,
     RecoveryIssueReason, RecoveryReport, StoreId, SuccessfulRun, TableColumn, TableColumnType,
-    TableFormat, TableManifest, TableManifestError, TableScalarType,
+    TableFormat, TableManifest, TableManifestError, TableScalarType, VerifiedReaderError,
 };
 use thiserror::Error;
 

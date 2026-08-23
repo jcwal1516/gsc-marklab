@@ -2,6 +2,8 @@
 #![deny(missing_docs)]
 //! Canonical cell-embedding values and bounded artifact encodings.
 
+#[cfg(feature = "parquet")]
+mod columnar;
 mod context;
 mod digest;
 mod error;
@@ -12,6 +14,14 @@ mod row_link;
 mod source;
 mod table;
 
+#[cfg(feature = "parquet")]
+pub use columnar::{
+    preflight_cell_embedding_table_arrow_bytes, publish_cell_embedding_table_arrow,
+    read_cell_embedding_table_arrow_bytes, read_cell_embedding_table_arrow_from_store,
+    write_cell_embedding_table_arrow, ArrowIpcFailure, CellEmbeddingArrowPreflight,
+    CellEmbeddingTablePhysicalBindings, ColumnarWriteSummary, EmbeddingColumnarBudgets,
+    EmbeddingColumnarError, EmbeddingColumnarPublicationError,
+};
 pub use context::{EmbeddingSpatialContext, PatchBoundaryPolicy, PositiveRational};
 pub use error::EmbeddingError;
 pub use expected::ExpectedCellSet;

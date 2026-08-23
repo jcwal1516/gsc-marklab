@@ -293,7 +293,7 @@ impl CellEmbeddingTable {
         })
     }
 
-    #[cfg(any(feature = "csv", feature = "parquet"))]
+    #[cfg(feature = "csv")]
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_present_values(
         dimension: u32,
@@ -397,6 +397,140 @@ impl CellEmbeddingTable {
         })
     }
 
+    #[cfg(feature = "parquet")]
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn from_physical_values(
+        dimension: u32,
+        expected: &ExpectedCellSet,
+        expected_cells_artifact_id: ArtifactId,
+        provenance_artifact_id: ArtifactId,
+        row_link_digest: ContentDigest,
+        statuses: Vec<EmbeddingStatus>,
+        mut values: Vec<f32>,
+        maximum_retained_bytes: usize,
+    ) -> Result<Self, EmbeddingError> {
+        if dimension == 0 {
+            return Err(EmbeddingError::ZeroDimension);
+        }
+        if statuses.len() != expected.cells().len() {
+            return Err(EmbeddingError::RowSetMismatch);
+        }
+        let dimension_usize =
+            usize::try_from(dimension).map_err(|_| EmbeddingError::SizeOverflow)?;
+        let component_count = expected
+            .cells()
+            .len()
+            .checked_mul(dimension_usize)
+            .ok_or(EmbeddingError::SizeOverflow)?;
+        if values.len() != component_count {
+            return Err(EmbeddingError::DimensionMismatch {
+                expected: component_count,
+                observed: values.len(),
+            });
+        }
+        let value_bytes = component_count
+            .checked_mul(size_of::<f32>())
+            .ok_or(EmbeddingError::SizeOverflow)?;
+        let row_overhead = expected
+            .cells()
+            .len()
+            .checked_mul(size_of::<CellId>() + size_of::<EmbeddingStatus>())
+            .ok_or(EmbeddingError::SizeOverflow)?;
+        let identifier_bytes = expected.cells().iter().try_fold(0_usize, |total, cell| {
+            total
+                .checked_add(cell.as_str().len())
+                .ok_or(EmbeddingError::SizeOverflow)
+        })?;
+        let required = value_bytes
+            .checked_add(row_overhead)
+            .and_then(|value| value.checked_add(identifier_bytes))
+            .ok_or(EmbeddingError::SizeOverflow)?;
+        if required > maximum_retained_bytes {
+            return Err(EmbeddingError::RetainedByteBudgetExceeded {
+                required,
+                maximum: maximum_retained_bytes,
+            });
+        }
+
+        let mut present_count = 0_u64;
+        let mut missing_vector_count = 0_u64;
+        let mut extraction_failed_count = 0_u64;
+        let mut qc_rejected_count = 0_u64;
+        let mut all_zero_present_count = 0_u64;
+        for (row, (status, vector)) in statuses
+            .iter()
+            .copied()
+            .zip(values.chunks_exact_mut(dimension_usize))
+            .enumerate()
+        {
+            let mut all_zero = true;
+            for (column, value) in vector.iter_mut().enumerate() {
+                if !value.is_finite() {
+                    return Err(EmbeddingError::NonFiniteComponent { row, column });
+                }
+                if status == EmbeddingStatus::Present {
+                    *value = canonical_positive_zero(*value);
+                } else if value.to_bits() != 0 {
+                    return Err(EmbeddingError::StatusVectorMismatch);
+                }
+                all_zero &= value.to_bits() == 0;
+            }
+            match status {
+                EmbeddingStatus::Present => {
+                    present_count = present_count
+                        .checked_add(1)
+                        .ok_or(EmbeddingError::SizeOverflow)?;
+                    all_zero_present_count = all_zero_present_count
+                        .checked_add(u64::from(all_zero))
+                        .ok_or(EmbeddingError::SizeOverflow)?;
+                }
+                EmbeddingStatus::MissingVector => {
+                    missing_vector_count = missing_vector_count
+                        .checked_add(1)
+                        .ok_or(EmbeddingError::SizeOverflow)?;
+                }
+                EmbeddingStatus::ExtractionFailed => {
+                    extraction_failed_count = extraction_failed_count
+                        .checked_add(1)
+                        .ok_or(EmbeddingError::SizeOverflow)?;
+                }
+                EmbeddingStatus::QcRejected => {
+                    qc_rejected_count = qc_rejected_count
+                        .checked_add(1)
+                        .ok_or(EmbeddingError::SizeOverflow)?;
+                }
+            }
+        }
+        let row_count =
+            u64::try_from(expected.cells().len()).map_err(|_| EmbeddingError::SizeOverflow)?;
+        let logical_digest = logical_digest(
+            provenance_artifact_id,
+            row_link_digest,
+            expected_cells_artifact_id,
+            dimension,
+            row_count,
+            expected.cells(),
+            &statuses,
+            &values,
+        );
+        Ok(Self {
+            cells: clone_cells(expected.cells())?,
+            statuses: statuses.into_boxed_slice(),
+            values,
+            dimension,
+            qc_summary: EmbeddingQcSummary {
+                row_count,
+                present_count,
+                missing_vector_count,
+                extraction_failed_count,
+                qc_rejected_count,
+                all_zero_present_count,
+                dimension,
+                logical_digest,
+            },
+        })
+    }
+
     /// Number of canonical rows.
     pub fn row_count(&self) -> usize {
         self.cells.len()
@@ -434,6 +568,28 @@ impl CellEmbeddingTable {
     /// Factual status counts, shape, zero-vector count, and logical digest.
     pub fn qc_summary(&self) -> EmbeddingQcSummary {
         self.qc_summary
+    }
+
+    #[cfg(feature = "parquet")]
+    pub(crate) fn matches_physical_bindings(
+        &self,
+        expected_cells_artifact_id: ArtifactId,
+        provenance_artifact_id: ArtifactId,
+        row_link_digest: ContentDigest,
+    ) -> bool {
+        let Ok(row_count) = u64::try_from(self.cells.len()) else {
+            return false;
+        };
+        logical_digest(
+            provenance_artifact_id,
+            row_link_digest,
+            expected_cells_artifact_id,
+            self.dimension,
+            row_count,
+            &self.cells,
+            &self.statuses,
+            &self.values,
+        ) == self.qc_summary.logical_digest
     }
 }
 

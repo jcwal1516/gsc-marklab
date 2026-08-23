@@ -11,6 +11,7 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 tempfile = "3"
 marklab = { path = "..", default-features = false, features = ["csv", "wsi"] }
+marklab-embeddings = { path = "../crates/marklab-embeddings", default-features = false, features = ["csv", "parquet"] }
 
 [[bin]]
 name = "config"
@@ -50,6 +51,13 @@ bench = false
 [[bin]]
 name = "artifact_catalog"
 path = "fuzz_targets/artifact_catalog.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "embedding_inputs"
+path = "fuzz_targets/embedding_inputs.rs"
 test = false
 doc = false
 bench = false

@@ -148,6 +148,7 @@ pub struct VerifiedCellEmbeddingArtifactGraph {
     pub(crate) expected_cells_artifact_id: ArtifactId,
     pub(crate) identity_map_artifact_id: ArtifactId,
     pub(crate) converter_artifact_id: ArtifactId,
+    pub(crate) row_link_artifact_id: ArtifactId,
     pub(crate) expected_cells_logical_digest: ContentDigest,
     pub(crate) row_link_logical_digest: ContentDigest,
 }

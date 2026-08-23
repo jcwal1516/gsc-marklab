@@ -21,9 +21,9 @@ mod catalog;
 mod store;
 
 pub use artifact::{
-    ArtifactId, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRecordError, ArtifactSchema,
-    StoreId, TableColumn, TableColumnType, TableFormat, TableManifest, TableManifestError,
-    TableScalarType,
+    ArtifactDraft, ArtifactId, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRecordError,
+    ArtifactSchema, StoreId, TableColumn, TableColumnType, TableFormat, TableManifest,
+    TableManifestError, TableScalarType,
 };
 pub use catalog::{ArtifactCatalog, ArtifactCatalogError};
 pub use store::{

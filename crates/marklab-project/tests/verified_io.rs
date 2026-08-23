@@ -6,8 +6,8 @@ use std::{
 };
 
 use marklab_project::{
-    ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef, ArtifactSchema, ArtifactStoreError,
-    LocalArtifactStore, PublicationDisposition, StoreId, VerifiedReaderError,
+    ArtifactDraft, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef, ArtifactSchema,
+    ArtifactStoreError, LocalArtifactStore, PublicationDisposition, StoreId, VerifiedReaderError,
 };
 use tempfile::TempDir;
 
@@ -38,6 +38,17 @@ fn record(bytes: &[u8], suffix: &str) -> ArtifactRecord {
         .expect("source locator")],
     )
     .expect("record")
+}
+
+fn draft(bytes: &[u8]) -> ArtifactDraft {
+    ArtifactDraft::new(
+        ArtifactRef::from_bytes("application/vnd.marklab.fresh-test", bytes).expect("content"),
+        ArtifactSchema::new("marklab.test.fresh", 1).expect("schema"),
+        None,
+        Vec::new(),
+        BTreeMap::new(),
+    )
+    .expect("draft")
 }
 
 fn open_store(root: &TempDir) -> LocalArtifactStore {
@@ -219,6 +230,63 @@ fn publish_send_callback_failure_removes_staging_and_never_publishes() {
 
     assert!(matches!(error, ArtifactStoreError::WriteCallback { .. }));
     assert!(!managed_path(&root, &record).exists());
+    assert_eq!(
+        fs::read_dir(root.path().join(".marklab-staging"))
+            .expect("staging directory")
+            .count(),
+        0
+    );
+}
+
+#[test]
+fn publish_new_send_returns_only_a_truthful_managed_record_and_is_idempotent() {
+    let root = TempDir::new().expect("root");
+    let store = open_store(&root);
+    let bytes = b"fresh canonical bytes";
+    let draft = draft(bytes);
+
+    let first = store
+        .publish_new_send(&draft, |writer| {
+            assert_send(writer);
+            writer.write_all(bytes)
+        })
+        .expect("publish fresh artifact");
+    assert_eq!(first.disposition(), PublicationDisposition::Created);
+    assert_eq!(first.record().id(), draft.id());
+    assert_eq!(first.record().locations().len(), 1);
+    assert_eq!(first.record().locations()[0].store_id(), store.store_id());
+    store.verify(first.record()).expect("verify fresh record");
+
+    let invoked = AtomicBool::new(false);
+    let second = store
+        .publish_new_send(&draft, |_writer| {
+            invoked.store(true, Ordering::SeqCst);
+            Ok(())
+        })
+        .expect("reuse fresh artifact");
+    assert_eq!(second.disposition(), PublicationDisposition::AlreadyPresent);
+    assert!(!invoked.load(Ordering::SeqCst));
+    assert_eq!(second.record(), first.record());
+}
+
+#[test]
+fn publish_new_send_integrity_failure_returns_no_record_and_removes_staging() {
+    let root = TempDir::new().expect("root");
+    let store = open_store(&root);
+    let bytes = b"fresh expected bytes";
+    let draft = draft(bytes);
+
+    let error = store
+        .publish_new_send(&draft, |writer| writer.write_all(b"fresh altered!bytes"))
+        .expect_err("integrity mismatch");
+    assert!(matches!(error, ArtifactStoreError::ContentIntegrity { .. }));
+    let id = draft.id().to_string();
+    assert!(!root
+        .path()
+        .join("objects/sha256")
+        .join(&id[..2])
+        .join(id)
+        .exists());
     assert_eq!(
         fs::read_dir(root.path().join(".marklab-staging"))
             .expect("staging directory")

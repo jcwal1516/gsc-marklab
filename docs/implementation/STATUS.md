@@ -1,17 +1,17 @@
 # Implementation status
 
-Last updated: 2026-08-22T21:11:36-04:00
+Last updated: 2026-08-23T00:28:18-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Current implementation SHA: `0c00e8b0f3984fdbcae8e0d5962a5b2c421c8913`
+- Committed baseline before the current checkpoint: `d3459d47109257c3578cfe58b71f865acc7384a2`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
-- Current phase/workstream/task: Phase 2 / WS-C / C-04 frozen contract commit and domain-first red tests
+- Current phase/workstream/task: Phase 2 / WS-C / C-04 partial Arrow embedding-table, managed-store, and fuzz checkpoint
 
 ## Requirements
 
@@ -21,13 +21,16 @@ Last updated: 2026-08-22T21:11:36-04:00
 
 ## Command state
 
-- Known failing commands/tests: clean unpatched `cargo +1.96.0 package --locked --workspace` creates all five archives but exits 101 while verifying data against the published pre-C-02 `marklab-core 0.1.0`. DEC-0018 makes this release-blocking until an authorized version/dependency-ordered publication boundary; ephemeral local patches verified every archive successfully and are not claimed equivalent to registry resolvability. The Windows cross-target C-03 check also exits 101 before project compilation because `x86_64-pc-windows-msvc` is not installed; DEC-0021 requires Windows publication/recovery runtime evidence before target support is claimed. C-03 otherwise closes with 471/471 all-feature workspace tests, both warnings-denied Clippy rows, nightly fuzz, docs, dependency, compatibility, no-default, and WSI gates. Historical red/green and harness failures are recorded in the validation ledger. The WS-B feature matrix still has the explicitly recorded narrow warnings and is not claimed warning-clean.
+- Known failing commands/tests: clean unpatched `cargo +1.96.0 package --locked --workspace` creates all five archives but exits 101 while verifying data against the published pre-C-02 `marklab-core 0.1.0`. DEC-0018 makes this release-blocking until an authorized version/dependency-ordered publication boundary; ephemeral local patches verified every archive successfully and are not claimed equivalent to registry resolvability. The Windows cross-target C-03 check also exits 101 before project compilation because `x86_64-pc-windows-msvc` is not installed; DEC-0021 requires Windows publication/recovery runtime evidence before target support is claimed. Current C-04 focused checks are green: Arrow integration 14/14, artifact graph 13/13, embedding package 12/12, project package 41/41, both focused warnings-denied Clippy scopes, missing-docs builds, no-default embedding check, and a 5,000-run substantive fuzz execution. Historical red/green and harness failures are recorded in the validation ledger. The WS-B feature matrix still has the explicitly recorded narrow warnings and is not claimed warning-clean.
+- C-04 remains incomplete. Row-link Arrow, all Parquet codecs/preflight/one-row-group decode, streaming scan/QC, differential/property reuse, Criterion/DHAT, mandatory 10k and 1M scale evidence, and phase-boundary gates are not yet implemented or verified.
 - Confirmed available: `cargo-nextest`, `cargo-audit`, `cargo-deny`, `cargo-machete`, `cargo-fuzz`, `ssh`, `scp`, `rsync`.
 - Confirmed unavailable: local `markdownlint-cli2`, `actionlint`, and Gnuplot. Criterion used Plotters; no Markdown/workflow lint pass is claimed.
 
-## Dirty files and reasons
+## Current checkpoint scope
 
-- Production, tests, manifests, and locks remain clean at the C-03 closure SHA. Current dirty files are the frozen C-04 contract/accepted decisions/ownership/status, append-only validation evidence, and privacy-safe remote audit program only.
+- The focused checkpoint changes embedding-table Arrow writing, shared bounded byte/seek preflight, full semantic decode, managed-store materialization, two-pass fresh publication, graph-token row-link identity, physical-value construction, root facades, Arrow/FlatBuffers feature wiring, standalone fuzz target/lock, tests, accepted DEC-0027/DEC-0028, and current evidence.
+- `ArtifactDraft`/`publish_new_send` are narrow additive `marklab-project` changes required to publish canonical bytes without fabricating an external locator. Existing record, catalog, `publish`, and `publish_send` APIs remain compatible.
+- The root lock adds only Arrow/IPC/FlatBuffers direct edges to the local embedding package and no registry tuple. The independent fuzz-lock expansion is bounded by accepted DEC-0028; its six retained dependency-list changes are disclosed and mechanically reviewed.
 
 ## Recent decisions
 
@@ -49,6 +52,9 @@ Last updated: 2026-08-22T21:11:36-04:00
 - Accepted `DEC-0020`: use exact `cap-std 4.0.3` for descriptor-relative local artifact confinement and hard-link/directory-sync publication; add no live cloud or columnar dependency to `marklab-project`.
 - Accepted `DEC-0021`: keep Windows directory durability conditional on target compilation and runtime publication/recovery evidence; do not infer support from source review.
 - Accepted `DEC-0022`–`DEC-0024`: introduce the layer-3 embedding owner and scoped verified IO, materialize expected/source-identity/spatial-context semantics, preflight every columnar input before stock decode, reconcile the real corpus without promotion, and explicitly defer OS mmap.
+- Accepted `DEC-0025`–`DEC-0026`: freeze reconciliation-only identities and split source adaptation from provenance-gated finalization.
+- Accepted `DEC-0027`: freeze exact Arrow/Parquet profile details and location-free fresh-artifact publication.
+- Accepted `DEC-0028`: permit the independent fuzz lock to mirror only exact root-reviewed registry tuples while retaining every pre-C-04 identity tuple and disclosing changed dependency targets.
 
 ## Unresolved questions
 
@@ -61,12 +67,12 @@ Last updated: 2026-08-22T21:11:36-04:00
 
 ## Next three exact actions
 
-1. Commit only the frozen C-04 contract/accepted decisions/ownership and read-only evidence; production, tests, manifests, and locks remain untouched.
-2. Add the workspace/domain/expected-set/identity-map/spatial-context compile-first tests and confirm their intended failures before implementation.
-3. Implement only the smallest package/domain surface needed to turn that focused red suite green, then rerun it before opening the row-link/provenance slice.
+1. Commit the independently reviewed partial embedding-table Arrow/store/fuzz checkpoint without claiming C-04 closure.
+2. Add behavior-first row-link Arrow tests, then implement its exact metadata/schema writer, shared bounded reader, and fresh managed publication.
+3. Add the locked Parquet/Bytes/Thrift edges and red tests, then implement compact-Thrift preflight, canonical embedding/row-link writers, one-validated-row-group managed decode, and format/chunk logical parity.
 
 Next exact verification command:
 
 ```bash
-cargo +1.96.0 test --locked --test cellvit_embedding_table
+cargo +1.96.0 test --locked --offline --features parquet --test cell_embedding_arrow --test cellvit_embedding_artifact_graph
 ```

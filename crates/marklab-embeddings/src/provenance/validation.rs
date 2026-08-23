@@ -66,6 +66,7 @@ impl CellEmbeddingProvenance {
             expected_cells_artifact_id: self.inputs.expected_cells_artifact_id,
             identity_map_artifact_id: self.inputs.identity_map_artifact_id,
             converter_artifact_id: self.execution.converter_artifact_id,
+            row_link_artifact_id: self.inputs.row_link_artifact_id,
             expected_cells_logical_digest: expected.logical_digest(),
             row_link_logical_digest: row_link.logical_digest(),
         })

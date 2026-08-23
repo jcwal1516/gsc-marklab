@@ -12,7 +12,11 @@ bench = false
 [features]
 default = []
 csv = ["dep:csv"]
-parquet = []
+parquet = [
+    "dep:arrow",
+    "dep:arrow-ipc",
+    "dep:flatbuffers",
+]
 
 [dependencies]
 marklab-data = { version = "0.1.0", path = "../marklab-data" }
@@ -21,6 +25,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 csv = { version = "1", optional = true }
+arrow = { version = "56", default-features = false, features = ["ipc"], optional = true }
+arrow-ipc = { version = "56", optional = true }
+flatbuffers = { version = "25", optional = true }
 
 [dev-dependencies]
 proptest = "1"

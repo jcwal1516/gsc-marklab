@@ -568,6 +568,98 @@ impl ArtifactLocator {
     }
 }
 
+/// Location-free declaration for a new immutable artifact owned by a publishing store.
+///
+/// A draft has stable content and semantic identity but is not an `ArtifactRecord`, has no
+/// replica declaration, and cannot enter a catalog. Successful store publication converts it
+/// into a normal record containing only the truthful managed locator.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ArtifactDraft {
+    id: ArtifactId,
+    semantic_digest: ContentDigest,
+    content: ArtifactRef,
+    schema: ArtifactSchema,
+    table: Option<TableManifest>,
+    dependencies: Vec<ArtifactId>,
+    semantic_metadata: BTreeMap<String, String>,
+}
+
+impl ArtifactDraft {
+    /// Build a validated location-free declaration with stable artifact identity.
+    pub fn new(
+        content: ArtifactRef,
+        schema: ArtifactSchema,
+        table: Option<TableManifest>,
+        dependencies: Vec<ArtifactId>,
+        semantic_metadata: BTreeMap<String, String>,
+    ) -> Result<Self, ArtifactRecordError> {
+        let (dependencies, semantic_digest, id) = prepare_artifact_identity(
+            &content,
+            &schema,
+            table.as_ref(),
+            dependencies,
+            &semantic_metadata,
+        )?;
+        Ok(Self {
+            id,
+            semantic_digest,
+            content,
+            schema,
+            table,
+            dependencies,
+            semantic_metadata,
+        })
+    }
+
+    /// Schema- and content-bound identity that publication must preserve.
+    pub fn id(&self) -> ArtifactId {
+        self.id
+    }
+
+    /// Location-independent digest of the semantic declaration.
+    pub fn semantic_digest(&self) -> ContentDigest {
+        self.semantic_digest
+    }
+
+    /// Exact encoded-byte reference that the publication callback must reproduce.
+    pub fn content(&self) -> &ArtifactRef {
+        &self.content
+    }
+
+    /// Versioned semantic schema.
+    pub fn schema(&self) -> &ArtifactSchema {
+        &self.schema
+    }
+
+    /// Optional exact native-table declaration.
+    pub fn table(&self) -> Option<&TableManifest> {
+        self.table.as_ref()
+    }
+
+    /// Sorted direct artifact dependencies.
+    pub fn dependencies(&self) -> &[ArtifactId] {
+        &self.dependencies
+    }
+
+    /// Sorted bounded semantic metadata.
+    pub fn semantic_metadata(&self) -> &BTreeMap<String, String> {
+        &self.semantic_metadata
+    }
+
+    pub(crate) fn located_record(&self, locator: ArtifactLocator) -> ArtifactRecord {
+        ArtifactRecord {
+            id: self.id,
+            semantic_digest: self.semantic_digest,
+            content: self.content.clone(),
+            schema: self.schema.clone(),
+            table: self.table.clone(),
+            dependencies: self.dependencies.clone(),
+            semantic_metadata: self.semantic_metadata.clone(),
+            locations: vec![locator],
+        }
+    }
+}
+
 /// Immutable schema, semantic identity, dependencies, and replica declarations.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ArtifactRecord {
@@ -587,15 +679,17 @@ impl ArtifactRecord {
         content: ArtifactRef,
         schema: ArtifactSchema,
         table: Option<TableManifest>,
-        mut dependencies: Vec<ArtifactId>,
+        dependencies: Vec<ArtifactId>,
         semantic_metadata: BTreeMap<String, String>,
         mut locations: Vec<ArtifactLocator>,
     ) -> Result<Self, ArtifactRecordError> {
-        dependencies.sort_unstable();
-        if dependencies.windows(2).any(|pair| pair[0] == pair[1]) {
-            return Err(ArtifactRecordError::DuplicateDependency);
-        }
-        validate_metadata(&semantic_metadata)?;
+        let (dependencies, semantic_digest, id) = prepare_artifact_identity(
+            &content,
+            &schema,
+            table.as_ref(),
+            dependencies,
+            &semantic_metadata,
+        )?;
         if locations.is_empty() || locations.len() > 16 {
             return Err(ArtifactRecordError::InvalidLocationCount {
                 observed: locations.len(),
@@ -609,14 +703,6 @@ impl ArtifactRecord {
                 });
             }
         }
-        let semantic_digest = compute_semantic_digest(
-            &content,
-            &schema,
-            table.as_ref(),
-            &dependencies,
-            &semantic_metadata,
-        );
-        let id = compute_artifact_id(&content, &schema, semantic_digest);
         Ok(Self {
             id,
             semantic_digest,
@@ -707,6 +793,24 @@ impl ArtifactRecord {
             && self.dependencies == other.dependencies
             && self.semantic_metadata == other.semantic_metadata
     }
+}
+
+fn prepare_artifact_identity(
+    content: &ArtifactRef,
+    schema: &ArtifactSchema,
+    table: Option<&TableManifest>,
+    mut dependencies: Vec<ArtifactId>,
+    semantic_metadata: &BTreeMap<String, String>,
+) -> Result<(Vec<ArtifactId>, ContentDigest, ArtifactId), ArtifactRecordError> {
+    dependencies.sort_unstable();
+    if dependencies.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(ArtifactRecordError::DuplicateDependency);
+    }
+    validate_metadata(semantic_metadata)?;
+    let semantic_digest =
+        compute_semantic_digest(content, schema, table, &dependencies, semantic_metadata);
+    let id = compute_artifact_id(content, schema, semantic_digest);
+    Ok((dependencies, semantic_digest, id))
 }
 
 fn compute_semantic_digest(

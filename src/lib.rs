@@ -69,6 +69,14 @@ pub use marklab_embeddings::{
     CellVitHeImportCandidate, CellVitHeImportRequest, ImportedCellVitHeBundle,
     MissingPromotionField, SourceBundleReconciler, SourceBundleReconciliation,
 };
+#[cfg(feature = "parquet")]
+pub use marklab_embeddings::{
+    preflight_cell_embedding_table_arrow_bytes, publish_cell_embedding_table_arrow,
+    read_cell_embedding_table_arrow_bytes, read_cell_embedding_table_arrow_from_store,
+    write_cell_embedding_table_arrow, ArrowIpcFailure, CellEmbeddingArrowPreflight,
+    CellEmbeddingTablePhysicalBindings, ColumnarWriteSummary, EmbeddingColumnarBudgets,
+    EmbeddingColumnarError, EmbeddingColumnarPublicationError,
+};
 pub use marklab_embeddings::{
     ArtifactAvailabilityFailure, CanonicalDecimal, CellEmbeddingArtifactRole,
     CellEmbeddingExecutionProvenance, CellEmbeddingInputArtifacts, CellEmbeddingModelProvenance,
@@ -82,14 +90,14 @@ pub use marklab_embeddings::{
     VerifiedCellEmbeddingArtifactGraph,
 };
 pub use marklab_workflow::{
-    ArtifactCatalog, ArtifactCatalogError, ArtifactId, ArtifactKey, ArtifactLocator,
+    ArtifactCatalog, ArtifactCatalogError, ArtifactDraft, ArtifactId, ArtifactKey, ArtifactLocator,
     ArtifactPublication, ArtifactRecord, ArtifactRecordError, ArtifactRef, ArtifactSchema,
     ArtifactStoreError, CacheKeyMaterial, CacheStatus, ContentDigest, ContentDigestParseError,
     ContentDigestWriter, LocalArtifactStore, LocalScheduler, MarklabProject, NodeError, NodeId,
     NodeRun, NodeSpec, ProjectError, PublicationDisposition, RecoveryIssue, RecoveryIssueReason,
     RecoveryReport, SchedulerLimits, StoreId, SuccessfulRun, TableColumn, TableColumnType,
-    TableFormat, TableManifest, TableManifestError, TableScalarType, WorkflowError, WorkflowGraph,
-    WorkflowNode,
+    TableFormat, TableManifest, TableManifestError, TableScalarType, VerifiedReaderError,
+    WorkflowError, WorkflowGraph, WorkflowNode,
 };
 pub use multimodal::{
     CellExtrapolationRecord, CellSection, FusedCell, HeCell, IhcCell, LandmarkHullAvailability,

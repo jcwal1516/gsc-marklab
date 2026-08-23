@@ -703,6 +703,7 @@ mod tests {
         let identity_map_artifact_id = artifact_id(b"identity-map");
         let converter_artifact_id = artifact_id(b"converter");
         let provenance_artifact_id = artifact_id(b"provenance");
+        let row_link_artifact_id = artifact_id(b"row-link");
         let row_link = CellEmbeddingRowLink::new(
             source_cells_artifact_id,
             source_vectors_artifact_id,
@@ -735,6 +736,7 @@ mod tests {
             expected_cells_artifact_id,
             identity_map_artifact_id,
             converter_artifact_id,
+            row_link_artifact_id,
             expected_cells_logical_digest: expected.logical_digest(),
             row_link_logical_digest: row_link.logical_digest(),
         };
