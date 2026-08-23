@@ -173,6 +173,7 @@ fn fuzz_manifest_covers_current_public_input_boundaries() {
         "csv_row_parser",
         "result_document",
         "wsi_region_request",
+        "artifact_catalog",
     ] {
         assert!(
             manifest.contains(&format!("name = \"{target}\"")),
@@ -185,6 +186,7 @@ fn fuzz_manifest_covers_current_public_input_boundaries() {
         "PatternLoader::new",
         "ResultDocument::from_json",
         "validate_for",
+        "ArtifactCatalog::from_json",
     ] {
         assert!(
             sources.contains(boundary),

@@ -56,9 +56,14 @@ pub use errors::{MarklabError, Result};
 pub use geom::mask::TumorMask;
 pub use io::{PatternLoadDiagnostics, PatternLoadResult, PatternLoader};
 pub use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, CacheStatus, ContentDigest, ContentDigestWriter, LocalScheduler,
-    MarklabProject, NodeError, NodeId, NodeRun, NodeSpec, ProjectError, SchedulerLimits,
-    SuccessfulRun, WorkflowError, WorkflowGraph, WorkflowNode,
+    ArtifactCatalog, ArtifactCatalogError, ArtifactId, ArtifactKey, ArtifactLocator,
+    ArtifactPublication, ArtifactRecord, ArtifactRecordError, ArtifactRef, ArtifactSchema,
+    ArtifactStoreError, CacheKeyMaterial, CacheStatus, ContentDigest, ContentDigestParseError,
+    ContentDigestWriter, LocalArtifactStore, LocalScheduler, MarklabProject, NodeError, NodeId,
+    NodeRun, NodeSpec, ProjectError, PublicationDisposition, RecoveryIssue, RecoveryIssueReason,
+    RecoveryReport, SchedulerLimits, StoreId, SuccessfulRun, TableColumn, TableColumnType,
+    TableFormat, TableManifest, TableManifestError, TableScalarType, WorkflowError, WorkflowGraph,
+    WorkflowNode,
 };
 pub use multimodal::{
     CellExtrapolationRecord, CellSection, FusedCell, HeCell, IhcCell, LandmarkHullAvailability,

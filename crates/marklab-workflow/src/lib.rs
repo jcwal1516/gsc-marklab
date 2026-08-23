@@ -8,7 +8,12 @@ use std::{
 };
 
 pub use marklab_project::{
-    ArtifactRef, ContentDigest, ContentDigestWriter, MarklabProject, ProjectError, SuccessfulRun,
+    ArtifactCatalog, ArtifactCatalogError, ArtifactId, ArtifactKey, ArtifactLocator,
+    ArtifactPublication, ArtifactRecord, ArtifactRecordError, ArtifactRef, ArtifactSchema,
+    ArtifactStoreError, ContentDigest, ContentDigestParseError, ContentDigestWriter,
+    LocalArtifactStore, MarklabProject, ProjectError, PublicationDisposition, RecoveryIssue,
+    RecoveryIssueReason, RecoveryReport, StoreId, SuccessfulRun, TableColumn, TableColumnType,
+    TableFormat, TableManifest, TableManifestError, TableScalarType,
 };
 use thiserror::Error;
 
@@ -224,6 +229,10 @@ pub trait WorkflowNode {
     fn spec(&self) -> &NodeSpec;
     /// Ordered immutable input references included in the cache key.
     fn input_artifacts(&self) -> &[ArtifactRef];
+    /// Ordered schema-bound artifact inputs that require store verification.
+    fn semantic_input_artifacts(&self) -> &[ArtifactId] {
+        &[]
+    }
     /// Recompute and verify source content before cache lookup or execution.
     fn verify_input_content(&self) -> Result<(), NodeError>;
     /// Additional deterministic execution and implementation key material.
@@ -273,6 +282,27 @@ impl LocalScheduler {
         graph: &WorkflowGraph,
         node: &N,
     ) -> Result<NodeRun<N::Output>, WorkflowError> {
+        self.run_single_inner(project, graph, node, None)
+    }
+
+    /// Run or replay one node after verifying every schema-bound input in a local store.
+    pub fn run_single_with_store<N: WorkflowNode>(
+        &self,
+        project: &mut MarklabProject,
+        graph: &WorkflowGraph,
+        node: &N,
+        store: &LocalArtifactStore,
+    ) -> Result<NodeRun<N::Output>, WorkflowError> {
+        self.run_single_inner(project, graph, node, Some(store))
+    }
+
+    fn run_single_inner<N: WorkflowNode>(
+        &self,
+        project: &mut MarklabProject,
+        graph: &WorkflowGraph,
+        node: &N,
+        store: Option<&LocalArtifactStore>,
+    ) -> Result<NodeRun<N::Output>, WorkflowError> {
         let spec = node.spec();
         let registered = graph
             .node(spec.id())
@@ -295,6 +325,27 @@ impl LocalScheduler {
                     node_id: spec.id().clone(),
                     artifact: artifact.clone(),
                 });
+            }
+        }
+        let semantic_inputs = node.semantic_input_artifacts();
+        if !semantic_inputs.is_empty() {
+            let store = store.ok_or_else(|| WorkflowError::SemanticStoreRequired {
+                node_id: spec.id().clone(),
+            })?;
+            for artifact in semantic_inputs {
+                let record = project.artifact_record(*artifact).ok_or_else(|| {
+                    WorkflowError::SemanticInputNotCataloged {
+                        node_id: spec.id().clone(),
+                        artifact: *artifact,
+                    }
+                })?;
+                store
+                    .verify(record)
+                    .map_err(|source| WorkflowError::SemanticInputIntegrity {
+                        node_id: spec.id().clone(),
+                        artifact: *artifact,
+                        source,
+                    })?;
             }
         }
         node.verify_input_content()
@@ -424,6 +475,10 @@ impl LocalScheduler {
             fields.push(artifact.kind().as_bytes().to_vec());
             fields.push(artifact.digest().as_bytes().to_vec());
             fields.push(artifact.byte_len().to_be_bytes().to_vec());
+        }
+        for artifact in node.semantic_input_artifacts() {
+            fields.push(b"semantic-input".to_vec());
+            fields.push(artifact.digest().as_bytes().to_vec());
         }
         fields.push(b"configuration".to_vec());
         fields.push(material.configuration_digest.as_bytes().to_vec());
@@ -595,6 +650,31 @@ pub enum WorkflowError {
         node_id: NodeId,
         /// Missing catalog reference.
         artifact: ArtifactRef,
+    },
+    /// Schema-bound inputs were declared without binding a verifying store.
+    #[error("node {node_id:?} declares semantic inputs but no artifact store was bound")]
+    SemanticStoreRequired {
+        /// Affected node.
+        node_id: NodeId,
+    },
+    /// Schema-bound input ID is absent from the project catalog.
+    #[error("node {node_id:?} semantic input {artifact} is not cataloged")]
+    SemanticInputNotCataloged {
+        /// Affected node.
+        node_id: NodeId,
+        /// Missing schema-bound input.
+        artifact: ArtifactId,
+    },
+    /// Store-backed semantic input is missing, mutated, or otherwise unverifiable.
+    #[error("node {node_id:?} semantic input {artifact} failed verification: {source}")]
+    SemanticInputIntegrity {
+        /// Affected node.
+        node_id: NodeId,
+        /// Unavailable or invalid semantic input.
+        artifact: ArtifactId,
+        /// Store verification failure.
+        #[source]
+        source: ArtifactStoreError,
     },
     /// A typed node lifecycle operation failed.
     #[error("node {node_id:?} failed: {source}")]

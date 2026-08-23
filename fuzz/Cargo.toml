@@ -46,3 +46,10 @@ path = "fuzz_targets/wsi_region_request.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "artifact_catalog"
+path = "fuzz_targets/artifact_catalog.rs"
+test = false
+doc = false
+bench = false

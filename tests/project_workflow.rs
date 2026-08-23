@@ -1,19 +1,24 @@
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
+use std::{
+    collections::BTreeMap,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
 use marklab::{
-    AnalysisConfig, AnalysisEngine, ArtifactRef, CacheKeyMaterial, CacheStatus, ContentDigest,
+    AnalysisConfig, AnalysisEngine, ArtifactId, ArtifactKey, ArtifactLocator, ArtifactRecord,
+    ArtifactRef, ArtifactSchema, CacheKeyMaterial, CacheStatus, ContentDigest, LocalArtifactStore,
     LocalScheduler, MarkedAnalysisNode, MarklabProject, NodeError, NodeId, NodeSpec, OutputWriter,
-    Pattern, PatternMeta, ResultDocument, SchedulerLimits, WorkflowError, WorkflowGraph,
-    WorkflowNode,
+    Pattern, PatternMeta, ProjectError, ResultDocument, SchedulerLimits, StoreId, WorkflowError,
+    WorkflowGraph, WorkflowNode,
 };
 
 #[derive(Clone)]
 struct FakeNode {
     spec: NodeSpec,
     inputs: Vec<ArtifactRef>,
+    semantic_inputs: Vec<ArtifactId>,
     input_bytes: Vec<u8>,
     executions: Arc<AtomicUsize>,
     fail: bool,
@@ -34,6 +39,7 @@ impl FakeNode {
                 "application/vnd.marklab.test-input",
                 input_bytes,
             )?],
+            semantic_inputs: Vec::new(),
             input_bytes: input_bytes.to_vec(),
             executions,
             fail: false,
@@ -53,6 +59,10 @@ impl WorkflowNode for FakeNode {
 
     fn input_artifacts(&self) -> &[ArtifactRef] {
         &self.inputs
+    }
+
+    fn semantic_input_artifacts(&self) -> &[ArtifactId] {
+        &self.semantic_inputs
     }
 
     fn verify_input_content(&self) -> Result<(), NodeError> {
@@ -102,6 +112,23 @@ impl WorkflowNode for FakeNode {
     }
 }
 
+fn semantic_record(bytes: &[u8], schema_version: u32, store_id: &str, key: &str) -> ArtifactRecord {
+    ArtifactRecord::new(
+        ArtifactRef::from_bytes("application/vnd.marklab.semantic-input", bytes).expect("content"),
+        ArtifactSchema::new("marklab.test.semantic-input", schema_version).expect("schema"),
+        None,
+        Vec::new(),
+        BTreeMap::from([("provenance".to_owned(), "fixture-1".to_owned())]),
+        vec![ArtifactLocator::new(
+            StoreId::new(store_id).expect("store ID"),
+            ArtifactKey::new(key).expect("artifact key"),
+            None,
+        )
+        .expect("locator")],
+    )
+    .expect("record")
+}
+
 #[test]
 fn content_digest_change_invalidates_cache() {
     let executions = Arc::new(AtomicUsize::new(0));
@@ -120,6 +147,10 @@ fn content_digest_change_invalidates_cache() {
         .run_single(&mut project, &graph, &first)
         .expect("first run");
     assert_eq!(first_run.cache_status, CacheStatus::Miss);
+    assert_eq!(
+        first_run.cache_key.to_string(),
+        "ddadc700530efba19202b9a4e2a6f6f5644c089aeac85f2e2a11442319cfc0b2"
+    );
     assert_eq!(executions.load(Ordering::SeqCst), 1);
 
     let cached_run = scheduler
@@ -168,6 +199,188 @@ fn cyclic_workflow_is_rejected_before_execution() {
         WorkflowGraph::new([a_spec.clone(), a_spec]),
         Err(WorkflowError::DuplicateNode { .. })
     ));
+}
+
+#[test]
+fn project_artifact_registration_and_coordinate_install_are_atomic() {
+    let bytes = b"cataloged bytes";
+    let original = semantic_record(bytes, 1, "source", "incoming/original");
+    let replica = semantic_record(bytes, 1, "archive", "replicas/original");
+    assert_eq!(original.id(), replica.id());
+    let mut project = MarklabProject::new();
+    project
+        .register_artifact(original.clone())
+        .expect("original record");
+    project.register_artifact(replica).expect("replica");
+    assert_eq!(project.artifact_catalog().len(), 1);
+    assert_eq!(
+        project
+            .artifact_record(original.id())
+            .expect("catalog record")
+            .locations()
+            .len(),
+        2
+    );
+    assert_eq!(project.artifact_count(), 1);
+    assert!(project.contains(original.content()));
+
+    let missing = semantic_record(b"missing dependency", 1, "source", "incoming/missing");
+    let dependent = ArtifactRecord::new(
+        ArtifactRef::from_bytes("application/vnd.marklab.semantic-input", b"dependent")
+            .expect("content"),
+        ArtifactSchema::new("marklab.test.semantic-input", 1).expect("schema"),
+        None,
+        vec![missing.id()],
+        BTreeMap::new(),
+        vec![ArtifactLocator::new(
+            StoreId::new("source").expect("store"),
+            ArtifactKey::new("incoming/dependent").expect("key"),
+            None,
+        )
+        .expect("locator")],
+    )
+    .expect("dependent");
+    let before = (project.artifact_catalog().len(), project.artifact_count());
+    assert!(project.register_artifact(dependent).is_err());
+    assert_eq!(
+        (project.artifact_catalog().len(), project.artifact_count()),
+        before
+    );
+
+    let coordinates =
+        marklab_data::CoordinateRegistry::new(Vec::new(), Vec::new(), Vec::new(), Vec::new())
+            .expect("empty coordinate registry");
+    project
+        .install_coordinate_registry(coordinates.clone())
+        .expect("coordinate registry");
+    assert!(project.coordinate_registry().is_some());
+    assert!(matches!(
+        project.install_coordinate_registry(coordinates),
+        Err(ProjectError::CoordinateRegistryAlreadyInstalled)
+    ));
+}
+
+#[test]
+fn semantic_cache_requires_and_reverifies_a_bound_store_before_every_lookup() {
+    let root = tempfile::tempdir().expect("store root");
+    let store = LocalArtifactStore::open(root.path(), StoreId::new("local").expect("store ID"))
+        .expect("store");
+    let semantic_bytes = b"semantic bytes";
+    let source = semantic_record(semantic_bytes, 1, "source", "incoming/semantic-v1");
+    let published = store
+        .publish(&source, |writer| writer.write_all(semantic_bytes))
+        .expect("publish semantic input")
+        .into_record();
+
+    let executions = Arc::new(AtomicUsize::new(0));
+    let mut node =
+        FakeNode::new("semantic-cache", b"ordinary", Arc::clone(&executions)).expect("node");
+    node.semantic_inputs = vec![published.id()];
+    let graph = WorkflowGraph::new([node.spec().clone()]).expect("graph");
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: 1024,
+    })
+    .expect("scheduler");
+    let mut project = MarklabProject::new();
+    project
+        .register_reference(node.input_artifacts()[0].clone())
+        .expect("ordinary input");
+    project
+        .register_artifact(published.clone())
+        .expect("semantic input");
+
+    assert!(matches!(
+        scheduler.run_single(&mut project, &graph, &node),
+        Err(WorkflowError::SemanticStoreRequired { .. })
+    ));
+    assert_eq!(executions.load(Ordering::SeqCst), 0);
+
+    let first = scheduler
+        .run_single_with_store(&mut project, &graph, &node, &store)
+        .expect("semantic miss");
+    assert_eq!(first.cache_status, CacheStatus::Miss);
+    assert_eq!(executions.load(Ordering::SeqCst), 1);
+    let hit = scheduler
+        .run_single_with_store(&mut project, &graph, &node, &store)
+        .expect("verified semantic hit");
+    assert_eq!(hit.cache_status, CacheStatus::Hit);
+    assert_eq!(hit.cache_key, first.cache_key);
+    assert_eq!(executions.load(Ordering::SeqCst), 1);
+
+    let id = published.id().to_string();
+    let managed_path = root.path().join("objects/sha256").join(&id[..2]).join(id);
+    std::fs::write(&managed_path, b"tampered").expect("tamper fixture");
+    assert!(matches!(
+        scheduler.run_single_with_store(&mut project, &graph, &node, &store),
+        Err(WorkflowError::SemanticInputIntegrity { .. })
+    ));
+    assert_eq!(executions.load(Ordering::SeqCst), 1);
+    std::fs::remove_file(&managed_path).expect("missing fixture");
+    assert!(matches!(
+        scheduler.run_single_with_store(&mut project, &graph, &node, &store),
+        Err(WorkflowError::SemanticInputIntegrity { .. })
+    ));
+    assert_eq!(executions.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn semantic_schema_identity_changes_cache_key_and_missing_id_never_executes() {
+    let root = tempfile::tempdir().expect("store root");
+    let store = LocalArtifactStore::open(root.path(), StoreId::new("local").expect("store ID"))
+        .expect("store");
+    let bytes = b"same encoded bytes";
+    let v1 = store
+        .publish(
+            &semantic_record(bytes, 1, "source", "incoming/schema-v1"),
+            |writer| writer.write_all(bytes),
+        )
+        .expect("publish v1")
+        .into_record();
+    let v2 = store
+        .publish(
+            &semantic_record(bytes, 2, "source", "incoming/schema-v2"),
+            |writer| writer.write_all(bytes),
+        )
+        .expect("publish v2")
+        .into_record();
+    assert_ne!(v1.id(), v2.id());
+
+    let executions = Arc::new(AtomicUsize::new(0));
+    let mut node =
+        FakeNode::new("semantic-version", b"ordinary", Arc::clone(&executions)).expect("node");
+    let graph = WorkflowGraph::new([node.spec().clone()]).expect("graph");
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: 1024,
+    })
+    .expect("scheduler");
+    let mut project = MarklabProject::new();
+    project
+        .register_reference(node.input_artifacts()[0].clone())
+        .expect("ordinary input");
+    project.register_artifact(v1.clone()).expect("v1 catalog");
+    project.register_artifact(v2.clone()).expect("v2 catalog");
+
+    let missing = semantic_record(b"absent", 1, "source", "incoming/absent");
+    node.semantic_inputs = vec![missing.id()];
+    assert!(matches!(
+        scheduler.run_single_with_store(&mut project, &graph, &node, &store),
+        Err(WorkflowError::SemanticInputNotCataloged { artifact, .. })
+            if artifact == missing.id()
+    ));
+    assert_eq!(executions.load(Ordering::SeqCst), 0);
+
+    node.semantic_inputs = vec![v1.id()];
+    let first = scheduler
+        .run_single_with_store(&mut project, &graph, &node, &store)
+        .expect("v1 run");
+    node.semantic_inputs = vec![v2.id()];
+    let changed = scheduler
+        .run_single_with_store(&mut project, &graph, &node, &store)
+        .expect("v2 run");
+    assert_eq!(first.cache_status, CacheStatus::Miss);
+    assert_eq!(changed.cache_status, CacheStatus::Miss);
+    assert_ne!(first.cache_key, changed.cache_key);
+    assert_eq!(executions.load(Ordering::SeqCst), 2);
 }
 
 #[test]

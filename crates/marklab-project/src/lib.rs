@@ -9,11 +9,27 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
     io::{self, Write},
+    str::FromStr,
 };
 
-use marklab_data::CohortHierarchy;
+use marklab_data::{CohortHierarchy, CoordinateRegistry};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
+
+mod artifact;
+mod catalog;
+mod store;
+
+pub use artifact::{
+    ArtifactId, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRecordError, ArtifactSchema,
+    StoreId, TableColumn, TableColumnType, TableFormat, TableManifest, TableManifestError,
+    TableScalarType,
+};
+pub use catalog::{ArtifactCatalog, ArtifactCatalogError};
+pub use store::{
+    ArtifactPublication, ArtifactStoreError, LocalArtifactStore, PublicationDisposition,
+    RecoveryIssue, RecoveryIssueReason, RecoveryReport,
+};
 
 /// Default maximum retained bytes for one inline cached result (16 MiB).
 pub const DEFAULT_MAX_INLINE_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
@@ -59,6 +75,38 @@ impl fmt::Display for ContentDigest {
         Ok(())
     }
 }
+
+impl FromStr for ContentDigest {
+    type Err = ContentDigestParseError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        if value.len() != 64
+            || !value
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return Err(ContentDigestParseError);
+        }
+        let mut bytes = [0_u8; 32];
+        for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
+            bytes[index] = (hex_nibble(pair[0]) << 4) | hex_nibble(pair[1]);
+        }
+        Ok(Self(bytes))
+    }
+}
+
+fn hex_nibble(byte: u8) -> u8 {
+    match byte {
+        b'0'..=b'9' => byte - b'0',
+        b'a'..=b'f' => byte - b'a' + 10,
+        _ => unreachable!("strict digest parser validates lowercase hex first"),
+    }
+}
+
+/// Digest text is not exactly 64 lowercase hexadecimal characters.
+#[derive(Clone, Copy, Debug, Error, Eq, PartialEq)]
+#[error("digest must be exactly 64 lowercase hexadecimal characters")]
+pub struct ContentDigestParseError;
 
 /// Streaming content hasher with an exact byte count.
 pub struct ContentDigestWriter {
@@ -199,6 +247,8 @@ impl SuccessfulRun {
 pub struct MarklabProject {
     max_inline_artifact_bytes: usize,
     hierarchy: Option<CohortHierarchy>,
+    coordinate_registry: Option<CoordinateRegistry>,
+    artifact_catalog: ArtifactCatalog,
     references: BTreeSet<ArtifactRef>,
     inline_artifacts: BTreeMap<ArtifactRef, Box<[u8]>>,
     successful_runs: BTreeMap<(String, ContentDigest), SuccessfulRun>,
@@ -209,6 +259,8 @@ impl Default for MarklabProject {
         Self {
             max_inline_artifact_bytes: DEFAULT_MAX_INLINE_ARTIFACT_BYTES,
             hierarchy: None,
+            coordinate_registry: None,
+            artifact_catalog: ArtifactCatalog::new(),
             references: BTreeSet::new(),
             inline_artifacts: BTreeMap::new(),
             successful_runs: BTreeMap::new(),
@@ -252,6 +304,47 @@ impl MarklabProject {
     /// Borrow the installed cohort hierarchy, if one has been installed.
     pub fn hierarchy(&self) -> Option<&CohortHierarchy> {
         self.hierarchy.as_ref()
+    }
+
+    /// Install one validated coordinate registry without silent replacement.
+    pub fn install_coordinate_registry(
+        &mut self,
+        registry: CoordinateRegistry,
+    ) -> Result<(), ProjectError> {
+        if self.coordinate_registry.is_some() {
+            return Err(ProjectError::CoordinateRegistryAlreadyInstalled);
+        }
+        self.coordinate_registry = Some(registry);
+        Ok(())
+    }
+
+    /// Borrow the installed coordinate registry, if present.
+    pub fn coordinate_registry(&self) -> Option<&CoordinateRegistry> {
+        self.coordinate_registry.as_ref()
+    }
+
+    /// Register one schema-bound artifact declaration without retaining its bytes.
+    ///
+    /// The catalog and legacy byte-reference view update atomically. Catalog
+    /// validity does not imply that any declared location is available.
+    pub fn register_artifact(&mut self, record: ArtifactRecord) -> Result<(), ProjectError> {
+        if let Some(bytes) = self.inline_artifacts.get(record.content()) {
+            record.content().verify_bytes(bytes)?;
+        }
+        let reference = record.content().clone();
+        self.artifact_catalog.register(record)?;
+        self.references.insert(reference);
+        Ok(())
+    }
+
+    /// Borrow the strict schema-bound artifact catalog.
+    pub fn artifact_catalog(&self) -> &ArtifactCatalog {
+        &self.artifact_catalog
+    }
+
+    /// Find one schema-bound record by exact ID.
+    pub fn artifact_record(&self, id: ArtifactId) -> Option<&ArtifactRecord> {
+        self.artifact_catalog.get(id)
     }
 
     /// Catalog immutable artifact metadata without copying its content.
@@ -368,6 +461,12 @@ pub enum ProjectError {
     /// Project already owns an immutable cohort hierarchy.
     #[error("project cohort hierarchy is already installed")]
     HierarchyAlreadyInstalled,
+    /// Project already owns an immutable coordinate registry.
+    #[error("project coordinate registry is already installed")]
+    CoordinateRegistryAlreadyInstalled,
+    /// Schema-bound artifact registration failed validation.
+    #[error(transparent)]
+    ArtifactCatalog(#[from] ArtifactCatalogError),
     /// Artifact kind is empty, too long, or contains non-visible ASCII.
     #[error("artifact kind must be 1-255 visible ASCII bytes")]
     InvalidArtifactKind,
