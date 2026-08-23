@@ -1,6 +1,6 @@
 use std::fmt;
 
-use marklab_project::ArtifactId;
+use marklab_project::{ArtifactId, ContentDigest};
 use thiserror::Error;
 
 /// Closed artifact role vocabulary for embedding promotion validation.
@@ -141,8 +141,15 @@ pub enum EmbeddingArtifactGraphError {
 /// Evidence that the complete provenance graph and every managed replica were verified.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct VerifiedCellEmbeddingArtifactGraph {
-    pub(super) provenance_artifact_id: ArtifactId,
-    pub(super) dependency_count: u8,
+    pub(crate) provenance_artifact_id: ArtifactId,
+    pub(crate) dependency_count: u8,
+    pub(crate) source_cells_artifact_id: ArtifactId,
+    pub(crate) source_vectors_artifact_id: ArtifactId,
+    pub(crate) expected_cells_artifact_id: ArtifactId,
+    pub(crate) identity_map_artifact_id: ArtifactId,
+    pub(crate) converter_artifact_id: ArtifactId,
+    pub(crate) expected_cells_logical_digest: ContentDigest,
+    pub(crate) row_link_logical_digest: ContentDigest,
 }
 
 impl VerifiedCellEmbeddingArtifactGraph {

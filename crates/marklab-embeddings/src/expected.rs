@@ -53,16 +53,7 @@ impl ExpectedCellSet {
 
     /// Encode the exact streamable expected-cell artifact bytes.
     pub fn to_bytes(&self) -> Result<Vec<u8>, EmbeddingError> {
-        let mut required = MAGIC.len() + size_of::<u64>() + size_of::<u16>();
-        required = required
-            .checked_add(self.selection_rule.len())
-            .ok_or(EmbeddingError::SizeOverflow)?;
-        for cell in &self.cells {
-            required = required
-                .checked_add(size_of::<u16>())
-                .and_then(|value| value.checked_add(cell.as_str().len()))
-                .ok_or(EmbeddingError::SizeOverflow)?;
-        }
+        let required = self.encoded_byte_len()?;
         let count = u64::try_from(self.cells.len()).map_err(|_| EmbeddingError::SizeOverflow)?;
         let rule_length =
             u16::try_from(self.selection_rule.len()).map_err(|_| EmbeddingError::SizeOverflow)?;
@@ -83,6 +74,20 @@ impl ExpectedCellSet {
             bytes.extend_from_slice(value);
         }
         Ok(bytes)
+    }
+
+    pub(crate) fn encoded_byte_len(&self) -> Result<usize, EmbeddingError> {
+        let mut required = MAGIC.len() + size_of::<u64>() + size_of::<u16>();
+        required = required
+            .checked_add(self.selection_rule.len())
+            .ok_or(EmbeddingError::SizeOverflow)?;
+        for cell in &self.cells {
+            required = required
+                .checked_add(size_of::<u16>())
+                .and_then(|value| value.checked_add(cell.as_str().len()))
+                .ok_or(EmbeddingError::SizeOverflow)?;
+        }
+        Ok(required)
     }
 
     /// Decode exact bytes after enforcing the caller's encoded-byte budget.

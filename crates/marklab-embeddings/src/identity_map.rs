@@ -117,14 +117,7 @@ impl CellIdentityMap {
 
     /// Encode the exact streamable identity-map artifact bytes.
     pub fn to_bytes(&self) -> Result<Vec<u8>, EmbeddingError> {
-        let mut required = MAGIC.len() + size_of::<u64>();
-        for entry in &self.entries {
-            required = required
-                .checked_add(size_of::<u16>() * 2)
-                .and_then(|value| value.checked_add(entry.source_cell_id.len()))
-                .and_then(|value| value.checked_add(entry.cell_id.as_str().len()))
-                .ok_or(EmbeddingError::SizeOverflow)?;
-        }
+        let required = self.encoded_byte_len()?;
         let count = u64::try_from(self.entries.len()).map_err(|_| EmbeddingError::SizeOverflow)?;
         let mut bytes = Vec::new();
         bytes
@@ -139,6 +132,18 @@ impl CellIdentityMap {
             push_text(&mut bytes, entry.cell_id.as_str())?;
         }
         Ok(bytes)
+    }
+
+    pub(crate) fn encoded_byte_len(&self) -> Result<usize, EmbeddingError> {
+        let mut required = MAGIC.len() + size_of::<u64>();
+        for entry in &self.entries {
+            required = required
+                .checked_add(size_of::<u16>() * 2)
+                .and_then(|value| value.checked_add(entry.source_cell_id.len()))
+                .and_then(|value| value.checked_add(entry.cell_id.as_str().len()))
+                .ok_or(EmbeddingError::SizeOverflow)?;
+        }
+        Ok(required)
     }
 
     /// Decode exact bytes and rebind their logical identity to explicit dependencies.

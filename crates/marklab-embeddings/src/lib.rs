@@ -9,6 +9,7 @@ mod expected;
 mod identity_map;
 mod provenance;
 mod row_link;
+mod source;
 mod table;
 
 pub use context::{EmbeddingSpatialContext, PatchBoundaryPolicy, PositiveRational};
@@ -22,6 +23,18 @@ pub use provenance::{
     VerifiedCellEmbeddingArtifactGraph,
 };
 pub use row_link::{CellEmbeddingRowLink, CellEmbeddingRowLinkEntry};
+#[cfg(feature = "csv")]
+pub use source::{
+    import_cellvit_he_bundle_bytes, import_cellvit_he_bundle_from_store,
+    import_cellvit_he_bundle_readers, CellVitCsvSummary, CellVitHeArtifactBindings,
+    CellVitHeImportCandidate, CellVitHeImportRequest, ImportedCellVitHeBundle,
+    MissingPromotionField, SourceBundleReconciler, SourceBundleReconciliation,
+};
+pub use source::{
+    CellVitCsvField, CellVitNpyMatrix, CellVitNpySummary, CsvFailure, ImportFailure,
+    ManifestFailure, NpyFailure, NpyVersion, ReconciliationFailure, SourceBundleBudgets,
+    SourceBundleError, SourceFileKind, SourceIoFailure, SourceIoOperation,
+};
 pub use table::{
     CellEmbeddingRow, CellEmbeddingTable, CellEmbeddingView, EmbeddingQcSummary, EmbeddingStatus,
 };

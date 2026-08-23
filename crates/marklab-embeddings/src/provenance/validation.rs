@@ -61,6 +61,13 @@ impl CellEmbeddingProvenance {
         Ok(VerifiedCellEmbeddingArtifactGraph {
             provenance_artifact_id,
             dependency_count: 13,
+            source_cells_artifact_id: self.inputs.source_cells_artifact_id,
+            source_vectors_artifact_id: self.inputs.source_vectors_artifact_id,
+            expected_cells_artifact_id: self.inputs.expected_cells_artifact_id,
+            identity_map_artifact_id: self.inputs.identity_map_artifact_id,
+            converter_artifact_id: self.execution.converter_artifact_id,
+            expected_cells_logical_digest: expected.logical_digest(),
+            row_link_logical_digest: row_link.logical_digest(),
         })
     }
 

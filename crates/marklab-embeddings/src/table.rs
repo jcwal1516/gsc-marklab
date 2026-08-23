@@ -285,11 +285,115 @@ impl CellEmbeddingTable {
             logical_digest,
         };
         Ok(Self {
-            cells: expected.cells().to_vec().into_boxed_slice(),
+            cells: clone_cells(expected.cells())?,
             statuses: statuses.into_boxed_slice(),
             values,
             dimension,
             qc_summary,
+        })
+    }
+
+    #[cfg(any(feature = "csv", feature = "parquet"))]
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn from_present_values(
+        dimension: u32,
+        expected: &ExpectedCellSet,
+        expected_cells_artifact_id: ArtifactId,
+        provenance_artifact_id: ArtifactId,
+        row_link_digest: ContentDigest,
+        mut values: Vec<f32>,
+        maximum_retained_bytes: usize,
+    ) -> Result<Self, EmbeddingError> {
+        if dimension == 0 {
+            return Err(EmbeddingError::ZeroDimension);
+        }
+        let dimension_usize =
+            usize::try_from(dimension).map_err(|_| EmbeddingError::SizeOverflow)?;
+        let component_count = expected
+            .cells()
+            .len()
+            .checked_mul(dimension_usize)
+            .ok_or(EmbeddingError::SizeOverflow)?;
+        if values.len() != component_count {
+            return Err(EmbeddingError::DimensionMismatch {
+                expected: component_count,
+                observed: values.len(),
+            });
+        }
+        let value_bytes = component_count
+            .checked_mul(size_of::<f32>())
+            .ok_or(EmbeddingError::SizeOverflow)?;
+        let row_overhead = expected
+            .cells()
+            .len()
+            .checked_mul(size_of::<CellId>() + size_of::<EmbeddingStatus>())
+            .ok_or(EmbeddingError::SizeOverflow)?;
+        let identifier_bytes = expected.cells().iter().try_fold(0_usize, |total, cell| {
+            total
+                .checked_add(cell.as_str().len())
+                .ok_or(EmbeddingError::SizeOverflow)
+        })?;
+        let required = value_bytes
+            .checked_add(row_overhead)
+            .and_then(|value| value.checked_add(identifier_bytes))
+            .ok_or(EmbeddingError::SizeOverflow)?;
+        if required > maximum_retained_bytes {
+            return Err(EmbeddingError::RetainedByteBudgetExceeded {
+                required,
+                maximum: maximum_retained_bytes,
+            });
+        }
+        let mut all_zero_present_count = 0_u64;
+        for (row, vector) in values.chunks_exact_mut(dimension_usize).enumerate() {
+            let mut all_zero = true;
+            for (column, value) in vector.iter_mut().enumerate() {
+                if !value.is_finite() {
+                    return Err(EmbeddingError::NonFiniteComponent { row, column });
+                }
+                *value = canonical_positive_zero(*value);
+                all_zero &= value.to_bits() == 0;
+            }
+            all_zero_present_count = all_zero_present_count
+                .checked_add(u64::from(all_zero))
+                .ok_or(EmbeddingError::SizeOverflow)?;
+        }
+        let mut statuses = Vec::new();
+        statuses
+            .try_reserve_exact(expected.cells().len())
+            .map_err(|_| EmbeddingError::AllocationFailed {
+                requested: expected
+                    .cells()
+                    .len()
+                    .saturating_mul(size_of::<EmbeddingStatus>()),
+            })?;
+        statuses.resize(expected.cells().len(), EmbeddingStatus::Present);
+        let row_count =
+            u64::try_from(expected.cells().len()).map_err(|_| EmbeddingError::SizeOverflow)?;
+        let logical_digest = logical_digest(
+            provenance_artifact_id,
+            row_link_digest,
+            expected_cells_artifact_id,
+            dimension,
+            row_count,
+            expected.cells(),
+            &statuses,
+            &values,
+        );
+        Ok(Self {
+            cells: clone_cells(expected.cells())?,
+            statuses: statuses.into_boxed_slice(),
+            values,
+            dimension,
+            qc_summary: EmbeddingQcSummary {
+                row_count,
+                present_count: row_count,
+                missing_vector_count: 0,
+                extraction_failed_count: 0,
+                qc_rejected_count: 0,
+                all_zero_present_count,
+                dimension,
+                logical_digest,
+            },
         })
     }
 
@@ -331,6 +435,19 @@ impl CellEmbeddingTable {
     pub fn qc_summary(&self) -> EmbeddingQcSummary {
         self.qc_summary
     }
+}
+
+fn clone_cells(cells: &[CellId]) -> Result<Box<[CellId]>, EmbeddingError> {
+    let requested = cells
+        .len()
+        .checked_mul(size_of::<CellId>())
+        .ok_or(EmbeddingError::SizeOverflow)?;
+    let mut cloned = Vec::new();
+    cloned
+        .try_reserve_exact(cells.len())
+        .map_err(|_| EmbeddingError::AllocationFailed { requested })?;
+    cloned.extend(cells.iter().cloned());
+    Ok(cloned.into_boxed_slice())
 }
 
 #[allow(clippy::too_many_arguments)]

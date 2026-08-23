@@ -62,14 +62,24 @@ pub use marklab_data::{
     ReplicationRole, SectionId, SerialSectionSeries, SiteId, SlideId, SpatialAxis, SpecimenId,
     TimepointId, TransformId, TransformMatrix, UncertaintyId, UncertaintyReference,
 };
+#[cfg(feature = "csv")]
+pub use marklab_embeddings::{
+    import_cellvit_he_bundle_bytes, import_cellvit_he_bundle_from_store,
+    import_cellvit_he_bundle_readers, CellVitCsvSummary, CellVitHeArtifactBindings,
+    CellVitHeImportCandidate, CellVitHeImportRequest, ImportedCellVitHeBundle,
+    MissingPromotionField, SourceBundleReconciler, SourceBundleReconciliation,
+};
 pub use marklab_embeddings::{
     ArtifactAvailabilityFailure, CanonicalDecimal, CellEmbeddingArtifactRole,
     CellEmbeddingExecutionProvenance, CellEmbeddingInputArtifacts, CellEmbeddingModelProvenance,
     CellEmbeddingProvenance, CellEmbeddingRow, CellEmbeddingRowLink, CellEmbeddingRowLinkEntry,
     CellEmbeddingTable, CellEmbeddingTensorContract, CellEmbeddingView, CellIdentityMap,
-    CellIdentityMapEntry, EmbeddingArtifactGraphError, EmbeddingError, EmbeddingQcSummary,
-    EmbeddingSpatialContext, EmbeddingStatus, ExpectedCellSet, PatchBoundaryPolicy,
-    PositiveRational, VerifiedCellEmbeddingArtifactGraph,
+    CellIdentityMapEntry, CellVitCsvField, CellVitNpyMatrix, CellVitNpySummary, CsvFailure,
+    EmbeddingArtifactGraphError, EmbeddingError, EmbeddingQcSummary, EmbeddingSpatialContext,
+    EmbeddingStatus, ExpectedCellSet, ImportFailure, ManifestFailure, NpyFailure, NpyVersion,
+    PatchBoundaryPolicy, PositiveRational, ReconciliationFailure, SourceBundleBudgets,
+    SourceBundleError, SourceFileKind, SourceIoFailure, SourceIoOperation,
+    VerifiedCellEmbeddingArtifactGraph,
 };
 pub use marklab_workflow::{
     ArtifactCatalog, ArtifactCatalogError, ArtifactId, ArtifactKey, ArtifactLocator,
