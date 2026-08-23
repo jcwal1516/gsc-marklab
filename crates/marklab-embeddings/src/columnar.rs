@@ -1,5 +1,6 @@
 mod arrow;
 mod error;
+mod parquet;
 
 pub use arrow::{
     preflight_cell_embedding_row_link_arrow_bytes, preflight_cell_embedding_table_arrow_bytes,
@@ -10,7 +11,16 @@ pub use arrow::{
     write_cell_embedding_table_arrow, CellEmbeddingArrowPreflight,
     CellEmbeddingRowLinkArrowPreflight, EmbeddingColumnarPublicationError,
 };
-pub use error::{ArrowIpcFailure, EmbeddingColumnarError};
+pub use error::{ArrowIpcFailure, EmbeddingColumnarError, ParquetFailure};
+pub use parquet::{
+    preflight_cell_embedding_row_link_parquet_bytes, preflight_cell_embedding_table_parquet_bytes,
+    publish_cell_embedding_row_link_parquet, publish_cell_embedding_table_parquet,
+    read_cell_embedding_table_parquet_bytes, read_cell_embedding_table_parquet_from_store,
+    validate_cell_embedding_row_link_parquet_bytes,
+    validate_cell_embedding_row_link_parquet_from_store, write_cell_embedding_row_link_parquet,
+    write_cell_embedding_table_parquet, CellEmbeddingParquetPreflight,
+    CellEmbeddingRowLinkParquetPreflight,
+};
 
 use marklab_project::{ArtifactId, ContentDigest};
 

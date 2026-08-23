@@ -16,15 +16,22 @@ mod table;
 
 #[cfg(feature = "parquet")]
 pub use columnar::{
-    preflight_cell_embedding_row_link_arrow_bytes, preflight_cell_embedding_table_arrow_bytes,
-    publish_cell_embedding_row_link_arrow, publish_cell_embedding_table_arrow,
+    preflight_cell_embedding_row_link_arrow_bytes, preflight_cell_embedding_row_link_parquet_bytes,
+    preflight_cell_embedding_table_arrow_bytes, preflight_cell_embedding_table_parquet_bytes,
+    publish_cell_embedding_row_link_arrow, publish_cell_embedding_row_link_parquet,
+    publish_cell_embedding_table_arrow, publish_cell_embedding_table_parquet,
     read_cell_embedding_table_arrow_bytes, read_cell_embedding_table_arrow_from_store,
+    read_cell_embedding_table_parquet_bytes, read_cell_embedding_table_parquet_from_store,
     validate_cell_embedding_row_link_arrow_bytes,
-    validate_cell_embedding_row_link_arrow_from_store, write_cell_embedding_row_link_arrow,
-    write_cell_embedding_table_arrow, ArrowIpcFailure, CellEmbeddingArrowPreflight,
-    CellEmbeddingRowLinkArrowPreflight, CellEmbeddingTablePhysicalBindings, ColumnarWriteSummary,
+    validate_cell_embedding_row_link_arrow_from_store,
+    validate_cell_embedding_row_link_parquet_bytes,
+    validate_cell_embedding_row_link_parquet_from_store, write_cell_embedding_row_link_arrow,
+    write_cell_embedding_row_link_parquet, write_cell_embedding_table_arrow,
+    write_cell_embedding_table_parquet, ArrowIpcFailure, CellEmbeddingArrowPreflight,
+    CellEmbeddingParquetPreflight, CellEmbeddingRowLinkArrowPreflight,
+    CellEmbeddingRowLinkParquetPreflight, CellEmbeddingTablePhysicalBindings, ColumnarWriteSummary,
     EmbeddingColumnarBudgets, EmbeddingColumnarError, EmbeddingColumnarPublicationError,
-    RowLinkColumnarWriteSummary,
+    ParquetFailure, RowLinkColumnarWriteSummary,
 };
 pub use context::{EmbeddingSpatialContext, PatchBoundaryPolicy, PositiveRational};
 pub use error::EmbeddingError;

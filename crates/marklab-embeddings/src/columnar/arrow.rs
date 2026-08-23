@@ -18,3 +18,7 @@ pub use row_link::{
     CellEmbeddingRowLinkArrowPreflight,
 };
 pub use writer::write_cell_embedding_table_arrow;
+pub(crate) use writer::{
+    build_record_batch as build_embedding_record_batch,
+    validate_table_bindings as validate_embedding_table_bindings,
+};

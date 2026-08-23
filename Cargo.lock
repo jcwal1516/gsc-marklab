@@ -1697,14 +1697,17 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow-ipc",
+ "bytes",
  "csv",
  "flatbuffers",
  "marklab-data",
  "marklab-project",
+ "parquet",
  "proptest",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "thrift",
 ]
 
 [[package]]

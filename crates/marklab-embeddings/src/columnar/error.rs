@@ -43,6 +43,49 @@ pub enum ArrowIpcFailure {
     LogicalDigestMismatch,
 }
 
+/// Closed, privacy-safe rejection code for canonical Parquet inputs.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ParquetFailure {
+    /// Leading or trailing `PAR1` magic is absent.
+    InvalidMagic,
+    /// Footer length is negative, overflowing, or outside the file.
+    InvalidFooterLength,
+    /// Compact-Thrift footer syntax or bounds are invalid.
+    InvalidFooter,
+    /// Physical Parquet schema differs from the frozen profile.
+    InvalidSchema,
+    /// Application or writer metadata differs from the frozen profile.
+    InvalidMetadata,
+    /// Declared file or row-group row counts are inconsistent.
+    InvalidRowCount,
+    /// A row-group declaration violates ordering, bounds, or size limits.
+    InvalidRowGroup,
+    /// A column-chunk declaration violates the exact profile.
+    InvalidColumnChunk,
+    /// A compact-Thrift page header is malformed or exceeds its limits.
+    InvalidPageHeader,
+    /// A page range, count, or profile declaration is invalid.
+    InvalidPage,
+    /// A forbidden value or level encoding was declared.
+    UnsupportedEncoding,
+    /// A forbidden compression codec was declared.
+    UnsupportedCompression,
+    /// Statistics, indexes, dictionaries, bloom filters, or encryption were declared.
+    ForbiddenAuxiliaryData,
+    /// Canonical cell identifiers are absent, duplicated, or out of order.
+    InvalidCellOrder,
+    /// Status and nullable linkage semantics disagree.
+    InvalidStatus,
+    /// A vector component, source row, or hidden filler is invalid.
+    InvalidComponent,
+    /// Decoded rows do not reproduce the declared logical digest.
+    LogicalDigestMismatch,
+    /// Stock Parquet/Arrow decoding failed after bounded preflight.
+    StockDecode,
+    /// A bounded artifact range read failed.
+    ArtifactRead,
+}
+
 /// Bounded, redacted embedding physical-format failure.
 #[derive(Clone, Copy, Debug, Error, Eq, PartialEq)]
 pub enum EmbeddingColumnarError {
@@ -93,10 +136,19 @@ pub enum EmbeddingColumnarError {
     /// Canonical Arrow writer construction or output failed without exposing library text.
     #[error("canonical Arrow writer failed")]
     ArrowWriter,
+    /// Canonical Parquet writer construction or output failed without exposing library text.
+    #[error("canonical Parquet writer failed")]
+    ParquetWriter,
     /// Bounded Arrow IPC preflight rejected the physical declaration.
     #[error("Arrow IPC file violates the canonical profile: {reason:?}")]
     Arrow {
         /// Closed rejection reason.
         reason: ArrowIpcFailure,
+    },
+    /// Bounded Parquet preflight rejected the physical declaration.
+    #[error("Parquet file violates the canonical profile: {reason:?}")]
+    Parquet {
+        /// Closed rejection reason.
+        reason: ParquetFailure,
     },
 }

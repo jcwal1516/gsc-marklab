@@ -8,8 +8,10 @@ use marklab::{
     ReplicationRole, SlideId,
 };
 use marklab_embeddings::{
-    preflight_cell_embedding_row_link_arrow_bytes, preflight_cell_embedding_table_arrow_bytes,
-    write_cell_embedding_row_link_arrow, write_cell_embedding_table_arrow, CellEmbeddingProvenance,
+    preflight_cell_embedding_row_link_arrow_bytes, preflight_cell_embedding_row_link_parquet_bytes,
+    preflight_cell_embedding_table_arrow_bytes, preflight_cell_embedding_table_parquet_bytes,
+    write_cell_embedding_row_link_arrow, write_cell_embedding_row_link_parquet,
+    write_cell_embedding_table_arrow, write_cell_embedding_table_parquet, CellEmbeddingProvenance,
     CellEmbeddingRow, CellEmbeddingRowLink, CellEmbeddingRowLinkEntry, CellEmbeddingTable,
     CellEmbeddingTablePhysicalBindings, CellVitCsvSummary, CellVitNpyMatrix,
     EmbeddingColumnarBudgets, EmbeddingStatus, ExpectedCellSet, SourceBundleBudgets,
@@ -17,12 +19,14 @@ use marklab_embeddings::{
 
 struct ArrowSeed {
     bytes: Vec<u8>,
+    parquet_bytes: Vec<u8>,
     expected: ExpectedCellSet,
     bindings: CellEmbeddingTablePhysicalBindings,
 }
 
 struct RowLinkArrowSeed {
     bytes: Vec<u8>,
+    parquet_bytes: Vec<u8>,
     expected: ExpectedCellSet,
     row_link: CellEmbeddingRowLink,
 }
@@ -67,15 +71,19 @@ fn arrow_seed() -> &'static ArrowSeed {
         .expect("bindings");
         let budgets = EmbeddingColumnarBudgets::new(
             2 * 1024 * 1024,
-            2 * 1024 * 1024,
-            2 * 1024 * 1024,
+            16 * 1024 * 1024,
+            16 * 1024 * 1024,
             2 * 1024 * 1024,
         );
         let mut bytes = Vec::new();
         write_cell_embedding_table_arrow(&mut bytes, &table, bindings, budgets)
             .expect("canonical seed");
+        let mut parquet_bytes = Vec::new();
+        write_cell_embedding_table_parquet(&mut parquet_bytes, &table, bindings, budgets)
+            .expect("canonical Parquet seed");
         ArrowSeed {
             bytes,
+            parquet_bytes,
             expected,
             bindings,
         }
@@ -133,19 +141,54 @@ fn row_link_arrow_seed() -> &'static RowLinkArrowSeed {
         .expect("row link");
         let budgets = EmbeddingColumnarBudgets::new(
             2 * 1024 * 1024,
-            2 * 1024 * 1024,
-            2 * 1024 * 1024,
+            16 * 1024 * 1024,
+            16 * 1024 * 1024,
             2 * 1024 * 1024,
         );
         let mut bytes = Vec::new();
         write_cell_embedding_row_link_arrow(&mut bytes, &row_link, budgets)
             .expect("canonical row-link seed");
+        let mut parquet_bytes = Vec::new();
+        write_cell_embedding_row_link_parquet(&mut parquet_bytes, &row_link, budgets)
+            .expect("canonical row-link Parquet seed");
         RowLinkArrowSeed {
             bytes,
+            parquet_bytes,
             expected,
             row_link,
         }
     })
+}
+
+fn fuzz_parquet(input: &[u8]) {
+    let seed = arrow_seed();
+    let mut mutated;
+    let candidate = if input.first().is_some_and(|selector| selector & 1 == 0) {
+        &input[1..]
+    } else {
+        mutated = seed.parquet_bytes.clone();
+        for mutation in input.get(1..).unwrap_or_default().chunks_exact(3) {
+            let raw_offset = usize::from(u16::from_le_bytes([mutation[0], mutation[1]]));
+            let length = mutated.len();
+            if let Some(byte) = mutated.get_mut(raw_offset % length) {
+                *byte ^= mutation[2];
+            }
+        }
+        mutated.as_slice()
+    };
+    let budgets = EmbeddingColumnarBudgets::new(
+        2 * 1024 * 1024,
+        16 * 1024 * 1024,
+        16 * 1024 * 1024,
+        2 * 1024 * 1024,
+    );
+    let _ = preflight_cell_embedding_table_parquet_bytes(
+        candidate,
+        &seed.expected,
+        3,
+        seed.bindings,
+        budgets,
+    );
 }
 
 fn fuzz_arrow(input: &[u8]) {
@@ -208,6 +251,36 @@ fn fuzz_row_link_arrow(input: &[u8]) {
     );
 }
 
+fn fuzz_row_link_parquet(input: &[u8]) {
+    let seed = row_link_arrow_seed();
+    let mut mutated;
+    let candidate = if input.first().is_some_and(|selector| selector & 1 == 0) {
+        &input[1..]
+    } else {
+        mutated = seed.parquet_bytes.clone();
+        for mutation in input.get(1..).unwrap_or_default().chunks_exact(3) {
+            let raw_offset = usize::from(u16::from_le_bytes([mutation[0], mutation[1]]));
+            let length = mutated.len();
+            if let Some(byte) = mutated.get_mut(raw_offset % length) {
+                *byte ^= mutation[2];
+            }
+        }
+        mutated.as_slice()
+    };
+    let budgets = EmbeddingColumnarBudgets::new(
+        2 * 1024 * 1024,
+        16 * 1024 * 1024,
+        16 * 1024 * 1024,
+        2 * 1024 * 1024,
+    );
+    let _ = preflight_cell_embedding_row_link_parquet_bytes(
+        candidate,
+        &seed.expected,
+        &seed.row_link,
+        budgets,
+    );
+}
+
 fuzz_target!(|bytes: &[u8]| {
     let Some((selector, input)) = bytes.split_first() else {
         return;
@@ -219,7 +292,7 @@ fuzz_target!(|bytes: &[u8]| {
         2 * 1024 * 1024,
         2 * 1024 * 1024,
     );
-    match selector % 5 {
+    match selector % 7 {
         0 => {
             let _ = CellVitNpyMatrix::from_bytes(input, source_budgets);
         }
@@ -230,6 +303,8 @@ fuzz_target!(|bytes: &[u8]| {
             let _ = CellEmbeddingProvenance::from_canonical_json(input);
         }
         3 => fuzz_arrow(input),
-        _ => fuzz_row_link_arrow(input),
+        4 => fuzz_row_link_arrow(input),
+        5 => fuzz_parquet(input),
+        _ => fuzz_row_link_parquet(input),
     }
 });

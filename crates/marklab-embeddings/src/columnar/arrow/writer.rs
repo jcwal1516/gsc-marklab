@@ -5,7 +5,7 @@ use std::{
 
 use arrow::{
     array::{ArrayRef, FixedSizeListBuilder, Float32Builder, StringBuilder},
-    datatypes::{DataType, Field, Schema},
+    datatypes::{DataType, Schema},
     record_batch::RecordBatch,
 };
 use arrow_ipc::{
@@ -107,7 +107,7 @@ pub fn write_cell_embedding_table_arrow(
 }
 
 /// Validate hostile Arrow bytes through the bounded canonical-profile preflight only.
-fn build_record_batch(
+pub(crate) fn build_record_batch(
     table: &CellEmbeddingTable,
     schema: &Schema,
     start: usize,
@@ -132,12 +132,22 @@ fn build_record_batch(
     })?;
     let mut cells = StringBuilder::with_capacity(row_count, identifier_bytes);
     let values = Float32Builder::with_capacity(component_count);
+    let list_field = match schema.field(1).data_type() {
+        DataType::FixedSizeList(field, length)
+            if *length
+                == i32::try_from(dimension)
+                    .map_err(|_| EmbeddingColumnarError::SizeOverflow)? =>
+        {
+            Arc::clone(field)
+        }
+        _ => return Err(EmbeddingColumnarError::ArrowWriter),
+    };
     let mut embeddings = FixedSizeListBuilder::with_capacity(
         values,
         i32::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
         row_count,
     )
-    .with_field(Arc::new(Field::new("item", DataType::Float32, false)));
+    .with_field(list_field);
     let mut statuses = StringBuilder::with_capacity(
         row_count,
         row_count
@@ -168,7 +178,7 @@ fn build_record_batch(
         .map_err(|_| EmbeddingColumnarError::ArrowWriter)
 }
 
-fn validate_table_bindings(
+pub(crate) fn validate_table_bindings(
     table: &CellEmbeddingTable,
     bindings: CellEmbeddingTablePhysicalBindings,
 ) -> Result<(), EmbeddingColumnarError> {
@@ -184,7 +194,7 @@ fn validate_table_bindings(
     Ok(())
 }
 
-fn estimate_writer_batch_bytes(
+pub(crate) fn estimate_writer_batch_bytes(
     table: &CellEmbeddingTable,
     dimension: u32,
 ) -> Result<usize, EmbeddingColumnarError> {
@@ -234,7 +244,7 @@ fn estimate_writer_batch_bytes(
         .ok_or(EmbeddingColumnarError::SizeOverflow)
 }
 
-fn estimate_writer_decoded_bytes(
+pub(crate) fn estimate_writer_decoded_bytes(
     table: &CellEmbeddingTable,
     dimension: u32,
 ) -> Result<u64, EmbeddingColumnarError> {

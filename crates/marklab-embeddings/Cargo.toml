@@ -15,7 +15,10 @@ csv = ["dep:csv"]
 parquet = [
     "dep:arrow",
     "dep:arrow-ipc",
+    "dep:bytes",
     "dep:flatbuffers",
+    "dep:parquet",
+    "dep:thrift",
 ]
 
 [dependencies]
@@ -27,7 +30,10 @@ thiserror = "2"
 csv = { version = "1", optional = true }
 arrow = { version = "56", default-features = false, features = ["ipc"], optional = true }
 arrow-ipc = { version = "56", optional = true }
+bytes = { version = "=1.11.1", optional = true }
 flatbuffers = { version = "25", optional = true }
+parquet = { version = "=56.2.1", default-features = false, features = ["arrow"], optional = true }
+thrift = { version = "=0.17.0", default-features = false, optional = true }
 
 [dev-dependencies]
 proptest = "1"
