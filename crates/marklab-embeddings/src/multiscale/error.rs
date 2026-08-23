@@ -170,6 +170,33 @@ pub enum MultiscaleEmbeddingError {
         /// Frozen version-one maximum.
         maximum: usize,
     },
+    /// A source-local patch key is empty, oversized, padded, or control-bearing.
+    #[error("patch source identity is invalid")]
+    InvalidPatchSourceKey,
+    /// A patch source-profile token violates the frozen grammar.
+    #[error("patch source profile is invalid")]
+    InvalidPatchSourceProfile,
+    /// Source keys, source rows, or source-set cardinality are noncanonical.
+    #[error("patch source entities are noncanonical")]
+    NonCanonicalPatchSourceEntities,
+    /// A source-domain, expected-range, artifact, or logical identity binding disagrees.
+    #[error("patch identity map does not match its exact source and expected sets")]
+    PatchIdentityMapMismatch,
+    /// Source-row entries do not match the exact source, identity-map, and expected domains.
+    #[error("patch source-row link is inconsistent")]
+    PatchSourceRowLinkMismatch,
+    /// Embedding status and nullable source-vector row disagree.
+    #[error("patch source-row status and vector-row presence disagree")]
+    PatchSourceRowStatusMismatch,
+    /// Artifact roles alias where the patch source chain requires distinct dependencies.
+    #[error("patch source artifact dependency roles must be distinct")]
+    DuplicatePatchSourceArtifactDependency,
+    /// A patch-normalization decimal violates its exact bounded fixed-point grammar.
+    #[error("patch input normalization decimal is invalid")]
+    InvalidPatchNormalizationDecimal,
+    /// Patch input normalization differs from the closed RGB H&E version-one profile.
+    #[error("patch input normalization is invalid")]
+    InvalidPatchInputNormalization,
     /// Table rows do not exactly match the expected typed set.
     #[error("multiscale embedding rows must exactly match the expected set")]
     RowSetMismatch,

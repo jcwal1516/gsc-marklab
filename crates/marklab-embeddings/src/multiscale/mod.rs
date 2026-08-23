@@ -8,6 +8,7 @@ mod footprint;
 mod json;
 mod overlap;
 mod patch_region;
+mod records;
 mod table;
 
 pub use cell_patch::{
@@ -24,6 +25,11 @@ pub use overlap::{PatchOverlapEdge, PatchOverlapGraph};
 pub use patch_region::{
     PatchRegionAssessment, PatchRegionAssessmentBindings, PatchRegionDeclaration, PatchRegionLink,
     PatchRegionRelation,
+};
+pub use records::{
+    PatchEmbeddingInputNormalization, PatchEmbeddingSourceRowLink,
+    PatchEmbeddingSourceRowLinkEntry, PatchIdentityMap, PatchIdentityMapEntry,
+    PatchNormalizationDecimal, PatchSourceEntityEntry, PatchSourceEntitySet,
 };
 pub use table::{
     MultiscaleEmbeddingQcSummary, PatchEmbeddingBlock, PatchEmbeddingRow, PatchEmbeddingTable,
