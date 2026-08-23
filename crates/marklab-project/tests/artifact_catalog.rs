@@ -322,6 +322,7 @@ fn locators_and_metadata_reject_reserved_or_privacy_unsafe_values() {
         "folder//leaf",
         "./leaf",
         "folder/../leaf",
+        "external/object?token=x",
         "control/\u{0}",
     ] {
         assert!(

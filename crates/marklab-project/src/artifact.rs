@@ -452,6 +452,7 @@ impl ArtifactKey {
             || value.starts_with("//")
             || value.contains('\\')
             || value.contains(':')
+            || value.contains('?')
             || value.chars().any(char::is_control)
         {
             return Err(ArtifactRecordError::InvalidArtifactKey { value });
