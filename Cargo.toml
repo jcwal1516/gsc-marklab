@@ -127,6 +127,11 @@ required-features = ["csv"]
 name = "cohort_hierarchy"
 harness = false
 
+[[bench]]
+name = "cell_embeddings"
+harness = false
+required-features = ["csv", "parquet"]
+
 [profile.release]
 opt-level = 3
 lto = "thin"

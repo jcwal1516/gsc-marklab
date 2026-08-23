@@ -67,3 +67,29 @@ The fixture is built outside the timed closure. Each Criterion iteration clones 
 | 1,000,000 cells / 10,000 specimens | 147.13–147.27 ms | 6.7900–6.7969 million cells/s | pass |
 
 Environment matches the ledger header. Gnuplot remained unavailable and Criterion used Plotters. The implementation uses shared ID storage, indexed vectors/maps, iterative parent traversal, and a role-matrix-bounded specimen → patient biological lineage. The benchmark verifies equivalent output but does not measure peak memory, serialization, persistence, remote I/O, or inferential workloads; no broader performance claim is made.
+
+## C-04 cell-embedding storage workload
+
+Date: 2026-08-23. The OS, Apple M4 Pro host, 48-GiB memory, 12 logical CPUs, Rust 1.96.0, Cargo 1.96.0, and LLVM 22.1.2 match the ledger environment above. The benchmark uses root features `csv,parquet`, Criterion 0.7 with 10 flat samples, a one-second warm-up, a ten-second requested measurement window, and one calling thread. Criterion extended collection to one iteration per sample because both workloads exceed the requested window. Gnuplot was unavailable, so Criterion used Plotters.
+
+Commands:
+
+```text
+cargo +1.96.0 test --locked --features csv,parquet,dhat-heap --test cellvit_embedding_heap -- --exact embedding_10k_1280_peak
+cargo +1.96.0 bench --locked --bench cell_embeddings --features csv,parquet -- '10k_x_1280' --noplot
+cargo +1.96.0 bench --locked --bench cell_embeddings --features csv,parquet --no-run
+/usr/bin/time -l cargo +1.96.0 bench --locked --bench cell_embeddings --features csv,parquet -- '1m_x_256' --noplot
+```
+
+The synthetic fixture, arithmetic order, random-access sequence, digest framing, and RSS ownership are frozen by DEC-0030/DEC-0031. Both profiles check row count, dimension, canonical logical digest, and numeric digest on every iteration. The 10,000 × 1,280 profile pins logical/numeric digests `df74ee3588f3c5dbf4fa81ffc285dd9f84daf8bb1101e7294fba6536785931de` / `0396c2d78ff98c7307e7dcf383d8579cf1a06c2501f9fc67c91a285308de08b4`; the 1,000,000 × 256 profile pins `d5dc753238330e9be60fdee94c6c24d7151f26660527689b15e8895e983c5633` / `133dc720d9775d8d2a3c4140a36529a750ab844acd6970eb6ca2ff86d8e7d49a`.
+
+| Profile | Checked work | Final interval | Throughput | Memory | Status |
+|---|---|---:|---:|---:|---|
+| 10,000 × 1,280 | Source import/finalization, sequential table/QC workload, prepublished Arrow/Parquet scans and materialized round trips | 4.1653–4.1803 s | 3.0619–3.0730 million values/s | Criterion timing; DHAT below | pass |
+| 1,000,000 × 256 | Sequential QC/means/sum-of-squares/norm, 4,096 random row accesses, 16 × 16 population covariance, 64 × 64 linear kernel | 10.446–10.488 s | 24.408–24.506 million values/s | 1,117,552,640-byte maximum RSS | pass |
+
+The timed full command completed in 126.19 s wall time and reported no compilation after the separate locked `--no-run` build. Its maximum RSS is 41.6% of the frozen 2.5-GiB host threshold. An earlier cold invocation that compiled and linked thin-LTO code inside `/usr/bin/time` reached 4,904,665,088 bytes; the immediately repeated current-binary calibration reached 1,098,268,672 bytes. DEC-0031 treats the former as disclosed build-resource usage and requires the current-binary timed command for embedding-runtime RSS.
+
+The exact DHAT gate completed in 137.51 s. A diagnostic run of the same test reported zero current tracked bytes, a 324,194,945-byte peak, and a 603,979,776-byte cap. Unlike Criterion, its measured path imports the source table, publishes fresh Arrow and Parquet objects into a disk-backed temporary store, validates both scans and materialized reads, then drops every operation-owned value before sampling heap statistics.
+
+These are storage/import/integrity workload checks, not embedding inference, biological analysis, a scientific estimand, or an optimization claim. The full profile does not exercise source-bundle import or physical columnar round trips; the smoke and authorized-corpus reconciliation own those complementary dimensions. Ten-million-row out-of-core behavior remains planned and unmeasured. C-04 remains open until the authorized 32-bundle Rust reconciliation and phase-boundary gates pass.
