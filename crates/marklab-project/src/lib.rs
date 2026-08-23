@@ -27,8 +27,9 @@ pub use artifact::{
 };
 pub use catalog::{ArtifactCatalog, ArtifactCatalogError};
 pub use store::{
-    ArtifactPublication, ArtifactStoreError, LocalArtifactStore, PublicationDisposition,
-    RecoveryIssue, RecoveryIssueReason, RecoveryReport,
+    ArtifactPublication, ArtifactReadSeek, ArtifactStoreError, LocalArtifactStore,
+    PublicationDisposition, RecoveryIssue, RecoveryIssueReason, RecoveryReport,
+    VerifiedReaderError,
 };
 
 /// Default maximum retained bytes for one inline cached result (16 MiB).

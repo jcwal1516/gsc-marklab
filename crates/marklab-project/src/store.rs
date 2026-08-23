@@ -1,6 +1,7 @@
 use std::{
-    fs,
-    io::{self, Read, Write},
+    error::Error as StdError,
+    fmt, fs,
+    io::{self, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     str::FromStr,
     sync::atomic::{AtomicU64, Ordering},
@@ -25,6 +26,11 @@ const OBJECT_DIRECTORY: &str = "objects/sha256";
 const COORDINATION_FILE: &str = ".marklab-store.lock";
 const STREAM_BUFFER_BYTES: usize = 64 * 1024;
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(1);
+
+/// Scoped reader surface for one verified artifact descriptor.
+pub trait ArtifactReadSeek: Read + Seek + Send {}
+
+impl<T: Read + Seek + Send> ArtifactReadSeek for T {}
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum PublishFault {
@@ -101,7 +107,21 @@ impl LocalArtifactStore {
     where
         F: FnOnce(&mut dyn Write) -> io::Result<()>,
     {
-        self.publish_inner(record, write, PublishFault::None)
+        self.publish_inner(record, |writer| write(writer), PublishFault::None)
+    }
+
+    /// Stream through a send-capable writer while preserving publication semantics.
+    ///
+    /// Existing verified content is returned idempotently without invoking `write`.
+    pub fn publish_send<F>(
+        &self,
+        record: &ArtifactRecord,
+        write: F,
+    ) -> Result<ArtifactPublication, ArtifactStoreError>
+    where
+        F: FnOnce(&mut (dyn Write + Send)) -> io::Result<()>,
+    {
+        self.publish_inner(record, |writer| write(writer), PublishFault::None)
     }
 
     fn publish_inner<F>(
@@ -111,7 +131,7 @@ impl LocalArtifactStore {
         fault: PublishFault,
     ) -> Result<ArtifactPublication, ArtifactStoreError>
     where
-        F: FnOnce(&mut dyn Write) -> io::Result<()>,
+        F: FnOnce(&mut DigestingWriter) -> io::Result<()>,
     {
         let _ = fault;
         let _coordination = self.acquire_coordination_lock(CoordinationMode::Shared)?;
@@ -303,7 +323,7 @@ impl LocalArtifactStore {
     where
         F: FnOnce(&mut dyn Write) -> io::Result<()>,
     {
-        self.publish_inner(record, write, fault)
+        self.publish_inner(record, |writer| write(writer), fault)
     }
 
     /// Stream and verify the record replica bound to this store.
@@ -320,6 +340,52 @@ impl LocalArtifactStore {
                 store_id: self.store_id.clone(),
             })?;
         self.verify_locator(record, locator)
+    }
+
+    /// Verify, lend, and reverify one managed artifact descriptor under the store lock.
+    ///
+    /// The callback receives no path, capability directory, locator key, or owned
+    /// handle. Post-read store failures take precedence over the callback result.
+    pub fn with_verified_reader<T, E, F>(
+        &self,
+        record: &ArtifactRecord,
+        read: F,
+    ) -> Result<T, VerifiedReaderError<E>>
+    where
+        F: FnOnce(&mut dyn ArtifactReadSeek) -> Result<T, E>,
+    {
+        let _coordination = self
+            .acquire_coordination_lock(CoordinationMode::Shared)
+            .map_err(VerifiedReaderError::Store)?;
+        let managed = ArtifactLocator::managed(self.store_id.clone(), record.id());
+        if !record.locations().contains(&managed) {
+            return Err(VerifiedReaderError::Store(
+                ArtifactStoreError::LocatorNotFound {
+                    artifact: record.id(),
+                    store_id: self.store_id.clone(),
+                },
+            ));
+        }
+        let key = managed.key().as_str();
+        let mut file = self
+            .open_locator(record, &managed)
+            .map_err(VerifiedReaderError::Store)?;
+        self.verify_open_file(record, key, &mut file)
+            .map_err(VerifiedReaderError::Store)?;
+        file.seek(SeekFrom::Start(0)).map_err(|source| {
+            VerifiedReaderError::Store(ArtifactStoreError::Io {
+                operation: "seek verified artifact",
+                key: key.to_owned(),
+                source,
+            })
+        })?;
+
+        let callback = read(&mut file);
+        let post_read = self.verify_open_file(record, key, &mut file);
+        match post_read {
+            Err(error) => Err(VerifiedReaderError::Store(error)),
+            Ok(()) => callback.map_err(VerifiedReaderError::Callback),
+        }
     }
 
     /// Quarantine recognized abandoned regular staging files without deleting evidence.
@@ -497,6 +563,16 @@ impl LocalArtifactStore {
         record: &ArtifactRecord,
         locator: &ArtifactLocator,
     ) -> Result<(), ArtifactStoreError> {
+        let key = locator.key().as_str();
+        let mut file = self.open_locator(record, locator)?;
+        self.verify_open_file(record, key, &mut file)
+    }
+
+    fn open_locator(
+        &self,
+        record: &ArtifactRecord,
+        locator: &ArtifactLocator,
+    ) -> Result<cap_std::fs::File, ArtifactStoreError> {
         if locator.store_id() != &self.store_id {
             return Err(ArtifactStoreError::WrongStore {
                 expected: self.store_id.clone(),
@@ -505,7 +581,7 @@ impl LocalArtifactStore {
         }
         let key = locator.key().as_str();
         self.inspect_regular_file(record.id(), key)?;
-        let mut file = self
+        let file = self
             .root
             .open(key)
             .map_err(|source| map_open_error(record.id(), key, source))?;
@@ -522,6 +598,21 @@ impl LocalArtifactStore {
                 key: key.to_owned(),
             });
         }
+        Ok(file)
+    }
+
+    fn verify_open_file(
+        &self,
+        record: &ArtifactRecord,
+        key: &str,
+        file: &mut cap_std::fs::File,
+    ) -> Result<(), ArtifactStoreError> {
+        file.seek(SeekFrom::Start(0))
+            .map_err(|source| ArtifactStoreError::Io {
+                operation: "seek artifact",
+                key: key.to_owned(),
+                source,
+            })?;
         let mut digest = ContentDigest::builder();
         let mut buffer = [0_u8; STREAM_BUFFER_BYTES];
         loop {
@@ -1104,6 +1195,35 @@ pub enum RecoveryIssueReason {
     NonRegularFile,
     /// A capability-relative filesystem operation failed.
     Io(String),
+}
+
+/// Failure from the verified store boundary or its scoped reader callback.
+#[derive(Debug)]
+pub enum VerifiedReaderError<E> {
+    /// Opening, pre-verifying, seeking, or post-verifying the managed artifact failed.
+    Store(ArtifactStoreError),
+    /// The caller rejected otherwise verified artifact bytes.
+    Callback(E),
+}
+
+impl<E: fmt::Display> fmt::Display for VerifiedReaderError<E> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Store(error) => error.fmt(formatter),
+            Self::Callback(error) => {
+                write!(formatter, "verified artifact callback failed: {error}")
+            }
+        }
+    }
+}
+
+impl<E: StdError + 'static> StdError for VerifiedReaderError<E> {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            Self::Store(error) => Some(error),
+            Self::Callback(error) => Some(error),
+        }
+    }
 }
 
 /// Capability, availability, integrity, publication, and recovery failures.
