@@ -63,9 +63,13 @@ pub use marklab_data::{
     TimepointId, TransformId, TransformMatrix, UncertaintyId, UncertaintyReference,
 };
 pub use marklab_embeddings::{
-    CellEmbeddingRow, CellEmbeddingTable, CellEmbeddingView, CellIdentityMap, CellIdentityMapEntry,
-    EmbeddingError, EmbeddingQcSummary, EmbeddingSpatialContext, EmbeddingStatus, ExpectedCellSet,
-    PatchBoundaryPolicy, PositiveRational,
+    ArtifactAvailabilityFailure, CanonicalDecimal, CellEmbeddingArtifactRole,
+    CellEmbeddingExecutionProvenance, CellEmbeddingInputArtifacts, CellEmbeddingModelProvenance,
+    CellEmbeddingProvenance, CellEmbeddingRow, CellEmbeddingRowLink, CellEmbeddingRowLinkEntry,
+    CellEmbeddingTable, CellEmbeddingTensorContract, CellEmbeddingView, CellIdentityMap,
+    CellIdentityMapEntry, EmbeddingArtifactGraphError, EmbeddingError, EmbeddingQcSummary,
+    EmbeddingSpatialContext, EmbeddingStatus, ExpectedCellSet, PatchBoundaryPolicy,
+    PositiveRational, VerifiedCellEmbeddingArtifactGraph,
 };
 pub use marklab_workflow::{
     ArtifactCatalog, ArtifactCatalogError, ArtifactId, ArtifactKey, ArtifactLocator,

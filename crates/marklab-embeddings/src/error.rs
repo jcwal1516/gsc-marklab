@@ -88,4 +88,42 @@ pub enum EmbeddingError {
     /// Strict context JSON is malformed, unsupported, or not canonical.
     #[error("embedding spatial-context JSON is invalid or noncanonical")]
     InvalidCanonicalJson,
+    /// Row-link rows do not exactly match the expected cells in canonical order.
+    #[error("embedding row link must exactly match expected cells in canonical order")]
+    RowLinkSetMismatch,
+    /// An expected cell is not explicitly declared as a cell in the hierarchy.
+    #[error("embedding row-link cell is absent from the hierarchy")]
+    RowLinkCellMissingFromHierarchy,
+    /// Source-cell row indices are not a unique gap-free zero-based domain.
+    #[error("source-cell rows must be unique, gap-free, and zero-based")]
+    InvalidSourceCellRows,
+    /// Referenced source-embedding rows are not a unique gap-free zero-based domain.
+    #[error("source-embedding rows must be unique, gap-free, and zero-based")]
+    InvalidSourceEmbeddingRows,
+    /// A row-link declaration exceeds the fixed artifact row-count limit.
+    #[error("embedding row-link rows {observed} exceed maximum {maximum}")]
+    RowCountExceeded {
+        /// Observed canonical row count.
+        observed: usize,
+        /// Frozen maximum row count.
+        maximum: usize,
+    },
+    /// A row-link status is inconsistent with source-embedding-row presence.
+    #[error("embedding row-link status is inconsistent with source-embedding-row presence")]
+    StatusEmbeddingRowMismatch,
+    /// Artifact roles do not resolve to a set of distinct dependencies.
+    #[error("embedding artifact dependencies must be distinct")]
+    DuplicateArtifactDependency,
+    /// A fixed-point decimal is malformed or noncanonical.
+    #[error("embedding canonical decimal is invalid")]
+    InvalidCanonicalDecimal,
+    /// Provenance fields violate the frozen version-one contract.
+    #[error("cell-embedding provenance is invalid or incomplete")]
+    InvalidProvenance,
+    /// One or more required provenance declarations are absent or unknown.
+    #[error("cell-embedding provenance is incomplete")]
+    ProvenanceIncomplete,
+    /// Strict provenance JSON is malformed, unsupported, or not canonical.
+    #[error("cell-embedding provenance JSON is invalid or noncanonical")]
+    InvalidProvenanceJson,
 }

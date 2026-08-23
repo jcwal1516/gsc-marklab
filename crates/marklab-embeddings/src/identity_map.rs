@@ -47,6 +47,7 @@ impl CellIdentityMapEntry {
 pub struct CellIdentityMap {
     source_cells_artifact_id: ArtifactId,
     expected_cells_artifact_id: ArtifactId,
+    expected_cells_logical_digest: ContentDigest,
     entries: Box<[CellIdentityMapEntry]>,
     logical_digest: ContentDigest,
 }
@@ -83,6 +84,7 @@ impl CellIdentityMap {
         Ok(Self {
             source_cells_artifact_id,
             expected_cells_artifact_id,
+            expected_cells_logical_digest: expected.logical_digest(),
             entries: entries.into_boxed_slice(),
             logical_digest,
         })
@@ -96,6 +98,11 @@ impl CellIdentityMap {
     /// Expected-cell artifact whose cells form this map's range.
     pub fn expected_cells_artifact_id(&self) -> ArtifactId {
         self.expected_cells_artifact_id
+    }
+
+    /// Logical expected-set identity validated when this map was constructed.
+    pub fn expected_cells_logical_digest(&self) -> ContentDigest {
+        self.expected_cells_logical_digest
     }
 
     /// Entries sorted by source-local identifier bytes.
