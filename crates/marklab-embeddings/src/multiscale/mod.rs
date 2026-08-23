@@ -5,6 +5,7 @@ mod error;
 mod expected;
 mod footprint;
 mod json;
+mod overlap;
 mod table;
 
 pub use context::{EffectiveReceptiveField, PatchEmbeddingContext};
@@ -12,6 +13,7 @@ pub use entity::EmbeddingEntityKind;
 pub use error::MultiscaleEmbeddingError;
 pub use expected::{ExpectedPatchSet, ExpectedRegionSet, ExpectedSlideSet};
 pub use footprint::{PatchFootprint, PatchFootprintSet};
+pub use overlap::{PatchOverlapEdge, PatchOverlapGraph};
 pub use table::{
     MultiscaleEmbeddingQcSummary, PatchEmbeddingBlock, PatchEmbeddingRow, PatchEmbeddingTable,
     PatchEmbeddingView, RegionEmbeddingBlock, RegionEmbeddingRow, RegionEmbeddingTable,

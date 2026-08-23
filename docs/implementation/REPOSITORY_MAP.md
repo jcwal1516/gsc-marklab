@@ -54,9 +54,10 @@ marklab (compatibility facade and current engine adapter)
 |---|---|---|
 | `crates/marklab-embeddings/src/multiscale/expected/**` | Canonical expected patch, region, and slide sets with strict bounded JSON and logical digests | Logical only; no artifact record or physical reader/writer |
 | `crates/marklab-embeddings/src/multiscale/context/**` | Exact patch extraction geometry, coordinate-frame bindings, receptive field, boundary policy, and bounded canonical JSON | No source adapter or observation-window inference |
-| `crates/marklab-embeddings/src/multiscale/footprint.rs` | Expected-order patch origins and half-open source-boundary validation | Overlap graph remains the next owned slice |
+| `crates/marklab-embeddings/src/multiscale/footprint.rs` | Expected-order patch origins and half-open source-boundary validation | Sampled support only; never a tissue/observation window |
+| `crates/marklab-embeddings/src/multiscale/overlap.rs` | Two-pass indexed positive-area edges and minimum-ID connected components over exact footprints | No extraction-grid inference, vector data, or region geometry |
 | `crates/marklab-embeddings/src/multiscale/table/**` | Sealed matrix core, distinct typed patch/region/slide rows/views/blocks, logical QC/digest scans | No Arrow/Parquet constructors or publication receipts yet |
-| `tests/multiscale_embedding_tables/**` | Behavior, wire/digest golden, resource-budget, boundary, privacy, and scan-partition regressions | Seven tests cover only the first logical checkpoint |
+| `tests/multiscale_embedding_tables/**` | Behavior, wire/digest golden, brute-force differential, resource-budget, boundary, privacy, and scan-partition regressions | Eleven focused tests cover only the logical/overlap checkpoints |
 
 The C-05 implementation introduces no dependency or lockfile change and preserves the existing C-04 cell-table APIs and digest goldens.
 

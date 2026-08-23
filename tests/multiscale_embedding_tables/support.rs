@@ -6,9 +6,9 @@ pub(super) use marklab::{
     EmbeddingEntityKind, EmbeddingStatus, ExpectedPatchSet, ExpectedRegionSet, ExpectedSlideSet,
     FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention,
     MultiscaleEmbeddingError, PatchBoundaryPolicy, PatchEmbeddingContext, PatchEmbeddingRow,
-    PatchEmbeddingTable, PatchFootprint, PatchFootprintSet, PatchId, PatientId, PositiveRational,
-    RegionEmbeddingRow, RegionEmbeddingTable, RegionId, ReplicationRole, SlideEmbeddingRow,
-    SlideEmbeddingTable, SlideId, SpatialAxis, TransformId, TransformMatrix,
+    PatchEmbeddingTable, PatchFootprint, PatchFootprintSet, PatchId, PatchOverlapGraph, PatientId,
+    PositiveRational, RegionEmbeddingRow, RegionEmbeddingTable, RegionId, ReplicationRole,
+    SlideEmbeddingRow, SlideEmbeddingTable, SlideId, SpatialAxis, TransformId, TransformMatrix,
 };
 
 pub(super) const RETAINED_BUDGET: usize = 64 * 1024;

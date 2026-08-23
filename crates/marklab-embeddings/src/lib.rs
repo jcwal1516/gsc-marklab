@@ -54,9 +54,9 @@ pub use multiscale::{
     EffectiveReceptiveField, EmbeddingEntityKind, ExpectedPatchSet, ExpectedRegionSet,
     ExpectedSlideSet, MultiscaleEmbeddingError, MultiscaleEmbeddingQcSummary, PatchEmbeddingBlock,
     PatchEmbeddingContext, PatchEmbeddingRow, PatchEmbeddingTable, PatchEmbeddingView,
-    PatchFootprint, PatchFootprintSet, RegionEmbeddingBlock, RegionEmbeddingRow,
-    RegionEmbeddingTable, RegionEmbeddingView, SlideEmbeddingBlock, SlideEmbeddingRow,
-    SlideEmbeddingTable, SlideEmbeddingView,
+    PatchFootprint, PatchFootprintSet, PatchOverlapEdge, PatchOverlapGraph, RegionEmbeddingBlock,
+    RegionEmbeddingRow, RegionEmbeddingTable, RegionEmbeddingView, SlideEmbeddingBlock,
+    SlideEmbeddingRow, SlideEmbeddingTable, SlideEmbeddingView,
 };
 pub use provenance::{
     ArtifactAvailabilityFailure, CanonicalDecimal, CellEmbeddingArtifactRole,

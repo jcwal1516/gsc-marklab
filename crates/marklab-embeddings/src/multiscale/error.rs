@@ -33,6 +33,14 @@ pub enum MultiscaleEmbeddingError {
         /// Caller-provided maximum retained bytes.
         maximum: usize,
     },
+    /// Peak construction storage would exceed the caller's explicit working budget.
+    #[error("multiscale embedding working bytes {required} exceed budget {maximum}")]
+    WorkingByteBudgetExceeded {
+        /// Conservatively required peak construction bytes.
+        required: usize,
+        /// Caller-provided maximum working bytes.
+        maximum: usize,
+    },
     /// An allocation failed after its size was checked.
     #[error("multiscale embedding allocation failed for {requested} bytes")]
     AllocationFailed {
@@ -79,6 +87,17 @@ pub enum MultiscaleEmbeddingError {
     /// One footprint violates checked half-open boundary semantics.
     #[error("patch footprint violates the declared boundary policy")]
     InvalidPatchFootprint,
+    /// Expected/context/footprint bindings disagree during overlap derivation.
+    #[error("patch overlap inputs do not share one exact expected set and context")]
+    OverlapInputMismatch,
+    /// Positive-area overlap edges exceed the version-one hard limit.
+    #[error("patch overlap edges {observed} exceed maximum {maximum}")]
+    OverlapEdgeCountExceeded {
+        /// Observed edge count at the first rejected edge.
+        observed: usize,
+        /// Frozen version-one maximum.
+        maximum: usize,
+    },
     /// Table rows do not exactly match the expected typed set.
     #[error("multiscale embedding rows must exactly match the expected set")]
     RowSetMismatch,

@@ -1,13 +1,13 @@
 # Implementation status
 
-Last updated: 2026-08-23T07:44:12-04:00
+Last updated: 2026-08-23T08:05:46-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Committed baseline before the current checkpoint: `4e1d5b5f6dfea2332e62ce9aaf8752cb46351a1f`
+- Committed baseline before the current checkpoint: `c4557f3eddd44d6c48cbca2ecc3e2ae81923a81e`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
@@ -30,12 +30,12 @@ Last updated: 2026-08-23T07:44:12-04:00
 
 - C-04 delivers exact cell-table/validity/expected/identity/context/link/provenance owners, bounded non-pickle source import, embedding-specific Arrow/Parquet validation/publication/scans, fuzz/differential/resource evidence, and pinned scale workloads.
 - The authorized 32-bundle source profile reconciles exactly but remains aggregate-only and non-promotable because `canonical_identity_mapping`, `input_normalization_and_run_configuration`, `reviewed_source_snapshot`, and `license_record` are absent.
-- C-05's first logical slice now implements distinct expected patch/region/slide sets, exact patch context and footprint ownership, and three typed logical embedding tables over a sealed private core. Canonical JSON/digest goldens, full-`u64` source extents, bounded allocation/accounting, all four statuses, aggregate-safe debug/error surfaces, and partition-invariant block scans are covered. Both independent reviewers approve this checkpoint only; overlap, links, support/provenance records, physical formats, artifact publication, and closure remain open.
+- C-05's logical substrate now includes distinct expected patch/region/slide sets, exact patch context and footprint ownership, three typed embedding tables over a sealed core, and a deterministic positive-area `PatchOverlapGraph`. The graph uses two identical exact-capacity bucket passes, lexicographic edges, minimum-`PatchId` components including isolates, checked 400M-edge/resource bounds, and the frozen logical digest. Both independent reviewers approve only these bounded checkpoints; cell/region links, support/provenance records, physical formats, artifact publication, scale evidence, and closure remain open.
 - A later aggregate/header audit found candidate patch-feature matrices at widths 384 and 1,024 plus patch image/coordinate containers. It found no promotable patch/region/slide table or canonical link. The evidence has no pinned digest and no production source grammar; the validation ledger records the exact claim ceiling and one bounded recursive-key-output audit defect.
 
 ## Dirty files and reason
 
-- First C-05 logical implementation slice: `crates/marklab-embeddings/src/multiscale/**`, focused root exports, and modular `tests/multiscale_embedding_tables/**`, plus checkpoint documentation. No manifest, dependency, lockfile, physical-format, link, source-adapter, or real-corpus promotion change is dirty.
+- C-05 overlap checkpoint: additive `multiscale/overlap.rs`, focused exports/error variants, modular brute-force/property/resource/privacy regressions, and checkpoint documentation. No manifest, dependency, lockfile, physical-format, cell/region-link, source-adapter, or real-corpus promotion change is dirty.
 
 ## Recent decisions
 
@@ -79,9 +79,9 @@ Last updated: 2026-08-23T07:44:12-04:00
 
 ## Next three exact actions
 
-1. Commit the reviewed first C-05 logical expected/context/footprint/table checkpoint with a clean worktree.
-2. Add behavior-first overlap-graph tests, including deterministic edge/cluster ordering and checked resource bounds, and confirm the focused red state.
-3. Implement only the owned overlap graph before beginning grouped cell-patch or patch-region links.
+1. Commit the independently approved C-05 overlap checkpoint with a clean worktree.
+2. Add `CellPatchLink` behavior tests for complete grouped assignments, all-containing and declared interpolation modes, zero-edge states, and exact two-pass resource accounting; confirm the focused red state.
+3. Implement the vector-free cell assignment/edge owner before adding exhaustive declared patch-region assessment/link behavior.
 
 Next exact verification command:
 
