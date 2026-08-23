@@ -1,17 +1,17 @@
 # Implementation status
 
-Last updated: 2026-08-22T20:23:56-04:00
+Last updated: 2026-08-22T21:11:36-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Current implementation SHA: `488d3bd65b5a9e17c7cc1849700e13d2d8eb771f`
+- Current implementation SHA: `0c00e8b0f3984fdbcae8e0d5962a5b2c421c8913`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
-- Current phase/workstream/task: Phase 2 / WS-C / C-04 CellViT embedding-table contract activation
+- Current phase/workstream/task: Phase 2 / WS-C / C-04 frozen contract commit and domain-first red tests
 
 ## Requirements
 
@@ -27,7 +27,7 @@ Last updated: 2026-08-22T20:23:56-04:00
 
 ## Dirty files and reasons
 
-- Production, tests, manifests, and locks are clean at final implementation SHA `488d3bd65b5a9e17c7cc1849700e13d2d8eb771f`. Current dirty files are C-03 closure evidence/control-plane updates only; C-04 has not changed production or tests.
+- Production, tests, manifests, and locks remain clean at the C-03 closure SHA. Current dirty files are the frozen C-04 contract/accepted decisions/ownership/status, append-only validation evidence, and privacy-safe remote audit program only.
 
 ## Recent decisions
 
@@ -48,11 +48,12 @@ Last updated: 2026-08-22T20:23:56-04:00
 - Accepted `DEC-0019`: keep compatibility run outputs separate from schema-bound immutable project objects and portable store-relative locators; verify store-backed semantic inputs before cache lookup.
 - Accepted `DEC-0020`: use exact `cap-std 4.0.3` for descriptor-relative local artifact confinement and hard-link/directory-sync publication; add no live cloud or columnar dependency to `marklab-project`.
 - Accepted `DEC-0021`: keep Windows directory durability conditional on target compilation and runtime publication/recovery evidence; do not infer support from source review.
+- Accepted `DEC-0022`–`DEC-0024`: introduce the layer-3 embedding owner and scoped verified IO, materialize expected/source-identity/spatial-context semantics, preflight every columnar input before stock decode, reconcile the real corpus without promotion, and explicitly defer OS mmap.
 
 ## Unresolved questions
 
-- Stable cross-artifact `CellId` alignment for remote CellViT JSON/`.pt`/NPY rows.
-- Complete extraction-layer/pooling/normalization metadata and a trusted `.pt`-to-Arrow/Parquet converter.
+- Thirty-two authorized Schürch NPY/CSV source bundles have explicit unique source-local identifiers and exact native/embedding row alignment, but no reviewed mapping into canonical typed `CellId`/hierarchy membership; three later aggregate arrays reuse source rows and are not canonical raw sources.
+- The source code establishes CellViT-SAM-H layer-32 `z4` extraction and bounding-box token-mean pooling, but complete checkpoint-run input normalization/source-license provenance remains unavailable without a separately reviewed manifest.
 - Canonical patch embeddings and `CellPatchLink`; patch images/metadata exist but vectors/links were not found.
 - Exact sampled-patch observation windows/tissue masks; the full WSI is not the honest inference window.
 - Seven-slide CPTAC advertised/accessibility discrepancy and the recorded adapter wrapper failure/promotion deviation.
@@ -60,9 +61,9 @@ Last updated: 2026-08-22T20:23:56-04:00
 
 ## Next three exact actions
 
-1. Commit C-03's append-only closure evidence and handoff after ledger consistency/format review.
-2. Reconcile C-04's exact parent requirements and remote CellViT evidence without reading executable `.pt`/pickle content, then freeze stable row identity, schema, provenance, and physical-format promotion semantics.
-3. Add the first behavior-focused C-04 schema/import regression and confirm the expected failure before production edits.
+1. Commit only the frozen C-04 contract/accepted decisions/ownership and read-only evidence; production, tests, manifests, and locks remain untouched.
+2. Add the workspace/domain/expected-set/identity-map/spatial-context compile-first tests and confirm their intended failures before implementation.
+3. Implement only the smallest package/domain surface needed to turn that focused red suite green, then rerun it before opening the row-link/provenance slice.
 
 Next exact verification command:
 
