@@ -1654,6 +1654,7 @@ dependencies = [
  "image",
  "insta",
  "marklab-data",
+ "marklab-embeddings",
  "marklab-workflow",
  "mimalloc",
  "num-complex",
@@ -1687,6 +1688,18 @@ name = "marklab-data"
 version = "0.1.0"
 dependencies = [
  "marklab-core",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "marklab-embeddings"
+version = "0.1.0"
+dependencies = [
+ "marklab-data",
+ "marklab-project",
+ "proptest",
+ "serde",
+ "serde_json",
  "thiserror 2.0.18",
 ]
 

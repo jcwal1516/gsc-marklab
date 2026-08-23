@@ -1,0 +1,25 @@
+[package]
+name = "marklab-embeddings"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Canonical embedding artifacts and bounded import contracts for Marklab"
+
+[lib]
+bench = false
+
+[features]
+default = []
+csv = []
+parquet = []
+
+[dependencies]
+marklab-data = { version = "0.1.0", path = "../marklab-data" }
+marklab-project = { version = "0.1.0", path = "../marklab-project" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[dev-dependencies]
+proptest = "1"

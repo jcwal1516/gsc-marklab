@@ -3,6 +3,7 @@ members = [
     "crates/marklab-core",
     "crates/marklab-data",
     "crates/marklab-project",
+    "crates/marklab-embeddings",
     "crates/marklab-workflow",
 ]
 exclude = ["fuzz"]
@@ -45,8 +46,8 @@ default = [
 ]
 cli = ["dep:clap", "dep:tracing-subscriber", "csv"]
 parallel = ["dep:rayon"]
-parquet = ["dep:arrow", "dep:parquet"]
-csv = ["dep:csv"]
+parquet = ["dep:arrow", "dep:parquet", "marklab-embeddings/parquet"]
+csv = ["dep:csv", "marklab-embeddings/csv"]
 wsi = ["dep:wsi-rs", "dep:image"]
 allocator-mimalloc = ["dep:mimalloc"]
 dhat-heap = ["dep:dhat"]
@@ -61,6 +62,8 @@ clap = { version = "4", features = ["derive"], optional = true }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"], optional = true }
 marklab-workflow = { version = "0.1.0", path = "crates/marklab-workflow" }
+marklab-data = { version = "0.1.0", path = "crates/marklab-data" }
+marklab-embeddings = { version = "0.1.0", path = "crates/marklab-embeddings", default-features = false }
 
 rayon = { version = "1", optional = true }
 rustfft = "6"
@@ -89,7 +92,6 @@ predicates = "3"
 tempfile = "3"
 dicom-core = "0.9.1"
 dicom-object = "0.9.1"
-marklab-data = { version = "0.1.0", path = "crates/marklab-data" }
 
 [[example]]
 name = "generate_dicom_wsi_fixture"

@@ -79,6 +79,7 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
             "crates/marklab-core",
             "crates/marklab-data",
             "crates/marklab-project",
+            "crates/marklab-embeddings",
             "crates/marklab-workflow",
         ],
         "the root remains implicit and only packages with immediate callers are listed"
@@ -121,6 +122,7 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
         "crates/marklab-core/Cargo.toml",
         "crates/marklab-data/Cargo.toml",
         "crates/marklab-project/Cargo.toml",
+        "crates/marklab-embeddings/Cargo.toml",
         "crates/marklab-workflow/Cargo.toml",
     ] {
         let manifest = parse_manifest(manifest_path);
@@ -162,18 +164,41 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
     let default_members = metadata["workspace_default_members"]
         .as_array()
         .expect("metadata workspace_default_members");
-    assert_eq!(workspace_members.len(), 5);
+    assert_eq!(workspace_members.len(), 6);
     assert_eq!(default_members.len(), 1);
 
     let root_manifest = fs::canonicalize("Cargo.toml").expect("canonical root manifest");
     let packages = metadata["packages"].as_array().expect("metadata packages");
-    assert_eq!(packages.len(), 5);
+    assert_eq!(packages.len(), 6);
     let package = packages
         .iter()
         .find(|package| package["name"] == "marklab")
         .expect("root marklab package");
     assert_eq!(default_members[0], package["id"]);
     assert_eq!(package["name"].as_str(), Some("marklab"));
+    let root_features = package["features"].as_object().expect("root features");
+    assert!(root_features["csv"]
+        .as_array()
+        .expect("root csv feature")
+        .iter()
+        .any(|edge| edge == "marklab-embeddings/csv"));
+    assert!(root_features["parquet"]
+        .as_array()
+        .expect("root parquet feature")
+        .iter()
+        .any(|edge| edge == "marklab-embeddings/parquet"));
+    let embeddings = packages
+        .iter()
+        .find(|package| package["name"] == "marklab-embeddings")
+        .expect("embedding package");
+    let embedding_features = embeddings["features"]
+        .as_object()
+        .expect("embedding features");
+    assert!(embedding_features["default"]
+        .as_array()
+        .is_some_and(Vec::is_empty));
+    assert!(embedding_features.contains_key("csv"));
+    assert!(embedding_features.contains_key("parquet"));
     assert_eq!(
         Path::new(package["manifest_path"].as_str().expect("manifest path")),
         root_manifest
@@ -213,6 +238,7 @@ fn workspace_dependencies_descend_layers_and_core_libraries_are_not_cli_gated() 
         ("marklab-core", 0_u8),
         ("marklab-data", 1_u8),
         ("marklab-project", 2_u8),
+        ("marklab-embeddings", 3_u8),
         ("marklab-workflow", 3_u8),
         ("marklab", 4_u8),
     ]);

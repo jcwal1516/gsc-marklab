@@ -55,6 +55,18 @@ pub use data::{Pattern, PatternMeta, TumorWindow};
 pub use errors::{MarklabError, Result};
 pub use geom::mask::TumorMask;
 pub use io::{PatternLoadDiagnostics, PatternLoadResult, PatternLoader};
+pub use marklab_data::{
+    BlockId, CellId, CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry,
+    CoordinateSpace, CoordinateUnit, CoreId, FrameTransform, HierarchyId, HierarchyKind,
+    HierarchyNode, ImageCoordinateConvention, PatchId, PatientId, RegionId, RepeatedMeasureSet,
+    ReplicationRole, SectionId, SerialSectionSeries, SiteId, SlideId, SpatialAxis, SpecimenId,
+    TimepointId, TransformId, TransformMatrix, UncertaintyId, UncertaintyReference,
+};
+pub use marklab_embeddings::{
+    CellEmbeddingRow, CellEmbeddingTable, CellEmbeddingView, CellIdentityMap, CellIdentityMapEntry,
+    EmbeddingError, EmbeddingQcSummary, EmbeddingSpatialContext, EmbeddingStatus, ExpectedCellSet,
+    PatchBoundaryPolicy, PositiveRational,
+};
 pub use marklab_workflow::{
     ArtifactCatalog, ArtifactCatalogError, ArtifactId, ArtifactKey, ArtifactLocator,
     ArtifactPublication, ArtifactRecord, ArtifactRecordError, ArtifactRef, ArtifactSchema,
