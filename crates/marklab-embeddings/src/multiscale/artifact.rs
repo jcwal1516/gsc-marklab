@@ -5,8 +5,11 @@ use marklab_project::{ArtifactId, ContentDigest};
 use super::CellPatchAssignmentMode;
 #[cfg(feature = "parquet")]
 use super::{
-    records::{VerifiedCellPatchInputArtifactGraph, VerifiedDirectPatchEmbeddingArtifactGraph},
-    CellPatchLink, PatchEmbeddingContext, PatchFootprintSet, PatchOverlapGraph,
+    records::{
+        VerifiedCellPatchInputArtifactGraph, VerifiedDirectPatchEmbeddingArtifactGraph,
+        VerifiedPatchRegionInputArtifactGraph,
+    },
+    CellPatchLink, PatchEmbeddingContext, PatchFootprintSet, PatchOverlapGraph, PatchRegionLink,
 };
 
 /// Runtime-only proof of one fully decoded physical patch-footprint artifact.
@@ -361,5 +364,76 @@ impl VerifiedCellPatchLinkArtifact {
     /// Exact validated edge row count.
     pub fn edge_count(self) -> u64 {
         self.bindings.edge_count
+    }
+}
+
+/// Runtime-only proof of one fully decoded producer-declared exhaustive patch-region link.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub struct VerifiedPatchRegionLinkArtifact {
+    artifact_id: ArtifactId,
+    logical_digest: ContentDigest,
+    assessed_pair_count: u64,
+    nonzero_relation_count: u64,
+}
+
+impl fmt::Debug for VerifiedPatchRegionLinkArtifact {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("VerifiedPatchRegionLinkArtifact")
+            .field("assessed_pair_count", &self.assessed_pair_count)
+            .field("nonzero_relation_count", &self.nonzero_relation_count)
+            .finish_non_exhaustive()
+    }
+}
+
+impl VerifiedPatchRegionLinkArtifact {
+    #[cfg(feature = "parquet")]
+    pub(crate) fn new(
+        artifact_id: ArtifactId,
+        link: &PatchRegionLink,
+        graph: VerifiedPatchRegionInputArtifactGraph,
+    ) -> Result<Self, crate::columnar::MultiscaleColumnarError> {
+        let nonzero_relation_count = u64::try_from(link.nonzero_relation_count())
+            .map_err(|_| crate::columnar::MultiscaleColumnarError::SizeOverflow)?;
+        if graph.expected_patches_artifact_id != link.expected_patches_artifact_id()
+            || graph.expected_regions_artifact_id != link.expected_regions_artifact_id()
+            || graph.patch_context_artifact_id != link.patch_context_artifact_id()
+            || graph.patch_footprints_artifact_id != link.patch_footprints_artifact_id()
+            || graph.converter_artifact_id != link.converter_artifact_id()
+            || graph.converter_content_digest != link.converter_content_digest()
+            || graph.assessment_artifact_id != link.assessment_artifact_id()
+            || graph.assessment_content_digest != link.assessment_content_digest()
+            || graph.link_logical_digest != link.logical_digest()
+            || graph.assessed_pair_count != link.assessed_pair_count()
+            || graph.nonzero_relation_count != nonzero_relation_count
+        {
+            return Err(crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch);
+        }
+        Ok(Self {
+            artifact_id,
+            logical_digest: graph.link_logical_digest,
+            assessed_pair_count: graph.assessed_pair_count,
+            nonzero_relation_count,
+        })
+    }
+
+    /// Exact physical patch-region artifact identity.
+    pub fn artifact_id(self) -> ArtifactId {
+        self.artifact_id
+    }
+
+    /// Format-independent patch-region link identity.
+    pub fn logical_digest(self) -> ContentDigest {
+        self.logical_digest
+    }
+
+    /// Exact producer-declared Cartesian pair count.
+    pub fn assessed_pair_count(self) -> u64 {
+        self.assessed_pair_count
+    }
+
+    /// Exact stored nonzero relation row count.
+    pub fn row_count(self) -> u64 {
+        self.nonzero_relation_count
     }
 }

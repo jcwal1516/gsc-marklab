@@ -1,4 +1,5 @@
 mod cell_patch;
+mod patch_region;
 mod preflight;
 mod profile;
 mod publication;
@@ -17,6 +18,12 @@ pub use cell_patch::{
     verify_cell_patch_edge_table_parquet_bytes, verify_cell_patch_edge_table_parquet_from_store,
     write_cell_patch_assignment_table_parquet, write_cell_patch_edge_table_parquet,
     CellPatchAssignmentParquetPreflight, CellPatchEdgeParquetPreflight,
+};
+pub use patch_region::{
+    preflight_patch_region_link_parquet_bytes, publish_patch_region_link_parquet,
+    validate_patch_region_link_parquet_bytes, validate_patch_region_link_parquet_from_store,
+    verify_patch_region_link_parquet_bytes, verify_patch_region_link_parquet_from_store,
+    write_patch_region_link_parquet, PatchRegionParquetPreflight,
 };
 pub use preflight::{
     preflight_patch_footprint_set_parquet_bytes, preflight_patch_overlap_graph_parquet_bytes,

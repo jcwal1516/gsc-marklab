@@ -14,6 +14,8 @@ mod bindings;
 mod cell_patch;
 mod error;
 mod managed;
+#[cfg(feature = "parquet")]
+mod patch_region;
 mod record;
 
 use bindings::{role_ids, validate_domain_bindings, validate_record_dependencies};
@@ -27,6 +29,11 @@ pub use error::{
     VerifiedDirectPatchEmbeddingArtifactGraph,
 };
 use managed::{require_available_for, require_canonical_payload, require_canonical_payload_for};
+#[cfg(feature = "parquet")]
+pub use patch_region::{
+    PatchRegionInputArtifactGraphError, PatchRegionInputArtifactRole,
+    VerifiedPatchRegionInputArtifactGraph,
+};
 use record::{require_record_profile, required_record};
 
 impl MultiscaleEmbeddingProvenance {

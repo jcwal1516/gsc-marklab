@@ -15,7 +15,7 @@ pub enum PatchRegionRelation {
 }
 
 impl PatchRegionRelation {
-    pub(super) fn wire_name(self) -> &'static str {
+    pub(crate) fn wire_name(self) -> &'static str {
         match self {
             Self::FullyContained => "fully_contained",
             Self::PartialOverlap => "partial_overlap",

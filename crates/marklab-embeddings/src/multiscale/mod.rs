@@ -16,6 +16,7 @@ mod table;
 pub use artifact::{
     VerifiedCellPatchAssignmentArtifact, VerifiedCellPatchEdgeArtifact,
     VerifiedCellPatchLinkArtifact, VerifiedPatchFootprintArtifact, VerifiedPatchOverlapArtifact,
+    VerifiedPatchRegionLinkArtifact,
 };
 pub use cell_patch::{
     CellPatchAnchor, CellPatchAssignment, CellPatchAssignmentMode, CellPatchAssignmentStatus,
@@ -35,7 +36,8 @@ pub use patch_region::{
 #[cfg(feature = "parquet")]
 pub use records::{
     CellPatchInputArtifactGraphError, CellPatchInputArtifactRole,
-    VerifiedCellPatchInputArtifactGraph,
+    PatchRegionInputArtifactGraphError, PatchRegionInputArtifactRole,
+    VerifiedCellPatchInputArtifactGraph, VerifiedPatchRegionInputArtifactGraph,
 };
 pub use records::{
     CellPatchLinkProducer, MultiscaleArtifactBinding, MultiscaleDirectPatchInputArtifacts,

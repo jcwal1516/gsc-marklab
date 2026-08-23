@@ -1,5 +1,8 @@
 use std::{fmt, mem::size_of};
 
+#[cfg(feature = "parquet")]
+use std::io::Read;
+
 use marklab_project::{ArtifactId, ContentDigest};
 use serde::{
     de::{DeserializeSeed, Error as _, IgnoredAny, MapAccess, Visitor},
@@ -7,6 +10,10 @@ use serde::{
 };
 
 use super::PatchRegionAssessment;
+#[cfg(feature = "parquet")]
+use crate::multiscale::json::{
+    compare_canonical_json_reader as compare_reader, CanonicalJsonReaderError,
+};
 use crate::multiscale::{
     error::MultiscaleEmbeddingError,
     json::{canonical_json_len, encode_canonical_json, matches_canonical_json},
@@ -74,6 +81,16 @@ pub(super) fn validate_canonical_json(
         return Err(MultiscaleEmbeddingError::InvalidCanonicalJson);
     }
     Ok(())
+}
+
+#[cfg(feature = "parquet")]
+pub(super) fn compare_canonical_json_reader<R: Read + ?Sized>(
+    assessment: &PatchRegionAssessment,
+    reader: &mut R,
+) -> Result<(), CanonicalJsonReaderError> {
+    let wire = WireRef::new(assessment);
+    let encoded_len = canonical_json_len(&wire).map_err(|_| CanonicalJsonReaderError::Mismatch)?;
+    compare_reader(&wire, encoded_len, MAX_SMALL_RECORD_BYTES, reader)
 }
 
 struct Parsed<'a> {

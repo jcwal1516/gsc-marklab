@@ -11,6 +11,8 @@ pub(crate) enum SpatialArtifactRole {
     CellPatchAssignment,
     #[cfg(feature = "parquet")]
     CellPatchEdge,
+    #[cfg(feature = "parquet")]
+    PatchRegion,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -61,6 +63,18 @@ pub(crate) const CELL_PATCH_EDGE_ARROW_KIND: &str =
 #[cfg(feature = "parquet")]
 pub(crate) const CELL_PATCH_EDGE_PARQUET_KIND: &str =
     "application/vnd.marklab.cell-patch-edge-table.v1+parquet";
+#[cfg(feature = "parquet")]
+pub(crate) const PATCH_REGION_SCHEMA_ID: &str = "marklab.patch_region_link";
+#[cfg(feature = "parquet")]
+pub(crate) const PATCH_REGION_ARROW_ENCODING: &str = "marklab.arrow-ipc.patch-region-link.v1";
+#[cfg(feature = "parquet")]
+pub(crate) const PATCH_REGION_PARQUET_ENCODING: &str = "marklab.parquet.patch-region-link.v1";
+#[cfg(feature = "parquet")]
+pub(crate) const PATCH_REGION_ARROW_KIND: &str =
+    "application/vnd.marklab.patch-region-link.v1+arrow";
+#[cfg(feature = "parquet")]
+pub(crate) const PATCH_REGION_PARQUET_KIND: &str =
+    "application/vnd.marklab.patch-region-link.v1+parquet";
 
 pub(crate) fn schema_id(role: SpatialArtifactRole) -> &'static str {
     match role {
@@ -70,6 +84,8 @@ pub(crate) fn schema_id(role: SpatialArtifactRole) -> &'static str {
         SpatialArtifactRole::CellPatchAssignment => CELL_PATCH_ASSIGNMENT_SCHEMA_ID,
         #[cfg(feature = "parquet")]
         SpatialArtifactRole::CellPatchEdge => CELL_PATCH_EDGE_SCHEMA_ID,
+        #[cfg(feature = "parquet")]
+        SpatialArtifactRole::PatchRegion => PATCH_REGION_SCHEMA_ID,
     }
 }
 
@@ -104,6 +120,14 @@ pub(crate) fn encoding_version(
         (SpatialArtifactRole::CellPatchEdge, SpatialPhysicalEncoding::Parquet) => {
             CELL_PATCH_EDGE_PARQUET_ENCODING
         }
+        #[cfg(feature = "parquet")]
+        (SpatialArtifactRole::PatchRegion, SpatialPhysicalEncoding::Arrow) => {
+            PATCH_REGION_ARROW_ENCODING
+        }
+        #[cfg(feature = "parquet")]
+        (SpatialArtifactRole::PatchRegion, SpatialPhysicalEncoding::Parquet) => {
+            PATCH_REGION_PARQUET_ENCODING
+        }
     }
 }
 
@@ -133,6 +157,14 @@ pub(crate) fn content_kind(
         #[cfg(feature = "parquet")]
         (SpatialArtifactRole::CellPatchEdge, SpatialPhysicalEncoding::Parquet) => {
             CELL_PATCH_EDGE_PARQUET_KIND
+        }
+        #[cfg(feature = "parquet")]
+        (SpatialArtifactRole::PatchRegion, SpatialPhysicalEncoding::Arrow) => {
+            PATCH_REGION_ARROW_KIND
+        }
+        #[cfg(feature = "parquet")]
+        (SpatialArtifactRole::PatchRegion, SpatialPhysicalEncoding::Parquet) => {
+            PATCH_REGION_PARQUET_KIND
         }
     }
 }
@@ -179,6 +211,17 @@ pub(crate) fn table_manifest(
                 nullable_scalar_column("weight_denominator", TableScalarType::U64)?,
             ],
             vec!["assignment_row".to_owned(), "patch_id".to_owned()],
+        ),
+        #[cfg(feature = "parquet")]
+        SpatialArtifactRole::PatchRegion => (
+            vec![
+                scalar_column("patch_id", TableScalarType::Utf8)?,
+                scalar_column("region_id", TableScalarType::Utf8)?,
+                scalar_column("relation", TableScalarType::Utf8)?,
+                scalar_column("overlap_numerator", TableScalarType::U64)?,
+                scalar_column("overlap_denominator", TableScalarType::U64)?,
+            ],
+            vec!["patch_id".to_owned(), "region_id".to_owned()],
         ),
     };
     TableManifest::new(

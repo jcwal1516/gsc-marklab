@@ -353,6 +353,15 @@ define_expected_set!(
     RegionId,
     "Canonical expected region identities for one owning slide."
 );
+impl ExpectedRegionSet {
+    #[cfg(feature = "parquet")]
+    pub(in crate::multiscale) fn compare_canonical_json_reader<R: Read + ?Sized>(
+        &self,
+        reader: &mut R,
+    ) -> Result<(), CanonicalJsonReaderError> {
+        self.0.compare_canonical_json_reader(reader)
+    }
+}
 define_expected_set!(
     ExpectedSlideSet,
     SlideId,

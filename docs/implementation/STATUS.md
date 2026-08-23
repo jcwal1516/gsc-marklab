@@ -1,13 +1,13 @@
 # Implementation status
 
-Last updated: 2026-08-23T17:35:13-04:00
+Last updated: 2026-08-23T18:25:13-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Committed baseline before the current checkpoint: `fb96f8bd7fa0c33e415bef849e6c8f86c00dade8`
+- Committed baseline before the current checkpoint: `8977faa2f63b71d3ec4685a848d0e25c5344ff5c`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
@@ -30,12 +30,12 @@ Last updated: 2026-08-23T17:35:13-04:00
 
 - C-04 delivers exact cell-table/validity/expected/identity/context/link/provenance owners, bounded non-pickle source import, embedding-specific Arrow/Parquet validation/publication/scans, fuzz/differential/resource evidence, and pinned scale workloads.
 - The authorized 32-bundle source profile reconciles exactly but remains aggregate-only and non-promotable because `canonical_identity_mapping`, `input_normalization_and_run_configuration`, `reviewed_source_snapshot`, and `license_record` are absent.
-- C-05's approved logical and record substrate includes distinct expected patch/region/slide sets, exact patch context/footprints/overlap, three typed embedding tables, vector-free links, strict patch source-identity/normalization values, all four canonical support variants, deterministic weighted/arithmetic derivation contracts, both cell-link producer modes, the exhaustive patch-region assessment descriptor, all four strict multiscale provenance variants, and the eighteen-role direct-patch structural graph. Four of eight physical families now provide exact footprint, overlap, cell-assignment, and cell-edge Arrow IPC/Parquet writers, raw-before-stock readers, deterministic publications, and separate runtime-only graph-bound receipts. A nine-role vector-independent cell-link input graph validates exact records/dependencies/bindings, streams canonical expected/context/producer payloads, verifies opaque auxiliary availability, and fully decodes the footprint artifact; the current checkpoint uses that capability to mint assignment and edge receipts plus one format-neutral pair receipt for all four Arrow/Parquet combinations. It does not issue support or matrix-table receipts, prove source-vector or coordinate correspondence, admit a source adapter, or cover patch-region physical files or derived/link graphs; four physical families, remaining receipts/graphs, fuzz/scale evidence, and closure remain open.
+- C-05's approved logical and record substrate includes distinct expected patch/region/slide sets, exact patch context/footprints/overlap, three typed embedding tables, vector-free links, strict patch source-identity/normalization values, all four canonical support variants, deterministic weighted/arithmetic derivation contracts, both cell-link producer modes, the exhaustive patch-region assessment descriptor, all four strict multiscale provenance variants, and the eighteen-role direct-patch structural graph. Five of eight physical families now provide exact footprint, overlap, cell-assignment, cell-edge, and patch-region Arrow IPC/Parquet writers, raw-before-stock readers, deterministic publications, and runtime-only graph-bound receipts. A nine-role vector-independent cell-link input graph authorizes assignment and edge receipts plus one format-neutral pair receipt for all four Arrow/Parquet combinations. A separate six-role patch-region input graph validates exact expected-patch, expected-region, context, footprint, converter, and exhaustive-assessment records; streams the four canonical payloads; verifies converter availability and content binding; and fully decodes the footprint artifact before a patch-region receipt can be minted. It does not issue support or matrix-table receipts, prove source-vector, coordinate, or region-geometry correspondence, admit a source adapter, or cover derived graphs; the three matrix physical families, remaining receipts/graphs, fuzz/scale evidence, and closure remain open.
 - A later aggregate/header audit found candidate patch-feature matrices at widths 384 and 1,024 plus patch image/coordinate containers. It found no promotable patch/region/slide table or canonical link. The evidence has no pinned digest and no production source grammar; the validation ledger records the exact claim ceiling and one bounded recursive-key-output audit defect.
 
 ## Dirty files and reason
 
-- C-05 cell-patch assignment/edge physical checkpoint: additive exact Arrow IPC/Parquet profiles, deterministic writers/publications, bounded raw-before-stock and stock readers, managed-integrity verification, separate assignment/edge receipts, a format-neutral pair receipt, crate/root exports, focused behavior/hostile/resource/graph regressions, and implementation ledgers. No manifest, dependency, lockfile, generated file, source adapter, vector binding, real-corpus promotion, or scientific-result change is dirty.
+- C-05 patch-region physical checkpoint: additive exact Arrow IPC/Parquet profiles, deterministic writers/publications, bounded raw-before-stock and stock readers, a six-role prerequisite graph, one graph-bound runtime receipt, crate/root exports, focused behavior/hostile/resource/graph regressions, and implementation ledgers. No manifest, dependency, lockfile, generated file, source adapter, region-geometry proof, real-corpus promotion, or scientific-result change is dirty.
 
 ## Recent decisions
 
@@ -80,12 +80,12 @@ Last updated: 2026-08-23T17:35:13-04:00
 
 ## Next three exact actions
 
-1. Commit the independently reviewed cell-patch assignment/edge physical checkpoint with a clean worktree.
-2. Add behavior-first patch-region Arrow/Parquet physical validation and its graph-bound receipt.
-3. Implement the three matrix physical profiles, then extend the dependency-ordered derived-region and derived-slide graphs without creating a monolithic graph.
+1. Commit the reviewed patch-region physical checkpoint with a clean worktree.
+2. Implement the three matrix physical profiles and their graph-bound receipts.
+3. Extend the dependency-ordered derived-region and derived-slide graphs without creating a monolithic graph, then add the frozen fuzz and scale evidence.
 
 Next exact verification command:
 
 ```bash
-cargo +1.96.0 test --locked --features parquet --test cell_patch_columnar --test cell_patch_columnar_adversarial --test cell_patch_columnar_resources --test cell_patch_input_artifact_graph
+cargo +1.96.0 test --locked --features parquet --test patch_region_columnar --test patch_region_columnar_adversarial --test patch_region_columnar_resources --test patch_region_input_artifact_graph
 ```

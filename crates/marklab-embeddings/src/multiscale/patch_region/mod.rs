@@ -137,6 +137,14 @@ impl PatchRegionAssessment {
         wire::validate_canonical_json(self, bytes, maximum_encoded_bytes, maximum_decoded_bytes)
     }
 
+    #[cfg(feature = "parquet")]
+    pub(in crate::multiscale) fn compare_canonical_json_reader<R: std::io::Read + ?Sized>(
+        &self,
+        reader: &mut R,
+    ) -> Result<(), super::json::CanonicalJsonReaderError> {
+        wire::compare_canonical_json_reader(self, reader)
+    }
+
     /// Sorted distinct artifact dependency IDs for the C-03 record boundary.
     pub fn direct_dependencies(&self) -> impl ExactSizeIterator<Item = ArtifactId> {
         let mut dependencies = [

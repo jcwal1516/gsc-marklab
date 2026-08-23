@@ -11,7 +11,8 @@ mod support;
 #[cfg(feature = "parquet")]
 pub use artifact_graph::{
     CellPatchInputArtifactGraphError, CellPatchInputArtifactRole,
-    VerifiedCellPatchInputArtifactGraph,
+    PatchRegionInputArtifactGraphError, PatchRegionInputArtifactRole,
+    VerifiedCellPatchInputArtifactGraph, VerifiedPatchRegionInputArtifactGraph,
 };
 pub use artifact_graph::{
     MultiscaleEmbeddingArtifactGraphError, MultiscaleEmbeddingArtifactRole,

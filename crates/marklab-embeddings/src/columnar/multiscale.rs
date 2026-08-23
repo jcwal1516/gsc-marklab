@@ -2,10 +2,15 @@ use marklab_project::ContentDigest;
 use thiserror::Error;
 
 mod cell_patch;
+mod patch_region;
 
 pub(crate) use cell_patch::{
     assignment_decoded_bytes, cell_patch_dependencies, cell_patch_metadata, edge_decoded_bytes,
     validate_cell_patch_domain, CELL_PATCH_METADATA_KEYS,
+};
+pub(crate) use patch_region::{
+    patch_region_decoded_bytes, patch_region_dependencies, patch_region_metadata,
+    validate_patch_region_domain, PATCH_REGION_METADATA_KEYS,
 };
 
 /// Exact encoded identity emitted by one canonical spatial-table writer.
