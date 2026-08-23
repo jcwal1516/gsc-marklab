@@ -1,6 +1,6 @@
 # Implementation status
 
-Last updated: 2026-08-23T05:07:45-04:00
+Last updated: 2026-08-23T05:12:00-04:00
 
 ## Identity
 
@@ -11,7 +11,7 @@ Last updated: 2026-08-23T05:07:45-04:00
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
-- Current phase/workstream/task: Phase 2 / WS-C / C-04 deterministic benchmark, DHAT, and scale checkpoint
+- Current phase/workstream/task: Phase 2 / WS-C / C-04 phase-boundary closure gates
 
 ## Requirements
 
@@ -22,7 +22,7 @@ Last updated: 2026-08-23T05:07:45-04:00
 ## Command state
 
 - Known failing commands/tests: clean unpatched `cargo +1.96.0 package --locked --workspace` creates all five archives but exits 101 while verifying data against the published pre-C-02 `marklab-core 0.1.0`. DEC-0018 makes this release-blocking until an authorized version/dependency-ordered publication boundary; ephemeral local patches verified every archive successfully and are not claimed equivalent to registry resolvability. The Windows cross-target C-03 check also exits 101 before project compilation because `x86_64-pc-windows-msvc` is not installed; DEC-0021 requires Windows publication/recovery runtime evidence before target support is claimed. Current C-04 focused checks are green: the earlier domain/source/Arrow/Parquet/store/fuzz scopes plus the exact 10,000 × 1,280 Criterion smoke, exact DHAT heap gate, and exact 1,000,000 × 256 RSS-bounded scale run. Historical red/green and harness failures are recorded in the validation ledger. The WS-B feature matrix still has the explicitly recorded narrow warnings and is not claimed warning-clean.
-- C-04 remains incomplete. Criterion/DHAT and both mandatory synthetic scale profiles are now implemented and verified. The authorized 32-bundle Rust reconciliation and complete phase-boundary gates remain unexecuted for this closure attempt.
+- C-04 remains incomplete only for the complete phase-boundary gates and final closure audit. Criterion/DHAT, both mandatory synthetic scale profiles, and the authorized 32-bundle Rust reconciliation are implemented and verified.
 - Confirmed available: `cargo-nextest`, `cargo-audit`, `cargo-deny`, `cargo-machete`, `cargo-fuzz`, `ssh`, `scp`, `rsync`.
 - Confirmed unavailable: local `markdownlint-cli2`, `actionlint`, and Gnuplot. Criterion used Plotters; no Markdown/workflow lint pass is claimed.
 
@@ -31,6 +31,7 @@ Last updated: 2026-08-23T05:07:45-04:00
 - The root Criterion target shares one exact deterministic workload with the DHAT integration test. The smoke profile exercises 10,000 × 1,280 source import/finalization, domain/QC work, bounded Arrow/Parquet scans, round trips, and pinned parity; the full profile exercises 1,000,000 × 256 sequential and random access, fixed-order reductions, covariance, and kernel work.
 - Immutable logical/numeric digests bind both shapes. DEC-0031 freezes the synthetic generator, all 4,096 random accesses, digest order, and runtime/build RSS distinction.
 - Exact smoke Criterion, heap, and current-binary timed full commands pass. DHAT includes fresh disk-backed Arrow/Parquet publication, reports zero current bytes, and peaks at 324,194,945 bytes under its 603,979,776-byte cap. The full workload reports 1,117,552,640 bytes maximum RSS under the 2.5-GiB host threshold.
+- A final read-only authorized-corpus rerun staged only 96 allowlisted NPY/CSV/manifest inputs, reconciled exactly 32 bundles / 60,191 rows / width 1,280 and both pinned digests in 16.47 seconds, then moved the marker-validated stage to Trash. The report remains aggregate-only and explicitly non-promotable.
 
 ## Recent decisions
 
@@ -70,12 +71,12 @@ Last updated: 2026-08-23T05:07:45-04:00
 
 ## Next three exact actions
 
-1. Commit the independently reviewed deterministic benchmark/DHAT/scale checkpoint without claiming C-04 closure.
-2. Stage only the authorized non-pickle bundle inputs in a task-owned ephemeral root and execute the exact 32-bundle Rust reconciliation read-only.
-3. Execute the complete C-04 phase-boundary gates, reconcile the known release/cross-target blockers truthfully, and evaluate C-04 closure.
+1. Commit the final DHAT-publication correction and authorized reconciliation evidence without claiming C-04 closure.
+2. Execute the complete C-04 phase-boundary gates and preserve the known release/cross-target blockers truthfully.
+3. Complete independent closure review, write the C-04 handoff, and update requirements/claims/status before advancing to C-05.
 
 Next exact verification command:
 
 ```bash
-cargo +1.96.0 test --locked -p marklab --features csv --test authorized_cellvit_reconciliation -- --ignored --exact reconciles_all_authorized_bundles
+cargo +1.96.0 nextest run --locked --workspace --all-features
 ```
