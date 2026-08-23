@@ -1,6 +1,13 @@
 use marklab_project::ContentDigest;
 use thiserror::Error;
 
+mod cell_patch;
+
+pub(crate) use cell_patch::{
+    assignment_decoded_bytes, cell_patch_dependencies, cell_patch_metadata, edge_decoded_bytes,
+    validate_cell_patch_domain, CELL_PATCH_METADATA_KEYS,
+};
+
 /// Exact encoded identity emitted by one canonical spatial-table writer.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SpatialColumnarWriteSummary {

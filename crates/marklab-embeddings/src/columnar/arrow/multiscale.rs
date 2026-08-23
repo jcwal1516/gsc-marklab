@@ -1,9 +1,22 @@
+mod cell_patch;
 mod preflight;
 mod profile;
 mod publication;
 mod reader;
 mod writer;
 
+pub use cell_patch::{
+    preflight_cell_patch_assignment_table_arrow_bytes, preflight_cell_patch_edge_table_arrow_bytes,
+    publish_cell_patch_assignment_table_arrow, publish_cell_patch_edge_table_arrow,
+    validate_cell_patch_assignment_table_arrow_bytes,
+    validate_cell_patch_assignment_table_arrow_from_store,
+    validate_cell_patch_edge_table_arrow_bytes, validate_cell_patch_edge_table_arrow_from_store,
+    verify_cell_patch_assignment_table_arrow_bytes,
+    verify_cell_patch_assignment_table_arrow_from_store, verify_cell_patch_edge_table_arrow_bytes,
+    verify_cell_patch_edge_table_arrow_from_store, write_cell_patch_assignment_table_arrow,
+    write_cell_patch_edge_table_arrow, CellPatchAssignmentArrowPreflight,
+    CellPatchEdgeArrowPreflight,
+};
 pub use preflight::{
     preflight_patch_footprint_set_arrow_bytes, preflight_patch_overlap_graph_arrow_bytes,
     PatchFootprintArrowPreflight, PatchOverlapArrowPreflight,

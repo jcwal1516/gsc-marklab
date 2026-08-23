@@ -259,16 +259,39 @@ fn total_text_bytes(table: &CellEmbeddingTable) -> Result<(usize, usize), Embedd
 pub(super) fn estimate_metadata_retained_bytes(
     row_group_count: usize,
 ) -> Result<usize, EmbeddingColumnarError> {
+    estimate_metadata_retained_bytes_for_columns(row_group_count, 3)
+}
+
+pub(super) fn estimate_metadata_retained_bytes_for_columns(
+    row_group_count: usize,
+    column_count: usize,
+) -> Result<usize, EmbeddingColumnarError> {
     let raw_group_inline = size_of::<RowGroup>()
-        .checked_add(3 * size_of::<ColumnChunk>())
-        .and_then(|value| value.checked_add(3 * size_of::<ColumnMetaData>()))
-        .and_then(|value| value.checked_add(6 * size_of::<Encoding>()))
-        .and_then(|value| value.checked_add(5 * size_of::<String>()))
-        .and_then(|value| value.checked_add(3 * size_of::<PageEncodingStats>()))
+        .checked_add(
+            column_count
+                .checked_mul(size_of::<ColumnChunk>())
+                .ok_or(EmbeddingColumnarError::SizeOverflow)?,
+        )
+        .and_then(|value| value.checked_add(column_count.checked_mul(size_of::<ColumnMetaData>())?))
+        .and_then(|value| value.checked_add(column_count.checked_mul(2 * size_of::<Encoding>())?))
+        .and_then(|value| {
+            value.checked_add(
+                column_count
+                    .checked_add(2)?
+                    .checked_mul(size_of::<String>())?,
+            )
+        })
+        .and_then(|value| {
+            value.checked_add(column_count.checked_mul(size_of::<PageEncodingStats>())?)
+        })
         .and_then(|value| value.checked_add(128))
         .ok_or(EmbeddingColumnarError::SizeOverflow)?;
     let high_level_group_inline = size_of::<RowGroupMetaData>()
-        .checked_add(3 * size_of::<ColumnChunkMetaData>())
+        .checked_add(
+            column_count
+                .checked_mul(size_of::<ColumnChunkMetaData>())
+                .ok_or(EmbeddingColumnarError::SizeOverflow)?,
+        )
         .and_then(|value| value.checked_add(256))
         .ok_or(EmbeddingColumnarError::SizeOverflow)?;
     let per_group = raw_group_inline

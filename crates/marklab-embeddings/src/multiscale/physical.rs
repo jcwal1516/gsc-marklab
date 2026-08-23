@@ -7,6 +7,10 @@ use marklab_project::{
 pub(crate) enum SpatialArtifactRole {
     Footprint,
     Overlap,
+    #[cfg(feature = "parquet")]
+    CellPatchAssignment,
+    #[cfg(feature = "parquet")]
+    CellPatchEdge,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -29,11 +33,43 @@ pub(crate) const OVERLAP_ARROW_KIND: &str =
     "application/vnd.marklab.patch-overlap-edge-table.v1+arrow";
 pub(crate) const OVERLAP_PARQUET_KIND: &str =
     "application/vnd.marklab.patch-overlap-edge-table.v1+parquet";
+#[cfg(feature = "parquet")]
+pub(crate) const CELL_PATCH_ASSIGNMENT_SCHEMA_ID: &str = "marklab.cell_patch_assignment_table";
+#[cfg(feature = "parquet")]
+pub(crate) const CELL_PATCH_EDGE_SCHEMA_ID: &str = "marklab.cell_patch_edge_table";
+#[cfg(feature = "parquet")]
+pub(crate) const CELL_PATCH_ASSIGNMENT_ARROW_ENCODING: &str =
+    "marklab.arrow-ipc.cell-patch-assignment-table.v1";
+#[cfg(feature = "parquet")]
+pub(crate) const CELL_PATCH_ASSIGNMENT_PARQUET_ENCODING: &str =
+    "marklab.parquet.cell-patch-assignment-table.v1";
+#[cfg(feature = "parquet")]
+pub(crate) const CELL_PATCH_EDGE_ARROW_ENCODING: &str =
+    "marklab.arrow-ipc.cell-patch-edge-table.v1";
+#[cfg(feature = "parquet")]
+pub(crate) const CELL_PATCH_EDGE_PARQUET_ENCODING: &str =
+    "marklab.parquet.cell-patch-edge-table.v1";
+#[cfg(feature = "parquet")]
+pub(crate) const CELL_PATCH_ASSIGNMENT_ARROW_KIND: &str =
+    "application/vnd.marklab.cell-patch-assignment-table.v1+arrow";
+#[cfg(feature = "parquet")]
+pub(crate) const CELL_PATCH_ASSIGNMENT_PARQUET_KIND: &str =
+    "application/vnd.marklab.cell-patch-assignment-table.v1+parquet";
+#[cfg(feature = "parquet")]
+pub(crate) const CELL_PATCH_EDGE_ARROW_KIND: &str =
+    "application/vnd.marklab.cell-patch-edge-table.v1+arrow";
+#[cfg(feature = "parquet")]
+pub(crate) const CELL_PATCH_EDGE_PARQUET_KIND: &str =
+    "application/vnd.marklab.cell-patch-edge-table.v1+parquet";
 
 pub(crate) fn schema_id(role: SpatialArtifactRole) -> &'static str {
     match role {
         SpatialArtifactRole::Footprint => FOOTPRINT_SCHEMA_ID,
         SpatialArtifactRole::Overlap => OVERLAP_SCHEMA_ID,
+        #[cfg(feature = "parquet")]
+        SpatialArtifactRole::CellPatchAssignment => CELL_PATCH_ASSIGNMENT_SCHEMA_ID,
+        #[cfg(feature = "parquet")]
+        SpatialArtifactRole::CellPatchEdge => CELL_PATCH_EDGE_SCHEMA_ID,
     }
 }
 
@@ -52,6 +88,22 @@ pub(crate) fn encoding_version(
         (SpatialArtifactRole::Overlap, SpatialPhysicalEncoding::Parquet) => {
             OVERLAP_PARQUET_ENCODING
         }
+        #[cfg(feature = "parquet")]
+        (SpatialArtifactRole::CellPatchAssignment, SpatialPhysicalEncoding::Arrow) => {
+            CELL_PATCH_ASSIGNMENT_ARROW_ENCODING
+        }
+        #[cfg(feature = "parquet")]
+        (SpatialArtifactRole::CellPatchAssignment, SpatialPhysicalEncoding::Parquet) => {
+            CELL_PATCH_ASSIGNMENT_PARQUET_ENCODING
+        }
+        #[cfg(feature = "parquet")]
+        (SpatialArtifactRole::CellPatchEdge, SpatialPhysicalEncoding::Arrow) => {
+            CELL_PATCH_EDGE_ARROW_ENCODING
+        }
+        #[cfg(feature = "parquet")]
+        (SpatialArtifactRole::CellPatchEdge, SpatialPhysicalEncoding::Parquet) => {
+            CELL_PATCH_EDGE_PARQUET_ENCODING
+        }
     }
 }
 
@@ -66,6 +118,22 @@ pub(crate) fn content_kind(
         }
         (SpatialArtifactRole::Overlap, SpatialPhysicalEncoding::Arrow) => OVERLAP_ARROW_KIND,
         (SpatialArtifactRole::Overlap, SpatialPhysicalEncoding::Parquet) => OVERLAP_PARQUET_KIND,
+        #[cfg(feature = "parquet")]
+        (SpatialArtifactRole::CellPatchAssignment, SpatialPhysicalEncoding::Arrow) => {
+            CELL_PATCH_ASSIGNMENT_ARROW_KIND
+        }
+        #[cfg(feature = "parquet")]
+        (SpatialArtifactRole::CellPatchAssignment, SpatialPhysicalEncoding::Parquet) => {
+            CELL_PATCH_ASSIGNMENT_PARQUET_KIND
+        }
+        #[cfg(feature = "parquet")]
+        (SpatialArtifactRole::CellPatchEdge, SpatialPhysicalEncoding::Arrow) => {
+            CELL_PATCH_EDGE_ARROW_KIND
+        }
+        #[cfg(feature = "parquet")]
+        (SpatialArtifactRole::CellPatchEdge, SpatialPhysicalEncoding::Parquet) => {
+            CELL_PATCH_EDGE_PARQUET_KIND
+        }
     }
 }
 
@@ -89,6 +157,28 @@ pub(crate) fn table_manifest(
                 scalar_column("right_patch_id", TableScalarType::Utf8)?,
             ],
             vec!["left_patch_id".to_owned(), "right_patch_id".to_owned()],
+        ),
+        #[cfg(feature = "parquet")]
+        SpatialArtifactRole::CellPatchAssignment => (
+            vec![
+                scalar_column("cell_id", TableScalarType::Utf8)?,
+                scalar_column("assignment_status", TableScalarType::Utf8)?,
+                scalar_column("anchor_x_bits", TableScalarType::U64)?,
+                scalar_column("anchor_y_bits", TableScalarType::U64)?,
+                scalar_column("edge_start", TableScalarType::U64)?,
+                scalar_column("edge_count", TableScalarType::U64)?,
+            ],
+            vec!["cell_id".to_owned()],
+        ),
+        #[cfg(feature = "parquet")]
+        SpatialArtifactRole::CellPatchEdge => (
+            vec![
+                scalar_column("assignment_row", TableScalarType::U64)?,
+                scalar_column("patch_id", TableScalarType::Utf8)?,
+                nullable_scalar_column("weight_numerator", TableScalarType::U64)?,
+                nullable_scalar_column("weight_denominator", TableScalarType::U64)?,
+            ],
+            vec!["assignment_row".to_owned(), "patch_id".to_owned()],
         ),
     };
     TableManifest::new(
@@ -148,4 +238,12 @@ fn table_format(encoding: SpatialPhysicalEncoding) -> TableFormat {
 
 fn scalar_column(name: &str, scalar: TableScalarType) -> Result<TableColumn, TableManifestError> {
     TableColumn::new(name, TableColumnType::Scalar(scalar), false)
+}
+
+#[cfg(feature = "parquet")]
+fn nullable_scalar_column(
+    name: &str,
+    scalar: TableScalarType,
+) -> Result<TableColumn, TableManifestError> {
+    TableColumn::new(name, TableColumnType::Scalar(scalar), true)
 }

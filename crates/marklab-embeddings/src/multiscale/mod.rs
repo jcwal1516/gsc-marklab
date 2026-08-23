@@ -13,7 +13,10 @@ pub(crate) mod physical;
 mod records;
 mod table;
 
-pub use artifact::{VerifiedPatchFootprintArtifact, VerifiedPatchOverlapArtifact};
+pub use artifact::{
+    VerifiedCellPatchAssignmentArtifact, VerifiedCellPatchEdgeArtifact,
+    VerifiedCellPatchLinkArtifact, VerifiedPatchFootprintArtifact, VerifiedPatchOverlapArtifact,
+};
 pub use cell_patch::{
     CellPatchAnchor, CellPatchAssignment, CellPatchAssignmentMode, CellPatchAssignmentStatus,
     CellPatchContributor, CellPatchEdge, CellPatchLink, CellPatchLinkBindings, CellPatchWeight,

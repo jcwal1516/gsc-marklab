@@ -1,16 +1,31 @@
 #![cfg(feature = "parquet")]
 
 use marklab::{
-    publish_patch_footprint_set_arrow, publish_patch_footprint_set_parquet, ArtifactCatalog,
-    ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef, ArtifactSchema, CellId,
-    CellPatchAnchor, CellPatchInputArtifactGraphError, CellPatchInputArtifactRole, CellPatchLink,
-    CellPatchLinkBindings, CellPatchLinkProducer, CohortHierarchy, CoordinateFrame,
-    CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit,
-    EffectiveReceptiveField, EmbeddingColumnarBudgets, ExpectedCellSet, ExpectedPatchSet,
-    FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention, LocalArtifactStore,
-    PatchBoundaryPolicy, PatchEmbeddingContext, PatchFootprint, PatchFootprintSet, PatchId,
-    PatientId, PositiveRational, ReplicationRole, SlideId, SpatialAxis, StoreId, TransformId,
-    TransformMatrix,
+    publish_cell_patch_assignment_table_arrow, publish_cell_patch_assignment_table_parquet,
+    publish_cell_patch_edge_table_arrow, publish_cell_patch_edge_table_parquet,
+    publish_patch_footprint_set_arrow, publish_patch_footprint_set_parquet,
+    validate_cell_patch_assignment_table_arrow_bytes,
+    validate_cell_patch_assignment_table_arrow_from_store,
+    validate_cell_patch_assignment_table_parquet_bytes,
+    validate_cell_patch_assignment_table_parquet_from_store,
+    validate_cell_patch_edge_table_arrow_bytes, validate_cell_patch_edge_table_arrow_from_store,
+    validate_cell_patch_edge_table_parquet_bytes,
+    validate_cell_patch_edge_table_parquet_from_store,
+    verify_cell_patch_assignment_table_arrow_from_store,
+    verify_cell_patch_assignment_table_parquet_from_store,
+    verify_cell_patch_edge_table_arrow_from_store, verify_cell_patch_edge_table_parquet_from_store,
+    write_cell_patch_assignment_table_arrow, write_cell_patch_assignment_table_parquet,
+    write_cell_patch_edge_table_arrow, write_cell_patch_edge_table_parquet, ArtifactCatalog,
+    ArtifactDraft, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef, ArtifactSchema,
+    ArtifactStoreError, CellId, CellPatchAnchor, CellPatchInputArtifactGraphError,
+    CellPatchInputArtifactRole, CellPatchLink, CellPatchLinkBindings, CellPatchLinkProducer,
+    CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace,
+    CoordinateUnit, EffectiveReceptiveField, EmbeddingColumnarBudgets, ExpectedCellSet,
+    ExpectedPatchSet, FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention,
+    LocalArtifactStore, MultiscaleColumnarError, PatchBoundaryPolicy, PatchEmbeddingContext,
+    PatchFootprint, PatchFootprintSet, PatchId, PatientId, PositiveRational, ReplicationRole,
+    SlideId, SpatialAxis, StoreId, TransformId, TransformMatrix, VerifiedCellPatchLinkArtifact,
+    VerifiedReaderError,
 };
 use tempfile::TempDir;
 
@@ -20,6 +35,7 @@ struct Fixture {
     _root: TempDir,
     store: LocalArtifactStore,
     catalog: ArtifactCatalog,
+    hierarchy: CohortHierarchy,
     producer: CellPatchLinkProducer,
     producer_record: ArtifactRecord,
     expected_cells: ExpectedCellSet,
@@ -394,6 +410,7 @@ fn fixture_with_options(options: FixtureOptions) -> Fixture {
         _root: root,
         store,
         catalog,
+        hierarchy,
         producer,
         producer_record,
         expected_cells,
@@ -403,6 +420,54 @@ fn fixture_with_options(options: FixtureOptions) -> Fixture {
         footprint_record,
         link,
     }
+}
+
+fn alternate_link(fixture: &Fixture) -> CellPatchLink {
+    let bindings = CellPatchLinkBindings::new(
+        fixture.link.expected_cells_artifact_id(),
+        fixture.link.patch_footprints_artifact_id(),
+        fixture.link.producer_artifact_id(),
+        fixture.link.producer_content_digest(),
+        fixture.context.image_frame_id().clone(),
+    );
+    CellPatchLink::derive_contained_shared(
+        &fixture.hierarchy,
+        &fixture.expected_cells,
+        &fixture.expected_patches,
+        &fixture.context,
+        &fixture.footprints,
+        &bindings,
+        vec![
+            CellPatchAnchor::new(fixture.expected_cells.cells()[0].clone(), [20.0, 10.0])
+                .expect("alternate anchor"),
+            CellPatchAnchor::new(fixture.expected_cells.cells()[1].clone(), [500.0, 10.0])
+                .expect("outside anchor"),
+        ],
+        DOMAIN_BUDGET,
+        DOMAIN_BUDGET,
+        DOMAIN_BUDGET,
+    )
+    .expect("alternate link")
+}
+
+fn verified_graph(
+    fixture: &Fixture,
+    link: &CellPatchLink,
+) -> marklab::VerifiedCellPatchInputArtifactGraph {
+    fixture
+        .producer
+        .validate_cell_patch_input_artifact_graph(
+            fixture.producer_record.id(),
+            &fixture.expected_cells,
+            &fixture.expected_patches,
+            &fixture.context,
+            &fixture.footprints,
+            link,
+            &fixture.catalog,
+            &fixture.store,
+            budgets(),
+        )
+        .expect("verified cell-patch inputs")
 }
 
 #[test]
@@ -437,6 +502,334 @@ fn cell_patch_input_graph_is_vector_independent_and_physically_verifies_footprin
         assert!(!debug.contains("input-slide"));
         assert!(!debug.contains("opaque-private-coordinates"));
         assert!(!debug.contains(&fixture.footprint_record.id().to_string()));
+    }
+}
+
+#[test]
+fn cell_patch_physical_receipts_pair_all_arrow_and_parquet_half_combinations() {
+    let fixture = fixture();
+    let graph = fixture
+        .producer
+        .validate_cell_patch_input_artifact_graph(
+            fixture.producer_record.id(),
+            &fixture.expected_cells,
+            &fixture.expected_patches,
+            &fixture.context,
+            &fixture.footprints,
+            &fixture.link,
+            &fixture.catalog,
+            &fixture.store,
+            budgets(),
+        )
+        .expect("verified cell-patch inputs");
+    let assignment_arrow =
+        publish_cell_patch_assignment_table_arrow(&fixture.store, &fixture.link, budgets())
+            .expect("publish assignment Arrow")
+            .into_record();
+    let assignment_parquet =
+        publish_cell_patch_assignment_table_parquet(&fixture.store, &fixture.link, budgets())
+            .expect("publish assignment Parquet")
+            .into_record();
+    let edge_arrow = publish_cell_patch_edge_table_arrow(&fixture.store, &fixture.link, budgets())
+        .expect("publish edge Arrow")
+        .into_record();
+    let edge_parquet =
+        publish_cell_patch_edge_table_parquet(&fixture.store, &fixture.link, budgets())
+            .expect("publish edge Parquet")
+            .into_record();
+
+    let assignment_receipts = [
+        verify_cell_patch_assignment_table_arrow_from_store(
+            &fixture.store,
+            &assignment_arrow,
+            &fixture.link,
+            graph,
+            budgets(),
+        )
+        .expect("verify assignment Arrow"),
+        verify_cell_patch_assignment_table_parquet_from_store(
+            &fixture.store,
+            &assignment_parquet,
+            &fixture.link,
+            graph,
+            budgets(),
+        )
+        .expect("verify assignment Parquet"),
+    ];
+    let edge_receipts = [
+        verify_cell_patch_edge_table_arrow_from_store(
+            &fixture.store,
+            &edge_arrow,
+            &fixture.link,
+            graph,
+            budgets(),
+        )
+        .expect("verify edge Arrow"),
+        verify_cell_patch_edge_table_parquet_from_store(
+            &fixture.store,
+            &edge_parquet,
+            &fixture.link,
+            graph,
+            budgets(),
+        )
+        .expect("verify edge Parquet"),
+    ];
+
+    for assignment in assignment_receipts {
+        assert_eq!(
+            assignment.row_count(),
+            fixture.link.assignment_count() as u64
+        );
+        assert_eq!(assignment.logical_digest(), fixture.link.logical_digest());
+        for edge in edge_receipts {
+            let verified = VerifiedCellPatchLinkArtifact::from_verified_halves(assignment, edge)
+                .expect("pair format-independent halves");
+            assert_eq!(verified.assignment_artifact_id(), assignment.artifact_id());
+            assert_eq!(verified.edge_artifact_id(), edge.artifact_id());
+            assert_eq!(verified.logical_digest(), fixture.link.logical_digest());
+            assert_eq!(verified.assignment_count(), 2);
+            assert_eq!(verified.edge_count(), 1);
+        }
+    }
+    let debug = format!("{:?} {:?}", assignment_receipts[0], edge_receipts[0]);
+    assert!(!debug.contains("input-slide"));
+    assert!(!debug.contains(&assignment_arrow.id().to_string()));
+    assert!(!debug.contains(&edge_arrow.id().to_string()));
+}
+
+#[test]
+fn cell_patch_receipts_reject_different_links_and_wrong_graph_tokens() {
+    let fixture = fixture();
+    let graph = verified_graph(&fixture, &fixture.link);
+    let alternate = alternate_link(&fixture);
+    let alternate_graph = verified_graph(&fixture, &alternate);
+    assert_ne!(fixture.link.logical_digest(), alternate.logical_digest());
+
+    let assignment =
+        publish_cell_patch_assignment_table_arrow(&fixture.store, &fixture.link, budgets())
+            .expect("publish assignment")
+            .into_record();
+    let edge = publish_cell_patch_edge_table_parquet(&fixture.store, &alternate, budgets())
+        .expect("publish alternate edge")
+        .into_record();
+    let assignment_receipt = verify_cell_patch_assignment_table_arrow_from_store(
+        &fixture.store,
+        &assignment,
+        &fixture.link,
+        graph,
+        budgets(),
+    )
+    .expect("verify assignment");
+    let edge_receipt = verify_cell_patch_edge_table_parquet_from_store(
+        &fixture.store,
+        &edge,
+        &alternate,
+        alternate_graph,
+        budgets(),
+    )
+    .expect("verify alternate edge");
+    assert_eq!(
+        VerifiedCellPatchLinkArtifact::from_verified_halves(assignment_receipt, edge_receipt),
+        Err(MultiscaleColumnarError::ArtifactBindingMismatch)
+    );
+    assert!(matches!(
+        verify_cell_patch_assignment_table_arrow_from_store(
+            &fixture.store,
+            &assignment,
+            &fixture.link,
+            alternate_graph,
+            budgets(),
+        ),
+        Err(VerifiedReaderError::Callback(
+            MultiscaleColumnarError::ArtifactBindingMismatch
+        ))
+    ));
+}
+
+#[test]
+fn cell_patch_managed_integrity_precedes_decode_and_malformed_callbacks_match_borrowed() {
+    #[derive(Clone, Copy)]
+    enum Profile {
+        AssignmentArrow,
+        EdgeArrow,
+        AssignmentParquet,
+        EdgeParquet,
+    }
+
+    let fixture = fixture();
+    for profile in [
+        Profile::AssignmentArrow,
+        Profile::EdgeArrow,
+        Profile::AssignmentParquet,
+        Profile::EdgeParquet,
+    ] {
+        let canonical_record = match profile {
+            Profile::AssignmentArrow => {
+                publish_cell_patch_assignment_table_arrow(&fixture.store, &fixture.link, budgets())
+            }
+            Profile::EdgeArrow => {
+                publish_cell_patch_edge_table_arrow(&fixture.store, &fixture.link, budgets())
+            }
+            Profile::AssignmentParquet => publish_cell_patch_assignment_table_parquet(
+                &fixture.store,
+                &fixture.link,
+                budgets(),
+            ),
+            Profile::EdgeParquet => {
+                publish_cell_patch_edge_table_parquet(&fixture.store, &fixture.link, budgets())
+            }
+        }
+        .expect("publish canonical profile")
+        .into_record();
+        let mut malformed = Vec::new();
+        match profile {
+            Profile::AssignmentArrow => {
+                write_cell_patch_assignment_table_arrow(&mut malformed, &fixture.link, budgets())
+            }
+            Profile::EdgeArrow => {
+                write_cell_patch_edge_table_arrow(&mut malformed, &fixture.link, budgets())
+            }
+            Profile::AssignmentParquet => {
+                write_cell_patch_assignment_table_parquet(&mut malformed, &fixture.link, budgets())
+            }
+            Profile::EdgeParquet => {
+                write_cell_patch_edge_table_parquet(&mut malformed, &fixture.link, budgets())
+            }
+        }
+        .expect("write canonical profile");
+        let needle = match profile {
+            Profile::AssignmentArrow | Profile::AssignmentParquet => b"cell-a".as_slice(),
+            Profile::EdgeArrow | Profile::EdgeParquet => b"patch-a".as_slice(),
+        };
+        let row_at = malformed
+            .windows(needle.len())
+            .position(|window| window == needle)
+            .expect("physical row value");
+        malformed[row_at] ^= 0x20;
+        let draft = ArtifactDraft::new(
+            ArtifactRef::from_bytes(canonical_record.content().kind(), &malformed)
+                .expect("malformed content"),
+            canonical_record.schema().clone(),
+            canonical_record.table().cloned(),
+            canonical_record.dependencies().to_vec(),
+            Default::default(),
+        )
+        .expect("malformed draft");
+        let malformed_record = fixture
+            .store
+            .publish_new_send(&draft, |output| output.write_all(&malformed))
+            .expect("publish digest-matching malformed profile")
+            .into_record();
+
+        let borrowed = match profile {
+            Profile::AssignmentArrow => validate_cell_patch_assignment_table_arrow_bytes(
+                &malformed,
+                &malformed_record,
+                &fixture.link,
+                budgets(),
+            )
+            .map(|_| ()),
+            Profile::EdgeArrow => validate_cell_patch_edge_table_arrow_bytes(
+                &malformed,
+                &malformed_record,
+                &fixture.link,
+                budgets(),
+            )
+            .map(|_| ()),
+            Profile::AssignmentParquet => validate_cell_patch_assignment_table_parquet_bytes(
+                &malformed,
+                &malformed_record,
+                &fixture.link,
+                budgets(),
+            )
+            .map(|_| ()),
+            Profile::EdgeParquet => validate_cell_patch_edge_table_parquet_bytes(
+                &malformed,
+                &malformed_record,
+                &fixture.link,
+                budgets(),
+            )
+            .map(|_| ()),
+        }
+        .expect_err("borrowed malformed profile");
+        let managed = match profile {
+            Profile::AssignmentArrow => validate_cell_patch_assignment_table_arrow_from_store(
+                &fixture.store,
+                &malformed_record,
+                &fixture.link,
+                budgets(),
+            )
+            .map(|_| ()),
+            Profile::EdgeArrow => validate_cell_patch_edge_table_arrow_from_store(
+                &fixture.store,
+                &malformed_record,
+                &fixture.link,
+                budgets(),
+            )
+            .map(|_| ()),
+            Profile::AssignmentParquet => validate_cell_patch_assignment_table_parquet_from_store(
+                &fixture.store,
+                &malformed_record,
+                &fixture.link,
+                budgets(),
+            )
+            .map(|_| ()),
+            Profile::EdgeParquet => validate_cell_patch_edge_table_parquet_from_store(
+                &fixture.store,
+                &malformed_record,
+                &fixture.link,
+                budgets(),
+            )
+            .map(|_| ()),
+        };
+        match managed {
+            Err(VerifiedReaderError::Callback(error)) => assert_eq!(error, borrowed),
+            observed => panic!("expected matching managed callback error, got {observed:?}"),
+        }
+
+        let path = fixture
+            ._root
+            .path()
+            .join(malformed_record.locations()[0].key().as_str());
+        let mut corrupt = malformed.clone();
+        corrupt[0] ^= 1;
+        std::fs::write(&path, corrupt).expect("corrupt managed profile");
+        let integrity = match profile {
+            Profile::AssignmentArrow => validate_cell_patch_assignment_table_arrow_from_store(
+                &fixture.store,
+                &malformed_record,
+                &fixture.link,
+                budgets(),
+            )
+            .map(|_| ()),
+            Profile::EdgeArrow => validate_cell_patch_edge_table_arrow_from_store(
+                &fixture.store,
+                &malformed_record,
+                &fixture.link,
+                budgets(),
+            )
+            .map(|_| ()),
+            Profile::AssignmentParquet => validate_cell_patch_assignment_table_parquet_from_store(
+                &fixture.store,
+                &malformed_record,
+                &fixture.link,
+                budgets(),
+            )
+            .map(|_| ()),
+            Profile::EdgeParquet => validate_cell_patch_edge_table_parquet_from_store(
+                &fixture.store,
+                &malformed_record,
+                &fixture.link,
+                budgets(),
+            )
+            .map(|_| ()),
+        };
+        assert!(matches!(
+            integrity,
+            Err(VerifiedReaderError::Store(
+                ArtifactStoreError::ContentIntegrity { .. }
+            ))
+        ));
     }
 }
 

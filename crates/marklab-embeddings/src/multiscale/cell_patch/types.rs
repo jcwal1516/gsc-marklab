@@ -15,7 +15,7 @@ pub enum CellPatchAssignmentMode {
 }
 
 impl CellPatchAssignmentMode {
-    pub(super) fn wire_name(self) -> &'static str {
+    pub(crate) fn wire_name(self) -> &'static str {
         match self {
             Self::ContainedShared => "contained_shared",
             Self::DeclaredWeightedInterpolation => "declared_weighted_interpolation",
@@ -35,7 +35,7 @@ pub enum CellPatchAssignmentStatus {
 }
 
 impl CellPatchAssignmentStatus {
-    pub(super) fn wire_name(self) -> &'static str {
+    pub(crate) fn wire_name(self) -> &'static str {
         match self {
             Self::Assigned => "assigned",
             Self::OutsideSampledSupport => "outside_sampled_support",
