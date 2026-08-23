@@ -192,7 +192,7 @@ The tables below ensure every scientific, platform, current-capability, and work
 | WS-21 | complete | C-02 coordinates, units, dimensions, transforms, uncertainty; commit `c676cfd732d02d6202bff8cea47fcf74b5bfd8e7` |
 | WS-22 | planned | Windows, compartments, exact geometry |
 | WS-23 | planned | General marks and measurement provenance |
-| WS-24 | active/data available with blockers | C-04 cell-vector substrate is complete. C-05 now has synthetic/domain-level expected/context/footprints/overlap, typed logical tables, both link families, and strict source/support/derivation/producer/assessment/provenance records, but physical profiles, artifact records/receipts, and graph validation remain. Authorized candidates still lack promotable canonical identity/context/provenance/linkage; region/slide profiles are inadmissible. General measurement status follows in C-06 |
+| WS-24 | active/data available with blockers | C-04 cell-vector substrate is complete. C-05 has its synthetic/domain logical and strict record substrate, an eighteen-role direct-patch structural graph, and exact Arrow/Parquet physical validation/publication plus separate receipts for footprint and overlap artifacts. Six of eight physical families, support/table/link receipts, derived/cell/link graphs, fuzz/scale closure, and source-adapter correspondence remain. Authorized candidates still lack promotable canonical identity/context/provenance/linkage; region/slide profiles are inadmissible. General measurement status follows in C-06 |
 | WS-25 | planned | SpatialData/AnnData/OME-NGFF/Arrow/Parquet/Zarr interchange |
 | WS-30 | planned | Classical point-process core |
 | WS-31 | planned | Nulls, global inference, multiplicity |

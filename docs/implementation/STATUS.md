@@ -1,13 +1,13 @@
 # Implementation status
 
-Last updated: 2026-08-23T13:20:28-04:00
+Last updated: 2026-08-23T14:50:25-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Committed baseline before the current checkpoint: `22358e1366ae8585b0bf557d5333042ae765b228`
+- Committed baseline before the current checkpoint: `6609eab7606717828ca76f1b1c6e4df66f419119`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
@@ -30,12 +30,12 @@ Last updated: 2026-08-23T13:20:28-04:00
 
 - C-04 delivers exact cell-table/validity/expected/identity/context/link/provenance owners, bounded non-pickle source import, embedding-specific Arrow/Parquet validation/publication/scans, fuzz/differential/resource evidence, and pinned scale workloads.
 - The authorized 32-bundle source profile reconciles exactly but remains aggregate-only and non-promotable because `canonical_identity_mapping`, `input_normalization_and_run_configuration`, `reviewed_source_snapshot`, and `license_record` are absent.
-- C-05's approved logical and record substrate includes distinct expected patch/region/slide sets, exact patch context/footprints/overlap, three typed embedding tables, vector-free links, strict patch source-identity/normalization values, all four canonical support variants, deterministic weighted/arithmetic derivation contracts, both cell-link producer modes, the exhaustive patch-region assessment descriptor, and all four strict multiscale provenance variants. The current checkpoint adds the direct-patch structural artifact graph: eighteen exact roles, all nested dependency shapes, exact non-table records, structural Arrow/Parquet footprint and overlap manifests, constant-memory canonical payload comparison through the supplied managed store, cross-value binding checks, privacy-safe errors, and one runtime-only unforgeable graph token. Both independent reviewers approve only this direct-patch structural boundary. It does not decode physical bytes, issue a support/table receipt, establish source-vector correspondence, admit a source adapter, or cover derived/cell/link graphs; those physical receipts, remaining graphs, scale evidence, and closure remain open.
+- C-05's approved logical and record substrate includes distinct expected patch/region/slide sets, exact patch context/footprints/overlap, three typed embedding tables, vector-free links, strict patch source-identity/normalization values, all four canonical support variants, deterministic weighted/arithmetic derivation contracts, both cell-link producer modes, the exhaustive patch-region assessment descriptor, all four strict multiscale provenance variants, and the eighteen-role direct-patch structural graph. The current checkpoint adds the first two of eight physical families: exact footprint and overlap Arrow IPC/Parquet writers, raw-before-stock readers, deterministic publications, and separate runtime-only graph-bound receipts. Full borrowed and managed decode, integrity precedence, format-distinct receipt composition, exact/one-short file/decoded/group/retained budgets, three-batch/group decoding, fresh-process determinism, and profile-specific hostile declarations are covered. It does not issue support or matrix-table receipts, establish source-vector correspondence, admit a source adapter, or cover assignment/edge/patch-region physical files or derived/cell/link graphs; six physical families, remaining receipts/graphs, fuzz/scale evidence, and closure remain open.
 - A later aggregate/header audit found candidate patch-feature matrices at widths 384 and 1,024 plus patch image/coordinate containers. It found no promotable patch/region/slide table or canonical link. The evidence has no pinned digest and no production source grammar; the validation ledger records the exact claim ceiling and one bounded recursive-key-output audit defect.
 
 ## Dirty files and reason
 
-- C-05 direct-patch structural-graph checkpoint: additive `multiscale/records/artifact_graph/**`, crate-private streaming canonical comparison hooks on the eight owned JSON values, focused public role/error/token exports, and modular graph/profile/resource/privacy tests. The footprint and overlap `TableManifest` checks are structural only; no dependency/lockfile, physical reader/writer, physical/support/table receipt, source adapter, real-corpus promotion, or scientific-result change is dirty.
+- C-05 footprint/overlap physical checkpoint: additive shared spatial columnar errors/budgets, exact Arrow/Parquet profile/writer/preflight/reader/publication owners, central physical manifests, separate footprint/overlap receipt types, crate/root exports, and focused physical/graph tests. The structural graph remains a prerequisite and cannot mint either receipt without full physical decode. No manifest, dependency, lockfile, source adapter, support/table/link receipt, real-corpus promotion, or scientific-result change is dirty.
 
 ## Recent decisions
 
@@ -80,12 +80,12 @@ Last updated: 2026-08-23T13:20:28-04:00
 
 ## Next three exact actions
 
-1. Commit the independently approved C-05 direct-patch structural-graph checkpoint with a clean worktree.
-2. Add behavior-first physical validation/publication for the footprint and overlap Arrow/Parquet profiles, then issue their separate runtime receipts.
-3. Extend separate structural/physical receipts across cell-patch, patch-region, derived-region, and derived-slide publication order without creating a monolithic graph.
+1. Commit the independently reviewed C-05 footprint/overlap physical checkpoint with a clean worktree.
+2. Add behavior-first Arrow/Parquet profiles and a paired receipt for cell-patch assignments and edges.
+3. Add patch-region physical validation/receipt, then extend the dependency-ordered derived-region and derived-slide graphs without creating a monolithic graph.
 
 Next exact verification command:
 
 ```bash
-cargo +1.96.0 test --locked --test multiscale_embedding_artifact_graph
+cargo +1.96.0 test --locked --features parquet --test multiscale_embedding_arrow --test multiscale_embedding_parquet --test multiscale_embedding_artifact_graph
 ```

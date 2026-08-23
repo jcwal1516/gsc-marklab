@@ -1,4 +1,5 @@
 mod compact;
+mod multiscale;
 mod preflight;
 mod profile;
 mod publication;
@@ -6,6 +7,7 @@ mod reader;
 mod row_link;
 mod writer;
 
+pub use multiscale::*;
 pub use preflight::{preflight_cell_embedding_table_parquet_bytes, CellEmbeddingParquetPreflight};
 pub use publication::publish_cell_embedding_table_parquet;
 pub use reader::{

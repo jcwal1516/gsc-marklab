@@ -83,6 +83,7 @@ pub(super) struct FixtureOptions {
     pub(super) license_catalog_only: bool,
     pub(super) source_entity_catalog_only: bool,
     pub(super) parquet_physical: bool,
+    pub(super) canonical_physical: bool,
     pub(super) entity_count: usize,
 }
 
@@ -102,6 +103,7 @@ impl Default for FixtureOptions {
             license_catalog_only: false,
             source_entity_catalog_only: false,
             parquet_physical: false,
+            canonical_physical: false,
             entity_count: 2,
         }
     }
@@ -120,7 +122,11 @@ pub(super) struct Fixture {
     pub(super) input_normalization: PatchEmbeddingInputNormalization,
     pub(super) context: PatchEmbeddingContext,
     pub(super) footprints: PatchFootprintSet,
+    #[cfg(feature = "parquet")]
+    pub(super) footprint_record: ArtifactRecord,
     pub(super) overlap: PatchOverlapGraph,
+    #[cfg(feature = "parquet")]
+    pub(super) overlap_record: ArtifactRecord,
     pub(super) support: MultiscaleEmbeddingSupport,
 }
 

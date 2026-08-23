@@ -325,28 +325,40 @@ pub(crate) fn fixture_with_options(options: FixtureOptions) -> Fixture {
         footprint_dependencies.push(checkpoint.id());
     }
     let footprint_mutation = physical_mutation(&options, PhysicalArtifactRole::PatchFootprints);
-    let footprint_record = publish_record(
-        &store,
-        "marklab.patch_footprint_table",
-        if footprint_mutation == Some(PhysicalManifestMutation::ContentKind) {
-            "application/octet-stream"
-        } else if options.parquet_physical {
-            "application/vnd.marklab.patch-footprint-table.v1+parquet"
-        } else {
-            "application/vnd.marklab.patch-footprint-table.v1+arrow"
-        },
-        b"structural-only-footprint-bytes",
-        footprint_dependencies,
-        if footprint_mutation == Some(PhysicalManifestMutation::MissingManifest) {
-            None
-        } else {
-            Some(footprint_manifest(
-                u64::try_from(footprints.row_count()).expect("footprint count"),
-                options.parquet_physical,
-                footprint_mutation,
-            ))
-        },
-    );
+    let footprint_record = if options.canonical_physical {
+        assert!(footprint_mutation.is_none());
+        assert_eq!(footprint_dependencies.len(), 2);
+        canonical_footprint_record(
+            &store,
+            &expected_patches,
+            &context,
+            &footprints,
+            options.parquet_physical,
+        )
+    } else {
+        publish_record(
+            &store,
+            "marklab.patch_footprint_table",
+            if footprint_mutation == Some(PhysicalManifestMutation::ContentKind) {
+                "application/octet-stream"
+            } else if options.parquet_physical {
+                "application/vnd.marklab.patch-footprint-table.v1+parquet"
+            } else {
+                "application/vnd.marklab.patch-footprint-table.v1+arrow"
+            },
+            b"structural-only-footprint-bytes",
+            footprint_dependencies,
+            if footprint_mutation == Some(PhysicalManifestMutation::MissingManifest) {
+                None
+            } else {
+                Some(footprint_manifest(
+                    u64::try_from(footprints.row_count()).expect("footprint count"),
+                    options.parquet_physical,
+                    footprint_mutation,
+                ))
+            },
+        )
+    };
 
     let overlap = PatchOverlapGraph::derive(
         &expected_patches,
@@ -366,28 +378,41 @@ pub(crate) fn fixture_with_options(options: FixtureOptions) -> Fixture {
         overlap_dependencies.push(checkpoint.id());
     }
     let overlap_mutation = physical_mutation(&options, PhysicalArtifactRole::PatchOverlapGraph);
-    let overlap_record = publish_record(
-        &store,
-        "marklab.patch_overlap_edge_table",
-        if overlap_mutation == Some(PhysicalManifestMutation::ContentKind) {
-            "application/octet-stream"
-        } else if options.parquet_physical {
-            "application/vnd.marklab.patch-overlap-edge-table.v1+parquet"
-        } else {
-            "application/vnd.marklab.patch-overlap-edge-table.v1+arrow"
-        },
-        b"structural-only-overlap-bytes",
-        overlap_dependencies,
-        if overlap_mutation == Some(PhysicalManifestMutation::MissingManifest) {
-            None
-        } else {
-            Some(overlap_manifest(
-                u64::try_from(overlap.edge_count()).expect("overlap count"),
-                options.parquet_physical,
-                overlap_mutation,
-            ))
-        },
-    );
+    let overlap_record = if options.canonical_physical {
+        assert!(overlap_mutation.is_none());
+        assert_eq!(overlap_dependencies.len(), 3);
+        canonical_overlap_record(
+            &store,
+            &expected_patches,
+            &context,
+            &footprints,
+            &overlap,
+            options.parquet_physical,
+        )
+    } else {
+        publish_record(
+            &store,
+            "marklab.patch_overlap_edge_table",
+            if overlap_mutation == Some(PhysicalManifestMutation::ContentKind) {
+                "application/octet-stream"
+            } else if options.parquet_physical {
+                "application/vnd.marklab.patch-overlap-edge-table.v1+parquet"
+            } else {
+                "application/vnd.marklab.patch-overlap-edge-table.v1+arrow"
+            },
+            b"structural-only-overlap-bytes",
+            overlap_dependencies,
+            if overlap_mutation == Some(PhysicalManifestMutation::MissingManifest) {
+                None
+            } else {
+                Some(overlap_manifest(
+                    u64::try_from(overlap.edge_count()).expect("overlap count"),
+                    options.parquet_physical,
+                    overlap_mutation,
+                ))
+            },
+        )
+    };
 
     let support = MultiscaleEmbeddingSupport::patch(
         slide.clone(),
@@ -500,8 +525,8 @@ pub(crate) fn fixture_with_options(options: FixtureOptions) -> Fixture {
         identity_record,
         row_link_record,
         context_record,
-        footprint_record,
-        overlap_record,
+        footprint_record.clone(),
+        overlap_record.clone(),
         support_record,
         provenance_record,
     ];
@@ -520,7 +545,109 @@ pub(crate) fn fixture_with_options(options: FixtureOptions) -> Fixture {
         input_normalization,
         context,
         footprints,
+        #[cfg(feature = "parquet")]
+        footprint_record,
         overlap,
+        #[cfg(feature = "parquet")]
+        overlap_record,
         support,
     }
+}
+
+#[cfg(feature = "parquet")]
+fn physical_budgets() -> marklab::EmbeddingColumnarBudgets {
+    marklab::EmbeddingColumnarBudgets::new(
+        64 * 1024 * 1024,
+        64 * 1024 * 1024,
+        64 * 1024 * 1024,
+        64 * 1024 * 1024,
+    )
+}
+
+#[cfg(feature = "parquet")]
+fn canonical_footprint_record(
+    store: &LocalArtifactStore,
+    expected: &ExpectedPatchSet,
+    context: &PatchEmbeddingContext,
+    footprints: &PatchFootprintSet,
+    parquet: bool,
+) -> ArtifactRecord {
+    if parquet {
+        marklab::publish_patch_footprint_set_parquet(
+            store,
+            expected,
+            context,
+            footprints,
+            physical_budgets(),
+        )
+        .expect("publish canonical footprint Parquet")
+        .into_record()
+    } else {
+        marklab::publish_patch_footprint_set_arrow(
+            store,
+            expected,
+            context,
+            footprints,
+            physical_budgets(),
+        )
+        .expect("publish canonical footprint Arrow")
+        .into_record()
+    }
+}
+
+#[cfg(not(feature = "parquet"))]
+fn canonical_footprint_record(
+    _store: &LocalArtifactStore,
+    _expected: &ExpectedPatchSet,
+    _context: &PatchEmbeddingContext,
+    _footprints: &PatchFootprintSet,
+    _parquet: bool,
+) -> ArtifactRecord {
+    panic!("canonical physical fixture requires the parquet feature")
+}
+
+#[cfg(feature = "parquet")]
+fn canonical_overlap_record(
+    store: &LocalArtifactStore,
+    expected: &ExpectedPatchSet,
+    context: &PatchEmbeddingContext,
+    footprints: &PatchFootprintSet,
+    overlap: &PatchOverlapGraph,
+    parquet: bool,
+) -> ArtifactRecord {
+    if parquet {
+        marklab::publish_patch_overlap_graph_parquet(
+            store,
+            expected,
+            context,
+            footprints,
+            overlap,
+            physical_budgets(),
+        )
+        .expect("publish canonical overlap Parquet")
+        .into_record()
+    } else {
+        marklab::publish_patch_overlap_graph_arrow(
+            store,
+            expected,
+            context,
+            footprints,
+            overlap,
+            physical_budgets(),
+        )
+        .expect("publish canonical overlap Arrow")
+        .into_record()
+    }
+}
+
+#[cfg(not(feature = "parquet"))]
+fn canonical_overlap_record(
+    _store: &LocalArtifactStore,
+    _expected: &ExpectedPatchSet,
+    _context: &PatchEmbeddingContext,
+    _footprints: &PatchFootprintSet,
+    _overlap: &PatchOverlapGraph,
+    _parquet: bool,
+) -> ArtifactRecord {
+    panic!("canonical physical fixture requires the parquet feature")
 }

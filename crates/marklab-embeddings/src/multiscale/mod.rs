@@ -1,3 +1,4 @@
+mod artifact;
 mod cell_patch;
 mod context;
 mod digest;
@@ -8,9 +9,11 @@ mod footprint;
 mod json;
 mod overlap;
 mod patch_region;
+pub(crate) mod physical;
 mod records;
 mod table;
 
+pub use artifact::{VerifiedPatchFootprintArtifact, VerifiedPatchOverlapArtifact};
 pub use cell_patch::{
     CellPatchAnchor, CellPatchAssignment, CellPatchAssignmentMode, CellPatchAssignmentStatus,
     CellPatchContributor, CellPatchEdge, CellPatchLink, CellPatchLinkBindings, CellPatchWeight,

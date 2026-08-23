@@ -1,32 +1,53 @@
 mod arrow;
 mod error;
+mod multiscale;
 mod parquet;
 
 pub use arrow::{
     preflight_cell_embedding_row_link_arrow_bytes, preflight_cell_embedding_table_arrow_bytes,
+    preflight_patch_footprint_set_arrow_bytes, preflight_patch_overlap_graph_arrow_bytes,
     publish_cell_embedding_row_link_arrow, publish_cell_embedding_table_arrow,
+    publish_patch_footprint_set_arrow, publish_patch_overlap_graph_arrow,
     read_cell_embedding_table_arrow_bytes, read_cell_embedding_table_arrow_from_store,
     scan_cell_embedding_table_arrow_bytes, scan_cell_embedding_table_arrow_from_store,
     validate_cell_embedding_row_link_arrow_bytes,
-    validate_cell_embedding_row_link_arrow_from_store, verify_cell_embedding_row_link_arrow_bytes,
+    validate_cell_embedding_row_link_arrow_from_store, validate_patch_footprint_set_arrow_bytes,
+    validate_patch_footprint_set_arrow_from_store, validate_patch_overlap_graph_arrow_bytes,
+    validate_patch_overlap_graph_arrow_from_store, verify_cell_embedding_row_link_arrow_bytes,
     verify_cell_embedding_row_link_arrow_from_store, verify_cell_embedding_table_arrow_bytes,
-    verify_cell_embedding_table_arrow_from_store, write_cell_embedding_row_link_arrow,
-    write_cell_embedding_table_arrow, CellEmbeddingArrowPreflight,
+    verify_cell_embedding_table_arrow_from_store, verify_patch_footprint_set_arrow_bytes,
+    verify_patch_footprint_set_arrow_from_store, verify_patch_overlap_graph_arrow_bytes,
+    verify_patch_overlap_graph_arrow_from_store, write_cell_embedding_row_link_arrow,
+    write_cell_embedding_table_arrow, write_patch_footprint_set_arrow,
+    write_patch_overlap_graph_arrow, CellEmbeddingArrowPreflight,
     CellEmbeddingRowLinkArrowPreflight, EmbeddingColumnarPublicationError,
+    MultiscaleColumnarPublicationError, PatchFootprintArrowPreflight, PatchOverlapArrowPreflight,
 };
 pub use error::{ArrowIpcFailure, EmbeddingColumnarError, ParquetFailure};
+pub use multiscale::{
+    MultiscaleColumnarError, SpatialArrowFailure, SpatialColumnarWriteSummary,
+    SpatialParquetFailure,
+};
 pub use parquet::{
     preflight_cell_embedding_row_link_parquet_bytes, preflight_cell_embedding_table_parquet_bytes,
+    preflight_patch_footprint_set_parquet_bytes, preflight_patch_overlap_graph_parquet_bytes,
     publish_cell_embedding_row_link_parquet, publish_cell_embedding_table_parquet,
+    publish_patch_footprint_set_parquet, publish_patch_overlap_graph_parquet,
     read_cell_embedding_table_parquet_bytes, read_cell_embedding_table_parquet_from_store,
     scan_cell_embedding_table_parquet_bytes, scan_cell_embedding_table_parquet_from_store,
     validate_cell_embedding_row_link_parquet_bytes,
     validate_cell_embedding_row_link_parquet_from_store,
+    validate_patch_footprint_set_parquet_bytes, validate_patch_footprint_set_parquet_from_store,
+    validate_patch_overlap_graph_parquet_bytes, validate_patch_overlap_graph_parquet_from_store,
     verify_cell_embedding_row_link_parquet_bytes,
     verify_cell_embedding_row_link_parquet_from_store, verify_cell_embedding_table_parquet_bytes,
-    verify_cell_embedding_table_parquet_from_store, write_cell_embedding_row_link_parquet,
-    write_cell_embedding_table_parquet, CellEmbeddingParquetPreflight,
-    CellEmbeddingRowLinkParquetPreflight,
+    verify_cell_embedding_table_parquet_from_store, verify_patch_footprint_set_parquet_bytes,
+    verify_patch_footprint_set_parquet_from_store, verify_patch_overlap_graph_parquet_bytes,
+    verify_patch_overlap_graph_parquet_from_store, write_cell_embedding_row_link_parquet,
+    write_cell_embedding_table_parquet, write_patch_footprint_set_parquet,
+    write_patch_overlap_graph_parquet, CellEmbeddingParquetPreflight,
+    CellEmbeddingRowLinkParquetPreflight, PatchFootprintParquetPreflight,
+    PatchOverlapParquetPreflight,
 };
 
 use marklab_project::{ArtifactId, ContentDigest};

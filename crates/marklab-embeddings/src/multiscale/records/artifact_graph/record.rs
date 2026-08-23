@@ -1,6 +1,6 @@
-use marklab_project::{
-    ArtifactCatalog, ArtifactId, ArtifactRecord, TableColumnType, TableFormat, TableScalarType,
-};
+use marklab_project::{ArtifactCatalog, ArtifactId, ArtifactRecord};
+
+use crate::multiscale::physical::{record_matches, SpatialArtifactRole};
 
 use super::{MultiscaleEmbeddingArtifactGraphError, MultiscaleEmbeddingArtifactRole};
 
@@ -132,28 +132,14 @@ fn require_footprint_manifest(
     row_count: u64,
 ) -> Result<(), MultiscaleEmbeddingArtifactGraphError> {
     let role = MultiscaleEmbeddingArtifactRole::PatchFootprints;
-    let (format, encoding) = physical_profile(
-        record,
-        role,
-        "application/vnd.marklab.patch-footprint-table.v1+arrow",
-        "application/vnd.marklab.patch-footprint-table.v1+parquet",
-        "marklab.arrow-ipc.patch-footprint-table.v1",
-        "marklab.parquet.patch-footprint-table.v1",
-    )?;
-    let Some(table) = record.table() else {
-        return Err(MultiscaleEmbeddingArtifactGraphError::TableManifestMismatch { role });
-    };
-    let columns = table.columns();
-    let valid_columns = columns.len() == 3
-        && scalar_column(&columns[0], "patch_id", TableScalarType::Utf8)
-        && scalar_column(&columns[1], "origin_x_px", TableScalarType::I64)
-        && scalar_column(&columns[2], "origin_y_px", TableScalarType::I64);
-    if table.format() != format
-        || table.encoding_version() != encoding
-        || table.row_count() != row_count
-        || !valid_columns
-        || table.primary_key() != ["patch_id"]
-    {
+    if !matches!(
+        record.content().kind(),
+        "application/vnd.marklab.patch-footprint-table.v1+arrow"
+            | "application/vnd.marklab.patch-footprint-table.v1+parquet"
+    ) {
+        return Err(MultiscaleEmbeddingArtifactGraphError::ContentKindMismatch { role });
+    }
+    if !record_matches(record, SpatialArtifactRole::Footprint, row_count) {
         return Err(MultiscaleEmbeddingArtifactGraphError::TableManifestMismatch { role });
     }
     Ok(())
@@ -164,53 +150,15 @@ fn require_overlap_manifest(
     row_count: u64,
 ) -> Result<(), MultiscaleEmbeddingArtifactGraphError> {
     let role = MultiscaleEmbeddingArtifactRole::PatchOverlapGraph;
-    let (format, encoding) = physical_profile(
-        record,
-        role,
-        "application/vnd.marklab.patch-overlap-edge-table.v1+arrow",
-        "application/vnd.marklab.patch-overlap-edge-table.v1+parquet",
-        "marklab.arrow-ipc.patch-overlap-edge-table.v1",
-        "marklab.parquet.patch-overlap-edge-table.v1",
-    )?;
-    let Some(table) = record.table() else {
-        return Err(MultiscaleEmbeddingArtifactGraphError::TableManifestMismatch { role });
-    };
-    let columns = table.columns();
-    let valid_columns = columns.len() == 2
-        && scalar_column(&columns[0], "left_patch_id", TableScalarType::Utf8)
-        && scalar_column(&columns[1], "right_patch_id", TableScalarType::Utf8);
-    if table.format() != format
-        || table.encoding_version() != encoding
-        || table.row_count() != row_count
-        || !valid_columns
-        || table.primary_key() != ["left_patch_id", "right_patch_id"]
-    {
+    if !matches!(
+        record.content().kind(),
+        "application/vnd.marklab.patch-overlap-edge-table.v1+arrow"
+            | "application/vnd.marklab.patch-overlap-edge-table.v1+parquet"
+    ) {
+        return Err(MultiscaleEmbeddingArtifactGraphError::ContentKindMismatch { role });
+    }
+    if !record_matches(record, SpatialArtifactRole::Overlap, row_count) {
         return Err(MultiscaleEmbeddingArtifactGraphError::TableManifestMismatch { role });
     }
     Ok(())
-}
-
-fn physical_profile<'a>(
-    record: &ArtifactRecord,
-    role: MultiscaleEmbeddingArtifactRole,
-    arrow_kind: &str,
-    parquet_kind: &str,
-    arrow_encoding: &'a str,
-    parquet_encoding: &'a str,
-) -> Result<(TableFormat, &'a str), MultiscaleEmbeddingArtifactGraphError> {
-    match record.content().kind() {
-        value if value == arrow_kind => Ok((TableFormat::ArrowIpcFile, arrow_encoding)),
-        value if value == parquet_kind => Ok((TableFormat::ParquetFile, parquet_encoding)),
-        _ => Err(MultiscaleEmbeddingArtifactGraphError::ContentKindMismatch { role }),
-    }
-}
-
-fn scalar_column(
-    column: &marklab_project::TableColumn,
-    name: &str,
-    scalar: TableScalarType,
-) -> bool {
-    column.name() == name
-        && column.column_type() == &TableColumnType::Scalar(scalar)
-        && !column.nullable()
 }
