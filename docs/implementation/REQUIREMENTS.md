@@ -9,9 +9,9 @@ Statuses are `planned`, `active`, `blocked`, `complete`, `deferred`, or `rejecte
 | PLAT-01 | Project, artifact, and workflow operating system | WS-A baseline | Lead | active | New project/workflow surface | Pending |
 | WF-01 | Typed composable workflow DAG | PLAT-01 | Lead | active | New workflow schema/API | B-04 single-node typed slice complete; general composition/resume remains |
 | BACK-01 | Versioned backend registry | PLAT-01, WF-01 | Lead | planned | Backend manifests/CLI | Pending |
-| DATA-01 | Identity, hierarchy, modalities, coordinates, and units | WS-B | Lead | active | New stable data contracts | C-01 identity/hierarchy, C-02 coordinates, and C-03 artifact substrate complete; C-04–C-06 and durable payload alignment remain |
+| DATA-01 | Identity, hierarchy, modalities, coordinates, and units | WS-B | Lead | active | New stable data contracts | C-01 identity/hierarchy, C-02 coordinates, C-03 artifact substrate, and C-04 cell-embedding substrate complete; C-05–C-06 and broader durable payload alignment remain |
 | GEO-01 | Exact windows, compartments, boundaries, and geometry plans | DATA-01 | Lead | planned | New geometry/result families | Pending |
-| EMB-CORE | CellViT single-cell embedding modality | DATA-01, artifact layer | Lead | active | New artifact contract | C-04 active; real vectors/checkpoint/manifests found, while safe conversion, stable `CellId`, physical conformance, and extraction semantics remain |
+| EMB-CORE | CellViT single-cell embedding modality | DATA-01, artifact layer | Lead | complete | New artifact contract | C-04 commits `8b90141`–`55d1c8b`; bounded cell table/import/provenance/Arrow/Parquet/scale evidence complete; authorized corpus remains explicitly non-promotable until four promotion fields are supplied |
 | EMB-PATCH | Patch/region/slide embeddings and links | DATA-01, artifact layer | Lead | planned | New artifact contract | Pending |
 | BAY-01 | Bayesian model IR and prior system | PLAT-01, DATA-01 | Lead | planned | Experimental model schema | Pending |
 | BAY-02 | Posterior artifacts and diagnostics | BAY-01, BACK-01 | Lead | planned | Fit-state/result contracts | Pending |
@@ -25,7 +25,7 @@ Statuses are `planned`, `active`, `blocked`, `complete`, `deferred`, or `rejecte
 | FND-02 | ObservationWindow2D | FND-01 | Lead | planned | Infrastructure only | Remote sampled-patch geometry exists; explicit union-window reconstruction and tissue-mask boundary pending |
 | FND-03 | Reusable exact spatial geometry plan | FND-02 | Lead | planned | Infrastructure only | Pending |
 | FND-04 | Typed marks and measurement provenance | FND-01 | Lead | planned | Infrastructure only | Pending |
-| FND-05 | Cell/patch embedding artifacts | FND-01, FND-04 | Lead | active | No model-specific claim | C-04 owns the bounded cell-table substrate; FND-04 measurement provenance and C-05 patch links remain prerequisites for full closure |
+| FND-05 | Cell/patch embedding artifacts | FND-01, FND-04 | Lead | active | No model-specific claim | C-04 bounded cell-table substrate complete; FND-04/C-06 measurement provenance and C-05 patch links remain prerequisites for full closure |
 | FND-06 | Inference designs/randomization units | FND-01 | Lead | planned | No cohort claim | Pending |
 | FND-07 | Scientific provenance and schema evolution | FND-01–06 | Lead | planned | No stable new result | Pending |
 | PP-01 | Homogeneous Ripley K/L | FND-02, FND-03, FND-06 | Lead | planned | Unsupported | Pending oracle/calibration |
@@ -63,7 +63,7 @@ Statuses are `planned`, `active`, `blocked`, `complete`, `deferred`, or `rejecte
 | C-01 | Typed identities/hierarchy | WS-B | Lead | complete | Focused core/data files | Commit `a1260445a383c59381b2c7c7881cebb10e10c156`; 14 hierarchy regressions, 430-test workspace gate, full benchmark, independent re-review |
 | C-02 | Units/frames/dimensions/transforms | C-01 | Lead | complete | Focused core/data files | Commit `c676cfd732d02d6202bff8cea47fcf74b5bfd8e7`; 10 coordinate regressions, 440-test workspace gate, independent re-review; exact registry package resolution deferred by DEC-0018 |
 | C-03 | Artifact catalog/immutable tables | B-04 | Lead | complete | Project/artifact files | Commits `97119cdfec7dcfe9da9375515e3d780991003888` and `488d3bd65b5a9e17c7cc1849700e13d2d8eb771f`; 471-test workspace gate, store/catalog adversarial suite, fuzz/dependency/compatibility gates, query-boundary regression, and independent final review; `handoffs/C-03.md`. DATA-01, FND-07, WS-11, WS-25, and WS-C remain open |
-| C-04 | CellViT embedding table | C-01, C-03 | Lead | active | Data/artifact/import tests | Real remote assets identified; contract activation now owns trusted non-pickle conversion, stable row linkage, exact schema/provenance, physical-format promotion, and scale gates |
+| C-04 | CellViT embedding table | C-01, C-03 | Lead | complete | Data/artifact/import tests | Commits `8b90141`–`55d1c8b`; exact domain/provenance/link schemas, bounded NPY/CSV and Arrow/Parquet paths, fuzz/differential/resource gates, 32-bundle reconciliation, 10k/1M scale, and independent closure review; `handoffs/C-04.md` |
 | C-05 | Patch/region/slide embedding links | C-02–C-04 | Lead | planned | Data/artifact tests | Overlap/link tests |
 | C-06 | General marks/status | C-01, C-03 | Lead | planned | Data/artifact tests | Measurement-status tests |
 | SLIDE-INV | Authorized remote WSI/embedding inventory | A-01 | `remote_slide_inventory` | complete | Documentation only | 677 high-confidence WSI-compatible objects, CellViT provenance, and exact remaining gaps recorded |
@@ -192,7 +192,7 @@ The tables below ensure every scientific, platform, current-capability, and work
 | WS-21 | complete | C-02 coordinates, units, dimensions, transforms, uncertainty; commit `c676cfd732d02d6202bff8cea47fcf74b5bfd8e7` |
 | WS-22 | planned | Windows, compartments, exact geometry |
 | WS-23 | planned | General marks and measurement provenance |
-| WS-24 | active/data available with blockers | C-04 is active for CellViT vectors; safe conversion, stable identity, extraction semantics, physical conformance, and scale evidence remain. Patch/region/slide links follow in C-05 |
+| WS-24 | active/data available with blockers | C-04 cell-vector substrate is complete. Authorized real bundles reconcile but cannot be promoted without four exact promotion fields; patch/region/slide vectors and links follow in C-05, and general measurement status follows in C-06 |
 | WS-25 | planned | SpatialData/AnnData/OME-NGFF/Arrow/Parquet/Zarr interchange |
 | WS-30 | planned | Classical point-process core |
 | WS-31 | planned | Nulls, global inference, multiplicity |

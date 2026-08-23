@@ -93,3 +93,9 @@ The timed full command completed in 126.19 s wall time and reported no compilati
 The exact DHAT gate completed in 137.51 s. A diagnostic run of the same test reported zero current tracked bytes, a 324,194,945-byte peak, and a 603,979,776-byte cap. Unlike Criterion, its measured path imports the source table, publishes fresh Arrow and Parquet objects into a disk-backed temporary store, validates both scans and materialized reads, then drops every operation-owned value before sampling heap statistics.
 
 These are storage/import/integrity workload checks, not embedding inference, biological analysis, a scientific estimand, or an optimization claim. The full profile does not exercise source-bundle import or physical columnar round trips; the smoke and authorized-corpus reconciliation own those complementary dimensions. Ten-million-row out-of-core behavior remains planned and unmeasured. C-04 remains open until the authorized 32-bundle Rust reconciliation and phase-boundary gates pass.
+
+## C-04 closure disposition
+
+The final workspace smoke at implementation SHA `55d1c8b8a07b2dbf40f77b5590127456f9042295` executed eight Criterion targets and ten intervals. The embedding interval was 4.1952–4.2284 s at 3.0271–3.0511 million values/s; every existing target reported no detected change. The final embedding DHAT phase rerun passed in 138.51 s, and the prior diagnostic values (current 0, peak 324,194,945, cap 603,979,776 bytes) remain the allocation evidence.
+
+The authorized 32-bundle reconciliation and every canonical phase-boundary gate subsequently passed or, for exact registry packaging, reproduced the explicit DEC-0018 non-green blocker. C-04 is therefore closed as storage/import infrastructure. The preceding “remains open” sentence is retained as historical checkpoint state; it is superseded by this disposition. No optimization, 10-million-row, mmap/zero-copy, real-corpus promotion, inference, or biological-performance claim is added.

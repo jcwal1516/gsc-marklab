@@ -145,9 +145,9 @@ The 0.2 reader remains deliberately narrow: only unambiguous marked documents mi
 |---|---|---|
 | Default features | `cli`, `parallel`, `parquet`, `csv` | Preserve aggregate behavior |
 | Optional features | `wsi`, `allocator-mimalloc`, `dhat-heap` | Preserve isolation and supported combinations |
-| Integration suites | API, CLI, config 0.2, diagnostics, spectrum, multimodal CLI, performance, result 0.3, workflow, WSI | All remain gates through WS-B |
-| Fuzz targets | config, GeoJSON mask, CSV row parser, result document, WSI region request | Preserve/build; add only for changed boundaries |
-| Criterion benches | structure factor, permutation engine, periodogram, multiscale residual, random-labeling envelope, pattern load | Preserve names and workload semantics |
+| Integration suites | API, CLI, config 0.2, diagnostics, spectrum, multimodal CLI, performance, result 0.3, workflow, WSI, project/artifact, hierarchy/coordinates, and CellViT embedding domain/source/physical boundaries | Preserve and extend only through owned contracts |
+| Fuzz targets | config, GeoJSON mask, CSV row parser, result document, WSI region request, artifact catalog, and bounded embedding inputs | Preserve/build; add only for changed boundaries |
+| Criterion benches | structure factor, permutation engine, periodogram, multiscale residual, random-labeling envelope, pattern load, cohort hierarchy, and cell embeddings | Preserve names, frozen profile selection, and equivalent-work assertions |
 | CI | fmt, all-target/all-feature Clippy, Nextest, docs, no-default, WSI, dependency policy, package, fuzz build, smoke benchmark, heap regression, synthetic smoke | Preserve or record exact workspace-equivalent commands |
 | Scheduled | formal calibration, full benchmarks, public WSI oracle, release target archives | Preserve; do not recast scheduled evidence as per-PR proof |
 
