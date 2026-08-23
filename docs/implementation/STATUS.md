@@ -1,17 +1,17 @@
 # Implementation status
 
-Last updated: 2026-08-23T00:28:18-04:00
+Last updated: 2026-08-23T01:11:53-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Committed baseline before the current checkpoint: `d3459d47109257c3578cfe58b71f865acc7384a2`
+- Committed baseline before the current checkpoint: `56026f500c11d4d7d671ed010b4655620820a35a`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
-- Current phase/workstream/task: Phase 2 / WS-C / C-04 partial Arrow embedding-table, managed-store, and fuzz checkpoint
+- Current phase/workstream/task: Phase 2 / WS-C / C-04 partial Arrow row-link, managed-store, and fuzz checkpoint
 
 ## Requirements
 
@@ -21,16 +21,16 @@ Last updated: 2026-08-23T00:28:18-04:00
 
 ## Command state
 
-- Known failing commands/tests: clean unpatched `cargo +1.96.0 package --locked --workspace` creates all five archives but exits 101 while verifying data against the published pre-C-02 `marklab-core 0.1.0`. DEC-0018 makes this release-blocking until an authorized version/dependency-ordered publication boundary; ephemeral local patches verified every archive successfully and are not claimed equivalent to registry resolvability. The Windows cross-target C-03 check also exits 101 before project compilation because `x86_64-pc-windows-msvc` is not installed; DEC-0021 requires Windows publication/recovery runtime evidence before target support is claimed. Current C-04 focused checks are green: Arrow integration 14/14, artifact graph 13/13, embedding package 12/12, project package 41/41, both focused warnings-denied Clippy scopes, missing-docs builds, no-default embedding check, and a 5,000-run substantive fuzz execution. Historical red/green and harness failures are recorded in the validation ledger. The WS-B feature matrix still has the explicitly recorded narrow warnings and is not claimed warning-clean.
-- C-04 remains incomplete. Row-link Arrow, all Parquet codecs/preflight/one-row-group decode, streaming scan/QC, differential/property reuse, Criterion/DHAT, mandatory 10k and 1M scale evidence, and phase-boundary gates are not yet implemented or verified.
+- Known failing commands/tests: clean unpatched `cargo +1.96.0 package --locked --workspace` creates all five archives but exits 101 while verifying data against the published pre-C-02 `marklab-core 0.1.0`. DEC-0018 makes this release-blocking until an authorized version/dependency-ordered publication boundary; ephemeral local patches verified every archive successfully and are not claimed equivalent to registry resolvability. The Windows cross-target C-03 check also exits 101 before project compilation because `x86_64-pc-windows-msvc` is not installed; DEC-0021 requires Windows publication/recovery runtime evidence before target support is claimed. Current C-04 focused checks are green: embedding-table Arrow 14/14, row-link Arrow 15/15, artifact graph 13/13, embedding package 12/12, project package 41/41, both focused warnings-denied Clippy scopes, warnings-denied docs, no-default embedding check, locked standalone-fuzz compilation, and a 5,000-run substantive dual-seed fuzz execution. Historical red/green and harness failures are recorded in the validation ledger. The WS-B feature matrix still has the explicitly recorded narrow warnings and is not claimed warning-clean.
+- C-04 remains incomplete. All Parquet codecs/preflight/one-row-group decode, streaming scan/QC, differential/property reuse, Criterion/DHAT, mandatory 10k and 1M scale evidence, and phase-boundary gates are not yet implemented or verified. Direct row-link compression/variadic and table-heavy Message regressions are also deferred to C-04 closure; the shared bounded verifier tests and row-link fuzz route cover those parser components without making the direct-test claim.
 - Confirmed available: `cargo-nextest`, `cargo-audit`, `cargo-deny`, `cargo-machete`, `cargo-fuzz`, `ssh`, `scp`, `rsync`.
 - Confirmed unavailable: local `markdownlint-cli2`, `actionlint`, and Gnuplot. Criterion used Plotters; no Markdown/workflow lint pass is claimed.
 
 ## Current checkpoint scope
 
-- The focused checkpoint changes embedding-table Arrow writing, shared bounded byte/seek preflight, full semantic decode, managed-store materialization, two-pass fresh publication, graph-token row-link identity, physical-value construction, root facades, Arrow/FlatBuffers feature wiring, standalone fuzz target/lock, tests, accepted DEC-0027/DEC-0028, and current evidence.
-- `ArtifactDraft`/`publish_new_send` are narrow additive `marklab-project` changes required to publish canonical bytes without fabricating an external locator. Existing record, catalog, `publish`, and `publish_send` APIs remain compatible.
-- The root lock adds only Arrow/IPC/FlatBuffers direct edges to the local embedding package and no registry tuple. The independent fuzz-lock expansion is bounded by accepted DEC-0028; its six retained dependency-list changes are disclosed and mechanically reviewed.
+- The focused checkpoint adds the exact row-link Arrow schema/metadata writer, status-derived nullable bitmap serialization, bounded byte/seek preflight, borrowed and managed full validation, two-pass fresh publication, root facades, mixed-status fuzz routing, adversarial/resource/short-write tests, and current evidence.
+- The writer preserves zeroed unused bits for an all-present nullable tail through a bounded streaming adapter because Arrow 56.2.1 otherwise synthesizes all-ones unused bits when `null_count == 0`. Tests freeze 1/7/8/9-row tails, mixed 8,191/8,192/8,193-row boundaries, and irregular 1–11-byte short writes.
+- The shared embedding-table Arrow/store APIs and frozen dependency locks remain compatible; this slice adds no production dependency or registry-lock change.
 
 ## Recent decisions
 
@@ -67,12 +67,12 @@ Last updated: 2026-08-23T00:28:18-04:00
 
 ## Next three exact actions
 
-1. Commit the independently reviewed partial embedding-table Arrow/store/fuzz checkpoint without claiming C-04 closure.
-2. Add behavior-first row-link Arrow tests, then implement its exact metadata/schema writer, shared bounded reader, and fresh managed publication.
-3. Add the locked Parquet/Bytes/Thrift edges and red tests, then implement compact-Thrift preflight, canonical embedding/row-link writers, one-validated-row-group managed decode, and format/chunk logical parity.
+1. Commit the independently reviewed partial row-link Arrow/store/fuzz checkpoint without claiming C-04 closure.
+2. Add the locked Parquet/Bytes/Thrift edges and red tests, then implement compact-Thrift preflight, canonical embedding/row-link writers, one-validated-row-group managed decode, and format/chunk logical parity.
+3. Add streaming scan/QC, shared differential/property cases, Criterion/DHAT evidence, and the mandatory 10k/1M scale gates before evaluating C-04 closure.
 
 Next exact verification command:
 
 ```bash
-cargo +1.96.0 test --locked --offline --features parquet --test cell_embedding_arrow --test cellvit_embedding_artifact_graph
+cargo +1.96.0 test --locked --offline --features parquet --test cell_embedding_row_link_arrow
 ```

@@ -218,7 +218,7 @@ pub(super) fn declared_table_logical_digest_reader<R: Read + Seek + ?Sized>(
     .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata))
 }
 
-fn read_footer<R: Read + Seek + ?Sized>(
+pub(super) fn read_footer<R: Read + Seek + ?Sized>(
     reader: &mut R,
     file_len: usize,
     budgets: EmbeddingColumnarBudgets,
@@ -365,7 +365,7 @@ fn validate_initial_schema_message<R: Read + Seek + ?Sized>(
     Ok(end)
 }
 
-fn read_exact_at<R: Read + Seek + ?Sized>(
+pub(super) fn read_exact_at<R: Read + Seek + ?Sized>(
     reader: &mut R,
     file_len: usize,
     offset: usize,
@@ -388,7 +388,7 @@ fn read_exact_at<R: Read + Seek + ?Sized>(
         .map_err(|_| arrow_failure(ArrowIpcFailure::ArtifactRead))
 }
 
-fn read_vec_at<R: Read + Seek + ?Sized>(
+pub(super) fn read_vec_at<R: Read + Seek + ?Sized>(
     reader: &mut R,
     file_len: usize,
     offset: usize,

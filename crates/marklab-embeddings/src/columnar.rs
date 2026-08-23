@@ -2,10 +2,13 @@ mod arrow;
 mod error;
 
 pub use arrow::{
-    preflight_cell_embedding_table_arrow_bytes, publish_cell_embedding_table_arrow,
+    preflight_cell_embedding_row_link_arrow_bytes, preflight_cell_embedding_table_arrow_bytes,
+    publish_cell_embedding_row_link_arrow, publish_cell_embedding_table_arrow,
     read_cell_embedding_table_arrow_bytes, read_cell_embedding_table_arrow_from_store,
+    validate_cell_embedding_row_link_arrow_bytes,
+    validate_cell_embedding_row_link_arrow_from_store, write_cell_embedding_row_link_arrow,
     write_cell_embedding_table_arrow, CellEmbeddingArrowPreflight,
-    EmbeddingColumnarPublicationError,
+    CellEmbeddingRowLinkArrowPreflight, EmbeddingColumnarPublicationError,
 };
 pub use error::{ArrowIpcFailure, EmbeddingColumnarError};
 
@@ -124,6 +127,43 @@ pub struct ColumnarWriteSummary {
     encoded_byte_len: u64,
     row_count: u64,
     dimension: u32,
+}
+
+/// Exact encoded identity emitted by one canonical row-link writer.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RowLinkColumnarWriteSummary {
+    content_digest: ContentDigest,
+    encoded_byte_len: u64,
+    row_count: u64,
+}
+
+impl RowLinkColumnarWriteSummary {
+    pub(crate) fn new(
+        content_digest: ContentDigest,
+        encoded_byte_len: u64,
+        row_count: u64,
+    ) -> Self {
+        Self {
+            content_digest,
+            encoded_byte_len,
+            row_count,
+        }
+    }
+
+    /// SHA-256 of the exact encoded bytes.
+    pub fn content_digest(self) -> ContentDigest {
+        self.content_digest
+    }
+
+    /// Exact encoded byte length.
+    pub fn encoded_byte_len(self) -> u64 {
+        self.encoded_byte_len
+    }
+
+    /// Encoded canonical row-link rows.
+    pub fn row_count(self) -> u64 {
+        self.row_count
+    }
 }
 
 impl ColumnarWriteSummary {

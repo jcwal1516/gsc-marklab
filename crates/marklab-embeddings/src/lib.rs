@@ -16,11 +16,15 @@ mod table;
 
 #[cfg(feature = "parquet")]
 pub use columnar::{
-    preflight_cell_embedding_table_arrow_bytes, publish_cell_embedding_table_arrow,
+    preflight_cell_embedding_row_link_arrow_bytes, preflight_cell_embedding_table_arrow_bytes,
+    publish_cell_embedding_row_link_arrow, publish_cell_embedding_table_arrow,
     read_cell_embedding_table_arrow_bytes, read_cell_embedding_table_arrow_from_store,
+    validate_cell_embedding_row_link_arrow_bytes,
+    validate_cell_embedding_row_link_arrow_from_store, write_cell_embedding_row_link_arrow,
     write_cell_embedding_table_arrow, ArrowIpcFailure, CellEmbeddingArrowPreflight,
-    CellEmbeddingTablePhysicalBindings, ColumnarWriteSummary, EmbeddingColumnarBudgets,
-    EmbeddingColumnarError, EmbeddingColumnarPublicationError,
+    CellEmbeddingRowLinkArrowPreflight, CellEmbeddingTablePhysicalBindings, ColumnarWriteSummary,
+    EmbeddingColumnarBudgets, EmbeddingColumnarError, EmbeddingColumnarPublicationError,
+    RowLinkColumnarWriteSummary,
 };
 pub use context::{EmbeddingSpatialContext, PatchBoundaryPolicy, PositiveRational};
 pub use error::EmbeddingError;

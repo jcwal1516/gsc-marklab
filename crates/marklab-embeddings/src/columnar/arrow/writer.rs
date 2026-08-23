@@ -294,7 +294,7 @@ fn estimate_writer_decoded_bytes(
     Ok(required)
 }
 
-struct DigestingWriter<'a> {
+pub(super) struct DigestingWriter<'a> {
     output: &'a mut dyn Write,
     digest: ContentDigestWriter,
     byte_len: u64,
@@ -303,7 +303,7 @@ struct DigestingWriter<'a> {
 }
 
 impl<'a> DigestingWriter<'a> {
-    fn new(output: &'a mut dyn Write, maximum_file_bytes: u64) -> Self {
+    pub(super) fn new(output: &'a mut dyn Write, maximum_file_bytes: u64) -> Self {
         Self {
             output,
             digest: ContentDigestWriter::default(),
@@ -313,11 +313,11 @@ impl<'a> DigestingWriter<'a> {
         }
     }
 
-    fn budget_exceeded(&self) -> Option<u64> {
+    pub(super) fn budget_exceeded(&self) -> Option<u64> {
         self.budget_exceeded
     }
 
-    fn finish(self) -> (ContentDigest, u64) {
+    pub(super) fn finish(self) -> (ContentDigest, u64) {
         self.digest.finish()
     }
 }
