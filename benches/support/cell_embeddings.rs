@@ -27,7 +27,7 @@ const FULL_DIMENSION: u32 = 256;
 const RANDOM_ACCESS_COUNT: usize = 4_096;
 const COVARIANCE_DIMENSION: usize = 16;
 const KERNEL_DIMENSION: usize = 64;
-#[cfg(feature = "dhat-heap")]
+#[cfg(all(feature = "dhat-heap", not(feature = "allocator-mimalloc")))]
 const HARNESS_ALLOWANCE_BYTES: usize = 64 * 1024 * 1024;
 const SMOKE_RETAINED_BYTES: usize = 512 * 1024 * 1024;
 const FULL_RETAINED_BYTES: usize = 1_536 * 1024 * 1024;
@@ -96,7 +96,7 @@ pub struct PreparedEmbeddingBenchmark {
     profile: BenchmarkProfile,
     inner: PreparedInner,
     expected: WorkloadOutcome,
-    #[cfg(feature = "dhat-heap")]
+    #[cfg(all(feature = "dhat-heap", not(feature = "allocator-mimalloc")))]
     declared_retained_bytes: usize,
 }
 
@@ -114,7 +114,7 @@ impl PreparedEmbeddingBenchmark {
             profile: BenchmarkProfile::Smoke,
             inner: PreparedInner::Smoke(fixture),
             expected: expected_outcome(BenchmarkProfile::Smoke),
-            #[cfg(feature = "dhat-heap")]
+            #[cfg(all(feature = "dhat-heap", not(feature = "allocator-mimalloc")))]
             declared_retained_bytes: SMOKE_RETAINED_BYTES,
         }
     }
@@ -129,7 +129,7 @@ impl PreparedEmbeddingBenchmark {
             profile: BenchmarkProfile::Full,
             inner: PreparedInner::Full(table),
             expected: expected_outcome(BenchmarkProfile::Full),
-            #[cfg(feature = "dhat-heap")]
+            #[cfg(all(feature = "dhat-heap", not(feature = "allocator-mimalloc")))]
             declared_retained_bytes: FULL_RETAINED_BYTES,
         }
     }
@@ -170,7 +170,7 @@ impl PreparedEmbeddingBenchmark {
         }
     }
 
-    #[cfg(feature = "dhat-heap")]
+    #[cfg(all(feature = "dhat-heap", not(feature = "allocator-mimalloc")))]
     pub fn run_with_physical_publication(&self) -> WorkloadOutcome {
         match &self.inner {
             PreparedInner::Smoke(fixture) => fixture.run_with_physical_publication(),
@@ -180,7 +180,7 @@ impl PreparedEmbeddingBenchmark {
         }
     }
 
-    #[cfg(feature = "dhat-heap")]
+    #[cfg(all(feature = "dhat-heap", not(feature = "allocator-mimalloc")))]
     pub fn dhat_peak_limit(&self) -> usize {
         self.declared_retained_bytes
             .checked_add(HARNESS_ALLOWANCE_BYTES)
@@ -226,7 +226,7 @@ struct SmokeFixture {
     source_csv: Vec<u8>,
     source_budgets: SourceBundleBudgets,
     columnar_budgets: EmbeddingColumnarBudgets,
-    #[cfg(feature = "dhat-heap")]
+    #[cfg(all(feature = "dhat-heap", not(feature = "allocator-mimalloc")))]
     physical_bindings: CellEmbeddingTablePhysicalBindings,
     arrow_record: ArtifactRecord,
     parquet_record: ArtifactRecord,
@@ -328,7 +328,7 @@ impl SmokeFixture {
             source_csv,
             source_budgets,
             columnar_budgets,
-            #[cfg(feature = "dhat-heap")]
+            #[cfg(all(feature = "dhat-heap", not(feature = "allocator-mimalloc")))]
             physical_bindings,
             arrow_record,
             parquet_record,
@@ -360,7 +360,7 @@ impl SmokeFixture {
         outcome
     }
 
-    #[cfg(feature = "dhat-heap")]
+    #[cfg(all(feature = "dhat-heap", not(feature = "allocator-mimalloc")))]
     fn run_with_physical_publication(&self) -> WorkloadOutcome {
         let request = CellVitHeImportRequest::new(
             &self.expected,

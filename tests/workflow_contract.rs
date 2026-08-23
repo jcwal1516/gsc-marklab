@@ -1,16 +1,9 @@
-use std::fs;
+use std::{ffi::OsStr, fs, path::Path};
 
 #[test]
 fn criterion_benchmarks_cover_required_spec_workloads() {
     let manifest = fs::read_to_string("Cargo.toml").expect("Cargo manifest");
-    let bench_sources = fs::read_dir("benches")
-        .expect("bench directory")
-        .map(|entry| {
-            let path = entry.expect("bench entry").path();
-            fs::read_to_string(path).expect("bench source")
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
+    let bench_sources = rust_sources_below(Path::new("benches"));
 
     for target in [
         "structure_factor",
@@ -20,6 +13,7 @@ fn criterion_benchmarks_cover_required_spec_workloads() {
         "random_labeling_envelope",
         "pattern_load",
         "cohort_hierarchy",
+        "cell_embeddings",
     ] {
         assert!(
             manifest.contains(&format!("name = \"{target}\"")),
@@ -35,6 +29,7 @@ fn criterion_benchmarks_cover_required_spec_workloads() {
         "bench_marked_analysis_erl_b999",
         "bench_pattern_csv_load_1m_cells",
         "bench_cohort_hierarchy_1m_cells_10k_specimens",
+        "bench_cell_embeddings",
     ] {
         assert!(
             bench_sources.contains(workload),
@@ -47,6 +42,34 @@ fn criterion_benchmarks_cover_required_spec_workloads() {
     assert!(pattern_load.contains("pattern_csv_decode_filter"));
     assert!(pattern_load.contains("pattern_nearest_neighbor"));
     assert!(!pattern_load.contains("String::with_capacity"));
+}
+
+fn rust_sources_below(root: &Path) -> String {
+    let mut pending = vec![root.to_owned()];
+    let mut sources = Vec::new();
+    while let Some(directory) = pending.pop() {
+        let mut entries = fs::read_dir(&directory)
+            .expect("Rust source directory")
+            .map(|entry| entry.expect("Rust source entry"))
+            .collect::<Vec<_>>();
+        entries.sort_unstable_by_key(|entry| entry.path());
+        for entry in entries {
+            let path = entry.path();
+            let file_type = entry.file_type().expect("Rust source file type");
+            if file_type.is_dir() {
+                pending.push(path);
+            } else if file_type.is_file() && path.extension() == Some(OsStr::new("rs")) {
+                let source = fs::read_to_string(&path).expect("Rust source");
+                sources.push((path, source));
+            }
+        }
+    }
+    sources.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+    sources
+        .into_iter()
+        .map(|(_, source)| source)
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 #[test]
