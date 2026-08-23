@@ -110,11 +110,12 @@ pub use marklab_embeddings::{
     MultiscaleEmbeddingError, MultiscaleEmbeddingQcSummary, NpyFailure, NpyVersion,
     PatchBoundaryPolicy, PatchEmbeddingBlock, PatchEmbeddingContext, PatchEmbeddingRow,
     PatchEmbeddingTable, PatchEmbeddingView, PatchFootprint, PatchFootprintSet, PatchOverlapEdge,
-    PatchOverlapGraph, PositiveRational, ReconciliationFailure, RegionEmbeddingBlock,
-    RegionEmbeddingRow, RegionEmbeddingTable, RegionEmbeddingView, SlideEmbeddingBlock,
-    SlideEmbeddingRow, SlideEmbeddingTable, SlideEmbeddingView, SourceBundleBudgets,
-    SourceBundleError, SourceFileKind, SourceIoFailure, SourceIoOperation,
-    VerifiedCellEmbeddingArtifactGraph, VerifiedCellEmbeddingRowLinkArtifact,
+    PatchOverlapGraph, PatchRegionAssessment, PatchRegionAssessmentBindings,
+    PatchRegionDeclaration, PatchRegionLink, PatchRegionRelation, PositiveRational,
+    ReconciliationFailure, RegionEmbeddingBlock, RegionEmbeddingRow, RegionEmbeddingTable,
+    RegionEmbeddingView, SlideEmbeddingBlock, SlideEmbeddingRow, SlideEmbeddingTable,
+    SlideEmbeddingView, SourceBundleBudgets, SourceBundleError, SourceFileKind, SourceIoFailure,
+    SourceIoOperation, VerifiedCellEmbeddingArtifactGraph, VerifiedCellEmbeddingRowLinkArtifact,
     VerifiedCellEmbeddingTableArtifact,
 };
 pub use marklab_workflow::{

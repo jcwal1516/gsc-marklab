@@ -57,8 +57,10 @@ pub use multiscale::{
     ExpectedRegionSet, ExpectedSlideSet, MultiscaleEmbeddingError, MultiscaleEmbeddingQcSummary,
     PatchEmbeddingBlock, PatchEmbeddingContext, PatchEmbeddingRow, PatchEmbeddingTable,
     PatchEmbeddingView, PatchFootprint, PatchFootprintSet, PatchOverlapEdge, PatchOverlapGraph,
-    RegionEmbeddingBlock, RegionEmbeddingRow, RegionEmbeddingTable, RegionEmbeddingView,
-    SlideEmbeddingBlock, SlideEmbeddingRow, SlideEmbeddingTable, SlideEmbeddingView,
+    PatchRegionAssessment, PatchRegionAssessmentBindings, PatchRegionDeclaration, PatchRegionLink,
+    PatchRegionRelation, RegionEmbeddingBlock, RegionEmbeddingRow, RegionEmbeddingTable,
+    RegionEmbeddingView, SlideEmbeddingBlock, SlideEmbeddingRow, SlideEmbeddingTable,
+    SlideEmbeddingView,
 };
 pub use provenance::{
     ArtifactAvailabilityFailure, CanonicalDecimal, CellEmbeddingArtifactRole,

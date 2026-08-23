@@ -1,13 +1,13 @@
 # Implementation status
 
-Last updated: 2026-08-23T08:41:34-04:00
+Last updated: 2026-08-23T09:00:48-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Committed baseline before the current checkpoint: `2c5c513d3504236d23ea2bbf3d68e511abcd4c7c`
+- Committed baseline before the current checkpoint: `5ddcc285c59778f7ab15c829d283768dbac538da`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
@@ -30,12 +30,12 @@ Last updated: 2026-08-23T08:41:34-04:00
 
 - C-04 delivers exact cell-table/validity/expected/identity/context/link/provenance owners, bounded non-pickle source import, embedding-specific Arrow/Parquet validation/publication/scans, fuzz/differential/resource evidence, and pinned scale workloads.
 - The authorized 32-bundle source profile reconciles exactly but remains aggregate-only and non-promotable because `canonical_identity_mapping`, `input_normalization_and_run_configuration`, `reviewed_source_snapshot`, and `license_record` are absent.
-- C-05's logical substrate now includes distinct expected patch/region/slide sets, exact patch context/footprints/overlap, three typed embedding tables, and a vector-free `CellPatchLink`. The link preserves complete all-containing shared assignments or exact declared interpolation groups, including explicit zero-edge states, strict hierarchy/frame/support bindings, fixed logical digests, and exact assignment/edge ranges. Two-pass containment has retained/peak/candidate-work budgets; both independent reviewers approve only these bounded checkpoints. Patch-region links, support/provenance records, physical formats, artifact publication, scale evidence, and closure remain open.
+- C-05's approved logical substrate now includes distinct expected patch/region/slide sets, exact patch context/footprints/overlap, three typed embedding tables, vector-free `CellPatchLink`, and exhaustive `PatchRegionAssessment`/`PatchRegionLink` owners. Patch-region construction derives the checked Cartesian count, treats absent pairs only as producer-declared zero, copies every canonical nonzero declaration into the link, binds converter/assessment evidence, and distinguishes declarations from geometric proof. Exact retained/peak budgets, the 400-million-row cap, and checked `u64` product overflow are enforced; both independent reviewers approve only this bounded checkpoint. Strict records, physical formats, artifact publication, scale evidence, and closure remain open.
 - A later aggregate/header audit found candidate patch-feature matrices at widths 384 and 1,024 plus patch image/coordinate containers. It found no promotable patch/region/slide table or canonical link. The evidence has no pinned digest and no production source grammar; the validation ledger records the exact claim ceiling and one bounded recursive-key-output audit defect.
 
 ## Dirty files and reason
 
-- C-05 cell-link checkpoint: additive `multiscale/cell_patch/**`, focused exports/context getter/error variants, modular contained/interpolation/differential/resource/privacy tests, and checkpoint documentation. No manifest, dependency, lockfile, physical-format, patch-region-link, source-adapter, or real-corpus promotion change is dirty.
+- C-05 patch-region logical checkpoint: additive `multiscale/patch_region/**`, focused exports/error variants, modular domain/digest/resource/privacy tests, and checkpoint documentation. No manifest, dependency, lockfile, strict record, physical-format, source-adapter, or real-corpus promotion change is dirty.
 
 ## Recent decisions
 
@@ -80,12 +80,12 @@ Last updated: 2026-08-23T08:41:34-04:00
 
 ## Next three exact actions
 
-1. Commit the independently approved C-05 vector-free cell-link checkpoint with a clean worktree.
-2. Add `PatchRegionLink` behavior tests for exhaustive Cartesian assessment, sparse declared relations, exact fractions, producer evidence, digest framing, and checked product/resource bounds; confirm the focused red state.
-3. Implement only the declared patch-region assessment/link owner before beginning strict support/provenance records.
+1. Commit the independently approved C-05 exhaustive patch-region logical checkpoint with a clean worktree.
+2. Add the `multiscale_embedding_provenance` behavior contract for strict producer/assessment, support, derivation, provenance, and source-identity records; confirm the focused red state.
+3. Implement the smallest complete canonical-record layer, then add its separate exact artifact-graph descriptors and verification receipts.
 
 Next exact verification command:
 
 ```bash
-cargo +1.96.0 test --locked --test cell_patch_link
+cargo +1.96.0 test --locked --test patch_region_link
 ```

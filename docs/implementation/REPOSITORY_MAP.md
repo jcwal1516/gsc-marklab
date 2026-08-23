@@ -57,9 +57,11 @@ marklab (compatibility facade and current engine adapter)
 | `crates/marklab-embeddings/src/multiscale/footprint.rs` | Expected-order patch origins and half-open source-boundary validation | Sampled support only; never a tissue/observation window |
 | `crates/marklab-embeddings/src/multiscale/overlap.rs` | Two-pass indexed positive-area edges and minimum-ID connected components over exact footprints | No extraction-grid inference, vector data, or region geometry |
 | `crates/marklab-embeddings/src/multiscale/cell_patch/**` | Complete expected-cell assignments, finite anchors, all-containing or declared interpolation edges, exact bindings/digest, and byte/work budgets | Vector-free; no model bytes, inferred interpolation, or full observation-window claim |
+| `crates/marklab-embeddings/src/multiscale/patch_region/**` | Exhaustive Cartesian assessment, canonical sparse nonzero patch-region declarations, exact evidence bindings/digests, and compositional byte budgets | Producer-declared area fractions only; no vector bytes, region geometry proof, canonical record, or receipt |
 | `crates/marklab-embeddings/src/multiscale/table/**` | Sealed matrix core, distinct typed patch/region/slide rows/views/blocks, logical QC/digest scans | No Arrow/Parquet constructors or publication receipts yet |
 | `tests/multiscale_embedding_tables/**` | Behavior, wire/digest golden, brute-force differential, resource-budget, boundary, privacy, and scan-partition regressions | Eleven focused tests cover only the logical/overlap checkpoints |
 | `tests/cell_patch_link/**` | Containment/interpolation modes, brute-force parity, exact budgets, CPU-work bound, binding/hierarchy drift, privacy, and digest goldens | Seven focused tests cover only logical cell assignments/edges |
+| `tests/patch_region_link/**` | Exhaustive sparse equality, fraction/order/membership, slide/binding drift, digest goldens, aliases, and exact compositional resource boundaries | Nine focused tests plus private 400M-row/product-overflow boundaries cover only the logical declaration/link |
 
 The C-05 implementation introduces no dependency or lockfile change and preserves the existing C-04 cell-table APIs and digest goldens.
 

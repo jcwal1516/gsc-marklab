@@ -144,6 +144,32 @@ pub enum MultiscaleEmbeddingError {
         /// Caller-provided maximum checks per deterministic pass.
         maximum: usize,
     },
+    /// A declared patch-region fraction violates its relation-specific canonical rule.
+    #[error("patch-region overlap fraction is invalid")]
+    InvalidPatchRegionFraction,
+    /// Expected/context/footprint bindings disagree for a patch-region assessment.
+    #[error("patch-region inputs do not share one exact support binding")]
+    PatchRegionInputMismatch,
+    /// Patch-region artifact roles alias where version one requires distinct dependencies.
+    #[error("patch-region artifact dependency roles must be distinct")]
+    DuplicatePatchRegionArtifactDependency,
+    /// Nonzero declarations are unordered, duplicated, unknown, or relation-invalid.
+    #[error("patch-region declarations are invalid at nonzero row {row}")]
+    InvalidPatchRegionDeclarations {
+        /// Zero-based supplied nonzero row.
+        row: usize,
+    },
+    /// The exhaustive expected-patch by expected-region product overflowed.
+    #[error("patch-region assessed Cartesian pair count overflowed")]
+    PatchRegionPairCountOverflow,
+    /// Nonzero patch-region declarations exceed the version-one hard limit.
+    #[error("patch-region nonzero rows {observed} exceed maximum {maximum}")]
+    PatchRegionRowCountExceeded {
+        /// Observed nonzero row count.
+        observed: usize,
+        /// Frozen version-one maximum.
+        maximum: usize,
+    },
     /// Table rows do not exactly match the expected typed set.
     #[error("multiscale embedding rows must exactly match the expected set")]
     RowSetMismatch,

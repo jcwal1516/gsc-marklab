@@ -7,6 +7,7 @@ mod expected;
 mod footprint;
 mod json;
 mod overlap;
+mod patch_region;
 mod table;
 
 pub use cell_patch::{
@@ -20,6 +21,10 @@ pub use error::MultiscaleEmbeddingError;
 pub use expected::{ExpectedPatchSet, ExpectedRegionSet, ExpectedSlideSet};
 pub use footprint::{PatchFootprint, PatchFootprintSet};
 pub use overlap::{PatchOverlapEdge, PatchOverlapGraph};
+pub use patch_region::{
+    PatchRegionAssessment, PatchRegionAssessmentBindings, PatchRegionDeclaration, PatchRegionLink,
+    PatchRegionRelation,
+};
 pub use table::{
     MultiscaleEmbeddingQcSummary, PatchEmbeddingBlock, PatchEmbeddingRow, PatchEmbeddingTable,
     PatchEmbeddingView, RegionEmbeddingBlock, RegionEmbeddingRow, RegionEmbeddingTable,
