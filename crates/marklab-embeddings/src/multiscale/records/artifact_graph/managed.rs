@@ -85,7 +85,7 @@ pub(super) fn require_available_for(
     require_available(store, required_record(catalog, role, id)?, role)
 }
 
-fn availability_failure(error: &ArtifactStoreError) -> ArtifactAvailabilityFailure {
+pub(super) fn availability_failure(error: &ArtifactStoreError) -> ArtifactAvailabilityFailure {
     match error {
         ArtifactStoreError::LocatorNotFound { .. } | ArtifactStoreError::WrongStore { .. } => {
             ArtifactAvailabilityFailure::LocatorMissing

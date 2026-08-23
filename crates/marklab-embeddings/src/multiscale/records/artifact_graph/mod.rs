@@ -10,11 +10,18 @@ use crate::multiscale::{
 };
 
 mod bindings;
+#[cfg(feature = "parquet")]
+mod cell_patch;
 mod error;
 mod managed;
 mod record;
 
 use bindings::{role_ids, validate_domain_bindings, validate_record_dependencies};
+#[cfg(feature = "parquet")]
+pub use cell_patch::{
+    CellPatchInputArtifactGraphError, CellPatchInputArtifactRole,
+    VerifiedCellPatchInputArtifactGraph,
+};
 pub use error::{
     MultiscaleEmbeddingArtifactGraphError, MultiscaleEmbeddingArtifactRole,
     VerifiedDirectPatchEmbeddingArtifactGraph,

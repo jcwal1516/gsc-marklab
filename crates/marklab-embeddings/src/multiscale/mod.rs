@@ -29,6 +29,11 @@ pub use patch_region::{
     PatchRegionAssessment, PatchRegionAssessmentBindings, PatchRegionDeclaration, PatchRegionLink,
     PatchRegionRelation,
 };
+#[cfg(feature = "parquet")]
+pub use records::{
+    CellPatchInputArtifactGraphError, CellPatchInputArtifactRole,
+    VerifiedCellPatchInputArtifactGraph,
+};
 pub use records::{
     CellPatchLinkProducer, MultiscaleArtifactBinding, MultiscaleDirectPatchInputArtifacts,
     MultiscaleDirectPatchModelProvenance, MultiscaleEmbeddingArtifactGraphError,

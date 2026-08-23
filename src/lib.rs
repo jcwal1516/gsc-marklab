@@ -104,12 +104,13 @@ pub use marklab_embeddings::{
     write_patch_footprint_set_parquet, write_patch_overlap_graph_arrow,
     write_patch_overlap_graph_parquet, ArrowIpcFailure, CellEmbeddingArrowPreflight,
     CellEmbeddingParquetPreflight, CellEmbeddingRowLinkArrowPreflight,
-    CellEmbeddingRowLinkParquetPreflight, CellEmbeddingTablePhysicalBindings, ColumnarWriteSummary,
+    CellEmbeddingRowLinkParquetPreflight, CellEmbeddingTablePhysicalBindings,
+    CellPatchInputArtifactGraphError, CellPatchInputArtifactRole, ColumnarWriteSummary,
     EmbeddingColumnarBudgets, EmbeddingColumnarError, EmbeddingColumnarPublicationError,
     MultiscaleColumnarError, MultiscaleColumnarPublicationError, ParquetFailure,
     PatchFootprintArrowPreflight, PatchFootprintParquetPreflight, PatchOverlapArrowPreflight,
     PatchOverlapParquetPreflight, RowLinkColumnarWriteSummary, SpatialArrowFailure,
-    SpatialColumnarWriteSummary, SpatialParquetFailure,
+    SpatialColumnarWriteSummary, SpatialParquetFailure, VerifiedCellPatchInputArtifactGraph,
 };
 pub use marklab_embeddings::{
     ArtifactAvailabilityFailure, CanonicalDecimal, CellEmbeddingArtifact,

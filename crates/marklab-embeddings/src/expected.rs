@@ -1,3 +1,6 @@
+#[cfg(any(feature = "parquet", test))]
+use std::io::{self, Read};
+
 use marklab_data::CellId;
 use marklab_project::ContentDigest;
 
@@ -90,6 +93,38 @@ impl ExpectedCellSet {
         Ok(required)
     }
 
+    #[cfg(any(feature = "parquet", test))]
+    pub(crate) fn compare_canonical_reader<R: Read + ?Sized>(
+        &self,
+        reader: &mut R,
+    ) -> Result<(), ExpectedCellReaderError> {
+        let encoded_len = self
+            .encoded_byte_len()
+            .map_err(|_| ExpectedCellReaderError::Mismatch)?;
+        let count =
+            u64::try_from(self.cells.len()).map_err(|_| ExpectedCellReaderError::Mismatch)?;
+        let rule_length = u16::try_from(self.selection_rule.len())
+            .map_err(|_| ExpectedCellReaderError::Mismatch)?;
+        let mut comparator = ExpectedCellReaderComparator {
+            reader,
+            emitted: 0,
+            encoded_len,
+            scratch: [0; 8_192],
+        };
+        comparator.compare(MAGIC)?;
+        comparator.compare(&count.to_be_bytes())?;
+        comparator.compare(&rule_length.to_be_bytes())?;
+        comparator.compare(self.selection_rule.as_bytes())?;
+        for cell in &self.cells {
+            let value = cell.as_str().as_bytes();
+            let length =
+                u16::try_from(value.len()).map_err(|_| ExpectedCellReaderError::Mismatch)?;
+            comparator.compare(&length.to_be_bytes())?;
+            comparator.compare(value)?;
+        }
+        comparator.finish()
+    }
+
     /// Decode exact bytes after enforcing the caller's encoded-byte budget.
     pub fn from_bytes(bytes: &[u8], maximum_bytes: usize) -> Result<Self, EmbeddingError> {
         if bytes.len() > maximum_bytes {
@@ -131,6 +166,65 @@ impl ExpectedCellSet {
             return Err(EmbeddingError::InvalidBinaryEncoding);
         }
         Ok(decoded)
+    }
+}
+
+#[cfg(any(feature = "parquet", test))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ExpectedCellReaderError {
+    Mismatch,
+    Read,
+}
+
+#[cfg(any(feature = "parquet", test))]
+struct ExpectedCellReaderComparator<'a, R: ?Sized> {
+    reader: &'a mut R,
+    emitted: usize,
+    encoded_len: usize,
+    scratch: [u8; 8_192],
+}
+
+#[cfg(any(feature = "parquet", test))]
+impl<R: Read + ?Sized> ExpectedCellReaderComparator<'_, R> {
+    fn compare(&mut self, expected: &[u8]) -> Result<(), ExpectedCellReaderError> {
+        let next = self
+            .emitted
+            .checked_add(expected.len())
+            .ok_or(ExpectedCellReaderError::Mismatch)?;
+        if next > self.encoded_len {
+            return Err(ExpectedCellReaderError::Mismatch);
+        }
+        let mut remaining = expected;
+        while !remaining.is_empty() {
+            let length = remaining.len().min(self.scratch.len());
+            match self.reader.read_exact(&mut self.scratch[..length]) {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => {
+                    return Err(ExpectedCellReaderError::Mismatch);
+                }
+                Err(_) => return Err(ExpectedCellReaderError::Read),
+            }
+            if self.scratch[..length] != remaining[..length] {
+                return Err(ExpectedCellReaderError::Mismatch);
+            }
+            remaining = &remaining[length..];
+        }
+        self.emitted = next;
+        Ok(())
+    }
+
+    fn finish(mut self) -> Result<(), ExpectedCellReaderError> {
+        if self.emitted != self.encoded_len {
+            return Err(ExpectedCellReaderError::Mismatch);
+        }
+        loop {
+            match self.reader.read(&mut self.scratch[..1]) {
+                Ok(0) => return Ok(()),
+                Ok(_) => return Err(ExpectedCellReaderError::Mismatch),
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                Err(_) => return Err(ExpectedCellReaderError::Read),
+            }
+        }
     }
 }
 
@@ -201,4 +295,124 @@ fn digest(selection_rule: &str, count: u64, cells: &[CellId]) -> ContentDigest {
         digest.field(cell.as_str().as_bytes());
     }
     digest.finish()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::{self, Read};
+
+    use super::{ExpectedCellReaderError, ExpectedCellSet};
+    use marklab_data::CellId;
+
+    struct ChunkedReader<'a> {
+        bytes: &'a [u8],
+        offset: usize,
+        maximum_chunk: usize,
+    }
+
+    impl Read for ChunkedReader<'_> {
+        fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
+            let remaining = &self.bytes[self.offset..];
+            let length = remaining.len().min(output.len()).min(self.maximum_chunk);
+            output[..length].copy_from_slice(&remaining[..length]);
+            self.offset += length;
+            Ok(length)
+        }
+    }
+
+    struct FailingReader<'a> {
+        bytes: &'a [u8],
+        offset: usize,
+        fail_at: usize,
+    }
+
+    impl Read for FailingReader<'_> {
+        fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
+            if self.offset >= self.fail_at {
+                return Err(io::Error::other("injected expected-cell read failure"));
+            }
+            let remaining = &self.bytes[self.offset..];
+            let length = remaining
+                .len()
+                .min(output.len())
+                .min(self.fail_at - self.offset);
+            output[..length].copy_from_slice(&remaining[..length]);
+            self.offset += length;
+            Ok(length)
+        }
+    }
+
+    fn expected_cells(count: usize) -> ExpectedCellSet {
+        ExpectedCellSet::new(
+            "all-segmented-cells",
+            (0..count)
+                .map(|index| CellId::new(format!("cell-{index:06}")))
+                .collect::<Result<Vec<_>, _>>()
+                .expect("fixture cell IDs are valid"),
+        )
+        .expect("fixture expected-cell set is canonical")
+    }
+
+    #[test]
+    fn canonical_reader_comparison_streams_high_cardinality_input() {
+        let expected = expected_cells(4_096);
+        let bytes = expected.to_bytes().expect("fixture encodes");
+
+        for maximum_chunk in [1, 3, 8_192] {
+            let mut reader = ChunkedReader {
+                bytes: &bytes,
+                offset: 0,
+                maximum_chunk,
+            };
+            assert_eq!(expected.compare_canonical_reader(&mut reader), Ok(()));
+            assert_eq!(reader.offset, bytes.len());
+        }
+    }
+
+    #[test]
+    fn canonical_reader_comparison_rejects_truncation_suffix_and_drift() {
+        let expected = expected_cells(3);
+        let bytes = expected.to_bytes().expect("fixture encodes");
+
+        for truncated_at in [0, bytes.len() / 2, bytes.len() - 1] {
+            let mut reader = &bytes[..truncated_at];
+            assert_eq!(
+                expected.compare_canonical_reader(&mut reader),
+                Err(ExpectedCellReaderError::Mismatch)
+            );
+        }
+
+        let mut suffixed = bytes.clone();
+        suffixed.push(0);
+        assert_eq!(
+            expected.compare_canonical_reader(&mut suffixed.as_slice()),
+            Err(ExpectedCellReaderError::Mismatch)
+        );
+
+        let mut drifted = bytes.clone();
+        let final_byte = drifted.last_mut().expect("fixture is nonempty");
+        *final_byte ^= 1;
+        assert_eq!(
+            expected.compare_canonical_reader(&mut drifted.as_slice()),
+            Err(ExpectedCellReaderError::Mismatch)
+        );
+    }
+
+    #[test]
+    fn canonical_reader_comparison_distinguishes_io_failure_from_mismatch() {
+        let expected = expected_cells(3);
+        let bytes = expected.to_bytes().expect("fixture encodes");
+
+        for fail_at in [0, bytes.len() / 2, bytes.len()] {
+            let mut reader = FailingReader {
+                bytes: &bytes,
+                offset: 0,
+                fail_at,
+            };
+            assert_eq!(
+                expected.compare_canonical_reader(&mut reader),
+                Err(ExpectedCellReaderError::Read)
+            );
+        }
+    }
 }

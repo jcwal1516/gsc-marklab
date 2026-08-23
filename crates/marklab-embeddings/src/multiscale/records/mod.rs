@@ -8,6 +8,11 @@ mod provenance;
 mod source;
 mod support;
 
+#[cfg(feature = "parquet")]
+pub use artifact_graph::{
+    CellPatchInputArtifactGraphError, CellPatchInputArtifactRole,
+    VerifiedCellPatchInputArtifactGraph,
+};
 pub use artifact_graph::{
     MultiscaleEmbeddingArtifactGraphError, MultiscaleEmbeddingArtifactRole,
     VerifiedDirectPatchEmbeddingArtifactGraph,

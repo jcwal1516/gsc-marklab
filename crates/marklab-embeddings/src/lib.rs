@@ -88,6 +88,11 @@ pub use multiscale::{
     VerifiedDirectPatchEmbeddingArtifactGraph, VerifiedPatchFootprintArtifact,
     VerifiedPatchOverlapArtifact,
 };
+#[cfg(feature = "parquet")]
+pub use multiscale::{
+    CellPatchInputArtifactGraphError, CellPatchInputArtifactRole,
+    VerifiedCellPatchInputArtifactGraph,
+};
 pub use provenance::{
     ArtifactAvailabilityFailure, CanonicalDecimal, CellEmbeddingArtifactRole,
     CellEmbeddingExecutionProvenance, CellEmbeddingInputArtifacts, CellEmbeddingModelProvenance,
