@@ -1,13 +1,13 @@
 # Implementation status
 
-Last updated: 2026-08-23T08:05:46-04:00
+Last updated: 2026-08-23T08:41:34-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Committed baseline before the current checkpoint: `c4557f3eddd44d6c48cbca2ecc3e2ae81923a81e`
+- Committed baseline before the current checkpoint: `2c5c513d3504236d23ea2bbf3d68e511abcd4c7c`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
@@ -30,12 +30,12 @@ Last updated: 2026-08-23T08:05:46-04:00
 
 - C-04 delivers exact cell-table/validity/expected/identity/context/link/provenance owners, bounded non-pickle source import, embedding-specific Arrow/Parquet validation/publication/scans, fuzz/differential/resource evidence, and pinned scale workloads.
 - The authorized 32-bundle source profile reconciles exactly but remains aggregate-only and non-promotable because `canonical_identity_mapping`, `input_normalization_and_run_configuration`, `reviewed_source_snapshot`, and `license_record` are absent.
-- C-05's logical substrate now includes distinct expected patch/region/slide sets, exact patch context and footprint ownership, three typed embedding tables over a sealed core, and a deterministic positive-area `PatchOverlapGraph`. The graph uses two identical exact-capacity bucket passes, lexicographic edges, minimum-`PatchId` components including isolates, checked 400M-edge/resource bounds, and the frozen logical digest. Both independent reviewers approve only these bounded checkpoints; cell/region links, support/provenance records, physical formats, artifact publication, scale evidence, and closure remain open.
+- C-05's logical substrate now includes distinct expected patch/region/slide sets, exact patch context/footprints/overlap, three typed embedding tables, and a vector-free `CellPatchLink`. The link preserves complete all-containing shared assignments or exact declared interpolation groups, including explicit zero-edge states, strict hierarchy/frame/support bindings, fixed logical digests, and exact assignment/edge ranges. Two-pass containment has retained/peak/candidate-work budgets; both independent reviewers approve only these bounded checkpoints. Patch-region links, support/provenance records, physical formats, artifact publication, scale evidence, and closure remain open.
 - A later aggregate/header audit found candidate patch-feature matrices at widths 384 and 1,024 plus patch image/coordinate containers. It found no promotable patch/region/slide table or canonical link. The evidence has no pinned digest and no production source grammar; the validation ledger records the exact claim ceiling and one bounded recursive-key-output audit defect.
 
 ## Dirty files and reason
 
-- C-05 overlap checkpoint: additive `multiscale/overlap.rs`, focused exports/error variants, modular brute-force/property/resource/privacy regressions, and checkpoint documentation. No manifest, dependency, lockfile, physical-format, cell/region-link, source-adapter, or real-corpus promotion change is dirty.
+- C-05 cell-link checkpoint: additive `multiscale/cell_patch/**`, focused exports/context getter/error variants, modular contained/interpolation/differential/resource/privacy tests, and checkpoint documentation. No manifest, dependency, lockfile, physical-format, patch-region-link, source-adapter, or real-corpus promotion change is dirty.
 
 ## Recent decisions
 
@@ -66,12 +66,13 @@ Last updated: 2026-08-23T08:05:46-04:00
 - Accepted `DEC-0032`: distinct typed multiscale tables over a sealed private core; preserve C-04 behavior/goldens.
 - Accepted `DEC-0033`: own exact patch support/overlap once; explicit grouped cell assignments and vector-free links; region overlap remains declared pending FND-02 geometry.
 - Accepted `DEC-0034`: record candidate patch features as inventory-only evidence and require eight narrow C-05 Arrow/Parquet profile families without admitting a real source adapter.
+- Accepted `DEC-0035`: bound deterministic cell-containment candidate work per pass; keep the simple four-bucket index until scale evidence justifies a more complex owner.
 
 ## Unresolved questions
 
 - Thirty-two authorized Schürch NPY/CSV source bundles have explicit unique source-local identifiers and exact native/embedding row alignment, but no reviewed mapping into canonical typed `CellId`/hierarchy membership; three later aggregate arrays reuse source rows and are not canonical raw sources.
 - The source code establishes CellViT-SAM-H layer-32 `z4` extraction and bounding-box token-mean pooling, but complete checkpoint-run input normalization/source-license provenance remains unavailable without a separately reviewed manifest.
-- Candidate patch vectors exist, but there is no reviewed canonical `PatchId` mapping, exact C-02 frame/transform, stride/overlap/receptive field, observation support, complete provenance, canonical patch table, or `CellPatchLink`.
+- Candidate patch vectors exist, but there is no reviewed canonical `PatchId` mapping, exact C-02 frame/transform, stride/overlap/receptive field, observation support, complete provenance, canonical patch table, or promotable real-corpus `CellPatchLink`.
 - Region-path candidates are cell-row or unbound bundles, and the slide-path candidate is multirow; no admissible region/slide source profile exists.
 - Exact sampled-patch observation windows/tissue masks; the full WSI is not the honest inference window.
 - Seven-slide CPTAC advertised/accessibility discrepancy and the recorded adapter wrapper failure/promotion deviation.
@@ -79,12 +80,12 @@ Last updated: 2026-08-23T08:05:46-04:00
 
 ## Next three exact actions
 
-1. Commit the independently approved C-05 overlap checkpoint with a clean worktree.
-2. Add `CellPatchLink` behavior tests for complete grouped assignments, all-containing and declared interpolation modes, zero-edge states, and exact two-pass resource accounting; confirm the focused red state.
-3. Implement the vector-free cell assignment/edge owner before adding exhaustive declared patch-region assessment/link behavior.
+1. Commit the independently approved C-05 vector-free cell-link checkpoint with a clean worktree.
+2. Add `PatchRegionLink` behavior tests for exhaustive Cartesian assessment, sparse declared relations, exact fractions, producer evidence, digest framing, and checked product/resource bounds; confirm the focused red state.
+3. Implement only the declared patch-region assessment/link owner before beginning strict support/provenance records.
 
 Next exact verification command:
 
 ```bash
-cargo +1.96.0 test --locked --test multiscale_embedding_tables
+cargo +1.96.0 test --locked --test cell_patch_link
 ```

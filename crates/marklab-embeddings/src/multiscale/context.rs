@@ -268,6 +268,11 @@ impl PatchEmbeddingContext {
         &self.owning_slide_id
     }
 
+    /// Exact image coordinate frame containing patch origins and cell anchors.
+    pub fn image_frame_id(&self) -> &CoordinateFrameId {
+        &self.image_frame_id
+    }
+
     /// Exact source-image pixel extent in X/Y order.
     pub fn source_image_px(&self) -> [u64; 2] {
         self.source_image_px

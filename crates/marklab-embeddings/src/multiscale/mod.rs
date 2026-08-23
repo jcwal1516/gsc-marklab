@@ -1,3 +1,4 @@
+mod cell_patch;
 mod context;
 mod digest;
 mod entity;
@@ -8,6 +9,11 @@ mod json;
 mod overlap;
 mod table;
 
+pub use cell_patch::{
+    CellPatchAnchor, CellPatchAssignment, CellPatchAssignmentMode, CellPatchAssignmentStatus,
+    CellPatchContributor, CellPatchEdge, CellPatchLink, CellPatchLinkBindings, CellPatchWeight,
+    DeclaredCellPatchAssignment,
+};
 pub use context::{EffectiveReceptiveField, PatchEmbeddingContext};
 pub use entity::EmbeddingEntityKind;
 pub use error::MultiscaleEmbeddingError;

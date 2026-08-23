@@ -51,12 +51,14 @@ pub use error::EmbeddingError;
 pub use expected::ExpectedCellSet;
 pub use identity_map::{CellIdentityMap, CellIdentityMapEntry};
 pub use multiscale::{
-    EffectiveReceptiveField, EmbeddingEntityKind, ExpectedPatchSet, ExpectedRegionSet,
-    ExpectedSlideSet, MultiscaleEmbeddingError, MultiscaleEmbeddingQcSummary, PatchEmbeddingBlock,
-    PatchEmbeddingContext, PatchEmbeddingRow, PatchEmbeddingTable, PatchEmbeddingView,
-    PatchFootprint, PatchFootprintSet, PatchOverlapEdge, PatchOverlapGraph, RegionEmbeddingBlock,
-    RegionEmbeddingRow, RegionEmbeddingTable, RegionEmbeddingView, SlideEmbeddingBlock,
-    SlideEmbeddingRow, SlideEmbeddingTable, SlideEmbeddingView,
+    CellPatchAnchor, CellPatchAssignment, CellPatchAssignmentMode, CellPatchAssignmentStatus,
+    CellPatchContributor, CellPatchEdge, CellPatchLink, CellPatchLinkBindings, CellPatchWeight,
+    DeclaredCellPatchAssignment, EffectiveReceptiveField, EmbeddingEntityKind, ExpectedPatchSet,
+    ExpectedRegionSet, ExpectedSlideSet, MultiscaleEmbeddingError, MultiscaleEmbeddingQcSummary,
+    PatchEmbeddingBlock, PatchEmbeddingContext, PatchEmbeddingRow, PatchEmbeddingTable,
+    PatchEmbeddingView, PatchFootprint, PatchFootprintSet, PatchOverlapEdge, PatchOverlapGraph,
+    RegionEmbeddingBlock, RegionEmbeddingRow, RegionEmbeddingTable, RegionEmbeddingView,
+    SlideEmbeddingBlock, SlideEmbeddingRow, SlideEmbeddingTable, SlideEmbeddingView,
 };
 pub use provenance::{
     ArtifactAvailabilityFailure, CanonicalDecimal, CellEmbeddingArtifactRole,

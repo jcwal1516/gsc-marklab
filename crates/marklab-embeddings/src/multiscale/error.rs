@@ -98,6 +98,52 @@ pub enum MultiscaleEmbeddingError {
         /// Frozen version-one maximum.
         maximum: usize,
     },
+    /// A cell anchor is NaN or infinite.
+    #[error("cell-patch anchor coordinates must be finite")]
+    InvalidCellPatchAnchor,
+    /// Cell assignment rows do not exactly match the expected cell set.
+    #[error("cell-patch assignments must exactly match expected cells in canonical order")]
+    CellPatchSetMismatch,
+    /// Cell anchors are declared in a frame other than the exact patch image frame.
+    #[error("cell-patch anchor frame does not match the patch context")]
+    CellPatchFrameMismatch,
+    /// Expected cells are absent from the owning-slide hierarchy.
+    #[error("cell-patch hierarchy ownership is invalid at assignment row {row}")]
+    CellPatchHierarchyMismatch {
+        /// Zero-based canonical assignment row.
+        row: usize,
+    },
+    /// Expected-patch, context, footprint, or artifact bindings disagree.
+    #[error("cell-patch inputs do not share one exact support binding")]
+    CellPatchInputMismatch,
+    /// Artifact roles alias where version one requires distinct dependencies.
+    #[error("cell-patch artifact dependency roles must be distinct")]
+    DuplicateCellPatchArtifactDependency,
+    /// One declared interpolation contributor has a zero numerator or denominator.
+    #[error("cell-patch contributor numerator and denominator must be positive")]
+    InvalidCellPatchContributor,
+    /// One interpolation group violates identity, order, count, or fraction rules.
+    #[error("cell-patch contributors are invalid at assignment row {row}")]
+    InvalidCellPatchContributors {
+        /// Zero-based canonical assignment row.
+        row: usize,
+    },
+    /// Cell-patch edges exceed the version-one hard limit.
+    #[error("cell-patch edges {observed} exceed maximum {maximum}")]
+    CellPatchEdgeCountExceeded {
+        /// Observed edge count at the first rejected edge.
+        observed: usize,
+        /// Frozen version-one maximum.
+        maximum: usize,
+    },
+    /// Indexed containment candidate checks exceed the caller's explicit work budget.
+    #[error("cell-patch candidate checks {required} exceed budget {maximum}")]
+    CellPatchCandidateCheckBudgetExceeded {
+        /// Candidate count at the first rejected check.
+        required: usize,
+        /// Caller-provided maximum checks per deterministic pass.
+        maximum: usize,
+    },
     /// Table rows do not exactly match the expected typed set.
     #[error("multiscale embedding rows must exactly match the expected set")]
     RowSetMismatch,
