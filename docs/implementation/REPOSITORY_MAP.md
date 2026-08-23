@@ -48,6 +48,18 @@ marklab (compatibility facade and current engine adapter)
 
 `marklab-data` is a root dev-dependency only for integration tests and the hierarchy benchmark; C-01 adds no stable root re-export. The two new packages use only already-locked `thiserror` 2.
 
+## Current C-05 logical implementation ownership
+
+| Path | Current responsibility | Checkpoint boundary |
+|---|---|---|
+| `crates/marklab-embeddings/src/multiscale/expected/**` | Canonical expected patch, region, and slide sets with strict bounded JSON and logical digests | Logical only; no artifact record or physical reader/writer |
+| `crates/marklab-embeddings/src/multiscale/context/**` | Exact patch extraction geometry, coordinate-frame bindings, receptive field, boundary policy, and bounded canonical JSON | No source adapter or observation-window inference |
+| `crates/marklab-embeddings/src/multiscale/footprint.rs` | Expected-order patch origins and half-open source-boundary validation | Overlap graph remains the next owned slice |
+| `crates/marklab-embeddings/src/multiscale/table/**` | Sealed matrix core, distinct typed patch/region/slide rows/views/blocks, logical QC/digest scans | No Arrow/Parquet constructors or publication receipts yet |
+| `tests/multiscale_embedding_tables/**` | Behavior, wire/digest golden, resource-budget, boundary, privacy, and scan-partition regressions | Seven tests cover only the first logical checkpoint |
+
+The C-05 implementation introduces no dependency or lockfile change and preserves the existing C-04 cell-table APIs and digest goldens.
+
 ## Active ownership
 
 | Task/agent | Writable tracked files | Canonical symbols | Read-only scope | Non-goals |

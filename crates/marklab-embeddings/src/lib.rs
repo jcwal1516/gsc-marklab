@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-//! Canonical cell-embedding values and bounded artifact encodings.
+//! Canonical typed embedding values and bounded artifact encodings.
 
 mod artifact;
 #[cfg(feature = "parquet")]
@@ -10,6 +10,7 @@ mod digest;
 mod error;
 mod expected;
 mod identity_map;
+mod multiscale;
 mod provenance;
 mod row_link;
 mod source;
@@ -49,6 +50,14 @@ pub use context::{EmbeddingSpatialContext, PatchBoundaryPolicy, PositiveRational
 pub use error::EmbeddingError;
 pub use expected::ExpectedCellSet;
 pub use identity_map::{CellIdentityMap, CellIdentityMapEntry};
+pub use multiscale::{
+    EffectiveReceptiveField, EmbeddingEntityKind, ExpectedPatchSet, ExpectedRegionSet,
+    ExpectedSlideSet, MultiscaleEmbeddingError, MultiscaleEmbeddingQcSummary, PatchEmbeddingBlock,
+    PatchEmbeddingContext, PatchEmbeddingRow, PatchEmbeddingTable, PatchEmbeddingView,
+    PatchFootprint, PatchFootprintSet, RegionEmbeddingBlock, RegionEmbeddingRow,
+    RegionEmbeddingTable, RegionEmbeddingView, SlideEmbeddingBlock, SlideEmbeddingRow,
+    SlideEmbeddingTable, SlideEmbeddingView,
+};
 pub use provenance::{
     ArtifactAvailabilityFailure, CanonicalDecimal, CellEmbeddingArtifactRole,
     CellEmbeddingExecutionProvenance, CellEmbeddingInputArtifacts, CellEmbeddingModelProvenance,

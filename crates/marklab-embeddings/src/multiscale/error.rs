@@ -1,0 +1,127 @@
+use thiserror::Error;
+
+/// Invalid multiscale embedding value, wire, hierarchy binding, or resource request.
+#[derive(Clone, Debug, Error, Eq, PartialEq)]
+pub enum MultiscaleEmbeddingError {
+    /// A dimension or required spatial extent is zero.
+    #[error("multiscale embedding dimensions and required extents must be positive")]
+    ZeroDimension,
+    /// A fixed dimension exceeds the version-one hard limit.
+    #[error("multiscale embedding dimension {observed} exceeds maximum {maximum}")]
+    DimensionExceeded {
+        /// Observed dimension.
+        observed: u32,
+        /// Frozen version-one maximum.
+        maximum: u32,
+    },
+    /// A row count exceeds the version-one hard limit.
+    #[error("multiscale embedding rows {observed} exceed maximum {maximum}")]
+    RowCountExceeded {
+        /// Observed row count.
+        observed: usize,
+        /// Frozen version-one maximum.
+        maximum: usize,
+    },
+    /// A count, byte length, coordinate endpoint, or index calculation overflowed.
+    #[error("multiscale embedding size or coordinate calculation overflowed")]
+    SizeOverflow,
+    /// A retained allocation would exceed the caller's explicit budget.
+    #[error("multiscale embedding retained bytes {required} exceed budget {maximum}")]
+    RetainedByteBudgetExceeded {
+        /// Conservatively required retained bytes.
+        required: usize,
+        /// Caller-provided maximum retained bytes.
+        maximum: usize,
+    },
+    /// An allocation failed after its size was checked.
+    #[error("multiscale embedding allocation failed for {requested} bytes")]
+    AllocationFailed {
+        /// Requested allocation size.
+        requested: usize,
+    },
+    /// Encoded input exceeds the lower of caller and hard limits.
+    #[error("multiscale encoded input bytes {observed} exceed budget {maximum}")]
+    EncodedByteBudgetExceeded {
+        /// Observed encoded byte count.
+        observed: usize,
+        /// Effective maximum encoded byte count.
+        maximum: usize,
+    },
+    /// Decoded/transient semantic storage exceeds the caller's explicit budget.
+    #[error("multiscale decoded bytes {required} exceed budget {maximum}")]
+    DecodedByteBudgetExceeded {
+        /// Conservatively required decoded bytes.
+        required: usize,
+        /// Caller-provided maximum decoded bytes.
+        maximum: usize,
+    },
+    /// A canonical JSON document is malformed, unsupported, or not at its exact fixed point.
+    #[error("multiscale embedding JSON is invalid or noncanonical")]
+    InvalidCanonicalJson,
+    /// A selection-rule token violates the frozen grammar.
+    #[error("multiscale expected-set selection rule is invalid")]
+    InvalidSelectionRule,
+    /// Expected typed IDs are not strictly increasing and unique.
+    #[error("multiscale expected IDs must be strictly increasing and unique")]
+    NonCanonicalExpectedOrder,
+    /// An expected set violates its entity-specific cardinality rule.
+    #[error("multiscale expected-set cardinality is invalid")]
+    InvalidExpectedSetCardinality,
+    /// An expected entity or owning slide is absent or belongs to another slide.
+    #[error("multiscale entity hierarchy ownership is invalid")]
+    HierarchyOwnershipMismatch,
+    /// Frame, transform, scale, receptive-field, patch-grid, or boundary semantics disagree.
+    #[error("patch embedding context is inconsistent")]
+    InvalidPatchContext,
+    /// Footprint rows do not exactly match the expected patch set.
+    #[error("patch footprints must exactly match expected patches in canonical order")]
+    FootprintSetMismatch,
+    /// One footprint violates checked half-open boundary semantics.
+    #[error("patch footprint violates the declared boundary policy")]
+    InvalidPatchFootprint,
+    /// Table rows do not exactly match the expected typed set.
+    #[error("multiscale embedding rows must exactly match the expected set")]
+    RowSetMismatch,
+    /// A row's vector presence disagrees with its extraction status.
+    #[error("multiscale embedding row vector is inconsistent with its status")]
+    StatusVectorMismatch,
+    /// A present row has the wrong component count.
+    #[error("multiscale embedding dimension mismatch: expected {expected}, observed {observed}")]
+    DimensionMismatch {
+        /// Declared component count.
+        expected: usize,
+        /// Observed component count.
+        observed: usize,
+    },
+    /// A present vector component is NaN or infinite.
+    #[error("multiscale embedding component at row {row}, column {column} is non-finite")]
+    NonFiniteComponent {
+        /// Zero-based canonical row index.
+        row: usize,
+        /// Zero-based component index.
+        column: usize,
+    },
+    /// A row index is outside the table.
+    #[error("multiscale embedding row index {index} is outside row count {row_count}")]
+    RowOutOfBounds {
+        /// Requested zero-based row.
+        index: usize,
+        /// Available canonical row count.
+        row_count: usize,
+    },
+    /// A requested borrowed row block is outside the table or overflows.
+    #[error(
+        "multiscale row block start {start} with count {row_count} is outside table rows {table_row_count}"
+    )]
+    RowBlockOutOfBounds {
+        /// Requested zero-based first row.
+        start: usize,
+        /// Requested number of rows.
+        row_count: usize,
+        /// Available canonical row count.
+        table_row_count: usize,
+    },
+    /// A bounded QC scan requires a positive maximum block size.
+    #[error("multiscale QC scan maximum block rows must be positive")]
+    ZeroScanBlockRows,
+}

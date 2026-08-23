@@ -1,13 +1,13 @@
 # Implementation status
 
-Last updated: 2026-08-23T06:42:40-04:00
+Last updated: 2026-08-23T07:44:12-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Committed baseline before the current checkpoint: `e3dadae179957d7d4704a00531ed07f29b919934`
+- Committed baseline before the current checkpoint: `4e1d5b5f6dfea2332e62ce9aaf8752cb46351a1f`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
@@ -30,12 +30,12 @@ Last updated: 2026-08-23T06:42:40-04:00
 
 - C-04 delivers exact cell-table/validity/expected/identity/context/link/provenance owners, bounded non-pickle source import, embedding-specific Arrow/Parquet validation/publication/scans, fuzz/differential/resource evidence, and pinned scale workloads.
 - The authorized 32-bundle source profile reconciles exactly but remains aggregate-only and non-promotable because `canonical_identity_mapping`, `input_normalization_and_run_configuration`, `reviewed_source_snapshot`, and `license_record` are absent.
-- C-05's frozen contract owns typed per-slide patch/region/slide tables, once-per-patch support and overlap clusters, explicit zero-state cell assignments plus vector-free edges, declared patch-region overlap, an acyclic direct-patch/derived-region/derived-slide graph, and eight exact Arrow/Parquet profile families. Dual independent review approved the corrected semantic, digest, resource, physical, compatibility, and claim boundaries; no production C-05 edit has begun.
+- C-05's first logical slice now implements distinct expected patch/region/slide sets, exact patch context and footprint ownership, and three typed logical embedding tables over a sealed private core. Canonical JSON/digest goldens, full-`u64` source extents, bounded allocation/accounting, all four statuses, aggregate-safe debug/error surfaces, and partition-invariant block scans are covered. Both independent reviewers approve this checkpoint only; overlap, links, support/provenance records, physical formats, artifact publication, and closure remain open.
 - A later aggregate/header audit found candidate patch-feature matrices at widths 384 and 1,024 plus patch image/coordinate containers. It found no promotable patch/region/slide table or canonical link. The evidence has no pinned digest and no production source grammar; the validation ledger records the exact claim ceiling and one bounded recursive-key-output audit defect.
 
 ## Dirty files and reason
 
-- C-05 contract freeze only: frozen task contract/accepted DEC-0032–0034/ownership/interface; current inventory qualification in repository map, prior-inventory handoff, and append-only validation evidence. No production source, test, manifest, dependency, or lockfile is dirty.
+- First C-05 logical implementation slice: `crates/marklab-embeddings/src/multiscale/**`, focused root exports, and modular `tests/multiscale_embedding_tables/**`, plus checkpoint documentation. No manifest, dependency, lockfile, physical-format, link, source-adapter, or real-corpus promotion change is dirty.
 
 ## Recent decisions
 
@@ -79,9 +79,9 @@ Last updated: 2026-08-23T06:42:40-04:00
 
 ## Next three exact actions
 
-1. Commit the documentation-only C-05 contract/inventory checkpoint with a clean worktree.
-2. Add `tests/multiscale_embedding_tables.rs` and run the exact focused command red for missing public owners.
-3. Implement only the expected-set/context/support/table slice, then rerun the focused contract green before adding links or physical formats.
+1. Commit the reviewed first C-05 logical expected/context/footprint/table checkpoint with a clean worktree.
+2. Add behavior-first overlap-graph tests, including deterministic edge/cluster ordering and checked resource bounds, and confirm the focused red state.
+3. Implement only the owned overlap graph before beginning grouped cell-patch or patch-region links.
 
 Next exact verification command:
 

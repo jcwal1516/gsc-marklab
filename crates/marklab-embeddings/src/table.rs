@@ -11,12 +11,12 @@ pub(crate) use scan::EmbeddingQcAccumulator;
 
 const LOGICAL_DIGEST_DOMAIN: &[u8] = b"marklab-cell-embedding-logical-v1";
 
-/// Closed extraction-validity state for one cell embedding row.
+/// Closed extraction-validity state for one embedding-entity row.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EmbeddingStatus {
     /// A finite vector is present and meaningful.
     Present,
-    /// The source explicitly has no vector for this cell.
+    /// The source explicitly has no vector for this embedding entity.
     MissingVector,
     /// Extraction failed and produced no vector.
     ExtractionFailed,
