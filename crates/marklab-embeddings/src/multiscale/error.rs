@@ -197,6 +197,24 @@ pub enum MultiscaleEmbeddingError {
     /// Patch input normalization differs from the closed RGB H&E version-one profile.
     #[error("patch input normalization is invalid")]
     InvalidPatchInputNormalization,
+    /// A deterministic multiscale derivation record violates its closed version-one contract.
+    #[error("multiscale embedding derivation is invalid")]
+    InvalidMultiscaleEmbeddingDerivation,
+    /// A multiscale support record has a wrong variant, entity kind, slide, or binding shape.
+    #[error("multiscale embedding support is invalid")]
+    InvalidMultiscaleEmbeddingSupport,
+    /// Support artifact roles alias where version one requires distinct dependencies.
+    #[error("multiscale support artifact dependency roles must be distinct")]
+    DuplicateMultiscaleSupportArtifactDependency,
+    /// A cell-patch producer record has an invalid mode, algorithm, or token.
+    #[error("cell-patch link producer is invalid")]
+    InvalidCellPatchLinkProducer,
+    /// Cell-patch producer artifact roles alias where distinct dependencies are required.
+    #[error("cell-patch producer artifact dependency roles must be distinct")]
+    DuplicateCellPatchProducerArtifactDependency,
+    /// Canonical patch-region assessment content disagrees with the complete assessment value.
+    #[error("patch-region assessment record does not match the complete assessment")]
+    PatchRegionAssessmentRecordMismatch,
     /// Table rows do not exactly match the expected typed set.
     #[error("multiscale embedding rows must exactly match the expected set")]
     RowSetMismatch,

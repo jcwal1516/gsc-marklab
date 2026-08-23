@@ -10,6 +10,8 @@ pub(super) const MAX_SOURCE_RECORD_BYTES: usize = 1024 * 1024 * 1024;
 pub(super) const MAX_SOURCE_ROWS: usize = 100_000_000;
 pub(super) const MAX_NORMALIZATION_BYTES: usize = 64 * 1024;
 pub(super) const MAX_RAW_SOURCE_JSON_STRING_BYTES: usize = 6 * 255;
+pub(in crate::multiscale) const MAX_SMALL_RECORD_BYTES: usize = 256 * 1024;
+pub(in crate::multiscale) const MAX_RAW_SMALL_JSON_STRING_BYTES: usize = 6 * 255;
 const MAX_JSON_DEPTH: usize = 8;
 const MAX_OBJECT_FIELDS: usize = 256;
 
@@ -68,7 +70,7 @@ pub(super) fn valid_decimal(value: &str) -> bool {
     !(negative && unsigned == "0")
 }
 
-pub(super) fn preflight_json_strings(
+pub(in crate::multiscale) fn preflight_json_strings(
     bytes: &[u8],
     maximum_raw_string_bytes: usize,
 ) -> Result<(), MultiscaleEmbeddingError> {
@@ -143,7 +145,7 @@ pub(super) fn preflight_json_strings(
     }
 }
 
-pub(super) fn require_decoded(
+pub(in crate::multiscale) fn require_decoded(
     required: usize,
     maximum: usize,
 ) -> Result<(), MultiscaleEmbeddingError> {
@@ -153,7 +155,7 @@ pub(super) fn require_decoded(
     Ok(())
 }
 
-pub(super) fn require_retained(
+pub(in crate::multiscale) fn require_retained(
     required: usize,
     maximum: usize,
 ) -> Result<(), MultiscaleEmbeddingError> {
@@ -178,14 +180,14 @@ pub(super) fn try_vec_capacity<T>(capacity: usize) -> Result<Vec<T>, MultiscaleE
     Ok(values)
 }
 
-pub(super) fn serialize_artifact<S: Serializer>(
+pub(in crate::multiscale) fn serialize_artifact<S: Serializer>(
     value: &ArtifactId,
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
     serialize_hex(value.digest().as_bytes(), serializer)
 }
 
-pub(super) fn serialize_digest<S: Serializer>(
+pub(in crate::multiscale) fn serialize_digest<S: Serializer>(
     value: &ContentDigest,
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
@@ -203,7 +205,7 @@ fn serialize_hex<S: Serializer>(bytes: &[u8; 32], serializer: S) -> Result<S::Ok
     serializer.serialize_str(text)
 }
 
-pub(super) fn expect_key<'de, A: MapAccess<'de>>(
+pub(in crate::multiscale) fn expect_key<'de, A: MapAccess<'de>>(
     map: &mut A,
     expected: &str,
 ) -> Result<(), A::Error> {
@@ -216,7 +218,7 @@ pub(super) fn expect_key<'de, A: MapAccess<'de>>(
     Ok(())
 }
 
-pub(super) fn expect_header<'de, A: MapAccess<'de>>(
+pub(in crate::multiscale) fn expect_header<'de, A: MapAccess<'de>>(
     map: &mut A,
     expected_format: &str,
     expected_version: u32,
@@ -232,7 +234,7 @@ pub(super) fn expect_header<'de, A: MapAccess<'de>>(
     Ok(())
 }
 
-pub(super) fn require_hex<E: serde::de::Error>(value: &str) -> Result<(), E> {
+pub(in crate::multiscale) fn require_hex<E: serde::de::Error>(value: &str) -> Result<(), E> {
     if value.len() != 64
         || !value
             .bytes()
@@ -243,11 +245,15 @@ pub(super) fn require_hex<E: serde::de::Error>(value: &str) -> Result<(), E> {
     Ok(())
 }
 
-pub(super) fn parse_artifact<E: serde::de::Error>(value: &str) -> Result<ArtifactId, E> {
+pub(in crate::multiscale) fn parse_artifact<E: serde::de::Error>(
+    value: &str,
+) -> Result<ArtifactId, E> {
     ArtifactId::from_str(value).map_err(|_| E::custom("invalid artifact ID"))
 }
 
-pub(super) fn parse_digest<E: serde::de::Error>(value: &str) -> Result<ContentDigest, E> {
+pub(in crate::multiscale) fn parse_digest<E: serde::de::Error>(
+    value: &str,
+) -> Result<ContentDigest, E> {
     ContentDigest::from_str(value).map_err(|_| E::custom("invalid digest"))
 }
 

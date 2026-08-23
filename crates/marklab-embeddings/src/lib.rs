@@ -52,9 +52,11 @@ pub use expected::ExpectedCellSet;
 pub use identity_map::{CellIdentityMap, CellIdentityMapEntry};
 pub use multiscale::{
     CellPatchAnchor, CellPatchAssignment, CellPatchAssignmentMode, CellPatchAssignmentStatus,
-    CellPatchContributor, CellPatchEdge, CellPatchLink, CellPatchLinkBindings, CellPatchWeight,
-    DeclaredCellPatchAssignment, EffectiveReceptiveField, EmbeddingEntityKind, ExpectedPatchSet,
-    ExpectedRegionSet, ExpectedSlideSet, MultiscaleEmbeddingError, MultiscaleEmbeddingQcSummary,
+    CellPatchContributor, CellPatchEdge, CellPatchLink, CellPatchLinkBindings,
+    CellPatchLinkProducer, CellPatchWeight, DeclaredCellPatchAssignment, EffectiveReceptiveField,
+    EmbeddingEntityKind, ExpectedPatchSet, ExpectedRegionSet, ExpectedSlideSet,
+    MultiscaleArtifactBinding, MultiscaleEmbeddingDerivationContract, MultiscaleEmbeddingError,
+    MultiscaleEmbeddingQcSummary, MultiscaleEmbeddingSupport, MultiscaleEmbeddingSupportVariant,
     PatchEmbeddingBlock, PatchEmbeddingContext, PatchEmbeddingInputNormalization,
     PatchEmbeddingRow, PatchEmbeddingSourceRowLink, PatchEmbeddingSourceRowLinkEntry,
     PatchEmbeddingTable, PatchEmbeddingView, PatchFootprint, PatchFootprintSet, PatchIdentityMap,

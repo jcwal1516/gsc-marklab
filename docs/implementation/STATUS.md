@@ -1,13 +1,13 @@
 # Implementation status
 
-Last updated: 2026-08-23T10:31:46-04:00
+Last updated: 2026-08-23T11:07:58-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Committed baseline before the current checkpoint: `309b06616d3e028a1f3c4acd9bcff3c6ea5934ee`
+- Committed baseline before the current checkpoint: `b5b45d159c491e32c2d5645c012aa99b8fbf415e`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
@@ -30,12 +30,12 @@ Last updated: 2026-08-23T10:31:46-04:00
 
 - C-04 delivers exact cell-table/validity/expected/identity/context/link/provenance owners, bounded non-pickle source import, embedding-specific Arrow/Parquet validation/publication/scans, fuzz/differential/resource evidence, and pinned scale workloads.
 - The authorized 32-bundle source profile reconciles exactly but remains aggregate-only and non-promotable because `canonical_identity_mapping`, `input_normalization_and_run_configuration`, `reviewed_source_snapshot`, and `license_record` are absent.
-- C-05's approved logical substrate includes distinct expected patch/region/slide sets, exact patch context/footprints/overlap, three typed embedding tables, vector-free `CellPatchLink`, and exhaustive `PatchRegionAssessment`/`PatchRegionLink` owners. The current bounded checkpoint adds strict canonical values/codecs for the patch source-entity set, source-to-expected identity map, embedding source-row link, and input normalization. It enforces exact bindings, all four statuses, gap-free source/vector rows, bounded canonical JSON, typed allocation failures, and exact encoded/decoded/retained budgets. Both independent reviewers approve this source-record checkpoint. Producer/support/derivation/assessment/provenance records, artifact graphs/receipts, physical formats, scale evidence, and closure remain open.
+- C-05's approved logical and record substrate includes distinct expected patch/region/slide sets, exact patch context/footprints/overlap, three typed embedding tables, vector-free links, strict patch source-identity/normalization values, all four canonical support variants, deterministic weighted/arithmetic derivation contracts, both cell-link producer modes, and the exhaustive patch-region assessment descriptor. The current checkpoint freezes exact wires/content or logical digests, sorted distinct dependency sets, strict mode/variant coupling, the 256-KiB hard cap, and exact encoded/decoded/retained budgets. Both independent reviewers approve only this bounded small-record checkpoint. Multiscale provenance variants, artifact graphs/receipts, physical formats, scale evidence, and closure remain open.
 - A later aggregate/header audit found candidate patch-feature matrices at widths 384 and 1,024 plus patch image/coordinate containers. It found no promotable patch/region/slide table or canonical link. The evidence has no pinned digest and no production source grammar; the validation ledger records the exact claim ceiling and one bounded recursive-key-output audit defect.
 
 ## Dirty files and reason
 
-- C-05 strict source-record checkpoint: additive `multiscale/records/{codec,normalization,source/**}`, focused exports/error variants, modular canonical-wire/domain/resource/privacy tests, and checkpoint documentation. No manifest, dependency, lockfile, production source adapter, artifact receipt/graph, physical format, or real-corpus promotion change is dirty.
+- C-05 small-record checkpoint: additive `multiscale/records/{binding,derivation,support/**,producer/**}`, patch-region assessment wire/validation, focused exports/errors, modular canonical/digest/dependency/strictness/resource/privacy tests, and checkpoint documentation. No manifest, dependency, lockfile, provenance record, source adapter, artifact receipt/graph, physical format, or real-corpus promotion change is dirty.
 
 ## Recent decisions
 
@@ -80,9 +80,9 @@ Last updated: 2026-08-23T10:31:46-04:00
 
 ## Next three exact actions
 
-1. Commit the independently approved C-05 strict source-identity/normalization record checkpoint with a clean worktree.
-2. Add behavior-first cases for the derivation contract, four support variants, cell-link producer record, and patch-region assessment wire; confirm the focused red state.
-3. Implement those small canonical records, then add the separately reviewed provenance variants before artifact-graph descriptors and verification receipts.
+1. Commit the independently approved C-05 derivation/support/producer/assessment record checkpoint with a clean worktree.
+2. Add behavior-first cases for all four strict multiscale provenance variants and their exact role-ordered dependencies.
+3. Implement the provenance values/codecs, then add separate artifact-record profiles, acyclic graph verification, and runtime-only receipts.
 
 Next exact verification command:
 

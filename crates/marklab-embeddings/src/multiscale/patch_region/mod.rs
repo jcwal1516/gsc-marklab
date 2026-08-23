@@ -2,6 +2,7 @@ mod digest;
 mod resources;
 mod types;
 mod validation;
+mod wire;
 
 use std::fmt;
 
@@ -115,6 +116,38 @@ impl PatchRegionAssessment {
     /// Domain-separated digest over canonical nonzero declaration rows.
     pub fn nonzero_relations_digest(&self) -> ContentDigest {
         self.nonzero_relations_digest
+    }
+
+    /// Encode the exact canonical assessment descriptor with one final newline.
+    pub fn to_canonical_json(&self) -> Result<Vec<u8>, MultiscaleEmbeddingError> {
+        wire::to_canonical_json(self)
+    }
+
+    /// Validate canonical descriptor bytes against this already-complete exhaustive assessment.
+    ///
+    /// The descriptor intentionally stores only counts, bindings, and the nonzero-row digest, so
+    /// decoding it cannot reconstruct the declaration rows. This instance method preserves that
+    /// boundary and is the exact byte-comparison primitive used by later artifact-graph checks.
+    pub fn validate_canonical_json(
+        &self,
+        bytes: &[u8],
+        maximum_encoded_bytes: usize,
+        maximum_decoded_bytes: usize,
+    ) -> Result<(), MultiscaleEmbeddingError> {
+        wire::validate_canonical_json(self, bytes, maximum_encoded_bytes, maximum_decoded_bytes)
+    }
+
+    /// Sorted distinct artifact dependency IDs for the C-03 record boundary.
+    pub fn direct_dependencies(&self) -> impl ExactSizeIterator<Item = ArtifactId> {
+        let mut dependencies = [
+            self.common.expected_patches_artifact_id,
+            self.common.expected_regions_artifact_id,
+            self.common.patch_context_artifact_id,
+            self.common.patch_footprints_artifact_id,
+            self.common.converter_artifact_id,
+        ];
+        dependencies.sort_unstable();
+        dependencies.into_iter()
     }
 }
 

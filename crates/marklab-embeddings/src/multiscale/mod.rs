@@ -27,6 +27,8 @@ pub use patch_region::{
     PatchRegionRelation,
 };
 pub use records::{
+    CellPatchLinkProducer, MultiscaleArtifactBinding, MultiscaleEmbeddingDerivationContract,
+    MultiscaleEmbeddingSupport, MultiscaleEmbeddingSupportVariant,
     PatchEmbeddingInputNormalization, PatchEmbeddingSourceRowLink,
     PatchEmbeddingSourceRowLinkEntry, PatchIdentityMap, PatchIdentityMapEntry,
     PatchNormalizationDecimal, PatchSourceEntityEntry, PatchSourceEntitySet,
