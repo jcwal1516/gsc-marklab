@@ -10,6 +10,7 @@ mod footprint;
 mod json;
 mod matrix_artifact;
 mod overlap;
+mod overlap_dispersion;
 mod patch_region;
 pub(crate) mod physical;
 mod records;
@@ -41,6 +42,10 @@ pub use matrix_artifact::{
     VerifiedSlideEmbeddingSupportArtifact, VerifiedSlideEmbeddingTableArtifact,
 };
 pub use overlap::{PatchOverlapEdge, PatchOverlapGraph};
+pub use overlap_dispersion::{
+    patch_overlap_embedding_dispersion, PatchOverlapEmbeddingDispersion,
+    PatchOverlapEmbeddingDispersionError, PatchOverlapEmbeddingDispersionStatus,
+};
 pub use patch_region::{
     PatchRegionAssessment, PatchRegionAssessmentBindings, PatchRegionDeclaration, PatchRegionLink,
     PatchRegionRelation,

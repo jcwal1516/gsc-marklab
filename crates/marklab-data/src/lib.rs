@@ -4,6 +4,7 @@
 
 mod coordinate;
 mod hierarchy;
+mod measurement;
 mod node;
 
 pub use coordinate::{
@@ -21,6 +22,7 @@ pub use marklab_core::{
     HierarchyId, HierarchyKind, IdentityError, PatchId, PatientId, RegionId, SectionId, SiteId,
     SlideId, SpecimenId, TimepointId, TransformId, UncertaintyId,
 };
+pub use measurement::MeasurementStatus;
 pub use node::{
     HierarchyNode, RepeatedMeasureError, RepeatedMeasureSet, ReplicationRole, ReplicationRoleKind,
 };

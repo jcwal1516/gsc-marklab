@@ -1,6 +1,6 @@
 use std::{fmt, io::Read, mem::size_of};
 
-use marklab_data::SlideId;
+use marklab_data::{MeasurementStatus, SlideId};
 use marklab_project::{ArtifactId, ContentDigest};
 
 mod evidence;
@@ -370,6 +370,20 @@ impl MultiscaleEmbeddingProvenance {
     /// Entity kind implied by the selected variant.
     pub fn entity_kind(&self) -> EmbeddingEntityKind {
         self.variant().entity_kind()
+    }
+
+    /// Measurement origin implied by the closed provenance variant.
+    pub fn measurement_status(&self) -> MeasurementStatus {
+        match self.variant() {
+            MultiscaleEmbeddingProvenanceVariant::DirectPatch => {
+                MeasurementStatus::MorphologyPrediction
+            }
+            MultiscaleEmbeddingProvenanceVariant::DerivedRegion
+            | MultiscaleEmbeddingProvenanceVariant::DerivedSlideFromPatches
+            | MultiscaleEmbeddingProvenanceVariant::DerivedSlideFromRegions => {
+                MeasurementStatus::DerivedSummary
+            }
+        }
     }
 
     /// Owning slide.

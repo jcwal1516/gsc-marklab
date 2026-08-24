@@ -199,6 +199,13 @@ The 0.2 reader remains deliberately narrow: only unambiguous marked documents mi
 
 Current HEAD is the audited SHA. Its parent-to-HEAD change modifies `README.md` and deletes 13 internal remediation/migration records; it changes no Rust source, tests, manifests, lockfile, CI, or fixtures. Because implementation base equals the plan's audited SHA, there is no post-audit diff to migrate.
 
+## C-06 first-slice owner map
+
+- `crates/marklab-data/src/measurement.rs` owns the in-memory four-state measurement-origin vocabulary; it is separate from extraction validity and has no wire format.
+- `crates/marklab-embeddings/src/multiscale/overlap_dispersion.rs` is the sole new production caller. It binds an existing patch table, patch support, overlap graph, and direct-patch provenance before computing one bounded descriptive value.
+- `tests/measurement_status.rs` and `tests/patch_overlap_embedding_dispersion.rs` own exact mapping, conflation, oracle, missingness, identity, determinism, and work-bound evidence.
+- No MarkTable, scalar adapter, physical format, receipt, validator framework, config/result/CLI field, dependency, or external data path is added.
+
 ## Authorized external WSI and embedding asset map
 
 Read-only SSH inventory on 2026-08-22 used the existing authenticated connection. No patient/sample identifiers or raw patient data were copied into this repository.

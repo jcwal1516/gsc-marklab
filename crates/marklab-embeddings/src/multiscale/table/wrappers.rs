@@ -380,6 +380,10 @@ define_typed_table!(
 );
 
 impl PatchEmbeddingTable {
+    pub(in crate::multiscale) fn row_index(&self, patch_id: &PatchId) -> Option<usize> {
+        self.0.ids.binary_search(patch_id).ok()
+    }
+
     pub(in crate::multiscale) fn retained_bytes(&self) -> Result<usize, MultiscaleEmbeddingError> {
         self.0.current_retained_bytes()
     }
