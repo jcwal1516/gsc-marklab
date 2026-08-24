@@ -2685,3 +2685,10 @@ fn artifact_graph_maps_corrupted_managed_bytes_to_redacted_integrity() {
 
 #[path = "cellvit_embedding_artifact_graph/declared_binary_centroid.rs"]
 mod declared_binary_centroid;
+
+#[path = "cellvit_embedding_artifact_graph/probability_cross_covariance.rs"]
+mod probability_cross_covariance;
+
+#[allow(dead_code)]
+#[path = "support/declared_scalar.rs"]
+mod declared_scalar_support;

@@ -6,10 +6,6 @@ use marklab::{
     MeasurementStatus, ProbabilityMarkDeclaration, ScalarMarkId,
 };
 
-#[allow(dead_code)]
-#[path = "../support/declared_scalar.rs"]
-mod declared_scalar_support;
-
 const DIMENSION: u32 = 1_280;
 const AVAILABLE_COMPONENT_OPERATIONS: u64 = 6_400;
 const UNAVAILABLE_COMPONENT_OPERATIONS: u64 = 2_560;

@@ -12,6 +12,7 @@ static TEST_ALLOCATOR: dhat::Alloc = dhat::Alloc;
 mod algorithm_tests;
 mod api;
 mod cell_embedding_mark;
+mod cell_embedding_probability;
 #[cfg(feature = "cli")]
 mod cli;
 mod common;
@@ -51,6 +52,12 @@ pub use cell_embedding_mark::{
     DeclaredBinaryCellEmbeddingCentroidDiscrepancy,
     DeclaredBinaryCellEmbeddingCentroidDiscrepancyError,
     DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus, DeclaredBinaryCellEmbeddingGroupCounts,
+};
+pub use cell_embedding_probability::{
+    declared_probability_cell_embedding_cross_covariance_energy,
+    DeclaredProbabilityCellEmbeddingCrossCovarianceEnergy,
+    DeclaredProbabilityCellEmbeddingCrossCovarianceError,
+    DeclaredProbabilityCellEmbeddingCrossCovarianceStatus,
 };
 pub use config::{
     AnalysisConfig, AnalysisConfigSection, ComparisonSection, ComponentMode, CurveMargins,

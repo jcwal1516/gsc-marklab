@@ -247,6 +247,12 @@ Current HEAD is the audited SHA. Its parent-to-HEAD change modifies `README.md` 
 - `tests/cellvit_embedding_artifact_graph/declared_binary_centroid.rs` reuses the existing verified CellViT artifact fixture and declared-scalar support for the 20.0 hand oracle, binary-versus-probability routing, assignment identity, positive zero, every extraction status, binding precedence, determinism, and exact resource edges.
 - The root facade exposes only the concrete function/result/error/status/count surface. No embedding/scalar owner, Arrow/Parquet code, physical format, receipt, graph, validator framework, serializer, node, result/config/CLI field, general mark/statistics abstraction, manifest, dependency, source adapter, or external data path changed.
 
+## C-06 declared probability–cell-embedding cross-covariance owner map
+
+- `src/cell_embedding_probability.rs` owns the sole new two-pass computation and its fixed-size result/status/error types. It consumes the existing dense declared probability input and verified cell table/artifact directly, frames exact ordered raw probability bits locally, and owns no scalar, embedding, or statistics infrastructure.
+- `tests/cellvit_embedding_artifact_graph/probability_cross_covariance.rs` reuses the genuine verified CellViT artifact and declared-scalar fixtures for the 0.625 hand oracle, binary non-use, probability identity, positive zero, every extraction status, both typed unavailable states, binding precedence, determinism, and exact resource edges. The shared `tests/support/declared_scalar.rs` module is now declared once by the parent target because warning-denied Clippy rejects loading it independently in both child modules.
+- The root facade exposes only the concrete function/result/error/status surface. No Arrow/Parquet code, scalar/embedding owner, physical format, receipt, graph, validator framework, serializer, node/codec, result/config/CLI field, general covariance/statistics abstraction, manifest, dependency, source adapter, or external data path changed.
+
 ## Authorized external WSI and embedding asset map
 
 Read-only SSH inventory on 2026-08-22 used the existing authenticated connection. No patient/sample identifiers or raw patient data were copied into this repository.
