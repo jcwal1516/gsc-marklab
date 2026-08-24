@@ -1,0 +1,195 @@
+{
+  "format_version": "1.0",
+  "canonical_full_file": "docs/implementation/PSEUDOCODE_FULL.md",
+  "canonical_full_sha256": "c0508109be2a954502bb1b1989ee98936f1c1838bd25fd92fcb33f09054fda51",
+  "canonical_full_line_count": 6000,
+  "split_files": [
+    {
+      "order": 0,
+      "file": "docs/implementation/pseudocode/00_preamble.md",
+      "title": "Preamble and scope",
+      "original_line_start": 1,
+      "original_line_end": 45,
+      "line_count": 45,
+      "byte_count": 2066,
+      "sha256": "e157cd7e4a36509d65799c4db9a3698672aa544836508b4235417bd79deef165"
+    },
+    {
+      "order": 1,
+      "file": "docs/implementation/pseudocode/01_part_i_shared_algorithmic_substrate.md",
+      "title": "Shared algorithmic substrate",
+      "original_line_start": 46,
+      "original_line_end": 512,
+      "line_count": 467,
+      "byte_count": 14048,
+      "sha256": "d392fdbb1f97e410e46954bbb8babbed5d2944bdc1a581813724813b005e0b60"
+    },
+    {
+      "order": 2,
+      "file": "docs/implementation/pseudocode/02_part_ii_cohort_valid_spatial_inference.md",
+      "title": "Cohort-valid spatial inference",
+      "original_line_start": 513,
+      "original_line_end": 886,
+      "line_count": 374,
+      "byte_count": 14324,
+      "sha256": "8754c7a53b0ed355ffb1fc5cf0038508c1f000a51290ccee498e38eaa4e2db20"
+    },
+    {
+      "order": 3,
+      "file": "docs/implementation/pseudocode/03_part_iii_bayesian_spatial_modeling.md",
+      "title": "Bayesian spatial modeling",
+      "original_line_start": 887,
+      "original_line_end": 1399,
+      "line_count": 513,
+      "byte_count": 19408,
+      "sha256": "cec9128251ca6a668e41c64e44db040febd51ffee871db6d3d92d721b548c5e2"
+    },
+    {
+      "order": 4,
+      "file": "docs/implementation/pseudocode/04_part_iv_bayesian_point_processes.md",
+      "title": "Bayesian point processes",
+      "original_line_start": 1400,
+      "original_line_end": 1770,
+      "line_count": 371,
+      "byte_count": 14462,
+      "sha256": "1e1383e130453c37cc422937541a0ef9d93e071a82edb535f71a7784ee8ca6a2"
+    },
+    {
+      "order": 5,
+      "file": "docs/implementation/pseudocode/05_part_v_high_dimensional_embedding_science.md",
+      "title": "High-dimensional embedding science",
+      "original_line_start": 1771,
+      "original_line_end": 2196,
+      "line_count": 426,
+      "byte_count": 16002,
+      "sha256": "33574014146bcfc9d4afec224fa0e9882f9b7cc7aa6cc9e6bc605cd9bb9cffac"
+    },
+    {
+      "order": 6,
+      "file": "docs/implementation/pseudocode/06_part_vi_registration_atlas_mapping_and_transport.md",
+      "title": "Registration, atlas mapping, and transport",
+      "original_line_start": 2197,
+      "original_line_end": 2515,
+      "line_count": 319,
+      "byte_count": 12522,
+      "sha256": "773421df67822615b1f96aec0f929dfda96c66356f19ba743c439d0eccf446ee"
+    },
+    {
+      "order": 7,
+      "file": "docs/implementation/pseudocode/07_part_vii_graph_and_higher_order_tissue_mathematics.md",
+      "title": "Graph and Higher-Order Tissue Mathematics",
+      "original_line_start": 2516,
+      "original_line_end": 3105,
+      "line_count": 590,
+      "byte_count": 20625,
+      "sha256": "4c973e32fd764d7a1968c74d187d4da0204461b97cc2aa2c00d7774b95a47470"
+    },
+    {
+      "order": 8,
+      "file": "docs/implementation/pseudocode/08_part_viii_topology_and_mathematical_morphology.md",
+      "title": "Topology and Mathematical Morphology",
+      "original_line_start": 3106,
+      "original_line_end": 3388,
+      "line_count": 283,
+      "byte_count": 10972,
+      "sha256": "3cb7db55f642e2a360d04d57ab4b537659f532eeea4fafb48a4780531dde8666"
+    },
+    {
+      "order": 9,
+      "file": "docs/implementation/pseudocode/09_part_ix_multimodal_bayesian_models.md",
+      "title": "Multimodal Bayesian Models",
+      "original_line_start": 3389,
+      "original_line_end": 3804,
+      "line_count": 416,
+      "byte_count": 15052,
+      "sha256": "a27d4084c300ccff8f7f1af6eedb64fbe16d5a45854e4720b1bed53e022e0391"
+    },
+    {
+      "order": 10,
+      "file": "docs/implementation/pseudocode/10_part_x_generative_tissue_modeling_and_simulation_based_inference.md",
+      "title": "Generative Tissue Modeling and Simulation-Based Inference",
+      "original_line_start": 3805,
+      "original_line_end": 4464,
+      "line_count": 660,
+      "byte_count": 22899,
+      "sha256": "9409aba11d1405d5245481a8c45fd8277c27971314bfc77d45829de7f5c7f1e2"
+    },
+    {
+      "order": 11,
+      "file": "docs/implementation/pseudocode/11_part_xi_3_d_longitudinal_and_evolutionary_models.md",
+      "title": "3-D, Longitudinal, and Evolutionary Models",
+      "original_line_start": 4465,
+      "original_line_end": 4829,
+      "line_count": 365,
+      "byte_count": 13189,
+      "sha256": "88187b9abe398b0fcb80a7f60f2a6b685e0f5e530315a4712bf9201a44f7dcea"
+    },
+    {
+      "order": 12,
+      "file": "docs/implementation/pseudocode/12_part_xii_causal_interference_perturbational_and_active_design_research.md",
+      "title": "Causal, Interference, Perturbational, and Active-Design Research",
+      "original_line_start": 4830,
+      "original_line_end": 5310,
+      "line_count": 481,
+      "byte_count": 18517,
+      "sha256": "d744a0293331c1d0d66e7484045ceeae3f662ee0ec4166f60c6d93a75d0f7bac"
+    },
+    {
+      "order": 13,
+      "file": "docs/implementation/pseudocode/13_part_xiii_unified_execution_validation_and_release_contracts.md",
+      "title": "Unified Execution, Validation, and Release Contracts",
+      "original_line_start": 5311,
+      "original_line_end": 5754,
+      "line_count": 444,
+      "byte_count": 14884,
+      "sha256": "28a0a28683e8d4badf01abde325b53ae2b8db40abecea2ecd739af1a0aeb1fc0"
+    },
+    {
+      "order": 14,
+      "file": "docs/implementation/pseudocode/14_part_xiv_requested_function_coverage_index.md",
+      "title": "Requested-Function Coverage Index",
+      "original_line_start": 5755,
+      "original_line_end": 5831,
+      "line_count": 77,
+      "byte_count": 3666,
+      "sha256": "2dbb24d416b429cb53be158dc7eb449da735844c33f47fba1173e6342f48fb08"
+    },
+    {
+      "order": 15,
+      "file": "docs/implementation/pseudocode/15_part_xv_complexity_and_scaling_summary.md",
+      "title": "Complexity and Scaling Summary",
+      "original_line_start": 5832,
+      "original_line_end": 5856,
+      "line_count": 25,
+      "byte_count": 2027,
+      "sha256": "04205e8d25f535ce7b6f6075e467706f0089416cd5f575a10b2eee5ef03d6cbc"
+    },
+    {
+      "order": 16,
+      "file": "docs/implementation/pseudocode/16_part_xvi_primary_research_basis_and_reference_implementations.md",
+      "title": "Primary Research Basis and Reference Implementations",
+      "original_line_start": 5857,
+      "original_line_end": 5978,
+      "line_count": 122,
+      "byte_count": 15435,
+      "sha256": "4224c0cc4d0a0afbb2d7b7e9cae9ebb02c8bb5d4eb9a512661845a176d7e3c52"
+    },
+    {
+      "order": 17,
+      "file": "docs/implementation/pseudocode/17_part_xvii_implementation_reading_order.md",
+      "title": "Implementation Reading Order",
+      "original_line_start": 5979,
+      "original_line_end": 6000,
+      "line_count": 22,
+      "byte_count": 1063,
+      "sha256": "f1fedd618024caca798d74eefcbd4542c1e2fabd6d22dde6ccc80232ebcd0c97"
+    }
+  ],
+  "authority_order": [
+    "docs/implementation/MASTER_PLAN.md",
+    "docs/implementation/PSEUDOCODE_AUTHORITY_AND_ERRATA.md",
+    "docs/implementation/PSEUDOCODE_FULL.md",
+    "docs/implementation/PSEUDOCODE_CROSSWALK_REVIEW.md",
+    "docs/implementation/STATUS.md"
+  ]
+}

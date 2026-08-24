@@ -4,6 +4,12 @@ Current program state and exact master-plan ID coverage are controlled by `PROGR
 
 Statuses are `planned`, `active`, `blocked`, `complete`, `deferred`, or `rejected`. Closure requires evidence in the linked ledger or handoff.
 
+## Active-task pseudocode ownership
+
+| Task | Exact pseudocode owner | Canonical production symbols | Governing master-plan IDs | Boundary |
+|---|---|---|---|---|
+| PLAT-DUR-01 | Shared substrate §§2.5–2.6 in `pseudocode/01_part_i_shared_algorithmic_substrate.md`; execution and availability contracts §§121–123 and 130–133 in `pseudocode/13_part_xiii_unified_execution_validation_and_release_contracts.md` | `DurableProject`, `DurableProjectLimits`, `DurableExecutionRequest`, `NativeRuntimeProvenance`, `marklab.project` head v1, `marklab.execution` JSONL v1, and the single pending-intent recovery owner | `FND-07`, `PLAT-01`, `WF-01`, `WS-11`, `WS-12` | Pseudocode constrains identity, provenance, modes, typed failure, transactional persistence, replay, and claim limits. The active task remains the stricter single-native-node contract and does not implement generic `ExecuteAlgorithm`, `BACK-01`, or any missing/gated pseudocode method. |
+
 ## Program foundations
 
 | ID | Requirement | Prerequisites | Owner | Status | Public/result effect | Closure evidence |

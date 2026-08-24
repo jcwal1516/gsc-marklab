@@ -13,6 +13,17 @@ Last updated: 2026-08-24T12:12:58-04:00
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
 - Current phase/workstream/task: first classical workflow checkpoint complete; Phase 1 durable PLAT-01/WF-01/WS-11/WS-12 replayable project execution promoted next
 
+## Pseudocode documentation pack
+
+- Installed the repository-local pseudocode documentation pack at working SHA `622e8d784c6b667201ad7216144d8f2a28e9a488` without changing scientific production behavior.
+- Authority remains `MASTER_PLAN.md`, whose current SHA-256 is `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`. `PSEUDOCODE_AUTHORITY_AND_ERRATA.md` supplies subordinate normative corrections; the gap register prohibits improvising missing methods from adjacent pseudocode.
+- Exact verification command: `python3 docs/implementation/verify_pseudocode_pack.py`.
+- Exact verification output: `PSEUDOCODE PACK VERIFIED`; `full_sha256=c0508109be2a954502bb1b1989ee98936f1c1838bd25fd92fcb33f09054fda51`; `split_files=18`; `lines=6000`.
+- Active-task pseudocode sources are shared substrate §§2.5–2.6 and unified execution/validation §§121–123 and 130–133. The concrete `PLAT-DUR-01` contract remains narrower: one durable native classical node, no generic executor, backend registry, new result family, or scientific method.
+- Binding unresolved gaps include missing classical/stable method pseudocode, Bayesian nonparametric niches, cross-attention/transformer fusion, foundation-model admission, E(2)/SE(2)-equivariant models, general interval/coverage contracts, full pathology geometry/domains, and exact backend/oracle selections. None is authorized for implementation by this ingestion.
+- No Cargo test, formatter, Clippy, build, benchmark, or scientific validation command was run for this documentation-only ingestion. Existing active production/test changes were left untouched.
+- `git diff --cached --check` was run and reported the pack's preserved Markdown hard-break trailing spaces and split-boundary blank lines in `PSEUDOCODE_FULL.md`, `PSEUDOCODE_INDEX.md`, and exact split files. Those bytes were not normalized because doing so would invalidate the required full/split digests and byte-identical concatenation; no unrelated whitespace error was accepted as passing.
+
 ## Current program checkpoint
 
 - `marklab classical` now delivers the complete first bounded classical spatial-pathology workflow: supported CSV/Parquet input, one canonical exact 2-D MultiPolygon window, one immediately consumed exact streaming point/boundary plan, standard-border homogeneous K/L, conditional homogeneous CSR over the whole location pattern, deterministic ERL inference, strict typed result/cache identities, project scheduler execution, and atomic result/manifest/report output.
