@@ -14,6 +14,7 @@ fn criterion_benchmarks_cover_required_spec_workloads() {
         "pattern_load",
         "cohort_hierarchy",
         "cell_embeddings",
+        "patch_embeddings",
     ] {
         assert!(
             manifest.contains(&format!("name = \"{target}\"")),
@@ -30,6 +31,7 @@ fn criterion_benchmarks_cover_required_spec_workloads() {
         "bench_pattern_csv_load_1m_cells",
         "bench_cohort_hierarchy_1m_cells_10k_specimens",
         "bench_cell_embeddings",
+        "bench_patch_embeddings",
     ] {
         assert!(
             bench_sources.contains(workload),
@@ -42,6 +44,25 @@ fn criterion_benchmarks_cover_required_spec_workloads() {
     assert!(pattern_load.contains("pattern_csv_decode_filter"));
     assert!(pattern_load.contains("pattern_nearest_neighbor"));
     assert!(!pattern_load.contains("String::with_capacity"));
+
+    let patch_embeddings =
+        fs::read_to_string("benches/support/patch_embeddings.rs").expect("patch benchmark");
+    for required in [
+        "10k_x_1024_100k_links",
+        "100k_x_1024_1m_links",
+        "marklab-patch-embedding-benchmark-numerics-v1",
+        "marklab-patch-embedding-benchmark-links-v1",
+        "derive_contained_shared",
+        "publish_patch_embedding_table_arrow",
+        "publish_patch_embedding_table_parquet",
+        "publish_cell_patch_assignment_table_arrow",
+        "publish_cell_patch_edge_table_parquet",
+    ] {
+        assert!(
+            patch_embeddings.contains(required),
+            "patch benchmark should include {required}"
+        );
+    }
 }
 
 fn rust_sources_below(root: &Path) -> String {
@@ -197,6 +218,7 @@ fn fuzz_manifest_covers_current_public_input_boundaries() {
         "result_document",
         "wsi_region_request",
         "artifact_catalog",
+        "embedding_inputs",
     ] {
         assert!(
             manifest.contains(&format!("name = \"{target}\"")),
@@ -210,6 +232,14 @@ fn fuzz_manifest_covers_current_public_input_boundaries() {
         "ResultDocument::from_json",
         "validate_for",
         "ArtifactCatalog::from_json",
+        "PatchEmbeddingContext::from_canonical_json",
+        "PatchFootprintSet::new",
+        "PatchEmbeddingTable::from_rows",
+        "CellPatchLink::derive_contained_shared",
+        "PatchRegionLink::from_exhaustive_assessment",
+        "MultiscaleEmbeddingProvenance::from_canonical_json",
+        "preflight_patch_embedding_table_arrow_bytes",
+        "preflight_patch_embedding_table_parquet_bytes",
     ] {
         assert!(
             sources.contains(boundary),
