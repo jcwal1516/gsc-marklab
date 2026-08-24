@@ -1,5 +1,7 @@
 # Requirements registry
 
+Current program state and exact master-plan ID coverage are controlled by `PROGRAM_TRACKER.md`. The status words in this older evidence registry are retained as implementation-history detail and are not a second current scope classification. `MASTER_PLAN.md` remains authoritative if any derived document conflicts.
+
 Statuses are `planned`, `active`, `blocked`, `complete`, `deferred`, or `rejected`. Closure requires evidence in the linked ledger or handoff.
 
 ## Program foundations

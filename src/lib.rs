@@ -16,6 +16,8 @@ mod cell_embedding_mark;
 mod cell_embedding_mark_workflow;
 mod cell_embedding_nucleus_area;
 mod cell_embedding_probability;
+mod classical;
+mod classical_workflow;
 #[cfg(feature = "cli")]
 mod cli;
 mod common;
@@ -75,6 +77,15 @@ pub use cell_embedding_probability::{
     DeclaredProbabilityCellEmbeddingCrossCovarianceError,
     DeclaredProbabilityCellEmbeddingCrossCovarianceStatus,
 };
+pub use classical::{
+    analyze_classical_spatial_pattern, ClassicalCacheStatus, ClassicalConfigurationSummary,
+    ClassicalGeometrySummary, ClassicalInferenceSummary, ClassicalNullDesign, ClassicalNullModel,
+    ClassicalRandomizationUnit, ClassicalSpatialConfig, ClassicalSpatialError,
+    ClassicalSpatialLimits, ClassicalSpatialResult, ClassicalSpatialResultDocument,
+    ClassicalSpatialStatus, ClassicalWindowSummary, ClassicalWorkflowIdentity, HomogeneousKlPoint,
+    KlPointStatus, CLASSICAL_SPATIAL_FORMAT, CLASSICAL_SPATIAL_FORMAT_VERSION,
+};
+pub use classical_workflow::ClassicalSpatialAnalysisNode;
 pub use config::{
     AnalysisConfig, AnalysisConfigSection, ComparisonSection, ComponentMode, CurveMargins,
     DiagnosticsSection, InferenceSection, MultiscaleResidualSection, NeighborhoodNullModel,
@@ -90,6 +101,10 @@ pub use contained_patch_nucleus_area_contrast::{
 pub use data::{Pattern, PatternMeta, TumorWindow};
 pub use errors::{MarklabError, Result};
 pub use geom::mask::TumorMask;
+pub use geom::window::{
+    ObservationWindow2D, ObservationWindowDescriptor, ObservationWindowError,
+    ObservationWindowLimits,
+};
 pub use io::{PatternLoadDiagnostics, PatternLoadResult, PatternLoader};
 pub use marklab_data::{
     BlockId, CellId, CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry,

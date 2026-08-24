@@ -23,6 +23,12 @@ Implementation base: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
 | Permutation engine | same suite | Existing smoke fixture | 15.140–15.168 ms | Criterion smoke only | pass |
 | ERL envelope | same suite | Existing smoke fixture | 15.300–15.313 ms | Criterion smoke only | pass |
 | Structure factor | same suite | Existing smoke fixture | 56.196–56.479 ms | Criterion smoke only | pass |
+
+## Classical K/L checkpoint — 2026-08-24
+
+- No timing benchmark was run or added. WS-30-KL-01 establishes a correct exact baseline and makes no optimization or throughput claim; the active contract did not require specialized performance evidence.
+- The implementation retains one point R-tree, the window's one boundary R-tree, one boundary-distance vector, radius-difference counters, one CSR coordinate set at a time, and the bounded simulation-by-radius L matrix. It retains no all-pairs matrix.
+- Exact point, radius, topology-candidate, pair-visit, CSR-draw, scheduler-output, and conservative retained/working-byte limits are exercised by focused one-short tests. Scale benchmarks remain required before stable PP-01 promotion and are still represented in `PROGRAM_TRACKER.md`.
 | DHAT heap regression | `cargo +1.96.0 test --locked --no-default-features --features dhat-heap --lib dhat_ -- --test-threads=1` | Three existing allocation regressions; 180 other tests filtered | 11.944 s wall including build | Test assertions passed; 14 narrow-feature compile warnings | pass |
 
 Criterion release compilation took 2m42s and the full command about 2m44s. Gnuplot was unavailable, so Criterion used Plotters; numeric timing output completed. These results reproduce the smoke workload only and do not replace scheduled full or million-row measurements.

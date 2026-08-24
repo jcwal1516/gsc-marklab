@@ -161,10 +161,24 @@ pub(crate) struct PatternBuilder<'a> {
     slide_region_strata: CategoricalStratumEncoder,
     histologic_compartment_strata: CategoricalStratumEncoder,
     stain_batch_strata: CategoricalStratumEncoder,
+    allow_sparse: bool,
 }
 
 impl<'a> PatternBuilder<'a> {
     pub(crate) fn new(mask: &'a TumorMask, source_name: &'static str) -> Self {
+        Self::with_sparse_policy(mask, source_name, false)
+    }
+
+    #[allow(dead_code, reason = "used by the feature-gated classical CLI adapter")]
+    pub(crate) fn new_classical(mask: &'a TumorMask, source_name: &'static str) -> Self {
+        Self::with_sparse_policy(mask, source_name, true)
+    }
+
+    fn with_sparse_policy(
+        mask: &'a TumorMask,
+        source_name: &'static str,
+        allow_sparse: bool,
+    ) -> Self {
         Self {
             mask,
             source_name,
@@ -186,6 +200,7 @@ impl<'a> PatternBuilder<'a> {
             slide_region_strata: CategoricalStratumEncoder::default(),
             histologic_compartment_strata: CategoricalStratumEncoder::default(),
             stain_batch_strata: CategoricalStratumEncoder::default(),
+            allow_sparse,
         }
     }
 
@@ -201,6 +216,10 @@ impl<'a> PatternBuilder<'a> {
                 "{} row {row_number} mark must be 0 or 1",
                 self.source_name
             )));
+        }
+        normalize_row_metadata(&mut row);
+        if self.allow_sparse {
+            self.observe_meta(&row)?;
         }
         if !self.mask.contains(row.x_um, row.y_um) {
             return Ok(());
@@ -223,35 +242,8 @@ impl<'a> PatternBuilder<'a> {
             return Ok(());
         }
 
-        row.slide_id = nonempty(row.slide_id);
-        row.section_id = nonempty(row.section_id);
-        row.stain_batch = nonempty(row.stain_batch);
-        row.block_id = nonempty(row.block_id);
-        row.region_id = nonempty(row.region_id);
-        row.slide_region = nonempty(row.slide_region);
-        row.histologic_compartment = nonempty(row.histologic_compartment);
-
-        if let Some(existing) = &self.meta {
-            if existing.case_id != row.case_id
-                || existing.timepoint != row.timepoint
-                || existing.protein != row.protein
-            {
-                return Err(MarklabError::Schema(format!(
-                    "{} input must contain one case_id/timepoint/protein group",
-                    self.source_name
-                )));
-            }
-        } else {
-            self.meta = Some(PatternMeta {
-                case_id: row.case_id.clone(),
-                timepoint: row.timepoint.clone(),
-                protein: row.protein.clone(),
-                slide_id: row.slide_id.clone(),
-                section_id: row.section_id.clone(),
-                stain_batch: row.stain_batch.clone(),
-                block_id: row.block_id.clone(),
-                region_id: row.region_id.clone(),
-            });
+        if !self.allow_sparse {
+            self.observe_meta(&row)?;
         }
 
         self.x.push(row.x_um);
@@ -304,13 +296,44 @@ impl<'a> PatternBuilder<'a> {
         Ok(())
     }
 
+    fn observe_meta(&mut self, row: &DecodedCellRow) -> Result<()> {
+        if let Some(existing) = &self.meta {
+            if existing.case_id != row.case_id
+                || existing.timepoint != row.timepoint
+                || existing.protein != row.protein
+            {
+                return Err(MarklabError::Schema(format!(
+                    "{} input must contain one case_id/timepoint/protein group",
+                    self.source_name
+                )));
+            }
+        } else {
+            self.meta = Some(PatternMeta {
+                case_id: row.case_id.clone(),
+                timepoint: row.timepoint.clone(),
+                protein: row.protein.clone(),
+                slide_id: row.slide_id.clone(),
+                section_id: row.section_id.clone(),
+                stain_batch: row.stain_batch.clone(),
+                block_id: row.block_id.clone(),
+                region_id: row.region_id.clone(),
+            });
+        }
+        Ok(())
+    }
+
     pub(crate) fn finish(self) -> Result<PatternLoadResult> {
         let decode_and_filter = self.decode_and_filter_start.elapsed();
-        self.qc_counters.validate_denominator()?;
+        if !self.allow_sparse {
+            self.qc_counters.validate_denominator()?;
+        }
         let meta = self.meta.ok_or_else(|| {
-            MarklabError::Validation(
-                "no valid tumor/IHC cells remained after mask filtering".into(),
-            )
+            MarklabError::Validation(if self.allow_sparse {
+                "classical cell input must contain at least one source row with case metadata"
+                    .into()
+            } else {
+                "no valid tumor/IHC cells remained after mask filtering".into()
+            })
         })?;
 
         let mut pattern = Pattern::from_arrays(self.x, self.y, self.marks, meta)?;
@@ -353,16 +376,27 @@ impl<'a> PatternBuilder<'a> {
         let nearest_neighbor_span =
             tracing::info_span!("marklab_stage", stage_name = "nearest_neighbor");
         let nearest_neighbor_enter = nearest_neighbor_span.enter();
-        pattern.window.d_nn_mean_um = mean_nearest_neighbor_distance(&pattern.x_um, &pattern.y_um)
-            .ok_or_else(|| {
-                MarklabError::Validation(
-                    "at least two retained cells are required to estimate nearest-neighbor distance"
-                        .into(),
-                )
-            })?;
+        pattern.window.d_nn_mean_um =
+            mean_nearest_neighbor_distance(&pattern.x_um, &pattern.y_um).map_or_else(
+                || {
+                    if self.allow_sparse {
+                        Ok(0.0)
+                    } else {
+                        Err(MarklabError::Validation(
+                            "at least two retained cells are required to estimate nearest-neighbor distance"
+                                .into(),
+                        ))
+                    }
+                },
+                Ok,
+            )?;
         drop(nearest_neighbor_enter);
         let nearest_neighbor = nearest_neighbor_start.elapsed();
-        self.qc_counters.apply_to(&mut pattern)?;
+        if self.qc_counters.in_mask == 0 && self.allow_sparse {
+            pattern.window.valid_mask_fraction = 0.0;
+        } else {
+            self.qc_counters.apply_to(&mut pattern)?;
+        }
 
         Ok(PatternLoadResult {
             pattern,
@@ -372,6 +406,16 @@ impl<'a> PatternBuilder<'a> {
             },
         })
     }
+}
+
+fn normalize_row_metadata(row: &mut DecodedCellRow) {
+    row.slide_id = nonempty(row.slide_id.take());
+    row.section_id = nonempty(row.section_id.take());
+    row.stain_batch = nonempty(row.stain_batch.take());
+    row.block_id = nonempty(row.block_id.take());
+    row.region_id = nonempty(row.region_id.take());
+    row.slide_region = nonempty(row.slide_region.take());
+    row.histologic_compartment = nonempty(row.histologic_compartment.take());
 }
 
 fn insert_finished_stratum(

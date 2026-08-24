@@ -54,6 +54,8 @@ fn batch_output_path(root: &Path, raw_id: &str) -> Result<PathBuf> {
 mod analyze;
 #[path = "cli/batch.rs"]
 mod batch;
+#[path = "cli/classical.rs"]
+mod classical;
 #[path = "cli/multimodal.rs"]
 mod multimodal;
 #[path = "cli/prepost.rs"]
@@ -135,6 +137,30 @@ enum Commands {
         timings: Option<PathBuf>,
         #[arg(long)]
         heap_profile: Option<PathBuf>,
+    },
+    Classical {
+        #[arg(long)]
+        cells: PathBuf,
+        #[arg(long)]
+        mask: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        r_max_um: f64,
+        #[arg(long)]
+        r_steps: usize,
+        #[arg(long)]
+        simulations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        max_pair_visits: usize,
+        #[arg(long)]
+        max_csr_draws: usize,
     },
     Batch {
         #[arg(long)]
@@ -297,6 +323,31 @@ pub fn run_cli() -> Result<()> {
             },
             heap_profile,
         }),
+        Commands::Classical {
+            cells,
+            mask,
+            out,
+            r_max_um,
+            r_steps,
+            simulations,
+            seed,
+            alpha,
+            memory_budget_mib,
+            max_pair_visits,
+            max_csr_draws,
+        } => classical::run(ClassicalRequest {
+            cells,
+            mask,
+            out,
+            r_max_um,
+            r_steps,
+            simulations,
+            seed,
+            alpha,
+            memory_budget_mib,
+            maximum_pair_visits: max_pair_visits,
+            maximum_csr_draws: max_csr_draws,
+        }),
         Commands::Batch {
             manifest,
             config,
@@ -386,6 +437,21 @@ struct AnalyzeRequest {
     threads: Option<usize>,
     observability: ObservabilityOptions,
     heap_profile: Option<PathBuf>,
+}
+
+#[derive(Debug)]
+struct ClassicalRequest {
+    cells: PathBuf,
+    mask: PathBuf,
+    out: PathBuf,
+    r_max_um: f64,
+    r_steps: usize,
+    simulations: usize,
+    seed: u64,
+    alpha: f64,
+    memory_budget_mib: usize,
+    maximum_pair_visits: usize,
+    maximum_csr_draws: usize,
 }
 
 #[derive(Debug)]

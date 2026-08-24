@@ -12,7 +12,22 @@ pub fn load_pattern_parquet_with_diagnostics(
     path: impl AsRef<Path>,
     mask: &TumorMask,
 ) -> Result<PatternLoadResult> {
-    let path = path.as_ref();
+    load_pattern_parquet_with_builder(path.as_ref(), mask, false)
+}
+
+#[allow(dead_code, reason = "used by the feature-gated classical CLI adapter")]
+pub(crate) fn load_classical_pattern_parquet_with_diagnostics(
+    path: impl AsRef<Path>,
+    mask: &TumorMask,
+) -> Result<PatternLoadResult> {
+    load_pattern_parquet_with_builder(path.as_ref(), mask, true)
+}
+
+fn load_pattern_parquet_with_builder(
+    path: &Path,
+    mask: &TumorMask,
+    allow_sparse: bool,
+) -> Result<PatternLoadResult> {
     let file = File::open(path).map_err(|source| MarklabError::io(path, source))?;
     let builder = ParquetRecordBatchReaderBuilder::try_new(file)
         .map_err(|error| MarklabError::Schema(error.to_string()))?;
@@ -20,7 +35,11 @@ pub fn load_pattern_parquet_with_diagnostics(
         .build()
         .map_err(|error| MarklabError::Schema(error.to_string()))?;
 
-    let mut pattern_builder = PatternBuilder::new(mask, "Parquet");
+    let mut pattern_builder = if allow_sparse {
+        PatternBuilder::new_classical(mask, "Parquet")
+    } else {
+        PatternBuilder::new(mask, "Parquet")
+    };
     let decode_and_filter_span =
         tracing::info_span!("marklab_stage", stage_name = "decode_and_filter");
     let decode_and_filter_enter = decode_and_filter_span.enter();

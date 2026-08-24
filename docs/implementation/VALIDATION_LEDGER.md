@@ -4,6 +4,23 @@ Implementation base: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
 
 No command below is marked passing until it executes successfully on this branch.
 
+## WS-30-KL-01 classical workflow checkpoint — 2026-08-24
+
+Implementation base: `a1a335239c8bc8ca17afdd2f2f2865c03a1df71c` after the separate cadence commit.
+
+| Gate | Exact command | Status | Result/evidence | Owner |
+|---|---|---|---|---|
+| Behavior-first domain red/green | `cargo +1.96.0 test --locked --all-features --test classical_spatial_domain` | expected missing-surface red, then pass | Initial compile failed on absent window/config/result APIs. Final 12/12 prove the hand K/L formula, brute-force indexed pair parity, rectangle/donut/concave/disconnected geometry, canonical order identity, closed boundaries, empty/singleton/duplicate/outside/malformed states, deterministic CSR, and one-short point/vertex/memory/pair/draw limits. | `/root` |
+| Behavior-first project red/green | `cargo +1.96.0 test --locked --all-features --test classical_spatial_workflow` | expected missing-node/document red, then pass | Final 3/3 prove failure atomicity, miss/hit, seed invalidation, strict unknown/inconsistent-field rejection, and codec fixed point without result 0.3. | `/root` |
+| Behavior-first CLI red/green | `cargo +1.96.0 test --locked --all-features --test classical_spatial_cli` | expected unknown-command red, then pass | Final 4/4 prove exact three-artifact atomic output, CSV/Parquet equality, typed zero/singleton results, malformed-input noncommit, and non-overwrite of occupied output. | `/root` |
+| Affected compatibility | `cargo +1.96.0 test --locked --all-features --test cli analyze_cli_writes_result_json_from_csv_and_geojson_mask`; `cargo +1.96.0 test --locked --all-features --lib geom::tests` | pass | Existing analyze CSV/mask/result-0.3 workflow passes 1/1; existing geometry/mask/index suite passes 12/12. | `/root` |
+| Formatting and warnings | `cargo +1.96.0 fmt --all --check`; `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings` | pass after one actual finding | First Clippy attempt rejected an explicit ring loop counter; the loop now uses `enumerate`. Final formatting and warning-denied Clippy exit 0. | `/root` |
+| Minimal and feature matrix | the eight exact `cargo +1.96.0 check --locked --workspace --all-targets` rows in `WORKSPACE_POLICY.md` for default, no-default, all-features, CSV, Parquet, CLI, WSI, and WSI+CLI | pass with documented narrow warnings | All eight exit 0. Narrow feature rows emit only the pre-existing instrumentation/Parquet writer warnings explicitly allowed by workspace policy; all-feature warning-denied Clippy is clean. | `/root` |
+| Strict documentation | `env RUSTDOCFLAGS=-Dwarnings cargo +1.96.0 doc --locked --no-deps --workspace --all-features`; `cargo +1.96.0 test --locked --workspace --doc --all-features` | pass | Strict workspace docs exit 0; all six package doc-test targets exit 0 with zero doctests. | `/root` |
+| Architecture regression | `cargo +1.96.0 test --locked --all-features --test workspace_contract workspace_dependencies_descend_layers_and_core_libraries_are_not_cli_gated` | expected checkpoint finding, then pass | First workspace run found CLI cfg gates inside core adapter files. The seams remain compiled with narrowly reasoned dead-code allowances; the focused architecture contract passes 1/1. | `/root` |
+| Full workspace | `cargo +1.96.0 nextest run --locked --workspace --all-features` | pass after architecture correction | Final run passes 950/950 in 65.360 s, with one expected slow synthetic test and 23 documented skips. The preceding run stopped at 833 pass/1 architecture failure and was not claimed green. | `/root` |
+| Specialized evidence | benchmarks, fuzzing, DHAT/RSS, packaging, dependency audits, remote checks | not run; not applicable | The increment adds a correct exact algorithm/workflow with no optimization, parser-format, dependency, packaging, remote, or release claim requiring specialized evidence. Existing master-plan scale/oracle gates remain open for stable PP-01 promotion. | `/root` |
+
 | Gate | Exact command | Status | Result/evidence | Owner |
 |---|---|---|---|---|
 | Format | `cargo +1.96.0 fmt --all --check` | pass | Exit 0; 0.119 s | a02_baseline |

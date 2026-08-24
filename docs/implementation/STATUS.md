@@ -1,23 +1,33 @@
 # Implementation status
 
-Last updated: 2026-08-24T10:24:25-04:00
+Last updated: 2026-08-24T12:12:58-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Committed baseline before the current checkpoint: `1907e6a59ca8a7c29bc97ef61bf7ba48fc8dd14d`
+- Committed baseline before the current checkpoint: `a1a335239c8bc8ca17afdd2f2f2865c03a1df71c`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
-- Current phase/workstream/task: Phase 2 / WS-C / C-06 contained-patch binary-group nucleus-area contrast complete; broader FND-04/FND-05/C-06/WS-50/WS-51 remain active
+- Current phase/workstream/task: first classical workflow checkpoint complete; Phase 1 durable PLAT-01/WF-01/WS-11/WS-12 replayable project execution promoted next
+
+## Current program checkpoint
+
+- `marklab classical` now delivers the complete first bounded classical spatial-pathology workflow: supported CSV/Parquet input, one canonical exact 2-D MultiPolygon window, one immediately consumed exact streaming point/boundary plan, standard-border homogeneous K/L, conditional homogeneous CSR over the whole location pattern, deterministic ERL inference, strict typed result/cache identities, project scheduler execution, and atomic result/manifest/report output.
+- `PP-06A` and `NUL-01A` are complete. The broader `FND-02`, `FND-03`, `FND-06`, `FND-07`, `PP-01`, `WS-22`, `WS-30`, and `WS-31` requirements remain explicitly represented with their unimplemented signed-distance/compartment/shared-plan/design/provenance/correction/method/calibration/scale work; this checkpoint is not program completion.
+- Focused final evidence is 12 domain + 3 workflow + 4 CLI tests, affected legacy analyze 1/1, and legacy geometry 12/12. Final warning-denied Clippy, formatting, no-default, strict docs, all eight feature-matrix builds, and the workspace suite pass; Nextest is 950/950 with 23 documented skips and one expected slow test.
+- The first workspace attempt identified an invalid CLI cfg boundary in core adapter files. That finding was corrected without weakening the architecture test; the final focused architecture contract and full workspace run pass.
+- No benchmark, fuzz, DHAT/RSS, packaging, dependency, remote, or release gate was run because this increment made no optimization, new physical parser format, dependency, packaging, remote, or release claim. Stable PP-01 scale/calibration/oracle evidence remains open in the tracker.
+- Explicit user direction and `DEC-0054` reaffirm the master plan's integrated multi-backend strategy. Advanced methods may use established Python/R/Stan/GPU/specialized engines through pinned typed adapters; a Rust port requires measured scientific and operational evidence.
+- `ACTIVE_ROADMAP.md` now promotes one dependency-ordered outcome: durable cross-process classical project replay with a canonical project head, append-only execution ledger, and existing content-addressed store. `BACK-01`/`WS-13` remains blocked until that durability prerequisite closes, then becomes the next multi-backend outcome.
 
 ## Requirements
 
-- Completed: `A-01`, `A-02`, `A-03`, `B-01`, `B-02`, `B-03`, `B-04`, `C-01`, `C-02`, `C-03`, `C-04`, `C-05`, `EMB-CORE`, `EMB-PATCH`, `FND-01`, `SLIDE-INV`, `WS-A`, `WS-B`, `WS-10`, `WS-20`, `WS-21`
-- Active: `DATA-01`, `FND-04`, `FND-05`, `C-06`, `COH-01`, `PLAT-01`, `WF-01`, `WS-11`, `WS-12`, `WS-23`, `WS-24`, `WS-50`, `WS-51`
-- Planned next: pause after the clean S13 milestone commit as requested; on resume, audit the next bounded dependency-ordered observable computation or user workflow under the Immediate-Caller Rule
+- Completed additions at this checkpoint: `NUL-01A`, `PP-06A`; the exact bounded classical workflow is complete while its broader parent rows remain open.
+- Active next: `FND-07`, `PLAT-01`, `WF-01`, `WS-11`, `WS-12` through durable replayable classical project execution.
+- Planned immediately after the durable prerequisite: re-evaluate and promote `BACK-01`/`WS-13` under `DEC-0054`; no advanced algorithm is presumed to require a native Rust implementation.
 
 ## Command state
 

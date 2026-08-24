@@ -1,5 +1,7 @@
 mod artifact_io;
 mod artifact_plan;
+#[cfg(feature = "cli")]
+mod classical;
 #[cfg(feature = "parquet")]
 mod curve_parquet;
 mod document;
@@ -17,6 +19,8 @@ mod writer;
 #[cfg(all(test, feature = "cli"))]
 mod tests;
 
+#[cfg(feature = "cli")]
+pub(crate) use classical::{ClassicalOutputContext, ClassicalOutputWriter};
 #[cfg(feature = "cli")]
 pub(crate) use document::read_result_document_path_or_dir;
 #[cfg(feature = "cli")]

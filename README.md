@@ -36,6 +36,39 @@ marklab analyze \
   --out out/case_001_post
 ```
 
+## Run the classical spatial-pathology workflow
+
+```bash
+marklab classical \
+  --cells cells.parquet \
+  --mask tumor_mask.geojson \
+  --out out/case_001_classical \
+  --r-max-um 100 \
+  --r-steps 50 \
+  --simulations 999 \
+  --seed 123456789 \
+  --alpha 0.05 \
+  --memory-budget-mib 512 \
+  --max-pair-visits 100000000 \
+  --max-csr-draws 10000000
+```
+
+This command estimates homogeneous Ripley K and L for the retained unmarked
+point pattern in the supplied exact 2-D MultiPolygon window. It uses the
+standard border correction and deterministic homogeneous CSR conditional on
+the observed point count; the randomization unit is the whole location
+pattern. The atomic output directory contains `result.json`,
+`run_manifest.json`, and `report.md`. The result belongs to the separate strict
+`marklab.classical_spatial` version-one family and does not change result format
+0.3.
+
+Zero retained points and singletons produce a typed `insufficient_points`
+result. Malformed topology, outside or duplicate retained coordinates, invalid
+radii/null settings, and exhausted memory, pair-visit, or CSR-draw limits fail
+without committing an output directory. Full input, estimator, availability,
+and interpretation details are in the
+[classical spatial workflow reference](docs/classical-spatial-workflow.md).
+
 The supported Rust entry point is:
 
 ```rust

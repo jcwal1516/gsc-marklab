@@ -1,4 +1,4 @@
-mod loader;
+pub(crate) mod loader;
 mod multimodal_writer;
 mod pattern_writer;
 mod row;
