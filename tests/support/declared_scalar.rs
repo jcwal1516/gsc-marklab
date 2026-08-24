@@ -266,6 +266,23 @@ pub(crate) fn probability_metadata(
     ])
 }
 
+#[allow(dead_code)]
+pub(crate) fn nucleus_area_um2_metadata(
+    status: marklab::MeasurementStatus,
+) -> BTreeMap<String, String> {
+    BTreeMap::from([
+        ("mark_id".into(), "nucleus_area_um2".into()),
+        ("mark_label".into(), "Nucleus area".into()),
+        (
+            "measurement_status".into(),
+            measurement_status_name(status).into(),
+        ),
+        ("modality".into(), "morphology".into()),
+        ("unit".into(), "square_micrometer".into()),
+        ("value_kind".into(), "continuous".into()),
+    ])
+}
+
 pub(crate) fn threshold_metadata(
     binary_mark_id: &str,
     probability_mark_id: &str,

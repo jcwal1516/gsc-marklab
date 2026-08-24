@@ -2692,6 +2692,9 @@ mod declared_binary_centroid_workflow;
 #[path = "cellvit_embedding_artifact_graph/probability_cross_covariance.rs"]
 mod probability_cross_covariance;
 
+#[path = "cellvit_embedding_artifact_graph/nucleus_area_cross_covariance.rs"]
+mod nucleus_area_cross_covariance;
+
 #[allow(dead_code)]
 #[path = "support/declared_scalar.rs"]
 mod declared_scalar_support;

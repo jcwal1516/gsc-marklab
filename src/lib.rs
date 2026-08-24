@@ -13,6 +13,7 @@ mod algorithm_tests;
 mod api;
 mod cell_embedding_mark;
 mod cell_embedding_mark_workflow;
+mod cell_embedding_nucleus_area;
 mod cell_embedding_probability;
 #[cfg(feature = "cli")]
 mod cli;
@@ -55,6 +56,12 @@ pub use cell_embedding_mark::{
     DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus, DeclaredBinaryCellEmbeddingGroupCounts,
 };
 pub use cell_embedding_mark_workflow::DeclaredBinaryCellEmbeddingCentroidNode;
+pub use cell_embedding_nucleus_area::{
+    declared_nucleus_area_cell_embedding_cross_covariance_energy,
+    DeclaredNucleusAreaCellEmbeddingCrossCovarianceEnergy,
+    DeclaredNucleusAreaCellEmbeddingCrossCovarianceError,
+    DeclaredNucleusAreaCellEmbeddingCrossCovarianceStatus,
+};
 pub use cell_embedding_probability::{
     declared_probability_cell_embedding_cross_covariance_energy,
     DeclaredProbabilityCellEmbeddingCrossCovarianceEnergy,
@@ -276,8 +283,8 @@ pub use registration::{
 };
 pub use scalar_mark::{
     BinaryMarkDeclaration, BinaryMarkOrigin, DeclaredMarkUse, DeclaredScalarIdentity,
-    DeclaredScalarInputError, DeclaredScalarPatternInput, ProbabilityMarkDeclaration,
-    ProbabilityThresholdComparator, ScalarMarkId, ScalarMarkValueKind,
+    DeclaredScalarInputError, DeclaredScalarPatternInput, NucleusAreaUm2MarkDeclaration,
+    ProbabilityMarkDeclaration, ProbabilityThresholdComparator, ScalarMarkId, ScalarMarkValueKind,
 };
 pub use workflow::{DeclaredMarkedAnalysisNode, DeclaredMarkedAnalysisResult, MarkedAnalysisNode};
 #[cfg(feature = "wsi")]

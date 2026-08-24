@@ -260,6 +260,13 @@ Current HEAD is the audited SHA. Its parent-to-HEAD change modifies `README.md` 
 - `tests/cellvit_embedding_artifact_graph/declared_binary_centroid_workflow.rs` assembles one genuine managed scalar/CellViT store and proves direct/miss/hit parity, exact codec bytes, cache identity, semantic integrity before miss and would-be hit, constructor ordering, unavailable replay, strict decoding, and scheduler/project failure atomicity.
 - The root facade exports only the concrete node. No engine/CLI/config/result-0.3, Arrow/Parquet, physical format, receipt, validator framework, generalized serializer/result/codec surface, manifest, dependency, source adapter, or external data path changed.
 
+## C-06 declared nucleus-area–cell-embedding cross-covariance owner map
+
+- `src/scalar_mark/declaration.rs` owns the fixed `NucleusAreaUm2MarkDeclaration`; `src/scalar_mark/provenance.rs` owns only its exact concrete metadata/profile check. Both are immediately consumed by the S10 computation and do not add a general continuous-mark kind, unit registry, or validator framework.
+- `src/cell_embedding_nucleus_area.rs` owns the sole bounded two-pass computation and its fixed-size result/status/error types. It consumes the existing dense nucleus-area column, declared scalar/project identity, and verified cell table/artifact directly, frames exact ordered raw area bits locally, and owns no shared covariance/statistics infrastructure.
+- `tests/cellvit_embedding_artifact_graph/nucleus_area_cross_covariance.rs` reuses the genuine verified CellViT artifact and declared-scalar fixtures for the 62.5 hand oracle, binary non-use, raw-area identity, positive zero, every extraction status, both typed unavailable states, provenance/binding precedence, determinism, and exact resource edges.
+- The root facade exposes only the concrete declaration/function/result/error/status surface. No Arrow/Parquet code, embedding owner, physical format, receipt, graph, validator framework, serializer, node/codec, result/config/CLI field, manifest, dependency, source adapter, or external data path changed.
+
 ## Authorized external WSI and embedding asset map
 
 Read-only SSH inventory on 2026-08-22 used the existing authenticated connection. No patient/sample identifiers or raw patient data were copied into this repository.

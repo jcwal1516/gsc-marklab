@@ -244,6 +244,51 @@ impl ProbabilityMarkDeclaration {
     }
 }
 
+/// Exact dense positive nucleus-area measurement in square micrometres.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NucleusAreaUm2MarkDeclaration {
+    mark_id: ScalarMarkId,
+    label: String,
+    measurement_status: MeasurementStatus,
+    provenance_artifact_id: ArtifactId,
+}
+
+impl NucleusAreaUm2MarkDeclaration {
+    /// Declare the fixed `Pattern::nucleus_area_um2` morphology measurement.
+    pub fn new(
+        measurement_status: MeasurementStatus,
+        provenance_artifact_id: ArtifactId,
+    ) -> Result<Self, DeclaredScalarInputError> {
+        validate_per_cell_status(measurement_status)?;
+        Ok(Self {
+            mark_id: ScalarMarkId::new("nucleus_area_um2")?,
+            label: "Nucleus area".to_owned(),
+            measurement_status,
+            provenance_artifact_id,
+        })
+    }
+
+    /// Stable fixed mark identifier.
+    pub fn mark_id(&self) -> &ScalarMarkId {
+        &self.mark_id
+    }
+
+    /// Fixed human-readable mark label.
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
+    /// How the per-cell area values were obtained.
+    pub fn measurement_status(&self) -> MeasurementStatus {
+        self.measurement_status
+    }
+
+    /// Exact C-03 provenance artifact identity.
+    pub fn provenance_artifact_id(&self) -> ArtifactId {
+        self.provenance_artifact_id
+    }
+}
+
 /// Runtime-only declaration and endpoint-routing summary for one marked analysis.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DeclaredMarkUse {

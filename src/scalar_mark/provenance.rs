@@ -5,7 +5,8 @@ use marklab_workflow::{ArtifactId, ArtifactRecord, MarklabProject};
 use super::{
     declaration::{
         measurement_status_name, BinaryMarkDeclaration, BinaryMarkOrigin,
-        ProbabilityMarkDeclaration, ProbabilityThresholdComparator, ScalarMarkValueKind,
+        NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration, ProbabilityThresholdComparator,
+        ScalarMarkValueKind,
     },
     DeclaredScalarInputError,
 };
@@ -97,6 +98,19 @@ pub(super) fn validate_provenance(
     Ok(())
 }
 
+pub(crate) fn validate_nucleus_area_um2_provenance(
+    project: &MarklabProject,
+    declaration: &NucleusAreaUm2MarkDeclaration,
+) -> Result<(), DeclaredScalarInputError> {
+    require_record(
+        project,
+        declaration.provenance_artifact_id(),
+        MARK_SCHEMA,
+        &nucleus_area_um2_metadata(declaration),
+        &[],
+    )
+}
+
 fn require_record(
     project: &MarklabProject,
     artifact: ArtifactId,
@@ -157,6 +171,22 @@ fn probability_metadata(probability: &ProbabilityMarkDeclaration) -> BTreeMap<St
             "value_kind".into(),
             ScalarMarkValueKind::Probability.wire_name().into(),
         ),
+    ])
+}
+
+fn nucleus_area_um2_metadata(
+    declaration: &NucleusAreaUm2MarkDeclaration,
+) -> BTreeMap<String, String> {
+    BTreeMap::from([
+        ("mark_id".into(), declaration.mark_id().as_str().into()),
+        ("mark_label".into(), declaration.label().into()),
+        (
+            "measurement_status".into(),
+            measurement_status_name(declaration.measurement_status()).into(),
+        ),
+        ("modality".into(), "morphology".into()),
+        ("unit".into(), "square_micrometer".into()),
+        ("value_kind".into(), "continuous".into()),
     ])
 }
 
