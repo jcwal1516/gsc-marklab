@@ -101,6 +101,18 @@ pub(in crate::multiscale) struct DirectPatchArtifactRoles {
     pub(in crate::multiscale) patch_support: ArtifactId,
 }
 
+#[cfg(feature = "parquet")]
+pub(in crate::multiscale) struct DerivedRegionArtifactRoles {
+    pub(in crate::multiscale) run_config: ArtifactId,
+    pub(in crate::multiscale) environment: ArtifactId,
+    pub(in crate::multiscale) converter: ArtifactId,
+    pub(in crate::multiscale) source_patch_table: ArtifactId,
+    pub(in crate::multiscale) patch_region_link: ArtifactId,
+    pub(in crate::multiscale) expected_regions: ArtifactId,
+    pub(in crate::multiscale) region_support: ArtifactId,
+    pub(in crate::multiscale) derivation_contract: ArtifactId,
+}
+
 impl fmt::Debug for MultiscaleEmbeddingProvenance {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -398,6 +410,25 @@ impl MultiscaleEmbeddingProvenance {
             identity_map: evidence.inputs.identity_map_artifact_id,
             source_row_link: evidence.inputs.source_row_link_artifact_id,
             patch_support: evidence.inputs.patch_support_artifact_id,
+        })
+    }
+
+    #[cfg(feature = "parquet")]
+    pub(in crate::multiscale) fn derived_region_artifact_roles(
+        &self,
+    ) -> Option<DerivedRegionArtifactRoles> {
+        let ProvenanceEvidence::DerivedRegion(evidence) = &self.evidence else {
+            return None;
+        };
+        Some(DerivedRegionArtifactRoles {
+            run_config: evidence.execution.run_config_artifact_id,
+            environment: evidence.execution.environment_artifact_id,
+            converter: evidence.execution.converter_artifact_id,
+            source_patch_table: evidence.source_patch_table_artifact_id,
+            patch_region_link: evidence.patch_region_link_artifact_id,
+            expected_regions: evidence.expected_regions_artifact_id,
+            region_support: evidence.region_support_artifact_id,
+            derivation_contract: evidence.derivation_contract_artifact_id,
         })
     }
 

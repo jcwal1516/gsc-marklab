@@ -196,9 +196,10 @@ pub use marklab_embeddings::{
     SourceIoOperation, VerifiedCellEmbeddingArtifactGraph, VerifiedCellEmbeddingRowLinkArtifact,
     VerifiedCellEmbeddingTableArtifact, VerifiedCellPatchAssignmentArtifact,
     VerifiedCellPatchEdgeArtifact, VerifiedCellPatchLinkArtifact,
-    VerifiedDirectPatchEmbeddingArtifactGraph, VerifiedPatchEmbeddingSupportArtifact,
-    VerifiedPatchEmbeddingTableArtifact, VerifiedPatchFootprintArtifact,
-    VerifiedPatchOverlapArtifact, VerifiedPatchRegionLinkArtifact,
+    VerifiedDerivedRegionEmbeddingArtifactGraph, VerifiedDirectPatchEmbeddingArtifactGraph,
+    VerifiedPatchEmbeddingSupportArtifact, VerifiedPatchEmbeddingTableArtifact,
+    VerifiedPatchFootprintArtifact, VerifiedPatchOverlapArtifact, VerifiedPatchRegionLinkArtifact,
+    VerifiedRegionEmbeddingSupportArtifact,
 };
 pub use marklab_workflow::{
     ArtifactCatalog, ArtifactCatalogError, ArtifactDraft, ArtifactId, ArtifactKey, ArtifactLocator,

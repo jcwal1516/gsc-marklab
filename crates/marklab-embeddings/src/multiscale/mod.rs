@@ -31,6 +31,7 @@ pub use expected::{ExpectedPatchSet, ExpectedRegionSet, ExpectedSlideSet};
 pub use footprint::{PatchFootprint, PatchFootprintSet};
 pub use matrix_artifact::{
     VerifiedPatchEmbeddingSupportArtifact, VerifiedPatchEmbeddingTableArtifact,
+    VerifiedRegionEmbeddingSupportArtifact,
 };
 pub use overlap::{PatchOverlapEdge, PatchOverlapGraph};
 pub use patch_region::{
@@ -52,7 +53,7 @@ pub use records::{
     MultiscaleEmbeddingSupportVariant, PatchEmbeddingInputNormalization,
     PatchEmbeddingSourceRowLink, PatchEmbeddingSourceRowLinkEntry, PatchIdentityMap,
     PatchIdentityMapEntry, PatchNormalizationDecimal, PatchSourceEntityEntry, PatchSourceEntitySet,
-    VerifiedDirectPatchEmbeddingArtifactGraph,
+    VerifiedDerivedRegionEmbeddingArtifactGraph, VerifiedDirectPatchEmbeddingArtifactGraph,
 };
 #[cfg(feature = "parquet")]
 pub(crate) use table::{MatrixSummaryAccumulator, MultiscaleMatrixTable};

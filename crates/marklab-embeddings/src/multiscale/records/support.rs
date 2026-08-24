@@ -102,6 +102,12 @@ pub(in crate::multiscale) struct PatchSupportBindings {
     pub(in crate::multiscale) overlap: MultiscaleArtifactBinding,
 }
 
+#[cfg(feature = "parquet")]
+pub(in crate::multiscale) struct RegionFromPatchesSupportBindings {
+    pub(in crate::multiscale) patch_support: MultiscaleArtifactBinding,
+    pub(in crate::multiscale) patch_region_link: MultiscaleArtifactBinding,
+}
+
 impl fmt::Debug for MultiscaleEmbeddingSupport {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -268,6 +274,20 @@ impl MultiscaleEmbeddingSupport {
             context,
             footprints,
             overlap,
+        })
+    }
+
+    #[cfg(feature = "parquet")]
+    pub(in crate::multiscale) fn region_from_patches_bindings(
+        &self,
+    ) -> Option<RegionFromPatchesSupportBindings> {
+        let SupportEvidence::RegionFromPatches([patch_support, patch_region_link]) = self.evidence
+        else {
+            return None;
+        };
+        Some(RegionFromPatchesSupportBindings {
+            patch_support,
+            patch_region_link,
         })
     }
 

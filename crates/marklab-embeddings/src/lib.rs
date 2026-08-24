@@ -138,9 +138,11 @@ pub use multiscale::{
     RegionEmbeddingRow, RegionEmbeddingTable, RegionEmbeddingView, SlideEmbeddingBlock,
     SlideEmbeddingRow, SlideEmbeddingTable, SlideEmbeddingView,
     VerifiedCellPatchAssignmentArtifact, VerifiedCellPatchEdgeArtifact,
-    VerifiedCellPatchLinkArtifact, VerifiedDirectPatchEmbeddingArtifactGraph,
-    VerifiedPatchEmbeddingSupportArtifact, VerifiedPatchEmbeddingTableArtifact,
-    VerifiedPatchFootprintArtifact, VerifiedPatchOverlapArtifact, VerifiedPatchRegionLinkArtifact,
+    VerifiedCellPatchLinkArtifact, VerifiedDerivedRegionEmbeddingArtifactGraph,
+    VerifiedDirectPatchEmbeddingArtifactGraph, VerifiedPatchEmbeddingSupportArtifact,
+    VerifiedPatchEmbeddingTableArtifact, VerifiedPatchFootprintArtifact,
+    VerifiedPatchOverlapArtifact, VerifiedPatchRegionLinkArtifact,
+    VerifiedRegionEmbeddingSupportArtifact,
 };
 #[cfg(feature = "parquet")]
 pub use multiscale::{

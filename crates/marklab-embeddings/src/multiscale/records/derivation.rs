@@ -1,3 +1,5 @@
+#[cfg(feature = "parquet")]
+use std::io::Read;
 use std::{fmt, mem::size_of};
 
 use marklab_project::ContentDigest;
@@ -7,6 +9,8 @@ use super::codec::{
     preflight_json_strings, require_decoded, require_retained, valid_token,
     MAX_RAW_SMALL_JSON_STRING_BYTES, MAX_SMALL_RECORD_BYTES,
 };
+#[cfg(feature = "parquet")]
+use crate::multiscale::json::{compare_canonical_json_reader, CanonicalJsonReaderError};
 use crate::multiscale::{
     digest::LogicalDigest,
     error::MultiscaleEmbeddingError,
@@ -126,6 +130,19 @@ impl MultiscaleEmbeddingDerivationContract {
     /// Encode the exact canonical JSON document with one final newline.
     pub fn to_canonical_json(&self) -> Result<Vec<u8>, MultiscaleEmbeddingError> {
         encode_canonical_json(&self.wire(), self.encoded_len, MAX_SMALL_RECORD_BYTES)
+    }
+
+    #[cfg(feature = "parquet")]
+    pub(in crate::multiscale) fn compare_canonical_json_reader<R: Read + ?Sized>(
+        &self,
+        reader: &mut R,
+    ) -> Result<(), CanonicalJsonReaderError> {
+        compare_canonical_json_reader(
+            &self.wire(),
+            self.encoded_len,
+            MAX_SMALL_RECORD_BYTES,
+            reader,
+        )
     }
 
     /// Closed algorithm token (`weighted_mean` or `arithmetic_mean`).

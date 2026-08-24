@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use crate::ArtifactAvailabilityFailure;
 
-/// Artifact roles admitted by direct-patch structural graph validation.
+/// Artifact roles admitted by multiscale embedding graph validation.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 #[non_exhaustive]
 pub enum MultiscaleEmbeddingArtifactRole {
@@ -45,6 +45,16 @@ pub enum MultiscaleEmbeddingArtifactRole {
     PatchOverlapGraph,
     /// The patch support descriptor.
     PatchSupport,
+    /// A fully verified source patch-embedding table.
+    SourcePatchTable,
+    /// A fully verified producer-declared patch-region link.
+    PatchRegionLink,
+    /// The canonical expected-region set.
+    ExpectedRegions,
+    /// The region-from-patches support descriptor.
+    RegionSupport,
+    /// The deterministic weighted-mean derivation contract.
+    Derivation,
 }
 
 impl fmt::Display for MultiscaleEmbeddingArtifactRole {
@@ -68,6 +78,11 @@ impl fmt::Display for MultiscaleEmbeddingArtifactRole {
             Self::PatchFootprints => "patch footprints",
             Self::PatchOverlapGraph => "patch overlap graph",
             Self::PatchSupport => "patch support",
+            Self::SourcePatchTable => "source patch table",
+            Self::PatchRegionLink => "patch-region link",
+            Self::ExpectedRegions => "expected regions",
+            Self::RegionSupport => "region support",
+            Self::Derivation => "derivation",
         })
     }
 }
@@ -79,6 +94,9 @@ pub enum MultiscaleEmbeddingArtifactGraphError {
     /// The supplied provenance is not direct-patch provenance.
     #[error("direct-patch artifact graph validation requires direct-patch provenance")]
     UnsupportedProvenanceVariant,
+    /// The supplied provenance is not derived-region provenance.
+    #[error("derived-region artifact graph validation requires derived-region provenance")]
+    UnsupportedDerivedRegionProvenanceVariant,
     /// A required schema-bound artifact is absent from the catalog.
     #[error("required {role} artifact is absent from the catalog")]
     MissingRecord {
@@ -121,6 +139,9 @@ pub enum MultiscaleEmbeddingArtifactGraphError {
         /// Mismatched artifact role.
         role: MultiscaleEmbeddingArtifactRole,
     },
+    /// Distinct graph roles unexpectedly name one artifact.
+    #[error("multiscale embedding artifact graph roles must be distinct")]
+    RoleAlias,
     /// Decoded domain values disagree about one artifact role or logical identity.
     #[error("decoded domain values disagree about the {role} binding")]
     DomainBindingMismatch {
@@ -197,6 +218,66 @@ impl VerifiedDirectPatchEmbeddingArtifactGraph {
 
     /// Number of exact direct provenance dependencies.
     pub fn provenance_dependency_count(self) -> u8 {
+        self.provenance_dependency_count
+    }
+
+    /// Provenance-declared positive output dimension.
+    pub fn output_dimension(self) -> u32 {
+        self.output_dimension
+    }
+}
+
+/// Runtime-only proof of the exact derived-region provenance graph.
+///
+/// This proves the eight direct provenance roles and their receipt-backed lower-level artifacts.
+/// It contains no output region table and does not prove producer-declared region geometry.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub struct VerifiedDerivedRegionEmbeddingArtifactGraph {
+    pub(crate) provenance_artifact_id: ArtifactId,
+    pub(crate) provenance_logical_digest: ContentDigest,
+    pub(crate) provenance_dependency_count: u8,
+    pub(crate) source_patch_table_artifact_id: ArtifactId,
+    pub(crate) source_patch_table_logical_digest: ContentDigest,
+    pub(crate) source_patch_provenance_logical_digest: ContentDigest,
+    pub(crate) source_patch_table_row_count: u64,
+    pub(crate) source_expected_patches_artifact_id: ArtifactId,
+    pub(crate) source_patch_support_artifact_id: ArtifactId,
+    pub(crate) patch_region_link_artifact_id: ArtifactId,
+    pub(crate) patch_region_link_logical_digest: ContentDigest,
+    pub(crate) expected_regions_artifact_id: ArtifactId,
+    pub(crate) expected_regions_logical_digest: ContentDigest,
+    pub(crate) region_support_artifact_id: ArtifactId,
+    pub(crate) region_support_logical_digest: ContentDigest,
+    pub(crate) derivation_artifact_id: ArtifactId,
+    pub(crate) derivation_logical_digest: ContentDigest,
+    pub(crate) output_dimension: u32,
+}
+
+impl fmt::Debug for VerifiedDerivedRegionEmbeddingArtifactGraph {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("VerifiedDerivedRegionEmbeddingArtifactGraph")
+            .field(
+                "provenance_dependency_count",
+                &self.provenance_dependency_count,
+            )
+            .field(
+                "source_patch_table_row_count",
+                &self.source_patch_table_row_count,
+            )
+            .field("output_dimension", &self.output_dimension)
+            .finish_non_exhaustive()
+    }
+}
+
+impl VerifiedDerivedRegionEmbeddingArtifactGraph {
+    /// Verified derived provenance artifact identity.
+    pub fn provenance_artifact_id(self) -> ArtifactId {
+        self.provenance_artifact_id
+    }
+
+    /// Number of exact derived-region provenance dependencies.
+    pub fn dependency_count(self) -> u8 {
         self.provenance_dependency_count
     }
 

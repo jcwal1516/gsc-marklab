@@ -16,7 +16,7 @@ pub use artifact_graph::{
 };
 pub use artifact_graph::{
     MultiscaleEmbeddingArtifactGraphError, MultiscaleEmbeddingArtifactRole,
-    VerifiedDirectPatchEmbeddingArtifactGraph,
+    VerifiedDerivedRegionEmbeddingArtifactGraph, VerifiedDirectPatchEmbeddingArtifactGraph,
 };
 pub use binding::MultiscaleArtifactBinding;
 pub use derivation::MultiscaleEmbeddingDerivationContract;

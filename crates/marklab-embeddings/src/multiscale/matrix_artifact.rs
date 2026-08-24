@@ -16,10 +16,23 @@ pub struct VerifiedPatchEmbeddingSupportArtifact {
     artifact_id: ArtifactId,
     logical_digest: ContentDigest,
     expected_patches_artifact_id: ArtifactId,
+    expected_patches_logical_digest: ContentDigest,
     patch_context_artifact_id: ArtifactId,
     patch_footprints_artifact_id: ArtifactId,
     patch_overlap_artifact_id: ArtifactId,
     row_count: u64,
+}
+
+#[derive(Clone, Copy)]
+#[cfg(feature = "parquet")]
+pub(in crate::multiscale) struct VerifiedPatchEmbeddingSupportBindings {
+    pub(in crate::multiscale) artifact_id: ArtifactId,
+    pub(in crate::multiscale) logical_digest: ContentDigest,
+    pub(in crate::multiscale) expected_patches_artifact_id: ArtifactId,
+    pub(in crate::multiscale) expected_patches_logical_digest: ContentDigest,
+    pub(in crate::multiscale) patch_context_artifact_id: ArtifactId,
+    pub(in crate::multiscale) patch_footprints_artifact_id: ArtifactId,
+    pub(in crate::multiscale) patch_overlap_artifact_id: ArtifactId,
 }
 
 impl fmt::Debug for VerifiedPatchEmbeddingSupportArtifact {
@@ -61,6 +74,7 @@ impl VerifiedPatchEmbeddingSupportArtifact {
             artifact_id: graph.patch_support_artifact_id,
             logical_digest: graph.patch_support_logical_digest,
             expected_patches_artifact_id: graph.expected_patches_artifact_id,
+            expected_patches_logical_digest: graph.expected_patches_logical_digest,
             patch_context_artifact_id: graph.patch_context_artifact_id,
             patch_footprints_artifact_id: footprints.artifact_id,
             patch_overlap_artifact_id: overlap.artifact_id,
@@ -82,6 +96,137 @@ impl VerifiedPatchEmbeddingSupportArtifact {
     pub fn row_count(self) -> u64 {
         self.row_count
     }
+
+    #[cfg(feature = "parquet")]
+    pub(in crate::multiscale) fn bindings(self) -> VerifiedPatchEmbeddingSupportBindings {
+        VerifiedPatchEmbeddingSupportBindings {
+            artifact_id: self.artifact_id,
+            logical_digest: self.logical_digest,
+            expected_patches_artifact_id: self.expected_patches_artifact_id,
+            expected_patches_logical_digest: self.expected_patches_logical_digest,
+            patch_context_artifact_id: self.patch_context_artifact_id,
+            patch_footprints_artifact_id: self.patch_footprints_artifact_id,
+            patch_overlap_artifact_id: self.patch_overlap_artifact_id,
+        }
+    }
+}
+
+/// Runtime-only proof of one exact managed `region_from_patches` support artifact.
+///
+/// The receipt carries producer-declared transitive support only. It does not establish region
+/// geometry, a tissue mask, or a full observation window.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub struct VerifiedRegionEmbeddingSupportArtifact {
+    artifact_id: ArtifactId,
+    logical_digest: ContentDigest,
+    patch_support_artifact_id: ArtifactId,
+    patch_support_logical_digest: ContentDigest,
+    expected_patches_artifact_id: ArtifactId,
+    expected_patches_logical_digest: ContentDigest,
+    patch_context_artifact_id: ArtifactId,
+    patch_footprints_artifact_id: ArtifactId,
+    patch_overlap_artifact_id: ArtifactId,
+    patch_region_link_artifact_id: ArtifactId,
+    patch_region_link_logical_digest: ContentDigest,
+    expected_regions_artifact_id: ArtifactId,
+    expected_regions_logical_digest: ContentDigest,
+    link_converter_artifact_id: ArtifactId,
+    link_assessment_artifact_id: ArtifactId,
+    assessed_pair_count: u64,
+    nonzero_relation_count: u64,
+}
+
+impl fmt::Debug for VerifiedRegionEmbeddingSupportArtifact {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("VerifiedRegionEmbeddingSupportArtifact")
+            .field("assessed_pair_count", &self.assessed_pair_count)
+            .field("nonzero_relation_count", &self.nonzero_relation_count)
+            .finish_non_exhaustive()
+    }
+}
+
+#[derive(Clone, Copy)]
+#[cfg(feature = "parquet")]
+pub(in crate::multiscale) struct VerifiedRegionEmbeddingSupportBindings {
+    pub(in crate::multiscale) artifact_id: ArtifactId,
+    pub(in crate::multiscale) logical_digest: ContentDigest,
+    pub(in crate::multiscale) patch_support_artifact_id: ArtifactId,
+    pub(in crate::multiscale) patch_support_logical_digest: ContentDigest,
+    pub(in crate::multiscale) expected_patches_artifact_id: ArtifactId,
+    pub(in crate::multiscale) expected_patches_logical_digest: ContentDigest,
+    pub(in crate::multiscale) patch_context_artifact_id: ArtifactId,
+    pub(in crate::multiscale) patch_footprints_artifact_id: ArtifactId,
+    pub(in crate::multiscale) patch_region_link_artifact_id: ArtifactId,
+    pub(in crate::multiscale) patch_region_link_logical_digest: ContentDigest,
+    pub(in crate::multiscale) expected_regions_artifact_id: ArtifactId,
+    pub(in crate::multiscale) expected_regions_logical_digest: ContentDigest,
+    pub(in crate::multiscale) link_converter_artifact_id: ArtifactId,
+    pub(in crate::multiscale) link_assessment_artifact_id: ArtifactId,
+    pub(in crate::multiscale) nonzero_relation_count: u64,
+}
+
+impl VerifiedRegionEmbeddingSupportArtifact {
+    #[cfg(feature = "parquet")]
+    pub(in crate::multiscale) fn new(
+        artifact_id: ArtifactId,
+        logical_digest: ContentDigest,
+        patch_support: VerifiedPatchEmbeddingSupportBindings,
+        patch_region_link_artifact_id: ArtifactId,
+        link: &super::PatchRegionLink,
+        nonzero_relation_count: u64,
+    ) -> Self {
+        Self {
+            artifact_id,
+            logical_digest,
+            patch_support_artifact_id: patch_support.artifact_id,
+            patch_support_logical_digest: patch_support.logical_digest,
+            expected_patches_artifact_id: patch_support.expected_patches_artifact_id,
+            expected_patches_logical_digest: patch_support.expected_patches_logical_digest,
+            patch_context_artifact_id: patch_support.patch_context_artifact_id,
+            patch_footprints_artifact_id: patch_support.patch_footprints_artifact_id,
+            patch_overlap_artifact_id: patch_support.patch_overlap_artifact_id,
+            patch_region_link_artifact_id,
+            patch_region_link_logical_digest: link.logical_digest(),
+            expected_regions_artifact_id: link.expected_regions_artifact_id(),
+            expected_regions_logical_digest: link.expected_regions_logical_digest(),
+            link_converter_artifact_id: link.converter_artifact_id(),
+            link_assessment_artifact_id: link.assessment_artifact_id(),
+            assessed_pair_count: link.assessed_pair_count(),
+            nonzero_relation_count,
+        }
+    }
+
+    /// Exact region-support artifact identity.
+    pub fn artifact_id(self) -> ArtifactId {
+        self.artifact_id
+    }
+
+    /// Format-independent region-support logical identity.
+    pub fn logical_digest(self) -> ContentDigest {
+        self.logical_digest
+    }
+
+    #[cfg(feature = "parquet")]
+    pub(in crate::multiscale) fn bindings(self) -> VerifiedRegionEmbeddingSupportBindings {
+        VerifiedRegionEmbeddingSupportBindings {
+            artifact_id: self.artifact_id,
+            logical_digest: self.logical_digest,
+            patch_support_artifact_id: self.patch_support_artifact_id,
+            patch_support_logical_digest: self.patch_support_logical_digest,
+            expected_patches_artifact_id: self.expected_patches_artifact_id,
+            expected_patches_logical_digest: self.expected_patches_logical_digest,
+            patch_context_artifact_id: self.patch_context_artifact_id,
+            patch_footprints_artifact_id: self.patch_footprints_artifact_id,
+            patch_region_link_artifact_id: self.patch_region_link_artifact_id,
+            patch_region_link_logical_digest: self.patch_region_link_logical_digest,
+            expected_regions_artifact_id: self.expected_regions_artifact_id,
+            expected_regions_logical_digest: self.expected_regions_logical_digest,
+            link_converter_artifact_id: self.link_converter_artifact_id,
+            link_assessment_artifact_id: self.link_assessment_artifact_id,
+            nonzero_relation_count: self.nonzero_relation_count,
+        }
+    }
 }
 
 /// Runtime-only proof of one fully decoded direct-patch embedding table.
@@ -95,10 +240,28 @@ pub struct VerifiedPatchEmbeddingTableArtifact {
     logical_digest: ContentDigest,
     qc_summary: MultiscaleEmbeddingQcSummary,
     expected_patches_artifact_id: ArtifactId,
+    expected_patches_logical_digest: ContentDigest,
     support_artifact_id: ArtifactId,
+    support_logical_digest: ContentDigest,
     provenance_artifact_id: ArtifactId,
+    provenance_logical_digest: ContentDigest,
     source_row_link_artifact_id: ArtifactId,
     dimension: u32,
+}
+
+#[derive(Clone, Copy)]
+#[cfg(feature = "parquet")]
+pub(in crate::multiscale) struct VerifiedPatchEmbeddingTableBindings {
+    pub(in crate::multiscale) artifact_id: ArtifactId,
+    pub(in crate::multiscale) logical_digest: ContentDigest,
+    pub(in crate::multiscale) qc_summary: MultiscaleEmbeddingQcSummary,
+    pub(in crate::multiscale) expected_patches_artifact_id: ArtifactId,
+    pub(in crate::multiscale) expected_patches_logical_digest: ContentDigest,
+    pub(in crate::multiscale) support_artifact_id: ArtifactId,
+    pub(in crate::multiscale) support_logical_digest: ContentDigest,
+    pub(in crate::multiscale) provenance_artifact_id: ArtifactId,
+    pub(in crate::multiscale) provenance_logical_digest: ContentDigest,
+    pub(in crate::multiscale) dimension: u32,
 }
 
 impl fmt::Debug for VerifiedPatchEmbeddingTableArtifact {
@@ -163,8 +326,11 @@ impl VerifiedPatchEmbeddingTableArtifact {
             logical_digest: table.logical_digest(),
             qc_summary: table.qc_summary(),
             expected_patches_artifact_id: graph.expected_patches_artifact_id,
+            expected_patches_logical_digest: graph.expected_patches_logical_digest,
             support_artifact_id: graph.patch_support_artifact_id,
+            support_logical_digest: graph.patch_support_logical_digest,
             provenance_artifact_id: graph.provenance_artifact_id,
+            provenance_logical_digest: graph.provenance_logical_digest,
             source_row_link_artifact_id: graph.source_row_link_artifact_id,
             dimension: table.dimension(),
         })
@@ -193,5 +359,21 @@ impl VerifiedPatchEmbeddingTableArtifact {
     /// Exact validated output dimension.
     pub fn dimension(self) -> u32 {
         self.dimension
+    }
+
+    #[cfg(feature = "parquet")]
+    pub(in crate::multiscale) fn bindings(self) -> VerifiedPatchEmbeddingTableBindings {
+        VerifiedPatchEmbeddingTableBindings {
+            artifact_id: self.artifact_id,
+            logical_digest: self.logical_digest,
+            qc_summary: self.qc_summary,
+            expected_patches_artifact_id: self.expected_patches_artifact_id,
+            expected_patches_logical_digest: self.expected_patches_logical_digest,
+            support_artifact_id: self.support_artifact_id,
+            support_logical_digest: self.support_logical_digest,
+            provenance_artifact_id: self.provenance_artifact_id,
+            provenance_logical_digest: self.provenance_logical_digest,
+            dimension: self.dimension,
+        }
     }
 }

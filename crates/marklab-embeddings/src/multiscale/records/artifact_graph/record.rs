@@ -83,6 +83,11 @@ fn schema_id(role: MultiscaleEmbeddingArtifactRole) -> &'static str {
         MultiscaleEmbeddingArtifactRole::PatchFootprints => "marklab.patch_footprint_table",
         MultiscaleEmbeddingArtifactRole::PatchOverlapGraph => "marklab.patch_overlap_edge_table",
         MultiscaleEmbeddingArtifactRole::PatchSupport => "marklab.multiscale_embedding_support",
+        MultiscaleEmbeddingArtifactRole::SourcePatchTable => "marklab.patch_embedding_table",
+        MultiscaleEmbeddingArtifactRole::PatchRegionLink => "marklab.patch_region_link",
+        MultiscaleEmbeddingArtifactRole::ExpectedRegions => "marklab.expected_region_set",
+        MultiscaleEmbeddingArtifactRole::RegionSupport => "marklab.multiscale_embedding_support",
+        MultiscaleEmbeddingArtifactRole::Derivation => "marklab.multiscale_embedding_derivation",
     }
 }
 
@@ -122,8 +127,19 @@ fn content_kind(role: MultiscaleEmbeddingArtifactRole) -> &'static str {
         MultiscaleEmbeddingArtifactRole::PatchSupport => {
             "application/vnd.marklab.multiscale-embedding-support.v1+json"
         }
+        MultiscaleEmbeddingArtifactRole::ExpectedRegions => {
+            "application/vnd.marklab.expected-region-set.v1+json"
+        }
+        MultiscaleEmbeddingArtifactRole::RegionSupport => {
+            "application/vnd.marklab.multiscale-embedding-support.v1+json"
+        }
+        MultiscaleEmbeddingArtifactRole::Derivation => {
+            "application/vnd.marklab.multiscale-embedding-derivation.v1+json"
+        }
         MultiscaleEmbeddingArtifactRole::PatchFootprints
-        | MultiscaleEmbeddingArtifactRole::PatchOverlapGraph => "",
+        | MultiscaleEmbeddingArtifactRole::PatchOverlapGraph
+        | MultiscaleEmbeddingArtifactRole::SourcePatchTable
+        | MultiscaleEmbeddingArtifactRole::PatchRegionLink => "",
     }
 }
 
