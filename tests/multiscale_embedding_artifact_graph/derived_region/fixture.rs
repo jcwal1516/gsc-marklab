@@ -145,6 +145,11 @@ fn patch_table(
                                 (2, 1) => -16_777_216.0,
                                 _ => 0.0,
                             },
+                            SourceVectorPattern::PathDiscrepancy => match (index, column) {
+                                (1, 0) => 3.0,
+                                (1, 1) => 6.0,
+                                _ => 0.0,
+                            },
                         })
                         .collect(),
                 )
@@ -180,6 +185,7 @@ enum SourceVectorPattern {
     AllZero,
     CancellationSensitive,
     ArithmeticSensitive,
+    PathDiscrepancy,
 }
 
 #[derive(Clone, Copy)]

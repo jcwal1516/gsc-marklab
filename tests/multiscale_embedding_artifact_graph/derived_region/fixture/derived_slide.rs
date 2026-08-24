@@ -480,5 +480,7 @@ fn finalize_slide(fixture: &SlideFixture) -> DerivedSlideEmbeddingTableCandidate
 mod finalization;
 #[path = "derived_slide/graph.rs"]
 mod graph;
+#[path = "derived_slide/path_discrepancy.rs"]
+mod path_discrepancy;
 #[path = "derived_slide/receipt.rs"]
 mod receipt;

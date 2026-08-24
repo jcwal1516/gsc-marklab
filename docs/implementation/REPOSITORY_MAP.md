@@ -235,6 +235,12 @@ Current HEAD is the audited SHA. Its parent-to-HEAD change modifies `README.md` 
 - `tests/declared_marked_prepost.rs` owns the genuine scheduler hand oracle, signed direction, probability-to-binary routing, empty availability, binding drift, semantic mismatch, and unchanged legacy/result-0.3 evidence.
 - Root/prepost facades expose only the concrete function/result/status. No node, codec, result/config field, format, receipt, validator framework, generic comparison/marks/inference abstraction, randomization, geometry, manifest, dependency, or external data path changed.
 
+## C-06 slide aggregation-path discrepancy owner map
+
+- `crates/marklab-embeddings/src/multiscale/slide_path_discrepancy.rs` owns the sole new computation and its fixed-size result/status/error types. It consumes both completed slide candidates, copied verified graphs, exact provenance values, and the existing verified region-table artifact as the ancestral patch-lineage bridge.
+- `tests/multiscale_embedding_artifact_graph/derived_region/fixture/derived_slide/path_discrepancy.rs` reuses the existing finalizer/receipt fixture for the hand oracle, exact identities, positive zero, typed missingness, work edges, semantic drift, repeat determinism, and foreign same-slide lineage rejection.
+- Root and embedding facades expose only the concrete function/result/error/status. No candidate, graph, receipt, Arrow/Parquet profile, validator, serializer, general statistics abstraction, manifest, dependency, config/result/CLI, source adapter, or external data path changed.
+
 ## Authorized external WSI and embedding asset map
 
 Read-only SSH inventory on 2026-08-22 used the existing authenticated connection. No patient/sample identifiers or raw patient data were copied into this repository.

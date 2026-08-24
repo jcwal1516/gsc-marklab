@@ -16,6 +16,7 @@ pub(crate) mod physical;
 mod records;
 mod region_dispersion;
 mod slide_finalization;
+mod slide_path_discrepancy;
 mod table;
 
 pub use artifact::{
@@ -76,6 +77,10 @@ pub use region_dispersion::{
 pub use slide_finalization::{
     finalize_slide_embedding_table_from_patches, finalize_slide_embedding_table_from_regions,
     DerivedSlideEmbeddingTableCandidate,
+};
+pub use slide_path_discrepancy::{
+    slide_embedding_aggregation_path_discrepancy, SlideEmbeddingAggregationPathDiscrepancy,
+    SlideEmbeddingAggregationPathDiscrepancyError, SlideEmbeddingAggregationPathDiscrepancyStatus,
 };
 #[cfg(feature = "parquet")]
 pub(crate) use table::{MatrixSummaryAccumulator, MultiscaleMatrixTable};
