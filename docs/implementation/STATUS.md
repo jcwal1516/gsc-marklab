@@ -1,13 +1,13 @@
 # Implementation status
 
-Last updated: 2026-08-23T19:56:10-04:00
+Last updated: 2026-08-23T20:21:50-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Committed baseline before the current checkpoint: `d53bf3bc17fb584e7612bb89908dadaacd52b167`
+- Committed baseline before the current checkpoint: `18de846f736f16913727c37557c65707d05bfb14`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
@@ -23,7 +23,7 @@ Last updated: 2026-08-23T19:56:10-04:00
 
 - Known failing commands/tests: clean unpatched `cargo +1.96.0 package --locked --workspace` creates all six archives but exits 101 while verifying data against the published pre-C-02 `marklab-core 0.1.0`. DEC-0018 makes this release-blocking until an authorized version/dependency-ordered publication boundary; ephemeral local patches verified every archive successfully and are not claimed equivalent to registry resolvability. The Windows cross-target C-03 check also exits 101 before project compilation because `x86_64-pc-windows-msvc` is not installed; DEC-0021 requires Windows publication/recovery runtime evidence before target support is claimed. Current C-04 focused checks are green: the earlier domain/source/Arrow/Parquet/store/fuzz scopes plus the exact 10,000 × 1,280 Criterion smoke, exact DHAT heap gate, and exact 1,000,000 × 256 RSS-bounded scale run. Historical red/green and harness failures are recorded in the validation ledger. The WS-B feature matrix still has the explicitly recorded narrow warnings and is not claimed warning-clean.
 - C-04 is complete through `55d1c8b` and `handoffs/C-04.md`. The 612-test workspace gate, exact focused/docs/feature/Clippy/WSI/fuzz/dependency/heap/benchmark/synthetic/reconciliation gates, and independent closure reviews pass. Exact unpatched registry packaging and Windows runtime admission remain known external release/platform blockers, not hidden green gates.
-- The bounded C-05 matrix physical checkpoint is green: logical tables 12/12, matrix behavior 10/10, hostile profiles 3/3, independent resources 3/3, unchanged C-04 Arrow/Parquet 14/14 and 10/10, strict package docs, package/root and workspace warning-denied Clippy, no-default workspace compilation, and the complete all-feature workspace suite all pass. The workspace root reports 293 passed and 21 documented ignores; `marklab-embeddings` reports 51 unit tests plus 6 domain tests. Matrix receipts and upstream support/provenance graph verification are intentionally not claimed.
+- The bounded C-05 direct-patch receipt checkpoint is green: the artifact-graph target passes 26/26, including 10 support/matrix receipt cases; the unchanged matrix behavior/hostile/resource targets pass 10/10, 3/3, and 3/3; strict package docs, no-default package Clippy, no-default workspace compilation, workspace warning-denied Clippy, and the complete all-feature workspace suite pass. The workspace root reports 293 passed and 21 documented ignores; `marklab-embeddings` reports 51 unit tests plus 6 domain tests. Region/slide support receipts, derived graphs/finalization, and source-component correspondence are intentionally not claimed.
 - Confirmed available: `cargo-nextest`, `cargo-audit`, `cargo-deny`, `cargo-machete`, `cargo-fuzz`, `ssh`, `scp`, `rsync`.
 - Confirmed unavailable: local `markdownlint-cli2`, `actionlint`, and Gnuplot. Criterion used Plotters; no Markdown/workflow lint pass is claimed.
 
@@ -31,12 +31,12 @@ Last updated: 2026-08-23T19:56:10-04:00
 
 - C-04 delivers exact cell-table/validity/expected/identity/context/link/provenance owners, bounded non-pickle source import, embedding-specific Arrow/Parquet validation/publication/scans, fuzz/differential/resource evidence, and pinned scale workloads.
 - The authorized 32-bundle source profile reconciles exactly but remains aggregate-only and non-promotable because `canonical_identity_mapping`, `input_normalization_and_run_configuration`, `reviewed_source_snapshot`, and `license_record` are absent.
-- C-05's approved logical and record substrate includes distinct expected patch/region/slide sets, exact patch context/footprints/overlap, three typed embedding tables, vector-free links, strict patch source-identity/normalization values, all four canonical support variants, deterministic weighted/arithmetic derivation contracts, both cell-link producer modes, the exhaustive patch-region assessment descriptor, all four strict multiscale provenance variants, and the eighteen-role direct-patch structural graph. All eight physical families now have exact Arrow IPC/Parquet writers, bounded raw-before-stock and stock readers, deterministic publication, exact records, and borrowed/managed parity. The five support/link families additionally have graph-bound runtime receipts and one format-neutral paired cell-link receipt. The three matrix codecs validate only against supplied sealed logical tables; they do not yet issue table receipts or prove managed expected-set/support/provenance availability. Support receipts, matrix input/derived graphs, matrix receipts, source-component correspondence, fuzz/scale evidence, and closure remain open.
+- C-05's approved logical and record substrate includes distinct expected patch/region/slide sets, exact patch context/footprints/overlap, three typed embedding tables, vector-free links, strict patch source-identity/normalization values, all four canonical support variants, deterministic weighted/arithmetic derivation contracts, both cell-link producer modes, the exhaustive patch-region assessment descriptor, all four strict multiscale provenance variants, and the eighteen-role direct-patch structural graph. All eight physical families have exact Arrow IPC/Parquet writers, bounded raw-before-stock and stock readers, deterministic publication, exact records, and borrowed/managed parity. Footprint, overlap, assignment, edge, patch-region, and direct patch support/table now have separate graph-bound runtime receipts; the cell-link halves also form one format-neutral paired receipt. Direct patch table finalization checks source-row PatchId/status equality before dimension/support/provenance/logical bindings and still does not prove opaque source-vector components. Region/slide support receipts, derived graphs/finalization, source-component correspondence, fuzz/scale evidence, and closure remain open.
 - A later aggregate/header audit found candidate patch-feature matrices at widths 384 and 1,024 plus patch image/coordinate containers. It found no promotable patch/region/slide table or canonical link. The evidence has no pinned digest and no production source grammar; the validation ledger records the exact claim ceiling and one bounded recursive-key-output audit defect.
 
 ## Dirty files and reason
 
-- C-05 matrix physical checkpoint: additive exact patch/region/slide Arrow IPC and Parquet profiles behind one sealed matrix engine, deterministic writers/publications, bounded raw-before-stock and stock readers, exact record binding, crate/root exports, logical alias protection, focused behavior/hostile/resource/determinism/integrity regressions, and implementation ledgers. No receipt or graph is minted, and no manifest, dependency, lockfile, generated file, source adapter, corpus mutation/promotion, or scientific-result change is dirty.
+- C-05 direct-patch receipt checkpoint: additive `VerifiedPatchEmbeddingSupportArtifact` and `VerifiedPatchEmbeddingTableArtifact` capabilities, four Arrow/Parquet borrowed/managed receipt entry points, the missing provenance logical binding in the existing direct graph token, focused receipt/format/status/boundary/integrity/privacy regressions, exports, and implementation ledgers. No manifest, dependency, lockfile, generated file, source adapter, corpus mutation/promotion, derived graph, or scientific-result change is dirty.
 
 ## Recent decisions
 
@@ -81,12 +81,12 @@ Last updated: 2026-08-23T19:56:10-04:00
 
 ## Next three exact actions
 
-1. Commit the reviewed three-matrix physical checkpoint with a clean worktree.
-2. Implement separate support verification and direct-patch matrix receipt authority without creating a monolithic graph.
-3. Extend dependency-ordered derived-region and derived-slide graphs/finalization, then add the frozen fuzz and scale evidence.
+1. Commit the reviewed direct-patch support/table receipt checkpoint with a clean worktree.
+2. Implement and verify the region-from-patches support receipt, derived-region graph, deterministic finalization, and region table receipt.
+3. Extend the same dependency-ordered boundary to both slide variants, then add the frozen fuzz and scale evidence.
 
 Next exact verification command:
 
 ```bash
-cargo +1.96.0 test --locked --features parquet --test multiscale_embedding_tables --test multiscale_matrix_columnar --test multiscale_matrix_columnar_adversarial --test multiscale_matrix_columnar_resources
+cargo +1.96.0 test --locked --all-features --test multiscale_embedding_artifact_graph
 ```

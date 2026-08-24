@@ -3,9 +3,9 @@ pub(super) use std::{collections::BTreeMap, str::FromStr};
 pub(super) use marklab::{
     ArtifactCatalog, ArtifactId, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef,
     ArtifactSchema, CohortHierarchy, ContentDigest, CoordinateFrame, CoordinateFrameId,
-    CoordinateRegistry, CoordinateSpace, CoordinateUnit, EffectiveReceptiveField, ExpectedPatchSet,
-    FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention, LocalArtifactStore,
-    MultiscaleArtifactBinding, MultiscaleDirectPatchInputArtifacts,
+    CoordinateRegistry, CoordinateSpace, CoordinateUnit, EffectiveReceptiveField, EmbeddingStatus,
+    ExpectedPatchSet, FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention,
+    LocalArtifactStore, MultiscaleArtifactBinding, MultiscaleDirectPatchInputArtifacts,
     MultiscaleDirectPatchModelProvenance, MultiscaleEmbeddingExecutionProvenance,
     MultiscaleEmbeddingProvenance, MultiscaleEmbeddingSupport, PatchBoundaryPolicy,
     PatchEmbeddingContext, PatchEmbeddingInputNormalization, PatchEmbeddingSourceRowLink,
@@ -69,6 +69,13 @@ pub(super) enum PhysicalManifestMutation {
 }
 
 #[derive(Clone, Copy)]
+pub(super) enum SourceRowStatusPattern {
+    AllPresent,
+    #[cfg(feature = "parquet")]
+    AllStatuses,
+}
+
+#[derive(Clone, Copy)]
 pub(super) struct FixtureOptions {
     pub(super) checkpoint_schema: &'static str,
     pub(super) checkpoint_schema_version: u32,
@@ -83,8 +90,11 @@ pub(super) struct FixtureOptions {
     pub(super) license_catalog_only: bool,
     pub(super) source_entity_catalog_only: bool,
     pub(super) parquet_physical: bool,
+    pub(super) overlap_parquet_physical: Option<bool>,
     pub(super) canonical_physical: bool,
     pub(super) entity_count: usize,
+    pub(super) output_dimension: u32,
+    pub(super) source_row_status_pattern: SourceRowStatusPattern,
 }
 
 impl Default for FixtureOptions {
@@ -103,8 +113,11 @@ impl Default for FixtureOptions {
             license_catalog_only: false,
             source_entity_catalog_only: false,
             parquet_physical: false,
+            overlap_parquet_physical: None,
             canonical_physical: false,
             entity_count: 2,
+            output_dimension: 1_024,
+            source_row_status_pattern: SourceRowStatusPattern::AllPresent,
         }
     }
 }

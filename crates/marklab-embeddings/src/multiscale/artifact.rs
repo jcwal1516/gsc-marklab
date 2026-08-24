@@ -15,11 +15,11 @@ use super::{
 /// Runtime-only proof of one fully decoded physical patch-footprint artifact.
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct VerifiedPatchFootprintArtifact {
-    artifact_id: ArtifactId,
-    expected_patches_artifact_id: ArtifactId,
-    patch_context_artifact_id: ArtifactId,
-    logical_digest: ContentDigest,
-    row_count: u64,
+    pub(crate) artifact_id: ArtifactId,
+    pub(crate) expected_patches_artifact_id: ArtifactId,
+    pub(crate) patch_context_artifact_id: ArtifactId,
+    pub(crate) logical_digest: ContentDigest,
+    pub(crate) row_count: u64,
 }
 
 impl fmt::Debug for VerifiedPatchFootprintArtifact {
@@ -77,12 +77,12 @@ impl VerifiedPatchFootprintArtifact {
 /// Runtime-only proof of one fully decoded physical patch-overlap artifact.
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct VerifiedPatchOverlapArtifact {
-    artifact_id: ArtifactId,
-    expected_patches_artifact_id: ArtifactId,
-    patch_context_artifact_id: ArtifactId,
-    footprint_artifact_id: ArtifactId,
-    logical_digest: ContentDigest,
-    row_count: u64,
+    pub(crate) artifact_id: ArtifactId,
+    pub(crate) expected_patches_artifact_id: ArtifactId,
+    pub(crate) patch_context_artifact_id: ArtifactId,
+    pub(crate) footprint_artifact_id: ArtifactId,
+    pub(crate) logical_digest: ContentDigest,
+    pub(crate) row_count: u64,
 }
 
 impl fmt::Debug for VerifiedPatchOverlapArtifact {

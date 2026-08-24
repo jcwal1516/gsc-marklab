@@ -63,7 +63,7 @@ pub(crate) fn context(
         Vec::new(),
     )
     .expect("coordinate registry");
-    let final_origin = u64::try_from(entity_count - 1).expect("entity count") * 192;
+    let final_origin = u64::try_from(entity_count.saturating_sub(1)).expect("entity count") * 192;
     PatchEmbeddingContext::new(
         hierarchy,
         &registry,

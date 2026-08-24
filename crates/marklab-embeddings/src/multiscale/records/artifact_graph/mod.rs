@@ -245,6 +245,7 @@ impl MultiscaleEmbeddingProvenance {
 
         Ok(VerifiedDirectPatchEmbeddingArtifactGraph {
             provenance_artifact_id,
+            provenance_logical_digest: self.logical_digest(),
             provenance_dependency_count: 14,
             source_entities_artifact_id: roles.source_entities,
             source_vectors_artifact_id: roles.source_vectors,

@@ -13,7 +13,11 @@ use parquet::{
     file::metadata::RowGroupMetaData,
 };
 
-use crate::{EmbeddingStatus, PatchEmbeddingTable, RegionEmbeddingTable, SlideEmbeddingTable};
+use crate::{
+    EmbeddingStatus, PatchEmbeddingSourceRowLink, PatchEmbeddingTable, RegionEmbeddingTable,
+    SlideEmbeddingTable, VerifiedDirectPatchEmbeddingArtifactGraph,
+    VerifiedPatchEmbeddingSupportArtifact, VerifiedPatchEmbeddingTableArtifact,
+};
 
 use super::{
     preflight::{
@@ -63,6 +67,37 @@ typed_reader!(
     validate_patch_embedding_table_parquet_from_store,
     PatchEmbeddingTable
 );
+
+/// Fully decode borrowed patch-matrix Parquet bytes and mint an exact direct-patch receipt.
+#[allow(clippy::too_many_arguments)]
+pub fn verify_patch_embedding_table_parquet_bytes(
+    bytes: &[u8],
+    record: &ArtifactRecord,
+    table: &PatchEmbeddingTable,
+    source_row_link: &PatchEmbeddingSourceRowLink,
+    support: VerifiedPatchEmbeddingSupportArtifact,
+    graph: VerifiedDirectPatchEmbeddingArtifactGraph,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<VerifiedPatchEmbeddingTableArtifact, MultiscaleColumnarError> {
+    validate_patch_embedding_table_parquet_bytes(bytes, record, table, budgets)?;
+    VerifiedPatchEmbeddingTableArtifact::new(record.id(), table, source_row_link, support, graph)
+}
+
+/// Fully decode a managed patch-matrix Parquet artifact and mint an exact direct-patch receipt.
+#[allow(clippy::too_many_arguments)]
+pub fn verify_patch_embedding_table_parquet_from_store(
+    store: &LocalArtifactStore,
+    record: &ArtifactRecord,
+    table: &PatchEmbeddingTable,
+    source_row_link: &PatchEmbeddingSourceRowLink,
+    support: VerifiedPatchEmbeddingSupportArtifact,
+    graph: VerifiedDirectPatchEmbeddingArtifactGraph,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<VerifiedPatchEmbeddingTableArtifact, VerifiedReaderError<MultiscaleColumnarError>> {
+    validate_patch_embedding_table_parquet_from_store(store, record, table, budgets)?;
+    VerifiedPatchEmbeddingTableArtifact::new(record.id(), table, source_row_link, support, graph)
+        .map_err(VerifiedReaderError::Callback)
+}
 typed_reader!(
     validate_region_embedding_table_parquet_bytes,
     validate_region_embedding_table_parquet_from_store,

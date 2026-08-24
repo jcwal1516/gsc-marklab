@@ -5,10 +5,6 @@ pub(crate) fn fixture() -> Fixture {
 }
 
 pub(crate) fn fixture_with_options(options: FixtureOptions) -> Fixture {
-    assert!(
-        options.entity_count > 0,
-        "fixture requires at least one patch"
-    );
     let root = TempDir::new().expect("temporary store root");
     let store = LocalArtifactStore::open(
         root.path(),
@@ -16,6 +12,9 @@ pub(crate) fn fixture_with_options(options: FixtureOptions) -> Fixture {
     )
     .expect("local store");
     let (hierarchy, slide) = hierarchy(options.entity_count);
+    let overlap_parquet_physical = options
+        .overlap_parquet_physical
+        .unwrap_or(options.parquet_physical);
 
     let checkpoint_candidate = draft_record_with_version(
         options.checkpoint_schema,
@@ -266,6 +265,33 @@ pub(crate) fn fixture_with_options(options: FixtureOptions) -> Fixture {
         None,
     );
 
+    let mut source_vector_row = 0_u64;
+    let source_row_entries = (0..options.entity_count)
+        .map(|index| {
+            let entity_row = u64::try_from(index).expect("source row");
+            let status = match options.source_row_status_pattern {
+                SourceRowStatusPattern::AllPresent => EmbeddingStatus::Present,
+                #[cfg(feature = "parquet")]
+                SourceRowStatusPattern::AllStatuses => match index % 4 {
+                    0 => EmbeddingStatus::Present,
+                    1 => EmbeddingStatus::MissingVector,
+                    2 => EmbeddingStatus::ExtractionFailed,
+                    _ => EmbeddingStatus::QcRejected,
+                },
+            };
+            let vector_row = matches!(
+                status,
+                EmbeddingStatus::Present | EmbeddingStatus::QcRejected
+            )
+            .then(|| {
+                let row = source_vector_row;
+                source_vector_row += 1;
+                row
+            });
+            PatchEmbeddingSourceRowLinkEntry::new(patch_at(index), status, entity_row, vector_row)
+                .expect("source row-link entry")
+        })
+        .collect();
     let source_row_link = PatchEmbeddingSourceRowLink::new(
         &source_entities,
         source_entity_record.id(),
@@ -275,12 +301,7 @@ pub(crate) fn fixture_with_options(options: FixtureOptions) -> Fixture {
         &identity_map,
         identity_record.id(),
         converter.id(),
-        (0..options.entity_count)
-            .map(|index| {
-                let row = u64::try_from(index).expect("source row");
-                PatchEmbeddingSourceRowLinkEntry::present(patch_at(index), row, row)
-            })
-            .collect(),
+        source_row_entries,
         BUDGET,
     )
     .expect("source row link");
@@ -387,7 +408,7 @@ pub(crate) fn fixture_with_options(options: FixtureOptions) -> Fixture {
             &context,
             &footprints,
             &overlap,
-            options.parquet_physical,
+            overlap_parquet_physical,
         )
     } else {
         publish_record(
@@ -395,7 +416,7 @@ pub(crate) fn fixture_with_options(options: FixtureOptions) -> Fixture {
             "marklab.patch_overlap_edge_table",
             if overlap_mutation == Some(PhysicalManifestMutation::ContentKind) {
                 "application/octet-stream"
-            } else if options.parquet_physical {
+            } else if overlap_parquet_physical {
                 "application/vnd.marklab.patch-overlap-edge-table.v1+parquet"
             } else {
                 "application/vnd.marklab.patch-overlap-edge-table.v1+arrow"
@@ -407,7 +428,7 @@ pub(crate) fn fixture_with_options(options: FixtureOptions) -> Fixture {
             } else {
                 Some(overlap_manifest(
                     u64::try_from(overlap.edge_count()).expect("overlap count"),
-                    options.parquet_physical,
+                    overlap_parquet_physical,
                     overlap_mutation,
                 ))
             },
@@ -481,7 +502,7 @@ pub(crate) fn fixture_with_options(options: FixtureOptions) -> Fixture {
     let provenance = MultiscaleEmbeddingProvenance::direct_patch(
         slide,
         &support,
-        1_024,
+        options.output_dimension,
         "mean_patch_tokens",
         model,
         execution,

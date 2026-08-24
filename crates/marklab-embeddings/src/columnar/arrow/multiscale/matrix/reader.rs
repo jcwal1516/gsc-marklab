@@ -4,7 +4,11 @@ use arrow::array::{Array, FixedSizeListArray, Float32Array, StringArray};
 use arrow_ipc::reader::FileReaderBuilder;
 use marklab_project::{ArtifactRecord, LocalArtifactStore, VerifiedReaderError};
 
-use crate::{PatchEmbeddingTable, RegionEmbeddingTable, SlideEmbeddingTable};
+use crate::{
+    PatchEmbeddingSourceRowLink, PatchEmbeddingTable, RegionEmbeddingTable, SlideEmbeddingTable,
+    VerifiedDirectPatchEmbeddingArtifactGraph, VerifiedPatchEmbeddingSupportArtifact,
+    VerifiedPatchEmbeddingTableArtifact,
+};
 
 use super::{
     preflight::{preflight_reader, MultiscaleMatrixArrowPreflight},
@@ -48,6 +52,37 @@ typed_reader!(
     validate_patch_embedding_table_arrow_from_store,
     PatchEmbeddingTable
 );
+
+/// Fully decode borrowed patch-matrix Arrow bytes and mint an exact direct-patch receipt.
+#[allow(clippy::too_many_arguments)]
+pub fn verify_patch_embedding_table_arrow_bytes(
+    bytes: &[u8],
+    record: &ArtifactRecord,
+    table: &PatchEmbeddingTable,
+    source_row_link: &PatchEmbeddingSourceRowLink,
+    support: VerifiedPatchEmbeddingSupportArtifact,
+    graph: VerifiedDirectPatchEmbeddingArtifactGraph,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<VerifiedPatchEmbeddingTableArtifact, MultiscaleColumnarError> {
+    validate_patch_embedding_table_arrow_bytes(bytes, record, table, budgets)?;
+    VerifiedPatchEmbeddingTableArtifact::new(record.id(), table, source_row_link, support, graph)
+}
+
+/// Fully decode a managed patch-matrix Arrow artifact and mint an exact direct-patch receipt.
+#[allow(clippy::too_many_arguments)]
+pub fn verify_patch_embedding_table_arrow_from_store(
+    store: &LocalArtifactStore,
+    record: &ArtifactRecord,
+    table: &PatchEmbeddingTable,
+    source_row_link: &PatchEmbeddingSourceRowLink,
+    support: VerifiedPatchEmbeddingSupportArtifact,
+    graph: VerifiedDirectPatchEmbeddingArtifactGraph,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<VerifiedPatchEmbeddingTableArtifact, VerifiedReaderError<MultiscaleColumnarError>> {
+    validate_patch_embedding_table_arrow_from_store(store, record, table, budgets)?;
+    VerifiedPatchEmbeddingTableArtifact::new(record.id(), table, source_row_link, support, graph)
+        .map_err(VerifiedReaderError::Callback)
+}
 typed_reader!(
     validate_region_embedding_table_arrow_bytes,
     validate_region_embedding_table_arrow_from_store,

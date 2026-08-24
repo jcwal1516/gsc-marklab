@@ -155,6 +155,7 @@ pub enum MultiscaleEmbeddingArtifactGraphError {
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct VerifiedDirectPatchEmbeddingArtifactGraph {
     pub(crate) provenance_artifact_id: ArtifactId,
+    pub(crate) provenance_logical_digest: ContentDigest,
     pub(crate) provenance_dependency_count: u8,
     pub(crate) source_entities_artifact_id: ArtifactId,
     pub(crate) source_vectors_artifact_id: ArtifactId,
