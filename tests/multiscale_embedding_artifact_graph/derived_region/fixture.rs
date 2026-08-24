@@ -1,22 +1,24 @@
 use super::super::support::*;
 use marklab::{
-    finalize_region_embedding_table_from_patches, publish_patch_embedding_table_arrow,
-    publish_patch_embedding_table_parquet, publish_patch_region_link_arrow,
-    publish_patch_region_link_parquet, verify_patch_embedding_table_arrow_from_store,
-    verify_patch_embedding_table_parquet_from_store, verify_patch_footprint_set_arrow_from_store,
-    verify_patch_footprint_set_parquet_from_store, verify_patch_overlap_graph_arrow_from_store,
-    verify_patch_overlap_graph_parquet_from_store, verify_patch_region_link_arrow_from_store,
-    verify_patch_region_link_parquet_from_store, ArtifactAvailabilityFailure, ArtifactCatalog,
-    ArtifactRecord, EmbeddingColumnarBudgets, EmbeddingFinalizationBudgets, EmbeddingStatus,
-    ExpectedRegionSet, HierarchyId, HierarchyNode, MultiscaleArtifactBinding,
-    MultiscaleEmbeddingArtifactGraphError, MultiscaleEmbeddingArtifactRole,
-    MultiscaleEmbeddingDerivationContract, MultiscaleEmbeddingError,
-    MultiscaleEmbeddingExecutionProvenance, MultiscaleEmbeddingProvenance,
-    MultiscaleEmbeddingSupport, PatchEmbeddingRow, PatchEmbeddingTable, PatchRegionAssessment,
-    PatchRegionAssessmentBindings, PatchRegionDeclaration, PatchRegionLink, PatientId, RegionId,
-    ReplicationRole, VerifiedDerivedRegionEmbeddingArtifactGraph,
-    VerifiedPatchEmbeddingSupportArtifact, VerifiedPatchEmbeddingTableArtifact,
-    VerifiedPatchRegionLinkArtifact, VerifiedRegionEmbeddingSupportArtifact,
+    finalize_region_embedding_table_from_patches, patch_region_embedding_dispersion,
+    publish_patch_embedding_table_arrow, publish_patch_embedding_table_parquet,
+    publish_patch_region_link_arrow, publish_patch_region_link_parquet,
+    verify_patch_embedding_table_arrow_from_store, verify_patch_embedding_table_parquet_from_store,
+    verify_patch_footprint_set_arrow_from_store, verify_patch_footprint_set_parquet_from_store,
+    verify_patch_overlap_graph_arrow_from_store, verify_patch_overlap_graph_parquet_from_store,
+    verify_patch_region_link_arrow_from_store, verify_patch_region_link_parquet_from_store,
+    ArtifactAvailabilityFailure, ArtifactCatalog, ArtifactRecord, EmbeddingColumnarBudgets,
+    EmbeddingFinalizationBudgets, EmbeddingStatus, ExpectedRegionSet, HierarchyId, HierarchyNode,
+    MeasurementStatus, MultiscaleArtifactBinding, MultiscaleEmbeddingArtifactGraphError,
+    MultiscaleEmbeddingArtifactRole, MultiscaleEmbeddingDerivationContract,
+    MultiscaleEmbeddingError, MultiscaleEmbeddingExecutionProvenance,
+    MultiscaleEmbeddingProvenance, MultiscaleEmbeddingSupport, PatchEmbeddingRow,
+    PatchEmbeddingTable, PatchRegionAssessment, PatchRegionAssessmentBindings,
+    PatchRegionDeclaration, PatchRegionEmbeddingDispersionError,
+    PatchRegionEmbeddingDispersionStatus, PatchRegionLink, PatientId, RegionId, ReplicationRole,
+    VerifiedDerivedRegionEmbeddingArtifactGraph, VerifiedPatchEmbeddingSupportArtifact,
+    VerifiedPatchEmbeddingTableArtifact, VerifiedPatchRegionLinkArtifact,
+    VerifiedRegionEmbeddingSupportArtifact,
 };
 
 fn budgets() -> EmbeddingColumnarBudgets {
@@ -119,6 +121,15 @@ fn patch_table(
                     (0..dimension)
                         .map(|column| match vector_pattern {
                             SourceVectorPattern::Sequential => index as f32 + column as f32 + 1.0,
+                            SourceVectorPattern::AxisSignFlip => {
+                                let value = index as f32 + column as f32 + 1.0;
+                                if column % 2 == 0 {
+                                    -value
+                                } else {
+                                    value
+                                }
+                            }
+                            SourceVectorPattern::AllZero => -0.0,
                             SourceVectorPattern::CancellationSensitive => match index {
                                 0 => f32::MAX,
                                 1 => 1.0,
@@ -165,6 +176,8 @@ enum PhysicalFormat {
 #[derive(Clone, Copy)]
 enum SourceVectorPattern {
     Sequential,
+    AxisSignFlip,
+    AllZero,
     CancellationSensitive,
     ArithmeticSensitive,
 }
@@ -706,6 +719,8 @@ mod derived_slide;
 mod finalization;
 #[path = "fixture/happy.rs"]
 mod happy;
+#[path = "fixture/region_dispersion.rs"]
+mod region_dispersion;
 #[path = "fixture/region_receipt.rs"]
 mod region_receipt;
 #[path = "fixture/support_receipt.rs"]

@@ -215,6 +215,13 @@ Current HEAD is the audited SHA. Its parent-to-HEAD change modifies `README.md` 
 - `tests/scalar_mark_input.rs`, `tests/declared_marked_workflow.rs`, and their shared fixture own the behavior, project-revalidation, direct parity, routing, identity, miss/hit, integrity, and unchanged-codec evidence.
 - No `Pattern`/loader/config/result/CLI edit, general MarkTable, physical schema, receipt, validator registry, geometry/window owner, dependency, or external path is added.
 
+## C-06 patch-to-derived-region dispersion owner map
+
+- `crates/marklab-embeddings/src/multiscale/region_dispersion.rs` owns the sole new computation and its fixed-size result/status/error types. It consumes the exact C-05 patch table, patch-region link, verified graph, derived candidate, and both provenance values.
+- `RegionEmbeddingTable::row_index` is private to the multiscale package and is used immediately by that computation; no general visitor, metric trait, statistics framework, or vector abstraction was added.
+- `tests/multiscale_embedding_artifact_graph/derived_region/fixture/region_dispersion.rs` reuses the existing exact graph/finalizer fixture for oracle, identity, drift, status, determinism, and work-cap evidence.
+- Root and embedding facades expose only the concrete function/result/error/status. No Arrow/Parquet code, receipt, validator, workflow, codec, config/result/CLI, manifest, lock, dependency, or external data path changed.
+
 ## Authorized external WSI and embedding asset map
 
 Read-only SSH inventory on 2026-08-22 used the existing authenticated connection. No patient/sample identifiers or raw patient data were copied into this repository.

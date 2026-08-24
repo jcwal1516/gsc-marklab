@@ -390,6 +390,10 @@ impl PatchEmbeddingTable {
 }
 
 impl RegionEmbeddingTable {
+    pub(in crate::multiscale) fn row_index(&self, region_id: &RegionId) -> Option<usize> {
+        self.0.ids.binary_search(region_id).ok()
+    }
+
     pub(in crate::multiscale) fn retained_bytes(&self) -> Result<usize, MultiscaleEmbeddingError> {
         self.0.current_retained_bytes()
     }

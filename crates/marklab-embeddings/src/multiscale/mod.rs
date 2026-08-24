@@ -14,6 +14,7 @@ mod overlap_dispersion;
 mod patch_region;
 pub(crate) mod physical;
 mod records;
+mod region_dispersion;
 mod slide_finalization;
 mod table;
 
@@ -67,6 +68,10 @@ pub use records::{
     PatchIdentityMapEntry, PatchNormalizationDecimal, PatchSourceEntityEntry, PatchSourceEntitySet,
     VerifiedDerivedRegionEmbeddingArtifactGraph, VerifiedDerivedSlideEmbeddingArtifactGraph,
     VerifiedDirectPatchEmbeddingArtifactGraph,
+};
+pub use region_dispersion::{
+    patch_region_embedding_dispersion, PatchRegionEmbeddingDispersion,
+    PatchRegionEmbeddingDispersionError, PatchRegionEmbeddingDispersionStatus,
 };
 pub use slide_finalization::{
     finalize_slide_embedding_table_from_patches, finalize_slide_embedding_table_from_regions,
