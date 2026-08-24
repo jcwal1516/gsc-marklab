@@ -230,10 +230,10 @@ pub enum MultiscaleEmbeddingError {
     /// A derived-table input disagrees with its exact verified graph capability.
     #[error("derived embedding finalization inputs do not match the verified graph")]
     DerivedEmbeddingFinalizationBindingMismatch,
-    /// Candidate contributor rows exceed the caller's explicit deterministic-work budget.
+    /// Source rows or sparse relations exceed the caller's deterministic-work budget.
     #[error("derived embedding contributor rows {required} exceed budget {maximum}")]
     DerivedEmbeddingContributorBudgetExceeded {
-        /// Candidate contributor rows that must be visited.
+        /// Source rows or sparse relations that must be visited.
         required: u64,
         /// Caller-provided maximum contributor rows.
         maximum: u64,
@@ -241,7 +241,7 @@ pub enum MultiscaleEmbeddingError {
     /// Component accumulations exceed the caller's explicit deterministic-work budget.
     #[error("derived embedding component accumulations {required} exceed budget {maximum}")]
     DerivedEmbeddingComponentBudgetExceeded {
-        /// Required multiply-and-sequential-add component operations.
+        /// Required deterministic component accumulation operations.
         required: u64,
         /// Caller-provided maximum component operations.
         maximum: u64,

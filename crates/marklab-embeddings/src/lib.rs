@@ -110,7 +110,9 @@ pub use columnar::{
     verify_patch_embedding_table_arrow_from_store, verify_patch_embedding_table_parquet_bytes,
     verify_patch_embedding_table_parquet_from_store, verify_region_embedding_table_arrow_bytes,
     verify_region_embedding_table_arrow_from_store, verify_region_embedding_table_parquet_bytes,
-    verify_region_embedding_table_parquet_from_store, write_patch_embedding_table_arrow,
+    verify_region_embedding_table_parquet_from_store, verify_slide_embedding_table_arrow_bytes,
+    verify_slide_embedding_table_arrow_from_store, verify_slide_embedding_table_parquet_bytes,
+    verify_slide_embedding_table_parquet_from_store, write_patch_embedding_table_arrow,
     write_patch_embedding_table_parquet, write_region_embedding_table_arrow,
     write_region_embedding_table_parquet, write_slide_embedding_table_arrow,
     write_slide_embedding_table_parquet, MultiscaleMatrixArrowPreflight,
@@ -121,12 +123,14 @@ pub use error::EmbeddingError;
 pub use expected::ExpectedCellSet;
 pub use identity_map::{CellIdentityMap, CellIdentityMapEntry};
 pub use multiscale::{
-    finalize_region_embedding_table_from_patches, CellPatchAnchor, CellPatchAssignment,
+    finalize_region_embedding_table_from_patches, finalize_slide_embedding_table_from_patches,
+    finalize_slide_embedding_table_from_regions, CellPatchAnchor, CellPatchAssignment,
     CellPatchAssignmentMode, CellPatchAssignmentStatus, CellPatchContributor, CellPatchEdge,
     CellPatchLink, CellPatchLinkBindings, CellPatchLinkProducer, CellPatchWeight,
-    DeclaredCellPatchAssignment, DerivedRegionEmbeddingTableCandidate, EffectiveReceptiveField,
-    EmbeddingEntityKind, EmbeddingFinalizationBudgets, ExpectedPatchSet, ExpectedRegionSet,
-    ExpectedSlideSet, MultiscaleArtifactBinding, MultiscaleDirectPatchInputArtifacts,
+    DeclaredCellPatchAssignment, DerivedRegionEmbeddingTableCandidate,
+    DerivedSlideEmbeddingTableCandidate, EffectiveReceptiveField, EmbeddingEntityKind,
+    EmbeddingFinalizationBudgets, ExpectedPatchSet, ExpectedRegionSet, ExpectedSlideSet,
+    MultiscaleArtifactBinding, MultiscaleDirectPatchInputArtifacts,
     MultiscaleDirectPatchModelProvenance, MultiscaleEmbeddingArtifactGraphError,
     MultiscaleEmbeddingArtifactRole, MultiscaleEmbeddingDerivationContract,
     MultiscaleEmbeddingError, MultiscaleEmbeddingExecutionProvenance,
@@ -142,10 +146,11 @@ pub use multiscale::{
     SlideEmbeddingRow, SlideEmbeddingTable, SlideEmbeddingView,
     VerifiedCellPatchAssignmentArtifact, VerifiedCellPatchEdgeArtifact,
     VerifiedCellPatchLinkArtifact, VerifiedDerivedRegionEmbeddingArtifactGraph,
-    VerifiedDirectPatchEmbeddingArtifactGraph, VerifiedPatchEmbeddingSupportArtifact,
-    VerifiedPatchEmbeddingTableArtifact, VerifiedPatchFootprintArtifact,
-    VerifiedPatchOverlapArtifact, VerifiedPatchRegionLinkArtifact,
+    VerifiedDerivedSlideEmbeddingArtifactGraph, VerifiedDirectPatchEmbeddingArtifactGraph,
+    VerifiedPatchEmbeddingSupportArtifact, VerifiedPatchEmbeddingTableArtifact,
+    VerifiedPatchFootprintArtifact, VerifiedPatchOverlapArtifact, VerifiedPatchRegionLinkArtifact,
     VerifiedRegionEmbeddingSupportArtifact, VerifiedRegionEmbeddingTableArtifact,
+    VerifiedSlideEmbeddingSupportArtifact, VerifiedSlideEmbeddingTableArtifact,
 };
 #[cfg(feature = "parquet")]
 pub use multiscale::{

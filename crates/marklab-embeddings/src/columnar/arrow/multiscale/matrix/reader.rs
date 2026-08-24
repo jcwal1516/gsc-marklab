@@ -5,10 +5,11 @@ use arrow_ipc::reader::FileReaderBuilder;
 use marklab_project::{ArtifactRecord, LocalArtifactStore, VerifiedReaderError};
 
 use crate::{
-    DerivedRegionEmbeddingTableCandidate, PatchEmbeddingSourceRowLink, PatchEmbeddingTable,
-    RegionEmbeddingTable, SlideEmbeddingTable, VerifiedDirectPatchEmbeddingArtifactGraph,
-    VerifiedPatchEmbeddingSupportArtifact, VerifiedPatchEmbeddingTableArtifact,
-    VerifiedRegionEmbeddingTableArtifact,
+    DerivedRegionEmbeddingTableCandidate, DerivedSlideEmbeddingTableCandidate,
+    PatchEmbeddingSourceRowLink, PatchEmbeddingTable, RegionEmbeddingTable, SlideEmbeddingTable,
+    VerifiedDirectPatchEmbeddingArtifactGraph, VerifiedPatchEmbeddingSupportArtifact,
+    VerifiedPatchEmbeddingTableArtifact, VerifiedRegionEmbeddingTableArtifact,
+    VerifiedSlideEmbeddingTableArtifact,
 };
 
 use super::{
@@ -117,6 +118,29 @@ typed_reader!(
     validate_slide_embedding_table_arrow_from_store,
     SlideEmbeddingTable
 );
+
+/// Fully decode borrowed derived-slide Arrow bytes and mint an exact finalization receipt.
+pub fn verify_slide_embedding_table_arrow_bytes(
+    bytes: &[u8],
+    record: &ArtifactRecord,
+    candidate: &DerivedSlideEmbeddingTableCandidate,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<VerifiedSlideEmbeddingTableArtifact, MultiscaleColumnarError> {
+    validate_slide_embedding_table_arrow_bytes(bytes, record, candidate.table(), budgets)?;
+    VerifiedSlideEmbeddingTableArtifact::new(record.id(), candidate)
+}
+
+/// Fully decode a managed derived-slide Arrow artifact and mint an exact finalization receipt.
+pub fn verify_slide_embedding_table_arrow_from_store(
+    store: &LocalArtifactStore,
+    record: &ArtifactRecord,
+    candidate: &DerivedSlideEmbeddingTableCandidate,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<VerifiedSlideEmbeddingTableArtifact, VerifiedReaderError<MultiscaleColumnarError>> {
+    validate_slide_embedding_table_arrow_from_store(store, record, candidate.table(), budgets)?;
+    VerifiedSlideEmbeddingTableArtifact::new(record.id(), candidate)
+        .map_err(VerifiedReaderError::Callback)
+}
 
 fn validate_bytes(
     bytes: &[u8],

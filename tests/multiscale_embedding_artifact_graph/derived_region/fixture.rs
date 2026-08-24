@@ -125,6 +125,15 @@ fn patch_table(
                                 2 => -f32::MAX,
                                 _ => 0.0,
                             },
+                            SourceVectorPattern::ArithmeticSensitive => match (index, column) {
+                                (0, 0) => f32::MAX,
+                                (1, 0) => 1.0,
+                                (2, 0) => -f32::MAX,
+                                (0, 1) => 16_777_216.0,
+                                (1, 1) => 1.0,
+                                (2, 1) => -16_777_216.0,
+                                _ => 0.0,
+                            },
                         })
                         .collect(),
                 )
@@ -157,6 +166,7 @@ enum PhysicalFormat {
 enum SourceVectorPattern {
     Sequential,
     CancellationSensitive,
+    ArithmeticSensitive,
 }
 
 #[derive(Clone, Copy)]
@@ -690,6 +700,8 @@ fn rebuild_provenance(
 
 #[path = "fixture/derived_graph.rs"]
 mod derived_graph;
+#[path = "fixture/derived_slide.rs"]
+mod derived_slide;
 #[path = "fixture/finalization.rs"]
 mod finalization;
 #[path = "fixture/happy.rs"]

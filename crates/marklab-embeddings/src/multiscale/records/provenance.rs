@@ -113,6 +113,17 @@ pub(in crate::multiscale) struct DerivedRegionArtifactRoles {
     pub(in crate::multiscale) derivation_contract: ArtifactId,
 }
 
+#[cfg(feature = "parquet")]
+pub(in crate::multiscale) struct DerivedSlideArtifactRoles {
+    pub(in crate::multiscale) run_config: ArtifactId,
+    pub(in crate::multiscale) environment: ArtifactId,
+    pub(in crate::multiscale) converter: ArtifactId,
+    pub(in crate::multiscale) source_table: ArtifactId,
+    pub(in crate::multiscale) expected_slides: ArtifactId,
+    pub(in crate::multiscale) slide_support: ArtifactId,
+    pub(in crate::multiscale) derivation_contract: ArtifactId,
+}
+
 impl fmt::Debug for MultiscaleEmbeddingProvenance {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -432,6 +443,26 @@ impl MultiscaleEmbeddingProvenance {
         })
     }
 
+    #[cfg(feature = "parquet")]
+    pub(in crate::multiscale) fn derived_slide_from_patches_artifact_roles(
+        &self,
+    ) -> Option<DerivedSlideArtifactRoles> {
+        let ProvenanceEvidence::DerivedSlideFromPatches(evidence) = &self.evidence else {
+            return None;
+        };
+        Some(derived_slide_artifact_roles(evidence))
+    }
+
+    #[cfg(feature = "parquet")]
+    pub(in crate::multiscale) fn derived_slide_from_regions_artifact_roles(
+        &self,
+    ) -> Option<DerivedSlideArtifactRoles> {
+        let ProvenanceEvidence::DerivedSlideFromRegions(evidence) = &self.evidence else {
+            return None;
+        };
+        Some(derived_slide_artifact_roles(evidence))
+    }
+
     fn finish(
         owning_slide_id: SlideId,
         output_dimension: u32,
@@ -470,6 +501,19 @@ impl MultiscaleEmbeddingProvenance {
 
     fn wire(&self) -> ProvenanceWireRef<'_> {
         ProvenanceWireRef::new(self)
+    }
+}
+
+#[cfg(feature = "parquet")]
+fn derived_slide_artifact_roles(evidence: &DerivedSlideEvidence) -> DerivedSlideArtifactRoles {
+    DerivedSlideArtifactRoles {
+        run_config: evidence.execution.run_config_artifact_id,
+        environment: evidence.execution.environment_artifact_id,
+        converter: evidence.execution.converter_artifact_id,
+        source_table: evidence.source_table_artifact_id,
+        expected_slides: evidence.expected_slides_artifact_id,
+        slide_support: evidence.slide_support_artifact_id,
+        derivation_contract: evidence.derivation_contract_artifact_id,
     }
 }
 

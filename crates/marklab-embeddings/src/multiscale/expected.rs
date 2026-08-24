@@ -380,6 +380,19 @@ define_expected_set!(
     SlideId,
     "Canonical singleton expected-slide identity."
 );
+impl ExpectedSlideSet {
+    pub(in crate::multiscale) fn retained_bytes(&self) -> Result<usize, MultiscaleEmbeddingError> {
+        self.0.retained_bytes()
+    }
+
+    #[cfg(feature = "parquet")]
+    pub(in crate::multiscale) fn compare_canonical_json_reader<R: Read + ?Sized>(
+        &self,
+        reader: &mut R,
+    ) -> Result<(), CanonicalJsonReaderError> {
+        self.0.compare_canonical_json_reader(reader)
+    }
+}
 
 #[cfg(test)]
 mod tests {

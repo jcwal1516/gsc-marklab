@@ -13,6 +13,7 @@ mod overlap;
 mod patch_region;
 pub(crate) mod physical;
 mod records;
+mod slide_finalization;
 mod table;
 
 pub use artifact::{
@@ -37,6 +38,7 @@ pub use footprint::{PatchFootprint, PatchFootprintSet};
 pub use matrix_artifact::{
     VerifiedPatchEmbeddingSupportArtifact, VerifiedPatchEmbeddingTableArtifact,
     VerifiedRegionEmbeddingSupportArtifact, VerifiedRegionEmbeddingTableArtifact,
+    VerifiedSlideEmbeddingSupportArtifact, VerifiedSlideEmbeddingTableArtifact,
 };
 pub use overlap::{PatchOverlapEdge, PatchOverlapGraph};
 pub use patch_region::{
@@ -58,7 +60,12 @@ pub use records::{
     MultiscaleEmbeddingSupportVariant, PatchEmbeddingInputNormalization,
     PatchEmbeddingSourceRowLink, PatchEmbeddingSourceRowLinkEntry, PatchIdentityMap,
     PatchIdentityMapEntry, PatchNormalizationDecimal, PatchSourceEntityEntry, PatchSourceEntitySet,
-    VerifiedDerivedRegionEmbeddingArtifactGraph, VerifiedDirectPatchEmbeddingArtifactGraph,
+    VerifiedDerivedRegionEmbeddingArtifactGraph, VerifiedDerivedSlideEmbeddingArtifactGraph,
+    VerifiedDirectPatchEmbeddingArtifactGraph,
+};
+pub use slide_finalization::{
+    finalize_slide_embedding_table_from_patches, finalize_slide_embedding_table_from_regions,
+    DerivedSlideEmbeddingTableCandidate,
 };
 #[cfg(feature = "parquet")]
 pub(crate) use table::{MatrixSummaryAccumulator, MultiscaleMatrixTable};

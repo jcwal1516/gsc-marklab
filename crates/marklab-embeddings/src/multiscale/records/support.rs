@@ -108,6 +108,18 @@ pub(in crate::multiscale) struct RegionFromPatchesSupportBindings {
     pub(in crate::multiscale) patch_region_link: MultiscaleArtifactBinding,
 }
 
+#[cfg(feature = "parquet")]
+pub(in crate::multiscale) struct SlideFromPatchesSupportBindings {
+    pub(in crate::multiscale) patch_support: MultiscaleArtifactBinding,
+    pub(in crate::multiscale) source_patch_table: MultiscaleArtifactBinding,
+}
+
+#[cfg(feature = "parquet")]
+pub(in crate::multiscale) struct SlideFromRegionsSupportBindings {
+    pub(in crate::multiscale) region_support: MultiscaleArtifactBinding,
+    pub(in crate::multiscale) source_region_table: MultiscaleArtifactBinding,
+}
+
 impl fmt::Debug for MultiscaleEmbeddingSupport {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -288,6 +300,35 @@ impl MultiscaleEmbeddingSupport {
         Some(RegionFromPatchesSupportBindings {
             patch_support,
             patch_region_link,
+        })
+    }
+
+    #[cfg(feature = "parquet")]
+    pub(in crate::multiscale) fn slide_from_patches_bindings(
+        &self,
+    ) -> Option<SlideFromPatchesSupportBindings> {
+        let SupportEvidence::SlideFromPatches([patch_support, source_patch_table]) = self.evidence
+        else {
+            return None;
+        };
+        Some(SlideFromPatchesSupportBindings {
+            patch_support,
+            source_patch_table,
+        })
+    }
+
+    #[cfg(feature = "parquet")]
+    pub(in crate::multiscale) fn slide_from_regions_bindings(
+        &self,
+    ) -> Option<SlideFromRegionsSupportBindings> {
+        let SupportEvidence::SlideFromRegions([region_support, source_region_table]) =
+            self.evidence
+        else {
+            return None;
+        };
+        Some(SlideFromRegionsSupportBindings {
+            region_support,
+            source_region_table,
         })
     }
 

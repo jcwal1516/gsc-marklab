@@ -1,13 +1,14 @@
 use std::fmt;
 
+use marklab_data::SlideId;
 use marklab_project::{ArtifactId, ContentDigest};
 
-use super::MultiscaleEmbeddingQcSummary;
+use super::{digest::LogicalDigest, MultiscaleEmbeddingQcSummary};
 #[cfg(feature = "parquet")]
 use super::{
-    DerivedRegionEmbeddingTableCandidate, PatchEmbeddingSourceRowLink, PatchEmbeddingTable,
-    VerifiedDirectPatchEmbeddingArtifactGraph, VerifiedPatchFootprintArtifact,
-    VerifiedPatchOverlapArtifact,
+    DerivedRegionEmbeddingTableCandidate, DerivedSlideEmbeddingTableCandidate, EmbeddingEntityKind,
+    PatchEmbeddingSourceRowLink, PatchEmbeddingTable, VerifiedDirectPatchEmbeddingArtifactGraph,
+    VerifiedPatchFootprintArtifact, VerifiedPatchOverlapArtifact,
 };
 
 /// Runtime-only proof that one patch-support descriptor has fully decoded footprint and overlap
@@ -34,6 +35,7 @@ pub(in crate::multiscale) struct VerifiedPatchEmbeddingSupportBindings {
     pub(in crate::multiscale) patch_context_artifact_id: ArtifactId,
     pub(in crate::multiscale) patch_footprints_artifact_id: ArtifactId,
     pub(in crate::multiscale) patch_overlap_artifact_id: ArtifactId,
+    pub(in crate::multiscale) row_count: u64,
 }
 
 impl fmt::Debug for VerifiedPatchEmbeddingSupportArtifact {
@@ -108,6 +110,7 @@ impl VerifiedPatchEmbeddingSupportArtifact {
             patch_context_artifact_id: self.patch_context_artifact_id,
             patch_footprints_artifact_id: self.patch_footprints_artifact_id,
             patch_overlap_artifact_id: self.patch_overlap_artifact_id,
+            row_count: self.row_count,
         }
     }
 }
@@ -228,6 +231,183 @@ impl VerifiedRegionEmbeddingSupportArtifact {
             nonzero_relation_count: self.nonzero_relation_count,
         }
     }
+}
+
+/// Runtime-only proof of one exact managed slide-support artifact and its selected verified
+/// lower-level table/support chain.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub struct VerifiedSlideEmbeddingSupportArtifact {
+    artifact_id: ArtifactId,
+    logical_digest: ContentDigest,
+    owning_slide_binding_digest: ContentDigest,
+    source_entity_kind: super::EmbeddingEntityKind,
+    source_support_artifact_id: ArtifactId,
+    source_support_logical_digest: ContentDigest,
+    source_table_artifact_id: ArtifactId,
+    source_table_logical_digest: ContentDigest,
+    source_expected_artifact_id: ArtifactId,
+    source_provenance_artifact_id: ArtifactId,
+    source_row_count: u64,
+    source_dimension: u32,
+}
+
+impl fmt::Debug for VerifiedSlideEmbeddingSupportArtifact {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("VerifiedSlideEmbeddingSupportArtifact")
+            .field("source_entity_kind", &self.source_entity_kind)
+            .field("source_row_count", &self.source_row_count)
+            .field("source_dimension", &self.source_dimension)
+            .finish_non_exhaustive()
+    }
+}
+
+#[derive(Clone, Copy)]
+#[cfg(feature = "parquet")]
+pub(in crate::multiscale) struct VerifiedSlideEmbeddingSupportBindings {
+    pub(in crate::multiscale) artifact_id: ArtifactId,
+    pub(in crate::multiscale) logical_digest: ContentDigest,
+    pub(in crate::multiscale) owning_slide_binding_digest: ContentDigest,
+    pub(in crate::multiscale) source_entity_kind: EmbeddingEntityKind,
+    pub(in crate::multiscale) source_support_artifact_id: ArtifactId,
+    pub(in crate::multiscale) source_support_logical_digest: ContentDigest,
+    pub(in crate::multiscale) source_table_artifact_id: ArtifactId,
+    pub(in crate::multiscale) source_table_logical_digest: ContentDigest,
+    pub(in crate::multiscale) source_expected_artifact_id: ArtifactId,
+    pub(in crate::multiscale) source_provenance_artifact_id: ArtifactId,
+    pub(in crate::multiscale) source_row_count: u64,
+    pub(in crate::multiscale) source_dimension: u32,
+}
+
+impl VerifiedSlideEmbeddingSupportArtifact {
+    #[cfg(feature = "parquet")]
+    pub(in crate::multiscale) fn from_patches(
+        artifact_id: ArtifactId,
+        logical_digest: ContentDigest,
+        owning_slide_id: &SlideId,
+        support: VerifiedPatchEmbeddingSupportBindings,
+        source: VerifiedPatchEmbeddingTableBindings,
+    ) -> Result<Self, crate::columnar::MultiscaleColumnarError> {
+        if source.support_artifact_id != support.artifact_id
+            || source.support_logical_digest != support.logical_digest
+            || source.expected_patches_artifact_id != support.expected_patches_artifact_id
+            || source.expected_patches_logical_digest != support.expected_patches_logical_digest
+            || source.qc_summary.row_count() != support.row_count
+        {
+            return Err(crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch);
+        }
+        Ok(Self::new(
+            artifact_id,
+            logical_digest,
+            slide_lineage_digest(owning_slide_id),
+            EmbeddingEntityKind::Patch,
+            support.artifact_id,
+            support.logical_digest,
+            source.artifact_id,
+            source.logical_digest,
+            source.expected_patches_artifact_id,
+            source.provenance_artifact_id,
+            source.qc_summary.row_count(),
+            source.dimension,
+        ))
+    }
+
+    #[cfg(feature = "parquet")]
+    pub(in crate::multiscale) fn from_regions(
+        artifact_id: ArtifactId,
+        logical_digest: ContentDigest,
+        owning_slide_id: &SlideId,
+        support: VerifiedRegionEmbeddingSupportBindings,
+        source: VerifiedRegionEmbeddingTableBindings,
+    ) -> Result<Self, crate::columnar::MultiscaleColumnarError> {
+        if source.support_artifact_id != support.artifact_id
+            || source.support_logical_digest != support.logical_digest
+            || source.expected_regions_artifact_id != support.expected_regions_artifact_id
+            || source.expected_regions_logical_digest != support.expected_regions_logical_digest
+        {
+            return Err(crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch);
+        }
+        Ok(Self::new(
+            artifact_id,
+            logical_digest,
+            slide_lineage_digest(owning_slide_id),
+            EmbeddingEntityKind::Region,
+            support.artifact_id,
+            support.logical_digest,
+            source.artifact_id,
+            source.logical_digest,
+            source.expected_regions_artifact_id,
+            source.provenance_artifact_id,
+            source.qc_summary.row_count(),
+            source.dimension,
+        ))
+    }
+
+    #[cfg(feature = "parquet")]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        artifact_id: ArtifactId,
+        logical_digest: ContentDigest,
+        owning_slide_binding_digest: ContentDigest,
+        source_entity_kind: super::EmbeddingEntityKind,
+        source_support_artifact_id: ArtifactId,
+        source_support_logical_digest: ContentDigest,
+        source_table_artifact_id: ArtifactId,
+        source_table_logical_digest: ContentDigest,
+        source_expected_artifact_id: ArtifactId,
+        source_provenance_artifact_id: ArtifactId,
+        source_row_count: u64,
+        source_dimension: u32,
+    ) -> Self {
+        Self {
+            artifact_id,
+            logical_digest,
+            owning_slide_binding_digest,
+            source_entity_kind,
+            source_support_artifact_id,
+            source_support_logical_digest,
+            source_table_artifact_id,
+            source_table_logical_digest,
+            source_expected_artifact_id,
+            source_provenance_artifact_id,
+            source_row_count,
+            source_dimension,
+        }
+    }
+
+    /// Exact slide-support artifact identity.
+    pub fn artifact_id(self) -> ArtifactId {
+        self.artifact_id
+    }
+
+    /// Format-independent slide-support logical identity.
+    pub fn logical_digest(self) -> ContentDigest {
+        self.logical_digest
+    }
+
+    #[cfg(feature = "parquet")]
+    pub(in crate::multiscale) fn bindings(self) -> VerifiedSlideEmbeddingSupportBindings {
+        VerifiedSlideEmbeddingSupportBindings {
+            artifact_id: self.artifact_id,
+            logical_digest: self.logical_digest,
+            owning_slide_binding_digest: self.owning_slide_binding_digest,
+            source_entity_kind: self.source_entity_kind,
+            source_support_artifact_id: self.source_support_artifact_id,
+            source_support_logical_digest: self.source_support_logical_digest,
+            source_table_artifact_id: self.source_table_artifact_id,
+            source_table_logical_digest: self.source_table_logical_digest,
+            source_expected_artifact_id: self.source_expected_artifact_id,
+            source_provenance_artifact_id: self.source_provenance_artifact_id,
+            source_row_count: self.source_row_count,
+            source_dimension: self.source_dimension,
+        }
+    }
+}
+
+pub(in crate::multiscale) fn slide_lineage_digest(slide_id: &SlideId) -> ContentDigest {
+    let mut digest = LogicalDigest::new(b"marklab-slide-lineage-binding-v1");
+    digest.text(slide_id.as_str());
+    digest.finish()
 }
 
 /// Runtime-only proof of one fully decoded direct-patch embedding table.
@@ -403,6 +583,21 @@ pub struct VerifiedRegionEmbeddingTableArtifact {
     dimension: u32,
 }
 
+#[derive(Clone, Copy)]
+#[cfg(feature = "parquet")]
+pub(in crate::multiscale) struct VerifiedRegionEmbeddingTableBindings {
+    pub(in crate::multiscale) artifact_id: ArtifactId,
+    pub(in crate::multiscale) logical_digest: ContentDigest,
+    pub(in crate::multiscale) qc_summary: MultiscaleEmbeddingQcSummary,
+    pub(in crate::multiscale) expected_regions_artifact_id: ArtifactId,
+    pub(in crate::multiscale) expected_regions_logical_digest: ContentDigest,
+    pub(in crate::multiscale) support_artifact_id: ArtifactId,
+    pub(in crate::multiscale) support_logical_digest: ContentDigest,
+    pub(in crate::multiscale) provenance_artifact_id: ArtifactId,
+    pub(in crate::multiscale) provenance_logical_digest: ContentDigest,
+    pub(in crate::multiscale) dimension: u32,
+}
+
 impl fmt::Debug for VerifiedRegionEmbeddingTableArtifact {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -485,6 +680,22 @@ impl VerifiedRegionEmbeddingTableArtifact {
         self.dimension
     }
 
+    #[cfg(feature = "parquet")]
+    pub(in crate::multiscale) fn bindings(self) -> VerifiedRegionEmbeddingTableBindings {
+        VerifiedRegionEmbeddingTableBindings {
+            artifact_id: self.artifact_id,
+            logical_digest: self.logical_digest,
+            qc_summary: self.qc_summary,
+            expected_regions_artifact_id: self.expected_regions_artifact_id,
+            expected_regions_logical_digest: self.expected_regions_logical_digest,
+            support_artifact_id: self.region_support_artifact_id,
+            support_logical_digest: self.region_support_logical_digest,
+            provenance_artifact_id: self.provenance_artifact_id,
+            provenance_logical_digest: self.provenance_logical_digest,
+            dimension: self.dimension,
+        }
+    }
+
     /// Exact expected-region-set artifact identity retained by finalization.
     pub fn expected_regions_artifact_id(self) -> ArtifactId {
         self.expected_regions_artifact_id
@@ -541,6 +752,173 @@ impl VerifiedRegionEmbeddingTableArtifact {
     }
 
     /// Format-independent weighted-mean derivation identity retained by finalization.
+    pub fn derivation_logical_digest(self) -> ContentDigest {
+        self.derivation_logical_digest
+    }
+}
+
+/// Runtime-only proof of one fully decoded deterministically derived slide embedding table.
+///
+/// This receipt binds the singleton physical output to its recomputed logical/QC identity and the
+/// selected patch- or region-sourced lineage retained by finalization.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub struct VerifiedSlideEmbeddingTableArtifact {
+    artifact_id: ArtifactId,
+    logical_digest: ContentDigest,
+    qc_summary: MultiscaleEmbeddingQcSummary,
+    expected_slides_artifact_id: ArtifactId,
+    expected_slides_logical_digest: ContentDigest,
+    slide_support_artifact_id: ArtifactId,
+    slide_support_logical_digest: ContentDigest,
+    provenance_artifact_id: ArtifactId,
+    provenance_logical_digest: ContentDigest,
+    source_table_artifact_id: ArtifactId,
+    source_table_logical_digest: ContentDigest,
+    source_support_artifact_id: ArtifactId,
+    source_support_logical_digest: ContentDigest,
+    derivation_artifact_id: ArtifactId,
+    derivation_logical_digest: ContentDigest,
+    dimension: u32,
+}
+
+impl fmt::Debug for VerifiedSlideEmbeddingTableArtifact {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("VerifiedSlideEmbeddingTableArtifact")
+            .field("row_count", &self.qc_summary.row_count())
+            .field("dimension", &self.dimension)
+            .finish_non_exhaustive()
+    }
+}
+
+impl VerifiedSlideEmbeddingTableArtifact {
+    #[cfg(feature = "parquet")]
+    pub(crate) fn new(
+        artifact_id: ArtifactId,
+        candidate: &DerivedSlideEmbeddingTableCandidate,
+    ) -> Result<Self, crate::columnar::MultiscaleColumnarError> {
+        let table = candidate.table();
+        let graph = candidate.graph;
+        if [
+            graph.expected_slides_artifact_id,
+            graph.slide_support_artifact_id,
+            graph.provenance_artifact_id,
+            graph.source_table_artifact_id,
+            graph.source_support_artifact_id,
+            graph.derivation_artifact_id,
+        ]
+        .contains(&artifact_id)
+            || table.expected_entities_artifact_id() != graph.expected_slides_artifact_id
+            || table.expected_entities_logical_digest() != graph.expected_slides_logical_digest
+            || table.support_artifact_id() != graph.slide_support_artifact_id
+            || table.support_logical_digest() != graph.slide_support_logical_digest
+            || table.provenance_artifact_id() != graph.provenance_artifact_id
+            || table.provenance_logical_digest() != graph.provenance_logical_digest
+            || table.dimension() != graph.output_dimension
+        {
+            return Err(crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch);
+        }
+        Ok(Self {
+            artifact_id,
+            logical_digest: table.logical_digest(),
+            qc_summary: table.qc_summary(),
+            expected_slides_artifact_id: graph.expected_slides_artifact_id,
+            expected_slides_logical_digest: graph.expected_slides_logical_digest,
+            slide_support_artifact_id: graph.slide_support_artifact_id,
+            slide_support_logical_digest: graph.slide_support_logical_digest,
+            provenance_artifact_id: graph.provenance_artifact_id,
+            provenance_logical_digest: graph.provenance_logical_digest,
+            source_table_artifact_id: graph.source_table_artifact_id,
+            source_table_logical_digest: graph.source_table_logical_digest,
+            source_support_artifact_id: graph.source_support_artifact_id,
+            source_support_logical_digest: graph.source_support_logical_digest,
+            derivation_artifact_id: graph.derivation_artifact_id,
+            derivation_logical_digest: graph.derivation_logical_digest,
+            dimension: graph.output_dimension,
+        })
+    }
+
+    /// Exact physical matrix artifact identity.
+    pub fn artifact_id(self) -> ArtifactId {
+        self.artifact_id
+    }
+
+    /// Format-independent slide-table logical identity.
+    pub fn logical_digest(self) -> ContentDigest {
+        self.logical_digest
+    }
+
+    /// Recomputed factual row/status/dimension/logical summary.
+    pub fn qc_summary(self) -> MultiscaleEmbeddingQcSummary {
+        self.qc_summary
+    }
+
+    /// Exact validated singleton slide row count.
+    pub fn row_count(self) -> u64 {
+        self.qc_summary.row_count()
+    }
+
+    /// Exact validated output dimension.
+    pub fn dimension(self) -> u32 {
+        self.dimension
+    }
+
+    /// Exact expected-slide-set artifact identity retained by finalization.
+    pub fn expected_slides_artifact_id(self) -> ArtifactId {
+        self.expected_slides_artifact_id
+    }
+
+    /// Format-independent expected-slide-set identity retained by finalization.
+    pub fn expected_slides_logical_digest(self) -> ContentDigest {
+        self.expected_slides_logical_digest
+    }
+
+    /// Exact slide-support artifact identity retained by finalization.
+    pub fn slide_support_artifact_id(self) -> ArtifactId {
+        self.slide_support_artifact_id
+    }
+
+    /// Format-independent slide-support identity retained by finalization.
+    pub fn slide_support_logical_digest(self) -> ContentDigest {
+        self.slide_support_logical_digest
+    }
+
+    /// Exact derived-slide provenance artifact identity retained by finalization.
+    pub fn provenance_artifact_id(self) -> ArtifactId {
+        self.provenance_artifact_id
+    }
+
+    /// Format-independent derived-slide provenance identity retained by finalization.
+    pub fn provenance_logical_digest(self) -> ContentDigest {
+        self.provenance_logical_digest
+    }
+
+    /// Exact selected source-table artifact identity retained by finalization.
+    pub fn source_table_artifact_id(self) -> ArtifactId {
+        self.source_table_artifact_id
+    }
+
+    /// Format-independent selected source-table identity retained by finalization.
+    pub fn source_table_logical_digest(self) -> ContentDigest {
+        self.source_table_logical_digest
+    }
+
+    /// Exact selected lower-support artifact identity retained by finalization.
+    pub fn source_support_artifact_id(self) -> ArtifactId {
+        self.source_support_artifact_id
+    }
+
+    /// Format-independent selected lower-support identity retained by finalization.
+    pub fn source_support_logical_digest(self) -> ContentDigest {
+        self.source_support_logical_digest
+    }
+
+    /// Exact arithmetic-mean derivation artifact identity retained by finalization.
+    pub fn derivation_artifact_id(self) -> ArtifactId {
+        self.derivation_artifact_id
+    }
+
+    /// Format-independent arithmetic-mean derivation identity retained by finalization.
     pub fn derivation_logical_digest(self) -> ContentDigest {
         self.derivation_logical_digest
     }

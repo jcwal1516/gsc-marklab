@@ -4,6 +4,7 @@ use marklab_project::{ArtifactId, ContentDigest};
 use thiserror::Error;
 
 use crate::ArtifactAvailabilityFailure;
+use crate::EmbeddingEntityKind;
 
 /// Artifact roles admitted by multiscale embedding graph validation.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -55,6 +56,12 @@ pub enum MultiscaleEmbeddingArtifactRole {
     RegionSupport,
     /// The deterministic weighted-mean derivation contract.
     Derivation,
+    /// A fully verified source region-embedding table.
+    SourceRegionTable,
+    /// The canonical singleton expected-slide set.
+    ExpectedSlides,
+    /// The selected lower-table slide support descriptor.
+    SlideSupport,
 }
 
 impl fmt::Display for MultiscaleEmbeddingArtifactRole {
@@ -83,6 +90,9 @@ impl fmt::Display for MultiscaleEmbeddingArtifactRole {
             Self::ExpectedRegions => "expected regions",
             Self::RegionSupport => "region support",
             Self::Derivation => "derivation",
+            Self::SourceRegionTable => "source region table",
+            Self::ExpectedSlides => "expected slides",
+            Self::SlideSupport => "slide support",
         })
     }
 }
@@ -97,6 +107,11 @@ pub enum MultiscaleEmbeddingArtifactGraphError {
     /// The supplied provenance is not derived-region provenance.
     #[error("derived-region artifact graph validation requires derived-region provenance")]
     UnsupportedDerivedRegionProvenanceVariant,
+    /// The supplied provenance is not the requested derived-slide provenance variant.
+    #[error(
+        "derived-slide artifact graph validation requires the selected derived-slide provenance"
+    )]
+    UnsupportedDerivedSlideProvenanceVariant,
     /// A required schema-bound artifact is absent from the catalog.
     #[error("required {role} artifact is absent from the catalog")]
     MissingRecord {
@@ -277,6 +292,63 @@ impl VerifiedDerivedRegionEmbeddingArtifactGraph {
     }
 
     /// Number of exact derived-region provenance dependencies.
+    pub fn dependency_count(self) -> u8 {
+        self.provenance_dependency_count
+    }
+
+    /// Provenance-declared positive output dimension.
+    pub fn output_dimension(self) -> u32 {
+        self.output_dimension
+    }
+}
+
+/// Runtime-only proof of one selected derived-slide provenance graph.
+///
+/// This proves the seven direct provenance dependencies and the receipt-backed lower-level
+/// table/support chain. It contains no output slide table.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub struct VerifiedDerivedSlideEmbeddingArtifactGraph {
+    pub(crate) provenance_artifact_id: ArtifactId,
+    pub(crate) provenance_logical_digest: ContentDigest,
+    pub(crate) provenance_dependency_count: u8,
+    pub(crate) owning_slide_binding_digest: ContentDigest,
+    pub(crate) source_entity_kind: EmbeddingEntityKind,
+    pub(crate) source_table_artifact_id: ArtifactId,
+    pub(crate) source_table_logical_digest: ContentDigest,
+    pub(crate) source_table_row_count: u64,
+    pub(crate) source_support_artifact_id: ArtifactId,
+    pub(crate) source_support_logical_digest: ContentDigest,
+    pub(crate) expected_slides_artifact_id: ArtifactId,
+    pub(crate) expected_slides_logical_digest: ContentDigest,
+    pub(crate) slide_support_artifact_id: ArtifactId,
+    pub(crate) slide_support_logical_digest: ContentDigest,
+    pub(crate) derivation_artifact_id: ArtifactId,
+    pub(crate) derivation_logical_digest: ContentDigest,
+    pub(crate) output_dimension: u32,
+}
+
+impl fmt::Debug for VerifiedDerivedSlideEmbeddingArtifactGraph {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("VerifiedDerivedSlideEmbeddingArtifactGraph")
+            .field(
+                "provenance_dependency_count",
+                &self.provenance_dependency_count,
+            )
+            .field("source_entity_kind", &self.source_entity_kind)
+            .field("source_table_row_count", &self.source_table_row_count)
+            .field("output_dimension", &self.output_dimension)
+            .finish_non_exhaustive()
+    }
+}
+
+impl VerifiedDerivedSlideEmbeddingArtifactGraph {
+    /// Verified derived-slide provenance artifact identity.
+    pub fn provenance_artifact_id(self) -> ArtifactId {
+        self.provenance_artifact_id
+    }
+
+    /// Number of exact direct derived-slide provenance dependencies.
     pub fn dependency_count(self) -> u8 {
         self.provenance_dependency_count
     }

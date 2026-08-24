@@ -1,6 +1,8 @@
 use marklab_project::{ArtifactCatalog, ArtifactId, ArtifactRecord};
 
 use crate::multiscale::physical::{record_matches, SpatialArtifactRole};
+#[cfg(feature = "parquet")]
+use crate::multiscale::physical::{MatrixPhysicalProfile, SpatialPhysicalEncoding};
 
 use super::{MultiscaleEmbeddingArtifactGraphError, MultiscaleEmbeddingArtifactRole};
 
@@ -88,6 +90,9 @@ fn schema_id(role: MultiscaleEmbeddingArtifactRole) -> &'static str {
         MultiscaleEmbeddingArtifactRole::ExpectedRegions => "marklab.expected_region_set",
         MultiscaleEmbeddingArtifactRole::RegionSupport => "marklab.multiscale_embedding_support",
         MultiscaleEmbeddingArtifactRole::Derivation => "marklab.multiscale_embedding_derivation",
+        MultiscaleEmbeddingArtifactRole::SourceRegionTable => "marklab.region_embedding_table",
+        MultiscaleEmbeddingArtifactRole::ExpectedSlides => "marklab.expected_slide_set",
+        MultiscaleEmbeddingArtifactRole::SlideSupport => "marklab.multiscale_embedding_support",
     }
 }
 
@@ -136,11 +141,60 @@ fn content_kind(role: MultiscaleEmbeddingArtifactRole) -> &'static str {
         MultiscaleEmbeddingArtifactRole::Derivation => {
             "application/vnd.marklab.multiscale-embedding-derivation.v1+json"
         }
+        MultiscaleEmbeddingArtifactRole::ExpectedSlides => {
+            "application/vnd.marklab.expected-slide-set.v1+json"
+        }
+        MultiscaleEmbeddingArtifactRole::SlideSupport => {
+            "application/vnd.marklab.multiscale-embedding-support.v1+json"
+        }
         MultiscaleEmbeddingArtifactRole::PatchFootprints
         | MultiscaleEmbeddingArtifactRole::PatchOverlapGraph
         | MultiscaleEmbeddingArtifactRole::SourcePatchTable
+        | MultiscaleEmbeddingArtifactRole::SourceRegionTable
         | MultiscaleEmbeddingArtifactRole::PatchRegionLink => "",
     }
+}
+
+#[cfg(feature = "parquet")]
+pub(super) fn require_source_matrix_profile(
+    record: &ArtifactRecord,
+    role: MultiscaleEmbeddingArtifactRole,
+    profile: MatrixPhysicalProfile,
+    row_count: u64,
+    dimension: u32,
+) -> Result<(), MultiscaleEmbeddingArtifactGraphError> {
+    let expected_schema = match role {
+        MultiscaleEmbeddingArtifactRole::SourcePatchTable => "marklab.patch_embedding_table",
+        MultiscaleEmbeddingArtifactRole::SourceRegionTable => "marklab.region_embedding_table",
+        _ => {
+            return Err(MultiscaleEmbeddingArtifactGraphError::DomainBindingMismatch { role });
+        }
+    };
+    if record.schema().id() != expected_schema || record.schema().version() != 1 {
+        return Err(MultiscaleEmbeddingArtifactGraphError::SchemaMismatch { role });
+    }
+    if ![
+        SpatialPhysicalEncoding::Arrow,
+        SpatialPhysicalEncoding::Parquet,
+    ]
+    .into_iter()
+    .any(|encoding| record.content().kind() == profile.content_kind(encoding))
+    {
+        return Err(MultiscaleEmbeddingArtifactGraphError::ContentKindMismatch { role });
+    }
+    if !record.semantic_metadata().is_empty() {
+        return Err(MultiscaleEmbeddingArtifactGraphError::SemanticMetadataMismatch { role });
+    }
+    if ![
+        SpatialPhysicalEncoding::Arrow,
+        SpatialPhysicalEncoding::Parquet,
+    ]
+    .into_iter()
+    .any(|encoding| profile.record_matches_encoding(record, encoding, row_count, dimension))
+    {
+        return Err(MultiscaleEmbeddingArtifactGraphError::TableManifestMismatch { role });
+    }
+    Ok(())
 }
 
 fn require_footprint_manifest(

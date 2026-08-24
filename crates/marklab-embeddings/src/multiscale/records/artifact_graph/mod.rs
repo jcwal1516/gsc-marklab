@@ -14,6 +14,8 @@ mod bindings;
 mod cell_patch;
 #[cfg(feature = "parquet")]
 mod derived_region;
+#[cfg(feature = "parquet")]
+mod derived_slide;
 mod error;
 mod managed;
 #[cfg(feature = "parquet")]
@@ -21,6 +23,8 @@ mod patch_region;
 mod record;
 #[cfg(feature = "parquet")]
 mod region_support;
+#[cfg(feature = "parquet")]
+mod slide_support;
 
 use bindings::{role_ids, validate_domain_bindings, validate_record_dependencies};
 #[cfg(feature = "parquet")]
@@ -30,7 +34,8 @@ pub use cell_patch::{
 };
 pub use error::{
     MultiscaleEmbeddingArtifactGraphError, MultiscaleEmbeddingArtifactRole,
-    VerifiedDerivedRegionEmbeddingArtifactGraph, VerifiedDirectPatchEmbeddingArtifactGraph,
+    VerifiedDerivedRegionEmbeddingArtifactGraph, VerifiedDerivedSlideEmbeddingArtifactGraph,
+    VerifiedDirectPatchEmbeddingArtifactGraph,
 };
 use managed::{require_available_for, require_canonical_payload, require_canonical_payload_for};
 #[cfg(feature = "parquet")]

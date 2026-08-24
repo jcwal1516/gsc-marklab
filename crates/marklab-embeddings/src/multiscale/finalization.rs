@@ -44,12 +44,12 @@ impl EmbeddingFinalizationBudgets {
         self.maximum_working_bytes
     }
 
-    /// Maximum sparse contributor rows visited by one deterministic pass.
+    /// Maximum source rows or sparse link relations visited by one deterministic pass.
     pub fn maximum_contributor_rows(self) -> u64 {
         self.maximum_contributor_rows
     }
 
-    /// Maximum component multiply-and-sequential-add operations.
+    /// Maximum deterministic component accumulation operations.
     pub fn maximum_component_accumulations(self) -> u64 {
         self.maximum_component_accumulations
     }
