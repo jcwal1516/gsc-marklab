@@ -1,22 +1,22 @@
 # Implementation status
 
-Last updated: 2026-08-24T04:52:30-04:00
+Last updated: 2026-08-24T05:38:35-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Committed baseline before the current checkpoint: `767c0e961e4fabcfdb931cd1aef42b446fe97542`
+- Committed baseline before the current checkpoint: `f00a9a4f4b4ffbda97ef606195f0b291abb8d10a`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
-- Current phase/workstream/task: Phase 2 / WS-C / C-06 slide aggregation-path discrepancy complete; broader FND-04/C-06 remains active
+- Current phase/workstream/task: Phase 2 / WS-C / C-06 declared binary cell-embedding centroid discrepancy complete; broader FND-04/C-06 remains active
 
 ## Requirements
 
 - Completed: `A-01`, `A-02`, `A-03`, `B-01`, `B-02`, `B-03`, `B-04`, `C-01`, `C-02`, `C-03`, `C-04`, `C-05`, `EMB-CORE`, `EMB-PATCH`, `FND-01`, `SLIDE-INV`, `WS-A`, `WS-B`, `WS-10`, `WS-20`, `WS-21`
-- Active: `DATA-01`, `FND-04`, `FND-05`, `C-06`, `COH-01`, `PLAT-01`, `WF-01`, `WS-11`, `WS-12`, `WS-24`
+- Active: `DATA-01`, `FND-04`, `FND-05`, `C-06`, `COH-01`, `PLAT-01`, `WF-01`, `WS-11`, `WS-12`, `WS-24`, `WS-50`
 - Planned next: select one further dependency-ordered observable scientific or user workflow over an existing production output; the completed C-05/C-06 foundation is frozen, and all general mark/format/geometry infrastructure remains unauthorized without complete same-milestone inputs and a production caller
 
 ## Command state
@@ -32,6 +32,7 @@ Last updated: 2026-08-24T04:52:30-04:00
 - The fourth C-06 vertical slice is green and compares two existing declared scheduler outputs without a new node, codec, result schema, format, receipt, validator, dependency, or generalized comparison layer. `compare_declared_marked_prepost` checks each available runtime binding and exact semantic mark identity/status/routing/threshold bits before delegating unchanged to `compare_marked_prepost`; it retains both declared identities, provenance-bearing mark-use summaries, and borrowed exact timepoints while allowing different rows/slides/frames/evidence chains and claiming no correspondence. Focused affected default tests pass 34/34, pre/post units pass 13/13, no-default declared targets pass 21/21, warning-denied Clippy/no-default/docs/format gates pass, and the final workspace Nextest gate passes 880/880 in 64.416 s with 23 skipped and one slow test. The sole review found public-wrapper binding and missing-timepoint visibility gaps; both were corrected. Arbitrary same-row/same-label numeric result substitution remains caller-asserted because the pre-existing public runtime fields and result 0.3 carry no private producer proof.
 - The fifth C-06 vertical slice is green and adds an exact O(1) binary marked-row prevalence change over two existing declared scheduler outputs. `compare_declared_marked_prevalence` reuses the semantic gate, strengthens both declared comparison callers with exact count/canonical-prevalence bindings, reports signed post-minus-pre change only when both sides contain rows, returns typed `InsufficientCells` otherwise, and always uses binary counts even for probability-routed spectra. It borrows both runtime contexts and adds no node, codec, result/schema field, format, receipt, validator framework, dependency, randomization, or inference. The focused target passes 5/5 in default and no-default modes; affected default targets pass 26/26 plus 13 pre/post units; warning-denied focused/workspace Clippy, no-default workspace compilation, strict docs, and formatting pass. The final workspace Nextest gate passes 881/881 in 64.648 s with 23 skipped and one slow test. The sole review found eager subtraction on the unavailable path; an explicit branch now performs arithmetic only for two nonempty sides.
 - The sixth C-06 vertical slice is green and directly compares both completed C-05 slide-finalization paths over one exact ancestral patch table. `slide_embedding_aggregation_path_discrepancy` uses the existing candidates, graphs, provenance, and region-table receipt to validate every path/common-lineage binding before the exact dimension cap, then reports fixed-order `f64` mean squared component discrepancy or typed `InsufficientComparablePaths`. The hand oracle is 0.625; positive zero, missingness, exact/one-short work, semantic drift, and same-slide foreign lineage are covered. Derived-slide tests pass 16/16, the combined graph 74/74, embeddings 56 unit + 6 domain + 1 hostile integration, no-default/docs/Clippy/format gates pass, and the sole post-fix workspace Nextest gate passes 886/886 in 64.649 s with 23 skipped and one slow test. The sole review found row-ID binding after the budget; row lookup/identity now precedes the cap while status/vector traversal remains behind it.
+- The seventh C-06 vertical slice is green and joins the completed declared binary-mark boundary to the verified C-04 cell-embedding artifact through one immediate scientific caller. `declared_binary_cell_embedding_centroid_discrepancy` binds exact table/artifact QC, ordered CellIds, and a domain-separated CellId-bound binary-grouping digest before conservative `present_rows * D + D` work and exact two-accumulator byte caps. It reports the fixed-order `f64` mean squared component difference between present marked/unmarked centroids or typed `InsufficientGroups`, retains every status count plus declaration/physical/provenance identity, and never routes groups by optional probabilities. The focused target passes 4/4, the full affected CellViT graph target 29/29, scalar input 9/9, embeddings 56 unit + 6 domain + 1 hostile integration, no-default/docs/Clippy/format gates pass, and the sole post-fix workspace Nextest gate passes 890/890 in 64.580 s with 23 skipped and one slow test. The sole review found that declaration identity omitted exact binary row assignments; the local grouping digest and swapped-assignment regression close that gap.
 - Confirmed available: `cargo-nextest`, `cargo-audit`, `cargo-deny`, `cargo-machete`, `cargo-fuzz`, `ssh`, `scp`, `rsync`.
 - Confirmed unavailable: local `markdownlint-cli2`, `actionlint`, and Gnuplot. Criterion used Plotters; no Markdown/workflow lint pass is claimed.
 
@@ -40,12 +41,12 @@ Last updated: 2026-08-24T04:52:30-04:00
 - C-04 delivers exact cell-table/validity/expected/identity/context/link/provenance owners, bounded non-pickle source import, embedding-specific Arrow/Parquet validation/publication/scans, fuzz/differential/resource evidence, and pinned scale workloads.
 - The authorized 32-bundle source profile reconciles exactly but remains aggregate-only and non-promotable because `canonical_identity_mapping`, `input_normalization_and_run_configuration`, `reviewed_source_snapshot`, and `license_record` are absent.
 - C-05's logical, record, graph, receipt, physical, fuzz, differential, allocation, and scale contracts are complete. Distinct patch/region/slide tables, exact patch context/footprints/overlap, vector-free links, strict provenance, all eight Arrow/Parquet families, direct patch authority, deterministic weighted-region finalization, and both deterministic arithmetic-mean slide paths pass their bounded evidence. Source-component correspondence, coordinate-source correspondence, geometric region proof, real-corpus promotion, and embedding science are deliberately outside this completion claim.
-- C-06 now has three immediately called embedding computations, one observable declared scalar-pattern engine/project workflow, a runtime-only declared pre/post workflow, and an exact descriptive binary-prevalence change over its scheduler outputs. The region and cross-slide-path computations consume exact C-05 finalizer outputs and existing lineage proofs; the declared comparisons reuse existing result fields and semantics rather than adding infrastructure. The compatibility `Pattern` and result 0.3 remain unchanged, while the Rust boundary preserves canonical CellId/frame/status/provenance/threshold identity and timepoints. FND-04/C-06 and EMB-01 remain active because general mark kinds, arbitrary units/modalities, missingness, physical/file adapters, observation windows, spatial weights, new nulls/inference, durable producer proof/result provenance, and real-source promotion remain absent.
+- C-06 now has four immediately called embedding computations, one observable declared scalar-pattern engine/project workflow, a runtime-only declared pre/post workflow, and an exact descriptive binary-prevalence change over its scheduler outputs. The newest cell-level computation joins exact declared binary assignments to a verified cell table and exposes a bounded WS-50-facing centroid diagnostic; the region and cross-slide-path computations consume exact C-05 finalizer outputs and lineage proofs. Existing result fields and semantics are reused rather than generalized. The compatibility `Pattern` and result 0.3 remain unchanged, while the Rust boundary preserves canonical CellId/frame/status/provenance/threshold identity, binary assignments, and timepoints. FND-04/C-06 and EMB-01 remain active because general mark kinds, arbitrary units/modalities, missingness, physical/file adapters, observation windows, spatial weights, new nulls/inference, durable producer proof/result provenance, and real-source promotion remain absent.
 - A later aggregate/header audit found candidate patch-feature matrices at widths 384 and 1,024 plus patch image/coordinate containers. It found no promotable patch/region/slide table or canonical link. The evidence has no pinned digest and no production source grammar; the validation ledger records the exact claim ceiling and one bounded recursive-key-output audit defect.
 
 ## Dirty files and reason
 
-- C-06 slide aggregation-path discrepancy only: one fixed-size runtime computation over existing candidates/graphs/provenance/region receipt, focused facade exports and derived-slide tests, and affected implementation records. No Arrow/Parquet subsystem, physical format, receipt, validator framework, scheduler/node/codec, dependency/lock, source adapter/promotion, CLI/config/result/Pattern/loader, general comparison/statistics abstraction, geometry/window/weights owner, randomization, inference, path preference, or biological claim changed.
+- C-06 declared binary cell-embedding centroid discrepancy only: one bounded runtime computation over an existing declared scalar input and verified cell table/artifact, focused facade export and CellViT integration child module, and affected implementation records. No Arrow/Parquet subsystem, embedding/scalar owner, physical format, receipt, graph, validator framework, scheduler/node/codec, dependency/lock, source adapter/promotion, CLI/config/result/Pattern/loader, general mark/statistics abstraction, geometry/window/weights owner, randomization, inference, classification, or biological claim changed.
 
 ## Recent decisions
 
@@ -86,6 +87,7 @@ Last updated: 2026-08-24T04:52:30-04:00
 - Accepted `DEC-0042`: compare two existing declared marked scheduler outputs through the unchanged legacy comparator, retain both runtime identities/evidence chains/timepoints, reject semantic conflation, and add no durable result, receipt, node, codec, or generalized comparison infrastructure.
 - Accepted `DEC-0043`: expose exact binary marked-row prevalence change through a separate runtime caller, preserve the public C-06-S4 wrapper and result 0.3, and reject the incomplete randomization-summary alternative.
 - Accepted `DEC-0044`: compare both completed slide aggregation paths through their existing candidates, graphs, provenance, and region-table receipt; require exact common patch lineage and add no cross-path receipt, physical profile, validator, or general comparison abstraction.
+- Accepted `DEC-0045`: join exact declared binary assignments to the verified cell-embedding artifact through one bounded centroid-discrepancy caller; retain a local grouping digest and add no general mark, physical, receipt, graph, validator, or spatial/inference infrastructure.
 
 ## Unresolved questions
 
@@ -99,12 +101,12 @@ Last updated: 2026-08-24T04:52:30-04:00
 
 ## Next three exact actions
 
-1. Commit the completed declared binary-prevalence milestone as one cohesive local commit.
-2. Audit the next dependency-ordered observable flow; do not revive the randomization summary unless the producer supplies exact seed, strata, endpoint execution counts, and config binding in the same milestone.
+1. Commit the completed declared binary cell-embedding centroid milestone as one cohesive local commit.
+2. Audit the next dependency-ordered observable flow; reject any wrapper that merely bundles outputs without answering a user or scientific question.
 3. Freeze the next immediate caller and behavior-first contract before implementation; keep FND-02/general FND-04 and all new formats/receipts/validators/abstractions deferred until that milestone directly exercises them.
 
 Next exact verification command:
 
 ```bash
-cargo +1.96.0 test --locked --test declared_marked_prepost prevalence
+cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_graph declared_binary_centroid
 ```

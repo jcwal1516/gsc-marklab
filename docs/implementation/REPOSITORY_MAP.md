@@ -241,6 +241,12 @@ Current HEAD is the audited SHA. Its parent-to-HEAD change modifies `README.md` 
 - `tests/multiscale_embedding_artifact_graph/derived_region/fixture/derived_slide/path_discrepancy.rs` reuses the existing finalizer/receipt fixture for the hand oracle, exact identities, positive zero, typed missingness, work edges, semantic drift, repeat determinism, and foreign same-slide lineage rejection.
 - Root and embedding facades expose only the concrete function/result/error/status. No candidate, graph, receipt, Arrow/Parquet profile, validator, serializer, general statistics abstraction, manifest, dependency, config/result/CLI, source adapter, or external data path changed.
 
+## C-06 declared binary cell-embedding centroid owner map
+
+- `src/cell_embedding_mark.rs` owns the sole new computation and its fixed-size result/status/count/error types. It consumes the existing declared scalar input and verified cell table/artifact directly, frames the exact ordered CellId-bound binary assignments locally, and owns no scalar or embedding infrastructure.
+- `tests/cellvit_embedding_artifact_graph/declared_binary_centroid.rs` reuses the existing verified CellViT artifact fixture and declared-scalar support for the 20.0 hand oracle, binary-versus-probability routing, assignment identity, positive zero, every extraction status, binding precedence, determinism, and exact resource edges.
+- The root facade exposes only the concrete function/result/error/status/count surface. No embedding/scalar owner, Arrow/Parquet code, physical format, receipt, graph, validator framework, serializer, node, result/config/CLI field, general mark/statistics abstraction, manifest, dependency, source adapter, or external data path changed.
+
 ## Authorized external WSI and embedding asset map
 
 Read-only SSH inventory on 2026-08-22 used the existing authenticated connection. No patient/sample identifiers or raw patient data were copied into this repository.

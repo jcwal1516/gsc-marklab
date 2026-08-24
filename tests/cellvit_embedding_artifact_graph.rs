@@ -2682,3 +2682,6 @@ fn artifact_graph_maps_corrupted_managed_bytes_to_redacted_integrity() {
     ));
     assert!(!error.to_string().contains("privacy-sentinel"));
 }
+
+#[path = "cellvit_embedding_artifact_graph/declared_binary_centroid.rs"]
+mod declared_binary_centroid;

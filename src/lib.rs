@@ -11,6 +11,7 @@ static TEST_ALLOCATOR: dhat::Alloc = dhat::Alloc;
 #[cfg(test)]
 mod algorithm_tests;
 mod api;
+mod cell_embedding_mark;
 #[cfg(feature = "cli")]
 mod cli;
 mod common;
@@ -45,6 +46,12 @@ mod wsi;
 pub use cli::run_cli;
 
 pub use api::{AnalysisEngine, DeclaredMarkedAnalysisRun, MarkedAnalysisRun};
+pub use cell_embedding_mark::{
+    declared_binary_cell_embedding_centroid_discrepancy,
+    DeclaredBinaryCellEmbeddingCentroidDiscrepancy,
+    DeclaredBinaryCellEmbeddingCentroidDiscrepancyError,
+    DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus, DeclaredBinaryCellEmbeddingGroupCounts,
+};
 pub use config::{
     AnalysisConfig, AnalysisConfigSection, ComparisonSection, ComponentMode, CurveMargins,
     DiagnosticsSection, InferenceSection, MultiscaleResidualSection, NeighborhoodNullModel,
