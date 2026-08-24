@@ -122,6 +122,11 @@ pub use context::{EmbeddingSpatialContext, PatchBoundaryPolicy, PositiveRational
 pub use error::EmbeddingError;
 pub use expected::ExpectedCellSet;
 pub use identity_map::{CellIdentityMap, CellIdentityMapEntry};
+#[cfg(feature = "parquet")]
+pub use multiscale::{
+    contained_cell_patch_embedding_dispersion, ContainedCellPatchEmbeddingDispersion,
+    ContainedCellPatchEmbeddingDispersionError, ContainedCellPatchEmbeddingDispersionStatus,
+};
 pub use multiscale::{
     finalize_region_embedding_table_from_patches, finalize_slide_embedding_table_from_patches,
     finalize_slide_embedding_table_from_regions, patch_overlap_embedding_dispersion,

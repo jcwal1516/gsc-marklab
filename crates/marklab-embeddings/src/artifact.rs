@@ -93,6 +93,8 @@ impl VerifiedCellEmbeddingRowLinkArtifact {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CellEmbeddingArtifact {
     embedding_artifact_id: ArtifactId,
+    expected_cells_artifact_id: ArtifactId,
+    expected_cells_logical_digest: ContentDigest,
     row_link_artifact_id: ArtifactId,
     provenance_artifact_id: ArtifactId,
     row_count: u64,
@@ -136,6 +138,8 @@ impl CellEmbeddingArtifact {
         }
         Ok(Self {
             embedding_artifact_id: embedding.embedding_artifact_id,
+            expected_cells_artifact_id: graph.expected_cells_artifact_id,
+            expected_cells_logical_digest: graph.expected_cells_logical_digest,
             row_link_artifact_id: row_link.row_link_artifact_id,
             provenance_artifact_id: graph.provenance_artifact_id,
             row_count: qc_summary.row_count(),
@@ -149,6 +153,16 @@ impl CellEmbeddingArtifact {
     /// Physical embedding artifact identity.
     pub fn embedding_artifact_id(self) -> ArtifactId {
         self.embedding_artifact_id
+    }
+
+    /// Exact expected-cell artifact identity shared by the table and row link.
+    pub fn expected_cells_artifact_id(self) -> ArtifactId {
+        self.expected_cells_artifact_id
+    }
+
+    /// Format-independent identity of the exact expected-cell order.
+    pub fn expected_cells_logical_digest(self) -> ContentDigest {
+        self.expected_cells_logical_digest
     }
 
     /// Physical row-link artifact identity.

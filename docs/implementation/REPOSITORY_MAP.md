@@ -267,6 +267,13 @@ Current HEAD is the audited SHA. Its parent-to-HEAD change modifies `README.md` 
 - `tests/cellvit_embedding_artifact_graph/nucleus_area_cross_covariance.rs` reuses the genuine verified CellViT artifact and declared-scalar fixtures for the 62.5 hand oracle, binary non-use, raw-area identity, positive zero, every extraction status, both typed unavailable states, provenance/binding precedence, determinism, and exact resource edges.
 - The root facade exposes only the concrete declaration/function/result/error/status surface. No Arrow/Parquet code, embedding owner, physical format, receipt, graph, validator framework, serializer, node/codec, result/config/CLI field, manifest, dependency, source adapter, or external data path changed.
 
+## C-06 contained-patch cell-embedding local-dispersion owner map
+
+- `crates/marklab-embeddings/src/artifact.rs` retains and exposes the expected-cell ArtifactId and logical digest already verified while composing `CellEmbeddingArtifact`. The S11 computation immediately consumes both; no wire, schema, receipt, or general artifact mechanism changed.
+- `crates/marklab-embeddings/src/multiscale/contained_cell_patch_dispersion.rs` owns the all-feature contained-only join, deterministic sorted incidence traversal, one reusable centroid, fixed-size result/status/error types, and private resource helpers. It consumes the existing verified cell artifact, live link, managed input graph, and paired physical receipt directly.
+- `tests/cellvit_embedding_artifact_graph/contained_cell_patch_embedding_dispersion.rs` assembles the real C-04 and C-05 authorities for the 1,280-component 0.5 overlapping-membership oracle, identity/binding precedence, positive zero, every extraction status, singleton/unavailable state, interpolation rejection, determinism, and exact resource edges.
+- Embedding and root facades expose only the concrete all-feature function/result/status/error. No Arrow/Parquet implementation, physical format, receipt, graph, validator framework, interpolation statistic, shared local-diversity/statistics abstraction, workflow/node/codec, manifest, dependency, source adapter, or external data path changed.
+
 ## Authorized external WSI and embedding asset map
 
 Read-only SSH inventory on 2026-08-22 used the existing authenticated connection. No patient/sample identifiers or raw patient data were copied into this repository.

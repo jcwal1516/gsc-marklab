@@ -87,6 +87,11 @@ pub use marklab_data::{
     SpatialAxis, SpecimenId, TimepointId, TransformId, TransformMatrix, UncertaintyId,
     UncertaintyReference,
 };
+#[cfg(feature = "parquet")]
+pub use marklab_embeddings::{
+    contained_cell_patch_embedding_dispersion, ContainedCellPatchEmbeddingDispersion,
+    ContainedCellPatchEmbeddingDispersionError, ContainedCellPatchEmbeddingDispersionStatus,
+};
 pub use marklab_embeddings::{
     finalize_region_embedding_table_from_patches, finalize_slide_embedding_table_from_patches,
     finalize_slide_embedding_table_from_regions, patch_overlap_embedding_dispersion,

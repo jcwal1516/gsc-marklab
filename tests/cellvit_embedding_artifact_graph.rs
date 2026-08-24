@@ -2695,6 +2695,9 @@ mod probability_cross_covariance;
 #[path = "cellvit_embedding_artifact_graph/nucleus_area_cross_covariance.rs"]
 mod nucleus_area_cross_covariance;
 
+#[path = "cellvit_embedding_artifact_graph/contained_cell_patch_embedding_dispersion.rs"]
+mod contained_cell_patch_embedding_dispersion;
+
 #[allow(dead_code)]
 #[path = "support/declared_scalar.rs"]
 mod declared_scalar_support;

@@ -1,5 +1,7 @@
 mod artifact;
 mod cell_patch;
+#[cfg(feature = "parquet")]
+mod contained_cell_patch_dispersion;
 mod context;
 mod digest;
 mod entity;
@@ -28,6 +30,11 @@ pub use cell_patch::{
     CellPatchAnchor, CellPatchAssignment, CellPatchAssignmentMode, CellPatchAssignmentStatus,
     CellPatchContributor, CellPatchEdge, CellPatchLink, CellPatchLinkBindings, CellPatchWeight,
     DeclaredCellPatchAssignment,
+};
+#[cfg(feature = "parquet")]
+pub use contained_cell_patch_dispersion::{
+    contained_cell_patch_embedding_dispersion, ContainedCellPatchEmbeddingDispersion,
+    ContainedCellPatchEmbeddingDispersionError, ContainedCellPatchEmbeddingDispersionStatus,
 };
 pub use context::{EffectiveReceptiveField, PatchEmbeddingContext};
 pub use entity::EmbeddingEntityKind;
