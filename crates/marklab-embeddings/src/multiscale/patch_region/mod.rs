@@ -310,6 +310,13 @@ impl PatchRegionLink {
     pub fn logical_digest(&self) -> ContentDigest {
         self.logical_digest
     }
+
+    pub(in crate::multiscale) fn retained_bytes(&self) -> Result<usize, MultiscaleEmbeddingError> {
+        resources::link_retained_bytes(
+            self.common.owning_slide_id.as_str().len(),
+            &self.nonzero_relations,
+        )
+    }
 }
 
 fn clone_rows(

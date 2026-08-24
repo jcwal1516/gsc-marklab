@@ -227,6 +227,25 @@ pub enum MultiscaleEmbeddingError {
     /// Derived provenance uses a derivation algorithm forbidden for that variant.
     #[error("multiscale provenance derivation does not match its closed variant")]
     MultiscaleProvenanceDerivationMismatch,
+    /// A derived-table input disagrees with its exact verified graph capability.
+    #[error("derived embedding finalization inputs do not match the verified graph")]
+    DerivedEmbeddingFinalizationBindingMismatch,
+    /// Candidate contributor rows exceed the caller's explicit deterministic-work budget.
+    #[error("derived embedding contributor rows {required} exceed budget {maximum}")]
+    DerivedEmbeddingContributorBudgetExceeded {
+        /// Candidate contributor rows that must be visited.
+        required: u64,
+        /// Caller-provided maximum contributor rows.
+        maximum: u64,
+    },
+    /// Component accumulations exceed the caller's explicit deterministic-work budget.
+    #[error("derived embedding component accumulations {required} exceed budget {maximum}")]
+    DerivedEmbeddingComponentBudgetExceeded {
+        /// Required multiply-and-sequential-add component operations.
+        required: u64,
+        /// Caller-provided maximum component operations.
+        maximum: u64,
+    },
     /// Expected-set, support, and provenance table roles must name distinct artifacts.
     #[error("multiscale table artifact dependency roles must be distinct")]
     DuplicateMultiscaleTableArtifactDependency,

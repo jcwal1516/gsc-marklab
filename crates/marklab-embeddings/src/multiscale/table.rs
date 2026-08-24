@@ -385,6 +385,61 @@ impl<I: EntitySpec> MatrixCore<I> {
         }
         accumulator.finish()
     }
+
+    fn current_retained_bytes(&self) -> Result<usize, MultiscaleEmbeddingError> {
+        let value_bytes = self
+            .values
+            .capacity()
+            .checked_mul(size_of::<f32>())
+            .ok_or(MultiscaleEmbeddingError::SizeOverflow)?;
+        let row_bytes = self
+            .ids
+            .len()
+            .checked_mul(size_of::<I>() + size_of::<EmbeddingStatus>())
+            .ok_or(MultiscaleEmbeddingError::SizeOverflow)?;
+        self.ids.iter().try_fold(
+            size_of::<Self>()
+                .checked_add(self.owning_slide_id.as_str().len())
+                .and_then(|value| value.checked_add(value_bytes))
+                .and_then(|value| value.checked_add(row_bytes))
+                .ok_or(MultiscaleEmbeddingError::SizeOverflow)?,
+            |total, id| {
+                total
+                    .checked_add(id.as_str().len())
+                    .ok_or(MultiscaleEmbeddingError::SizeOverflow)
+            },
+        )
+    }
+}
+
+fn predicted_final_retained_bytes<I: EntitySpec>(
+    dimension: u32,
+    owning_slide_id: &SlideId,
+    ids: &[I],
+) -> Result<usize, MultiscaleEmbeddingError> {
+    let dimension =
+        usize::try_from(dimension).map_err(|_| MultiscaleEmbeddingError::SizeOverflow)?;
+    let value_bytes = ids
+        .len()
+        .checked_mul(dimension)
+        .and_then(|value| value.checked_mul(size_of::<f32>()))
+        .ok_or(MultiscaleEmbeddingError::SizeOverflow)?;
+    let row_bytes = ids
+        .len()
+        .checked_mul(size_of::<I>() + size_of::<EmbeddingStatus>())
+        .ok_or(MultiscaleEmbeddingError::SizeOverflow)?;
+    ids.iter().try_fold(
+        size_of::<MatrixCore<I>>()
+            .checked_add(owning_slide_id.as_str().len())
+            .and_then(|value| value.checked_add(value_bytes))
+            .and_then(|value| value.checked_add(row_bytes))
+            .ok_or(MultiscaleEmbeddingError::SizeOverflow)?,
+        |total, id| {
+            total
+                .checked_add(id.as_str().len())
+                .ok_or(MultiscaleEmbeddingError::SizeOverflow)
+        },
+    )
 }
 
 fn validate_shape(dimension: u32, rows: usize) -> Result<(), MultiscaleEmbeddingError> {

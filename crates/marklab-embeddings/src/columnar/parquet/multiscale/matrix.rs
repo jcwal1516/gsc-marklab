@@ -19,7 +19,8 @@ pub use reader::{
     validate_region_embedding_table_parquet_from_store,
     validate_slide_embedding_table_parquet_bytes,
     validate_slide_embedding_table_parquet_from_store, verify_patch_embedding_table_parquet_bytes,
-    verify_patch_embedding_table_parquet_from_store,
+    verify_patch_embedding_table_parquet_from_store, verify_region_embedding_table_parquet_bytes,
+    verify_region_embedding_table_parquet_from_store,
 };
 pub use writer::{
     write_patch_embedding_table_parquet, write_region_embedding_table_parquet,

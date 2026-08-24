@@ -5,9 +5,10 @@ use arrow_ipc::reader::FileReaderBuilder;
 use marklab_project::{ArtifactRecord, LocalArtifactStore, VerifiedReaderError};
 
 use crate::{
-    PatchEmbeddingSourceRowLink, PatchEmbeddingTable, RegionEmbeddingTable, SlideEmbeddingTable,
-    VerifiedDirectPatchEmbeddingArtifactGraph, VerifiedPatchEmbeddingSupportArtifact,
-    VerifiedPatchEmbeddingTableArtifact,
+    DerivedRegionEmbeddingTableCandidate, PatchEmbeddingSourceRowLink, PatchEmbeddingTable,
+    RegionEmbeddingTable, SlideEmbeddingTable, VerifiedDirectPatchEmbeddingArtifactGraph,
+    VerifiedPatchEmbeddingSupportArtifact, VerifiedPatchEmbeddingTableArtifact,
+    VerifiedRegionEmbeddingTableArtifact,
 };
 
 use super::{
@@ -88,6 +89,29 @@ typed_reader!(
     validate_region_embedding_table_arrow_from_store,
     RegionEmbeddingTable
 );
+
+/// Fully decode borrowed derived-region Arrow bytes and mint an exact finalization receipt.
+pub fn verify_region_embedding_table_arrow_bytes(
+    bytes: &[u8],
+    record: &ArtifactRecord,
+    candidate: &DerivedRegionEmbeddingTableCandidate,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<VerifiedRegionEmbeddingTableArtifact, MultiscaleColumnarError> {
+    validate_region_embedding_table_arrow_bytes(bytes, record, candidate.table(), budgets)?;
+    VerifiedRegionEmbeddingTableArtifact::new(record.id(), candidate)
+}
+
+/// Fully decode a managed derived-region Arrow artifact and mint an exact finalization receipt.
+pub fn verify_region_embedding_table_arrow_from_store(
+    store: &LocalArtifactStore,
+    record: &ArtifactRecord,
+    candidate: &DerivedRegionEmbeddingTableCandidate,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<VerifiedRegionEmbeddingTableArtifact, VerifiedReaderError<MultiscaleColumnarError>> {
+    validate_region_embedding_table_arrow_from_store(store, record, candidate.table(), budgets)?;
+    VerifiedRegionEmbeddingTableArtifact::new(record.id(), candidate)
+        .map_err(VerifiedReaderError::Callback)
+}
 typed_reader!(
     validate_slide_embedding_table_arrow_bytes,
     validate_slide_embedding_table_arrow_from_store,

@@ -5,6 +5,7 @@ mod digest;
 mod entity;
 mod error;
 mod expected;
+mod finalization;
 mod footprint;
 mod json;
 mod matrix_artifact;
@@ -28,10 +29,14 @@ pub use context::{EffectiveReceptiveField, PatchEmbeddingContext};
 pub use entity::EmbeddingEntityKind;
 pub use error::MultiscaleEmbeddingError;
 pub use expected::{ExpectedPatchSet, ExpectedRegionSet, ExpectedSlideSet};
+pub use finalization::{
+    finalize_region_embedding_table_from_patches, DerivedRegionEmbeddingTableCandidate,
+    EmbeddingFinalizationBudgets,
+};
 pub use footprint::{PatchFootprint, PatchFootprintSet};
 pub use matrix_artifact::{
     VerifiedPatchEmbeddingSupportArtifact, VerifiedPatchEmbeddingTableArtifact,
-    VerifiedRegionEmbeddingSupportArtifact,
+    VerifiedRegionEmbeddingSupportArtifact, VerifiedRegionEmbeddingTableArtifact,
 };
 pub use overlap::{PatchOverlapEdge, PatchOverlapGraph};
 pub use patch_region::{

@@ -5,8 +5,9 @@ use marklab_project::{ArtifactId, ContentDigest};
 use super::MultiscaleEmbeddingQcSummary;
 #[cfg(feature = "parquet")]
 use super::{
-    PatchEmbeddingSourceRowLink, PatchEmbeddingTable, VerifiedDirectPatchEmbeddingArtifactGraph,
-    VerifiedPatchFootprintArtifact, VerifiedPatchOverlapArtifact,
+    DerivedRegionEmbeddingTableCandidate, PatchEmbeddingSourceRowLink, PatchEmbeddingTable,
+    VerifiedDirectPatchEmbeddingArtifactGraph, VerifiedPatchFootprintArtifact,
+    VerifiedPatchOverlapArtifact,
 };
 
 /// Runtime-only proof that one patch-support descriptor has fully decoded footprint and overlap
@@ -375,5 +376,172 @@ impl VerifiedPatchEmbeddingTableArtifact {
             provenance_logical_digest: self.provenance_logical_digest,
             dimension: self.dimension,
         }
+    }
+}
+
+/// Runtime-only proof of one fully decoded deterministically derived region embedding table.
+///
+/// This receipt binds the exact physical output to its recomputed logical/QC identity and the
+/// complete derived-region lineage retained by the finalization candidate.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub struct VerifiedRegionEmbeddingTableArtifact {
+    artifact_id: ArtifactId,
+    logical_digest: ContentDigest,
+    qc_summary: MultiscaleEmbeddingQcSummary,
+    expected_regions_artifact_id: ArtifactId,
+    expected_regions_logical_digest: ContentDigest,
+    region_support_artifact_id: ArtifactId,
+    region_support_logical_digest: ContentDigest,
+    provenance_artifact_id: ArtifactId,
+    provenance_logical_digest: ContentDigest,
+    source_patch_table_artifact_id: ArtifactId,
+    source_patch_table_logical_digest: ContentDigest,
+    patch_region_link_artifact_id: ArtifactId,
+    patch_region_link_logical_digest: ContentDigest,
+    derivation_artifact_id: ArtifactId,
+    derivation_logical_digest: ContentDigest,
+    dimension: u32,
+}
+
+impl fmt::Debug for VerifiedRegionEmbeddingTableArtifact {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("VerifiedRegionEmbeddingTableArtifact")
+            .field("row_count", &self.qc_summary.row_count())
+            .field("dimension", &self.dimension)
+            .finish_non_exhaustive()
+    }
+}
+
+impl VerifiedRegionEmbeddingTableArtifact {
+    #[cfg(feature = "parquet")]
+    pub(crate) fn new(
+        artifact_id: ArtifactId,
+        candidate: &DerivedRegionEmbeddingTableCandidate,
+    ) -> Result<Self, crate::columnar::MultiscaleColumnarError> {
+        let table = candidate.table();
+        let graph = candidate.graph;
+        if [
+            graph.expected_regions_artifact_id,
+            graph.region_support_artifact_id,
+            graph.provenance_artifact_id,
+            graph.source_patch_table_artifact_id,
+            graph.patch_region_link_artifact_id,
+            graph.derivation_artifact_id,
+        ]
+        .contains(&artifact_id)
+            || table.expected_entities_artifact_id() != graph.expected_regions_artifact_id
+            || table.expected_entities_logical_digest() != graph.expected_regions_logical_digest
+            || table.support_artifact_id() != graph.region_support_artifact_id
+            || table.support_logical_digest() != graph.region_support_logical_digest
+            || table.provenance_artifact_id() != graph.provenance_artifact_id
+            || table.provenance_logical_digest() != graph.provenance_logical_digest
+            || table.dimension() != graph.output_dimension
+        {
+            return Err(crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch);
+        }
+        Ok(Self {
+            artifact_id,
+            logical_digest: table.logical_digest(),
+            qc_summary: table.qc_summary(),
+            expected_regions_artifact_id: graph.expected_regions_artifact_id,
+            expected_regions_logical_digest: graph.expected_regions_logical_digest,
+            region_support_artifact_id: graph.region_support_artifact_id,
+            region_support_logical_digest: graph.region_support_logical_digest,
+            provenance_artifact_id: graph.provenance_artifact_id,
+            provenance_logical_digest: graph.provenance_logical_digest,
+            source_patch_table_artifact_id: graph.source_patch_table_artifact_id,
+            source_patch_table_logical_digest: graph.source_patch_table_logical_digest,
+            patch_region_link_artifact_id: graph.patch_region_link_artifact_id,
+            patch_region_link_logical_digest: graph.patch_region_link_logical_digest,
+            derivation_artifact_id: graph.derivation_artifact_id,
+            derivation_logical_digest: graph.derivation_logical_digest,
+            dimension: graph.output_dimension,
+        })
+    }
+
+    /// Exact physical matrix artifact identity.
+    pub fn artifact_id(self) -> ArtifactId {
+        self.artifact_id
+    }
+
+    /// Format-independent region-table logical identity.
+    pub fn logical_digest(self) -> ContentDigest {
+        self.logical_digest
+    }
+
+    /// Recomputed factual row/status/dimension/logical summary.
+    pub fn qc_summary(self) -> MultiscaleEmbeddingQcSummary {
+        self.qc_summary
+    }
+
+    /// Exact validated region row count.
+    pub fn row_count(self) -> u64 {
+        self.qc_summary.row_count()
+    }
+
+    /// Exact validated output dimension.
+    pub fn dimension(self) -> u32 {
+        self.dimension
+    }
+
+    /// Exact expected-region-set artifact identity retained by finalization.
+    pub fn expected_regions_artifact_id(self) -> ArtifactId {
+        self.expected_regions_artifact_id
+    }
+
+    /// Format-independent expected-region-set identity retained by finalization.
+    pub fn expected_regions_logical_digest(self) -> ContentDigest {
+        self.expected_regions_logical_digest
+    }
+
+    /// Exact region-support artifact identity retained by finalization.
+    pub fn region_support_artifact_id(self) -> ArtifactId {
+        self.region_support_artifact_id
+    }
+
+    /// Format-independent region-support identity retained by finalization.
+    pub fn region_support_logical_digest(self) -> ContentDigest {
+        self.region_support_logical_digest
+    }
+
+    /// Exact derived-region provenance artifact identity retained by finalization.
+    pub fn provenance_artifact_id(self) -> ArtifactId {
+        self.provenance_artifact_id
+    }
+
+    /// Format-independent derived-region provenance identity retained by finalization.
+    pub fn provenance_logical_digest(self) -> ContentDigest {
+        self.provenance_logical_digest
+    }
+
+    /// Exact source patch-table artifact identity retained by finalization.
+    pub fn source_patch_table_artifact_id(self) -> ArtifactId {
+        self.source_patch_table_artifact_id
+    }
+
+    /// Format-independent source patch-table identity retained by finalization.
+    pub fn source_patch_table_logical_digest(self) -> ContentDigest {
+        self.source_patch_table_logical_digest
+    }
+
+    /// Exact patch-region-link artifact identity retained by finalization.
+    pub fn patch_region_link_artifact_id(self) -> ArtifactId {
+        self.patch_region_link_artifact_id
+    }
+
+    /// Format-independent patch-region-link identity retained by finalization.
+    pub fn patch_region_link_logical_digest(self) -> ContentDigest {
+        self.patch_region_link_logical_digest
+    }
+
+    /// Exact weighted-mean derivation artifact identity retained by finalization.
+    pub fn derivation_artifact_id(self) -> ArtifactId {
+        self.derivation_artifact_id
+    }
+
+    /// Format-independent weighted-mean derivation identity retained by finalization.
+    pub fn derivation_logical_digest(self) -> ContentDigest {
+        self.derivation_logical_digest
     }
 }

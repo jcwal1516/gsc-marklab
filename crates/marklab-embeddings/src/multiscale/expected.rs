@@ -150,6 +150,15 @@ impl<I: EntitySpec> ExpectedEntitySet<I> {
             ids: IdSlice(&self.ids),
         }
     }
+
+    fn retained_bytes(&self) -> Result<usize, MultiscaleEmbeddingError> {
+        retained_bytes::<I>(
+            &self.owning_slide_id,
+            &self.selection_rule,
+            self.ids.len(),
+            self.ids.iter().map(EntitySpec::as_str),
+        )
+    }
 }
 
 fn validate_count(count: usize) -> Result<(), MultiscaleEmbeddingError> {
@@ -354,6 +363,10 @@ define_expected_set!(
     "Canonical expected region identities for one owning slide."
 );
 impl ExpectedRegionSet {
+    pub(in crate::multiscale) fn retained_bytes(&self) -> Result<usize, MultiscaleEmbeddingError> {
+        self.0.retained_bytes()
+    }
+
     #[cfg(feature = "parquet")]
     pub(in crate::multiscale) fn compare_canonical_json_reader<R: Read + ?Sized>(
         &self,

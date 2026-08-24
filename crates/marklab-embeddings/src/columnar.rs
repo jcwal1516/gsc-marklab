@@ -45,6 +45,7 @@ pub use arrow::{
     validate_region_embedding_table_arrow_bytes, validate_region_embedding_table_arrow_from_store,
     validate_slide_embedding_table_arrow_bytes, validate_slide_embedding_table_arrow_from_store,
     verify_patch_embedding_table_arrow_bytes, verify_patch_embedding_table_arrow_from_store,
+    verify_region_embedding_table_arrow_bytes, verify_region_embedding_table_arrow_from_store,
     write_patch_embedding_table_arrow, write_region_embedding_table_arrow,
     write_slide_embedding_table_arrow, MultiscaleMatrixArrowPreflight,
 };
@@ -98,7 +99,8 @@ pub use parquet::{
     validate_region_embedding_table_parquet_from_store,
     validate_slide_embedding_table_parquet_bytes,
     validate_slide_embedding_table_parquet_from_store, verify_patch_embedding_table_parquet_bytes,
-    verify_patch_embedding_table_parquet_from_store, write_patch_embedding_table_parquet,
+    verify_patch_embedding_table_parquet_from_store, verify_region_embedding_table_parquet_bytes,
+    verify_region_embedding_table_parquet_from_store, write_patch_embedding_table_parquet,
     write_region_embedding_table_parquet, write_slide_embedding_table_parquet,
     MultiscaleMatrixParquetPreflight,
 };

@@ -1,21 +1,22 @@
 use super::super::support::*;
 use marklab::{
-    publish_patch_embedding_table_arrow, publish_patch_embedding_table_parquet,
-    publish_patch_region_link_arrow, publish_patch_region_link_parquet,
-    verify_patch_embedding_table_arrow_from_store, verify_patch_embedding_table_parquet_from_store,
-    verify_patch_footprint_set_arrow_from_store, verify_patch_footprint_set_parquet_from_store,
-    verify_patch_overlap_graph_arrow_from_store, verify_patch_overlap_graph_parquet_from_store,
-    verify_patch_region_link_arrow_from_store, verify_patch_region_link_parquet_from_store,
-    ArtifactAvailabilityFailure, ArtifactCatalog, ArtifactRecord, EmbeddingColumnarBudgets,
-    EmbeddingStatus, ExpectedRegionSet, HierarchyId, HierarchyNode, MultiscaleArtifactBinding,
+    finalize_region_embedding_table_from_patches, publish_patch_embedding_table_arrow,
+    publish_patch_embedding_table_parquet, publish_patch_region_link_arrow,
+    publish_patch_region_link_parquet, verify_patch_embedding_table_arrow_from_store,
+    verify_patch_embedding_table_parquet_from_store, verify_patch_footprint_set_arrow_from_store,
+    verify_patch_footprint_set_parquet_from_store, verify_patch_overlap_graph_arrow_from_store,
+    verify_patch_overlap_graph_parquet_from_store, verify_patch_region_link_arrow_from_store,
+    verify_patch_region_link_parquet_from_store, ArtifactAvailabilityFailure, ArtifactCatalog,
+    ArtifactRecord, EmbeddingColumnarBudgets, EmbeddingFinalizationBudgets, EmbeddingStatus,
+    ExpectedRegionSet, HierarchyId, HierarchyNode, MultiscaleArtifactBinding,
     MultiscaleEmbeddingArtifactGraphError, MultiscaleEmbeddingArtifactRole,
-    MultiscaleEmbeddingDerivationContract, MultiscaleEmbeddingExecutionProvenance,
-    MultiscaleEmbeddingProvenance, MultiscaleEmbeddingSupport, PatchEmbeddingRow,
-    PatchEmbeddingTable, PatchRegionAssessment, PatchRegionAssessmentBindings,
-    PatchRegionDeclaration, PatchRegionLink, PatientId, RegionId, ReplicationRole,
-    VerifiedDerivedRegionEmbeddingArtifactGraph, VerifiedPatchEmbeddingSupportArtifact,
-    VerifiedPatchEmbeddingTableArtifact, VerifiedPatchRegionLinkArtifact,
-    VerifiedRegionEmbeddingSupportArtifact,
+    MultiscaleEmbeddingDerivationContract, MultiscaleEmbeddingError,
+    MultiscaleEmbeddingExecutionProvenance, MultiscaleEmbeddingProvenance,
+    MultiscaleEmbeddingSupport, PatchEmbeddingRow, PatchEmbeddingTable, PatchRegionAssessment,
+    PatchRegionAssessmentBindings, PatchRegionDeclaration, PatchRegionLink, PatientId, RegionId,
+    ReplicationRole, VerifiedDerivedRegionEmbeddingArtifactGraph,
+    VerifiedPatchEmbeddingSupportArtifact, VerifiedPatchEmbeddingTableArtifact,
+    VerifiedPatchRegionLinkArtifact, VerifiedRegionEmbeddingSupportArtifact,
 };
 
 fn budgets() -> EmbeddingColumnarBudgets {
@@ -102,6 +103,8 @@ fn patch_support(
 fn patch_table(
     fixture: &Fixture,
     support: VerifiedPatchEmbeddingSupportArtifact,
+    dimension: u32,
+    vector_pattern: SourceVectorPattern,
 ) -> PatchEmbeddingTable {
     let rows = fixture
         .expected_patches
@@ -113,7 +116,17 @@ fn patch_table(
             if status == EmbeddingStatus::Present {
                 PatchEmbeddingRow::present(
                     patch_id.clone(),
-                    vec![index as f32 + 1.0, index as f32 + 2.0, index as f32 + 3.0],
+                    (0..dimension)
+                        .map(|column| match vector_pattern {
+                            SourceVectorPattern::Sequential => index as f32 + column as f32 + 1.0,
+                            SourceVectorPattern::CancellationSensitive => match index {
+                                0 => f32::MAX,
+                                1 => 1.0,
+                                2 => -f32::MAX,
+                                _ => 0.0,
+                            },
+                        })
+                        .collect(),
                 )
             } else {
                 PatchEmbeddingRow::non_present(patch_id.clone(), status).expect("patch status")
@@ -121,7 +134,7 @@ fn patch_table(
         })
         .collect();
     PatchEmbeddingTable::from_rows(
-        3,
+        dimension,
         &fixture.expected_patches,
         fixture.source_row_link.expected_patches_artifact_id(),
         support.artifact_id(),
@@ -141,11 +154,20 @@ enum PhysicalFormat {
 }
 
 #[derive(Clone, Copy)]
+enum SourceVectorPattern {
+    Sequential,
+    CancellationSensitive,
+}
+
+#[derive(Clone, Copy)]
 struct DerivedFixtureOptions {
     patch_format: PhysicalFormat,
     link_format: PhysicalFormat,
     direct_parquet_physical: bool,
     entity_count: usize,
+    region_count: usize,
+    output_dimension: u32,
+    source_vector_pattern: SourceVectorPattern,
     source_row_status_pattern: SourceRowStatusPattern,
 }
 
@@ -156,6 +178,9 @@ impl Default for DerivedFixtureOptions {
             link_format: PhysicalFormat::Arrow,
             direct_parquet_physical: false,
             entity_count: 2,
+            region_count: 2,
+            output_dimension: 3,
+            source_vector_pattern: SourceVectorPattern::Sequential,
             source_row_status_pattern: SourceRowStatusPattern::AllPresent,
         }
     }
@@ -176,6 +201,7 @@ struct DerivedFixture {
     converter_record: ArtifactRecord,
     patch_support: VerifiedPatchEmbeddingSupportArtifact,
     source_patch_table: VerifiedPatchEmbeddingTableArtifact,
+    source_patch_table_value: PatchEmbeddingTable,
     source_patch_table_record: ArtifactRecord,
     link: PatchRegionLink,
     link_receipt: VerifiedPatchRegionLinkArtifact,
@@ -193,14 +219,19 @@ fn derived_fixture_with_options(options: DerivedFixtureOptions) -> DerivedFixtur
     let direct = fixture_with_options(FixtureOptions {
         canonical_physical: true,
         parquet_physical: options.direct_parquet_physical,
-        output_dimension: 3,
+        output_dimension: options.output_dimension,
         entity_count: options.entity_count,
         source_row_status_pattern: options.source_row_status_pattern,
         ..FixtureOptions::default()
     });
     let graph = direct_graph(&direct);
     let patch_support = patch_support(&direct, graph, options.direct_parquet_physical);
-    let patch_table = patch_table(&direct, patch_support);
+    let patch_table = patch_table(
+        &direct,
+        patch_support,
+        options.output_dimension,
+        options.source_vector_pattern,
+    );
     let patch_table_record = match options.patch_format {
         PhysicalFormat::Arrow => {
             publish_patch_embedding_table_arrow(&direct.store, &patch_table, budgets())
@@ -238,10 +269,11 @@ fn derived_fixture_with_options(options: DerivedFixtureOptions) -> DerivedFixtur
     let slide_id = direct.expected_patches.owning_slide_id().clone();
     let slide = HierarchyId::from(slide_id.clone());
     let patient = HierarchyId::from(PatientId::new("derived-region-patient").expect("patient"));
-    let regions = [
-        RegionId::new("derived-region-a").expect("region"),
-        RegionId::new("derived-region-b").expect("region"),
-    ];
+    let regions: Vec<_> = (0..options.region_count)
+        .map(|index| {
+            RegionId::new(format!("derived-region-{index:06}")).expect("derived region identity")
+        })
+        .collect();
     let mut nodes = vec![
         HierarchyNode::new(patient.clone(), None, ReplicationRole::BiologicalUnit),
         HierarchyNode::new(
@@ -271,7 +303,7 @@ fn derived_fixture_with_options(options: DerivedFixtureOptions) -> DerivedFixtur
         &hierarchy,
         slide_id.clone(),
         "derived_regions.v1",
-        regions.to_vec(),
+        regions.clone(),
         BUDGET,
     )
     .expect("expected regions");
@@ -299,21 +331,31 @@ fn derived_fixture_with_options(options: DerivedFixtureOptions) -> DerivedFixtur
     );
     let patches = direct.expected_patches.ids();
     let mut declarations = Vec::new();
-    if let Some(patch) = patches.first() {
+    if let (Some(patch), Some(region)) = (patches.first(), regions.first()) {
         declarations.push(PatchRegionDeclaration::fully_contained(
             patch.clone(),
-            regions[0].clone(),
+            region.clone(),
         ));
     }
-    if let Some(patch) = patches.get(1) {
+    if let (Some(patch), Some(first_region)) = (patches.get(1), regions.first()) {
         declarations.push(
-            PatchRegionDeclaration::partial_overlap(patch.clone(), regions[0].clone(), 1, 2)
+            PatchRegionDeclaration::partial_overlap(patch.clone(), first_region.clone(), 1, 2)
                 .expect("partial relation"),
         );
-        declarations.push(PatchRegionDeclaration::fully_contained(
-            patch.clone(),
-            regions[1].clone(),
-        ));
+        if let Some(second_region) = regions.get(1) {
+            declarations.push(PatchRegionDeclaration::fully_contained(
+                patch.clone(),
+                second_region.clone(),
+            ));
+        }
+    }
+    if !regions.is_empty() {
+        for (index, patch) in patches.iter().enumerate().skip(2) {
+            declarations.push(PatchRegionDeclaration::fully_contained(
+                patch.clone(),
+                regions[index % regions.len()].clone(),
+            ));
+        }
     }
     let assessment = PatchRegionAssessment::new(
         &direct.expected_patches,
@@ -480,7 +522,7 @@ fn derived_fixture_with_options(options: DerivedFixtureOptions) -> DerivedFixtur
         slide_id,
         &region_support_value,
         &derivation,
-        3,
+        options.output_dimension,
         execution,
         patch_table_record.id(),
         link_record.id(),
@@ -523,6 +565,7 @@ fn derived_fixture_with_options(options: DerivedFixtureOptions) -> DerivedFixtur
         converter_record: converter,
         patch_support,
         source_patch_table,
+        source_patch_table_value: patch_table,
         source_patch_table_record: patch_table_record,
         link,
         link_receipt,
@@ -623,7 +666,7 @@ fn rebuild_provenance(
         fixture.expected_regions.owning_slide_id().clone(),
         &fixture.region_support_value,
         &fixture.derivation,
-        3,
+        fixture.source_patch_table_value.dimension(),
         execution,
         fixture.source_patch_table_record.id(),
         fixture.link_receipt.artifact_id(),
@@ -647,7 +690,11 @@ fn rebuild_provenance(
 
 #[path = "fixture/derived_graph.rs"]
 mod derived_graph;
+#[path = "fixture/finalization.rs"]
+mod finalization;
 #[path = "fixture/happy.rs"]
 mod happy;
+#[path = "fixture/region_receipt.rs"]
+mod region_receipt;
 #[path = "fixture/support_receipt.rs"]
 mod support_receipt;

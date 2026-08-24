@@ -378,3 +378,26 @@ define_typed_table!(
     "Borrowed status-aware slide-embedding row.",
     "Canonical singleton-row slide-embedding table."
 );
+
+impl PatchEmbeddingTable {
+    pub(in crate::multiscale) fn retained_bytes(&self) -> Result<usize, MultiscaleEmbeddingError> {
+        self.0.current_retained_bytes()
+    }
+}
+
+impl RegionEmbeddingTable {
+    pub(in crate::multiscale) fn predicted_final_retained_bytes(
+        expected: &ExpectedRegionSet,
+        dimension: u32,
+    ) -> Result<usize, MultiscaleEmbeddingError> {
+        super::predicted_final_retained_bytes(dimension, expected.owning_slide_id(), expected.ids())
+    }
+
+    pub(in crate::multiscale) fn construction_bytes(
+        expected: &ExpectedRegionSet,
+        dimension: u32,
+        rows: &Vec<RegionEmbeddingRow>,
+    ) -> Result<usize, MultiscaleEmbeddingError> {
+        super::retained_bytes(dimension, expected.owning_slide_id(), expected.ids(), rows)
+    }
+}
