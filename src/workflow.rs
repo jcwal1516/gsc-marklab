@@ -279,7 +279,7 @@ impl WorkflowNode for DeclaredMarkedAnalysisNode<'_, '_> {
     }
 }
 
-fn pattern_artifact(pattern: &Pattern) -> Result<ArtifactRef, NodeError> {
+pub(crate) fn pattern_artifact(pattern: &Pattern) -> Result<ArtifactRef, NodeError> {
     let mut writer = ContentDigest::builder();
     serde_json::to_writer(&mut writer, pattern).map_err(NodeError::input)?;
     writer.flush().map_err(NodeError::input)?;

@@ -221,21 +221,91 @@ pub enum DeclaredBinaryCellEmbeddingCentroidDiscrepancyError {
     },
 }
 
-/// Compare mean present cell-embedding vectors for exact declared binary groups.
-///
-/// The materialized table is bound to its existing verified artifact, row identities are bound to
-/// the declared input, and explicit row/component/working limits are admitted before allocation or
-/// component arithmetic. Present components are accumulated as `f64` in canonical row/component
-/// order; all non-present statuses are counted but excluded. Runtime is `O(N*D)` when available,
-/// with exactly two `D`-component `f64` accumulators. The result is descriptive only and proves no
-/// spatial association, classification/separability, embedding quality, independent validation,
-/// patient effect, inference, real-source result, or biological meaning.
-///
-/// # Errors
-///
-/// Returns a typed category when the verified artifact/table or ordered CellIds disagree, a caller
-/// limit is insufficient, a checked size overflows, or the bounded accumulator allocation fails.
-pub fn declared_binary_cell_embedding_centroid_discrepancy(
+/// Narrow immutable S7 input binding reused only by its concrete scheduler node.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct DeclaredBinaryCellEmbeddingCentroidBinding {
+    marked_counts: DeclaredBinaryCellEmbeddingGroupCounts,
+    unmarked_counts: DeclaredBinaryCellEmbeddingGroupCounts,
+    dimension: u32,
+    scalar_identity: DeclaredScalarIdentity,
+    binary_mark: BinaryMarkDeclaration,
+    probability_mark: Option<ProbabilityMarkDeclaration>,
+    binary_grouping_logical_digest: ContentDigest,
+    embedding_artifact_id: ArtifactId,
+    row_link_artifact_id: ArtifactId,
+    embedding_provenance_artifact_id: ArtifactId,
+    embedding_qc_summary: EmbeddingQcSummary,
+    table_logical_digest: ContentDigest,
+}
+
+impl DeclaredBinaryCellEmbeddingCentroidBinding {
+    pub(crate) fn status(&self) -> DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus {
+        if self.marked_counts.present_count() == 0 || self.unmarked_counts.present_count() == 0 {
+            DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus::InsufficientGroups
+        } else {
+            DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus::Available
+        }
+    }
+
+    pub(crate) fn attach_value(
+        &self,
+        value: Option<f64>,
+    ) -> Option<DeclaredBinaryCellEmbeddingCentroidDiscrepancy> {
+        let status = self.status();
+        let valid = match (status, value) {
+            (DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus::Available, Some(value)) => {
+                value.is_finite()
+                    && value >= 0.0
+                    && (value != 0.0 || value.to_bits() == 0.0_f64.to_bits())
+            }
+            (DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus::InsufficientGroups, None) => {
+                true
+            }
+            _ => false,
+        };
+        valid.then(|| DeclaredBinaryCellEmbeddingCentroidDiscrepancy {
+            status,
+            marked_counts: self.marked_counts,
+            unmarked_counts: self.unmarked_counts,
+            dimension: self.dimension,
+            mean_squared_component_difference: value,
+            scalar_identity: self.scalar_identity.clone(),
+            binary_mark: self.binary_mark.clone(),
+            probability_mark: self.probability_mark.clone(),
+            binary_grouping_logical_digest: self.binary_grouping_logical_digest,
+            embedding_artifact_id: self.embedding_artifact_id,
+            row_link_artifact_id: self.row_link_artifact_id,
+            embedding_provenance_artifact_id: self.embedding_provenance_artifact_id,
+            embedding_qc_summary: self.embedding_qc_summary,
+            table_logical_digest: self.table_logical_digest,
+        })
+    }
+
+    pub(crate) fn matches_result(
+        &self,
+        result: &DeclaredBinaryCellEmbeddingCentroidDiscrepancy,
+    ) -> bool {
+        result.status == self.status()
+            && result.marked_counts == self.marked_counts
+            && result.unmarked_counts == self.unmarked_counts
+            && result.dimension == self.dimension
+            && result.scalar_identity == self.scalar_identity
+            && result.binary_mark == self.binary_mark
+            && result.probability_mark == self.probability_mark
+            && result.binary_grouping_logical_digest == self.binary_grouping_logical_digest
+            && result.embedding_artifact_id == self.embedding_artifact_id
+            && result.row_link_artifact_id == self.row_link_artifact_id
+            && result.embedding_provenance_artifact_id == self.embedding_provenance_artifact_id
+            && result.embedding_qc_summary == self.embedding_qc_summary
+            && result.table_logical_digest == self.table_logical_digest
+            && self
+                .attach_value(result.mean_squared_component_difference)
+                .is_some()
+    }
+}
+
+/// Bind every non-numeric S7 input and resource limit without component arithmetic.
+pub(crate) fn bind_declared_binary_cell_embedding_centroid(
     input: &DeclaredScalarPatternInput<'_>,
     table: &CellEmbeddingTable,
     artifact: CellEmbeddingArtifact,
@@ -243,7 +313,7 @@ pub fn declared_binary_cell_embedding_centroid_discrepancy(
     maximum_component_operations: u64,
     maximum_working_bytes: usize,
 ) -> Result<
-    DeclaredBinaryCellEmbeddingCentroidDiscrepancy,
+    DeclaredBinaryCellEmbeddingCentroidBinding,
     DeclaredBinaryCellEmbeddingCentroidDiscrepancyError,
 > {
     let embedding_qc_summary = table.qc_summary();
@@ -346,13 +416,64 @@ pub fn declared_binary_cell_embedding_centroid_discrepancy(
         );
     }
 
-    let (status, mean_squared_component_difference) =
-        if marked_counts.present_count() == 0 || unmarked_counts.present_count() == 0 {
-            (
-                DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus::InsufficientGroups,
-                None,
-            )
-        } else {
+    Ok(DeclaredBinaryCellEmbeddingCentroidBinding {
+        marked_counts,
+        unmarked_counts,
+        dimension,
+        scalar_identity: input.scalar_identity().clone(),
+        binary_mark: input.binary_mark().clone(),
+        probability_mark: input.probability_mark().cloned(),
+        binary_grouping_logical_digest,
+        embedding_artifact_id: artifact.embedding_artifact_id(),
+        row_link_artifact_id: artifact.row_link_artifact_id(),
+        embedding_provenance_artifact_id: artifact.provenance_artifact_id(),
+        embedding_qc_summary,
+        table_logical_digest: artifact.logical_digest(),
+    })
+}
+
+/// Compare mean present cell-embedding vectors for exact declared binary groups.
+///
+/// The materialized table is bound to its existing verified artifact, row identities are bound to
+/// the declared input, and explicit row/component/working limits are admitted before allocation or
+/// component arithmetic. Present components are accumulated as `f64` in canonical row/component
+/// order; all non-present statuses are counted but excluded. Runtime is `O(N*D)` when available,
+/// with exactly two `D`-component `f64` accumulators. The result is descriptive only and proves no
+/// spatial association, classification/separability, embedding quality, independent validation,
+/// patient effect, inference, real-source result, or biological meaning.
+///
+/// # Errors
+///
+/// Returns a typed category when the verified artifact/table or ordered CellIds disagree, a caller
+/// limit is insufficient, a checked size overflows, or the bounded accumulator allocation fails.
+pub fn declared_binary_cell_embedding_centroid_discrepancy(
+    input: &DeclaredScalarPatternInput<'_>,
+    table: &CellEmbeddingTable,
+    artifact: CellEmbeddingArtifact,
+    maximum_rows: usize,
+    maximum_component_operations: u64,
+    maximum_working_bytes: usize,
+) -> Result<
+    DeclaredBinaryCellEmbeddingCentroidDiscrepancy,
+    DeclaredBinaryCellEmbeddingCentroidDiscrepancyError,
+> {
+    let binding = bind_declared_binary_cell_embedding_centroid(
+        input,
+        table,
+        artifact,
+        maximum_rows,
+        maximum_component_operations,
+        maximum_working_bytes,
+    )?;
+    let dimension_usize = usize::try_from(binding.dimension)
+        .map_err(|_| DeclaredBinaryCellEmbeddingCentroidDiscrepancyError::SizeOverflow)?;
+    let working_bytes = dimension_usize
+        .checked_mul(size_of::<f64>())
+        .and_then(|value| value.checked_mul(2))
+        .ok_or(DeclaredBinaryCellEmbeddingCentroidDiscrepancyError::SizeOverflow)?;
+
+    let mean_squared_component_difference =
+        if binding.status() == DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus::Available {
             let mut marked_sums = zeroed_accumulator(dimension_usize, working_bytes)?;
             let mut unmarked_sums = zeroed_accumulator(dimension_usize, working_bytes)?;
             for (row_index, &mark) in input.pattern().mark.iter().enumerate() {
@@ -373,8 +494,8 @@ pub fn declared_binary_cell_embedding_centroid_discrepancy(
                     *sum += f64::from(component);
                 }
             }
-            let marked_denominator = marked_counts.present_count() as f64;
-            let unmarked_denominator = unmarked_counts.present_count() as f64;
+            let marked_denominator = binding.marked_counts.present_count() as f64;
+            let unmarked_denominator = binding.unmarked_counts.present_count() as f64;
             let mut squared_difference = 0.0_f64;
             for (&marked_sum, &unmarked_sum) in marked_sums.iter().zip(&unmarked_sums) {
                 let marked_mean = marked_sum / marked_denominator;
@@ -382,29 +503,15 @@ pub fn declared_binary_cell_embedding_centroid_discrepancy(
                 let difference = marked_mean - unmarked_mean;
                 squared_difference += difference * difference;
             }
-            let mean = squared_difference / f64::from(dimension);
-            (
-                DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus::Available,
-                Some(if mean == 0.0 { 0.0 } else { mean }),
-            )
+            let mean = squared_difference / f64::from(binding.dimension);
+            Some(if mean == 0.0 { 0.0 } else { mean })
+        } else {
+            None
         };
 
-    Ok(DeclaredBinaryCellEmbeddingCentroidDiscrepancy {
-        status,
-        marked_counts,
-        unmarked_counts,
-        dimension,
-        mean_squared_component_difference,
-        scalar_identity: input.scalar_identity().clone(),
-        binary_mark: input.binary_mark().clone(),
-        probability_mark: input.probability_mark().cloned(),
-        binary_grouping_logical_digest,
-        embedding_artifact_id: artifact.embedding_artifact_id(),
-        row_link_artifact_id: artifact.row_link_artifact_id(),
-        embedding_provenance_artifact_id: artifact.provenance_artifact_id(),
-        embedding_qc_summary,
-        table_logical_digest: artifact.logical_digest(),
-    })
+    Ok(binding
+        .attach_value(mean_squared_component_difference)
+        .expect("S7 arithmetic must match its bound availability"))
 }
 
 fn write_grouping_part(
