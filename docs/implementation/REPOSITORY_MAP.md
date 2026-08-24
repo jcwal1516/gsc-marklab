@@ -280,6 +280,12 @@ Current HEAD is the audited SHA. Its parent-to-HEAD change modifies `README.md` 
 - `tests/binary_nucleus_area_contrast.rs` reuses the declared-scalar fixture for the `25`/`12`/`13` hand oracle, changed binary assignments, probability non-use, positive zero, both one-group unavailable states, target-project/provenance/value precedence, determinism, and exact row edges.
 - The root facade exposes only the concrete function/result/status/error surface. No Pattern, scalar-provenance profile, Arrow/Parquet code, physical format, receipt, validator framework, serializer, workflow/node/codec, result/config/CLI field, manifest, dependency, source adapter, or external data path changed.
 
+## C-06 contained-patch binary-group nucleus-area contrast owner map
+
+- `src/contained_patch_nucleus_area_contrast.rs` owns the all-feature exact S12→contained-link composition, canonical edge-index sort, equal-patch arithmetic, fixed result/status/error types, and bounded allocation. It consumes the existing graph and paired physical receipt through their public identities and adds no physical or shared statistics mechanism.
+- `tests/cellvit_embedding_artifact_graph/contained_cell_patch_embedding_dispersion.rs` reuses its private S11 authority fixture and adds six S13 cases for the unequal-patch `7` oracle versus whole-input `8` and incidence-weighted `7.2`, whole-input/link/receipt identities, positive zero, global/local unavailability, S12 precedence, mode/slide/CellId/graph/receipt drift, and exact resource edges.
+- The root facade exposes the concrete function/result/status/error only with the existing `parquet` feature that owns the graph/receipt proof. No Arrow/Parquet implementation, format, graph, receipt, validator framework, shared traversal/group-statistics abstraction, workflow/node/codec, Pattern/config/result/CLI field, manifest, dependency, source adapter, or external data path changed.
+
 ## Authorized external WSI and embedding asset map
 
 Read-only SSH inventory on 2026-08-22 used the existing authenticated connection. No patient/sample identifiers or raw patient data were copied into this repository.

@@ -21,6 +21,8 @@ mod cli;
 mod common;
 mod comparison;
 mod config;
+#[cfg(feature = "parquet")]
+mod contained_patch_nucleus_area_contrast;
 mod data;
 mod diagnostics;
 mod errors;
@@ -79,6 +81,11 @@ pub use config::{
     NeighborhoodSection, OutputSection, PerformanceSection, PeriodogramSection, PermutationSection,
     PermutationStratum, RegistrationSection, RegistrationTransform, SpectrumSection, ThreadSetting,
     ValidationSection,
+};
+#[cfg(feature = "parquet")]
+pub use contained_patch_nucleus_area_contrast::{
+    contained_patch_binary_nucleus_area_contrast, ContainedPatchBinaryNucleusAreaContrast,
+    ContainedPatchBinaryNucleusAreaContrastError, ContainedPatchBinaryNucleusAreaContrastStatus,
 };
 pub use data::{Pattern, PatternMeta, TumorWindow};
 pub use errors::{MarklabError, Result};
