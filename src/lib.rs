@@ -11,6 +11,7 @@ static TEST_ALLOCATOR: dhat::Alloc = dhat::Alloc;
 #[cfg(test)]
 mod algorithm_tests;
 mod api;
+mod binary_nucleus_area_contrast;
 mod cell_embedding_mark;
 mod cell_embedding_mark_workflow;
 mod cell_embedding_nucleus_area;
@@ -49,6 +50,10 @@ mod wsi;
 pub use cli::run_cli;
 
 pub use api::{AnalysisEngine, DeclaredMarkedAnalysisRun, MarkedAnalysisRun};
+pub use binary_nucleus_area_contrast::{
+    declared_binary_group_nucleus_area_contrast, DeclaredBinaryGroupNucleusAreaContrast,
+    DeclaredBinaryGroupNucleusAreaContrastError, DeclaredBinaryGroupNucleusAreaContrastStatus,
+};
 pub use cell_embedding_mark::{
     declared_binary_cell_embedding_centroid_discrepancy,
     DeclaredBinaryCellEmbeddingCentroidDiscrepancy,

@@ -1,17 +1,17 @@
 # Implementation status
 
-Last updated: 2026-08-24T09:23:29-04:00
+Last updated: 2026-08-24T09:46:15-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Committed baseline before the current checkpoint: `e44a7319c69b83913678881b30938b8d35f1ab62`
+- Committed baseline before the current checkpoint: `a770cdffd78e61cc185eb4a95d9142d684d1c6d5`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
-- Current phase/workstream/task: Phase 2 / WS-C / C-06 contained-patch cell-embedding local dispersion complete; broader FND-04/FND-05/C-06/WS-50/WS-51 remain active
+- Current phase/workstream/task: Phase 2 / WS-C / C-06 declared binary-group nucleus-area contrast complete; broader FND-04/FND-05/C-06/WS-50/WS-51 remain active
 
 ## Requirements
 
@@ -37,6 +37,7 @@ Last updated: 2026-08-24T09:23:29-04:00
 - The ninth C-06 vertical slice is green and makes the existing S7 centroid computation one observable project execution without changing its estimand or result 0.3. `DeclaredBinaryCellEmbeddingCentroidNode` revalidates the target project and exact S7 binding before registering only Pattern/declared references; `run_single_with_store` verifies the four-to-six exact mark/evidence and embedding semantic records before every miss or hit. Its private fixed 18-byte `MLCBCENT` codec carries only status/value and reattaches all counts and identities from the revalidated binding. Focused behavior passes 8/8; the full CellViT target 42/42; declared/project/result compatibility 37/37; project/workflow packages 42/42; embeddings 56 unit + 6 domain + 1 hostile integration; no-default/docs/workspace Clippy/format gates pass; and the sole workspace Nextest gate passes 903/903 in 64.749 s with 23 skipped and one slow test. The sole review found no concrete issue.
 - The tenth C-06 vertical slice is green and gives the existing dense `Pattern::nucleus_area_um2` column one concrete continuous-morphology declaration and immediate WS-50 scientific caller. `declared_nucleus_area_cell_embedding_cross_covariance_energy` requires finite strictly positive areas, exact scalar/project provenance, verified table/artifact QC, every ordered CellId, and a domain-separated raw-area digest before conservative `2 * present_rows * D + 2 * D` work and exact two-accumulator byte caps. It reports fixed-order two-pass population mean squared component cross-covariance energy or distinct typed `InsufficientPresentRows`/`NoNucleusAreaVariation`, while binary and optional probability marks remain contextual and unused. The 1,280-component hand oracle is 62.5; focused behavior passes 7/7, the complete CellViT target 49/49, declared/result compatibility 30/30, embeddings 56 unit + 6 domain + 1 hostile integration, no-default/docs/workspace Clippy/format gates pass, and the sole workspace Nextest gate passes 911/911 in 65.167 s with 23 skipped and one slow test. The sole review found no concrete issue.
 - The eleventh C-06 vertical slice is green and exercises the completed C-04→C-05 boundary through one immediate WS-50/WS-51 local-diversity caller. `contained_cell_patch_embedding_dispersion` retains the already-verified expected-cell ID/digest on `CellEmbeddingArtifact`, requires exact contained-shared link/input-graph/paired-physical-receipt and ordered CellId binding, then reports incidence-weighted mean squared component deviation from eligible patch-local present-cell centroids. Interpolation is rejected; non-present rows and patches with fewer than two present incidences are excluded; overlaps remain repeated incidences rather than independent patches. The 1,280-component overlapping-membership oracle is 0.5; focused behavior passes 7/7, the complete CellViT target 56/56, cell-patch graph 7/7, embeddings 57 unit + 6 domain + 1 hostile integration, no-default/docs/workspace Clippy/format gates pass, and the sole workspace Nextest gate passes 919/919 in 63.359 s with 23 skipped and one slow test. The sole review found no concrete issue.
+- The twelfth C-06 vertical slice is green and directly contrasts the existing exact binary assignments with the concrete positive nucleus-area measurement. `declared_binary_group_nucleus_area_contrast` revalidates the target project and exact nucleus provenance, binds every ordered binary/area pair in one domain-separated digest, and reports fixed-order `f64` marked and unmarked means plus marked-minus-unmarked difference only when both groups exist. Optional probabilities remain contextual and unused; unavailable inputs retain only the nonempty mean. The hand oracle is marked 25, unmarked 12, difference 13; focused behavior passes 6/6, scalar input 9/9, the S10 nucleus-area filter 7/7, no-default/docs/workspace Clippy/format gates pass, and the sole workspace Nextest gate passes 925/925 in 63.813 s with 23 skipped and one slow test. The sole review found no concrete issue.
 - Confirmed available: `cargo-nextest`, `cargo-audit`, `cargo-deny`, `cargo-machete`, `cargo-fuzz`, `ssh`, `scp`, `rsync`.
 - Confirmed unavailable: local `markdownlint-cli2`, `actionlint`, and Gnuplot. Criterion used Plotters; no Markdown/workflow lint pass is claimed.
 
@@ -45,12 +46,12 @@ Last updated: 2026-08-24T09:23:29-04:00
 - C-04 delivers exact cell-table/validity/expected/identity/context/link/provenance owners, bounded non-pickle source import, embedding-specific Arrow/Parquet validation/publication/scans, fuzz/differential/resource evidence, and pinned scale workloads.
 - The authorized 32-bundle source profile reconciles exactly but remains aggregate-only and non-promotable because `canonical_identity_mapping`, `input_normalization_and_run_configuration`, `reviewed_source_snapshot`, and `license_record` are absent.
 - C-05's logical, record, graph, receipt, physical, fuzz, differential, allocation, and scale contracts are complete. Distinct patch/region/slide tables, exact patch context/footprints/overlap, vector-free links, strict provenance, all eight Arrow/Parquet families, direct patch authority, deterministic weighted-region finalization, and both deterministic arithmetic-mean slide paths pass their bounded evidence. Source-component correspondence, coordinate-source correspondence, geometric region proof, real-corpus promotion, and embedding science are deliberately outside this completion claim.
-- C-06 now has seven immediately called embedding computations, an observable declared scalar-pattern engine/project workflow, a dedicated project workflow for the exact binary-centroid question, a runtime-only declared pre/post workflow, and an exact descriptive binary-prevalence change over scheduler outputs. Three cell-level computations join exact binary assignments, dense probability values, or the concrete positive nucleus-area column to a verified cell table; the contained-patch computation joins that verified table to the completed physical C-05 containment link; the region and cross-slide-path computations consume exact C-05 finalizer outputs and lineage proofs. Existing values and receipts are consumed directly rather than generalized. The compatibility `Pattern` and result 0.3 remain unchanged. FND-04/FND-05/C-06 and EMB-01 remain active because general marks, arbitrary units/modalities, missingness, source-anchor correspondence, real-source promotion, observation windows, spatial weights, nulls/inference, and durable result provenance remain absent.
+- C-06 now has seven immediately called embedding computations, one concrete binary-group nucleus-area contrast, an observable declared scalar-pattern engine/project workflow, a dedicated project workflow for the exact binary-centroid question, a runtime-only declared pre/post workflow, and an exact descriptive binary-prevalence change over scheduler outputs. Three cell–embedding computations join exact binary assignments, dense probability values, or the concrete positive nucleus-area column to a verified cell table; the new cell-level contrast joins exact binary assignments directly to nucleus area; the contained-patch computation joins the verified table to the completed physical C-05 containment link; the region and cross-slide-path computations consume exact C-05 finalizer outputs and lineage proofs. Existing values and receipts are consumed directly rather than generalized. The compatibility `Pattern` and result 0.3 remain unchanged. FND-04/FND-05/C-06 and EMB-01 remain active because general marks, arbitrary units/modalities, missingness, source-anchor correspondence, real-source promotion, observation windows, spatial weights, nulls/inference, and durable result provenance remain absent.
 - A later aggregate/header audit found candidate patch-feature matrices at widths 384 and 1,024 plus patch image/coordinate containers. It found no promotable patch/region/slide table or canonical link. The evidence has no pinned digest and no production source grammar; the validation ledger records the exact claim ceiling and one bounded recursive-key-output audit defect.
 
 ## Dirty files and reason
 
-- C-06 contained-patch cell-embedding local dispersion only: two already-verified expected-cell identities retained on the compact cell artifact, one all-feature contained-only computation over existing graph/receipt authorities, focused facade exports, one CellViT integration child module, and affected implementation records. No Arrow/Parquet subsystem or physical format/receipt/graph/validator changed; no interpolation statistic, cell/patch vector alignment, shared statistics abstraction, node/codec, dependency/lock, source adapter/promotion, AnalysisEngine/CLI/config/result/Pattern/loader, window/weights owner, randomization, inference, classification, or biological claim changed.
+- C-06 declared binary-group nucleus-area contrast only: one fixed-storage caller over the existing declared scalar input and S10 nucleus-area declaration/provenance, focused root exports, one behavior target, and affected implementation records. No Arrow/Parquet subsystem, physical format, receipt, validator, general continuous/group-statistics abstraction, workflow/node/codec, dependency/lock, source adapter/promotion, AnalysisEngine/CLI/config/result/Pattern/loader, missingness, randomization, inference, patient/specimen, segmentation-validation, or biological claim changed.
 
 ## Recent decisions
 
@@ -96,6 +97,7 @@ Last updated: 2026-08-24T09:23:29-04:00
 - Accepted `DEC-0047`: expose the exact S7 centroid question as one semantic-store-verified project execution through a private fixed 18-byte codec; retain the existing cache trust boundary and add no generalized codec/result/receipt infrastructure.
 - Accepted `DEC-0048`: consume the existing dense nucleus-area compatibility column through one fixed square-micrometre morphology declaration and bounded population cross-covariance-energy caller; add no general continuous-mark, unit-registry, physical, workflow, or shared-statistics infrastructure.
 - Accepted `DEC-0049`: retain the already-verified expected-cell identity and immediately join the C-04 cell artifact to the C-05 contained-shared link/graph/receipt through one bounded local-dispersion computation; exclude interpolation and add no physical or general-statistics infrastructure.
+- Accepted `DEC-0050`: contrast the existing concrete positive nucleus-area measurement across exact binary groups with one paired-value digest, fixed-order means, and typed insufficient-group availability; add no general comparison, physical, workflow, or inferential infrastructure.
 
 ## Unresolved questions
 
@@ -109,12 +111,12 @@ Last updated: 2026-08-24T09:23:29-04:00
 
 ## Next three exact actions
 
-1. Commit the completed contained-patch cell-embedding local dispersion as one cohesive local commit.
+1. Commit the completed declared binary-group nucleus-area contrast as one cohesive local commit.
 2. Audit dependency-ordered C-06/WS-50/WS-51 candidates against the Immediate-Caller Rule and select one bounded production behavior or data flow.
 3. Freeze its behavior-first contract before production edits, prioritizing an observable scientific computation or user workflow; do not generalize codecs, results, formats, validators, receipts, or abstractions ahead of that caller.
 
 Next exact verification command:
 
 ```bash
-cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_graph contained_cell_patch_embedding_dispersion
+cargo +1.96.0 test --locked --all-features --test binary_nucleus_area_contrast
 ```

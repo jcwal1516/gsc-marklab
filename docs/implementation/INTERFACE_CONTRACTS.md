@@ -186,3 +186,10 @@ Status: characterization freeze for WS-A. Exact field/symbol inventory is active
 - Arithmetic: sort edge indices by patch/assignment/original row; patches with at least two present incidences contribute; report `sum ||x_i - mean_patch(i)||^2 / (eligible_incidences * D)`. Non-present rows and under-supported patches are excluded; overlaps remain repeated incidences. Exact zero is positive zero.
 - Resources: assignment and edge caps precede allocation; conservative component work is `3*E*D`; exact incremental storage is `E*sizeof(usize) + D*sizeof(f64)` with one fallible edge-index vector and one reusable centroid. Runtime is `O(E log E + E*D)`.
 - Identity/claims: retain counts, embedding/expected-cell/link graph/physical identities, QC, dimension, status, and optional value without arrays. The result is descriptive producer-declared containment-local heterogeneity only—not source correspondence, spatial autocorrelation, independent-patch evidence, embedding quality, inference, real-source evidence, or biology.
+
+## IC-0024 — Declared binary-group nucleus-area contrast
+
+- Immediate caller: `declared_binary_group_nucleus_area_contrast` consumes the existing declared scalar input, fixed nucleus-area declaration/profile, target project, and one row cap. It adds no general comparison, physical, workflow, or inference layer.
+- Binding/identity: revalidate project and exact nucleus provenance; require dense finite strictly positive areas; hash ordered CellId/declaration/provenance context plus every paired binary byte and raw area bit. Optional probabilities remain visible context but do not route groups.
+- Estimand/availability: stored-order `f64` means for exact binary `1` and `0` rows and signed marked-minus-unmarked difference. Both groups are required for `Available`; otherwise `InsufficientGroups` retains only nonempty means. Exact zero is positive zero.
+- Resources/claims: `O(N)` time, fixed storage, and one exact row cap. The result is a descriptive within-input nucleus-area contrast only—not patient/specimen effect, segmentation validation, classification, spatial association, inference, real-source evidence, or biology.

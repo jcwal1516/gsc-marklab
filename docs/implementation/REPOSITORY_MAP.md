@@ -274,6 +274,12 @@ Current HEAD is the audited SHA. Its parent-to-HEAD change modifies `README.md` 
 - `tests/cellvit_embedding_artifact_graph/contained_cell_patch_embedding_dispersion.rs` assembles the real C-04 and C-05 authorities for the 1,280-component 0.5 overlapping-membership oracle, identity/binding precedence, positive zero, every extraction status, singleton/unavailable state, interpolation rejection, determinism, and exact resource edges.
 - Embedding and root facades expose only the concrete all-feature function/result/status/error. No Arrow/Parquet implementation, physical format, receipt, graph, validator framework, interpolation statistic, shared local-diversity/statistics abstraction, workflow/node/codec, manifest, dependency, source adapter, or external data path changed.
 
+## C-06 declared binary-group nucleus-area contrast owner map
+
+- `src/binary_nucleus_area_contrast.rs` owns the sole fixed-storage computation and its result/status/error types. It consumes the existing declared scalar input and fixed S10 nucleus-area declaration/provenance directly, frames exact ordered binary/area pairs locally, and owns no general continuous/group-statistics infrastructure.
+- `tests/binary_nucleus_area_contrast.rs` reuses the declared-scalar fixture for the `25`/`12`/`13` hand oracle, changed binary assignments, probability non-use, positive zero, both one-group unavailable states, target-project/provenance/value precedence, determinism, and exact row edges.
+- The root facade exposes only the concrete function/result/status/error surface. No Pattern, scalar-provenance profile, Arrow/Parquet code, physical format, receipt, validator framework, serializer, workflow/node/codec, result/config/CLI field, manifest, dependency, source adapter, or external data path changed.
+
 ## Authorized external WSI and embedding asset map
 
 Read-only SSH inventory on 2026-08-22 used the existing authenticated connection. No patient/sample identifiers or raw patient data were copied into this repository.

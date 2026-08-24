@@ -458,3 +458,12 @@ Review addendum, accepted 2026-08-24: `DeclaredMarkedAnalysisResult` predates th
 - Decision: retain those two already-verified expected-cell identities on `CellEmbeddingArtifact` and consume them immediately in one `contained_cell_patch_embedding_dispersion` caller. Restrict v1 to contained-shared links, sort exact edge incidences by patch and assignment, and report bounded incidence-weighted squared component deviation from eligible patch-local cell centroids. Reuse the existing graph and receipt unchanged.
 - Alternatives: S10 or S8 scheduler wrappers; generic local-diversity/statistics framework; declared interpolation weights as variance weights; cell/patch vector comparison without comparable axes; spatial graph statistics before FND-02/FND-03; binary nucleus-area contrast.
 - Consequences: one synthetic descriptive local-diversity endpoint exercises the exact C-04→C-05 data flow with no new format, receipt, validator, graph, dependency, workflow, or source path. Overlaps are repeated incidences, not independent patches; source-anchor correspondence, tissue-window/spatial claims, inference, real-source results, and biology remain prohibited.
+
+## DEC-0050 — Contrast the concrete nucleus-area measurement across exact binary groups
+
+- Date: 2026-08-24
+- Status: accepted for the twelfth bounded C-06 vertical slice
+- Context: S10 established one exact positive nucleus-area measurement/provenance contract, while the declared scalar input already carries exact binary assignments. A direct within-input group contrast answers a common pathology-facing question without another embedding/cache wrapper or a generic continuous-mark comparison layer.
+- Decision: add one `declared_binary_group_nucleus_area_contrast` caller with an exact CellId-bound paired binary/area digest, fixed-order `f64` group means, typed insufficient-group availability, one row cap, and fixed metadata. Optional probabilities remain contextual and never route groups.
+- Alternatives: generic continuous group statistics; standardized effect size without an immediate decision threshold; inferential comparison without biological units; scheduler/CLI wrapper; further covariance normalization.
+- Consequences: the existing concrete mark gains one observable descriptive consumer with constant storage and no format, receipt, validator, dependency, workflow, or generalized statistics surface. Image-derived circularity, patient/specimen inference, segmentation validation, real-source results, and biology remain prohibited.
