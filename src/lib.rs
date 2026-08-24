@@ -32,6 +32,7 @@ mod permutation;
 mod prepost;
 mod qc;
 mod registration;
+mod scalar_mark;
 mod spectra;
 #[cfg(feature = "cli")]
 mod synthetic_smoke;
@@ -43,7 +44,7 @@ mod wsi;
 #[doc(hidden)]
 pub use cli::run_cli;
 
-pub use api::{AnalysisEngine, MarkedAnalysisRun};
+pub use api::{AnalysisEngine, DeclaredMarkedAnalysisRun, MarkedAnalysisRun};
 pub use config::{
     AnalysisConfig, AnalysisConfigSection, ComparisonSection, ComponentMode, CurveMargins,
     DiagnosticsSection, InferenceSection, MultiscaleResidualSection, NeighborhoodNullModel,
@@ -251,7 +252,12 @@ pub use registration::{
     landmarks::LandmarkPair,
     transform::{Transform2D, TransformKind},
 };
-pub use workflow::MarkedAnalysisNode;
+pub use scalar_mark::{
+    BinaryMarkDeclaration, BinaryMarkOrigin, DeclaredMarkUse, DeclaredScalarIdentity,
+    DeclaredScalarInputError, DeclaredScalarPatternInput, ProbabilityMarkDeclaration,
+    ProbabilityThresholdComparator, ScalarMarkId, ScalarMarkValueKind,
+};
+pub use workflow::{DeclaredMarkedAnalysisNode, DeclaredMarkedAnalysisResult, MarkedAnalysisNode};
 #[cfg(feature = "wsi")]
 pub use wsi::{
     PlaneSelection, RegionRequest, RgbaRegion, SlideLevelMetadata, SlideMetadata, SlideOpenOptions,

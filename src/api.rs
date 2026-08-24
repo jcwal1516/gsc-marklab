@@ -10,6 +10,10 @@ use crate::{
         TimingStage,
     },
     perf::counters::{estimate_peak_memory, MemoryEstimate, MemoryInputs},
+    scalar_mark::{
+        DeclaredMarkUse, DeclaredScalarIdentity, DeclaredScalarInputError,
+        DeclaredScalarPatternInput,
+    },
 };
 
 mod assembly;
@@ -82,6 +86,19 @@ pub struct MarkedAnalysisRun {
     pub actual_thread_count: usize,
 }
 
+/// Legacy marked-analysis output paired with the declared scalar routing used at runtime.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DeclaredMarkedAnalysisRun {
+    /// Exact compatibility marked-pattern result.
+    pub result: MarkedPatternResult,
+    /// Thread count selected by the unchanged analysis engine.
+    pub actual_thread_count: usize,
+    /// Runtime-only scalar declarations and endpoint routing.
+    pub mark_use: DeclaredMarkUse,
+    /// Runtime-only row, slide, frame, declaration, status, and provenance identity.
+    pub scalar_identity: DeclaredScalarIdentity,
+}
+
 impl AnalysisEngine {
     pub fn new(config: AnalysisConfig) -> Result<Self> {
         config.validate()?;
@@ -137,6 +154,30 @@ impl AnalysisEngine {
         Ok(MarkedAnalysisRun {
             result,
             actual_thread_count: self.threads,
+        })
+    }
+
+    /// Analyze an identity-, frame-, status-, and provenance-bound scalar pattern.
+    ///
+    /// The declared wrapper validates configuration routing and then delegates to
+    /// the unchanged compatibility computation. It does not mutate or copy the
+    /// borrowed pattern values.
+    pub fn analyze_declared_scalar_pattern(
+        &self,
+        input: &DeclaredScalarPatternInput<'_>,
+    ) -> std::result::Result<DeclaredMarkedAnalysisRun, DeclaredScalarInputError> {
+        let mark_use = input.mark_use_for_config(
+            &self.config.analysis.mark_label,
+            self.config.analysis.use_probabilistic_marks,
+        )?;
+        let run = self
+            .analyze_pattern_run(input.pattern())
+            .map_err(DeclaredScalarInputError::analysis)?;
+        Ok(DeclaredMarkedAnalysisRun {
+            result: run.result,
+            actual_thread_count: run.actual_thread_count,
+            mark_use,
+            scalar_identity: input.scalar_identity().clone(),
         })
     }
 

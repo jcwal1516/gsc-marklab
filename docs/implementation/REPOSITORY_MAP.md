@@ -206,6 +206,15 @@ Current HEAD is the audited SHA. Its parent-to-HEAD change modifies `README.md` 
 - `tests/measurement_status.rs` and `tests/patch_overlap_embedding_dispersion.rs` own exact mapping, conflation, oracle, missingness, identity, determinism, and work-bound evidence.
 - No MarkTable, scalar adapter, physical format, receipt, validator framework, config/result/CLI field, dependency, or external data path is added.
 
+## C-06 declared scalar-pattern workflow owner map
+
+- `src/scalar_mark/declaration.rs` owns only bounded unitless binary/probability declarations, threshold origin/comparator, measurement status, and endpoint routing.
+- `src/scalar_mark/input.rs` borrows the unchanged `Pattern` and ordered CellIds, validates exact project hierarchy/frame/provenance bindings and caller limits, and owns no file or physical format.
+- `src/scalar_mark/identity.rs` owns the compact runtime row/slide/frame/declaration identity and private deterministic framing; `provenance.rs` owns the two exact closed ArtifactRecord profiles; `error.rs` owns typed boundary failures.
+- `src/api.rs` delegates declared runs to the unchanged `AnalysisEngine`; `src/workflow.rs` owns the separate concrete node, exact three-reference cache binding, existing store verification, and result-0.3-only codec.
+- `tests/scalar_mark_input.rs`, `tests/declared_marked_workflow.rs`, and their shared fixture own the behavior, project-revalidation, direct parity, routing, identity, miss/hit, integrity, and unchanged-codec evidence.
+- No `Pattern`/loader/config/result/CLI edit, general MarkTable, physical schema, receipt, validator registry, geometry/window owner, dependency, or external path is added.
+
 ## Authorized external WSI and embedding asset map
 
 Read-only SSH inventory on 2026-08-22 used the existing authenticated connection. No patient/sample identifiers or raw patient data were copied into this repository.
