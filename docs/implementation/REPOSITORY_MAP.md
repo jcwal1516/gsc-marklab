@@ -229,6 +229,12 @@ Current HEAD is the audited SHA. Its parent-to-HEAD change modifies `README.md` 
 - `tests/declared_marked_prepost.rs` reuses the existing declared-scheduler fixture and owns real two-output parity, evidence/identity/timepoint retention, mismatch precedence, public-wrapper drift, typed unavailability, and exact result-0.3 evidence.
 - Root/prepost facades expose only the concrete function/result/error. No node, cache codec, result schema, physical format, receipt, generalized comparison/mark abstraction, manifest, dependency, config/CLI/Pattern path, or external data path changed.
 
+## C-06 declared binary prevalence owner map
+
+- `src/prepost/declared_marked.rs` additionally owns the concrete `compare_declared_marked_prevalence` function and its fixed-size runtime result/status. The existing private compatibility gate now also checks canonical count/prevalence consistency for both immediate declared comparison callers.
+- `tests/declared_marked_prepost.rs` owns the genuine scheduler hand oracle, signed direction, probability-to-binary routing, empty availability, binding drift, semantic mismatch, and unchanged legacy/result-0.3 evidence.
+- Root/prepost facades expose only the concrete function/result/status. No node, codec, result/config field, format, receipt, validator framework, generic comparison/marks/inference abstraction, randomization, geometry, manifest, dependency, or external data path changed.
+
 ## Authorized external WSI and embedding asset map
 
 Read-only SSH inventory on 2026-08-22 used the existing authenticated connection. No patient/sample identifiers or raw patient data were copied into this repository.

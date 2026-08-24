@@ -1,9 +1,10 @@
 use marklab::{
-    compare_declared_marked_prepost, compare_marked_prepost, AnalysisEngine, AnalysisSection,
-    BinaryMarkDeclaration, BinaryMarkOrigin, CacheStatus, DeclaredMarkedAnalysisNode,
-    DeclaredMarkedAnalysisResult, DeclaredMarkedPrePostError, DeclaredScalarPatternInput,
-    LocalScheduler, MeasurementStatus, NodeId, ProbabilityMarkDeclaration,
-    ProbabilityThresholdComparator, ResultDocument, ScalarMarkId, SchedulerLimits, WorkflowGraph,
+    compare_declared_marked_prepost, compare_declared_marked_prevalence, compare_marked_prepost,
+    AnalysisEngine, AnalysisSection, BinaryMarkDeclaration, BinaryMarkOrigin, CacheStatus,
+    DeclaredMarkedAnalysisNode, DeclaredMarkedAnalysisResult, DeclaredMarkedPrePostError,
+    DeclaredMarkedPrevalenceStatus, DeclaredScalarPatternInput, LocalScheduler, MeasurementStatus,
+    NodeId, Pattern, PatternMeta, ProbabilityMarkDeclaration, ProbabilityThresholdComparator,
+    ResultDocument, ScalarMarkId, SchedulerLimits, WorkflowGraph,
 };
 
 #[path = "support/declared_scalar.rs"]
@@ -165,7 +166,7 @@ fn direct_output(
 }
 
 #[test]
-fn scheduler_outputs_compare_with_distinct_rows_frames_slides_and_evidence() {
+fn scheduler_outputs_compare_and_report_binary_prevalence_with_distinct_contexts() {
     let mut fixture = fixture();
     let (pre_binary, pre_probability) = paired_declarations(
         &mut fixture,
@@ -193,7 +194,8 @@ fn scheduler_outputs_compare_with_distinct_rows_frames_slides_and_evidence() {
     let mut post_pattern = fixture.pattern.clone();
     post_pattern.meta.timepoint = "post".into();
     post_pattern.meta.slide_id = Some(fixture.alternate_slide_id.as_str().into());
-    post_pattern.mark_prob = Some(vec![0.1, 0.8, 0.7, 0.2].into_boxed_slice());
+    post_pattern.mark = vec![1, 1, 1, 0].into_boxed_slice();
+    post_pattern.mark_prob = Some(vec![0.8, 0.8, 0.7, 0.2].into_boxed_slice());
     let pre_input = input(
         &fixture.project,
         &pre_pattern,
@@ -304,6 +306,37 @@ fn scheduler_outputs_compare_with_distinct_rows_frames_slides_and_evidence() {
     };
     assert_ne!(pre_threshold, post_threshold);
 
+    let prevalence = compare_declared_marked_prevalence(&pre.output, &post.output)
+        .expect("declared prevalence change");
+    assert_eq!(prevalence.status, DeclaredMarkedPrevalenceStatus::Available);
+    assert_eq!(prevalence.pre_n_cells, 4);
+    assert_eq!(prevalence.pre_n_marked, 2);
+    assert_eq!(prevalence.pre_prevalence.to_bits(), 0.5_f64.to_bits());
+    assert_eq!(prevalence.post_n_cells, 4);
+    assert_eq!(prevalence.post_n_marked, 3);
+    assert_eq!(prevalence.post_prevalence.to_bits(), 0.75_f64.to_bits());
+    assert_eq!(prevalence.delta_prevalence, Some(0.25));
+    assert_eq!(prevalence.pre_mark_use, &pre.output.mark_use);
+    assert_eq!(prevalence.post_mark_use, &post.output.mark_use);
+    assert_eq!(prevalence.pre_scalar_identity, &pre.output.scalar_identity);
+    assert_eq!(
+        prevalence.post_scalar_identity,
+        &post.output.scalar_identity
+    );
+    assert_eq!(prevalence.pre_timepoint, "pre");
+    assert_eq!(prevalence.post_timepoint, "post");
+    assert_eq!(
+        prevalence.pre_mark_use.structure_factor_value_kind(),
+        marklab::ScalarMarkValueKind::Probability
+    );
+    assert_eq!(
+        prevalence.pre_mark_use.other_endpoint_value_kind(),
+        marklab::ScalarMarkValueKind::Binary
+    );
+    let reverse = compare_declared_marked_prevalence(&post.output, &pre.output)
+        .expect("reverse declared prevalence change");
+    assert_eq!(reverse.delta_prevalence, Some(-0.25));
+
     let legacy_bytes = ResultDocument::marked_prepost(legacy)
         .to_json_pretty()
         .expect("legacy result bytes");
@@ -316,7 +349,7 @@ fn scheduler_outputs_compare_with_distinct_rows_frames_slides_and_evidence() {
 }
 
 #[test]
-fn publicly_constructed_runtime_mixes_fail_available_binding_checks() {
+fn publicly_constructed_runtime_and_prevalence_mixes_fail_available_binding_checks() {
     let mut fixture = fixture();
     let pre_binary = independent_binary(
         &mut fixture,
@@ -370,10 +403,39 @@ fn publicly_constructed_runtime_mixes_fail_available_binding_checks() {
         compare_declared_marked_prepost(&pre, &mixed_identity),
         Err(DeclaredMarkedPrePostError::InvalidPostRuntimeBinding)
     );
+
+    let assert_invalid_post = |post: &DeclaredMarkedAnalysisResult| {
+        assert_eq!(
+            compare_declared_marked_prepost(&pre, post),
+            Err(DeclaredMarkedPrePostError::InvalidPostRuntimeBinding)
+        );
+        assert_eq!(
+            compare_declared_marked_prevalence(&pre, post),
+            Err(DeclaredMarkedPrePostError::InvalidPostRuntimeBinding)
+        );
+    };
+
+    let mut wrong_marked_count = pre.clone();
+    wrong_marked_count.result.n_marked = 1;
+    assert_invalid_post(&wrong_marked_count);
+
+    let mut excessive_marked_count = pre.clone();
+    excessive_marked_count.result.n_marked = excessive_marked_count.result.n_cells + 1;
+    assert_invalid_post(&excessive_marked_count);
+
+    for invalid_prevalence in [
+        f64::NAN,
+        f64::INFINITY,
+        f64::from_bits(0.5_f64.to_bits() + 1),
+    ] {
+        let mut wrong_prevalence = pre.clone();
+        wrong_prevalence.result.p_hat = invalid_prevalence;
+        assert_invalid_post(&wrong_prevalence);
+    }
 }
 
 #[test]
-fn semantic_mismatches_are_typed_before_legacy_comparison() {
+fn semantic_mismatches_are_typed_before_legacy_and_prevalence_comparison() {
     let mut fixture = fixture();
     let baseline_binary = independent_binary(
         &mut fixture,
@@ -394,6 +456,10 @@ fn semantic_mismatches_are_typed_before_legacy_comparison() {
     let different_id = direct_output(&mut fixture, "post", different_id, None);
     assert_eq!(
         compare_declared_marked_prepost(&baseline, &different_id),
+        Err(DeclaredMarkedPrePostError::BinaryMarkIdMismatch)
+    );
+    assert_eq!(
+        compare_declared_marked_prevalence(&baseline, &different_id),
         Err(DeclaredMarkedPrePostError::BinaryMarkIdMismatch)
     );
 
@@ -505,6 +571,80 @@ fn semantic_mismatches_are_typed_before_legacy_comparison() {
             Err(DeclaredMarkedPrePostError::BinaryOriginMismatch)
         );
     }
+}
+
+#[test]
+fn empty_declared_side_has_typed_prevalence_unavailability_without_nan() {
+    let mut fixture = fixture();
+    let empty_binary = independent_binary(
+        &mut fixture,
+        b"empty-prevalence",
+        "mmr_loss",
+        "MMR loss",
+        MeasurementStatus::Measured,
+    );
+    let empty_pattern = Pattern::from_arrays(
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        PatternMeta {
+            case_id: "declared-case".into(),
+            timepoint: "empty".into(),
+            protein: "MSH6".into(),
+            slide_id: Some(fixture.slide_id.as_str().into()),
+            section_id: None,
+            stain_batch: None,
+            block_id: None,
+            region_id: None,
+        },
+    )
+    .expect("empty pattern");
+    let empty_cell_ids = Vec::new();
+    let empty_input = DeclaredScalarPatternInput::new(
+        &fixture.project,
+        &empty_pattern,
+        &empty_cell_ids,
+        fixture.slide_id.clone(),
+        fixture.frame_id.clone(),
+        empty_binary,
+        None,
+        ROW_LIMIT,
+        1,
+    )
+    .expect("empty declared input");
+    let empty_run = AnalysisEngine::new(analysis_config(false))
+        .expect("analysis engine")
+        .analyze_declared_scalar_pattern(&empty_input)
+        .expect("empty declared analysis");
+    let empty = DeclaredMarkedAnalysisResult {
+        result: empty_run.result,
+        mark_use: empty_run.mark_use,
+        scalar_identity: empty_run.scalar_identity,
+    };
+    let post_binary = independent_binary(
+        &mut fixture,
+        b"nonempty-prevalence",
+        "mmr_loss",
+        "MMR loss",
+        MeasurementStatus::Measured,
+    );
+    let post = direct_output(&mut fixture, "post", post_binary, None);
+
+    let prevalence =
+        compare_declared_marked_prevalence(&empty, &post).expect("prevalence availability");
+    assert_eq!(
+        prevalence.status,
+        DeclaredMarkedPrevalenceStatus::InsufficientCells
+    );
+    assert_eq!(prevalence.pre_n_cells, 0);
+    assert_eq!(prevalence.pre_n_marked, 0);
+    assert_eq!(prevalence.pre_prevalence.to_bits(), 0.0_f64.to_bits());
+    assert_eq!(prevalence.post_n_cells, 4);
+    assert_eq!(prevalence.post_n_marked, 2);
+    assert_eq!(prevalence.post_prevalence.to_bits(), 0.5_f64.to_bits());
+    assert_eq!(prevalence.delta_prevalence, None);
+    assert!(prevalence.pre_prevalence.is_finite());
+    assert!(prevalence.post_prevalence.is_finite());
 }
 
 #[test]

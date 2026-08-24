@@ -7,7 +7,9 @@ mod multimodal;
 mod territories;
 
 pub use declared_marked::{
-    compare_declared_marked_prepost, DeclaredMarkedPrePostError, DeclaredMarkedPrePostResult,
+    compare_declared_marked_prepost, compare_declared_marked_prevalence,
+    DeclaredMarkedPrePostError, DeclaredMarkedPrePostResult, DeclaredMarkedPrevalenceChange,
+    DeclaredMarkedPrevalenceStatus,
 };
 pub use marked::compare_marked_prepost;
 pub use multimodal::{compare_multimodal_prepost, compare_multimodal_prepost_with_margin};

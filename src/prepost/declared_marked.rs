@@ -27,6 +27,48 @@ pub struct DeclaredMarkedPrePostResult<'a> {
     pub post_timepoint: &'a str,
 }
 
+/// Availability of a descriptive binary marked-row prevalence change.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DeclaredMarkedPrevalenceStatus {
+    /// Both supplied outputs contain at least one row.
+    Available,
+    /// At least one supplied output contains no rows.
+    InsufficientCells,
+}
+
+/// Runtime-only binary prevalence change across two declared marked outputs.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DeclaredMarkedPrevalenceChange<'a> {
+    /// Whether a signed prevalence change is available.
+    pub status: DeclaredMarkedPrevalenceStatus,
+    /// Number of rows in the pre output.
+    pub pre_n_cells: usize,
+    /// Number of binary-marked rows in the pre output.
+    pub pre_n_marked: usize,
+    /// Exact canonical binary marked-row prevalence in the pre output.
+    pub pre_prevalence: f64,
+    /// Number of rows in the post output.
+    pub post_n_cells: usize,
+    /// Number of binary-marked rows in the post output.
+    pub post_n_marked: usize,
+    /// Exact canonical binary marked-row prevalence in the post output.
+    pub post_prevalence: f64,
+    /// Post minus pre binary prevalence, absent when either side has no rows.
+    pub delta_prevalence: Option<f64>,
+    /// Exact pre-analysis declarations, evidence identities, and endpoint routing.
+    pub pre_mark_use: &'a DeclaredMarkUse,
+    /// Exact post-analysis declarations, evidence identities, and endpoint routing.
+    pub post_mark_use: &'a DeclaredMarkUse,
+    /// Exact pre-analysis row, slide, frame, and declaration identity.
+    pub pre_scalar_identity: &'a DeclaredScalarIdentity,
+    /// Exact post-analysis row, slide, frame, and declaration identity.
+    pub post_scalar_identity: &'a DeclaredScalarIdentity,
+    /// Exact pre-analysis timepoint metadata.
+    pub pre_timepoint: &'a str,
+    /// Exact post-analysis timepoint metadata.
+    pub post_timepoint: &'a str,
+}
+
 /// Semantically incompatible declared marked-analysis outputs.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
 pub enum DeclaredMarkedPrePostError {
@@ -76,13 +118,7 @@ pub fn compare_declared_marked_prepost<'a>(
     pre: &'a DeclaredMarkedAnalysisResult,
     post: &'a DeclaredMarkedAnalysisResult,
 ) -> Result<DeclaredMarkedPrePostResult<'a>, DeclaredMarkedPrePostError> {
-    if !runtime_binding_matches(pre) {
-        return Err(DeclaredMarkedPrePostError::InvalidPreRuntimeBinding);
-    }
-    if !runtime_binding_matches(post) {
-        return Err(DeclaredMarkedPrePostError::InvalidPostRuntimeBinding);
-    }
-    require_compatible_mark_use(&pre.mark_use, &post.mark_use)?;
+    require_compatible_outputs(pre, post)?;
     Ok(DeclaredMarkedPrePostResult {
         result: compare_marked_prepost(&pre.result, &post.result),
         pre_mark_use: pre.mark_use.clone(),
@@ -94,8 +130,74 @@ pub fn compare_declared_marked_prepost<'a>(
     })
 }
 
+/// Compare binary marked-row prevalence across two semantically matched declared outputs.
+///
+/// This descriptive computation always uses `n_marked` and `p_hat`, including when probability
+/// values were routed to structure-factor spectra. Different rows, CellIds, slides, frames,
+/// timepoints, and evidence identities are retained without implying correspondence or selecting a
+/// biological unit. The result has no serializer and makes no paired-cell, patient/specimen,
+/// treatment, population, calibration, equivalence, noninferiority, causal, or biological claim.
+///
+/// # Errors
+///
+/// Returns the same category-only binding and semantic mismatch errors as
+/// [`compare_declared_marked_prepost`].
+pub fn compare_declared_marked_prevalence<'a>(
+    pre: &'a DeclaredMarkedAnalysisResult,
+    post: &'a DeclaredMarkedAnalysisResult,
+) -> Result<DeclaredMarkedPrevalenceChange<'a>, DeclaredMarkedPrePostError> {
+    require_compatible_outputs(pre, post)?;
+    let delta_prevalence = if pre.result.n_cells > 0 && post.result.n_cells > 0 {
+        Some(post.result.p_hat - pre.result.p_hat)
+    } else {
+        None
+    };
+    Ok(DeclaredMarkedPrevalenceChange {
+        status: if delta_prevalence.is_some() {
+            DeclaredMarkedPrevalenceStatus::Available
+        } else {
+            DeclaredMarkedPrevalenceStatus::InsufficientCells
+        },
+        pre_n_cells: pre.result.n_cells,
+        pre_n_marked: pre.result.n_marked,
+        pre_prevalence: pre.result.p_hat,
+        post_n_cells: post.result.n_cells,
+        post_n_marked: post.result.n_marked,
+        post_prevalence: post.result.p_hat,
+        delta_prevalence,
+        pre_mark_use: &pre.mark_use,
+        post_mark_use: &post.mark_use,
+        pre_scalar_identity: &pre.scalar_identity,
+        post_scalar_identity: &post.scalar_identity,
+        pre_timepoint: &pre.result.timepoint,
+        post_timepoint: &post.result.timepoint,
+    })
+}
+
+fn require_compatible_outputs(
+    pre: &DeclaredMarkedAnalysisResult,
+    post: &DeclaredMarkedAnalysisResult,
+) -> Result<(), DeclaredMarkedPrePostError> {
+    if !runtime_binding_matches(pre) {
+        return Err(DeclaredMarkedPrePostError::InvalidPreRuntimeBinding);
+    }
+    if !runtime_binding_matches(post) {
+        return Err(DeclaredMarkedPrePostError::InvalidPostRuntimeBinding);
+    }
+    require_compatible_mark_use(&pre.mark_use, &post.mark_use)?;
+    Ok(())
+}
+
 fn runtime_binding_matches(output: &DeclaredMarkedAnalysisResult) -> bool {
+    let expected_prevalence = if output.result.n_cells == 0 {
+        0.0
+    } else {
+        output.result.n_marked as f64 / output.result.n_cells as f64
+    };
     output.result.n_cells == output.scalar_identity.row_count()
+        && output.result.n_marked <= output.result.n_cells
+        && output.result.p_hat.is_finite()
+        && output.result.p_hat.to_bits() == expected_prevalence.to_bits()
         && output.result.mark_label == output.mark_use.binary_mark().label()
         && output.scalar_identity.matches_mark_use(&output.mark_use)
 }
