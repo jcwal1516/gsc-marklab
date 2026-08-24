@@ -22,6 +22,10 @@ pub(crate) struct Fixture {
     #[allow(dead_code)]
     pub(crate) alternate_cell_ids: Vec<CellId>,
     pub(crate) slide_id: SlideId,
+    #[allow(dead_code)]
+    pub(crate) alternate_slide_id: SlideId,
+    #[allow(dead_code)]
+    pub(crate) alternate_slide_cell_ids: Vec<CellId>,
     pub(crate) frame_id: CoordinateFrameId,
     #[allow(dead_code)]
     pub(crate) alternate_frame_id: CoordinateFrameId,
@@ -61,6 +65,9 @@ pub(crate) fn fixture_with_frame(profile: Option<FrameProfile>) -> Fixture {
         .map(|index| CellId::new(format!("other-cell-{index:04}")).expect("alternate cell ID"))
         .collect::<Vec<_>>();
     let foreign_cell = CellId::new("foreign-cell").expect("foreign cell ID");
+    let alternate_slide_cell_ids = (0..4)
+        .map(|index| CellId::new(format!("foreign-cell-{index:04}")).expect("foreign cell ID"))
+        .collect::<Vec<_>>();
     let mut nodes = vec![
         HierarchyNode::new(patient.clone(), None, ReplicationRole::BiologicalUnit),
         HierarchyNode::new(
@@ -79,7 +86,7 @@ pub(crate) fn fixture_with_frame(profile: Option<FrameProfile>) -> Fixture {
         ),
         HierarchyNode::new(
             HierarchyId::from(foreign_cell),
-            Some(foreign_slide),
+            Some(foreign_slide.clone()),
             ReplicationRole::Structural,
         ),
     ];
@@ -94,6 +101,13 @@ pub(crate) fn fixture_with_frame(profile: Option<FrameProfile>) -> Fixture {
         HierarchyNode::new(
             HierarchyId::from(cell_id),
             Some(slide.clone()),
+            ReplicationRole::Structural,
+        )
+    }));
+    nodes.extend(alternate_slide_cell_ids.iter().cloned().map(|cell_id| {
+        HierarchyNode::new(
+            HierarchyId::from(cell_id),
+            Some(foreign_slide.clone()),
             ReplicationRole::Structural,
         )
     }));
@@ -179,6 +193,8 @@ pub(crate) fn fixture_with_frame(profile: Option<FrameProfile>) -> Fixture {
         cell_ids,
         alternate_cell_ids,
         slide_id,
+        alternate_slide_id: foreign_slide_id,
+        alternate_slide_cell_ids,
         frame_id,
         alternate_frame_id,
     }

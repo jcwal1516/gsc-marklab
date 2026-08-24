@@ -222,6 +222,13 @@ Current HEAD is the audited SHA. Its parent-to-HEAD change modifies `README.md` 
 - `tests/multiscale_embedding_artifact_graph/derived_region/fixture/region_dispersion.rs` reuses the existing exact graph/finalizer fixture for oracle, identity, drift, status, determinism, and work-cap evidence.
 - Root and embedding facades expose only the concrete function/result/error/status. No Arrow/Parquet code, receipt, validator, workflow, codec, config/result/CLI, manifest, lock, dependency, or external data path changed.
 
+## C-06 declared marked pre/post owner map
+
+- `src/prepost/declared_marked.rs` owns the sole runtime semantic gate, category-only errors, and context wrapper around the unchanged `compare_marked_prepost` result.
+- `src/scalar_mark/identity.rs` exposes only a crate-private recomputation check used immediately to bind each public runtime wrapper's compact identity to its attached declarations; it is not a validator framework or receipt.
+- `tests/declared_marked_prepost.rs` reuses the existing declared-scheduler fixture and owns real two-output parity, evidence/identity/timepoint retention, mismatch precedence, public-wrapper drift, typed unavailability, and exact result-0.3 evidence.
+- Root/prepost facades expose only the concrete function/result/error. No node, cache codec, result schema, physical format, receipt, generalized comparison/mark abstraction, manifest, dependency, config/CLI/Pattern path, or external data path changed.
+
 ## Authorized external WSI and embedding asset map
 
 Read-only SSH inventory on 2026-08-22 used the existing authenticated connection. No patient/sample identifiers or raw patient data were copied into this repository.

@@ -1,10 +1,14 @@
 mod axes;
 mod context;
 mod curves;
+mod declared_marked;
 mod marked;
 mod multimodal;
 mod territories;
 
+pub use declared_marked::{
+    compare_declared_marked_prepost, DeclaredMarkedPrePostError, DeclaredMarkedPrePostResult,
+};
 pub use marked::compare_marked_prepost;
 pub use multimodal::{compare_multimodal_prepost, compare_multimodal_prepost_with_margin};
 

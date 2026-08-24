@@ -5,7 +5,7 @@ use marklab_workflow::{ContentDigest, ContentDigestWriter};
 
 use super::{
     declaration::{
-        measurement_status_name, BinaryMarkDeclaration, BinaryMarkOrigin,
+        measurement_status_name, BinaryMarkDeclaration, BinaryMarkOrigin, DeclaredMarkUse,
         ProbabilityMarkDeclaration,
     },
     DeclaredScalarInputError,
@@ -65,6 +65,17 @@ impl DeclaredScalarIdentity {
     pub fn declared_input_logical_digest(&self) -> ContentDigest {
         self.declared_input_logical_digest
     }
+
+    pub(crate) fn matches_mark_use(&self, mark_use: &DeclaredMarkUse) -> bool {
+        declared_identity_from_cell_digest(
+            self.cell_ids_logical_digest,
+            &self.owning_slide_id,
+            &self.coordinate_frame_id,
+            mark_use.binary_mark(),
+            mark_use.probability_mark(),
+        )
+        .is_ok_and(|(digest, _)| digest == self.declared_input_logical_digest)
+    }
 }
 
 pub(super) fn cell_ids_identity(
@@ -87,6 +98,16 @@ pub(super) fn declared_identity(
     probability: Option<&ProbabilityMarkDeclaration>,
 ) -> Result<(ContentDigest, u64), DeclaredScalarInputError> {
     let (cell_digest, _) = cell_ids_identity(cell_ids)?;
+    declared_identity_from_cell_digest(cell_digest, slide_id, frame_id, binary, probability)
+}
+
+fn declared_identity_from_cell_digest(
+    cell_digest: ContentDigest,
+    slide_id: &SlideId,
+    frame_id: &CoordinateFrameId,
+    binary: &BinaryMarkDeclaration,
+    probability: Option<&ProbabilityMarkDeclaration>,
+) -> Result<(ContentDigest, u64), DeclaredScalarInputError> {
     let mut writer = ContentDigest::builder();
     write_part(&mut writer, INPUT_DIGEST_DOMAIN)?;
     write_part(&mut writer, cell_digest.as_bytes())?;

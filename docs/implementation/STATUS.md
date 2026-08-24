@@ -1,23 +1,23 @@
 # Implementation status
 
-Last updated: 2026-08-24T03:06:31-04:00
+Last updated: 2026-08-24T03:44:04-04:00
 
 ## Identity
 
 - Plan: Marklab Frontier Spatial Pathology Operating System — Research-Backed Implementation Master Plan, audit date 2026-08-22
 - Plan SHA-256: `1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064`
 - Audited/pinned SHA: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
-- Committed baseline before the current checkpoint: `c370685fd0f6cbfd01efa0d2bcfb12a4aa7e14e9`
+- Committed baseline before the current checkpoint: `0c21c83ef55d6b2df397018a7a8427f5b1599460`
 - Branch: `branch/frontier-transformation`
 - Worktree: `/Users/user/Bench/gsc-marklab` (primary checkout; no additional worktree)
 - Toolchain: `rustc 1.96.0 (ac68faa20 2026-05-25)`, `cargo 1.96.0 (30a34c682 2026-05-25)`
-- Current phase/workstream/task: Phase 2 / WS-C / C-06 patch-to-derived-region aggregation dispersion complete; broader FND-04/C-06 remains active
+- Current phase/workstream/task: Phase 2 / WS-C / C-06 runtime-only declared marked pre/post comparison complete; broader FND-04/C-06 remains active
 
 ## Requirements
 
 - Completed: `A-01`, `A-02`, `A-03`, `B-01`, `B-02`, `B-03`, `B-04`, `C-01`, `C-02`, `C-03`, `C-04`, `C-05`, `EMB-CORE`, `EMB-PATCH`, `FND-01`, `SLIDE-INV`, `WS-A`, `WS-B`, `WS-10`, `WS-20`, `WS-21`
 - Active: `DATA-01`, `FND-04`, `FND-05`, `C-06`, `COH-01`, `PLAT-01`, `WF-01`, `WS-11`, `WS-12`, `WS-24`
-- Planned next: the bounded declared-marked pre/post workflow over existing scheduler outputs, subject to its exact immediate-caller contract; no general mark/format/geometry infrastructure is pre-authorized
+- Planned next: select one bounded observable scientific or user workflow over an existing production output, with its immediate caller frozen in the same milestone; no general mark/format/geometry infrastructure is pre-authorized
 
 ## Command state
 
@@ -29,6 +29,7 @@ Last updated: 2026-08-24T03:06:31-04:00
 - The first C-06 vertical slice is green without a MarkTable, format, receipt, validator framework, config/result/CLI change, or dependency. `MeasurementStatus` names the four master-plan states; exact C-05 provenance maps direct patch extraction to morphology prediction and deterministic region/slide aggregation to derived summary. The immediate public caller computes bounded fixed-order mean squared Euclidean distance across declared patch-overlap edges, excludes non-present endpoints, returns typed `InsufficientPairs` instead of NaN, and records table/support/overlap/provenance identities. Focused default and no-default tests pass 7/7 each; data passes 1/1; embeddings passes 56 unit + 6 domain + 1 hostile integration; relevant warning-denied Clippy, strict docs, formatting, and diff checks pass. The sole all-feature workspace Nextest gate passes 853/853 in 64.524 s with 23 skipped and one slow test. One independent review found no concrete issue.
 - The second C-06 vertical slice is green without changing `Pattern`, PatternLoader, config 0.2, result 0.3, CLI, dependencies, or physical formats. `DeclaredScalarPatternInput` borrows the compatibility arrays while binding strictly ordered typed CellIds, owning slide, exact physical `[X,Y]` micrometre frame, non-missing binary/optional probability declarations, measurement status, exact provenance records, and threshold evidence. The direct engine and separate local-scheduler node call the unchanged marked computation; runtime results expose compact row/frame/declaration identity and truthful endpoint routing, while cached bytes remain exactly result 0.3. Focused input/workflow tests pass 9/9 and 8/8 in both default and no-default modes; 41 relevant compatibility tests, full warning-denied workspace Clippy, no-default workspace compilation, strict warning-denied root docs, formatting, and diff checks pass. The sole workspace Nextest gate passes 870/870 in 64.923 s with 23 skipped and one slow test. The single review's missing-runtime-identity finding was reproduced and fixed. The broader `-D missing-docs` root probe remains non-green on pre-existing compatibility API documentation and is not claimed as a gate.
 - The third C-06 vertical slice is green and directly consumes the completed C-05 region-finalization flow. `patch_region_embedding_dispersion` validates exact source/link/candidate/graph/direct-provenance/derived-provenance bindings before a checked `relation_count * dimension` work cap, then reports declared-fraction-weighted patch distance from the materialized `f32` region means. It excludes non-present sources, retains zero vectors, returns typed `InsufficientContributors`, exposes exact identities plus `MorphologyPrediction`/`DerivedSummary`, and adds no format, receipt, validator, node, codec, dependency, CLI/config/result change, or geometry claim. The focused final cases pass 6/6, the full derived-region target passes 69/69, embeddings pass 56 unit + 6 domain + 1 hostile test, no-default/workspace Clippy/docs/format gates pass, and the final workspace Nextest gate passes 876/876 in 69.194 s with 23 skipped and one slow test. The sole review found an invalid bitwise axis-permutation claim; the contract/test now promise only true sign-flip invariance and explicitly preserve component-order rounding.
+- The fourth C-06 vertical slice is green and compares two existing declared scheduler outputs without a new node, codec, result schema, format, receipt, validator, dependency, or generalized comparison layer. `compare_declared_marked_prepost` checks each available runtime binding and exact semantic mark identity/status/routing/threshold bits before delegating unchanged to `compare_marked_prepost`; it retains both declared identities, provenance-bearing mark-use summaries, and borrowed exact timepoints while allowing different rows/slides/frames/evidence chains and claiming no correspondence. Focused affected default tests pass 34/34, pre/post units pass 13/13, no-default declared targets pass 21/21, warning-denied Clippy/no-default/docs/format gates pass, and the final workspace Nextest gate passes 880/880 in 64.416 s with 23 skipped and one slow test. The sole review found public-wrapper binding and missing-timepoint visibility gaps; both were corrected. Arbitrary same-row/same-label numeric result substitution remains caller-asserted because the pre-existing public runtime fields and result 0.3 carry no private producer proof.
 - Confirmed available: `cargo-nextest`, `cargo-audit`, `cargo-deny`, `cargo-machete`, `cargo-fuzz`, `ssh`, `scp`, `rsync`.
 - Confirmed unavailable: local `markdownlint-cli2`, `actionlint`, and Gnuplot. Criterion used Plotters; no Markdown/workflow lint pass is claimed.
 
@@ -37,12 +38,12 @@ Last updated: 2026-08-24T03:06:31-04:00
 - C-04 delivers exact cell-table/validity/expected/identity/context/link/provenance owners, bounded non-pickle source import, embedding-specific Arrow/Parquet validation/publication/scans, fuzz/differential/resource evidence, and pinned scale workloads.
 - The authorized 32-bundle source profile reconciles exactly but remains aggregate-only and non-promotable because `canonical_identity_mapping`, `input_normalization_and_run_configuration`, `reviewed_source_snapshot`, and `license_record` are absent.
 - C-05's logical, record, graph, receipt, physical, fuzz, differential, allocation, and scale contracts are complete. Distinct patch/region/slide tables, exact patch context/footprints/overlap, vector-free links, strict provenance, all eight Arrow/Parquet families, direct patch authority, deterministic weighted-region finalization, and both deterministic arithmetic-mean slide paths pass their bounded evidence. Source-component correspondence, coordinate-source correspondence, geometric region proof, real-corpus promotion, and embedding science are deliberately outside this completion claim.
-- C-06 now has two immediately called embedding computations plus one observable declared scalar-pattern engine/project workflow. The new region computation consumes exact C-05 finalizer outputs rather than adding infrastructure. The compatibility `Pattern` remains unchanged, but the versioned Rust boundary supplies canonical CellId/frame/status/provenance/threshold identity without copying arrays. FND-04/C-06 and EMB-01 remain active because general mark kinds, arbitrary units/modalities, missingness, physical/file adapters, observation windows, spatial weights, new nulls/inference, durable result provenance, and real-source promotion remain absent.
+- C-06 now has two immediately called embedding computations, one observable declared scalar-pattern engine/project workflow, and one runtime-only declared pre/post workflow over its scheduler outputs. The region computation consumes exact C-05 finalizer outputs and the comparison reuses exact legacy pre/post behavior rather than adding infrastructure. The compatibility `Pattern` and result 0.3 remain unchanged, while the Rust boundary preserves canonical CellId/frame/status/provenance/threshold identity and both timepoints. FND-04/C-06 and EMB-01 remain active because general mark kinds, arbitrary units/modalities, missingness, physical/file adapters, observation windows, spatial weights, new nulls/inference, durable producer proof/result provenance, and real-source promotion remain absent.
 - A later aggregate/header audit found candidate patch-feature matrices at widths 384 and 1,024 plus patch image/coordinate containers. It found no promotable patch/region/slide table or canonical link. The evidence has no pinned digest and no production source grammar; the validation ledger records the exact claim ceiling and one bounded recursive-key-output audit defect.
 
 ## Dirty files and reason
 
-- C-06 region aggregation dispersion only: one concrete bounded computation, private region-row lookup, focused facade exports, behavior tests, and affected implementation records. No Arrow/Parquet subsystem, physical format, receipt, validator, scheduler/node/codec, dependency/lock, source adapter/promotion, CLI/config/result/Pattern/loader, general MarkTable, geometry/window/weights abstraction, inference, or biological claim changed.
+- C-06 declared marked pre/post only: one runtime semantic gate and wrapper over two existing scheduler outputs, focused facade exports, behavior tests, one private identity recomputation helper, and affected implementation records. No Arrow/Parquet subsystem, physical format, receipt, validator, scheduler/node/codec, dependency/lock, source adapter/promotion, CLI/config/result/Pattern/loader, general MarkTable/comparison abstraction, geometry/window/weights owner, inference, or biological claim changed.
 
 ## Recent decisions
 
@@ -80,6 +81,7 @@ Last updated: 2026-08-24T03:06:31-04:00
 - Accepted `DEC-0039`: expose the minimum four-state measurement-origin contract only through an immediate bounded C-05 patch-overlap computation; defer the general MarkTable and every unsupported format/ontology/workflow surface.
 - Accepted `DEC-0040`: bind only the existing binary/optional-probability marked engine to typed CellId/frame/status/provenance/threshold identity and the existing local scheduler; retain exact config 0.2/result 0.3 behavior and defer every broader mark/file/schema surface.
 - Accepted `DEC-0041`: consume the exact C-05 region-finalization flow with one bounded declared-fraction aggregation-dispersion computation; preserve fixed component order and defer every format/validator/geometry/general-statistics surface.
+- Accepted `DEC-0042`: compare two existing declared marked scheduler outputs through the unchanged legacy comparator, retain both runtime identities/evidence chains/timepoints, reject semantic conflation, and add no durable result, receipt, node, codec, or generalized comparison infrastructure.
 
 ## Unresolved questions
 
@@ -93,12 +95,12 @@ Last updated: 2026-08-24T03:06:31-04:00
 
 ## Next three exact actions
 
-1. Freeze the runtime-only declared-marked pre/post comparison over two existing scheduler outputs, including exact semantic compatibility and retention of both declared identities.
-2. Reuse unchanged `compare_marked_prepost` and result 0.3 without a node, codec, format, receipt, validator, or general comparison abstraction.
-3. Implement behavior-first, run one cohesive milestone gate, and keep FND-02/general FND-04 deferred until an immediate caller and prerequisites coexist.
+1. Commit the completed runtime-only declared marked pre/post milestone as one cohesive local commit.
+2. Audit existing declared-analysis outputs for the next bounded observable scientific or user workflow, preferring a closed random-labeling-use summary only if a current production result supplies every required input.
+3. Freeze that immediate caller and behavior-first contract before implementation; keep FND-02/general FND-04 and all new formats/receipts/validators/abstractions deferred until the same milestone calls them.
 
 Next exact verification command:
 
 ```bash
-cargo +1.96.0 test --locked --all-features --test multiscale_embedding_artifact_graph region_dispersion
+cargo +1.96.0 test --locked --test declared_marked_prepost
 ```

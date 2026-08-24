@@ -247,7 +247,9 @@ pub use output::{
     TerritoryPrePostSummary, TerritoryProfile, TimingStage, WindowSummary, RESULT_FORMAT_VERSION,
 };
 pub use prepost::{
-    compare_marked_prepost, compare_multimodal_prepost, compare_multimodal_prepost_with_margin,
+    compare_declared_marked_prepost, compare_marked_prepost, compare_multimodal_prepost,
+    compare_multimodal_prepost_with_margin, DeclaredMarkedPrePostError,
+    DeclaredMarkedPrePostResult,
 };
 pub use registration::{
     landmarks::LandmarkPair,
