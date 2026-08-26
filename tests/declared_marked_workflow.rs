@@ -1,8 +1,10 @@
 use marklab::{
     AnalysisEngine, BinaryMarkDeclaration, CacheStatus, DeclaredMarkedAnalysisNode,
-    DeclaredScalarInputError, DeclaredScalarPatternInput, LocalScheduler, MeasurementStatus,
-    NodeError, NodeId, ProbabilityMarkDeclaration, ProbabilityThresholdComparator, ResultDocument,
-    ScalarMarkId, ScalarMarkValueKind, SchedulerLimits, WorkflowError, WorkflowGraph,
+    DeclaredScalarInputError, DeclaredScalarPatternInput, LocalScheduler, MarkTable,
+    MeasurementStatus, MissingnessPolicy, NodeError, NodeId, NucleusAreaUm2MarkDeclaration,
+    ProbabilityMarkDeclaration, ProbabilityThresholdComparator, ResultDocument, ScalarMarkColumn,
+    ScalarMarkId, ScalarMarkModality, ScalarMarkUnit, ScalarMarkValueKind, SchedulerLimits,
+    WorkflowError, WorkflowGraph,
 };
 
 #[path = "support/declared_scalar.rs"]
@@ -224,6 +226,109 @@ fn declared_probability_routes_only_structure_factor_and_matches_legacy() {
     assert_eq!(
         declared.mark_use.other_endpoint_value_kind(),
         ScalarMarkValueKind::Binary
+    );
+}
+
+#[test]
+fn declared_probability_workflow_is_constructed_from_one_typed_mark_table() {
+    let mut fixture = fixture();
+    fixture.pattern.mark_prob = Some(vec![0.1, 0.8, 0.7, 0.2].into_boxed_slice());
+    fixture.pattern.nucleus_area_um2 = Some(vec![10.0, 11.0, 12.0, 13.0].into_boxed_slice());
+    let (binary, probability) = paired_declarations(&mut fixture);
+    let area_provenance = publish_record(
+        &mut fixture,
+        b"workflow-area-provenance",
+        MARK_SCHEMA,
+        1,
+        None,
+        Vec::new(),
+        nucleus_area_um2_metadata(MeasurementStatus::Measured),
+    );
+    let area = NucleusAreaUm2MarkDeclaration::new(MeasurementStatus::Measured, area_provenance)
+        .expect("area declaration");
+    let mark_table = MarkTable::new(
+        fixture.cell_ids.clone(),
+        vec![
+            ScalarMarkColumn::binary(
+                binary.clone(),
+                ScalarMarkModality::Immunohistochemistry,
+                ScalarMarkUnit::Unitless,
+                MissingnessPolicy::NotPermitted,
+                fixture.pattern.mark.clone(),
+            )
+            .expect("binary column"),
+            ScalarMarkColumn::probability(
+                probability.clone(),
+                ScalarMarkModality::Immunohistochemistry,
+                ScalarMarkUnit::Unitless,
+                MissingnessPolicy::NotPermitted,
+                fixture.pattern.mark_prob.clone().expect("probabilities"),
+            )
+            .expect("probability column"),
+            ScalarMarkColumn::continuous(
+                area,
+                ScalarMarkModality::Morphology,
+                ScalarMarkUnit::SquareMicrometer,
+                MissingnessPolicy::NotPermitted,
+                fixture
+                    .pattern
+                    .nucleus_area_um2
+                    .clone()
+                    .expect("nucleus areas"),
+            )
+            .expect("continuous column"),
+        ],
+        ROW_LIMIT,
+        cell_id_text_bytes(&fixture.cell_ids),
+    )
+    .expect("typed mark table");
+    let input = DeclaredScalarPatternInput::from_mark_table(
+        &fixture.project,
+        &fixture.pattern,
+        &mark_table,
+        fixture.slide_id.clone(),
+        fixture.frame_id.clone(),
+    )
+    .expect("declared table input");
+    let config = analysis_config(true);
+    let node = DeclaredMarkedAnalysisNode::new(
+        &mut fixture.project,
+        NodeId::new("declared-mark-table-analysis").expect("node ID"),
+        &input,
+        &config,
+    )
+    .expect("declared table node");
+    let graph = WorkflowGraph::new([node.spec().clone()]).expect("workflow graph");
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: 16 * 1024 * 1024,
+    })
+    .expect("scheduler");
+
+    let executed = scheduler
+        .run_single_with_store(&mut fixture.project, &graph, &node, &fixture.store)
+        .expect("table-backed declared workflow");
+    let legacy = AnalysisEngine::new(config)
+        .expect("legacy engine")
+        .analyze_pattern_run(&fixture.pattern)
+        .expect("legacy analysis");
+    let legacy_round_trip = ResultDocument::from_json(
+        &ResultDocument::marked(legacy.result)
+            .to_json_pretty()
+            .expect("legacy result 0.3"),
+    )
+    .expect("decode legacy result 0.3")
+    .into_marked_pattern()
+    .expect("legacy marked result");
+
+    assert_eq!(executed.cache_status, CacheStatus::Miss);
+    assert_eq!(
+        without_timings(executed.output.result),
+        without_timings(legacy_round_trip)
+    );
+    assert_eq!(executed.output.mark_use.binary_mark(), &binary);
+    assert_eq!(
+        executed.output.mark_use.probability_mark(),
+        Some(&probability)
     );
 }
 

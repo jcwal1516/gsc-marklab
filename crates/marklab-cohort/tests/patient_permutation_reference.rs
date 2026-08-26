@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
 use marklab_cohort::{
-    patient_level_permutation_test, PatientEndpoint, PatientPermutationSpec, PermutationAlternative,
+    patient_level_permutation_test, CohortInferenceError, PatientEndpoint, PatientPermutationSpec,
+    PermutationAlternative,
 };
 
 const NAMESPACE: u64 = 0x7061_7469_656e_745f;
@@ -46,6 +47,39 @@ fn blocked_and_unblocked_results_match_a_slow_reference() {
     assert_eq!(
         blocked_result.p_value,
         slow_reference_p_value(&blocked, &spec)
+    );
+}
+
+#[test]
+fn partially_declared_hierarchy_blocks_are_rejected() {
+    let mut records = vec![
+        endpoint("a-1", "A", 8.0, None),
+        endpoint("a-2", "A", 9.0, None),
+        endpoint("a-3", "A", 12.0, None),
+        endpoint("a-4", "A", 13.0, None),
+        endpoint("b-1", "B", 1.0, None),
+        endpoint("b-2", "B", 2.0, None),
+        endpoint("b-3", "B", 4.0, None),
+        endpoint("b-4", "B", 5.0, None),
+    ];
+    records[0].block = Some("north".into());
+    records[4].block = Some("north".into());
+    let error = patient_level_permutation_test(
+        &records,
+        &PatientPermutationSpec {
+            group_a: "A".into(),
+            group_b: "B".into(),
+            permutations: 19,
+            seed: 7,
+            alternative: PermutationAlternative::TwoSided,
+        },
+    )
+    .expect_err("partial hierarchy blocks must fail");
+    assert_eq!(
+        error,
+        CohortInferenceError::InvalidInput(
+            "exchangeability blocks must be declared for every patient or no patients".into()
+        )
     );
 }
 

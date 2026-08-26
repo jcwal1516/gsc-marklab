@@ -110,11 +110,11 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | EQV-01B | data-dependent with named missing data | Missing prespecified equivalence margins and sufficient independent biological replicates. |
 | EQV-01C | data-dependent with named missing data | Missing directional noninferiority margin, clinical rationale, and sufficient biological replicates. |
 | FND-01 | complete | Typed identities, hierarchy, parentage, and design roles closed by C-01. |
-| FND-02 | ready | Exact bounded ObservationWindow2D, canonical topology, closed membership, and indexed unsigned boundary distance are complete for the classical caller; signed distance, typed frame binding, compartments, external differential evidence, and broader promotion remain ready work. |
+| FND-02 | active | Exact bounded ObservationWindow2D now owns canonical topology, closed membership, indexed unsigned distance, and signed distance consumed by classical point admission/border distances; typed frame binding, compartments, external differential evidence, and broader promotion remain. |
 | FND-03 | blocked with named prerequisite | Exact streaming ordered-pair traversal is complete for K/L; full promotion requires completed FND-02 semantics plus an immediate second canonical caller such as g, variograms, or mark functions. |
-| FND-04 | planned | Measurement-status vocabulary and concrete consumers exist; general typed marks remain in total scope after the classical increment. |
+| FND-04 | active | A row-aligned typed MarkTable now binds stable CellIds plus binary, probability, and finite continuous columns with status/modality/unit/provenance/missingness and feeds the existing declared marked workflow; categorical, ordinal, simplex, vector-reference, interchange, real-IHC, and scale coverage remain. |
 | FND-05 | data-dependent with named missing data | Missing promotable real-source correspondence and provenance; synthetic cell/multiscale artifacts and bounded consumers exist. |
-| FND-06 | active | Whole-pattern CSR plus independent-patient, exact-block, complete-pair sign-flip, and unblocked functional patient designs are implemented; general hierarchy-backed design objects, repeated/multisite/cluster/interference schemes, and multiplicity ownership remain. |
+| FND-06 | active | Whole-pattern CSR plus independent-patient, complete exact-block, complete-pair sign-flip, and unblocked functional patient designs are implemented; patient permutation now compiles one private design and rejects partially declared hierarchy blocks. Public cross-method hierarchy designs, repeated/multisite/cluster/interference schemes, and multiplicity ownership remain. |
 | FND-07 | complete | Native Git/toolchain/feature/executable/input identity, canonical project head, append-only ledger, verified replay, pending recovery, and typed unified invocation are implemented for dependency-free native nodes. |
 | FR-01 | active | IC-0145 supplies one canonical physical-radius binary graph, combinatorial Laplacian, exact Fourier transform, and band summaries; broader graph rules/operators and endpoint calibration remain. |
 | FR-01A | active | Exact small-graph Fourier, heat, ERL spectrum null, and differentially checked Chebyshev heat are runnable through IC-0145–0149. |
@@ -208,7 +208,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | UX-01 | blocked with named prerequisite | Requires stable PLAT-01/WF-01 project and result contracts for a UI that does not duplicate science. |
 | WAV-01A | gated pending explicit user decision | The master plan rejects raster wavelets by default; admission requires a raster-defined question and explicit approval. |
 | WAV-01B | planned | Genuine DoG remains in scope for a future explicit raster/image scale-space endpoint. |
-| WF-01 | active | Typed keys, single-node scheduling, cache, and one scientific node exist; general composition, schema, and resume remain. |
+| WF-01 | active | Typed keys, exact produced-artifact dependency admission, sequential composition, durable replay, and a three-node marked pre/post CLI are live; general workflow schema, heterogeneous construction, resource planning, parallel scheduling, and whole-graph resume remain. |
 
 ## Dependency-ordered workstream coverage
 
@@ -218,12 +218,12 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | WS-01 | complete | Legacy characterization and compatibility matrix closed. |
 | WS-10 | complete | Workspace and compatibility-shell phase slice closed. |
 | WS-11 | complete | Catalog/store/cache plus canonical durable project heads, append-only execution ledger, verified replay, and interrupted-run recovery are implemented. |
-| WS-12 | active | Typed durable single-node execution exists for native and two static external workflows; dependency-bearing DAG composition, resource planning, workflow schema, and resume remain. |
+| WS-12 | active | Typed durable execution now covers native/PyMC/POT single nodes and one sequential dependency-bearing marked pre/post graph with cross-process three-hit replay; general DAG construction, resource planning, workflow schema, parallel execution, and whole-graph resume remain. |
 | WS-13 | active | Durable PyMC Normal-mean and POT FGW share one closed static descriptor with exact environment/adapter/license/schema/control identity and typed replay; generalized discovery, broader backend classes, doctor/admission validation, and capability/security manifests remain. |
 | WS-20 | complete | Typed identity and cohort hierarchy closed by C-01. |
 | WS-21 | complete | Coordinate, unit, dimensionality, transform, and uncertainty slice closed by C-02. |
-| WS-22 | blocked with named prerequisite | Exact bounded 2-D windows, canonical boundary distance, and one streaming K/L pair plan are complete; compartments, volumes, signed distance, and shared multi-endpoint plans require promoted immediate callers. |
-| WS-23 | planned | Thirteen concrete slices exist; broader marks remain in scope after the classical workflow. |
+| WS-22 | blocked with named prerequisite | Exact bounded 2-D windows, canonical unsigned/signed boundary distance, and one streaming K/L pair plan are complete; typed frame binding, compartments, volumes, and shared multi-endpoint plans require promoted immediate callers. |
+| WS-23 | active | Existing declared binary/probability/nucleus-area consumers now share one bounded row-aligned typed MarkTable adapter; the remaining categorical/ordinal/simplex/vector/interchange/real-data mark families stay open. |
 | WS-24 | data-dependent with named missing data | Missing promotable canonical source identity, context, provenance, and linkage; synthetic artifacts remain complete evidence. |
 | WS-25 | planned | SpatialData, AnnData, OME-NGFF, Arrow/Parquet/Zarr interchange remains in Phase 2 scope. |
 | WS-30 | blocked with named prerequisite | The first complete homogeneous standard-border K/L workflow is complete; translation/isotropic corrections, inhomogeneous K/L, g, F/G/J, cross/marked functions, and intensity estimation require their named geometry/mark/intensity prerequisites. |

@@ -433,8 +433,9 @@ impl DurableProject {
         }
         let (record, expected) = record_from_entry(entry)?;
         let bytes = read_verified_object(&self.store, &record, self.limits.maximum_object_bytes)?;
-        let restored = project.commit_success(
+        let restored = project.commit_workflow_success(
             &request.node_id,
+            request.node_spec_digest,
             request.cache_key,
             expected.kind(),
             bytes.into_boxed_slice(),

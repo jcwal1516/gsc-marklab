@@ -1346,3 +1346,43 @@ vascular transport.
   workspace/Nextest/feature-matrix/specialized gate was run or claimed. The user authorized one
   local cohesive-checkpoint commit before the next workstream; no push, deployment, publication,
   history rewrite, or worktree was created.
+
+## Dependency, geometry, marks, and design checkpoint 54 — 2026-08-26
+
+- Expected workflow reds were observed first. The focused `dependent_node_consumes_the_exact_registered_upstream_output`
+  command failed with `DependenciesUnsupported`; `marked_prepost_composes_two_produced_analysis_artifacts`
+  then failed to compile for the missing `MarkedPrePostNode`. The first
+  `durable_marked_prepost_project` run failed because `project marked-prepost` was unrecognized.
+  After implementation, `cargo +1.96.0 test --locked --package marklab --features cli --test
+  durable_marked_prepost_project` passed 1/1 and proved miss/miss/miss then hit/hit/hit across
+  processes with identical 0.3 output and exactly three ledger records.
+- Direct diff review found that duplicated content references from two distinct dependencies were
+  incorrectly counted twice. `cargo +1.96.0 test --locked --package marklab --features cli --test
+  project_workflow byte_identical_dependency_outputs_remain_two_valid_edges -- --nocapture` failed
+  with `AmbiguousDependencyOutput { matches: 2 }`, then passed after the scheduler counted distinct
+  produced artifacts. The strengthened genuinely ambiguous two-output regression and durable reopen
+  regression pass. The complete pre-fix project-workflow target passed 11/11; the two exact
+  post-fix edge tests passed separately and no broader successful gate is implied.
+- FND-02's exact signed-distance test first failed with missing-method `E0599`, then the complete
+  `cargo +1.96.0 test --locked --package marklab --test classical_spatial_domain` target passed
+  13/13. FND-04's missing-table behavior red preceded a 1/1 typed-table declared-workflow pass;
+  `cargo +1.96.0 test --locked --package marklab --test scalar_mark_input typed_mark_table --
+  --nocapture` passed both adversarial table tests. FND-06's partial-block regression failed before
+  the compiled design boundary and the focused patient-permutation reference target passed 2/2.
+- `cargo +1.96.0 test --locked --package marklab-project --lib` passed 15/15 and the chained
+  `marklab-workflow --lib` command passed 1/1. A separate `cargo +1.96.0 test --locked --package
+  marklab-cohort` attempt passed all 20 library tests plus energy, equivalence, functional,
+  hierarchical-bootstrap, Max-T, and MMD reference binaries, then was interrupted while macOS was
+  verifying the next binary. This is partial evidence, not a green package result, and the loop was
+  not retried.
+- `cargo +1.96.0 clippy --locked --package marklab-project --package marklab-workflow --package
+  marklab-cohort --lib -- -D warnings` passed. The affected root library, binary, and five changed
+  integration targets passed warning-denied Clippy with `--features cli --lib --bin marklab --test
+  project_workflow --test durable_marked_prepost_project --test scalar_mark_input --test
+  declared_marked_workflow --test classical_spatial_domain`.
+- `cargo +1.96.0 check --locked --package marklab-project --package marklab-workflow --package
+  marklab-cohort --package marklab --no-default-features` passed. Strict warning-denied public docs
+  passed for those four packages. `cargo +1.96.0 fmt --all --check` and `git diff --check` passed.
+  No workspace-wide tests/Clippy, Nextest, full feature matrix, specialized benchmark/fuzz/memory/
+  packaging/dependency gate, commit, stage, push, publication, deployment, history rewrite, or
+  worktree was run or created.

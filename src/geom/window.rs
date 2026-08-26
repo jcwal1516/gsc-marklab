@@ -230,6 +230,26 @@ impl ObservationWindow2D {
             })
     }
 
+    /// Signed minimum distance to an exterior or hole boundary.
+    ///
+    /// Distances are positive in the permitted window interior, zero on any
+    /// boundary, and negative outside the window or inside a hole.
+    pub fn signed_boundary_distance_um(
+        &self,
+        x_um: f64,
+        y_um: f64,
+    ) -> Result<f64, ObservationWindowError> {
+        let distance = self.boundary_distance_um(x_um, y_um)?;
+        if distance == 0.0 {
+            return Ok(0.0);
+        }
+        if self.contains(x_um, y_um) {
+            Ok(distance)
+        } else {
+            Ok(-distance)
+        }
+    }
+
     /// Exact area after subtracting holes.
     pub fn area_um2(&self) -> f64 {
         self.descriptor.area_um2

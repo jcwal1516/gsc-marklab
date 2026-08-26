@@ -1781,3 +1781,24 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BACK-01/WS-13 durable PyMC and POT workflows
 - Decision: add `marklab project normal-mean` and `marklab project fused-gromov-wasserstein` as dependency-free typed nodes over the existing static PyMC 6.3.0 (Apache-2.0) and POT 0.9.7.post1 (MIT) adapters. Bind the exact raw input, canonical typed request, Python-3.12 lock digest, worker digest, backend/version/license identity, seed or deterministic solver controls, resource limits, and root executable provenance into the existing scheduler/durable execution identity. Persist only the strictly decoded typed worker result through the existing result codec, object store, ledger, head, and recovery transaction; reconstruct the unchanged one-shot scientific result on replay without starting Python.
 - Consequences: the two already-runnable oracle-backed external workflows gain cross-process durable miss/hit behavior without a plugin framework, arbitrary task runner, new dependency, result-schema change, backend discovery, remote/container execution, or duplicated store/ledger/recovery/cache ownership. A shared descriptor may be extracted only from fields and process behavior both concrete callers require.
+
+## DEC-0217 — Admit only exact produced-artifact dependency edges
+
+- Date: 2026-08-26
+- Status: accepted for WF-01/WS-12 dependency-bearing execution
+- Decision: retain sequential typed node construction and the existing single-node scheduler lifecycle. A node with declared dependencies may execute only when each registered upstream specification has already produced exactly one of the dependent node's declared immutable input artifacts in the current project. Record the producing node-spec digest in new workflow-success state, restore it from the durable request, and reject missing or ambiguous produced-artifact edges before cache lookup or execution.
+- Consequences: current callers can compose real typed data flow without a heterogeneous node registry, arbitrary task runner, dynamic dispatch container, parallel DAG executor, implicit latest-run selection, or cache-key duplication. Legacy direct project commits remain dependency-ineligible because they carry no workflow specification identity.
+
+## DEC-0218 — Derive signed window distance from the canonical domain
+
+- Date: 2026-08-26
+- Status: accepted for FND-02/WS-22 signed boundary semantics
+- Decision: expose signed boundary distance on `ObservationWindow2D` with positive values inside the permitted domain, zero on any exterior or hole boundary, and negative values outside the domain or inside a hole. Derive the sign from the canonical topology-aware containment result and the magnitude from the existing exact segment distance, and make classical spatial geometry consume that single owner.
+- Consequences: signed distance gains an immediate production caller and consistent polygon/hole semantics without a second geometry representation, raster approximation, compartment model, coordinate-frame schema, or result-format change. Typed frames, compartments, and external differential validation remain separate outcomes.
+
+## DEC-0219 — Grow typed marks through the existing declared-scalar caller
+
+- Date: 2026-08-26
+- Status: accepted for the current FND-04/WS-23 increment
+- Decision: introduce the smallest row-aligned `MarkTable` needed by the existing declared marked-analysis path: stable `CellId` rows and typed binary, probability, and finite continuous columns with one column-wide measurement status, modality, unit, provenance artifact identity, and explicit missingness policy. Adapt the current binary/probability workflow from that table while preserving the compatibility `Pattern` and result-format 0.3; reject row, identity, probability, finite-value, provenance, status, unit, and undocumented-threshold mismatches at construction.
+- Consequences: one production analysis consumes a multi-column typed mark owner instead of adding another endpoint-specific value wrapper. Categorical, ordinal, probability-simplex, vector-reference, Arrow/Parquet, arbitrary-unit, and real IHC round-trip/scale coverage remain open and must be added only with their own immediate callers.

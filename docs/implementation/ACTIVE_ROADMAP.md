@@ -273,3 +273,26 @@ validation, and additional backend classes remain. `PLAT-01`/`WF-01`/`WS-12` rem
 dependency-bearing composition is still absent. The next dependency-valid platform outcome is one
 typed dependency-bearing user workflow using existing nodes; it must extend the scheduler only for
 that concrete composition and must not generalize the static backend descriptor speculatively.
+
+## Checkpoint 54 dependency and foundation continuation
+
+Closure on 2026-08-26: `marklab project marked-prepost` now executes two typed bounded imports and
+their exact dependent comparison through the canonical scheduler and durable project transaction.
+The second process restores three hits without appending the ledger. This closes the promoted
+single dependency-bearing user workflow, including byte-identical distinct-edge behavior, but not
+general graph construction, resource planning, parallel scheduling, workflow schema, or whole-graph
+resume; `PLAT-01`, `WF-01`, and `WS-12` therefore remain active.
+
+The same checkpoint advances immediate-caller foundation work: classical geometry consumes signed
+window distance; the declared marked workflow consumes a bounded binary/probability/continuous
+`MarkTable`; and patient permutation compiles complete exact blocks while rejecting partial block
+declarations. FND-02/WS-22 remain blocked on typed frame/compartment callers, FND-04/WS-23 remain
+active for the unimplemented mark families and interchange/real evidence, and FND-06 remains active
+for public cross-method hierarchy, repeated/multisite/cluster/interference, and multiplicity design.
+
+FND-05/WS-24 remains data-dependent. Existing source import, row correspondence, table, provenance,
+receipt, and synthetic consumer code is retained; exact promotable real-source model/checkpoint/
+layer/preprocessing and CellId correspondence are absent. The next dependency-valid outcomes are
+the smallest concrete typed-frame/compartment caller or the next cross-method inference-design
+caller. No further mark/embedding infrastructure is promoted without such a caller or the missing
+real-source authority.

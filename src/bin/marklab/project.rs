@@ -5,6 +5,7 @@ use std::{
 };
 
 use clap::{Parser, Subcommand};
+use marklab::{MarkedPatternResult, MarkedPrePostNode, ResultDocument};
 use marklab_bayes::{
     BackendContract, FusedGromovWassersteinWorkerResult, NutsSamplingSpec, WorkerResult,
 };
@@ -26,6 +27,7 @@ const PROJECT_LEDGER_BYTES: usize = 16 * 1024 * 1024;
 const PROJECT_LEDGER_RECORDS: usize = 10_000;
 const PROJECT_RECORD_BYTES: usize = 64 * 1024;
 const MAXIMUM_RESULT_BYTES: usize = 1024 * 1024;
+const MARKED_RESULT_KIND: &str = "application/vnd.marklab.result+json;version=0.3";
 
 #[derive(Clone, Copy)]
 enum StaticBackendWorkflow {
@@ -160,6 +162,16 @@ enum ProjectTopLevel {
 
 #[derive(Debug, Subcommand)]
 enum ProjectCommand {
+    MarkedPrepost {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        pre: PathBuf,
+        #[arg(long)]
+        post: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
     NormalMean {
         #[arg(long)]
         project: PathBuf,
@@ -212,6 +224,15 @@ enum ProjectCommand {
 
 pub(super) fn run_cli() -> Result<(), BayesCliError> {
     match ProjectCli::parse_from(std::env::args_os()).command {
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::MarkedPrepost {
+                    project,
+                    pre,
+                    post,
+                    out,
+                },
+        } => run_marked_prepost(project, pre, post, out),
         ProjectTopLevel::Project {
             command:
                 ProjectCommand::NormalMean {
@@ -271,6 +292,227 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
     }
+}
+
+fn run_marked_prepost(
+    project_path: PathBuf,
+    pre_path: PathBuf,
+    post_path: PathBuf,
+    output_path: PathBuf,
+) -> Result<(), BayesCliError> {
+    let pre_path = result_document_path(pre_path);
+    let post_path = result_document_path(post_path);
+    let pre_source = source_artifact(&pre_path, MARKED_RESULT_KIND)?;
+    let post_source = source_artifact(&post_path, MARKED_RESULT_KIND)?;
+    let pre = MarkedResultImportNode::new("marked-pre-import", pre_path, pre_source.clone())?;
+    let post = MarkedResultImportNode::new("marked-post-import", post_path, post_source.clone())?;
+
+    let runtime = native_runtime_provenance()?;
+    let limits = DurableProjectLimits::new(
+        PROJECT_CONTROL_BYTES,
+        PROJECT_LEDGER_BYTES,
+        PROJECT_LEDGER_RECORDS,
+        PROJECT_RECORD_BYTES,
+        MAXIMUM_RESULT_BYTES,
+    )
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let mut durable = DurableProject::open_or_create(&project_path, limits)
+        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    report_recovery(&durable);
+    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    project
+        .register_reference(pre_source)
+        .and_then(|()| project.register_reference(post_source))
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
+    })
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let import_graph = WorkflowGraph::new([pre.spec().clone(), post.spec().clone()])
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let import_schema = ArtifactSchema::new("marklab.marked_pattern_result", 1)
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let pre_run = execute_algorithm(
+        &mut durable,
+        &mut project,
+        &import_graph,
+        &pre,
+        &scheduler,
+        import_schema.clone(),
+        runtime.clone(),
+    )
+    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    let post_run = execute_algorithm(
+        &mut durable,
+        &mut project,
+        &import_graph,
+        &post,
+        &scheduler,
+        import_schema,
+        runtime.clone(),
+    )
+    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    let comparison = MarkedPrePostNode::new(
+        NodeId::new("marked-prepost").map_err(|error| BayesCliError::Input(error.to_string()))?,
+        pre.spec().id().clone(),
+        &pre_run,
+        post.spec().id().clone(),
+        &post_run,
+    )
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let graph = WorkflowGraph::new([
+        pre.spec().clone(),
+        post.spec().clone(),
+        comparison.spec().clone(),
+    ])
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let comparison_run = execute_algorithm(
+        &mut durable,
+        &mut project,
+        &graph,
+        &comparison,
+        &scheduler,
+        ArtifactSchema::new("marklab.marked_prepost_result", 1)
+            .map_err(|error| BayesCliError::Input(error.to_string()))?,
+        runtime,
+    )
+    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+
+    bayes::publish_json(
+        &output_path,
+        &ResultDocument::marked_prepost(comparison_run.output),
+    )?;
+    eprintln!(
+        "project marked-prepost cache_status: pre={} post={} comparison={}",
+        cache_status_name(pre_run.cache_status),
+        cache_status_name(post_run.cache_status),
+        cache_status_name(comparison_run.cache_status)
+    );
+    Ok(())
+}
+
+fn cache_status_name(status: CacheStatus) -> &'static str {
+    match status {
+        CacheStatus::Hit => "hit",
+        CacheStatus::Miss => "miss",
+    }
+}
+
+fn result_document_path(path: PathBuf) -> PathBuf {
+    if path.is_dir() {
+        path.join("result.json")
+    } else {
+        path
+    }
+}
+
+struct MarkedResultImportNode {
+    spec: NodeSpec,
+    input_path: PathBuf,
+    input_artifacts: [ArtifactRef; 1],
+    output: MarkedPatternResult,
+}
+
+impl MarkedResultImportNode {
+    fn new(node_id: &str, input_path: PathBuf, input: ArtifactRef) -> Result<Self, BayesCliError> {
+        let output = read_marked_result(&input_path)?;
+        let observed = source_artifact(&input_path, MARKED_RESULT_KIND)?;
+        if observed != input {
+            return Err(BayesCliError::Input(format!(
+                "marked result changed while its durable import was prepared: {}",
+                input_path.display()
+            )));
+        }
+        Ok(Self {
+            spec: NodeSpec::new(
+                NodeId::new(node_id).map_err(|error| BayesCliError::Input(error.to_string()))?,
+                "marked_result_import",
+                1,
+                Vec::new(),
+            )
+            .map_err(|error| BayesCliError::Input(error.to_string()))?,
+            input_path,
+            input_artifacts: [input],
+            output,
+        })
+    }
+}
+
+impl WorkflowNode for MarkedResultImportNode {
+    type Output = MarkedPatternResult;
+
+    fn spec(&self) -> &NodeSpec {
+        &self.spec
+    }
+
+    fn input_artifacts(&self) -> &[ArtifactRef] {
+        &self.input_artifacts
+    }
+
+    fn verify_input_content(&self) -> Result<(), NodeError> {
+        let observed =
+            source_artifact(&self.input_path, MARKED_RESULT_KIND).map_err(NodeError::input)?;
+        if observed != self.input_artifacts[0] {
+            return Err(NodeError::input(BayesCliError::Input(format!(
+                "marked result no longer matches its durable identity: {}",
+                self.input_path.display()
+            ))));
+        }
+        Ok(())
+    }
+
+    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
+        CacheKeyMaterial {
+            configuration_digest: ContentDigest::from_bytes(
+                b"marklab-marked-result-import-configuration-v1",
+            ),
+            execution_policy: b"bounded-typed-result-import-v1",
+            implementation_identity: "marklab-project-marked-result-import-v1",
+        }
+    }
+
+    fn execute(&self) -> Result<Self::Output, NodeError> {
+        Ok(self.output.clone())
+    }
+
+    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
+        ResultDocument::marked(output.clone())
+            .to_json_pretty()
+            .map(String::into_bytes)
+            .map(Vec::into_boxed_slice)
+            .map_err(NodeError::encoding)
+    }
+
+    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
+        let json = std::str::from_utf8(bytes).map_err(NodeError::decode)?;
+        ResultDocument::from_json(json)
+            .and_then(ResultDocument::into_marked_pattern)
+            .map_err(NodeError::decode)
+    }
+
+    fn output_kind(&self) -> &'static str {
+        MARKED_RESULT_KIND
+    }
+}
+
+fn read_marked_result(path: &Path) -> Result<MarkedPatternResult, BayesCliError> {
+    let mut file = File::open(path).map_err(|source| BayesCliError::Io {
+        path: path.to_owned(),
+        source,
+    })?;
+    let mut bytes = Vec::new();
+    copy_bounded(&mut file, &mut bytes, MAXIMUM_INPUT_BYTES).map_err(|source| {
+        BayesCliError::Io {
+            path: path.to_owned(),
+            source,
+        }
+    })?;
+    let json = std::str::from_utf8(&bytes)
+        .map_err(|error| BayesCliError::Input(format!("invalid result UTF-8: {error}")))?;
+    ResultDocument::from_json(json)
+        .and_then(ResultDocument::into_marked_pattern)
+        .map_err(|error| BayesCliError::Input(error.to_string()))
 }
 
 #[allow(clippy::too_many_arguments)]

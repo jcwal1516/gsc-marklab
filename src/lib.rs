@@ -318,10 +318,13 @@ pub use registration::{
 };
 pub use scalar_mark::{
     BinaryMarkDeclaration, BinaryMarkOrigin, DeclaredMarkUse, DeclaredScalarIdentity,
-    DeclaredScalarInputError, DeclaredScalarPatternInput, NucleusAreaUm2MarkDeclaration,
-    ProbabilityMarkDeclaration, ProbabilityThresholdComparator, ScalarMarkId, ScalarMarkValueKind,
+    DeclaredScalarInputError, DeclaredScalarPatternInput, MarkTable, MissingnessPolicy,
+    NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration, ProbabilityThresholdComparator,
+    ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit, ScalarMarkValueKind,
 };
-pub use workflow::{DeclaredMarkedAnalysisNode, DeclaredMarkedAnalysisResult, MarkedAnalysisNode};
+pub use workflow::{
+    DeclaredMarkedAnalysisNode, DeclaredMarkedAnalysisResult, MarkedAnalysisNode, MarkedPrePostNode,
+};
 #[cfg(feature = "wsi")]
 pub use wsi::{
     PlaneSelection, RegionRequest, RgbaRegion, SlideLevelMetadata, SlideMetadata, SlideOpenOptions,

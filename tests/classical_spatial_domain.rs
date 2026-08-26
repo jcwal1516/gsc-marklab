@@ -145,6 +145,58 @@ fn donut_window_has_closed_boundary_semantics_and_rejects_self_intersection() {
 }
 
 #[test]
+fn signed_boundary_distance_distinguishes_permitted_interior_holes_and_exterior() {
+    let window = ObservationWindow2D::from_geojson_str(
+        r#"{"type":"MultiPolygon","coordinates":[[
+            [[0,0],[10,0],[10,10],[0,10],[0,0]],
+            [[3,3],[7,3],[7,7],[3,7],[3,3]]
+        ]]}"#,
+        window_limits(),
+    )
+    .expect("donut");
+
+    assert_abs_diff_eq!(
+        window
+            .signed_boundary_distance_um(2.0, 5.0)
+            .expect("permitted interior"),
+        1.0,
+        epsilon = 1e-12
+    );
+    assert_eq!(
+        window
+            .signed_boundary_distance_um(0.0, 5.0)
+            .expect("exterior boundary")
+            .to_bits(),
+        0.0_f64.to_bits()
+    );
+    assert_eq!(
+        window
+            .signed_boundary_distance_um(3.0, 5.0)
+            .expect("hole boundary")
+            .to_bits(),
+        0.0_f64.to_bits()
+    );
+    assert_abs_diff_eq!(
+        window
+            .signed_boundary_distance_um(5.0, 5.0)
+            .expect("hole interior"),
+        -2.0,
+        epsilon = 1e-12
+    );
+    assert_abs_diff_eq!(
+        window
+            .signed_boundary_distance_um(-2.0, 5.0)
+            .expect("exterior"),
+        -2.0,
+        epsilon = 1e-12
+    );
+    assert_eq!(
+        window.signed_boundary_distance_um(f64::NAN, 5.0),
+        Err(ObservationWindowError::NonFiniteQueryPoint)
+    );
+}
+
+#[test]
 fn duplicate_points_and_one_short_pair_budget_fail_before_result() {
     let window = rectangle_window();
     let duplicate = pattern(vec![2.0, 2.0], vec![2.0, 2.0]);

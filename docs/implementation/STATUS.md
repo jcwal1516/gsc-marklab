@@ -759,3 +759,32 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   change, remote/container executor, arbitrary task runner, or backend discovery was added. The
   user authorized one local cohesive-checkpoint commit before the next workstream; no push,
   deployment, publication, history rewrite, or worktree was created.
+
+## Dependency, geometry, marks, and design checkpoint 54 — 2026-08-26
+
+- `marklab project marked-prepost` is the first user-facing dependency-bearing durable workflow.
+  Two bounded typed result-import nodes feed `MarkedPrePostNode`; the scheduler admits each edge
+  only from an exact registered producing specification. A second process restores three hits,
+  emits byte-identical result-format 0.3 output, and leaves the three-record durable ledger
+  unchanged. Missing, legacy, stale, and genuinely ambiguous outputs fail before execution, while
+  byte-identical outputs from two distinct dependencies remain valid edges.
+- `ObservationWindow2D` now owns signed boundary distance with positive permitted interior, exact
+  zero on exterior/hole boundaries, and negative exterior/hole interior. Classical geometry uses
+  that owner for both point admission and retained border distance. A bounded row-aligned
+  `MarkTable` now feeds the existing declared marked-analysis node with binary, probability, and
+  positive finite nucleus-area columns plus status, modality, unit, provenance, and missingness.
+- Patient permutation now compiles its exact blocks, seed, alternative, and replicate controls into
+  one private `PatientPermutationDesign`; partial block declaration is rejected instead of silently
+  treating undeclared patients as another exchangeability block. These are current-caller slices,
+  not completion of general FND-02/FND-04/FND-06 contracts.
+- FND-05 production contracts were re-evaluated without mutation. The bounded CellViT CSV/NPY
+  importer, exact source-row link, contiguous tables, physical round trips, graph receipts, and
+  synthetic consumers already exist. Stable promotion remains data-dependent on unavailable exact
+  real-source checkpoint/layer/preprocessing and CellId correspondence; no synthetic substitute or
+  provenance claim was fabricated.
+- Focused behavior, CLI replay, package-library, warning-denied Clippy, no-default, strict public
+  docs, formatting, and whitespace evidence is recorded in the validation ledger. One broader
+  cohort-package attempt passed all 20 unit tests and six reference binaries, then was interrupted
+  during the documented macOS per-binary verification delay; it is not claimed as a package pass
+  and was not retried. No broad workspace/Nextest/feature-matrix gate, commit, stage, push,
+  deployment, publication, history rewrite, or worktree was created for checkpoint 54.

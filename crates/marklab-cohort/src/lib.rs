@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 //! Cohort-valid population inference for Marklab scientific workflows.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 
 use thiserror::Error;
 
@@ -11,6 +11,7 @@ mod fingerprint;
 mod functional;
 mod functional_equivalence;
 mod hierarchical_bootstrap;
+mod inference_design;
 mod max_t;
 mod mmd;
 mod multisite;
@@ -19,6 +20,7 @@ mod numeric;
 mod paired;
 mod repeated;
 
+use inference_design::PatientPermutationDesign;
 use numeric::welch_contrast;
 
 pub use energy::{
@@ -192,7 +194,7 @@ pub fn patient_level_permutation_test(
             "patient-by-permutation work exceeds the {MAXIMUM_PATIENT_PERMUTATION_EVALUATIONS}-evaluation limit"
         )));
     }
-    let plan = build_exchangeability_plan(&records)?;
+    let design = PatientPermutationDesign::compile(&records, spec)?;
     let observed_labels = records
         .iter()
         .map(|record| record.is_group_a)
@@ -205,14 +207,14 @@ pub fn patient_level_permutation_test(
 
     let mut lower_tail = 0usize;
     let mut upper_tail = 0usize;
-    for replicate in 0..spec.permutations {
-        let labels = restricted_shuffle(&records, &plan, derive_seed(spec.seed, replicate));
+    for replicate in 0..design.permutations() {
+        let labels = design.permuted_labels(&records, replicate);
         let statistic = welch_contrast(&endpoint_values, &labels)?.studentized;
         lower_tail += usize::from(statistic <= observed.studentized);
         upper_tail += usize::from(statistic >= observed.studentized);
     }
-    let denominator = (spec.permutations + 1) as f64;
-    let p_value = match spec.alternative {
+    let denominator = (design.permutations() + 1) as f64;
+    let p_value = match design.alternative() {
         PermutationAlternative::Less => (lower_tail as f64 + 1.0) / denominator,
         PermutationAlternative::Greater => (upper_tail as f64 + 1.0) / denominator,
         PermutationAlternative::TwoSided => {
@@ -221,8 +223,8 @@ pub fn patient_level_permutation_test(
     };
 
     Ok(PatientPermutationResult {
-        blocked: plan.blocked,
-        block_count: plan.blocks.len(),
+        blocked: design.blocked(),
+        block_count: design.block_count(),
         patient_count: records.len(),
         group_a: PatientGroupSummary {
             label: spec.group_a.clone(),
@@ -237,11 +239,11 @@ pub fn patient_level_permutation_test(
         effect_group_a_minus_group_b: observed.effect,
         studentized_statistic: observed.studentized,
         p_value,
-        permutations_requested: spec.permutations,
-        permutations_attempted: spec.permutations,
-        permutations_completed: spec.permutations,
-        seed: spec.seed,
-        alternative: spec.alternative,
+        permutations_requested: design.permutations(),
+        permutations_attempted: design.permutations(),
+        permutations_completed: design.permutations(),
+        seed: design.seed(),
+        alternative: design.alternative(),
     })
 }
 
@@ -273,7 +275,7 @@ fn validate_spec(spec: &PatientPermutationSpec) -> Result<(), CohortInferenceErr
 struct ValidatedRecord {
     is_group_a: bool,
     endpoint: f64,
-    block: String,
+    block: Option<String>,
 }
 
 fn validate_records(
@@ -326,76 +328,20 @@ fn validate_records(
                 "patient {patient_id} has a non-finite endpoint"
             )));
         }
-        let block = record.block.as_deref().unwrap_or_default();
-        if block.trim() != block {
-            return Err(CohortInferenceError::InvalidInput(format!(
-                "patient {patient_id} block may not have surrounding whitespace"
-            )));
+        if let Some(block) = record.block.as_deref() {
+            if block.trim() != block {
+                return Err(CohortInferenceError::InvalidInput(format!(
+                    "patient {patient_id} block may not have surrounding whitespace"
+                )));
+            }
         }
         validated.push(ValidatedRecord {
             is_group_a,
             endpoint: record.endpoint,
-            block: block.to_owned(),
+            block: record.block.clone(),
         });
     }
     Ok(validated)
-}
-
-#[derive(Debug)]
-struct ExchangeabilityPlan {
-    blocks: Vec<Vec<usize>>,
-    blocked: bool,
-}
-
-fn build_exchangeability_plan(
-    records: &[ValidatedRecord],
-) -> Result<ExchangeabilityPlan, CohortInferenceError> {
-    let mut by_block: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
-    for (index, record) in records.iter().enumerate() {
-        by_block.entry(&record.block).or_default().push(index);
-    }
-    let blocked = by_block.len() > 1 || by_block.keys().any(|block| !block.is_empty());
-    if blocked
-        && !by_block.values().any(|indices| {
-            indices.iter().any(|index| records[*index].is_group_a)
-                && indices.iter().any(|index| !records[*index].is_group_a)
-        })
-    {
-        return Err(CohortInferenceError::InvalidInput(
-            "declared blocks are fully confounded with group".into(),
-        ));
-    }
-    Ok(ExchangeabilityPlan {
-        blocks: by_block.into_values().collect(),
-        blocked,
-    })
-}
-
-fn restricted_shuffle(
-    records: &[ValidatedRecord],
-    plan: &ExchangeabilityPlan,
-    seed: u64,
-) -> Vec<bool> {
-    let mut labels = records
-        .iter()
-        .map(|record| record.is_group_a)
-        .collect::<Vec<_>>();
-    let mut state = seed;
-    for indices in &plan.blocks {
-        let mut block_labels = indices
-            .iter()
-            .map(|index| labels[*index])
-            .collect::<Vec<_>>();
-        for index in (1..block_labels.len()).rev() {
-            state = splitmix64(state ^ index as u64);
-            let other = (state % (index as u64 + 1)) as usize;
-            block_labels.swap(index, other);
-        }
-        for (index, label) in indices.iter().zip(block_labels) {
-            labels[*index] = label;
-        }
-    }
-    labels
 }
 
 fn compensated_sum(values: impl IntoIterator<Item = f64>) -> f64 {
@@ -499,10 +445,10 @@ mod tests {
         endpoints[1].block = Some("south".into());
         endpoints[3].block = Some("south".into());
         let validated = validate_records(&endpoints, &spec()).expect("records");
-        let plan = build_exchangeability_plan(&validated).expect("plan");
+        let design = PatientPermutationDesign::compile(&validated, &spec()).expect("design");
         for replicate in 0..50 {
-            let labels = restricted_shuffle(&validated, &plan, derive_seed(17, replicate));
-            for block in &plan.blocks {
+            let labels = design.permuted_labels(&validated, replicate);
+            for block in design.blocks() {
                 let before = block
                     .iter()
                     .filter(|index| validated[**index].is_group_a)

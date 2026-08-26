@@ -13,7 +13,7 @@ use super::{
     },
     identity::{cell_ids_identity, declared_identity, DeclaredScalarIdentity},
     provenance::{semantic_artifact_ids, validate_provenance},
-    DeclaredScalarInputError,
+    DeclaredScalarInputError, MarkTable,
 };
 
 const DECLARED_INPUT_KIND: &str = "application/vnd.marklab.declared-scalar-pattern;version=1";
@@ -29,6 +29,7 @@ pub struct DeclaredScalarPatternInput<'a> {
     scalar_identity: DeclaredScalarIdentity,
     declared_artifact_ref: ArtifactRef,
     semantic_artifact_ids: Box<[ArtifactId]>,
+    mark_table: Option<&'a MarkTable>,
 }
 
 impl<'a> DeclaredScalarPatternInput<'a> {
@@ -88,7 +89,39 @@ impl<'a> DeclaredScalarPatternInput<'a> {
             scalar_identity,
             declared_artifact_ref,
             semantic_artifact_ids,
+            mark_table: None,
         })
+    }
+
+    /// Bind one row-aligned typed mark table to the unchanged compatibility Pattern.
+    pub fn from_mark_table(
+        project: &MarklabProject,
+        pattern: &'a Pattern,
+        mark_table: &'a MarkTable,
+        owning_slide_id: SlideId,
+        coordinate_frame_id: CoordinateFrameId,
+    ) -> Result<Self, DeclaredScalarInputError> {
+        mark_table.validate_for_pattern(pattern)?;
+        let (binary_mark, probability_mark) = mark_table.declarations()?;
+        // Preserve the endpoint identity of the selected binary/probability estimand;
+        // the separate table artifact below binds every retained column and value.
+        let mut input = Self::new(
+            project,
+            pattern,
+            mark_table.cell_ids(),
+            owning_slide_id,
+            coordinate_frame_id,
+            binary_mark,
+            probability_mark,
+            mark_table.cell_ids().len().max(1),
+            mark_table.cell_id_text_bytes().max(1),
+        )?;
+        mark_table.validate_provenance(project)?;
+        input.semantic_artifact_ids = mark_table.semantic_artifact_ids()?;
+        input.declared_artifact_ref =
+            mark_table.declared_artifact_ref(&input.owning_slide_id, &input.coordinate_frame_id)?;
+        input.mark_table = Some(mark_table);
+        Ok(input)
     }
 
     /// Unchanged compatibility Pattern borrowed by the declared workflow.
@@ -146,8 +179,18 @@ impl<'a> DeclaredScalarPatternInput<'a> {
             &self.binary_mark,
             self.probability_mark.as_ref(),
         )?;
-        if digest != self.scalar_identity.declared_input_logical_digest()
-            || byte_len != self.declared_artifact_ref.byte_len()
+        if digest != self.scalar_identity.declared_input_logical_digest() {
+            return Err(DeclaredScalarInputError::DeclaredIdentityMismatch);
+        }
+        let expected = match self.mark_table {
+            Some(mark_table) => mark_table
+                .declared_artifact_ref(&self.owning_slide_id, &self.coordinate_frame_id)?,
+            None => ArtifactRef::new(DECLARED_INPUT_KIND, digest, byte_len)
+                .map_err(|_| DeclaredScalarInputError::LogicalIdentityOverflow)?,
+        };
+        if expected.digest() != self.declared_artifact_ref.digest()
+            || expected.byte_len() != self.declared_artifact_ref.byte_len()
+            || expected.kind() != self.declared_artifact_ref.kind()
         {
             return Err(DeclaredScalarInputError::DeclaredIdentityMismatch);
         }
@@ -161,12 +204,21 @@ impl<'a> DeclaredScalarPatternInput<'a> {
     ) -> Result<(), DeclaredScalarInputError> {
         validate_frame(project, &self.coordinate_frame_id)?;
         validate_hierarchy(project, self.cell_ids, &self.owning_slide_id, self.pattern)?;
-        let semantic_artifact_ids =
-            semantic_artifact_ids(&self.binary_mark, self.probability_mark.as_ref())?;
+        let semantic_artifact_ids = match self.mark_table {
+            Some(mark_table) => {
+                mark_table.validate_for_pattern(self.pattern)?;
+                mark_table.validate_provenance(project)?;
+                mark_table.semantic_artifact_ids()?
+            }
+            None => semantic_artifact_ids(&self.binary_mark, self.probability_mark.as_ref())?,
+        };
         if semantic_artifact_ids.as_ref() != self.semantic_artifact_ids.as_ref() {
             return Err(DeclaredScalarInputError::DeclaredIdentityMismatch);
         }
-        validate_provenance(project, &self.binary_mark, self.probability_mark.as_ref())
+        if self.mark_table.is_none() {
+            validate_provenance(project, &self.binary_mark, self.probability_mark.as_ref())?;
+        }
+        self.verify_identity()
     }
 
     /// Validate config 0.2 label/value routing and return the runtime-only summary.

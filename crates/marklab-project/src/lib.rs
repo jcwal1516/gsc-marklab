@@ -229,6 +229,7 @@ impl ArtifactRef {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SuccessfulRun {
     node_id: String,
+    node_spec_digest: Option<ContentDigest>,
     cache_key: ContentDigest,
     output: ArtifactRef,
 }
@@ -383,6 +384,20 @@ impl MarklabProject {
         self.successful_runs.get(&(node_id.to_owned(), cache_key))
     }
 
+    /// Whether an exact registered workflow specification produced this immutable output.
+    pub fn is_successful_workflow_output(
+        &self,
+        node_id: &str,
+        node_spec_digest: ContentDigest,
+        output: &ArtifactRef,
+    ) -> bool {
+        self.successful_runs.values().any(|run| {
+            run.node_id == node_id
+                && run.node_spec_digest == Some(node_spec_digest)
+                && &run.output == output
+        })
+    }
+
     /// Read a cached bounded artifact after rechecking its digest and length.
     pub fn read_inline_verified(&self, artifact: &ArtifactRef) -> Result<&[u8], ProjectError> {
         let bytes = self.inline_artifacts.get(artifact).ok_or_else(|| {
@@ -403,6 +418,35 @@ impl MarklabProject {
         output_kind: &str,
         encoded_output: Box<[u8]>,
     ) -> Result<ArtifactRef, ProjectError> {
+        self.commit_success_inner(node_id, None, cache_key, output_kind, encoded_output)
+    }
+
+    /// Atomically record output produced by one exact registered workflow specification.
+    pub fn commit_workflow_success(
+        &mut self,
+        node_id: &str,
+        node_spec_digest: ContentDigest,
+        cache_key: ContentDigest,
+        output_kind: &str,
+        encoded_output: Box<[u8]>,
+    ) -> Result<ArtifactRef, ProjectError> {
+        self.commit_success_inner(
+            node_id,
+            Some(node_spec_digest),
+            cache_key,
+            output_kind,
+            encoded_output,
+        )
+    }
+
+    fn commit_success_inner(
+        &mut self,
+        node_id: &str,
+        node_spec_digest: Option<ContentDigest>,
+        cache_key: ContentDigest,
+        output_kind: &str,
+        encoded_output: Box<[u8]>,
+    ) -> Result<ArtifactRef, ProjectError> {
         validate_node_id(node_id)?;
         if encoded_output.len() > self.max_inline_artifact_bytes {
             return Err(ProjectError::InlineArtifactTooLarge {
@@ -414,7 +458,7 @@ impl MarklabProject {
         let record_key = (node_id.to_owned(), cache_key);
 
         if let Some(existing) = self.successful_runs.get(&record_key) {
-            if existing.output != output {
+            if existing.output != output || existing.node_spec_digest != node_spec_digest {
                 return Err(ProjectError::ConflictingSuccess {
                     node_id: node_id.to_owned(),
                     cache_key,
@@ -435,6 +479,7 @@ impl MarklabProject {
 
         let run = SuccessfulRun {
             node_id: node_id.to_owned(),
+            node_spec_digest,
             cache_key,
             output: output.clone(),
         };

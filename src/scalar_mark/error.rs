@@ -12,6 +12,53 @@ pub enum DeclaredScalarInputError {
     /// Binary display label is empty, untrimmed, too long, or contains control characters.
     #[error("binary mark label must be 1-256 trimmed non-control UTF-8 bytes")]
     InvalidMarkLabel,
+    /// A typed mark column uses a unit that is incompatible with its value kind.
+    #[error("scalar mark unit is incompatible with the column value kind")]
+    UnitMismatch,
+    /// A typed mark table contains no columns.
+    #[error("typed mark table requires at least one column")]
+    EmptyMarkTable,
+    /// Two typed columns reuse the same stable mark identity.
+    #[error("typed mark table contains a duplicate mark ID")]
+    DuplicateMarkId,
+    /// A typed mark column has a different row count from the table.
+    #[error("typed mark column has {observed} rows; expected {expected}")]
+    MarkColumnLengthMismatch {
+        /// Table row count.
+        expected: usize,
+        /// Column row count.
+        observed: usize,
+    },
+    /// A finite continuous column contains a non-finite or non-positive nucleus area.
+    #[error("continuous nucleus area at row {row} must be finite and positive")]
+    InvalidContinuousValue {
+        /// First invalid row.
+        row: usize,
+    },
+    /// The current compatibility adapter requires exactly one binary column.
+    #[error("declared marked analysis requires exactly one typed binary column")]
+    BinaryColumnCountMismatch,
+    /// The current compatibility adapter accepts at most one probability column.
+    #[error("declared marked analysis accepts at most one typed probability column")]
+    ProbabilityColumnCountMismatch,
+    /// The current compatibility adapter accepts at most one nucleus-area continuous column.
+    #[error("declared marked analysis accepts at most one typed continuous column")]
+    ContinuousColumnCountMismatch,
+    /// The current dense compatibility Pattern cannot consume nullable columns.
+    #[error("declared marked analysis requires missingness policy not_permitted")]
+    UnsupportedMissingnessPolicy,
+    /// Thresholded binary and probability columns disagree on their modality.
+    #[error("threshold source modality does not match the binary column")]
+    ThresholdModalityMismatch,
+    /// Typed values do not match their row-aligned compatibility Pattern values.
+    #[error("typed mark column disagrees with the compatibility Pattern at row {row}")]
+    PatternMarkValueMismatch {
+        /// First mismatched row.
+        row: usize,
+    },
+    /// Typed continuous presence disagrees with the compatibility Pattern.
+    #[error("typed continuous column and Pattern nucleus area must be present together")]
+    ContinuousDeclarationMismatch,
     /// A row-level scalar mark was incorrectly declared as a derived aggregate.
     #[error("derived_summary is not a supported per-cell scalar measurement status")]
     UnsupportedPerCellMeasurementStatus,

@@ -68,7 +68,8 @@ impl SpatialGeometryPlan2D {
             if !x_um.is_finite() || !y_um.is_finite() {
                 return Err(ClassicalSpatialError::NonFinitePoint { row });
             }
-            if !window.contains(x_um, y_um) {
+            let boundary_distance = window.signed_boundary_distance_um(x_um, y_um)?;
+            if boundary_distance < 0.0 {
                 return Err(ClassicalSpatialError::PointOutsideWindow { row });
             }
             let key = (canonical_bits(x_um), canonical_bits(y_um));
@@ -78,7 +79,7 @@ impl SpatialGeometryPlan2D {
                     second_row: row,
                 });
             }
-            boundary_distances.push(window.boundary_distance_um(x_um, y_um)?);
+            boundary_distances.push(boundary_distance);
         }
         let estimated_storage_bytes = SpatialIndex2D::estimated_storage_bytes_for_len(x.len())
             .checked_add(

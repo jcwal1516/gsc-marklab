@@ -2,8 +2,9 @@ use std::str::FromStr;
 
 use marklab::{
     ArtifactId, BinaryMarkDeclaration, CellId, ContentDigest, DeclaredScalarInputError,
-    DeclaredScalarPatternInput, MeasurementStatus, ProbabilityMarkDeclaration,
-    ProbabilityThresholdComparator, ScalarMarkId,
+    DeclaredScalarPatternInput, MarkTable, MeasurementStatus, MissingnessPolicy,
+    NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration, ProbabilityThresholdComparator,
+    ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
 };
 
 #[path = "support/declared_scalar.rs"]
@@ -123,6 +124,229 @@ fn construct<'a>(
         row_limit,
         text_limit,
     )
+}
+
+#[test]
+fn typed_mark_table_rejects_invalid_rows_values_units_missingness_and_bindings() {
+    let mut fixture = fixture();
+    let binary = independent_binary(&mut fixture, MeasurementStatus::Measured);
+
+    assert!(matches!(
+        ScalarMarkColumn::binary(
+            binary.clone(),
+            ScalarMarkModality::Immunohistochemistry,
+            ScalarMarkUnit::SquareMicrometer,
+            MissingnessPolicy::NotPermitted,
+            fixture.pattern.mark.clone(),
+        ),
+        Err(DeclaredScalarInputError::UnitMismatch)
+    ));
+    let probability = probability_declaration(&mut fixture, MeasurementStatus::Measured);
+    assert!(matches!(
+        ScalarMarkColumn::probability(
+            probability,
+            ScalarMarkModality::Immunohistochemistry,
+            ScalarMarkUnit::Unitless,
+            MissingnessPolicy::NotPermitted,
+            vec![0.0, 0.5, f32::NAN, 1.0],
+        ),
+        Err(DeclaredScalarInputError::InvalidProbability { row: 2 })
+    ));
+    let area =
+        NucleusAreaUm2MarkDeclaration::new(MeasurementStatus::Measured, missing_artifact(b"area"))
+            .expect("area declaration");
+    assert!(matches!(
+        ScalarMarkColumn::continuous(
+            area,
+            ScalarMarkModality::Morphology,
+            ScalarMarkUnit::SquareMicrometer,
+            MissingnessPolicy::NotPermitted,
+            vec![1.0, 2.0, f32::INFINITY, 4.0],
+        ),
+        Err(DeclaredScalarInputError::InvalidContinuousValue { row: 2 })
+    ));
+
+    let binary_column = ScalarMarkColumn::binary(
+        binary.clone(),
+        ScalarMarkModality::Immunohistochemistry,
+        ScalarMarkUnit::Unitless,
+        MissingnessPolicy::NotPermitted,
+        fixture.pattern.mark.clone(),
+    )
+    .expect("binary column");
+    assert!(matches!(
+        MarkTable::new(
+            fixture.cell_ids.clone(),
+            vec![binary_column.clone(), binary_column.clone()],
+            ROW_LIMIT,
+            cell_id_text_bytes(&fixture.cell_ids),
+        ),
+        Err(DeclaredScalarInputError::DuplicateMarkId)
+    ));
+    assert!(matches!(
+        MarkTable::new(
+            fixture.cell_ids.clone(),
+            vec![ScalarMarkColumn::binary(
+                binary.clone(),
+                ScalarMarkModality::Immunohistochemistry,
+                ScalarMarkUnit::Unitless,
+                MissingnessPolicy::NotPermitted,
+                vec![0, 1, 1],
+            )
+            .expect("short binary column")],
+            ROW_LIMIT,
+            cell_id_text_bytes(&fixture.cell_ids),
+        ),
+        Err(DeclaredScalarInputError::MarkColumnLengthMismatch {
+            expected: 4,
+            observed: 3
+        })
+    ));
+
+    let nullable = MarkTable::new(
+        fixture.cell_ids.clone(),
+        vec![ScalarMarkColumn::binary(
+            binary.clone(),
+            ScalarMarkModality::Immunohistochemistry,
+            ScalarMarkUnit::Unitless,
+            MissingnessPolicy::Allowed,
+            fixture.pattern.mark.clone(),
+        )
+        .expect("nullable policy column")],
+        ROW_LIMIT,
+        cell_id_text_bytes(&fixture.cell_ids),
+    )
+    .expect("nullable table");
+    assert!(matches!(
+        DeclaredScalarPatternInput::from_mark_table(
+            &fixture.project,
+            &fixture.pattern,
+            &nullable,
+            fixture.slide_id.clone(),
+            fixture.frame_id.clone(),
+        ),
+        Err(DeclaredScalarInputError::UnsupportedMissingnessPolicy)
+    ));
+
+    let mismatched = MarkTable::new(
+        fixture.cell_ids.clone(),
+        vec![ScalarMarkColumn::binary(
+            binary,
+            ScalarMarkModality::Immunohistochemistry,
+            ScalarMarkUnit::Unitless,
+            MissingnessPolicy::NotPermitted,
+            vec![1, 1, 1, 0],
+        )
+        .expect("mismatched values")],
+        ROW_LIMIT,
+        cell_id_text_bytes(&fixture.cell_ids),
+    )
+    .expect("mismatched table");
+    assert!(matches!(
+        DeclaredScalarPatternInput::from_mark_table(
+            &fixture.project,
+            &fixture.pattern,
+            &mismatched,
+            fixture.slide_id.clone(),
+            fixture.frame_id.clone(),
+        ),
+        Err(DeclaredScalarInputError::PatternMarkValueMismatch { row: 0 })
+    ));
+}
+
+#[test]
+fn typed_mark_table_enforces_threshold_modality_and_all_column_provenance() {
+    let mut fixture = fixture();
+    fixture.pattern.mark_prob = Some(vec![0.1, 0.8, 0.7, 0.2].into_boxed_slice());
+    let (binary, probability) = thresholded_declarations(
+        &mut fixture,
+        MeasurementStatus::ImportedPrediction,
+        ProbabilityThresholdComparator::GreaterThanOrEqual,
+        0.5,
+    );
+    let modality_mismatch = MarkTable::new(
+        fixture.cell_ids.clone(),
+        vec![
+            ScalarMarkColumn::binary(
+                binary,
+                ScalarMarkModality::Immunohistochemistry,
+                ScalarMarkUnit::Unitless,
+                MissingnessPolicy::NotPermitted,
+                fixture.pattern.mark.clone(),
+            )
+            .expect("binary column"),
+            ScalarMarkColumn::probability(
+                probability,
+                ScalarMarkModality::Morphology,
+                ScalarMarkUnit::Unitless,
+                MissingnessPolicy::NotPermitted,
+                fixture
+                    .pattern
+                    .mark_prob
+                    .clone()
+                    .expect("probability values"),
+            )
+            .expect("probability column"),
+        ],
+        ROW_LIMIT,
+        cell_id_text_bytes(&fixture.cell_ids),
+    )
+    .expect("modality-mismatched table");
+    assert!(matches!(
+        DeclaredScalarPatternInput::from_mark_table(
+            &fixture.project,
+            &fixture.pattern,
+            &modality_mismatch,
+            fixture.slide_id.clone(),
+            fixture.frame_id.clone(),
+        ),
+        Err(DeclaredScalarInputError::ThresholdModalityMismatch)
+    ));
+
+    let missing_area_id = missing_artifact(b"missing-area-provenance");
+    fixture.pattern.mark_prob = None;
+    fixture.pattern.nucleus_area_um2 = Some(vec![1.0, 2.0, 3.0, 4.0].into_boxed_slice());
+    let binary = independent_binary(&mut fixture, MeasurementStatus::Measured);
+    let table = MarkTable::new(
+        fixture.cell_ids.clone(),
+        vec![
+            ScalarMarkColumn::binary(
+                binary,
+                ScalarMarkModality::Immunohistochemistry,
+                ScalarMarkUnit::Unitless,
+                MissingnessPolicy::NotPermitted,
+                fixture.pattern.mark.clone(),
+            )
+            .expect("binary column"),
+            ScalarMarkColumn::continuous(
+                NucleusAreaUm2MarkDeclaration::new(MeasurementStatus::Measured, missing_area_id)
+                    .expect("area declaration"),
+                ScalarMarkModality::Morphology,
+                ScalarMarkUnit::SquareMicrometer,
+                MissingnessPolicy::NotPermitted,
+                fixture
+                    .pattern
+                    .nucleus_area_um2
+                    .clone()
+                    .expect("area values"),
+            )
+            .expect("area column"),
+        ],
+        ROW_LIMIT,
+        cell_id_text_bytes(&fixture.cell_ids),
+    )
+    .expect("table with missing area provenance");
+    assert!(matches!(
+        DeclaredScalarPatternInput::from_mark_table(
+            &fixture.project,
+            &fixture.pattern,
+            &table,
+            fixture.slide_id.clone(),
+            fixture.frame_id.clone(),
+        ),
+        Err(DeclaredScalarInputError::ProvenanceRecordMissing { artifact })
+            if artifact == missing_area_id
+    ));
 }
 
 #[test]

@@ -261,16 +261,17 @@ pub struct SchedulerLimits {
     pub max_inline_output_bytes: usize,
 }
 
-/// Stateless scheduler for one dependency-free node.
+/// Stateless scheduler for one typed node at a time.
 pub struct LocalScheduler {
     limits: SchedulerLimits,
 }
 
-/// Execute one typed dependency-free algorithm through verified durable replay and commit.
+/// Execute one typed algorithm through verified durable replay and commit.
 ///
 /// The node owns input/schema validation, execution, diagnostics embedded in its typed output,
 /// canonical encoding, and cache material. The scheduler remains the sole cache-key and in-memory
 /// commit owner; the durable project remains the sole cross-process object/ledger/head owner.
+/// Declared dependency outputs must already have been executed or restored into `project`.
 pub fn execute_algorithm<N: WorkflowNode>(
     durable: &mut DurableProject,
     project: &mut MarklabProject,
@@ -325,7 +326,7 @@ impl LocalScheduler {
         Ok(Self { limits })
     }
 
-    /// Run or replay one dependency-free node with failure-atomic project commit.
+    /// Run or replay one node with failure-atomic project commit.
     ///
     /// Graph/spec/input errors, node errors, codec errors, and limit violations
     /// return without recording a successful run.
@@ -376,10 +377,38 @@ impl LocalScheduler {
                 node_id: spec.id().clone(),
             });
         }
-        if !spec.dependencies().is_empty() {
-            return Err(WorkflowError::DependenciesUnsupported {
-                node_id: spec.id().clone(),
-            });
+        for dependency in spec.dependencies() {
+            let dependency_spec = graph
+                .node(dependency)
+                .expect("validated workflow dependency must be registered");
+            let matching_outputs = node
+                .input_artifacts()
+                .iter()
+                .filter(|artifact| {
+                    project.is_successful_workflow_output(
+                        dependency.as_str(),
+                        dependency_spec.digest(),
+                        artifact,
+                    )
+                })
+                .collect::<BTreeSet<_>>()
+                .len();
+            match matching_outputs {
+                1 => {}
+                0 => {
+                    return Err(WorkflowError::MissingDependencyOutput {
+                        node_id: spec.id().clone(),
+                        dependency: dependency.clone(),
+                    })
+                }
+                matches => {
+                    return Err(WorkflowError::AmbiguousDependencyOutput {
+                        node_id: spec.id().clone(),
+                        dependency: dependency.clone(),
+                        matches,
+                    })
+                }
+            }
         }
         for artifact in node.input_artifacts() {
             if !project.contains(artifact) {
@@ -487,8 +516,9 @@ impl LocalScheduler {
             });
         }
         drop(stable_encoded);
-        let artifact = project.commit_success(
+        let artifact = project.commit_workflow_success(
             spec.id().as_str(),
+            spec.digest(),
             cache_key,
             node.output_kind(),
             canonical_encoded,
@@ -699,11 +729,31 @@ pub enum WorkflowError {
         /// Mismatched node ID.
         node_id: NodeId,
     },
-    /// B-04's intentionally narrow scheduler received a dependent node.
-    #[error("B-04 local scheduler cannot execute dependent node {node_id:?}")]
+    /// Reserved compatibility error from the former dependency-free scheduler.
+    #[error("local scheduler cannot execute dependent node {node_id:?}")]
     DependenciesUnsupported {
         /// Node requiring multi-node scheduling.
         node_id: NodeId,
+    },
+    /// A declared dependency has not produced any exact input artifact consumed by this node.
+    #[error("node {node_id:?} is missing the successful output of dependency {dependency:?}")]
+    MissingDependencyOutput {
+        /// Dependent node.
+        node_id: NodeId,
+        /// Upstream node whose exact output is absent.
+        dependency: NodeId,
+    },
+    /// More than one declared input claims to be the selected output of one dependency edge.
+    #[error(
+        "node {node_id:?} ambiguously consumes {matches} outputs from dependency {dependency:?}"
+    )]
+    AmbiguousDependencyOutput {
+        /// Dependent node.
+        node_id: NodeId,
+        /// Upstream node with ambiguous selected outputs.
+        dependency: NodeId,
+        /// Number of matching declared input artifacts.
+        matches: usize,
     },
     /// Node input reference is not registered in the project catalog.
     #[error("node {node_id:?} input is not cataloged: {artifact:?}")]

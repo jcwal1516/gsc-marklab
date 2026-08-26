@@ -1,14 +1,15 @@
 use std::io::Write;
 
 use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
+    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeRun,
+    NodeSpec, WorkflowNode,
 };
 
 use crate::{
+    compare_marked_prepost,
     scalar_mark::{DeclaredMarkUse, DeclaredScalarIdentity, DeclaredScalarPatternInput},
-    AnalysisConfig, AnalysisEngine, MarkedPatternResult, Pattern, ResultDocument, ThreadSetting,
-    RESULT_FORMAT_VERSION,
+    AnalysisConfig, AnalysisEngine, MarkedPatternResult, Pattern, PrePostResult, ResultDocument,
+    ThreadSetting, RESULT_FORMAT_VERSION,
 };
 
 const PATTERN_KIND: &str = "application/vnd.marklab.compat-pattern+json";
@@ -16,6 +17,7 @@ const CONFIG_KIND: &str = "application/vnd.marklab.analysis-config+toml;version=
 const RESULT_KIND: &str = "application/vnd.marklab.result+json;version=0.3";
 const ADAPTER_REVISION: &str = "marked-analysis-v1";
 const DECLARED_ADAPTER_REVISION: &str = "declared-marked-analysis-v1";
+const PREPOST_ADAPTER_REVISION: &str = "marked-prepost-v1";
 
 /// Existing marked analysis exposed as one typed workflow node.
 pub struct MarkedAnalysisNode<'a> {
@@ -279,6 +281,129 @@ impl WorkflowNode for DeclaredMarkedAnalysisNode<'_, '_> {
     }
 }
 
+/// Existing marked pre/post comparison exposed as a typed two-input workflow node.
+pub struct MarkedPrePostNode<'a> {
+    spec: NodeSpec,
+    pre: &'a MarkedPatternResult,
+    post: &'a MarkedPatternResult,
+    inputs: [ArtifactRef; 2],
+    configuration_digest: ContentDigest,
+    execution_policy: Vec<u8>,
+    implementation_identity: String,
+}
+
+impl<'a> MarkedPrePostNode<'a> {
+    /// Bind two exact upstream marked-analysis runs as the pre/post comparison inputs.
+    pub fn new(
+        id: NodeId,
+        pre_dependency: NodeId,
+        pre: &'a NodeRun<MarkedPatternResult>,
+        post_dependency: NodeId,
+        post: &'a NodeRun<MarkedPatternResult>,
+    ) -> Result<Self, NodeError> {
+        let expected_pre = marked_result_artifact(&pre.output)?;
+        pre.artifact
+            .verify_identity(expected_pre.digest(), expected_pre.byte_len())
+            .map_err(NodeError::input)?;
+        if pre.artifact.kind() != RESULT_KIND {
+            return Err(NodeError::input(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "pre input is not a Marklab result-format 0.3 artifact",
+            )));
+        }
+        let expected_post = marked_result_artifact(&post.output)?;
+        post.artifact
+            .verify_identity(expected_post.digest(), expected_post.byte_len())
+            .map_err(NodeError::input)?;
+        if post.artifact.kind() != RESULT_KIND {
+            return Err(NodeError::input(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "post input is not a Marklab result-format 0.3 artifact",
+            )));
+        }
+        let spec = NodeSpec::new(
+            id,
+            "marked_prepost",
+            1,
+            vec![pre_dependency, post_dependency],
+        )
+        .map_err(NodeError::input)?;
+        Ok(Self {
+            spec,
+            pre: &pre.output,
+            post: &post.output,
+            inputs: [pre.artifact.clone(), post.artifact.clone()],
+            configuration_digest: ContentDigest::from_bytes(
+                b"marklab-marked-prepost-configuration-v1",
+            ),
+            execution_policy: b"deterministic-descriptive-comparison-v1".to_vec(),
+            implementation_identity: format!(
+                "marklab/{};adapter={PREPOST_ADAPTER_REVISION};result={RESULT_FORMAT_VERSION}",
+                env!("CARGO_PKG_VERSION")
+            ),
+        })
+    }
+
+    /// Return the versioned dependency-bearing specification registered in the graph.
+    pub fn spec(&self) -> &NodeSpec {
+        &self.spec
+    }
+}
+
+impl WorkflowNode for MarkedPrePostNode<'_> {
+    type Output = PrePostResult;
+
+    fn spec(&self) -> &NodeSpec {
+        &self.spec
+    }
+
+    fn input_artifacts(&self) -> &[ArtifactRef] {
+        &self.inputs
+    }
+
+    fn verify_input_content(&self) -> Result<(), NodeError> {
+        let pre = marked_result_artifact(self.pre)?;
+        self.inputs[0]
+            .verify_identity(pre.digest(), pre.byte_len())
+            .map_err(NodeError::input)?;
+        let post = marked_result_artifact(self.post)?;
+        self.inputs[1]
+            .verify_identity(post.digest(), post.byte_len())
+            .map_err(NodeError::input)
+    }
+
+    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
+        CacheKeyMaterial {
+            configuration_digest: self.configuration_digest,
+            execution_policy: &self.execution_policy,
+            implementation_identity: &self.implementation_identity,
+        }
+    }
+
+    fn execute(&self) -> Result<Self::Output, NodeError> {
+        Ok(compare_marked_prepost(self.pre, self.post))
+    }
+
+    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
+        ResultDocument::marked_prepost(output.clone())
+            .to_json_pretty()
+            .map(String::into_bytes)
+            .map(Vec::into_boxed_slice)
+            .map_err(NodeError::encoding)
+    }
+
+    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
+        let json = std::str::from_utf8(bytes).map_err(NodeError::decode)?;
+        ResultDocument::from_json(json)
+            .and_then(ResultDocument::into_marked_prepost)
+            .map_err(NodeError::decode)
+    }
+
+    fn output_kind(&self) -> &'static str {
+        RESULT_KIND
+    }
+}
+
 pub(crate) fn pattern_artifact(pattern: &Pattern) -> Result<ArtifactRef, NodeError> {
     let mut writer = ContentDigest::builder();
     serde_json::to_writer(&mut writer, pattern).map_err(NodeError::input)?;
@@ -290,6 +415,13 @@ pub(crate) fn pattern_artifact(pattern: &Pattern) -> Result<ArtifactRef, NodeErr
 fn config_artifact(config: &AnalysisConfig) -> Result<ArtifactRef, NodeError> {
     let encoded = toml::to_string(config).map_err(NodeError::input)?;
     ArtifactRef::from_bytes(CONFIG_KIND, encoded.as_bytes()).map_err(NodeError::input)
+}
+
+fn marked_result_artifact(result: &MarkedPatternResult) -> Result<ArtifactRef, NodeError> {
+    let encoded = ResultDocument::marked(result.clone())
+        .to_json_pretty()
+        .map_err(NodeError::input)?;
+    ArtifactRef::from_bytes(RESULT_KIND, encoded.as_bytes()).map_err(NodeError::input)
 }
 
 fn execution_policy(config: &AnalysisConfig) -> Vec<u8> {

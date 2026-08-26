@@ -7,11 +7,12 @@ use std::{
 };
 
 use marklab::{
-    AnalysisConfig, AnalysisEngine, ArtifactId, ArtifactKey, ArtifactLocator, ArtifactRecord,
-    ArtifactRef, ArtifactSchema, CacheKeyMaterial, CacheStatus, ContentDigest, LocalArtifactStore,
-    LocalScheduler, MarkedAnalysisNode, MarklabProject, NodeError, NodeId, NodeSpec, OutputWriter,
-    Pattern, PatternMeta, ProjectError, ResultDocument, SchedulerLimits, StoreId, WorkflowError,
-    WorkflowGraph, WorkflowNode,
+    execute_algorithm, AnalysisConfig, AnalysisEngine, ArtifactId, ArtifactKey, ArtifactLocator,
+    ArtifactRecord, ArtifactRef, ArtifactSchema, CacheKeyMaterial, CacheStatus, ContentDigest,
+    DurableProject, DurableProjectLimits, LocalArtifactStore, LocalScheduler, MarkedAnalysisNode,
+    MarkedPrePostNode, MarklabProject, NativeRuntimeProvenance, NodeError, NodeId, NodeSpec,
+    OutputWriter, Pattern, PatternMeta, ProjectError, ResultDocument, SchedulerLimits, StoreId,
+    WorkflowError, WorkflowGraph, WorkflowNode,
 };
 
 #[derive(Clone)]
@@ -129,6 +130,19 @@ fn semantic_record(bytes: &[u8], schema_version: u32, store_id: &str, key: &str)
     .expect("record")
 }
 
+fn test_runtime() -> NativeRuntimeProvenance {
+    NativeRuntimeProvenance::new(
+        "0.0.0-test",
+        None,
+        None,
+        "rustc 1.96.0-test",
+        vec!["test".to_owned()],
+        ArtifactRef::from_bytes("application/vnd.marklab.executable", b"test-executable")
+            .expect("test executable identity"),
+    )
+    .expect("test runtime")
+}
+
 #[test]
 fn content_digest_change_invalidates_cache() {
     let executions = Arc::new(AtomicUsize::new(0));
@@ -199,6 +213,329 @@ fn cyclic_workflow_is_rejected_before_execution() {
         WorkflowGraph::new([a_spec.clone(), a_spec]),
         Err(WorkflowError::DuplicateNode { .. })
     ));
+}
+
+#[test]
+fn dependent_node_consumes_the_exact_registered_upstream_output() {
+    let upstream_executions = Arc::new(AtomicUsize::new(0));
+    let downstream_executions = Arc::new(AtomicUsize::new(0));
+    let upstream =
+        FakeNode::new("upstream", b"source", Arc::clone(&upstream_executions)).expect("upstream");
+    let upstream_output = ArtifactRef::from_bytes("text/plain;charset=utf-8", b"xxxxxxxx")
+        .expect("upstream output identity");
+    let downstream = FakeNode {
+        spec: NodeSpec::new(
+            NodeId::new("downstream").expect("downstream ID"),
+            "fake",
+            1,
+            vec![NodeId::new("upstream").expect("upstream ID")],
+        )
+        .expect("downstream spec"),
+        inputs: vec![upstream_output.clone()],
+        semantic_inputs: Vec::new(),
+        input_bytes: b"xxxxxxxx".to_vec(),
+        executions: Arc::clone(&downstream_executions),
+        fail: false,
+        decode_fail: false,
+        unstable_codec: false,
+        output_len: 4,
+    };
+    let graph = WorkflowGraph::new([upstream.spec().clone(), downstream.spec().clone()])
+        .expect("dependency-valid graph");
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: 1024,
+    })
+    .expect("scheduler");
+    let mut project = MarklabProject::new();
+    project
+        .register_reference(upstream.input_artifacts()[0].clone())
+        .expect("upstream input");
+
+    let upstream_run = scheduler
+        .run_single(&mut project, &graph, &upstream)
+        .expect("upstream run");
+    assert_eq!(upstream_run.artifact, upstream_output);
+    let downstream_run = scheduler
+        .run_single(&mut project, &graph, &downstream)
+        .expect("dependent run");
+
+    assert_eq!(upstream_run.cache_status, CacheStatus::Miss);
+    assert_eq!(downstream_run.cache_status, CacheStatus::Miss);
+    assert_eq!(upstream_executions.load(Ordering::SeqCst), 1);
+    assert_eq!(downstream_executions.load(Ordering::SeqCst), 1);
+    assert_eq!(project.successful_run_count(), 2);
+}
+
+#[test]
+fn byte_identical_dependency_outputs_remain_two_valid_edges() {
+    let executions = Arc::new(AtomicUsize::new(0));
+    let first = FakeNode::new("identical-first", b"first", Arc::clone(&executions))
+        .expect("first upstream");
+    let second = FakeNode::new("identical-second", b"second", Arc::clone(&executions))
+        .expect("second upstream");
+    let shared_output =
+        ArtifactRef::from_bytes("text/plain;charset=utf-8", b"xxxxxxxx").expect("shared output");
+    let downstream = FakeNode {
+        spec: NodeSpec::new(
+            NodeId::new("identical-downstream").expect("downstream ID"),
+            "fake",
+            1,
+            vec![first.spec().id().clone(), second.spec().id().clone()],
+        )
+        .expect("downstream spec"),
+        inputs: vec![shared_output.clone(), shared_output],
+        semantic_inputs: Vec::new(),
+        input_bytes: b"xxxxxxxx".to_vec(),
+        executions: Arc::clone(&executions),
+        fail: false,
+        decode_fail: false,
+        unstable_codec: false,
+        output_len: 4,
+    };
+    let graph = WorkflowGraph::new([
+        first.spec().clone(),
+        second.spec().clone(),
+        downstream.spec().clone(),
+    ])
+    .expect("graph");
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: 1024,
+    })
+    .expect("scheduler");
+    let mut project = MarklabProject::new();
+    project
+        .register_reference(first.input_artifacts()[0].clone())
+        .and_then(|()| project.register_reference(second.input_artifacts()[0].clone()))
+        .expect("upstream inputs");
+    scheduler
+        .run_single(&mut project, &graph, &first)
+        .expect("first upstream run");
+    scheduler
+        .run_single(&mut project, &graph, &second)
+        .expect("second upstream run");
+
+    let run = scheduler
+        .run_single(&mut project, &graph, &downstream)
+        .expect("byte-identical dependency edges remain valid");
+    assert_eq!(run.cache_status, CacheStatus::Miss);
+    assert_eq!(executions.load(Ordering::SeqCst), 3);
+}
+
+#[test]
+fn durable_reopen_restores_dependency_outputs_without_reexecution() {
+    let directory = tempfile::tempdir().expect("temporary project directory");
+    let project_path = directory.path().join("project");
+    let limits = DurableProjectLimits::new(64 * 1024, 1024 * 1024, 32, 64 * 1024, 1024)
+        .expect("durable limits");
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: 1024,
+    })
+    .expect("scheduler");
+    let upstream_executions = Arc::new(AtomicUsize::new(0));
+    let downstream_executions = Arc::new(AtomicUsize::new(0));
+    let upstream = FakeNode::new(
+        "durable-upstream",
+        b"durable-source",
+        Arc::clone(&upstream_executions),
+    )
+    .expect("upstream");
+    let upstream_output = ArtifactRef::from_bytes("text/plain;charset=utf-8", b"xxxxxxxx")
+        .expect("upstream output identity");
+    let downstream = FakeNode {
+        spec: NodeSpec::new(
+            NodeId::new("durable-downstream").expect("downstream ID"),
+            "fake",
+            1,
+            vec![NodeId::new("durable-upstream").expect("upstream ID")],
+        )
+        .expect("downstream spec"),
+        inputs: vec![upstream_output],
+        semantic_inputs: Vec::new(),
+        input_bytes: b"xxxxxxxx".to_vec(),
+        executions: Arc::clone(&downstream_executions),
+        fail: false,
+        decode_fail: false,
+        unstable_codec: false,
+        output_len: 4,
+    };
+    let graph = WorkflowGraph::new([upstream.spec().clone(), downstream.spec().clone()])
+        .expect("dependency-valid graph");
+    let schema = ArtifactSchema::new("marklab.test.fake-result", 1).expect("result schema");
+
+    {
+        let mut durable = DurableProject::open_or_create(&project_path, limits).expect("project");
+        let mut project = MarklabProject::new();
+        project
+            .register_reference(upstream.input_artifacts()[0].clone())
+            .expect("upstream input");
+        let upstream_run = execute_algorithm(
+            &mut durable,
+            &mut project,
+            &graph,
+            &upstream,
+            &scheduler,
+            schema.clone(),
+            test_runtime(),
+        )
+        .expect("first upstream run");
+        let downstream_run = execute_algorithm(
+            &mut durable,
+            &mut project,
+            &graph,
+            &downstream,
+            &scheduler,
+            schema.clone(),
+            test_runtime(),
+        )
+        .expect("first downstream run");
+        assert_eq!(upstream_run.cache_status, CacheStatus::Miss);
+        assert_eq!(downstream_run.cache_status, CacheStatus::Miss);
+        assert_eq!(durable.execution_count(), 2);
+    }
+
+    let mut durable =
+        DurableProject::open_or_create(&project_path, limits).expect("reopen project");
+    let mut project = MarklabProject::new();
+    project
+        .register_reference(upstream.input_artifacts()[0].clone())
+        .expect("upstream input after reopen");
+    let upstream_run = execute_algorithm(
+        &mut durable,
+        &mut project,
+        &graph,
+        &upstream,
+        &scheduler,
+        schema.clone(),
+        test_runtime(),
+    )
+    .expect("replayed upstream run");
+    let downstream_run = execute_algorithm(
+        &mut durable,
+        &mut project,
+        &graph,
+        &downstream,
+        &scheduler,
+        schema,
+        test_runtime(),
+    )
+    .expect("replayed downstream run");
+
+    assert_eq!(upstream_run.cache_status, CacheStatus::Hit);
+    assert_eq!(downstream_run.cache_status, CacheStatus::Hit);
+    assert_eq!(upstream_executions.load(Ordering::SeqCst), 1);
+    assert_eq!(downstream_executions.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        durable.execution_count(),
+        2,
+        "hits must not append executions"
+    );
+}
+
+#[test]
+fn dependency_edges_reject_unproduced_legacy_stale_and_ambiguous_outputs() {
+    let upstream_executions = Arc::new(AtomicUsize::new(0));
+    let downstream_executions = Arc::new(AtomicUsize::new(0));
+    let upstream = FakeNode::new("edge-upstream", b"source", Arc::clone(&upstream_executions))
+        .expect("upstream");
+    let upstream_output =
+        ArtifactRef::from_bytes("text/plain;charset=utf-8", b"xxxxxxxx").expect("upstream output");
+    let downstream = FakeNode {
+        spec: NodeSpec::new(
+            NodeId::new("edge-downstream").expect("downstream ID"),
+            "fake",
+            1,
+            vec![NodeId::new("edge-upstream").expect("upstream ID")],
+        )
+        .expect("downstream spec"),
+        inputs: vec![upstream_output.clone()],
+        semantic_inputs: Vec::new(),
+        input_bytes: b"xxxxxxxx".to_vec(),
+        executions: Arc::clone(&downstream_executions),
+        fail: false,
+        decode_fail: false,
+        unstable_codec: false,
+        output_len: 4,
+    };
+    let graph =
+        WorkflowGraph::new([upstream.spec().clone(), downstream.spec().clone()]).expect("graph");
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: 1024,
+    })
+    .expect("scheduler");
+    let mut project = MarklabProject::new();
+    project
+        .register_reference(upstream.input_artifacts()[0].clone())
+        .expect("upstream input");
+    project
+        .register_reference(upstream_output.clone())
+        .expect("declared downstream input");
+
+    assert!(matches!(
+        scheduler.run_single(&mut project, &graph, &downstream),
+        Err(WorkflowError::MissingDependencyOutput { .. })
+    ));
+    project
+        .commit_success(
+            "edge-upstream",
+            ContentDigest::from_bytes(b"legacy-cache-key"),
+            upstream_output.kind(),
+            b"xxxxxxxx".to_vec().into_boxed_slice(),
+        )
+        .expect("legacy direct success");
+    assert!(matches!(
+        scheduler.run_single(&mut project, &graph, &downstream),
+        Err(WorkflowError::MissingDependencyOutput { .. })
+    ));
+
+    scheduler
+        .run_single(&mut project, &graph, &upstream)
+        .expect("typed upstream success");
+    let changed_upstream_spec = NodeSpec::new(
+        NodeId::new("edge-upstream").expect("upstream ID"),
+        "fake",
+        2,
+        Vec::new(),
+    )
+    .expect("changed upstream spec");
+    let stale_graph = WorkflowGraph::new([changed_upstream_spec, downstream.spec().clone()])
+        .expect("stale graph");
+    assert!(matches!(
+        scheduler.run_single(&mut project, &stale_graph, &downstream),
+        Err(WorkflowError::MissingDependencyOutput { .. })
+    ));
+
+    let mut changed_upstream = FakeNode::new(
+        "edge-upstream",
+        b"changed-source",
+        Arc::clone(&upstream_executions),
+    )
+    .expect("changed upstream");
+    changed_upstream.output_len = 6;
+    project
+        .register_reference(changed_upstream.input_artifacts()[0].clone())
+        .expect("changed upstream input");
+    scheduler
+        .run_single(&mut project, &graph, &changed_upstream)
+        .expect("second typed upstream success");
+    let changed_output = ArtifactRef::from_bytes("text/plain;charset=utf-8", b"xxxxxx")
+        .expect("changed upstream output");
+
+    let mut ambiguous = downstream.clone();
+    ambiguous.spec = NodeSpec::new(
+        NodeId::new("ambiguous-downstream").expect("ambiguous ID"),
+        "fake",
+        1,
+        vec![NodeId::new("edge-upstream").expect("upstream ID")],
+    )
+    .expect("ambiguous spec");
+    ambiguous.inputs.push(changed_output);
+    let ambiguous_graph = WorkflowGraph::new([upstream.spec().clone(), ambiguous.spec().clone()])
+        .expect("ambiguous graph");
+    assert!(matches!(
+        scheduler.run_single(&mut project, &ambiguous_graph, &ambiguous),
+        Err(WorkflowError::AmbiguousDependencyOutput { matches: 2, .. })
+    ));
+    assert_eq!(downstream_executions.load(Ordering::SeqCst), 0);
 }
 
 #[test]
@@ -679,4 +1016,101 @@ fn marked_workflow_matches_direct_compatibility_path() {
     .expect("marked result");
     written.timings.clear();
     assert_eq!(written, expected);
+}
+
+#[test]
+fn marked_prepost_composes_two_produced_analysis_artifacts() {
+    let mut config = AnalysisConfig::default();
+    config.validation.n_min = 4;
+    config.validation.n_marked_min = 1;
+    config.validation.n_unmarked_min = 1;
+    config.validation.area_min_um2 = 1.0;
+    config.validation.k_shell_min = 1;
+    config.spectrum.k_shells = 4;
+    config.spectrum.low_k_shells = 2;
+    config.spectrum.anisotropy_low_k_shells = 2;
+    config.permutation.b = 9;
+    config.permutation.stratified = false;
+    config.inference.family_wise_alpha = 0.25;
+    config.performance.threads = marklab::ThreadSetting::Count(1);
+
+    let pattern = |timepoint: &str, marks: Vec<u8>| {
+        let mut pattern = Pattern::from_arrays(
+            vec![0.0, 1.0, 0.0, 1.0],
+            vec![0.0, 0.0, 1.0, 1.0],
+            marks,
+            PatternMeta {
+                case_id: "workflow-case".into(),
+                timepoint: timepoint.into(),
+                protein: "generic".into(),
+                slide_id: None,
+                section_id: None,
+                stain_batch: None,
+                block_id: None,
+                region_id: None,
+            },
+        )
+        .expect("pattern");
+        pattern.window.area_um2 = 4.0;
+        pattern.window.analysis_effective_length_um = 2.0;
+        pattern.window.d_nn_mean_um = 1.0;
+        pattern
+    };
+    let pre_pattern = pattern("pre", vec![1, 0, 0, 1]);
+    let post_pattern = pattern("post", vec![1, 1, 0, 0]);
+    let mut project = MarklabProject::new();
+    let pre = MarkedAnalysisNode::new(
+        &mut project,
+        NodeId::new("pre-analysis").expect("pre ID"),
+        &pre_pattern,
+        &config,
+    )
+    .expect("pre node");
+    let post = MarkedAnalysisNode::new(
+        &mut project,
+        NodeId::new("post-analysis").expect("post ID"),
+        &post_pattern,
+        &config,
+    )
+    .expect("post node");
+    let upstream_graph =
+        WorkflowGraph::new([pre.spec().clone(), post.spec().clone()]).expect("upstream graph");
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: 16 * 1024 * 1024,
+    })
+    .expect("scheduler");
+    let pre_run = scheduler
+        .run_single(&mut project, &upstream_graph, &pre)
+        .expect("pre run");
+    let post_run = scheduler
+        .run_single(&mut project, &upstream_graph, &post)
+        .expect("post run");
+
+    let comparison = MarkedPrePostNode::new(
+        NodeId::new("marked-prepost").expect("comparison ID"),
+        pre.spec().id().clone(),
+        &pre_run,
+        post.spec().id().clone(),
+        &post_run,
+    )
+    .expect("comparison node");
+    let graph = WorkflowGraph::new([
+        pre.spec().clone(),
+        post.spec().clone(),
+        comparison.spec().clone(),
+    ])
+    .expect("composed graph");
+    let compared = scheduler
+        .run_single(&mut project, &graph, &comparison)
+        .expect("dependent comparison");
+    let direct = marklab::compare_marked_prepost(&pre_run.output, &post_run.output);
+
+    assert_eq!(compared.cache_status, CacheStatus::Miss);
+    assert_eq!(compared.output, direct);
+    let replay = scheduler
+        .run_single(&mut project, &graph, &comparison)
+        .expect("comparison replay");
+    assert_eq!(replay.cache_status, CacheStatus::Hit);
+    assert_eq!(replay.artifact, compared.artifact);
+    assert_eq!(replay.output, direct);
 }
