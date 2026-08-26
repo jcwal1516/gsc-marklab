@@ -1802,3 +1802,24 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for the current FND-04/WS-23 increment
 - Decision: introduce the smallest row-aligned `MarkTable` needed by the existing declared marked-analysis path: stable `CellId` rows and typed binary, probability, and finite continuous columns with one column-wide measurement status, modality, unit, provenance artifact identity, and explicit missingness policy. Adapt the current binary/probability workflow from that table while preserving the compatibility `Pattern` and result-format 0.3; reject row, identity, probability, finite-value, provenance, status, unit, and undocumented-threshold mismatches at construction.
 - Consequences: one production analysis consumes a multi-column typed mark owner instead of adding another endpoint-specific value wrapper. Categorical, ordinal, probability-simplex, vector-reference, Arrow/Parquet, arbitrary-unit, and real IHC round-trip/scale coverage remain open and must be added only with their own immediate callers.
+
+## DEC-0220 — Admit typed global Moran inference through one concrete spatial-mark workflow
+
+- Date: 2026-08-26
+- Status: accepted for the current FND-02/FND-04/FND-06 and SIG-01A increment
+- Decision: bind `ObservationWindow2D` to one installed physical `[X,Y]` micrometre frame and consume that bound domain, one finite continuous `MarkTable` column, fixed-radius `SpatialIndex2D` neighbours, an explicit binary-symmetric or row-standardized weight policy, and a method-specific random-labeling design in global Moran's I. The design names its replicate count, seed, alternative, and either no conditioning or the existing exact `histologic_compartment` row labels; permutations move whole scalar values only within declared strata. Reject frame drift, outside points, zero variance, isolated rows, empty/degenerate strata, non-finite results, and work beyond explicit point/edge/permutation limits.
+- Consequences: one public scientific caller now joins typed frame, typed continuous mark, spatial weights, compartment-conditioned randomization, and deterministic inference without a generic weights framework or universal inference registry. Categorical/ordinal marks, polygon compartment partitions/interfaces, covariate residualization, local Moran maps, broader multiplicity, patient-level comparison, and external PySAL/R agreement remain separate outcomes.
+
+## DEC-0221 — Share only the proven blocked-permutation design mechanics
+
+- Date: 2026-08-26
+- Status: accepted for FND-06 patient-label and global-Moran callers
+- Decision: make `marklab-cohort::InferenceDesign` the typed owner of the fields now required by both concrete callers: analysis level, null family, permutation unit, complete exact block membership, positive replicate count, seed, method-owned seed namespace, alternative, and single-endpoint multiplicity. It emits deterministic whole-unit index permutations and rejects partial patient blocks, row-count drift, empty units, and block definitions with no exchangeable unit. Patient label permutation and continuous-mark global Moran retain their method-specific scientific validation and statistics while delegating only this schedule.
+- Consequences: two production callers share one explicit randomization-unit contract without a plugin registry, universal statistic trait, arbitrary null callback, automatic unit fallback, parallel executor, or general multiplicity framework. Paired sign flips, hierarchical bootstrap, functional/Max-T schedules, cluster/interference designs, and non-single-endpoint multiplicity remain separate until they provide immediate callers for further extraction.
+
+## DEC-0222 — Type the compartment column required by Moran conditioning
+
+- Date: 2026-08-26
+- Status: accepted for the current FND-04/WS-23 compartment-conditioned caller
+- Decision: extend `MarkTable` with one dense categorical column specialization for the exact `histologic_compartment` row codes already emitted by the compatibility loader. Bind a stable mark ID, bounded ordered level labels, column-wide measurement status, histology modality, categorical unit, missingness policy, and exact provenance artifact; require codes to index the declared levels and match the compatibility row codes. Global Moran's stratified design must read this typed column and retain its mark identity/status rather than reading an untyped `Pattern` map directly.
+- Consequences: categorical marks gain an immediate production caller and provenance-bearing result path without a generic dictionary/interchange format or arbitrary categorical endpoint. Ordinal, simplex, vector-reference, nullable physical encodings, multiple simultaneous categorical columns, and polygon compartment partitions remain open.

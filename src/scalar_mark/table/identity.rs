@@ -52,6 +52,12 @@ fn write_column(
             declaration.measurement_status(),
             declaration.provenance_artifact_id(),
         ),
+        ScalarMarkColumnValues::Categorical { declaration, .. } => (
+            "categorical",
+            declaration.label(),
+            declaration.measurement_status(),
+            declaration.provenance_artifact_id(),
+        ),
     };
     write_part(writer, kind.as_bytes())?;
     write_part(writer, column.mark_id().as_str().as_bytes())?;
@@ -75,6 +81,18 @@ fn write_column(
         | ScalarMarkColumnValues::Continuous { values, .. } => {
             for value in values {
                 write_part(writer, &value.to_bits().to_be_bytes())?;
+            }
+        }
+        ScalarMarkColumnValues::Categorical {
+            declaration,
+            values,
+        } => {
+            write_part(writer, &(declaration.levels().len() as u128).to_be_bytes())?;
+            for level in declaration.levels() {
+                write_part(writer, level.as_bytes())?;
+            }
+            for value in values {
+                write_part(writer, &value.to_be_bytes())?;
             }
         }
     }

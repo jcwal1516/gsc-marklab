@@ -788,3 +788,27 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   during the documented macOS per-binary verification delay; it is not claimed as a package pass
   and was not retried. No broad workspace/Nextest/feature-matrix gate, commit, stage, push,
   deployment, publication, history rewrite, or worktree was created for checkpoint 54.
+
+## Typed spatial autocorrelation checkpoint 55 — 2026-08-26
+
+- Added a public global Moran workflow over the existing dense positive nucleus-area mark. It binds
+  the exact typed `MarkTable`, a coordinate-frame-bound `ObservationWindow2D`, one fixed-radius
+  `SpatialIndex2D` edge plan, explicit binary-symmetric or row-standardized weights, and bounded
+  deterministic random-labeling inference. The four-point chain matches the hand values `I=0.4`
+  and row-standardized `I=0.54`; alternate/unbound frames, invalid categorical codes/units,
+  isolated points, and permutation-work overflow fail explicitly.
+- `MarkTable` now has one immediate-caller categorical specialization for exact
+  `histologic_compartment` codes, ordered level labels, measurement status, histology modality,
+  categorical unit, missingness, and provenance. Moran conditioning consumes and reports this typed
+  column rather than reading the compatibility stratum map directly; the adapter still verifies
+  exact row equality with that preserved input format.
+- Promoted `marklab-cohort::InferenceDesign` as the smallest contract shared by patient-label and
+  cell-mark random labeling. It owns analysis level, null family, whole-unit permutation kind,
+  complete exact blocks, replicate count, seed namespace, alternative, and single-endpoint
+  multiplicity, and rejects partial blocks, singleton-only designs, invalid partitions, and
+  out-of-range replicates. Both patient reference oracles and the Moran workflow pass unchanged.
+- This advances FND-02/FND-04/FND-06, SIG-01/SIG-01A, WS-22/WS-23/WS-31. It does not implement
+  polygon compartment partitions/interfaces, general categorical/ordinal/simplex/vector marks,
+  local Moran maps, Geary/variogram integration, covariate residualization, broader multiplicity,
+  patient-level spatial comparison, external PySAL/R agreement, or real-data promotion. FND-05
+  remains data-blocked on the exact source authority recorded at checkpoint 54.

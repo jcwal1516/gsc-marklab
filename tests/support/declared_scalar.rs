@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 
 use marklab::{
     AnalysisConfig, ArtifactDraft, ArtifactId, ArtifactRef, ArtifactSchema, CellId,
-    CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace,
-    CoordinateUnit, HierarchyId, HierarchyNode, LocalArtifactStore, MarklabProject, Pattern,
-    PatternMeta, ReplicationRole, SlideId, SpatialAxis, StoreId, TableColumn, TableColumnType,
-    TableFormat, TableManifest, TableScalarType, ThreadSetting,
+    CohortHierarchy, ContentDigest, CoordinateFrame, CoordinateFrameId, CoordinateRegistry,
+    CoordinateSpace, CoordinateUnit, HierarchyId, HierarchyNode, LocalArtifactStore,
+    MarklabProject, Pattern, PatternMeta, ReplicationRole, SlideId, SpatialAxis, StoreId,
+    TableColumn, TableColumnType, TableFormat, TableManifest, TableScalarType, ThreadSetting,
 };
 use tempfile::TempDir;
 
@@ -280,6 +280,27 @@ pub(crate) fn nucleus_area_um2_metadata(
         ("modality".into(), "morphology".into()),
         ("unit".into(), "square_micrometer".into()),
         ("value_kind".into(), "continuous".into()),
+    ])
+}
+
+#[allow(dead_code)]
+pub(crate) fn histologic_compartment_metadata(
+    status: marklab::MeasurementStatus,
+    levels: &[&str],
+) -> BTreeMap<String, String> {
+    let levels_digest = ContentDigest::from_framed(levels.iter().map(|level| level.as_bytes()));
+    BTreeMap::from([
+        ("levels_digest".into(), levels_digest.to_string()),
+        ("levels_count".into(), levels.len().to_string()),
+        ("mark_id".into(), "histologic_compartment".into()),
+        ("mark_label".into(), "Histologic compartment".into()),
+        (
+            "measurement_status".into(),
+            measurement_status_name(status).into(),
+        ),
+        ("modality".into(), "histology".into()),
+        ("unit".into(), "categorical".into()),
+        ("value_kind".into(), "categorical".into()),
     ])
 }
 

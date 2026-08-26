@@ -1386,3 +1386,30 @@ vascular transport.
   No workspace-wide tests/Clippy, Nextest, full feature matrix, specialized benchmark/fuzz/memory/
   packaging/dependency gate, commit, stage, push, publication, deployment, history rewrite, or
   worktree was run or created.
+
+## Typed spatial autocorrelation checkpoint 55 — 2026-08-26
+
+- `cargo +1.96.0 test --locked --package marklab --test global_moran_typed_workflow
+  typed_frame_mark_and_compartment_design_drive_global_moran_inference -- --nocapture` first failed
+  for the missing Moran API and `ObservationWindow2D::with_coordinate_frame`; after correcting the
+  fixture's compatibility codes from strings to its actual dense `u32` representation, the exact
+  behavior passed. The final two-test target passes the hand binary-symmetric `I=0.4`,
+  row-standardized `I=0.54`, deterministic replay, typed conditioning identity/status, invalid
+  frame, unbound frame, isolated row, invalid category/unit, and permutation-work boundaries.
+- `cargo +1.96.0 test --locked --package marklab-cohort --test inference_design_reference --
+  --nocapture` first failed for the missing public design symbols. The final chained
+  `inference_design_reference` and `patient_permutation_reference` command passes 2/2 and 2/2,
+  proving exact block preservation, deterministic whole-unit schedules, partial/singleton block
+  rejection, replicate bounds, and unchanged slow patient-reference agreement.
+- The affected root command running `scalar_mark_input`, `declared_marked_workflow`,
+  `classical_spatial_domain`, and `global_moran_typed_workflow` passed 11/11, 9/9, 13/13, and 2/2.
+  Two shared-support dead-code warnings in targets that do not use the new metadata fixture were
+  removed with a test-only targeted annotation; production code remained warning-clean.
+- Warning-denied Clippy passed for the `marklab-cohort` library and its two affected design tests,
+  then for the root library plus Moran, scalar-mark, declared-workflow, and classical-domain tests.
+  `cargo +1.96.0 check --locked --package marklab-cohort --package marklab
+  --no-default-features` passed. Strict warning-denied public docs for both packages, workspace
+  formatting, and `git diff --check` passed.
+- No workspace-wide tests/Clippy, Nextest, feature matrix, benchmark, fuzz, memory, packaging,
+  dependency audit, external-data claim, push, publication, deployment, history rewrite, or
+  worktree was run or created.

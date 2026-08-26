@@ -35,6 +35,19 @@ pub enum DeclaredScalarInputError {
         /// First invalid row.
         row: usize,
     },
+    /// Histologic compartment levels are missing, duplicated, unbounded, or malformed.
+    #[error("histologic compartment requires 2..=u32::MAX unique bounded level labels")]
+    InvalidCategoricalLevels,
+    /// A categorical row code does not index a declared level.
+    #[error("categorical code {code} at row {row} exceeds {level_count} declared levels")]
+    InvalidCategoricalValue {
+        /// First invalid row.
+        row: usize,
+        /// Invalid code.
+        code: u32,
+        /// Declared level count.
+        level_count: usize,
+    },
     /// The current compatibility adapter requires exactly one binary column.
     #[error("declared marked analysis requires exactly one typed binary column")]
     BinaryColumnCountMismatch,
@@ -44,6 +57,9 @@ pub enum DeclaredScalarInputError {
     /// The current compatibility adapter accepts at most one nucleus-area continuous column.
     #[error("declared marked analysis accepts at most one typed continuous column")]
     ContinuousColumnCountMismatch,
+    /// The current compatibility adapter accepts at most one compartment categorical column.
+    #[error("declared marked analysis accepts at most one histologic-compartment column")]
+    CategoricalColumnCountMismatch,
     /// The current dense compatibility Pattern cannot consume nullable columns.
     #[error("declared marked analysis requires missingness policy not_permitted")]
     UnsupportedMissingnessPolicy,
@@ -59,6 +75,9 @@ pub enum DeclaredScalarInputError {
     /// Typed continuous presence disagrees with the compatibility Pattern.
     #[error("typed continuous column and Pattern nucleus area must be present together")]
     ContinuousDeclarationMismatch,
+    /// Typed compartment presence or values disagree with the compatibility Pattern.
+    #[error("typed histologic-compartment column disagrees with the compatibility Pattern")]
+    CategoricalDeclarationMismatch,
     /// A row-level scalar mark was incorrectly declared as a derived aggregate.
     #[error("derived_summary is not a supported per-cell scalar measurement status")]
     UnsupportedPerCellMeasurementStatus,

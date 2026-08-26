@@ -1,6 +1,9 @@
 use std::io::Write;
 
 use geojson::{GeoJson, Geometry, Value};
+use marklab_data::{
+    CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit, SpatialAxis,
+};
 use marklab_workflow::{ContentDigest, ContentDigestWriter};
 use rstar::RTree;
 use thiserror::Error;
@@ -71,6 +74,8 @@ impl Default for ObservationWindowLimits {
 /// Bounded summary and identity of an exact physical 2-D observation window.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ObservationWindowDescriptor {
+    /// Exact installed physical coordinate frame, absent only for the legacy unbound constructor.
+    pub coordinate_frame_id: Option<CoordinateFrameId>,
     /// Area after subtracting holes, in square micrometres.
     pub area_um2: f64,
     /// Exterior-plus-hole boundary length in micrometres.
@@ -94,6 +99,7 @@ pub struct ObservationWindowDescriptor {
 pub struct ObservationWindow2D {
     polygons: Vec<Polygon>,
     boundary: RTree<BoundarySegment>,
+    geometry_digest: ContentDigest,
     descriptor: ObservationWindowDescriptor,
 }
 
@@ -189,7 +195,9 @@ impl ObservationWindow2D {
         Ok(Self {
             polygons,
             boundary,
+            geometry_digest: logical_digest,
             descriptor: ObservationWindowDescriptor {
+                coordinate_frame_id: None,
                 area_um2,
                 perimeter_um,
                 bounds_um,
@@ -200,6 +208,46 @@ impl ObservationWindow2D {
                 logical_digest,
             },
         })
+    }
+
+    /// Bind this physical GeoJSON domain to one installed `[X,Y]` micrometre frame.
+    pub fn with_coordinate_frame(
+        mut self,
+        registry: &CoordinateRegistry,
+        frame_id: CoordinateFrameId,
+    ) -> Result<Self, ObservationWindowError> {
+        let frame = registry.frame(&frame_id).ok_or_else(|| {
+            ObservationWindowError::UnknownCoordinateFrame {
+                frame: frame_id.clone(),
+            }
+        })?;
+        if frame.axes() != [SpatialAxis::X, SpatialAxis::Y]
+            || frame.unit() != CoordinateUnit::Micrometer
+            || frame.space() != CoordinateSpace::Physical
+        {
+            return Err(ObservationWindowError::InvalidCoordinateFrame { frame: frame_id });
+        }
+        if let Some(existing) = &self.descriptor.coordinate_frame_id {
+            if existing != &frame_id {
+                return Err(ObservationWindowError::CoordinateFrameMismatch {
+                    expected: existing.clone(),
+                    observed: frame_id,
+                });
+            }
+            return Ok(self);
+        }
+        self.descriptor.logical_digest = ContentDigest::from_framed([
+            b"marklab-observation-window-2d-framed-v1".as_slice(),
+            self.geometry_digest.as_bytes(),
+            frame_id.as_str().as_bytes(),
+        ]);
+        self.descriptor.coordinate_frame_id = Some(frame_id);
+        Ok(self)
+    }
+
+    /// Exact installed frame bound to this domain, if one was declared.
+    pub fn coordinate_frame_id(&self) -> Option<&CoordinateFrameId> {
+        self.descriptor.coordinate_frame_id.as_ref()
     }
 
     /// Whether a finite point lies inside the window or on any exterior/hole boundary.
@@ -333,6 +381,28 @@ pub enum ObservationWindowError {
     InvalidTopology {
         /// Deterministic topology reason.
         reason: String,
+    },
+    /// The requested coordinate frame is absent from the installed registry.
+    #[error("observation-window coordinate frame {frame} is not installed")]
+    UnknownCoordinateFrame {
+        /// Missing frame.
+        frame: CoordinateFrameId,
+    },
+    /// The requested frame is not physical `[X,Y]` micrometres.
+    #[error("observation-window coordinate frame {frame} is not physical [X,Y] micrometres")]
+    InvalidCoordinateFrame {
+        /// Incompatible frame.
+        frame: CoordinateFrameId,
+    },
+    /// A previously bound window was rebound to a different frame.
+    #[error(
+        "observation-window coordinate frame mismatch: expected {expected}, observed {observed}"
+    )]
+    CoordinateFrameMismatch {
+        /// Existing exact frame.
+        expected: CoordinateFrameId,
+        /// Attempted exact frame.
+        observed: CoordinateFrameId,
     },
     /// Boundary query coordinates are non-finite.
     #[error("observation-window query point must be finite")]

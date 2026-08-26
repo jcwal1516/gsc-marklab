@@ -42,6 +42,7 @@ mod prepost;
 mod qc;
 mod registration;
 mod scalar_mark;
+mod spatial_autocorrelation;
 mod spectra;
 #[cfg(feature = "cli")]
 mod synthetic_smoke;
@@ -318,9 +319,14 @@ pub use registration::{
 };
 pub use scalar_mark::{
     BinaryMarkDeclaration, BinaryMarkOrigin, DeclaredMarkUse, DeclaredScalarIdentity,
-    DeclaredScalarInputError, DeclaredScalarPatternInput, MarkTable, MissingnessPolicy,
-    NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration, ProbabilityThresholdComparator,
-    ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit, ScalarMarkValueKind,
+    DeclaredScalarInputError, DeclaredScalarPatternInput, HistologicCompartmentMarkDeclaration,
+    MarkTable, MissingnessPolicy, NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration,
+    ProbabilityThresholdComparator, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality,
+    ScalarMarkUnit, ScalarMarkValueKind,
+};
+pub use spatial_autocorrelation::{
+    global_moran_permutation, GlobalMoranAlternative, GlobalMoranConditioning, GlobalMoranDesign,
+    GlobalMoranError, GlobalMoranLimits, GlobalMoranResult, GlobalMoranWeightPolicy,
 };
 pub use workflow::{
     DeclaredMarkedAnalysisNode, DeclaredMarkedAnalysisResult, MarkedAnalysisNode, MarkedPrePostNode,

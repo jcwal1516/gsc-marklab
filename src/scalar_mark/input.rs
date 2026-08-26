@@ -154,6 +154,11 @@ impl<'a> DeclaredScalarPatternInput<'a> {
         self.probability_mark.as_ref()
     }
 
+    /// Typed mark table backing this input, when constructed through the table adapter.
+    pub fn mark_table(&self) -> Option<&MarkTable> {
+        self.mark_table
+    }
+
     /// Compact row, slide, frame, declaration, status, and provenance identity.
     pub(crate) fn scalar_identity(&self) -> &DeclaredScalarIdentity {
         &self.scalar_identity

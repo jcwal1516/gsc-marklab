@@ -296,3 +296,19 @@ layer/preprocessing and CellId correspondence are absent. The next dependency-va
 the smallest concrete typed-frame/compartment caller or the next cross-method inference-design
 caller. No further mark/embedding infrastructure is promoted without such a caller or the missing
 real-source authority.
+
+## Checkpoint 55 typed spatial autocorrelation continuation
+
+Closure on 2026-08-26: one concrete global Moran workflow now consumes the typed physical frame,
+exact observation window, typed continuous nucleus-area mark, typed histologic-compartment column,
+fixed-radius spatial weights, and a shared explicit blocked-permutation design. Binary-symmetric and
+row-standardized hand oracles pass, deterministic compartment-conditioned replay is exact, and all
+new frame/mark/weight/design resource failures are explicit.
+
+The shared `marklab-cohort::InferenceDesign` is limited to mechanics proven by its two callers:
+whole patient labels and whole scalar marks under complete exact blocks. This does not authorize a
+universal null/statistic registry. The next dependency-valid scientific outcomes are Geary C or a
+scalar variogram reusing the admitted typed input/weight or pair plan, followed by patient-level
+comparison only when independent specimen summaries are supplied. Polygon compartment geometry and
+interfaces remain a separate WS-22/GEO-01 caller; FND-05/WS-24 remains blocked on real source
+authority rather than synthetic expansion.

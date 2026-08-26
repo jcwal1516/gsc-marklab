@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 
-use marklab_workflow::{ArtifactId, ArtifactRecord, MarklabProject};
+use marklab_workflow::{ArtifactId, ArtifactRecord, ContentDigest, MarklabProject};
 
 use super::{
     declaration::{
         measurement_status_name, BinaryMarkDeclaration, BinaryMarkOrigin,
-        NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration, ProbabilityThresholdComparator,
-        ScalarMarkValueKind,
+        HistologicCompartmentMarkDeclaration, NucleusAreaUm2MarkDeclaration,
+        ProbabilityMarkDeclaration, ProbabilityThresholdComparator, ScalarMarkValueKind,
     },
     DeclaredScalarInputError,
 };
@@ -111,6 +111,19 @@ pub(crate) fn validate_nucleus_area_um2_provenance(
     )
 }
 
+pub(crate) fn validate_histologic_compartment_provenance(
+    project: &MarklabProject,
+    declaration: &HistologicCompartmentMarkDeclaration,
+) -> Result<(), DeclaredScalarInputError> {
+    require_record(
+        project,
+        declaration.provenance_artifact_id(),
+        MARK_SCHEMA,
+        &histologic_compartment_metadata(declaration),
+        &[],
+    )
+}
+
 fn require_record(
     project: &MarklabProject,
     artifact: ArtifactId,
@@ -187,6 +200,29 @@ fn nucleus_area_um2_metadata(
         ("modality".into(), "morphology".into()),
         ("unit".into(), "square_micrometer".into()),
         ("value_kind".into(), "continuous".into()),
+    ])
+}
+
+fn histologic_compartment_metadata(
+    declaration: &HistologicCompartmentMarkDeclaration,
+) -> BTreeMap<String, String> {
+    let levels_digest =
+        ContentDigest::from_framed(declaration.levels().iter().map(|level| level.as_bytes()));
+    BTreeMap::from([
+        ("levels_digest".into(), levels_digest.to_string()),
+        (
+            "levels_count".into(),
+            declaration.levels().len().to_string(),
+        ),
+        ("mark_id".into(), declaration.mark_id().as_str().into()),
+        ("mark_label".into(), declaration.label().into()),
+        (
+            "measurement_status".into(),
+            measurement_status_name(declaration.measurement_status()).into(),
+        ),
+        ("modality".into(), "histology".into()),
+        ("unit".into(), "categorical".into()),
+        ("value_kind".into(), "categorical".into()),
     ])
 }
 

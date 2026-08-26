@@ -253,6 +253,75 @@ pub struct NucleusAreaUm2MarkDeclaration {
     provenance_artifact_id: ArtifactId,
 }
 
+/// Exact dense histologic-compartment categorical declaration.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HistologicCompartmentMarkDeclaration {
+    mark_id: ScalarMarkId,
+    label: String,
+    levels: Box<[String]>,
+    measurement_status: MeasurementStatus,
+    provenance_artifact_id: ArtifactId,
+}
+
+impl HistologicCompartmentMarkDeclaration {
+    /// Declare ordered non-empty compartment labels for the compatibility row codes.
+    pub fn new(
+        levels: Vec<String>,
+        measurement_status: MeasurementStatus,
+        provenance_artifact_id: ArtifactId,
+    ) -> Result<Self, DeclaredScalarInputError> {
+        validate_per_cell_status(measurement_status)?;
+        if levels.len() < 2
+            || levels.len() > u32::MAX as usize
+            || levels.iter().any(|level| {
+                level.is_empty()
+                    || level.len() > MARK_LABEL_MAX_BYTES
+                    || level.trim() != level
+                    || level.chars().any(char::is_control)
+            })
+        {
+            return Err(DeclaredScalarInputError::InvalidCategoricalLevels);
+        }
+        let mut distinct = levels.iter().collect::<Vec<_>>();
+        distinct.sort_unstable();
+        if distinct.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(DeclaredScalarInputError::InvalidCategoricalLevels);
+        }
+        Ok(Self {
+            mark_id: ScalarMarkId::new("histologic_compartment")?,
+            label: "Histologic compartment".to_owned(),
+            levels: levels.into_boxed_slice(),
+            measurement_status,
+            provenance_artifact_id,
+        })
+    }
+
+    /// Stable fixed categorical mark identity.
+    pub fn mark_id(&self) -> &ScalarMarkId {
+        &self.mark_id
+    }
+
+    /// Fixed display label.
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
+    /// Ordered level labels indexed by the retained row codes.
+    pub fn levels(&self) -> &[String] {
+        &self.levels
+    }
+
+    /// How compartment assignments were obtained.
+    pub fn measurement_status(&self) -> MeasurementStatus {
+        self.measurement_status
+    }
+
+    /// Exact provenance artifact identity.
+    pub fn provenance_artifact_id(&self) -> ArtifactId {
+        self.provenance_artifact_id
+    }
+}
+
 impl NucleusAreaUm2MarkDeclaration {
     /// Declare the fixed `Pattern::nucleus_area_um2` morphology measurement.
     pub fn new(

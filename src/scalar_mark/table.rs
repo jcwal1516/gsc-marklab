@@ -5,10 +5,13 @@ use crate::data::Pattern;
 
 use super::{
     declaration::{
-        BinaryMarkDeclaration, BinaryMarkOrigin, NucleusAreaUm2MarkDeclaration,
-        ProbabilityMarkDeclaration,
+        BinaryMarkDeclaration, BinaryMarkOrigin, HistologicCompartmentMarkDeclaration,
+        NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration,
     },
-    provenance::{validate_nucleus_area_um2_provenance, validate_provenance},
+    provenance::{
+        validate_histologic_compartment_provenance, validate_nucleus_area_um2_provenance,
+        validate_provenance,
+    },
     DeclaredScalarInputError, ScalarMarkId,
 };
 
@@ -17,6 +20,8 @@ mod identity;
 /// Bounded modality vocabulary needed by the current scalar-mark caller.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ScalarMarkModality {
+    /// Histology-derived categorical annotation.
+    Histology,
     /// Immunohistochemistry-derived scalar observation or prediction.
     Immunohistochemistry,
     /// Morphology-derived scalar observation or prediction.
@@ -26,6 +31,7 @@ pub enum ScalarMarkModality {
 impl ScalarMarkModality {
     fn wire_name(self) -> &'static str {
         match self {
+            Self::Histology => "histology",
             Self::Immunohistochemistry => "immunohistochemistry",
             Self::Morphology => "morphology",
         }
@@ -35,6 +41,8 @@ impl ScalarMarkModality {
 /// Bounded scalar units needed by the current compatibility columns.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ScalarMarkUnit {
+    /// Nominal category code with an explicit ordered codebook.
+    Categorical,
     /// Dimensionless binary or probability value.
     Unitless,
     /// Square micrometres for the existing nucleus-area column.
@@ -44,6 +52,7 @@ pub enum ScalarMarkUnit {
 impl ScalarMarkUnit {
     fn wire_name(self) -> &'static str {
         match self {
+            Self::Categorical => "categorical",
             Self::Unitless => "unitless",
             Self::SquareMicrometer => "square_micrometer",
         }
@@ -90,6 +99,10 @@ enum ScalarMarkColumnValues {
     Continuous {
         declaration: NucleusAreaUm2MarkDeclaration,
         values: Box<[f32]>,
+    },
+    Categorical {
+        declaration: HistologicCompartmentMarkDeclaration,
+        values: Box<[u32]>,
     },
 }
 
@@ -178,11 +191,44 @@ impl ScalarMarkColumn {
         })
     }
 
+    /// Construct the current dense histologic-compartment categorical column.
+    pub fn histologic_compartment(
+        declaration: HistologicCompartmentMarkDeclaration,
+        modality: ScalarMarkModality,
+        unit: ScalarMarkUnit,
+        missingness: MissingnessPolicy,
+        values: impl Into<Box<[u32]>>,
+    ) -> Result<Self, DeclaredScalarInputError> {
+        if modality != ScalarMarkModality::Histology || unit != ScalarMarkUnit::Categorical {
+            return Err(DeclaredScalarInputError::UnitMismatch);
+        }
+        let values = values.into();
+        if let Some((row, code)) = values.iter().copied().enumerate().find(|(_, code)| {
+            usize::try_from(*code).map_or(true, |code| code >= declaration.levels().len())
+        }) {
+            return Err(DeclaredScalarInputError::InvalidCategoricalValue {
+                row,
+                code,
+                level_count: declaration.levels().len(),
+            });
+        }
+        Ok(Self {
+            values: ScalarMarkColumnValues::Categorical {
+                declaration,
+                values,
+            },
+            modality,
+            unit,
+            missingness,
+        })
+    }
+
     fn mark_id(&self) -> &ScalarMarkId {
         match &self.values {
             ScalarMarkColumnValues::Binary { declaration, .. } => declaration.mark_id(),
             ScalarMarkColumnValues::Probability { declaration, .. } => declaration.mark_id(),
             ScalarMarkColumnValues::Continuous { declaration, .. } => declaration.mark_id(),
+            ScalarMarkColumnValues::Categorical { declaration, .. } => declaration.mark_id(),
         }
     }
 
@@ -191,6 +237,7 @@ impl ScalarMarkColumn {
             ScalarMarkColumnValues::Binary { values, .. } => values.len(),
             ScalarMarkColumnValues::Probability { values, .. } => values.len(),
             ScalarMarkColumnValues::Continuous { values, .. } => values.len(),
+            ScalarMarkColumnValues::Categorical { values, .. } => values.len(),
         }
     }
 
@@ -278,6 +325,13 @@ impl MarkTable {
         if continuous_count > 1 {
             return Err(DeclaredScalarInputError::ContinuousColumnCountMismatch);
         }
+        let categorical_count = columns
+            .iter()
+            .filter(|column| matches!(&column.values, ScalarMarkColumnValues::Categorical { .. }))
+            .count();
+        if categorical_count > 1 {
+            return Err(DeclaredScalarInputError::CategoricalColumnCountMismatch);
+        }
         let table = Self {
             cell_ids: cell_ids.into_boxed_slice(),
             columns: columns.into_boxed_slice(),
@@ -290,6 +344,49 @@ impl MarkTable {
     /// Ordered stable row identities.
     pub fn cell_ids(&self) -> &[CellId] {
         &self.cell_ids
+    }
+
+    /// Borrow one exact dense continuous column by stable mark identity.
+    pub fn continuous_values(&self, mark_id: &ScalarMarkId) -> Option<&[f32]> {
+        self.columns.iter().find_map(|column| match &column.values {
+            ScalarMarkColumnValues::Continuous {
+                declaration,
+                values,
+            } if declaration.mark_id() == mark_id => Some(values.as_ref()),
+            _ => None,
+        })
+    }
+
+    /// Borrow one exact dense categorical column by stable mark identity.
+    pub fn categorical_values(&self, mark_id: &ScalarMarkId) -> Option<&[u32]> {
+        self.columns.iter().find_map(|column| match &column.values {
+            ScalarMarkColumnValues::Categorical {
+                declaration,
+                values,
+            } if declaration.mark_id() == mark_id => Some(values.as_ref()),
+            _ => None,
+        })
+    }
+
+    /// Column-wide measurement status for one exact typed mark.
+    pub fn measurement_status(&self, mark_id: &ScalarMarkId) -> Option<MeasurementStatus> {
+        self.columns
+            .iter()
+            .find(|column| column.mark_id() == mark_id)
+            .map(|column| match &column.values {
+                ScalarMarkColumnValues::Binary { declaration, .. } => {
+                    declaration.measurement_status()
+                }
+                ScalarMarkColumnValues::Probability { declaration, .. } => {
+                    declaration.measurement_status()
+                }
+                ScalarMarkColumnValues::Continuous { declaration, .. } => {
+                    declaration.measurement_status()
+                }
+                ScalarMarkColumnValues::Categorical { declaration, .. } => {
+                    declaration.measurement_status()
+                }
+            })
     }
 
     pub(super) fn binary_column(&self) -> Result<&ScalarMarkColumn, DeclaredScalarInputError> {
@@ -404,6 +501,28 @@ impl MarkTable {
             }
             _ => return Err(DeclaredScalarInputError::ContinuousDeclarationMismatch),
         }
+        let categorical = self
+            .columns
+            .iter()
+            .filter_map(|column| match &column.values {
+                ScalarMarkColumnValues::Categorical { values, .. } => Some(values.as_ref()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if categorical.len() > 1 {
+            return Err(DeclaredScalarInputError::CategoricalColumnCountMismatch);
+        }
+        match (
+            categorical.first(),
+            pattern
+                .categorical_strata
+                .get("histologic_compartment")
+                .map(Box::as_ref),
+        ) {
+            (None, None) => {}
+            (Some(values), Some(pattern_values)) if *values == pattern_values => {}
+            _ => return Err(DeclaredScalarInputError::CategoricalDeclarationMismatch),
+        }
         Ok(())
     }
 
@@ -452,8 +571,15 @@ impl MarkTable {
         let (binary, probability) = self.declarations()?;
         validate_provenance(project, &binary, probability.as_ref())?;
         for column in &self.columns {
-            if let ScalarMarkColumnValues::Continuous { declaration, .. } = &column.values {
-                validate_nucleus_area_um2_provenance(project, declaration)?;
+            match &column.values {
+                ScalarMarkColumnValues::Continuous { declaration, .. } => {
+                    validate_nucleus_area_um2_provenance(project, declaration)?
+                }
+                ScalarMarkColumnValues::Categorical { declaration, .. } => {
+                    validate_histologic_compartment_provenance(project, declaration)?
+                }
+                ScalarMarkColumnValues::Binary { .. }
+                | ScalarMarkColumnValues::Probability { .. } => {}
             }
         }
         Ok(())
@@ -479,6 +605,9 @@ impl MarkTable {
                     ids.push(declaration.provenance_artifact_id())
                 }
                 ScalarMarkColumnValues::Continuous { declaration, .. } => {
+                    ids.push(declaration.provenance_artifact_id())
+                }
+                ScalarMarkColumnValues::Categorical { declaration, .. } => {
                     ids.push(declaration.provenance_artifact_id())
                 }
             }

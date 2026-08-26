@@ -23,6 +23,11 @@ mod repeated;
 use inference_design::PatientPermutationDesign;
 use numeric::welch_contrast;
 
+pub use inference_design::{
+    InferenceAlternative, InferenceAnalysisLevel, InferenceDesign, InferenceDesignError,
+    InferenceMultiplicity, InferenceNullFamily, InferencePermutationUnit,
+};
+
 pub use energy::{
     patient_level_energy_distance, EnergyDistanceResult, EnergyDistanceSpec, EnergyMetric,
 };
@@ -208,7 +213,7 @@ pub fn patient_level_permutation_test(
     let mut lower_tail = 0usize;
     let mut upper_tail = 0usize;
     for replicate in 0..design.permutations() {
-        let labels = design.permuted_labels(&records, replicate);
+        let labels = design.permuted_labels(&records, replicate)?;
         let statistic = welch_contrast(&endpoint_values, &labels)?.studentized;
         lower_tail += usize::from(statistic <= observed.studentized);
         upper_tail += usize::from(statistic >= observed.studentized);
@@ -356,10 +361,6 @@ fn compensated_sum(values: impl IntoIterator<Item = f64>) -> f64 {
     sum
 }
 
-fn derive_seed(base_seed: u64, replicate: usize) -> u64 {
-    derive_seed_in_namespace(base_seed, PATIENT_PERMUTATION_NAMESPACE, replicate)
-}
-
 fn derive_seed_in_namespace(base_seed: u64, namespace: u64, replicate: usize) -> u64 {
     splitmix64(splitmix64(base_seed ^ namespace) ^ replicate as u64)
 }
@@ -447,7 +448,9 @@ mod tests {
         let validated = validate_records(&endpoints, &spec()).expect("records");
         let design = PatientPermutationDesign::compile(&validated, &spec()).expect("design");
         for replicate in 0..50 {
-            let labels = design.permuted_labels(&validated, replicate);
+            let labels = design
+                .permuted_labels(&validated, replicate)
+                .expect("replicate lies inside the compiled design");
             for block in design.blocks() {
                 let before = block
                     .iter()
