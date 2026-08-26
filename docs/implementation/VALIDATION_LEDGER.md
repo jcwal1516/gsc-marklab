@@ -1478,3 +1478,22 @@ vascular transport.
 - Formatting and diff-whitespace checks pass. The full workspace integration suite and Nextest were
   not rerun because checkpoints 51/52 retain the latest complete/partial evidence and document the
   reproducible macOS loader-verification problem; the active instruction says not to retry it.
+
+## Scalar-semivariogram ERL inference checkpoint 60 — 2026-08-26
+
+- Expected red: `cargo +1.96.0 test --locked --test global_moran_typed_workflow
+  typed_frame_mark_and_compartment_design_drive_global_moran_inference -- --nocapture` failed to
+  compile because the scalar-semivariogram permutation function, design, limits, and work-bound
+  error did not exist. After correcting the test insertion location, the red contained only those
+  missing production symbols.
+- The exact behavior passed 1/1 after implementation; the complete affected target passed 2/2. It
+  proves three eligible bins, finite simultaneous bounds, finite inclusive global p-value, exact
+  typed conditioning identity/status, 31 completed permutations, deterministic replay, invalid
+  alpha-resolution rejection, and pre-execution rejection of `186 > 185` pair evaluations.
+- Warning-denied Clippy passed for the root library and affected integration; root no-default
+  compilation and strict warning-denied public docs passed. `cargo +1.96.0 fmt --all --check` and
+  `git diff --check` pass.
+- No workspace-wide gate was repeated after checkpoint 59 because this is one ordinary workflow and
+  the production change does not invalidate unrelated packages. No Nextest, full integration loop,
+  feature matrix, benchmark, fuzz, memory, packaging, dependency audit, external-data claim, push,
+  publication, deployment, history rewrite, or worktree was run or created.

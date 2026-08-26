@@ -328,8 +328,10 @@ pub use scalar_mark::{
     ScalarMarkUnit, ScalarMarkValueKind,
 };
 pub use scalar_variogram::{
-    scalar_semivariogram, ScalarVariogramBin, ScalarVariogramError, ScalarVariogramLimits,
-    ScalarVariogramResult, ScalarVariogramRow,
+    scalar_semivariogram, scalar_semivariogram_permutation, ScalarVariogramBin,
+    ScalarVariogramConditioning, ScalarVariogramEnvelopeRow, ScalarVariogramError,
+    ScalarVariogramInferenceDesign, ScalarVariogramInferenceLimits, ScalarVariogramInferenceResult,
+    ScalarVariogramLimits, ScalarVariogramResult, ScalarVariogramRow,
 };
 pub use spatial_autocorrelation::{
     global_geary_permutation, global_moran_permutation, GlobalGearyAlternative, GlobalGearyDesign,

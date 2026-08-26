@@ -1844,3 +1844,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for the current SIG-01F/FND-03 increment
 - Decision: compute observed scalar semivariance as one half of the mean squared mark difference in caller-declared contiguous physical-distance bins. Bind the exact typed continuous mark/status, framed window, row order and coordinates, bin edges, and a hard all-unordered-pair visit ceiling into one plan digest. Report empty bins as unavailable and state that no edge correction or randomization inference is applied in this increment.
 - Consequences: the scalar curve and exact pair/bin data flow become executable with a hand oracle without claiming the full SIG-01F inferential contract. Permutation envelopes, pair edge correction where justified, directional variograms, scale evidence, and external agreement remain required before complete status.
+
+## DEC-0226 — Add one blocked whole-value ERL envelope to the scalar semivariogram
+
+- Date: 2026-08-26
+- Status: accepted for the current SIG-01F/FND-06 increment
+- Decision: reuse `marklab-cohort::InferenceDesign` to move complete scalar values across fixed locations, either globally or within exact typed `histologic_compartment` codes. Re-evaluate the existing scalar-semivariogram bins for every deterministic replicate and apply the existing `marklab-numerics` two-sided extreme-rank-length global envelope only across nonempty bins. Bind positive permutation count, seed, family-wise alpha, and a hard permutation-by-all-pair work ceiling; retain the observed result unchanged.
+- Consequences: the admitted scalar curve gains one explicit curve-level family-wise test and simultaneous envelope without a new null engine, pointwise testing, generic statistic callback, or hidden scale selection. Directional variograms, edge-correction validation, external agreement, representative scale, and real cohort promotion remain open.

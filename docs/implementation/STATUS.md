@@ -873,3 +873,19 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   the complete prior serial evidence and the reproducible macOS binary-verification stall, and the
   active instruction explicitly forbids retrying that loop. Focused changed data flows are green at
   checkpoints 56–58.
+
+## Scalar-semivariogram ERL inference checkpoint 60 — 2026-08-26
+
+- Added deterministic whole-value random labeling for the existing scalar semivariogram, either
+  globally or within the exact typed `histologic_compartment` codes. The implementation reuses
+  `marklab-cohort::InferenceDesign` and the existing `marklab-numerics` two-sided
+  extreme-rank-length envelope rather than adding another permutation or multiplicity engine.
+- The result retains the observed curve unchanged, simultaneous bounds only for nonempty lag bins,
+  one inclusive-plus-one global p-value, observed/critical ERL depths, alpha, seed, completed
+  permutations, stratum and conditioning identity/status, and the explicit curve-family policy.
+  The four-point fixture replays exactly and a 186-evaluation request fails against a ceiling of 185
+  before generating a null curve.
+- SIG-01F/FND-06 advance but remain active for directional estimands, justified pair edge
+  correction, external agreement, representative scale, patient-level comparison, and real-data
+  validation. No pointwise tests, hidden scale selection, new null registry, or result-format 0.3
+  change was added.

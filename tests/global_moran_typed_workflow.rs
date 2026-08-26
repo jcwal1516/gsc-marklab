@@ -3,12 +3,14 @@
 use approx::assert_abs_diff_eq;
 use marklab::{
     global_geary_permutation, global_moran_permutation, scalar_semivariogram,
-    BinaryMarkDeclaration, DeclaredScalarPatternInput, GlobalGearyAlternative, GlobalGearyDesign,
-    GlobalGearyLimits, GlobalMoranAlternative, GlobalMoranDesign, GlobalMoranError,
-    GlobalMoranLimits, GlobalMoranWeightPolicy, HistologicCompartmentMarkDeclaration, MarkTable,
-    MeasurementStatus, MissingnessPolicy, NucleusAreaUm2MarkDeclaration, ObservationWindow2D,
-    ObservationWindowError, ObservationWindowLimits, ScalarMarkColumn, ScalarMarkId,
-    ScalarMarkModality, ScalarMarkUnit, ScalarVariogramBin, ScalarVariogramLimits,
+    scalar_semivariogram_permutation, BinaryMarkDeclaration, DeclaredScalarPatternInput,
+    GlobalGearyAlternative, GlobalGearyDesign, GlobalGearyLimits, GlobalMoranAlternative,
+    GlobalMoranDesign, GlobalMoranError, GlobalMoranLimits, GlobalMoranWeightPolicy,
+    HistologicCompartmentMarkDeclaration, MarkTable, MeasurementStatus, MissingnessPolicy,
+    NucleusAreaUm2MarkDeclaration, ObservationWindow2D, ObservationWindowError,
+    ObservationWindowLimits, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
+    ScalarVariogramBin, ScalarVariogramInferenceDesign, ScalarVariogramInferenceLimits,
+    ScalarVariogramLimits,
 };
 
 #[path = "support/declared_scalar.rs"]
@@ -103,6 +105,7 @@ fn typed_frame_mark_and_compartment_design_drive_global_moran_inference() {
             level_count: 2,
         })
     ));
+
     assert!(matches!(
         ScalarMarkColumn::histologic_compartment(
             compartment.clone(),
@@ -328,6 +331,68 @@ fn typed_frame_mark_and_compartment_design_drive_global_moran_inference() {
             maximum: 5,
         })
     ));
+
+    let variogram_inference = scalar_semivariogram_permutation(
+        &input,
+        &window,
+        &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+        &lag_bins,
+        &ScalarVariogramInferenceDesign::histologic_compartment_random_labeling(31, 20260826, 0.25)
+            .expect("variogram inference design"),
+        ScalarVariogramInferenceLimits::new(4, 6, 6 * 31).expect("inference limits"),
+    )
+    .expect("scalar semivariogram inference");
+    assert_eq!(variogram_inference.observed, variogram);
+    assert_eq!(variogram_inference.permutations_completed, 31);
+    assert_eq!(variogram_inference.eligible_bin_count, 3);
+    assert_eq!(
+        variogram_inference
+            .conditioning_mark_id
+            .as_ref()
+            .expect("variogram conditioning mark")
+            .as_str(),
+        "histologic_compartment"
+    );
+    assert_eq!(
+        variogram_inference.conditioning_measurement_status,
+        Some(MeasurementStatus::Measured)
+    );
+    assert!(variogram_inference.p_global > 0.0 && variogram_inference.p_global <= 1.0);
+    assert!(variogram_inference.curve.iter().all(|row| {
+        row.lower_global_envelope.is_some_and(f64::is_finite)
+            && row.upper_global_envelope.is_some_and(f64::is_finite)
+    }));
+    let variogram_replay = scalar_semivariogram_permutation(
+        &input,
+        &window,
+        &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+        &lag_bins,
+        &ScalarVariogramInferenceDesign::histologic_compartment_random_labeling(31, 20260826, 0.25)
+            .expect("variogram inference design"),
+        ScalarVariogramInferenceLimits::new(4, 6, 6 * 31).expect("inference limits"),
+    )
+    .expect("deterministic variogram replay");
+    assert_eq!(variogram_replay, variogram_inference);
+    assert!(matches!(
+        scalar_semivariogram_permutation(
+            &input,
+            &window,
+            &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+            &lag_bins,
+            &ScalarVariogramInferenceDesign::random_labeling(31, 20260826, 0.25)
+                .expect("variogram inference design"),
+            ScalarVariogramInferenceLimits::new(4, 6, 6 * 31 - 1)
+                .expect("bounded inference limits"),
+        ),
+        Err(marklab::ScalarVariogramError::PermutationWorkExceeded {
+            observed: 186,
+            maximum: 185,
+        })
+    ));
+    assert_eq!(
+        ScalarVariogramInferenceDesign::random_labeling(1, 7, 0.25),
+        Err(marklab::ScalarVariogramError::InvalidInferenceDesign)
+    );
 
     let unbound = ObservationWindow2D::from_geojson_str(
         r#"{"type":"MultiPolygon","coordinates":[[[[-1,-1],[4,-1],[4,1],[-1,1],[-1,-1]]]]}"#,

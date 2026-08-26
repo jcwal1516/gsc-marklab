@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 
+use marklab_cohort::{InferenceAlternative, InferenceDesign};
 use marklab_data::{CoordinateFrameId, MeasurementStatus};
+use marklab_numerics::extreme_rank_length_envelope;
 use marklab_workflow::ContentDigest;
 use thiserror::Error;
 
@@ -66,6 +68,118 @@ impl ScalarVariogramLimits {
     }
 }
 
+/// Whole-value random-labeling controls for one scalar-semivariogram global envelope.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ScalarVariogramInferenceDesign {
+    conditioning: ScalarVariogramConditioning,
+    permutations: usize,
+    seed: u64,
+    alpha: f64,
+}
+
+impl ScalarVariogramInferenceDesign {
+    /// Declare unstratified whole-value random labeling across fixed cell locations.
+    pub fn random_labeling(
+        permutations: usize,
+        seed: u64,
+        alpha: f64,
+    ) -> Result<Self, ScalarVariogramError> {
+        Self::new(ScalarVariogramConditioning::None, permutations, seed, alpha)
+    }
+
+    /// Declare whole-value random labeling within exact typed histologic compartments.
+    pub fn histologic_compartment_random_labeling(
+        permutations: usize,
+        seed: u64,
+        alpha: f64,
+    ) -> Result<Self, ScalarVariogramError> {
+        Self::new(
+            ScalarVariogramConditioning::HistologicCompartment,
+            permutations,
+            seed,
+            alpha,
+        )
+    }
+
+    fn new(
+        conditioning: ScalarVariogramConditioning,
+        permutations: usize,
+        seed: u64,
+        alpha: f64,
+    ) -> Result<Self, ScalarVariogramError> {
+        let curve_count = permutations
+            .checked_add(1)
+            .ok_or(ScalarVariogramError::SizeOverflow)?;
+        if permutations == 0
+            || !alpha.is_finite()
+            || alpha <= 0.0
+            || alpha >= 1.0
+            || curve_count as f64 * alpha < 1.0
+        {
+            return Err(ScalarVariogramError::InvalidInferenceDesign);
+        }
+        Ok(Self {
+            conditioning,
+            permutations,
+            seed,
+            alpha,
+        })
+    }
+
+    /// Declared random-labeling conditioning.
+    pub fn conditioning(&self) -> ScalarVariogramConditioning {
+        self.conditioning
+    }
+
+    /// Requested deterministic permutation count.
+    pub fn permutations(&self) -> usize {
+        self.permutations
+    }
+
+    /// Base deterministic seed.
+    pub fn seed(&self) -> u64 {
+        self.seed
+    }
+
+    /// Family-wise alpha for the two-sided ERL global envelope.
+    pub fn alpha(&self) -> f64 {
+        self.alpha
+    }
+}
+
+/// Conditioning admitted for scalar-semivariogram random labeling.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ScalarVariogramConditioning {
+    /// Permute complete scalar values across every row.
+    None,
+    /// Permute complete scalar values only within exact histologic-compartment codes.
+    HistologicCompartment,
+}
+
+/// Resource ceilings for observed and permuted scalar-semivariogram evaluation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ScalarVariogramInferenceLimits {
+    observed: ScalarVariogramLimits,
+    maximum_permutation_pair_evaluations: usize,
+}
+
+impl ScalarVariogramInferenceLimits {
+    /// Validate point, all-pair, and permutation-by-pair ceilings.
+    pub fn new(
+        maximum_points: usize,
+        maximum_pair_visits: usize,
+        maximum_permutation_pair_evaluations: usize,
+    ) -> Result<Self, ScalarVariogramError> {
+        if maximum_permutation_pair_evaluations == 0 {
+            return Err(ScalarVariogramError::InvalidResourceLimit);
+        }
+        Ok(Self {
+            observed: ScalarVariogramLimits::new(maximum_points, maximum_pair_visits)?,
+            maximum_permutation_pair_evaluations,
+        })
+    }
+}
+
 /// One observed scalar semivariance lag row.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScalarVariogramRow {
@@ -104,6 +218,52 @@ pub struct ScalarVariogramResult {
     pub edge_correction: &'static str,
     /// Explicit inference status; no null distribution is implied.
     pub inference_status: &'static str,
+}
+
+/// One observed semivariance row with its simultaneous global envelope.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ScalarVariogramEnvelopeRow {
+    /// Exact observed lag row.
+    pub observed: ScalarVariogramRow,
+    /// Lower simultaneous ERL bound, absent for an empty bin.
+    pub lower_global_envelope: Option<f64>,
+    /// Upper simultaneous ERL bound, absent for an empty bin.
+    pub upper_global_envelope: Option<f64>,
+}
+
+/// Complete blocked-permutation scalar-semivariogram global inference result.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ScalarVariogramInferenceResult {
+    /// Unchanged exact observed scalar-semivariogram result.
+    pub observed: ScalarVariogramResult,
+    /// Observed rows with simultaneous bounds on nonempty bins.
+    pub curve: Vec<ScalarVariogramEnvelopeRow>,
+    /// Inclusive-plus-one two-sided ERL global p-value.
+    pub p_global: f64,
+    /// Observed extreme-rank-length depth.
+    pub observed_erl_depth: f64,
+    /// Critical depth defining the retained envelope curves.
+    pub critical_erl_depth: f64,
+    /// Family-wise envelope alpha.
+    pub alpha: f64,
+    /// Number of nonempty bins included in the curve family.
+    pub eligible_bin_count: usize,
+    /// Number of exact exchangeability strata.
+    pub stratum_count: usize,
+    /// Typed categorical conditioning mark, absent when unstratified.
+    pub conditioning_mark_id: Option<ScalarMarkId>,
+    /// Conditioning-mark measurement status, absent when unstratified.
+    pub conditioning_measurement_status: Option<MeasurementStatus>,
+    /// Explicit random-labeling conditioning.
+    pub conditioning: ScalarVariogramConditioning,
+    /// Requested permutations.
+    pub permutations_requested: usize,
+    /// Successfully completed permutations.
+    pub permutations_completed: usize,
+    /// Exact base seed.
+    pub seed: u64,
+    /// Explicit curve-family multiplicity policy.
+    pub multiplicity_policy: &'static str,
 }
 
 /// Compute an observed scalar semivariogram in exact caller-declared physical lag bins.
@@ -170,14 +330,195 @@ pub fn scalar_semivariogram(
         .map_err(|error| ScalarVariogramError::InvalidInput(error.to_string()))?
         .digest();
 
+    let values = values
+        .iter()
+        .map(|value| f64::from(*value))
+        .collect::<Vec<_>>();
+    let curve = evaluate_curve(&pattern.x_um, &pattern.y_um, &values, bins)?;
+
+    Ok(ScalarVariogramResult {
+        mark_id: mark_id.clone(),
+        measurement_status,
+        coordinate_frame_id: frame.clone(),
+        declared_input_digest,
+        pair_plan_digest: pair_plan_digest(input, window, mark_id, declared_input_digest, bins),
+        point_count,
+        pair_visits,
+        curve,
+        edge_correction: "none_fixed_observed_locations",
+        inference_status: "observed_only_no_null",
+    })
+}
+
+/// Compute a deterministic blocked whole-value ERL envelope for the scalar semivariogram.
+pub fn scalar_semivariogram_permutation(
+    input: &DeclaredScalarPatternInput<'_>,
+    window: &ObservationWindow2D,
+    mark_id: &ScalarMarkId,
+    bins: &[ScalarVariogramBin],
+    design: &ScalarVariogramInferenceDesign,
+    limits: ScalarVariogramInferenceLimits,
+) -> Result<ScalarVariogramInferenceResult, ScalarVariogramError> {
+    let observed = scalar_semivariogram(input, window, mark_id, bins, limits.observed)?;
+    let work = observed
+        .pair_visits
+        .checked_mul(design.permutations)
+        .ok_or(ScalarVariogramError::SizeOverflow)?;
+    if work > limits.maximum_permutation_pair_evaluations {
+        return Err(ScalarVariogramError::PermutationWorkExceeded {
+            observed: work,
+            maximum: limits.maximum_permutation_pair_evaluations,
+        });
+    }
+    let table = input
+        .mark_table()
+        .ok_or(ScalarVariogramError::TypedMarkTableRequired)?;
+    let values = table
+        .continuous_values(mark_id)
+        .ok_or_else(|| ScalarVariogramError::ContinuousMarkMissing {
+            mark_id: mark_id.clone(),
+        })?
+        .iter()
+        .map(|value| f64::from(*value))
+        .collect::<Vec<_>>();
+    let (inference_design, conditioning_mark_id, conditioning_measurement_status) =
+        match design.conditioning {
+            ScalarVariogramConditioning::None => {
+                if !has_distinct_values(&values) {
+                    return Err(ScalarVariogramError::DegenerateNull);
+                }
+                (
+                    InferenceDesign::random_labeling(
+                        values.len(),
+                        design.permutations,
+                        design.seed,
+                        InferenceAlternative::TwoSided,
+                    )
+                    .map_err(|error| ScalarVariogramError::Inference(error.to_string()))?,
+                    None,
+                    None,
+                )
+            }
+            ScalarVariogramConditioning::HistologicCompartment => {
+                let compartment_id = ScalarMarkId::new("histologic_compartment")
+                    .map_err(|error| ScalarVariogramError::Inference(error.to_string()))?;
+                let compartments = table
+                    .categorical_values(&compartment_id)
+                    .ok_or(ScalarVariogramError::MissingCompartmentStratum)?;
+                if compartments.len() != values.len() {
+                    return Err(ScalarVariogramError::RowCountMismatch {
+                        expected: values.len(),
+                        observed: compartments.len(),
+                    });
+                }
+                if !has_stratified_distinct_values(&values, compartments) {
+                    return Err(ScalarVariogramError::DegenerateNull);
+                }
+                let status = table
+                    .measurement_status(&compartment_id)
+                    .ok_or(ScalarVariogramError::MissingCompartmentStratum)?;
+                (
+                    InferenceDesign::stratified_random_labeling(
+                        compartments,
+                        design.permutations,
+                        design.seed,
+                        InferenceAlternative::TwoSided,
+                    )
+                    .map_err(|error| ScalarVariogramError::Inference(error.to_string()))?,
+                    Some(compartment_id),
+                    Some(status),
+                )
+            }
+        };
+    let eligible = observed
+        .curve
+        .iter()
+        .enumerate()
+        .filter_map(|(index, row)| row.semivariance.map(|value| (index, value)))
+        .collect::<Vec<_>>();
+    if eligible.is_empty() {
+        return Err(ScalarVariogramError::NoEligibleBins);
+    }
+    let observed_eligible = eligible.iter().map(|(_, value)| *value).collect::<Vec<_>>();
+    let pattern = input.pattern();
+    let mut null_curves = Vec::with_capacity(design.permutations);
+    for replicate in 0..design.permutations {
+        let indices = inference_design
+            .permuted_indices(replicate)
+            .map_err(|error| ScalarVariogramError::Inference(error.to_string()))?;
+        let permuted = indices
+            .iter()
+            .map(|source| values[*source])
+            .collect::<Vec<_>>();
+        let curve = evaluate_curve(&pattern.x_um, &pattern.y_um, &permuted, bins)?;
+        null_curves.push(
+            eligible
+                .iter()
+                .map(|(index, _)| {
+                    curve[*index]
+                        .semivariance
+                        .ok_or(ScalarVariogramError::NoEligibleBins)
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        );
+    }
+    let envelope = extreme_rank_length_envelope(&observed_eligible, &null_curves, design.alpha)
+        .map_err(|error| ScalarVariogramError::Inference(error.to_string()))?;
+    let mut eligible_position = vec![None; bins.len()];
+    for (position, (index, _)) in eligible.iter().enumerate() {
+        eligible_position[*index] = Some(position);
+    }
+    let curve = observed
+        .curve
+        .iter()
+        .enumerate()
+        .map(|(index, row)| ScalarVariogramEnvelopeRow {
+            observed: row.clone(),
+            lower_global_envelope: eligible_position[index]
+                .map(|position| envelope.lower[position]),
+            upper_global_envelope: eligible_position[index]
+                .map(|position| envelope.upper[position]),
+        })
+        .collect();
+
+    Ok(ScalarVariogramInferenceResult {
+        observed,
+        curve,
+        p_global: envelope.p_global,
+        observed_erl_depth: envelope.observed_depth,
+        critical_erl_depth: envelope.critical_depth,
+        alpha: design.alpha,
+        eligible_bin_count: eligible.len(),
+        stratum_count: inference_design.block_count(),
+        conditioning_mark_id,
+        conditioning_measurement_status,
+        conditioning: design.conditioning,
+        permutations_requested: design.permutations,
+        permutations_completed: design.permutations,
+        seed: design.seed,
+        multiplicity_policy: "two_sided_extreme_rank_length_global_envelope",
+    })
+}
+
+fn evaluate_curve(
+    x: &[f64],
+    y: &[f64],
+    values: &[f64],
+    bins: &[ScalarVariogramBin],
+) -> Result<Vec<ScalarVariogramRow>, ScalarVariogramError> {
+    if x.len() != y.len() || x.len() != values.len() {
+        return Err(ScalarVariogramError::RowCountMismatch {
+            expected: x.len(),
+            observed: values.len(),
+        });
+    }
     let mut counts = vec![0_usize; bins.len()];
     let mut sums = vec![CompensatedSum::default(); bins.len()];
-    for left in 0..point_count {
-        for right in (left + 1)..point_count {
-            let distance = (pattern.x_um[left] - pattern.x_um[right])
-                .hypot(pattern.y_um[left] - pattern.y_um[right]);
+    for left in 0..x.len() {
+        for right in (left + 1)..x.len() {
+            let distance = (x[left] - x[right]).hypot(y[left] - y[right]);
             if let Some(bin) = find_bin(distance, bins) {
-                let difference = f64::from(values[left]) - f64::from(values[right]);
+                let difference = values[left] - values[right];
                 let contribution = 0.5 * difference * difference;
                 if !contribution.is_finite() {
                     return Err(ScalarVariogramError::NumericalFailure);
@@ -189,8 +530,7 @@ pub fn scalar_semivariogram(
             }
         }
     }
-    let curve = bins
-        .iter()
+    bins.iter()
         .enumerate()
         .map(|(index, bin)| {
             let semivariance = if counts[index] == 0 {
@@ -210,20 +550,30 @@ pub fn scalar_semivariogram(
                 semivariance,
             })
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect()
+}
 
-    Ok(ScalarVariogramResult {
-        mark_id: mark_id.clone(),
-        measurement_status,
-        coordinate_frame_id: frame.clone(),
-        declared_input_digest,
-        pair_plan_digest: pair_plan_digest(input, window, mark_id, declared_input_digest, bins),
-        point_count,
-        pair_visits,
-        curve,
-        edge_correction: "none_fixed_observed_locations",
-        inference_status: "observed_only_no_null",
-    })
+fn has_distinct_values(values: &[f64]) -> bool {
+    values
+        .first()
+        .is_some_and(|first| values[1..].iter().any(|value| value != first))
+}
+
+fn has_stratified_distinct_values(values: &[f64], strata: &[u32]) -> bool {
+    if values.len() != strata.len() {
+        return false;
+    }
+    let mut first_by_stratum = BTreeMap::<u32, f64>::new();
+    for (value, stratum) in values.iter().zip(strata) {
+        match first_by_stratum.get(stratum) {
+            Some(first) if first != value => return true,
+            Some(_) => {}
+            None => {
+                first_by_stratum.insert(*stratum, *value);
+            }
+        }
+    }
+    false
 }
 
 fn validate_bins(bins: &[ScalarVariogramBin]) -> Result<(), ScalarVariogramError> {
@@ -356,6 +706,9 @@ pub enum ScalarVariogramError {
     /// A resource ceiling is zero.
     #[error("scalar variogram resource limits must be positive")]
     InvalidResourceLimit,
+    /// Permutation count or family-wise alpha is invalid or unresolvable.
+    #[error("scalar variogram inference requires positive permutations, alpha in (0,1), and (B+1)*alpha >= 1")]
+    InvalidInferenceDesign,
     /// The observation window has no installed frame binding.
     #[error("scalar variogram requires a coordinate-frame-bound observation window")]
     UnboundObservationWindow,
@@ -382,6 +735,14 @@ pub enum ScalarVariogramError {
     #[error("scalar variogram pair visits are {observed}; maximum is {maximum}")]
     PairVisitLimitExceeded {
         /// Required visits.
+        observed: usize,
+        /// Explicit maximum.
+        maximum: usize,
+    },
+    /// Permutation-by-pair work exceeds the explicit ceiling.
+    #[error("scalar variogram permutation work is {observed}; maximum is {maximum}")]
+    PermutationWorkExceeded {
+        /// Required pair evaluations.
         observed: usize,
         /// Explicit maximum.
         maximum: usize,
@@ -425,6 +786,18 @@ pub enum ScalarVariogramError {
         /// Observed mark rows.
         observed: usize,
     },
+    /// Requested typed histologic-compartment conditioning is absent.
+    #[error("scalar variogram histologic_compartment stratum is missing")]
+    MissingCompartmentStratum,
+    /// No declared block contains exchangeable distinct scalar values.
+    #[error("scalar variogram random-labeling null is degenerate")]
+    DegenerateNull,
+    /// Every declared lag bin is empty.
+    #[error("scalar variogram has no nonempty bin eligible for curve inference")]
+    NoEligibleBins,
+    /// Shared blocked-permutation or ERL evaluation failed.
+    #[error("scalar variogram inference failed: {0}")]
+    Inference(String),
     /// Checked count arithmetic overflowed.
     #[error("scalar variogram size arithmetic overflow")]
     SizeOverflow,

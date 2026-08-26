@@ -356,3 +356,15 @@ Closure on 2026-08-26: the three related typed spatial workflows passed the appl
 compile/lint/documentation stabilization gates once. The documented macOS full-integration loader
 loop was not retried. The dependency order and open claim limits from checkpoints 56–58 are
 unchanged; the next production caller is the scalar-variogram blocked-permutation envelope.
+
+## Checkpoint 60 scalar-semivariogram inference continuation
+
+Closure on 2026-08-26: the observed scalar-semivariogram plan now drives deterministic global or
+typed-compartment whole-value permutations and a two-sided ERL simultaneous curve envelope. The
+existing cohort schedule and numerical envelope owners remain canonical; exact design resolution,
+conditioning identity, nonempty-bin family, seed, permutation count, and work ceiling are retained.
+
+SIG-01F remains active for directional and edge-corrected estimands plus external/scale/real-data
+validation. The next dependency-valid outcome is patient-independent specimen summary comparison
+or a concrete polygon-compartment/interface geometry caller; no local-map family is admitted before
+its multiplicity and cohort-valid release policy exist.
