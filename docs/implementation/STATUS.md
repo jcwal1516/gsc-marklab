@@ -812,3 +812,24 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   local Moran maps, Geary/variogram integration, covariate residualization, broader multiplicity,
   patient-level spatial comparison, external PySAL/R agreement, or real-data promotion. FND-05
   remains data-blocked on the exact source authority recorded at checkpoint 54.
+
+## Durable typed Moran graph checkpoint 56 — 2026-08-26
+
+- Added typed global-Moran source nodes and a typed descriptive pre/post node. Two exact typed
+  MarkTable/window/design analyses now form a real three-node dependency graph whose downstream
+  result retains both source results and the finite post-minus-pre Moran-I difference without
+  claiming paired inference.
+- The source node binds exact pattern bytes, typed MarkTable identity and provenance artifacts,
+  framed observation-window identity, mark/radius/weight policy, deterministic design/seed, resource
+  limits, implementation identity, and a strict private version-one codec. The dependent node
+  accepts only exact scheduler-produced Moran artifacts with compatible estimands and controls.
+- Added the narrow store-aware form of `execute_algorithm`; it reuses the existing scheduler's
+  semantic-input verification and the unchanged durable object, ledger, head, pending-intent,
+  recovery, cache-key, and output transaction owners.
+- A fresh second fixture and reopened durable project return three hits with an unchanged
+  three-record ledger. Changing only the seed produces three misses and three additional records,
+  proving exact configuration identity. Focused Moran, dependency-replay, workflow-library,
+  warning-denied Clippy, no-default, strict-doc, formatting, and whitespace checks pass.
+- WF-01/WS-12 and FND-06 advance but remain active. General graph construction, resource planning,
+  parallel scheduling, whole-graph resume, inferential longitudinal comparison, broader
+  multiplicity, and patient-independent spatial comparison remain outside this checkpoint.

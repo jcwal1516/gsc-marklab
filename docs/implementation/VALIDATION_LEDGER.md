@@ -1413,3 +1413,25 @@ vascular transport.
 - No workspace-wide tests/Clippy, Nextest, feature matrix, benchmark, fuzz, memory, packaging,
   dependency audit, external-data claim, push, publication, deployment, history rewrite, or
   worktree was run or created.
+
+## Durable typed Moran graph checkpoint 56 — 2026-08-26
+
+- Expected red: `cargo +1.96.0 test --locked --test global_moran_project_workflow` failed to compile
+  because `execute_algorithm_with_store`, `GlobalMoranAnalysisNode`, `GlobalMoranPrePostNode`, and
+  `GlobalMoranPrePostResult` did not exist. The focused target then passed 1/1 after implementation.
+- The passing end-to-end case builds two typed Moran sources and one exact dependent comparison,
+  records miss/miss/miss, reconstructs the hierarchy, coordinate registry, provenance catalog,
+  managed store, typed inputs, graph, and runtime in a fresh fixture, then records hit/hit/hit with
+  the durable ledger unchanged at three. A seed-only change records miss/miss/miss and advances the
+  ledger to six.
+- `cargo +1.96.0 test --locked --package marklab-workflow --lib` passed 1/1. The exact existing
+  `project_workflow durable_reopen_restores_dependency_outputs_without_reexecution` regression
+  passed 1/1. The chained `global_moran_project_workflow` and `global_moran_typed_workflow` targets
+  passed 1/1 and 2/2.
+- Warning-denied Clippy passed for the affected `marklab-workflow` library and the root library plus
+  both Moran integrations. No-default checks passed for `marklab-workflow` and `marklab`; strict
+  warning-denied public docs generated successfully for both packages.
+- Affected Rust files were formatted directly and `git diff --check` passed. No workspace-wide
+  tests/Clippy, Nextest, full feature matrix, benchmark, fuzz, memory, packaging, dependency audit,
+  external-data claim, push, publication, deployment, history rewrite, or worktree was run or
+  created.

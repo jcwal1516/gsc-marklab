@@ -208,7 +208,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | UX-01 | blocked with named prerequisite | Requires stable PLAT-01/WF-01 project and result contracts for a UI that does not duplicate science. |
 | WAV-01A | gated pending explicit user decision | The master plan rejects raster wavelets by default; admission requires a raster-defined question and explicit approval. |
 | WAV-01B | planned | Genuine DoG remains in scope for a future explicit raster/image scale-space endpoint. |
-| WF-01 | active | Typed keys, exact produced-artifact dependency admission, sequential composition, durable replay, and a three-node marked pre/post CLI are live; general workflow schema, heterogeneous construction, resource planning, parallel scheduling, and whole-graph resume remain. |
+| WF-01 | active | Typed keys, exact produced-artifact dependency admission, sequential composition, durable replay, a three-node marked pre/post CLI, and a three-node typed Moran pre/post API graph are live; general workflow schema, heterogeneous construction, resource planning, parallel scheduling, and whole-graph resume remain. |
 
 ## Dependency-ordered workstream coverage
 
@@ -218,7 +218,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | WS-01 | complete | Legacy characterization and compatibility matrix closed. |
 | WS-10 | complete | Workspace and compatibility-shell phase slice closed. |
 | WS-11 | complete | Catalog/store/cache plus canonical durable project heads, append-only execution ledger, verified replay, and interrupted-run recovery are implemented. |
-| WS-12 | active | Typed durable execution now covers native/PyMC/POT single nodes and one sequential dependency-bearing marked pre/post graph with cross-process three-hit replay; general DAG construction, resource planning, workflow schema, parallel execution, and whole-graph resume remain. |
+| WS-12 | active | Typed durable execution covers native/PyMC/POT single nodes plus marked-result and typed-Moran three-node graphs with cross-process three-hit replay; schema-bound inputs use the existing verified store path. General DAG construction, resource planning, workflow schema, parallel execution, and whole-graph resume remain. |
 | WS-13 | active | Durable PyMC Normal-mean and POT FGW share one closed static descriptor with exact environment/adapter/license/schema/control identity and typed replay; generalized discovery, broader backend classes, doctor/admission validation, and capability/security manifests remain. |
 | WS-20 | complete | Typed identity and cohort hierarchy closed by C-01. |
 | WS-21 | complete | Coordinate, unit, dimensionality, transform, and uncertainty slice closed by C-02. |

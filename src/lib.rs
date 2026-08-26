@@ -43,6 +43,7 @@ mod qc;
 mod registration;
 mod scalar_mark;
 mod spatial_autocorrelation;
+mod spatial_autocorrelation_workflow;
 mod spectra;
 #[cfg(feature = "cli")]
 mod synthetic_smoke;
@@ -275,17 +276,18 @@ pub use marklab_embeddings::{
     MultiscaleMatrixParquetPreflight,
 };
 pub use marklab_workflow::{
-    execute_algorithm, ArtifactCatalog, ArtifactCatalogError, ArtifactDraft, ArtifactId,
-    ArtifactKey, ArtifactLocator, ArtifactPublication, ArtifactRecord, ArtifactRecordError,
-    ArtifactRef, ArtifactSchema, ArtifactStoreError, CacheKeyMaterial, CacheStatus, ContentDigest,
-    ContentDigestParseError, ContentDigestWriter, DurableCommitDisposition,
-    DurableExecutionRequest, DurableOpenReport, DurableProject, DurableProjectError,
-    DurableProjectLimits, DurableRecoveryAction, DurableReplay, ExecuteAlgorithmError,
-    LocalArtifactStore, LocalScheduler, MarklabProject, NativeRuntimeProvenance, NodeError, NodeId,
-    NodeRun, NodeSpec, ProjectError, PublicationDisposition, RecoveryIssue, RecoveryIssueReason,
-    RecoveryReport, SchedulerLimits, StoreId, SuccessfulRun, TableColumn, TableColumnType,
-    TableFormat, TableManifest, TableManifestError, TableScalarType, VerifiedReaderError,
-    WorkflowError, WorkflowGraph, WorkflowNode,
+    execute_algorithm, execute_algorithm_with_store, ArtifactCatalog, ArtifactCatalogError,
+    ArtifactDraft, ArtifactId, ArtifactKey, ArtifactLocator, ArtifactPublication, ArtifactRecord,
+    ArtifactRecordError, ArtifactRef, ArtifactSchema, ArtifactStoreError, CacheKeyMaterial,
+    CacheStatus, ContentDigest, ContentDigestParseError, ContentDigestWriter,
+    DurableCommitDisposition, DurableExecutionRequest, DurableOpenReport, DurableProject,
+    DurableProjectError, DurableProjectLimits, DurableRecoveryAction, DurableReplay,
+    ExecuteAlgorithmError, LocalArtifactStore, LocalScheduler, MarklabProject,
+    NativeRuntimeProvenance, NodeError, NodeId, NodeRun, NodeSpec, ProjectError,
+    PublicationDisposition, RecoveryIssue, RecoveryIssueReason, RecoveryReport, SchedulerLimits,
+    StoreId, SuccessfulRun, TableColumn, TableColumnType, TableFormat, TableManifest,
+    TableManifestError, TableScalarType, VerifiedReaderError, WorkflowError, WorkflowGraph,
+    WorkflowNode,
 };
 pub use multimodal::{
     CellExtrapolationRecord, CellSection, FusedCell, HeCell, IhcCell, LandmarkHullAvailability,
@@ -327,6 +329,9 @@ pub use scalar_mark::{
 pub use spatial_autocorrelation::{
     global_moran_permutation, GlobalMoranAlternative, GlobalMoranConditioning, GlobalMoranDesign,
     GlobalMoranError, GlobalMoranLimits, GlobalMoranResult, GlobalMoranWeightPolicy,
+};
+pub use spatial_autocorrelation_workflow::{
+    GlobalMoranAnalysisNode, GlobalMoranPrePostNode, GlobalMoranPrePostResult,
 };
 pub use workflow::{
     DeclaredMarkedAnalysisNode, DeclaredMarkedAnalysisResult, MarkedAnalysisNode, MarkedPrePostNode,

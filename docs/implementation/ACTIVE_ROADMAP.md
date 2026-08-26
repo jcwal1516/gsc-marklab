@@ -312,3 +312,17 @@ scalar variogram reusing the admitted typed input/weight or pair plan, followed 
 comparison only when independent specimen summaries are supplied. Polygon compartment geometry and
 interfaces remain a separate WS-22/GEO-01 caller; FND-05/WS-24 remains blocked on real source
 authority rather than synthetic expansion.
+
+## Checkpoint 56 durable typed Moran graph continuation
+
+Closure on 2026-08-26: two typed global-Moran source nodes now feed one typed descriptive pre/post
+node through exact produced-artifact edges. A reopened durable project restores three hits from a
+fresh reconstructed project/catalog/store view and does not append the ledger; changing only the
+seed produces three misses. Schema-bound provenance artifacts are verified through the existing
+store-aware scheduler path during unified durable execution.
+
+This is the second concrete dependency-bearing workflow and the first composed typed-mark spatial
+workflow. WF-01/WS-12 remain active because there is still no general graph schema/construction,
+resource planner, parallel scheduler, or whole-graph resume API. The next dependency-valid
+scientific outcome remains Geary C or a scalar variogram over the admitted typed frame/mark/weight
+substrate; patient-level spatial comparison still requires independent specimen summaries.
