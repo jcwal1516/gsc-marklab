@@ -1837,3 +1837,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for SIG-01B and the current FND-02/FND-04/FND-06 increment
 - Decision: compute global Geary's C from the same exact directed radius edges, binary-symmetric or row-standardized weights, typed continuous mark, framed window, compartment-conditioned whole-value randomization, deterministic seed, and point/edge/permutation-work ceilings already admitted for global Moran's I. Keep a distinct Geary result type and hand oracle, while sharing only the concrete design, limit, alternative, weight-policy, edge-plan, and blocked-permutation mechanics that both immediate callers use.
 - Consequences: Moran and Geary answer distinct formulas without hidden weight normalization or a generalized statistic/plugin registry. Local statistics, variograms, covariate residualization, external PySAL/R agreement, and patient-level comparison remain separate outcomes.
+
+## DEC-0225 — Admit a bounded observed scalar semivariogram before its inference layer
+
+- Date: 2026-08-26
+- Status: accepted for the current SIG-01F/FND-03 increment
+- Decision: compute observed scalar semivariance as one half of the mean squared mark difference in caller-declared contiguous physical-distance bins. Bind the exact typed continuous mark/status, framed window, row order and coordinates, bin edges, and a hard all-unordered-pair visit ceiling into one plan digest. Report empty bins as unavailable and state that no edge correction or randomization inference is applied in this increment.
+- Consequences: the scalar curve and exact pair/bin data flow become executable with a hand oracle without claiming the full SIG-01F inferential contract. Permutation envelopes, pair edge correction where justified, directional variograms, scale evidence, and external agreement remain required before complete status.

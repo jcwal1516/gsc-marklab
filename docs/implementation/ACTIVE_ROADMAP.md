@@ -337,3 +337,15 @@ hand oracles pass, and the weights digest is identical across Moran and Geary fo
 SIG-01B is complete for this bounded method. The next immediate-caller outcome is SIG-01F scalar
 semivariance using an explicit bounded distance-bin pair plan; it must not turn the two global
 statistics into a generic plugin/statistic registry.
+
+## Checkpoint 58 observed scalar-semivariogram continuation
+
+Closure on 2026-08-26: a bounded scalar semivariogram now consumes the admitted typed continuous
+mark/status and framed window, with explicit contiguous physical lag bins, exact unordered-pair
+counts, typed-input/provenance and pair-plan digests, empty-bin states, finite accumulation, and a
+hard all-pair visit ceiling. Three independent hand-bin values pass.
+
+SIG-01F remains active rather than complete because this first result is explicitly observed-only
+with no edge correction. The next caller must add the existing blocked whole-value randomization
+schedule and a curve-level envelope/multiplicity policy, or justify the applicable pair correction;
+it must reuse this exact bin/plan identity rather than introduce another variogram representation.

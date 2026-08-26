@@ -196,7 +196,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | SIG-01C | blocked with named prerequisite | Requires SIG-01A, multiplicity ownership, and cohort-valid exploratory-map policy. |
 | SIG-01D | blocked with named prerequisite | Requires typed paired variables, direction semantics, weights, and multiplicity. |
 | SIG-01E | data-dependent with named missing data | Missing a prespecified pathology hotspot use case and replicated endpoint data. |
-| SIG-01F | blocked with named prerequisite | Requires FND-03 pair/bin plans and typed scalar marks. |
+| SIG-01F | active | A bounded observed scalar semivariogram now has typed mark/provenance, framed-window, contiguous lag-bin, exact pair-count/plan-digest, empty-bin, finite-result, and pair-ceiling semantics; permutation envelopes, edge-correction decisions, directionality, external agreement, scale, and real validation remain. |
 | SIG-01G | data-dependent with named missing data | Missing co-located or correspondence-qualified bivariate observations. |
 | SIG-01H | blocked with named prerequisite | Synthetic distance and graph vector/covariance, leakage-safe projected/kernel, and complete-vector null workflows are runnable; stable promotion requires shared geometry/graph provenance/scale plus canonical vector-input calibration. |
 | SPC-01A | gated pending explicit user decision | The master plan rejects Bartlett branding/default use absent a prespecified endpoint and demonstrated advantage. |
@@ -228,7 +228,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | WS-25 | planned | SpatialData, AnnData, OME-NGFF, Arrow/Parquet/Zarr interchange remains in Phase 2 scope. |
 | WS-30 | blocked with named prerequisite | The first complete homogeneous standard-border K/L workflow is complete; translation/isotropic corrections, inhomogeneous K/L, g, F/G/J, cross/marked functions, and intensity estimation require their named geometry/mark/intensity prerequisites. |
 | WS-31 | active | Conditional CSR, reused ERL, scalar/paired/functional patient permutation, single-step Max-T, complete-vector embedding nulls, and shared blocked patient-label/cell-mark schedules are runnable; remaining null families, calibration, and broader multiplicity require further FND-06 slices. |
-| WS-32 | blocked with named prerequisite | Synthetic vector variogram/projected/covariance workflows are runnable; stable spatial-signal promotion still requires WS-22 shared geometry/weights/edge correction and canonical typed marks. |
+| WS-32 | active | Synthetic vector variogram/projected/covariance workflows plus a bounded typed observed scalar semivariogram are runnable; scalar null envelopes/edge correction and stable vector promotion still require broader shared geometry, provenance, scale, and validation. |
 | WS-33 | blocked with named prerequisite | Requires WS-22 compartments, boundaries, and object geometry. |
 | WS-34 | active | Scalar/paired/functional permutation, Max-T, MMD, energy, structured fingerprint distance, equivalence, noninferiority, and patient-first hierarchical bootstrap are runnable; repeated/multisite designs and broader validation remain. |
 | WS-40 | active | Typed PyMC NUTS/SMC, differentiated/nested Laplace, and pinned ArviZ PSIS-LOO lifecycles with normalized diagnostics are runnable; broader families, SBC, sensitivity, second-backend agreement, and generalized artifacts remain. |

@@ -846,3 +846,19 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - SIG-01B is complete for this bounded native method. SIG-01 remains active for scalar variograms,
   broader weight plans, external agreement, covariate residualization, scale, and real-data
   validation; local/bivariate maps remain gated on multiplicity and cohort-valid use.
+
+## Observed scalar semivariogram checkpoint 58 — 2026-08-26
+
+- Added a bounded public observed scalar semivariogram over the exact typed continuous mark and
+  coordinate-frame-bound window. Callers declare finite contiguous micrometre lag bins; the result
+  retains exact typed-input/provenance identity, a canonical row/coordinate/window/bin plan digest,
+  unordered-pair visits and counts, optional empty-bin values, and explicit correction/inference
+  status.
+- The four-point line matches hand semivariances `19/3`, `24.5`, and `32` for pair counts `3,2,1`.
+  The all-pair ceiling is checked before traversal and rejects the six-pair fixture at a five-visit
+  limit. Duplicate physical points, frame/window drift, row mismatch, invalid bins, non-finite
+  accumulation, and missing typed marks fail explicitly.
+- SIG-01F/FND-03 advance but remain active: this checkpoint truthfully reports
+  `none_fixed_observed_locations` and `observed_only_no_null`. Permutation envelopes, justified pair
+  edge correction, directional variants, external agreement, scale evidence, and real validation
+  remain before complete status.

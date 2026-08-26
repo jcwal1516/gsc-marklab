@@ -42,6 +42,7 @@ mod prepost;
 mod qc;
 mod registration;
 mod scalar_mark;
+mod scalar_variogram;
 mod spatial_autocorrelation;
 mod spatial_autocorrelation_workflow;
 mod spectra;
@@ -325,6 +326,10 @@ pub use scalar_mark::{
     MarkTable, MissingnessPolicy, NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration,
     ProbabilityThresholdComparator, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality,
     ScalarMarkUnit, ScalarMarkValueKind,
+};
+pub use scalar_variogram::{
+    scalar_semivariogram, ScalarVariogramBin, ScalarVariogramError, ScalarVariogramLimits,
+    ScalarVariogramResult, ScalarVariogramRow,
 };
 pub use spatial_autocorrelation::{
     global_geary_permutation, global_moran_permutation, GlobalGearyAlternative, GlobalGearyDesign,

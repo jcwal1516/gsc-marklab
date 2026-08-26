@@ -2,12 +2,13 @@
 
 use approx::assert_abs_diff_eq;
 use marklab::{
-    global_geary_permutation, global_moran_permutation, BinaryMarkDeclaration,
-    DeclaredScalarPatternInput, GlobalGearyAlternative, GlobalGearyDesign, GlobalGearyLimits,
-    GlobalMoranAlternative, GlobalMoranDesign, GlobalMoranError, GlobalMoranLimits,
-    GlobalMoranWeightPolicy, HistologicCompartmentMarkDeclaration, MarkTable, MeasurementStatus,
-    MissingnessPolicy, NucleusAreaUm2MarkDeclaration, ObservationWindow2D, ObservationWindowError,
-    ObservationWindowLimits, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
+    global_geary_permutation, global_moran_permutation, scalar_semivariogram,
+    BinaryMarkDeclaration, DeclaredScalarPatternInput, GlobalGearyAlternative, GlobalGearyDesign,
+    GlobalGearyLimits, GlobalMoranAlternative, GlobalMoranDesign, GlobalMoranError,
+    GlobalMoranLimits, GlobalMoranWeightPolicy, HistologicCompartmentMarkDeclaration, MarkTable,
+    MeasurementStatus, MissingnessPolicy, NucleusAreaUm2MarkDeclaration, ObservationWindow2D,
+    ObservationWindowError, ObservationWindowLimits, ScalarMarkColumn, ScalarMarkId,
+    ScalarMarkModality, ScalarMarkUnit, ScalarVariogramBin, ScalarVariogramLimits,
 };
 
 #[path = "support/declared_scalar.rs"]
@@ -276,6 +277,57 @@ fn typed_frame_mark_and_compartment_design_drive_global_moran_inference() {
     )
     .expect("row-standardized Geary workflow");
     assert_abs_diff_eq!(geary_row_standardized.statistic, 0.2925, epsilon = 1e-12);
+
+    let lag_bins = [
+        ScalarVariogramBin::new(0.0, 1.5).expect("first lag bin"),
+        ScalarVariogramBin::new(1.5, 2.5).expect("second lag bin"),
+        ScalarVariogramBin::new(2.5, 3.5).expect("third lag bin"),
+    ];
+    let variogram = scalar_semivariogram(
+        &input,
+        &window,
+        &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+        &lag_bins,
+        ScalarVariogramLimits::new(4, 6).expect("variogram limits"),
+    )
+    .expect("scalar semivariogram");
+    assert_eq!(variogram.pair_visits, 6);
+    assert_eq!(
+        variogram
+            .curve
+            .iter()
+            .map(|row| row.pair_count)
+            .collect::<Vec<_>>(),
+        vec![3, 2, 1]
+    );
+    assert_abs_diff_eq!(
+        variogram.curve[0].semivariance.expect("first bin"),
+        19.0 / 3.0,
+        epsilon = 1e-12
+    );
+    assert_abs_diff_eq!(
+        variogram.curve[1].semivariance.expect("second bin"),
+        24.5,
+        epsilon = 1e-12
+    );
+    assert_abs_diff_eq!(
+        variogram.curve[2].semivariance.expect("third bin"),
+        32.0,
+        epsilon = 1e-12
+    );
+    assert!(matches!(
+        scalar_semivariogram(
+            &input,
+            &window,
+            &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+            &lag_bins,
+            ScalarVariogramLimits::new(4, 5).expect("bounded variogram limits"),
+        ),
+        Err(marklab::ScalarVariogramError::PairVisitLimitExceeded {
+            observed: 6,
+            maximum: 5,
+        })
+    ));
 
     let unbound = ObservationWindow2D::from_geojson_str(
         r#"{"type":"MultiPolygon","coordinates":[[[[-1,-1],[4,-1],[4,1],[-1,1],[-1,-1]]]]}"#,

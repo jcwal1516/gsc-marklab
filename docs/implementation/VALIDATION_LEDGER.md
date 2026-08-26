@@ -1451,3 +1451,18 @@ vascular transport.
 - `cargo +1.96.0 fmt --all --check` and `git diff --check` passed. No workspace-wide tests/Clippy,
   Nextest, feature matrix, benchmark, fuzz, memory, packaging, dependency audit, external-data
   claim, push, publication, deployment, history rewrite, or worktree was run or created.
+
+## Observed scalar semivariogram checkpoint 58 — 2026-08-26
+
+- Expected red: the focused typed spatial-autocorrelation test failed to compile because
+  `scalar_semivariogram`, `ScalarVariogramBin`, and `ScalarVariogramLimits` did not exist.
+- The exact focused behavior passed after implementation, then the complete
+  `global_moran_typed_workflow` target passed 2/2. The four-point line proves bin counts `3,2,1`,
+  hand semivariances `19/3`, `24.5`, and `32`, exact six-pair visitation, and pre-traversal rejection
+  when the declared ceiling is five.
+- Warning-denied Clippy passed for the root library and affected integration. Root no-default
+  compilation and strict warning-denied public docs passed. After direct-review validation changes,
+  the exact behavior test passed again 1/1.
+- Affected files were formatted directly. No workspace-wide tests/Clippy, Nextest, feature matrix,
+  benchmark, fuzz, memory, packaging, dependency audit, external-data claim, push, publication,
+  deployment, history rewrite, or worktree was run or created.
