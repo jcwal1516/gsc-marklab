@@ -1466,3 +1466,15 @@ vascular transport.
 - Affected files were formatted directly. No workspace-wide tests/Clippy, Nextest, feature matrix,
   benchmark, fuzz, memory, packaging, dependency audit, external-data claim, push, publication,
   deployment, history rewrite, or worktree was run or created.
+
+## Three-workflow stabilization checkpoint 59 — 2026-08-26
+
+- `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings` passed in
+  11m59s with no diagnostics.
+- `cargo +1.96.0 check --locked --workspace --no-default-features` passed.
+- `cargo +1.96.0 test --locked --workspace --doc --all-features` passed all workspace doc-test
+  targets. `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --workspace --all-features
+  --no-deps` passed and generated documentation for the root plus 16 other packages.
+- Formatting and diff-whitespace checks pass. The full workspace integration suite and Nextest were
+  not rerun because checkpoints 51/52 retain the latest complete/partial evidence and document the
+  reproducible macOS loader-verification problem; the active instruction says not to retry it.

@@ -349,3 +349,10 @@ SIG-01F remains active rather than complete because this first result is explici
 with no edge correction. The next caller must add the existing blocked whole-value randomization
 schedule and a curve-level envelope/multiplicity policy, or justify the applicable pair correction;
 it must reuse this exact bin/plan identity rather than introduce another variogram representation.
+
+## Checkpoint 59 stabilization continuation
+
+Closure on 2026-08-26: the three related typed spatial workflows passed the applicable broad
+compile/lint/documentation stabilization gates once. The documented macOS full-integration loader
+loop was not retried. The dependency order and open claim limits from checkpoints 56–58 are
+unchanged; the next production caller is the scalar-variogram blocked-permutation envelope.

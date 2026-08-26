@@ -862,3 +862,14 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   `none_fixed_observed_locations` and `observed_only_no_null`. Permutation envelopes, justified pair
   edge correction, directional variants, external agreement, scale evidence, and real validation
   remain before complete status.
+
+## Three-workflow stabilization checkpoint 59 — 2026-08-26
+
+- Stabilized the durable typed Moran graph, global Geary C, and observed scalar-semivariogram
+  milestones as one three-workflow boundary. Workspace-wide all-target/all-feature warning-denied
+  Clippy, workspace no-default compilation, all-feature workspace doc tests, strict all-feature
+  workspace docs, formatting, and whitespace checks pass.
+- The full workspace integration suite and Nextest were not rerun: checkpoints 51 and 52 document
+  the complete prior serial evidence and the reproducible macOS binary-verification stall, and the
+  active instruction explicitly forbids retrying that loop. Focused changed data flows are green at
+  checkpoints 56–58.
