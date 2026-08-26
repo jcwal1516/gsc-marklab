@@ -732,3 +732,30 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - The bounded `PLAT-DUR-01` task is complete. Broader `PLAT-01`/`WF-01` remain active; `BACK-01`
   remains active and `WS-13` is promoted to active. The required local commit was not created
   because the user's explicit instruction forbids committing, staging, pushing, or rewriting.
+
+## Durable external-backend checkpoint 53 — 2026-08-26
+
+- Added `marklab project normal-mean` and `marklab project fused-gromov-wasserstein`. Each exact
+  typed workflow now uses `ExecuteAlgorithm`, the existing scheduler, canonical durable project
+  head/ledger/recovery transaction, and the existing content-addressed store. Replay decodes and
+  revalidates the typed worker result before reconstructing the unchanged one-shot scientific JSON.
+- The two immediate callers justify one closed private static descriptor, not a plugin registry. It
+  binds backend ID/version, Python 3.12, exact lock and worker digests, recorded SPDX license,
+  typed input/output schema identities, deterministic controls, bounded cleared-environment process
+  policy, and exact request bytes into the scheduler/durable identity.
+- Cross-process PyMC and POT tests each execute one real miss, then succeed as a hit in a second
+  process with external-backend startup explicitly disabled. Changed PyMC seed, POT alpha, and
+  byte-distinct equivalent input are misses and therefore fail under the same disabled-execution
+  control; neither failed miss appends a ledger record. The existing conjugate Normal and reversed
+  two-point FGW oracles pass, and exact backend/environment/worker identities match repository bytes.
+- Scoped checkpoint evidence passes 41/41 `marklab-bayes` tests, the original PyMC 2/2 and POT 1/1
+  CLI suites, durable PyMC 1/1, durable POT 1/1, durable classical 13/13, the focused static identity
+  unit test, warning-denied `marklab-bayes` and root-bin Clippy, package/root no-default checks,
+  affected formatting, and diff whitespace. No workspace-wide/Nextest/feature-matrix/specialized
+  gate was run because this is a two-workflow ordinary checkpoint and checkpoint 51/52 already
+  record the Mac loader limitation and latest broad evidence.
+- `BACK-01`, `WS-13`, `PLAT-01`, `WF-01`, and `WS-12` remain active: two static durable external
+  nodes are not a general registry or dependency-bearing DAG. No dependency, result-format 0.3
+  change, remote/container executor, arbitrary task runner, or backend discovery was added. The
+  user authorized one local cohesive-checkpoint commit before the next workstream; no push,
+  deployment, publication, history rewrite, or worktree was created.

@@ -259,3 +259,17 @@ durable prerequisite is closed.
 ## Multi-backend continuation rule
 
 After this durable prerequisite closes, the next backend outcome must follow the master plan’s integrated multi-backend policy. Marklab will own pinned environment/license/security manifests, typed input/output schemas, diagnostics normalization, deterministic controls, artifact identities, and workflow provenance. Established Python, R, Stan, GPU, or specialized backends may perform advanced numerical work. A native Rust port is not presumed and requires measured scientific, operational, portability, or performance evidence against the established backend.
+
+Closure on 2026-08-26: `marklab project normal-mean` and `marklab project
+fused-gromov-wasserstein` now run the existing pinned PyMC and POT adapters through the canonical
+durable engine. Exact repeats replay typed validated output without starting Python; seed/solver,
+raw-input, lock, worker, backend/version, license, schema, deterministic-control, and native-runtime
+identity participate in the durable boundary. The only shared selection surface is a closed private
+two-workflow descriptor. There is no discovery, arbitrary command, remote/container, or plugin
+registry surface.
+
+`BACK-01`/`WS-13` remain active because broad capability/security manifests, doctor/admission
+validation, and additional backend classes remain. `PLAT-01`/`WF-01`/`WS-12` remain active because
+dependency-bearing composition is still absent. The next dependency-valid platform outcome is one
+typed dependency-bearing user workflow using existing nodes; it must extend the scheduler only for
+that concrete composition and must not generalize the static backend descriptor speculatively.

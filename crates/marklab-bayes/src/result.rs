@@ -68,7 +68,7 @@ pub struct NormalMeanPosteriorPredictive {
     pub probability_replicated_mean_at_least_observed: f64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorkerResult {
     format: String,
@@ -220,7 +220,7 @@ fn all_finite(values: &[f64]) -> bool {
     values.iter().all(|value| value.is_finite())
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct NormalMeanInputIdentity {
     pub path: String,
     pub observation_count: usize,

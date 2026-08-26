@@ -34,7 +34,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | B-02 | complete | Compatibility shell parity closed. |
 | B-03 | complete | Workspace policy and feature-matrix milestone closed. |
 | B-04 | complete | Minimal project/workflow vertical slice closed. |
-| BACK-01 | active | Static typed PyMC 6.3.0/SciPy 1.18.1 and POT 0.9.7.post1 adapters share one complete Python-3.12 lock, bounded execution, exact schemas, digest binding, and strict Rust replay; PLAT-DUR-01 closes native durability, while the generalized registry, durable external-backend provenance, broader license/security manifest, and promotion gate remain. |
+| BACK-01 | active | Static typed PyMC 6.3.0 and POT 0.9.7.post1 workflows now share one closed descriptor and run durably with exact Python-3.12 lock/worker/license/schema/control identity and strict typed replay without Python restart; broader backend classes, capability/security manifests, doctor/admission validation, and the promotion gate remain. |
 | BAY-01 | active | One explicit backend-neutral Normal prior/known-sigma likelihood model IR is runnable through PyMC; hierarchy, units beyond one scalar observation, broader priors/likelihoods, identifiability, and cross-backend agreement remain. |
 | BAY-02 | active | NUTS, audited SMC, differentiated/nested Laplace, PSIS-LOO/comparison, conjugate SBC, and conjugate posterior/predictive/decision prior sensitivity are runnable; broader sampler/model calibration and inference families remain. |
 | BAY-03 | active | Gaussian patient varying intercepts and site/cohort random-effects meta-regression with explicit units, partial pooling, heterogeneity, and predictive checks are runnable; repeated, crossed, non-Gaussian, varying-slope, and spatial hierarchies remain. |
@@ -170,7 +170,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | NUL-01E | blocked with named prerequisite | Requires exact overlap-aware windows and a justified stationarity contract. |
 | PATH-01 | blocked with named prerequisite | Requires WS-22/GEO-01 compartments, boundaries, and object geometry. |
 | PERT-01 | active | IC-0193 provides a bounded randomized synthetic perturbation/control specialization with research-only mediation; real designed perturbations with dose/time and spatial readouts remain missing. |
-| PLAT-01 | active | Immutable artifacts, catalog/store/cache, exact source/runtime identities, durable heads/ledger/recovery/replay, and typed unified dependency-free execution exist; multi-node/external backend orchestration remains. |
+| PLAT-01 | active | Immutable artifacts, catalog/store/cache, exact source/runtime identities, durable heads/ledger/recovery/replay, and typed unified dependency-free native/PyMC/POT execution exist; dependency-bearing multi-node orchestration remains. |
 | PP-01 | blocked with named prerequisite | The complete unmarked standard-border K/L workflow is delivered; stable PP-01 promotion still requires remaining FND-02/FND-03/FND-06 contracts, pinned external-oracle fixtures, null calibration, intensity-gradient policy, and scale evidence. |
 | PP-02 | blocked with named prerequisite | Requires PP-01 and a cross-fit, provenance-bearing intensity estimator. |
 | PP-03 | blocked with named prerequisite | Requires PP-01/PP-02 and typed multitype/mark inputs. |
@@ -218,8 +218,8 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | WS-01 | complete | Legacy characterization and compatibility matrix closed. |
 | WS-10 | complete | Workspace and compatibility-shell phase slice closed. |
 | WS-11 | complete | Catalog/store/cache plus canonical durable project heads, append-only execution ledger, verified replay, and interrupted-run recovery are implemented. |
-| WS-12 | active | Typed single-node execution exists; general DAG composition, resource planning, workflow schema, and resume remain. |
-| WS-13 | active | The durable native prerequisite is complete and multiple static external workflows demonstrate reuse; shared typed registry ownership, durable external-backend provenance, and broader license/security manifests remain. |
+| WS-12 | active | Typed durable single-node execution exists for native and two static external workflows; dependency-bearing DAG composition, resource planning, workflow schema, and resume remain. |
+| WS-13 | active | Durable PyMC Normal-mean and POT FGW share one closed static descriptor with exact environment/adapter/license/schema/control identity and typed replay; generalized discovery, broader backend classes, doctor/admission validation, and capability/security manifests remain. |
 | WS-20 | complete | Typed identity and cohort hierarchy closed by C-01. |
 | WS-21 | complete | Coordinate, unit, dimensionality, transform, and uncertainty slice closed by C-02. |
 | WS-22 | blocked with named prerequisite | Exact bounded 2-D windows, canonical boundary distance, and one streaming K/L pair plan are complete; compartments, volumes, signed distance, and shared multi-endpoint plans require promoted immediate callers. |

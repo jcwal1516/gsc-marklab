@@ -41,7 +41,7 @@ mod embedding_kernel;
 #[path = "bayes/embedding_spatial.rs"]
 mod embedding_spatial;
 #[path = "bayes/fused_gromov.rs"]
-mod fused_gromov;
+pub(super) mod fused_gromov;
 #[path = "bayes/geyer.rs"]
 mod geyer;
 #[path = "bayes/gmrf.rs"]
@@ -3926,6 +3926,35 @@ fn run_normal_mean(
     timeout_seconds: u64,
     output_path: PathBuf,
 ) -> Result<(), BayesCliError> {
+    let prepared = prepare_normal_mean(
+        input_path,
+        prior_mean,
+        prior_sd,
+        known_sigma,
+        sampling,
+        timeout_seconds,
+    )?;
+    let worker_result = execute_normal_mean(&prepared)?;
+    let fit = worker_result.into_fit(prepared.request, prepared.input_identity);
+    publish_json(&output_path, &fit)
+}
+
+pub(super) struct PreparedNormalMean {
+    pub(super) request: NormalMeanWorkerRequest,
+    pub(super) request_bytes: Vec<u8>,
+    pub(super) request_sha256: String,
+    pub(super) input_identity: NormalMeanInputIdentity,
+    pub(super) timeout_seconds: u64,
+}
+
+pub(super) fn prepare_normal_mean(
+    input_path: PathBuf,
+    prior_mean: f64,
+    prior_sd: f64,
+    known_sigma: f64,
+    sampling: NutsSamplingSpec,
+    timeout_seconds: u64,
+) -> Result<PreparedNormalMean, BayesCliError> {
     let observations = read_observations(&input_path)?;
     let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
     let worker_directory = repository.join("workers/python");
@@ -3953,23 +3982,32 @@ fn run_normal_mean(
     )?;
     let request_bytes = serde_json::to_vec(&request)?;
     let request_sha256 = sha256_hex(&request_bytes);
-    let result_bytes = run_worker(
-        repository,
-        "marklab_pymc_worker.py",
-        &request_bytes,
-        timeout_seconds,
-    )?;
-    let worker_result: WorkerResult = serde_json::from_slice(&result_bytes)?;
-    worker_result.validate(&request, &request_sha256)?;
-    let fit = worker_result.into_fit(
+    Ok(PreparedNormalMean {
         request,
-        NormalMeanInputIdentity {
+        request_bytes,
+        request_sha256,
+        input_identity: NormalMeanInputIdentity {
             path: input_path.display().to_string(),
             observation_count: observations.len(),
             observations_sha256: observations_digest(&observations),
         },
-    );
-    publish_json(&output_path, &fit)
+        timeout_seconds,
+    })
+}
+
+pub(super) fn execute_normal_mean(
+    prepared: &PreparedNormalMean,
+) -> Result<WorkerResult, BayesCliError> {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let result_bytes = run_worker(
+        repository,
+        "marklab_pymc_worker.py",
+        &prepared.request_bytes,
+        prepared.timeout_seconds,
+    )?;
+    let worker_result: WorkerResult = serde_json::from_slice(&result_bytes)?;
+    worker_result.validate(&prepared.request, &prepared.request_sha256)?;
+    Ok(worker_result)
 }
 
 #[derive(Debug, Deserialize)]
@@ -4021,12 +4059,18 @@ fn observations_digest(observations: &[f64]) -> String {
     sha256_hex(&canonical)
 }
 
-fn run_worker(
+pub(super) fn run_worker(
     repository: &Path,
     worker_file_name: &str,
     request: &[u8],
     timeout_seconds: u64,
 ) -> Result<Vec<u8>, BayesCliError> {
+    if std::env::var_os("MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION").is_some() {
+        return Err(BayesCliError::Backend(
+            "external backend execution is disabled by MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION"
+                .into(),
+        ));
+    }
     let interpreter = repository.join("target/pymc-venv/bin/python");
     let worker = repository.join("workers/python").join(worker_file_name);
     if !interpreter.is_file() {
@@ -4116,7 +4160,7 @@ fn run_worker(
             let _ = stdout_reader.join();
             let _ = stderr_reader.join();
             return Err(BayesCliError::Backend(format!(
-                "PyMC worker exceeded the {timeout_seconds}-second limit"
+                "external backend worker exceeded the {timeout_seconds}-second limit"
             )));
         }
         thread::sleep(Duration::from_millis(25));
@@ -4151,7 +4195,7 @@ fn join_reader(
         .join()
         .map_err(|_| BayesCliError::Backend(format!("worker {stream} reader panicked")))?
         .map_err(|source| BayesCliError::Io {
-            path: PathBuf::from(format!("PyMC worker {stream}")),
+            path: PathBuf::from(format!("external backend worker {stream}")),
             source,
         })
 }
@@ -4165,25 +4209,25 @@ fn validate_process_result(
 ) -> Result<Vec<u8>, BayesCliError> {
     if stdout_exceeded || stderr_exceeded {
         return Err(BayesCliError::Backend(
-            "PyMC worker exceeded the 16 MiB output limit".into(),
+            "external backend worker exceeded the 16 MiB output limit".into(),
         ));
     }
     if !status.success() {
         let detail = String::from_utf8_lossy(&stderr);
         return Err(BayesCliError::Backend(format!(
-            "PyMC worker exited with {status}: {}",
+            "external backend worker exited with {status}: {}",
             detail.trim()
         )));
     }
     if stdout.is_empty() {
         return Err(BayesCliError::Backend(
-            "PyMC worker succeeded without a JSON result".into(),
+            "external backend worker succeeded without a JSON result".into(),
         ));
     }
     Ok(stdout)
 }
 
-fn publish_json(path: &Path, result: &impl Serialize) -> Result<(), BayesCliError> {
+pub(super) fn publish_json(path: &Path, result: &impl Serialize) -> Result<(), BayesCliError> {
     match fs::symlink_metadata(path) {
         Ok(_) => {
             return Err(BayesCliError::Input(format!(

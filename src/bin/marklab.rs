@@ -28,6 +28,8 @@ mod neural;
 mod numerics;
 #[path = "marklab/policy.rs"]
 mod policy;
+#[path = "marklab/project.rs"]
+mod project;
 #[path = "marklab/registration.rs"]
 mod registration;
 #[path = "marklab/spatial3d.rs"]
@@ -39,6 +41,20 @@ mod topology;
 
 fn main() -> marklab::Result<()> {
     match std::env::args_os().nth(1).as_deref() {
+        Some(command)
+            if command == std::ffi::OsStr::new("project")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        matches!(
+                            subcommand.to_str(),
+                            Some("normal-mean" | "fused-gromov-wasserstein")
+                        )
+                    }) =>
+        {
+            project::run_cli().map_err(bayes::into_marklab_error)
+        }
         Some(command) if command == std::ffi::OsStr::new("cohort") => {
             cohort::run_cli().map_err(cohort::into_marklab_error)
         }

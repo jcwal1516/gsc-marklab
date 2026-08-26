@@ -1317,3 +1317,32 @@ vascular transport.
   run.
 - No Nextest retry was made: checkpoint 51 already records its reproduced concurrent macOS loader
   stall. No commit, stage, push, deployment, history rewrite, or worktree was created.
+
+## Durable external-backend checkpoint 53 — 2026-08-26
+
+- Expected reds: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  durable_pymc_project -- --nocapture` failed because `project normal-mean` was unrecognized;
+  `durable_pot_project` failed for the same missing-command reason. The first POT green attempt then
+  exposed noncanonical floating JSON after typed decode/re-encode; the unchanged test passed after
+  the POT codec normalized its strict typed result to a stable fixed point.
+- `cargo +1.96.0 test --locked --package marklab --features cli --bin marklab
+  static_backend_identity_binds_environment_worker_and_request_bytes` passed 1/1. It proves exact
+  lock digest, worker digest, request/config bytes, and backend/version participate in or are checked
+  by the closed static descriptor.
+- One serial command running `durable_classical_project`, `durable_pymc_project`,
+  `durable_pot_project`, `bayes_normal_mean_cli`, and `bayes_fused_gromov_wasserstein_cli` passed
+  13/13, 1/1, 1/1, 2/2, and 1/1 respectively. Each durable external test performs one real backend
+  miss and a second-process hit with backend startup disabled, then proves changed config and raw
+  input are misses under the same disabled control. Exact analytic/differential oracles and
+  repository lock/worker digests pass.
+- `cargo +1.96.0 test --locked --package marklab-bayes` passed 41 unit tests and zero doc tests.
+  `cargo +1.96.0 clippy --locked --package marklab-bayes --all-targets --all-features -- -D
+  warnings` and `cargo +1.96.0 clippy --locked --package marklab --bin marklab --features cli -- -D
+  warnings` passed. `cargo +1.96.0 check --locked --package marklab-bayes --no-default-features`
+  and the corresponding root-package no-default check passed.
+- A first attempted focused Cargo invocation supplied two positional test filters and exited with a
+  usage error; the valid `normal_mean` filter and then the complete 41-test package command passed.
+  Affected files were formatted directly with Rustfmt and `git diff --check` passed. No broad
+  workspace/Nextest/feature-matrix/specialized gate was run or claimed. The user authorized one
+  local cohesive-checkpoint commit before the next workstream; no push, deployment, publication,
+  history rewrite, or worktree was created.

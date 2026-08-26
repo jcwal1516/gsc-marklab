@@ -204,7 +204,7 @@ pub struct FgwInitializationResult {
     pub regularized_objective: f64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct FusedGromovWassersteinWorkerResult {
     format: String,
