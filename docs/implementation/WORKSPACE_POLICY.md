@@ -7,12 +7,22 @@ Status: active from B-03. Cargo-observed tests in `tests/workspace_contract.rs` 
 Local package layers are explicit and descending:
 
 ```text
-marklab (compatibility facade/application integration)
-  -> marklab-workflow (typed DAG and execution)
-    -> marklab-project (project and artifact ownership)
+layer 4: marklab (compatibility facade, CLI, and application integration)
+layer 3: marklab-workflow, marklab-embeddings
+layer 2: marklab-project
+layer 1: marklab-data, marklab-bayes, marklab-graph, marklab-sbi
+layer 0: marklab-core, marklab-numerics, marklab-cohort, marklab-causal,
+         marklab-longitudinal, marklab-policy, marklab-simulation,
+         marklab-spatial3d, marklab-topology
 ```
 
 A package may depend only on a lower numbered layer. `marklab-project` cannot depend on workflow or compatibility code; `marklab-workflow` cannot depend on `marklab`. The root package owns adapters that invoke existing Marklab engines through workflow nodes, so scientific implementations are not copied downward.
+
+The scientific packages at layer zero are independent bounded owners. The layer-one scientific
+packages consume only their named lower owner (`marklab-bayes` and `marklab-graph` consume stable
+numerics; `marklab-sbi` consumes simulation). Listing a package in the workspace requires an
+immediate root or lower-layer production caller and an explicit entry in
+`tests/workspace_contract.rs`; speculative packages remain prohibited.
 
 The root package may gate the exact adapter and test-module files frozen in `workspace_contract`, including CLI and synthetic-smoke entry points. Non-root project/workflow/core libraries may not define or use a `cli` feature, depend on command-line parsing, or hide stable scientific definitions behind CLI compilation.
 

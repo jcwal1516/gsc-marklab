@@ -18,6 +18,7 @@ use thiserror::Error;
 
 mod artifact;
 mod catalog;
+mod durable;
 mod store;
 
 pub use artifact::{
@@ -26,6 +27,11 @@ pub use artifact::{
     TableManifestError, TableScalarType,
 };
 pub use catalog::{ArtifactCatalog, ArtifactCatalogError};
+pub use durable::{
+    DurableCommitDisposition, DurableExecutionRequest, DurableOpenReport, DurableProject,
+    DurableProjectError, DurableProjectLimits, DurableRecoveryAction, DurableReplay,
+    NativeRuntimeProvenance,
+};
 pub use store::{
     ArtifactPublication, ArtifactReadSeek, ArtifactStoreError, LocalArtifactStore,
     PublicationDisposition, RecoveryIssue, RecoveryIssueReason, RecoveryReport,

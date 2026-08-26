@@ -162,6 +162,10 @@ enum Commands {
         #[arg(long)]
         max_csr_draws: usize,
     },
+    Project {
+        #[command(subcommand)]
+        command: ProjectCommands,
+    },
     Batch {
         #[arg(long)]
         manifest: PathBuf,
@@ -215,6 +219,170 @@ enum SimulateCommands {
         seed: u64,
         #[arg(long)]
         out: PathBuf,
+    },
+    GrowthFront {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        diffusion_um2_per_time: f64,
+        #[arg(long)]
+        growth_rate_per_time: f64,
+        #[arg(long)]
+        carrying_capacity: f64,
+        #[arg(long)]
+        final_time: f64,
+        #[arg(long)]
+        time_step: f64,
+        #[arg(long)]
+        front_threshold_fraction: f64,
+        #[arg(long)]
+        record_every_steps: u32,
+        #[arg(long)]
+        maximum_cell_steps: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    SpatialCompetition {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        diffusion_a_um2_per_time: f64,
+        #[arg(long)]
+        diffusion_b_um2_per_time: f64,
+        #[arg(long)]
+        growth_a_per_time: f64,
+        #[arg(long)]
+        growth_b_per_time: f64,
+        #[arg(long)]
+        carrying_a: f64,
+        #[arg(long)]
+        carrying_b: f64,
+        #[arg(long)]
+        competition_a_from_b: f64,
+        #[arg(long)]
+        competition_b_from_a: f64,
+        #[arg(long)]
+        treatment_a_per_time: f64,
+        #[arg(long)]
+        treatment_b_per_time: f64,
+        #[arg(long)]
+        final_time: f64,
+        #[arg(long)]
+        time_step: f64,
+        #[arg(long)]
+        extinction_threshold_fraction: f64,
+        #[arg(long)]
+        record_every_steps: u32,
+        #[arg(long)]
+        maximum_cell_species_steps: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    AgentCompetition {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        maximum_events: u32,
+        #[arg(long)]
+        maximum_agents: u32,
+        #[arg(long)]
+        maximum_pair_visits: u64,
+        #[arg(long)]
+        retain_events: u32,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    ReactionDiffusion {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        final_time: f64,
+        #[arg(long)]
+        time_step: f64,
+        #[arg(long)]
+        record_every_steps: u32,
+        #[arg(long)]
+        maximum_cell_steps: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    EvolveInterface {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        final_time: f64,
+        #[arg(long)]
+        time_step: f64,
+        #[arg(long)]
+        reinitialize_every_steps: u32,
+        #[arg(long)]
+        record_every_steps: u32,
+        #[arg(long)]
+        maximum_cell_steps: u64,
+        #[arg(long)]
+        maximum_reinitialization_distance_visits: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    VascularTransport {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        final_time: f64,
+        #[arg(long)]
+        time_step: f64,
+        #[arg(long)]
+        hypoxia_threshold: f64,
+        #[arg(long)]
+        record_every_steps: u32,
+        #[arg(long)]
+        maximum_cell_steps: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    MechanisticTissue {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    SummaryMatching {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum ProjectCommands {
+    Classical {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        cells: PathBuf,
+        #[arg(long)]
+        mask: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        r_max_um: f64,
+        #[arg(long)]
+        r_steps: usize,
+        #[arg(long)]
+        simulations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        max_pair_visits: usize,
+        #[arg(long)]
+        max_csr_draws: usize,
     },
 }
 
@@ -348,6 +516,37 @@ pub fn run_cli() -> Result<()> {
             maximum_pair_visits: max_pair_visits,
             maximum_csr_draws: max_csr_draws,
         }),
+        Commands::Project { command } => match command {
+            ProjectCommands::Classical {
+                project,
+                cells,
+                mask,
+                out,
+                r_max_um,
+                r_steps,
+                simulations,
+                seed,
+                alpha,
+                memory_budget_mib,
+                max_pair_visits,
+                max_csr_draws,
+            } => classical::run_project(
+                project,
+                ClassicalRequest {
+                    cells,
+                    mask,
+                    out,
+                    r_max_um,
+                    r_steps,
+                    simulations,
+                    seed,
+                    alpha,
+                    memory_budget_mib,
+                    maximum_pair_visits: max_pair_visits,
+                    maximum_csr_draws: max_csr_draws,
+                },
+            ),
+        },
         Commands::Batch {
             manifest,
             config,
@@ -358,6 +557,140 @@ pub fn run_cli() -> Result<()> {
         Commands::ProfilePlan { workload, out } => profile::run(&workload, out),
         Commands::Simulate { command } => match command {
             SimulateCommands::RandomLabeling { n, p, seed, out } => simulate::run(n, p, seed, out),
+            SimulateCommands::GrowthFront {
+                input,
+                diffusion_um2_per_time,
+                growth_rate_per_time,
+                carrying_capacity,
+                final_time,
+                time_step,
+                front_threshold_fraction,
+                record_every_steps,
+                maximum_cell_steps,
+                out,
+            } => simulate::growth_front::run(
+                input,
+                diffusion_um2_per_time,
+                growth_rate_per_time,
+                carrying_capacity,
+                final_time,
+                time_step,
+                front_threshold_fraction,
+                record_every_steps,
+                maximum_cell_steps,
+                out,
+            ),
+            SimulateCommands::SpatialCompetition {
+                input,
+                diffusion_a_um2_per_time,
+                diffusion_b_um2_per_time,
+                growth_a_per_time,
+                growth_b_per_time,
+                carrying_a,
+                carrying_b,
+                competition_a_from_b,
+                competition_b_from_a,
+                treatment_a_per_time,
+                treatment_b_per_time,
+                final_time,
+                time_step,
+                extinction_threshold_fraction,
+                record_every_steps,
+                maximum_cell_species_steps,
+                out,
+            } => simulate::spatial_competition::run(
+                input,
+                diffusion_a_um2_per_time,
+                diffusion_b_um2_per_time,
+                growth_a_per_time,
+                growth_b_per_time,
+                carrying_a,
+                carrying_b,
+                competition_a_from_b,
+                competition_b_from_a,
+                treatment_a_per_time,
+                treatment_b_per_time,
+                final_time,
+                time_step,
+                extinction_threshold_fraction,
+                record_every_steps,
+                maximum_cell_species_steps,
+                out,
+            ),
+            SimulateCommands::AgentCompetition {
+                input,
+                seed,
+                maximum_events,
+                maximum_agents,
+                maximum_pair_visits,
+                retain_events,
+                out,
+            } => simulate::agent_competition::run(
+                input,
+                seed,
+                maximum_events,
+                maximum_agents,
+                maximum_pair_visits,
+                retain_events,
+                out,
+            ),
+            SimulateCommands::ReactionDiffusion {
+                input,
+                final_time,
+                time_step,
+                record_every_steps,
+                maximum_cell_steps,
+                out,
+            } => simulate::reaction_diffusion::run(
+                input,
+                final_time,
+                time_step,
+                record_every_steps,
+                maximum_cell_steps,
+                out,
+            ),
+            SimulateCommands::EvolveInterface {
+                input,
+                final_time,
+                time_step,
+                reinitialize_every_steps,
+                record_every_steps,
+                maximum_cell_steps,
+                maximum_reinitialization_distance_visits,
+                out,
+            } => simulate::level_set::run(
+                input,
+                final_time,
+                time_step,
+                reinitialize_every_steps,
+                record_every_steps,
+                maximum_cell_steps,
+                maximum_reinitialization_distance_visits,
+                out,
+            ),
+            SimulateCommands::VascularTransport {
+                input,
+                final_time,
+                time_step,
+                hypoxia_threshold,
+                record_every_steps,
+                maximum_cell_steps,
+                out,
+            } => simulate::vascular_transport::run(
+                input,
+                final_time,
+                time_step,
+                hypoxia_threshold,
+                record_every_steps,
+                maximum_cell_steps,
+                out,
+            ),
+            SimulateCommands::MechanisticTissue { input, out } => {
+                simulate::mechanistic_tissue::run(input, out)
+            }
+            SimulateCommands::SummaryMatching { input, out } => {
+                simulate::summary_matching::run(input, out)
+            }
         },
         Commands::Multimodal { command } => match command {
             MultimodalCommands::Analyze {

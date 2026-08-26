@@ -11,9 +11,12 @@ pub use marklab_project::{
     ArtifactCatalog, ArtifactCatalogError, ArtifactDraft, ArtifactId, ArtifactKey, ArtifactLocator,
     ArtifactPublication, ArtifactRecord, ArtifactRecordError, ArtifactRef, ArtifactSchema,
     ArtifactStoreError, ContentDigest, ContentDigestParseError, ContentDigestWriter,
-    LocalArtifactStore, MarklabProject, ProjectError, PublicationDisposition, RecoveryIssue,
-    RecoveryIssueReason, RecoveryReport, StoreId, SuccessfulRun, TableColumn, TableColumnType,
-    TableFormat, TableManifest, TableManifestError, TableScalarType, VerifiedReaderError,
+    DurableCommitDisposition, DurableExecutionRequest, DurableOpenReport, DurableProject,
+    DurableProjectError, DurableProjectLimits, DurableRecoveryAction, DurableReplay,
+    LocalArtifactStore, MarklabProject, NativeRuntimeProvenance, ProjectError,
+    PublicationDisposition, RecoveryIssue, RecoveryIssueReason, RecoveryReport, StoreId,
+    SuccessfulRun, TableColumn, TableColumnType, TableFormat, TableManifest, TableManifestError,
+    TableScalarType, VerifiedReaderError,
 };
 use thiserror::Error;
 
@@ -263,6 +266,56 @@ pub struct LocalScheduler {
     limits: SchedulerLimits,
 }
 
+/// Execute one typed dependency-free algorithm through verified durable replay and commit.
+///
+/// The node owns input/schema validation, execution, diagnostics embedded in its typed output,
+/// canonical encoding, and cache material. The scheduler remains the sole cache-key and in-memory
+/// commit owner; the durable project remains the sole cross-process object/ledger/head owner.
+pub fn execute_algorithm<N: WorkflowNode>(
+    durable: &mut DurableProject,
+    project: &mut MarklabProject,
+    graph: &WorkflowGraph,
+    node: &N,
+    scheduler: &LocalScheduler,
+    result_schema: ArtifactSchema,
+    runtime: NativeRuntimeProvenance,
+) -> Result<NodeRun<N::Output>, ExecuteAlgorithmError> {
+    let cache_key = scheduler.cache_key_for(node)?;
+    let material = node.cache_key_material();
+    let request = DurableExecutionRequest::new(
+        node.spec().id().as_str(),
+        node.spec().digest(),
+        node.input_artifacts().to_vec(),
+        material.configuration_digest,
+        ContentDigest::from_bytes(material.execution_policy),
+        scheduler.limits.max_inline_output_bytes,
+        cache_key,
+        result_schema,
+        runtime,
+    )?;
+    durable.restore_success(&request, project)?;
+    let run = scheduler.run_single(project, graph, node)?;
+    if run.cache_status == CacheStatus::Miss {
+        let encoded = project.read_inline_verified(&run.artifact)?.to_vec();
+        durable.commit_success(&request, run.artifact.kind(), &encoded)?;
+    }
+    Ok(run)
+}
+
+/// Failure from the unified typed durable algorithm boundary.
+#[derive(Debug, Error)]
+pub enum ExecuteAlgorithmError {
+    /// Graph, node, scheduler, codec, or in-memory commit failure.
+    #[error(transparent)]
+    Workflow(#[from] WorkflowError),
+    /// Durable restore, verification, publication, ledger, head, or recovery failure.
+    #[error(transparent)]
+    Durable(#[from] DurableProjectError),
+    /// Verified inline scheduler output could not be read for durable publication.
+    #[error(transparent)]
+    Project(#[from] ProjectError),
+}
+
 impl LocalScheduler {
     /// Create a scheduler after validating nonzero resource limits.
     pub fn new(limits: SchedulerLimits) -> Result<Self, WorkflowError> {
@@ -294,6 +347,15 @@ impl LocalScheduler {
         store: &LocalArtifactStore,
     ) -> Result<NodeRun<N::Output>, WorkflowError> {
         self.run_single_inner(project, graph, node, Some(store))
+    }
+
+    /// Compute the exact deterministic cache key without executing or mutating project state.
+    ///
+    /// Durable project adapters use this read-only surface to locate verified bytes before
+    /// invoking the normal scheduler hit path. Callers must still use a scheduler run method to
+    /// enforce graph, input, codec, and commit semantics.
+    pub fn cache_key_for<N: WorkflowNode>(&self, node: &N) -> Result<ContentDigest, WorkflowError> {
+        self.cache_key(node)
     }
 
     fn run_single_inner<N: WorkflowNode>(

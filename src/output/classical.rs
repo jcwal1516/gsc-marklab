@@ -12,6 +12,7 @@ use super::transaction::OutputTransaction;
 
 #[derive(Debug)]
 pub(crate) struct ClassicalOutputContext {
+    pub(crate) command: &'static str,
     pub(crate) cells: PathBuf,
     pub(crate) mask: PathBuf,
     pub(crate) r_max_um: f64,
@@ -77,7 +78,7 @@ impl ClassicalRunManifest {
         Self {
             format: "marklab.classical_spatial.run_manifest",
             format_version: "1",
-            command: "classical",
+            command: context.command,
             program: ProgramManifest {
                 name: "marklab",
                 crate_version: env!("CARGO_PKG_VERSION"),

@@ -176,7 +176,7 @@ fn fixture_with_rows(row_count: usize) -> (ExpectedCellSet, CellEmbeddingRowLink
         .enumerate()
         .map(|(index, cell_id)| {
             let source_cell_row = index as u64;
-            if index % 2 == 0 {
+            if index.is_multiple_of(2) {
                 let entry = CellEmbeddingRowLinkEntry::present(
                     cell_id,
                     source_cell_row,

@@ -33,7 +33,7 @@ struct WorkflowFixture {
 
 fn alternating(even: f32, odd: f32) -> Vec<f32> {
     (0..DIMENSION)
-        .map(|index| if index % 2 == 0 { even } else { odd })
+        .map(|index| if index.is_multiple_of(2) { even } else { odd })
         .collect()
 }
 

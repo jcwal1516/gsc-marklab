@@ -4,6 +4,17 @@ members = [
     "crates/marklab-data",
     "crates/marklab-project",
     "crates/marklab-embeddings",
+    "crates/marklab-cohort",
+    "crates/marklab-bayes",
+    "crates/marklab-simulation",
+    "crates/marklab-sbi",
+    "crates/marklab-longitudinal",
+    "crates/marklab-spatial3d",
+    "crates/marklab-causal",
+    "crates/marklab-numerics",
+    "crates/marklab-policy",
+    "crates/marklab-graph",
+    "crates/marklab-topology",
     "crates/marklab-workflow",
 ]
 exclude = ["fuzz"]
@@ -64,6 +75,17 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"], optio
 marklab-workflow = { version = "0.1.0", path = "crates/marklab-workflow" }
 marklab-data = { version = "0.1.0", path = "crates/marklab-data" }
 marklab-embeddings = { version = "0.1.0", path = "crates/marklab-embeddings", default-features = false }
+marklab-cohort = { version = "0.1.0", path = "crates/marklab-cohort" }
+marklab-bayes = { version = "0.1.0", path = "crates/marklab-bayes" }
+marklab-simulation = { version = "0.1.0", path = "crates/marklab-simulation" }
+marklab-sbi = { version = "0.1.0", path = "crates/marklab-sbi" }
+marklab-longitudinal = { version = "0.1.0", path = "crates/marklab-longitudinal" }
+marklab-spatial3d = { version = "0.1.0", path = "crates/marklab-spatial3d" }
+marklab-causal = { version = "0.1.0", path = "crates/marklab-causal" }
+marklab-numerics = { version = "0.1.0", path = "crates/marklab-numerics" }
+marklab-policy = { version = "0.1.0", path = "crates/marklab-policy" }
+marklab-graph = { version = "0.1.0", path = "crates/marklab-graph" }
+marklab-topology = { version = "0.1.0", path = "crates/marklab-topology" }
 
 rayon = { version = "1", optional = true }
 rustfft = "6"

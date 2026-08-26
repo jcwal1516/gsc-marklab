@@ -123,7 +123,7 @@ fn patch_table(
                             SourceVectorPattern::Sequential => index as f32 + column as f32 + 1.0,
                             SourceVectorPattern::AxisSignFlip => {
                                 let value = index as f32 + column as f32 + 1.0;
-                                if column % 2 == 0 {
+                                if column.is_multiple_of(2) {
                                     -value
                                 } else {
                                     value

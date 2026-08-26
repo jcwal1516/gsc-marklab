@@ -1,0 +1,17 @@
+[project]
+name = "marklab-pymc-worker"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "cca-zoo[probabilistic]==3.0.0",
+    "gudhi==3.13.0",
+    "mofapy2==0.7.4",
+    "pot==0.9.7.post1",
+    "pymc==6.3.0",
+    "sbi==0.26.1",
+    "scikit-image==0.26.0",
+    "simpleitk==2.5.5",
+]
+
+[tool.uv]
+package = false

@@ -49,7 +49,7 @@ fn dense_geometry_pattern() -> Pattern {
             .map(|index| (index / side) as f64 * 0.01)
             .collect(),
         (0..side * side)
-            .map(|index| u8::from(index % 2 == 0))
+            .map(|index| u8::from((index as usize).is_multiple_of(2)))
             .collect(),
         PatternMeta {
             case_id: "geometry-budget".into(),

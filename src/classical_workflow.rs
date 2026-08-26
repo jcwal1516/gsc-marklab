@@ -28,7 +28,7 @@ pub struct ClassicalSpatialAnalysisNode<'a> {
     pattern: &'a Pattern,
     window: &'a ObservationWindow2D,
     config: &'a ClassicalSpatialConfig,
-    inputs: [ArtifactRef; 3],
+    inputs: Vec<ArtifactRef>,
     configuration_digest: ContentDigest,
     implementation_identity: String,
 }
@@ -42,11 +42,36 @@ impl<'a> ClassicalSpatialAnalysisNode<'a> {
         window: &'a ObservationWindow2D,
         config: &'a ClassicalSpatialConfig,
     ) -> Result<Self, NodeError> {
+        Self::new_with_implementation_identity(
+            project,
+            id,
+            pattern,
+            window,
+            config,
+            format!(
+                "marklab/{};adapter={ADAPTER_REVISION}",
+                env!("CARGO_PKG_VERSION")
+            ),
+            Vec::new(),
+        )
+    }
+
+    pub(crate) fn new_with_implementation_identity(
+        project: &mut MarklabProject,
+        id: NodeId,
+        pattern: &'a Pattern,
+        window: &'a ObservationWindow2D,
+        config: &'a ClassicalSpatialConfig,
+        implementation_identity: String,
+        source_artifacts: Vec<ArtifactRef>,
+    ) -> Result<Self, NodeError> {
         let pattern_ref = pattern_artifact(pattern)?;
         let window_ref = window_artifact(window)?;
         let config_ref = config_artifact(config)?;
         let spec = NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?;
-        for artifact in [&pattern_ref, &window_ref, &config_ref] {
+        let mut inputs = vec![pattern_ref, window_ref, config_ref.clone()];
+        inputs.extend(source_artifacts);
+        for artifact in &inputs {
             project
                 .register_reference(artifact.clone())
                 .map_err(NodeError::input)?;
@@ -56,12 +81,9 @@ impl<'a> ClassicalSpatialAnalysisNode<'a> {
             pattern,
             window,
             config,
-            inputs: [pattern_ref, window_ref, config_ref.clone()],
+            inputs,
             configuration_digest: config_ref.digest(),
-            implementation_identity: format!(
-                "marklab/{};adapter={ADAPTER_REVISION}",
-                env!("CARGO_PKG_VERSION")
-            ),
+            implementation_identity,
         })
     }
 

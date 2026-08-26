@@ -1207,7 +1207,7 @@ proptest! {
                     cell_id,
                     (0..1_280)
                         .map(|column| {
-                            if column == 0 && seed % 2 == 0 {
+                            if column == 0 && (seed as usize).is_multiple_of(2) {
                                 -0.0
                             } else {
                                 let column = u16::try_from(column).expect("property column");

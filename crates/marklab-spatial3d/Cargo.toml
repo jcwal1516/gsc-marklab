@@ -1,0 +1,15 @@
+[package]
+name = "marklab-spatial3d"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Dimension-aware bounded 3-D spatial statistics for Marklab"
+
+[lib]
+bench = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+sha2 = "0.10.9"

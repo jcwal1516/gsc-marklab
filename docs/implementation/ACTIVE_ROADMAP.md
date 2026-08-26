@@ -1,14 +1,203 @@
 # Marklab active roadmap
 
-Last updated: 2026-08-24
+Last updated: 2026-08-26
 
 Authority: this file is the bounded dependency-ordered execution view derived from `PROGRAM_TRACKER.md` and the immutable `MASTER_PLAN.md`. It does not replace the master plan. Non-goals apply only to this increment; every excluded future capability remains represented in `PROGRAM_TRACKER.md`.
+
+## Full-program mandate override — 2026-08-24
+
+The explicit full-program implementation mandate pauses and supersedes the PLAT-DUR-01 outcome below. Its files and inherited hunks remain preserved and are not active targets. The point-process stream now includes exact rectangular IPP/LGCP, cluster/Strauss/Geyer workflows, multitype/categorical/continuous/embedding model constructors, replicated hierarchical LGCP construction, and simultaneous count/translation-K PPC diagnostics. SPDE, latent-parent, exchange, and replicated-cluster inference retain exact named prerequisites. The next independent pseudocode stream begins with vector semivariograms for spatial embeddings, followed by projected embedding variograms. This override remains in force until terminal completion or a changed mandate.
+
+## Superseding PLAT-DUR-01 unpause — 2026-08-25
+
+Later explicit user direction supersedes the pause above. The narrow durability work needed to remove
+the full-program blocker is active and complete through `EXEC-ALGORITHM-01`: the existing durable
+typed-node transaction owns `ExecuteAlgorithm`, and `project classical` is its immediate production
+caller. This unpause does not authorize a generic backend registry or unrelated durability work.
+
+Full-program checkpoints 19–21 now also own patient-summary embedding comparison through cohort MMD/energy, descriptive uncertainty-bearing region compatibility, training-fit/held-out-domain shrinkage Mahalanobis OOD, prespecified abstention, patient-OOF probability calibration, split conformal prediction, calibrated late fusion, patient-grouped stacking, and context/availability mixture-of-experts. Part V is now mapped through its final pseudocode function; the next dependency-ordered outcomes begin Part VI. Real claims remain gated on matched held-out cohorts.
+
+Checkpoint 22 adds bounded balanced, KL-unbalanced, and fixed-mass partial optimal transport with complete feasibility/objective artifacts and explicit non-correspondence semantics. Registration remains prerequisite-blocked; the next independent Part VI outcomes are dustbin soft assignment and fused Gromov–Wasserstein sensitivity.
+
+Checkpoint 23 adds explicit-dustbin soft assignment, pinned-POT entropic FGW with three initialization plans, and fixed-mass partial FGW with alpha/mass/epsilon/initialization sensitivity. POT's defective partial-FGW feature wrapper is excluded by regression and replaced with its public log-domain partial-Wasserstein subproblem under explicit FGW linearization. KL-unbalanced FGW remains backend-blocked because the pinned backend has no matching estimand. The next Part VI action is a dependency audit of atlas construction/query functions against missing registered reference/query evidence; independent implementation then advances to the next unblocked pseudocode stream.
+
+The Part VI atlas audit is now recorded in `ATLAS-01`: `BuildSpatialAtlas`, `MapQueryToAtlas`, and `ValidateAtlasMapping` remain one data-dependent workflow because no admitted provenance-complete reference/query cohort, uncertainty-bearing support artifact, or held-out perturbation evidence exists. The completed exact region-retrieval owner is not relabeled as a calibrated atlas. Independent implementation advances to Part VII canonical graph construction and operators while the atlas resume condition remains explicit.
+
+The Part VII audit is recorded in `GRAPH-MATH-01`. Existing graph-signal endpoints do not own the full coordinate/frame/edge-rule/kernel/scale/uncertainty/component `GraphOperatorSpec`, and the indexed radius/kNN builder remains in the paused compatibility package. Downstream Fourier, heat, wavelet, scattering, heterogeneous, hypergraph, motif, Hodge, and cellular-complex work therefore remains blocked on WS-61 rather than duplicating the spatial index or inventing operator semantics. The next independent pseudocode stream is Part VIII topology and mathematical morphology, beginning with filtration validation and bounded exact topology oracles.
+
+The Part VIII audit is recorded in `TOPOLOGY-01`. Persistent topology remains data-dependent on a prespecified pathology-linked filtration, replicated cohort/outcome, GEO-01E geometry, and a reviewed proven backend. Euler/Minkowski/morphology/percolation remains data-dependent on an admitted physical mask/interface basis, conventions, segmentation perturbations, and patient replication. Generic helpers would have no immediate production caller. Independent implementation advances to Part IX multimodal Bayesian-model coverage.
+
+The Part IX audit is recorded in `MULTIMODAL-MODEL-01`. Existing joint-model constructors and predictive fusion/covariance baselines are explicitly non-equivalent to fitted pCCA, multiview/matrix/tensor/spatial factors, missing-modality posteriors, and the joint pathology model. The complete family remains data-dependent on a matched measured multimodal cohort and blocked where SPDE/backend composition is missing. Independent coverage advances to Part X generative and SBI functions.
+
+Part X implementation now begins with `SIM-GROWTH-01`: the dedicated `marklab-simulation` owner and live Fisher–KPP CLI provide a consumed, bounded mechanistic solver with closed-form/CFL/front controls. This is the first WS-70/WS-71 simulator, not completion of the general simulator contract. The next cohesive simulator outcomes are a general bounded reaction–diffusion model plus pattern diagnostics, followed by spatial competition; neural generators and SBI remain downstream of calibrated simulator coverage.
+
+`SIM-COMPETE-01` now adds deterministic two-species spatial Lotka–Volterra fields with asymmetric competition, declared treatment mortality, threshold events, and exact treatment/exclusion controls. The third checkpoint-24 workflow is bounded stochastic agent competition with deterministic seed replay and event/resource diagnostics; checkpoint stabilization follows before broader mechanistic coupling.
+
+Checkpoint 24 now includes `SIM-GROWTH-01`, `SIM-COMPETE-01`, and `SIM-AGENT-01`: one dedicated simulation package exposes deterministic growth-front and field-competition solvers plus seed-replayable bounded Gillespie agents. Exact analytical/absorbing controls, numerical/event invariants, and claim ceilings are recorded. The next Part X outcomes are general reaction–diffusion pattern diagnostics and distance-to-resource/growth-interface workflows; neural generators and SBI remain downstream of a broader calibrated simulator catalog.
+
+`SIM-RD-01` begins checkpoint 25 with a consumed scalar periodic 2-D reaction–diffusion specialization. Exact typed reaction flows, bounded explicit diffusion, execution-plan work accounting, complete fields, and equilibrium-gated Fourier/linear-mode diagnostics are live. Arbitrary meshes, vector Turing systems, stochastic forcing, and sensitivity ensembles remain open. The next cohesive outcomes are distance-to-resource and growth-interface workflows before checkpoint stabilization.
+
+`SIM-INTERFACE-01` adds the second checkpoint-25 workflow: bounded regular-grid level-set motion under a static spatial speed and curvature, with explicit contour diagnostics and distance-visit-bounded signed-distance reinitialization. Time-varying coupled speed functions and higher-order/fast-marching scale remain open. The third workflow is a resource/vessel boundary, followed by checkpoint stabilization.
+
+Checkpoint 25 now includes `SIM-RD-01`, `SIM-INTERFACE-01`, and `SIM-VASCULAR-01`: scalar periodic reaction–diffusion/Fourier diagnostics, bounded static-speed level-set evolution, and declared-static-flow vascular transport with mapped sources/uptake and hypoxic regions. The next independent Part X outcome is the hierarchical distance-to-resource response workflow. General/vector/coupled solvers and biological calibration remain open.
+
+`BAY-RESOURCE-01` begins checkpoint 26 with exact unsigned segment distances and a proper exact-conjugate patient hierarchy over a prespecified nonlinear distance response, compartment, density, and accessibility. Patient/resource predictive checks and an association-only ceiling are explicit. The next independent Part X outcomes are unified mechanistic coupling and the neural Cox baseline; signed/network/non-Gaussian resource models remain open.
+
+`SIM-MECH-01` adds checkpoint-26 one-way interval coupling across the existing vascular, density, interface, and agent owners with exact shared geometry, explicit oxygen/density transfer, absorbing extinction, and aggregate resource evidence. The third checkpoint workflow is the neural Cox intensity/training/simulation baseline; reciprocal coupling and observation noise remain open.
+
+The `NEURAL-GEN-01` audit blocks all eight §§76–79 neural Cox/marked/flow/diffusion functions on a reviewed pinned neural backend plus admitted independent-patient training/held-out data and calibration/memorization/mode-collapse targets. Existing IPP/LGCP and mechanistic owners remain comparators, not substitutes. Checkpoint 26 therefore advances independently to consumed differentiable pair summaries and summary-matching loss before SBI.
+
+Checkpoint 26 now includes `BAY-RESOURCE-01`, `SIM-MECH-01`, and `SIM-SUMMARY-01`: hierarchical resource-distance response, bounded one-way mechanistic coupling, and a consumed differentiable Gaussian pair-summary loss. Neural generation remains blocked by `NEURAL-GEN-01`. The next independent Part X work begins classical simulation-based inference with bounded rejection ABC, using the live simulator/summary contracts without claiming calibrated biological inference.
+
+`SBI-ABC-01` begins checkpoint 27 and establishes the dedicated `marklab-sbi` layer with deterministic bounded rejection ABC over the canonical Fisher–KPP solver and final-mass summary. Exact proposal/acceptance/work artifacts and synthetic-only semantics are live. The next classical SBI outcome is sequential Monte Carlo ABC with weighted particles, adaptive tolerances, ESS/resampling, and the same analytic control.
+
+`SBI-SMC-ABC-01` adds fixed-schedule weighted SMC-ABC with full-mixture importance weights, ESS, adapted perturbation scales, and bounded stage failure. Adaptive tolerance remains open rather than implied. The third checkpoint-27 workflow is Gaussian synthetic likelihood estimation and MCMC on the same analytic simulator control.
+
+Checkpoint 27 now includes `SBI-ABC-01`, `SBI-SMC-ABC-01`, and `SBI-SYNTH-01`: deterministic rejection ABC, weighted fixed-schedule SMC-ABC, and noisy two-summary Gaussian synthetic-likelihood MCMC over the canonical analytic growth-front control. The next Part X action audits NPE/NLE/NRE/sequential learned SBI against the same missing neural backend/data admission boundary, then advances to classical calibration/OOD functions where independently implementable.
+
+`NEURAL-SBI-01` blocks NPE/NLE/NRE and learned sequential SBI on the absent reviewed conditional-density/ratio backend plus calibrated prior/proposal simulation-bank lifecycle, coverage/SBC, and OOD evidence. Completed classical SBI is not relabelled. Independent work advances to simulation-based calibration of the live rejection-ABC specialization.
+
+`SBI-SBC-01` begins checkpoint 28 with prior-predictive ranks, equal-tail coverage, explicit inference failures, domain-separated replay, and aggregate work over the live growth-front/rejection-ABC composition. The next outcomes are simulation-bank OOD detection and the posterior-predictive laboratory, both restricted to declared synthetic controls until calibrated biological evidence exists.
+
+`SBI-OOD-01` adds reference-fit exact KNN support scoring with held-out calibration threshold and conformal p-value. A far/control oracle fixes leakage and strict-exceedance semantics. The third checkpoint-28 workflow is the posterior-predictive tissue laboratory over declared posterior growth-rate draws and canonical simulator summaries.
+
+Checkpoint 28 now includes `SBI-SBC-01`, `SBI-OOD-01`, and `SBI-PPC-LAB-01`: prior-predictive implementation calibration, held-out simulation-bank support detection, and a complete two-summary posterior-predictive laboratory. The next Part X action audits `ValidateGenerativeTissueModel` against the absent admitted learned model/held-out data, then advances to the next unblocked pseudocode part.
+
+`NEURAL-GEN-01` now also dispositions `ValidateGenerativeTissueModel`: absent an admitted learned model and independent train/held-out data, a validation-metric shell cannot satisfy the function. This completes the Part X function mapping. Part XI advances with `LONG-KALMAN-01`, a consumed dense time-varying linear-Gaussian filtering and RTS-smoothing workflow with componentwise missing observations, exact synthetic oracles, and bounded matrix work. The next independent outcome is nonlinear Gaussian filtering; 3-D reconstruction remains data/backend-dependent.
+
+`LONG-NONLINEAR-01` adds consumed scalar time-varying quadratic EKF and UKF paths with analytic derivatives or exact three-point sigma transforms, missing observations, full diagnostics, and exact agreement with the linear Kalman limit. The third checkpoint-29 workflow is a bounded bootstrap particle filter and ancestry smoother; spatial latent fields and real longitudinal calibration remain downstream.
+
+Checkpoint 29 now includes `LONG-KALMAN-01`, `LONG-NONLINEAR-01`, and `LONG-PARTICLE-01`: bounded dense linear filtering/RTS smoothing, scalar quadratic EKF/UKF, and seeded bootstrap particle filtering with systematic resampling and ancestry smoothing. The next Part XI action dispositions the spatial latent-state and deformation/phylogeography families against their geometry/data/backend requirements, then advances to independently implementable dimension/association functions.
+
+`DIM-K3D-01` begins checkpoint 30 with one consumed physical 3-D data flow: strict unit/spacing/dimension normalization, positive cuboid compilation, optional SPD anisotropy, and homogeneous K/L under separate none/border/translation correction. Exact two-point and anisotropic oracles prevent silent 2-D reuse. The next cohesive 3-D outcome is intensity-weighted and directed multitype K on the same compiled boundary; serial reconstruction and general mesh topology remain dependency-blocked.
+
+Checkpoint 30 now includes `DIM-K3D-01` and `DIM-WEIGHTED-K3D-01`: physical dimensionality/window validation plus homogeneous, supplied-intensity inhomogeneous, and directed cross K/cross-g under exact cuboid corrections. The next unblocked Part XI workflow is a sparse physical 3-D radius/kNN graph on the same metric contract. Anisotropic GP fitting is audited separately against existing exact/backend owners; alpha complexes remain topology-backend blocked.
+
+`DIM-GRAPH3D-01` begins checkpoint 31 with physical radius and undirected union-kNN graph construction, explicit nominal/possible/guaranteed uncertainty distances, binary/Gaussian weights, symmetric CSR, and a canonical digest binding all normalized graph-defining parameters. The next Part XI action audits anisotropic 3-D GP fitting and alpha-complex construction against established numerical/topology owners before advancing to phylogenetic–spatial association.
+
+`EVO-PHYLO-ASSOC-01` adds the second checkpoint-31 workflow: a validated imported weighted tree, canonical physical clone centroids, exact within-patient/specimen distance correlation, and block-restricted deterministic null with noncausal cross-sectional interpretation. The third action is the consolidated Part XI prerequisite disposition for serial reconstruction, general windows/GP/alpha complexes, spatial latent fields, deformation separation, fitted phylogeography/niche models, and the umbrella validation suite.
+
+`PART-XI-BLOCKERS-01` now names the exact backend/data prerequisites for serial-stack reconstruction/uncertainty propagation, general 3-D windows and alpha complexes, spatial latent fields, deformation-versus-change separation, fitted clone phylogeography/niches, and the complete umbrella validation suite. `FitAnisotropic3DGP` remains planned rather than blocked because the pinned PyMC backend can support a dedicated bounded schema. Checkpoint 31 therefore contains the live 3-D graph and phylogenetic association workflows plus the truthful residual audit; independent implementation advances to the next pseudocode part before returning to the planned GP backend slice.
+
+`CAUSAL-INTERFERENCE-01` begins checkpoint 32 with one identified randomized data flow: strict temporal/pre-treatment design validation, exact independent-cluster assignment enumeration, binary-any-neighbour exposure probabilities, HT/Hájek exposure means, prespecified direct/spillover contrasts, and seeded randomization inference. The next unblocked Part XII work extends exposure mapping to count/fraction/distance-decay under the same graph before considering sensitivity and analytic Bayesian-design functions; observational causal learners remain data-dependent.
+
+`CAUSAL-EXPOSURE-MAP-01` adds checkpoint-32's standalone exposure catalog: binary, count, weighted fraction, Gaussian distance decay, multiscale physical counts, and declared continuous fields with graph provenance and exact work. The third checkpoint workflow is an analytically checkable sensitivity or expected-information-gain function; fitted propensity/DR/DML/dose-response families remain dependent on admitted clustered treatment/outcome designs.
+
+Checkpoint 32 now includes `CAUSAL-INTERFERENCE-01`, `CAUSAL-EXPOSURE-MAP-01`, and `DESIGN-EIG-01`: exact randomized binary interference inference, the complete prespecified exposure-mapping catalog, and analytically checked Gaussian nested-MC EIG. The next Part XII action records exact data/identification prerequisites for observational propensity/DR/DML/dose-response, negative controls, mediation, perturbation workflows, sequential/active acquisition, allocation/power, and the umbrella validation suite before advancing independently.
+
+Checkpoint 33 now adds three assumption-explicit causal diagnostics without promoting identification: binary-confounder bias-function regions, bounded-outcome Manski ATE intervals, and matched-pair Rosenbaum sign sensitivity. The next action is the consolidated Part XII blocker audit for fitted observational, perturbational, mediation, sequential/active-selection, replicate/power, and umbrella-validation functions, followed by Part XIII execution/release coverage.
+
+`PART-XII-BLOCKERS-01` now records the exact treatment/cohort/identification prerequisites for dose-response, propensity, AIPW/exposure-AIPW, DML, negative controls, perturbation, and mediation, plus the prospective action/cost/constraint/posterior/acquisition prerequisites for sequential ROI/stain/landmark/replicate/power design. The validation-suite function remains partial rather than inferred from IC-0130–0135. Independent implementation advances to Part XIII unified execution, validation, and release contracts.
+
+`NUM-STABLE-01` begins checkpoint 34 and Part XIII with one canonical bounded numerical layer: stable log-sum/log-mean-exp, compensated weighted mean, and symmetric weighted/unweighted covariance with effective-sample failure. The next independent Part XIII outcomes are result-maturity determination and execution-mode selection; deterministic parallel reduction waits for an immediate algorithm caller with fixed partition semantics.
+
+Checkpoint 34 now includes `NUM-STABLE-01`, `EXEC-MATURITY-01`, and `EXEC-MODE-01`: canonical stable primitives, monotone machine-readable maturity, and evidence-complete backend/resource/accuracy selection with mandatory approximation approval. The next Part XIII work maps diagnostics/calibration/real-data/benchmark functions against existing evidence owners and implements the remaining independently testable availability/promotion policies before the terminal function-coverage audit.
+
+`VALIDATION-LADDER-01` adds a contiguous Stage 0–5 evidence policy: promotion cannot skip held-out, external, or prospective stages, and all blocking risks remain machine-readable. The next action is the residual Part XIII prerequisite audit for unified execution, deterministic parallel reduction, generic diagnostics/calibration, and benchmark harnesses, followed by the terminal function coverage index audit.
+
+`PART-XIII-BLOCKERS-01` records why unified `ExecuteAlgorithm` cannot advance while PLAT-DUR-01 is explicitly paused, why deterministic parallel reduction needs an immediate algorithm/partition caller, why generic diagnostics/calibration require typed descriptor/fit/scenario owners, and why scaling benchmarks remain method-triggered. Part XIII function mapping is complete through live IC-0136–0139 policies or exact prerequisites. The next action is the authoritative Part XIV coverage-index reconciliation across all 283 pseudocode functions.
+
+`DIM-GP3D-01` closes the one deliberately implementable Part XI remainder with a pinned exact
+axis-aligned 3-D Matérn GP and conditional predictions. The terminal action remains row-level
+reconciliation of all 283 declarations, registered gaps, and exact live/blocked ownership.
+
+Checkpoint 36 closes the independently implementable Part II residuals through subject-block
+Freedman–Lane inference, simultaneous functional equivalence, patient-first bootstrap equivalence,
+and fixed/REML multisite pooling. Spatial MMD remains canonically owned by the patient fingerprint
+MMD workflow rather than duplicated. Reconciliation continues for any remaining unowned declaration.
+
+`GSP-SPECTRAL-01` reopens Part VII with one canonical radius-graph → combinatorial-Laplacian → exact
+Fourier → band-energy flow. The next dependency-valid graph outcome reuses this owner for exact heat
+kernels, signal application, signatures, and diffusion distances.
+
+`GSP-HEAT-01` and `GSP-WAVELET-01` now reuse the same spectrum for four exact heat declarations and
+two spectral-wavelet declarations with identity/eigenmode oracles. The next graph outcome extracts
+the existing canonical ERL procedure for `GraphSpectrumNullTest`, then adds approximation only where
+a current heat/wavelet caller consumes it.
+
+`GSP-NULL-01` extracts ERL into the canonical numerical crate and delivers restricted graph-spectrum
+inference without visit/node pseudoreplication. The next graph milestone adds Chebyshev application
+and adaptive order only as consumed approximation branches of the existing heat/wavelet workflows.
+
+`GSP-CHEB-01` completes the first five-workflow Part VII checkpoint with a consumed generic
+recurrence and adaptive heat specialization differentially gated against exact spectral output. The
+next dependency-valid outcome is a diffusion-wavelet tree/transform on the same canonical operator,
+followed by scattering and higher-order structures.
+
+Part VII checkpoint 39 now completes all 31 declarations through bounded consumed specializations:
+exact-spectrum diffusion wavelets; fixed-kernel scattering with declared signal perturbations;
+typed heterogeneous messages; normalized hypergraphs; typed triangle motifs; clique/Hodge
+mathematics; interpreted perturbation-checked cellular complexes; and a validation ledger that
+reports unsupported stress dimensions explicitly. Real pathology calibration, broader graph rules,
+registration perturbations, sparse scale, and GPU parity remain limitations, not unimplemented
+declarations. Dependency-ordered implementation advances to Part VIII while PLAT-DUR-01 remains
+paused and untouched.
+
+Part VIII checkpoint 40 now owns ten declarations through pinned GUDHI alpha/witness persistence,
+scikit-image raster morphology, and bounded finite connectivity. The next dependency-valid outcome
+is whole-patient persistence-distribution comparison, followed by the integrated topology
+perturbation laboratory and validation suite. PLAT-DUR-01 remains paused and untouched.
+
+Part VIII checkpoint 41 completes all 13 declarations with whole-patient bottleneck/energy
+comparison, declared segmentation-perturbation recomputation, and an exact-fixture validation ledger
+whose sparse-memory row remains explicitly unverified. Dependency-ordered implementation advances
+to Part IX multimodal Bayesian models; real pathology validation remains data-dependent and
+PLAT-DUR-01 remains paused and untouched.
+
+Part IX checkpoint 42 begins with paired Gaussian EM pCCA, pinned CCA-Zoo Bayesian pCCA, and pinned
+MOFA multiview factors plus structural/MAR prediction. The next dependency-valid outcomes are
+hierarchical and matrix/tensor factor workflows, followed by spatial factors; claims remain
+synthetic and PLAT-DUR-01 remains paused and untouched.
+
+Part IX checkpoint 43 adds exact hierarchy compilation, pinned MOFA matrix factors, bounded
+graph-Laplacian spatial matrix factors, and CP/Tucker Laplace workflows. Ten of 18 declarations are
+live. Dependency-valid implementation proceeds to GP spatial and multiresolution factors; SPDE
+retains its exact mesh prerequisite, and all claims remain synthetic/approximate where stated.
+
+Part IX checkpoint 44 completes every implementable declaration: exact-GP and multiresolution
+spatial factors, modality-dropout training, modular joint compile/fit, canonical M0–M5 comparison,
+and an executable validation ledger. Seventeen of 18 declarations are live. The sole SPDE factor
+declaration remains blocked on the promoted 2-D mesh/projection owner; implementation proceeds to
+the remaining global blocker audit without touching PLAT-DUR-01.
+
+Part VI revisit checkpoint 45 pins SimpleITK 2.5.5 and completes all 13 formerly blocked
+registration/uncertainty/correspondence/atlas declarations through six bounded workflows. All 19
+Part VI declarations are live; claims remain synthetic/experimental and correspondence/atlas
+outputs explicitly avoid cell-identity or physical-registration assertions.
+
+Part X revisit checkpoint 46 pins JAX neural training and sbi 0.26.1/Torch 2.13.0, completing all
+13 formerly blocked neural Cox/marked, point-set flow/diffusion, amortized/sequential SBI, and
+generative-validation declarations. All 32 Part X declarations are live under deterministic CPU,
+synthetic/research-only claim ceilings.
+
+Part XI revisit checkpoint 47 completes the eight formerly blocked serial-stack, 3-D alpha,
+deformation/biology, fitted clone, and umbrella-validation declarations using pinned SciPy/GUDHI
+and explicit uncertainty/control inputs. All 21 Part XI declarations are live; real registered
+longitudinal/clone cohorts remain promotion evidence, not fabricated validation.
+
+Part XII revisit checkpoint 48 uses the mandate's synthetic-oracle allowance to complete all 15
+formerly blocked observational, perturbational, mediation, sequential acquisition, constrained
+selection, allocation, power, and umbrella-validation declarations. All 24 Part XII declarations
+are live under synthetic/research-only ceilings; real identification and prospective acquisition
+remain promotion evidence. Implementation proceeds to the remaining Part III/IV/XIII blocker audit
+without touching PLAT-DUR-01.
+
+Checkpoint 49 follows the user's explicit PLAT-DUR-01 unpause: the proven durable single-node
+transaction is extracted as canonical `ExecuteAlgorithm`, with `project classical` as its immediate
+caller; fixed-order parallel reduction is consumed by typed HMC diagnostics, Gaussian calibration,
+and equivalent-work scaling. Fixed-step HMC and bounded latent-parent/exact-exchange/multitype/
+replicated cluster inference also close their declarations.
+
+Checkpoint 50 promotes one shared hole-free rectangular finite-element SPDE owner and consumes its
+mass/stiffness/alpha-two precision/barycentric projection in LGCP and one-factor inference. All 283
+literal pseudocode declarations now have live production owners. Remaining registered gap families
+and real/external/prospective evidence are authority/data promotion work, not unmapped declarations.
 
 The complete end-to-end classical spatial-pathology workflow reached its major checkpoint on 2026-08-24. Its preserved contract and evidence are in `task-contracts/WS-30-KL-01.md`, `ROADMAP_HISTORY.md`, and the implementation ledgers. The next promoted outcome closes the durable execution prerequisite required before Marklab admits external numerical backends. Work remains single-agent and behavior-first. Broad gates run only at the next major checkpoint.
 
 ## Outcome 1 — Durable replayable classical project execution
 
-Tracker state: active.
+Tracker state: complete for the bounded PLAT-DUR-01 outcome; broader PLAT-01/WF-01 remain active.
 
 Master-plan IDs advanced: FND-07, PLAT-01, WF-01, WS-11, and WS-12.
 
@@ -55,6 +244,17 @@ Focused acceptance tests:
 6. Existing in-memory project/workflow tests, `marklab classical`, legacy `marklab analyze`, result 0.3, catalog/store recovery, no-default, and feature boundaries remain unchanged.
 
 Major-checkpoint exit condition: cross-process miss/hit and every failure/recovery point pass focused oracles; the final diff has one durable project-head owner, one append-only execution-ledger owner, and one existing content-addressed store owner; formatting, affected integration/packages, warning-denied Clippy, no-default, strict docs, relevant feature/CLI suites, and the full workspace suite run once and pass; ledgers and `PROGRAM_TRACKER.md` are updated; `BACK-01`/`WS-13` are re-evaluated and the next multi-backend outcome is promoted; a coherent local checkpoint commit is created without push or publication.
+
+Closure on 2026-08-26: exact raw cell/window source digests now participate in the durable key,
+Git dirty provenance includes untracked source state, all 13 focused cross-process/corruption/path
+cases and all six durable recovery/bound cases pass, and ordinary classical CLI/workflow parity
+passes. Formatting, warning-denied workspace Clippy, no-default compilation, doc tests, and strict
+docs pass. The all-features serial workspace command compiled and linked every test binary, then
+passed the 294-test root suite and the first integration binaries before it was interrupted because
+macOS imposed the already-recorded per-binary loader-verification delay; this partial run is not
+called a green full-workspace test gate. The user's explicit no-commit instruction supersedes the
+checkpoint-commit clause. `BACK-01` remains active and `WS-13` is promoted to active now that the
+durable prerequisite is closed.
 
 ## Multi-backend continuation rule
 

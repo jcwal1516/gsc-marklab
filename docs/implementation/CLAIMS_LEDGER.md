@@ -30,3 +30,167 @@ Implementation base: `55fce12f10684a9081ca1f744f87d6f5feedcb24`
 | Cohort/population effects | Unsupported at implementation base | None beyond descriptive specimen summaries | Cells/patches/edges as patient replicates | planned |
 | Equivalence | Unsupported at implementation base | Descriptive margin only | Equivalent because not significant/inside an ad hoc threshold | planned |
 | Causation/correspondence | Unsupported at implementation base | Association, prediction, or descriptive alignment with limits | Causal signaling, digital twin, true correspondence | prohibited/gated |
+## Full-program simulation checkpoint 25 claim ceiling — 2026-08-25
+
+- `marklab simulate reaction-diffusion` is an experimental scalar periodic regular-grid solver. Its
+  Fourier spectrum and equilibrium-gated discrete linear mode band do not establish a biological
+  pattern mechanism, vector Turing behavior, mesh/boundary robustness, or patient prediction.
+- `marklab simulate evolve-interface` is an experimental regular-grid static-speed numerical
+  interface. Planar/reinitialization controls do not establish tumour growth, calibrated curvature,
+  topology preservation in general, or a forecast.
+- `marklab simulate vascular-transport` uses a caller-declared static velocity approximation.
+  Source/uptake mapping, conservative transport, gradients, and hypoxic components do not establish
+  vessel-graph hemodynamics, oxygen physiology, causal resource effects, or patient truth.
+- All outputs remain simulated mechanistic evidence. Real parameter recovery, held-out biological
+  summaries, calibration, coupled validation, and the GEN-01 exit gate remain open.
+## Full-program simulation/SBI-summary checkpoint 26 claim ceiling — 2026-08-25
+
+- The exact resource-distance posterior is associational under fixed known Gaussian scales; it is
+  not transport, vascular physiology, resource causality, or calibrated patient evidence.
+- One-way mechanistic coupling proves deterministic state exchange under declared formulas only; it
+  is not reciprocal mechanistic truth, microscopy simulation, patient forecast, or a digital twin.
+- Gaussian soft pair-summary loss is a differentiable research surrogate with no edge correction;
+  matching it does not validate a generator or establish inferential/biological fidelity.
+- `NEURAL-GEN-01` remains blocked. No completed native workflow is described as neural Cox, marked,
+  flow, or diffusion generation.
+## Full-program SBI checkpoint 27 claim ceiling — 2026-08-25
+
+Rejection ABC, fixed-schedule SMC-ABC, and Gaussian synthetic-likelihood MCMC are validated only on
+the analytic synthetic Fisher–KPP mass/density control. Their posterior samples do not establish
+biological calibration, model adequacy, parameter identifiability in patient data, causal effects,
+or forecast utility. Synthetic-likelihood Gaussianity and declared observation noise are modeling
+assumptions; Monte Carlo diagnostics do not remove model discrepancy.
+## Full-program SBI reliability checkpoint 28 claim ceiling — 2026-08-25
+
+SBC demonstrates prior–simulator–rejection-ABC implementation behavior only. KNN/conformal OOD
+reports support relative to one declared simulation bank, not model validity. The posterior-predictive
+laboratory checks only final mass and maximum density. None establishes broad simulator adequacy,
+patient calibration, biological fidelity, forecast utility, or a digital twin.
+
+## Full-program longitudinal milestone 29a claim ceiling — 2026-08-25
+
+IC-0123 establishes finite-dimensional linear-Gaussian filtering and smoothing correctness on exact synthetic controls, including explicit missingness and numerical/resource failure paths. It does not establish nonlinear/non-Gaussian accuracy, spatial-field inference, biological dynamics, deformation/change separation, clone evolution, treatment effects, or validity on longitudinal tissue.
+
+IC-0124 adds scalar EKF/UKF implementation evidence for analytic quadratic functions and exact agreement in the linear limit. It does not establish approximation quality for strongly nonlinear/posterior-multimodal states, tuning calibration, nonlinear smoothing, multivariate validity, or any biological trajectory claim.
+
+IC-0125 establishes seeded finite-particle bookkeeping, stable likelihood weighting, ESS/systematic resampling, and exact ancestry tracing on synthetic controls. It does not establish adequate particle count, proposal efficiency, smoothing calibration, non-Gaussian biological dynamics, spatial-field inference, forecast validity, or evolutionary interpretation.
+
+## Full-program 3-D statistics milestone 30a claim ceiling — 2026-08-25
+
+IC-0126 establishes physical-unit normalization and homogeneous K/L correctness for finite points in an axis-aligned cuboid under three separately named corrections and optional SPD anisotropic distance. It does not establish arbitrary-window correction, isotropy, Poisson calibration, intensity estimation, biological clustering/inhibition, serial-section reconstruction, registration validity, or general 3-D pathology support.
+
+IC-0127 establishes supplied-intensity ordered inhomogeneous K and directed cross-K/shell-g mechanics on the same synthetic cuboid boundary. It does not establish intensity-model adequacy, intensity uncertainty, interaction, causal cell communication, arbitrary windows, cohort inference, or real multitype 3-D validity.
+
+IC-0128 establishes exact bounded radius/union-kNN construction, explicit radial-uncertainty distance semantics, sparse-operator consistency, and canonical identity on synthetic physical 3-D points. It does not establish registration/deformation uncertainty, biologically correct adjacency, learned graph weights, scalability beyond the exact pair cap, graph inference, or real-tissue validity.
+
+IC-0129 establishes imported-tree validation, exact weighted path distances, physical clone-centroid distances, and block-restricted association-null mechanics on a synthetic path. It does not identify migration, ancestral locations, clone direction/dynamics, topology or assignment uncertainty, causality, or validity in patient tissue.
+
+## Full-program randomized interference milestone 32a claim ceiling — 2026-08-25
+
+IC-0130 establishes complete-randomization enumeration, binary graph exposure probabilities, HT/Hájek bookkeeping, contrast availability, and fixed-outcome randomization mechanics on synthetic designs. It does not establish a patient treatment effect, observational identification, no-unmeasured-confounding, general interference mapping, potential-outcome variance validity, mediation, or transportability.
+
+IC-0131 establishes deterministic prespecified exposure construction on a synthetic weighted graph. It does not establish that a mapping is biologically correct, chosen before outcomes in real work, probabilistically supported, causally identified, associated with an outcome, or suitable for treatment decisions.
+
+IC-0132 establishes nested-Monte-Carlo EIG mechanics and Monte Carlo uncertainty against an exact scalar Gaussian oracle. It does not validate a general simulator/likelihood, rank real experiments, justify acquisition, update a posterior sequentially, optimize a constrained panel, or support operational laboratory decisions.
+
+## Full-program causal sensitivity checkpoint 33 claim ceiling — 2026-08-25
+
+IC-0133–0135 establish arithmetic and probability bounds under explicitly supplied binary-confounder, bounded-outcome, and matched-pair hidden-bias models. They do not estimate unmeasured confounding, identify a causal effect, correct bias, validate matching, add sampling uncertainty to Manski bounds, generalize beyond the named models, or support treatment decisions.
+
+IC-0136 establishes deterministic finite numerical primitive behavior on adversarial synthetic inputs. It does not prove every existing caller uses these primitives, provide arbitrary precision, guarantee bitwise cross-platform transcendental results, establish parallel determinism, or constitute scientific-method validation.
+
+IC-0137 and IC-0138 establish deterministic policy decisions from caller-supplied diagnostic/provenance/mode/resource/error facts. They do not verify those facts, execute a backend, measure runtime/memory, validate approximation error, promote an existing result family, or certify a scientific or clinical claim.
+
+IC-0139 establishes contiguous validation-stage bookkeeping from supplied evidence references. It does not authenticate artifacts, prove a stage completed, establish external/prospective validity, or promote any current Marklab method by itself.
+
+## Full-program Part VII completion checkpoint 39 claim ceiling — 2026-08-25
+
+IC-0145–IC-0157 establish bounded exact/synthetic graph construction, spectral filtering,
+multiresolution, scattering, typed higher-order incidence, motif, Hodge, cellular-complex, and
+validation-ledger mechanics. They do not establish biologically correct adjacency or scale,
+localized/sparse performance, graph-deformation stability, registration robustness, GPU parity,
+pathology endpoint association, incremental value, external validity, or clinical utility. Cellular
+results are research-only for caller-supplied interpreted segmentations; validation-suite success
+means only that the embedded exact fixtures passed.
+
+## Full-program Part VIII completion checkpoint 41 claim ceiling — 2026-08-25
+
+IC-0158–IC-0164 establish exact/synthetic alpha and witness persistence, diagram transforms,
+supplied-raster morphology, finite connectivity, whole-patient comparison mechanics, and declared
+perturbation sensitivity. They do not establish a pathology-linked filtration, segmentation
+validity, representative sparse-memory scale, patient endpoint association, external validity, or
+clinical utility. GUDHI alpha carries its effective CGAL/GPLv3 license consequence.
+
+## Full-program Part IX checkpoint 42 claim ceiling — 2026-08-25
+
+IC-0165–IC-0167 establish paired Gaussian EM/Bayesian pCCA and Gaussian MOFA multiview/masked-target
+mechanics on synthetic patient rows. They do not establish real cross-modality association,
+missingness ignorability, non-Gaussian adequacy, factor identifiability beyond the stated alignment,
+posterior calibration, patient/site generalization, or clinical utility.
+
+## Full-program Part IX checkpoint 43 claim ceiling — 2026-08-25
+
+IC-0168–IC-0171 establish bounded synthetic Gaussian matrix, exact hierarchy-compilation,
+graph-Laplacian matrix, and three-mode CP/Tucker mechanics. MOFA results are variational; spatial
+matrix and tensor results are `approximate_only` MAP/inverse-Hessian summaries. They do not
+establish exact posterior calibration, rank selection, non-Gaussian adequacy, spatial graph
+validity, pathology hierarchy validity, representative scale, real missing-modality accuracy,
+patient/site generalization, biological interpretation, or clinical utility.
+
+## Full-program Part IX completion checkpoint 44 claim ceiling — 2026-08-25
+
+IC-0172–IC-0177 establish small exact-GP NUTS, supplied-basis multiresolution Laplace,
+predictive-objective modality dropout, modular joint Laplace, nested patient-held-out comparison,
+and synthetic validation-ledger mechanics. They do not establish SPDE support, same-model
+cross-inference agreement, general likelihoods/hierarchies, MNAR identification, calibrated joint
+posterior uncertainty, real patient/site/external validity, biological association, causal meaning,
+clinical utility, or stable pathology claims.
+
+## Full-program Part VI registration/atlas checkpoint 45 claim ceiling — 2026-08-25
+
+IC-0178–IC-0183 establish synthetic same-stain B-spline/SVF registration, landmark LDDMM,
+translation-only variational diffeomorphism, analytic landmark deformation uncertainty,
+MC/delta propagation, soft compatibility, and biological-similarity atlas mechanics. They do not
+establish cross-stain registration, anatomical homology, dense posterior calibration, same-cell
+identity, real atlas population validity, scanner/site generalization, biological correspondence,
+clinical utility, or stable production claims.
+
+## Full-program Part X neural/generative checkpoint 46 claim ceiling — 2026-08-25
+
+IC-0184–IC-0187 establish synthetic deterministic-CPU neural Cox/mark likelihood, iid-equivariant
+flow, Gaussian score diffusion, one-dimensional amortized/sequential SBI, and consumed model-card
+mechanics. They do not establish representative interacting tissue generation, general neural
+density accuracy, posterior coverage in realistic dimension, accelerator reproducibility, privacy
+for real patients, graph/topology/mark calibration beyond admitted fixtures, external validity,
+biological plausibility, clinical utility, or stable promotion.
+
+## Full-program Part XI advanced 3-D checkpoint 47 claim ceiling — 2026-08-25
+
+IC-0188–IC-0191 establish synthetic translation-stack posterior/propagation, exact 3-D alpha,
+controlled deformation/change separation, and uncertain clone diffusion/niche mechanics. They do
+not establish nonrigid anatomical reconstruction, general meshes/volumes, real longitudinal change
+identification, evolutionary direction/history, clone assignment validity, patient/site external
+validity, biological claims, clinical utility, or stable promotion.
+
+## Full-program Part XII causal/active checkpoint 48 claim ceiling — 2026-08-25
+
+IC-0192–IC-0195 establish bounded synthetic propensity, dose, AIPW, exposure-AIPW, cluster-DML,
+negative-control, randomized perturbation, research-only mediation, sequential selection,
+allocation/power, and validation-ledger mechanics. They do not establish measured-confounder
+sufficiency, observational or mediation identification, real treatment effects, calibrated action
+utility, prospective acquisition benefit, external validity, clinical utility, or stable promotion.
+
+## Full-program runtime/Bayesian checkpoint 49 claim ceiling — 2026-08-25
+
+IC-0196–IC-0199 establish a one-dimensional fixed-step HMC oracle, bounded synthetic latent-parent/
+finite-Gibbs/replicated inference, dependency-free native durable invocation, and normal-mean
+diagnostic/calibration/scaling mechanics. They do not establish general HMC performance, arbitrary
+continuous Gibbs inference, model truth, universal diagnostics/calibration, multi-node execution,
+external backend support, representative scaling, clinical utility, or stable scientific promotion.
+
+## Full-program terminal SPDE checkpoint 50 claim ceiling — 2026-08-25
+
+IC-0200 establishes hole-free rectangular linear finite elements, fixed alpha-two Matérn precision,
+barycentric projection, and synthetic fixed-hyperparameter LGCP/one-factor MAP recovery. It does not
+establish holed/narrow/adaptive meshing, inferred hyperparameters, exact posterior inference, sparse
+representative scale, real tissue adequacy, external validity, biological meaning, or clinical use.

@@ -909,3 +909,411 @@ Implementation base: `1907e6a59ca8a7c29bc97ef61bf7ba48fc8dd14d`. This milestone 
 | Single independent review | `c06_s10_review`, one read-only S13 final diff review | two findings corrected; no second review | The reviewer found the missing Parquet feature gate and an equal-size oracle unable to distinguish equal-patch from whole-input/incidence-weighted arithmetic. Both exact regressions are green. No additional binding, finite/panic, count, resource, API, Immediate-Caller, compatibility, or claim finding was reported. |
 | Final full workspace | `cargo +1.96.0 nextest run --locked --workspace --all-features` | 931/931 pass in 67.390 s | 65 binaries, 23 documented skips, and one expected slow synthetic test. This is the milestone's sole full-workspace run after final source changes. |
 | Scope and claim ceiling | final diff/Immediate-Caller audit | pass | The output is the descriptive equal-patch mean of within-patch marked-minus-unmarked nucleus-area contrasts over producer-declared contained incidences. It proves no observation window, spatial association/autocorrelation, independent-patch design, patient/specimen effect, paired-cell analysis, segmentation validation, classification, calibration, independence, inference, real-source result, MRK-01/WS-51 closure, or biology. C-05/C-06 fuzz, DHAT, RSS, benchmark, packaging, remote, and dependency gates were not rerun because no affected path changed. |
+## Full-program simulation checkpoint 25 — 2026-08-25
+
+This checkpoint adds three consumed Part X workflows without advancing paused PLAT-DUR-01: scalar
+periodic reaction–diffusion/pattern diagnostics, static-speed level-set evolution, and declared-flow
+vascular transport.
+
+| Gate | Exact command/review | Status | Result/evidence |
+|---|---|---|---|
+| Behavior-first reaction–diffusion | `cargo +1.96.0 test --locked --features cli --test simulation_reaction_diffusion_cli` | expected missing-command red; later 11-versus-10 work and non-equilibrium-instability reds; final 3/3 pass | Exact doubling/planned work, known 2-um Fourier mode, periodic checkerboard eigenmode, and equilibrium-gated instability status pass. |
+| Behavior-first level set | `cargo +1.96.0 test --locked --features cli --test simulation_level_set_cli` | expected missing-command red; boundary inconsistency exposed and corrected; final 2/2 pass | Unit planar translation remains exact with zero planar curvature; signed-distance reinitialization retains the planar zero contour and reports bounded visits. |
+| Behavior-first vascular transport | `cargo +1.96.0 test --locked --features cli --test simulation_vascular_transport_cli` | expected missing-command red; later missing hypoxic-region red; final 3/3 pass | Exact source/uptake, conservative diffusion, conservative upwind advection, mass balance, mapping, and four-neighbor hypoxic regions pass. |
+| Simulation package stabilization | `cargo +1.96.0 fmt --all --check`; `cargo +1.96.0 clippy --locked --package marklab-simulation --all-targets --all-features -- -D warnings`; package all-feature unit/doc and no-default commands | pass | Formatting, warnings, public compilation, unit/doc tests, and no-default package boundary are green. |
+| Six consumed simulator workflows | one serial `cargo +1.96.0 test --locked --features cli` invocation naming all six simulation integration targets; trailing spatial/vascular pair rerun directly after the combined command yielded | 15/15 pass | Growth-front 3, spatial competition 2, agent competition 2, reaction–diffusion 3, level set 2, and vascular transport 3 all pass. |
+| Excluded broad gates | workspace-wide Clippy/nextest/docs/no-default/feature matrix | not run by design | These gates compile the paused inherited PLAT-DUR-01 work. Scoped task-owned evidence was run instead and is not represented as equivalent workspace coverage. |
+## Full-program simulation/SBI-summary checkpoint 26 — 2026-08-25
+
+| Gate | Exact command/review | Status | Result/evidence |
+|---|---|---|---|
+| Resource-response TDD | `cargo +1.96.0 test --locked --features cli --test bayes_distance_to_resource_cli` | expected missing-command red; missing resource-PPC red; final 1/1 pass | Exact segment distances, linear/hinge recovery, patient/resource predictive checks, and claim ceiling pass. |
+| Mechanistic-coupling TDD | `cargo +1.96.0 test --locked --features cli --test simulation_mechanistic_tissue_cli` | expected missing-command red; coupled death corrected the initial inert-agent oracle; final 1/1 pass | Oxygen→density/interface/agent exchange and second-interval absorbing extinction pass. |
+| Differentiable-summary TDD | `cargo +1.96.0 test --locked --features cli --test simulation_summary_matching_cli` | expected missing-command red; final 1/1 pass | Closed-form Gaussian peak, positive displacement loss, and point-order-invariant exact zero pass. |
+| Affected packages | all-feature `marklab-bayes`/`marklab-simulation` tests and docs; no-default checks; warning-denied all-target/all-feature Clippy | pass | Bayes 39/39 plus both doc suites; simulation unit/doc boundary; both no-default builds; no warnings. |
+| Format/diff | `cargo +1.96.0 fmt --all --check`; `git diff --check` | pass | Exit zero after final production changes. |
+| Neural admission | backend lock/data/master-plan audit recorded in `NEURAL-GEN-01` | blocked with exact resume condition | Eight §§76–79 functions are not replaced by orphan helpers or non-neural baselines. |
+| Excluded broad gates | workspace Clippy/nextest/docs/feature matrix | not run by design | They compile paused inherited PLAT-DUR-01; scoped evidence is not represented as equivalent workspace coverage. |
+## Full-program SBI checkpoint 27 — 2026-08-25
+
+| Gate | Exact command/review | Status | Result/evidence |
+|---|---|---|---|
+| Rejection ABC | `cargo +1.96.0 test --locked --features cli --test sbi_rejection_abc_growth_front_cli` | expected missing-command red; pass | Thirty accepted draws recover rate one, satisfy epsilon, and byte replay. |
+| SMC-ABC | `cargo +1.96.0 test --locked --features cli --test sbi_smc_abc_growth_front_cli` | expected missing-command red; pass | Three tolerance stages recover rate one, normalize 64 weights, retain ESS, and byte replay. |
+| Synthetic likelihood | `cargo +1.96.0 test --locked --features cli --test sbi_synthetic_likelihood_growth_front_cli` | expected missing-command red; pass | Two-summary noisy likelihood/MCMC recovers rate one, has bounded acceptance, retains 1,000 draws, and byte replay. |
+| SBI package | all-feature unit/doc, no-default, warning-denied all-target/all-feature Clippy | pass | New dedicated layer and its simulator dependency compile/test without warnings. |
+| Format/diff | `cargo +1.96.0 fmt --all --check`; `git diff --check` | pass | Exit zero after final production changes. |
+| Excluded broad gates | workspace gates | not run by design | Paused inherited PLAT-DUR-01 would be compiled; scoped evidence is not represented as equivalent. |
+## Full-program SBI reliability checkpoint 28 — 2026-08-25
+
+| Gate | Exact command/review | Status | Result/evidence |
+|---|---|---|---|
+| SBC | `cargo +1.96.0 test --locked --features cli --test sbi_growth_front_sbc_cli` | expected missing-command red; pass | 100 ranks, coverage, zero failures, and byte replay. |
+| Simulation OOD | `cargo +1.96.0 test --locked --features cli --test sbi_simulation_ood_cli` | expected missing-command red; one output-policy fixture correction; pass | Far observation rejected and calibration-like control retained without fit/calibration leakage. |
+| Posterior-predictive lab | `cargo +1.96.0 test --locked --features cli --test sbi_posterior_predictive_lab_cli` | expected missing-command red; pass | Both analytic summaries retained; zero flags/failures; byte replay. |
+| SBI package | all-feature unit/doc, no-default, warning-denied all-target/all-feature Clippy | pass | Reliability modules and simulator boundary compile/test without warnings. |
+| Format/diff | formatting and `git diff --check` | pass | Exit zero after final production changes. |
+| Excluded workspace | broad gates | not run by design | Paused inherited PLAT-DUR-01 remains outside task evidence. |
+
+## Full-program longitudinal milestone 29a — 2026-08-25
+
+- `cargo +1.96.0 fmt --all --check` — passed.
+- `cargo +1.96.0 test --locked --package marklab-longitudinal` — passed 2 unit tests and doc tests. Coverage includes multivariate partial/all-missing observations and indefinite process-covariance rejection.
+- `cargo +1.96.0 test --locked --features cli --test longitudinal_kalman_smooth_cli` — passed the scalar independent hand oracle and byte replay.
+- `git diff --check` — passed before ledger update.
+- Workspace-wide gates and a commit were not run because the dirty checkout contains paused inherited PLAT-DUR-01 work.
+
+## Full-program longitudinal milestone 29b — 2026-08-25
+
+- Expected red: `cargo +1.96.0 test --locked --features cli --test longitudinal_nonlinear_filter_cli` failed because `nonlinear-filter` did not exist.
+- `cargo +1.96.0 fmt --all --check` — passed.
+- `cargo +1.96.0 clippy --locked --package marklab-longitudinal --all-targets --all-features -- -D warnings` — initially found one complex tuple return; passed after replacing it with the cohesive `SigmaPoints` internal type.
+- `cargo +1.96.0 test --locked --package marklab-longitudinal` — passed 3 unit tests and doc tests.
+- `cargo +1.96.0 test --locked --features cli --test longitudinal_nonlinear_filter_cli` — passed EKF/UKF exact linear-limit and byte-replay oracle.
+- `cargo +1.96.0 check --locked --package marklab-longitudinal --no-default-features` — passed.
+
+## Full-program longitudinal checkpoint 29 — 2026-08-25
+
+- Expected red: `cargo +1.96.0 test --locked --features cli --test longitudinal_particle_smooth_cli` failed because `particle-smooth` did not exist.
+- `cargo +1.96.0 test --locked --package marklab-longitudinal` — passed 4 unit tests plus doc tests, including forced low-ESS systematic resampling.
+- `cargo +1.96.0 test --locked --features cli --test longitudinal_particle_smooth_cli` — passed deterministic filtering/ancestry smoothing and byte replay.
+- `cargo +1.96.0 clippy --locked --package marklab-longitudinal --all-targets --all-features -- -D warnings` — passed.
+- `cargo +1.96.0 check --locked --package marklab-longitudinal --no-default-features` — passed.
+- `cargo +1.96.0 test --locked --features cli --test longitudinal_kalman_smooth_cli --test longitudinal_nonlinear_filter_cli --test longitudinal_particle_smooth_cli` — all 3 checkpoint CLI tests passed together.
+- `cargo +1.96.0 fmt --all --check` and `git diff --check` — passed after final production changes. Workspace-wide gates and a commit remain excluded because of paused inherited PLAT-DUR-01.
+
+## Full-program 3-D statistics milestone 30a — 2026-08-25
+
+- Expected red: `cargo +1.96.0 test --locked --features cli --test spatial3d_k_function_cli` failed because `spatial3d` did not exist.
+- `cargo +1.96.0 test --locked --package marklab-spatial3d` — passed 2 package tests and doc tests, covering anisotropic eligibility and non-SPD rejection.
+- `cargo +1.96.0 test --locked --features cli --test spatial3d_k_function_cli` — passed all three correction hand values, physical-unit normalization, and byte replay.
+- `cargo +1.96.0 clippy --locked --package marklab-spatial3d --all-targets --all-features -- -D warnings` — initially identified index-only symmetry loops; passed after iterator-based correction.
+- `cargo +1.96.0 check --locked --package marklab-spatial3d --no-default-features`, formatting, and `git diff --check` — passed.
+- Workspace-wide gates and a commit were not run because paused inherited PLAT-DUR-01 remains outside this evidence.
+
+## Full-program 3-D statistics checkpoint 30 — 2026-08-25
+
+- Expected red: `cargo +1.96.0 test --locked --features cli --test spatial3d_weighted_k_cli` failed because `inhomogeneous-k` did not exist.
+- Expected boundary red: the focused zero-radius cross-g package test failed to compile while cross-g was an unconditional `f64`; it passed after the output represented the zero-volume shell as unavailable.
+- `cargo +1.96.0 test --locked --package marklab-spatial3d` — passed 3 package tests and doc tests.
+- `cargo +1.96.0 test --locked --features cli --test spatial3d_k_function_cli --test spatial3d_weighted_k_cli` — both homogeneous and weighted/directed CLI suites passed together.
+- `cargo +1.96.0 clippy --locked --package marklab-spatial3d --all-targets --all-features -- -D warnings`, no-default check, formatting, and `git diff --check` — passed.
+- Workspace-wide gates and a commit remain excluded because paused inherited PLAT-DUR-01 is outside this evidence.
+
+## Full-program randomized interference milestone 32a — 2026-08-25
+
+- Expected red: `cargo +1.96.0 test --locked --features cli --test causal_randomized_interference_cli` failed because `causal` did not exist.
+- The first multicluster package oracle exposed improper whole-workflow failure for structurally impossible non-target exposures; it passed after per-exposure positivity became an explicit unavailable state while target contrast positivity remained mandatory.
+- `cargo +1.96.0 test --locked --package marklab-causal` — passed 2 package tests and doc tests.
+- `cargo +1.96.0 test --locked --features cli --test causal_randomized_interference_cli` — passed exact six-state probabilities and byte replay.
+- Warning-denied package Clippy, no-default check, formatting, and `git diff --check` — passed.
+
+## Full-program causal exposure milestone 32b — 2026-08-25
+
+- Expected red: `cargo +1.96.0 test --locked --features cli --test causal_exposure_mapping_cli` failed because `exposure-mapping` did not exist.
+- `cargo +1.96.0 test --locked --package marklab-causal` — passed 2 package tests and doc tests.
+- Both causal CLI suites passed together; the exposure suite covers all six mapping branches and the randomized-interference suite protects the prior inference boundary.
+- Warning-denied package Clippy, no-default check, formatting, and `git diff --check` — passed after final production changes.
+
+## Full-program causal/design checkpoint 32 — 2026-08-25
+
+- Expected red: `cargo +1.96.0 test --locked --features cli --test causal_gaussian_eig_cli` failed because `gaussian-eig` did not exist.
+- `cargo +1.96.0 test --locked --package marklab-causal` — passed 3 package tests and doc tests after the EIG addition.
+- All three causal CLI suites passed together; Gaussian EIG retains 1,000 outer values, matches the analytic oracle within its uncertainty gate, executes 501,000 likelihood evaluations, and byte replays.
+- Warning-denied package Clippy, no-default check, formatting, and `git diff --check` — passed. Workspace-wide gates and a commit remain excluded by paused inherited PLAT-DUR-01.
+
+## Full-program causal sensitivity checkpoint 33 — 2026-08-25
+
+- Each new CLI first failed with its expected missing subcommand: `causal_bias_sensitivity_cli`, `causal_manski_bounds_cli`, and `causal_rosenbaum_sensitivity_cli`.
+- The bias CLI initially assumed input row order; the corrected oracle selects canonicalized scenarios by stable ID and passes.
+- `cargo +1.96.0 test --locked --package marklab-causal` passed 3 package tests and doc tests.
+- All six causal CLI suites passed together, covering checkpoint 32 plus the three sensitivity/partial-ID workflows.
+- Warning-denied package Clippy, no-default check, formatting, and `git diff --check` passed. Workspace-wide gates and a commit remain excluded by paused inherited PLAT-DUR-01.
+
+## Full-program execution-policy checkpoint 34 — 2026-08-25
+
+- Expected reds: `policy_result_maturity_cli` failed because `policy` did not exist; `policy_execution_mode_cli` failed because `select-mode` did not exist.
+- `cargo +1.96.0 test --locked --package marklab-policy` passed 2 package tests and doc tests.
+- Both policy CLI suites passed together, covering maturity precedence and approximation denial/approval with complete assessments.
+- Warning-denied package Clippy, no-default check, formatting, and `git diff --check` passed. The prior numerics scoped gates remained green; workspace-wide gates and a commit remain excluded by paused inherited PLAT-DUR-01.
+
+## Full-program validation-ladder milestone 35a — 2026-08-25
+
+- Expected red: `policy_validation_ladder_cli` failed because `validation-ladder` did not exist.
+- Initial warning-denied Clippy found one obfuscated test conditional; the explicit branch replacement passed.
+- `cargo +1.96.0 test --locked --package marklab-policy` passed 3 package tests and doc tests; all three policy CLI suites passed together.
+- Warning-denied package Clippy, no-default, formatting, and `git diff --check` passed. Workspace-wide gates and a commit remain excluded by paused inherited PLAT-DUR-01.
+
+## Full-program stable numerics milestone 34a — 2026-08-25
+
+- Expected red: `cargo +1.96.0 test --locked --features cli --test numerics_stable_primitives_cli` failed because `numerics` did not exist.
+- `cargo +1.96.0 test --locked --package marklab-numerics` passed the effective-sample failure unit test and docs.
+- `cargo +1.96.0 test --locked --features cli --test numerics_stable_primitives_cli` passed overflow/cancellation/covariance hand oracles.
+- Warning-denied package Clippy, no-default check, formatting, and `git diff --check` passed. Workspace-wide gates and a commit remain excluded by paused inherited PLAT-DUR-01.
+
+## Full-program Part XI checkpoint 31 stabilization — 2026-08-25
+
+- `marklab-spatial3d`: warning-denied all-target/all-feature Clippy, 4 package tests/docs, no-default check, and all 3 3-D CLI suites passed after the final graph digest change.
+- `marklab-longitudinal`: warning-denied all-target/all-feature Clippy, 4 package tests/docs, no-default check, and all 4 longitudinal/evolutionary CLI suites passed after the final association change.
+- `cargo +1.96.0 fmt --all --check` and `git diff --check` passed after the blocker audit/documentation update; final status preserved all inherited PLAT-DUR-01 files/hunks.
+- Workspace-wide gates and a commit were not run because they would include paused inherited PLAT-DUR-01; scoped evidence is not represented as equivalent.
+
+## Full-program evolutionary association milestone 31b — 2026-08-25
+
+- Expected red: `cargo +1.96.0 test --locked --features cli --test longitudinal_phylogenetic_spatial_association_cli` failed because the command did not exist.
+- `cargo +1.96.0 test --locked --package marklab-longitudinal` — passed 4 package tests and doc tests.
+- All four longitudinal CLI suites passed together, including the four-clone tree/spatial oracle and byte replay.
+- `cargo +1.96.0 clippy --locked --package marklab-longitudinal --all-targets --all-features -- -D warnings`, no-default check, formatting, and `git diff --check` — passed.
+- Workspace-wide gates and a commit remain excluded because paused inherited PLAT-DUR-01 is outside this evidence.
+
+## Full-program 3-D graph milestone 31a — 2026-08-25
+
+- Expected red: `cargo +1.96.0 test --locked --features cli --test spatial3d_graph_cli` failed because `spatial-graph` did not exist.
+- Digest regression red: two radius specifications with identical realized edges initially produced the same SHA-256; passed after normalized window/spacing/full metric and all rule/weight parameters were bound.
+- `cargo +1.96.0 test --locked --package marklab-spatial3d` — passed 4 package tests and doc tests.
+- All three 3-D CLI suites passed together; package warning-denied Clippy, no-default check, formatting, and `git diff --check` passed.
+- Workspace-wide gates and a commit remain excluded because paused inherited PLAT-DUR-01 is outside this evidence.
+
+## Full-program anisotropic 3-D GP milestone 35b — 2026-08-25
+
+- Expected red: `cargo +1.96.0 test --locked --features cli --test bayes_anisotropic_gp3d_cli` failed because `anisotropic-gp-3d` did not exist.
+- `cargo +1.96.0 test --locked --package marklab-bayes anisotropic_gp` passed the exact zero/one-scaled-distance covariance oracles and the every-axis-variation rejection.
+- `cargo +1.96.0 test --locked --features cli --test bayes_anisotropic_gp3d_cli -- --nocapture` passed the pinned PyMC 6.3.0 12-point fit, complete diagnostic gate, and two finite positive-uncertainty predictions.
+- All 41 `marklab-bayes` package tests, warning-denied package Clippy, no-default check, and Python syntax compilation passed. Workspace-wide gates remain excluded because they compile paused PLAT-DUR-01.
+
+## Full-program cohort residual checkpoint 36 — 2026-08-25
+
+- Expected missing-command reds were observed for `repeated-freedman-lane`, `functional-equivalence`, `bootstrap-equivalence`, and `multisite-inference` before production edits.
+- Focused CLI oracles passed: common repeated slope `2.1`; simultaneous three-scale equivalence; patient-first interval containment; fixed multisite pooled effect `2`, SE `1/sqrt(3)`, Q `2`, chi-square p `exp(-1)`, and exact leave-one-out effects.
+- `cargo +1.96.0 test --locked --package marklab-cohort` passed 20 unit tests and all existing differential integration tests. The random-effects package oracle requires positive REML tau for site effects `0,3,6` at SE `0.5`.
+- Warning-denied cohort Clippy, no-default check, formatting, and eight affected CLI suites passed after replacing one Clippy-reported needless range loop. Workspace-wide gates remain excluded because they compile paused PLAT-DUR-01.
+
+## Full-program graph spectral milestone 37a — 2026-08-25
+
+- Expected red: `cargo +1.96.0 test --locked --features cli --test graph_spectral_cli` failed because `graph` did not exist.
+- `cargo +1.96.0 test --locked --package marklab-graph` passed the two-node `0,2` spectrum oracle and docs; the real CLI passed the three-node `0,1,3` spectrum, coefficient-energy, canonical-order, and pair-work oracle.
+- Warning-denied graph-package Clippy initially reported the eigendecomposition tuple type; a named internal decomposition record fixed it. Clippy, no-default, formatting, focused tests, and `git diff --check` then passed.
+
+## Full-program graph heat/wavelet checkpoint 37 — 2026-08-25
+
+- Expected missing-command reds were observed for `graph heat` and `graph wavelet` before production edits.
+- The heat CLI passed exact zero-time identity/application/signature/`sqrt(2)` distance and positive-time row-mass/smoothing checks. The wavelet CLI passed the lambda-one `2 exp(-2)` band-pass/low-pass energy oracle.
+- `cargo +1.96.0 clippy --locked --package marklab-graph --all-targets --all-features -- -D warnings`, no-default check, package tests/docs, all three graph CLI suites, formatting, and `git diff --check` passed.
+
+## Full-program graph-spectrum null milestone 37b — 2026-08-25
+
+- Expected red: `graph_spectrum_null_cli` failed because `spectrum-null` did not exist. The first green attempt reached the result but failed its low-band energy oracle because a roundoff-negative zero eigenvalue fell below the band's zero lower bound; canonical zero normalization fixed production and both spectral regressions passed.
+- `marklab-numerics` two-test package suite and the pre-existing embedding ERL unit/CLI regressions passed after shared-owner extraction. The constant four-node graph null returns low/high energies `4/0`, identical ERL bounds, and global/scalar p-values one.
+- Warning-denied Clippy passed for numerics, graph, and bayes; graph/numerics package tests/docs, four graph CLI suites, embedding-envelope CLI, formatting, and `git diff --check` passed.
+
+## Full-program Part VII graph checkpoint 38 — 2026-08-25
+
+- Expected red: `graph_chebyshev_heat_cli` failed because `chebyshev-heat` did not exist.
+- The adaptive workflow selected an order at or below 32, met `1e-8` reference-tail/grid and exact-signal gates, and reproduced the analytic path eigenmode. One compile warning for an unused local was removed before checkpoint verification.
+- The affected graph/numerics/bayes warning-denied Clippy checks, package tests/docs, all five graph CLI suites, embedding ERL regression, no-default graph check, formatting, and `git diff --check` are the scoped checkpoint gates. Workspace-wide gates remain excluded because they compile paused PLAT-DUR-01.
+
+## Full-program Part VII completion checkpoint 39 — 2026-08-25
+
+- Expected missing-command reds were observed before production edits for `graph hodge`, `graph cellular-complex`, and `graph validate`; earlier focused reds covered diffusion-wavelet, scattering, heterogeneous-message, hypergraph, and motif-triangle.
+- Exact focused oracles passed for diffusion ranks/reconstruction, scattering features/stability, typed messages, hand-incidence hypergraph, exhaustive motif triangle/null, filled-triangle `B1*B2=0`/`L1=3I`/Hodge reconstruction/filter, and perturbation-stable cellular incidence.
+- `cargo +1.96.0 fmt --all --check` — passed.
+- `cargo +1.96.0 clippy --locked --package marklab-graph --all-targets --all-features -- -D warnings` — initially found one needless scattering scale range loop; passed after iterator correction.
+- `cargo +1.96.0 check --locked --package marklab-graph --no-default-features` — passed.
+- `cargo +1.96.0 test --locked --package marklab-graph` — passed one unit test and doc tests.
+- One command running all 13 `graph_*_cli` integrations passed. The built-in validation ledger records ten passed exact/sensitivity entries and four explicit unsupported/not-applicable stress dimensions.
+- Workspace-wide gates and a commit were not run because the dirty checkout includes paused inherited PLAT-DUR-01 changes; scoped evidence is not represented as equivalent.
+
+## Full-program Part VIII topology checkpoint 40 — 2026-08-25
+
+- Expected missing-command reds were observed for all four topology CLIs before production edits.
+- Equilateral alpha persistence passed exact H0/H1, boundary, landscape, integrated-image, and Euler oracles; the five-point witness line passed landmark/coverage/tree/persistence oracles; supplied-raster and connectivity hand controls passed.
+- Topology warning-denied Clippy initially found two manual range patterns and passed after correction. Formatting, no-default/package checks, all four CLI suites, three worker syntax checks, and `git diff --check` passed.
+- Workspace-wide gates and a commit remain excluded because they include paused inherited PLAT-DUR-01.
+
+## Full-program Part VIII completion checkpoint 41 — 2026-08-25
+
+- Missing-command reds were observed for comparison, stability, and validation before production edits; all three focused oracles then passed.
+- The complete topology checkpoint passed formatting, warning-denied all-target Clippy, no-default/package/doc checks, all seven topology CLI suites, six Python worker syntax checks, and `git diff --check`.
+- The validation ledger passes nine exact/analytic rows and retains `sparse_memory_scaling=not_verified`; no representative scale claim is made. Workspace-wide gates and a commit remain excluded by paused PLAT-DUR-01.
+
+## Full-program Part IX multimodal checkpoint 42 — 2026-08-25
+
+- Expected missing-command reds were observed for pCCA, Bayesian pCCA, and MOFA before production edits.
+- The Bayesian fixture initially returned one divergence at 40/60 draws and target 0.9; the unchanged zero-divergence assertion passes with 100/80 and target 0.99. EM pCCA and MOFA shared-factor/masked-target oracles pass.
+- One command passed all three CLI suites after formatting; all three workers passed Python syntax compilation and `git diff --check`. Workspace-wide gates/commit remain excluded by paused PLAT-DUR-01.
+
+## Full-program Part IX multimodal checkpoint 43 — 2026-08-25
+
+- Expected missing-command reds were observed for `matrix-factor`, `hierarchical-factor`,
+  `spatial-matrix-factor`, and both `tensor-factor` decomposition tests. The first spatial optimizer
+  run failed truthfully at its 500-iteration cap; alternating exact conditional initialization made
+  the unchanged oracle converge.
+- Matrix MOFA recovered four masked rank-one entries below RMSE 0.35 with improving ELBO. The exact
+  hierarchy hand oracle returned five nodes, four conditional edges, and three attachments. The
+  graph-spatial fixture recovered four held-out smooth entries below RMSE 0.35 with positive
+  uncertainty. CP and Tucker each recovered three masked 3x3x3 rank-one entries below RMSE 0.25.
+- `cargo +1.96.0 fmt --all --check` passed.
+- `cargo +1.96.0 clippy --locked --package marklab --bin marklab --features cli -- -D warnings`
+  could not complete: preserved paused PLAT-DUR code at `src/cli/classical.rs:121` triggers
+  `clippy::needless_borrow`. That unrelated hunk was not changed and this gate is not claimed green.
+- `cargo +1.96.0 check --locked --package marklab --no-default-features` passed.
+- One command running all seven multimodal integration files passed eight tests. Root doc tests
+  passed (zero tests), all six multimodal workers passed `py_compile`, and `git diff --check` passed.
+- Workspace-wide gates and a commit remain excluded by paused inherited PLAT-DUR-01.
+
+## Full-program Part VI registration/atlas revisit checkpoint 45 — 2026-08-25
+
+- Six expected missing-command reds were observed before production wiring. SimpleITK nonrigid,
+  JAX SVF, landmark LDDMM, probabilistic SVF, landmark uncertainty/correspondence, and atlas focused
+  tests all pass.
+- The SVF test initially exposed a nonpositive boundary Jacobian from clipped absolute-map
+  composition; displacement-field composition corrected it without changing the oracle.
+- Checkpoint formatting, scoped tests, worker syntax, no-default, and diff results are appended after
+  execution. Root Clippy remains subject to the preserved paused PLAT-DUR lint.
+- `cargo +1.96.0 fmt --all --check` passed.
+- Root warning-denied Clippy again failed only on preserved paused `src/cli/classical.rs:121`
+  (`clippy::needless_borrow`); it was not fixed or suppressed.
+- `cargo +1.96.0 check --locked --package marklab --no-default-features` passed.
+- One command passed all six registration/atlas CLI tests. Root doc tests passed (zero tests), all
+  six workers passed `py_compile`, the runtime asserted SimpleITK 2.5.5, and `git diff --check`
+  passed. Workspace-wide gates/commit remain excluded by paused PLAT-DUR-01.
+
+## Full-program Part IX completion checkpoint 44 — 2026-08-25
+
+- Expected missing-command reds were observed for spatial latent, multiresolution, dropout,
+  joint-pathology, multimodal comparison, and validation workflows. All focused tests subsequently
+  passed; the original complementarity alias passed after shared-owner routing.
+- PyMC spatial NUTS recovered three masks below RMSE 0.35 with zero divergences. Multiresolution and
+  dropout oracles passed. Joint Laplace predicted its masked patient outcome below RMSE 0.6.
+  Canonical comparison retained six models/six increments. The validation ledger passes eleven
+  controls and retains three exact external/backend gaps.
+- Checkpoint gate results follow after execution. Root Clippy's preserved PLAT-DUR lint is never
+  represented as green.
+- `cargo +1.96.0 fmt --all --check` passed.
+- `cargo +1.96.0 clippy --locked --package marklab --bin marklab --features cli -- -D warnings`
+  failed only at preserved paused `src/cli/classical.rs:121` with `clippy::needless_borrow`; it was
+  not fixed, suppressed, or claimed green.
+- `cargo +1.96.0 check --locked --package marklab --no-default-features` passed.
+- One command running all 13 multimodal CLI files plus the original complementarity regression
+  passed 15 tests. Root doc tests passed (zero tests), all 11 Part IX workers passed `py_compile`,
+  and `git diff --check` passed.
+- Workspace-wide gates and a commit remain excluded by paused inherited PLAT-DUR-01.
+
+## Full-program Part X neural/generative revisit checkpoint 46 — 2026-08-25
+
+- Expected missing-command reds were observed for marked Cox, point-set generators, neural SBI,
+  and model-card commands. Cox training initially reached its iteration cap; corrected numerical
+  convergence tolerances made the unchanged likelihood/mark/quadrature oracle pass.
+- Flow/diffusion permutation/support/diversity, sbi analytic posterior/state/round isolation, and
+  repeated-artifact model-card focused tests pass.
+- Checkpoint gate results follow after execution; paused PLAT-DUR remains outside scope.
+- `cargo +1.96.0 fmt --all --check` passed.
+- Root warning-denied Clippy again failed only at preserved paused `src/cli/classical.rs:121`; it
+  was not fixed or suppressed.
+- `cargo +1.96.0 check --locked --package marklab --no-default-features` passed.
+- One command passed all four neural/generative CLI files. Root doc tests passed (zero tests), all
+  four workers passed `py_compile`, runtime asserted sbi 0.26.1/Torch 2.13.0, and
+  `git diff --check` passed. Workspace-wide gates/commit remain excluded by paused PLAT-DUR-01.
+
+## Full-program Part XI advanced 3-D revisit checkpoint 47 — 2026-08-25
+
+- Five expected missing-command reds were observed. Serial stack, exact 3-D alpha,
+  deformation/biology, clone models, and umbrella validation focused tests subsequently passed.
+- Checkpoint gate results follow after execution; real longitudinal/clone evidence remains explicit
+  and paused PLAT-DUR remains outside scope.
+- `cargo +1.96.0 fmt --all --check` passed.
+- Root warning-denied Clippy again failed only at preserved paused `src/cli/classical.rs:121`; it
+  was not fixed or suppressed.
+- `cargo +1.96.0 check --locked --package marklab --no-default-features` passed.
+- One command passed all five advanced 3-D CLI tests. Root doc tests passed (zero tests), all five
+  workers passed `py_compile`, and `git diff --check` passed. Workspace-wide gates/commit remain
+  excluded by paused PLAT-DUR-01.
+
+## Full-program Part XII causal/active revisit checkpoint 48 — 2026-08-25
+
+- Four expected missing-command reds were observed. Observational, perturbation/mediation,
+  active-design, and umbrella-validation focused tests subsequently passed.
+- The perturbation fixture initially reused mediator noise in the outcome with a second coefficient,
+  contradicting its declared controlled-path oracle; the generator was corrected without weakening
+  the 1.0/0.4/1.2 assertions.
+- Checkpoint formatting, scoped tests, worker syntax, no-default, docs, and diff results are appended
+  after execution. Root Clippy remains subject to the preserved paused PLAT-DUR lint.
+- `cargo +1.96.0 fmt --all --check` passed. One command passed all ten causal CLI suites; root doc
+  tests passed (zero tests), no-default compilation passed, the new worker passed `py_compile`, and
+  `git diff --check` passed.
+- `cargo +1.96.0 clippy --locked --package marklab --bin marklab --features cli -- -D warnings`
+  failed only at preserved paused `src/cli/classical.rs:121` with `clippy::needless_borrow`; it was
+  not fixed, suppressed, or claimed green. Workspace-wide gates/commit remain excluded.
+
+## Full-program unified runtime and residual Bayesian checkpoint 49 — 2026-08-25
+
+- Expected missing-command reds were observed for HMC, advanced cluster inference, and runtime
+  validation; a missing-public-symbol compile red preceded `execute_algorithm` extraction.
+- Fixed-step HMC and advanced cluster focused tests pass. Six durable integration tests pass through
+  the extracted owner. Runtime validation passes its HMC diagnostic, 4,000-fit bias/coverage, fixed
+  partition, and checksum-equivalent 1k/2k/4k smoke assertions.
+- The runtime calibration initially exposed an incomplete inverse-normal approximation; the complete
+  bounded quantile approximation passes the unchanged 92–98% coverage gate.
+
+## Full-program terminal SPDE checkpoint 50 — 2026-08-25
+
+- The expected missing-command red preceded the shared rectangular SPDE workflow. Mesh/precision/
+  projection, LGCP quadrature/intensity, one-factor reconstruction, and two-resolution sensitivity
+  assertions pass.
+- The first tau-one LGCP oracle was correctly too smooth for its declared right-heavy contrast; the
+  synthetic prior was changed to tau 0.2 without weakening the ratio, count, precision, projection,
+  reconstruction, or factor-correlation assertions.
+- Terminal scoped and major-checkpoint commands and exact results follow after execution.
+
+## Full-program terminal verification checkpoint 51 — 2026-08-26
+
+- `cargo +1.96.0 test --locked --workspace --all-features -- --test-threads=1` executed the complete
+  260-binary manifest serially. Every preceding binary passed; the final `workspace_contract` binary
+  found two stale architecture assertions after the scientific packages were added. The allowlist,
+  explicit dependency layers, and workspace policy were updated; the exact two-test
+  `workspace_contract` rerun then passed.
+- Audit of the neural-SBI run found undeclared default TensorBoard output. A new working-directory
+  assertion failed first, the pinned sbi 0.26.1 adapter was given an explicit no-op tracker, and the
+  unchanged analytic NPE/NLE/NRE/sequential oracle plus the no-side-effect assertion passed. The
+  session-generated `sbi-logs/` and Python bytecode cache were moved to Trash.
+- `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings` passed in
+  13m29s. `cargo +1.96.0 check --locked --workspace --no-default-features` passed. The all-features
+  workspace doc-test command passed for all 17 packages (zero doctests).
+- `cargo +1.96.0 fmt --all --check`, `git diff --check`, and
+  `python3 docs/implementation/verify_pseudocode_pack.py` passed. A literal multiset audit found 283
+  declarations and 283 live entries (282 unique names because `SimulationBasedCalibration` is the
+  documented duplicate), with no missing or extra entry.
+- The exact canonical `cargo +1.96.0 nextest run --locked --workspace --all-features` remains
+  unavailable on this Mac: after a successful 6m21s all-target build, nextest's concurrent discovery
+  left 24 `--list` children asleep in the macOS loader, including children older than seven minutes,
+  before test execution. The command was interrupted to stop the repeated verifier loop. Earlier
+  monolithic and batched attempts reproduced the same condition. The successful serial Cargo
+  execution plus focused post-fix reruns are recorded as separate evidence, not called equivalent to
+  a green nextest command.
+
+## PLAT-DUR-01 durable replay closure checkpoint 52 — 2026-08-26
+
+- `native_build_provenance_marks_untracked_source_state_dirty` failed first with `left:
+  Some(false)`, `right: Some(true)` and passed after the build Git query included normal untracked
+  state.
+- `changed_source_bytes_are_a_miss_even_when_the_parsed_pattern_is_unchanged` failed first because
+  the second process returned `"hit"`; it passed after exact stable cell/window source references
+  joined the node inputs.
+- `cargo +1.96.0 test --locked --package marklab-project --lib durable::tests::` passed 6/6.
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  durable_classical_project` passed 13/13. `cargo +1.96.0 test --locked --package marklab --features
+  cli --test classical_spatial_workflow --test classical_spatial_cli` passed 3/3 and 4/4.
+- `cargo +1.96.0 fmt --all --check` passed. `cargo +1.96.0 clippy --locked --workspace
+  --all-targets --all-features -- -D warnings` passed in 11m35s. `cargo +1.96.0 check --locked
+  --workspace --no-default-features`, workspace all-feature doc tests, and strict warning-denied
+  workspace docs passed.
+- `cargo +1.96.0 test --locked --workspace --all-features -- --test-threads=1` compiled and linked
+  the full test inventory in 6m28s. The root suite passed 294 with 21 intentional ignores; API
+  contract passed 6/6; the authorized reconciliation binary retained its one intentional ignore;
+  and the next two Bayesian integration binaries passed. The command was then interrupted with exit
+  130 because macOS imposed roughly tens of seconds of loader verification on each fresh integration
+  binary, projecting hours for the remaining inventory. This partial run is not claimed green. The
+  affected suites above are complete and checkpoint 51 retains the last complete serial workspace
+  run.
+- No Nextest retry was made: checkpoint 51 already records its reproduced concurrent macOS loader
+  stall. No commit, stage, push, deployment, history rewrite, or worktree was created.

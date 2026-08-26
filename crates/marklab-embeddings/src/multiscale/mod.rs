@@ -1,5 +1,6 @@
 mod artifact;
 mod cell_patch;
+mod cell_patch_context;
 #[cfg(feature = "parquet")]
 mod contained_cell_patch_dispersion;
 mod context;
@@ -13,6 +14,7 @@ mod json;
 mod matrix_artifact;
 mod overlap;
 mod overlap_dispersion;
+mod patch_dependency;
 mod patch_region;
 pub(crate) mod physical;
 mod records;
@@ -31,6 +33,7 @@ pub use cell_patch::{
     CellPatchContributor, CellPatchEdge, CellPatchLink, CellPatchLinkBindings, CellPatchWeight,
     DeclaredCellPatchAssignment,
 };
+pub use cell_patch_context::{cell_patch_context, CellPatchContextError, CellPatchContextResult};
 #[cfg(feature = "parquet")]
 pub use contained_cell_patch_dispersion::{
     contained_cell_patch_embedding_dispersion, ContainedCellPatchEmbeddingDispersion,
@@ -54,6 +57,10 @@ pub use overlap::{PatchOverlapEdge, PatchOverlapGraph};
 pub use overlap_dispersion::{
     patch_overlap_embedding_dispersion, PatchOverlapEmbeddingDispersion,
     PatchOverlapEmbeddingDispersionError, PatchOverlapEmbeddingDispersionStatus,
+};
+pub use patch_dependency::{
+    patch_dependency_weighting, PatchDependencyWeight, PatchDependencyWeighting,
+    PatchDependencyWeightingError,
 };
 pub use patch_region::{
     PatchRegionAssessment, PatchRegionAssessmentBindings, PatchRegionDeclaration, PatchRegionLink,

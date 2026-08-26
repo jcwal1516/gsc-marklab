@@ -230,3 +230,163 @@ Date: 2026-08-24. No throughput, optimization, heap, or RSS benchmark is claimed
 ## C-06 contained-patch binary-group nucleus-area contrast boundary
 
 Date: 2026-08-24. No throughput, optimization, heap, or RSS benchmark is claimed. S12 first performs its bounded `O(N)` validation and paired-value pass. The caller then binds `N` ordered CellIds to `A` assignment rows, verifies fixed-size graph/receipt identities, and admits exact assignment/edge maxima plus operation-owned heap storage `E * size_of::<usize>()`. One fallible `E`-index vector is sorted in place by patch/assignment/original edge; scalar patch grouping and arithmetic are `O(E)`, giving total runtime `O(N + E log E)` and no retained row/value/edge array in the result. Tests prove exact 3-assignment/5-edge/`5*sizeof(usize)` admission and every one-short edge, assignment, and byte rejection, alongside unavailable paths, repeat bits, positive zero, and unequal-patch weighting. This is functional deterministic resource evidence, not performance, spatial-dependence, independent-patch, segmentation-quality, inferential, or real-source evidence.
+## Full-program simulation checkpoint 25 work boundaries — 2026-08-25
+
+No throughput, latency, optimization, heap, or RSS claim is made. Reaction–diffusion performs
+bounded `O(S*N + N log N)` work for `S` steps and `N` cells, with the FFT applied once to the final
+field. Level-set stepping is `O(S*N)`; each requested reinitialization performs an explicitly
+declared and reported `N*C` distance visits for `C` sampled contour points. Vascular transport is
+`O(S*N + V + U + N)` for bounded vessel sources `V`, uptake cells `U`, transport steps, gradients,
+and final four-neighbor hypoxic components. All three validate step-derived cell work before
+simulation; the level-set workflow separately enforces its runtime distance-visit declaration.
+These are deterministic resource bounds, not scale or performance evidence.
+## Full-program simulation/SBI-summary checkpoint 26 work boundaries — 2026-08-25
+
+No performance optimization or throughput claim is made. Exact resource-distance fitting uses
+`O(NR + NP^2 + P^3)` work and `O(NP + P^2)` retained design/posterior storage for at most 5,000
+observations, 1,000 segments, and 128 coefficients. Mechanistic coupling delegates bounded module
+work and additionally caps three field-module cell-step declarations plus agent events/pair visits
+across all intervals at 250 million. Soft summary matching performs exactly
+`(choose(N_obs,2)+choose(N_gen,2))*B` visits, capped at 250 million, with `O(B)` arithmetic storage.
+These are deterministic functional bounds, not scale benchmarks.
+## Full-program SBI checkpoint 27 work boundaries — 2026-08-25
+
+No throughput benchmark or optimization claim is made. Rejection ABC bounds maximum proposals times
+per-proposal simulator cell steps. SMC-ABC bounds stages times maximum proposals per stage times
+per-proposal work and additionally performs `O(T*N^2)` full-mixture importance evaluation for `N`
+particles. Synthetic likelihood bounds `(iterations+1)*replicates*per-simulation cell steps` and
+uses fixed two-dimensional `O(R)` covariance work per evaluation. Each workflow rejects aggregate
+declared work above 250 million before inference.
+## Full-program SBI reliability checkpoint 28 work boundaries — 2026-08-25
+
+No performance benchmark or optimization claim is made. SBC bounds replicates times observed plus
+worst-case rejection-ABC simulator work. Simulation OOD performs exactly
+`(calibration_count+1)*reference_count*dimension` feature visits plus deterministic distance sorts.
+The posterior-predictive lab bounds replicates times per-replicate simulator cell steps. Each rejects
+declared work above 250 million before execution.
+
+## Full-program longitudinal milestone 29a work boundaries — 2026-08-25
+
+No throughput or optimization claim is made. The dense filter/smoother validates a conservative per-step matrix-operation upper bound derived from state and observation dimensions before allocating state histories or executing. Runtime is cubic in dense state/observation dimensions and retained output is quadratic per time step; the caller supplies explicit time, dimension, and operation ceilings.
+
+The scalar EKF/UKF specialization performs constant arithmetic per declared time step and retains one predicted state, filtered state, and diagnostics row per step. It rejects a sequence beyond the caller's explicit time-step ceiling. This is deterministic complexity accounting, not benchmark or scale evidence.
+
+The bootstrap particle workflow performs `T*N` transition/weight work plus `O(T*N)` systematic-resampling scans and retains `O(T*N)` particles, weights, and ancestry. Backward ancestry tracing costs `O(T*M)` for `M` requested trajectories. The exact `T*N` particle-step count is checked against a caller maximum before allocation; no throughput or particle-efficiency claim is made.
+
+## Full-program 3-D statistics milestone 30a work boundaries — 2026-08-25
+
+No throughput or optimization claim is made. The cuboid workflow constructs exactly `N(N-1)/2` retained pair records, rejects above both the caller maximum and a one-million-pair hard cap, and performs exactly pair-count times radius-count eligibility evaluations capped at 250 million. Window/point normalization is linear; returned curves are linear in radius count. A future indexed/streaming owner is required beyond this bounded exact specialization.
+
+Supplied-intensity K reuses the same bounded unordered plan; directed cross-K performs exactly `N_A*N_B` pair visits per radius, checked against the caller cross-pair maximum and the shared 250-million pair-radius ceiling. Both retain only normalized inputs and output curves beyond the validated geometry. These are functional work bounds, not scale or throughput evidence.
+
+## Full-program 3-D graph milestone 31a work boundaries — 2026-08-25
+
+The exact graph builder evaluates and retains `N(N-1)/2` candidates under the existing caller and one-million-pair hard caps. Radius selection is linear in candidates; union-kNN sorts each node's incident candidates and is bounded exact work rather than an indexed scale path. Final storage is `O(N+E)` for canonical edges and symmetric CSR, with a caller edge maximum. No performance or scalability claim is made.
+
+## Full-program evolutionary association milestone 31b work boundaries — 2026-08-25
+
+Tree compilation/traversal is bounded by clone count times nodes plus directed edge visits. The association retains only within-block clone pairs and performs exactly pair-count times `(permutations+1)` correlation evaluations, checked against a caller maximum before null generation. This is deterministic resource accounting, not a scale or optimization claim.
+
+## Full-program randomized interference milestone 32a work boundaries — 2026-08-25
+
+The workflow exactly materializes the Cartesian assignment state space, capped at both the caller maximum and one million states. Before enumeration it validates a conservative upper bound covering state exposure mapping/probability/exact-SD scans and observed/null contrast scans against the caller's unit-operation maximum. Storage is `O(S*N + B)` for `S` states, `N` units, and `B` retained null values. No performance or large-design claim is made.
+
+Exposure construction visits each directed edge once for scalar graph mappings and once per radius for multiscale counts; continuous fields visit no edges. The exact planned visit count is checked against a caller maximum before mapping. Storage is linear in units, edges, and returned unit-by-radius values. No throughput claim is made.
+
+Nested Gaussian EIG performs exactly `N_outer*(N_inner+1)` scalar likelihood evaluations, checked against caller and 250-million hard maxima before allocation. It retains `O(N_outer)` outer artifacts and `O(N_inner)` temporary log likelihoods. This is deterministic work accounting, not a performance or general-design scale claim.
+
+## Full-program causal sensitivity checkpoint 33 work boundaries — 2026-08-25
+
+Bias sensitivity and Manski bounds are linear in scenario and observation count under explicit caller and one-million hard caps. Rosenbaum sensitivity performs bounded set-by-Gamma validation plus `O(N_non_tied*G)` stable binomial-tail recurrence work and retains one curve row per Gamma. These are deterministic functional bounds, not performance claims.
+
+## Full-program stable numerics milestone 34a work boundaries — 2026-08-25
+
+Log and weighted-mean primitives are linear in input length. Covariance performs exactly `rows*columns*(columns+1)/2` cross products and retains `O(columns^2)` output, checked against caller and hard element/work maxima before calculation. No throughput or optimization claim is made.
+
+Result maturity is constant work over a fixed policy catalogue. Execution-mode selection is linear in descriptor count and uses checked integer base-plus-per-item estimates; it retains one assessment per mode. These are planning-policy complexity statements, not measured performance evidence.
+
+Validation-ladder evaluation is constant work over exactly six stages plus linear evidence/risk identifiers. It is policy bookkeeping, not a performance benchmark.
+
+## Full-program Part VII completion checkpoint 39 work boundaries — 2026-08-25
+
+The new graph workflows remain deliberately bounded dense implementations. Diffusion wavelets and
+scattering reuse cubic exact eigendecomposition and retain dense bases/features; heterogeneous
+construction evaluates bounded pairs; hypergraph and cellular workflows check explicit incidence
+budgets; motif/Hodge clique construction checks all bounded triples; Hodge solves dense systems.
+The validation suite runs fixed tiny fixtures only. These are functional resource bounds and exact
+oracles, not throughput, sparse-scale, memory-scaling, or accelerator evidence.
+
+## Full-program Part VIII completion checkpoint 41 work boundaries — 2026-08-25
+
+Alpha/witness and cubical persistence are bounded by caller simplex/mask limits and pinned-library
+execution; patient comparison retains a quadratic distance matrix and exactly enumerates a capped
+assignment product; connectivity evaluates a capped quadratic pair set; raster operations retain
+bounded masks per radius/repetition. No representative sparse-memory measurement was executed, and
+the validation ledger records that gap rather than making a scaling claim.
+
+## Full-program Part IX checkpoint 42 work boundaries — 2026-08-25
+
+EM pCCA retains dense feature covariance/latent operations under 32-feature and 10,000-row caps;
+Bayesian pCCA uses bounded one-factor NUTS draws; MOFA uses bounded views/features/rows/factors and
+iterations with CPU-only execution. These are functional limits on synthetic fixtures, not runtime,
+memory-scaling, GPU, or representative multimodal-performance evidence.
+
+## Full-program Part IX checkpoint 43 work boundaries — 2026-08-25
+
+Matrix MOFA retains bounded dense Gaussian data. Hierarchy compilation is linear in supplied nodes
+and attachments. Graph-spatial fitting caps the latent parameter vector and inverse-Hessian at 512;
+the current exact graph/linear-algebra path is not sparse-scale. CP/Tucker fitting caps tensor
+dimensions, entries, and parameters and runs CPU JAX/SciPy. No throughput, memory-scaling,
+accelerator, representative pathology, or optimization claim was measured.
+
+## Full-program Part IX completion checkpoint 44 work boundaries — 2026-08-25
+
+Exact GP NUTS is capped at 64 regions and one factor. Multiresolution, dropout, and joint fits cap
+rows/features/latent parameters and use CPU JAX/SciPy dense optimization; the joint approximation
+retains a dense inverse-Hessian. M0–M5 comparison retains the existing bounded nested-fit work cap.
+The validation suite uses fixed tiny analytic/simulated controls. No representative throughput,
+memory scaling, accelerator, sparse-field, or real-cohort performance evidence was measured.
+
+## Full-program Part VI registration/atlas checkpoint 45 work boundaries — 2026-08-25
+
+SimpleITK images are capped at 256x256; dense SVF/probabilistic images at 64x64; LDDMM at 64
+landmarks; GP correspondence at 128 landmarks/256 cells; atlas inputs at 10,000 region rows and 128
+features. Dense fields, kernel matrices, posterior draws, and LOPO fits are retained under these
+functional bounds. No representative WSI, GPU, memory-scaling, or throughput measurement was run.
+
+## Full-program Part X neural/generative checkpoint 46 work boundaries — 2026-08-25
+
+Neural point-process patterns/points, hidden width, and quadrature grids are bounded; point-set
+patterns cap cardinality and reverse steps; neural SBI caps simulations/epochs/grid; model-card work
+uses small dense pair/summary matrices. Torch/JAX run single-device deterministic CPU only. No GPU,
+large simulation bank, WSI-scale pattern, memory-scaling, or throughput evidence was measured.
+
+## Full-program Part XI advanced 3-D checkpoint 47 work boundaries — 2026-08-25
+
+Serial stacks cap sections/landmarks/draws; exact alpha caps points; deformation interpolation caps
+paired points/draws; clone models cap tree/cells/features/draws; validation uses fixed tiny controls.
+All new paths retain dense arrays/kernel/interpolation work. No WSI stack, large tetrahedralization,
+memory scaling, accelerator, or throughput evidence was measured.
+
+## Full-program Part XII causal/active checkpoint 48 work boundaries — 2026-08-25
+
+Observational and perturbation fits retain bounded dense rows/design matrices and cluster-fold
+vectors. Active selection scans a bounded candidate list; sequential updates are scalar; power
+retains one bounded simulation vector per design; validation uses fixed tiny controls. No large
+cohort, combinatorial optimizer, acquisition latency, memory scaling, or throughput was measured.
+
+## Full-program runtime/Bayesian checkpoint 49 work boundaries — 2026-08-25
+
+Fixed HMC is one-dimensional with bounded leapfrog/draw counts. Cluster inference caps patterns,
+points, parent candidates, latent iterations, finite Gibbs sites/states, and posterior draws.
+Calibration caps scenarios/repetitions/sample size and uses fixed scoped-thread partitions. The
+scaling smoke measures equivalent wrapping-integer sums at 1k/2k/4k items with checksums and phase
+medians; CLI artifact persistence is transactional but explicitly not self-timed. This is functional
+smoke evidence, not a throughput baseline or representative performance claim.
+
+## Full-program terminal SPDE checkpoint 50 work boundaries — 2026-08-25
+
+The rectangular mesh caps resolution at 16 per axis and uses dense matrix assembly/optimization even
+though precision/projections are serialized sparsely. Event/region counts and iterations are bounded;
+two declared resolutions are fitted for sensitivity. No adaptive/holed mesh, sparse factorization,
+posterior sampling, memory scaling, WSI-scale workload, or throughput measurement was run.

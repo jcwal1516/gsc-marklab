@@ -107,7 +107,13 @@ fn available_rows() -> Vec<(CellId, EmbeddingStatus, Option<Vec<f32>>)> {
 
 fn level_vector(level: f32) -> Vec<f32> {
     (0..DIMENSION)
-        .map(|component| if component % 2 == 0 { level } else { 0.0 })
+        .map(|component| {
+            if component.is_multiple_of(2) {
+                level
+            } else {
+                0.0
+            }
+        })
         .collect()
 }
 
@@ -634,7 +640,13 @@ fn contained_cell_patch_embedding_dispersion_changes_with_vectors_and_canonicali
         .into_iter()
         .map(|cell_id| {
             let values = (0..DIMENSION)
-                .map(|component| if component % 2 == 0 { 0.0 } else { -0.0 })
+                .map(|component| {
+                    if component.is_multiple_of(2) {
+                        0.0
+                    } else {
+                        -0.0
+                    }
+                })
                 .collect();
             (cell_id, EmbeddingStatus::Present, Some(values))
         })

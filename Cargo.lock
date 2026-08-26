@@ -1653,8 +1653,19 @@ dependencies = [
  "geojson",
  "image",
  "insta",
+ "marklab-bayes",
+ "marklab-causal",
+ "marklab-cohort",
  "marklab-data",
  "marklab-embeddings",
+ "marklab-graph",
+ "marklab-longitudinal",
+ "marklab-numerics",
+ "marklab-policy",
+ "marklab-sbi",
+ "marklab-simulation",
+ "marklab-spatial3d",
+ "marklab-topology",
  "marklab-workflow",
  "mimalloc",
  "num-complex",
@@ -1674,6 +1685,39 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "wsi-rs",
+]
+
+[[package]]
+name = "marklab-bayes"
+version = "0.1.0"
+dependencies = [
+ "marklab-numerics",
+ "rand 0.8.6",
+ "rand_chacha 0.3.1",
+ "rand_distr",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "marklab-causal"
+version = "0.1.0"
+dependencies = [
+ "rand 0.8.6",
+ "rand_chacha 0.3.1",
+ "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "marklab-cohort"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+ "statrs",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -1711,6 +1755,46 @@ dependencies = [
 ]
 
 [[package]]
+name = "marklab-graph"
+version = "0.1.0"
+dependencies = [
+ "marklab-numerics",
+ "rand 0.8.6",
+ "rand_chacha 0.3.1",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "marklab-longitudinal"
+version = "0.1.0"
+dependencies = [
+ "rand 0.8.6",
+ "rand_chacha 0.3.1",
+ "rand_distr",
+ "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "marklab-numerics"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "marklab-policy"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "marklab-project"
 version = "0.1.0"
 dependencies = [
@@ -1720,6 +1804,49 @@ dependencies = [
  "serde_json",
  "sha2",
  "tempfile",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "marklab-sbi"
+version = "0.1.0"
+dependencies = [
+ "marklab-simulation",
+ "rand 0.8.6",
+ "rand_chacha 0.3.1",
+ "rand_distr",
+ "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "marklab-simulation"
+version = "0.1.0"
+dependencies = [
+ "rand 0.8.6",
+ "rand_chacha 0.3.1",
+ "rand_distr",
+ "rustfft",
+ "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "marklab-spatial3d"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "sha2",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "marklab-topology"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
  "thiserror 2.0.18",
 ]
 

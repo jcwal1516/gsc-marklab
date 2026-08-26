@@ -1,0 +1,97 @@
+#![cfg(feature = "cli")]
+
+use std::fs;
+
+use assert_cmd::Command;
+
+#[test]
+fn smc_abc_contracts_tolerance_and_recovers_logistic_growth() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("initial.json");
+    fs::write(
+        &input,
+        serde_json::to_vec(&serde_json::json!({
+            "initial": [
+                {"position_um": 0.0, "density": 0.25},
+                {"position_um": 1.0, "density": 0.25},
+                {"position_um": 2.0, "density": 0.25}
+            ]
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let first = directory.path().join("first.json");
+    let second = directory.path().join("second.json");
+    run(&input, &first);
+    run(&input, &second);
+    assert_eq!(fs::read(&first).unwrap(), fs::read(&second).unwrap());
+    let result: serde_json::Value = serde_json::from_slice(&fs::read(first).unwrap()).unwrap();
+    assert_eq!(result["format"], "marklab.smc_abc_growth_front");
+    assert_eq!(result["stages"].as_array().unwrap().len(), 3);
+    assert_eq!(result["stages"][0]["epsilon"], 5.0);
+    assert_eq!(result["stages"][2]["epsilon"], 1.0);
+    assert!((result["posterior"]["growth_rate_mean"].as_f64().unwrap() - 1.0).abs() < 0.03);
+    let particles = result["particles"].as_array().unwrap();
+    assert_eq!(particles.len(), 64);
+    assert!(
+        (particles
+            .iter()
+            .map(|row| row["weight"].as_f64().unwrap())
+            .sum::<f64>()
+            - 1.0)
+            .abs()
+            < 1e-12
+    );
+    assert!(result["stages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|stage| stage["effective_sample_size"].as_f64().unwrap() > 1.0));
+    assert_eq!(
+        result["random_seed_namespace"],
+        "smc_abc_growth_front_v1_chacha20"
+    );
+}
+
+fn run(input: &std::path::Path, output: &std::path::Path) {
+    Command::cargo_bin("marklab")
+        .unwrap()
+        .args([
+            "bayes",
+            "smc-abc-growth-front",
+            "--input",
+            input.to_str().unwrap(),
+            "--diffusion-um2-per-time",
+            "0",
+            "--carrying-capacity",
+            "1",
+            "--final-time",
+            "1.0986122886681098",
+            "--time-step",
+            "0.1",
+            "--front-threshold-fraction",
+            "0.5",
+            "--observed-final-mass",
+            "1",
+            "--mass-scale",
+            "0.02",
+            "--growth-rate-prior-min",
+            "0.5",
+            "--growth-rate-prior-max",
+            "1.5",
+            "--epsilon-schedule",
+            "5,2,1",
+            "--particles",
+            "64",
+            "--maximum-proposals-per-stage",
+            "10000",
+            "--maximum-cell-steps-per-proposal",
+            "1000",
+            "--seed",
+            "20260825",
+            "--out",
+            output.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+}

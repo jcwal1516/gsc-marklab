@@ -505,3 +505,1272 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Decision: follow the master plan's integrated multi-backend strategy. Marklab owns versioned adapters, pinned environment and license records, typed input/output schemas, command/config/model/checkpoint digests, deterministic controls, diagnostics normalization, artifact identity, security/resource policy, and execution provenance. Scientifically or operationally appropriate established backends perform the numerical work as first-class Marklab nodes. No native Rust port is presumed; promotion of a port requires measured scientific agreement plus a concrete operational, portability, security, maintenance, or performance advantage over the established backend.
 - Alternatives: require every algorithm in Rust; treat backend runs as disconnected manual scripts; admit arbitrary unpinned Python/R/command execution; port first and compare later.
 - Consequences: the promoted durable project/ledger outcome precedes BACK-01/WS-13 so backend executions can be replayed and audited. Advanced roadmap contracts must name the selected backend strategy and evidence gate. Native exact Rust remains appropriate for the current bounded window/geometry/classical core and other capabilities with a demonstrated ownership or operational reason; this decision neither removes nor weakens any master-plan workstream.
+
+## DEC-0055 — Persist classical success through one chained project ledger and the existing object store
+
+- Date: 2026-08-24
+- Status: accepted for the promoted durable classical project outcome
+- Context: the existing `MarklabProject`, scheduler, artifact catalog, and capability-confined local store provide exact in-memory cache and immutable-object semantics, but process exit loses success state. PLAT-01/WS-11 require a human-readable head, append-only execution ledger, integrity-checked replay, and interrupted-run recovery before external backends can be admitted reproducibly.
+- Decision: add one bounded `DurableProject` owner in `marklab-project`. It owns strict canonical project-head, chained JSONL execution-ledger, exclusive project lock, and one canonical pending intent. It delegates all immutable output publication, addressing, verification, store locking, and object-staging recovery to the existing `LocalArtifactStore`. The current scheduler exposes its deterministic cache-key computation read-only; durable replay restores verified bytes with the existing failure-atomic `MarklabProject::commit_success` and then uses the scheduler's normal hit path.
+- Decision: add `marklab project classical` as the immediate production caller. Version-one records bind exact node/spec/input/config/resource/cache/result identities and a native runtime manifest with crate, Git availability/dirty state, rustc, compiled features, and streamed executable identity. Unsupported versions or semantics are rejected; no migration invents fields. A small build script captures available local build provenance without network access and degrades Git fields explicitly to unavailable outside a checkout.
+- Alternatives: duplicate the store inside a project directory manager; serialize private in-memory maps; trust result-directory bytes; recompute the scheduler key in the CLI; execute first and compare afterward; add a general workflow schema/backend registry in the same increment; append a ledger record before object durability; silently repair conflicting state.
+- Consequences: exact classical runs replay across processes while changed execution identity misses and tampering fails closed. Result format 0.3 and ordinary one-shot behavior remain compatible. This closes only the promoted single-node durability workflow; general DAG composition/schema/migrations and multi-backend execution remain explicit later work.
+
+## DEC-0056 — Admit the first cohort-valid scalar permutation workflow
+
+- Date: 2026-08-24
+- Status: accepted for COH-PERM-01 under the full-program implementation mandate
+- Context: the repository has typed patient identities and lower-level random-labeling machinery, but no public workflow compares one prespecified endpoint per independent patient. The paused PLAT-DUR-01 work owns the existing root CLI/library files, so cohort behavior must advance without changing those preserved hunks.
+- Decision: add `marklab-cohort` as the scientific owner of a bounded independent-groups patient-label permutation test and expose it through `marklab cohort permutation` at the clean binary dispatch boundary. Version one accepts one strict CSV row per patient, two exact groups, optional exact blocks, a bounded replicate count, one seed, and one alternative. It reports stable group means, signed group-A-minus-group-B effect, Welch-style studentization, and the inclusive-plus-one equal-tail or one-sided p-value. Whole-patient labels are shuffled only within declared blocks using domain-separated deterministic native Rust mechanics; every requested replicate must complete.
+- Decision: add the separate `marklab.cohort_permutation` version-one JSON result because result format 0.3 cannot represent cohort inference and remains unchanged. Freeze the exact IC-0029 fields, a 16 MiB CSV limit, one million patient and permutation limits, a 100 million patient-by-permutation evaluation limit, finite-result rejection, and failure-atomic single-file publication. This native implementation has no external backend because the required mechanics are simple, portable, deterministic, and independently oracle-tested.
+- Alternatives: treat cells or rows as replicates; modify result 0.3; hide the formula in the CLI; wait for durable project replay; introduce a generalized inference/backend registry; invoke an external statistics product for a four-operation deterministic resampling kernel.
+- Consequences: FND-06, COH-01, INF-01A, WS-31, and WS-34 gain one runnable patient-level scalar workflow and a reusable cohort-engine boundary. Paired, repeated, functional, Max-T, bootstrap, MMD/energy, equivalence, noninferiority, intervals, multisite, durable-project, and external-backend workflows remain open. PLAT-DUR-01 production and test files are not advanced.
+
+## DEC-0057 — Add paired patient sign-flip inference to the cohort engine
+
+- Date: 2026-08-24
+- Status: accepted for COH-PAIR-01
+- Context: COH-PERM-01 establishes the cohort engine and independent-groups CLI, while pseudocode §5.3 requires complete patient pairs to remain the independent units for paired inference. Treating condition rows as independent would discard pairing and misstate uncertainty.
+- Decision: add `paired_patient_permutation_test` beside the independent-groups owner and expose `marklab cohort paired-permutation`. Version one accepts exactly one finite scalar row for each of two exact conditions per patient, computes condition-B-minus-condition-A differences, reports their stable mean and studentized mean, and applies deterministic domain-separated whole-pair Rademacher sign flips. Every requested replicate completes or the run fails; there is no unpaired fallback.
+- Decision: add strict `marklab.cohort_paired_permutation` version-one JSON through the existing cohort single-file publication boundary. Reuse the cohort patient/permutation/evaluation limits and native portable mechanics. No external backend is warranted for this simple deterministic paired resampling operation.
+- Alternatives: reuse the independent-groups label shuffle; silently drop incomplete pairs; add repeated-measures residual permutation in the same workflow; generalize all cohort designs before this immediate caller; mutate result format 0.3.
+- Consequences: the established paired scalar workflow advances FND-06, COH-01, INF-01A, WS-31, and WS-34 without changing PLAT-DUR-01 or claiming longitudinal/repeated-measures, causal, clinical, equivalence, or biological evidence.
+
+## DEC-0058 — Make L2 the first joint patient-level functional comparison
+
+- Date: 2026-08-24
+- Status: accepted for COH-FUNC-01
+- Context: scalar and paired workflows now preserve patients as biological units, but spatial endpoints are commonly common-axis curves. Pointwise tests would create an undeclared multiplicity family, while the pseudocode authorizes a prespecified joint functional statistic.
+- Decision: add `functional_two_sample_permutation` to `marklab-cohort` and expose `marklab cohort functional-permutation`. Version one requires one exact common finite strictly increasing axis and one finite curve per patient, at least two patients per group, and uses the trapezoidal integral of the squared group-A-minus-group-B mean curve as the prespecified L2 statistic. Whole-patient labels shuffle under deterministic domain-separated unblocked independent-groups permutations; inference is one-sided high with inclusive-plus-one counting.
+- Decision: add strict `marklab.cohort_functional_permutation` version-one JSON with the common axis, both group mean curves, observed difference curve, L2 statistic, p-value, patient counts, replicate counts, and seed. Admit at most 100 million patient-by-axis-by-replicate evaluations. Defer supremum, integrated studentized, and ERL modes to their own behavior slices rather than implying they are present.
+- Alternatives: radius-wise p-values without correction; interpolate mismatched axes; add all functional statistics and envelope presentation at once; treat curve points as replicates; use an external backend for deterministic means, trapezoids, and label shuffles.
+- Consequences: FND-06, COH-01, INF-01A, WS-31, and WS-34 gain one runnable joint functional test with a hand and slow differential oracle. Pointwise inference, ERL, blocked/paired curves, interpolation, smoothing, and biological claims remain unavailable.
+
+## DEC-0059 — Control a prespecified scalar endpoint family with single-step Max-T
+
+- Date: 2026-08-24
+- Status: accepted for COH-MAXT-01
+- Context: independent scalar inference does not control family-wise error when several prespecified patient endpoints are tested, and separately permuting each endpoint would discard their within-patient dependence.
+- Decision: add `max_t_multiple_endpoint_permutation` to `marklab-cohort` and expose `marklab cohort max-t`. Require one complete finite endpoint vector with identical exact endpoint names per patient. Reuse one canonical stable Welch contrast and apply the same deterministic whole-patient label permutation to every endpoint per replicate. Single-step adjusted p-values count null maximum absolute statistics at least as large as each observed absolute statistic; a conservative empirical `(1-alpha)` critical value is retained.
+- Decision: add strict `marklab.cohort_max_t` version-one JSON with patient counts, ordered endpoint effects/statistics/adjusted p-values, alpha, critical value, replicate counts, and seed. Bound patient-by-endpoint-by-replicate work at 100 million evaluations and fail rather than drop any undefined endpoint replicate.
+- Alternatives: independent unadjusted p-values; endpoint-specific permutations; Bonferroni without using dependence; step-down Max-T before an immediate requirement; missing-endpoint imputation; external backend for deterministic studentization and shared shuffles.
+- Consequences: INF-01C, FND-06, COH-01, WS-31, and WS-34 gain one multiplicity-controlled patient workflow. Endpoint selection, missingness, blocks, step-down adjustment, and clinical/biological interpretation remain unavailable.
+
+## DEC-0060 — Add exact patient-level MMD over prespecified fingerprints
+
+- Date: 2026-08-24
+- Status: accepted for COH-MMD-01
+- Context: cohort-valid comparison of vector fingerprints requires one vector per patient, a frozen kernel, and patient-label inference. Selecting bandwidth on the final cohort or permuting features independently would change the procedure and invalidate the null.
+- Decision: add `patient_level_mmd` to `marklab-cohort` and expose `marklab cohort mmd`. Version one accepts complete exact feature vectors, exact linear or fixed-positive-bandwidth RBF kernels, and separately named unbiased U-statistic or biased V-statistic MMD-squared. Build one bounded symmetric kernel matrix and reuse it under deterministic whole-patient label permutations with an inclusive-plus-one one-sided-high p-value.
+- Decision: add strict `marklab.cohort_mmd` version-one JSON with patient/feature counts, kernel kind and optional bandwidth, estimator, MMD-squared, p-value, replicate counts, and seed. Bound the matrix at 25 million elements and matrix-by-permutation work at 100 million evaluations. Use native Rust because the admitted kernels and estimator are small deterministic mechanics with direct hand and independent differential oracles; no maintained external solver is required for this slice.
+- Alternatives: data-dependent median bandwidth on the test cohort; coordinate-wise testing; rebuild the kernel per permutation; add learned/spatial kernels before immediate callers; external backend process overhead for dot products/RBF and group sums.
+- Consequences: CMP-01C, COH-01, FND-06, INF-01A, and WS-34 gain one runnable patient fingerprint test. Kernel learning, missingness, blocks, spatial curve kernels, and biological interpretation remain unavailable.
+
+## DEC-0061 — Add exact patient-level Euclidean energy distance
+
+- Date: 2026-08-24
+- Status: accepted for COH-ENERGY-01
+- Context: MMD supplies kernel distributional comparison, while energy distance supplies a complementary metric-based comparison when one complete fingerprint exists per patient. The metric must be fixed and of negative type for the standard interpretation.
+- Decision: add `patient_level_energy_distance` to `marklab-cohort` and expose `marklab cohort energy`. Version one admits exact Euclidean distance only, reuses the complete-fingerprint validation boundary, builds one bounded symmetric distance matrix, and reports `2 mean(D_ab) - mean(D_aa') - mean(D_bb')` with ordered within-group diagonals included. Deterministic whole-patient label permutations reuse the matrix and produce an inclusive-plus-one one-sided-high p-value.
+- Decision: add strict `marklab.cohort_energy` version-one JSON with patient/feature counts, metric, energy distance, p-value, replicate counts, and seed. Reuse the 25-million matrix-element and 100-million matrix-by-permutation limits. Native Rust is appropriate for this exact deterministic distance/sum workflow with direct hand and independent oracles.
+- Alternatives: learned or data-selected metrics; exclude diagonals without naming a U-statistic variant; rebuild distances per permutation; approximate nearest-neighbor distances; external backend overhead for an exact Euclidean matrix and group means.
+- Consequences: CMP-01D, COH-01, FND-06, INF-01A, and WS-34 gain one runnable metric distributional test. Missingness, blocks, weighted patients, learned metrics, approximations, and biological interpretation remain unavailable.
+
+## DEC-0062 — Keep spatial fingerprints structured, versioned, and digestible
+
+- Date: 2026-08-24
+- Status: accepted for COH-FINGERPRINT-01
+- Context: downstream MMD, energy, retrieval, and comparison need compatible versioned sample summaries. Concatenating unnamed values or silently zero-filling absent components would discard endpoint identity and create false comparability.
+- Decision: add `build_spatial_fingerprint` and `fingerprint_distance` to `marklab-cohort`, exposed through `marklab cohort fingerprint-distance`. Version one admits named components with exact common axes, finite values, retained finite nonnegative uncertainties, and finite positive prespecified weights. It declares normalization `none`, uncertainty weighting `none`, missing-component policy `reject`, and no training transform. Components are canonicalized by name without discarding identities.
+- Decision: bind the exact specification and each fingerprint's sample/value/uncertainty content with SHA-256, using already locked `sha2` 0.10.9 (MIT OR Apache-2.0) as a direct local crate dependency. Distance requires identical specification digests and exact component identities/axes/weights, reports each trapezoidal curve-L2 contribution, and sums prespecified weighted contributions stably. Add strict `marklab.spatial_fingerprint_distance` version-one JSON retaining both structured fingerprints and the full decomposition.
+- Alternatives: opaque concatenated vector; missing-as-zero; interpolation or normalization without a training artifact; hash with a local ad hoc implementation; total-only similarity score; retrieval index before the distance contract.
+- Consequences: CMP-01A, FR-02, EMB-PATCH, WS-34, and WS-51 gain versioned fingerprint and distance owners with golden digest and hand-distance oracles. Component computation from raw spatial data, normalization, uncertainty weighting, missingness, learned weights, retrieval, and population inference remain separate workflows.
+
+## DEC-0063 — Admit one-sample patient-effect TOST with prespecified margins
+
+- Date: 2026-08-24
+- Status: accepted for COH-EQV-01
+- Context: the pseudocode accepts design-valid biological-unit effects. The current immediate caller supplies one already-defined signed effect per independent patient; adding an unpaired group model or inferring effect direction would broaden the estimand beyond those inputs.
+- Decision: add `tost_equivalence` to `marklab-cohort` and expose `marklab cohort equivalence`. Require unique finite patient effects, at least two patients, finite ordered lower/upper margins, finite `0<alpha<0.5`, and a non-empty exact margin-rationale reference. Report the stable mean, sample standard error, `n-1` degrees of freedom, both one-sided Student-t statistics/p-values, and matching two-sided `1-2*alpha` interval. Equivalence requires both p-values below alpha and the interval strictly inside margins; internal disagreement is a numerical failure.
+- Decision: use already locked `statrs` 0.18.0 (MIT) for Student-t CDF/quantile mechanics and add strict `marklab.cohort_equivalence` version-one JSON. Validate against R 4.5.2 base `pt`/`qt` static oracle values. SciPy/statsmodels were unavailable locally and are not claimed as executed evidence.
+- Alternatives: call a process backend for a single Student-t distribution; unpaired Welch TOST without that design input; post-hoc margins; declare equivalence from a nonsignificant difference test; label failed equivalence as difference.
+- Consequences: EQV-01, COH-01, INF-01D, and WS-34 gain one runnable established TOST surface. Unpaired, paired-from-raw, functional, bootstrap, power, and real clinical equivalence validation remain separate requirements.
+
+## DEC-0064 — Keep noninferiority directional and separate from equivalence
+
+- Date: 2026-08-24
+- Status: accepted for COH-NI-01
+- Context: noninferiority has one directional null boundary and must not be inferred from TOST or a nonsignificant difference. The immediate caller supplies already-defined signed patient effects, a favorable direction, and one justified margin magnitude.
+- Decision: add `noninferiority_test` to `marklab-cohort` and expose `marklab cohort noninferiority`. Reuse the canonical patient-effect mean/SE and locked `statrs` 0.18.0 Student-t distribution. Higher-is-better tests boundary `-margin`, favorable statistic `(estimate+margin)/SE`, and a lower one-sided bound; lower-is-better mirrors at `+margin`, favorable statistic `(margin-estimate)/SE`, and an upper bound. The p-value and bound decisions must agree.
+- Decision: require finite positive margin, finite `0<alpha<0.5`, explicit direction, and non-empty margin-rationale reference. Add strict `marklab.cohort_noninferiority` version-one JSON with the signed boundary, direction, statistic, upper-tail p-value, matching bound, and `noninferior`/`not_demonstrated` decision. Validate both directions against R 4.5.2 static oracle values.
+- Alternatives: reuse equivalence decision; omit sign convention; report superiority; post-hoc margin; separate duplicated mean/SE implementation; process backend for a Student-t tail.
+- Consequences: EQV-01, COH-01, INF-01D, and WS-34 gain one runnable directional noninferiority workflow. Superiority, unpaired group modeling, functional endpoints, power, and biological/clinical validation remain separate.
+
+## DEC-0065 — Resample patients before specimens in the first hierarchical bootstrap
+
+- Date: 2026-08-24
+- Status: accepted for COH-HBOOT-01
+- Context: specimen or lower-level row resampling alone cannot produce patient-level uncertainty. The immediate caller has exactly two declared hierarchy levels and one scalar specimen-row mean; adding arbitrary hierarchy/statistic callbacks or BCa infrastructure would exceed that caller.
+- Decision: add `hierarchical_bootstrap` to `marklab-cohort` and expose `marklab cohort hierarchical-bootstrap`. Version one validates unique specimens nested under at least two exact patients, computes the stable observed specimen-row mean, samples the original patient count with replacement, then samples each selected patient's original specimen count only within that patient occurrence. Multiplicity is preserved explicitly; every replicate completes.
+- Decision: report a deterministic nearest-rank percentile interval and retain replicate means in the scientific API for oracle/reuse consumers while keeping the CLI JSON bounded to summary fields. Bound conservative patient-by-maximum-child draws across replicates at 100 million. Use native deterministic mechanics and validate every replicate plus interval against an independent slow reference.
+- Alternatives: resample specimens globally; equalize patient weights without declaring a different statistic; arbitrary-depth framework before callers; BCa without design-aware jackknife; silently omit empty/failed replicates.
+- Consequences: COH-01, FND-06, INF-01D, and WS-34 gain one patient-first two-level bootstrap. Deeper hierarchies, missing-child policy, other statistics, BCa, repeated/multisite designs, and biological interpretation remain open.
+
+## DEC-0066 — Pin the first Bayesian workflow to PyMC 6.3.0 and a typed Normal model
+
+- Date: 2026-08-24
+- Status: accepted for BAY-NORMAL-01 under the full-program implementation mandate
+- Context: BAY-01/BAY-02 require an executable typed model and diagnostic lifecycle, while the full-program mandate authorizes established external inference products and prohibits a generalized backend registry before concrete reuse. A conjugate unknown-mean/known-sigma Normal model supplies an analytic oracle for the first complete boundary.
+- Decision: add `marklab-bayes` as owner of one backend-neutral `marklab.bayesian_model_ir` version-one Normal model, its explicit prior/likelihood semantics, NUTS sampling request, diagnostic policy, strict PyMC result normalization, and complete/nonconverged fit state. Execute one static repository worker with PyMC 6.3.0 (Apache-2.0) in a Python-3.12 `uv` environment whose complete transitive lock, exact lock digest, static worker digest, and PyPI artifact hashes are retained locally. Bind request bytes, backend version, environment lock, worker, seed, sampling controls, and resource limits; clear the inherited process environment; bound runtime and output; and reject schema/version/drift/non-finite failures.
+- Decision: complete status requires finite prior/posterior predictive draws, rank-normalized R-hat at most 1.01, bulk/tail ESS at least 400, zero divergences, and zero maximum-tree-depth hits. A finished sampler that misses the policy is published only as `nonconverged` with `diagnostic_only_nonconverged` claim status. The result also reports an observed-mean posterior predictive discrepancy and remains experimental even when complete.
+- Alternatives: implement native HMC/NUTS; accept free-form Python/model code or arbitrary JSON; create BACK-01's generalized registry before a second backend workflow; treat returned samples as success without diagnostics; wait for the paused PLAT-DUR-01 outcome.
+- Consequences: `marklab bayes normal-mean` recovers the analytic `Normal(2, sqrt(0.2))` posterior for `[1,2,3,4]`, produces byte-identical seeded output, and exposes typed nonconvergence. This advances bounded BAY-01/BAY-02/WS-40 behavior but does not complete the generalized registry, cross-backend promotion gate, hierarchical/spatial models, SBC, LOO, sensitivity, GPU execution, durable projects, or stable biological claims.
+
+## DEC-0067 — Make patient varying intercepts the first partial-pooling model
+
+- Date: 2026-08-24
+- Status: accepted for BAY-HIER-01
+- Context: the first Normal model validates the PyMC lifecycle but has no biological hierarchy. `BuildHierarchicalMixedModel` and `SummarizePartialPooling` require one explicit observation/biological-unit boundary and model-dependent group summaries; a general formula compiler, arbitrary random-effects graph, or spatial component would have no second immediate caller.
+- Decision: add one exact non-centered Gaussian patient varying-intercept IR and `marklab bayes hierarchical-normal`. Version one requires at least three exact patients with at least two finite scalar observations each; explicitly owns Normal global-mean, HalfNormal between-patient-SD, and known observation-SD conventions; and fixes patient as the biological hierarchy. Reuse the pinned PyMC 6.3.0 environment through a separate static model worker and the existing bounded process boundary, with exact lock/worker/request identities.
+- Decision: summarize global mean, heterogeneity, variance partition, patient raw/posterior means and intervals, and `1 - posterior_variance / approximate_unpooled_variance` shrinkage with the mandatory warning that shrinkage is model-dependent and not a quality score. Gate all global, heterogeneity, and patient-effect draws on prior/posterior finiteness, MCSE, E-BFMI, rank R-hat, bulk/tail ESS, divergences, tree depth, constraints, and identifiability; report global-mean and patient-mean-dispersion posterior-predictive distributions without binary model-truth claims.
+- Alternatives: pool all rows without patient effects; fit separate patients without pooling; use a centered parameterization on the deliberately weakly identified first fixture; add arbitrary formulas/random slopes/correlation/spatial fields; treat patient summaries as quality scores; implement native NUTS.
+- Consequences: BAY-03/BAY-HIER-A/WS-41 gain one runnable patient partial-pooling workflow with synthetic parameter recovery and inward shrinkage of both extreme raw means. Repeated/multisite effects, covariates, random slopes, missingness, unknown observation dispersion, sensitivity/SBC/cross-backend calibration, spatial fields, and stable biological claims remain open.
+
+## DEC-0068 — Marginalize the site effects in the first Bayesian meta-regression backend
+
+- Date: 2026-08-24
+- Status: accepted for BAY-META-01
+- Context: `BayesianRandomEffectsMetaAnalysis` requires global, covariate, heterogeneity, site, and new-site distributions. The direct centered PyMC transcription produced 13,621 divergent tree events on the recovery fixture and was correctly rejected; weakening the diagnostic gate or publishing that fit is prohibited.
+- Decision: expose `marklab bayes meta-analysis` for at least five unique sites with exact effect, positive known standard error, and one named varying raw covariate. Own explicit Normal global/slope priors, HalfNormal heterogeneity prior, latent site Normal hierarchy, and a requested new-site covariate. Use the algebraically equivalent marginalized observed likelihood `Normal(global + x*gamma, sqrt(tau^2 + se^2))` for NUTS, then reconstruct each latent site effect from its exact conditional Normal posterior and generate the new-site latent effect with a domain-separated deterministic seed.
+- Decision: retain exact sorted site/input/backend/lock/worker/request identities; summarize global/slope/heterogeneity, every site, and new-site prediction; and gate hyperparameters on the shared finite, constraint, identifiability, MCSE, E-BFMI, rank R-hat, bulk/tail ESS, divergence, and depth policy. Posterior predictive effect mean/dispersion remain diagnostics, not binary model truth or transportability evidence.
+- Alternatives: publish the divergent centered fit; weaken divergence thresholds; drop latent site effects; hide covariate centering/scaling; introduce arbitrary formulas/multiple covariates; implement native NUTS.
+- Consequences: BAY-03/BAY-HIER-A/WS-41 gain one runnable site/cohort meta-regression with parameter recovery and new-site prediction. Exchangeability, publication bias, multiple covariates, real external cohorts, sensitivity/SBC/cross-backend agreement, transportability, and stable biological/clinical claims remain open.
+
+## DEC-0069 — Bound the first exact GP to one physical axis and explicit dense work
+
+- Date: 2026-08-24
+- Status: accepted for BAY-GP-01
+- Context: `ExactGaussianProcessRegression` and `MaternKernel` are the first BAY-04/WS-42 functions. An exact dense workflow provides direct scientific value and a kernel convention oracle before sparse, multi-output, anisotropic, or nonstationary variants; unrestricted row counts would make user-selected NUTS work unbounded.
+- Decision: expose `marklab bayes gp-regression` for 5–128 unique one-dimensional micrometre observations and 1–2,048 explicit prediction coordinates. Own a constant Normal mean, positive HalfNormal amplitude/Matérn-3/2 length/noise priors, covariance `a^2(1+sqrt(3)r/l)exp(-sqrt(3)r/l)`, explicit positive jitter, and exact dense multivariate-Normal likelihood. Bind requested iterations and posterior conditioning to a two-billion-unit conservative `iterations*n^3 + draws*n^2*m` cap.
+- Decision: generate latent-field predictions with per-draw Cholesky conditioning; observation noise is present in the training covariance but not added to latent prediction covariance. Report all hyperparameters, predictions, observed-field mean/dispersion posterior predictive distributions, and the shared complete/nonconverged diagnostics. The initial 0.95-target run's 353 divergences were rejected; longer warmup and 0.99 target acceptance close the same fixture with zero divergences.
+- Alternatives: weaken the divergence gate; call row order a coordinate; omit physical units/range convention; use a rectangular pseudo-window; admit unbounded dense matrices; add sparse/multi-output/nonstationary abstractions before their callers; port NUTS.
+- Consequences: BAY-04/BAY-FIELD-A/WS-42 gain exact one-dimensional GP interpolation and the canonical consumed Matérn-3/2 kernel. This remains experimental synthetic evidence and makes no two-dimensional tissue, anisotropy, nonstationarity, sparse-scale, calibration, biological, or clinical claim.
+
+## DEC-0070 — Fix one loading and use known noise in the first multi-output GP
+
+- Date: 2026-08-24
+- Status: accepted for BAY-MOGP-01
+- Context: `MultiOutputGP` requires explicit identifiability for latent loadings. A first exact one-factor model with loading A fixed to 1 and positive loading B still inferred two near-zero output-noise scales; it produced zero divergences but 535 maximum-tree-depth hits and a 142-second nonconverged run. Weakening the gate or accepting that runtime is prohibited.
+- Decision: expose `marklab bayes multi-output-gp` for exactly two complete outputs on 5–64 shared one-dimensional micrometre coordinates and one latent Matérn-3/2 process. Fix output-A loading to 1, constrain output-B loading positive, infer separate means/amplitude/length/loading, and require caller-supplied known positive noise SD for each output. Own the exact block covariance `[[K,bK],[bK,b^2K]]`, explicit output names, jitter, and bounded dense-work request.
+- Decision: perform per-draw exact joint Cholesky conditioning for both latent outputs and report loading/hyperparameters, both prediction distributions, and observed/replicated cross-output correlation under the shared diagnostics. Reject constant outputs and all missing/non-finite rows.
+- Alternatives: publish the depth-limited fit; weaken depth criteria; infer weak near-zero noise without stronger data; leave loading sign/scale unidentified; fit two independent GPs; add arbitrary output/latent counts or rotational post-processing before callers.
+- Consequences: `MultiOutputGP` has a runnable identifiable one-factor/two-output owner with positive-loading recovery and joint prediction. Negative dependence, more outputs/processes, missing modalities, inferred noise, rotationally ambiguous factors, sparse scale, biological complementarity, and general multimodal modeling remain open.
+
+## DEC-0071 — Keep the inducing-point GP explicitly approximate and multi-start
+
+- Date: 2026-08-24
+- Status: accepted for BAY-VIGP-01
+- Context: exact GP work is bounded but cubic. `VariationalInducingPointGP` requires inducing coordinates, VFE/ELBO optimization, multiple starts, and exact-GP comparison without presenting an approximate posterior as converged exact inference. PyMC 6.3.0 provides a maintained Titsias VFE marginal approximation for Gaussian likelihoods.
+- Decision: expose `marklab bayes variational-gp` for 8–2,000 one-dimensional micrometre observations, 3–64 inducing points with `m<n`, and 1–2,048 predictions. Initialize inducing locations at coordinate quantiles, infer them under an ordered transform, use PyMC's VFE bound (analytically collapsed Gaussian inducing-state optimum), and run two-to-four independently seeded mean-field ADVI starts with explicit iteration/rate/draw/work limits.
+- Decision: stable output is always `approximate_only`, never `complete`. Require finite prior/posterior/predictive values, terminal ELBO improvement, per-start tail relative change <=0.2, and maximum cross-start prediction RMSE <=0.5; otherwise return typed `nonconverged`. Retain every start's ELBO diagnostics and selection. Record gradient norm as unavailable and importance correction as not run rather than inventing evidence.
+- Alternatives: call VFE exact; use one favorable start; hide inducing initialization/optimization; fabricate HMC/R-hat or gradient diagnostics; omit exact comparison; add an unpinned GP framework.
+- Consequences: `VariationalInducingPointGP` and its ELBO have a runnable approximate-only owner with direct exact-GP agreement on the small fixture. Minibatching, natural gradients, held-out/importance correction, large-scale calibration, alternative inducing initialization, non-Gaussian likelihoods, and production-scale evidence remain open.
+
+## DEC-0072 — Expose predictive-process loss without materializing a dense field matrix
+
+- Date: 2026-08-24
+- Status: accepted for BAY-PREDPROC-01
+- Context: `LowRankPredictiveProcess` is the deterministic prerequisite for predictive-process approximation, but a raw `n*n` matrix would waste memory and a library-only helper would violate the immediate-caller rule. Its primary scientific risk is hidden residual variance/oversmoothing.
+- Decision: implement native exact Matérn-3/2 `Kmm + jitter I` Cholesky, streamed Knm rows, low-rank diagonal `diag(Knm Kmm^-1 Knm^T)`, and nonnegative residual diagonal under 10-million-element and 500-million-work-unit caps. Retain Kmm Cholesky/Knm/residuals in the scientific API and expose `marklab bayes predictive-process` with explicit knots/kernel/units/diagonal-correction state and bounded per-coordinate residual/trace summaries.
+- Decision: diagonal correction adds only the exact residual variance to the represented diagonal; it does not restore off-diagonal covariance or make the approximation exact. Materially negative residuals are numerical failure rather than clamped silently.
+- Alternatives: publish a dense low-rank matrix; hide residual variance; call diagonal correction exact inference; add a general matrix package; leave the function internal without a production caller.
+- Consequences: `LowRankPredictiveProcess` has a runnable diagnostic owner and exact knot/interior oracle. Fitting, posterior uncertainty, off-diagonal error, oversmoothing calibration, 2-D tissue fields, and production-scale claims remain open.
+
+## DEC-0073 — Use ascending physical order for the first NNGP
+
+- Date: 2026-08-24
+- Status: accepted for BAY-NNGP-01
+- Context: `BuildNNGP` requires an ordering and nearest predecessor policy that are part of the approximation. In one dimension, ascending physical order makes the nearest predecessors exactly the immediately preceding rows, avoiding an unnecessary quadratic neighbor search while retaining deterministic semantics.
+- Decision: implement native `build_nngp` for 2–10,000 unique micrometre coordinates and 1–64 predecessors. Sort by coordinate, select the last `min(m,i)` rows, solve each Matérn-3/2 predecessor covariance with explicit jitter, require `F_i` above caller tolerance, retain indices/B/F, and cap conservative `n*m^3` work at 500 million units. `nngp_log_density` consumes every centered field value in conditional order.
+- Decision: expose `marklab bayes nngp-density` and optional full dense reference for at most 128 rows. The reference is an independent Cholesky likelihood over the same jittered covariance; with `m=n-1` both densities must agree.
+- Alternatives: arbitrary input order; all-pairs predecessor search in 1-D; silent nonpositive F clamp; omit jitter/tolerance; call the sparse density fitted inference.
+- Consequences: `BuildNNGP` and `NNGPLogDensity` have runnable owners and an exact full-factorization oracle. Space-filling 2-D order, approximate-neighbor indexing, fitted NNGP posterior, prediction, calibration, tissue validation, and production-scale evidence remain open.
+
+## DEC-0074 — Freeze spatial-weight semantics before CAR/SAR/GMRF
+
+- Date: 2026-08-24
+- Status: accepted for BAY-WEIGHTS-01
+- Context: CAR/SAR/GMRF functions cannot safely share an untyped edge table because symmetry, diagonal, normalization, islands, and component structure change the estimand and admissible parameter range. A general graph framework is unnecessary for the immediate sparse matrix callers.
+- Decision: implement native `validate_spatial_weights` for exact sorted region IDs and unique positive directed edges with explicit required/not-required symmetry, zero/allowed diagonal, and preserve/row-standardize policy. Apply symmetry to supplied weights before normalization, identify weak undirected components and islands, retain normalized sparse rows, and compute a versioned SHA-256 over policies/IDs/exact weight bits.
+- Alternatives: infer regions from edges; silently symmetrize; silently drop self/zero/negative weights; always row-standardize; hide islands; digest input file order.
+- Consequences: `ValidateSpatialWeights` has a runnable deterministic owner through `marklab bayes validate-weights`. Signed weights, alternative symmetrization, higher-order adjacency, geometric construction, fitted models, and biological graph meaning remain open; CAR callers must request preserved symmetric zero-diagonal weights explicitly.
+
+## DEC-0075 — Keep intrinsic CAR normalization and islands explicit
+
+- Date: 2026-08-24
+- Status: accepted for BAY-CAR-01
+- Context: proper and intrinsic CAR share an adjacency graph but not a normalization measure. Treating singular intrinsic precision as an ordinary full-rank Gaussian, silently assigning island priors, or omitting component constraints would make reported densities incomparable or undefined.
+- Decision: implement native bounded `car_density` over IC-0047 preserved symmetric zero-diagonal weights and expose `marklab bayes car-density`. Proper mode uses `Q=tau*(D-rho*W)` only when Cholesky proves positive definiteness and rejects islands. Intrinsic mode uses `Q=tau*(D-W)`, requires a sum-to-zero field per non-island component, reports one rank deficiency per constraint, and normalizes each constrained subspace with `log(k)+log(det(any cofactor))`.
+- Decision: version one makes island handling `reject` or `exclude`; exclusion contributes neither field value nor implicit iid prior. Dense diagnostic factorization is limited to 2–512 regions and 200,000 edges. The strict result binds the validated-weight digest and retains mode, parameters, constraints, rank deficiency, excluded region IDs, and an experimental diagnostic claim ceiling.
+- Alternatives: pseudo-inverse density without naming the measure; silent ridge regularization; implicit iid island effects; an unconstrained intrinsic density; fitted CAR/BYM/SAR inference before a direct likelihood caller; a general sparse linear-algebra abstraction before its immediate workflow.
+- Consequences: `ProperCARPrecision`, `IntrinsicCARPrecision`, and their normalized log-density mechanics have one runnable owner and hand oracles. General constrained GMRF input, SAR likelihood, BYM/BYM2 fitting, sparse-scale solvers, spatial confounding, tissue validation, and biological or clinical claims remain open.
+
+## DEC-0076 — Define general GMRF density on an explicit Euclidean constrained subspace
+
+- Date: 2026-08-24
+- Status: accepted for BAY-GMRF-01
+- Context: CAR supplies graph-specific constraints, but `GMRFLogDensity` must also support caller-declared homogeneous linear constraints. A singular-matrix pseudo-determinant alone does not identify the support measure or prove that the supplied field belongs to it.
+- Decision: implement native bounded `gmrf_log_density` and expose `marklab bayes gmrf-density` over an exact named sparse-triplet precision and named constraint rows. Require exact finite symmetry and an explicit diagonal; never silently symmetrize, jitter, or repair rank. Reject dependent rows and constraint-violating fields under caller tolerance.
+- Decision: construct a deterministic orthonormal null-space basis with twice-reorthogonalized modified Gram–Schmidt, project Q, prove positive definiteness by Cholesky, and normalize with constrained dimension `n-rank(C)`. Version one is dense and diagnostic-only, capped at 256 regions, 65,536 stored entries, and 255 constraints.
+- Alternatives: an unnamed pseudo-inverse density; arbitrary non-orthonormal coordinates without Jacobian accounting; silent constraint dropping; implicit ridge repair; a sparse solver abstraction before a fitted caller; reuse only CAR component constraints and call it general.
+- Consequences: `GMRFLogDensity` has a runnable owner and independent projected-diagonal oracle. Sparse-scale factorization, affine/nonzero constraints, fitted GMRF posteriors, SAR, BYM/BYM2, spatial confounding, tissue validation, and biological or clinical claims remain open.
+
+## DEC-0077 — Separate the Gaussian SAR likelihood core from fitted inference
+
+- Date: 2026-08-24
+- Status: accepted for BAY-SAR-LIKE-01
+- Context: lag and error SAR inference both require the exact transformed Gaussian likelihood and `log|det(I-rho W)|`. Hiding that numerical core inside a sampler would make determinant, residual, and impact oracles harder to test, while calling fixed parameters a fitted model would overstate the result.
+- Decision: implement native bounded `sar_gaussian_log_likelihood` and expose `marklab bayes sar-likelihood` over IC-0047 island-free row-standardized zero-diagonal weights, complete response/design, matched coefficients, rho, and sigma. Partial-pivot LU proves nonsingularity and supplies the log absolute determinant; lag uses `Ay-Xbeta`, error uses `A(y-Xbeta)`.
+- Decision: version one accepts only a declared descriptive interpretation. Lag mode reports direct/total multipliers from the exact dense inverse and coefficient-scaled indirect effects; error mode reports no spillover impacts. The strict result is explicitly a fixed-parameter experimental likelihood, not a fit or posterior.
+- Alternatives: omit the Jacobian; use ordinary least squares residuals for both modes; silently constrain rho by an assumed symmetric spectrum; call fixed coefficients estimated; report causal impacts without a causal design; add a general dense linear-algebra dependency for bounded LU.
+- Consequences: the numerical likelihood core of `SpatialAutoregressiveModel` has a runnable owner and hand/pivot oracles. Parameter fitting, prior sensitivity, posterior diagnostics, uncertainty in impacts, sparse-scale solvers, causal interpretation, tissue validation, and biological or clinical claims remain open.
+
+## DEC-0078 — Fit SAR through the pinned lifecycle without changing likelihood semantics
+
+- Date: 2026-08-24
+- Status: accepted for BAY-SAR-FIT-01
+- Context: IC-0050 provides independently testable lag/error likelihood mechanics, but fitted uncertainty requires a maintained sampler, strict parameter support, and the same diagnostic/identity policy as the existing Bayesian workflows. Reimplementing NUTS or allowing a worker-specific residual would break those owners.
+- Decision: add a typed `SarFitModelIr` and static PyMC 6.3.0 worker for 6–64 regions and 1–16 full-rank predictors. Use explicit Normal intercept/coefficient, Uniform bounded rho, and HalfNormal sigma priors. The worker evaluates exactly the IC-0050 Jacobian/residual, while Rust rejects nonstandardized/island weights and confounded designs before execution.
+- Decision: posterior predictive draws solve the declared lag/error system per posterior draw. Lag descriptive impact distributions use each exact dense inverse; error mode emits none. Exact lock/worker/request/data/weights identities and the shared NUTS diagnostic policy determine `complete` or `nonconverged`; the latter is never upgraded based on favorable parameter summaries.
+- Alternatives: duplicate the likelihood only in Python without a native oracle; native NUTS; omit determinant; constrain rho using symmetry-specific eigenvalues despite directed weights; report plug-in impacts without posterior uncertainty; weaken ESS/divergence gates for a small fixture.
+- Consequences: `SpatialAutoregressiveModel` has a runnable fixed and fitted Gaussian lag/error owner. The lag recovery fixture completes; applying error mode to lag-generated data truthfully remains diagnostic-only when ESS fails. Larger error-model calibration, sparse scale, non-Gaussian SAR, causal interpretation, tissue validation, and biological or clinical claims remain open.
+
+## DEC-0079 — Represent BYM ICAR support with an exact noncentered transform
+
+- Date: 2026-08-24
+- Status: accepted for BAY-BYM-01
+- Context: PyMC's available ICAR primitive enforces sum-to-zero with a narrow Normal penalty, while the pseudocode and IC-0048 require an exact constrained subspace. BYM also needs structured and unstructured components to remain separately identifiable and reportable.
+- Decision: add native `build_icar_plan` for 6–64 regions using IC-0047 preserved symmetric binary zero-diagonal island-free weights. Canonicalize each connected component, build its orthonormal Helmert basis, project `D-W`, Cholesky-factor the constrained precision, and return `T=ZL^-T`, verified by component sums and `T'QT=I`.
+- Decision: fit Poisson log-offset BYM through a static PyMC 6.3.0 worker as `structured_sd*Tz + unstructured_sd*v`, with independent standard-Normal raw effects and explicit HalfNormal scales. Preserve separate field/risk summaries, exact component constraints/rank deficiency, identities, PPC, and standard complete/nonconverged diagnostics.
+- Alternatives: PyMC soft ICAR constraint; ridge the singular precision; use proper CAR; silently drop islands; combine both components before reporting; implement NUTS natively; call unscaled BYM equivalent to BYM2.
+- Consequences: `BYMModel` has a runnable exact-constraint owner and synthetic recovery evidence. BYM2 scaling/mixing, broader priors/likelihoods, disease-map calibration, spatial confounding, real epidemiology, biology, causality, and clinical claims remain open.
+
+## DEC-0080 — Scale BYM2 ICAR variance before mixing components
+
+- Date: 2026-08-24
+- Status: accepted for BAY-BYM2-01
+- Context: BYM's structured scale depends on graph topology, so directly mixing its unit-precision field with iid unit variance would make phi graph-dependent and uninterpretable. BYM2 requires an explicit graph scaling convention before sigma and phi can represent total magnitude and structured fraction.
+- Decision: extend the immediate ICAR owner to compute diagonal generalized variances from `TT'`, use their geometric mean as the graph's typical marginal variance, and divide T by its square root. Retain original and scaled values and require the scaled geometric mean to equal one within `1e-12`; the worker independently recomputes it within `1e-10`.
+- Decision: fit `sigma*(sqrt(phi)*u_star+sqrt(1-phi)*v)` through a static PyMC 6.3.0 worker with caller-declared HalfNormal sigma and Beta phi priors. Preserve separate contributions, combined field, risks, exact constraints, identities, PPC, and the standard diagnostic/claim gates.
+- Alternatives: call unscaled BYM a BYM2 model; arithmetic-mean or undocumented scaling; estimate separate component scales plus phi; soft constraints; omit scale provenance; report phi as causal attribution.
+- Consequences: `BYM2Model` has a runnable scaled-ICAR owner and synthetic recovery evidence. Prior calibration, larger graphs, other likelihoods, spatial confounding, real epidemiology, biology, causality, and clinical claims remain open.
+
+## DEC-0081 — Center the varying coefficient field in an orthonormal subspace
+
+- Date: 2026-08-24
+- Status: accepted for BAY-SVC-01
+- Context: a spatial mean coefficient and an unconstrained GP field mean are aliased, while multiplying a varying field by a predictor does not itself solve that identifiability problem. The existing exact GP worker does not own predictor-specific coefficient semantics.
+- Decision: add a typed one-global/one-spatial-predictor Gaussian workflow for 8–64 one-dimensional micrometre coordinates. Require the fixed intercept/global/spatial-mean design to have full rank. Supply a deterministic Helmert basis from Rust, project the exact Matérn-3/2 covariance, and sample a noncentered Cholesky field whose deviation sums exactly to zero.
+- Decision: retain known observation noise, inferred positive amplitude/length, every deviation/varying coefficient, strict identities, response PPC, and established NUTS gates through a static PyMC 6.3.0 worker. The result remains experimental 1-D regression and does not imply causal heterogeneity or tissue meaning.
+- Alternatives: leave the field mean unconstrained; center only posterior summaries; treat the spatial predictor as a varying intercept; reuse independent pointwise coefficients; introduce 2-D/SPDE before its mesh prerequisite; implement NUTS natively.
+- Consequences: `SpatiallyVaryingCoefficientModel` has a runnable bounded owner and synthetic recovery evidence. Multiple fields/predictors, GMRF coefficients, non-Gaussian likelihoods, 2-D tissue, multiplicity-aware map decisions, calibration, causality, biology, and clinical claims remain open.
+
+## DEC-0082 — Audit PyMC SMC stages instead of discarding its resampling state
+
+- Date: 2026-08-24
+- Status: accepted for BAY-SMC-01
+- Context: pinned PyMC SMC exposes beta, acceptance, and evidence by default, but its kernel already computes conditional weights, ESS, and systematic-resampling indices without publishing them. Returning only default summaries would not satisfy the pseudocode's ESS path and ancestry artifact.
+- Decision: subclass the exact pinned PyMC 6.3.0 IMH kernel inside a source-digested static worker. After each weight update record `1/sum(w^2)`; after each systematic resample retain every ancestor index. Add these bounded arrays to PyMC sample stats alongside beta/acceptance/evidence and strictly validate them in Rust.
+- Decision: expose `marklab bayes normal-mean-smc` on the existing conjugate typed model with explicit particles/chains/ESS target/correlation threshold. Report method-specific diagnostics and never fabricate NUTS metrics. Raise the shared process-capture ceiling to 16 MiB for complete ancestry while all earlier request contracts keep their 1 MiB output limit.
+- Alternatives: omit ancestry; publish only an ancestry digest; reimplement SMC mechanics natively; infer ESS from final equally weighted particles; label SMC output with NUTS diagnostics; accept nondeterministic process scheduling.
+- Consequences: `RunAnnealedSMC` has a runnable maintained-backend owner with exact posterior/evidence oracle and byte-deterministic ancestry. Other models/kernels, calibration, parallel reproducibility, large-particle memory evidence, and scientific claims remain open.
+
+## DEC-0083 — Keep Laplace optimization and curvature exact but its posterior approximate
+
+- Date: 2026-08-24
+- Status: accepted for BAY-LAPLACE-01
+- Context: Laplace approximation needs a robust mode, small gradient, and positive identifiable-space Hessian. A favorable mode alone is insufficient, while a Gaussian approximation must not inherit the `complete` state used for exact NUTS/SMC workflows.
+- Decision: expose `marklab bayes poisson-log-rate-laplace` for a typed scalar Poisson-exposure log-rate model. Use pinned SciPy 1.18.1 BFGS with exact PyTensor 3.2.4 gradient and bounded Newton refinement; evaluate the exact second derivative at the mode and require positive negative Hessian before inversion.
+- Decision: report optimizer/evaluation/message/gradient, mode/log joint, Hessian/variance/condition, Normal log-rate and explicit lognormal rate summaries, deterministic PPC, and strict identities. Valid output is always `approximate_only`; failures remain `nonconverged`. Reject count/exposure aggregates outside exact backend ranges before execution.
+- Alternatives: finite-difference gradients/Hessian; accept optimizer status without gradient; absolute-value a negative Hessian; call the Gaussian approximation exact; hide transformed-rate semantics; implement a general optimizer/Hessian framework before another caller.
+- Consequences: `RunLaplaceApproximation` has a runnable established-backend owner and analytic oracle. Multivariate/sparse modes, transformations beyond log rate, numerical marginal correction, HMC comparison, INLA nesting, calibration, and scientific claims remain open.
+
+## DEC-0084 — Validate nested Laplace integration against the same latent model
+
+- Date: 2026-08-24
+- Status: accepted for BAY-INLA-01
+- Context: the pseudocode requires conditional latent modes, Hessian determinants, low-dimensional hyperparameter integration, and a small-problem HMC comparison. Calling one Gaussian mode “INLA” or comparing against a different parameterization would not establish those mechanics.
+- Decision: expose a bounded Poisson-lognormal model with independent latent log rates conditional on one Gamma precision. Integrate on the caller's evenly spaced log-tau grid using exact PyTensor gradients, bounded SciPy optimization/Newton refinement, exact diagonal Hessians, Gamma density, log-coordinate Jacobian, and trapezoidal quadrature. Integrate conditional Gaussian mixtures for latent/tau summaries.
+- Decision: compare latent means with a noncentered PyMC 6.3.0 NUTS parameterization of the exact same model. Require shared NUTS diagnostics, endpoint masses, normalization, mode gradients, positive Hessians, and RMSE at most 0.15. Rust recomputes worker-reported grid and diagnostic gates. Even valid output remains `approximate_only`.
+- Alternatives: label scalar Laplace as nested inference; omit the Jacobian or determinant; normalize grid points as equal discrete masses; compare with a different prior/likelihood; trust worker booleans; use an unavailable external R-INLA environment; introduce a general approximation framework before its next caller.
+- Consequences: `RunInlaStyleApproximation` has one runnable established-backend small-model owner and NUTS comparison. Sparse non-diagonal GMRFs, adaptive integration designs, simplified/full marginal corrections, 2-D/SPDE models, external INLA agreement, calibration, and scientific claims remain open.
+
+## DEC-0085 — Keep the held-out scientific unit explicit in PSIS-LOO
+
+- Date: 2026-08-24
+- Status: accepted for BAY-PSIS-LOO-01
+- Context: pointwise log likelihood alone does not prove that each column is a valid independent leave-one-out unit. The pinned ArviZ API already owns maintained Pareto smoothing and its sample-size-dependent reliability threshold, while its former top-level `psislw` helper is not present in ArviZ 1.3.0.
+- Decision: accept one complete chain/draw/unit log-likelihood matrix plus a required held-out-unit declaration and explicit relative MCMC efficiency. Canonicalize and validate the full rectangular matrix in Rust, then call pinned ArviZ 1.3.0/arviz-stats 1.3.1 `loo(pointwise=True)` through a static source-bound worker.
+- Decision: retain every pointwise ELPD/Pareto-k and exact high-k unit. Recompute totals, maximum k, threshold membership, warning, and recommendations in Rust. High-k output remains available but is labeled `requires_refit_or_kfold`; no unavailable model refit is invented.
+- Alternatives: treat rows or cells as implicitly independent; implement generalized-Pareto fitting natively; use the retired API name; omit chain shape/relative efficiency; suppress high-k units; reject all output when one unit is influential; build generalized model comparison before a concrete PSIS result exists.
+- Consequences: `PSISLOO` has a runnable maintained-backend owner with benign exact-LOO agreement and an influential-unit warning oracle. Exact refits, grouped K-fold execution, transformed-response Jacobians, mixture importance sampling, moment matching, compatible model comparison, calibration, and scientific claims remain open.
+
+## DEC-0086 — Compare only compatibility-bound pointwise predictive artifacts
+
+- Date: 2026-08-24
+- Status: accepted for BAY-COMPARE-01
+- Context: equal-length ELPD arrays do not prove that models target the same observations, likelihood, preprocessing, or held-out scientific unit. Aggregate ELPD differences also lose the pointwise variation needed for comparison uncertainty.
+- Decision: extend the immediate PSIS producer with exact model name/likelihood target and declared data/preprocessing SHA-256 identities. Compare only strict published PSIS artifacts whose target, identities, held-out-unit kind, and ordered unit IDs match exactly. Revalidate each artifact from physical JSON before use.
+- Decision: report all lexical pairwise A-minus-B pointwise ELPD sums with `sqrt(n*sample variance)` SE and deterministic descending-ELPD ranks. Preserve all source identities and Pareto reliability; any high-k source propagates `requires_refit_or_kfold`. Do not add stacking or generalized comparison abstractions without an immediate validated caller.
+- Alternatives: compare totals only; align units by position without IDs; accept mismatched preprocessing; suppress Pareto warnings after ranking; auto-select the highest score; introduce stacking before its validation fixture; require equal posterior sample counts despite compatible held-out predictive targets.
+- Consequences: `CompareBayesianModels` has a runnable native compatibility/arithmetic owner using established PSIS artifacts. Stacking, model weights, exact refits, grouped K-fold, multiple likelihood targets, calibration, model-selection decisions, and scientific claims remain open.
+
+## DEC-0087 — Validate SBC mechanics first against an exchangeable exact posterior
+
+- Date: 2026-08-24
+- Status: accepted for BAY-SBC-01
+- Context: simulation-based calibration combines generative simulation, inference, randomized ranks, failures, uniformity, coverage, and autocorrelation handling. Running many NUTS fits first would confound calibration-procedure defects with sampler convergence and serial-correlation defects.
+- Decision: implement one bounded typed Normal-mean/known-sigma SBC workflow using the exact conjugate posterior and independent posterior draws through pinned NumPy/SciPy. Derive a separate deterministic seed for every replicate's simulation and posterior draws; retain strict-below ranks with randomized tie handling and every truth/posterior/coverage/z/shrinkage value.
+- Decision: use a bounded 20-bin discrete-uniform chi-square diagnostic, rank ECDF with a declared 1% DKW envelope, 95% coverage standardized error, z mean/SD, shrinkage, and failure rate. Rust recomputes all mechanics except SciPy's chi-square survival probability. Explicitly state that autocorrelation correction is unnecessary only for these independent draws.
+- Alternatives: begin with repeated NUTS and ambiguous failures; use one global random stream; drop failed fits; assume continuous draws make tie policy irrelevant; report ranks without uniformity/coverage; add a general calibration framework before one typed caller; claim exact-posterior SBC calibrates PyMC.
+- Consequences: `SimulationBasedCalibration` has a runnable tractable owner with byte-deterministic rank/coverage evidence. NUTS/SMC/VI/Laplace SBC, autocorrelation-adjusted ranks, multivariate quantities, hierarchical/field/point-process calibration, power, and scientific claims remain open.
+
+## DEC-0088 — Tie prior sensitivity to posterior, prediction, and one declared decision
+
+- Date: 2026-08-24
+- Status: accepted for BAY-SENS-01
+- Context: a table of posterior means alone neither tests predictive consequences nor identifies whether an actual declared conclusion changes. Selecting an alternative prior because it yields a preferred result would invert the purpose of sensitivity analysis.
+- Decision: expose one exact conjugate Normal-mean workflow over 2–32 caller-declared named priors with one base. For every prior compute exact posterior mean/SD, exact leave-one-out predictive ELPD, and `P(mu>threshold)` for a caller-declared threshold/probability decision. Report all base differences and exact conclusion changes/material mean shifts.
+- Decision: use the pinned SciPy worker for Normal tail probability while Rust independently recomputes conjugate posterior, leave-one-out predictive, delta, decision-threshold, and flag mechanics. Preserve exact observation/prior/request identities and state that scientific plausibility of the grid remains external.
+- Alternatives: compare posterior means only; use in-sample likelihood; choose the most favorable prior; silently invent a decision threshold; importance-reweight without diagnostics; build a general sensitivity framework before one typed caller; rerun NUTS for an exactly tractable model.
+- Consequences: `RunPriorSensitivity` has one runnable tractable owner with posterior/predictive/decision evidence. Hierarchical/field priors, reweighting diagnostics, sampler refits, multiple decision quantities, elicitation, real-data plausibility, and scientific claims remain open.
+
+## DEC-0089 — Prove quadrature coverage by deriving it from a rectangle grid
+
+- Date: 2026-08-24
+- Status: accepted for BAY-IPP-LIKE-01
+- Context: arbitrary supplied nodes and weights can sum to window area without covering the window, so that check alone cannot satisfy the point-process likelihood's integration contract. Existing polygon/window infrastructure is entangled with the explicitly paused root workflow and is not generalized for this milestone.
+- Decision: admit one exact half-open micrometre rectangle and a complete regular midpoint grid. Require one `(ix,iy)` covariate/offset row per cell, derive all midpoint geometry and equal weights internally, cap the grid at one million nodes, and enforce event membership in the exact rectangle.
+- Decision: expose one fixed intercept/one-covariate log-linear likelihood with compensated event/integral sums and strict non-finite failure. Retain exact input digests, units, rectangle/grid/cell geometry, terms, and claim ceiling. Do not introduce general quadrature, polygon, field-interpolation, or fitted-model infrastructure before its immediate caller.
+- Alternatives: accept arbitrary weights by sum only; reuse paused PLAT/root geometry; approximate a polygon by its bounding box; hide physical units; saturate exponential overflow; jump directly to fitted IPP/LGCP; introduce a general formula engine.
+- Consequences: `InhomogeneousPoissonLogLikelihood` has a runnable native rectangular owner and constant-intensity oracle. Multiple covariates, arbitrary exact windows, quadrature refinement, Berman–Turner data, fitted Bayesian IPP, residuals, posterior prediction, LGCP, and scientific claims remain open.
+
+## DEC-0090 — Fit the exact rectangular likelihood before generalizing point processes
+
+- Date: 2026-08-24
+- Status: accepted for BAY-IPP-FIT-01
+- Context: fitting against a Poisson cell-count surrogate without the event term would not exercise the IC-0062 point-process likelihood. Conversely, continuous posterior prediction within cells would claim interpolation unavailable from midpoint-only covariates.
+- Decision: fit the exact IC-0062 event-sum minus derived-grid integral as a PyMC Potential with caller-declared Normal intercept/coefficient priors. Require materially varying grid covariate, canonical event-to-cell counts, bounded NUTS/draw-cell work, and shared diagnostics.
+- Decision: report posterior cell intensity, expected count, and Pearson residual at every derived midpoint. Simulate posterior-predictive Poisson cell counts under the explicit piecewise-constant quadrature approximation; do not fabricate continuous locations or quadrature convergence. Rust revalidates cell geometry/data bindings, supports, totals, and diagnostic state.
+- Alternatives: fit ordinary Poisson regression on cell counts; omit event covariates; interpolate a continuous surface; simulate uniform within-cell locations without declaring the approximation; introduce arbitrary formula/polygon support; move directly to LGCP; implement NUTS natively.
+- Consequences: `FitBayesianInhomogeneousPoisson` has one runnable bounded maintained-backend owner with positive-effect synthetic recovery. Multiple predictors, replicated patterns, quadrature refinement, arbitrary windows, residual-process diagnostics, continuous posterior simulation, LGCP, calibration, and scientific claims remain open.
+
+## DEC-0091 — Make Berman–Turner weights a cell partition and retain refinement
+
+- Date: 2026-08-24
+- Status: accepted for BAY-BT-01
+- Context: simply unioning observed and dummy points with the full cell weight would overcount window measure, while returning one table without a finer comparison would omit the pseudocode's required resolution/convergence evidence.
+- Decision: in each regular rectangle cell, split exact cell area equally among every observed event and one midpoint dummy. Use namespaced deterministic node IDs, `1/weight` observed response, zero dummy response, and the parameter-dependent weighted Poisson objective. Require positive weights and compensated total equal to exact window area.
+- Decision: construct both a coarse and nested integer-multiple fine table, cap each output at 100,000 nodes, retain the full fine table, and report objective change against caller tolerance. General covariate convergence remains empirical; only constant intensity has exact IC-0062 equivalence.
+- Alternatives: assign full cell weight to every node; omit observed nodes; omit dummy nodes in occupied cells; accept unrelated grids; report only the finest resolution; hide parameter-independent constants as full Poisson likelihood; build arbitrary Voronoi weights before exact geometry ownership.
+- Consequences: `BuildBermanTurnerData` has a runnable rectangular owner with refinement artifact and exact constant oracle. Arbitrary windows/tessellations, adaptive dummy placement, fitted GLM comparison, multiple predictors, stronger convergence studies, and scientific claims remain open.
+
+## DEC-0092 — Construct LGCP cells and covariance before fitting the latent field
+
+- Date: 2026-08-24
+- Status: accepted for BAY-LGCP-BUILD-01
+- Context: an LGCP fit is not interpretable until cell/window intersection, event counting, covariate evaluation, physical kernel distance, jitter, and covariance positive definiteness have one exact artifact. The available rectangle grid permits exact full cells but not arbitrary polygon intersections.
+- Decision: build a 2–64-cell exact half-open rectangle model with center-evaluated covariate/offset, exact event-to-cell counts, and caller Normal fixed-effect priors. Use a zero-mean dense two-dimensional Euclidean Matérn-3/2 field with physical length scale, diagonal-only jitter, and deterministic Cholesky proof.
+- Decision: retain every cell, exact covariance values/digest, storage/work counts, and a typed Poisson area-offset likelihood declaration. Return `not_fitted`; do not add posterior fields, continuous interpolation, mesh semantics, or reuse the existing one-dimensional GP as if it were two-dimensional.
+- Alternatives: fit before validating cells; treat the existing 1-D GP as a 2-D field; approximate polygons by rectangles; omit event-count conservation; add jitter off diagonal; hide center evaluation; introduce SPDE without its mesh prerequisite.
+- Consequences: `BuildGriddedLGCP` has a runnable bounded exact-cell/model owner. Fitted latent fields, inferred hyperparameters, posterior prediction, refinement/calibration, arbitrary windows, SPDE, replicated patterns, and scientific claims remain open.
+
+## DEC-0093 — Fit the validated dense LGCP through its exact supplied factor
+
+- Date: 2026-08-24
+- Status: accepted for BAY-LGCP-FIT-01
+- Context: reconstructing a covariance or field discretization inside the numerical backend could drift from IC-0065, while centered latent sampling would add avoidable posterior geometry cost. Inferring weakly identified kernel hyperparameters in the first nine-cell synthetic workflow would also expand the scientific claim before calibration evidence exists.
+- Decision: retain fixed caller-declared amplitude, physical length, and jitter; send IC-0065's exact dense covariance and deterministic lower Cholesky to a source-bound PyMC 6.3.0 worker; and sample independent standard-Normal field coordinates with a noncentered Cholesky transform. Verify covariance symmetry, triangularity, positive diagonal, and factor product before fitting.
+- Decision: use the exact cell-area Poisson likelihood and shared NUTS diagnostic gates. Retain every cell's latent effect, intensity, expected count, Pearson residual, and posterior-predictive total/zero-cell summaries while binding exact model/data/covariance/request identities. Complete output stays experimental.
+- Alternatives: rebuild the kernel in Python; use a centered multivariate Normal; infer kernel amplitude/length immediately; reuse the event-sum IPP Potential without the latent field; fabricate continuous within-cell locations; introduce mesh/SPDE fitting before its exact 2-D mesh prerequisite.
+- Consequences: `FitGriddedLGCP` has a runnable bounded maintained-backend owner with positive fixed-effect and nonconstant latent-field recovery. Inferred kernels, retained posterior draws, explicit replicated pattern artifacts, continuous interpolation, arbitrary windows, refinement/calibration, SPDE, and scientific claims remain open.
+
+## DEC-0094 — Materialize gridded LGCP replicas without inventing continuous intensity
+
+- Date: 2026-08-24
+- Status: accepted for BAY-LGCP-PPC-01
+- Context: aggregate predictive count summaries do not satisfy `SimulateLGCPPosteriorPredictive`, but the admitted center-evaluated grid has no information that could justify continuous within-cell variation, an adaptive intensity bound, or thinning. Publishing raw posterior arrays in the existing fit schema would also expand that result solely for a downstream workflow.
+- Decision: add a separate predictive command that runs the exact IC-0066 lifecycle, deterministically selects one exact chain/draw per requested replica, and materializes patterns before the posterior arrays leave the source-bound worker. Sample cell counts from the selected expected counts and locations uniformly inside exact full cells, which is exact for the declared piecewise-constant discretization.
+- Decision: retain every selected fixed/latent draw, intensity, expectation, count, point ID/cell/coordinate, and approximation limitation. Rust independently recomputes posterior index selection and intensities, validates every point against its cell, enforces realized-point/output bounds, and permits publication only for complete fits. The existing fitted-LGCP result schema remains unchanged.
+- Alternatives: expose arbitrary posterior arrays from the fit; reconstruct draws from marginal summaries; claim a continuous field; interpolate cell centers silently; use thinning without a certified bound; omit point coordinates and call counts a point pattern; proceed to SPDE before exact mesh ownership.
+- Consequences: `SimulateLGCPPosteriorPredictive` has a runnable deterministic exact-cell owner with byte-repeatable replicated patterns. Spatial K/g envelopes, continuous/refined intensity, arbitrary windows, inferred kernels, SBC, model adequacy, replicated hierarchical LGCPs, SPDE, and scientific claims remain open.
+
+## DEC-0095 — Use pinned distribution samplers and an exact dilated rectangle for Thomas simulation
+
+- Date: 2026-08-24
+- Status: accepted for BAY-THOMAS-SIM-01
+- Context: a Thomas simulator needs scientifically standard Poisson and Normal draws plus reproducible streams. Hand-rolling rejection algorithms would add numerical risk, while sampling parents only in the observed rectangle creates boundary bias and sampling from an expanded bounding box without rejection changes the parent measure.
+- Decision: add direct pinned `rand` 0.8.6, `rand_chacha` 0.3.1, and `rand_distr` 0.4.3 dependencies to `marklab-bayes`; all are already present in the locked dependency graph. Use seeded ChaCha20 with maintained Poisson/Normal samplers. These dependencies become the shared immediate simulation boundary for the Thomas workflow and its next matched Matérn-cluster caller.
+- Decision: dilate the exact rectangle by six Gaussian SDs, sample a homogeneous parent process over the exact rounded Minkowski shape by bounded-box rejection, and retain the exact expanded area and radial Gaussian tail bound. Abort on realized resource overflow and retain latent parents plus generated/retained/discarded offspring accounting.
+- Alternatives: implement Poisson/Normal samplers locally; use operating-system entropy; sample parents only inside the observed window; silently use the expanded bounding box; use an unbounded Gaussian expansion; omit latent parents or discarded offspring.
+- Consequences: `SimulateThomasProcess` can have deterministic maintained distribution mechanics and explicit finite boundary approximation. Exact infinite-plane simulation, adaptive expansion, arbitrary windows, fitted cluster inference, adequacy, biology, and clinical claims remain open.
+
+## DEC-0096 — Share exact parent-window mechanics but preserve Matérn disc semantics
+
+- Date: 2026-08-24
+- Status: accepted for BAY-MATERN-CLUSTER-SIM-01
+- Context: Thomas and Matérn cluster processes share homogeneous Poisson parents on a dilated rectangle, seeded streams, and resource accounting, but their offspring laws and boundary claims differ materially. Duplicating parent rejection risks geometric drift; collapsing both into one public generic simulator would obscure those scientific differences.
+- Decision: reuse narrow crate-private seed, Poisson-count, exact dilation-area, rounded-rectangle rejection, and half-open membership functions from the immediate Thomas owner. Keep a separate typed Matérn API/result and sample offspring uniformly on the disc using square-root radius and uniform angle.
+- Decision: expand by exactly the bounded offspring radius and label that parent-window treatment exact for the declared rectangle process. Retain latent parents, parent-child identities, all generated/retained/discarded counts, distribution identity, and caps independently from the Thomas result.
+- Alternatives: duplicate all geometry; sample radius uniformly; sample parents from the expanded bounding rectangle; reuse Gaussian displacement; introduce a speculative public Neyman–Scott framework; omit latent parents; call the simulator fitted inference.
+- Consequences: `SimulateMaternClusterProcess` has a deterministic exact-window bounded owner sharing only stable mechanics with Thomas. Latent-parent inference, arbitrary windows, cluster adequacy, hierarchical replication, SBC, biology, and clinical claims remain open.
+
+## DEC-0097 — Fit Thomas K contrast while naming the missing likelihood comparison
+
+- Date: 2026-08-25
+- Status: accepted for BAY-THOMAS-MC-01
+- Context: the pseudocode admits minimum contrast but requires fitting-range/weight sensitivity and likelihood comparison where feasible. The local environment has a pinned SciPy optimizer but no admitted latent-parent likelihood backend, and the K curve does not separately identify mean offspring without observed intensity.
+- Decision: fit the established Thomas K formula through source-bound SciPy 1.18.1 least squares on log kappa/log sigma with exact caller bounds and fourth-root contrast. Require caller point intensity and derive `mu=intensity/kappa`. Run caller-weighted full-range primary, unit-weight full-range, and caller-weighted interior-range fits.
+- Decision: retain full optimizer state and fitted-curve arithmetic, and revalidate all formulas/objectives in Rust. Publish likelihood comparison as typed unavailable with the BAY-CLUSTER-FIT-01 backend reason; do not substitute the simulator or call contrast a likelihood.
+- Alternatives: optimize natively; fit raw K without declared transform; omit range/weight sensitivity; infer mu from K alone; fabricate latent parents; report optimizer success without independent arithmetic; block all independent cluster work on RJMCMC.
+- Consequences: `FitClusterProcessMinimumContrast` has a runnable typed Thomas owner and exact-curve recovery oracle. Noisy finite-sample calibration, Matérn contrast, likelihood agreement, latent parents, arbitrary windows, model adequacy, biology, and clinical claims remain open.
+
+## DEC-0098 — Make Strauss pair and insertion boundaries identical
+
+- Date: 2026-08-25
+- Status: accepted for BAY-STRAUSS-STAT-01
+- Context: a Strauss sufficient statistic and Papangelou insertion intensity disagree if one uses `<R` and the other `<=R`, counts ordered pairs, or silently permits insertion on an existing point. Gamma zero also makes an unstated `0^0` convention observable.
+- Decision: admit exact simple finite point patterns and use Euclidean `distance<=R` for both unordered existing pairs and proposal neighbors. Reject coordinate-duplicate insertion; define gamma-zero intensity as beta for zero neighbors and zero otherwise; cap exact O(n^2) pair visits before execution.
+- Decision: expose separate native `StraussStatistics` and `StraussPapangelou` APIs with one CLI artifact binding their common radius and pattern identity. Retain counts, proposal, beta/gamma, pair work, and claim ceiling without a partition function or fit label.
+- Alternatives: ordered pairs; inconsistent radius boundaries; allow duplicate insertion; rely on floating `pow(0,0)` implicitly; call the unnormalized statistic a likelihood; add a spatial index before a workload requires it.
+- Consequences: both pseudocode mechanics have exact hand-oracle owners and can serve the immediate Gibbs simulator. Fitting, normalization, edge-conditioned inference, scaling, adequacy, biology, and clinical claims remain open.
+
+## DEC-0099 — Retain finite-chain evidence for Strauss birth/death simulation
+
+- Date: 2026-08-25
+- Status: accepted for BAY-GIBBS-SIM-01
+- Context: birth/death acceptance requires the area/proposal Jacobian and leave-one-out Papangelou intensity. Returning only a terminal pattern would hide null transitions, finite burn-in, count drift, resource consumption, and whether either move type was accepted.
+- Decision: start empty and use equal birth/death proposals with exact rectangle-uniform births and uniform existing-point deaths. Apply the standard area/count Metropolis ratios with IC-0071 inclusive-radius/gamma-zero mechanics and a domain-separated pinned ChaCha20 stream.
+- Decision: retain the complete bounded count trace, proposal/acceptance/null/rejection counts, neighbor visits, maximum/final count, post-burn overall and half means/drift, and the gamma-one Poisson expected count. Label the terminal pattern finite-chain experimental simulation regardless of favorable diagnostics.
+- Alternatives: omit Hastings area/count factors; force birth from empty instead of retaining a null death; discard the trace; claim the final state exact; use unbounded iterations/point work; introduce a generalized Papangelou callback before another typed process exists.
+- Consequences: `SimulateGibbsBirthDeath` has a runnable bounded Strauss owner with byte-repeatable Poisson special-case evidence. General mixing validation, perfect simulation, fitted Gibbs inference, arbitrary windows, scaling, adequacy, biology, and clinical claims remain open.
+
+## DEC-0100 — Fit Strauss pseudolikelihood on exact area-partition tables at two resolutions
+
+- Date: 2026-08-25
+- Status: accepted for BAY-GIBBS-PL-01
+- Context: fitting only one dummy grid hides quadrature sensitivity, while ordinary Poisson regression without observed/dummy area partition or leave-one-out observed features does not represent the Strauss pseudolikelihood.
+- Decision: build nested coarse/fine Berman–Turner-style tables in Rust, split every cell's exact area among its observations and one dummy, and compute IC-0071 inclusive-radius neighbor counts with self excluded at observed nodes. Bound table and neighbor work before execution.
+- Decision: use source-bound SciPy 1.18.1 for constrained log-beta/log-gamma weighted-Poisson optimization. Retain exact gradient/Hessian conditioning, inverse-Hessian SE, 2x2-window-block sandwich SE, objective improvement, and coarse/fine sensitivity; Rust recomputes the objective and result state.
+- Alternatives: one grid; full cell weight per node; include an observed point as its own neighbor; unconstrained gamma above one; call pseudolikelihood normalized likelihood; omit robust/refinement evidence.
+- Consequences: `FitGibbsPseudolikelihood` has a runnable bounded inhibitory-Strauss owner. Likelihood normalization, exchange MCMC, arbitrary windows, large-scale indexing, calibration, biology, and clinical claims remain open.
+
+## DEC-0101 — Keep Geyer saturation pointwise and distinct from attractive Strauss
+
+- Date: 2026-08-25
+- Status: accepted for BAY-GEYER-STAT-01
+- Context: attractive Strauss gamma above one is generally not a valid substitute for a saturated stable model, and Geyer statistic conventions can count saturation pointwise or through alternative density parameterizations.
+- Decision: count inclusive-radius unordered pairs into endpoint neighbor counts and return `sum_i min(s,n_i)`, retaining every raw/saturated value and exact pair work. Saturation zero is explicitly zero. Do not attach a fitted interaction parameter or stability claim.
+- Consequences: `GeyerSaturationStatistic` has an exact fixed-pattern owner. Stable Geyer simulation/fitting, normalization, calibration, biology, and clinical claims remain open.
+
+## DEC-0102 — Require a complete symmetric matrix for the first multitype conditional intensity
+
+- Date: 2026-08-25
+- Status: accepted for BAY-MULTITYPE-PAP-01
+- Context: missing type-pair rows, implicit zero interactions, asymmetric radii, or silent directionality make a multitype Gibbs model ambiguous. A general spatial baseline-field evaluator has no current typed owner.
+- Decision: admit exact constant log baselines and a complete exact-symmetric ordered KxK potential/radius table. Apply each proposal-to-existing pair under an inclusive pair-specific radius, retain every contribution, and reject exponent overflow. Directional and spatially varying models remain separate.
+- Consequences: `MultitypePapangelou` has an exact typed owner. Fitting, regularization, multiplicity, varying baselines, simulation, calibration, biology, and clinical claims remain open.
+
+## DEC-0103 — Factor joint categorical marks conditionally on exact-grid locations
+
+- Date: 2026-08-25
+- Status: accepted for BAY-JOINT-MARK-01
+- Context: a mark-only classifier does not model locations, while separate type-specific point processes do not express conditional mark allocation or a nested random-labeling comparison. Softmax fields are unidentified without a reference.
+- Decision: combine the exact rectangle/grid location component with a reference-category softmax mark component using mark covariate, declared neighborhood effect, and independent nonreference fields. Fix all reference parameters/field to zero and require comparison to zero neighborhood/field random labeling.
+- Consequences: `BuildJointLocationMarkModel` has a typed construction owner. Fitting, shared fields, posterior comparison, calibration, biology, and clinical claims remain open.
+
+## DEC-0104 — Identify the continuous shared field by fixing its location loading
+
+- Date: 2026-08-25
+- Status: accepted for BAY-JOINT-CONT-MARK-01
+- Context: shared-field scale and two unrestricted loadings are aliased, and sign can flip with the field. Separate private fields must not be silently conflated with shared correlation.
+- Decision: fix shared Matérn amplitude/length/jitter and location loading one, require a positive mark loading, and keep independent private location/mark fields. Require nested zero-shared-loading comparison before joint structure is supported.
+- Consequences: `BuildJointContinuousMarkModel` has an identified typed construction owner. Posterior fitting, inferred kernels, comparison evidence, calibration, biology, and clinical claims remain open.
+
+## DEC-0105 — Identify embedding factor rotation through a positive lower-triangular loading block
+
+- Date: 2026-08-25
+- Status: accepted for BAY-EMBED-FACTOR-01
+- Context: unconstrained latent factors/loadings admit rotations and sign flips, while high-dimensional location coefficients overfit without shrinkage.
+- Decision: require ordered embedding dimensions, constrain the first K loading rows lower triangular with positive diagonal, use fixed-scale physical Matérn factor fields, and regularize remaining loadings/location-factor coefficients. Require simpler vector-variogram and kernel-mark-correlation comparisons.
+- Consequences: `JointLocationEmbeddingLatentFactorModel` has a typed construction owner. Fitting, selected factor interpretation, calibration, domains, biology, and clinical claims remain open.
+
+## DEC-0106 — Preserve replicated LGCP windows and make field sharing explicit
+
+- Date: 2026-08-25
+- Status: accepted for BAY-REPL-LGCP-01
+- Context: concatenating replicate patterns invents cross-window distances and erases patient/specimen units; an unspecified shared field confounds population, patient, and replicate variation.
+- Decision: bind each pattern's window/grid/covariate identity, retain patient nesting, and require either shared-hyperparameter independent fields or patient-shared plus replicate fields with separate amplitudes. Never concatenate likelihoods into one window.
+- Consequences: `ReplicatedHierarchicalLGCP` has a typed construction owner. Joint fitting, calibration, field-policy comparison, biology, and clinical claims remain open.
+
+## DEC-0107 — Use identical translation-K estimators and a max-deviation simultaneous PPC envelope
+
+- Date: 2026-08-25
+- Status: accepted for BAY-PP-DIAG-01
+- Context: comparing observed and replicated curves with different edge correction is invalid, while pointwise intervals do not control a curve-level excursion and a binary PPC pass implies more than diagnostics support.
+- Decision: use exact rectangle translation correction for every observed/replicated pattern, aggregate patterns identically, and form a standardized maximum-deviation simultaneous envelope at caller alpha. Retain exceeded radii descriptively and state that consistency is not model truth.
+- Consequences: `PosteriorPredictivePointProcessDiagnostics` has a count/K owner. g/F/G/J/mark summaries require their own same-estimator contracts; calibration and scientific claims remain open.
+
+## DEC-0108 — Keep complete vectors intact and isolate training-fitted projection
+
+- Date: 2026-08-25
+- Status: accepted for EMB-VARIO-01, EMB-PROJ-VARIO-01, and EMB-CROSS-COV-01
+- Context: coordinate-wise embedding tests are rotation-dependent, fitting PCA on held-out rows leaks evaluation information, pointwise component/scale p-values do not control their joint family, and an unsymmetrized outer product depends on arbitrary unordered-pair orientation.
+- Decision: make squared Euclidean vector semivariance the primary exact invariant curve; fit centered PCA only on training biological units through pinned SciPy 1.18.1, freeze and independently validate its eigenvectors before applying it to held-out splits, random-label complete projected vectors within declared strata, and use single-step max-T across component × scale. For matrix summaries, center once globally and symmetrize each undirected distance-bin cross-covariance before reporting trace/Frobenius invariants and the full matrix artifact. Keep these bounded synthetic workflow owners beside the immediate joint embedding model consumer; do not claim the still-missing canonical real-asset geometry/provenance foundation.
+- Consequences: the three pseudocode functions have runnable, typed owners and behavior oracles. Real `CellEmbeddingTable` admission, canonical shared spatial plans/edge correction, technical-confounder validation, patient-level comparison, null calibration beyond the projected workflow, and stable EMB-01/WS-50 promotion remain open.
+
+## DEC-0109 — Make cross-modal eligibility and exchangeability explicit
+
+- Date: 2026-08-25
+- Status: accepted for EMB-CROSS-MODAL-COV-01
+- Context: aligning modality rows by position fabricates correspondence, arbitrary pair orientation/weight defaults change the estimand, and unrestricted relabeling breaks section and compartment structure.
+- Decision: require an exact A-ID/B-ID/source-section/compartment/bin/positive-weight pair plan. Center globally or by declared compartment policy, normalize rectangular outer products by bin weight, report full matrices plus Frobenius invariants, and relabel complete B vectors only within source-section × compartment strata. Use single-step max-T across physical bins.
+- Consequences: `CrossModalCovarianceByDistance` has a bounded synthetic owner. Registration/correspondence validation, missing-modality policy, patient-level comparison, real multimodal data, biology, and clinical claims remain open.
+
+## DEC-0110 — Freeze kernel preprocessing and scale from training units
+
+- Date: 2026-08-25
+- Status: accepted for EMB-KERNEL-01
+- Context: centering or bandwidth selection on validation/test rows leaks evaluation information, while an unnamed similarity may not be positive semidefinite and a nonpositive global reference makes ratio normalization invalid.
+- Decision: fit feature centering only on training biological units; use exact centered linear/cosine kernels or freeze RBF/Laplacian scale at the median positive training-pair Euclidean/L1 distance. Label the exact four formulas PSD, retain the artifact, compute complete split-specific global references, and return typed unavailable normalization whenever the reference does not exceed caller tolerance.
+- Consequences: `BuildEmbeddingKernel` and `KernelMarkCorrelation` have one immediate runnable workflow. Learned kernels, nested outcome validation, approximate pair sampling, random-label inference, real technical-confounder evidence, and stable promotion remain open.
+
+## DEC-0111 — Random-label complete embedding rows and reuse canonical ERL semantics
+
+- Date: 2026-08-25
+- Status: accepted for EMB-GLOBAL-ENV-01
+- Context: independently permuting embedding dimensions destroys the observed multivariate mark distribution, pointwise bands do not control the curve family, and the repository's canonical ERL implementation is private to the paused root package.
+- Decision: permute complete vector rows within exact declared strata, recompute the full vector-semivariogram curve, and reproduce the canonical average-tie, sorted extreme-rank-vector, normalized-depth ERL algorithm with a plus-one global p-value and simultaneous depth envelope. Keep this owner local rather than modifying the explicitly paused PLAT/root tree; preserve byte-deterministic seeded order and bounded work.
+- Consequences: `TestEmbeddingSpatialDependence` is runnable for the vector-semivariogram curve. Additional curve functions can enter only with an immediate caller; general inference ownership, calibration, edge correction, patient-level designs, and real-asset promotion remain open.
+
+## DEC-0112 — Own one exact symmetric graph contract across global, null, and local roughness
+
+- Date: 2026-08-25
+- Status: accepted for EMB-GRAPH-ENERGY-01, EMB-GRAPH-PERM-01, and EMB-LOCAL-ROUGH-01
+- Context: hidden directed-edge duplication changes the Laplacian quadratic form and edge-weight denominator, normalized Laplacians are undefined at islands, coordinate-wise permutation destroys vector marks, and local roughness values are not multiplicity-controlled hotspots.
+- Decision: represent `W` as unique unordered positive-weight edges implying a symmetric zero-diagonal matrix and bind one canonical graph digest. Support combinatorial and symmetric-normalized Laplacians; require positive degrees for the latter. Define NONE/SIGNAL/full-symmetric-EDGE_WEIGHT denominators explicitly. For inference, permute complete signal rows within strata and use the inclusive plus-one low-energy alternative. For local output, retain islands with epsilon denominator/typed status and prohibit inferential labels.
+- Consequences: `GraphDirichletEnergy`, `GraphSmoothnessPermutationTest`, and `LocalEmbeddingRoughness` share one bounded synthetic graph owner. Canonical FND-03 graph provenance/scale, graph-selection calibration, multiplicity-controlled local inference, patient-level validation, real data, and stable GSP/WS-62 promotion remain open.
+
+## DEC-0113 — Reuse C-05 links and aggregate patch dependence before effective count
+
+- Date: 2026-08-25
+- Status: accepted for EMB-CELL-PATCH-CONTEXT-01 and EMB-PATCH-DEPENDENCY-01
+- Context: C-05 already owns exact cell/patch IDs, context/scale, declared rational weights, shared vector-free references, overlap components, physical receipts, and link identity. A second link validator would duplicate and weaken that authority; raw linked-patch count would also overstate independent information when patches overlap.
+- Decision: map pseudocode `ValidateCellPatchLinks` to the existing `CellPatchLink::{derive_contained_shared,from_declared_weighted_interpolation}` constructors and receipt validation. Build context only after table/link/overlap identities agree and all linked vectors are present. Normalize equal or exact declared weights, accumulate the vector in `f64`, aggregate normalized mass by `PatchOverlapGraph` component, and define descriptive effective count as Kish `1/sum(component_weight^2)`. Retain `patient_not_patch` as the mandatory inferential-unit policy.
+- Consequences: `ValidateCellPatchLinks`, `CellPatchContext`, and `PatchDependencyWeighting` have canonical production owners without another graph/link schema. Real cell/patch source correspondence, predictive complementarity, calibration, patient-held-out outcomes, biology, and stable FR-02/WS-51 promotion remain open.
+
+## DEC-0114 — Nest every predictive choice inside patient folds and reuse paired inference
+
+- Date: 2026-08-25
+- Status: accepted for EMB-COMPLEMENT-01
+- Decision: run M0–M5 standardization and ridge-alpha selection solely inside inner patient folds through pinned SciPy 1.18.1, refit on outer training, predict each patient once, retain calibration, and reuse Marklab's paired patient sign-flip owner for six prespecified absolute-error increments. Synthetic success cannot establish real incremental value.
+
+## DEC-0115 — Keep multiscale weights prespecified and retrieval exact
+
+- Date: 2026-08-25
+- Status: accepted for EMB-MULTISCALE-KERNEL-01 and EMB-RETRIEVAL-01
+- Decision: combine exact aligned scale summaries with positive caller-prespecified sum-one weights and report drop-one-scale sensitivity. Fit retrieval standardization only on training regions, use exact Euclidean search with recall one, enforce patient/site filters, decompose distance by component, and label matches analogous rather than biologically identical.
+
+## DEC-0116 — Propagate fingerprint endpoint uncertainty without upgrading the inferential unit
+
+- Date: 2026-08-25
+- Status: accepted for COH-REGION-COMPAT-01
+- Decision: reuse the exact versioned fingerprint distance, interpret its endpoint uncertainty values as independent standard uncertainties, and propagate through each curve L2 norm by the first-order delta method. Combine weighted component uncertainty by root-sum-square, but return unavailable at a zero-distance nondifferentiable component with positive uncertainty. Keep the result within-patient descriptive only.
+
+## DEC-0117 — Separate OOD fitting, threshold calibration, and abstention application
+
+- Date: 2026-08-25
+- Status: accepted for EMB-OOD-01 and EMB-ABSTAIN-01
+- Decision: fit population mean/covariance on training representations, shrink only off-diagonal covariance by a caller-prespecified amount, calibrate a nearest-rank Mahalanobis threshold on domains held out from training, and score test units only. Apply separately prespecified uncertainty/OOD thresholds with strict exceedance and suppress abstained predictions while retaining canonical reasons.
+
+## DEC-0118 — Keep calibration and conformal quantiles on disjoint patient splits
+
+- Date: 2026-08-25
+- Status: accepted for EMB-CALIBRATE-01 and EMB-CONFORMAL-01
+- Decision: fit Platt calibration only on patient-level OOF scores and reserve test labels for evaluation. For binary conformal prediction, fit a regularized model on train patients, compute `1-p(true label)` on separate calibration patients, use corrected rank `ceil((n+1)(1-alpha))`, and construct test sets without test-label access. Use pinned SciPy 1.18.1 for both numerical fits and make Rust replay probabilities, metrics, quantiles, sets, and coverage accounting.
+
+## DEC-0119 — Fuse declared OOF probabilities with explicit availability indicators
+
+- Date: 2026-08-25
+- Status: accepted for EMB-LATE-FUSION-01
+- Decision: require every base-probability row to declare `patient_level_out_of_fold`, use neutral probability `0.5` plus an availability indicator for a missing modality, fit a positive-L2 logistic meta-model on meta-training patients, and fit Platt calibration on a disjoint calibration split. Report observed missingness scenarios and test-time modality ablations as predictive diagnostics, never causal contributions.
+
+## DEC-0120 — Optimize fusion only on patient-held-out predictive evidence
+
+- Date: 2026-08-25
+- Status: accepted for EMB-STACKING-01 and EMB-MOE-01
+- Decision: predictive stacking maximizes patient-grouped mixture log density under a simplex and reports exact leave-one-patient refit sensitivity; its weights are not posterior probabilities. Mixture-of-experts gates only declared patient-OOF expert probabilities, excludes named technical shortcut contexts, masks unavailable experts exactly, and uses positive L2 plus entropy regularization. Both use pinned SciPy 1.18.1 with strict Rust response replay; gating calibration and context OOD thresholds use disjoint calibration patients.
+
+## DEC-0121 — Separate balanced, relaxed-marginal, and fixed-mass transport semantics
+
+- Date: 2026-08-25
+- Status: accepted for REG-SINKHORN-01, REG-UNBAL-OT-01, and REG-PARTIAL-OT-01
+- Decision: balanced transport requires equal totals and uses explicit log-domain dual updates; unbalanced transport relaxes marginals with separately declared source/target KL penalties; partial transport instead enforces a fixed transported mass with capacity inequalities through pinned SciPy 1.18.1. All three report complete objective decompositions, convergence/feasibility, zero/unmatched mass, exact identities, and the non-correspondence claim ceiling. Do not silently substitute one mass model for another.
+
+## DEC-0122 — Pin POT for FGW and replay its nonconvex plans independently
+
+- Date: 2026-08-25
+- Status: accepted for REG-SOFT-ASSIGN-01, REG-FGW-01, and REG-PARTIAL-FGW-01
+- Decision: reuse balanced log-domain Sinkhorn for explicit dustbin compatibility and pin MIT-licensed POT 0.9.7.post1 for advanced FGW work. Balanced FGW runs independent-mass, feature-EMD, and structure-profile-EMD starts. Fixed-mass partial FGW uses POT's log-domain entropic partial-Wasserstein subproblem with an explicit matrix-valued FGW linearization because POT 0.9.7's partial-FGW convenience wrapper collapses its feature gradient to a scalar. Rust replays every plan, constraint, objective component, convergence state, and selection. Keep the pseudocode alpha convention as feature weight and prohibit correspondence claims.
+- Consequences: entropic soft assignment, balanced FGW initialization sensitivity, and fixed-mass partial FGW alpha/mass/epsilon/initialization sensitivity are runnable. KL-unbalanced FGW remains backend-blocked: POT's unbalanced co-optimal transport is a different two-coupling estimand and cannot be silently substituted.
+
+## DEC-0123 — Establish simulation ownership with one consumed mechanistic solver
+
+- Date: 2026-08-25
+- Status: accepted for SIM-GROWTH-01
+- Decision: add `marklab-simulation` as the dedicated layer for mechanistic simulator contracts and numerical behavior, with an immediate `marklab simulate growth-front` caller. Start with a deterministic 1-D Fisher–KPP specialization using exact logistic reaction splitting and CFL-bounded conservative no-flux diffusion. Do not place the formula in CLI/Bayesian code, generalize an unused simulator framework, or describe the output as a tumour forecast.
+- Consequences: WS-70 has one canonical consumed simulator and WS-71 has one mechanistic growth-front workflow. General reaction–diffusion, coupled agents/fields, stochastic sources, observation models, validation banks, and SBI remain open.
+
+## DEC-0124 — Split spatial competition into invariant-preserving flows
+
+- Date: 2026-08-25
+- Status: accepted for SIM-COMPETE-01
+- Decision: model self-limitation with the exact logistic flow, cross-species competition and declared treatment as simultaneous exponential loss, and spatial diffusion with the same no-flux CFL-bounded operator as the growth-front control. Use symmetric composition so zero-competition/treatment and one-species limits have direct oracles. Record threshold crossings as simulation events, not empirical extinction or causal treatment effects.
+- Consequences: `SimulateSpatialCompetition` has a live deterministic density-field owner. Agent competition, stochastic process noise, parameter fitting, biological calibration, and causal interpretation remain separate.
+
+## DEC-0125 — Bound exact stochastic agent competition before adding scale machinery
+
+- Date: 2026-08-25
+- Status: accepted for SIM-AGENT-01
+- Decision: implement the continuous-time event process with deterministic ChaCha20 replay, exact pairwise opposite-species neighborhood counts, reflected rectangular movement, complete event accounting, and hard event/agent/pair/log bounds. Reuse already locked random packages. Do not copy the paused root spatial index or claim dynamic-index scale without a representative workload and benchmark.
+- Consequences: `SimulateAgentCompetition` has a live bounded owner and absorbing-state/replay oracles. Efficient dynamic indexing, richer local rate models, calibration, and evolutionary inference remain open.
+
+## DEC-0126 — Specialize general reaction–diffusion before admitting arbitrary solver callbacks
+
+- Date: 2026-08-25
+- Status: accepted for SIM-RD-01
+- Decision: expose a typed scalar linear/logistic reaction on a bounded regular periodic 2-D grid, using exact reaction flows and the CFL-bounded explicit five-point diffusion operator. Reuse the already locked RustFFT implementation for a centered periodic spectrum. Do not accept executable reaction callbacks or imply arbitrary mesh, stochastic, stiff, or boundary-condition support. Linear instability bands are available only at a homogeneous reaction equilibrium.
+- Consequences: the scalar periodic specializations of `SimulateReactionDiffusion` and `AnalyzeReactionDiffusionPattern` have a live CLI caller and analytical controls. Vector Turing systems, boundary/discretization sensitivity ensembles, adaptive/implicit solvers, stochastic forcing, and biological calibration remain open.
+
+## DEC-0127 — Keep level-set speed data-bound and reinitialization explicitly quadratic
+
+- Date: 2026-08-25
+- Status: accepted for SIM-INTERFACE-01
+- Decision: admit one static spatial normal-speed field plus nonnegative curvature weight on a regular 2-D grid, rather than executable speed callbacks or speculative coupling interfaces. Use first-order Godunov Hamilton–Jacobi updates with linear-extrapolation ghosts. Reinitialize from explicit zero-contour samples and expose/bound every cell-by-sample distance visit instead of implying fast-marching scale.
+- Consequences: `EvolveInterfaceLevelSet` has a consumed deterministic specialization with planar motion and reinitialization oracles. Time-varying/local-field speeds, higher-order schemes, fast marching/sweeping, adaptive grids, topology guarantees beyond retained sign/crossing evidence, and mechanistic calibration remain open.
+
+## DEC-0128 — Admit declared flow fields without inventing vessel hemodynamics
+
+- Date: 2026-08-25
+- Status: accepted for SIM-VASCULAR-01
+- Decision: require the caller to label a complete static velocity field as an approximation, map declared vessel sources and cell uptake to a bounded regular grid, and advance them with exact local source/linear-uptake flow around conservative arithmetic-face diffusion and first-order upwind advection. Retain complete mass accounting and four-neighbor hypoxic regions. Do not infer flow from source geometry or claim vessel-graph hemodynamics.
+- Consequences: `SimulateVascularTransport` has a live bounded specialization with source/uptake, diffusion, and advection oracles. External hemodynamics, graph/boundary exchange, nonlinear uptake, dynamic coupling, implicit/high-order schemes, and real calibration remain open.
+
+## DEC-0129 — Use a proper exact Gaussian hierarchy for the first resource-response fit
+
+- Date: 2026-08-25
+- Status: accepted for BAY-RESOURCE-01
+- Decision: compute unsigned Euclidean distance to declared resource segments and fit a prespecified linear hinge spline with compartment, resource-density, accessibility, and patient random-intercept terms. With declared known noise and proper fixed Normal prior scales, solve the complete joint Gaussian posterior exactly by bounded Cholesky algebra. Do not introduce a numerical backend, sample an already conjugate posterior, estimate unsupported variance components, or interpret the response as transport causality.
+- Consequences: `FitDistanceToResourceModel` has a deterministic live owner with patient/resource posterior predictive checks. Signed distances, inferred dispersion/hierarchy scales, GP/non-Gaussian response, network accessibility, real calibration, and causal interpretation remain open.
+
+## DEC-0130 — Couple existing simulators through explicit one-way interval state
+
+- Date: 2026-08-25
+- Status: accepted for SIM-MECH-01
+- Decision: compose the canonical vascular, reaction–diffusion, level-set, and agent solvers in a declared one-way interval order. Mean oxygen saturation scales density growth and agent birth/additional death; local oxygen/density sets interface speed. Require exact shared grid/window geometry, aggregate work bounds, deterministic interval seed derivation, and absorbing extinction. Do not introduce a generic coupling framework or bypass module validators.
+- Consequences: `SimulateMechanisticTissue` has a consumed bounded specialization with analytical cross-module evidence. Reciprocal/substep coupling, dynamic vessels, richer fields, observation noise, calibration, and digital-twin claims remain open.
+
+## DEC-0131 — Start SBI summaries with one explicit differentiable pair-density estimand
+
+- Date: 2026-08-25
+- Status: accepted for SIM-SUMMARY-01
+- Decision: define the first differentiable spatial summary as a Gaussian kernel density over exact unordered pair distances, normalized by pair count and bandwidth, with no edge correction and same-window comparison. Expose analytic pair-distance derivatives and immediately consume the curve in a caller-weighted squared summary loss. Do not introduce a generic autodiff or summary framework.
+- Consequences: `SoftPairHistogram` and the pair-summary specialization of `SummaryMatchingLoss` are runnable with a closed-form oracle and permutation invariance. Other summaries, boundary correction, inference, learned losses, and simulator calibration remain open.
+
+## DEC-0132 — Give SBI its own layer and begin with exact rejection accounting
+
+- Date: 2026-08-25
+- Status: accepted for SBI-ABC-01
+- Decision: add `marklab-sbi` as the narrow orchestration layer above canonical simulators, with an immediate root CLI caller. Implement the first `RejectionABC` specialization over Fisher–KPP growth rate, final mass, uniform prior, scaled absolute distance, inclusive epsilon, deterministic ChaCha20 proposals, and hard aggregate declared work. Do not put inference inside the simulator or CLI, or generalize an unused SBI framework.
+- Consequences: classical rejection ABC is runnable and exactly replayable on a synthetic analytic control. General simulator/summary registries, adaptive ABC/SMC, real calibration, discrepancy models, and biological posterior claims remain open.
+
+## DEC-0133 — Preserve the full SMC-ABC importance mixture at every stage
+
+- Date: 2026-08-25
+- Status: accepted for SBI-SMC-ABC-01
+- Decision: use a caller-declared strictly decreasing epsilon schedule, weighted categorical ancestor selection, a Gaussian perturbation with scale adapted to `sqrt(2)` times weighted SD, and exact importance denominator over every previous weighted particle. Normalize and retain ESS/stage accounting; bound all possible stage proposal work. Do not replace the mixture denominator with ancestor-only weights or call rejection sampling SMC.
+- Consequences: the fixed-schedule growth-front specialization of `SMC_ABC` is runnable and deterministic. Adaptive tolerances, multivariate kernels, resampling policy comparisons, general catalogs, discrepancy, and real calibration remain open.
+
+## DEC-0134 — Make stochasticity and noisy likelihood state explicit in synthetic likelihood
+
+- Date: 2026-08-25
+- Status: accepted for SBI-SYNTH-01
+- Decision: augment deterministic growth-front mass/maximum summaries with caller-declared independent Gaussian observation noise, estimate a two-dimensional Gaussian synthetic likelihood from full simulator replicates, shrink only off-diagonal covariance, and require positive determinant. Random-walk MCMC retains the current noisy estimate on rejection. Bound the initial plus all possible proposal evaluations and report Monte Carlo mean uncertainty.
+- Consequences: `EstimateSyntheticLogLikelihood` and `SyntheticLikelihoodMCMC` have a consumed deterministic-seed specialization. The likelihood remains approximate; unbiased correction, richer summaries/noise, adaptive replication, general catalogs, discrepancy, and biological calibration remain open.
+
+## DEC-0135 — Calibrate the complete prior–simulator–inference composition
+
+- Date: 2026-08-25
+- Status: accepted for SBI-SBC-01
+- Decision: draw truth from the same uniform prior used by IC-0117, simulate observed mass through the canonical growth-front owner, rerun rejection ABC under a domain-separated replicate seed, and rank truth among every accepted draw. Retain all replicate failures and equal-tailed coverage; propagate non-acceptance-independent errors. Bound observed plus worst-case inference simulation work before calibration.
+- Consequences: the growth-front/rejection-ABC specialization of `SimulationBasedCalibration` is runnable with rank and coverage evidence. This validates implementation calibration on one synthetic control, not real-model adequacy or general SBI calibration.
+
+## DEC-0136 — Separate simulation-bank representation fitting from OOD threshold calibration
+
+- Date: 2026-08-25
+- Status: accepted for SBI-OOD-01
+- Decision: fit featurewise mean/scale on reference simulations only, score calibration and observed vectors by exact mean k-nearest-reference distance, freeze a nearest-rank calibration threshold, and also report a finite-sample conformal p-value. Require exact split/ID/feature/work contracts and strict threshold exceedance. Do not fit on calibration/observed data or interpret support as validity.
+- Consequences: the KNN/conformal specialization of `DetectSimulationOOD` is runnable. Learned encoders, density/classifier methods, conditional support, real simulation banks, and model-validity claims remain open.
+
+## DEC-0137 — Keep the first posterior-predictive laboratory catalog small and complete
+
+- Date: 2026-08-25
+- Status: accepted for SBI-PPC-LAB-01
+- Decision: draw exact indices from caller-supplied growth-rate posterior draws, call the canonical simulator, and prespecify only final mass and maximum density. Retain every replicate/failure, equal-tail interval, finite-sample one/two-sided discrepancy probabilities, and explicit interval-or-p-value flags. Do not create an unused generic dashboard or imply that two summaries validate a model.
+- Consequences: the growth-front specialization of `PosteriorPredictiveLaboratory` is runnable. Broader spatial/mark/graph/topology/embedding/multimodal catalogs, multiplicity, real posterior provenance, and biological model validation remain open.
+
+## DEC-0138 — Admit dense bounded linear-Gaussian state-space inference before spatial fields
+
+- Date: 2026-08-25
+- Status: accepted for LONG-KALMAN-01
+- Decision: implement time-varying finite-dimensional Kalman filtering and Rauch–Tung–Striebel smoothing in a dedicated longitudinal package. Accept componentwise missing observations, solve positive-definite systems by Cholesky without forming inverses, retain Joseph covariance updates, admit positive-semidefinite process noise, and reject singular required solves instead of adding hidden jitter. Require a declared conservative matrix-work bound before execution.
+- Consequences: `KalmanFilter` and `RauchTungStriebelSmoother` are runnable through one consumed CLI workflow. Nonlinear filters, particle methods, spatial fields, real repeated-tissue data, and biological/evolutionary claims remain open.
+
+## DEC-0139 — Bound nonlinear Gaussian filtering with an analytic scalar function family
+
+- Date: 2026-08-25
+- Status: accepted for LONG-NONLINEAR-01
+- Decision: make the first EKF/UKF caller a scalar time-varying quadratic transition/observation family with analytic derivatives and exact three-point unscented transforms. Retain per-step derivative or sigma-spread diagnostics, component missingness, Gaussian moment likelihood, and explicit method identity. Use Joseph variance for EKF and the unscented cross-covariance update for UKF.
+- Consequences: the EKF and UKF branches of `NonlinearGaussianFilter` are consumed and agree with the exact Kalman oracle in their linear limit. Multivariate models, nonlinear smoothing, non-Gaussian state distributions, tuning calibration, and biological validity remain open.
+
+## DEC-0140 — Preserve sequential weights and explicit ancestry in the first particle workflow
+
+- Date: 2026-08-25
+- Status: accepted for LONG-PARTICLE-01
+- Decision: use a scalar bootstrap proposal over the same analytic quadratic family as IC-0124, carry prior normalized weights when ESS does not trigger resampling, normalize observation weights in log space, apply systematic resampling below a declared ESS fraction, and retain post-resampling particles/weights plus their exact previous-step ancestor indices. Smooth by terminal weighted sampling and backward ancestry tracing.
+- Consequences: `ParticleFilter` and the ancestry-trace branch of `ParticleSmoother` are consumed with bounded seeded replay. General proposals, backward simulation, particle Gibbs, spatial fields, particle-count calibration, and biological validity remain open.
+
+## DEC-0141 — Begin 3-D statistics with one fully physical cuboid specialization
+
+- Date: 2026-08-25
+- Status: accepted for DIM-K3D-01
+- Decision: jointly consume dimensionality validation, 3-D window validation, and homogeneous K/L through an axis-aligned cuboid specialization. Normalize nanometres/micrometres/millimetres before geometry, require positive voxel spacing and optional SPD dimensionless anisotropy, and implement separate none, finite-sample border, and translation-overlap estimators. Retain the normalized points/window and exact pair/work accounting; cap retained pairs independently of the caller limit.
+- Consequences: `ValidateDimensionality`, the cuboid branch of `ValidateWindow3D`, and `KFunction3D` are live without applying any 2-D correction. General watertight/voxel/tetrahedral windows, isotropic surface-fraction correction, large indexed plans, real 3-D calibration, and non-cuboid claims remain open.
+
+## DEC-0142 — Keep supplied-intensity and directed-type 3-D normalizations distinct
+
+- Date: 2026-08-25
+- Status: accepted for DIM-WEIGHTED-K3D-01
+- Decision: reuse IC-0126 geometry/metric/correction validation while implementing inhomogeneous K as ordered inverse-intensity pair contributions and cross-K as A-reference-to-B-target contributions only. None/translation divide by full cuboid volume; border uses exact eroded volume and eligible references. Define cross-g by successive spherical-shell K increments and return unavailable, not NaN, for a zero-volume first shell.
+- Consequences: `InhomogeneousK3D` and `CrossK3D` are live with supplied intensities and directed semantics. Intensity fitting, uncertainty propagation, mark interaction models, arbitrary-window corrections, and real-data calibration remain open.
+
+## DEC-0143 — Bind 3-D graph uncertainty to explicit distance bases and canonical content
+
+- Date: 2026-08-25
+- Status: accepted for DIM-GRAPH3D-01
+- Decision: build radius and undirected union-kNN graphs only after IC-0126 normalization. Treat per-point radial uncertainty by a caller-selected nominal, possible/lower-bound, or guaranteed/upper-bound distance; never silently fold it into coordinates. Canonicalize edges by point ID and digest the complete normalized graph contract with the already locked `sha2 0.10.9` dependency.
+- Consequences: one sparse `Build3DSpatialGraph` specialization can be consumed and compared reproducibly. Correlated/deformation posterior uncertainty, learned weights, registration fitting, approximate indexes, and biological adjacency claims remain open.
+
+## DEC-0144 — Restrict phylogenetic–spatial association to exact biological blocks
+
+- Date: 2026-08-25
+- Status: accepted for EVO-PHYLO-ASSOC-01
+- Decision: compute one Mantel-like Pearson statistic only over within-patient/specimen clone pairs on an imported positive weighted tree and physical 3-D centroids. Canonicalize clone rows, permute clone-to-tree-node assignments independently inside those exact blocks under a named seed, and use an inclusive plus-one two-sided p-value. Retain every observed pair and null statistic.
+- Consequences: `PhylogeneticSpatialAssociation` is runnable without implying migration history. Partial trees/networks, uncertain topology/assignments, longitudinal direction, ancestral-location inference, and biological validation remain open.
+
+## DEC-0145 — Derive interference exposure probabilities from the actual randomization design
+
+- Date: 2026-08-25
+- Status: accepted for CAUSAL-INTERFERENCE-01
+- Decision: make the first causal workflow complete randomization with a fixed treated count inside each independent cluster and exactly enumerate its bounded assignment state space. Compute binary-any-neighbour joint exposure probabilities from those states, not caller-supplied scores. Return unavailable per-exposure estimates when positivity or an observed Hájek denominator is absent, but require positivity for the prespecified randomization-test contrast. Use fixed-outcome rerandomization diagnostics and an inclusive plus-one test.
+- Consequences: randomized `ValidateCausalDesign`, binary `ComputeExposureMapping`, HT/Hájek `EstimateExposureMean`, direct/spillover contrasts, and `InterferenceRandomizationTest` have one consumed specialization. Observational identification, general exposure maps, potential-outcome variance, and real causal effects remain open.
+
+## DEC-0146 — Keep spatial exposure construction independent from effect estimation
+
+- Date: 2026-08-25
+- Status: accepted for CAUSAL-EXPOSURE-MAP-01
+- Decision: expose each prespecified graph mapping as a standalone bounded artifact before any outcome estimator consumes it. Define weighted fractions with explicit isolate unavailability, Gaussian distance decay with a declared physical bandwidth, multiscale exposure as cumulative treated-neighbour counts at exact radii, and continuous fields as caller-declared finite values. Retain graph provenance and exact directed visits.
+- Consequences: every branch of `ComputeExposureMapping` has a consumed specialization without acquiring a causal claim. Outcome inspection, adaptive scale selection, estimated fields, exposure probability models, and effect inference remain separate downstream work.
+
+## DEC-0147 — Require an analytic oracle for the first expected-information-gain estimator
+
+- Date: 2026-08-25
+- Status: accepted for DESIGN-EIG-01
+- Decision: implement the pseudocode's nested Monte Carlo estimator first for one scalar linear-Gaussian candidate where expected information gain is independently known. Retain every outer numerator/denominator/value, stable log-mean-exp, sample SE, analytic value, bias, seed namespace, and exact likelihood work. Use an internal deterministic Box–Muller normal sampler rather than adding another dependency.
+- Consequences: `EstimateExpectedInformationGain` has a consumed analytically checked specialization. General simulators/likelihoods, posterior-conditioned sequential acquisition, multiple-candidate optimization, and operational recommendations remain open.
+
+## DEC-0148 — Make the binary-confounder bias model algebra explicit
+
+- Date: 2026-08-25
+- Status: accepted for CAUSAL-BIAS-01
+- Decision: define each supplied scenario by treated/control binary-confounder prevalence and an additive outcome effect, with bias equal to prevalence difference times outcome effect. Canonicalize scenario IDs and retain every adjusted effect, sign reversal, and the complete region including zero status.
+- Consequences: `BiasFunctionSensitivity` has one transparent consumed model. It does not estimate confounder parameters or mechanically correct an effect.
+
+## DEC-0149 — Preserve assumption-light bounded-outcome ATE intervals
+
+- Date: 2026-08-25
+- Status: accepted for CAUSAL-PARTIAL-ID-01
+- Decision: implement Manski ATE bounds using only observed consistency and known finite outcome support, with no ignorability, monotonicity, or exclusion assumption. Retain both potential-outcome mean intervals and do not replace a zero-crossing interval with the observed mean difference.
+- Consequences: `PartialIdentificationBounds` has one exact bounded-outcome specialization. Sampling uncertainty and stronger assumption sets remain separate.
+
+## DEC-0150 — Use a matched-pair sign statistic for the first Rosenbaum curve
+
+- Date: 2026-08-25
+- Status: accepted for CAUSAL-ROSENBAUM-01
+- Decision: require exactly one treated observation per matched pair, exclude/report exact ties, and bound the one-sided positive-sign probability by `1/(1+Gamma)` and `Gamma/(1+Gamma)`. Compute stable exact binomial upper tails and define critical Gamma from the worst-case upper p-value at the declared alpha.
+- Consequences: `RosenbaumSensitivity` has a transparent matched-pair sign-test specialization. Ranked statistics, larger matched sets, effect intervals, and confounding correction remain open.
+
+## DEC-0151 — Centralize stable scalar and covariance primitives without hidden parallelism
+
+- Date: 2026-08-25
+- Status: accepted for NUM-STABLE-01
+- Decision: create one dedicated numerical owner for max-shift log-sum/log-mean-exp, normalized Neumaier weighted means, and two-pass Neumaier symmetric covariance with explicit effective-sample denominator. Require finite bounded inputs and output. Keep deterministic parallel reduction separate until an immediate production caller defines partition/reduction semantics.
+- Consequences: four Part XIII stable primitives are live and independently adversarially tested. Existing local implementations are not silently rewritten in this milestone; caller migration and parallel reduction remain downstream.
+
+## DEC-0152 — Make maturity a monotone downgrade with terminal claim failures
+
+- Date: 2026-08-25
+- Status: accepted for EXEC-MATURITY-01
+- Decision: replace free-form policy evaluation with a closed ordered maturity enum. Preserve all applicable reasons in fixed order; provenance, convergence/severe diagnostics, and unsupported causal identification force `unsupported_for_claim`, while unvalidated approximation caps research-only and missing predictive external/Bayesian calibration caps experimental. Never upgrade the declared maturity.
+- Consequences: `DetermineResultMaturity` is machine-readable and precedence-tested. Existing result schemas remain unchanged until their owning migration milestone.
+
+## DEC-0153 — Assess every execution mode and never infer approximation approval
+
+- Date: 2026-08-25
+- Status: accepted for EXEC-MODE-01
+- Decision: evaluate ordered descriptors with checked base-plus-per-item memory/runtime, exact backend identity, requested maximum error, and explicit approximation approval. Retain one assessment/reason per mode. Explicit requests evaluate only the requested mode; automatic selection may bypass unapproved approximation for a later feasible exact mode but never silently approve it.
+- Consequences: `SelectExecutionMode` has a complete planning specialization. Estimates are declared planning units, not measured performance, and selection does not execute a backend.
+
+## DEC-0154 — Require contiguous evidence for real-data validation promotion
+
+- Date: 2026-08-25
+- Status: accepted for VALIDATION-LADDER-01
+- Decision: represent stages zero through five exactly once in order, require evidence for completion, and reject completion after any gap. Promote only to the highest contiguous stage and retain risks beginning at the first incomplete stage. Evidence references are identifiers, not self-authenticating proof.
+- Consequences: `RealDataValidationLadder` is machine-readable and cannot skip held-out/external/prospective stages. Evidence-content verification remains outside this policy function.
+
+## DEC-0155 — Admit bounded axis-aligned anisotropy before general 3-D fields
+
+- Date: 2026-08-25
+- Status: accepted for DIM-GP3D-01
+- Decision: reuse the pinned PyMC 6.3.0 exact dense GP lifecycle for three-dimensional micrometre coordinates, with three independently inferred positive axis length scales and no inferred rotation. Require coordinate variation on every axis, explicit priors/jitter, exact conditional predictions, existing strict diagnostics, and bounded cubic work. Report the diagonal metric at posterior mean length scales without calling that nonlinear transform a posterior mean metric.
+- Consequences: `FitAnisotropic3DGP` has a runnable experimental specialization. Rotated/full SPD anisotropy, nonstationarity, general 3-D windows, deformation uncertainty, sparse approximations, and real biological validation remain open.
+
+## DEC-0156 — Keep repeated residual randomization at the subject boundary
+
+- Date: 2026-08-25
+- Status: accepted for COH-REPEAT-01
+- Decision: specialize Freedman–Lane inference to Gaussian OLS with subject fixed effects in both models and one target column only in the full model. Randomize by independently sign-flipping each subject's complete reduced-model residual vector; never shuffle visits independently. Retain the assumption as a claim limitation.
+- Consequences: `RepeatedMeasuresFreedmanLane` is runnable for justified balanced or unbalanced repeated scalar outcomes. General nuisance columns, non-Gaussian models, cluster permutation, mixed-model bootstrap, and real-design validation remain open.
+
+## DEC-0157 — Use whole-patient maximum deviation for functional equivalence
+
+- Date: 2026-08-25
+- Status: accepted for COH-FUNC-EQV-01
+- Decision: resample complete patient difference curves and form an unstudentized simultaneous band from the nearest-rank maximum absolute bootstrap deviation. Require one common axis and prespecified positive margin curve; never substitute pointwise intervals.
+- Consequences: `FunctionalEquivalenceBand` has one transparent experimental bootstrap specialization. Studentized/BCa bands, irregular axes, and real margin calibration remain open.
+
+## DEC-0158 — Make percentile bootstrap equivalence an explicit limited method
+
+- Date: 2026-08-25
+- Status: accepted for COH-BOOT-EQV-01
+- Decision: directly consume the existing patient-first hierarchical bootstrap and decide equivalence from its strict percentile interval containment. Preserve interval-method identity and an experimental ceiling rather than implying calibrated coverage for irregular estimands.
+- Consequences: `BootstrapEquivalence` is runnable without duplicating resampling. BCa, studentization, nonsmooth-estimator calibration, and method sensitivity remain open.
+
+## DEC-0159 — Separate fixed and REML random-effects multisite summaries
+
+- Date: 2026-08-25
+- Status: accepted for COH-MULTISITE-01
+- Decision: admit inverse-variance fixed pooling and intercept-only scalar REML random-effects pooling for precomputed site patient-level effects. Always report Cochran Q and leave-one-site-out refits; random effects additionally report a prediction interval. Do not infer patient-level models from site summaries.
+- Consequences: `MultisiteSpatialInference` is runnable for honest site summaries. One-stage hierarchical models, multivariate effects, small-site t corrections, meta-regression, and transportability remain separate.
+
+## DEC-0160 — Promote one bounded canonical graph through its Fourier consumer
+
+- Date: 2026-08-25
+- Status: accepted for GSP-SPECTRAL-01
+- Decision: begin Part VII with exact physical-radius binary graphs, no isolates, a combinatorial Laplacian, and one immediately consumed scalar signal. Use bounded deterministic Jacobi eigendecomposition, ascending eigenvalues, canonical eigenvector signs, reconstruction verification, and declared nonoverlapping bands. Digest nodes, edges, radius, weight, and Laplacian convention.
+- Consequences: four graph declarations are runnable without duplicating the earlier descriptive graph-energy input. kNN/kernels, normalized/random-walk operators, nulls, heat/wavelets/scattering, sparse scale, and biological adjacency validation remain open.
+
+## DEC-0161 — Reuse the exact spectrum for all small-graph heat outputs
+
+- Date: 2026-08-25
+- Status: accepted for GSP-HEAT-01
+- Decision: evaluate dense heat kernels, signal application, diagonal signatures, and declared-pair diffusion distances from the single canonical eigensystem. Admit zero time as an exact identity oracle and define diffusion distance as uniform-node L2 between kernel rows. Keep physical-scale calibration and matrix-free approximation separate.
+- Consequences: four heat declarations are runnable for bounded graphs without a second operator owner. Chebyshev/Lanczos scale and stationary-measure variants remain open.
+
+## DEC-0162 — Freeze one interpretable exact spectral wavelet pair
+
+- Date: 2026-08-25
+- Status: accepted for GSP-WAVELET-01
+- Decision: use `g(x)=x exp(-x)` and `h(x)=exp(-x)` over declared positive scales, applied through the canonical exact Fourier basis. Retain coefficients and energies rather than introducing a general closure-based kernel registry.
+- Consequences: spectral wavelet transform/energy are runnable with an analytic eigenmode oracle. Kernel catalogs, Chebyshev scale, diffusion wavelet bases, scattering, and endpoint calibration remain open.
+
+## DEC-0163 — Extract ERL once for graph-spectrum inference
+
+- Date: 2026-08-25
+- Status: accepted for GSP-NULL-01
+- Decision: move the established average-tie extreme-rank-length procedure to `marklab-numerics` and make embedding and graph envelopes consume it. Graph nulls permute complete signals only inside exact declared strata, retain every band-energy curve, and use an inclusive upper-tail scalar low-frequency p-value. Canonicalize near-zero Laplacian eigenvalues to positive zero before band membership.
+- Consequences: `GraphSpectrumNullTest` is runnable without a duplicate ERL implementation. More general exchangeability plans and calibrated biological band choices remain open.
+
+## DEC-0164 — Admit Chebyshev mechanics only through exact-heat differential validation
+
+- Date: 2026-08-25
+- Status: accepted for GSP-CHEB-01
+- Decision: scale the canonical combinatorial Laplacian by its exact bounded maximum eigenvalue, compute heat-filter coefficients by deterministic Chebyshev-node quadrature, and select order using both a longer-reference coefficient tail and dense scalar grid error. Always compare the resulting signal to the existing exact spectral application at current bounded sizes. Describe these as estimates/checks, not a rigorous continuous error certificate.
+- Consequences: `ChebyshevApply` and a consumed `AdaptiveChebyshevOrder` specialization are live. Lanczos bounds, sparse large-graph performance, arbitrary filters, and certified analytic tails remain open.
+
+## DEC-0165 — Define diffusion wavelets by exact lazy-spectrum rank thresholds
+
+- Date: 2026-08-25
+- Status: accepted for GSP-DIFFWAVE-01
+- Decision: reuse the canonical exact eigensystem to form `I-L/lambda_max`, evaluate dyadic powers, and retain modes whose powered magnitude exceeds a declared tolerance. Record scaling/detail bases and reconstruct the signal from the resulting orthogonal partition.
+- Consequences: diffusion-wavelet construction and transform are runnable for bounded dense graphs. Sparse rank-revealing factorizations, localized bases, and calibrated physical multiscale interpretations remain open.
+
+## DEC-0166 — Bound graph scattering to fixed kernels and declared signal perturbations
+
+- Date: 2026-08-25
+- Status: accepted for GSP-SCATTER-01
+- Decision: use the existing `x exp(-x)` spectral response, strictly increasing scale paths, pointwise modulus, arithmetic node pooling, and maximum order two. Measure feature change only against explicitly supplied finite signal perturbations and reject ratios above the caller tolerance.
+- Consequences: scattering and one concrete stability check are consumed without claiming a general graph-deformation theorem. Kernel learning, graph perturbations, alternative pooling, and pathology calibration remain open.
+
+## DEC-0167 — Admit one typed spatial-near message layer
+
+- Date: 2026-08-25
+- Status: accepted for HET-GRAPH-01
+- Decision: canonicalize typed nodes and directed typed spatial-near relations, require one common feature dimension, and execute exactly one relation-scaled sum or mean aggregation layer. Retain the graph digest and exact pair/edge work.
+- Consequences: heterogeneous construction and message passing are runnable as a bounded synthetic specialization. Multiple relation families per receiver, learned weights, deep networks, training, and biological claims remain open.
+
+## DEC-0168 — Use the normalized incidence hypergraph operator
+
+- Date: 2026-08-25
+- Status: accepted for HET-HYPER-01
+- Decision: canonicalize weighted typed hyperedges and finite memberships, then compute `I-Dv^-1/2 H W De^-1 H' Dv^-1/2` and the signal Rayleigh quotient under explicit incidence work bounds.
+- Consequences: hypergraph construction, Laplacian, and signal smoothness have a hand-incidence oracle. Alternative Laplacians, learned memberships, large sparse scale, and endpoint interpretation remain open.
+
+## DEC-0169 — Restrict motifs to exhaustive typed triangles and stratum label nulls
+
+- Date: 2026-08-25
+- Status: accepted for HET-MOTIF-01
+- Decision: enumerate every bounded node triple, match a sorted three-label multiset, accumulate pairwise motif adjacency, and permute complete labels only within exact declared strata with a seeded inclusive upper-tail p-value.
+- Consequences: motif count, adjacency, and null declarations are live for typed triangles. Larger/directed/weighted motifs, automorphism catalogs, and real exchangeability designs remain open.
+
+## DEC-0170 — Construct clique Hodge mathematics from canonical orientations
+
+- Date: 2026-08-25
+- Status: accepted for HET-HODGE-01
+- Decision: orient sorted edges and clique triangles canonically, construct `B1` and `B2`, prove `B1 B2=0`, compute lower/upper first Hodge operators, solve gauge-fixed gradient and triangle-curl projections, and apply one explicit first-order polynomial filter.
+- Consequences: clique construction, Hodge Laplacian, edge-flow decomposition, and simplicial filtering are runnable on bounded dimension-two complexes. General dimensions, sparse least squares, non-clique complexes, and biological flow interpretation remain open.
+
+## DEC-0171 — Require interpretation and perturbation evidence for cellular complexes
+
+- Date: 2026-08-25
+- Status: accepted for HET-CELLULAR-01
+- Decision: accept explicitly interpreted junctions, oriented interfaces, and domains; reject any domain whose signed interfaces do not close; and require at least one declared segmentation perturbation whose topology, incidence, and geometric displacement are reported against baseline.
+- Consequences: `BuildCellularComplex` is live only as research-only declared-compartment mathematics. The workflow does not infer cells from images or establish robust pathology utility beyond supplied perturbations.
+
+## DEC-0172 — Make graph-suite gaps first-class validation results
+
+- Date: 2026-08-25
+- Status: accepted for GRAPH-VALIDATE-01
+- Decision: execute fixed independent exact fixtures for every live graph family and one radius-choice sensitivity check. Emit explicit `not_supported` or `not_applicable` entries for kNN/kernel/barrier/component breadth, registration perturbations, sparse-memory scale, and GPU parity.
+- Consequences: `ValidateGraphMathematicsSuite` is runnable and cannot silently imply unexecuted stress evidence. Its pass state is synthetic exact validation only, not pathology performance or release-scale validation.
+
+## DEC-0173 — Pin GUDHI exact alpha persistence with its effective license
+
+- Date: 2026-08-25
+- Status: accepted for TOP-ALPHA-01
+- Decision: pin GUDHI 3.13.0/Python 3.12 and use exact alpha predicates, squared-alpha filtration values, and SimplexTree persistent cohomology. Record that alpha construction depends on CGAL and is effectively GPLv3; retain essential births separately from JSON finite deaths. Implement landscape/Euler mechanics directly and image integration through pinned SciPy 1.18.1.
+- Consequences: six topology declarations are live on exact synthetic fixtures. Distribution licensing must account for the effective GPLv3 dependency; pathology interpretation and scale selection remain unvalidated.
+
+## DEC-0174 — Bound witness approximation to deterministic farthest landmarks
+
+- Date: 2026-08-25
+- Status: accepted for TOP-WITNESS-01
+- Decision: use GUDHI 3.13.0 weak Euclidean witnesses with lexicographically seeded farthest-point landmarks, report coverage radius, support nu zero only, and retain the full bounded filtration/persistence artifact.
+- Consequences: witness filtration is runnable without implying approximation adequacy for tissue data.
+
+## DEC-0175 — Pin raster morphology conventions to scikit-image
+
+- Date: 2026-08-25
+- Status: accepted for TOP-MORPH-01
+- Decision: pin scikit-image 0.26.0 (BSD-3-Clause) and SciPy 1.18.1 for supplied binary rasters, pixel-count area, 2/4-direction Crofton perimeter, declared 4/8 foreground Euler connectivity, and disk dilation/erosion at integer pixel radii.
+- Consequences: raster Minkowski and morphological curves are reproducible. Subpixel radii, polygon comparison, segmentation uncertainty, and biological claims remain open.
+
+## DEC-0176 — Use exact finite pair events for connectivity transitions
+
+- Date: 2026-08-25
+- Status: accepted for TOP-CONNECT-01
+- Decision: sort every bounded Euclidean pair event once, update deterministic union-find across declared radii, exclude one largest component from susceptibility, and define critical radius as the first declared boundary-spanning radius.
+- Consequences: connectivity transition mechanics are live with explicit finite-size caveats; this is not asymptotic percolation or cohort inference.
+
+## DEC-0177 — Keep topology comparison at the whole-patient diagram boundary
+
+- Date: 2026-08-25
+- Status: accepted for TOP-COMPARE-01
+- Decision: compute GUDHI bottleneck distances between complete finite diagrams, form the biased distance-energy statistic, and exactly enumerate group-A counts within every declared stratum. Never permute persistence points or other within-patient features.
+- Consequences: patient-level topology comparison mechanics are runnable; biological replication, metric selection, and endpoint validity remain external evidence requirements.
+
+## DEC-0178 — Recompute every topology family under declared mask toggles
+
+- Date: 2026-08-25
+- Status: accepted for TOP-STABILITY-01
+- Decision: admit a seeded, bounded declared-pixel-toggle generator and recompute signed-distance cubical persistence, a fixed landscape, dilation Euler curves, raster Minkowski functionals, and foreground connectivity radius for every repetition. Retain each selected pixel and sensitivity metric.
+- Consequences: perturbation sensitivity is observable without implying a realistic segmentation-error distribution. Broader generators and patient calibration remain open.
+
+## DEC-0179 — Separate exact topology validation from unmeasured scale
+
+- Date: 2026-08-25
+- Status: accepted for TOP-VALIDATE-01
+- Decision: execute analytic/hand controls across every live topology family and record essential-death policy. Mark representative sparse-memory scaling `not_verified` because no admitted workload or measurement exists.
+- Consequences: `ValidateTopologySuite` is live and honest about its scale ceiling; exact-fixture success is not performance or pathology validation.
+
+## DEC-0180 — Admit one explicit paired Gaussian pCCA EM specialization
+
+- Date: 2026-08-25
+- Status: accepted for MM-PCCA-01
+- Decision: require stable paired patient IDs, two measured Gaussian views, complete rows, and explicit train/test roles. Fit means/scales on training rows only, use deterministic SciPy linear algebra for the published EM updates with diagonal noise floors, and retain the likelihood trace and held-out cross-view prediction.
+- Consequences: multimodal design validation and classical pCCA are runnable without generalizing the design schema beyond an immediate caller.
+
+## DEC-0181 — Preserve CCA-Zoo's Bayesian model while retaining NUTS diagnostics
+
+- Date: 2026-08-25
+- Status: accepted for BAY-PCCA-01
+- Decision: pin CCA-Zoo 3.0.0/NumPyro 0.21.0/JAX 0.11.1 and execute its model through a thin static adapter that retains MCMC extra fields discarded by the estimator wrapper. Restrict version one to one latent factor and align every draw by a positive first-view maximum loading.
+- Consequences: Bayesian pCCA has a zero-divergence synthetic specialization. R-hat remains unavailable for the admitted one-chain fixture; multi-factor rotations and stable claims remain open.
+
+## DEC-0182 — Use MOFA for multiview VI and structural/MAR masking
+
+- Date: 2026-08-25
+- Status: accepted for MM-MOFA-01
+- Decision: pin mofapy2 0.7.4 and h5py 3.16.0, fit only observed training entries under Gaussian likelihoods, order factors by total explained variance, orient by global maximum loading, and infer held-out scores from available views before evaluating masked targets.
+- Consequences: multiview factors and structural/MAR missing-modality predictions are runnable under the LGPL-3.0 backend. MNAR identification, non-Gaussian calibration, hierarchy, and real evidence remain open.
+
+## DEC-0183 — Use one-view MOFA for bounded Gaussian matrix factorization
+
+- Date: 2026-08-25
+- Status: accepted for MM-MATRIX-01
+- Decision: pin mofapy2 0.7.4/h5py 3.16.0, fit only observed entries, order factors by explained variance, orient each maximum loading positive, and evaluate caller-retained masked targets after fitting. Preserve first and second moments, noise, ARD activity, and finite ELBO history.
+- Consequences: `BayesianMatrixFactorization` is live for bounded Gaussian patient matrices under synthetic experimental claims. Other likelihoods, draw-level rotation uncertainty, and real calibration remain open.
+
+## DEC-0184 — Compile hierarchical factors with exact level ownership
+
+- Date: 2026-08-25
+- Status: accepted for MM-HIER-01
+- Decision: compile only exact patient→specimen→region→cell parentage, attach observations at their declared entity level, distinguish measured and predicted modalities, and make patient the replication unit. Reject skipped levels and direct use of cells as patient replicates.
+- Consequences: `AddHierarchicalFactorStructure` has a consumed typed graph workflow without pretending that compilation is a fitted posterior.
+
+## DEC-0185 — Bound graph-spatial factors to a SciPy Laplace specialization
+
+- Date: 2026-08-25
+- Status: accepted for MM-SPATIAL-MATRIX-01
+- Decision: use a declared unnormalized graph Laplacian plus positive diagonal, Gaussian likelihood, ARD-like loading precision, alternating linear solves, and pinned SciPy 1.18.1 L-BFGS MAP/inverse-Hessian approximation. Cap total latent parameters at 512 and report `approximate_only`.
+- Consequences: `SpatialBayesianMatrixFactorization` is live on bounded region graphs with masked predictive uncertainty. This is not an exact posterior, GP factor model, SPDE model, or representative-scale implementation.
+
+## DEC-0186 — Use pinned JAX/SciPy Laplace adapters for three-mode tensors
+
+- Date: 2026-08-25
+- Status: accepted for MM-TENSOR-01
+- Decision: restrict version one to complete-index three-mode Gaussian tensors with held-out masks, positive Gaussian shrinkage, bounded CP rank or Tucker ranks, JAX 0.11.1 differentiation, and SciPy 1.18.1 L-BFGS inverse-Hessian uncertainty. Align CP component energy/sign and Tucker mode signs after fitting.
+- Consequences: Bayesian CP and Tucker declarations are runnable as explicit approximate synthetic workflows. General tensor order, non-Gaussian likelihoods, HMC agreement, rank calibration, and real validation remain open.
+
+## DEC-0187 — Fit one exact Matérn spatial factor through PyMC
+
+- Date: 2026-08-25
+- Status: accepted for MM-SPATIAL-LATENT-01
+- Decision: admit one bounded measured-region Gaussian specialization with unique 2-D physical coordinates, one Matérn-3/2 latent factor, a half-normal range prior, noncentered field construction, two-chain PyMC 6.3.0 NUTS, and per-draw sign alignment.
+- Consequences: `FitSpatialLatentFactorModel` is live for exact small GP factors with retained NUTS diagnostics. Multiple factors/likelihoods, sparse dispatch, range calibration, and real geometry remain open.
+
+## DEC-0188 — Treat supplied physical bases as the multiresolution contract
+
+- Date: 2026-08-25
+- Status: accepted for MM-MULTIRES-01
+- Decision: require two-to-eight named unique physical scales with finite supplied bases, bounded factors and shrinkage, then fit all scale contributions jointly with JAX differentiation and SciPy MAP/inverse-Hessian uncertainty.
+- Consequences: `FitMultiresolutionSpatialFactors` is live as a bounded `approximate_only` workflow; basis adequacy and scale discovery are caller responsibilities.
+
+## DEC-0189 — Train modality robustness with explicit retained-view patterns
+
+- Date: 2026-08-25
+- Status: accepted for MM-DROPOUT-01
+- Decision: require normalized named dropout patterns that each retain at least one declared anchor modality. Fit training-only standardized encoders/decoders with a probability-weighted reconstruction plus full/partial latent-consistency objective and validate every pattern on held-out patients.
+- Consequences: `TrainModalityRobustInference` is live for bounded Gaussian views through pinned JAX/SciPy. It is predictive-objective training, not a calibrated Bayesian posterior or MNAR identification.
+
+## DEC-0190 — Compile and fit the joint pathology graph in one consumed workflow
+
+- Date: 2026-08-25
+- Status: accepted for MM-JOINT-01
+- Decision: compile exact patient→region latent ownership and five measured morphology/IHC/omics/clone/clinical blocks, then immediately fit the graph with Gaussian, Poisson, Bernoulli, and masked clinical likelihoods using pinned JAX/SciPy Laplace approximation. Preserve the ModelIR, likelihood-specific checks, uncertainty, and claim limits together.
+- Consequences: `CompileJointPathologyModel` and `FitJointPathologyModel` are live under a deliberately narrow frontier/synthetic contract. No cell/patch/registration block, NB overdispersion, exact posterior, or clinical claim is implied.
+
+## DEC-0191 — Reuse the canonical nested M0–M5 fitter for comparison
+
+- Date: 2026-08-25
+- Status: accepted for MM-COMPARE-01
+- Decision: expose the existing IC-0091 patient-held-out nested SciPy ridge workflow under `marklab multimodal compare-models`, retaining all six fold-fitted models and the six prescribed paired patient permutation increments. Keep the original complementarity command unchanged.
+- Consequences: `CompareMultimodalModels` has one canonical shared fitting owner rather than a duplicate implementation. External subgroups, predictive density, and real cohorts remain evidence gaps.
+
+## DEC-0192 — Make unavailable multimodal validation evidence explicit
+
+- Date: 2026-08-25
+- Status: accepted for MM-VALIDATE-01 and SPDE-FACTOR-01
+- Decision: execute independent analytic/simulated controls for subspace, missing views, alignment, interval coverage, GP/GMRF, multiresolution, dropout, MNAR sensitivity, confounding, prior sensitivity, and tensor rank. Emit explicit unavailable rows for SPDE mesh recovery, same-model HMC/VI/Laplace comparison, and real patient-held-out validation.
+- Consequences: `ValidateMultimodalBayesianSuite` is live with a partial external-evidence status. `FitSPDESpatialFactorModel` remains genuinely blocked on the promoted 2-D mesh and projection owner and is not relabelled as graph-Laplacian fitting.
+
+## DEC-0193 — Pin SimpleITK for multiresolution B-spline registration
+
+- Date: 2026-08-25
+- Status: accepted for REG-NONRIGID-01
+- Decision: pin stable SimpleITK 2.5.5 (Apache-2.0), validate physical frames/resolution/masks, and use its deterministic ITKv4 B-spline registration with declared same-stain mean squares and physical-unit pyramids. Retain the full transform/displacement, warped image, objective, stop condition, and Jacobian map.
+- Consequences: `MultiResolutionNonrigidRegistration` is live on bounded synthetic same-stain images. Cross-stain metrics, inverse transforms, landmarks, and real registration validity remain separate evidence.
+
+## DEC-0194 — Implement stationary-velocity exponentiation through JAX composition
+
+- Date: 2026-08-25
+- Status: accepted for REG-SVF-01
+- Decision: optimize a bounded dense stationary velocity through pinned JAX/SciPy, exponentiate with differentiable displacement-field scaling and squaring, construct the inverse with `exp(-v)`, and gate the result on Jacobian and inverse consistency. Compose displacements rather than clipped absolute maps at image boundaries.
+- Consequences: `SVFDiffeomorphicRegistration` and its consumed `ExponentiateVelocity` primitive are live for bounded same-stain synthetic images. Dense scale and general boundary models remain open.
+
+## DEC-0195 — Admit Gaussian-kernel landmark LDDMM shooting
+
+- Date: 2026-08-25
+- Status: accepted for REG-LDDMM-01
+- Decision: use pinned JAX/SciPy to optimize initial landmark momentum and integrate the canonical Hamiltonian equations with fixed-step RK4. Retain every position/momentum state, kinetic energy/drift, and target residual.
+- Consequences: `LDDMMRegistration` and `Shoot` are live for paired 2-D landmark sets, not dense images or general EPDiff fields.
+
+## DEC-0196 — Bound probabilistic diffeomorphism to a variational translation SVF
+
+- Date: 2026-08-25
+- Status: accepted for REG-PROB-SVF-01
+- Decision: fit a Gaussian variational posterior over constant translation velocity with a fixed antithetic reparameterized ELBO, Gaussian velocity prior, same-stain image likelihood, and seeded transform draws. A constant SVF exponentiates exactly to a Jacobian-one translation.
+- Consequences: `ProbabilisticDiffeomorphicRegistration` is live under an explicit narrow synthetic ceiling. It is not a dense deformation posterior.
+
+## DEC-0197 — Couple Bayesian landmark deformation to uncertainty propagation and compatibility
+
+- Date: 2026-08-25
+- Status: accepted for REG-LANDMARK-UNC-01
+- Decision: use the analytic independent-coordinate squared-exponential GP posterior over landmark displacement, retain correlated query draws, propagate them through a declared nonlinear centroid endpoint with localization separated, compare the delta approximation, and average spatial/feature compatibility over transform draws with source dustbins.
+- Consequences: Bayesian landmark registration, Monte Carlo/delta propagation, and probabilistic correspondence are live together. Correspondence is explicitly many-to-one compatibility, never physical cell identity.
+
+## DEC-0198 — Build a biological-similarity atlas without a physical claim
+
+- Date: 2026-08-25
+- Status: accepted for ATLAS-01
+- Decision: admit frozen measured region features, patient-replicated domain prototypes, pooled shrinkage Mahalanobis covariance, probability/entropy/OOD mapping, leave-one-patient preprocessing, and declared subsampling/feature-shift validation. Version the atlas by the complete hash-bound request and state that it has no physical registration claim.
+- Consequences: atlas build, query map, and validation are live on a synthetic cohort. Real training populations, scanner/stain calibration, external sites, and anatomical homology remain promotion requirements.
+
+## DEC-0199 — Pin JAX CPU neural point-process training
+
+- Date: 2026-08-25
+- Status: accepted for NEURAL-PP-01
+- Decision: use pinned JAX 0.11.1/SciPy 1.18.1 with a hash-bound tanh hidden representation, softplus intensity, softmax marks, exact rectangular windows, independent patient splits, and fixed versus doubled-grid quadrature. Train the summed Cox plus mark likelihood under deterministic CPU policy.
+- Consequences: neural Cox intensity/training and static marked likelihood/training are live on synthetic patterns. Ensemble/posterior uncertainty and real multitype spatial calibration remain promotion gaps.
+
+## DEC-0200 — Use an iid-equivariant logistic-normal flow and Gaussian score diffusion
+
+- Date: 2026-08-25
+- Status: accepted for NEURAL-SET-01
+- Decision: make the point transform independently invertible/equivariant in logit-window coordinates, retain a Poisson count model and exact permutation-invariant likelihood, then fit the conditional Gaussian marginal score under a VP schedule and sample by reverse probability-flow Euler steps.
+- Consequences: flow model/training and diffusion training/sampling are live with explicit iid-exchangeable semantics, boundary support, and synthetic diversity checks. General interacting equivariant flows remain open.
+
+## DEC-0201 — Pin sbi for distinct amortized estimands and sequential rounds
+
+- Date: 2026-08-25
+- Status: accepted for NEURAL-SBI-01
+- Decision: pin sbi 0.26.1 and Torch 2.13.0 under deterministic CPU policy. Train MDN NPE, MDN NLE, and MLP NRE as separate estimands; normalize each on a bounded oracle grid, serialize each state, and run two NPE proposal rounds with disjoint simulation-bank hashes.
+- Consequences: `TrainNPE`, `TrainNLE`, `TrainNRE`, and `SequentialSBI` are live on a one-dimensional Gaussian-location oracle. Higher dimension, accelerator reproducibility, coverage breadth, and real simulators remain open.
+
+## DEC-0202 — Validate actual repeated generator artifacts
+
+- Date: 2026-08-25
+- Status: accepted for NEURAL-VALIDATE-01
+- Decision: require two independently executed byte-identical point-set generator artifacts and the original train/held-out patient patterns. Execute cardinality, support, pair/nearest-neighbor, conditional mode, diversity, exact memorization, membership-attack, rare-count, and simpler-baseline checks; retain unsupported graph/mark/compartment/real-data rows.
+- Consequences: `ValidateGenerativeTissueModel` is live as a consumed synthetic model card and cannot promote the model beyond research-only.
+
+## DEC-0203 — Reconstruct landmark serial stacks with a Gaussian translation posterior
+
+- Date: 2026-08-25
+- Status: accepted for DIM-STACK-01
+- Decision: require ordered physical sections with paired landmarks and a declared reference, compose adjacent translations, infer per-section Gaussian translation uncertainty from landmark noise, retain cycle/landmark/gap diagnostics, and propagate every transform draw into a 3-D stack-centroid endpoint.
+- Consequences: serial reconstruction, Bayesian stack fitting, and uncertainty propagation are live together for a bounded translation specialization. Nonrigid/missing-image stacks and real anatomy remain open.
+
+## DEC-0204 — Extend pinned exact alpha construction to 3-D
+
+- Date: 2026-08-25
+- Status: accepted for DIM-ALPHA3D-01
+- Decision: use GUDHI 3.13.0 exact 3-D alpha construction with squared physical-alpha convention, complete tetrahedral filtration, F2 boundary-of-boundary check, and persistence through the declared dimension. Preserve the effective CGAL/GPLv3 license.
+- Consequences: `Build3DAlphaComplex` is live on bounded synthetic physical points. Representative scale and pathology filtration remain unverified.
+
+## DEC-0205 — Require controls and independent measurements for deformation/change separation
+
+- Date: 2026-08-25
+- Status: accepted for LONG-DEFORM-BIO-01
+- Decision: condition on supplied deformation posterior draws, interpolate the baseline with pinned SciPy thin-plate splines, fit a prespecified domain change for every draw, and require both a deformation-only negative control and an independent change measurement excluded from fitting.
+- Consequences: `FitDeformationBiologyModel` is live on a synthetic translation/domain specialization without claiming general longitudinal identifiability.
+
+## DEC-0206 — Integrate imported clone uncertainty in both fitted clone models
+
+- Date: 2026-08-25
+- Status: accepted for EVO-CLONE-MODELS-01 and DIM-ADV-VALIDATE-01
+- Decision: draw every imported clone location from its SPD covariance and fit inverse-gamma Brownian branch diffusion; fit clone niches with probability-weighted Gaussian mixtures and patient centering plus leave-one-patient sensitivity. Validate all advanced 3-D families with explicit real-data gap.
+- Consequences: clone phylogeography/niche and the umbrella suite are live under synthetic association/model-plausibility ceilings, not identified history.
+
+## DEC-0207 — Keep spatial mediation design-gated and research-only
+
+- Date: 2026-08-25
+- Status: accepted for CAUSAL-PERTURB-01
+- Decision: expose spatial mediation only inside a bounded synthetic perturbation workflow with declared treatment-before-mediator-before-outcome ordering, randomized cluster treatment, a prespecified neighbour exposure, and explicit mediator-outcome sensitivity values. Report the fitted mediator/outcome path decomposition as research-only even when the synthetic oracle is recovered; if the timing or identification declarations are absent, no causal mediation result is emitted.
+- Consequences: `SpatialMediationAnalysis` can have a consumed synthetic owner without promoting cross-sectional association to identified mediation. Real perturbation replication, mediator-outcome identification, interference transport, and prospective validation remain required before any causal-mediation claim.
+
+## DEC-0208 — Cross-fit bounded synthetic observational estimators by cluster
+
+- Date: 2026-08-25
+- Status: accepted for CAUSAL-OBS-01
+- Decision: validate unique units and at least eight independent clusters, fit a regularized logistic propensity, require overlap at the declared clip, estimate a linear dose/exposure response, AIPW treatment and exposure summaries, cluster-disjoint nuisance folds, two-residual spatial DML, and an adjusted negative-control outcome through pinned SciPy/NumPy. Preserve every fold assignment and never describe synthetic recovery as identification in a real cohort.
+- Consequences: the six observational declarations have one consumed numerical specialization with positivity and leakage checks. General learners, uncertainty robust to arbitrary clustering, real confounder sufficiency, and causal identification remain unproved.
+
+## DEC-0209 — Make active acquisition a bounded prospective simulation
+
+- Date: 2026-08-25
+- Status: accepted for ACTIVE-DESIGN-01
+- Decision: use scalar Gaussian posterior updates for sequential design, transparent budgeted net-utility ranking for ROI/stain/landmark candidates, explicitly favor biological over technical replication at equal cost/precision, and estimate prospective power by seeded normal endpoint simulation with Wilson intervals. Retain candidate costs, selection history, posterior history, allocation frontier, failures, and uncertainty.
+- Consequences: all six active/allocation declarations are executable against declared synthetic actions. The plan cannot operate instruments or claim prospective laboratory benefit.
+
+## DEC-0210 — Validate causal and active mechanics without hiding prospective gaps
+
+- Date: 2026-08-25
+- Status: accepted for CAUSAL-ACTIVE-VALIDATE-01
+- Decision: execute fixed synthetic randomized, exposure, DR/DML, positivity, negative-control, analytic-EIG, selection, replication, and power controls, then retain prospective laboratory validation as an explicit not-verified row that prevents complete status.
+- Consequences: `ValidateCausalActiveSuite` is live as a partial evidence ledger. It is not external or prospective causal/design validation.
+
+## DEC-0211 — Extract unified execution from the proven durable single-node path
+
+- Date: 2026-08-25
+- Status: accepted for PLAT-DUR-01 and EXEC-ALGORITHM-01
+- Decision: make `marklab-workflow::execute_algorithm` the narrow generic owner of the already-proven sequence: scheduler-derived identity, exact durable restore, normal scheduler validation/execute/decode, verified inline read, and durable publication/ledger/head commit on a miss. Its descriptor is the existing typed `WorkflowNode`/`NodeSpec`/cache material plus an explicit output schema and native runtime provenance. Keep dependency-bearing DAG execution, arbitrary task execution, external backends, and diagnostics policy outside this function.
+- Consequences: `marklab project classical` becomes the immediate production caller and retains byte-compatible miss/hit semantics. This closes the Part XIII unified invocation declaration only for dependency-free typed native nodes under the existing durable transaction.
+
+## DEC-0212 — Admit fixed-step HMC on a conjugate normal oracle
+
+- Date: 2026-08-25
+- Status: accepted for BAY-HMC-01
+- Decision: implement diagonal-mass one-dimensional fixed-step leapfrog HMC through pinned NumPy/SciPy, retaining every posterior draw, accept decision aggregate, Hamiltonian error, fixed identity Jacobian, and analytic conjugate posterior. Keep adaptation and constrained transforms outside this narrow engine.
+- Consequences: `RunHMC` has an immediate consumed model and independent analytic oracle rather than being inferred from NUTS. General dimension, mass adaptation, transforms, and real-model calibration remain separate.
+
+## DEC-0213 — Use exact finite state for controlled exchange and bounded latent-parent inference
+
+- Date: 2026-08-25
+- Status: accepted for BAY-ADV-CLUSTER-01
+- Decision: specialize exchange MCMC to a six-site binary Gibbs graph whose 64 states and auxiliary distribution are exactly enumerated for every proposal. Consume it as the symmetric two-type fit. For Thomas clusters, use label-invariant BIC-targeted birth/death parent-count moves with deterministic conditional clustering, then partially pool log kappa/offspring/scale across independent synthetic patients.
+- Consequences: latent-parent, exact exchange, multitype Gibbs, and replicated-cluster declarations are runnable under explicit bounded synthetic semantics. General continuous-space perfect simulation, arbitrary type matrices, full reversible-jump parent locations, edge correction, and real calibration remain open claim limits.
+
+## DEC-0214 — Give parallel reduction immediate calibration and benchmark callers
+
+- Date: 2026-08-25
+- Status: accepted for RUNTIME-VALIDATION-01
+- Decision: partition items into fixed contiguous ranges, derive every item seed from namespace plus global index, map partitions on scoped threads, and reduce partition outputs in index order. Use this owner immediately in a Gaussian normal-mean calibration suite and an equivalent-work wrapping-integer checksum scaling smoke benchmark. Diagnose the admitted fixed-step HMC artifact only for applicable oracle/acceptance/energy checks and report nonapplicable families explicitly.
+- Consequences: deterministic parallel reduction, common fitted diagnostics, universal calibration, and scaling benchmark declarations have consumed specializations. Floating calibration is tolerance-stable; integer checksums are bitwise stable. This is not a representative performance or universal diagnostic claim.
+
+## DEC-0215 — Promote a bounded rectangular finite-element SPDE owner
+
+- Date: 2026-08-25
+- Status: accepted for SPDE-SUITE-01 and SPDE-FACTOR-01
+- Decision: restrict the first promoted mesh to a hole-free physical rectangle with regular boundary vertices and pinned SciPy Delaunay triangulation. Assemble exact linear-triangle consistent mass and stiffness matrices, alpha-two lumped-mass Matérn precision, and barycentric event/quadrature/region projections. Consume the same owner in fixed-hyperparameter Laplace-MAP LGCP and one-factor Gaussian spatial-factor fits, with two mesh resolutions and synthetic controls.
+- Consequences: all three SPDE declarations are live for this explicit geometry/backend. Holed or narrow-interface constrained meshing, adaptive refinement, inferred SPDE hyperparameters, sparse representative scale, posterior sampling, and real pathology validation remain unavailable rather than implied.

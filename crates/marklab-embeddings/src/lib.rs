@@ -122,31 +122,29 @@ pub use context::{EmbeddingSpatialContext, PatchBoundaryPolicy, PositiveRational
 pub use error::EmbeddingError;
 pub use expected::ExpectedCellSet;
 pub use identity_map::{CellIdentityMap, CellIdentityMapEntry};
-#[cfg(feature = "parquet")]
 pub use multiscale::{
-    contained_cell_patch_embedding_dispersion, ContainedCellPatchEmbeddingDispersion,
-    ContainedCellPatchEmbeddingDispersionError, ContainedCellPatchEmbeddingDispersionStatus,
-};
-pub use multiscale::{
-    finalize_region_embedding_table_from_patches, finalize_slide_embedding_table_from_patches,
-    finalize_slide_embedding_table_from_regions, patch_overlap_embedding_dispersion,
+    cell_patch_context, finalize_region_embedding_table_from_patches,
+    finalize_slide_embedding_table_from_patches, finalize_slide_embedding_table_from_regions,
+    patch_dependency_weighting, patch_overlap_embedding_dispersion,
     patch_region_embedding_dispersion, slide_embedding_aggregation_path_discrepancy,
     CellPatchAnchor, CellPatchAssignment, CellPatchAssignmentMode, CellPatchAssignmentStatus,
-    CellPatchContributor, CellPatchEdge, CellPatchLink, CellPatchLinkBindings,
-    CellPatchLinkProducer, CellPatchWeight, DeclaredCellPatchAssignment,
-    DerivedRegionEmbeddingTableCandidate, DerivedSlideEmbeddingTableCandidate,
-    EffectiveReceptiveField, EmbeddingEntityKind, EmbeddingFinalizationBudgets, ExpectedPatchSet,
-    ExpectedRegionSet, ExpectedSlideSet, MultiscaleArtifactBinding,
-    MultiscaleDirectPatchInputArtifacts, MultiscaleDirectPatchModelProvenance,
-    MultiscaleEmbeddingArtifactGraphError, MultiscaleEmbeddingArtifactRole,
-    MultiscaleEmbeddingDerivationContract, MultiscaleEmbeddingError,
-    MultiscaleEmbeddingExecutionProvenance, MultiscaleEmbeddingProvenance,
-    MultiscaleEmbeddingProvenanceVariant, MultiscaleEmbeddingQcSummary, MultiscaleEmbeddingSupport,
-    MultiscaleEmbeddingSupportVariant, PatchEmbeddingBlock, PatchEmbeddingContext,
-    PatchEmbeddingInputNormalization, PatchEmbeddingRow, PatchEmbeddingSourceRowLink,
-    PatchEmbeddingSourceRowLinkEntry, PatchEmbeddingTable, PatchEmbeddingView, PatchFootprint,
-    PatchFootprintSet, PatchIdentityMap, PatchIdentityMapEntry, PatchNormalizationDecimal,
-    PatchOverlapEdge, PatchOverlapEmbeddingDispersion, PatchOverlapEmbeddingDispersionError,
+    CellPatchContextError, CellPatchContextResult, CellPatchContributor, CellPatchEdge,
+    CellPatchLink, CellPatchLinkBindings, CellPatchLinkProducer, CellPatchWeight,
+    DeclaredCellPatchAssignment, DerivedRegionEmbeddingTableCandidate,
+    DerivedSlideEmbeddingTableCandidate, EffectiveReceptiveField, EmbeddingEntityKind,
+    EmbeddingFinalizationBudgets, ExpectedPatchSet, ExpectedRegionSet, ExpectedSlideSet,
+    MultiscaleArtifactBinding, MultiscaleDirectPatchInputArtifacts,
+    MultiscaleDirectPatchModelProvenance, MultiscaleEmbeddingArtifactGraphError,
+    MultiscaleEmbeddingArtifactRole, MultiscaleEmbeddingDerivationContract,
+    MultiscaleEmbeddingError, MultiscaleEmbeddingExecutionProvenance,
+    MultiscaleEmbeddingProvenance, MultiscaleEmbeddingProvenanceVariant,
+    MultiscaleEmbeddingQcSummary, MultiscaleEmbeddingSupport, MultiscaleEmbeddingSupportVariant,
+    PatchDependencyWeight, PatchDependencyWeighting, PatchDependencyWeightingError,
+    PatchEmbeddingBlock, PatchEmbeddingContext, PatchEmbeddingInputNormalization,
+    PatchEmbeddingRow, PatchEmbeddingSourceRowLink, PatchEmbeddingSourceRowLinkEntry,
+    PatchEmbeddingTable, PatchEmbeddingView, PatchFootprint, PatchFootprintSet, PatchIdentityMap,
+    PatchIdentityMapEntry, PatchNormalizationDecimal, PatchOverlapEdge,
+    PatchOverlapEmbeddingDispersion, PatchOverlapEmbeddingDispersionError,
     PatchOverlapEmbeddingDispersionStatus, PatchOverlapGraph, PatchRegionAssessment,
     PatchRegionAssessmentBindings, PatchRegionDeclaration, PatchRegionEmbeddingDispersion,
     PatchRegionEmbeddingDispersionError, PatchRegionEmbeddingDispersionStatus, PatchRegionLink,
@@ -162,6 +160,11 @@ pub use multiscale::{
     VerifiedPatchOverlapArtifact, VerifiedPatchRegionLinkArtifact,
     VerifiedRegionEmbeddingSupportArtifact, VerifiedRegionEmbeddingTableArtifact,
     VerifiedSlideEmbeddingSupportArtifact, VerifiedSlideEmbeddingTableArtifact,
+};
+#[cfg(feature = "parquet")]
+pub use multiscale::{
+    contained_cell_patch_embedding_dispersion, ContainedCellPatchEmbeddingDispersion,
+    ContainedCellPatchEmbeddingDispersionError, ContainedCellPatchEmbeddingDispersionStatus,
 };
 #[cfg(feature = "parquet")]
 pub use multiscale::{

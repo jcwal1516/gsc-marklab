@@ -80,6 +80,17 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
             "crates/marklab-data",
             "crates/marklab-project",
             "crates/marklab-embeddings",
+            "crates/marklab-cohort",
+            "crates/marklab-bayes",
+            "crates/marklab-simulation",
+            "crates/marklab-sbi",
+            "crates/marklab-longitudinal",
+            "crates/marklab-spatial3d",
+            "crates/marklab-causal",
+            "crates/marklab-numerics",
+            "crates/marklab-policy",
+            "crates/marklab-graph",
+            "crates/marklab-topology",
             "crates/marklab-workflow",
         ],
         "the root remains implicit and only packages with immediate callers are listed"
@@ -123,6 +134,17 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
         "crates/marklab-data/Cargo.toml",
         "crates/marklab-project/Cargo.toml",
         "crates/marklab-embeddings/Cargo.toml",
+        "crates/marklab-cohort/Cargo.toml",
+        "crates/marklab-bayes/Cargo.toml",
+        "crates/marklab-simulation/Cargo.toml",
+        "crates/marklab-sbi/Cargo.toml",
+        "crates/marklab-longitudinal/Cargo.toml",
+        "crates/marklab-spatial3d/Cargo.toml",
+        "crates/marklab-causal/Cargo.toml",
+        "crates/marklab-numerics/Cargo.toml",
+        "crates/marklab-policy/Cargo.toml",
+        "crates/marklab-graph/Cargo.toml",
+        "crates/marklab-topology/Cargo.toml",
         "crates/marklab-workflow/Cargo.toml",
     ] {
         let manifest = parse_manifest(manifest_path);
@@ -164,12 +186,12 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
     let default_members = metadata["workspace_default_members"]
         .as_array()
         .expect("metadata workspace_default_members");
-    assert_eq!(workspace_members.len(), 6);
+    assert_eq!(workspace_members.len(), 17);
     assert_eq!(default_members.len(), 1);
 
     let root_manifest = fs::canonicalize("Cargo.toml").expect("canonical root manifest");
     let packages = metadata["packages"].as_array().expect("metadata packages");
-    assert_eq!(packages.len(), 6);
+    assert_eq!(packages.len(), 17);
     let package = packages
         .iter()
         .find(|package| package["name"] == "marklab")
@@ -236,7 +258,18 @@ fn workspace_dependencies_descend_layers_and_core_libraries_are_not_cli_gated() 
         .collect::<HashSet<_>>();
     let layers = HashMap::from([
         ("marklab-core", 0_u8),
+        ("marklab-numerics", 0_u8),
+        ("marklab-cohort", 0_u8),
+        ("marklab-causal", 0_u8),
+        ("marklab-longitudinal", 0_u8),
+        ("marklab-policy", 0_u8),
+        ("marklab-simulation", 0_u8),
+        ("marklab-spatial3d", 0_u8),
+        ("marklab-topology", 0_u8),
         ("marklab-data", 1_u8),
+        ("marklab-bayes", 1_u8),
+        ("marklab-graph", 1_u8),
+        ("marklab-sbi", 1_u8),
         ("marklab-project", 2_u8),
         ("marklab-embeddings", 3_u8),
         ("marklab-workflow", 3_u8),
@@ -305,6 +338,7 @@ fn workspace_dependencies_descend_layers_and_core_libraries_are_not_cli_gated() 
                 assert_eq!(
                     cli_gated_files,
                     HashSet::from([
+                        "cli/classical.rs".to_string(),
                         "io/mod.rs".to_string(),
                         "lib.rs".to_string(),
                         "multimodal/mod.rs".to_string(),

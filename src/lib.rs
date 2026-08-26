@@ -274,10 +274,13 @@ pub use marklab_embeddings::{
     MultiscaleMatrixParquetPreflight,
 };
 pub use marklab_workflow::{
-    ArtifactCatalog, ArtifactCatalogError, ArtifactDraft, ArtifactId, ArtifactKey, ArtifactLocator,
-    ArtifactPublication, ArtifactRecord, ArtifactRecordError, ArtifactRef, ArtifactSchema,
-    ArtifactStoreError, CacheKeyMaterial, CacheStatus, ContentDigest, ContentDigestParseError,
-    ContentDigestWriter, LocalArtifactStore, LocalScheduler, MarklabProject, NodeError, NodeId,
+    execute_algorithm, ArtifactCatalog, ArtifactCatalogError, ArtifactDraft, ArtifactId,
+    ArtifactKey, ArtifactLocator, ArtifactPublication, ArtifactRecord, ArtifactRecordError,
+    ArtifactRef, ArtifactSchema, ArtifactStoreError, CacheKeyMaterial, CacheStatus, ContentDigest,
+    ContentDigestParseError, ContentDigestWriter, DurableCommitDisposition,
+    DurableExecutionRequest, DurableOpenReport, DurableProject, DurableProjectError,
+    DurableProjectLimits, DurableRecoveryAction, DurableReplay, ExecuteAlgorithmError,
+    LocalArtifactStore, LocalScheduler, MarklabProject, NativeRuntimeProvenance, NodeError, NodeId,
     NodeRun, NodeSpec, ProjectError, PublicationDisposition, RecoveryIssue, RecoveryIssueReason,
     RecoveryReport, SchedulerLimits, StoreId, SuccessfulRun, TableColumn, TableColumnType,
     TableFormat, TableManifest, TableManifestError, TableScalarType, VerifiedReaderError,

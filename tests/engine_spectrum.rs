@@ -946,7 +946,7 @@ fn engine_uses_probabilistic_marks_when_configured() {
         for col in 0..10 {
             x.push(col as f64);
             y.push(row as f64);
-            marks.push(u8::from((row + col) % 2 == 0));
+            marks.push(u8::from(((row + col) as usize).is_multiple_of(2)));
             probabilities.push(if col < 5 { 0.90 } else { 0.10 });
         }
     }
@@ -999,7 +999,9 @@ fn engine_records_permutation_stage_when_probabilistic_marks_are_missing() {
     let mut pattern = Pattern::from_arrays(
         (0..20).map(|index| index as f64).collect(),
         vec![0.0; 20],
-        (0..20).map(|index| u8::from(index % 2 == 0)).collect(),
+        (0..20)
+            .map(|index| u8::from((index as usize).is_multiple_of(2)))
+            .collect(),
         meta(),
     )
     .expect("pattern");
