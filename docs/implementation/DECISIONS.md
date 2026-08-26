@@ -1830,3 +1830,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for WF-01/WS-12 and the current FND-06 increment
 - Decision: expose global Moran inference as a typed source node and expose a descriptive pre/post node that consumes two exact produced Moran artifacts. Keep the source method, typed mark input, framed observation window, randomization design, resource limits, canonical private result codec, scheduler key, project output state, durable object/ledger/head transaction, and recovery owner unchanged. Add only a store-aware variant of the existing durable single-node invocation so schema-bound inputs follow the scheduler's already-existing `run_single_with_store` verification path before execution or replay.
 - Consequences: a second real dependency-bearing scientific graph can reopen as three durable hits without recomputation, while provenance bytes remain verified. This does not add a heterogeneous registry, graph-wide executor, arbitrary task runner, new result-format version, inferential pre/post claim, or generalized serializer.
+
+## DEC-0224 — Reuse the exact admitted radius weights for global Geary C
+
+- Date: 2026-08-26
+- Status: accepted for SIG-01B and the current FND-02/FND-04/FND-06 increment
+- Decision: compute global Geary's C from the same exact directed radius edges, binary-symmetric or row-standardized weights, typed continuous mark, framed window, compartment-conditioned whole-value randomization, deterministic seed, and point/edge/permutation-work ceilings already admitted for global Moran's I. Keep a distinct Geary result type and hand oracle, while sharing only the concrete design, limit, alternative, weight-policy, edge-plan, and blocked-permutation mechanics that both immediate callers use.
+- Consequences: Moran and Geary answer distinct formulas without hidden weight normalization or a generalized statistic/plugin registry. Local statistics, variograms, covariate residualization, external PySAL/R agreement, and patient-level comparison remain separate outcomes.

@@ -326,3 +326,14 @@ workflow. WF-01/WS-12 remain active because there is still no general graph sche
 resource planner, parallel scheduler, or whole-graph resume API. The next dependency-valid
 scientific outcome remains Geary C or a scalar variogram over the admitted typed frame/mark/weight
 substrate; patient-level spatial comparison still requires independent specimen summaries.
+
+## Checkpoint 57 typed Geary continuation
+
+Closure on 2026-08-26: global Geary's C now consumes the exact admitted Moran radius-edge plan,
+normalization policy, typed continuous mark/status, framed window, blocked whole-value permutation
+schedule, deterministic seed, and work ceilings. Independent binary-symmetric and row-standardized
+hand oracles pass, and the weights digest is identical across Moran and Geary for the same plan.
+
+SIG-01B is complete for this bounded method. The next immediate-caller outcome is SIG-01F scalar
+semivariance using an explicit bounded distance-bin pair plan; it must not turn the two global
+statistics into a generic plugin/statistic registry.

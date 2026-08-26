@@ -190,9 +190,9 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | REG-01B | blocked with named prerequisite | Requires BACK-01, GEO-01, and an admitted nonrigid backend with transform-uncertainty output. |
 | REG-01C | data-dependent with named missing data | Missing paired multimodal/serial sections with landmarks or correspondence ground truth and uncertainty evidence. |
 | SCALE-01 | active | VFE inducing-point and low-rank predictive-process workflows expose explicit approximation state/error bounds; nearest-neighbor, out-of-core, progressive, calibrated-error, and broader scale infrastructure remain. |
-| SIG-01 | active | Typed global Moran inference is runnable on exact fixed-radius weights and continuous marks; Geary, semivariance integration, broader weights, external agreement, scale, and real validation remain. |
+| SIG-01 | active | Typed global Moran and Geary inference are runnable on the same exact fixed-radius weights, continuous marks, and blocked randomization design; semivariance integration, broader weights, external agreement, scale, and real validation remain. |
 | SIG-01A | active | Global Moran I now exposes explicit binary-symmetric/row-standardized radius weights, centering, typed continuous mark/status, exact frame/window, deterministic random labeling, and compartment-stratified inference with a hand oracle. Broader weights/covariates/calibration remain. |
-| SIG-01B | blocked with named prerequisite | Requires the same stable weights contract as SIG-01A and an independent oracle. |
+| SIG-01B | complete | Global Geary C reuses the exact Moran radius weights/design and matches independent binary-symmetric `0.38` and row-standardized `0.2925` hand oracles. |
 | SIG-01C | blocked with named prerequisite | Requires SIG-01A, multiplicity ownership, and cohort-valid exploratory-map policy. |
 | SIG-01D | blocked with named prerequisite | Requires typed paired variables, direction semantics, weights, and multiplicity. |
 | SIG-01E | data-dependent with named missing data | Missing a prespecified pathology hotspot use case and replicated endpoint data. |

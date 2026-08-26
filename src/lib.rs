@@ -327,8 +327,10 @@ pub use scalar_mark::{
     ScalarMarkUnit, ScalarMarkValueKind,
 };
 pub use spatial_autocorrelation::{
-    global_moran_permutation, GlobalMoranAlternative, GlobalMoranConditioning, GlobalMoranDesign,
-    GlobalMoranError, GlobalMoranLimits, GlobalMoranResult, GlobalMoranWeightPolicy,
+    global_geary_permutation, global_moran_permutation, GlobalGearyAlternative, GlobalGearyDesign,
+    GlobalGearyError, GlobalGearyLimits, GlobalGearyResult, GlobalMoranAlternative,
+    GlobalMoranConditioning, GlobalMoranDesign, GlobalMoranError, GlobalMoranLimits,
+    GlobalMoranResult, GlobalMoranWeightPolicy,
 };
 pub use spatial_autocorrelation_workflow::{
     GlobalMoranAnalysisNode, GlobalMoranPrePostNode, GlobalMoranPrePostResult,

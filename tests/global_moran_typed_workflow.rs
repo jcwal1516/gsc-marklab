@@ -2,7 +2,8 @@
 
 use approx::assert_abs_diff_eq;
 use marklab::{
-    global_moran_permutation, BinaryMarkDeclaration, DeclaredScalarPatternInput,
+    global_geary_permutation, global_moran_permutation, BinaryMarkDeclaration,
+    DeclaredScalarPatternInput, GlobalGearyAlternative, GlobalGearyDesign, GlobalGearyLimits,
     GlobalMoranAlternative, GlobalMoranDesign, GlobalMoranError, GlobalMoranLimits,
     GlobalMoranWeightPolicy, HistologicCompartmentMarkDeclaration, MarkTable, MeasurementStatus,
     MissingnessPolicy, NucleusAreaUm2MarkDeclaration, ObservationWindow2D, ObservationWindowError,
@@ -236,6 +237,45 @@ fn typed_frame_mark_and_compartment_design_drive_global_moran_inference() {
     )
     .expect("row-standardized workflow");
     assert_abs_diff_eq!(row_standardized.statistic, 0.54, epsilon = 1e-12);
+
+    let geary = global_geary_permutation(
+        &input,
+        &window,
+        &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+        1.1,
+        GlobalMoranWeightPolicy::BinarySymmetric,
+        &GlobalGearyDesign::histologic_compartment_random_labeling(
+            31,
+            20260826,
+            GlobalGearyAlternative::Less,
+        )
+        .expect("Geary design"),
+        GlobalGearyLimits::new(4, 6, 6 * 31).expect("Geary limits"),
+    )
+    .expect("global Geary workflow");
+    assert_abs_diff_eq!(geary.statistic, 0.38, epsilon = 1e-12);
+    assert_eq!(geary.null_expectation, 1.0);
+    assert_eq!(geary.weights_digest, result.weights_digest);
+    assert_eq!(geary.stratum_count, 2);
+    assert_eq!(geary.permutations_completed, 31);
+    assert!(geary.p_value > 0.0 && geary.p_value <= 1.0);
+
+    let geary_row_standardized = global_geary_permutation(
+        &input,
+        &window,
+        &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+        1.1,
+        GlobalMoranWeightPolicy::RowStandardized,
+        &GlobalGearyDesign::histologic_compartment_random_labeling(
+            31,
+            20260826,
+            GlobalGearyAlternative::Less,
+        )
+        .expect("Geary design"),
+        GlobalGearyLimits::new(4, 6, 6 * 31).expect("Geary limits"),
+    )
+    .expect("row-standardized Geary workflow");
+    assert_abs_diff_eq!(geary_row_standardized.statistic, 0.2925, epsilon = 1e-12);
 
     let unbound = ObservationWindow2D::from_geojson_str(
         r#"{"type":"MultiPolygon","coordinates":[[[[-1,-1],[4,-1],[4,1],[-1,1],[-1,-1]]]]}"#,

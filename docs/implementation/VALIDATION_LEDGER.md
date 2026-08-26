@@ -1435,3 +1435,19 @@ vascular transport.
   tests/Clippy, Nextest, full feature matrix, benchmark, fuzz, memory, packaging, dependency audit,
   external-data claim, push, publication, deployment, history rewrite, or worktree was run or
   created.
+
+## Typed global Geary checkpoint 57 — 2026-08-26
+
+- Expected red: the focused typed spatial-autocorrelation test failed to compile because
+  `global_geary_permutation` and the typed Geary aliases/result did not exist.
+- `cargo +1.96.0 test --locked --test global_moran_typed_workflow
+  typed_frame_mark_and_compartment_design_drive_global_moran_inference -- --nocapture` passed 1/1,
+  then the complete target passed 2/2. It proves `C=0.38` for six directed binary-symmetric chain
+  edges, `C=0.2925` after row standardization, null expectation one, bounded compartment
+  randomization, finite p-value, and exact shared weight identity with Moran.
+- `cargo +1.96.0 test --locked --test global_moran_project_workflow` passed 1/1 after the shared
+  error/design changes. Warning-denied Clippy passed for the root library and both affected Moran
+  integrations; root no-default compilation and strict warning-denied public docs passed.
+- `cargo +1.96.0 fmt --all --check` and `git diff --check` passed. No workspace-wide tests/Clippy,
+  Nextest, feature matrix, benchmark, fuzz, memory, packaging, dependency audit, external-data
+  claim, push, publication, deployment, history rewrite, or worktree was run or created.

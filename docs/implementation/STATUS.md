@@ -833,3 +833,16 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - WF-01/WS-12 and FND-06 advance but remain active. General graph construction, resource planning,
   parallel scheduling, whole-graph resume, inferential longitudinal comparison, broader
   multiplicity, and patient-independent spatial comparison remain outside this checkpoint.
+
+## Typed global Geary checkpoint 57 — 2026-08-26
+
+- Added global Geary's C as a distinct typed result and public workflow over the exact framed
+  MarkTable input, radius edges, weight normalization, deterministic random-labeling design,
+  compartment blocks, and resource ceilings already consumed by global Moran's I.
+- The four-point chain matches independent hand calculations for both admitted policies:
+  binary-symmetric `C=0.38` and row-standardized `C=0.2925`. The corresponding Moran and Geary
+  runs retain the same exact weights digest, while their formulas, null expectations, alternatives,
+  and result types remain distinct.
+- SIG-01B is complete for this bounded native method. SIG-01 remains active for scalar variograms,
+  broader weight plans, external agreement, covariate residualization, scale, and real-data
+  validation; local/bivariate maps remain gated on multiplicity and cohort-valid use.
