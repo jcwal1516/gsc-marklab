@@ -2012,3 +2012,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-03/BAY-HIER-A/WS-44
 - Decision: run the DEC-0247 patient beta-binomial group regression over a fixed seven-scenario one-at-a-time grid: baseline plus 0.5x and 2x intercept-scale, group-effect-scale, and concentration-scale priors. Preserve the input, seed, likelihood, sampling, and diagnostic controls, and measure every population estimand plus the full patient field against its baseline posterior standard deviation with a declared material-shift threshold.
 - Consequences: the exploratory MSI/MSS contrast reports whether reasonable prior-scale changes materially alter the conclusion, while keeping prior sensitivity distinct from cross-backend agreement and calibration.
+
+## DEC-0250 — Calibrate the patient beta-binomial group regression generatively
+
+- Date: 2026-08-27
+- Status: accepted for BAY-02/BAY-03/BAY-HIER-A/WS-44
+- Decision: simulate intercept, group effect, positive concentration, group-conditioned patient probabilities, and patient successes from the exact DEC-0247 priors and likelihood using the admitted group/trial-count shape. Refit every replicate with the mathematically equivalent collapsed beta-binomial likelihood in pinned dense-mass NumPyro, draw the first patient probability from its exact conditional Beta posterior, and retain complete failure disposition, deterministic seeds, hard work bounds, unchanged per-fit diagnostic gates, rank uniformity, and 90% coverage for intercept, group effect, concentration, probability difference, and the patient coordinate.
+- Consequences: the group regression gains end-to-end simulation-based calibration without omitted failures, relaxed sampler gates, a calibration registry, or any assertion that CellViT classifier outputs are independent biological trials.

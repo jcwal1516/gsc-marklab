@@ -4,6 +4,7 @@ mod anisotropic_gp3d;
 mod berman_turner;
 mod beta_binomial_group_regression;
 mod beta_binomial_group_regression_agreement;
+mod beta_binomial_group_regression_sbc;
 mod beta_binomial_group_regression_sensitivity;
 mod beta_binomial_hierarchy;
 mod beta_binomial_hierarchy_agreement;
@@ -105,6 +106,11 @@ pub use beta_binomial_group_regression_agreement::{
     BetaBinomialGroupAgreementResult, BetaBinomialGroupBackendSummary,
     NumpyroBetaBinomialGroupRegressionWorkerRequest,
     NumpyroBetaBinomialGroupRegressionWorkerResult,
+};
+pub use beta_binomial_group_regression_sbc::{
+    BetaBinomialGroupSbcCalibrationPolicy, BetaBinomialGroupSbcDiagnostics,
+    BetaBinomialGroupSbcReplicate, BetaBinomialGroupSbcResourceLimits, BetaBinomialGroupSbcResult,
+    NumpyroBetaBinomialGroupSbcWorkerRequest, NumpyroBetaBinomialGroupSbcWorkerResult,
 };
 pub use beta_binomial_group_regression_sensitivity::{
     BetaBinomialGroupSensitivityResult, BetaBinomialGroupSensitivityScenario,
