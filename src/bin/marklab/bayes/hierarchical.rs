@@ -120,7 +120,9 @@ pub(crate) fn execute(
     Ok(worker_result)
 }
 
-fn read_patients(path: &std::path::Path) -> Result<Vec<HierarchicalPatientData>, BayesCliError> {
+pub(crate) fn read_patients(
+    path: &std::path::Path,
+) -> Result<Vec<HierarchicalPatientData>, BayesCliError> {
     let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
         path: path.to_owned(),
         source,

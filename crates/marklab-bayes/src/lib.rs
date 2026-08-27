@@ -65,6 +65,7 @@ mod spatial_varying_coefficient;
 mod strauss;
 mod strauss_gibbs;
 mod strauss_pseudolikelihood;
+mod student_t_hierarchy;
 mod thomas;
 mod thomas_minimum_contrast;
 mod transport;
@@ -151,7 +152,9 @@ pub use grouped_conformal::{
 };
 pub use hierarchical::{
     GaussianHierarchyFit, GaussianHierarchyInputIdentity, GaussianHierarchySpec,
-    GaussianHierarchyWorkerRequest, HierarchicalPatientData, HierarchicalWorkerResult,
+    GaussianHierarchyWorkerRequest, HalfNormalPrior, HierarchicalPatientData,
+    HierarchicalPosteriorPredictive, HierarchicalWorkerResult, NormalPrior, PartialPoolingSummary,
+    ScalarPosteriorSummary,
 };
 pub use hierarchical_agreement::{
     HierarchicalAgreementComparison, HierarchicalAgreementPolicy, HierarchicalAgreementResult,
@@ -378,6 +381,11 @@ pub use strauss_pseudolikelihood::{
     StraussPseudolikelihoodResources, StraussPseudolikelihoodResult, StraussPseudolikelihoodRow,
     StraussPseudolikelihoodSpec, StraussPseudolikelihoodWorkerRequest,
     StraussPseudolikelihoodWorkerResult,
+};
+pub use student_t_hierarchy::{
+    StudentTHierarchyModelIr, StudentTHierarchyPosterior, StudentTHierarchyPosteriorPredictive,
+    StudentTHierarchyResult, StudentTHierarchySpec, StudentTHierarchyWorkerRequest,
+    StudentTHierarchyWorkerResult, StudentTLikelihood,
 };
 pub use thomas::{
     simulate_thomas_process, NeymanScottCounts, NeymanScottOffspring, NeymanScottParent,

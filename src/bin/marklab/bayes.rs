@@ -154,6 +154,8 @@ mod strauss;
 mod strauss_gibbs;
 #[path = "bayes/strauss_pseudolikelihood.rs"]
 mod strauss_pseudolikelihood;
+#[path = "bayes/student_t_hierarchy.rs"]
+mod student_t_hierarchy;
 #[path = "bayes/synthetic_likelihood.rs"]
 mod synthetic_likelihood;
 #[path = "bayes/thomas.rs"]
@@ -220,6 +222,34 @@ enum BayesCommand {
         population_beta: f64,
         #[arg(long)]
         concentration_prior_sd: f64,
+        #[arg(long)]
+        chains: u32,
+        #[arg(long)]
+        tune: u32,
+        #[arg(long)]
+        draws: u32,
+        #[arg(long)]
+        target_accept: f64,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    StudentTHierarchy {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long, allow_hyphen_values = true)]
+        global_prior_mean: f64,
+        #[arg(long)]
+        global_prior_sd: f64,
+        #[arg(long)]
+        between_patient_sd_prior: f64,
+        #[arg(long)]
+        observation_sd_prior: f64,
+        #[arg(long)]
+        degrees_of_freedom_excess_rate: f64,
         #[arg(long)]
         chains: u32,
         #[arg(long)]
@@ -2276,6 +2306,40 @@ pub(super) fn into_marklab_error(error: BayesCliError) -> marklab::MarklabError 
 
 pub(super) fn run_cli() -> Result<(), BayesCliError> {
     match BayesCli::parse_from(std::env::args_os()).command {
+        BayesTopLevel::Bayes {
+            command:
+                BayesCommand::StudentTHierarchy {
+                    input,
+                    global_prior_mean,
+                    global_prior_sd,
+                    between_patient_sd_prior,
+                    observation_sd_prior,
+                    degrees_of_freedom_excess_rate,
+                    chains,
+                    tune,
+                    draws,
+                    target_accept,
+                    seed,
+                    timeout_seconds,
+                    out,
+                },
+        } => student_t_hierarchy::run(
+            input,
+            global_prior_mean,
+            global_prior_sd,
+            between_patient_sd_prior,
+            observation_sd_prior,
+            degrees_of_freedom_excess_rate,
+            NutsSamplingSpec {
+                chains,
+                tune_per_chain: tune,
+                draws_per_chain: draws,
+                target_accept,
+                seed,
+            },
+            timeout_seconds,
+            out,
+        ),
         BayesTopLevel::Bayes {
             command:
                 BayesCommand::BetaBinomialHierarchy {

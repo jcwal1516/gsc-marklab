@@ -1921,3 +1921,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-HIER-A/WS-41
 - Decision: add one typed patient-level successes/trials model with a Beta prior on the population probability, a half-Normal prior on positive concentration, patient probabilities drawn from the implied Beta distribution, and binomial observations. Retain exact patient order/identity, prior rationale, concentration-derived overdispersion, partial-pooling summaries, posterior-predictive total and between-patient dispersion checks, pinned PyMC identity, normalized diagnostics, deterministic seed, and hard patient/trial/iteration/output/time bounds.
 - Consequences: Marklab gains a genuine non-Gaussian hierarchical likelihood without changing the existing fixed-prior independent-group beta diagnostic, adding a general model language, treating cells as independent patients, or claiming all binomial/count/ordinal/hurdle families.
+
+## DEC-0237 — Fit robust repeated ROI observations with a Student-t patient hierarchy
+
+- Date: 2026-08-27
+- Status: accepted for BAY-03/BAY-HIER-A/WS-41
+- Decision: add a typed noncentered patient varying-intercept model with Normal population-mean prior, half-Normal between-patient and observation-scale priors, and an exponential prior on degrees of freedom above two for a finite-variance Student-t likelihood. Reuse the admitted patient/observation CSV shape, retain patient partial pooling, robust residual posterior-predictive checks, exact pinned PyMC identity, normalized diagnostics, deterministic seed, and existing observation/iteration/output/time bounds.
+- Consequences: the real repeated ROI caller gains a heavy-tailed alternative without inventing crossed effects or varying slopes unsupported by its two-column design, changing the Gaussian contract, or claiming that robustness removes the need for sensitivity/calibration.
