@@ -1907,3 +1907,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-PP-A/WS-43 posterior predictive validation
 - Decision: consume the existing complete-fit-only gridded-LGCP posterior pattern artifact and report cell-count variance plus horizontal/vertical adjacent-cell mean absolute contrast for the observation and every bounded replicate, with inclusive posterior-predictive tail probabilities. Keep the original typed prediction and its exact draw/point provenance intact in a dedicated result rather than adding fields to the established fit result.
 - Consequences: the current real fixed-grid caller gains spatial posterior-predictive evidence beyond total/zero counts without changing result-format 0.3, the existing fit schema, the simulator, or the artifact store. These two grid diagnostics do not establish continuous-space K-function fit or adequacy for other point-process families.
+
+## DEC-0235 — Evaluate fixed-grid LGCP priors and kernel choices one factor at a time
+
+- Date: 2026-08-27
+- Status: accepted for BAY-FIELD-A/BAY-PP-A/WS-41 sensitivity
+- Decision: refit the existing PyMC gridded LGCP under a baseline plus lower/upper one-at-a-time multipliers for intercept-prior scale, coefficient-prior scale, fixed Matérn amplitude, and fixed Matérn length scale. Preserve exact inputs, likelihood, seed, sampling, jitter, backend identity, and diagnostics across scenarios; report global shifts and cellwise latent/expected-count RMS shifts in baseline posterior-standard-deviation units; and withhold an ordinary sensitivity state unless every fit converges.
+- Consequences: the concrete CellViT field caller receives a bounded nine-fit prior/kernel analysis without joint grids, learned kernel hyperparameters, a generic scenario engine, or a robustness claim outside the declared multiplier range.

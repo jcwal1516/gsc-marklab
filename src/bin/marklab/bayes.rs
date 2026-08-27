@@ -61,6 +61,8 @@ pub(super) use gridded_lgcp_fit::{
 };
 #[path = "bayes/gridded_lgcp_sbc.rs"]
 mod gridded_lgcp_sbc;
+#[path = "bayes/gridded_lgcp_sensitivity.rs"]
+mod gridded_lgcp_sensitivity;
 #[path = "bayes/gridded_lgcp_spatial_ppc.rs"]
 mod gridded_lgcp_spatial_ppc;
 #[path = "bayes/grouped_conformal.rs"]
@@ -1357,6 +1359,58 @@ enum BayesCommand {
         minimum_coverage_90: f64,
         #[arg(long)]
         maximum_coverage_90: f64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    GriddedLgcpSensitivity {
+        #[arg(long)]
+        events: PathBuf,
+        #[arg(long)]
+        grid: PathBuf,
+        #[arg(long, allow_hyphen_values = true)]
+        xmin_um: f64,
+        #[arg(long, allow_hyphen_values = true)]
+        ymin_um: f64,
+        #[arg(long, allow_hyphen_values = true)]
+        xmax_um: f64,
+        #[arg(long, allow_hyphen_values = true)]
+        ymax_um: f64,
+        #[arg(long)]
+        grid_x: u32,
+        #[arg(long)]
+        grid_y: u32,
+        #[arg(long, allow_hyphen_values = true)]
+        intercept_prior_mean: f64,
+        #[arg(long)]
+        intercept_prior_sd: f64,
+        #[arg(long, allow_hyphen_values = true)]
+        coefficient_prior_mean: f64,
+        #[arg(long)]
+        coefficient_prior_sd: f64,
+        #[arg(long)]
+        field_amplitude: f64,
+        #[arg(long)]
+        field_length_scale_um: f64,
+        #[arg(long)]
+        jitter: f64,
+        #[arg(long)]
+        lower_scale_multiplier: f64,
+        #[arg(long)]
+        upper_scale_multiplier: f64,
+        #[arg(long)]
+        material_standardized_shift: f64,
+        #[arg(long)]
+        chains: u32,
+        #[arg(long)]
+        tune: u32,
+        #[arg(long)]
+        draws: u32,
+        #[arg(long)]
+        target_accept: f64,
+        #[arg(long)]
+        seed: u64,
         #[arg(long)]
         timeout_seconds: u64,
         #[arg(long)]
@@ -3554,6 +3608,64 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             minimum_rank_uniformity_p_value,
             minimum_coverage_90,
             maximum_coverage_90,
+            timeout_seconds,
+            out,
+        ),
+        BayesTopLevel::Bayes {
+            command:
+                BayesCommand::GriddedLgcpSensitivity {
+                    events,
+                    grid,
+                    xmin_um,
+                    ymin_um,
+                    xmax_um,
+                    ymax_um,
+                    grid_x,
+                    grid_y,
+                    intercept_prior_mean,
+                    intercept_prior_sd,
+                    coefficient_prior_mean,
+                    coefficient_prior_sd,
+                    field_amplitude,
+                    field_length_scale_um,
+                    jitter,
+                    lower_scale_multiplier,
+                    upper_scale_multiplier,
+                    material_standardized_shift,
+                    chains,
+                    tune,
+                    draws,
+                    target_accept,
+                    seed,
+                    timeout_seconds,
+                    out,
+                },
+        } => gridded_lgcp_sensitivity::run(
+            events,
+            grid,
+            xmin_um,
+            ymin_um,
+            xmax_um,
+            ymax_um,
+            grid_x,
+            grid_y,
+            intercept_prior_mean,
+            intercept_prior_sd,
+            coefficient_prior_mean,
+            coefficient_prior_sd,
+            field_amplitude,
+            field_length_scale_um,
+            jitter,
+            lower_scale_multiplier,
+            upper_scale_multiplier,
+            material_standardized_shift,
+            NutsSamplingSpec {
+                chains,
+                tune_per_chain: tune,
+                draws_per_chain: draws,
+                target_accept,
+                seed,
+            },
             timeout_seconds,
             out,
         ),
