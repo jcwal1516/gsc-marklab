@@ -1635,3 +1635,43 @@ vascular transport.
   the reproducible macOS binary-verification loop and the active instruction forbids retrying it.
   No feature matrix, benchmark, fuzz, memory, packaging, dependency audit, push, publication,
   deployment, history rewrite, or worktree was run.
+
+## Robust non-Gaussian hierarchy stabilization checkpoint 65 — 2026-08-27
+
+- Expected reds: the Student-t hierarchy, durable project, cross-backend agreement, sensitivity,
+  and SBC integrations each first failed because their exact CLI/project subcommand was absent.
+  The SBC green loop retained strict `R-hat`, ESS, E-BFMI, divergence, depth-hit, rank-uniformity,
+  and coverage gates. Small six-patient schedules exposed one R-hat/ESS failure; a 12-patient
+  schedule exposed one divergence; four-chain target-accept `0.99` exposed two depth-10 hits for a
+  near-zero scale draw. The final fixed depth-12 execution passed without relaxing any gate.
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_student_t_hierarchy_sbc_cli -- --nocapture` passed 1/1 in `216.97s` with 20 complete
+  dispositions and four passing rank/coverage families. `workers/python/.venv/bin/python -m
+  py_compile workers/python/marklab_numpyro_student_t_hierarchy_sbc_worker.py` passed.
+  `cargo +1.96.0 test --locked --package marklab-bayes --lib` passed 44/44.
+- The combined affected command over `bayes_beta_binomial_hierarchy_cli`,
+  `bayes_student_t_hierarchy_cli`, `durable_pymc_student_t_hierarchy_project`,
+  `bayes_student_t_hierarchy_agreement_cli`, and
+  `bayes_student_t_hierarchy_sensitivity_cli` passed 5/5. This proves the beta-binomial oracle,
+  robust one-shot fit, independent PyMC/NumPyro agreement, nine-fit prior/tail grid, and
+  cross-process miss then backend-disabled durable hit.
+- The real-shape four-chain Student-t SBC command exceeded its declared `1200`-second backend limit
+  and published no output. The sole bounded retry used two chains, 2,000 warmup, 4,000 draws,
+  target acceptance `0.99`, and seed `20260827`; it passed 20/20 on the exact 121-patient/284-
+  observation shape with zero failures, divergences, or depth hits. Rank p-values are
+  `0.5341/0.6371/0.9114/0.4373` and 90% coverages are `0.95/0.80/0.90/0.90` for population mean,
+  between-patient SD, observation SD, and degrees of freedom. Maximum R-hat is `1.00277`; minimum
+  bulk/tail ESS and E-BFMI are `1065/2121/0.441`.
+- Local and Mac mini SHA-256 checks both returned
+  `b2b192a45c19264d9eb44c8c6341725078cba59a46c14e4f925739235db239c4` for
+  `student_t_hierarchy_roi_cosine_excess_sbc.json` at the authorized local result directory and
+  `/Volumes/1TB/marklab/runs/results-cellvit-bayesian-v1/results`.
+- `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings` passed in
+  `13m11s`. `cargo +1.96.0 check --locked --workspace --no-default-features`, `cargo +1.96.0 test
+  --locked --workspace --doc --all-features`, `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc
+  --locked --workspace --all-features --no-deps`, `cargo +1.96.0 fmt --all --check`, and
+  `git diff --check` passed.
+- The full workspace integration suite and Nextest were not rerun because checkpoints 51/52 record
+  the reproducible macOS loader-verification loop and the active instruction forbids retrying it.
+  No feature matrix, benchmark, fuzz, memory, packaging, dependency audit, push, publication,
+  deployment, history rewrite, or worktree was run.

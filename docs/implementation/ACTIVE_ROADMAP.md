@@ -431,3 +431,20 @@ an admitted typed likelihood and analytic/simulation oracle, then repeated/cross
 structure only when a real immediate caller demonstrates it. CmdStan admission and actual GPU
 execution remain named backend gaps, while arbitrary-window or inferred-hyperparameter fields must
 not be inferred from the completed fixed-grid model.
+
+## Checkpoint 65 robust-hierarchy continuation
+
+The exact finite-variance Student-t patient hierarchy now has complete real durable execution,
+independent PyMC/NumPyro agreement, posterior-predictive checks, a nine-fit prior/tail grid, and
+20/20 prior-generative SBC on the admitted `121`-patient/`284`-ROI shape. The lower degrees-of-
+freedom-rate sensitivity is explicitly material, so only the baseline and declared-grid results
+are supported. The beta-binomial patient likelihood is runnable against its typed synthetic oracle,
+but no real count result is admitted until exact CellViT numerator/denominator provenance is built.
+
+Dependency-ordered Phase 4 work therefore moves to one real non-Gaussian count caller: derive a
+bounded patient or specimen successes/trials table only from admitted CellViT annotations, exact
+row/patient correspondence, and a declared biological unit; then run the existing beta-binomial
+workflow and add durable execution, cross-backend agreement, sensitivity, and calibration only for
+that concrete caller. If aggregation cannot preserve a truthful denominator or independent unit,
+retain that exact blocker and move to the next admitted likelihood. Crossed effects, random slopes,
+CmdStan, GPU, and a general model language are not authorized by this checkpoint.

@@ -1011,3 +1011,39 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   broader Bayesian phase. CmdStan, actual GPU evidence, non-Gaussian/repeated/crossed/varying-slope
   hierarchies, inferred field hyperparameters, arbitrary windows, and broader fitted marked or
   replicated point-process families remain.
+
+## Robust non-Gaussian hierarchy stabilization checkpoint 65 — 2026-08-27
+
+- Added a genuine typed patient beta-binomial likelihood with population mean/concentration,
+  patient probabilities, overdispersion, partial pooling, posterior-predictive totals and
+  dispersion, exact PyMC identity, and bounded diagnostics. Its synthetic oracle is complete; no
+  real successes/trials result is claimed because the current admitted Bayesian input bundle does
+  not yet contain a provenance-complete numerator/denominator table.
+- Added a finite-variance Student-t patient hierarchy for the real `121`-patient/`284`-ROI cosine-
+  excess input. The PyMC fit is complete with population mean `0.07699`, between-patient SD
+  `0.02313`, observation SD `0.01963`, degrees of freedom `19.27`, `R-hat=1.00227`, zero
+  divergences/depth hits, and a declared robust-residual posterior-predictive tail of `0.752625`.
+  The exact typed workflow now runs durably as miss then byte-identical backend-disabled hit with
+  one unchanged ledger row.
+- Independent dense-mass NumPyro and PyMC fits agree on the real input: population mean,
+  between-patient SD, observation SD, and degrees-of-freedom differences are `0.0000738`,
+  `0.0001115`, `0.0000186`, and `0.08366`; patient means have RMS difference `0.0001768`; both
+  backends report zero divergences/depth hits. All nine 0.5x/2x one-at-a-time prior/tail scenarios
+  converge, but the lower degrees-of-freedom-rate scenario is materially sensitive (`1.0558`
+  baseline posterior SD), so robustness is not claimed outside the declared baseline/grid.
+- Added exact prior-generative Student-t SBC with dense-mass NumPyro, complete replicate
+  disposition, rank and 90% coverage for all four population parameters, depth-12 execution, and
+  unchanged convergence gates. The real `121`-patient/`284`-observation shape passes 20/20 at two
+  chains, 2,000 warmup and 4,000 draws: maximum `R-hat=1.00277`, minimum bulk/tail ESS
+  `1065/2121`, minimum E-BFMI `0.441`, zero divergences/depth hits, rank p-values
+  `0.437`–`0.911`, and coverage `0.80`–`0.95`. A four-chain schedule exceeded its 1,200-second
+  wall-clock bound and published no artifact; no diagnostic or calibration gate was relaxed.
+- The result SHA-256 `b2b192a45c19264d9eb44c8c6341725078cba59a46c14e4f925739235db239c4`
+  matches locally and on the authorized Mac mini 1 TB volume. Five affected CLI/project
+  integrations, the 44-test Bayesian library, workspace warning-denied all-target/all-feature
+  Clippy, workspace no-default compilation, all-feature doc tests, strict docs, formatting, and
+  whitespace checks pass. The documented full-integration/Nextest loader loop was not rerun.
+- This closes the current robust Student-t promotion gate, not BAY-03/BAY-HIER-A. A real
+  provenance-complete count numerator/denominator caller is next; repeated/crossed/varying-slope
+  structures still require an admitted design that actually identifies those effects, and
+  CmdStan/actual GPU evidence remain absent.
