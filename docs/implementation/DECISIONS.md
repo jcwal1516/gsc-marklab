@@ -2082,3 +2082,17 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-02/BAY-03/BAY-HIER-A/WS-44
 - Decision: simulate fixed intercept/group/gender effects, positive patient log-odds scale, patient random intercepts, patient probabilities, positive slide concentration, slide probabilities, and successes from the exact DEC-0255 priors and beta-binomial likelihood using the admitted patient/slide/trial design. Refit every replicate with the same non-centered dense-mass NumPyro model used for backend agreement, retain complete failure disposition, deterministic seeds, hard work bounds, unchanged diagnostic gates, rank uniformity, and 90% coverage for all global parameters, the typical-patient standardized group contrast, one patient probability, and one patient random effect.
 - Consequences: the nested caller gains end-to-end generative calibration without omitted failures, relaxed sampler gates, a calibration registry, or any claim that classifier-derived spatial cells are independent biological trials.
+
+## DEC-0260 — Replay exact training-only region retrieval through durable projects
+
+- Date: 2026-08-27
+- Status: accepted for WF-01/WS-12/EMB-RETRIEVAL-01
+- Decision: expose the existing exact region-retrieval algorithm as `marklab project region-retrieval` with the exact training and query CSV identities, candidate count, patient/site leakage policy, visit ceiling, native executable/runtime identity, and implementation revision in the durable cache contract. Preserve the existing user-visible `marklab.region_retrieval` version-one document. Use a private typed artifact codec that represents every finite floating-point value by its exact `u64` bits so scheduler decode/re-encode is byte-canonical; on replay, require exact identities/order/ranks, at most one ULP for the rederived training transform, and a `64 * epsilon` bound for rederived distances, contributions, and OOD.
+- Consequences: patient-held-out retrieval can miss once and replay byte-identically across processes through the existing project ledger, scheduler, artifact store, and `ExecuteAlgorithm`, without a generic native runner, plugin framework, new public result format, or second algorithm execution.
+
+## DEC-0261 — Admit the first CRC fingerprint ladder increment as fixed M0/M1 patient features
+
+- Date: 2026-08-27
+- Status: accepted for COH-01/EMB-RETRIEVAL-01/WS-34
+- Decision: join exact TCGA CRC patient identities across frozen molecular labels, GDC pathologic stage, label-free CellViT spatial summaries, and annotation-based tumor-microenvironment summaries. Define M0 as stage, log cell count, tumor/inflammatory/connective fractions, and cell density; define M1 as M0 plus prespecified inflammatory/stromal neighborhood enrichment and residual-organization summaries. Construct features without molecular labels, exclude each query patient before fitting its retrieval transform, and separately exclude its complete tissue-source site for leakage sensitivity. Record the constant-zero background fraction as unavailable rather than forcing it into the fingerprint.
+- Consequences: the immediate 169-patient TCGA caller gains real M0/M1 full-distance rankings, held-out retrieval, patient-bootstrap uncertainty, and patient-label MMD/energy evidence without treating cells/slides/edges as replicates, optimizing toward significance, adding a fingerprint registry, or claiming that later M2-M7 lanes are complete.

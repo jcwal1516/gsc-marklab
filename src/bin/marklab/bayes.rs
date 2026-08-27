@@ -179,7 +179,7 @@ mod rejection_abc;
 #[path = "bayes/replicated.rs"]
 mod replicated;
 #[path = "bayes/retrieval.rs"]
-mod retrieval;
+pub(crate) mod retrieval;
 #[path = "bayes/sar.rs"]
 mod sar;
 #[path = "bayes/sar_fit.rs"]

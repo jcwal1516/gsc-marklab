@@ -5,6 +5,15 @@ use marklab_bayes::{
 };
 use serde::Serialize;
 use std::path::PathBuf;
+
+pub(crate) struct PreparedRegionRetrievalInputs {
+    pub training_sha256: String,
+    pub query_sha256: String,
+    pub training: Vec<TrainingRegion>,
+    pub feature_names: Vec<String>,
+    pub query: QueryRegion,
+}
+
 pub(super) fn run(
     training: PathBuf,
     query: PathBuf,
@@ -13,14 +22,12 @@ pub(super) fn run(
     max: u64,
     out: PathBuf,
 ) -> Result<(), BayesCliError> {
-    let tb = embedding_spatial::read(&training)?;
-    let qb = embedding_spatial::read(&query)?;
-    let (rows, names) = training_rows(&tb)?;
-    let q = query_row(&qb)?;
-    let index = build_region_retrieval_index(rows, names, max).map_err(map)?;
+    let prepared = prepare_inputs(&training, &query)?;
+    let index = build_region_retrieval_index(prepared.training, prepared.feature_names, max)
+        .map_err(map)?;
     let result = retrieve_analogous_regions(
         index,
-        q,
+        prepared.query,
         k,
         RetrievalLeakagePolicy::parse(&policy).map_err(map)?,
     )
@@ -28,11 +35,28 @@ pub(super) fn run(
     publish_json(
         &out,
         &Output {
-            training_sha256: sha256_hex(&tb),
-            query_sha256: sha256_hex(&qb),
+            training_sha256: prepared.training_sha256,
+            query_sha256: prepared.query_sha256,
             result,
         },
     )
+}
+
+pub(crate) fn prepare_inputs(
+    training: &PathBuf,
+    query: &PathBuf,
+) -> Result<PreparedRegionRetrievalInputs, BayesCliError> {
+    let training_bytes = embedding_spatial::read(training)?;
+    let query_bytes = embedding_spatial::read(query)?;
+    let (training_rows, feature_names) = training_rows(&training_bytes)?;
+    let query_row = query_row(&query_bytes)?;
+    Ok(PreparedRegionRetrievalInputs {
+        training_sha256: sha256_hex(&training_bytes),
+        query_sha256: sha256_hex(&query_bytes),
+        training: training_rows,
+        feature_names,
+        query: query_row,
+    })
 }
 fn training_rows(b: &[u8]) -> Result<(Vec<TrainingRegion>, Vec<String>), BayesCliError> {
     let mut r = csv::ReaderBuilder::new().from_reader(b);

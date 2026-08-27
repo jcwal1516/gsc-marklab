@@ -27,6 +27,9 @@ use super::bayes::{
     PreparedGriddedLgcpFit, PreparedNormalMean, PreparedStudentTHierarchy,
 };
 
+#[path = "project/region_retrieval.rs"]
+mod region_retrieval;
+
 const MAXIMUM_EXECUTABLE_BYTES: u64 = 1024 * 1024 * 1024;
 const MAXIMUM_INPUT_BYTES: u64 = 16 * 1024 * 1024;
 const PROJECT_CONTROL_BYTES: usize = 1024 * 1024;
@@ -299,6 +302,22 @@ enum ProjectTopLevel {
 
 #[derive(Debug, Subcommand)]
 enum ProjectCommand {
+    RegionRetrieval {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        training: PathBuf,
+        #[arg(long)]
+        query: PathBuf,
+        #[arg(long)]
+        k: u32,
+        #[arg(long)]
+        leakage_policy: String,
+        #[arg(long)]
+        maximum_component_candidate_visits: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
     MarkedPrepost {
         #[arg(long)]
         project: PathBuf,
@@ -603,6 +622,26 @@ enum ProjectCommand {
 
 pub(super) fn run_cli() -> Result<(), BayesCliError> {
     match ProjectCli::parse_from(std::env::args_os()).command {
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::RegionRetrieval {
+                    project,
+                    training,
+                    query,
+                    k,
+                    leakage_policy,
+                    maximum_component_candidate_visits,
+                    out,
+                },
+        } => region_retrieval::run(
+            project,
+            training,
+            query,
+            k,
+            leakage_policy,
+            maximum_component_candidate_visits,
+            out,
+        ),
         ProjectTopLevel::Project {
             command:
                 ProjectCommand::MarkedPrepost {
