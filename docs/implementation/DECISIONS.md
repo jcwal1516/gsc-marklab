@@ -1949,3 +1949,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-03/BAY-HIER-A/WS-41/WS-44
 - Decision: refit the exact PyMC Student-t hierarchy under baseline plus lower/upper one-at-a-time multipliers for the population-mean prior scale, between-patient scale prior, observation-scale prior, and exponential rate controlling degrees of freedom above two. Preserve the exact data, likelihood, seed, sampling, backend identity, and diagnostics; report posterior shifts in baseline posterior-standard-deviation units and withhold an ordinary sensitivity state unless all nine fits converge.
 - Consequences: the real robust hierarchy gains a bounded prior/tail sensitivity result without a generic scenario framework, joint grid, hidden default, or robustness claim outside the declared multipliers.
+
+## DEC-0241 — Calibrate the exact Student-t patient hierarchy with bounded SBC
+
+- Date: 2026-08-27
+- Status: accepted for BAY-02/BAY-03/BAY-HIER-A/WS-44
+- Decision: simulate population means, between-patient scales, patient effects, observation scales, degrees of freedom above two, and repeated observations from the exact typed Student-t prior/likelihood, then refit every replicate with the same dense-mass NumPyro NUTS model used for cross-backend agreement. Use a fixed calibration-only maximum tree depth of 12 for the near-zero scale geometry while retaining the zero tree-depth-hit gate, complete failure disposition, ranks and 90% coverage for all four population parameters, all other unchanged per-fit diagnostics, deterministic seeds, and hard replicate/observation/iteration/output/time bounds.
+- Consequences: the robust hierarchy gains generative calibration without a general calibration registry, omitted failed fits, relaxed thresholds, or a claim about crossed/varying-slope designs and other non-Gaussian likelihoods.
