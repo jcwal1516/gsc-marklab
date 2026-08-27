@@ -1893,3 +1893,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-FIELD-A/BAY-PP-A/WS-40 cross-backend agreement
 - Decision: fit the existing typed fixed-grid, fixed-Matérn, noncentered gridded LGCP request independently with the already pinned NumPyro 0.21.0/JAX 0.11.1 backend and compare it with the existing PyMC 6.3.0 fit. Preserve the exact data, grid, window, covariance, priors, likelihood, seed, sampling and diagnostic policies; retain both exact backend/environment/worker/request identities; and gate global parameters, latent-cell effects, and expected cell counts with explicit Monte Carlo and absolute tolerances. Any nonconverged fit or failed comparison remains diagnostic-only.
 - Consequences: one concrete field caller gains a second-engine check without a generalized backend registry, model language, arbitrary task runner, implicit backend selection, GPU claim, or new result-format version. LGCP simulation calibration, prior/kernel sensitivity, spatial posterior-predictive checks, CmdStan admission, and actual GPU evidence remain separate outcomes.
+
+## DEC-0233 — Calibrate the exact fixed-grid LGCP with bounded SBC
+
+- Date: 2026-08-27
+- Status: accepted for BAY-FIELD-A/BAY-PP-A/WS-40/WS-44 calibration
+- Decision: generate intercepts, coefficients, fixed-covariance latent fields, and Poisson cell counts from the exact typed gridded-LGCP prior/likelihood already consumed by the real CellViT caller, then refit each replicate with the pinned NumPyro backend. Retain complete replicate/failure disposition, rank and 90% coverage diagnostics for both global parameters and one prespecified latent-cell coordinate, unchanged per-fit convergence gates, deterministic seeds, and hard simulation/iteration/output/time bounds.
+- Consequences: the concrete fixed-grid field model gains simulation calibration without a generalized calibration registry or a claim about learned kernel hyperparameters, arbitrary meshes, all latent directions, real biological calibration, or a different point-process family.

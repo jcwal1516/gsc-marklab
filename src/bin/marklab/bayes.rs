@@ -59,6 +59,8 @@ mod gridded_lgcp_fit;
 pub(super) use gridded_lgcp_fit::{
     execute as execute_gridded_lgcp, prepare as prepare_gridded_lgcp, PreparedGriddedLgcpFit,
 };
+#[path = "bayes/gridded_lgcp_sbc.rs"]
+mod gridded_lgcp_sbc;
 #[path = "bayes/grouped_conformal.rs"]
 mod grouped_conformal;
 #[path = "bayes/hierarchical.rs"]
@@ -1299,6 +1301,60 @@ enum BayesCommand {
         minimum_parameter_tolerance: f64,
         #[arg(long)]
         minimum_field_tolerance: f64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    GriddedLgcpSbc {
+        #[arg(long)]
+        events: PathBuf,
+        #[arg(long)]
+        grid: PathBuf,
+        #[arg(long, allow_hyphen_values = true)]
+        xmin_um: f64,
+        #[arg(long, allow_hyphen_values = true)]
+        ymin_um: f64,
+        #[arg(long, allow_hyphen_values = true)]
+        xmax_um: f64,
+        #[arg(long, allow_hyphen_values = true)]
+        ymax_um: f64,
+        #[arg(long)]
+        grid_x: u32,
+        #[arg(long)]
+        grid_y: u32,
+        #[arg(long, allow_hyphen_values = true)]
+        intercept_prior_mean: f64,
+        #[arg(long)]
+        intercept_prior_sd: f64,
+        #[arg(long, allow_hyphen_values = true)]
+        coefficient_prior_mean: f64,
+        #[arg(long)]
+        coefficient_prior_sd: f64,
+        #[arg(long)]
+        field_amplitude: f64,
+        #[arg(long)]
+        field_length_scale_um: f64,
+        #[arg(long)]
+        jitter: f64,
+        #[arg(long)]
+        replicates: u32,
+        #[arg(long)]
+        chains: u32,
+        #[arg(long)]
+        tune: u32,
+        #[arg(long)]
+        draws: u32,
+        #[arg(long)]
+        target_accept: f64,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        minimum_rank_uniformity_p_value: f64,
+        #[arg(long)]
+        minimum_coverage_90: f64,
+        #[arg(long)]
+        maximum_coverage_90: f64,
         #[arg(long)]
         timeout_seconds: u64,
         #[arg(long)]
@@ -3384,6 +3440,66 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             maximum_standardized_difference,
             minimum_parameter_tolerance,
             minimum_field_tolerance,
+            timeout_seconds,
+            out,
+        ),
+        BayesTopLevel::Bayes {
+            command:
+                BayesCommand::GriddedLgcpSbc {
+                    events,
+                    grid,
+                    xmin_um,
+                    ymin_um,
+                    xmax_um,
+                    ymax_um,
+                    grid_x,
+                    grid_y,
+                    intercept_prior_mean,
+                    intercept_prior_sd,
+                    coefficient_prior_mean,
+                    coefficient_prior_sd,
+                    field_amplitude,
+                    field_length_scale_um,
+                    jitter,
+                    replicates,
+                    chains,
+                    tune,
+                    draws,
+                    target_accept,
+                    seed,
+                    minimum_rank_uniformity_p_value,
+                    minimum_coverage_90,
+                    maximum_coverage_90,
+                    timeout_seconds,
+                    out,
+                },
+        } => gridded_lgcp_sbc::run(
+            events,
+            grid,
+            xmin_um,
+            ymin_um,
+            xmax_um,
+            ymax_um,
+            grid_x,
+            grid_y,
+            intercept_prior_mean,
+            intercept_prior_sd,
+            coefficient_prior_mean,
+            coefficient_prior_sd,
+            field_amplitude,
+            field_length_scale_um,
+            jitter,
+            replicates,
+            NutsSamplingSpec {
+                chains,
+                tune_per_chain: tune,
+                draws_per_chain: draws,
+                target_accept,
+                seed,
+            },
+            minimum_rank_uniformity_p_value,
+            minimum_coverage_90,
+            maximum_coverage_90,
             timeout_seconds,
             out,
         ),

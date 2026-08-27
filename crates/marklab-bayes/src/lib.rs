@@ -20,6 +20,7 @@ mod graph_signal;
 mod gridded_lgcp;
 mod gridded_lgcp_agreement;
 mod gridded_lgcp_fit;
+mod gridded_lgcp_sbc;
 mod grouped_conformal;
 mod hierarchical;
 mod hierarchical_agreement;
@@ -119,6 +120,11 @@ pub use gridded_lgcp_fit::{
     GriddedLgcpPosteriorPredictive, GriddedLgcpPredictionApproximation,
     GriddedLgcpPredictionControls, GriddedLgcpPredictionResult, GriddedLgcpPredictiveDraw,
     GriddedLgcpPredictivePattern, GriddedLgcpPredictivePoint,
+};
+pub use gridded_lgcp_sbc::{
+    GriddedLgcpSbcCalibrationPolicy, GriddedLgcpSbcDiagnostics, GriddedLgcpSbcFailure,
+    GriddedLgcpSbcParameterDiagnostics, GriddedLgcpSbcReplicate, GriddedLgcpSbcResourceLimits,
+    GriddedLgcpSbcResult, NumpyroGriddedLgcpSbcWorkerRequest, NumpyroGriddedLgcpSbcWorkerResult,
 };
 pub use grouped_conformal::{
     CoverageRow, GroupedConformalModel, GroupedConformalPatient, GroupedConformalPrediction,
