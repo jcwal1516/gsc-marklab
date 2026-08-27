@@ -1899,3 +1899,27 @@ vascular transport.
   update. Workspace-wide tests/Clippy/docs, Nextest, feature matrices,
   benchmarks, fuzzing, memory tools, packaging, dependency audits, push, publication, deployment,
   and history rewriting were not run.
+
+## Normalized continuous mark-correlation checkpoint 73 — 2026-08-27
+
+- `cargo +1.96.0 test --locked --package marklab --test continuous_mark_correlation_typed_workflow`
+  first failed on the expected unresolved production
+  symbols. The final 5/5 tests pass: hand identities, independent Python direct-pair agreement,
+  deterministic replay, constant/missing/pair/memory failures, dominant-mark cancellation
+  resistance, and similar-versus-alternating direction.
+- `workers/python/.venv/bin/python tests/fixtures/continuous_mark_correlation/generate_python_oracle.py
+  | diff -u tests/fixtures/continuous_mark_correlation/python_line_oracle.json -` passes
+  byte-for-byte. The
+  available R installation lacks `spatstat.explore`; no package was installed and no spatstat claim
+  is made.
+- `cargo +1.96.0 test --locked --package marklab --test
+  continuous_mark_correlation_project_workflow` first failed on the expected unresolved durable
+  node and now passes 1/1: fresh miss, separately reconstructed exact hit with one execution, and
+  seed-invalidated second miss/execution.
+- The ERL-workspace accounting correction and one-byte-short bounds pass the affected categorical
+  3/3 typed plus 1/1 durable tests and probability 3/3 typed plus 1/1 durable tests.
+  Warning-denied Clippy over all six integrations, package no-default compilation, affected package
+  docs with zero doctests, final formatting, and diff whitespace checks pass. Workspace-wide
+  tests/Clippy/docs, Nextest, feature
+  matrices, benchmarks, fuzzing, memory tools, packaging, dependency audits, push, publication,
+  deployment, and history rewriting were not run.

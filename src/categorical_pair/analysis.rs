@@ -3,7 +3,7 @@ use marklab_workflow::ContentDigest;
 
 use crate::{
     classical::window_summary,
-    mark_pair_plan::{build_mark_pair_plan, MarkPairPlan, MarkPairPlanError},
+    mark_pair_plan::{build_mark_pair_plan, erl_workspace_bytes, MarkPairPlan, MarkPairPlanError},
     permutation::envelopes::GlobalEnvelope,
     DeclaredScalarPatternInput, ObservationWindow2D, ScalarMarkId,
 };
@@ -84,11 +84,26 @@ pub fn categorical_mark_connection_cross_k(
             maximum: config.limits.maximum_permutation_pair_evaluations,
         });
     }
-    let matrix_bytes = config
+    let matrix_value_bytes = config
         .permutations
         .checked_mul(config.radii_um.len())
         .and_then(|value| value.checked_mul(2))
         .and_then(|value| value.checked_mul(std::mem::size_of::<f64>()))
+        .ok_or(CategoricalPairError::SizeOverflow)?;
+    let matrix_descriptor_bytes = config
+        .permutations
+        .checked_mul(2)
+        .and_then(|value| value.checked_mul(std::mem::size_of::<Vec<f64>>()))
+        .ok_or(CategoricalPairError::SizeOverflow)?;
+    let radius_work_bytes = config
+        .radii_um
+        .len()
+        .checked_mul(
+            2 * std::mem::size_of::<CategoricalPairPoint>()
+                + 6 * std::mem::size_of::<f64>()
+                + 8 * std::mem::size_of::<usize>()
+                + 4 * std::mem::size_of::<bool>(),
+        )
         .ok_or(CategoricalPairError::SizeOverflow)?;
     let permutation_work_bytes = codes
         .len()
@@ -97,19 +112,16 @@ pub fn categorical_mark_connection_cross_k(
                 + std::mem::size_of::<u32>()
                 + std::mem::size_of::<bool>(),
         )
-        .and_then(|value| {
-            value.checked_add(
-                config
-                    .radii_um
-                    .len()
-                    .checked_mul(16 * std::mem::size_of::<usize>())?,
-            )
-        })
+        .ok_or(CategoricalPairError::SizeOverflow)?;
+    let erl_bytes = erl_workspace_bytes(config.permutations, config.radii_um.len())
         .ok_or(CategoricalPairError::SizeOverflow)?;
     let retained_bytes = plan
         .retained_bytes
-        .checked_add(matrix_bytes)
+        .checked_add(matrix_value_bytes)
+        .and_then(|value| value.checked_add(matrix_descriptor_bytes))
+        .and_then(|value| value.checked_add(radius_work_bytes))
         .and_then(|value| value.checked_add(permutation_work_bytes))
+        .and_then(|value| value.checked_add(erl_bytes))
         .ok_or(CategoricalPairError::SizeOverflow)?;
     if retained_bytes > config.limits.maximum_retained_bytes {
         return Err(CategoricalPairError::RetainedByteLimitExceeded {

@@ -83,7 +83,7 @@ pub(crate) fn build_mark_pair_plan(
         .estimated_storage_bytes()
         .checked_add(
             pairs
-                .len()
+                .capacity()
                 .checked_mul(std::mem::size_of::<DirectedPair>())
                 .ok_or(MarkPairPlanError::SizeOverflow)?,
         )
@@ -100,6 +100,27 @@ pub(crate) fn build_mark_pair_plan(
         digest,
         retained_bytes,
     })
+}
+
+/// Conservative additional peak bytes allocated by the current ERL implementation.
+pub(crate) fn erl_workspace_bytes(permutations: usize, radii: usize) -> Option<usize> {
+    let curves = permutations.checked_add(1)?;
+    let copied_permutation_cells = permutations.checked_mul(radii)?;
+    let inference_and_rank_cells = curves.checked_mul(radii)?.checked_mul(2)?;
+    let matrix_bytes = copied_permutation_cells
+        .checked_add(inference_and_rank_cells)?
+        .checked_mul(std::mem::size_of::<f64>())?;
+    let per_curve_scratch = 4_usize
+        .checked_mul(std::mem::size_of::<f64>())?
+        .checked_add(2_usize.checked_mul(std::mem::size_of::<usize>())?)?;
+    let curve_scratch_bytes = curves.checked_mul(per_curve_scratch)?;
+    let per_radius_scratch = 2_usize
+        .checked_mul(std::mem::size_of::<f64>())?
+        .checked_add(std::mem::size_of::<usize>())?;
+    let radius_scratch_bytes = radii.checked_mul(per_radius_scratch)?;
+    matrix_bytes
+        .checked_add(curve_scratch_bytes)?
+        .checked_add(radius_scratch_bytes)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -135,8 +156,20 @@ fn retain_pair(
         });
         return;
     }
-    if pairs.try_reserve(1).is_err() {
+    if pairs.try_reserve_exact(1).is_err() {
         *failure = Some(MarkPairPlanError::AllocationFailed);
+        return;
+    }
+    let allocated_required = geometry.estimated_storage_bytes().saturating_add(
+        pairs
+            .capacity()
+            .saturating_mul(std::mem::size_of::<DirectedPair>()),
+    );
+    if allocated_required > maximum_retained_bytes {
+        *failure = Some(MarkPairPlanError::RetainedByteLimitExceeded {
+            required: allocated_required,
+            maximum: maximum_retained_bytes,
+        });
         return;
     }
     pairs.push(DirectedPair {

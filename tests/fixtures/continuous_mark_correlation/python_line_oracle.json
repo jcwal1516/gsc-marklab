@@ -1,0 +1,21 @@
+{
+  "curve": [
+    {
+      "correlation": null,
+      "directed_pairs": 0,
+      "mark_product_sum": 0.0,
+      "radius_um": 0.5,
+      "shell_lower_um": 0.0
+    },
+    {
+      "correlation": 1.0666666666666667,
+      "directed_pairs": 6,
+      "mark_product_sum": 40.0,
+      "radius_um": 1.1,
+      "shell_lower_um": 0.5
+    }
+  ],
+  "expected_random_label_correlation": 0.9333333333333332,
+  "global_mark_mean": 2.5,
+  "global_mark_population_variance": 1.25
+}

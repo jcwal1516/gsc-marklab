@@ -3,7 +3,7 @@ use marklab_workflow::ContentDigest;
 
 use crate::{
     classical::window_summary,
-    mark_pair_plan::{build_mark_pair_plan, MarkPairPlan, MarkPairPlanError},
+    mark_pair_plan::{build_mark_pair_plan, erl_workspace_bytes, MarkPairPlan, MarkPairPlanError},
     permutation::envelopes::GlobalEnvelope,
     DeclaredScalarPatternInput, ObservationWindow2D,
 };
@@ -100,12 +100,15 @@ pub fn probability_mark_connection(
                 + std::mem::size_of::<bool>(),
         )
         .ok_or(ProbabilityPairError::SizeOverflow)?;
+    let erl_bytes = erl_workspace_bytes(config.permutations, config.radii_um.len())
+        .ok_or(ProbabilityPairError::SizeOverflow)?;
     let retained_bytes = plan
         .retained_bytes
         .checked_add(matrix_value_bytes)
         .and_then(|value| value.checked_add(matrix_descriptor_bytes))
         .and_then(|value| value.checked_add(radius_work_bytes))
         .and_then(|value| value.checked_add(permutation_work_bytes))
+        .and_then(|value| value.checked_add(erl_bytes))
         .ok_or(ProbabilityPairError::SizeOverflow)?;
     if retained_bytes > config.limits.maximum_retained_bytes {
         return Err(ProbabilityPairError::RetainedByteLimitExceeded {

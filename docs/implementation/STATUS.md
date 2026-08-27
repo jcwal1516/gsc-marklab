@@ -1299,3 +1299,29 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   hit with one execution; a seed change produces the second miss. MRK-01A is complete. MRK-01B is
   now active for normalized continuous mark correlation over the already-typed finite continuous
   column; probability simplex and sampled-label uncertainty remain under MRK-02C.
+
+## Normalized continuous mark-correlation checkpoint 73 — 2026-08-27
+
+- Added `continuous_mark_correlation` for the existing exact positive finite
+  `nucleus_area_um2` MarkTable column. Each standard-border shell reports the compensated `f64`
+  mean of directed `m_i m_j` products divided by one global arithmetic mark mean squared. The mean
+  is fixed over all admitted rows and is never radius-, edge-, or permutation-specific.
+- The exact finite-row random-label expectation is
+  `(((sum m)^2 - sum m^2) / (n(n-1))) / global_mean(m)^2`. Complete continuous rows move through
+  the existing `InferenceDesign` over one retained geometry plan, with one two-sided ERL family.
+  Constant marks, missing identity, pair work, permutation work, and retained bytes fail explicitly.
+- The four-point line `[1,2,3,4]` has global mean `2.5`, population variance `1.25`, six directed
+  adjacent pairs with product sum `40`, shell correlation `16/15`, and random-label expectation
+  `14/15`. A standalone direct-pair Python oracle regenerates its fixture byte-for-byte and agrees
+  with Rust at exact counts and declared `f64` tolerance; adjacent ordered marks exceed the
+  prespecified alternating control. An adversarial dominant-positive-mark case retains nonzero
+  expected random-label mass through a cancellation-resistant prefix-product accumulation.
+- Direct review found that the prior categorical/probability retained-byte preflights counted stored
+  null curves but not internal ERL matrix copies and rank/depth/order workspaces. One shared checked
+  estimator now covers those peak allocations plus actual retained directed-pair vector capacity
+  for all three workflows. A limit one byte below each workflow's reported total fails before
+  inference; all affected categorical/probability regressions remain green.
+- The strict store-aware node binds mark/provenance, unit, frame/window, normalization, radii, null
+  controls, seed, limits, and implementation identity. A separately reconstructed durable project
+  hits with one execution; a seed change misses. MRK-01B is complete. MRK-01C mark-weighted K is the
+  next immediate caller and must remain a distinct cumulative estimand.

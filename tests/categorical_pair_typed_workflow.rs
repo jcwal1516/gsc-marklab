@@ -211,6 +211,31 @@ fn same_levels_and_one_short_pair_work_are_rejected() {
     )
     .expect("limited config");
     assert!(categorical_mark_connection_cross_k(&input, &window, &limited).is_err());
+
+    let baseline = categorical_mark_connection_cross_k(&input, &window, &config(11))
+        .expect("baseline resource estimate");
+    let one_short = CategoricalPairConfig::new(
+        vec![0.5, 1.1],
+        "tumor",
+        "stroma",
+        31,
+        11,
+        0.05,
+        CategoricalPairLimits::new(
+            16,
+            16,
+            64,
+            64 * 31,
+            baseline.geometry.estimated_storage_bytes - 1,
+        )
+        .expect("one-short limits"),
+    )
+    .expect("one-short config");
+    assert!(matches!(
+        categorical_mark_connection_cross_k(&input, &window, &one_short),
+        Err(marklab::CategoricalPairError::RetainedByteLimitExceeded { required, maximum })
+            if required == baseline.geometry.estimated_storage_bytes && required == maximum + 1
+    ));
 }
 
 #[test]

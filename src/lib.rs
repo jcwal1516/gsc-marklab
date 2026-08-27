@@ -27,6 +27,8 @@ mod comparison;
 mod config;
 #[cfg(feature = "parquet")]
 mod contained_patch_nucleus_area_contrast;
+mod continuous_mark_correlation;
+mod continuous_mark_correlation_workflow;
 mod data;
 mod diagnostics;
 mod errors;
@@ -114,6 +116,14 @@ pub use contained_patch_nucleus_area_contrast::{
     contained_patch_binary_nucleus_area_contrast, ContainedPatchBinaryNucleusAreaContrast,
     ContainedPatchBinaryNucleusAreaContrastError, ContainedPatchBinaryNucleusAreaContrastStatus,
 };
+pub use continuous_mark_correlation::{
+    continuous_mark_correlation, ContinuousMarkCorrelationComponentInference,
+    ContinuousMarkCorrelationConfig, ContinuousMarkCorrelationError,
+    ContinuousMarkCorrelationGeometrySummary, ContinuousMarkCorrelationInferenceSummary,
+    ContinuousMarkCorrelationLimits, ContinuousMarkCorrelationPoint,
+    ContinuousMarkCorrelationPointStatus, ContinuousMarkCorrelationResult,
+};
+pub use continuous_mark_correlation_workflow::ContinuousMarkCorrelationAnalysisNode;
 pub use data::{Pattern, PatternMeta, TumorWindow};
 pub use errors::{MarklabError, Result};
 pub use geom::mask::TumorMask;

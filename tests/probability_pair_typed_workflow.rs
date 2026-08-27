@@ -220,6 +220,37 @@ fn insufficient_effective_pair_mass_and_pair_work_are_rejected() {
         probability_mark_connection(&input, &window, &limited),
         Err(ProbabilityPairError::DirectedPairLimitExceeded { maximum: 1 })
     ));
+
+    let baseline = probability_mark_connection(
+        &input,
+        &window,
+        &config(
+            ScalarMarkId::new("tumor_probability").expect("probability ID"),
+            11,
+        ),
+    )
+    .expect("baseline resource estimate");
+    let one_short = ProbabilityPairConfig::new(
+        ScalarMarkId::new("tumor_probability").expect("probability ID"),
+        vec![0.5, 1.1],
+        31,
+        11,
+        0.05,
+        ProbabilityPairLimits::new(
+            16,
+            16,
+            64,
+            64 * 31,
+            baseline.geometry.estimated_storage_bytes - 1,
+        )
+        .expect("one-short limits"),
+    )
+    .expect("one-short config");
+    assert!(matches!(
+        probability_mark_connection(&input, &window, &one_short),
+        Err(ProbabilityPairError::RetainedByteLimitExceeded { required, maximum })
+            if required == baseline.geometry.estimated_storage_bytes && required == maximum + 1
+    ));
 }
 
 #[test]

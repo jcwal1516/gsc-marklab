@@ -560,3 +560,17 @@ existing finite `nucleus_area_um2` MarkTable column. It must freeze a global-mea
 reuse the same pair geometry and complete-row null, provide a hand and independent numerical
 oracle, and remain distinct from mark-weighted K. No generic mark statistic, kernel registry, or
 probability-simplex framework is justified.
+
+## Checkpoint 73 normalized continuous mark-correlation continuation
+
+MRK-01B is complete. The fixed positive nucleus-area column now has global-mean normalized shell
+mark correlation, compensated arithmetic, exact finite-row random-label expectation, complete-row
+ERL inference, strict resource accounting including ERL internals, typed durable replay, hand and
+independent Python oracles, and a directional control. Categorical, probability, and continuous
+workflows share only the concrete retained pair and ERL-workspace contracts they all consume.
+
+Dependency-ordered work continues to MRK-01C mark-weighted K over this same admitted positive mark.
+It must define a cumulative standard-border weighted K with the product weight and global-mean
+normalization fixed here, retain unweighted K as the explicit spatial baseline, and reuse geometry,
+null, bounds, codec, and durable execution without representing the cumulative statistic as mark
+correlation. No generic weight-function registry or arbitrary continuous-mark framework is needed.
