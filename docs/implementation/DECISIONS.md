@@ -1900,3 +1900,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-FIELD-A/BAY-PP-A/WS-40/WS-44 calibration
 - Decision: generate intercepts, coefficients, fixed-covariance latent fields, and Poisson cell counts from the exact typed gridded-LGCP prior/likelihood already consumed by the real CellViT caller, then refit each replicate with the pinned NumPyro backend. Retain complete replicate/failure disposition, rank and 90% coverage diagnostics for both global parameters and one prespecified latent-cell coordinate, unchanged per-fit convergence gates, deterministic seeds, and hard simulation/iteration/output/time bounds.
 - Consequences: the concrete fixed-grid field model gains simulation calibration without a generalized calibration registry or a claim about learned kernel hyperparameters, arbitrary meshes, all latent directions, real biological calibration, or a different point-process family.
+
+## DEC-0234 — Diagnose gridded-LGCP spatial replication from existing posterior patterns
+
+- Date: 2026-08-27
+- Status: accepted for BAY-PP-A/WS-43 posterior predictive validation
+- Decision: consume the existing complete-fit-only gridded-LGCP posterior pattern artifact and report cell-count variance plus horizontal/vertical adjacent-cell mean absolute contrast for the observation and every bounded replicate, with inclusive posterior-predictive tail probabilities. Keep the original typed prediction and its exact draw/point provenance intact in a dedicated result rather than adding fields to the established fit result.
+- Consequences: the current real fixed-grid caller gains spatial posterior-predictive evidence beyond total/zero counts without changing result-format 0.3, the existing fit schema, the simulator, or the artifact store. These two grid diagnostics do not establish continuous-space K-function fit or adequacy for other point-process families.

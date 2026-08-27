@@ -21,6 +21,7 @@ mod gridded_lgcp;
 mod gridded_lgcp_agreement;
 mod gridded_lgcp_fit;
 mod gridded_lgcp_sbc;
+mod gridded_lgcp_spatial_ppc;
 mod grouped_conformal;
 mod hierarchical;
 mod hierarchical_agreement;
@@ -125,6 +126,10 @@ pub use gridded_lgcp_sbc::{
     GriddedLgcpSbcCalibrationPolicy, GriddedLgcpSbcDiagnostics, GriddedLgcpSbcFailure,
     GriddedLgcpSbcParameterDiagnostics, GriddedLgcpSbcReplicate, GriddedLgcpSbcResourceLimits,
     GriddedLgcpSbcResult, NumpyroGriddedLgcpSbcWorkerRequest, NumpyroGriddedLgcpSbcWorkerResult,
+};
+pub use gridded_lgcp_spatial_ppc::{
+    gridded_lgcp_spatial_ppc, GriddedLgcpSpatialPpcResult, GriddedLgcpSpatialPpcSummaries,
+    GriddedLgcpSpatialPpcSummary,
 };
 pub use grouped_conformal::{
     CoverageRow, GroupedConformalModel, GroupedConformalPatient, GroupedConformalPrediction,
