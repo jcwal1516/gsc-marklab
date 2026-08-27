@@ -6,6 +6,7 @@ mod beta_binomial_group_gender_agreement;
 mod beta_binomial_group_gender_regression;
 mod beta_binomial_group_gender_sbc;
 mod beta_binomial_group_gender_sensitivity;
+mod beta_binomial_group_gender_slide_agreement;
 mod beta_binomial_group_gender_slide_hierarchy;
 mod beta_binomial_group_regression;
 mod beta_binomial_group_regression_agreement;
@@ -121,6 +122,12 @@ pub use beta_binomial_group_gender_sensitivity::{
     BetaBinomialGroupGenderSensitivityResult, BetaBinomialGroupGenderSensitivityScenario,
     BetaBinomialGroupGenderSensitivityScenarioResult,
     BetaBinomialGroupGenderSensitivityScenarioRun,
+};
+pub use beta_binomial_group_gender_slide_agreement::{
+    BetaBinomialGroupGenderSlideAgreementComparison, BetaBinomialGroupGenderSlideAgreementPolicy,
+    BetaBinomialGroupGenderSlideAgreementResult, BetaBinomialGroupGenderSlideBackendSummary,
+    NumpyroBetaBinomialGroupGenderSlideHierarchyWorkerRequest,
+    NumpyroBetaBinomialGroupGenderSlideHierarchyWorkerResult,
 };
 pub use beta_binomial_group_gender_slide_hierarchy::{
     beta_binomial_group_gender_slide_data_sha256, BetaBinomialGroupGenderSlideData,

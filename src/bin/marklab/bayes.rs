@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use marklab_bayes::{
     sha256_hex, BayesError, NormalMeanInputIdentity, NormalMeanSpec, NormalMeanWorkerRequest,
     NutsSamplingSpec, SmcSamplingSpec, WorkerResult,
@@ -39,6 +39,8 @@ mod beta_binomial_group_gender_agreement;
 mod beta_binomial_group_gender_sbc;
 #[path = "bayes/beta_binomial_group_gender_sensitivity.rs"]
 mod beta_binomial_group_gender_sensitivity;
+#[path = "bayes/beta_binomial_group_gender_slide_agreement.rs"]
+mod beta_binomial_group_gender_slide_agreement;
 #[path = "bayes/beta_binomial_group_gender_slide_hierarchy.rs"]
 mod beta_binomial_group_gender_slide_hierarchy;
 pub(super) use beta_binomial_group_gender_slide_hierarchy::{
@@ -237,6 +239,82 @@ enum BayesTopLevel {
         #[command(subcommand)]
         command: BayesCommand,
     },
+}
+
+#[derive(Debug, Args)]
+struct BetaBinomialGroupGenderSlideHierarchyAgreementArgs {
+    #[arg(long)]
+    input: PathBuf,
+    #[arg(long)]
+    reference_group: String,
+    #[arg(long)]
+    comparison_group: String,
+    #[arg(long)]
+    reference_gender: String,
+    #[arg(long)]
+    comparison_gender: String,
+    #[arg(long, allow_hyphen_values = true)]
+    intercept_prior_mean: f64,
+    #[arg(long)]
+    intercept_prior_sd: f64,
+    #[arg(long)]
+    group_effect_prior_sd: f64,
+    #[arg(long)]
+    gender_effect_prior_sd: f64,
+    #[arg(long)]
+    patient_log_odds_sd_prior_sd: f64,
+    #[arg(long)]
+    slide_concentration_prior_sd: f64,
+    #[arg(long)]
+    chains: u32,
+    #[arg(long)]
+    tune: u32,
+    #[arg(long)]
+    draws: u32,
+    #[arg(long)]
+    target_accept: f64,
+    #[arg(long)]
+    seed: u64,
+    #[arg(long)]
+    maximum_standardized_difference: f64,
+    #[arg(long)]
+    minimum_probability_tolerance: f64,
+    #[arg(long)]
+    minimum_log_odds_tolerance: f64,
+    #[arg(long)]
+    minimum_patient_sd_tolerance: f64,
+    #[arg(long)]
+    minimum_concentration_tolerance: f64,
+    #[arg(long)]
+    minimum_patient_probability_tolerance: f64,
+    #[arg(long)]
+    minimum_patient_effect_tolerance: f64,
+    #[arg(long)]
+    timeout_seconds: u64,
+    #[arg(long)]
+    out: PathBuf,
+}
+
+#[derive(Debug, Parser)]
+#[command(name = "marklab")]
+struct BetaBinomialGroupGenderSlideHierarchyAgreementCli {
+    #[command(subcommand)]
+    command: BetaBinomialGroupGenderSlideHierarchyAgreementTopLevel,
+}
+
+#[derive(Debug, Subcommand)]
+enum BetaBinomialGroupGenderSlideHierarchyAgreementTopLevel {
+    Bayes {
+        #[command(subcommand)]
+        command: BetaBinomialGroupGenderSlideHierarchyAgreementCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum BetaBinomialGroupGenderSlideHierarchyAgreementCommand {
+    BetaBinomialGroupGenderSlideHierarchyAgreement(
+        Box<BetaBinomialGroupGenderSlideHierarchyAgreementArgs>,
+    ),
 }
 
 #[derive(Debug, Subcommand)]
@@ -2904,6 +2982,71 @@ pub(super) fn into_marklab_error(error: BayesCliError) -> marklab::MarklabError 
         BayesCliError::Csv(error) => marklab::MarklabError::Csv(error),
         BayesCliError::Json(error) => marklab::MarklabError::Json(error),
     }
+}
+
+pub(super) fn run_beta_binomial_group_gender_slide_hierarchy_agreement_cli(
+) -> Result<(), BayesCliError> {
+    let BetaBinomialGroupGenderSlideHierarchyAgreementTopLevel::Bayes { command } =
+        BetaBinomialGroupGenderSlideHierarchyAgreementCli::parse_from(std::env::args_os()).command;
+    let BetaBinomialGroupGenderSlideHierarchyAgreementCommand::BetaBinomialGroupGenderSlideHierarchyAgreement(
+        arguments,
+    ) = command;
+    let BetaBinomialGroupGenderSlideHierarchyAgreementArgs {
+        input,
+        reference_group,
+        comparison_group,
+        reference_gender,
+        comparison_gender,
+        intercept_prior_mean,
+        intercept_prior_sd,
+        group_effect_prior_sd,
+        gender_effect_prior_sd,
+        patient_log_odds_sd_prior_sd,
+        slide_concentration_prior_sd,
+        chains,
+        tune,
+        draws,
+        target_accept,
+        seed,
+        maximum_standardized_difference,
+        minimum_probability_tolerance,
+        minimum_log_odds_tolerance,
+        minimum_patient_sd_tolerance,
+        minimum_concentration_tolerance,
+        minimum_patient_probability_tolerance,
+        minimum_patient_effect_tolerance,
+        timeout_seconds,
+        out,
+    } = *arguments;
+    beta_binomial_group_gender_slide_agreement::run(
+        input,
+        reference_group,
+        comparison_group,
+        reference_gender,
+        comparison_gender,
+        intercept_prior_mean,
+        intercept_prior_sd,
+        group_effect_prior_sd,
+        gender_effect_prior_sd,
+        patient_log_odds_sd_prior_sd,
+        slide_concentration_prior_sd,
+        NutsSamplingSpec {
+            chains,
+            tune_per_chain: tune,
+            draws_per_chain: draws,
+            target_accept,
+            seed,
+        },
+        maximum_standardized_difference,
+        minimum_probability_tolerance,
+        minimum_log_odds_tolerance,
+        minimum_patient_sd_tolerance,
+        minimum_concentration_tolerance,
+        minimum_patient_probability_tolerance,
+        minimum_patient_effect_tolerance,
+        timeout_seconds,
+        out,
+    )
 }
 
 pub(super) fn run_cli() -> Result<(), BayesCliError> {

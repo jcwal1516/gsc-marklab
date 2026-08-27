@@ -2061,3 +2061,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for PLAT-01/WF-01/BACK-01/BAY-03
 - Decision: add one static `marklab project beta-binomial-group-gender-slide-hierarchy` node using the existing durable project, scheduler, artifact store, cache-key owner, ledger, recovery, output transaction, and typed result codec. Its cache identity includes exact slide-table bytes, typed nested-model request, seed and sampler controls, PyMC/Python/lock/worker identities, the static Apache-2.0 backend descriptor, and native runtime identity; a hit must decode and validate without starting Python.
 - Consequences: the real repeated-slide hierarchy becomes cross-process resumable without a new task runner, store, registry, plugin surface, or duplicated transaction/recovery mechanism.
+
+## DEC-0257 — Cross-check the repeated-slide hierarchy independently
+
+- Date: 2026-08-27
+- Status: accepted for BAY-01/BAY-03/BAY-HIER-A/WS-44
+- Decision: execute the exact DEC-0255 non-centered patient-random-intercept and slide beta-binomial model in pinned PyMC and pinned dense-mass NumPyro with identical data, priors, patient indexing, seed, sampling controls, diagnostics, typical-patient standardization, and patient-unit/slide-deviation posterior predictive summaries. Gate every reported scalar, all patient probabilities, and all patient random log-odds effects by interval overlap and declared Monte Carlo-error-aware absolute tolerances.
+- Consequences: the repeated-measure caller gains an independent implementation check without changing its biological unit, parameterization, likelihood, adding a backend registry/formula language, or substituting backend agreement for prior sensitivity and simulation calibration.
