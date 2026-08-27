@@ -481,3 +481,21 @@ regression and compare its MSI estimand with the unadjusted model before any dur
 expansion. If no such covariate is admissible, retain the exact missingness/identifiability blocker
 and move to the next real likelihood caller. Do not add a formula language, generic regression
 framework, crossed/random-slope model without repeated identified units, CmdStan claim, or GPU claim.
+
+## Checkpoint 68 adjusted molecular-group hierarchy continuation
+
+The complete `Gender` covariate supports an exact 105-patient additive beta-binomial model without
+dropping any labeled patient. The adjusted fit, backend-disabled durable replay, independent
+PyMC/NumPyro agreement for all scalar and patient estimands, nine-fit one-at-a-time prior grid, and
+20/20 real-shape SBC all pass. The standardized MSI-minus-MSS estimate is materially unchanged from
+the unadjusted fit, but remains exploratory classifier-composition evidence rather than general
+confounding control, causal inference, or clinical validation.
+
+Dependency-ordered Phase 4 work moves to the already admitted slide-to-patient relation: audit exact
+per-slide successes/trials and within-patient replication, then add the smallest typed slide-within-
+patient count hierarchy only if the identified repeated units provide adequate support. The model
+must preserve patient as the biological inference unit and compare its group estimand with the
+current patient-aggregated fits before durable/agreement/sensitivity/SBC expansion. If replication
+or identifiability fails, retain that exact blocker and move to another admitted likelihood; do not
+invent a formula language, crossed/random-slope structure, ordinal/hurdle outcome, CmdStan, GPU, or
+causal evidence.

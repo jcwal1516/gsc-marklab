@@ -1759,3 +1759,42 @@ vascular transport.
   the reproducible macOS loader-verification loop and the active instruction forbids retrying it.
   No feature matrix, benchmark, fuzz, memory, packaging, dependency audit, push, publication,
   deployment, history rewrite, or worktree was run.
+
+## Gender-adjusted molecular-group hierarchy stabilization checkpoint 68 — 2026-08-27
+
+- Expected reds were observed before production changes: the exact fit, durable, agreement, and
+  sensitivity integrations failed for their missing adjusted behavior/subcommands; the SBC test
+  failed with the absent `beta-binomial-group-gender-regression-sbc` subcommand. No assertion,
+  diagnostic threshold, coverage interval, or failure disposition was weakened.
+- The full adapter admission revalidated 366 slides and 1,542,389 row-aligned cells and admitted all
+  105 MSI/MSS patients into four nondegenerate group/gender cells. The raw table SHA is
+  `8f6e6c433d34793b31ad59255e73194732db448390c8196715c96e247e84e4e0`; the admission SHA is
+  `3c8fa133737880561dd127e15d7b9996c2969cdcfc2688a4fe3e20ca09951fda`. Prior prepared inputs
+  compared byte-identically.
+- The real PyMC and durable miss/hit outputs share SHA
+  `f88ca744929d3ea492fffb33bdd9fb2083dcc77eb7cabe9abd7ffafd2de90499`; the hit was produced by a
+  backend-disabled separate process and one ledger row remained. The complete PyMC/NumPyro
+  agreement result SHA is `8023c116ba1d2fd787b0e207332f6e226ae3e47b2d29b9afedcf16766298caea`;
+  every one of 15 scalar and 105 patient-probability gates passed. The complete nine-fit sensitivity
+  result SHA is `be23541b9a36c785a69ace3193493b96684641430798f8cfcf18c56576ddef2c`.
+- The initial focused SBC command `cargo +1.96.0 test --locked --package marklab --features cli
+  --test bayes_beta_binomial_group_gender_sbc_cli -- --nocapture` passed 1/1 after the expected red.
+  The real command used the exact 105-patient shape with 20 replicates, two chains, 2,000 warmup,
+  4,000 draws, target acceptance `0.99`, seed `20260827`, and a 1,200-second bound. It completed
+  20/20 dispositions with no failure and produced SHA
+  `4d148ba728fb3bea6d22f076be3c6c754c373da8b1fc9a86b8171711477cb60c` locally and on the Mac mini.
+- `cargo +1.96.0 test --locked --package marklab-bayes --lib` passed 46/46. One serial combined
+  command over `cellvit_beta_binomial_input`, `bayes_beta_binomial_group_gender_regression_cli`,
+  `durable_pymc_beta_binomial_group_gender_project`,
+  `bayes_beta_binomial_group_gender_agreement_cli`,
+  `bayes_beta_binomial_group_gender_sensitivity_cli`, and
+  `bayes_beta_binomial_group_gender_sbc_cli` passed all six integrations.
+- `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings` passed in
+  `15m20s`. `cargo +1.96.0 check --locked --workspace --no-default-features`, `cargo +1.96.0 test
+  --locked --workspace --doc --all-features`, `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc
+  --locked --workspace --all-features --no-deps`, `cargo +1.96.0 fmt --all --check`, four-source
+  pinned-Python in-memory syntax compilation, and `git diff --check` passed.
+- The full workspace integration suite and Nextest were not rerun because checkpoints 51/52 record
+  the reproducible macOS loader-verification loop and the active instruction forbids retrying it.
+  No feature matrix, benchmark, fuzz, memory, packaging, dependency audit, push, publication,
+  deployment, history rewrite, or worktree was run.

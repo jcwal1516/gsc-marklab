@@ -1130,3 +1130,50 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   BAY-HIER-A. The next identified Bayesian hierarchy needs a real immediate caller for more than one
   covariate or repeated/crossed/random-slope structure; ordinal/hurdle, CmdStan, and actual GPU
   evidence remain absent and will not be fabricated.
+
+## Gender-adjusted molecular-group hierarchy stabilization checkpoint 68 — 2026-08-27
+
+- The bounded clinical admission found one smallest complete adjustment caller: the pinned `Gender`
+  row joins exactly to all 105 MSI/MSS patients, with design support of 46 MSS Female, 35 MSS Male,
+  17 MSI Female, and 7 MSI Male patients. The sorted count/label/gender table has SHA-256
+  `8f6e6c433d34793b31ad59255e73194732db448390c8196715c96e247e84e4e0`, and the admission record has
+  SHA-256 `3c8fa133737880561dd127e15d7b9996c2969cdcfc2688a4fe3e20ca09951fda`. The full 366-slide,
+  1,542,389-cell adapter rerun preserved every previously admitted input byte-for-byte. Age was not
+  used because two patients are missing it and the source does not declare its units; no silent
+  complete-case deletion or inferred unit was introduced.
+- Added the exact additive patient beta-binomial group-plus-gender model with no interaction, shared
+  concentration, exact conditional patient probabilities, four design-cell probabilities, and an
+  MSI-minus-MSS contrast standardized to the observed gender distribution. The complete PyMC fit
+  estimates a group log-odds effect of `-0.41124` (95% interval `-0.76378` to `-0.06739`), gender
+  effect `-0.05128` (`-0.35349` to `0.23992`), marginal MSS/MSI probabilities `0.39758/0.30533`,
+  marginal difference `-0.09226` (`-0.16633` to `-0.01572`), group odds ratio `0.67336`, and
+  concentration `6.1471`. `R-hat=1.00123`, divergences/depth hits are zero, and the aggregate,
+  group-difference, and gender-difference PPC tails are `0.06525/0.412/0.533625`. The near-identical
+  unadjusted difference was `-0.09360`; this does not establish general confounding control or a
+  causal/clinical effect.
+- The real one-shot and separate-process durable miss/backend-disabled hit are byte-identical with
+  SHA-256 `f88ca744929d3ea492fffb33bdd9fb2083dcc77eb7cabe9abd7ffafd2de90499` and one ledger row. Pinned
+  PyMC and dense-mass NumPyro agree on all 15 scalar estimands and all 105 patient probabilities;
+  the group/gender effect discrepancies are `0.000422/0.001986`, the marginal-difference discrepancy
+  is `0.000159`, patient RMS/max discrepancies are `0.000154/0.001254`, and both fits have zero
+  divergences/depth hits. The agreement result SHA is
+  `8023c116ba1d2fd787b0e207332f6e226ae3e47b2d29b9afedcf16766298caea`.
+- All nine baseline plus 0.5x/2x one-at-a-time prior fits converge and remain below the declared
+  `0.75`-SD material threshold; the maximum shift is `0.21837` SD for the tighter group-effect prior.
+  The sensitivity result SHA is `be23541b9a36c785a69ace3193493b96684641430798f8cfcf18c56576ddef2c`.
+  Exact prior-generative SBC over the real 105-patient/886,751-trial group/gender shape passes 20/20
+  with no failures, maximum `R-hat=1.00204`, minimum bulk/tail ESS `6505/4579`, minimum E-BFMI
+  `0.916`, zero divergences/depth hits, rank p-values `0.350`–`0.964`, and 90% coverage `0.85`–`0.95`
+  across intercept, group effect, gender effect, concentration, the standardized marginal contrast,
+  and one exact-conditional patient coordinate. Its SHA is
+  `4d148ba728fb3bea6d22f076be3c6c754c373da8b1fc9a86b8171711477cb60c`.
+- Inputs, durable state, and results are mirrored without deletion under
+  `/Volumes/1TB/marklab/runs/results-cellvit-bayesian-v1`. All six adjusted integrations and 46/46
+  Bayesian library tests pass. Workspace warning-denied all-target/all-feature Clippy passed in
+  `15m20s`; workspace no-default compilation, all-feature doc tests, strict all-feature docs,
+  formatting, four-source Python syntax compilation, and whitespace checks pass. The documented
+  full-integration/Nextest macOS loader loop was not rerun.
+- This closes the current complete-covariate adjusted-count promotion gate, not BAY-03 or BAY-HIER-A.
+  The next real hierarchy caller is a bounded audit of repeated CellViT slide counts nested within
+  identified patients; only adequate within-patient replication may justify a patient random effect.
+  Ordinal/hurdle, crossed/random-slope, CmdStan, actual GPU, and causal evidence remain absent.
