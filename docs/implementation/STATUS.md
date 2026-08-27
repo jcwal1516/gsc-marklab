@@ -982,3 +982,32 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   sensitivity, and SBC gates. Phase 4 remains active for the real gridded field/LGCP caller's
   independent-backend agreement, SBC, prior/kernel sensitivity, and spatial posterior-predictive
   summaries, plus the broader likelihood/model families and absent CmdStan/GPU evidence.
+
+## Gridded-LGCP calibration stabilization checkpoint 64 — 2026-08-27
+
+- Added an independent NumPyro 0.21.0/JAX 0.11.1 fit for the exact PyMC 6.3.0 fixed-grid,
+  fixed-Matérn LGCP request. The real 16-cell CellViT comparison passes global, latent-field, and
+  expected-count gates with zero divergences: intercept/coefficient differences are `0.01999` and
+  `0.02105`, latent-effect RMS difference is `0.02695`, and expected-count RMS difference is
+  `0.11365`.
+- Added bounded exact-model SBC. The first real-design 1,000-draw schedule retained three ESS
+  failures and remains diagnostic-only. The final 20-replicate schedule used two chains, 2,000
+  warmup, and 4,000 draws per chain; all 20 pass without relaxed gates, with zero divergences/depth
+  hits, maximum `R-hat=1.00253`, minimum bulk/tail ESS `1229/1618`, and passing intercept,
+  coefficient, and prespecified latent-cell rank/90% coverage checks.
+- Added a 32-pattern spatial posterior-predictive result over the existing exact-cell simulator.
+  The real observed/replicated cell-count variances are `110.19/141.59` with tail `0.75`; adjacent
+  mean absolute contrasts are `10.375/11.197` across 24 grid-neighbor pairs with tail `0.625`.
+- Added the nine-fit 0.5x/2x one-at-a-time intercept-prior, coefficient-prior, Matérn-amplitude,
+  and Matérn-length sensitivity grid. An initial length-scale-lower fit missed bulk ESS and is
+  preserved as diagnostic-only. The final 2,000-warmup/2,000-draw grid passes all fits with zero
+  divergences/depth hits, maximum `R-hat=1.00427`, minimum bulk/tail ESS `644/929`, and maximum
+  standardized shift `0.446` below the declared `0.75` threshold.
+- Four focused CLI integrations and the original PyMC fit oracle pass; `marklab-bayes` passes 41/41
+  package tests. Workspace warning-denied all-target/all-feature Clippy passes in 13m07s;
+  workspace no-default, all-feature doc tests, strict all-feature docs, formatting, and whitespace
+  checks pass. The documented full-integration/Nextest macOS loader loop was not rerun.
+- This closes the current exact Gaussian-hierarchy and fixed-grid-LGCP calibration gate, not the
+  broader Bayesian phase. CmdStan, actual GPU evidence, non-Gaussian/repeated/crossed/varying-slope
+  hierarchies, inferred field hyperparameters, arbitrary windows, and broader fitted marked or
+  replicated point-process families remain.

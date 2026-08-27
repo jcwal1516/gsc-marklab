@@ -416,3 +416,18 @@ simulation calibration, one-at-a-time prior/kernel sensitivity, and spatial post
 summaries for that exact caller. No generalized calibration registry or new field abstraction is
 authorized before those concrete results exist. CmdStan and actual GPU execution remain named
 phase gaps.
+
+## Checkpoint 64 fixed-grid field-calibration continuation
+
+The exact real 4x4 CellViT gridded LGCP now passes independent PyMC/NumPyro agreement for global,
+latent-field, and expected-count summaries; 20/20 bounded SBC; a diagnostics-complete nine-fit
+0.5x/2x prior/kernel grid; and 32-pattern cell-dispersion/neighbor-contrast posterior checks. The
+first lower-information SBC and sensitivity attempts remain explicit diagnostic-only evidence;
+no convergence or calibration threshold was weakened.
+
+The current Gaussian hierarchy and fixed-grid LGCP promotion gates are closed. Dependency-ordered
+work returns to the broader Phase 4 catalog: add one concrete non-Gaussian patient hierarchy with
+an admitted typed likelihood and analytic/simulation oracle, then repeated/crossed or varying-slope
+structure only when a real immediate caller demonstrates it. CmdStan admission and actual GPU
+execution remain named backend gaps, while arbitrary-window or inferred-hyperparameter fields must
+not be inferred from the completed fixed-grid model.

@@ -1610,3 +1610,28 @@ vascular transport.
   the reproducible macOS binary-verification loop and the active instruction forbids retrying it.
   No feature matrix, benchmark, fuzz, memory, packaging, dependency audit, push, publication,
   deployment, history rewrite, or worktree was run.
+
+## Gridded-LGCP calibration stabilization checkpoint 64 — 2026-08-27
+
+- Expected reds: each of `gridded-lgcp-agreement`, `gridded-lgcp-sbc`,
+  `gridded-lgcp-spatial-ppc`, and `gridded-lgcp-sensitivity` first failed as an absent subcommand.
+  Each exact integration then passed after its smallest production path was implemented.
+- `cargo +1.96.0 test --locked --package marklab-bayes` passed 41/41 package tests after each
+  affected boundary. The exact original PyMC gridded-LGCP fit test and all four new CLI integrations
+  passed. Both NumPyro worker sources passed isolated Python compilation.
+- The real CellViT cross-backend result passes all global/cell comparison gates with zero
+  divergences. The final 20-replicate SBC passes all dispositions and aggregate gates after the
+  preserved 17/20 diagnostic run. The final nine-fit sensitivity grid passes after the preserved
+  one-fit ESS failure, and the 32-pattern spatial PPC retains all exact draw/cell/point provenance.
+- Six new result JSON files were copied without deletion to the authorized Mac mini directory
+  `/Volumes/1TB/marklab/runs/results-cellvit-bayesian-v1/results`; local and remote SHA-256 checks
+  match for agreement, both SBC schedules, spatial PPC, and both sensitivity schedules.
+- `cargo +1.96.0 fmt --all --check` passed. `cargo +1.96.0 clippy --locked --workspace
+  --all-targets --all-features -- -D warnings` passed in 13m07s. `cargo +1.96.0 check --locked
+  --workspace --no-default-features`, `cargo +1.96.0 test --locked --workspace --doc
+  --all-features`, and `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --workspace
+  --all-features --no-deps` passed. `git diff --check` passed.
+- The full workspace integration suite and Nextest were not rerun because checkpoints 51/52 record
+  the reproducible macOS binary-verification loop and the active instruction forbids retrying it.
+  No feature matrix, benchmark, fuzz, memory, packaging, dependency audit, push, publication,
+  deployment, history rewrite, or worktree was run.
