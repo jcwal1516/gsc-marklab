@@ -36,6 +36,8 @@ mod geom;
 mod inference;
 mod io;
 mod mark_pair_plan;
+mod mark_weighted_k;
+mod mark_weighted_k_workflow;
 mod multimodal;
 mod multiscale_residual;
 mod nearest_space;
@@ -132,6 +134,12 @@ pub use geom::window::{
     ObservationWindowLimits,
 };
 pub use io::{PatternLoadDiagnostics, PatternLoadResult, PatternLoader};
+pub use mark_weighted_k::{
+    continuous_mark_weighted_k, MarkWeightedKComponentInference, MarkWeightedKConfig,
+    MarkWeightedKError, MarkWeightedKGeometrySummary, MarkWeightedKInferenceSummary,
+    MarkWeightedKLimits, MarkWeightedKPoint, MarkWeightedKPointStatus, MarkWeightedKResult,
+};
+pub use mark_weighted_k_workflow::MarkWeightedKAnalysisNode;
 pub use marklab_data::{
     BlockId, CellId, CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry,
     CoordinateSpace, CoordinateUnit, CoreId, FrameTransform, HierarchyId, HierarchyKind,

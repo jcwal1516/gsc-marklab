@@ -236,6 +236,7 @@ fn invalid_radius_and_null_configurations_are_rejected_before_execution() {
         vec![],
         vec![0.0],
         vec![f64::INFINITY],
+        vec![f64::MAX],
         vec![1.0, 1.0],
         vec![2.0, 1.0],
     ] {

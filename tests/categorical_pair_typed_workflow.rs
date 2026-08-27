@@ -167,6 +167,16 @@ fn typed_categorical_mark_connection_and_directed_cross_k_match_hand_oracles() {
 #[test]
 fn same_levels_and_one_short_pair_work_are_rejected() {
     assert!(CategoricalPairConfig::new(
+        vec![f64::MAX],
+        "tumor",
+        "stroma",
+        31,
+        7,
+        0.05,
+        CategoricalPairLimits::new(16, 16, 64, 64 * 31, 1 << 20).expect("limits"),
+    )
+    .is_err());
+    assert!(CategoricalPairConfig::new(
         vec![1.0],
         "tumor",
         "tumor",

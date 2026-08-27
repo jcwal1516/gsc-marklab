@@ -1920,6 +1920,25 @@ vascular transport.
   3/3 typed plus 1/1 durable tests and probability 3/3 typed plus 1/1 durable tests.
   Warning-denied Clippy over all six integrations, package no-default compilation, affected package
   docs with zero doctests, final formatting, and diff whitespace checks pass. Workspace-wide
-  tests/Clippy/docs, Nextest, feature
-  matrices, benchmarks, fuzzing, memory tools, packaging, dependency audits, push, publication,
-  deployment, and history rewriting were not run.
+  tests/Clippy/docs, Nextest, feature matrices, benchmarks, fuzzing, memory tools, packaging,
+  dependency audits, push, publication, deployment, and history rewriting were not run.
+
+## Cumulative mark-weighted K checkpoint 74 — 2026-08-27
+
+- `cargo +1.96.0 test --locked --package marklab --test mark_weighted_k_typed_workflow` first
+  failed on the expected unresolved production symbols and now passes 4/4: weighted/unweighted hand
+  identities, independent Python cumulative-pair agreement, deterministic replay, constant/missing/
+  memory failures, and similar-versus-alternating separation with invariant unweighted K.
+- `workers/python/.venv/bin/python tests/fixtures/mark_weighted_k/generate_python_oracle.py | diff
+  -u tests/fixtures/mark_weighted_k/python_line_oracle.json -` passes byte-for-byte under the existing
+  pinned environment. The unavailable `spatstat.explore` package recorded at checkpoint 73 was not
+  installed or retried.
+- `cargo +1.96.0 test --locked --package marklab --test mark_weighted_k_project_workflow` first
+  failed on the expected unresolved durable node and now passes 1/1: fresh miss, separately
+  reconstructed exact hit with one execution, and seed-invalidated second miss/execution.
+- Targeted warning-denied Clippy over both integrations, package no-default compilation, affected
+  package docs with zero doctests, final formatting, and diff whitespace checks pass. Workspace-wide
+  tests/Clippy/docs, Nextest, feature matrices, benchmarks, fuzzing, memory tools, packaging,
+  dependency audits, push, publication, deployment, and history rewriting were not run.
+- The finite-`pi r^2` guard passes the affected 13/13 classical spatial domain tests, 3/3
+  categorical-pair tests, and 4/4 weighted-K tests, including explicit `f64::MAX` radius rejection.

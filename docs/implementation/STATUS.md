@@ -1325,3 +1325,27 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   controls, seed, limits, and implementation identity. A separately reconstructed durable project
   hits with one execution; a seed change misses. MRK-01B is complete. MRK-01C mark-weighted K is the
   next immediate caller and must remain a distinct cumulative estimand.
+
+## Cumulative mark-weighted K checkpoint 74 — 2026-08-27
+
+- Added `continuous_mark_weighted_k` as the third and distinct MRK-01 family. Its pair weight is
+  `m_i m_j / global_mean(m)^2`; cumulative weighted K is `area * sum(weight) /
+  (point_count * standard-border eligible centers)`. Every radius also reports unweighted K from
+  the identical directed pairs and denominator, so spatial geometry is never hidden inside the
+  mark effect.
+- The global positive-mark mean and cancellation-resistant finite-row random-label weight are
+  reused from MRK-01B. Complete continuous rows move over the fixed retained geometry, and only the
+  weighted-K curve receives a two-sided ERL family. Constant marks, missing identity, pair/null work,
+  no eligible centers, and one-byte-short retained memory remain explicit typed states or failures.
+- On the four-point line `[1,2,3,4]` at 1.1 micrometres, six cumulative directed pairs have product
+  sum `40`, normalized weight sum `6.4`, unweighted K `10.5`, weighted K `11.2`, and exact
+  random-label weighted-K expectation `9.8`. An independent direct-loop Python fixture regenerates
+  byte-for-byte and agrees with every Rust count/value at declared tolerance. Adjacent ordered marks
+  raise weighted K relative to the alternating control while leaving unweighted K exactly fixed.
+- The strict durable node binds mark/provenance, unit, frame/window, weight and edge formulas, radii,
+  null controls, seed, limits, implementation identity, and a closed result codec. A separately
+  reconstructed project hits with one ledger execution; changing the seed misses. MRK-01,
+  MRK-01A, MRK-01B, and MRK-01C are now complete.
+- Final finite-result review closed an inherited K-family boundary: finite radii that would overflow
+  `pi r^2` are now rejected by unmarked K/L, categorical cross-K, and mark-weighted K configuration
+  before geometry or output construction.

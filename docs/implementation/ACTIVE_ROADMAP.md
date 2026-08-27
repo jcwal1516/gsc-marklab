@@ -574,3 +574,17 @@ It must define a cumulative standard-border weighted K with the product weight a
 normalization fixed here, retain unweighted K as the explicit spatial baseline, and reuse geometry,
 null, bounds, codec, and durable execution without representing the cumulative statistic as mark
 correlation. No generic weight-function registry or arbitrary continuous-mark framework is needed.
+
+## Checkpoint 74 cumulative mark-weighted K continuation
+
+MRK-01 and all three subfamilies are complete. Categorical/probability connection, normalized
+continuous correlation, and cumulative product-weighted K retain separate estimands and outputs
+while reusing only proven MarkTable, pair, arithmetic, null, ERL-workspace, codec, and durable
+contracts. Weighted K reports the identical unweighted spatial baseline rather than conflating
+geometry with mark association.
+
+The next dependency-valid spatial pair outcome is homogeneous pair-correlation g/cross-g for the
+existing unmarked and categorical MarkTable callers. It must freeze one bandwidth/kernel and edge
+policy, provide an independent oracle and calibration controls, reuse retained geometry and durable
+execution, and remain separate from cumulative K/cross-K. Inhomogeneous g/K waits for the distinct
+cross-fitted intensity-estimation contract; no generic kernel registry is justified.

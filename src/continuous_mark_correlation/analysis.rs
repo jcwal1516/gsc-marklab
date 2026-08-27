@@ -347,7 +347,7 @@ fn compensated_sum(values: impl IntoIterator<Item = f64>) -> f64 {
     sum + correction
 }
 
-fn compensated_add(sum: &mut f64, correction: &mut f64, value: f64) {
+pub(crate) fn compensated_add(sum: &mut f64, correction: &mut f64, value: f64) {
     let updated = *sum + value;
     *correction += if sum.abs() >= value.abs() {
         (*sum - updated) + value

@@ -78,13 +78,14 @@ impl CategoricalPairConfig {
                 "radius count must be within the configured positive bound".into(),
             ));
         }
-        if radii_um
-            .iter()
-            .any(|radius| !radius.is_finite() || *radius <= 0.0)
-            || radii_um.windows(2).any(|pair| pair[0] >= pair[1])
+        if radii_um.iter().any(|radius| {
+            !radius.is_finite()
+                || *radius <= 0.0
+                || !(std::f64::consts::PI * radius * radius).is_finite()
+        }) || radii_um.windows(2).any(|pair| pair[0] >= pair[1])
         {
             return Err(CategoricalPairError::InvalidConfig(
-                "radii must be finite, positive, and strictly increasing".into(),
+                "radii must be finite, positive, strictly increasing, and support finite pi-r-squared output".into(),
             ));
         }
         let source_level = source_level.into();
