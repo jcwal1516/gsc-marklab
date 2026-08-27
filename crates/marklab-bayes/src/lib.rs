@@ -3,6 +3,7 @@
 mod anisotropic_gp3d;
 mod berman_turner;
 mod beta_binomial_hierarchy;
+mod beta_binomial_hierarchy_agreement;
 mod bym;
 mod bym2;
 mod car;
@@ -92,6 +93,11 @@ pub use beta_binomial_hierarchy::{
     BetaBinomialHierarchyResult, BetaBinomialHierarchySpec, BetaBinomialHierarchyWorkerRequest,
     BetaBinomialHierarchyWorkerResult, BetaBinomialPatientData, BetaBinomialPatientPosterior,
     BetaBinomialPosteriorPredictive,
+};
+pub use beta_binomial_hierarchy_agreement::{
+    BetaBinomialAgreementComparison, BetaBinomialAgreementPolicy, BetaBinomialAgreementResult,
+    BetaBinomialBackendSummary, BetaBinomialParameterAgreement, BetaBinomialPatientAgreement,
+    NumpyroBetaBinomialHierarchyWorkerRequest, NumpyroBetaBinomialHierarchyWorkerResult,
 };
 pub use bym::{
     BymFitResult, BymFitSpec, BymFitWorkerRequest, BymFitWorkerResult, BymInputIdentity,

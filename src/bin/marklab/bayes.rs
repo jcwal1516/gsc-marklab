@@ -26,6 +26,8 @@ pub(super) use beta_binomial_hierarchy::{
     execute as execute_beta_binomial_hierarchy, prepare as prepare_beta_binomial_hierarchy,
     PreparedBetaBinomialHierarchy,
 };
+#[path = "bayes/beta_binomial_hierarchy_agreement.rs"]
+mod beta_binomial_hierarchy_agreement;
 #[path = "bayes/bym.rs"]
 mod bym;
 #[path = "bayes/bym2.rs"]
@@ -246,6 +248,38 @@ enum BayesCommand {
         target_accept: f64,
         #[arg(long)]
         seed: u64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    BetaBinomialHierarchyAgreement {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        population_alpha: f64,
+        #[arg(long)]
+        population_beta: f64,
+        #[arg(long)]
+        concentration_prior_sd: f64,
+        #[arg(long)]
+        chains: u32,
+        #[arg(long)]
+        tune: u32,
+        #[arg(long)]
+        draws: u32,
+        #[arg(long)]
+        target_accept: f64,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        maximum_standardized_difference: f64,
+        #[arg(long)]
+        minimum_probability_tolerance: f64,
+        #[arg(long)]
+        minimum_concentration_tolerance: f64,
+        #[arg(long)]
+        minimum_patient_tolerance: f64,
         #[arg(long)]
         timeout_seconds: u64,
         #[arg(long)]
@@ -2611,6 +2645,44 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
                 target_accept,
                 seed,
             },
+            timeout_seconds,
+            out,
+        ),
+        BayesTopLevel::Bayes {
+            command:
+                BayesCommand::BetaBinomialHierarchyAgreement {
+                    input,
+                    population_alpha,
+                    population_beta,
+                    concentration_prior_sd,
+                    chains,
+                    tune,
+                    draws,
+                    target_accept,
+                    seed,
+                    maximum_standardized_difference,
+                    minimum_probability_tolerance,
+                    minimum_concentration_tolerance,
+                    minimum_patient_tolerance,
+                    timeout_seconds,
+                    out,
+                },
+        } => beta_binomial_hierarchy_agreement::run(
+            input,
+            population_alpha,
+            population_beta,
+            concentration_prior_sd,
+            NutsSamplingSpec {
+                chains,
+                tune_per_chain: tune,
+                draws_per_chain: draws,
+                target_accept,
+                seed,
+            },
+            maximum_standardized_difference,
+            minimum_probability_tolerance,
+            minimum_concentration_tolerance,
+            minimum_patient_tolerance,
             timeout_seconds,
             out,
         ),
