@@ -22,6 +22,10 @@ mod anisotropic_gp3d;
 mod berman_turner;
 #[path = "bayes/beta_binomial_hierarchy.rs"]
 mod beta_binomial_hierarchy;
+pub(super) use beta_binomial_hierarchy::{
+    execute as execute_beta_binomial_hierarchy, prepare as prepare_beta_binomial_hierarchy,
+    PreparedBetaBinomialHierarchy,
+};
 #[path = "bayes/bym.rs"]
 mod bym;
 #[path = "bayes/bym2.rs"]

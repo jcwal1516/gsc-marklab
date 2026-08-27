@@ -53,6 +53,7 @@ fn main() -> marklab::Result<()> {
                                 "marked-prepost"
                                     | "normal-mean"
                                     | "hierarchical-normal"
+                                    | "beta-binomial-hierarchy"
                                     | "student-t-hierarchy"
                                     | "gridded-lgcp"
                                     | "fused-gromov-wasserstein"

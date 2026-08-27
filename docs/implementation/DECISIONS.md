@@ -1963,3 +1963,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-03/BAY-HIER-A/WS-41 real count admission
 - Decision: extend the existing full-corpus CellViT adapter to emit one sorted patient successes/trials table from the already verified row-aligned hard annotations and case map. Success means the unique source `Neoplastic` class; trials mean every admitted classified CellViT cell across all admitted slides for that patient. Retain exact source and adapter digests, patient aggregation, class identity, total counts, and the limitation that classifier outputs and spatially correlated cells are not independent biological Bernoulli trials.
 - Consequences: the current beta-binomial caller can execute on a truthful real count table without inventing denominators, relabeling classes, or adding a general count importer. Its result remains exploratory model-based composition evidence and cannot be described as manual pathology ground truth, cell-level independence evidence, calibration, or clinical evidence.
+
+## DEC-0243 — Route the exact beta-binomial hierarchy through durable execution
+
+- Date: 2026-08-27
+- Status: accepted for PLAT-01/WF-01/BACK-01/BAY-03
+- Decision: add one static `marklab project beta-binomial-hierarchy` node using the existing project, scheduler, artifact store, execution ledger, pending-intent recovery, cache-key owner, and output transaction. Its identity includes exact raw count-table bytes, typed prior/model/sampling/resource request, PyMC/Python/lock/worker identities, deterministic seed, native runtime, and strict result codec; a hit must decode and validate without starting Python.
+- Consequences: the real CellViT count hierarchy becomes resumable and cross-process replayable without a new task runner, store, registry, result format, or duplicated recovery/cache mechanism.
