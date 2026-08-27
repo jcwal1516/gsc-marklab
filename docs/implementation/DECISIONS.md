@@ -1956,3 +1956,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-02/BAY-03/BAY-HIER-A/WS-44
 - Decision: simulate population means, between-patient scales, patient effects, observation scales, degrees of freedom above two, and repeated observations from the exact typed Student-t prior/likelihood, then refit every replicate with the same dense-mass NumPyro NUTS model used for cross-backend agreement. Use a fixed calibration-only maximum tree depth of 12 for the near-zero scale geometry while retaining the zero tree-depth-hit gate, complete failure disposition, ranks and 90% coverage for all four population parameters, all other unchanged per-fit diagnostics, deterministic seeds, and hard replicate/observation/iteration/output/time bounds.
 - Consequences: the robust hierarchy gains generative calibration without a general calibration registry, omitted failed fits, relaxed thresholds, or a claim about crossed/varying-slope designs and other non-Gaussian likelihoods.
+
+## DEC-0242 — Admit CellViT neoplastic counts for the existing beta-binomial hierarchy
+
+- Date: 2026-08-27
+- Status: accepted for BAY-03/BAY-HIER-A/WS-41 real count admission
+- Decision: extend the existing full-corpus CellViT adapter to emit one sorted patient successes/trials table from the already verified row-aligned hard annotations and case map. Success means the unique source `Neoplastic` class; trials mean every admitted classified CellViT cell across all admitted slides for that patient. Retain exact source and adapter digests, patient aggregation, class identity, total counts, and the limitation that classifier outputs and spatially correlated cells are not independent biological Bernoulli trials.
+- Consequences: the current beta-binomial caller can execute on a truthful real count table without inventing denominators, relabeling classes, or adding a general count importer. Its result remains exploratory model-based composition evidence and cannot be described as manual pathology ground truth, cell-level independence evidence, calibration, or clinical evidence.

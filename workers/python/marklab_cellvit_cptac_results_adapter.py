@@ -231,6 +231,40 @@ def median(values: list[float]) -> float:
     return float(statistics.median(values))
 
 
+def beta_binomial_patient_rows(
+    patient_type_counts: dict[str, Counter[int]],
+    type_map: tuple[tuple[int, str], ...],
+) -> list[dict[str, int | str]]:
+    type_ids = {cell_type for cell_type, _ in type_map}
+    neoplastic = [cell_type for cell_type, name in type_map if name == "Neoplastic"]
+    if len(type_ids) != len(type_map) or len(neoplastic) != 1:
+        raise AdapterError("CellViT type map must contain one unique Neoplastic class")
+    if not 3 <= len(patient_type_counts) <= 512:
+        raise AdapterError("beta-binomial patient count is outside the model bounds")
+    rows: list[dict[str, int | str]] = []
+    total_trials = 0
+    for patient in sorted(patient_type_counts):
+        counts = patient_type_counts[patient]
+        if (
+            not patient
+            or patient.strip() != patient
+            or any(cell_type not in type_ids for cell_type in counts)
+            or any(type(count) is not int or count < 0 for count in counts.values())
+        ):
+            raise AdapterError("beta-binomial patient annotation counts are invalid")
+        trials = sum(counts.values())
+        successes = counts[neoplastic[0]]
+        if trials <= 0 or not 0 <= successes <= trials:
+            raise AdapterError("beta-binomial patient successes/trials are invalid")
+        total_trials += trials
+        rows.append(
+            {"patient_id": patient, "successes": successes, "trials": trials}
+        )
+    if total_trials > 10_000_000:
+        raise AdapterError("beta-binomial total trials exceed the model bound")
+    return rows
+
+
 def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     import numpy as np
     import torch
@@ -369,6 +403,14 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
 
     if widths != {1280} or len(type_maps) != 1 or len(mpp_pairs) != 1 or representative is None:
         raise AdapterError("cohort-wide CellViT width, annotation, scale, or representative admission differs")
+
+    type_map = next(iter(type_maps))
+    beta_binomial_rows = beta_binomial_patient_rows(patient_type_counts, type_map)
+    write_csv(
+        inputs / "beta_binomial_neoplastic_counts.csv",
+        ["patient_id", "successes", "trials"],
+        beta_binomial_rows,
+    )
 
     _, representative_id, representative_case, representative_graph, representative_payload = representative
     representative_cells = representative_payload["cells"]
@@ -740,6 +782,15 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "projected_split_patients": {"train": 18, "validation": 6, "test": 6},
                 "high_confidence_threshold": HIGH_CONFIDENCE_THRESHOLD,
             },
+            "beta_binomial_count_definition": {
+                "aggregation_unit": "patient_across_all_admitted_slides",
+                "success_class_id": next(
+                    cell_type for cell_type, name in type_map if name == "Neoplastic"
+                ),
+                "success_class_name": "Neoplastic",
+                "trial_definition": "every_admitted_hard_classified_cellvit_cell",
+                "limitation": "classifier_outputs_and_spatially_correlated_cells_are_not_independent_biological_bernoulli_trials",
+            },
             "claim_scope": "exploratory real-data workflow evidence; not clinical, causal, calibration, or performance evidence",
         },
     )
@@ -762,6 +813,13 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "multiscale_rows": len(multiscale_rows),
                 "pymc_observations": len(pymc_values),
                 "pymc_known_sigma": statistics.stdev(pymc_values),
+                "beta_binomial_patients": len(beta_binomial_rows),
+                "beta_binomial_successes": sum(
+                    int(row["successes"]) for row in beta_binomial_rows
+                ),
+                "beta_binomial_trials": sum(
+                    int(row["trials"]) for row in beta_binomial_rows
+                ),
             },
             "executions": {},
         },
