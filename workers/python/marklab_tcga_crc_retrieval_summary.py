@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarize durable TCGA CRC M0/M1 held-out retrieval results."""
+"""Summarize two durable TCGA CRC held-out fingerprint retrieval lanes."""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ SCHEMA_VERSION = "1.0"
 BOOTSTRAP_REPLICATES = 2_000
 BOOTSTRAP_SEED = 20_260_827
 COMMON_COHORT_FEATURE_MAP = {
+    "embedding_raw_*": "raw_summary_unchanged",
     "embedding_stage_ordinal": "stage_ordinal_divided_by_4",
     "embedding_log1p_all_cell_count": "log1p_all_cell_count_divided_by_10",
     "embedding_tumor_fraction": "fraction_unchanged",
@@ -32,6 +33,19 @@ COMMON_COHORT_FEATURE_MAP = {
     "embedding_stromal_context_residual_organization": "dimensionless_unchanged",
     "embedding_inflammatory_context_residual_organization": "dimensionless_unchanged",
     "embedding_combined_context_residual_organization": "dimensionless_unchanged",
+    "embedding_coordinate_l_relative_25um": "dimensionless_unchanged",
+    "embedding_coordinate_l_relative_50um": "dimensionless_unchanged",
+    "embedding_coordinate_l_relative_75um": "dimensionless_unchanged",
+    "embedding_coordinate_l_relative_100um": "dimensionless_unchanged",
+    "embedding_coordinate_graph_2x2_low_energy_fraction": "fraction_unchanged",
+    "embedding_coordinate_graph_2x2_middle_energy_fraction": "fraction_unchanged",
+    "embedding_coordinate_graph_2x2_high_energy_fraction": "fraction_unchanged",
+    "embedding_coordinate_graph_3x3_low_energy_fraction": "fraction_unchanged",
+    "embedding_coordinate_graph_3x3_middle_energy_fraction": "fraction_unchanged",
+    "embedding_coordinate_graph_3x3_high_energy_fraction": "fraction_unchanged",
+    "embedding_raw_variogram_0_25um": "raw_squared_distance_unchanged",
+    "embedding_raw_variogram_25_50um": "raw_squared_distance_unchanged",
+    "embedding_raw_variogram_50_100um": "raw_squared_distance_unchanged",
 }
 
 
@@ -98,7 +112,11 @@ def bootstrap_mean(values: list[float], replicates: int, seed: int) -> dict[str,
 
 
 def common_cohort_value(name: str, raw_value: float) -> float:
-    if name not in COMMON_COHORT_FEATURE_MAP or not math.isfinite(raw_value):
+    raw_embedding_summary = name.startswith("embedding_raw_")
+    if (
+        name not in COMMON_COHORT_FEATURE_MAP
+        and not raw_embedding_summary
+    ) or not math.isfinite(raw_value):
         raise SummaryError("common cohort feature or value is invalid")
     if name == "embedding_stage_ordinal":
         value = raw_value / 4.0
@@ -176,31 +194,40 @@ def summarize_block(
 
 
 def paired_increment(
-    m0: dict[str, dict[str, float]],
-    m1: dict[str, dict[str, float]],
+    baseline: dict[str, dict[str, float]],
+    comparison: dict[str, dict[str, float]],
     bootstrap_replicates: int,
     seed: int,
+    baseline_name: str,
+    comparison_name: str,
 ) -> dict[str, Any]:
-    if set(m0) != set(m1):
-        raise SummaryError("M0/M1 patient identities differ")
-    patients = sorted(m0)
-    top1 = [m1[patient]["top1_correct"] - m0[patient]["top1_correct"] for patient in patients]
-    top5 = [m1[patient]["top5_correct"] - m0[patient]["top5_correct"] for patient in patients]
-    effect = [
-        m1[patient]["between_minus_within"] - m0[patient]["between_minus_within"]
+    if set(baseline) != set(comparison):
+        raise SummaryError("baseline/comparison patient identities differ")
+    patients = sorted(baseline)
+    top1 = [
+        comparison[patient]["top1_correct"] - baseline[patient]["top1_correct"]
         for patient in patients
     ]
+    top5 = [
+        comparison[patient]["top5_correct"] - baseline[patient]["top5_correct"]
+        for patient in patients
+    ]
+    effect = [
+        comparison[patient]["between_minus_within"] - baseline[patient]["between_minus_within"]
+        for patient in patients
+    ]
+    direction = f"{comparison_name}_minus_{baseline_name}"
     return {
         "patient_count": len(patients),
-        "top1_accuracy_difference_m1_minus_m0": mean(top1),
+        f"top1_accuracy_difference_{direction}": mean(top1),
         "top1_accuracy_difference_bootstrap_95": bootstrap_mean(
             top1, bootstrap_replicates, seed + 1
         ),
-        "top5_accuracy_difference_m1_minus_m0": mean(top5),
+        f"top5_accuracy_difference_{direction}": mean(top5),
         "top5_accuracy_difference_bootstrap_95": bootstrap_mean(
             top5, bootstrap_replicates, seed + 2
         ),
-        "between_minus_within_effect_difference_m1_minus_m0": mean(effect),
+        f"between_minus_within_effect_difference_{direction}": mean(effect),
         "between_minus_within_effect_difference_bootstrap_95": bootstrap_mean(
             effect, bootstrap_replicates, seed + 3
         ),
@@ -211,6 +238,10 @@ def build(args: argparse.Namespace) -> None:
     admission_root = Path(args.admission)
     result_root = Path(args.results)
     output = Path(args.out)
+    baseline_lane = args.baseline_lane
+    comparison_lane = args.comparison_lane
+    if not baseline_lane or not comparison_lane or baseline_lane == comparison_lane:
+        raise SummaryError("baseline and comparison lanes must be distinct nonempty names")
     if output.exists() or output.is_symlink():
         raise SummaryError(f"output already exists: {output}")
     admission = json.loads((admission_root / "admission.json").read_text(encoding="utf-8"))
@@ -363,10 +394,12 @@ def build(args: argparse.Namespace) -> None:
         )
     increments = {
         holdout: paired_increment(
-            patient_metrics[("m0", holdout)],
-            patient_metrics[("m1", holdout)],
+            patient_metrics[(baseline_lane, holdout)],
+            patient_metrics[(comparison_lane, holdout)],
             BOOTSTRAP_REPLICATES,
             BOOTSTRAP_SEED + 1_000 + index * 100,
+            baseline_lane,
+            comparison_lane,
         )
         for index, holdout in enumerate(["patient_held_out", "site_held_out"])
     }
@@ -399,7 +432,7 @@ def build(args: argparse.Namespace) -> None:
             "bootstrap_replicates": BOOTSTRAP_REPLICATES,
             "bootstrap_seed": BOOTSTRAP_SEED,
             "blocks": summary_blocks,
-            "m1_minus_m0": increments,
+            f"{comparison_lane}_minus_{baseline_lane}": increments,
             "cohort_test_feature_map": COMMON_COHORT_FEATURE_MAP,
             "cohort_test_normalization": "fixed_label_free_unit_map_shared_by_every_patient",
             "interpretation_policy": "report_positive_null_negative_and_site_unstable_results_without_significance_optimization",
@@ -429,6 +462,8 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--admission", required=True)
     value.add_argument("--results", required=True)
     value.add_argument("--out", required=True)
+    value.add_argument("--baseline-lane", default="m0")
+    value.add_argument("--comparison-lane", default="m1")
     return value
 
 

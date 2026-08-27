@@ -1798,3 +1798,46 @@ vascular transport.
   the reproducible macOS loader-verification loop and the active instruction forbids retrying it.
   No feature matrix, benchmark, fuzz, memory, packaging, dependency audit, push, publication,
   deployment, history rewrite, or worktree was run.
+
+## Canonical CRC spatial-fingerprint result checkpoint 69 — 2026-08-27
+
+- Expected behavior reds were observed before production changes: the coordinate, M2 fingerprint,
+  and stability adapters were absent; each new M3/M4/M6/CODEX/bundle unit test first failed on its
+  missing module or behavior; and the first CODEX durable run failed exact decoding because numeric
+  patient order differed from canonical lexical order by two ULPs. The ordering fix made the exact
+  durable path pass without relaxing the codec or adding a tolerance. M4 review also found pooled
+  slide coordinate frames before use; a red distance-preservation/cross-field-exclusion test drove
+  the fixed 1,000-micrometre field framing, and the superseded outputs remain quarantined.
+- Six fixed M2 shards completed `668/668` durable retrieval folds. Six bounded field shards produced
+  every selected full and 80% subsampled result for the first four provenance-sorted fields per
+  patient. M3, corrected M4, and M6 completed `676/676`, `652/652`, and `664/664` durable folds;
+  four Schürch CODEX shards completed `34/34`. Fresh separate processes reported
+  `cache_status=hit` for M2, M3, M4, M6, and CODEX, reproduced the original SHA-256 byte-for-byte,
+  and left each owning shard ledger row count unchanged.
+- Corrected M4 preprocessing ran `marklab bayes vector-semivariogram` on 169 patient inputs, 169
+  deterministic 80% cell subsamples, and 661 eligible provenance-sorted field inputs using the
+  existing 0–25, 25–50, and 50–100 micrometre bins and a 1,000-pair-visit ceiling. M2 stability,
+  M3 bounded raw-summary stability, and M4 cell/field/nearby-scale summaries were sealed with exact
+  source and output hashes. No cell, field, core, slide, or edge was counted as an independent
+  patient replicate.
+- `marklab cohort energy` and `marklab cohort mmd --kernel linear --estimator unbiased` each ran
+  1,999 patient-label permutations for M2, M3, M4, M6, and Schürch CODEX using seed `20260827`.
+  M2, M3, M4, M6, and CODEX energy p-values were `0.2175`, `0.125`, `0.2035`, `0.33`, and `0.914`;
+  their MMD p-values were `0.295`, `0.1935`, `0.126`, `0.2335`, and `0.659`.
+- The existing pinned M7 result was rehashed and admitted without a new backend run. Its PyMC 6.3.0
+  input covers 105 patients/217 slides/81 repeated patients; diagnostics are complete with zero
+  divergences and `R-hat=1.00232`. The existing durable miss/hit files both have SHA-256
+  `a0d211414e4a8c0b16c2f682d5bb7f85aa9b2b549996a347b9b36f0c595f847a`, and the project ledger
+  contains one successful execution.
+- Every `tests/python/test_*.py` script passed (11 files, 13 tests), and all 15 affected worker
+  sources passed `python3 -m py_compile`. The focused Cargo command over
+  `cellvit_crc_coordinate_input`, `cellvit_crc_coordinate_stability_input`,
+  `cellvit_crc_m2_fingerprint_input`, and `cellvit_crc_retrieval_summary` passed 4/4 after the
+  expected one-time macOS verification delay. Targeted warning-denied Clippy for those four
+  integrations passed; `cargo +1.96.0 check --locked --package marklab --no-default-features` and
+  `cargo +1.96.0 fmt --all --check` passed.
+- The sealed bundle has 183 artifact hashes, nine stability hashes, 29,087 patient-feature rows,
+  and 4,969 specimen-feature rows. Local and Mac mini SHA-256 values match for all five bundle
+  files. The full workspace/Nextest loop, workspace-wide Clippy/tests/docs, feature matrix,
+  benchmarks, fuzzing, memory tools, packaging, dependency audits, push, publication, deployment,
+  and history rewriting were not run.

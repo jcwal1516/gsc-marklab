@@ -499,3 +499,19 @@ current patient-aggregated fits before durable/agreement/sensitivity/SBC expansi
 or identifiability fails, retain that exact blocker and move to another admitted likelihood; do not
 invent a formula language, crossed/random-slope structure, ordinal/hurdle outcome, CmdStan, GPU, or
 causal evidence.
+
+## Checkpoint 69 CRC spatial-fingerprint result continuation
+
+`RESULTS-CELLVIT-2DAY-01` now has one canonical, mirrored, hash-sealed real-data result bundle.
+TCGA M0–M4 and stability-selected M6 run at the patient population unit with durable held-out
+retrieval; a pinned real repeated-slide PyMC hierarchy supplies M7; Schürch H&E and CODEX supply
+independent and orthogonal external evidence. The result is truthfully null: stable components do
+not yield a reproducible MSI/MSS spatial fingerprint internally or in the orthogonal CODEX cohort.
+
+The result objective is complete with exact lane blockers rather than fabricated substitutes.
+Independent genuine patch tensors remain absent; M1 lacks the bounded four-field stability needed
+for fusion; the M4 near band is field-sparse; no second cohort exposes the exact 67-feature M6
+schema; and the admitted Bayesian caller cannot identify a cohort effect or distinct ROI-within-
+slide variance. Further scientific promotion requires one of those missing data/design contracts,
+not another internal statistic. The broader master plan remains active; next engineering work must
+return to dependency-ordered WS-12/WS-22/WS-23/WS-24 closure only under a concrete immediate caller.

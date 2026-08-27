@@ -1177,3 +1177,51 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   The next real hierarchy caller is a bounded audit of repeated CellViT slide counts nested within
   identified patients; only adequate within-patient replication may justify a patient random effect.
   Ordinal/hurdle, crossed/random-slope, CmdStan, actual GPU, and causal evidence remain absent.
+
+## Canonical CRC spatial-fingerprint result checkpoint 69 — 2026-08-27
+
+- Sealed the real-data CRC result bundle after bounded admission of 169 TCGA CRC CellViT patients,
+  1,836 nonoverlapping provenance-complete fields, 442,979 admitted cells, raw 1,280-dimensional
+  cell vectors, exact physical scales, molecular labels, and patient/site identities. Four
+  provenance-sorted fields per patient were used where available for stability; field diagnostics
+  ran in six bounded shards and were hashed rather than routed through exhaustive serial durable
+  execution. Patient-held-out and site-held-out retrieval remained durable.
+- M2 classical coordinate summaries are stable under 80% cell subsampling (patient-rank Spearman
+  `0.920`–`0.953`) and adjacent 25–100 micrometre scales (`0.578`–`0.704`), while graph 2x2-versus-
+  3x3 stability is only `0.270`–`0.609`. The complete M2 lane is null-to-negative relative to M0:
+  patient-held-out top-1 changes by `-0.018` and patient-label energy/MMD p-values are
+  `0.2175/0.295`.
+- Projection-free M3 raw CellViT summaries pass the prespecified bounded stability gate: median
+  feature-rank Spearman is `0.826` for full-source versus four-field summaries, `0.968` under 80%
+  cell subsampling, and `0.990` against leave-one-field summaries. Their patient-held-out top-1
+  increment is `+0.012` with an interval spanning zero; energy/MMD p-values are `0.125/0.1935`.
+- M4 input review caught and corrected a false-neighbor risk before scientific use: separate slide
+  field frames are translated 1,000 micrometres apart while all within-field distances are
+  preserved, so no cross-field pair can enter the 0–100 micrometre analysis. Intermediate/far raw-
+  vector variograms pass cell/field stability, but the near band has only 87 patients with two
+  eligible fields. The full M4 lane reduces patient-held-out top-1 by `-0.141`; energy/MMD are null.
+- M6 fuses only stability-admitted components, never components selected for molecular association:
+  M0, four M2 classical-coordinate features, 55 M3 raw nonspatial features, and the intermediate/
+  far M4 variograms. It admits 166 patients and 67 features. Patient-held-out top-1 changes by
+  `+0.012` and site-held-out top-1 by `-0.018`, both uncertain; patient-label energy/MMD p-values are
+  `0.33/0.2335`. A separate process replayed M6 byte-identically as a hit without adding a ledger
+  row, as also proved for M2, M3, M4, and Schürch CODEX.
+- Orthogonal Schürch CODEX validation uses 34 MSI/MSS patients, 136 cores, 240,554 provenance-
+  retained cells and nine declared neighborhood fractions; it never treats CODEX proteins and
+  CellViT vectors as one raw feature space. The neighborhood fingerprints are stable under 80%
+  cell subsampling and core resampling, but balanced top-1 is `0.400`, MSI top-1 recall is zero,
+  and energy/MMD p-values are `0.914/0.659`. Existing independent Schürch H&E CellViT evidence is
+  retained as direction-generating, not as a direct 67-feature transfer.
+- M7 admits the existing exact pinned PyMC 6.3.0 CPTAC repeated-slide hierarchy: 105 patients,
+  217 slides, 81 repeated patients, MSI/MSS and sex effects, zero divergences, `R-hat=1.00232`, and
+  byte-identical durable miss/hit outputs. Its marginal MSI-minus-MSS probability difference is
+  `-0.0792` with interval `[-0.1569, 0.000094]`. A distinct ROI-within-slide level and cohort effect
+  remain unavailable because this typed caller contains one cohort and no separate ROI level.
+- The canonical bundle at
+  `/Volumes/1TB/marklab/runs/results-crc-spatial-fingerprint-v1/bundle` contains 29,087 patient-
+  feature rows, 4,969 specimen-feature rows, full similarity/prediction/diagnostic references,
+  Bayesian and cross-cohort summaries, seven exact unavailable-lane blockers, 183 artifact hashes,
+  and nine explicit stability-output hashes. Its five files are mirrored byte-identically under
+  `/Users/user/Bench/results-crc-spatial-fingerprint-v1/bundle`. The scientific result is null:
+  technically reproducible blocks do not establish a recurring molecular-class fingerprint across
+  independent patients or cohorts. No clinical, causal, prospective, or performance claim is made.
