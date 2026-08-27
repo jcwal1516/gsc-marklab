@@ -28,6 +28,11 @@ pub(super) use beta_binomial_hierarchy::{
 };
 #[path = "bayes/beta_binomial_group_gender_regression.rs"]
 mod beta_binomial_group_gender_regression;
+pub(super) use beta_binomial_group_gender_regression::{
+    execute as execute_beta_binomial_group_gender_regression,
+    prepare as prepare_beta_binomial_group_gender_regression,
+    PreparedBetaBinomialGroupGenderRegression,
+};
 #[path = "bayes/beta_binomial_group_regression.rs"]
 mod beta_binomial_group_regression;
 pub(super) use beta_binomial_group_regression::{
