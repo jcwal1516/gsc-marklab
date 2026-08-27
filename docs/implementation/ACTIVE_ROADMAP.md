@@ -546,3 +546,17 @@ contributions. It must reuse the current pair plan/null/workflow owners and stat
 explicitly. Only after categorical and probabilistic connection share that concrete pair contract
 should continuous mark correlation and mark-weighted K be added; no generic mark registry or
 automatic all-level-pairs expansion is justified.
+
+## Checkpoint 72 expected probability-pair continuation
+
+MRK-01A is complete. Exact categorical directed-level connection and dense binary-probability
+positive-positive connection now share one standard-border retained pair plan while preserving
+separate formulas, outputs, null units, rare/effective-mass guards, typed identities, hard limits,
+ERL inference, and store-verified durable replay. The probability endpoint uses exact expected
+contributions and does not threshold or sample latent labels.
+
+The next dependency-valid caller is MRK-01B normalized continuous mark correlation over the
+existing finite `nucleus_area_um2` MarkTable column. It must freeze a global-mean normalization,
+reuse the same pair geometry and complete-row null, provide a hand and independent numerical
+oracle, and remain distinct from mark-weighted K. No generic mark statistic, kernel registry, or
+probability-simplex framework is justified.

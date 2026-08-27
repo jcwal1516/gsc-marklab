@@ -1882,3 +1882,20 @@ vascular transport.
   `cargo +1.96.0 fmt --all --check`, and `git diff --check` pass. No full-workspace/Nextest loop,
   workspace-wide Clippy/docs, feature matrix, benchmark, fuzz, memory, packaging, dependency,
   push, publication, deployment, or history-rewrite action was run.
+
+## Expected probability-pair checkpoint 72 — 2026-08-27
+
+- `cargo +1.96.0 test --locked --package marklab --test probability_pair_typed_workflow` first
+  failed on the expected unresolved probability-pair production symbols. The final 3/3 tests pass:
+  exact expected-contribution and without-replacement hand identities, deterministic replay,
+  missing/rare/all-positive/work failures, and clustered-versus-alternating direction.
+- `cargo +1.96.0 test --locked --package marklab --test probability_pair_project_workflow` first
+  failed on the expected unresolved durable node. It now passes 1/1: fresh miss, separately
+  reconstructed hit with one ledger execution, and seed-invalidated second miss/execution.
+- The affected categorical extraction regressions pass 3/3 typed and 1/1 durable. Targeted
+  warning-denied Clippy over all four integrations and `cargo +1.96.0 check --locked --package
+  marklab --no-default-features` pass. `cargo +1.96.0 test --locked --package marklab --doc`
+  passes with zero doctests. Formatting and whitespace checks pass after the final documentation
+  update. Workspace-wide tests/Clippy/docs, Nextest, feature matrices,
+  benchmarks, fuzzing, memory tools, packaging, dependency audits, push, publication, deployment,
+  and history rewriting were not run.

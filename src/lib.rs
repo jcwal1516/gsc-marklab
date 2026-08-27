@@ -33,6 +33,7 @@ mod errors;
 mod geom;
 mod inference;
 mod io;
+mod mark_pair_plan;
 mod multimodal;
 mod multiscale_residual;
 mod nearest_space;
@@ -43,6 +44,8 @@ mod perf;
 mod periodogram;
 mod permutation;
 mod prepost;
+mod probability_pair;
+mod probability_pair_workflow;
 mod qc;
 mod registration;
 mod scalar_mark;
@@ -335,6 +338,12 @@ pub use prepost::{
     compare_multimodal_prepost, compare_multimodal_prepost_with_margin, DeclaredMarkedPrePostError,
     DeclaredMarkedPrePostResult, DeclaredMarkedPrevalenceChange, DeclaredMarkedPrevalenceStatus,
 };
+pub use probability_pair::{
+    probability_mark_connection, ProbabilityPairComponentInference, ProbabilityPairConfig,
+    ProbabilityPairError, ProbabilityPairGeometrySummary, ProbabilityPairInferenceSummary,
+    ProbabilityPairLimits, ProbabilityPairPoint, ProbabilityPairPointStatus, ProbabilityPairResult,
+};
+pub use probability_pair_workflow::ProbabilityPairAnalysisNode;
 pub use registration::{
     landmarks::LandmarkPair,
     transform::{Transform2D, TransformKind},

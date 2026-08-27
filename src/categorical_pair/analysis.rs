@@ -2,26 +2,13 @@ use marklab_cohort::{InferenceAlternative, InferenceDesign};
 use marklab_workflow::ContentDigest;
 
 use crate::{
-    classical::{window_summary, SpatialGeometryPlan2D},
+    classical::window_summary,
+    mark_pair_plan::{build_mark_pair_plan, MarkPairPlan, MarkPairPlanError},
     permutation::envelopes::GlobalEnvelope,
-    ClassicalSpatialLimits, DeclaredScalarPatternInput, ObservationWindow2D, ScalarMarkId,
+    DeclaredScalarPatternInput, ObservationWindow2D, ScalarMarkId,
 };
 
 use super::types::*;
-
-#[derive(Clone, Copy)]
-struct DirectedPair {
-    source: usize,
-    target: usize,
-    distance_um: f64,
-}
-
-struct PairPlan {
-    geometry: SpatialGeometryPlan2D,
-    pairs: Vec<DirectedPair>,
-    digest: ContentDigest,
-    retained_bytes: usize,
-}
 
 struct Evaluation {
     points: Vec<CategoricalPairPoint>,
@@ -76,7 +63,16 @@ pub fn categorical_mark_connection_cross_k(
             maximum: config.limits.maximum_points,
         });
     }
-    let plan = build_pair_plan(input, window, config)?;
+    let plan = build_mark_pair_plan(
+        input,
+        window,
+        &config.radii_um,
+        config.limits.maximum_points,
+        config.limits.maximum_radii,
+        config.limits.maximum_directed_pairs,
+        config.limits.maximum_retained_bytes,
+    )
+    .map_err(pair_plan_error)?;
     let required_evaluations = plan
         .pairs
         .len()
@@ -230,103 +226,13 @@ pub fn categorical_mark_connection_cross_k(
     })
 }
 
-fn build_pair_plan(
-    input: &DeclaredScalarPatternInput<'_>,
-    window: &ObservationWindow2D,
-    config: &CategoricalPairConfig,
-) -> Result<PairPlan, CategoricalPairError> {
-    let classical_limits = ClassicalSpatialLimits::new(
-        config.limits.maximum_points,
-        config.limits.maximum_radii,
-        config.limits.maximum_directed_pairs,
-        1,
-        config.limits.maximum_retained_bytes,
-    )
-    .map_err(dependency)?;
-    let pattern = input.pattern();
-    let geometry =
-        SpatialGeometryPlan2D::new(&pattern.x_um, &pattern.y_um, window, classical_limits)
-            .map_err(dependency)?;
-    let maximum_radius = *config.radii_um.last().expect("validated radii");
-    let mut pairs = Vec::new();
-    for source in 0..pattern.len() {
-        let mut failure = None;
-        geometry
-            .index()
-            .visit_within_radius(source, maximum_radius, |neighbor| {
-                if failure.is_some() {
-                    return;
-                }
-                if pairs.len() >= config.limits.maximum_directed_pairs {
-                    failure = Some(CategoricalPairError::DirectedPairLimitExceeded {
-                        maximum: config.limits.maximum_directed_pairs,
-                    });
-                    return;
-                }
-                let required = geometry.estimated_storage_bytes().saturating_add(
-                    pairs
-                        .len()
-                        .saturating_add(1)
-                        .saturating_mul(std::mem::size_of::<DirectedPair>()),
-                );
-                if required > config.limits.maximum_retained_bytes {
-                    failure = Some(CategoricalPairError::RetainedByteLimitExceeded {
-                        required,
-                        maximum: config.limits.maximum_retained_bytes,
-                    });
-                    return;
-                }
-                if pairs.try_reserve(1).is_err() {
-                    failure = Some(CategoricalPairError::AllocationFailed);
-                    return;
-                }
-                pairs.push(DirectedPair {
-                    source,
-                    target: neighbor.index,
-                    distance_um: neighbor.distance_um,
-                });
-            })
-            .map_err(dependency)?;
-        if let Some(error) = failure {
-            return Err(error);
-        }
-    }
-    pairs.sort_by(|left, right| {
-        left.source
-            .cmp(&right.source)
-            .then_with(|| left.target.cmp(&right.target))
-    });
-    let digest = pair_plan_digest(geometry.logical_digest(), maximum_radius, &pairs);
-    let retained_bytes = geometry
-        .estimated_storage_bytes()
-        .checked_add(
-            pairs
-                .len()
-                .checked_mul(std::mem::size_of::<DirectedPair>())
-                .ok_or(CategoricalPairError::SizeOverflow)?,
-        )
-        .ok_or(CategoricalPairError::SizeOverflow)?;
-    if retained_bytes > config.limits.maximum_retained_bytes {
-        return Err(CategoricalPairError::RetainedByteLimitExceeded {
-            required: retained_bytes,
-            maximum: config.limits.maximum_retained_bytes,
-        });
-    }
-    Ok(PairPlan {
-        geometry,
-        pairs,
-        digest,
-        retained_bytes,
-    })
-}
-
 fn evaluate(
     codes: &[u32],
     source_code: u32,
     target_code: u32,
     target_count: usize,
     area_um2: f64,
-    plan: &PairPlan,
+    plan: &MarkPairPlan,
     radii_um: &[f64],
 ) -> Result<Evaluation, CategoricalPairError> {
     let width = radii_um
@@ -514,25 +420,6 @@ pub(crate) fn configuration_digest(config: &CategoricalPairConfig) -> ContentDig
     ContentDigest::from_framed(fields.iter().map(Vec::as_slice))
 }
 
-fn pair_plan_digest(
-    geometry_digest: ContentDigest,
-    maximum_radius: f64,
-    pairs: &[DirectedPair],
-) -> ContentDigest {
-    let mut fields = vec![
-        b"marklab-categorical-directed-pair-plan-v1".to_vec(),
-        geometry_digest.as_bytes().to_vec(),
-        maximum_radius.to_bits().to_be_bytes().to_vec(),
-        (pairs.len() as u128).to_be_bytes().to_vec(),
-    ];
-    for pair in pairs {
-        fields.push((pair.source as u128).to_be_bytes().to_vec());
-        fields.push((pair.target as u128).to_be_bytes().to_vec());
-        fields.push(pair.distance_um.to_bits().to_be_bytes().to_vec());
-    }
-    ContentDigest::from_framed(fields.iter().map(Vec::as_slice))
-}
-
 fn resolve_level(levels: &[String], requested: &str) -> Result<u32, CategoricalPairError> {
     levels
         .iter()
@@ -552,6 +439,20 @@ fn intersect(target: &mut [bool], observed: &[bool]) {
 fn dependency(error: impl std::fmt::Display) -> CategoricalPairError {
     CategoricalPairError::Dependency {
         reason: error.to_string(),
+    }
+}
+
+fn pair_plan_error(error: MarkPairPlanError) -> CategoricalPairError {
+    match error {
+        MarkPairPlanError::DirectedPairLimitExceeded { maximum } => {
+            CategoricalPairError::DirectedPairLimitExceeded { maximum }
+        }
+        MarkPairPlanError::RetainedByteLimitExceeded { required, maximum } => {
+            CategoricalPairError::RetainedByteLimitExceeded { required, maximum }
+        }
+        MarkPairPlanError::AllocationFailed => CategoricalPairError::AllocationFailed,
+        MarkPairPlanError::SizeOverflow => CategoricalPairError::SizeOverflow,
+        MarkPairPlanError::Dependency(reason) => CategoricalPairError::Dependency { reason },
     }
 }
 

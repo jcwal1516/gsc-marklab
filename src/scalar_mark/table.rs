@@ -357,6 +357,17 @@ impl MarkTable {
         })
     }
 
+    /// Borrow one exact dense probability column by stable mark identity.
+    pub fn probability_values(&self, mark_id: &ScalarMarkId) -> Option<&[f32]> {
+        self.columns.iter().find_map(|column| match &column.values {
+            ScalarMarkColumnValues::Probability {
+                declaration,
+                values,
+            } if declaration.mark_id() == mark_id => Some(values.as_ref()),
+            _ => None,
+        })
+    }
+
     /// Borrow one exact dense categorical column by stable mark identity.
     pub fn categorical_values(&self, mark_id: &ScalarMarkId) -> Option<&[u32]> {
         self.columns.iter().find_map(|column| match &column.values {

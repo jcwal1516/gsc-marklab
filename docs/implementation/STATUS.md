@@ -1275,3 +1275,27 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   multitype import, cross-g, inhomogeneous intensity, many-pair multiplicity, and real CellViT-to-
   MarkTable CLI/import evidence remain. The next immediate caller is probability-weighted binary
   mark connection using the existing dense probability column.
+
+## Expected probability-pair checkpoint 72 — 2026-08-27
+
+- Added `probability_mark_connection` for one exact dense binary-probability MarkTable column. Its
+  named shell estimand is `sum p_i p_j / eligible directed pairs`: the conditional expected
+  positive-positive connection under independent Bernoulli label uncertainty, without sampling or
+  thresholding latent labels.
+- The global random-label expectation is the exact ordered without-replacement probability-row
+  mass `((sum p)^2 - sum p^2) / (n(n-1))`. Complete `f32` probability rows move across fixed
+  locations through the existing `InferenceDesign`; one two-sided ERL family is evaluated on the
+  same standard-border directed pairs. Zero expected positive-positive pair mass and zero effective
+  negative mass fail explicitly rather than producing an uninformative promoted curve.
+- Categorical and probability connection now consume the same private retained pair-plan owner.
+  The extraction preserves the original categorical pair-plan digest domain, geometry ordering,
+  edge eligibility, and resource behavior; all categorical focused regressions pass unchanged.
+- The four-point hand case `[1, 0.5, 0, 1]` has shell contribution mass `1`, six eligible directed
+  pairs, connection `1/6`, and random-label expectation `1/3`. A clustered binary-probability
+  control exceeds its alternating counterpart. Missing mark identity, rare mass, all-positive mass,
+  and one-short pair ceiling fail through typed errors.
+- The store-aware durable node binds exact pattern, MarkTable/provenance, window, mark ID, expected-
+  contribution mode, radii, seed, null controls, and limits. A separate reconstruction reopens as a
+  hit with one execution; a seed change produces the second miss. MRK-01A is complete. MRK-01B is
+  now active for normalized continuous mark correlation over the already-typed finite continuous
+  column; probability simplex and sampled-label uncertainty remain under MRK-02C.
