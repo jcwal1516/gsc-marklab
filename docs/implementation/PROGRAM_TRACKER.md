@@ -1,6 +1,6 @@
 # Marklab program tracker
 
-Last updated: 2026-08-25
+Last updated: 2026-08-27
 
 Authority: MASTER_PLAN.md remains the immutable, authoritative total program scope. This tracker is a derived execution control. A conflict is resolved in favor of the master plan, and no tracker state removes, weakens, permanently defers, or declares a master-plan item unnecessary.
 
@@ -174,7 +174,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | PP-01 | blocked with named prerequisite | The complete unmarked standard-border K/L workflow is delivered; stable PP-01 promotion still requires remaining FND-02/FND-03/FND-06 contracts, pinned external-oracle fixtures, null calibration, intensity-gradient policy, and scale evidence. |
 | PP-02 | blocked with named prerequisite | Requires PP-01 and a cross-fit, provenance-bearing intensity estimator. |
 | PP-03 | active | One homogeneous standard-border directed cross-K specialization consumes an exact typed categorical MarkTable and retained pair plan. Kernel pair-correlation g/cross-g, inhomogeneous variants, general types, and broader external calibration remain. |
-| PP-03A | blocked with named prerequisite | Requires PP-01/PP-02, bandwidth policy, and exact pair-plan semantics. |
+| PP-03A | active | Exact physical windows, standard-border geometry, conditional CSR, pair-plan semantics, and durable execution are live; homogeneous compact-support g is the active bounded caller. Inhomogeneous g remains dependent on PP-02 intensity ownership. |
 | PP-03B | active | Directed cross-K uses exact source/target counts, boundary-eligible source centers, typed unknown/empty-level failures, random-label envelopes, and durable replay for one categorical column. Cross-g, inhomogeneous intensity, and general multitype coverage remain. |
 | PP-04 | complete | Exact reduced-sample F/G/J runs on polygon/multipolygon/hole windows with fixed cell-centred probes, whole-pattern conditional CSR, separate ERL envelopes, pinned SciPy nearest-distance agreement, null/control calibration, typed sparse/denominator states, hard limits, and durable replay. |
 | PP-04A | complete | Event-to-nearest-distinct-event G uses the canonical exact index, deterministic tie policy, explicit simple-point rejection, boundary-eligible denominators, and independent brute-force/SciPy oracles. |

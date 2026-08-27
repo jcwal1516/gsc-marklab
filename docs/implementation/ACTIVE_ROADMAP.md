@@ -588,3 +588,20 @@ existing unmarked and categorical MarkTable callers. It must freeze one bandwidt
 policy, provide an independent oracle and calibration controls, reuse retained geometry and durable
 execution, and remain separate from cumulative K/cross-K. Inhomogeneous g/K waits for the distinct
 cross-fitted intensity-estimation contract; no generic kernel registry is justified.
+
+## Checkpoint 75 typed spatial-workflow stabilization continuation
+
+The checkpoint-71–74 typed mark workflows and their shared durable/project surfaces pass workspace
+formatting, warning-denied all-feature Clippy, no-default compilation, and workspace doctests. A
+focused region-retrieval cleanup passes both affected integrations. The single serial workspace
+test attempt passed the complete main library, CLI unit target, and first API integration before it
+was stopped at the already-documented macOS per-binary verification delay; no full-workspace test
+claim is made and the expensive loop will not be retried without invalidating production changes or
+an explicit request.
+
+Production work proceeds directly to homogeneous pair-correlation g/cross-g. PP-03A is active for
+the existing unmarked caller because exact physical windows, standard-border geometry, conditional
+CSR, and durable execution now exist; categorical cross-g uses the admitted two-level MarkTable and
+complete-row random labeling. Both must share only one demonstrated compact-support kernel/bandwidth
+calculation after their concrete estimators work. PP-02 inhomogeneous intensity and any general
+kernel registry remain outside this milestone.

@@ -206,7 +206,7 @@ impl RegionRetrievalProjectNode {
         {
             return Err("decoded region retrieval identity or dimensions differ".into());
         }
-        let (mean, standard_deviation, _) = standardize(&self.training)?;
+        let (mean, standard_deviation) = standardization(&self.training)?;
         if let Some(error) =
             value_difference("mean", &document.index.training_mean, &mean).or_else(|| {
                 value_difference(
@@ -428,7 +428,7 @@ fn eligible(
             || region.site_id != query.site_id)
 }
 
-fn standardize(training: &[TrainingRegion]) -> Result<(Vec<f64>, Vec<f64>, Vec<Vec<f64>>), String> {
+fn standardization(training: &[TrainingRegion]) -> Result<(Vec<f64>, Vec<f64>), String> {
     let dimensions = training[0].embedding.len();
     let mut mean = vec![0.0; dimensions];
     for region in training {
@@ -455,8 +455,7 @@ fn standardize(training: &[TrainingRegion]) -> Result<(Vec<f64>, Vec<f64>, Vec<V
             return Err("decoded region retrieval training scale is invalid".into());
         }
     }
-    let standardized = apply_standardization(training, &mean, &standard_deviation);
-    Ok((mean, standard_deviation, standardized))
+    Ok((mean, standard_deviation))
 }
 
 fn apply_standardization(

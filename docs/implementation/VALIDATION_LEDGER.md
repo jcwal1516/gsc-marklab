@@ -1942,3 +1942,23 @@ vascular transport.
   dependency audits, push, publication, deployment, and history rewriting were not run.
 - The finite-`pi r^2` guard passes the affected 13/13 classical spatial domain tests, 3/3
   categorical-pair tests, and 4/4 weighted-K tests, including explicit `f64::MAX` radius rejection.
+
+## Typed spatial-workflow stabilization checkpoint 75 — 2026-08-27
+
+- `cargo +1.96.0 fmt --all --check` passes.
+- The first `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings`
+  failed on `clippy::type_complexity` for the pre-existing durable region-retrieval
+  `standardize` tuple return. The smallest cleanup renamed the calculation `standardization`,
+  returned only the consumed mean and scale, and removed one redundant standardized-matrix build.
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  durable_region_retrieval_project --test bayes_region_retrieval_cli` passes 1/1 plus 1/1 after
+  that cleanup. The repeated exact workspace Clippy command then passes in 18m13s.
+- `cargo +1.96.0 check --locked --workspace --no-default-features` passes, and `cargo +1.96.0 test
+  --locked --workspace --doc --all-features` passes for every workspace package with zero doctest
+  failures.
+- `cargo +1.96.0 test --locked --workspace --all-features -- --test-threads=1` compiled the test
+  profile in 16m50s; the main library passed 294 tests with 21 ignored, the CLI unit target passed
+  3/3, and `api_contract` passed 6/6. The run was interrupted with exit 130 when the following
+  integration reproduced the documented tens-of-seconds macOS loader-verification delay. It was
+  not retried; Nextest, feature matrices, benchmarks, fuzzing, memory tools, packaging, dependency
+  audits, push, publication, deployment, and history rewriting were not run.

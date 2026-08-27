@@ -1349,3 +1349,21 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - Final finite-result review closed an inherited K-family boundary: finite radii that would overflow
   `pi r^2` are now rejected by unmarked K/L, categorical cross-K, and mark-weighted K configuration
   before geometry or output construction.
+
+## Typed spatial-workflow stabilization checkpoint 75 — 2026-08-27
+
+- The four related typed mark workflows from checkpoints 71–74 now pass one major-checkpoint
+  workspace stabilization. All-feature warning-denied Clippy found one pre-existing complex tuple
+  return in durable region retrieval; the focused cleanup removed a redundant standardized-matrix
+  construction while preserving its mean/scale validation and decoded-result behavior.
+- Workspace formatting, warning-denied all-target/all-feature Clippy, no-default compilation, and
+  all-feature workspace doctests pass. The focused durable region-retrieval integrations pass after
+  the cleanup.
+- One fresh serial all-feature workspace test attempt compiled successfully in 16m50s. The main
+  library passed 294 tests with 21 ignored, the CLI unit target passed 3/3, and `api_contract`
+  passed 6/6. The run was then stopped after the next integration binary reproduced the documented
+  per-binary macOS loader-verification delay; it was not retried and is not represented as a full
+  workspace-test pass.
+- Tracker re-evaluation promotes only homogeneous PP-03A pair-correlation to active. The next
+  production milestone remains a distinct compact-support standard-border g/cross-g result with
+  CSR and random-label calibration; inhomogeneous variants still require PP-02 intensity ownership.
