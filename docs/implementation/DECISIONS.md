@@ -1865,3 +1865,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for the durable classical real-data caller
 - Decision: when the strict classical result decoder recomputes theoretical K, observed K, and L from already finite validated fields, accept exact equality or relative disagreement within sixteen binary64 epsilons; retain exact zero, count, denominator, radius, status, and all other semantic checks. This tolerance applies only to redundant calculated-float identities after serialization.
 - Consequences: real noninteger polygon areas replay through the typed JSON codec without weakening result counts or permitting material formula drift. A regression moves the redundant calculated fields by one ULP and the existing inconsistent-count test remains rejected.
+
+## DEC-0229 — Admit pinned NumPyro only for concrete cross-backend Bayesian agreement
+
+- Date: 2026-08-26
+- Status: accepted for BAY-01/BAY-02/WS-40 hierarchical agreement
+- Decision: declare the already locked NumPyro 0.21.0/JAX 0.11.1 stack as a direct Python worker dependency and use it first for the exact typed Gaussian patient varying-intercept model already fitted by PyMC 6.3.0. The closed comparison owns both exact backend/environment/worker identities, the unchanged model/hierarchy/prior/likelihood/data and sampling controls, rank-normalized R-hat, bulk/tail ESS, divergences, tree-depth and energy diagnostics, posterior-predictive checks, and a caller-declared Monte Carlo agreement rule. A comparison that fails diagnostics or agreement remains diagnostic-only.
+- Consequences: the immediate hierarchical caller can satisfy the first two-backend model gate without a plugin registry, free-form model string, implicit backend selection, new remote/container executor, or native substitute. NumPyro remains experimental and CPU-executed in current evidence despite being GPU-capable; direct GPU evidence, CmdStan integration, and field/point-process cross-backend calibration remain separate required outcomes.

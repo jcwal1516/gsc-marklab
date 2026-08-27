@@ -1542,3 +1542,39 @@ vascular transport.
   byte failed on the expected result digest. No workspace-wide test/Clippy, Nextest, feature matrix,
   strict docs, benchmark, fuzz, memory, packaging, dependency audit, push, publication, deployment,
   history rewrite, or worktree was run or created.
+
+## Durable real Bayesian checkpoint 62 — 2026-08-26
+
+- Expected behavior reds were observed first. The new durable hierarchy and gridded-LGCP tests each
+  failed because their `marklab project` subcommand was absent. The first hierarchy implementation
+  correctly returned `nonconverged` for a divergent seed, so the durable test adopted the existing
+  established hierarchy oracle seed without weakening its complete-fit assertion. The cross-backend
+  test then failed for the missing agreement command, isolated-worker module import, and installed
+  ArviZ 1.3 `from_dict` API before passing with explicit file loading and the version-matched API.
+- `cargo +1.96.0 test --locked --features cli --test durable_pymc_hierarchical_project --
+  --exact hierarchical_normal_runs_once_then_replays_without_starting_pymc --nocapture` passed
+  1/1, as did the corresponding exact `durable_pymc_gridded_lgcp_project` behavior. After the Python
+  lock changed to declare its already pinned NumPyro package directly, the combined two-target
+  durable command passed both tests again. Each test proves miss, backend-disabled second-process
+  hit, byte-identical typed output, changed seed/input misses, and one unchanged ledger record.
+- The existing `bayes_hierarchical_normal_cli` and `bayes_gridded_lgcp_fit_cli` exact oracle tests
+  each passed 1/1 after their prepare/execute refactors. `cargo +1.96.0 test --locked --features cli
+  --test bayes_hierarchical_agreement_cli -- --exact
+  pymc_and_numpyro_agree_on_the_same_typed_patient_hierarchy --nocapture` passed 1/1. The static
+  backend identity unit test passed 1/1; an earlier invocation with `--exact` named only the
+  unqualified suffix and ran zero tests, so it is not evidence.
+- The real hierarchy and LGCP each ran under fresh current-lock durable projects as miss then hit
+  with `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1`; `cmp` passed and each ledger contains one
+  record. The real PyMC/NumPyro comparison passed both parameter gates with zero divergences. The
+  final CellViT LGCP adapter reproduced its three prepared files byte-for-byte in a fresh remote
+  temporary directory. Current artifacts were copied without deletion to
+  `/Volumes/1TB/marklab/runs/results-cellvit-bayesian-v1`.
+- `cargo +1.96.0 test --locked --package marklab-bayes` passed 41 unit tests and zero doc tests.
+  Warning-denied Clippy passed for all `marklab-bayes` targets and for the root binary plus the three
+  affected integrations. Root and Bayesian no-default compilation passed. Strict warning-denied
+  public docs for both packages, `cargo +1.96.0 fmt --all --check`, Python syntax compilation,
+  the exact adapter unit test, and `git diff --check` passed.
+- No workspace-wide test/Clippy, Nextest, feature matrix, benchmark, fuzz, memory, packaging,
+  dependency audit, push, publication, deployment, history rewrite, or worktree was run. The
+  broader Phase 4 exit is not claimed; hierarchy SBC/sensitivity and field/point-process
+  cross-backend calibration remain active.

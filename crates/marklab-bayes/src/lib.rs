@@ -21,6 +21,7 @@ mod gridded_lgcp;
 mod gridded_lgcp_fit;
 mod grouped_conformal;
 mod hierarchical;
+mod hierarchical_agreement;
 mod icar;
 mod inhomogeneous_poisson;
 mod inhomogeneous_poisson_fit;
@@ -119,6 +120,11 @@ pub use grouped_conformal::{
 pub use hierarchical::{
     GaussianHierarchyFit, GaussianHierarchyInputIdentity, GaussianHierarchySpec,
     GaussianHierarchyWorkerRequest, HierarchicalPatientData, HierarchicalWorkerResult,
+};
+pub use hierarchical_agreement::{
+    HierarchicalAgreementComparison, HierarchicalAgreementPolicy, HierarchicalAgreementResult,
+    HierarchicalBackendSummary, NumpyroHierarchyWorkerRequest, NumpyroHierarchyWorkerResult,
+    ParameterAgreement,
 };
 pub use icar::{build_icar_plan, IcarPlan, IcarPlanError};
 pub use inhomogeneous_poisson::{

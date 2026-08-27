@@ -925,3 +925,34 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   affected formatting, and Python syntax checks pass. The checkpoint does not claim an independent
   patch model, exhaustive whole-slide inference, publication readiness, or completion of the
   broader embedding/foundation master-plan families.
+
+## Durable real Bayesian checkpoint 62 — 2026-08-26
+
+- Added `marklab project hierarchical-normal` and `marklab project gridded-lgcp` as typed PyMC
+  nodes over the existing durable scheduler, object store, ledger, head, recovery, cache key, and
+  output transaction. Both first execute as misses and then replay byte-identical typed results in
+  separate processes with external backend execution disabled and one ledger record. Exact raw
+  input bytes, PyMC 6.3.0, Python 3.12, lock and worker digests, model/configuration, seeds,
+  resources, typed schemas, and native runtime identity remain in the durable boundary.
+- The hierarchical workflow fit `284` real spatial cosine-excess observations nested in `121`
+  patients after excluding only the `49` single-ROI patients required by the model's declared
+  replication contract. The complete fit has zero divergences, `R-hat=1.0046`, bulk ESS `1505`,
+  tail ESS `2051`, population mean `0.07715`, between-patient SD `0.02305`, finite prior/posterior
+  checks, and posterior-predictive agreement on the declared global and patient-dispersion
+  summaries.
+- A narrow CellViT adapter rehashed the admitted representative-slide cell export and selected all
+  `500` cells assigned to exact patch `(7,16)`, preserving its physical
+  `256.1024 x 256.1024` micrometre rectangle. The durable 4x4 gridded LGCP returned a complete
+  latent-field/point-process fit with zero divergences, `R-hat=1.0032`, bulk ESS `896`, tail ESS
+  `950`, and posterior-predictive total `499.31` against `500` observed. The x-grid covariate is a
+  declared spatial trend, not a biological effect, and the result remains exploratory.
+- Added the first direct pinned NumPyro 0.21.0/JAX 0.11.1 backend caller for the exact same typed
+  Gaussian hierarchy. On the real ROI input, PyMC and NumPyro population means differ by
+  `0.000103` and between-patient SDs by `0.0000275`; intervals overlap and both differences pass
+  the declared four-MCSE/minimum-`0.005` rule. Both engines have zero divergences and passing
+  normalized rank-R-hat, bulk/tail ESS, energy, finiteness, constraint, and predictive checks.
+- This advances BAY-01 through its first two-backend hierarchical promotion model and advances
+  BAY-02/BAY-03/BAY-04/BAY-PP plus WS-40/41/43/44. The broader Bayesian phase is not complete:
+  hierarchical SBC/prior sensitivity and field/point-process cross-backend agreement, SBC, and
+  spatial posterior-predictive checks remain the next concrete blockers; CmdStan and actual GPU
+  execution evidence also remain absent.

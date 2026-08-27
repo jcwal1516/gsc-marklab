@@ -6,6 +6,7 @@ dependencies = [
     "cca-zoo[probabilistic]==3.0.0",
     "gudhi==3.13.0",
     "mofapy2==0.7.4",
+    "numpyro==0.21.0",
     "pot==0.9.7.post1",
     "pymc==6.3.0",
     "sbi==0.26.1",

@@ -64,6 +64,8 @@ mod hierarchical;
 pub(super) use hierarchical::{
     execute as execute_hierarchical, prepare as prepare_hierarchical, PreparedGaussianHierarchy,
 };
+#[path = "bayes/hierarchical_agreement.rs"]
+mod hierarchical_agreement;
 #[path = "bayes/inhomogeneous_poisson.rs"]
 mod inhomogeneous_poisson;
 #[path = "bayes/inhomogeneous_poisson_fit.rs"]
@@ -216,6 +218,36 @@ enum BayesCommand {
         target_accept: f64,
         #[arg(long)]
         seed: u64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    HierarchicalNormalAgreement {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long, allow_hyphen_values = true)]
+        global_prior_mean: f64,
+        #[arg(long)]
+        global_prior_sd: f64,
+        #[arg(long)]
+        between_patient_sd_prior: f64,
+        #[arg(long)]
+        known_sigma: f64,
+        #[arg(long)]
+        chains: u32,
+        #[arg(long)]
+        tune: u32,
+        #[arg(long)]
+        draws: u32,
+        #[arg(long)]
+        target_accept: f64,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        maximum_standardized_difference: f64,
+        #[arg(long)]
+        minimum_absolute_tolerance: f64,
         #[arg(long)]
         timeout_seconds: u64,
         #[arg(long)]
@@ -1987,6 +2019,42 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
                 target_accept,
                 seed,
             },
+            timeout_seconds,
+            out,
+        ),
+        BayesTopLevel::Bayes {
+            command:
+                BayesCommand::HierarchicalNormalAgreement {
+                    input,
+                    global_prior_mean,
+                    global_prior_sd,
+                    between_patient_sd_prior,
+                    known_sigma,
+                    chains,
+                    tune,
+                    draws,
+                    target_accept,
+                    seed,
+                    maximum_standardized_difference,
+                    minimum_absolute_tolerance,
+                    timeout_seconds,
+                    out,
+                },
+        } => hierarchical_agreement::run(
+            input,
+            global_prior_mean,
+            global_prior_sd,
+            between_patient_sd_prior,
+            known_sigma,
+            NutsSamplingSpec {
+                chains,
+                tune_per_chain: tune,
+                draws_per_chain: draws,
+                target_accept,
+                seed,
+            },
+            maximum_standardized_difference,
+            minimum_absolute_tolerance,
             timeout_seconds,
             out,
         ),

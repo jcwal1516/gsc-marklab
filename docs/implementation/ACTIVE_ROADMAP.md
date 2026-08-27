@@ -383,3 +383,20 @@ through the existing canonical NPY/CSV source importer and typed mark/table owne
 the current typed Moran/Geary/scalar-variogram family across independent patient summaries with an
 external agreement check. Independent patch-vector analysis remains data-blocked and must not be
 substituted by the admitted cell-aggregated patch representation.
+
+## Checkpoint 62 Bayesian phase continuation
+
+User direction promotes Phase 4 closure ahead of the prior CellViT importer continuation. Durable
+PyMC patient-hierarchy and gridded-LGCP projects now run on admitted real ROI and exact-patch data,
+and the same typed Gaussian hierarchy agrees between PyMC 6.3.0 and NumPyro 0.21.0 within the
+declared Monte Carlo rule. The real hierarchy and LGCP both pass normalized diagnostics and
+posterior-predictive checks; backend-disabled second processes replay exact hits with one ledger
+record each.
+
+The Bayesian phase remains active rather than complete. The next dependency-ordered outcomes are
+(1) hierarchical simulation-based calibration and prior sensitivity over the exact two-backend
+model, then (2) independent-backend agreement and calibration for the exact rectangular latent
+field/LGCP caller, including spatial posterior-predictive summaries rather than count totals alone.
+Only after those immediate callers demonstrate shared requirements may their calibration mechanics
+be extracted. CmdStan admission and actual GPU execution evidence remain named gaps; neither may be
+inferred from NumPyro's GPU capability or the current CPU run.
