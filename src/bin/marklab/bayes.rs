@@ -28,6 +28,8 @@ pub(super) use beta_binomial_hierarchy::{
 };
 #[path = "bayes/beta_binomial_hierarchy_agreement.rs"]
 mod beta_binomial_hierarchy_agreement;
+#[path = "bayes/beta_binomial_hierarchy_sensitivity.rs"]
+mod beta_binomial_hierarchy_sensitivity;
 #[path = "bayes/bym.rs"]
 mod bym;
 #[path = "bayes/bym2.rs"]
@@ -280,6 +282,36 @@ enum BayesCommand {
         minimum_concentration_tolerance: f64,
         #[arg(long)]
         minimum_patient_tolerance: f64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    BetaBinomialHierarchySensitivity {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        population_alpha: f64,
+        #[arg(long)]
+        population_beta: f64,
+        #[arg(long)]
+        concentration_prior_sd: f64,
+        #[arg(long)]
+        lower_scale_multiplier: f64,
+        #[arg(long)]
+        upper_scale_multiplier: f64,
+        #[arg(long)]
+        material_standardized_shift: f64,
+        #[arg(long)]
+        chains: u32,
+        #[arg(long)]
+        tune: u32,
+        #[arg(long)]
+        draws: u32,
+        #[arg(long)]
+        target_accept: f64,
+        #[arg(long)]
+        seed: u64,
         #[arg(long)]
         timeout_seconds: u64,
         #[arg(long)]
@@ -2683,6 +2715,42 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             minimum_probability_tolerance,
             minimum_concentration_tolerance,
             minimum_patient_tolerance,
+            timeout_seconds,
+            out,
+        ),
+        BayesTopLevel::Bayes {
+            command:
+                BayesCommand::BetaBinomialHierarchySensitivity {
+                    input,
+                    population_alpha,
+                    population_beta,
+                    concentration_prior_sd,
+                    lower_scale_multiplier,
+                    upper_scale_multiplier,
+                    material_standardized_shift,
+                    chains,
+                    tune,
+                    draws,
+                    target_accept,
+                    seed,
+                    timeout_seconds,
+                    out,
+                },
+        } => beta_binomial_hierarchy_sensitivity::run(
+            input,
+            population_alpha,
+            population_beta,
+            concentration_prior_sd,
+            lower_scale_multiplier,
+            upper_scale_multiplier,
+            material_standardized_shift,
+            NutsSamplingSpec {
+                chains,
+                tune_per_chain: tune,
+                draws_per_chain: draws,
+                target_accept,
+                seed,
+            },
             timeout_seconds,
             out,
         ),

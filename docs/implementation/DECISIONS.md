@@ -1977,3 +1977,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-01/BAY-03/BAY-HIER-A/WS-40/WS-44
 - Decision: fit the existing typed patient beta-binomial hierarchy independently with pinned NumPyro 0.21.0/JAX 0.11.1 and compare population probability, positive concentration, and all patient probabilities against PyMC 6.3.0 under explicit Monte Carlo plus minimum absolute tolerances. Preserve exact successes/trials, priors, likelihood, seed, sampling, diagnostic policy, and backend/environment/worker/request identities; any failed fit or comparison is diagnostic-only.
 - Consequences: the real classifier-derived count caller gains a second-engine check without a model language, backend registry, implicit selection, CmdStan/GPU claim, or substitute for prior sensitivity and simulation calibration.
+
+## DEC-0245 — Evaluate beta-binomial hierarchy priors one factor at a time
+
+- Date: 2026-08-27
+- Status: accepted for BAY-03/BAY-HIER-A/WS-41/WS-44
+- Decision: refit the exact PyMC beta-binomial hierarchy under a baseline plus lower/upper one-at-a-time multipliers for population Beta alpha, population Beta beta, and the positive concentration-prior scale. Preserve exact successes/trials, likelihood, seed, sampling, backend identity, and diagnostics; report population, concentration, and patient-field shifts in baseline posterior-standard-deviation units and withhold an ordinary sensitivity state unless all seven fits converge.
+- Consequences: the real count caller gains a bounded prior sensitivity result without a general scenario engine, joint grid, hidden defaults, or a robustness claim outside the declared multipliers.
