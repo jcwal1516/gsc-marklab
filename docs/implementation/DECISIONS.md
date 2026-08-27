@@ -2005,3 +2005,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-01/BAY-03/BAY-HIER-A/WS-44
 - Decision: execute the exact DEC-0247 collapsed beta-binomial group model in pinned PyMC and pinned dense-mass NumPyro, preserving identical priors, likelihood, patient ordering, seed, sampling controls, diagnostic policy, posterior estimands, exact conditional patient draws, and group-aware posterior predictive summaries. Gate the intercept, group effect, both group probabilities, probability difference, odds ratio, concentration, and every patient probability by interval overlap and a declared Monte Carlo-error-aware tolerance.
 - Consequences: the group contrast gains an independent implementation check without creating a backend registry, changing the model, or promoting exploratory classifier composition to clinical or causal evidence.
+
+## DEC-0249 — Measure molecular-group prior sensitivity on the scientific estimands
+
+- Date: 2026-08-27
+- Status: accepted for BAY-03/BAY-HIER-A/WS-44
+- Decision: run the DEC-0247 patient beta-binomial group regression over a fixed seven-scenario one-at-a-time grid: baseline plus 0.5x and 2x intercept-scale, group-effect-scale, and concentration-scale priors. Preserve the input, seed, likelihood, sampling, and diagnostic controls, and measure every population estimand plus the full patient field against its baseline posterior standard deviation with a declared material-shift threshold.
+- Consequences: the exploratory MSI/MSS contrast reports whether reasonable prior-scale changes materially alter the conclusion, while keeping prior sensitivity distinct from cross-backend agreement and calibration.
