@@ -66,6 +66,8 @@ pub(super) use hierarchical::{
 };
 #[path = "bayes/hierarchical_agreement.rs"]
 mod hierarchical_agreement;
+#[path = "bayes/hierarchical_sbc.rs"]
+mod hierarchical_sbc;
 #[path = "bayes/hierarchical_sensitivity.rs"]
 mod hierarchical_sensitivity;
 #[path = "bayes/inhomogeneous_poisson.rs"]
@@ -282,6 +284,42 @@ enum BayesCommand {
         target_accept: f64,
         #[arg(long)]
         seed: u64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    HierarchicalNormalSbc {
+        #[arg(long, allow_hyphen_values = true)]
+        global_prior_mean: f64,
+        #[arg(long)]
+        global_prior_sd: f64,
+        #[arg(long)]
+        between_patient_sd_prior: f64,
+        #[arg(long)]
+        known_sigma: f64,
+        #[arg(long)]
+        patients: u32,
+        #[arg(long)]
+        observations_per_patient: u32,
+        #[arg(long)]
+        replicates: u32,
+        #[arg(long)]
+        chains: u32,
+        #[arg(long)]
+        tune: u32,
+        #[arg(long)]
+        draws: u32,
+        #[arg(long)]
+        target_accept: f64,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        minimum_rank_uniformity_p_value: f64,
+        #[arg(long)]
+        minimum_coverage_90: f64,
+        #[arg(long)]
+        maximum_coverage_90: f64,
         #[arg(long)]
         timeout_seconds: u64,
         #[arg(long)]
@@ -2127,6 +2165,48 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
                 target_accept,
                 seed,
             },
+            timeout_seconds,
+            out,
+        ),
+        BayesTopLevel::Bayes {
+            command:
+                BayesCommand::HierarchicalNormalSbc {
+                    global_prior_mean,
+                    global_prior_sd,
+                    between_patient_sd_prior,
+                    known_sigma,
+                    patients,
+                    observations_per_patient,
+                    replicates,
+                    chains,
+                    tune,
+                    draws,
+                    target_accept,
+                    seed,
+                    minimum_rank_uniformity_p_value,
+                    minimum_coverage_90,
+                    maximum_coverage_90,
+                    timeout_seconds,
+                    out,
+                },
+        } => hierarchical_sbc::run(
+            global_prior_mean,
+            global_prior_sd,
+            between_patient_sd_prior,
+            known_sigma,
+            patients,
+            observations_per_patient,
+            replicates,
+            NutsSamplingSpec {
+                chains,
+                tune_per_chain: tune,
+                draws_per_chain: draws,
+                target_accept,
+                seed,
+            },
+            minimum_rank_uniformity_p_value,
+            minimum_coverage_90,
+            maximum_coverage_90,
             timeout_seconds,
             out,
         ),

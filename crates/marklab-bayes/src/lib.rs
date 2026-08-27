@@ -22,6 +22,7 @@ mod gridded_lgcp_fit;
 mod grouped_conformal;
 mod hierarchical;
 mod hierarchical_agreement;
+mod hierarchical_sbc;
 mod hierarchical_sensitivity;
 mod icar;
 mod inhomogeneous_poisson;
@@ -126,6 +127,11 @@ pub use hierarchical_agreement::{
     HierarchicalAgreementComparison, HierarchicalAgreementPolicy, HierarchicalAgreementResult,
     HierarchicalBackendSummary, NumpyroHierarchyWorkerRequest, NumpyroHierarchyWorkerResult,
     ParameterAgreement,
+};
+pub use hierarchical_sbc::{
+    HierarchicalSbcCalibrationPolicy, HierarchicalSbcDiagnostics, HierarchicalSbcFailure,
+    HierarchicalSbcParameterDiagnostics, HierarchicalSbcReplicate, HierarchicalSbcResourceLimits,
+    HierarchicalSbcResult, NumpyroHierarchySbcWorkerRequest, NumpyroHierarchySbcWorkerResult,
 };
 pub use hierarchical_sensitivity::{
     HierarchicalPriorScenario, HierarchicalPriorScenarioResult, HierarchicalPriorScenarioRun,
