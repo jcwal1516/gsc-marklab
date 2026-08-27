@@ -464,3 +464,20 @@ patient partial pooling, PPC, and analytic/simulation oracle. Only after the rea
 durable execution, a second backend, sensitivity, and SBC follow. If the exact patient/label join or
 group support fails admission, retain that blocker and move to another real identified likelihood;
 do not invent ordinal, hurdle, crossed, longitudinal, CmdStan, or GPU evidence.
+
+## Checkpoint 67 patient molecular-group hierarchy continuation
+
+The exact 105-patient MSI/MSS count intersection now has a complete patient-unit beta-binomial
+group-regression gate: typed PyMC fit, group-aware PPC, backend-disabled durable replay, independent
+NumPyro agreement for every population and patient estimand, a seven-fit prior-scale grid, and 20/20
+prior-generative SBC on the real group/trial-count shape. The observed MSI-minus-MSS Neoplastic-class
+probability difference is negative, but remains exploratory classifier-composition evidence with
+explicit cell-correlation and nonclinical claim limits.
+
+Dependency-ordered Phase 4 work moves to a bounded audit of the already admitted patient metadata
+against this exact count/label intersection. If one prespecified, nondegenerate adjustment covariate
+has complete identity and adequate support, add the smallest typed multivariable beta-binomial
+regression and compare its MSI estimand with the unadjusted model before any durable/calibration
+expansion. If no such covariate is admissible, retain the exact missingness/identifiability blocker
+and move to the next real likelihood caller. Do not add a formula language, generic regression
+framework, crossed/random-slope model without repeated identified units, CmdStan claim, or GPU claim.

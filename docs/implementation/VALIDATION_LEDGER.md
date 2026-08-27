@@ -1716,3 +1716,46 @@ vascular transport.
   the reproducible macOS loader-verification loop and the active instruction forbids retrying it.
   No feature matrix, benchmark, fuzz, memory, packaging, dependency audit, push, publication,
   deployment, history rewrite, or worktree was run.
+
+## Patient molecular-group hierarchy stabilization checkpoint 67 — 2026-08-27
+
+- Expected reds were observed before production changes: the CellViT adapter test failed because
+  `beta_binomial_group_rows` was absent; the one-shot PPC assertion failed because aggregate group
+  tail probabilities were absent; and the durable, agreement, sensitivity, and SBC integrations
+  each failed because their exact subcommand was absent. The durable test also exposed the root
+  CLI routing allowlist before passing; no assertion or diagnostic gate was weakened.
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_beta_binomial_group_regression_cli -- --nocapture` passed 1/1. `cargo +1.96.0 test --locked
+  --package marklab --features cli --test durable_pymc_beta_binomial_group_project -- --nocapture`
+  passed 1/1 and proves miss, backend-disabled separate-process hit, byte-identical typed output,
+  seed invalidation, and one ledger row. The agreement, sensitivity, and SBC test targets each
+  passed 1/1; the SBC oracle completed 20/20 dispositions.
+- The full remote admission reran the pinned CellViT adapter over all 366 slides and 1,542,389 cells.
+  Its 105-patient group table SHA is
+  `e9a875daf3456895d31ecb8175de9e44637ebf3633fb6e8fb4ed16c1b2b6d6a1`; the group-provenance SHA is
+  `18e716e6824b5b5a658bdeaa89944b6cf13969635d5fd0566f443e85130cfb03`. All prior admission inputs
+  compared byte-identically. The real one-shot and durable miss/hit result SHA is
+  `f51dfff193af353173c33a3bb159a1bb40b1bbf9d6911ed31b206f42a046c603`; `cmp` passed and
+  `wc -l .../executions.jsonl` returned one.
+- The real PyMC/NumPyro agreement result passed every declared parameter and all 105 patient gates
+  with SHA `d46fecc300d058ef43ec42a006719fc19868f2984939dfa5255ea2b77cfa0cea`. The complete seven-fit
+  prior grid has SHA `91aea9178d685d7ef74a419edd9d0b3be19739bfc4c32a1aa47df8434075848a`.
+  The complete 20-replicate real-shape SBC has SHA
+  `d77122a677699b536932810bbe884f1e5d008b72c644b1ec845ee5e1352a6736`. Each file was copied without
+  deletion to `/Volumes/1TB/marklab/runs/results-cellvit-bayesian-v1/results`.
+- `cargo +1.96.0 test --locked --package marklab-bayes --lib` passed 45/45 after the affected
+  boundaries. The final combined command over `cellvit_beta_binomial_input`,
+  `bayes_beta_binomial_group_regression_cli`, `durable_pymc_beta_binomial_group_project`,
+  `bayes_beta_binomial_group_regression_agreement_cli`,
+  `bayes_beta_binomial_group_regression_sensitivity_cli`, and
+  `bayes_beta_binomial_group_regression_sbc_cli` passed all six serial integrations.
+- `cargo +1.96.0 fmt --all --check` passed. `cargo +1.96.0 clippy --locked --workspace
+  --all-targets --all-features -- -D warnings` passed in `14m54s`. `cargo +1.96.0 check --locked
+  --workspace --no-default-features`, `cargo +1.96.0 test --locked --workspace --doc
+  --all-features`, and `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --workspace
+  --all-features --no-deps` passed. The four affected Python sources passed pinned-environment
+  syntax compilation, and `git diff --check` passed.
+- The full workspace integration suite and Nextest were not rerun because checkpoints 51/52 record
+  the reproducible macOS loader-verification loop and the active instruction forbids retrying it.
+  No feature matrix, benchmark, fuzz, memory, packaging, dependency audit, push, publication,
+  deployment, history rewrite, or worktree was run.

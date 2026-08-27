@@ -1085,3 +1085,48 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   next concrete caller is patient-unit molecular-group beta-binomial regression over the exact
   admitted count/label intersection; ordinal, hurdle, longitudinal/crossed, CmdStan, and actual GPU
   evidence remain blocked or absent.
+
+## Patient molecular-group hierarchy stabilization checkpoint 67 — 2026-08-27
+
+- Extended the full-corpus CellViT adapter with an exact patient-ID join between the already
+  admitted Neoplastic successes/all-classified-cell trials and the pinned MSI/MSS label manifest.
+  The resulting SHA-256 `e9a875daf3456895d31ecb8175de9e44637ebf3633fb6e8fb4ed16c1b2b6d6a1`
+  table contains 105 biological patient units: 81 MSS patients with 300,386/693,968 successes/trials
+  and 24 MSI patients with 71,886/192,783. Seventy-three admitted count patients lacking either
+  label are excluded explicitly. The full 366-slide/1,542,389-cell admission rerun reproduced every
+  prior prepared input byte-for-byte; classifier outputs and spatially correlated cells remain
+  explicitly non-independent biological trials.
+- Added a typed collapsed patient beta-binomial group regression with reference/comparison log-odds,
+  group probabilities, probability difference, odds ratio, concentration/overdispersion, exact
+  conditional patient probabilities, group-aware posterior predictive checks, deterministic seed,
+  exact backend/input identity, and hard patient/trial/iteration/output/time bounds. The real PyMC
+  fit is complete: MSS probability `0.39731`, MSI probability `0.30371`, MSI-minus-MSS difference
+  `-0.09360` (95% interval `-0.16749` to `-0.01535`), odds ratio `0.66941` (95% interval
+  `0.46433`–`0.93598`), concentration `6.1842`, `R-hat=1.00047`, and zero divergences/depth hits.
+  Aggregate-count posterior-predictive upper tails are `0.12725` for MSS and `0.105375` for MSI;
+  the result remains exploratory composition evidence, not a clinical or causal claim.
+- `marklab project beta-binomial-group-regression` ran the real input as a miss and then a
+  byte-identical backend-disabled hit in a separate process with one ledger row. Both outputs have
+  SHA-256 `f51dfff193af353173c33a3bb159a1bb40b1bbf9d6911ed31b206f42a046c603`.
+  Independent dense-mass NumPyro/PyMC fits agree on every declared population estimand and all 105
+  patient probabilities: the probability-difference discrepancy is `0.000897` (`1.314` combined
+  MCSE), patient RMS/max discrepancies are `0.000103/0.000385`, all intervals overlap, and both
+  backends report zero divergences/depth hits.
+- The complete seven-fit 0.5x/2x intercept-, group-effect-, and concentration-prior grid is stable
+  within its declared `0.75`-SD threshold; the maximum shift is `0.216` SD under the tighter group-
+  effect prior. Exact prior-generative NumPyro SBC over the real 105-patient/886,751-trial shape
+  passes 20/20 with no failures, maximum `R-hat=1.00117`, minimum bulk/tail ESS `4994/4014`, minimum
+  E-BFMI `0.944`, zero divergences/depth hits, rank p-values `0.091`–`0.911`, and 90% coverage
+  `0.80`–`0.95` across intercept, group effect, concentration, probability difference, and one
+  exact-conditional patient coordinate.
+- All current inputs, durable state, and results are mirrored without deletion under
+  `/Volumes/1TB/marklab/runs/results-cellvit-bayesian-v1`. Focused one-shot, adapter, durable,
+  agreement, sensitivity, SBC, and 45-test Bayesian-library checks pass. At the five-milestone
+  boundary, workspace warning-denied all-target/all-feature Clippy passed in `14m54s`; workspace
+  no-default compilation, all-feature doc tests, strict all-feature docs, formatting, Python syntax,
+  and whitespace checks pass. The documented full-integration/Nextest macOS loader loop was not
+  rerun.
+- This closes the first real patient-unit Bayesian group-effect promotion gate, not BAY-03 or
+  BAY-HIER-A. The next identified Bayesian hierarchy needs a real immediate caller for more than one
+  covariate or repeated/crossed/random-slope structure; ordinal/hurdle, CmdStan, and actual GPU
+  evidence remain absent and will not be fabricated.
