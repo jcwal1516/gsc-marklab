@@ -368,6 +368,18 @@ impl MarkTable {
         })
     }
 
+    /// Borrow the exact ordered level codebook of one categorical column.
+    pub fn categorical_levels(&self, mark_id: &ScalarMarkId) -> Option<&[String]> {
+        self.columns.iter().find_map(|column| match &column.values {
+            ScalarMarkColumnValues::Categorical { declaration, .. }
+                if declaration.mark_id() == mark_id =>
+            {
+                Some(declaration.levels())
+            }
+            _ => None,
+        })
+    }
+
     /// Column-wide measurement status for one exact typed mark.
     pub fn measurement_status(&self, mark_id: &ScalarMarkId) -> Option<MeasurementStatus> {
         self.columns

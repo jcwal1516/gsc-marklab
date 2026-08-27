@@ -531,3 +531,18 @@ current MarkTable, window, geometry, inference design, scheduler, and durable pr
 must not add a generic mark registry, untyped task runner, or new result-format version. Continuous
 mark correlation and mark-weighted K follow only after the categorical workflow fixes the shared
 pair/edge contract.
+
+## Checkpoint 71 categorical-pair continuation
+
+The first typed categorical MarkTable pair workflow now owns exact directed shell connection,
+standard-border cross-K, once-retained geometry, complete-row random labeling, separate ERL
+families, typed level failures, hard resource bounds, store-verified durable replay, and hand/control
+oracles. This activates MRK-01/MRK-01A/MRK-02A/PP-03/PP-03B without claiming their broader families
+complete.
+
+Dependency-ordered work stays on the same immediate MarkTable boundary: add probability-weighted
+binary mark connection using the existing dense probability column and exact expected complete-row
+contributions. It must reuse the current pair plan/null/workflow owners and state its normalization
+explicitly. Only after categorical and probabilistic connection share that concrete pair contract
+should continuous mark correlation and mark-weighted K be added; no generic mark registry or
+automatic all-level-pairs expansion is justified.

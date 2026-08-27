@@ -1250,3 +1250,28 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   and broader external geometry agreement remain. The next immediate geometry/mark caller is a
   categorical mark-connection/cross-type workflow over the existing typed MarkTable, not a generic
   mark or workflow registry.
+
+## Typed categorical pair checkpoint 71 — 2026-08-27
+
+- Added one exact `categorical_mark_connection_cross_k` production workflow over the existing
+  provenance-validated `histologic_compartment` MarkTable column and physical framed window. A
+  caller declares two distinct ordered level labels and a physical radius axis; unknown, duplicate,
+  empty, or provenance/frame-incompatible inputs fail before a result.
+- One bounded directed pair plan is constructed exactly once and reused for observed labels and
+  every null assignment. Each shell reports the directed source-to-target mark-connection
+  probability among all boundary-eligible directed pairs; each cumulative radius reports
+  standard-border directed cross-K using exact eligible source centers and target count. The hand
+  line oracle is `1/6` for connection and `7.0` for cross-K at 1.1 micrometres.
+- Random-label inference consumes the existing `InferenceDesign`: complete categorical rows move
+  across fixed locations, all category counts and geometry remain fixed, and connection/cross-K
+  receive separate two-sided ERL families. Point, radius, retained-pair, permutation-pair, and
+  memory ceilings include retained geometry, null matrices, indices, and work buffers.
+- The typed durable node verifies every MarkTable provenance artifact through the existing store,
+  encodes a strict canonical result, and reopens as a hit without another execution; changing the
+  seed produces a distinct miss. An alternating-label control increases both connection and cross-K
+  over the prespecified segregated control.
+- The categorical portion of MRK-01A and the first homogeneous PP-03B cross-K specialization are
+  complete, while both tracker families remain active: probability/simplex connection, general
+  multitype import, cross-g, inhomogeneous intensity, many-pair multiplicity, and real CellViT-to-
+  MarkTable CLI/import evidence remain. The next immediate caller is probability-weighted binary
+  mark connection using the existing dense probability column.

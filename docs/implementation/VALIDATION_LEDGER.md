@@ -1865,3 +1865,20 @@ vascular transport.
   whitespace checks pass. Workspace-wide tests/Clippy/docs, Nextest, feature matrices, benchmarks,
   fuzzing, memory tools, packaging, dependency audits, push, publication, deployment, and history
   rewriting were not run.
+
+## Typed categorical pair checkpoint 71 — 2026-08-27
+
+- `cargo +1.96.0 test --locked --package marklab --test categorical_pair_typed_workflow` first
+  failed on unresolved categorical-pair production symbols. The final 3/3 tests pass: the exact
+  line hand oracle, deterministic replay, same-level/work-bound failures, and the prespecified
+  alternating-versus-segregated connection/cross-K direction control.
+- `cargo +1.96.0 test --locked --package marklab --test categorical_pair_project_workflow` passes.
+  A fresh durable project misses once, a separately
+  reconstructed project/input/store reopens as an exact hit with one ledger execution, and a seed
+  change creates a second miss/execution. Semantic MarkTable provenance is verified through the
+  existing artifact store before miss or hit.
+- Targeted warning-denied Clippy over both integrations passes after replacing one manual saturating
+  resource calculation. `cargo +1.96.0 check --locked --package marklab --no-default-features`,
+  `cargo +1.96.0 fmt --all --check`, and `git diff --check` pass. No full-workspace/Nextest loop,
+  workspace-wide Clippy/docs, feature matrix, benchmark, fuzz, memory, packaging, dependency,
+  push, publication, deployment, or history-rewrite action was run.

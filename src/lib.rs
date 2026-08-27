@@ -12,6 +12,8 @@ static TEST_ALLOCATOR: dhat::Alloc = dhat::Alloc;
 mod algorithm_tests;
 mod api;
 mod binary_nucleus_area_contrast;
+mod categorical_pair;
+mod categorical_pair_workflow;
 mod cell_embedding_mark;
 mod cell_embedding_mark_workflow;
 mod cell_embedding_nucleus_area;
@@ -63,6 +65,12 @@ pub use binary_nucleus_area_contrast::{
     declared_binary_group_nucleus_area_contrast, DeclaredBinaryGroupNucleusAreaContrast,
     DeclaredBinaryGroupNucleusAreaContrastError, DeclaredBinaryGroupNucleusAreaContrastStatus,
 };
+pub use categorical_pair::{
+    categorical_mark_connection_cross_k, CategoricalPairComponentInference, CategoricalPairConfig,
+    CategoricalPairError, CategoricalPairGeometrySummary, CategoricalPairInferenceSummary,
+    CategoricalPairLimits, CategoricalPairPoint, CategoricalPairPointStatus, CategoricalPairResult,
+};
+pub use categorical_pair_workflow::CategoricalPairAnalysisNode;
 pub use cell_embedding_mark::{
     declared_binary_cell_embedding_centroid_discrepancy,
     DeclaredBinaryCellEmbeddingCentroidDiscrepancy,
