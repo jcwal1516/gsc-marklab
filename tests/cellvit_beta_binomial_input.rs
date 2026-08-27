@@ -33,7 +33,20 @@ gender_rows = module.beta_binomial_group_gender_rows(
     group_rows,
     {"patient-a": "Female", "patient-b": "Male", "patient-c": "Female"},
 )
-print(json.dumps({"counts": rows, "groups": group_rows, "gender": gender_rows}, sort_keys=True, separators=(",", ":")))
+slide_rows = module.beta_binomial_group_gender_slide_rows(
+    {
+        ("slide-b2", "patient-b"): Counter({1: 1, 2: 3}),
+        ("slide-a2", "patient-a"): Counter({1: 3, 3: 1}),
+        ("slide-c1", "patient-c"): Counter({0: 4, 4: 6}),
+        ("slide-a1", "patient-a"): Counter({1: 4}),
+        ("slide-a0", "patient-a"): Counter(),
+        ("slide-b1", "patient-b"): Counter({1: 1}),
+    },
+    ((0, "Background"), (1, "Neoplastic"), (2, "Inflammatory"), (3, "Connective"), (4, "Dead")),
+    {"patient-a": "MSS", "patient-b": "MSI", "patient-c": "MSS"},
+    {"patient-a": "Female", "patient-b": "Male", "patient-c": "Female"},
+)
+print(json.dumps({"counts": rows, "groups": group_rows, "gender": gender_rows, "slides": slide_rows}, sort_keys=True, separators=(",", ":")))
 "#;
     let assertion = Command::new("python3")
         .args(["-c", program])
@@ -59,6 +72,13 @@ print(json.dumps({"counts": rows, "groups": group_rows, "gender": gender_rows}, 
                 {"patient_id": "patient-a", "group": "MSS", "gender": "Female", "successes": 7, "trials": 8},
                 {"patient_id": "patient-b", "group": "MSI", "gender": "Male", "successes": 2, "trials": 5},
                 {"patient_id": "patient-c", "group": "MSS", "gender": "Female", "successes": 0, "trials": 10}
+            ],
+            "slides": [
+                {"slide_id": "slide-a1", "patient_id": "patient-a", "group": "MSS", "gender": "Female", "successes": 4, "trials": 4},
+                {"slide_id": "slide-a2", "patient_id": "patient-a", "group": "MSS", "gender": "Female", "successes": 3, "trials": 4},
+                {"slide_id": "slide-b1", "patient_id": "patient-b", "group": "MSI", "gender": "Male", "successes": 1, "trials": 1},
+                {"slide_id": "slide-b2", "patient_id": "patient-b", "group": "MSI", "gender": "Male", "successes": 1, "trials": 4},
+                {"slide_id": "slide-c1", "patient_id": "patient-c", "group": "MSS", "gender": "Female", "successes": 0, "trials": 10}
             ]
         })
     );

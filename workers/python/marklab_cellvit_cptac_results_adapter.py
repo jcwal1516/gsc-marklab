@@ -337,6 +337,56 @@ def beta_binomial_group_gender_rows(
     return result
 
 
+def beta_binomial_group_gender_slide_rows(
+    slide_type_counts: dict[tuple[str, str], Counter[int]],
+    type_map: tuple[tuple[int, str], ...],
+    labels: dict[str, str],
+    genders: dict[str, str],
+) -> list[dict[str, int | str]]:
+    neoplastic = [cell_type for cell_type, name in type_map if name == "Neoplastic"]
+    type_ids = {cell_type for cell_type, _ in type_map}
+    if len(neoplastic) != 1 or not labels:
+        raise AdapterError("beta-binomial slide count identities are invalid")
+    admitted_patients = {patient for _, patient in slide_type_counts}
+    if not set(labels) <= admitted_patients:
+        raise AdapterError("molecular labels do not map exactly into admitted slides")
+    result = []
+    for (slide, patient), counts in sorted(
+        slide_type_counts.items(), key=lambda item: (item[0][1], item[0][0])
+    ):
+        if patient not in labels:
+            continue
+        if (
+            not slide
+            or slide.strip() != slide
+            or not patient
+            or patient.strip() != patient
+            or labels[patient] not in {"MSI", "MSS"}
+            or patient not in genders
+            or genders[patient] not in {"Female", "Male"}
+            or any(cell_type not in type_ids for cell_type in counts)
+            or any(type(count) is not int or count < 0 for count in counts.values())
+        ):
+            raise AdapterError("beta-binomial slide annotation counts are invalid")
+        trials = sum(counts.values())
+        successes = counts[neoplastic[0]]
+        if trials == 0:
+            continue
+        if not 0 <= successes <= trials:
+            raise AdapterError("beta-binomial slide successes/trials are invalid")
+        result.append(
+            {
+                "slide_id": slide,
+                "patient_id": patient,
+                "group": labels[patient],
+                "gender": genders[patient],
+                "successes": successes,
+                "trials": trials,
+            }
+        )
+    return result
+
+
 def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     import numpy as np
     import torch
@@ -384,6 +434,7 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
 
     raw_counts = Counter()
     patient_type_counts: dict[str, Counter[int]] = defaultdict(Counter)
+    slide_type_counts: dict[tuple[str, str], Counter[int]] = {}
     patient_slide_counts = Counter()
     widths: set[int] = set()
     type_maps: set[tuple[tuple[int, str], ...]] = set()
@@ -459,6 +510,7 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
 
         patient = case["case_id"]
         patient_type_counts[patient].update(types)
+        slide_type_counts[(file_id, patient)] = Counter(types)
         patient_slide_counts[patient] += 1
         raw_counts.update(
             slides=1,
@@ -482,6 +534,12 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     beta_binomial_groups = beta_binomial_group_rows(beta_binomial_rows, labels)
     beta_binomial_group_genders = beta_binomial_group_gender_rows(
         beta_binomial_groups, clinical_gender
+    )
+    beta_binomial_group_gender_slides = beta_binomial_group_gender_slide_rows(
+        slide_type_counts, type_map, labels, clinical_gender
+    )
+    labeled_slide_count = sum(
+        patient in labels for _, patient in slide_type_counts
     )
     group_gender_support = Counter(
         (str(row["group"]), str(row["gender"]))
@@ -508,6 +566,24 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
         ["patient_id", "group", "gender", "successes", "trials"],
         beta_binomial_group_genders,
     )
+    write_csv(
+        inputs / "beta_binomial_neoplastic_slide_counts_by_group_gender.csv",
+        ["slide_id", "patient_id", "group", "gender", "successes", "trials"],
+        beta_binomial_group_gender_slides,
+    )
+    reaggregated_slides: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+    for row in beta_binomial_group_gender_slides:
+        values = reaggregated_slides[str(row["patient_id"])]
+        values[0] += int(row["successes"])
+        values[1] += int(row["trials"])
+    if {
+        patient: (values[0], values[1])
+        for patient, values in reaggregated_slides.items()
+    } != {
+        str(row["patient_id"]): (int(row["successes"]), int(row["trials"]))
+        for row in beta_binomial_group_genders
+    }:
+        raise AdapterError("beta-binomial slide counts do not reaggregate to patient counts")
 
     _, representative_id, representative_case, representative_graph, representative_payload = representative
     representative_cells = representative_payload["cells"]
@@ -903,6 +979,16 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "missing_group_patients": len(beta_binomial_groups)
                 - len(beta_binomial_group_genders),
             },
+            "beta_binomial_group_gender_slide_definition": {
+                "nesting": "slide_within_patient",
+                "slide_id": "exact_cellvit_file_id",
+                "patient_id": "exact_case_id",
+                "slides": len(beta_binomial_group_gender_slides),
+                "patients": len(beta_binomial_group_genders),
+                "zero_trial_slides_excluded": labeled_slide_count
+                - len(beta_binomial_group_gender_slides),
+                "reaggregates_exactly_to_patient_counts": True,
+            },
             "claim_scope": "exploratory real-data workflow evidence; not clinical, causal, calibration, or performance evidence",
         },
     )
@@ -942,6 +1028,16 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                         group_gender_support.items()
                     )
                 },
+                "beta_binomial_group_gender_slides": len(
+                    beta_binomial_group_gender_slides
+                ),
+                "beta_binomial_group_gender_repeated_patients": sum(
+                    count >= 2
+                    for count in Counter(
+                        str(row["patient_id"])
+                        for row in beta_binomial_group_gender_slides
+                    ).values()
+                ),
             },
             "executions": {},
         },

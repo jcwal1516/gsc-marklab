@@ -39,6 +39,8 @@ mod beta_binomial_group_gender_agreement;
 mod beta_binomial_group_gender_sbc;
 #[path = "bayes/beta_binomial_group_gender_sensitivity.rs"]
 mod beta_binomial_group_gender_sensitivity;
+#[path = "bayes/beta_binomial_group_gender_slide_hierarchy.rs"]
+mod beta_binomial_group_gender_slide_hierarchy;
 #[path = "bayes/beta_binomial_group_regression.rs"]
 mod beta_binomial_group_regression;
 pub(super) use beta_binomial_group_regression::{
@@ -569,6 +571,44 @@ enum BayesCommand {
         minimum_coverage_90: f64,
         #[arg(long)]
         maximum_coverage_90: f64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    BetaBinomialGroupGenderSlideHierarchy {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        reference_group: String,
+        #[arg(long)]
+        comparison_group: String,
+        #[arg(long)]
+        reference_gender: String,
+        #[arg(long)]
+        comparison_gender: String,
+        #[arg(long, allow_hyphen_values = true)]
+        intercept_prior_mean: f64,
+        #[arg(long)]
+        intercept_prior_sd: f64,
+        #[arg(long)]
+        group_effect_prior_sd: f64,
+        #[arg(long)]
+        gender_effect_prior_sd: f64,
+        #[arg(long)]
+        patient_log_odds_sd_prior_sd: f64,
+        #[arg(long)]
+        slide_concentration_prior_sd: f64,
+        #[arg(long)]
+        chains: u32,
+        #[arg(long)]
+        tune: u32,
+        #[arg(long)]
+        draws: u32,
+        #[arg(long)]
+        target_accept: f64,
+        #[arg(long)]
+        seed: u64,
         #[arg(long)]
         timeout_seconds: u64,
         #[arg(long)]
@@ -3388,6 +3428,50 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             minimum_rank_uniformity_p_value,
             minimum_coverage_90,
             maximum_coverage_90,
+            timeout_seconds,
+            out,
+        ),
+        BayesTopLevel::Bayes {
+            command:
+                BayesCommand::BetaBinomialGroupGenderSlideHierarchy {
+                    input,
+                    reference_group,
+                    comparison_group,
+                    reference_gender,
+                    comparison_gender,
+                    intercept_prior_mean,
+                    intercept_prior_sd,
+                    group_effect_prior_sd,
+                    gender_effect_prior_sd,
+                    patient_log_odds_sd_prior_sd,
+                    slide_concentration_prior_sd,
+                    chains,
+                    tune,
+                    draws,
+                    target_accept,
+                    seed,
+                    timeout_seconds,
+                    out,
+                },
+        } => beta_binomial_group_gender_slide_hierarchy::run(
+            input,
+            reference_group,
+            comparison_group,
+            reference_gender,
+            comparison_gender,
+            intercept_prior_mean,
+            intercept_prior_sd,
+            group_effect_prior_sd,
+            gender_effect_prior_sd,
+            patient_log_odds_sd_prior_sd,
+            slide_concentration_prior_sd,
+            NutsSamplingSpec {
+                chains,
+                tune_per_chain: tune,
+                draws_per_chain: draws,
+                target_accept,
+                seed,
+            },
             timeout_seconds,
             out,
         ),
