@@ -2033,3 +2033,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-01/BAY-03/BAY-HIER-A/WS-44
 - Decision: execute the exact DEC-0251 additive collapsed beta-binomial model in pinned PyMC and pinned dense-mass NumPyro with identical priors, data, patient ordering, seed, sampling controls, diagnostics, conditional patient draws, standardization weights, and PPC. Gate every reported scalar estimand and all 105 patient probabilities by interval overlap and declared Monte Carlo-error-aware tolerances.
 - Consequences: the adjusted MSI/MSS result gains an independent implementation check without changing the model, adding a backend registry, or implying that one demographic adjustment establishes clinical or causal validity.
+
+## DEC-0253 — Measure adjusted-model prior sensitivity
+
+- Date: 2026-08-27
+- Status: accepted for BAY-03/BAY-HIER-A/WS-44
+- Decision: run the DEC-0251 model over a fixed nine-scenario one-at-a-time grid: baseline plus 0.5x and 2x intercept, group-effect, gender-effect, and concentration prior scales. Hold the exact patient design, standardization weights, seed, likelihood, sampler, and diagnostics fixed; measure every reported scalar estimand and all patient probabilities against baseline posterior SD with a declared material threshold.
+- Consequences: the adjusted contrast reports bounded prior sensitivity without a formula system, arbitrary scenario registry, or universal robustness claim.

@@ -4,6 +4,7 @@ mod anisotropic_gp3d;
 mod berman_turner;
 mod beta_binomial_group_gender_agreement;
 mod beta_binomial_group_gender_regression;
+mod beta_binomial_group_gender_sensitivity;
 mod beta_binomial_group_regression;
 mod beta_binomial_group_regression_agreement;
 mod beta_binomial_group_regression_sbc;
@@ -107,6 +108,11 @@ pub use beta_binomial_group_gender_regression::{
     BetaBinomialGroupGenderRegressionPosterior, BetaBinomialGroupGenderRegressionResourceLimits,
     BetaBinomialGroupGenderRegressionResult, BetaBinomialGroupGenderRegressionSpec,
     BetaBinomialGroupGenderRegressionWorkerRequest, BetaBinomialGroupGenderRegressionWorkerResult,
+};
+pub use beta_binomial_group_gender_sensitivity::{
+    BetaBinomialGroupGenderSensitivityResult, BetaBinomialGroupGenderSensitivityScenario,
+    BetaBinomialGroupGenderSensitivityScenarioResult,
+    BetaBinomialGroupGenderSensitivityScenarioRun,
 };
 pub use beta_binomial_group_regression::{
     beta_binomial_group_data_sha256, BetaBinomialGroupPatientData,

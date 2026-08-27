@@ -35,6 +35,8 @@ pub(super) use beta_binomial_group_gender_regression::{
 };
 #[path = "bayes/beta_binomial_group_gender_agreement.rs"]
 mod beta_binomial_group_gender_agreement;
+#[path = "bayes/beta_binomial_group_gender_sensitivity.rs"]
+mod beta_binomial_group_gender_sensitivity;
 #[path = "bayes/beta_binomial_group_regression.rs"]
 mod beta_binomial_group_regression;
 pub(super) use beta_binomial_group_regression::{
@@ -479,6 +481,48 @@ enum BayesCommand {
         minimum_concentration_tolerance: f64,
         #[arg(long)]
         minimum_patient_tolerance: f64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    BetaBinomialGroupGenderRegressionSensitivity {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        reference_group: String,
+        #[arg(long)]
+        comparison_group: String,
+        #[arg(long)]
+        reference_gender: String,
+        #[arg(long)]
+        comparison_gender: String,
+        #[arg(long, allow_hyphen_values = true)]
+        intercept_prior_mean: f64,
+        #[arg(long)]
+        intercept_prior_sd: f64,
+        #[arg(long)]
+        group_effect_prior_sd: f64,
+        #[arg(long)]
+        gender_effect_prior_sd: f64,
+        #[arg(long)]
+        concentration_prior_sd: f64,
+        #[arg(long)]
+        lower_scale_multiplier: f64,
+        #[arg(long)]
+        upper_scale_multiplier: f64,
+        #[arg(long)]
+        material_standardized_shift: f64,
+        #[arg(long)]
+        chains: u32,
+        #[arg(long)]
+        tune: u32,
+        #[arg(long)]
+        draws: u32,
+        #[arg(long)]
+        target_accept: f64,
+        #[arg(long)]
+        seed: u64,
         #[arg(long)]
         timeout_seconds: u64,
         #[arg(long)]
@@ -3200,6 +3244,54 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             minimum_log_odds_tolerance,
             minimum_concentration_tolerance,
             minimum_patient_tolerance,
+            timeout_seconds,
+            out,
+        ),
+        BayesTopLevel::Bayes {
+            command:
+                BayesCommand::BetaBinomialGroupGenderRegressionSensitivity {
+                    input,
+                    reference_group,
+                    comparison_group,
+                    reference_gender,
+                    comparison_gender,
+                    intercept_prior_mean,
+                    intercept_prior_sd,
+                    group_effect_prior_sd,
+                    gender_effect_prior_sd,
+                    concentration_prior_sd,
+                    lower_scale_multiplier,
+                    upper_scale_multiplier,
+                    material_standardized_shift,
+                    chains,
+                    tune,
+                    draws,
+                    target_accept,
+                    seed,
+                    timeout_seconds,
+                    out,
+                },
+        } => beta_binomial_group_gender_sensitivity::run(
+            input,
+            reference_group,
+            comparison_group,
+            reference_gender,
+            comparison_gender,
+            intercept_prior_mean,
+            intercept_prior_sd,
+            group_effect_prior_sd,
+            gender_effect_prior_sd,
+            concentration_prior_sd,
+            lower_scale_multiplier,
+            upper_scale_multiplier,
+            material_standardized_shift,
+            NutsSamplingSpec {
+                chains,
+                tune_per_chain: tune,
+                draws_per_chain: draws,
+                target_accept,
+                seed,
+            },
             timeout_seconds,
             out,
         ),
