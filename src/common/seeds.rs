@@ -16,6 +16,7 @@ pub(crate) enum SeedEndpoint {
     PooledBinDifference = 0x6375_7276_655f_6469,
     ClassicalCsr = 0x636c_6173_735f_6373,
     NearestSpaceCsr = 0x6667_6a5f_6373_725f,
+    PairCorrelationCsr = 0x7061_6972_5f67_6373,
 }
 
 /// Derive a stable seed from a base seed, endpoint namespace, and run index.
@@ -73,6 +74,7 @@ mod tests {
             SeedEndpoint::PooledBinDifference,
             SeedEndpoint::ClassicalCsr,
             SeedEndpoint::NearestSpaceCsr,
+            SeedEndpoint::PairCorrelationCsr,
         ];
         let mut seeds = endpoints
             .into_iter()

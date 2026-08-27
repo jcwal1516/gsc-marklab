@@ -44,6 +44,8 @@ mod nearest_space;
 mod nearest_space_workflow;
 mod neighborhood;
 mod output;
+mod pair_correlation;
+mod pair_correlation_workflow;
 mod perf;
 mod periodogram;
 mod permutation;
@@ -351,6 +353,13 @@ pub use output::{
     SpectrumNullModel, SpectrumNullSensitivitySummary, SpectrumPoint, SpectrumSummary, StatusFlag,
     TerritoryPrePostSummary, TerritoryProfile, TimingStage, WindowSummary, RESULT_FORMAT_VERSION,
 };
+pub use pair_correlation::{
+    homogeneous_pair_correlation, HomogeneousPairCorrelationConfig,
+    HomogeneousPairCorrelationError, HomogeneousPairCorrelationInference,
+    HomogeneousPairCorrelationResult, PairCorrelationKernel, PairCorrelationPoint,
+    PairCorrelationPointStatus,
+};
+pub use pair_correlation_workflow::HomogeneousPairCorrelationAnalysisNode;
 pub use prepost::{
     compare_declared_marked_prepost, compare_declared_marked_prevalence, compare_marked_prepost,
     compare_multimodal_prepost, compare_multimodal_prepost_with_margin, DeclaredMarkedPrePostError,
