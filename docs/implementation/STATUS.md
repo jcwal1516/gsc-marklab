@@ -956,3 +956,29 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   hierarchical SBC/prior sensitivity and field/point-process cross-backend agreement, SBC, and
   spatial posterior-predictive checks remain the next concrete blockers; CmdStan and actual GPU
   execution evidence also remain absent.
+
+## Hierarchical calibration and five-workflow stabilization checkpoint 63 — 2026-08-26
+
+- Added an explicit five-fit hierarchy prior-sensitivity workflow. It holds the real 121-patient,
+  284-ROI input, known observation scale, seed, sampler, and likelihood fixed while changing the
+  global-mean and between-patient prior scales one at a time to `0.5x` and `2x`. All five real fits
+  pass the unchanged diagnostic policy with zero divergences. No posterior shift reaches the
+  declared material threshold of `0.5` baseline posterior SD; the maximum is `0.128`, so the result
+  is stable only within this declared grid and does not claim universal prior robustness.
+- Added bounded NumPyro simulation-based calibration for the exact Gaussian patient hierarchy. A
+  final 40-replicate, 32-patient, two-observation design used the real workflow's priors and known
+  sigma with two chains, 4,000 warmup and 8,000 retained draws per chain. All 40 fits pass: zero
+  divergences, maximum `R-hat=1.00435`, minimum bulk/tail ESS `570/1019`, rank-uniformity p-values
+  `0.163` and `0.312`, and 90% coverage `0.875` for both population mean and heterogeneity.
+- Two earlier bounded SBC schedules are preserved as diagnostic-only outputs. The 1,000-draw run
+  failed 21/40 per-fit diagnostic gates; a 4,000-draw run reduced that to 2/40. No ESS/R-hat,
+  rank-uniformity, coverage, or failure-disposition rule was relaxed to obtain the final pass.
+- The five related workflows from checkpoints 62-63 passed one stabilization cycle: workspace
+  all-target/all-feature warning-denied Clippy, workspace no-default compilation, all-feature
+  workspace doc tests, strict all-feature workspace docs, formatting, and whitespace. Focused
+  hierarchy/LGCP durability, agreement, sensitivity, SBC, and adapter tests also pass. The
+  documented full-integration/Nextest macOS loader loop was not rerun.
+- The Gaussian hierarchy now satisfies its current cross-backend, posterior-predictive,
+  sensitivity, and SBC gates. Phase 4 remains active for the real gridded field/LGCP caller's
+  independent-backend agreement, SBC, prior/kernel sensitivity, and spatial posterior-predictive
+  summaries, plus the broader likelihood/model families and absent CmdStan/GPU evidence.

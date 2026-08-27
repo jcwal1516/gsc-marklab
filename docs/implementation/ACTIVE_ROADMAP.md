@@ -400,3 +400,19 @@ field/LGCP caller, including spatial posterior-predictive summaries rather than 
 Only after those immediate callers demonstrate shared requirements may their calibration mechanics
 be extracted. CmdStan admission and actual GPU execution evidence remain named gaps; neither may be
 inferred from NumPyro's GPU capability or the current CPU run.
+
+## Checkpoint 63 hierarchy-calibration continuation
+
+The exact Gaussian patient hierarchy now passes its complete current gate: durable real execution,
+PyMC/NumPyro agreement, prior and posterior predictive checks, a diagnostics-gated one-at-a-time
+0.5x/2x prior-scale grid, and 40-replicate NumPyro SBC without failed fits or relaxed thresholds.
+This closes the hierarchy-specific calibration blocker but not the broader BAY-03 catalog of
+non-Gaussian, repeated, crossed, varying-slope, or spatial hierarchies.
+
+Dependency-ordered Phase 4 work moves immediately to the existing real 4x4 gridded LGCP: add the
+smallest independent NumPyro fit for the exact same fixed-grid/fixed-Matern PyMC request, compare
+global and cell-field quantities within explicit Monte Carlo/approximation bounds, then add
+simulation calibration, one-at-a-time prior/kernel sensitivity, and spatial posterior-predictive
+summaries for that exact caller. No generalized calibration registry or new field abstraction is
+authorized before those concrete results exist. CmdStan and actual GPU execution remain named
+phase gaps.

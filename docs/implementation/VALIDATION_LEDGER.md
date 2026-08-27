@@ -1578,3 +1578,35 @@ vascular transport.
   dependency audit, push, publication, deployment, history rewrite, or worktree was run. The
   broader Phase 4 exit is not claimed; hierarchy SBC/sensitivity and field/point-process
   cross-backend calibration remain active.
+
+## Hierarchical calibration and five-workflow stabilization checkpoint 63 — 2026-08-26
+
+- Expected reds: the exact sensitivity and SBC integrations first failed because their CLI
+  subcommands were absent. The first five-scenario sensitivity green attempt returned an honest
+  nonconverged aggregate; with its assertion unchanged, higher target acceptance and warmup made
+  all five scenarios complete. `cargo +1.96.0 test --locked --features cli --test
+  bayes_hierarchical_prior_sensitivity_cli -- --exact
+  patient_hierarchy_reports_one_at_a_time_prior_sensitivity --nocapture` then passed 1/1.
+- `cargo +1.96.0 test --locked --features cli --test bayes_hierarchical_sbc_cli -- --exact
+  numpyro_hierarchy_sbc_has_bounded_ranks_coverage_and_failures --nocapture` passed 1/1 with 20
+  complete simulated fits, bounded ranks, empty failures, both rank-histogram totals, uniformity
+  gates, and 90% coverage gates. Python source compilation passed for the SBC worker.
+- The real prior-sensitivity command ran five 121-patient/284-ROI fits at baseline and 0.5x/2x
+  one-at-a-time global/between-prior scales, using two chains, 2,000 warmup, 2,000 retained draws,
+  target acceptance 0.99, and seed 20260826. All fits are complete with zero divergences; the
+  maximum standardized posterior shift is `0.128366`, below the prespecified `0.5` threshold.
+- The first real-prior SBC schedule (40 replicates, 32 patients, two observations, 500 warmup,
+  1,000 draws) correctly returned diagnostic-only with 21 failed per-fit ESS/R-hat gates. The
+  second (2,000 warmup, 4,000 draws) retained two failed fits. The maximum admitted schedule
+  (4,000 warmup, 8,000 draws, two chains, 40 replicates, 960,000 bounded total iterations) passed
+  all 40 without changing thresholds: zero divergences, maximum R-hat `1.00435`, minimum bulk/tail
+  ESS `570/1019`, rank p-values `0.163/0.312`, and both 90% coverages `0.875`.
+- Focused warning-denied Clippy passed for the Bayesian library and each root binary/integration
+  target after sensitivity and SBC. Root/Bayesian no-default checks and strict docs passed. At the
+  five-workflow boundary, `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features
+  -- -D warnings` passed in 12m58s; workspace no-default passed; workspace all-feature doc tests and
+  strict all-feature docs passed; formatting and `git diff --check` pass.
+- The full workspace integration suite and Nextest were not rerun because checkpoints 51/52 record
+  the reproducible macOS binary-verification loop and the active instruction forbids retrying it.
+  No feature matrix, benchmark, fuzz, memory, packaging, dependency audit, push, publication,
+  deployment, history rewrite, or worktree was run.
