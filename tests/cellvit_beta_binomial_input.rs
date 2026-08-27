@@ -29,7 +29,11 @@ group_rows = module.beta_binomial_group_rows(
     rows,
     {"patient-a": "MSS", "patient-b": "MSI", "patient-c": "MSS"},
 )
-print(json.dumps({"counts": rows, "groups": group_rows}, sort_keys=True, separators=(",", ":")))
+gender_rows = module.beta_binomial_group_gender_rows(
+    group_rows,
+    {"patient-a": "Female", "patient-b": "Male", "patient-c": "Female"},
+)
+print(json.dumps({"counts": rows, "groups": group_rows, "gender": gender_rows}, sort_keys=True, separators=(",", ":")))
 "#;
     let assertion = Command::new("python3")
         .args(["-c", program])
@@ -50,6 +54,11 @@ print(json.dumps({"counts": rows, "groups": group_rows}, sort_keys=True, separat
                 {"patient_id": "patient-a", "group": "MSS", "successes": 7, "trials": 8},
                 {"patient_id": "patient-b", "group": "MSI", "successes": 2, "trials": 5},
                 {"patient_id": "patient-c", "group": "MSS", "successes": 0, "trials": 10}
+            ],
+            "gender": [
+                {"patient_id": "patient-a", "group": "MSS", "gender": "Female", "successes": 7, "trials": 8},
+                {"patient_id": "patient-b", "group": "MSI", "gender": "Male", "successes": 2, "trials": 5},
+                {"patient_id": "patient-c", "group": "MSS", "gender": "Female", "successes": 0, "trials": 10}
             ]
         })
     );

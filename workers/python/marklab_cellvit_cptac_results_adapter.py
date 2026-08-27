@@ -172,6 +172,25 @@ def load_clinical_age(path: Path) -> dict[str, float]:
     return ages
 
 
+def load_clinical_gender(path: Path) -> dict[str, str]:
+    with path.open(encoding="utf-8", newline="") as stream:
+        rows = list(csv.reader(stream, delimiter="\t"))
+    if len(rows) < 2 or not rows[0] or rows[0][0] != "attrib_name":
+        raise AdapterError("clinical table schema differs")
+    patients = rows[0][1:]
+    gender_rows = [row for row in rows[1:] if row and row[0] == "Gender"]
+    if len(gender_rows) != 1 or len(gender_rows[0]) != len(patients) + 1:
+        raise AdapterError("clinical table must contain exactly one complete Gender row")
+    genders: dict[str, str] = {}
+    for patient, gender in zip(patients, gender_rows[0][1:]):
+        if gender not in {"Female", "Male"} or patient in genders:
+            raise AdapterError("clinical gender is invalid or duplicated")
+        genders[patient] = gender
+    if not genders:
+        raise AdapterError("clinical table contains no genders")
+    return genders
+
+
 def manifest_outputs_match(slide_root: Path, manifest: dict[str, Any]) -> None:
     outputs = manifest.get("output_sha256")
     if not isinstance(outputs, dict) or len(outputs) != 3:
@@ -295,6 +314,29 @@ def beta_binomial_group_rows(
     return result
 
 
+def beta_binomial_group_gender_rows(
+    group_rows: list[dict[str, int | str]], genders: dict[str, str]
+) -> list[dict[str, int | str]]:
+    result = []
+    for row in group_rows:
+        patient = row["patient_id"]
+        if not isinstance(patient, str) or patient not in genders:
+            raise AdapterError("beta-binomial group patient lacks clinical gender")
+        gender = genders[patient]
+        if gender not in {"Female", "Male"}:
+            raise AdapterError("beta-binomial clinical gender is invalid")
+        result.append(
+            {
+                "patient_id": patient,
+                "group": str(row["group"]),
+                "gender": gender,
+                "successes": int(row["successes"]),
+                "trials": int(row["trials"]),
+            }
+        )
+    return result
+
+
 def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     import numpy as np
     import torch
@@ -324,6 +366,7 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     case_map = load_case_map(arguments.case_map)
     labels = load_labels(arguments.labels)
     clinical_age = load_clinical_age(arguments.clinical)
+    clinical_gender = load_clinical_gender(arguments.clinical)
     inference_verification = json.loads(arguments.inference_verification.read_text())
     spatial_verification = json.loads(arguments.spatial_verification.read_text())
     if (
@@ -437,6 +480,19 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     type_map = next(iter(type_maps))
     beta_binomial_rows = beta_binomial_patient_rows(patient_type_counts, type_map)
     beta_binomial_groups = beta_binomial_group_rows(beta_binomial_rows, labels)
+    beta_binomial_group_genders = beta_binomial_group_gender_rows(
+        beta_binomial_groups, clinical_gender
+    )
+    group_gender_support = Counter(
+        (str(row["group"]), str(row["gender"]))
+        for row in beta_binomial_group_genders
+    )
+    if any(
+        group_gender_support[(group, gender)] < 4
+        for group in ("MSI", "MSS")
+        for gender in ("Female", "Male")
+    ):
+        raise AdapterError("beta-binomial group/gender cells require four patients")
     write_csv(
         inputs / "beta_binomial_neoplastic_counts.csv",
         ["patient_id", "successes", "trials"],
@@ -446,6 +502,11 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
         inputs / "beta_binomial_neoplastic_counts_by_group.csv",
         ["patient_id", "group", "successes", "trials"],
         beta_binomial_groups,
+    )
+    write_csv(
+        inputs / "beta_binomial_neoplastic_counts_by_group_gender.csv",
+        ["patient_id", "group", "gender", "successes", "trials"],
+        beta_binomial_group_genders,
     )
 
     _, representative_id, representative_case, representative_graph, representative_payload = representative
@@ -834,6 +895,14 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "unlabeled_count_patients_excluded": len(beta_binomial_rows)
                 - len(beta_binomial_groups),
             },
+            "beta_binomial_group_gender_definition": {
+                "join_key": "patient_id",
+                "source": str(arguments.clinical.resolve()),
+                "source_attribute": "Gender",
+                "categories": ["Female", "Male"],
+                "missing_group_patients": len(beta_binomial_groups)
+                - len(beta_binomial_group_genders),
+            },
             "claim_scope": "exploratory real-data workflow evidence; not clinical, causal, calibration, or performance evidence",
         },
     )
@@ -867,6 +936,12 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "beta_binomial_group_counts": dict(
                     sorted(Counter(str(row["group"]) for row in beta_binomial_groups).items())
                 ),
+                "beta_binomial_group_gender_counts": {
+                    f"{group}:{gender}": count
+                    for (group, gender), count in sorted(
+                        group_gender_support.items()
+                    )
+                },
             },
             "executions": {},
         },
