@@ -33,6 +33,8 @@ mod inference;
 mod io;
 mod multimodal;
 mod multiscale_residual;
+mod nearest_space;
+mod nearest_space_workflow;
 mod neighborhood;
 mod output;
 mod perf;
@@ -295,6 +297,15 @@ pub use multimodal::{
     MultimodalAnalysisRun, MultimodalEngine, MultimodalInput, NullModelSensitivityResult,
     RegistrationExtrapolation, RegistrationResidual,
 };
+pub use nearest_space::{
+    analyze_nearest_space_pattern, DistributionPointStatus, JPointStatus, NearestSpaceCacheStatus,
+    NearestSpaceComponentInference, NearestSpaceConfig, NearestSpaceConfigurationSummary,
+    NearestSpaceError, NearestSpaceGeometrySummary, NearestSpaceInferenceSummary,
+    NearestSpaceLimits, NearestSpacePoint, NearestSpaceProbeSummary, NearestSpaceResult,
+    NearestSpaceResultDocument, NearestSpaceStatus, NearestSpaceWorkflowIdentity,
+    NEAREST_SPACE_FORMAT, NEAREST_SPACE_FORMAT_VERSION,
+};
+pub use nearest_space_workflow::NearestSpaceAnalysisNode;
 pub use neighborhood::graph::{SpatialEdge, SpatialGraph};
 pub use output::{
     AnalysisResult, AnalysisSection, AnalysisStatus, AnisotropySummary, ArtifactStatus,

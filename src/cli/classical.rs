@@ -111,7 +111,7 @@ fn source_artifacts(request: &ClassicalRequest) -> Result<Vec<ArtifactRef>> {
     ])
 }
 
-fn source_artifact(path: &std::path::Path, kind: &str) -> Result<ArtifactRef> {
+pub(super) fn source_artifact(path: &std::path::Path, kind: &str) -> Result<ArtifactRef> {
     let mut file = File::open(path).map_err(|source| MarklabError::io(path, source))?;
     let mut digest = ContentDigest::builder();
     let copied =
@@ -206,7 +206,7 @@ fn write_output(
     )
 }
 
-fn native_runtime_provenance() -> Result<NativeRuntimeProvenance> {
+pub(super) fn native_runtime_provenance() -> Result<NativeRuntimeProvenance> {
     let executable = executable_artifact()?;
     let git_sha = match env!("MARKLAB_BUILD_GIT_SHA") {
         "" => None,
@@ -276,7 +276,7 @@ fn compiled_features() -> Vec<String> {
         .collect()
 }
 
-fn report_recovery(project: &DurableProject) {
+pub(super) fn report_recovery(project: &DurableProject) {
     let report = project.open_report();
     if report.action() != DurableRecoveryAction::None
         || !report.artifact_store().quarantined().is_empty()
@@ -323,7 +323,7 @@ fn validate_request(request: &ClassicalRequest) -> Result<()> {
     Ok(())
 }
 
-fn read_bounded_utf8(path: &std::path::Path, maximum_bytes: usize) -> Result<String> {
+pub(super) fn read_bounded_utf8(path: &std::path::Path, maximum_bytes: usize) -> Result<String> {
     let file = File::open(path).map_err(|source| MarklabError::io(path, source))?;
     let limit = u64::try_from(maximum_bytes)
         .ok()

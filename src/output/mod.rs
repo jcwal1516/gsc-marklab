@@ -12,6 +12,8 @@ mod migrate_v02;
 #[cfg(feature = "csv")]
 mod multimodal_artifacts;
 mod multimodal_result_artifacts;
+#[cfg(feature = "cli")]
+mod nearest_space;
 mod result_types;
 mod transaction;
 mod writer;
@@ -25,6 +27,8 @@ pub(crate) use classical::{ClassicalOutputContext, ClassicalOutputWriter};
 pub(crate) use document::read_result_document_path_or_dir;
 #[cfg(feature = "cli")]
 pub(crate) use manifest::{RunManifestContext, RunManifestExecution, RunManifestInputs};
+#[cfg(feature = "cli")]
+pub(crate) use nearest_space::{NearestSpaceOutputContext, NearestSpaceOutputWriter};
 pub use result_types::{
     AnalysisResult, AnalysisSection, AnalysisStatus, AnisotropySummary, ArtifactStatus,
     BetaPosteriorGroupSummary, BetaPosteriorSummary, ComponentAnalysisSummary,

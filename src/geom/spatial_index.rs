@@ -103,6 +103,31 @@ impl SpatialIndex2D {
         Ok(self.k_nearest(index, 1)?.into_iter().next())
     }
 
+    pub(crate) fn nearest_point(&self, x: f64, y: f64) -> Result<Option<Neighbor>> {
+        if !x.is_finite() || !y.is_finite() {
+            return Err(MarklabError::Geometry(
+                "spatial query point must have finite coordinates".into(),
+            ));
+        }
+        let query = [x, y];
+        let mut nearest = None::<Neighbor>;
+        let mut cutoff = None::<f64>;
+        for (point, distance_2) in self.tree.nearest_neighbor_iter_with_distance_2(query) {
+            if cutoff.is_some_and(|value| distance_2 > value) {
+                break;
+            }
+            let candidate = self.neighbor(point.data, query);
+            if nearest
+                .as_ref()
+                .is_none_or(|current| candidate.index < current.index)
+            {
+                nearest = Some(candidate);
+            }
+            cutoff = Some(distance_2);
+        }
+        Ok(nearest)
+    }
+
     pub fn k_nearest(&self, index: usize, k: usize) -> Result<Vec<Neighbor>> {
         let query = self.point(index)?;
         if k == 0 || self.len() < 2 {

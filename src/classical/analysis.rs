@@ -272,7 +272,7 @@ fn unavailable_curve(radii_um: &[f64]) -> Vec<HomogeneousKlPoint> {
         .collect()
 }
 
-fn sample_conditional_csr(
+pub(crate) fn sample_conditional_csr(
     window: &ObservationWindow2D,
     point_count: usize,
     seed: u64,
@@ -358,7 +358,7 @@ fn retained_byte_estimate(
         .ok_or(ClassicalSpatialError::SizeOverflow)
 }
 
-fn window_summary(descriptor: &ObservationWindowDescriptor) -> ClassicalWindowSummary {
+pub(crate) fn window_summary(descriptor: &ObservationWindowDescriptor) -> ClassicalWindowSummary {
     ClassicalWindowSummary {
         coordinate_unit: "micrometre".into(),
         coordinate_frame: "existing_pattern_physical_xy".into(),

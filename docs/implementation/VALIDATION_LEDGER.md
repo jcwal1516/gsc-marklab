@@ -1841,3 +1841,27 @@ vascular transport.
   files. The full workspace/Nextest loop, workspace-wide Clippy/tests/docs, feature matrix,
   benchmarks, fuzzing, memory tools, packaging, dependency audits, push, publication, deployment,
   and history rewriting were not run.
+
+## Exact nearest/empty-space checkpoint 70 — 2026-08-27
+
+- The first domain test failed on unresolved F/G/J API symbols, and the first CLI integration
+  failed because `nearest-space` was not a command. Production behavior was added only after those
+  expected reds. The final focused domain suite passes 5/5: hand F/G/J identities, independent
+  brute-force comparison, polygon-hole probe exclusion, query-limit failure, empty/singleton strict
+  document round trips, finite J suppression, and the pinned external fixture.
+- `workers/python/.venv/bin/python tests/fixtures/nearest_space/generate_scipy_oracle.py | diff -u
+  tests/fixtures/nearest_space/scipy_rectangle_oracle.json -` passes byte-for-byte under the locked
+  SciPy 1.18.1 environment. The fixture independently uses `scipy.spatial.cKDTree` for event and
+  probe nearest distances and agrees with every Rust denominator, numerator, F, G, and available J.
+- `cargo +1.96.0 test --locked --package marklab --test nearest_space_calibration` passes 2/2.
+  Forty deterministic conditional-CSR patterns exercise 80 componentwise F/G global tests without
+  gross anti-conservatism; prespecified clustered/inhibited controls put J below/above one. The
+  affected 13-test classical spatial domain suite also passes unchanged.
+- `cargo +1.96.0 test --locked --package marklab --features cli --test nearest_space_cli` passes.
+  Independent processes produce miss then hit with identical typed analysis and one ledger row;
+  changing only the scientific seed produces a distinct miss/cache key and a second ledger row.
+- Targeted warning-denied Clippy for the three nearest-space integrations passes. Package
+  no-default compilation, full formatting check, Python oracle syntax compilation, and diff
+  whitespace checks pass. Workspace-wide tests/Clippy/docs, Nextest, feature matrices, benchmarks,
+  fuzzing, memory tools, packaging, dependency audits, push, publication, deployment, and history
+  rewriting were not run.

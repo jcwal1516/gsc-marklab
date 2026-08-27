@@ -515,3 +515,19 @@ schema; and the admitted Bayesian caller cannot identify a cohort effect or dist
 slide variance. Further scientific promotion requires one of those missing data/design contracts,
 not another internal statistic. The broader master plan remains active; next engineering work must
 return to dependency-ordered WS-12/WS-22/WS-23/WS-24 closure only under a concrete immediate caller.
+
+## Checkpoint 70 exact F/G/J continuation
+
+PP-04 and its F, G, and J subcontracts are complete through one exact one-shot and durable project
+workflow. The canonical polygon/hole window, shared point geometry, deterministic probe plan,
+reduced-sample boundary policy, whole-pattern conditional CSR, componentwise ERL inference,
+finite-denominator rule, resource ceilings, pinned SciPy oracle, calibration controls, and
+cross-process replay are all exercised together.
+
+Dependency-ordered work now moves to the typed-mark side of the same shared geometry. The next
+cohesive production workflow is categorical mark-connection and directed cross-type K for the
+existing provenance-bearing histologic-compartment/CellViT annotation caller. It must consume the
+current MarkTable, window, geometry, inference design, scheduler, and durable project owners; it
+must not add a generic mark registry, untyped task runner, or new result-format version. Continuous
+mark correlation and mark-weighted K follow only after the categorical workflow fixes the shared
+pair/edge contract.

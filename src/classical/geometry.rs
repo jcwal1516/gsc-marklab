@@ -36,7 +36,7 @@ impl PairVisitBudget {
     }
 }
 
-pub(super) struct SpatialGeometryPlan2D {
+pub(crate) struct SpatialGeometryPlan2D {
     index: SpatialIndex2D,
     boundary_distances: Box<[f64]>,
     logical_digest: ContentDigest,
@@ -44,7 +44,7 @@ pub(super) struct SpatialGeometryPlan2D {
 }
 
 impl SpatialGeometryPlan2D {
-    pub(super) fn new(
+    pub(crate) fn new(
         x: &[f64],
         y: &[f64],
         window: &ObservationWindow2D,
@@ -177,12 +177,20 @@ impl SpatialGeometryPlan2D {
         })
     }
 
-    pub(super) fn logical_digest(&self) -> ContentDigest {
+    pub(crate) fn logical_digest(&self) -> ContentDigest {
         self.logical_digest
     }
 
-    pub(super) fn estimated_storage_bytes(&self) -> usize {
+    pub(crate) fn estimated_storage_bytes(&self) -> usize {
         self.estimated_storage_bytes
+    }
+
+    pub(crate) fn index(&self) -> &SpatialIndex2D {
+        &self.index
+    }
+
+    pub(crate) fn boundary_distances(&self) -> &[f64] {
+        &self.boundary_distances
     }
 }
 

@@ -58,6 +58,8 @@ mod batch;
 mod classical;
 #[path = "cli/multimodal.rs"]
 mod multimodal;
+#[path = "cli/nearest_space.rs"]
+mod nearest_space;
 #[path = "cli/prepost.rs"]
 mod prepost;
 #[path = "cli/profile.rs"]
@@ -159,6 +161,36 @@ enum Commands {
         memory_budget_mib: usize,
         #[arg(long)]
         max_pair_visits: usize,
+        #[arg(long)]
+        max_csr_draws: usize,
+    },
+    NearestSpace {
+        #[arg(long)]
+        cells: PathBuf,
+        #[arg(long)]
+        mask: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        r_max_um: f64,
+        #[arg(long)]
+        r_steps: usize,
+        #[arg(long)]
+        probe_grid_x: usize,
+        #[arg(long)]
+        probe_grid_y: usize,
+        #[arg(long)]
+        simulations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        j_denominator_epsilon: f64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        max_nearest_queries: usize,
         #[arg(long)]
         max_csr_draws: usize,
     },
@@ -384,6 +416,38 @@ enum ProjectCommands {
         #[arg(long)]
         max_csr_draws: usize,
     },
+    NearestSpace {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        cells: PathBuf,
+        #[arg(long)]
+        mask: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        r_max_um: f64,
+        #[arg(long)]
+        r_steps: usize,
+        #[arg(long)]
+        probe_grid_x: usize,
+        #[arg(long)]
+        probe_grid_y: usize,
+        #[arg(long)]
+        simulations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        j_denominator_epsilon: f64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        max_nearest_queries: usize,
+        #[arg(long)]
+        max_csr_draws: usize,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -516,6 +580,37 @@ pub fn run_cli() -> Result<()> {
             maximum_pair_visits: max_pair_visits,
             maximum_csr_draws: max_csr_draws,
         }),
+        Commands::NearestSpace {
+            cells,
+            mask,
+            out,
+            r_max_um,
+            r_steps,
+            probe_grid_x,
+            probe_grid_y,
+            simulations,
+            seed,
+            alpha,
+            j_denominator_epsilon,
+            memory_budget_mib,
+            max_nearest_queries,
+            max_csr_draws,
+        } => nearest_space::run(NearestSpaceRequest {
+            cells,
+            mask,
+            out,
+            r_max_um,
+            r_steps,
+            probe_grid_x,
+            probe_grid_y,
+            simulations,
+            seed,
+            alpha,
+            j_denominator_epsilon,
+            memory_budget_mib,
+            maximum_nearest_queries: max_nearest_queries,
+            maximum_csr_draws: max_csr_draws,
+        }),
         Commands::Project { command } => match command {
             ProjectCommands::Classical {
                 project,
@@ -543,6 +638,41 @@ pub fn run_cli() -> Result<()> {
                     alpha,
                     memory_budget_mib,
                     maximum_pair_visits: max_pair_visits,
+                    maximum_csr_draws: max_csr_draws,
+                },
+            ),
+            ProjectCommands::NearestSpace {
+                project,
+                cells,
+                mask,
+                out,
+                r_max_um,
+                r_steps,
+                probe_grid_x,
+                probe_grid_y,
+                simulations,
+                seed,
+                alpha,
+                j_denominator_epsilon,
+                memory_budget_mib,
+                max_nearest_queries,
+                max_csr_draws,
+            } => nearest_space::run_project(
+                project,
+                NearestSpaceRequest {
+                    cells,
+                    mask,
+                    out,
+                    r_max_um,
+                    r_steps,
+                    probe_grid_x,
+                    probe_grid_y,
+                    simulations,
+                    seed,
+                    alpha,
+                    j_denominator_epsilon,
+                    memory_budget_mib,
+                    maximum_nearest_queries: max_nearest_queries,
                     maximum_csr_draws: max_csr_draws,
                 },
             ),
@@ -784,6 +914,24 @@ struct ClassicalRequest {
     alpha: f64,
     memory_budget_mib: usize,
     maximum_pair_visits: usize,
+    maximum_csr_draws: usize,
+}
+
+#[derive(Debug)]
+struct NearestSpaceRequest {
+    cells: PathBuf,
+    mask: PathBuf,
+    out: PathBuf,
+    r_max_um: f64,
+    r_steps: usize,
+    probe_grid_x: usize,
+    probe_grid_y: usize,
+    simulations: usize,
+    seed: u64,
+    alpha: f64,
+    j_denominator_epsilon: f64,
+    memory_budget_mib: usize,
+    maximum_nearest_queries: usize,
     maximum_csr_draws: usize,
 }
 

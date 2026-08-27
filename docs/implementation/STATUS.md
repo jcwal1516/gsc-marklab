@@ -1225,3 +1225,28 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   `/Users/user/Bench/results-crc-spatial-fingerprint-v1/bundle`. The scientific result is null:
   technically reproducible blocks do not establish a recurring molecular-class fingerprint across
   independent patients or cohorts. No clinical, causal, prospective, or performance claim is made.
+
+## Exact nearest/empty-space checkpoint 70 — 2026-08-27
+
+- Added one complete user-facing `marklab nearest-space` and `marklab project nearest-space`
+  workflow. It estimates event nearest-neighbour G, deterministic-probe empty-space F, and finite J
+  on the existing exact polygon/multipolygon/hole observation window. Both distributions use the
+  standard reduced-sample border rule; probes are fixed cell-centred rectangular-grid locations
+  with exact spacing, retained count, window identity, and half-cell-diagonal displacement metadata.
+- J is available only where F and G exist and `1-F` exceeds the caller's positive denominator
+  floor. Empty/singleton inputs, no eligible centers, and unstable denominators remain typed; no
+  infinity or non-finite result can enter the strict `marklab.nearest_space` version-one document.
+- The shared `SpatialGeometryPlan2D`/`SpatialIndex2D` now owns both K/L pair geometry and F/G/J
+  nearest queries. Conditional CSR resamples the whole location pattern, reuses the exact fixed
+  probe plan and window, namespaces its seed independently, and supplies separate F, G, and J ERL
+  envelopes. Explicit point/radius/probe/query/draw/memory ceilings cover observed and null work.
+- Hand-computable, independent brute-force, and pinned SciPy 1.18.1 `cKDTree` fixtures agree on
+  every F/G/J count and value. Deterministic null calibration exercises 80 F/G component tests;
+  clustered and inhibited controls have the expected J directions. A separate process replays the
+  exact durable result as a hit without adding a ledger row, while changing the seed creates a new
+  cache key and one new execution.
+- PP-04/PP-04A/PP-04B/PP-04C are complete. FND-03 and WS-22 advance to active rather than blocked;
+  compartment partitions, volume windows, pair-correlation g, inhomogeneous/cross/marked methods,
+  and broader external geometry agreement remain. The next immediate geometry/mark caller is a
+  categorical mark-connection/cross-type workflow over the existing typed MarkTable, not a generic
+  mark or workflow registry.
