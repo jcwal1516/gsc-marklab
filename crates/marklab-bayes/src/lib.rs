@@ -18,6 +18,7 @@ mod gmrf;
 mod gp;
 mod graph_signal;
 mod gridded_lgcp;
+mod gridded_lgcp_agreement;
 mod gridded_lgcp_fit;
 mod grouped_conformal;
 mod hierarchical;
@@ -105,6 +106,11 @@ pub use graph_signal::{
 pub use gridded_lgcp::{
     build_gridded_lgcp, GriddedLgcpCell, GriddedLgcpError, GriddedLgcpModel, GriddedLgcpModelIr,
     GriddedLgcpSpec,
+};
+pub use gridded_lgcp_agreement::{
+    GriddedLgcpAgreementComparison, GriddedLgcpAgreementPolicy, GriddedLgcpAgreementResult,
+    GriddedLgcpBackendSummary, LgcpFieldAgreement, LgcpScalarAgreement,
+    NumpyroGriddedLgcpWorkerRequest, NumpyroGriddedLgcpWorkerResult,
 };
 pub use gridded_lgcp_fit::{
     GriddedLgcpCellPosterior, GriddedLgcpFitInputIdentity, GriddedLgcpFitModelIr,
