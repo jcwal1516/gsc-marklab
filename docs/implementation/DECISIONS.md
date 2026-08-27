@@ -2026,3 +2026,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-03/BAY-HIER-A/WS-41
 - Decision: join the exact DEC-0247 count/label table to the already hashed clinical source's `Gender` row, which is complete for all 105 labeled patients and has at least four patients in every MSI/MSS by Female/Male design cell. Fit one additive collapsed patient beta-binomial model with explicit group and gender log-odds effects, no interaction, a shared positive concentration, exact conditional patient probabilities, and marginal group probabilities standardized to the observed gender distribution. Retain the four design-cell probabilities, both conditional group differences, the standardized marginal difference, odds ratios, PPC, diagnostics, deterministic seed, and hard work bounds.
 - Consequences: the MSI/MSS classifier-composition contrast can be compared with one fully observed demographic adjustment without silently dropping patients, inferring the clinical source's undeclared age units, adding a formula language, or claiming confounding control, causality, or clinical validity.
+
+## DEC-0252 — Cross-check the gender-adjusted count model independently
+
+- Date: 2026-08-27
+- Status: accepted for BAY-01/BAY-03/BAY-HIER-A/WS-44
+- Decision: execute the exact DEC-0251 additive collapsed beta-binomial model in pinned PyMC and pinned dense-mass NumPyro with identical priors, data, patient ordering, seed, sampling controls, diagnostics, conditional patient draws, standardization weights, and PPC. Gate every reported scalar estimand and all 105 patient probabilities by interval overlap and declared Monte Carlo-error-aware tolerances.
+- Consequences: the adjusted MSI/MSS result gains an independent implementation check without changing the model, adding a backend registry, or implying that one demographic adjustment establishes clinical or causal validity.
