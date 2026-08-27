@@ -156,6 +156,10 @@ mod strauss_gibbs;
 mod strauss_pseudolikelihood;
 #[path = "bayes/student_t_hierarchy.rs"]
 mod student_t_hierarchy;
+pub(super) use student_t_hierarchy::{
+    execute as execute_student_t_hierarchy, prepare as prepare_student_t_hierarchy,
+    PreparedStudentTHierarchy,
+};
 #[path = "bayes/synthetic_likelihood.rs"]
 mod synthetic_likelihood;
 #[path = "bayes/thomas.rs"]

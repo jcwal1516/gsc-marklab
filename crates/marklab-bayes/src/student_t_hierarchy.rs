@@ -224,7 +224,7 @@ pub struct StudentTHierarchyPosteriorPredictive {
     pub probability_replicated_maximum_absolute_residual_at_least_observed: f64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct StudentTHierarchyWorkerResult {
     format: String,

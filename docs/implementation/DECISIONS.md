@@ -1928,3 +1928,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-03/BAY-HIER-A/WS-41
 - Decision: add a typed noncentered patient varying-intercept model with Normal population-mean prior, half-Normal between-patient and observation-scale priors, and an exponential prior on degrees of freedom above two for a finite-variance Student-t likelihood. Reuse the admitted patient/observation CSV shape, retain patient partial pooling, robust residual posterior-predictive checks, exact pinned PyMC identity, normalized diagnostics, deterministic seed, and existing observation/iteration/output/time bounds.
 - Consequences: the real repeated ROI caller gains a heavy-tailed alternative without inventing crossed effects or varying slopes unsupported by its two-column design, changing the Gaussian contract, or claiming that robustness removes the need for sensitivity/calibration.
+
+## DEC-0238 — Route the exact Student-t hierarchy through durable execution
+
+- Date: 2026-08-27
+- Status: accepted for PLAT-01/WF-01/BACK-01/BAY-03
+- Decision: add one static `marklab project student-t-hierarchy` node using the existing project, scheduler, content-addressed store, execution ledger, pending-intent recovery, cache-key owner, and output transaction. Its identity includes exact raw input bytes, typed model/prior/sampling/resource request, PyMC/Python/lock/worker identities, deterministic seed, native runtime, and strict result codec; a hit must decode and validate without starting Python.
+- Consequences: the real robust hierarchy becomes resumable and cross-process replayable without a new task runner, artifact store, backend registry, result format, or duplicate recovery/cache machinery.
