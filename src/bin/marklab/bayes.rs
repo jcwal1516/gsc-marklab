@@ -162,6 +162,8 @@ pub(super) use student_t_hierarchy::{
 };
 #[path = "bayes/student_t_hierarchy_agreement.rs"]
 mod student_t_hierarchy_agreement;
+#[path = "bayes/student_t_hierarchy_sensitivity.rs"]
+mod student_t_hierarchy_sensitivity;
 #[path = "bayes/synthetic_likelihood.rs"]
 mod synthetic_likelihood;
 #[path = "bayes/thomas.rs"]
@@ -302,6 +304,40 @@ enum BayesCommand {
         minimum_degrees_of_freedom_tolerance: f64,
         #[arg(long)]
         minimum_patient_tolerance: f64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    StudentTHierarchySensitivity {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long, allow_hyphen_values = true)]
+        global_prior_mean: f64,
+        #[arg(long)]
+        global_prior_sd: f64,
+        #[arg(long)]
+        between_patient_sd_prior: f64,
+        #[arg(long)]
+        observation_sd_prior: f64,
+        #[arg(long)]
+        degrees_of_freedom_excess_rate: f64,
+        #[arg(long)]
+        lower_scale_multiplier: f64,
+        #[arg(long)]
+        upper_scale_multiplier: f64,
+        #[arg(long)]
+        material_standardized_shift: f64,
+        #[arg(long)]
+        chains: u32,
+        #[arg(long)]
+        tune: u32,
+        #[arg(long)]
+        draws: u32,
+        #[arg(long)]
+        target_accept: f64,
+        #[arg(long)]
+        seed: u64,
         #[arg(long)]
         timeout_seconds: u64,
         #[arg(long)]
@@ -2421,6 +2457,46 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             minimum_location_scale_tolerance,
             minimum_degrees_of_freedom_tolerance,
             minimum_patient_tolerance,
+            timeout_seconds,
+            out,
+        ),
+        BayesTopLevel::Bayes {
+            command:
+                BayesCommand::StudentTHierarchySensitivity {
+                    input,
+                    global_prior_mean,
+                    global_prior_sd,
+                    between_patient_sd_prior,
+                    observation_sd_prior,
+                    degrees_of_freedom_excess_rate,
+                    lower_scale_multiplier,
+                    upper_scale_multiplier,
+                    material_standardized_shift,
+                    chains,
+                    tune,
+                    draws,
+                    target_accept,
+                    seed,
+                    timeout_seconds,
+                    out,
+                },
+        } => student_t_hierarchy_sensitivity::run(
+            input,
+            global_prior_mean,
+            global_prior_sd,
+            between_patient_sd_prior,
+            observation_sd_prior,
+            degrees_of_freedom_excess_rate,
+            lower_scale_multiplier,
+            upper_scale_multiplier,
+            material_standardized_shift,
+            NutsSamplingSpec {
+                chains,
+                tune_per_chain: tune,
+                draws_per_chain: draws,
+                target_accept,
+                seed,
+            },
             timeout_seconds,
             out,
         ),

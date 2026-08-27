@@ -1942,3 +1942,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-01/BAY-03/BAY-HIER-A/WS-40/WS-44
 - Decision: fit the existing typed finite-variance Student-t patient hierarchy independently with pinned NumPyro 0.21.0/JAX 0.11.1 and compare population mean, between-patient scale, observation scale, degrees of freedom, and patient-mean field against PyMC 6.3.0 under explicit Monte Carlo plus minimum absolute tolerances. Preserve the exact data, priors, parameterization, likelihood, seed, sampling, diagnostics, and backend/environment/worker/request identities; any failed fit or comparison is diagnostic-only.
 - Consequences: the robust real caller gains a second-engine check without a general model language, implicit backend selection, CmdStan/GPU claim, or a substitute for SBC and prior sensitivity.
+
+## DEC-0240 — Evaluate Student-t hierarchy priors and tail weight one factor at a time
+
+- Date: 2026-08-27
+- Status: accepted for BAY-03/BAY-HIER-A/WS-41/WS-44
+- Decision: refit the exact PyMC Student-t hierarchy under baseline plus lower/upper one-at-a-time multipliers for the population-mean prior scale, between-patient scale prior, observation-scale prior, and exponential rate controlling degrees of freedom above two. Preserve the exact data, likelihood, seed, sampling, backend identity, and diagnostics; report posterior shifts in baseline posterior-standard-deviation units and withhold an ordinary sensitivity state unless all nine fits converge.
+- Consequences: the real robust hierarchy gains a bounded prior/tail sensitivity result without a generic scenario framework, joint grid, hidden default, or robustness claim outside the declared multipliers.

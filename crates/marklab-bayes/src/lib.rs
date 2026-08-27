@@ -67,6 +67,7 @@ mod strauss_gibbs;
 mod strauss_pseudolikelihood;
 mod student_t_hierarchy;
 mod student_t_hierarchy_agreement;
+mod student_t_hierarchy_sensitivity;
 mod thomas;
 mod thomas_minimum_contrast;
 mod transport;
@@ -393,6 +394,10 @@ pub use student_t_hierarchy_agreement::{
     StudentTHierarchyAgreementComparison, StudentTHierarchyAgreementPolicy,
     StudentTHierarchyAgreementResult, StudentTHierarchyBackendSummary, StudentTParameterAgreement,
     StudentTPatientMeanAgreement,
+};
+pub use student_t_hierarchy_sensitivity::{
+    StudentTHierarchySensitivityResult, StudentTSensitivityScenario,
+    StudentTSensitivityScenarioResult, StudentTSensitivityScenarioRun,
 };
 pub use thomas::{
     simulate_thomas_process, NeymanScottCounts, NeymanScottOffspring, NeymanScottParent,
