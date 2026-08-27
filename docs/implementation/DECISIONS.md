@@ -2040,3 +2040,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-03/BAY-HIER-A/WS-44
 - Decision: run the DEC-0251 model over a fixed nine-scenario one-at-a-time grid: baseline plus 0.5x and 2x intercept, group-effect, gender-effect, and concentration prior scales. Hold the exact patient design, standardization weights, seed, likelihood, sampler, and diagnostics fixed; measure every reported scalar estimand and all patient probabilities against baseline posterior SD with a declared material threshold.
 - Consequences: the adjusted contrast reports bounded prior sensitivity without a formula system, arbitrary scenario registry, or universal robustness claim.
+
+## DEC-0254 — Calibrate the gender-adjusted count model generatively
+
+- Date: 2026-08-27
+- Status: accepted for BAY-02/BAY-03/BAY-HIER-A/WS-44
+- Decision: simulate intercept, group effect, gender effect, positive concentration, group/gender-conditioned patient probabilities, and patient successes from the exact DEC-0251 additive priors and likelihood using the admitted design and trial-count shape. Refit every replicate with the mathematically equivalent collapsed beta-binomial likelihood in pinned dense-mass NumPyro, preserve the observed-gender standardization for the marginal group contrast, draw the first patient probability from its exact conditional Beta posterior, and retain complete failure disposition, deterministic seeds, hard work bounds, unchanged per-fit diagnostic gates, rank uniformity, and 90% coverage for all three regression coefficients, concentration, the marginal contrast, and the patient coordinate.
+- Consequences: the adjusted count model gains end-to-end simulation-based calibration without omitted failures, relaxed sampler gates, a formula or calibration registry, or any assertion that one demographic adjustment establishes causal or clinical validity.
