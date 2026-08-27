@@ -368,3 +368,18 @@ SIG-01F remains active for directional and edge-corrected estimands plus externa
 validation. The next dependency-valid outcome is patient-independent specimen summary comparison
 or a concrete polygon-compartment/interface geometry caller; no local-map family is admitted before
 its multiplicity and cohort-valid release policy exist.
+
+## Checkpoint 61 real CellViT result continuation
+
+Closure on 2026-08-26: `RESULTS-CELLVIT-2DAY-01` now has one verified Mac mini bundle spanning every
+admitted coordinate, scalar, raw/projected vector, annotation-combination, cell-aggregated
+patch/multiscale, patient, and pinned-PyMC lane. Native and PyMC durable projects both demonstrate
+cross-process hits without a second execution; only independent raw patch-vector tensors are
+unavailable.
+
+FND-05/WS-24 and EMB-01/EMB-02/WS-50–WS-52 advance to active real-data work rather than complete
+status. The next dependency-valid outcomes are (1) route a bounded admitted raw CellViT slice
+through the existing canonical NPY/CSV source importer and typed mark/table owners, then (2) run
+the current typed Moran/Geary/scalar-variogram family across independent patient summaries with an
+external agreement check. Independent patch-vector analysis remains data-blocked and must not be
+substituted by the admitted cell-aggregated patch representation.

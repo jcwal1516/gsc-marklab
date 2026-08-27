@@ -1497,3 +1497,48 @@ vascular transport.
   the production change does not invalidate unrelated packages. No Nextest, full integration loop,
   feature matrix, benchmark, fuzz, memory, packaging, dependency audit, external-data claim, push,
   publication, deployment, history rewrite, or worktree was run or created.
+
+## Real CellViT result checkpoint 61 — 2026-08-26
+
+- Admission ran on `mini` with the pinned CellViT Python 3.9/PyTorch 2.8 environment and the exact
+  `marklab_cellvit_cptac_results_adapter.py` invocation over the frozen inference, projected-feature,
+  spatial-result, case-map, clinical-label, inference-verification, spatial-verification, and
+  transform paths. It rehashed 1,098 slide outputs and safely allowlisted the CellViT graph class.
+  All 366 slides, 178 patients, 1,542,389 raw rows, 1,280 vector columns, coordinates,
+  annotations/probabilities, projected-source rows, and cell-patch links passed; zero output,
+  finiteness, shape, physical-scale, identity, or correspondence mismatches occurred.
+- The real executions that passed were `marklab project classical` with 2,000 cells, 20 radii, 99
+  CSR simulations, seed 20260826, 100,000,000 pair and 5,000,000 draw ceilings; `marklab analyze`
+  with the pooled probabilistic scalar config; `marklab bayes vector-semivariogram` with 512 raw
+  vectors and 130,816 pair visits; pinned-SciPy `projected-embedding-variograms` with 3,000 rows,
+  four components, 20 permutations, and 2,000,000 pair visits; `multiscale-embedding-kernel`;
+  pinned-SciPy `test-cell-patch-complementarity` with 96 patients, 5x4 nested folds, five ridge
+  values, and 99 permutations; and `marklab cohort max-t` with 98 patients, four endpoints, and 999
+  patient-label permutations.
+- `marklab project normal-mean` passed on 170 patient observations with PyMC 6.3.0, two chains,
+  500 tune plus 1,000 retained draws per chain, target acceptance 0.9, seed 20260826, and a
+  180-second bound. A second process with `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1` returned
+  `cache_status=hit`, byte-identical output, and one unchanged ledger record. The coordinate project
+  separately returned miss then hit, identical canonical analysis content, and one ledger record.
+- Expected red: the first real durable classical run failed private result decoding on redundant
+  exact floating formula identity. The new focused one-ULP test failed with the same schema error,
+  then passed after the bounded calculation tolerance. A first scalar preparation returned
+  `insufficient_data` because separate component IDs were absent; that rejected output is retained
+  under `diagnostic_failures`, and the corrected pooled run returned an available endpoint.
+- `cargo +1.96.0 test --locked --test classical_spatial_workflow -- --exact
+  classical_document_accepts_one_ulp_formula_roundoff_after_serialization` passed 1/1. Then
+  `cargo +1.96.0 test --locked --features cli --test classical_spatial_workflow --test
+  cellvit_results_bundle` passed 4/4 and 1/1. Direct Python compile and deterministic-selection
+  checks passed.
+- `cargo +1.96.0 clippy --locked --package marklab --all-targets --features cli -- -D warnings`
+  passed in 10m44s. `cargo +1.96.0 check --locked --package marklab --no-default-features` passed.
+  `cargo +1.96.0 fmt --all --check` passed before documentation closure.
+- The hardened adapter was rerun over the full real corpus into an isolated validation directory;
+  all 11 final prepared input files were byte-identical after the clinically complete fold/group
+  rebuild. Two earlier nonidentical complementarity/multiscale results are retained as rejected
+  diagnostics and are not used as evidence.
+- `marklab_cellvit_results_bundle.py seal` and `verify` passed over 54 files. Verification also
+  passed at `/Volumes/1TB/marklab/runs/results-cellvit-2day-01`; a copied bundle with one appended
+  byte failed on the expected result digest. No workspace-wide test/Clippy, Nextest, feature matrix,
+  strict docs, benchmark, fuzz, memory, packaging, dependency audit, push, publication, deployment,
+  history rewrite, or worktree was run or created.

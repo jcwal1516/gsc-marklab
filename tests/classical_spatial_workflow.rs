@@ -126,6 +126,35 @@ fn classical_result_document_is_canonical_and_strict() {
 }
 
 #[test]
+fn classical_document_accepts_one_ulp_formula_roundoff_after_serialization() {
+    let pattern = pattern();
+    let window = window();
+    let config = config(39, 100_000);
+    let mut project = MarklabProject::new();
+    let node = ClassicalSpatialAnalysisNode::new(
+        &mut project,
+        NodeId::new("classical-float-codec").expect("node ID"),
+        &pattern,
+        &window,
+        &config,
+    )
+    .expect("node");
+    let output = node.execute().expect("output");
+    let document = ClassicalSpatialResultDocument::new(output).expect("document");
+    let mut encoded: serde_json::Value =
+        serde_json::from_str(&document.to_json_pretty().expect("JSON")).expect("value");
+    for field in ["k", "l", "theoretical_k"] {
+        let value = encoded["analysis"]["curve"][1][field]
+            .as_f64()
+            .expect("available value");
+        encoded["analysis"]["curve"][1][field] =
+            serde_json::json!(f64::from_bits(value.to_bits() + 1));
+    }
+    ClassicalSpatialResultDocument::from_json(&encoded.to_string())
+        .expect("formula roundoff within one ULP is semantically identical");
+}
+
+#[test]
 fn classical_node_failure_does_not_commit_a_successful_run() {
     let pattern = pattern();
     let window = window();

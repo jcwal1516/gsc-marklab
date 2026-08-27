@@ -889,3 +889,39 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   correction, external agreement, representative scale, patient-level comparison, and real-data
   validation. No pointwise tests, hidden scale selection, new null registry, or result-format 0.3
   change was added.
+
+## Real CellViT result checkpoint 61 — 2026-08-26
+
+- Delivered `RESULTS-CELLVIT-2DAY-01` against the user-authorized Mac mini CPTAC-COAD corpus. The
+  bounded admission rehashed all three declared outputs for 366 completed slides and verified
+  1,542,389 finite row-aligned 1,280-dimensional CellViT cell embeddings, physical coordinates,
+  five-class annotations/probabilities, 4,392 selected-patch links, 178 patient identities, the
+  frozen source/model/environment/protocol identities, 624,284 projected tumor-cell rows, and the
+  linked spatial and clinical manifests. The inference runner was inactive and its prior complete
+  tree verification had zero failed or partial slides.
+- Ran real coordinate-only conditional-CSR K/L, pooled probabilistic scalar-mark spectrum, raw
+  1,280-dimensional vector semivariogram, split-safe 16-component projected variograms, exact
+  cell-to-patch-to-patient multiscale aggregation, nested patient-held-out cell/patch
+  complementarity, patient-unit four-endpoint Max-T, and pinned PyMC normal-mean workflows. The
+  coordinate and scalar endpoints returned global permutation p-values of `0.01`; raw vector
+  semivariance increased across the four declared 0–200 micrometre bins; all projected train,
+  validation, and test component/bin families were populated.
+- The real 96-patient nested analysis did not support a cell-feature increment over technical,
+  age, compartment, and acquisition covariates (`p=0.14`) or an incremental patch contribution
+  after cell features (`p=0.84`). The 98-patient MSI/MSS Max-T family found no adjusted endpoint below
+  `0.238`. These are exploratory workflow outputs, not clinical, calibration, causal, or
+  performance evidence. Cell-aggregated patch embeddings are admitted; an independent raw
+  patch-vector tensor is the only unavailable lane and carries that exact blocker.
+- A real polygon calculation exposed strict redundant-float equality in the classical private
+  codec. One-ULP regression coverage now passes through a sixteen-epsilon relative recomputation
+  tolerance while exact-zero, count, denominator, status, and tamper checks remain strict. The
+  durable coordinate project reopens as a hit with one ledger record and identical analysis bytes.
+  PyMC 6.3.0 completed 2,000 draws with finite diagnostics, zero divergences, `R-hat=1.0074`, and a
+  posterior patient-organization mean of `0.07398` (interval `0.06979`–`0.07830`); a second process
+  with external backend execution disabled returned a byte-identical hit and left one ledger row.
+- The closed 54-file bundle was sealed and verified locally and at
+  `/Volumes/1TB/marklab/runs/results-cellvit-2day-01`; a one-byte copied-result mutation was
+  rejected. Focused tests, root-package CLI warning-denied Clippy, root no-default compilation,
+  affected formatting, and Python syntax checks pass. The checkpoint does not claim an independent
+  patch model, exhaustive whole-slide inference, publication readiness, or completion of the
+  broader embedding/foundation master-plan families.

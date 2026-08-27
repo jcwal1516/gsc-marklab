@@ -187,7 +187,10 @@ fn validate_analysis(analysis: &ClassicalSpatialResult) -> Result<()> {
         if !point.radius_um.is_finite()
             || point.radius_um <= previous_radius
             || !point.theoretical_k.is_finite()
-            || point.theoretical_k != std::f64::consts::PI * point.radius_um * point.radius_um
+            || !same_calculated_float(
+                point.theoretical_k,
+                std::f64::consts::PI * point.radius_um * point.radius_um,
+            )
             || point.theoretical_l != point.radius_um
         {
             return schema("classical result curve has invalid radius or theoretical values");
@@ -219,8 +222,8 @@ fn validate_analysis(analysis: &ClassicalSpatialResult) -> Result<()> {
                     || k < 0.0
                     || !l.is_finite()
                     || l < 0.0
-                    || k != expected_k
-                    || l != (k / std::f64::consts::PI).sqrt()
+                    || !same_calculated_float(k, expected_k)
+                    || !same_calculated_float(l, (k / std::f64::consts::PI).sqrt())
                 {
                     return schema(
                         "available classical curve point violates the border K/L identity",
@@ -317,6 +320,16 @@ fn validate_analysis(analysis: &ClassicalSpatialResult) -> Result<()> {
 
 fn finite_nonnegative(value: Option<f64>) -> bool {
     value.is_some_and(|value| value.is_finite() && value >= 0.0)
+}
+
+fn same_calculated_float(actual: f64, expected: f64) -> bool {
+    if actual == expected {
+        return true;
+    }
+    if !actual.is_finite() || !expected.is_finite() || expected == 0.0 {
+        return false;
+    }
+    (actual - expected).abs() <= 16.0 * f64::EPSILON * actual.abs().max(expected.abs())
 }
 
 fn unit_interval(value: f64) -> bool {

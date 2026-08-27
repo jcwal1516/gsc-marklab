@@ -1851,3 +1851,17 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for the current SIG-01F/FND-06 increment
 - Decision: reuse `marklab-cohort::InferenceDesign` to move complete scalar values across fixed locations, either globally or within exact typed `histologic_compartment` codes. Re-evaluate the existing scalar-semivariogram bins for every deterministic replicate and apply the existing `marklab-numerics` two-sided extreme-rank-length global envelope only across nonempty bins. Bind positive permutation count, seed, family-wise alpha, and a hard permutation-by-all-pair work ceiling; retain the observed result unchanged.
 - Consequences: the admitted scalar curve gains one explicit curve-level family-wise test and simultaneous envelope without a new null engine, pointwise testing, generic statistic callback, or hidden scale selection. Directional variograms, edge-correction validation, external agreement, representative scale, and real cohort promotion remain open.
+
+## DEC-0227 — Seal one closed real CellViT result bundle
+
+- Date: 2026-08-26
+- Status: accepted for RESULTS-CELLVIT-2DAY-01
+- Decision: use one closed version-one bundle index for the eight lanes required by the immediate real-data caller: coordinate-only, scalar mark, vector embedding, annotation combination, patch/multiscale, patient level, pinned PyMC, and independent raw patch embedding. Every lane must be present exactly once and either name one regular result file or carry one nonempty blocker. Seal every regular non-symlink file by relative path and SHA-256, bind the exact objective and index digest, and reject missing, extra, changed, absolute, escaping, or symlinked content.
+- Consequences: the real CPTAC CellViT run has one tamper-evident, deterministic provenance/diagnostic handoff without changing result-format 0.3, adding a dependency, inventing a registry, or treating a manifest as a new execution engine. The bundle records cell-aggregated patch results while explicitly leaving independent raw patch-vector tensors unavailable.
+
+## DEC-0228 — Admit bounded floating recomputation tolerance in the classical codec
+
+- Date: 2026-08-26
+- Status: accepted for the durable classical real-data caller
+- Decision: when the strict classical result decoder recomputes theoretical K, observed K, and L from already finite validated fields, accept exact equality or relative disagreement within sixteen binary64 epsilons; retain exact zero, count, denominator, radius, status, and all other semantic checks. This tolerance applies only to redundant calculated-float identities after serialization.
+- Consequences: real noninteger polygon areas replay through the typed JSON codec without weakening result counts or permitting material formula drift. A regression moves the redundant calculated fields by one ULP and the existing inconsistent-count test remains rejected.
