@@ -2054,3 +2054,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-03/BAY-HIER-A/WS-41
 - Decision: admit exact nonempty per-slide Neoplastic/all-classified-cell counts only when they reaggregate byte-exactly to the existing 105-patient group/gender table. Fit one additive group-plus-gender beta-binomial slide likelihood with a non-centered Normal patient random intercept, half-Normal patient log-odds scale, shared half-Normal slide concentration, no interaction, and the existing patient-level group/gender design. Require at least eight patients with repeated nonempty slides and four patients per design cell; keep patient as the biological inference unit, compute group/gender posterior predictive contrasts from patient-aggregated slide replicas, and report the typical-patient observed-gender-standardized group contrast.
 - Consequences: the actual 217 informative slides can exercise one genuine nested repeated-measure hierarchy without treating slides or cells as independent cohort replicates, adding a formula/mixed-model framework, claiming general random slopes/crossed effects, or converting exploratory classifier composition into causal or clinical evidence. Two exact zero-cell slides remain provenance-recorded and contribute no likelihood row.
+
+## DEC-0256 — Route the repeated-slide hierarchy through durable execution
+
+- Date: 2026-08-27
+- Status: accepted for PLAT-01/WF-01/BACK-01/BAY-03
+- Decision: add one static `marklab project beta-binomial-group-gender-slide-hierarchy` node using the existing durable project, scheduler, artifact store, cache-key owner, ledger, recovery, output transaction, and typed result codec. Its cache identity includes exact slide-table bytes, typed nested-model request, seed and sampler controls, PyMC/Python/lock/worker identities, the static Apache-2.0 backend descriptor, and native runtime identity; a hit must decode and validate without starting Python.
+- Consequences: the real repeated-slide hierarchy becomes cross-process resumable without a new task runner, store, registry, plugin surface, or duplicated transaction/recovery mechanism.

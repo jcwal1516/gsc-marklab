@@ -41,6 +41,11 @@ mod beta_binomial_group_gender_sbc;
 mod beta_binomial_group_gender_sensitivity;
 #[path = "bayes/beta_binomial_group_gender_slide_hierarchy.rs"]
 mod beta_binomial_group_gender_slide_hierarchy;
+pub(super) use beta_binomial_group_gender_slide_hierarchy::{
+    execute as execute_beta_binomial_group_gender_slide_hierarchy,
+    prepare as prepare_beta_binomial_group_gender_slide_hierarchy,
+    PreparedBetaBinomialGroupGenderSlideHierarchy,
+};
 #[path = "bayes/beta_binomial_group_regression.rs"]
 mod beta_binomial_group_regression;
 pub(super) use beta_binomial_group_regression::{
