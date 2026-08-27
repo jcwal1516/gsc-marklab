@@ -2,6 +2,7 @@
 
 mod anisotropic_gp3d;
 mod berman_turner;
+mod beta_binomial_group_regression;
 mod beta_binomial_hierarchy;
 mod beta_binomial_hierarchy_agreement;
 mod beta_binomial_hierarchy_sbc;
@@ -88,6 +89,14 @@ pub use anisotropic_gp3d::{
 pub use berman_turner::{
     berman_turner_refinement, BermanTurnerError, BermanTurnerNode, BermanTurnerRefinementResult,
     BermanTurnerRefinementSpec, BermanTurnerResolution,
+};
+pub use beta_binomial_group_regression::{
+    beta_binomial_group_data_sha256, BetaBinomialGroupPatientData,
+    BetaBinomialGroupPatientPosterior, BetaBinomialGroupPosteriorPredictive,
+    BetaBinomialGroupRegressionInputIdentity, BetaBinomialGroupRegressionModelIr,
+    BetaBinomialGroupRegressionPosterior, BetaBinomialGroupRegressionResourceLimits,
+    BetaBinomialGroupRegressionResult, BetaBinomialGroupRegressionSpec,
+    BetaBinomialGroupRegressionWorkerRequest, BetaBinomialGroupRegressionWorkerResult,
 };
 pub use beta_binomial_hierarchy::{
     patient_data_sha256, BetaBinomialHierarchyInputIdentity, BetaBinomialHierarchyModelIr,

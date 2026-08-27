@@ -265,6 +265,36 @@ def beta_binomial_patient_rows(
     return rows
 
 
+def beta_binomial_group_rows(
+    count_rows: list[dict[str, int | str]], labels: dict[str, str]
+) -> list[dict[str, int | str]]:
+    counts_by_patient: dict[str, dict[str, int | str]] = {}
+    for row in count_rows:
+        patient = row["patient_id"]
+        if not isinstance(patient, str) or patient in counts_by_patient:
+            raise AdapterError("beta-binomial count rows have invalid patient identity")
+        counts_by_patient[patient] = row
+    if not labels or not set(labels) <= set(counts_by_patient):
+        raise AdapterError("molecular labels do not map exactly into admitted count patients")
+    result = []
+    for patient in sorted(labels):
+        group = labels[patient]
+        if group not in {"MSI", "MSS"}:
+            raise AdapterError("beta-binomial molecular group is invalid")
+        row = counts_by_patient[patient]
+        result.append(
+            {
+                "patient_id": patient,
+                "group": group,
+                "successes": int(row["successes"]),
+                "trials": int(row["trials"]),
+            }
+        )
+    if {row["group"] for row in result} != {"MSI", "MSS"}:
+        raise AdapterError("beta-binomial molecular groups lack two-group support")
+    return result
+
+
 def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     import numpy as np
     import torch
@@ -406,10 +436,16 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
 
     type_map = next(iter(type_maps))
     beta_binomial_rows = beta_binomial_patient_rows(patient_type_counts, type_map)
+    beta_binomial_groups = beta_binomial_group_rows(beta_binomial_rows, labels)
     write_csv(
         inputs / "beta_binomial_neoplastic_counts.csv",
         ["patient_id", "successes", "trials"],
         beta_binomial_rows,
+    )
+    write_csv(
+        inputs / "beta_binomial_neoplastic_counts_by_group.csv",
+        ["patient_id", "group", "successes", "trials"],
+        beta_binomial_groups,
     )
 
     _, representative_id, representative_case, representative_graph, representative_payload = representative
@@ -791,6 +827,13 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "trial_definition": "every_admitted_hard_classified_cellvit_cell",
                 "limitation": "classifier_outputs_and_spatially_correlated_cells_are_not_independent_biological_bernoulli_trials",
             },
+            "beta_binomial_group_definition": {
+                "join_key": "patient_id",
+                "source": str(arguments.labels.resolve()),
+                "groups": ["MSI", "MSS"],
+                "unlabeled_count_patients_excluded": len(beta_binomial_rows)
+                - len(beta_binomial_groups),
+            },
             "claim_scope": "exploratory real-data workflow evidence; not clinical, causal, calibration, or performance evidence",
         },
     )
@@ -819,6 +862,10 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 ),
                 "beta_binomial_trials": sum(
                     int(row["trials"]) for row in beta_binomial_rows
+                ),
+                "beta_binomial_group_patients": len(beta_binomial_groups),
+                "beta_binomial_group_counts": dict(
+                    sorted(Counter(str(row["group"]) for row in beta_binomial_groups).items())
                 ),
             },
             "executions": {},

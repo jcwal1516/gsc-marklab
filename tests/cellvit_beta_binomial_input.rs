@@ -25,7 +25,11 @@ rows = module.beta_binomial_patient_rows(
     },
     ((0, "Background"), (1, "Neoplastic"), (2, "Inflammatory"), (3, "Connective"), (4, "Dead")),
 )
-print(json.dumps(rows, sort_keys=True, separators=(",", ":")))
+group_rows = module.beta_binomial_group_rows(
+    rows,
+    {"patient-a": "MSS", "patient-b": "MSI", "patient-c": "MSS"},
+)
+print(json.dumps({"counts": rows, "groups": group_rows}, sort_keys=True, separators=(",", ":")))
 "#;
     let assertion = Command::new("python3")
         .args(["-c", program])
@@ -36,10 +40,17 @@ print(json.dumps(rows, sort_keys=True, separators=(",", ":")))
         serde_json::from_slice(&assertion.get_output().stdout).expect("row JSON");
     assert_eq!(
         rows,
-        serde_json::json!([
-            {"patient_id": "patient-a", "successes": 7, "trials": 8},
-            {"patient_id": "patient-b", "successes": 2, "trials": 5},
-            {"patient_id": "patient-c", "successes": 0, "trials": 10}
-        ])
+        serde_json::json!({
+            "counts": [
+                {"patient_id": "patient-a", "successes": 7, "trials": 8},
+                {"patient_id": "patient-b", "successes": 2, "trials": 5},
+                {"patient_id": "patient-c", "successes": 0, "trials": 10}
+            ],
+            "groups": [
+                {"patient_id": "patient-a", "group": "MSS", "successes": 7, "trials": 8},
+                {"patient_id": "patient-b", "group": "MSI", "successes": 2, "trials": 5},
+                {"patient_id": "patient-c", "group": "MSS", "successes": 0, "trials": 10}
+            ]
+        })
     );
 }
