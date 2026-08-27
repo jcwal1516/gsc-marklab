@@ -1935,3 +1935,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for PLAT-01/WF-01/BACK-01/BAY-03
 - Decision: add one static `marklab project student-t-hierarchy` node using the existing project, scheduler, content-addressed store, execution ledger, pending-intent recovery, cache-key owner, and output transaction. Its identity includes exact raw input bytes, typed model/prior/sampling/resource request, PyMC/Python/lock/worker identities, deterministic seed, native runtime, and strict result codec; a hit must decode and validate without starting Python.
 - Consequences: the real robust hierarchy becomes resumable and cross-process replayable without a new task runner, artifact store, backend registry, result format, or duplicate recovery/cache machinery.
+
+## DEC-0239 — Compare the exact Student-t hierarchy across PyMC and NumPyro
+
+- Date: 2026-08-27
+- Status: accepted for BAY-01/BAY-03/BAY-HIER-A/WS-40/WS-44
+- Decision: fit the existing typed finite-variance Student-t patient hierarchy independently with pinned NumPyro 0.21.0/JAX 0.11.1 and compare population mean, between-patient scale, observation scale, degrees of freedom, and patient-mean field against PyMC 6.3.0 under explicit Monte Carlo plus minimum absolute tolerances. Preserve the exact data, priors, parameterization, likelihood, seed, sampling, diagnostics, and backend/environment/worker/request identities; any failed fit or comparison is diagnostic-only.
+- Consequences: the robust real caller gains a second-engine check without a general model language, implicit backend selection, CmdStan/GPU claim, or a substitute for SBC and prior sensitivity.
