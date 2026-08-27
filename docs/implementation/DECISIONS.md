@@ -1998,3 +1998,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-03/BAY-HIER-A/WS-41
 - Decision: extend the existing full-corpus adapter with an exact patient-ID join between admitted CellViT counts and the already pinned MSI/MSS molecular-label manifest, preserving every numerator and denominator. Add one typed two-group patient beta-binomial regression with a Normal reference log-odds prior, Normal comparison-minus-reference log-odds prior, half-Normal concentration prior, collapsed beta-binomial likelihood, and exact conditional patient-probability draws. Require exact declared reference/comparison labels and at least four patients per group; retain probability difference, odds ratio, partial pooling, group-aware posterior predictive checks, normalized diagnostics, deterministic seed, and hard patient/trial/iteration/output/time bounds.
 - Consequences: the admitted MSI/MSS count intersection can estimate an exploratory patient-level classifier-composition contrast without using cells as population replicates, adding a general formula language, or claiming clinical, causal, manual-ground-truth, or independent-cell evidence.
+
+## DEC-0248 — Cross-check the molecular-group contrast with independent NUTS implementations
+
+- Date: 2026-08-27
+- Status: accepted for BAY-01/BAY-03/BAY-HIER-A/WS-44
+- Decision: execute the exact DEC-0247 collapsed beta-binomial group model in pinned PyMC and pinned dense-mass NumPyro, preserving identical priors, likelihood, patient ordering, seed, sampling controls, diagnostic policy, posterior estimands, exact conditional patient draws, and group-aware posterior predictive summaries. Gate the intercept, group effect, both group probabilities, probability difference, odds ratio, concentration, and every patient probability by interval overlap and a declared Monte Carlo-error-aware tolerance.
+- Consequences: the group contrast gains an independent implementation check without creating a backend registry, changing the model, or promoting exploratory classifier composition to clinical or causal evidence.

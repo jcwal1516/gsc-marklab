@@ -249,8 +249,8 @@ pub struct BetaBinomialGroupPosteriorPredictive {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct BetaBinomialGroupRegressionWorkerResult {
-    format: String,
-    version: u32,
+    pub(crate) format: String,
+    pub(crate) version: u32,
     pub backend: WorkerBackend,
     pub request_sha256: String,
     pub fit_state: FitState,
@@ -267,13 +267,28 @@ impl BetaBinomialGroupRegressionWorkerResult {
         request: &BetaBinomialGroupRegressionWorkerRequest,
         request_sha256: &str,
     ) -> Result<(), BayesError> {
-        if self.format != "marklab.pymc_beta_binomial_group_regression_worker_result"
+        self.validate_for_backend(
+            request,
+            request_sha256,
+            "marklab.pymc_beta_binomial_group_regression_worker_result",
+            &request.backend,
+        )
+    }
+
+    pub(crate) fn validate_for_backend(
+        &self,
+        request: &BetaBinomialGroupRegressionWorkerRequest,
+        request_sha256: &str,
+        result_format: &str,
+        backend: &BackendContract,
+    ) -> Result<(), BayesError> {
+        if self.format != result_format
             || self.version != 1
-            || self.backend.name != request.backend.name
-            || self.backend.version != request.backend.version
-            || self.backend.python_version != request.backend.python_version
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || self.backend.name != backend.name
+            || self.backend.version != backend.version
+            || self.backend.python_version != backend.python_version
+            || self.backend.environment_lock_sha256 != backend.environment_lock_sha256
+            || self.backend.worker_sha256 != backend.worker_sha256
             || self.request_sha256 != request_sha256
             || self.patients.len() != request.patients.len()
         {
