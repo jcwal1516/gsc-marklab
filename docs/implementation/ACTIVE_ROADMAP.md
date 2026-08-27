@@ -448,3 +448,19 @@ workflow and add durable execution, cross-backend agreement, sensitivity, and ca
 that concrete caller. If aggregation cannot preserve a truthful denominator or independent unit,
 retain that exact blocker and move to the next admitted likelihood. Crossed effects, random slopes,
 CmdStan, GPU, and a general model language are not authorized by this checkpoint.
+
+## Checkpoint 66 real-count hierarchy continuation
+
+The existing beta-binomial hierarchy now runs on an exact full-corpus CellViT table with 178
+patients and 1,542,389 classified-cell trials. It has complete PyMC diagnostics/PPC, durable
+backend-disabled replay, independent NumPyro agreement, a seven-fit prior grid, and 20/20 exact
+prior-generative SBC after replacing the failed latent funnel with the mathematically equivalent
+collapsed likelihood. The result is exploratory classifier-derived composition evidence; spatially
+correlated predicted cells are not treated as independent biological truth in the claim scope.
+
+Dependency-ordered Phase 4 work moves to the same caller's admitted molecular-label intersection:
+add one patient-unit MSI/MSS beta-binomial regression with a typed group effect, explicit prior,
+patient partial pooling, PPC, and analytic/simulation oracle. Only after the real fit works should
+durable execution, a second backend, sensitivity, and SBC follow. If the exact patient/label join or
+group support fails admission, retain that blocker and move to another real identified likelihood;
+do not invent ordinal, hurdle, crossed, longitudinal, CmdStan, or GPU evidence.

@@ -1675,3 +1675,44 @@ vascular transport.
   the reproducible macOS loader-verification loop and the active instruction forbids retrying it.
   No feature matrix, benchmark, fuzz, memory, packaging, dependency audit, push, publication,
   deployment, history rewrite, or worktree was run.
+
+## Real CellViT count-hierarchy stabilization checkpoint 66 — 2026-08-27
+
+- Expected reds: `cellvit_beta_binomial_input`, durable beta-binomial, agreement, sensitivity, and
+  SBC integrations first failed at their exact missing helper/subcommand. The adapter helper test
+  then passed 1/1 and direct Python compilation passed. The pinned full-corpus remote admission
+  verified 366 slides, 178 patients, and 1,542,389 cells; `cmp` proved all 11 prior prepared inputs
+  unchanged. The initial invocation failed before data processing because the recorded CellViT
+  source root was absent from `PYTHONPATH`; its staging directory is preserved, and the corrected
+  command passed.
+- The real count table has SHA-256
+  `d9cbd1afe3a8f86f25d5dec825de4af125f62cd2eeaacecb6a97fc37ee2e4dbb` locally and remotely.
+  `marklab bayes beta-binomial-hierarchy` completed on 178 patients with two chains, 2,000 warmup,
+  4,000 draws, target acceptance `0.99`, and seed `20260827`. Its result SHA is
+  `2d7e1e9f6b9cdf8fa464bccce18315e4b5e7d33c5c6fc4c8eeab37b37576a88f`.
+- `durable_pymc_beta_binomial_project` passed 1/1, proving miss, separate-process backend-disabled
+  byte-identical hit, seed invalidation, and one ledger row. The real project repeated that behavior
+  and both durable outputs match the one-shot SHA locally and on the Mac mini.
+- `bayes_beta_binomial_hierarchy_agreement_cli` passed 1/1. The real PyMC/NumPyro result passed
+  population, concentration, and all 178 patient gates with zero divergences/depth hits; its local
+  and remote SHA is `b8adb0f31e9398259d2532ce0cccdfdd1ac90c3df1714428dd658801c902047a`.
+  `bayes_beta_binomial_hierarchy_sensitivity_cli` passed 1/1; all seven real fits passed unchanged
+  diagnostics and the result SHA is
+  `fd07bd2906d5eea461a064bf7fc950205d711d641f1d584d9693c768e2133737` locally/remotely.
+- `bayes_beta_binomial_hierarchy_sbc_cli` passed 1/1 both before and after the exact collapsed
+  parameterization, finally in `36.39s`. The first real latent fit retained one of 20 failures with
+  6,000/6,000 depth-12 hits and SHA
+  `930f60efec95dbeb99350ad2d9ef13a9e0bce4fdec060315ad785f10415057c8`. The exact collapsed result
+  passed 20/20 with unchanged gates and SHA
+  `267d94f176f0c4ce6ad68d0343e83142c70dc4f257aa6fa0af55be70af199065`; both artifacts are preserved
+  locally and remotely. `cargo +1.96.0 test --locked --package marklab-bayes --lib` passed 44/44
+  after the agreement and SBC boundaries.
+- `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings` passed in
+  `14m34s`. `cargo +1.96.0 check --locked --workspace --no-default-features`, `cargo +1.96.0 test
+  --locked --workspace --doc --all-features`, `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc
+  --locked --workspace --all-features --no-deps`, `cargo +1.96.0 fmt --all --check`, and
+  `git diff --check` passed.
+- The full workspace integration suite and Nextest were not rerun because checkpoints 51/52 record
+  the reproducible macOS loader-verification loop and the active instruction forbids retrying it.
+  No feature matrix, benchmark, fuzz, memory, packaging, dependency audit, push, publication,
+  deployment, history rewrite, or worktree was run.

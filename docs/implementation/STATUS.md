@@ -1047,3 +1047,41 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   provenance-complete count numerator/denominator caller is next; repeated/crossed/varying-slope
   structures still require an admitted design that actually identifies those effects, and
   CmdStan/actual GPU evidence remain absent.
+
+## Real CellViT count-hierarchy stabilization checkpoint 66 — 2026-08-27
+
+- Extended the existing full-corpus CellViT adapter to emit exact patient counts after rehashing and
+  revalidating all 366 slides and 1,542,389 row-aligned annotations. Success is the unique source
+  class ID `1`, `Neoplastic`; trials are every admitted hard-classified cell across all admitted
+  slides for each patient. The sorted table contains 178 patients, 625,276 successes, and 1,542,389
+  trials; all 11 prior prepared inputs reproduced byte-for-byte. The contract explicitly states
+  that classifier outputs and spatially correlated cells are not independent biological Bernoulli
+  trials. An initial remote invocation lacked the recorded CellViT source root on `PYTHONPATH`,
+  processed no data, and is preserved as a dependency failure; the corrected pinned run passed.
+- The real PyMC beta-binomial hierarchy is complete: population Neoplastic-class probability
+  `0.37574` (95% interval `0.34876`–`0.40354`), concentration `5.7277`, implied overdispersion
+  `0.14968`, `R-hat=1.00170`, bulk/tail ESS `9369/4738`, and zero divergences/depth hits. Posterior-
+  predictive total successes are `625269.98` versus `625276` observed, and replicated versus
+  observed patient-proportion SD is `0.18341/0.18360`.
+- The workflow now runs durably as miss then byte-identical backend-disabled hit with one ledger
+  row. Independent NumPyro/PyMC fits agree: population probability differs by `0.000166`,
+  concentration by `0.01142`, patient probabilities have RMS/max differences
+  `0.0000772/0.000431`, all intervals overlap, and both backends have zero divergences/depth hits.
+  The complete seven-fit 0.5x/2x prior grid has maximum standardized shift `0.0886`, below the
+  declared `0.75` material threshold.
+- Exact prior-generative SBC first exposed a latent-probability funnel: 19 fits passed, but replicate
+  13 hit depth 12 for all 6,000 draws with `R-hat=2.12`; that diagnostic-only artifact is retained.
+  The mathematically equivalent collapsed beta-binomial likelihood plus exact conditional patient-
+  probability draws passes 20/20 without changing priors or gates: maximum `R-hat=1.00143`, minimum
+  bulk/tail ESS `2758/2436`, minimum E-BFMI `0.933`, zero divergences/depth hits, rank p-values
+  `0.637`–`0.911`, and 90% coverage `0.85/0.85/0.90`.
+- All admitted inputs/results and the durable project are mirrored on the authorized Mac mini 1 TB
+  volume with matching SHA-256 identities. Focused adapter, one-shot, durable, agreement,
+  sensitivity, SBC, and 44-test Bayesian-library checks pass. Workspace warning-denied
+  all-target/all-feature Clippy, no-default compilation, all-feature doc tests, strict docs,
+  formatting, and whitespace checks pass. The documented full-integration/Nextest loader loop was
+  not rerun.
+- This closes the current unadjusted real beta-binomial promotion gate, not BAY-03/BAY-HIER-A. The
+  next concrete caller is patient-unit molecular-group beta-binomial regression over the exact
+  admitted count/label intersection; ordinal, hurdle, longitudinal/crossed, CmdStan, and actual GPU
+  evidence remain blocked or absent.
