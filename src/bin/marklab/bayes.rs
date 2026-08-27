@@ -20,6 +20,8 @@ use thiserror::Error;
 mod anisotropic_gp3d;
 #[path = "bayes/berman_turner.rs"]
 mod berman_turner;
+#[path = "bayes/beta_binomial_hierarchy.rs"]
+mod beta_binomial_hierarchy;
 #[path = "bayes/bym.rs"]
 mod bym;
 #[path = "bayes/bym2.rs"]
@@ -194,6 +196,30 @@ enum BayesCommand {
         prior_sd: f64,
         #[arg(long)]
         known_sigma: f64,
+        #[arg(long)]
+        chains: u32,
+        #[arg(long)]
+        tune: u32,
+        #[arg(long)]
+        draws: u32,
+        #[arg(long)]
+        target_accept: f64,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    BetaBinomialHierarchy {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        population_alpha: f64,
+        #[arg(long)]
+        population_beta: f64,
+        #[arg(long)]
+        concentration_prior_sd: f64,
         #[arg(long)]
         chains: u32,
         #[arg(long)]
@@ -2250,6 +2276,36 @@ pub(super) fn into_marklab_error(error: BayesCliError) -> marklab::MarklabError 
 
 pub(super) fn run_cli() -> Result<(), BayesCliError> {
     match BayesCli::parse_from(std::env::args_os()).command {
+        BayesTopLevel::Bayes {
+            command:
+                BayesCommand::BetaBinomialHierarchy {
+                    input,
+                    population_alpha,
+                    population_beta,
+                    concentration_prior_sd,
+                    chains,
+                    tune,
+                    draws,
+                    target_accept,
+                    seed,
+                    timeout_seconds,
+                    out,
+                },
+        } => beta_binomial_hierarchy::run(
+            input,
+            population_alpha,
+            population_beta,
+            concentration_prior_sd,
+            NutsSamplingSpec {
+                chains,
+                tune_per_chain: tune,
+                draws_per_chain: draws,
+                target_accept,
+                seed,
+            },
+            timeout_seconds,
+            out,
+        ),
         BayesTopLevel::Bayes {
             command:
                 BayesCommand::NormalMean {

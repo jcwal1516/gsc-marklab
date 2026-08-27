@@ -2,6 +2,7 @@
 
 mod anisotropic_gp3d;
 mod berman_turner;
+mod beta_binomial_hierarchy;
 mod bym;
 mod bym2;
 mod car;
@@ -80,6 +81,13 @@ pub use anisotropic_gp3d::{
 pub use berman_turner::{
     berman_turner_refinement, BermanTurnerError, BermanTurnerNode, BermanTurnerRefinementResult,
     BermanTurnerRefinementSpec, BermanTurnerResolution,
+};
+pub use beta_binomial_hierarchy::{
+    patient_data_sha256, BetaBinomialHierarchyInputIdentity, BetaBinomialHierarchyModelIr,
+    BetaBinomialHierarchyPosterior, BetaBinomialHierarchyResourceLimits,
+    BetaBinomialHierarchyResult, BetaBinomialHierarchySpec, BetaBinomialHierarchyWorkerRequest,
+    BetaBinomialHierarchyWorkerResult, BetaBinomialPatientData, BetaBinomialPatientPosterior,
+    BetaBinomialPosteriorPredictive,
 };
 pub use bym::{
     BymFitResult, BymFitSpec, BymFitWorkerRequest, BymFitWorkerResult, BymInputIdentity,

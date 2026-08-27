@@ -1914,3 +1914,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-FIELD-A/BAY-PP-A/WS-41 sensitivity
 - Decision: refit the existing PyMC gridded LGCP under a baseline plus lower/upper one-at-a-time multipliers for intercept-prior scale, coefficient-prior scale, fixed Matérn amplitude, and fixed Matérn length scale. Preserve exact inputs, likelihood, seed, sampling, jitter, backend identity, and diagnostics across scenarios; report global shifts and cellwise latent/expected-count RMS shifts in baseline posterior-standard-deviation units; and withhold an ordinary sensitivity state unless every fit converges.
 - Consequences: the concrete CellViT field caller receives a bounded nine-fit prior/kernel analysis without joint grids, learned kernel hyperparameters, a generic scenario engine, or a robustness claim outside the declared multiplier range.
+
+## DEC-0236 — Add a genuine patient beta-binomial hierarchy as the first non-Gaussian model
+
+- Date: 2026-08-27
+- Status: accepted for BAY-HIER-A/WS-41
+- Decision: add one typed patient-level successes/trials model with a Beta prior on the population probability, a half-Normal prior on positive concentration, patient probabilities drawn from the implied Beta distribution, and binomial observations. Retain exact patient order/identity, prior rationale, concentration-derived overdispersion, partial-pooling summaries, posterior-predictive total and between-patient dispersion checks, pinned PyMC identity, normalized diagnostics, deterministic seed, and hard patient/trial/iteration/output/time bounds.
+- Consequences: Marklab gains a genuine non-Gaussian hierarchical likelihood without changing the existing fixed-prior independent-group beta diagnostic, adding a general model language, treating cells as independent patients, or claiming all binomial/count/ordinal/hurdle families.
