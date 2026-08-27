@@ -28,6 +28,8 @@ pub(super) use beta_binomial_hierarchy::{
 };
 #[path = "bayes/beta_binomial_hierarchy_agreement.rs"]
 mod beta_binomial_hierarchy_agreement;
+#[path = "bayes/beta_binomial_hierarchy_sbc.rs"]
+mod beta_binomial_hierarchy_sbc;
 #[path = "bayes/beta_binomial_hierarchy_sensitivity.rs"]
 mod beta_binomial_hierarchy_sensitivity;
 #[path = "bayes/bym.rs"]
@@ -312,6 +314,38 @@ enum BayesCommand {
         target_accept: f64,
         #[arg(long)]
         seed: u64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    BetaBinomialHierarchySbc {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        population_alpha: f64,
+        #[arg(long)]
+        population_beta: f64,
+        #[arg(long)]
+        concentration_prior_sd: f64,
+        #[arg(long)]
+        replicates: u32,
+        #[arg(long)]
+        chains: u32,
+        #[arg(long)]
+        tune: u32,
+        #[arg(long)]
+        draws: u32,
+        #[arg(long)]
+        target_accept: f64,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        minimum_rank_uniformity_p_value: f64,
+        #[arg(long)]
+        minimum_coverage_90: f64,
+        #[arg(long)]
+        maximum_coverage_90: f64,
         #[arg(long)]
         timeout_seconds: u64,
         #[arg(long)]
@@ -2751,6 +2785,44 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
                 target_accept,
                 seed,
             },
+            timeout_seconds,
+            out,
+        ),
+        BayesTopLevel::Bayes {
+            command:
+                BayesCommand::BetaBinomialHierarchySbc {
+                    input,
+                    population_alpha,
+                    population_beta,
+                    concentration_prior_sd,
+                    replicates,
+                    chains,
+                    tune,
+                    draws,
+                    target_accept,
+                    seed,
+                    minimum_rank_uniformity_p_value,
+                    minimum_coverage_90,
+                    maximum_coverage_90,
+                    timeout_seconds,
+                    out,
+                },
+        } => beta_binomial_hierarchy_sbc::run(
+            input,
+            population_alpha,
+            population_beta,
+            concentration_prior_sd,
+            replicates,
+            NutsSamplingSpec {
+                chains,
+                tune_per_chain: tune,
+                draws_per_chain: draws,
+                target_accept,
+                seed,
+            },
+            minimum_rank_uniformity_p_value,
+            minimum_coverage_90,
+            maximum_coverage_90,
             timeout_seconds,
             out,
         ),

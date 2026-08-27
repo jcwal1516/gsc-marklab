@@ -1984,3 +1984,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-03/BAY-HIER-A/WS-41/WS-44
 - Decision: refit the exact PyMC beta-binomial hierarchy under a baseline plus lower/upper one-at-a-time multipliers for population Beta alpha, population Beta beta, and the positive concentration-prior scale. Preserve exact successes/trials, likelihood, seed, sampling, backend identity, and diagnostics; report population, concentration, and patient-field shifts in baseline posterior-standard-deviation units and withhold an ordinary sensitivity state unless all seven fits converge.
 - Consequences: the real count caller gains a bounded prior sensitivity result without a general scenario engine, joint grid, hidden defaults, or a robustness claim outside the declared multipliers.
+
+## DEC-0246 — Calibrate the exact beta-binomial patient hierarchy with bounded SBC
+
+- Date: 2026-08-27
+- Status: accepted for BAY-02/BAY-03/BAY-HIER-A/WS-44
+- Decision: generate population probability, positive concentration, patient probabilities, and successes from the exact typed Beta/half-Normal/Beta/binomial prior and likelihood using the admitted trial-count shape, then refit every replicate with the mathematically equivalent patient-probability-collapsed beta-binomial likelihood and dense-mass NumPyro NUTS. Draw the prespecified patient probability from its exact conditional Beta posterior for rank/coverage. Use a fixed calibration-only maximum tree depth of 12 while retaining zero depth hits, unchanged per-fit diagnostics, complete failure disposition, ranks and 90% coverage for both population parameters and that patient coordinate, deterministic seeds, and hard replicate/trial/iteration/output/time bounds.
+- Consequences: the real count hierarchy gains generative calibration without a calibration registry, omitted failed fits, relaxed thresholds, or a claim that classifier-derived spatial cells are independent biological trials.
