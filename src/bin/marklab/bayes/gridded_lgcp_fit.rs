@@ -31,7 +31,7 @@ pub(super) fn run(
     timeout_seconds: u64,
     output_path: PathBuf,
 ) -> Result<(), BayesCliError> {
-    let (request, input, result) = execute(
+    let prepared = prepare(
         events_path,
         grid_path,
         xmin_um,
@@ -51,7 +51,11 @@ pub(super) fn run(
         timeout_seconds,
         None,
     )?;
-    publish_json(&output_path, &result.into_fit(request, input))
+    let result = execute(&prepared)?;
+    publish_json(
+        &output_path,
+        &result.into_fit(prepared.request, prepared.input_identity),
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -78,7 +82,7 @@ pub(super) fn run_predictive(
     timeout_seconds: u64,
     output_path: PathBuf,
 ) -> Result<(), BayesCliError> {
-    let (request, input, result) = execute(
+    let prepared = prepare(
         events_path,
         grid_path,
         xmin_um,
@@ -98,11 +102,23 @@ pub(super) fn run_predictive(
         timeout_seconds,
         Some((replicates, prediction_seed, maximum_total_points)),
     )?;
-    publish_json(&output_path, &result.into_prediction(request, input)?)
+    let result = execute(&prepared)?;
+    publish_json(
+        &output_path,
+        &result.into_prediction(prepared.request, prepared.input_identity)?,
+    )
+}
+
+pub(crate) struct PreparedGriddedLgcpFit {
+    pub(crate) request: GriddedLgcpFitWorkerRequest,
+    pub(crate) request_bytes: Vec<u8>,
+    pub(crate) request_sha256: String,
+    pub(crate) input_identity: GriddedLgcpFitInputIdentity,
+    pub(crate) timeout_seconds: u64,
 }
 
 #[allow(clippy::too_many_arguments)]
-fn execute(
+pub(crate) fn prepare(
     events_path: PathBuf,
     grid_path: PathBuf,
     xmin_um: f64,
@@ -121,14 +137,7 @@ fn execute(
     sampling: NutsSamplingSpec,
     timeout_seconds: u64,
     prediction: Option<(u32, u64, u64)>,
-) -> Result<
-    (
-        GriddedLgcpFitWorkerRequest,
-        GriddedLgcpFitInputIdentity,
-        GriddedLgcpFitWorkerResult,
-    ),
-    BayesCliError,
-> {
+) -> Result<PreparedGriddedLgcpFit, BayesCliError> {
     let events = read_events(&events_path)?;
     let grid = read_quadrature(&grid_path)?;
     let events_sha256 = sha256_hex(&serde_json::to_vec(&events)?);
@@ -183,13 +192,26 @@ fn execute(
     };
     let request_bytes = serde_json::to_vec(&request)?;
     let request_sha256 = sha256_hex(&request_bytes);
+    Ok(PreparedGriddedLgcpFit {
+        request,
+        request_bytes,
+        request_sha256,
+        input_identity: input,
+        timeout_seconds,
+    })
+}
+
+pub(crate) fn execute(
+    prepared: &PreparedGriddedLgcpFit,
+) -> Result<GriddedLgcpFitWorkerResult, BayesCliError> {
+    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let result_bytes = run_worker(
         repository,
         "marklab_pymc_gridded_lgcp_worker.py",
-        &request_bytes,
-        timeout_seconds,
+        &prepared.request_bytes,
+        prepared.timeout_seconds,
     )?;
     let result: GriddedLgcpFitWorkerResult = serde_json::from_slice(&result_bytes)?;
-    result.validate(&request, &request_sha256)?;
-    Ok((request, input, result))
+    result.validate(&prepared.request, &prepared.request_sha256)?;
+    Ok(result)
 }

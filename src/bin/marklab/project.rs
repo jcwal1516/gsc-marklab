@@ -7,8 +7,8 @@ use std::{
 use clap::{Parser, Subcommand};
 use marklab::{MarkedPatternResult, MarkedPrePostNode, ResultDocument};
 use marklab_bayes::{
-    BackendContract, FusedGromovWassersteinWorkerResult, HierarchicalWorkerResult,
-    NutsSamplingSpec, WorkerResult,
+    BackendContract, FusedGromovWassersteinWorkerResult, GriddedLgcpFitWorkerResult,
+    HierarchicalWorkerResult, NutsSamplingSpec, WorkerResult,
 };
 use marklab_workflow::{
     execute_algorithm, ArtifactRef, ArtifactSchema, CacheKeyMaterial, CacheStatus, ContentDigest,
@@ -19,7 +19,7 @@ use marklab_workflow::{
 
 use super::bayes::{
     self, fused_gromov::PreparedFusedGromovWasserstein, BayesCliError, PreparedGaussianHierarchy,
-    PreparedNormalMean,
+    PreparedGriddedLgcpFit, PreparedNormalMean,
 };
 
 const MAXIMUM_EXECUTABLE_BYTES: u64 = 1024 * 1024 * 1024;
@@ -35,6 +35,7 @@ const MARKED_RESULT_KIND: &str = "application/vnd.marklab.result+json;version=0.
 enum StaticBackendWorkflow {
     PymcNormalMean,
     PymcHierarchicalNormal,
+    PymcGriddedLgcp,
     PotFusedGromovWasserstein,
 }
 
@@ -44,7 +45,7 @@ struct StaticBackendDescriptor {
     backend_version: &'static str,
     python_version: &'static str,
     license: &'static str,
-    input_kind: &'static str,
+    input_kinds: &'static [&'static str],
     output_kind: &'static str,
     result_schema_id: &'static str,
     node_id: &'static str,
@@ -61,7 +62,7 @@ impl StaticBackendWorkflow {
                 backend_version: "6.3.0",
                 python_version: "3.12",
                 license: "Apache-2.0",
-                input_kind: "application/vnd.marklab.source.normal-mean-observations;version=1",
+                input_kinds: &["application/vnd.marklab.source.normal-mean-observations;version=1"],
                 output_kind: "application/vnd.marklab.pymc-worker-result+json;version=1",
                 result_schema_id: "marklab.pymc_worker_result",
                 node_id: "pymc-normal-mean",
@@ -74,8 +75,9 @@ impl StaticBackendWorkflow {
                 backend_version: "6.3.0",
                 python_version: "3.12",
                 license: "Apache-2.0",
-                input_kind:
+                input_kinds: &[
                     "application/vnd.marklab.source.hierarchical-normal-observations;version=1",
+                ],
                 output_kind:
                     "application/vnd.marklab.pymc-hierarchical-worker-result+json;version=1",
                 result_schema_id: "marklab.pymc_hierarchical_worker_result",
@@ -84,12 +86,29 @@ impl StaticBackendWorkflow {
                 implementation_identity: "marklab-project-pymc-hierarchical-normal-node-v1",
                 deterministic_controls: "seeded-nuts-hierarchical-request",
             },
+            Self::PymcGriddedLgcp => StaticBackendDescriptor {
+                backend_id: "pymc",
+                backend_version: "6.3.0",
+                python_version: "3.12",
+                license: "Apache-2.0",
+                input_kinds: &[
+                    "application/vnd.marklab.source.point-events;version=1",
+                    "application/vnd.marklab.source.gridded-covariates;version=1",
+                ],
+                output_kind:
+                    "application/vnd.marklab.pymc-gridded-lgcp-worker-result+json;version=1",
+                result_schema_id: "marklab.pymc_gridded_lgcp_worker_result",
+                node_id: "pymc-gridded-lgcp",
+                node_kind: "bayesian_point_process_field_fit",
+                implementation_identity: "marklab-project-pymc-gridded-lgcp-node-v1",
+                deterministic_controls: "seeded-nuts-fixed-grid-lgcp-request",
+            },
             Self::PotFusedGromovWasserstein => StaticBackendDescriptor {
                 backend_id: "pot",
                 backend_version: "0.9.7.post1",
                 python_version: "3.12",
                 license: "MIT",
-                input_kind: "application/vnd.marklab.source.fgw-input+json;version=1",
+                input_kinds: &["application/vnd.marklab.source.fgw-input+json;version=1"],
                 output_kind:
                     "application/vnd.marklab.pot-fused-gromov-worker-result+json;version=1",
                 result_schema_id: "marklab.pot_fused_gromov_wasserstein_worker_result",
@@ -123,7 +142,7 @@ impl StaticBackendDescriptor {
         backend: &BackendContract,
         request_bytes: &[u8],
     ) -> ContentDigest {
-        ContentDigest::from_framed([
+        let mut frames = vec![
             b"marklab-static-durable-backend-v1".as_slice(),
             self.backend_id.as_bytes(),
             self.backend_version.as_bytes(),
@@ -131,11 +150,14 @@ impl StaticBackendDescriptor {
             self.license.as_bytes(),
             backend.environment_lock_sha256.as_bytes(),
             backend.worker_sha256.as_bytes(),
-            self.input_kind.as_bytes(),
+        ];
+        frames.extend(self.input_kinds.iter().map(|kind| kind.as_bytes()));
+        frames.extend([
             self.result_schema_id.as_bytes(),
             self.deterministic_controls.as_bytes(),
             request_bytes,
-        ])
+        ]);
+        ContentDigest::from_framed(frames)
     }
 
     fn execution_policy(self) -> Vec<u8> {
@@ -244,6 +266,54 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    GriddedLgcp {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        events: PathBuf,
+        #[arg(long)]
+        grid: PathBuf,
+        #[arg(long, allow_hyphen_values = true)]
+        xmin_um: f64,
+        #[arg(long, allow_hyphen_values = true)]
+        ymin_um: f64,
+        #[arg(long, allow_hyphen_values = true)]
+        xmax_um: f64,
+        #[arg(long, allow_hyphen_values = true)]
+        ymax_um: f64,
+        #[arg(long)]
+        grid_x: u32,
+        #[arg(long)]
+        grid_y: u32,
+        #[arg(long, allow_hyphen_values = true)]
+        intercept_prior_mean: f64,
+        #[arg(long)]
+        intercept_prior_sd: f64,
+        #[arg(long, allow_hyphen_values = true)]
+        coefficient_prior_mean: f64,
+        #[arg(long)]
+        coefficient_prior_sd: f64,
+        #[arg(long)]
+        field_amplitude: f64,
+        #[arg(long)]
+        field_length_scale_um: f64,
+        #[arg(long)]
+        jitter: f64,
+        #[arg(long)]
+        chains: u32,
+        #[arg(long)]
+        tune: u32,
+        #[arg(long)]
+        draws: u32,
+        #[arg(long)]
+        target_accept: f64,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
     FusedGromovWasserstein {
         #[arg(long)]
         project: PathBuf,
@@ -335,6 +405,60 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             global_prior_sd,
             between_patient_sd_prior,
             known_sigma,
+            NutsSamplingSpec {
+                chains,
+                tune_per_chain: tune,
+                draws_per_chain: draws,
+                target_accept,
+                seed,
+            },
+            timeout_seconds,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::GriddedLgcp {
+                    project,
+                    events,
+                    grid,
+                    xmin_um,
+                    ymin_um,
+                    xmax_um,
+                    ymax_um,
+                    grid_x,
+                    grid_y,
+                    intercept_prior_mean,
+                    intercept_prior_sd,
+                    coefficient_prior_mean,
+                    coefficient_prior_sd,
+                    field_amplitude,
+                    field_length_scale_um,
+                    jitter,
+                    chains,
+                    tune,
+                    draws,
+                    target_accept,
+                    seed,
+                    timeout_seconds,
+                    out,
+                },
+        } => run_gridded_lgcp(
+            project,
+            events,
+            grid,
+            xmin_um,
+            ymin_um,
+            xmax_um,
+            ymax_um,
+            grid_x,
+            grid_y,
+            intercept_prior_mean,
+            intercept_prior_sd,
+            coefficient_prior_mean,
+            coefficient_prior_sd,
+            field_amplitude,
+            field_length_scale_um,
+            jitter,
             NutsSamplingSpec {
                 chains,
                 tune_per_chain: tune,
@@ -607,7 +731,7 @@ fn run_normal_mean(
     output_path: PathBuf,
 ) -> Result<(), BayesCliError> {
     let backend = StaticBackendWorkflow::PymcNormalMean.descriptor();
-    let before = source_artifact(&input_path, backend.input_kind)?;
+    let before = source_artifact(&input_path, backend.input_kinds[0])?;
     let prepared = bayes::prepare_normal_mean(
         input_path.clone(),
         prior_mean,
@@ -616,7 +740,7 @@ fn run_normal_mean(
         sampling,
         timeout_seconds,
     )?;
-    let after = source_artifact(&input_path, backend.input_kind)?;
+    let after = source_artifact(&input_path, backend.input_kinds[0])?;
     if before != after {
         return Err(BayesCliError::Input(
             "normal-mean input changed while the durable request was prepared".into(),
@@ -683,7 +807,7 @@ fn run_hierarchical_normal(
     output_path: PathBuf,
 ) -> Result<(), BayesCliError> {
     let backend = StaticBackendWorkflow::PymcHierarchicalNormal.descriptor();
-    let before = source_artifact(&input_path, backend.input_kind)?;
+    let before = source_artifact(&input_path, backend.input_kinds[0])?;
     let prepared = bayes::prepare_hierarchical(
         input_path.clone(),
         global_prior_mean,
@@ -693,7 +817,7 @@ fn run_hierarchical_normal(
         sampling,
         timeout_seconds,
     )?;
-    let after = source_artifact(&input_path, backend.input_kind)?;
+    let after = source_artifact(&input_path, backend.input_kinds[0])?;
     if before != after {
         return Err(BayesCliError::Input(
             "hierarchical-normal input changed while the durable request was prepared".into(),
@@ -748,6 +872,112 @@ fn run_hierarchical_normal(
 }
 
 #[allow(clippy::too_many_arguments)]
+fn run_gridded_lgcp(
+    project_path: PathBuf,
+    events_path: PathBuf,
+    grid_path: PathBuf,
+    xmin_um: f64,
+    ymin_um: f64,
+    xmax_um: f64,
+    ymax_um: f64,
+    grid_x: u32,
+    grid_y: u32,
+    intercept_prior_mean: f64,
+    intercept_prior_sd: f64,
+    coefficient_prior_mean: f64,
+    coefficient_prior_sd: f64,
+    field_amplitude: f64,
+    field_length_scale_um: f64,
+    jitter: f64,
+    sampling: NutsSamplingSpec,
+    timeout_seconds: u64,
+    output_path: PathBuf,
+) -> Result<(), BayesCliError> {
+    let backend = StaticBackendWorkflow::PymcGriddedLgcp.descriptor();
+    let before = [
+        source_artifact(&events_path, backend.input_kinds[0])?,
+        source_artifact(&grid_path, backend.input_kinds[1])?,
+    ];
+    let prepared = bayes::prepare_gridded_lgcp(
+        events_path.clone(),
+        grid_path.clone(),
+        xmin_um,
+        ymin_um,
+        xmax_um,
+        ymax_um,
+        grid_x,
+        grid_y,
+        intercept_prior_mean,
+        intercept_prior_sd,
+        coefficient_prior_mean,
+        coefficient_prior_sd,
+        field_amplitude,
+        field_length_scale_um,
+        jitter,
+        sampling,
+        timeout_seconds,
+        None,
+    )?;
+    let after = [
+        source_artifact(&events_path, backend.input_kinds[0])?,
+        source_artifact(&grid_path, backend.input_kinds[1])?,
+    ];
+    if before != after {
+        return Err(BayesCliError::Input(
+            "gridded-LGCP input changed while the durable request was prepared".into(),
+        ));
+    }
+
+    let runtime = native_runtime_provenance()?;
+    let limits = DurableProjectLimits::new(
+        PROJECT_CONTROL_BYTES,
+        PROJECT_LEDGER_BYTES,
+        PROJECT_LEDGER_RECORDS,
+        PROJECT_RECORD_BYTES,
+        MAXIMUM_RESULT_BYTES,
+    )
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let mut durable = DurableProject::open_or_create(&project_path, limits)
+        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    report_recovery(&durable);
+
+    let request_for_output = prepared.request.clone();
+    let input_identity = prepared.input_identity.clone();
+    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    for input in &before {
+        project
+            .register_reference(input.clone())
+            .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    }
+    let node = GriddedLgcpProjectNode::new(events_path, grid_path, before, prepared, backend)?;
+    let graph = WorkflowGraph::new([node.spec().clone()])
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
+    })
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let run = execute_algorithm(
+        &mut durable,
+        &mut project,
+        &graph,
+        &node,
+        &scheduler,
+        backend.result_schema()?,
+        runtime,
+    )
+    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    let cache_status = match run.cache_status {
+        CacheStatus::Hit => "hit",
+        CacheStatus::Miss => "miss",
+    };
+    let fit = run.output.into_fit(request_for_output, input_identity);
+    bayes::publish_json(&output_path, &fit)?;
+    eprintln!("project gridded-lgcp cache_status={cache_status}");
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
 fn run_fused_gromov_wasserstein(
     project_path: PathBuf,
     input_path: PathBuf,
@@ -761,7 +991,7 @@ fn run_fused_gromov_wasserstein(
     output_path: PathBuf,
 ) -> Result<(), BayesCliError> {
     let backend = StaticBackendWorkflow::PotFusedGromovWasserstein.descriptor();
-    let before = source_artifact(&input_path, backend.input_kind)?;
+    let before = source_artifact(&input_path, backend.input_kinds[0])?;
     let prepared = bayes::fused_gromov::prepare(
         input_path.clone(),
         alpha,
@@ -772,7 +1002,7 @@ fn run_fused_gromov_wasserstein(
         maximum_iterations,
         timeout_seconds,
     )?;
-    let after = source_artifact(&input_path, backend.input_kind)?;
+    let after = source_artifact(&input_path, backend.input_kinds[0])?;
     if before != after {
         return Err(BayesCliError::Input(
             "FGW input changed while the durable request was prepared".into(),
@@ -870,8 +1100,8 @@ impl WorkflowNode for NormalMeanProjectNode {
     }
 
     fn verify_input_content(&self) -> Result<(), NodeError> {
-        let observed =
-            source_artifact(&self.input_path, self.backend.input_kind).map_err(NodeError::input)?;
+        let observed = source_artifact(&self.input_path, self.backend.input_kinds[0])
+            .map_err(NodeError::input)?;
         if observed != self.input_artifacts[0] {
             return Err(NodeError::input(BayesCliError::Input(
                 "normal-mean input no longer matches its durable identity".into(),
@@ -960,8 +1190,8 @@ impl WorkflowNode for HierarchicalNormalProjectNode {
     }
 
     fn verify_input_content(&self) -> Result<(), NodeError> {
-        let observed =
-            source_artifact(&self.input_path, self.backend.input_kind).map_err(NodeError::input)?;
+        let observed = source_artifact(&self.input_path, self.backend.input_kinds[0])
+            .map_err(NodeError::input)?;
         if observed != self.input_artifacts[0] {
             return Err(NodeError::input(BayesCliError::Input(
                 "hierarchical-normal input no longer matches its durable identity".into(),
@@ -992,6 +1222,101 @@ impl WorkflowNode for HierarchicalNormalProjectNode {
 
     fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
         let output: HierarchicalWorkerResult =
+            serde_json::from_slice(bytes).map_err(NodeError::decode)?;
+        output
+            .validate(&self.prepared.request, &self.prepared.request_sha256)
+            .map_err(NodeError::decode)?;
+        Ok(output)
+    }
+
+    fn output_kind(&self) -> &'static str {
+        self.backend.output_kind
+    }
+}
+
+struct GriddedLgcpProjectNode {
+    spec: NodeSpec,
+    input_paths: [PathBuf; 2],
+    input_artifacts: [ArtifactRef; 2],
+    prepared: PreparedGriddedLgcpFit,
+    backend: StaticBackendDescriptor,
+    execution_policy: Vec<u8>,
+}
+
+impl GriddedLgcpProjectNode {
+    fn new(
+        events_path: PathBuf,
+        grid_path: PathBuf,
+        inputs: [ArtifactRef; 2],
+        prepared: PreparedGriddedLgcpFit,
+        backend: StaticBackendDescriptor,
+    ) -> Result<Self, BayesCliError> {
+        backend.validate_request_backend(&prepared.request.backend)?;
+        Ok(Self {
+            spec: NodeSpec::new(
+                NodeId::new(backend.node_id)
+                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
+                backend.node_kind,
+                1,
+                Vec::new(),
+            )
+            .map_err(|error| BayesCliError::Input(error.to_string()))?,
+            input_paths: [events_path, grid_path],
+            input_artifacts: inputs,
+            prepared,
+            backend,
+            execution_policy: backend.execution_policy(),
+        })
+    }
+}
+
+impl WorkflowNode for GriddedLgcpProjectNode {
+    type Output = GriddedLgcpFitWorkerResult;
+
+    fn spec(&self) -> &NodeSpec {
+        &self.spec
+    }
+
+    fn input_artifacts(&self) -> &[ArtifactRef] {
+        &self.input_artifacts
+    }
+
+    fn verify_input_content(&self) -> Result<(), NodeError> {
+        for index in 0..self.input_paths.len() {
+            let observed =
+                source_artifact(&self.input_paths[index], self.backend.input_kinds[index])
+                    .map_err(NodeError::input)?;
+            if observed != self.input_artifacts[index] {
+                return Err(NodeError::input(BayesCliError::Input(
+                    "gridded-LGCP input no longer matches its durable identity".into(),
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
+        CacheKeyMaterial {
+            configuration_digest: self
+                .backend
+                .configuration_digest(&self.prepared.request.backend, &self.prepared.request_bytes),
+            execution_policy: &self.execution_policy,
+            implementation_identity: self.backend.implementation_identity,
+        }
+    }
+
+    fn execute(&self) -> Result<Self::Output, NodeError> {
+        bayes::execute_gridded_lgcp(&self.prepared).map_err(NodeError::execution)
+    }
+
+    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
+        serde_json::to_vec(output)
+            .map(Vec::into_boxed_slice)
+            .map_err(NodeError::encoding)
+    }
+
+    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
+        let output: GriddedLgcpFitWorkerResult =
             serde_json::from_slice(bytes).map_err(NodeError::decode)?;
         output
             .validate(&self.prepared.request, &self.prepared.request_sha256)
@@ -1051,8 +1376,8 @@ impl WorkflowNode for FusedGromovProjectNode {
     }
 
     fn verify_input_content(&self) -> Result<(), NodeError> {
-        let observed =
-            source_artifact(&self.input_path, self.backend.input_kind).map_err(NodeError::input)?;
+        let observed = source_artifact(&self.input_path, self.backend.input_kinds[0])
+            .map_err(NodeError::input)?;
         if observed != self.input_artifacts[0] {
             return Err(NodeError::input(BayesCliError::Input(
                 "FGW input no longer matches its durable identity".into(),

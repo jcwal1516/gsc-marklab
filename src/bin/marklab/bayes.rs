@@ -54,6 +54,9 @@ mod graph_signal;
 mod gridded_lgcp;
 #[path = "bayes/gridded_lgcp_fit.rs"]
 mod gridded_lgcp_fit;
+pub(super) use gridded_lgcp_fit::{
+    execute as execute_gridded_lgcp, prepare as prepare_gridded_lgcp, PreparedGriddedLgcpFit,
+};
 #[path = "bayes/grouped_conformal.rs"]
 mod grouped_conformal;
 #[path = "bayes/hierarchical.rs"]

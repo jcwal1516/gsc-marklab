@@ -246,7 +246,7 @@ pub struct GriddedLgcpPredictivePattern {
     pub points: Vec<GriddedLgcpPredictivePoint>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct GriddedLgcpFitWorkerResult {
     format: String,
@@ -586,7 +586,7 @@ fn close(actual: f64, expected: f64) -> bool {
     (actual - expected).abs() <= 1e-10 * actual.abs().max(expected.abs()).max(1.0)
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct GriddedLgcpFitInputIdentity {
     pub events_path: String,
     pub grid_path: String,

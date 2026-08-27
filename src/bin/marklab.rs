@@ -53,6 +53,7 @@ fn main() -> marklab::Result<()> {
                                 "marked-prepost"
                                     | "normal-mean"
                                     | "hierarchical-normal"
+                                    | "gridded-lgcp"
                                     | "fused-gromov-wasserstein"
                             )
                         )
