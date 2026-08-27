@@ -58,6 +58,9 @@ mod gridded_lgcp_fit;
 mod grouped_conformal;
 #[path = "bayes/hierarchical.rs"]
 mod hierarchical;
+pub(super) use hierarchical::{
+    execute as execute_hierarchical, prepare as prepare_hierarchical, PreparedGaussianHierarchy,
+};
 #[path = "bayes/inhomogeneous_poisson.rs"]
 mod inhomogeneous_poisson;
 #[path = "bayes/inhomogeneous_poisson_fit.rs"]

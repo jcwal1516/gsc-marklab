@@ -49,7 +49,12 @@ fn main() -> marklab::Result<()> {
                     .is_some_and(|subcommand| {
                         matches!(
                             subcommand.to_str(),
-                            Some("marked-prepost" | "normal-mean" | "fused-gromov-wasserstein")
+                            Some(
+                                "marked-prepost"
+                                    | "normal-mean"
+                                    | "hierarchical-normal"
+                                    | "fused-gromov-wasserstein"
+                            )
                         )
                     }) =>
         {

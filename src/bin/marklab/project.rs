@@ -7,7 +7,8 @@ use std::{
 use clap::{Parser, Subcommand};
 use marklab::{MarkedPatternResult, MarkedPrePostNode, ResultDocument};
 use marklab_bayes::{
-    BackendContract, FusedGromovWassersteinWorkerResult, NutsSamplingSpec, WorkerResult,
+    BackendContract, FusedGromovWassersteinWorkerResult, HierarchicalWorkerResult,
+    NutsSamplingSpec, WorkerResult,
 };
 use marklab_workflow::{
     execute_algorithm, ArtifactRef, ArtifactSchema, CacheKeyMaterial, CacheStatus, ContentDigest,
@@ -17,7 +18,8 @@ use marklab_workflow::{
 };
 
 use super::bayes::{
-    self, fused_gromov::PreparedFusedGromovWasserstein, BayesCliError, PreparedNormalMean,
+    self, fused_gromov::PreparedFusedGromovWasserstein, BayesCliError, PreparedGaussianHierarchy,
+    PreparedNormalMean,
 };
 
 const MAXIMUM_EXECUTABLE_BYTES: u64 = 1024 * 1024 * 1024;
@@ -32,6 +34,7 @@ const MARKED_RESULT_KIND: &str = "application/vnd.marklab.result+json;version=0.
 #[derive(Clone, Copy)]
 enum StaticBackendWorkflow {
     PymcNormalMean,
+    PymcHierarchicalNormal,
     PotFusedGromovWasserstein,
 }
 
@@ -65,6 +68,21 @@ impl StaticBackendWorkflow {
                 node_kind: "bayesian_fit",
                 implementation_identity: "marklab-project-pymc-normal-mean-node-v1",
                 deterministic_controls: "seeded-nuts-request",
+            },
+            Self::PymcHierarchicalNormal => StaticBackendDescriptor {
+                backend_id: "pymc",
+                backend_version: "6.3.0",
+                python_version: "3.12",
+                license: "Apache-2.0",
+                input_kind:
+                    "application/vnd.marklab.source.hierarchical-normal-observations;version=1",
+                output_kind:
+                    "application/vnd.marklab.pymc-hierarchical-worker-result+json;version=1",
+                result_schema_id: "marklab.pymc_hierarchical_worker_result",
+                node_id: "pymc-hierarchical-normal",
+                node_kind: "bayesian_hierarchical_fit",
+                implementation_identity: "marklab-project-pymc-hierarchical-normal-node-v1",
+                deterministic_controls: "seeded-nuts-hierarchical-request",
             },
             Self::PotFusedGromovWasserstein => StaticBackendDescriptor {
                 backend_id: "pot",
@@ -198,6 +216,34 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    HierarchicalNormal {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long, allow_hyphen_values = true)]
+        global_prior_mean: f64,
+        #[arg(long)]
+        global_prior_sd: f64,
+        #[arg(long)]
+        between_patient_sd_prior: f64,
+        #[arg(long)]
+        known_sigma: f64,
+        #[arg(long)]
+        chains: u32,
+        #[arg(long)]
+        tune: u32,
+        #[arg(long)]
+        draws: u32,
+        #[arg(long)]
+        target_accept: f64,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
     FusedGromovWasserstein {
         #[arg(long)]
         project: PathBuf,
@@ -254,6 +300,40 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             input,
             prior_mean,
             prior_sd,
+            known_sigma,
+            NutsSamplingSpec {
+                chains,
+                tune_per_chain: tune,
+                draws_per_chain: draws,
+                target_accept,
+                seed,
+            },
+            timeout_seconds,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::HierarchicalNormal {
+                    project,
+                    input,
+                    global_prior_mean,
+                    global_prior_sd,
+                    between_patient_sd_prior,
+                    known_sigma,
+                    chains,
+                    tune,
+                    draws,
+                    target_accept,
+                    seed,
+                    timeout_seconds,
+                    out,
+                },
+        } => run_hierarchical_normal(
+            project,
+            input,
+            global_prior_mean,
+            global_prior_sd,
+            between_patient_sd_prior,
             known_sigma,
             NutsSamplingSpec {
                 chains,
@@ -591,6 +671,83 @@ fn run_normal_mean(
 }
 
 #[allow(clippy::too_many_arguments)]
+fn run_hierarchical_normal(
+    project_path: PathBuf,
+    input_path: PathBuf,
+    global_prior_mean: f64,
+    global_prior_sd: f64,
+    between_patient_sd_prior: f64,
+    known_sigma: f64,
+    sampling: NutsSamplingSpec,
+    timeout_seconds: u64,
+    output_path: PathBuf,
+) -> Result<(), BayesCliError> {
+    let backend = StaticBackendWorkflow::PymcHierarchicalNormal.descriptor();
+    let before = source_artifact(&input_path, backend.input_kind)?;
+    let prepared = bayes::prepare_hierarchical(
+        input_path.clone(),
+        global_prior_mean,
+        global_prior_sd,
+        between_patient_sd_prior,
+        known_sigma,
+        sampling,
+        timeout_seconds,
+    )?;
+    let after = source_artifact(&input_path, backend.input_kind)?;
+    if before != after {
+        return Err(BayesCliError::Input(
+            "hierarchical-normal input changed while the durable request was prepared".into(),
+        ));
+    }
+
+    let runtime = native_runtime_provenance()?;
+    let limits = DurableProjectLimits::new(
+        PROJECT_CONTROL_BYTES,
+        PROJECT_LEDGER_BYTES,
+        PROJECT_LEDGER_RECORDS,
+        PROJECT_RECORD_BYTES,
+        MAXIMUM_RESULT_BYTES,
+    )
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let mut durable = DurableProject::open_or_create(&project_path, limits)
+        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    report_recovery(&durable);
+
+    let request_for_output = prepared.request.clone();
+    let input_identity = prepared.input_identity.clone();
+    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    project
+        .register_reference(before.clone())
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let node = HierarchicalNormalProjectNode::new(input_path, before, prepared, backend)?;
+    let graph = WorkflowGraph::new([node.spec().clone()])
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
+    })
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let run = execute_algorithm(
+        &mut durable,
+        &mut project,
+        &graph,
+        &node,
+        &scheduler,
+        backend.result_schema()?,
+        runtime,
+    )
+    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    let cache_status = match run.cache_status {
+        CacheStatus::Hit => "hit",
+        CacheStatus::Miss => "miss",
+    };
+    let fit = run.output.into_fit(request_for_output, input_identity);
+    bayes::publish_json(&output_path, &fit)?;
+    eprintln!("project hierarchical-normal cache_status={cache_status}");
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
 fn run_fused_gromov_wasserstein(
     project_path: PathBuf,
     input_path: PathBuf,
@@ -745,6 +902,97 @@ impl WorkflowNode for NormalMeanProjectNode {
 
     fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
         let output: WorkerResult = serde_json::from_slice(bytes).map_err(NodeError::decode)?;
+        output
+            .validate(&self.prepared.request, &self.prepared.request_sha256)
+            .map_err(NodeError::decode)?;
+        Ok(output)
+    }
+
+    fn output_kind(&self) -> &'static str {
+        self.backend.output_kind
+    }
+}
+
+struct HierarchicalNormalProjectNode {
+    spec: NodeSpec,
+    input_path: PathBuf,
+    input_artifacts: [ArtifactRef; 1],
+    prepared: PreparedGaussianHierarchy,
+    backend: StaticBackendDescriptor,
+    execution_policy: Vec<u8>,
+}
+
+impl HierarchicalNormalProjectNode {
+    fn new(
+        input_path: PathBuf,
+        input: ArtifactRef,
+        prepared: PreparedGaussianHierarchy,
+        backend: StaticBackendDescriptor,
+    ) -> Result<Self, BayesCliError> {
+        backend.validate_request_backend(&prepared.request.backend)?;
+        Ok(Self {
+            spec: NodeSpec::new(
+                NodeId::new(backend.node_id)
+                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
+                backend.node_kind,
+                1,
+                Vec::new(),
+            )
+            .map_err(|error| BayesCliError::Input(error.to_string()))?,
+            input_path,
+            input_artifacts: [input],
+            prepared,
+            backend,
+            execution_policy: backend.execution_policy(),
+        })
+    }
+}
+
+impl WorkflowNode for HierarchicalNormalProjectNode {
+    type Output = HierarchicalWorkerResult;
+
+    fn spec(&self) -> &NodeSpec {
+        &self.spec
+    }
+
+    fn input_artifacts(&self) -> &[ArtifactRef] {
+        &self.input_artifacts
+    }
+
+    fn verify_input_content(&self) -> Result<(), NodeError> {
+        let observed =
+            source_artifact(&self.input_path, self.backend.input_kind).map_err(NodeError::input)?;
+        if observed != self.input_artifacts[0] {
+            return Err(NodeError::input(BayesCliError::Input(
+                "hierarchical-normal input no longer matches its durable identity".into(),
+            )));
+        }
+        Ok(())
+    }
+
+    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
+        CacheKeyMaterial {
+            configuration_digest: self
+                .backend
+                .configuration_digest(&self.prepared.request.backend, &self.prepared.request_bytes),
+            execution_policy: &self.execution_policy,
+            implementation_identity: self.backend.implementation_identity,
+        }
+    }
+
+    fn execute(&self) -> Result<Self::Output, NodeError> {
+        bayes::execute_hierarchical(&self.prepared).map_err(NodeError::execution)
+    }
+
+    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
+        serde_json::to_vec(output)
+            .map(Vec::into_boxed_slice)
+            .map_err(NodeError::encoding)
+    }
+
+    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
+        let output: HierarchicalWorkerResult =
+            serde_json::from_slice(bytes).map_err(NodeError::decode)?;
         output
             .validate(&self.prepared.request, &self.prepared.request_sha256)
             .map_err(NodeError::decode)?;

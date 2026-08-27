@@ -27,6 +27,40 @@ pub(super) fn run(
     timeout_seconds: u64,
     output_path: PathBuf,
 ) -> Result<(), BayesCliError> {
+    let prepared = prepare(
+        input_path,
+        global_prior_mean,
+        global_prior_sd,
+        between_patient_sd_prior,
+        known_sigma,
+        sampling,
+        timeout_seconds,
+    )?;
+    let worker_result = execute(&prepared)?;
+    publish_json(
+        &output_path,
+        &worker_result.into_fit(prepared.request, prepared.input_identity),
+    )
+}
+
+pub(crate) struct PreparedGaussianHierarchy {
+    pub(crate) request: GaussianHierarchyWorkerRequest,
+    pub(crate) request_bytes: Vec<u8>,
+    pub(crate) request_sha256: String,
+    pub(crate) input_identity: GaussianHierarchyInputIdentity,
+    pub(crate) timeout_seconds: u64,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare(
+    input_path: PathBuf,
+    global_prior_mean: f64,
+    global_prior_sd: f64,
+    between_patient_sd_prior: f64,
+    known_sigma: f64,
+    sampling: NutsSamplingSpec,
+    timeout_seconds: u64,
+) -> Result<PreparedGaussianHierarchy, BayesCliError> {
     let patients = read_patients(&input_path)?;
     let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let worker_directory = repository.join("workers/python");
@@ -62,18 +96,28 @@ pub(super) fn run(
     };
     let request_bytes = serde_json::to_vec(&request)?;
     let request_sha256 = sha256_hex(&request_bytes);
+    Ok(PreparedGaussianHierarchy {
+        request,
+        request_bytes,
+        request_sha256,
+        input_identity,
+        timeout_seconds,
+    })
+}
+
+pub(crate) fn execute(
+    prepared: &PreparedGaussianHierarchy,
+) -> Result<HierarchicalWorkerResult, BayesCliError> {
+    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let result_bytes = run_worker(
         repository,
         "marklab_pymc_hierarchical_worker.py",
-        &request_bytes,
-        timeout_seconds,
+        &prepared.request_bytes,
+        prepared.timeout_seconds,
     )?;
     let worker_result: HierarchicalWorkerResult = serde_json::from_slice(&result_bytes)?;
-    worker_result.validate(&request, &request_sha256)?;
-    publish_json(
-        &output_path,
-        &worker_result.into_fit(request, input_identity),
-    )
+    worker_result.validate(&prepared.request, &prepared.request_sha256)?;
+    Ok(worker_result)
 }
 
 fn read_patients(path: &std::path::Path) -> Result<Vec<HierarchicalPatientData>, BayesCliError> {

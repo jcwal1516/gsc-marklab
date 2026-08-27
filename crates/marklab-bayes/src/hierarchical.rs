@@ -273,7 +273,7 @@ pub struct HierarchicalPosteriorPredictive {
     pub replicated_patient_mean_sd_mean: f64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct HierarchicalWorkerResult {
     format: String,
@@ -493,7 +493,7 @@ fn finite(values: &[f64]) -> bool {
     values.iter().all(|value| value.is_finite())
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct GaussianHierarchyInputIdentity {
     pub path: String,
     pub patients: usize,
