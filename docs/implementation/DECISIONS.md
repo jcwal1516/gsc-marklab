@@ -2068,3 +2068,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-01/BAY-03/BAY-HIER-A/WS-44
 - Decision: execute the exact DEC-0255 non-centered patient-random-intercept and slide beta-binomial model in pinned PyMC and pinned dense-mass NumPyro with identical data, priors, patient indexing, seed, sampling controls, diagnostics, typical-patient standardization, and patient-unit/slide-deviation posterior predictive summaries. Gate every reported scalar, all patient probabilities, and all patient random log-odds effects by interval overlap and declared Monte Carlo-error-aware absolute tolerances.
 - Consequences: the repeated-measure caller gains an independent implementation check without changing its biological unit, parameterization, likelihood, adding a backend registry/formula language, or substituting backend agreement for prior sensitivity and simulation calibration.
+
+## DEC-0258 — Measure repeated-slide hierarchy prior sensitivity
+
+- Date: 2026-08-27
+- Status: accepted for BAY-03/BAY-HIER-A/WS-44
+- Decision: refit the exact DEC-0255 PyMC model under baseline plus 0.5x and 2x one-at-a-time multipliers for intercept, group-effect, gender-effect, patient-log-odds-scale, and slide-concentration prior scales. Preserve exact slide/patient design, likelihood, seed, sampler, PPC, and diagnostic gates; measure every scalar estimand plus complete patient-probability and patient-random-effect fields in baseline posterior-SD units, and withhold an ordinary sensitivity state unless all 11 fits converge.
+- Consequences: the nested real caller gains a bounded prior sensitivity result without a formula/scenario framework, joint grid, hidden defaults, or robustness claim outside the declared multipliers.

@@ -77,6 +77,21 @@ fn main() -> marklab::Result<()> {
                     .is_some_and(|subcommand| {
                         subcommand
                             == std::ffi::OsStr::new(
+                                "beta-binomial-group-gender-slide-hierarchy-sensitivity",
+                            )
+                    }) =>
+        {
+            bayes::run_beta_binomial_group_gender_slide_hierarchy_sensitivity_cli()
+                .map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand
+                            == std::ffi::OsStr::new(
                                 "beta-binomial-group-gender-slide-hierarchy-agreement",
                             )
                     }) =>

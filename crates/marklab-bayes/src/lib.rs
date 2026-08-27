@@ -8,6 +8,7 @@ mod beta_binomial_group_gender_sbc;
 mod beta_binomial_group_gender_sensitivity;
 mod beta_binomial_group_gender_slide_agreement;
 mod beta_binomial_group_gender_slide_hierarchy;
+mod beta_binomial_group_gender_slide_sensitivity;
 mod beta_binomial_group_regression;
 mod beta_binomial_group_regression_agreement;
 mod beta_binomial_group_regression_sbc;
@@ -139,6 +140,11 @@ pub use beta_binomial_group_gender_slide_hierarchy::{
     BetaBinomialGroupGenderSlideHierarchyWorkerResult,
     BetaBinomialGroupGenderSlidePatientPosterior, BetaBinomialGroupGenderSlidePosterior,
     BetaBinomialGroupGenderSlidePosteriorPredictive,
+};
+pub use beta_binomial_group_gender_slide_sensitivity::{
+    BetaBinomialGroupGenderSlideSensitivityResult, BetaBinomialGroupGenderSlideSensitivityScenario,
+    BetaBinomialGroupGenderSlideSensitivityScenarioResult,
+    BetaBinomialGroupGenderSlideSensitivityScenarioRun,
 };
 pub use beta_binomial_group_regression::{
     beta_binomial_group_data_sha256, BetaBinomialGroupPatientData,

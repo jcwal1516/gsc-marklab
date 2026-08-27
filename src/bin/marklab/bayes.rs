@@ -43,6 +43,8 @@ mod beta_binomial_group_gender_sensitivity;
 mod beta_binomial_group_gender_slide_agreement;
 #[path = "bayes/beta_binomial_group_gender_slide_hierarchy.rs"]
 mod beta_binomial_group_gender_slide_hierarchy;
+#[path = "bayes/beta_binomial_group_gender_slide_sensitivity.rs"]
+mod beta_binomial_group_gender_slide_sensitivity;
 pub(super) use beta_binomial_group_gender_slide_hierarchy::{
     execute as execute_beta_binomial_group_gender_slide_hierarchy,
     prepare as prepare_beta_binomial_group_gender_slide_hierarchy,
@@ -314,6 +316,74 @@ enum BetaBinomialGroupGenderSlideHierarchyAgreementTopLevel {
 enum BetaBinomialGroupGenderSlideHierarchyAgreementCommand {
     BetaBinomialGroupGenderSlideHierarchyAgreement(
         Box<BetaBinomialGroupGenderSlideHierarchyAgreementArgs>,
+    ),
+}
+
+#[derive(Debug, Args)]
+struct BetaBinomialGroupGenderSlideHierarchySensitivityArgs {
+    #[arg(long)]
+    input: PathBuf,
+    #[arg(long)]
+    reference_group: String,
+    #[arg(long)]
+    comparison_group: String,
+    #[arg(long)]
+    reference_gender: String,
+    #[arg(long)]
+    comparison_gender: String,
+    #[arg(long, allow_hyphen_values = true)]
+    intercept_prior_mean: f64,
+    #[arg(long)]
+    intercept_prior_sd: f64,
+    #[arg(long)]
+    group_effect_prior_sd: f64,
+    #[arg(long)]
+    gender_effect_prior_sd: f64,
+    #[arg(long)]
+    patient_log_odds_sd_prior_sd: f64,
+    #[arg(long)]
+    slide_concentration_prior_sd: f64,
+    #[arg(long)]
+    lower_scale_multiplier: f64,
+    #[arg(long)]
+    upper_scale_multiplier: f64,
+    #[arg(long)]
+    material_standardized_shift: f64,
+    #[arg(long)]
+    chains: u32,
+    #[arg(long)]
+    tune: u32,
+    #[arg(long)]
+    draws: u32,
+    #[arg(long)]
+    target_accept: f64,
+    #[arg(long)]
+    seed: u64,
+    #[arg(long)]
+    timeout_seconds: u64,
+    #[arg(long)]
+    out: PathBuf,
+}
+
+#[derive(Debug, Parser)]
+#[command(name = "marklab")]
+struct BetaBinomialGroupGenderSlideHierarchySensitivityCli {
+    #[command(subcommand)]
+    command: BetaBinomialGroupGenderSlideHierarchySensitivityTopLevel,
+}
+
+#[derive(Debug, Subcommand)]
+enum BetaBinomialGroupGenderSlideHierarchySensitivityTopLevel {
+    Bayes {
+        #[command(subcommand)]
+        command: BetaBinomialGroupGenderSlideHierarchySensitivityCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum BetaBinomialGroupGenderSlideHierarchySensitivityCommand {
+    BetaBinomialGroupGenderSlideHierarchySensitivity(
+        Box<BetaBinomialGroupGenderSlideHierarchySensitivityArgs>,
     ),
 }
 
@@ -3044,6 +3114,64 @@ pub(super) fn run_beta_binomial_group_gender_slide_hierarchy_agreement_cli(
         minimum_concentration_tolerance,
         minimum_patient_probability_tolerance,
         minimum_patient_effect_tolerance,
+        timeout_seconds,
+        out,
+    )
+}
+
+pub(super) fn run_beta_binomial_group_gender_slide_hierarchy_sensitivity_cli(
+) -> Result<(), BayesCliError> {
+    let BetaBinomialGroupGenderSlideHierarchySensitivityTopLevel::Bayes { command } =
+        BetaBinomialGroupGenderSlideHierarchySensitivityCli::parse_from(std::env::args_os())
+            .command;
+    let BetaBinomialGroupGenderSlideHierarchySensitivityCommand::BetaBinomialGroupGenderSlideHierarchySensitivity(
+        arguments,
+    ) = command;
+    let BetaBinomialGroupGenderSlideHierarchySensitivityArgs {
+        input,
+        reference_group,
+        comparison_group,
+        reference_gender,
+        comparison_gender,
+        intercept_prior_mean,
+        intercept_prior_sd,
+        group_effect_prior_sd,
+        gender_effect_prior_sd,
+        patient_log_odds_sd_prior_sd,
+        slide_concentration_prior_sd,
+        lower_scale_multiplier,
+        upper_scale_multiplier,
+        material_standardized_shift,
+        chains,
+        tune,
+        draws,
+        target_accept,
+        seed,
+        timeout_seconds,
+        out,
+    } = *arguments;
+    beta_binomial_group_gender_slide_sensitivity::run(
+        input,
+        reference_group,
+        comparison_group,
+        reference_gender,
+        comparison_gender,
+        intercept_prior_mean,
+        intercept_prior_sd,
+        group_effect_prior_sd,
+        gender_effect_prior_sd,
+        patient_log_odds_sd_prior_sd,
+        slide_concentration_prior_sd,
+        lower_scale_multiplier,
+        upper_scale_multiplier,
+        material_standardized_shift,
+        NutsSamplingSpec {
+            chains,
+            tune_per_chain: tune,
+            draws_per_chain: draws,
+            target_accept,
+            seed,
+        },
         timeout_seconds,
         out,
     )
