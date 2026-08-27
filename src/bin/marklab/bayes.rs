@@ -43,6 +43,8 @@ mod beta_binomial_group_gender_sensitivity;
 mod beta_binomial_group_gender_slide_agreement;
 #[path = "bayes/beta_binomial_group_gender_slide_hierarchy.rs"]
 mod beta_binomial_group_gender_slide_hierarchy;
+#[path = "bayes/beta_binomial_group_gender_slide_sbc.rs"]
+mod beta_binomial_group_gender_slide_sbc;
 #[path = "bayes/beta_binomial_group_gender_slide_sensitivity.rs"]
 mod beta_binomial_group_gender_slide_sensitivity;
 pub(super) use beta_binomial_group_gender_slide_hierarchy::{
@@ -385,6 +387,74 @@ enum BetaBinomialGroupGenderSlideHierarchySensitivityCommand {
     BetaBinomialGroupGenderSlideHierarchySensitivity(
         Box<BetaBinomialGroupGenderSlideHierarchySensitivityArgs>,
     ),
+}
+
+#[derive(Debug, Args)]
+struct BetaBinomialGroupGenderSlideHierarchySbcArgs {
+    #[arg(long)]
+    input: PathBuf,
+    #[arg(long)]
+    reference_group: String,
+    #[arg(long)]
+    comparison_group: String,
+    #[arg(long)]
+    reference_gender: String,
+    #[arg(long)]
+    comparison_gender: String,
+    #[arg(long, allow_hyphen_values = true)]
+    intercept_prior_mean: f64,
+    #[arg(long)]
+    intercept_prior_sd: f64,
+    #[arg(long)]
+    group_effect_prior_sd: f64,
+    #[arg(long)]
+    gender_effect_prior_sd: f64,
+    #[arg(long)]
+    patient_log_odds_sd_prior_sd: f64,
+    #[arg(long)]
+    slide_concentration_prior_sd: f64,
+    #[arg(long)]
+    replicates: u32,
+    #[arg(long)]
+    chains: u32,
+    #[arg(long)]
+    tune: u32,
+    #[arg(long)]
+    draws: u32,
+    #[arg(long)]
+    target_accept: f64,
+    #[arg(long)]
+    seed: u64,
+    #[arg(long)]
+    minimum_rank_uniformity_p_value: f64,
+    #[arg(long)]
+    minimum_coverage_90: f64,
+    #[arg(long)]
+    maximum_coverage_90: f64,
+    #[arg(long)]
+    timeout_seconds: u64,
+    #[arg(long)]
+    out: PathBuf,
+}
+
+#[derive(Debug, Parser)]
+#[command(name = "marklab")]
+struct BetaBinomialGroupGenderSlideHierarchySbcCli {
+    #[command(subcommand)]
+    command: BetaBinomialGroupGenderSlideHierarchySbcTopLevel,
+}
+
+#[derive(Debug, Subcommand)]
+enum BetaBinomialGroupGenderSlideHierarchySbcTopLevel {
+    Bayes {
+        #[command(subcommand)]
+        command: BetaBinomialGroupGenderSlideHierarchySbcCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum BetaBinomialGroupGenderSlideHierarchySbcCommand {
+    BetaBinomialGroupGenderSlideHierarchySbc(Box<BetaBinomialGroupGenderSlideHierarchySbcArgs>),
 }
 
 #[derive(Debug, Subcommand)]
@@ -3172,6 +3242,65 @@ pub(super) fn run_beta_binomial_group_gender_slide_hierarchy_sensitivity_cli(
             target_accept,
             seed,
         },
+        timeout_seconds,
+        out,
+    )
+}
+
+pub(super) fn run_beta_binomial_group_gender_slide_hierarchy_sbc_cli() -> Result<(), BayesCliError>
+{
+    let BetaBinomialGroupGenderSlideHierarchySbcTopLevel::Bayes { command } =
+        BetaBinomialGroupGenderSlideHierarchySbcCli::parse_from(std::env::args_os()).command;
+    let BetaBinomialGroupGenderSlideHierarchySbcCommand::BetaBinomialGroupGenderSlideHierarchySbc(
+        arguments,
+    ) = command;
+    let BetaBinomialGroupGenderSlideHierarchySbcArgs {
+        input,
+        reference_group,
+        comparison_group,
+        reference_gender,
+        comparison_gender,
+        intercept_prior_mean,
+        intercept_prior_sd,
+        group_effect_prior_sd,
+        gender_effect_prior_sd,
+        patient_log_odds_sd_prior_sd,
+        slide_concentration_prior_sd,
+        replicates,
+        chains,
+        tune,
+        draws,
+        target_accept,
+        seed,
+        minimum_rank_uniformity_p_value,
+        minimum_coverage_90,
+        maximum_coverage_90,
+        timeout_seconds,
+        out,
+    } = *arguments;
+    beta_binomial_group_gender_slide_sbc::run(
+        input,
+        reference_group,
+        comparison_group,
+        reference_gender,
+        comparison_gender,
+        intercept_prior_mean,
+        intercept_prior_sd,
+        group_effect_prior_sd,
+        gender_effect_prior_sd,
+        patient_log_odds_sd_prior_sd,
+        slide_concentration_prior_sd,
+        replicates,
+        NutsSamplingSpec {
+            chains,
+            tune_per_chain: tune,
+            draws_per_chain: draws,
+            target_accept,
+            seed,
+        },
+        minimum_rank_uniformity_p_value,
+        minimum_coverage_90,
+        maximum_coverage_90,
         timeout_seconds,
         out,
     )

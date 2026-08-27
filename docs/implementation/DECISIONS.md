@@ -2075,3 +2075,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for BAY-03/BAY-HIER-A/WS-44
 - Decision: refit the exact DEC-0255 PyMC model under baseline plus 0.5x and 2x one-at-a-time multipliers for intercept, group-effect, gender-effect, patient-log-odds-scale, and slide-concentration prior scales. Preserve exact slide/patient design, likelihood, seed, sampler, PPC, and diagnostic gates; measure every scalar estimand plus complete patient-probability and patient-random-effect fields in baseline posterior-SD units, and withhold an ordinary sensitivity state unless all 11 fits converge.
 - Consequences: the nested real caller gains a bounded prior sensitivity result without a formula/scenario framework, joint grid, hidden defaults, or robustness claim outside the declared multipliers.
+
+## DEC-0259 — Calibrate the repeated-slide hierarchy generatively
+
+- Date: 2026-08-27
+- Status: accepted for BAY-02/BAY-03/BAY-HIER-A/WS-44
+- Decision: simulate fixed intercept/group/gender effects, positive patient log-odds scale, patient random intercepts, patient probabilities, positive slide concentration, slide probabilities, and successes from the exact DEC-0255 priors and beta-binomial likelihood using the admitted patient/slide/trial design. Refit every replicate with the same non-centered dense-mass NumPyro model used for backend agreement, retain complete failure disposition, deterministic seeds, hard work bounds, unchanged diagnostic gates, rank uniformity, and 90% coverage for all global parameters, the typical-patient standardized group contrast, one patient probability, and one patient random effect.
+- Consequences: the nested caller gains end-to-end generative calibration without omitted failures, relaxed sampler gates, a calibration registry, or any claim that classifier-derived spatial cells are independent biological trials.
