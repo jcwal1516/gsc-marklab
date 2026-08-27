@@ -54,6 +54,7 @@ fn main() -> marklab::Result<()> {
                                     | "normal-mean"
                                     | "hierarchical-normal"
                                     | "beta-binomial-hierarchy"
+                                    | "beta-binomial-group-regression"
                                     | "student-t-hierarchy"
                                     | "gridded-lgcp"
                                     | "fused-gromov-wasserstein"

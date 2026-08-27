@@ -28,6 +28,10 @@ pub(super) use beta_binomial_hierarchy::{
 };
 #[path = "bayes/beta_binomial_group_regression.rs"]
 mod beta_binomial_group_regression;
+pub(super) use beta_binomial_group_regression::{
+    execute as execute_beta_binomial_group_regression,
+    prepare as prepare_beta_binomial_group_regression, PreparedBetaBinomialGroupRegression,
+};
 #[path = "bayes/beta_binomial_hierarchy_agreement.rs"]
 mod beta_binomial_hierarchy_agreement;
 #[path = "bayes/beta_binomial_hierarchy_sbc.rs"]
