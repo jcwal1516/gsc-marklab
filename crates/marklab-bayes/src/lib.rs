@@ -22,6 +22,7 @@ mod gridded_lgcp_fit;
 mod grouped_conformal;
 mod hierarchical;
 mod hierarchical_agreement;
+mod hierarchical_sensitivity;
 mod icar;
 mod inhomogeneous_poisson;
 mod inhomogeneous_poisson_fit;
@@ -125,6 +126,10 @@ pub use hierarchical_agreement::{
     HierarchicalAgreementComparison, HierarchicalAgreementPolicy, HierarchicalAgreementResult,
     HierarchicalBackendSummary, NumpyroHierarchyWorkerRequest, NumpyroHierarchyWorkerResult,
     ParameterAgreement,
+};
+pub use hierarchical_sensitivity::{
+    HierarchicalPriorScenario, HierarchicalPriorScenarioResult, HierarchicalPriorScenarioRun,
+    HierarchicalPriorSensitivityResult,
 };
 pub use icar::{build_icar_plan, IcarPlan, IcarPlanError};
 pub use inhomogeneous_poisson::{

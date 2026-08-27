@@ -66,6 +66,8 @@ pub(super) use hierarchical::{
 };
 #[path = "bayes/hierarchical_agreement.rs"]
 mod hierarchical_agreement;
+#[path = "bayes/hierarchical_sensitivity.rs"]
+mod hierarchical_sensitivity;
 #[path = "bayes/inhomogeneous_poisson.rs"]
 mod inhomogeneous_poisson;
 #[path = "bayes/inhomogeneous_poisson_fit.rs"]
@@ -248,6 +250,38 @@ enum BayesCommand {
         maximum_standardized_difference: f64,
         #[arg(long)]
         minimum_absolute_tolerance: f64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    HierarchicalNormalPriorSensitivity {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long, allow_hyphen_values = true)]
+        global_prior_mean: f64,
+        #[arg(long)]
+        global_prior_sd: f64,
+        #[arg(long)]
+        between_patient_sd_prior: f64,
+        #[arg(long)]
+        known_sigma: f64,
+        #[arg(long)]
+        lower_scale_multiplier: f64,
+        #[arg(long)]
+        upper_scale_multiplier: f64,
+        #[arg(long)]
+        material_standardized_shift: f64,
+        #[arg(long)]
+        chains: u32,
+        #[arg(long)]
+        tune: u32,
+        #[arg(long)]
+        draws: u32,
+        #[arg(long)]
+        target_accept: f64,
+        #[arg(long)]
+        seed: u64,
         #[arg(long)]
         timeout_seconds: u64,
         #[arg(long)]
@@ -2055,6 +2089,44 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             },
             maximum_standardized_difference,
             minimum_absolute_tolerance,
+            timeout_seconds,
+            out,
+        ),
+        BayesTopLevel::Bayes {
+            command:
+                BayesCommand::HierarchicalNormalPriorSensitivity {
+                    input,
+                    global_prior_mean,
+                    global_prior_sd,
+                    between_patient_sd_prior,
+                    known_sigma,
+                    lower_scale_multiplier,
+                    upper_scale_multiplier,
+                    material_standardized_shift,
+                    chains,
+                    tune,
+                    draws,
+                    target_accept,
+                    seed,
+                    timeout_seconds,
+                    out,
+                },
+        } => hierarchical_sensitivity::run(
+            input,
+            global_prior_mean,
+            global_prior_sd,
+            between_patient_sd_prior,
+            known_sigma,
+            lower_scale_multiplier,
+            upper_scale_multiplier,
+            material_standardized_shift,
+            NutsSamplingSpec {
+                chains,
+                tune_per_chain: tune,
+                draws_per_chain: draws,
+                target_accept,
+                seed,
+            },
             timeout_seconds,
             out,
         ),
