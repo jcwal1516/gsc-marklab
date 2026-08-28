@@ -203,6 +203,28 @@ fn main() -> marklab::Result<()> {
         {
             bayes::run_arbitrary_window_ipp_fit_cli().map_err(bayes::into_marklab_error)
         }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand == std::ffi::OsStr::new("arbitrary-window-ipp-agreement")
+                    }) =>
+        {
+            bayes::run_arbitrary_window_ipp_agreement_cli().map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand == std::ffi::OsStr::new("arbitrary-window-ipp-sensitivity")
+                    }) =>
+        {
+            bayes::run_arbitrary_window_ipp_sensitivity_cli().map_err(bayes::into_marklab_error)
+        }
         Some(command) if command == std::ffi::OsStr::new("bayes") => {
             bayes::run_cli().map_err(bayes::into_marklab_error)
         }

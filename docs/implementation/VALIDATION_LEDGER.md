@@ -2735,6 +2735,29 @@ vascular transport.
   matrix, benchmark suite, fuzzing, memory tool, packaging, dependency audit, push, publication,
   deployment, or history rewrite ran.
 
+## Exact-window IPP agreement and prior sensitivity checkpoint 125 — 2026-08-28
+
+- Expected agreement red: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_arbitrary_window_ipp_agreement_cli pymc_and_numpyro_agree_on_weighted_exact_window_ipp --
+  --exact --nocapture` failed on the absent command. The final 1/1 pass covers a known positive
+  coefficient, both exact backend identities/diagnostics, interval overlap, parameter/count gates,
+  and truthful agreement status. Python syntax validation passes for the new narrow worker.
+- Expected sensitivity red: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_arbitrary_window_ipp_sensitivity_cli weighted_exact_window_ipp_runs_fixed_prior_scale_grid
+  -- --exact --nocapture` failed on the absent command. The final 1/1 pass covers all five fixed
+  scenarios, complete diagnostics, baseline direction, standardized shifts, and total-work bounds.
+- The real agreement completed in 4.52 seconds at 566,575,104-byte maximum RSS. PyMC/NumPyro
+  differences are 0.000352 intercept, 0.000793 coefficient, and 0.631 total expected count; all pass
+  the declared 0.05/0.05/5.0 gates with zero divergences/depth hits. Result SHA-256 is
+  `dda4b0d95470b25af8f217839df55920a7ed53de6c1c84b619aa765d608b2b9e`.
+- The real five-fit sensitivity completed in 8.75 seconds at 327,598,080-byte maximum RSS. Every fit
+  is complete, total declared draw-node work is 5,520,000, no scenario reaches 0.75 standardized SD,
+  and the maximum is 0.0603. Result SHA-256 is
+  `64e644a073123dc43ad36c0ae47a01a52841763718ac4570c450f53b1df7f2a7`. Both results are sealed in
+  the v7 Mac-mini bundle. No broad gate was repeated after checkpoint 124; no full
+  integration/Nextest loop, feature matrix, benchmark suite, fuzz, memory tool, packaging,
+  dependency audit, push, publication, deployment, or history rewrite ran.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

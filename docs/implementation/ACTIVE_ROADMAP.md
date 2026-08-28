@@ -1111,3 +1111,12 @@ The checkpoint-120–123 graph/topology/exact-window family passes workspace for
 warning-denied all-target/all-feature Clippy, no-default compilation, all-feature doctests, and
 strict docs. The prohibited full-integration/Nextest loop was not retried. Production continues to
 the fitted arbitrary-window IPP promotion checks before another model family.
+
+## Checkpoint 125 exact-window IPP promotion continuation
+
+The exact weighted likelihood now passes a known positive control, real PyMC/NumPyro agreement, and
+a fixed five-fit prior-scale sensitivity grid. The real coefficient is backend-consistent and not
+materially prior-scale-sensitive under those declared checks. BAY-PP/BAY-02/WS-43/WS-44 remain
+active for SBC, quadrature refinement, and spatial posterior-predictive diagnostics before this
+likelihood family is promoted. Production continues directly to those checks; UI/server/client work
+remains deferred.

@@ -2209,3 +2209,23 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   benchmark suite, fuzzing, memory tool, packaging, dependency audit, push, publication, deployment,
   or history rewrite ran. BAY-PP/WS-43 now advance to agreement, sensitivity, calibration, and
   spatial posterior-predictive promotion for the fitted arbitrary-window caller.
+
+## Exact-window IPP agreement and prior sensitivity checkpoint 125 — 2026-08-28
+
+- Added `arbitrary-window-ipp-agreement` using the identical transformed weighted likelihood in the
+  existing PyMC worker and one narrow pinned NumPyro 0.21.0/JAX 0.11.1 worker. The NumPyro adapter
+  imports and validates the existing PyMC request contract rather than duplicating it. Exact lock,
+  PyMC-worker, NumPyro-worker, request, JAX/Python, sampling, diagnostics, and input identities are
+  retained; disagreement remains a valid result.
+- The known positive-gradient control passes both backends. On the real v7 input, PyMC versus
+  NumPyro posterior means differ by 0.000352 for the intercept, 0.000793 for the coefficient, and
+  0.631 expected cells; all are inside the prespecified 0.05/0.05/5.0 absolute gates with overlapping
+  parameter intervals. Both fits are complete with zero divergences/tree-depth hits. The sealed
+  agreement result SHA-256 is `dda4b0d95470b25af8f217839df55920a7ed53de6c1c84b619aa765d608b2b9e`.
+- Added `arbitrary-window-ipp-sensitivity` for a fixed baseline plus half/double intercept- and
+  coefficient-prior SD grid. All five real fits are complete. No scenario crosses the prespecified
+  0.75 baseline-posterior-SD threshold; the maximum shift is 0.0603 for the half intercept-prior SD.
+  The sealed result SHA-256 is `64e644a073123dc43ad36c0ae47a01a52841763718ac4570c450f53b1df7f2a7`.
+- This promotes cross-backend and prior-scale evidence only. SBC, quadrature refinement, and spatial
+  posterior-predictive checks remain active; the real negative x-gradient remains a single-slide
+  descriptive association without population, causal, interaction, or clinical interpretation.
