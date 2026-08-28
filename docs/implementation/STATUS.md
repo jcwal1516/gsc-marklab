@@ -2013,3 +2013,24 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   categorical oracle/resource, scalar MarkTable, importer, adapter, formatting, syntax, LSP-outline,
   and whitespace checks pass. Full class-probability uncertainty remains unavailable because the
   admitted export has winning-class confidence only.
+
+## Real CellViT pair curves and multiclass stabilization checkpoint 116 — 2026-08-28
+
+- The accepted stable-ID CellViT table now drives the existing directed categorical mark-connection/
+  cross-K and Epanechnikov cross-pair-correlation nodes for Neoplastic→Inflammatory organization at
+  prespecified 25, 50, 100, and 200 micrometre radii. Cross-g uses a fixed 10-micrometre bandwidth;
+  both workflows use 19 complete-row random-label permutations, seed 20260828, and explicit
+  2,000-point, four-million-pair, 80-million-null-evaluation, and 128-MiB ceilings.
+- Two fresh processes return miss then hit for both durable projects, retain one execution in each
+  ledger, and reproduce exact typed-result digests. The admitted source/target counts are 1,450 and
+  365, all four radii are present, and both bounded geometry plans contain directed pairs. This is a
+  single-slide structural analysis under a fixed-count random-label null, not patient-population or
+  molecular-class inference.
+- The real typed hierarchy/MarkTable/provenance/window fixture is shared only by the three immediate
+  CellViT integration callers. Existing independent hand/Python pair oracles, directional controls,
+  one-short resource failures, and synthetic durable invalidation remain green.
+- The four-workflow family since checkpoint 113 passed one major stabilization: workspace
+  warning-denied all-target/all-feature Clippy in 25m26s, workspace no-default compilation in
+  10.15s, all-feature doctests with zero failures, strict all-feature docs in 13.12s, formatting,
+  and whitespace. The prohibited full-integration/Nextest loader loop was not run. The next
+  production outcome is bounded durable project-DAG execution and cross-process whole-graph resume.

@@ -1020,3 +1020,13 @@ longer carry the real stable-ID blocker; direct MarkTable export and other inter
 active. Full uncertainty-bearing multiclass mixing remains honestly unavailable for this source
 because winning-class confidence is not a class-probability simplex. Production advances to the
 next admitted multiclass geometry/mark caller before bounded project-DAG work.
+
+## Checkpoint 116 real multiclass pair and stabilization continuation
+
+The stable-ID four-class CellViT table now executes fixed-radius mixing, directed connection/cross-K,
+and kernel cross-pair correlation with fresh-process durable replay. The admitted hard-class
+multiclass geometry ladder is complete for the current source; full-simplex uncertainty remains a
+named input blocker rather than an implementation pretext. The four related workflows pass the
+scheduled workspace stabilization gates. Production now advances to the smallest bounded project
+DAG that plans resources, executes ready nodes in parallel, survives a process boundary, and reuses
+the existing scheduler, ledger, head, pending-intent recovery, and artifact store.

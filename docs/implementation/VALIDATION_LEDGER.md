@@ -2506,6 +2506,28 @@ vascular transport.
   tool, packaging, dependency audit, push, publication, deployment, or history rewrite ran at this
   ordinary milestone.
 
+## Real CellViT pair curves and multiclass stabilization checkpoint 116 — 2026-08-28
+
+- `MARKLAB_REAL_CELLVIT_CATEGORICAL_CSV=... MARKLAB_REAL_CELLVIT_CATEGORICAL_WINDOW=... cargo
+  +1.96.0 test --locked --package marklab --all-features --test categorical_pair_real_cellvit
+  admitted_cellvit_pair_curves_replay_across_fresh_processes -- --ignored --exact --nocapture`
+  passes. The first child completes both real pair workflows in 4.11s; the second completes in
+  0.31s. Both report miss→hit, exact result-digest replay, and one unchanged execution per durable
+  project for 1,450 Neoplastic source cells, 365 Inflammatory targets, four radii, and 19 null draws.
+- The shared real fixture refactor was rechecked by the existing categorical-mixing fresh-process
+  test, which passes again in 0.82s. The affected pair command passes cross-g 4/4, project replay
+  1/1, typed pair 3/3, and the nonignored real child 1/1; its ignored parent was run separately as
+  real evidence.
+- `cargo +1.96.0 fmt --all --check` and `git diff --check` pass. `cargo +1.96.0 clippy --locked
+  --workspace --all-targets --all-features -- -D warnings` passes in 25m26s. `cargo +1.96.0 check
+  --locked --workspace --no-default-features` passes in 10.15s. `cargo +1.96.0 test --locked
+  --workspace --doc --all-features` passes every package with zero failures. `RUSTDOCFLAGS='-D
+  warnings' cargo +1.96.0 doc --locked --workspace --all-features --no-deps` passes in 13.12s.
+- The full workspace integration/Nextest loop was not run because checkpoints 51/52 and the active
+  instruction prohibit retrying the macOS loader-verification loop. No feature matrix, benchmark,
+  fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or history rewrite
+  ran.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test
