@@ -18,6 +18,8 @@ struct CategoricalStratumEncoder {
     saw_nonmissing: bool,
 }
 
+type EncodedCategoricalStratum = (Box<[u32]>, Box<[String]>);
+
 impl CategoricalStratumEncoder {
     fn push_optional(&mut self, value: Option<&str>) {
         let normalized = value
@@ -30,8 +32,14 @@ impl CategoricalStratumEncoder {
         self.values.push(id);
     }
 
-    fn finish(self) -> Option<Box<[u32]>> {
-        self.saw_nonmissing.then(|| self.values.into_boxed_slice())
+    fn finish(self) -> Option<EncodedCategoricalStratum> {
+        self.saw_nonmissing.then(|| {
+            let mut levels = vec![String::new(); self.ids.len()];
+            for (level, code) in self.ids {
+                levels[code as usize] = level;
+            }
+            (self.values.into_boxed_slice(), levels.into_boxed_slice())
+        })
     }
 }
 
@@ -341,26 +349,31 @@ impl<'a> PatternBuilder<'a> {
         pattern.component_id = self.component_ids.finish();
         insert_finished_stratum(
             &mut pattern.categorical_strata,
+            &mut pattern.categorical_stratum_levels,
             "internal_control_bin",
             self.internal_control_bin,
         );
         insert_finished_stratum(
             &mut pattern.categorical_strata,
+            &mut pattern.categorical_stratum_levels,
             "block_id",
             self.block_id_strata,
         );
         insert_finished_stratum(
             &mut pattern.categorical_strata,
+            &mut pattern.categorical_stratum_levels,
             "slide_region",
             self.slide_region_strata,
         );
         insert_finished_stratum(
             &mut pattern.categorical_strata,
+            &mut pattern.categorical_stratum_levels,
             "histologic_compartment",
             self.histologic_compartment_strata,
         );
         insert_finished_stratum(
             &mut pattern.categorical_strata,
+            &mut pattern.categorical_stratum_levels,
             "stain_batch",
             self.stain_batch_strata,
         );
@@ -420,11 +433,13 @@ fn normalize_row_metadata(row: &mut DecodedCellRow) {
 
 fn insert_finished_stratum(
     strata: &mut BTreeMap<String, Box<[u32]>>,
+    codebooks: &mut BTreeMap<String, Box<[String]>>,
     name: &str,
     encoder: CategoricalStratumEncoder,
 ) {
-    if let Some(values) = encoder.finish() {
+    if let Some((values, levels)) = encoder.finish() {
         strata.insert(name.to_owned(), values);
+        codebooks.insert(name.to_owned(), levels);
     }
 }
 

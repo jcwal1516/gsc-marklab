@@ -17,6 +17,9 @@ pub struct Pattern {
     pub qc_bin: Option<Box<[u16]>>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub categorical_strata: BTreeMap<String, Box<[u32]>>,
+    /// Ordered codebooks aligned to imported categorical-stratum codes when source labels exist.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub categorical_stratum_levels: BTreeMap<String, Box<[String]>>,
     pub local_dab_od: Option<Box<[f32]>>,
     pub local_hematoxylin_od: Option<Box<[f32]>>,
     #[serde(default)]
@@ -105,6 +108,7 @@ impl Pattern {
             component_id: None,
             qc_bin: None,
             categorical_strata: BTreeMap::new(),
+            categorical_stratum_levels: BTreeMap::new(),
             local_dab_od: None,
             local_hematoxylin_od: None,
             valid_tumor_fraction: None,

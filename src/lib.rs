@@ -12,6 +12,8 @@ static TEST_ALLOCATOR: dhat::Alloc = dhat::Alloc;
 mod algorithm_tests;
 mod api;
 mod binary_nucleus_area_contrast;
+mod categorical_neighborhood_mixing;
+mod categorical_neighborhood_mixing_workflow;
 mod categorical_pair;
 mod categorical_pair_workflow;
 mod cell_embedding_mark;
@@ -93,6 +95,12 @@ pub use binary_nucleus_area_contrast::{
     declared_binary_group_nucleus_area_contrast, DeclaredBinaryGroupNucleusAreaContrast,
     DeclaredBinaryGroupNucleusAreaContrastError, DeclaredBinaryGroupNucleusAreaContrastStatus,
 };
+pub use categorical_neighborhood_mixing::{
+    categorical_neighborhood_mixing, CategoricalNeighborhoodClassSummary,
+    CategoricalNeighborhoodMixingConfig, CategoricalNeighborhoodMixingError,
+    CategoricalNeighborhoodMixingLimits, CategoricalNeighborhoodMixingResult,
+};
+pub use categorical_neighborhood_mixing_workflow::CategoricalNeighborhoodMixingAnalysisNode;
 pub use categorical_pair::{
     categorical_mark_connection_cross_k, CategoricalPairComponentInference, CategoricalPairConfig,
     CategoricalPairError, CategoricalPairGeometrySummary, CategoricalPairInferenceSummary,

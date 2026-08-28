@@ -2442,6 +2442,40 @@ vascular transport.
   benchmark, fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or
   history rewrite ran.
 
+## Multiclass CellViT categorical mixing checkpoint 114 — 2026-08-28
+
+- `cargo +1.96.0 test --locked --package marklab --test
+  categorical_neighborhood_mixing_workflow
+  three_class_cellvit_codes_produce_the_exact_mixing_matrix` first failed on the absent production
+  function/node/config/result/error exports. The first direct implementation reached the oracle but
+  exposed a test-only exact-versus-algebraic one-ULP assertion; the corrected tolerance retained
+  production. The first durable run then failed decode because ordinary JSON shifted entropy by one
+  ULP; routing this node through the existing exact-f64 codec made all 4/4 final workflow cases pass.
+- `python3 tests/fixtures/categorical_neighborhood_mixing/generate_python_oracle.py | diff -u
+  tests/fixtures/categorical_neighborhood_mixing/python_oracle.json -` passes byte-for-byte. The
+  independent standard-library pair loop agrees on the complete 3x3 directed count matrix,
+  observed/random-label/excess fractions, cross-edge result, and per-class entropy.
+- `categorical_codebook_interchange` first failed on the absent
+  `Pattern::categorical_stratum_levels` field and now passes 1/1 across equivalent CSV and Parquet
+  string labels/codes. The new workflow additionally rejects a Pattern-codebook/MarkTable-
+  declaration mismatch. Seven Parquet unit boundaries, 11 scalar MarkTable cases, four legacy
+  categorical workflows, and three soft-simplex neighborhood cases pass.
+- A read-only mini audit found SHA-256
+  `86afdc0c343dc804258c57c1ecd99c7f9b544aa8363756c571570e6952e8858c` for the 2,000-row admitted
+  coordinate CSV and `9ba8102b98f5e4f42dc4c19d9fd341b0acb6d6ecf671997ce709187312c61fb4`
+  for its exact window. The explicitly ignored real-data test was run once with those local
+  temporary copies and passed 1/1: Connective 118, Dead 67, Inflammatory 365, Neoplastic 1,450.
+  The temporary copies were moved to Trash after the test. The CSV has no `cell_id`; its scalar
+  `mark_probability` is winning-class confidence rather than a full simplex, so durable hard-class
+  mixing and uncertainty-bearing soft mixing remain respectively blocked without fabrication.
+- The first targeted warning-denied Clippy run found four mechanical `manual_is_multiple_of` lints
+  and one local type-complexity lint. The corrected final-state targeted all-feature library/new-test
+  Clippy passes in 22.30s; package no-default compilation passes in 15.01s; strict all-feature
+  package docs pass in 12.67s; affected-file Rustfmt and `git diff --check` pass.
+- Workspace-wide gates were not repeated immediately after checkpoint 113. No full integration/
+  Nextest loop, feature matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push,
+  publication, deployment, or history rewrite ran.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

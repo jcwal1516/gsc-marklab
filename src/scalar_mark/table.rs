@@ -841,6 +841,20 @@ impl MarkTable {
             (Some(values), Some(pattern_values)) if *values == pattern_values => {}
             _ => return Err(DeclaredScalarInputError::CategoricalDeclarationMismatch),
         }
+        if let Some(levels) = pattern
+            .categorical_stratum_levels
+            .get("histologic_compartment")
+        {
+            let declared = self.columns.iter().find_map(|column| match &column.values {
+                ScalarMarkColumnValues::Categorical { declaration, .. } => {
+                    Some(declaration.levels())
+                }
+                _ => None,
+            });
+            if declared != Some(levels.as_ref()) {
+                return Err(DeclaredScalarInputError::CategoricalDeclarationMismatch);
+            }
+        }
         Ok(())
     }
 

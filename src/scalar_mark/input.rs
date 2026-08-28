@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use marklab_data::{
     CellId, CoordinateFrameId, CoordinateSpace, CoordinateUnit, HierarchyId, SlideId, SpatialAxis,
     SpatialDimension,
@@ -353,6 +355,24 @@ fn validate_pattern_columns(pattern: &Pattern) -> Result<(), DeclaredScalarInput
     }
     for values in pattern.categorical_strata.values() {
         require_column_len("categorical_strata", expected, values.len())?;
+    }
+    for (name, levels) in &pattern.categorical_stratum_levels {
+        let values = pattern
+            .categorical_strata
+            .get(name)
+            .ok_or(DeclaredScalarInputError::CategoricalDeclarationMismatch)?;
+        if levels.is_empty()
+            || levels.iter().collect::<HashSet<_>>().len() != levels.len()
+            || levels.iter().any(|level| {
+                level.is_empty()
+                    || level.len() > 256
+                    || level.trim() != level
+                    || level.chars().any(char::is_control)
+            })
+            || values.iter().any(|code| *code as usize >= levels.len())
+        {
+            return Err(DeclaredScalarInputError::CategoricalDeclarationMismatch);
+        }
     }
     Ok(())
 }

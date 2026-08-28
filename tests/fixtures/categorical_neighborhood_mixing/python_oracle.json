@@ -1,0 +1,105 @@
+{
+  "cell_counts": [
+    1,
+    2,
+    1
+  ],
+  "class_summaries": [
+    {
+      "neighbor_incidences": [
+        0,
+        1,
+        0
+      ],
+      "neighbor_label_entropy_nats": 0.0,
+      "neighbor_probabilities": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "normalized_neighbor_label_entropy": 0.0,
+      "zero_neighbor_cell_count": 0
+    },
+    {
+      "neighbor_incidences": [
+        1,
+        2,
+        1
+      ],
+      "neighbor_label_entropy_nats": 1.0397207708399179,
+      "neighbor_probabilities": [
+        0.25,
+        0.5,
+        0.25
+      ],
+      "normalized_neighbor_label_entropy": 0.946394630357186,
+      "zero_neighbor_cell_count": 0
+    },
+    {
+      "neighbor_incidences": [
+        0,
+        1,
+        0
+      ],
+      "neighbor_label_entropy_nats": 0.0,
+      "neighbor_probabilities": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "normalized_neighbor_label_entropy": 0.0,
+      "zero_neighbor_cell_count": 0
+    }
+  ],
+  "cross_class_edge_count": 2,
+  "cross_class_edge_fraction": 0.6666666666666666,
+  "cross_edge_fraction_minus_expectation": -0.16666666666666674,
+  "directed_pair_counts": [
+    0,
+    1,
+    0,
+    1,
+    2,
+    1,
+    0,
+    1,
+    0
+  ],
+  "directed_pair_visits": 6,
+  "observed_pair_fractions": [
+    0.0,
+    0.16666666666666666,
+    0.0,
+    0.16666666666666666,
+    0.3333333333333333,
+    0.16666666666666666,
+    0.0,
+    0.16666666666666666,
+    0.0
+  ],
+  "pair_fraction_excess": [
+    0.0,
+    0.0,
+    -0.08333333333333333,
+    0.0,
+    0.16666666666666666,
+    0.0,
+    -0.08333333333333333,
+    0.0,
+    0.0
+  ],
+  "random_label_cross_edge_expectation": 0.8333333333333334,
+  "random_label_pair_expectations": [
+    0.0,
+    0.16666666666666666,
+    0.08333333333333333,
+    0.16666666666666666,
+    0.16666666666666666,
+    0.16666666666666666,
+    0.08333333333333333,
+    0.16666666666666666,
+    0.0
+  ],
+  "undirected_edge_count": 3,
+  "zero_neighbor_cell_count": 0
+}

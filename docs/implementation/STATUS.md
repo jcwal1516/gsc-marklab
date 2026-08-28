@@ -1964,3 +1964,30 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   instruction prohibit retrying the macOS binary-verification loop. No feature matrix, benchmark,
   fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or history rewrite
   ran. The next production outcome remains multiclass CellViT geometry/marks with typed interchange.
+
+## Multiclass CellViT categorical mixing checkpoint 114 — 2026-08-28
+
+- Added `categorical_neighborhood_mixing` and a cache-addressed durable analysis node for a typed
+  categorical MarkTable column with at least three declared classes. One exact physical-radius
+  graph yields the complete directed class-by-class incidence matrix, observed fractions,
+  fixed-count without-replacement random-label expectations/excesses, cross-class edge summary,
+  zero-neighbor count, and per-source-class neighbor probabilities/entropy. Cells and edges remain
+  descriptive structural units, never patient replicates.
+- Exact class/row/status/provenance/frame/window/radius identity, graph/configuration digests,
+  symmetric adjacency, finite fractions, and point/class/pair/retained-byte ceilings are enforced.
+  The first durable test exposed a one-ULP ordinary-JSON entropy replay; the existing exact-f64 codec
+  now preserves bit-identical miss/hit results without recomputation or tolerance relaxation.
+- CSV and Parquet Pattern ingestion now retain the ordered categorical codebook alongside row codes
+  under one backwards-compatible defaulted field. MarkTable binding rejects a codebook/declaration
+  mismatch. The independent standard-library Python pair-loop oracle matches the 3x3 matrix,
+  observed/null/excess fractions, cross-edge summary, and class entropies; its fixture regenerates
+  byte-for-byte. New workflow tests pass 4/4, typed interchange 1/1, scalar MarkTable 11/11, legacy
+  categorical 4/4, soft-simplex neighborhood 3/3, and Parquet boundaries 7/7.
+- A read-only real-data check rehashed the admitted Mac-mini artifact at
+  `/Volumes/1TB/marklab/runs/results-cellvit-2day-01/inputs/coordinate_scalar_cells.csv` as
+  `86afdc0c343dc804258c57c1ecd99c7f9b544aa8363756c571570e6952e8858c` and its exact window as
+  `9ba8102b98f5e4f42dc4c19d9fd341b0acb6d6ecf671997ce709187312c61fb4`. Production interchange
+  retains 2,000 rows and exact counts: Connective 118, Dead 67, Inflammatory 365, Neoplastic 1,450.
+  Durable real mixing remains unavailable because that derived CSV has zero stable `cell_id` rows;
+  uncertainty-bearing real mixing remains unavailable because it has only winning-class confidence,
+  not a complete class-probability simplex. No identities or probabilities were fabricated.

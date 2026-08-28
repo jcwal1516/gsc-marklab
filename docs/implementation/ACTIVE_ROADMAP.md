@@ -999,3 +999,14 @@ The checkpoint-109–112 family passes workspace formatting, warning-denied all-
 Clippy, no-default compilation, all-feature doctests, and strict docs. The prohibited full
 integration/Nextest loader loop was not retried. Production now advances to the smallest admitted
 multiclass CellViT geometry/mark caller and its typed interchange boundary.
+
+## Checkpoint 114 multiclass CellViT categorical-mixing continuation
+
+The existing row-bound categorical MarkTable now drives a complete physical-radius multiclass
+mixing matrix with fixed-count random-label expectations, per-class entropy, bounded durable replay,
+and exact CSV/Parquet codebook retention. Real four-class CellViT interchange passes on 2,000
+admitted rows; full durable real execution is blocked only by the derived adapter's missing stable
+cell IDs. The existing probability-simplex neighborhood path remains the uncertainty-bearing owner;
+the admitted CellViT export contains only winning-class confidence, so no full simplex is inferred.
+The next production outcome is the remaining concrete multiclass geometry or source-import identity
+connection, not another mark abstraction.
