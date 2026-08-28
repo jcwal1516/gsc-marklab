@@ -1910,3 +1910,24 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   adjusted multisite reference passes 2/2, its CLI 1/1, and legacy multisite CLI 2/2. The first
   warning-denied Clippy run found one range-loop warning; the corrected final-state package/CLI
   Clippy, no-default, strict docs, formatting, and whitespace checks pass.
+
+## Covariate-adjusted whole-cluster inference checkpoint 111 — 2026-08-28
+
+- Added `marklab cohort cluster-covariate-permutation` and a typed library workflow that first
+  reduces every exact cluster to equal-weight patient outcome and nuisance-column means. The
+  reduced intercept-plus-1–32-column model is fixed at the cluster level; complete cluster
+  residuals move through a private deterministic namespace; the full model tests one adjusted
+  cluster-level group-A-minus-group-B coefficient.
+- The result records the cluster analysis level, conditional residual null, complete-cluster
+  residual unit, patient/cluster/group counts, exact names/transforms/model dimensions, residual
+  degrees of freedom, alternative, seed, and exact replicate accounting. Duplicate patients,
+  mixed-group clusters, incomplete/non-finite/constant/collinear matrices, insufficient independent
+  clusters, undefined statistics, and work above 100 million OLS units fail.
+- An independent modified-Gram-Schmidt/FWL oracle matches coefficient, standard error, statistic,
+  and exact residual-permutation p-value over hand-computed unequal-size cluster summaries.
+  Reversed patient rows and extreme per-column rescaling preserve inference. New references pass
+  2/2, the CLI passes 1/1, legacy cluster and nuisance-matrix references pass 3/3, and their CLIs
+  pass 2/2. Warning-denied affected package/root Clippy, package no-default compilation, strict
+  package docs, affected formatting, and whitespace checks pass. Real effect validation remains
+  unavailable because no admitted user-authorized CRC dataset declares randomized treatment groups
+  at the cluster assignment unit.

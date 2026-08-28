@@ -975,3 +975,11 @@ The existing fixed/REML multisite engine now consumes adjusted within-site patie
 standard errors from the same exact nuisance matrix, with canonical site/patient order and retained
 transforms. COH-01/FND-06 remain active for covariate-adjusted cluster randomization, hierarchical/
 local multiplicity, calibration, and real multisite validation; adjusted site pooling is complete.
+
+## Checkpoint 111 covariate-adjusted whole-cluster continuation
+
+Unequal patient counts now reduce to equal-weight cluster outcome and nuisance summaries before one
+fixed reduced/full OLS design permutes complete cluster residuals. COH-01/FND-06 no longer lack an
+adjusted whole-cluster executable; they remain active for hierarchical/local multiplicity,
+calibration, and real validation. The next dependency-ordered production outcome is one concrete
+hierarchical endpoint-family multiplicity workflow, not a generic testing registry.

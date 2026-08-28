@@ -2378,6 +2378,31 @@ vascular transport.
   no-default compilation, strict package docs, affected-file Rustfmt, and `git diff --check` pass.
   Broad checkpoint-108 gates were not repeated.
 
+## Covariate-adjusted whole-cluster inference checkpoint 111 — 2026-08-28
+
+- `cargo +1.96.0 test --locked --features cli --test cohort_cluster_covariate_cli
+  cluster_covariate_cli_adjusts_equal_weight_cluster_summaries` first failed with the expected
+  unrecognized `cluster-covariate-permutation` subcommand, then passed 1/1 after production wiring.
+- `cargo +1.96.0 test --locked --package marklab-cohort --test cluster_covariate_reference`
+  passes 2/2. Its independent modified-Gram-Schmidt QR/FWL implementation matches the adjusted
+  coefficient, standard error, statistic, and every deterministic complete-cluster residual shuffle;
+  it also checks exact row-order invariance, extreme column rescaling, duplicate patients,
+  mixed-group clusters, incomplete/collinear matrices, and insufficient independent clusters.
+- The affected reference command over `cluster_covariate_reference`, `cluster_permutation_reference`,
+  and `covariate_matrix_reference` passes 5/5. The affected CLI command over
+  `cohort_cluster_covariate_cli`, `cohort_cluster_permutation_cli`, and
+  `cohort_covariate_matrix_permutation_cli` passes 3/3.
+- `cargo +1.96.0 clippy --locked --package marklab-cohort --all-targets --all-features -- -D
+  warnings` passes in 1m23s. `cargo +1.96.0 clippy --locked --package marklab --all-targets
+  --features cli -- -D warnings` passes in 24m02s on the documented slow macOS verification path.
+  `cargo +1.96.0 check --locked --package marklab-cohort --no-default-features` passes in 8.39s;
+  strict warning-denied package docs pass in 10.55s; affected-file Rustfmt and `git diff --check`
+  pass.
+- No admitted CRC artifact declares randomized treatment assignment at a cluster unit, so no real
+  cluster treatment effect is fabricated. Workspace integration/Nextest, workspace-wide gates,
+  feature matrices, benchmarks, fuzzing, memory tools, packaging, dependency audits, push,
+  publication, deployment, and history rewriting were not run.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

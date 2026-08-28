@@ -28,6 +28,8 @@ use thiserror::Error;
 
 #[path = "cohort/cluster.rs"]
 mod cluster;
+#[path = "cohort/cluster_covariate.rs"]
+mod cluster_covariate;
 #[path = "cohort/covariate.rs"]
 mod covariate;
 #[path = "cohort/covariate_matrix.rs"]
@@ -156,6 +158,22 @@ enum CohortCommand {
         out: PathBuf,
     },
     ClusterPermutation {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        group_a: String,
+        #[arg(long)]
+        group_b: String,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long, value_enum)]
+        alternative: CliAlternative,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    ClusterCovariatePermutation {
         #[arg(long)]
         input: PathBuf,
         #[arg(long)]
@@ -914,6 +932,26 @@ pub(super) fn run_cli() -> Result<(), CohortError> {
             alternative,
             out,
         ),
+        CohortTopLevel::Cohort {
+            command:
+                CohortCommand::ClusterCovariatePermutation {
+                    input,
+                    group_a,
+                    group_b,
+                    permutations,
+                    seed,
+                    alternative,
+                    out,
+                },
+        } => cluster_covariate::run(cluster_covariate::RunArgs {
+            input,
+            group_a,
+            group_b,
+            permutations,
+            seed,
+            alternative,
+            out,
+        }),
         CohortTopLevel::Cohort {
             command:
                 CohortCommand::RepeatedFreedmanLane {

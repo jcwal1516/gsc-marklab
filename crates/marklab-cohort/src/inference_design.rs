@@ -76,6 +76,8 @@ pub enum InferenceNullFamily {
     HierarchicalBootstrap,
     /// Whole cluster group labels move under cluster-level independence.
     ClusterLabelPermutation,
+    /// Reduced-model residuals move as whole cluster values conditional on fixed covariates.
+    ClusterCovariateResidualPermutation,
     /// Complete reduced-model residual vectors receive independent subject-level signs.
     SubjectResidualSignSymmetry,
     /// Reduced-model residuals move as whole patient values conditional on fixed covariates.
@@ -97,6 +99,8 @@ pub enum InferencePermutationUnit {
     PatientThenNestedSpecimen,
     /// One complete cluster endpoint summary.
     CompleteClusterEndpoint,
+    /// One complete scalar reduced-model residual belonging to one cluster.
+    CompleteClusterResidual,
     /// One complete subject residual vector across every retained visit.
     CompleteSubjectResidualVector,
     /// One complete scalar reduced-model residual belonging to one patient.
@@ -422,6 +426,26 @@ impl InferenceDesign {
             InferenceAnalysisLevel::Cluster,
             InferenceNullFamily::ClusterLabelPermutation,
             InferencePermutationUnit::CompleteClusterEndpoint,
+            vec![(0..cluster_count).collect()],
+            cluster_count,
+            permutations,
+            seed,
+            seed_namespace,
+            alternative,
+        )
+    }
+
+    pub(crate) fn cluster_covariate_residual_permutation(
+        cluster_count: usize,
+        permutations: usize,
+        seed: u64,
+        seed_namespace: u64,
+        alternative: InferenceAlternative,
+    ) -> Result<Self, InferenceDesignError> {
+        Self::build(
+            InferenceAnalysisLevel::Cluster,
+            InferenceNullFamily::ClusterCovariateResidualPermutation,
+            InferencePermutationUnit::CompleteClusterResidual,
             vec![(0..cluster_count).collect()],
             cluster_count,
             permutations,
