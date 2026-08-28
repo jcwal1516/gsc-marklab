@@ -205,6 +205,22 @@ impl InferenceDesign {
         seed: u64,
         seed_namespace: u64,
     ) -> Result<Self, InferenceDesignError> {
+        Self::population_independence_with_alternative(
+            unit_count,
+            permutations,
+            seed,
+            seed_namespace,
+            InferenceAlternative::Greater,
+        )
+    }
+
+    pub(crate) fn population_independence_with_alternative(
+        unit_count: usize,
+        permutations: usize,
+        seed: u64,
+        seed_namespace: u64,
+        alternative: InferenceAlternative,
+    ) -> Result<Self, InferenceDesignError> {
         Self::build(
             InferenceAnalysisLevel::Patient,
             InferenceNullFamily::PopulationIndependence,
@@ -214,7 +230,7 @@ impl InferenceDesign {
             permutations,
             seed,
             seed_namespace,
-            InferenceAlternative::Greater,
+            alternative,
         )
     }
 
@@ -223,6 +239,7 @@ impl InferenceDesign {
         permutations: usize,
         seed: u64,
         seed_namespace: u64,
+        alternative: InferenceAlternative,
     ) -> Result<Self, InferenceDesignError> {
         let mut by_block = BTreeMap::<&str, Vec<usize>>::new();
         for (index, block) in blocks.iter().enumerate() {
@@ -240,7 +257,7 @@ impl InferenceDesign {
             permutations,
             seed,
             seed_namespace,
-            InferenceAlternative::Greater,
+            alternative,
         )
     }
 
@@ -603,6 +620,7 @@ pub(crate) fn compile_blocked_population_independence(
     permutations: usize,
     seed: u64,
     seed_namespace: u64,
+    alternative: InferenceAlternative,
 ) -> Result<InferenceDesign, CohortInferenceError> {
     if patient_ids.len() != observed_labels.len() || assignments.len() != patient_ids.len() {
         return Err(CohortInferenceError::InvalidInput(
@@ -643,6 +661,7 @@ pub(crate) fn compile_blocked_population_independence(
         permutations,
         seed,
         seed_namespace,
+        alternative,
     )
     .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
     if !design.blocks().iter().any(|indices| {

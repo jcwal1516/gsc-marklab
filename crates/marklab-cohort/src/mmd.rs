@@ -147,6 +147,7 @@ pub fn patient_level_blocked_mmd(
         spec.permutations,
         spec.seed,
         MMD_NAMESPACE,
+        crate::InferenceAlternative::Greater,
     )?;
     let result = execute_mmd(fingerprints, spec, &design)?;
     Ok(BlockedMmdPermutationResult { result, design })

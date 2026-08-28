@@ -1796,3 +1796,14 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   remain unchanged. The deterministic CLI and all causal library tests pass.
 - This closes the concrete FND-06 interference design-summary gap without adding a cross-crate
   abstraction or claiming observational interference identification.
+
+## Blocked single-step Max-T checkpoint 103 — 2026-08-28
+
+- Single-step Max-T now accepts exact patient-ID-keyed exchangeability blocks while keeping each
+  patient's complete endpoint vector atomic. The typed design records population independence,
+  two-sided alternative, exact block count, endpoint family, alpha, and the unchanged method seed.
+- Independent slow blocked and unblocked references match every adjusted p-value and critical value.
+  The CLI accepts an optional trailing `block` column and emits blocked design fields only for that
+  path, preserving legacy unblocked JSON shape.
+- This advances FND-06/COH-01/CMP-01B/WS-31/WS-34 without endpoint selection, inferred blocks,
+  covariate residualization, step-down testing, or a generic multiplicity registry.

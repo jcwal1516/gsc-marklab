@@ -2270,6 +2270,17 @@ vascular transport.
   affected CLI test; package no-default compilation, doctests, affected-file Rustfmt, and diff
   whitespace pass. Broad checkpoint-101 gates were not repeated.
 
+## Blocked single-step Max-T checkpoint 103 — 2026-08-28
+
+- The exact blocked CLI test first failed on the legacy four-column-only CSV boundary and now passes;
+  the complete Max-T CLI suite passes 2/2 with legacy JSON compatibility and exact block evidence.
+- Both Max-T independent slow references pass with exact adjusted p-values/critical values and the
+  blocked design reports two-sided population independence. Seven affected MMD/energy/functional
+  reference tests pass after the shared compiler gained an explicit alternative.
+- Warning-denied Clippy passes for all cohort targets and the affected CLI test. Package no-default
+  compilation, doctests, affected-file Rustfmt, and diff whitespace pass; broad checkpoint-101 gates
+  were not repeated.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

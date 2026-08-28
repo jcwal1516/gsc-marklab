@@ -137,6 +137,7 @@ pub fn functional_two_sample_blocked_permutation(
         spec.permutations,
         spec.seed,
         FUNCTIONAL_PERMUTATION_NAMESPACE,
+        crate::InferenceAlternative::Greater,
     )?;
     let result = execute_functional(curves, spec, &design)?;
     Ok(BlockedFunctionalPermutationResult { result, design })

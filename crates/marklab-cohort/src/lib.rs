@@ -63,8 +63,8 @@ pub use hierarchical_bootstrap::{
     HierarchicalBootstrapSpec, HierarchicalScalarRecord,
 };
 pub use max_t::{
-    max_t_multiple_endpoint_permutation, MaxTEndpointResult, MaxTPermutationResult,
-    MaxTPermutationSpec, PatientEndpointVector,
+    max_t_multiple_endpoint_blocked_permutation, max_t_multiple_endpoint_permutation,
+    MaxTEndpointResult, MaxTPermutationResult, MaxTPermutationSpec, PatientEndpointVector,
 };
 pub use mmd::{
     patient_level_blocked_mmd, patient_level_mmd, BlockedMmdPermutationResult, Fingerprint,
@@ -382,6 +382,7 @@ fn splitmix64(mut value: u64) -> u64 {
     mixed ^ (mixed >> 31)
 }
 
+#[cfg(test)]
 fn shuffled_labels(labels: &[bool], seed: u64) -> Vec<bool> {
     let mut shuffled = labels.to_vec();
     let mut state = seed;

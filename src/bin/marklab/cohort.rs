@@ -7,16 +7,17 @@ use std::{
 use clap::{Parser, Subcommand, ValueEnum};
 use marklab_cohort::{
     functional_two_sample_blocked_permutation, functional_two_sample_permutation,
-    max_t_multiple_endpoint_permutation, paired_patient_permutation_test,
-    patient_level_blocked_energy_distance, patient_level_blocked_mmd,
-    patient_level_energy_distance, patient_level_mmd, patient_level_permutation_test,
-    BlockedEnergyDistanceResult, BlockedFunctionalPermutationResult, BlockedMmdPermutationResult,
-    CohortInferenceError, EnergyDistanceResult, EnergyDistanceSpec, EnergyMetric, Fingerprint,
-    FunctionalCurve, FunctionalPermutationResult, FunctionalPermutationSpec,
-    FunctionalTestStatistic, InferenceNullFamily, InferencePermutationUnit, MaxTPermutationResult,
-    MaxTPermutationSpec, MmdEstimator, MmdKernel, MmdPermutationResult, MmdPermutationSpec,
-    PairedPatientEndpoint, PairedPatientPermutationResult, PairedPatientPermutationSpec,
-    PatientEndpoint, PatientEndpointVector, PatientExchangeabilityBlock, PatientPermutationResult,
+    max_t_multiple_endpoint_blocked_permutation, max_t_multiple_endpoint_permutation,
+    paired_patient_permutation_test, patient_level_blocked_energy_distance,
+    patient_level_blocked_mmd, patient_level_energy_distance, patient_level_mmd,
+    patient_level_permutation_test, BlockedEnergyDistanceResult,
+    BlockedFunctionalPermutationResult, BlockedMmdPermutationResult, CohortInferenceError,
+    EnergyDistanceResult, EnergyDistanceSpec, EnergyMetric, Fingerprint, FunctionalCurve,
+    FunctionalPermutationResult, FunctionalPermutationSpec, FunctionalTestStatistic,
+    InferenceNullFamily, InferencePermutationUnit, MaxTPermutationResult, MaxTPermutationSpec,
+    MmdEstimator, MmdKernel, MmdPermutationResult, MmdPermutationSpec, PairedPatientEndpoint,
+    PairedPatientPermutationResult, PairedPatientPermutationSpec, PatientEndpoint,
+    PatientEndpointVector, PatientExchangeabilityBlock, PatientPermutationResult,
     PatientPermutationSpec, PermutationAlternative,
 };
 use serde::{Deserialize, Serialize};
@@ -467,18 +468,29 @@ pub(super) fn run_cli() -> Result<(), CohortError> {
                     out,
                 },
         } => {
-            let patients = read_max_t_patients(&input)?;
-            let result = max_t_multiple_endpoint_permutation(
-                &patients,
-                &MaxTPermutationSpec {
-                    group_a,
-                    group_b,
-                    permutations,
-                    seed,
-                    alpha,
-                },
-            )?;
-            publish_json(&out, &MaxTOutput::from_result(input, result))
+            let max_t_input = read_max_t_patients(&input)?;
+            let spec = MaxTPermutationSpec {
+                group_a,
+                group_b,
+                permutations,
+                seed,
+                alpha,
+            };
+            let (result, blocked) = match max_t_input.blocks {
+                Some(blocks) => (
+                    max_t_multiple_endpoint_blocked_permutation(
+                        &max_t_input.patients,
+                        &blocks,
+                        &spec,
+                    )?,
+                    true,
+                ),
+                None => (
+                    max_t_multiple_endpoint_permutation(&max_t_input.patients, &spec)?,
+                    false,
+                ),
+            };
+            publish_json(&out, &MaxTOutput::from_result(input, result, blocked))
         }
         CohortTopLevel::Cohort {
             command:
@@ -812,6 +824,13 @@ struct MaxTCsvRecord {
     group: String,
     endpoint: String,
     value: f64,
+    #[serde(default)]
+    block: Option<String>,
+}
+
+struct MaxTInput {
+    patients: Vec<PatientEndpointVector>,
+    blocks: Option<Vec<PatientExchangeabilityBlock>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -980,7 +999,7 @@ fn read_functional_curves(path: &Path) -> Result<FunctionalInput, CohortError> {
     Ok(FunctionalInput { curves, blocks })
 }
 
-fn read_max_t_patients(path: &Path) -> Result<Vec<PatientEndpointVector>, CohortError> {
+fn read_max_t_patients(path: &Path) -> Result<MaxTInput, CohortError> {
     validate_input_file(path)?;
     let mut reader = csv::ReaderBuilder::new()
         .flexible(false)
@@ -990,42 +1009,66 @@ fn read_max_t_patients(path: &Path) -> Result<Vec<PatientEndpointVector>, Cohort
         .headers()
         .map_err(|error| CohortError::Input(error.to_string()))?
         .clone();
-    if !headers
+    let blocked = headers
         .iter()
-        .eq(["patient_id", "group", "endpoint", "value"])
+        .eq(["patient_id", "group", "endpoint", "value", "block"]);
+    if !blocked
+        && !headers
+            .iter()
+            .eq(["patient_id", "group", "endpoint", "value"])
     {
         return Err(CohortError::Input(
-            "CSV header must be exactly patient_id,group,endpoint,value".into(),
+            "CSV header must be exactly patient_id,group,endpoint,value or patient_id,group,endpoint,value,block".into(),
         ));
     }
-    let mut grouped = BTreeMap::<String, (String, BTreeMap<String, f64>)>::new();
+    let mut grouped = BTreeMap::<String, (String, Option<String>, BTreeMap<String, f64>)>::new();
     for decoded in reader.deserialize::<MaxTCsvRecord>() {
         let row = decoded.map_err(|error| CohortError::Input(error.to_string()))?;
+        if blocked && row.block.is_none() {
+            return Err(CohortError::Input(format!(
+                "patient {} is missing its Max-T block",
+                row.patient_id
+            )));
+        }
         let entry = grouped
             .entry(row.patient_id.clone())
-            .or_insert_with(|| (row.group.clone(), BTreeMap::new()));
+            .or_insert_with(|| (row.group.clone(), row.block.clone(), BTreeMap::new()));
         if entry.0 != row.group {
             return Err(CohortError::Input(format!(
                 "patient {} has conflicting group labels",
                 row.patient_id
             )));
         }
-        if entry.1.insert(row.endpoint.clone(), row.value).is_some() {
+        if entry.1 != row.block {
+            return Err(CohortError::Input(format!(
+                "patient {} has conflicting Max-T blocks",
+                row.patient_id
+            )));
+        }
+        if entry.2.insert(row.endpoint.clone(), row.value).is_some() {
             return Err(CohortError::Input(format!(
                 "patient {} has duplicate endpoint {:?}",
                 row.patient_id, row.endpoint
             )));
         }
     }
-    Ok(grouped
-        .into_iter()
-        .map(|(patient_id, (group, endpoints))| PatientEndpointVector {
+    let mut patients = Vec::with_capacity(grouped.len());
+    let mut blocks = blocked.then(|| Vec::with_capacity(grouped.len()));
+    for (patient_id, (group, block, endpoints)) in grouped {
+        if let Some(assignments) = &mut blocks {
+            assignments.push(
+                PatientExchangeabilityBlock::new(patient_id.clone(), block.unwrap_or_default())
+                    .map_err(|error| CohortError::Input(error.to_string()))?,
+            );
+        }
+        patients.push(PatientEndpointVector {
             patient_id,
             group,
             values: endpoints.values().copied().collect(),
             endpoints: endpoints.into_keys().collect(),
-        })
-        .collect::<Vec<_>>())
+        });
+    }
+    Ok(MaxTInput { patients, blocks })
 }
 
 fn read_fingerprints(path: &Path) -> Result<FingerprintInput, CohortError> {
@@ -1410,7 +1453,7 @@ struct MaxTOutput {
 }
 
 impl MaxTOutput {
-    fn from_result(input: PathBuf, result: MaxTPermutationResult) -> Self {
+    fn from_result(input: PathBuf, result: MaxTPermutationResult, blocked: bool) -> Self {
         Self {
             format: "marklab.cohort_max_t",
             version: 1,
@@ -1418,6 +1461,9 @@ impl MaxTOutput {
             design: MaxTDesignSummary {
                 randomization_unit: "patient",
                 correction: "single_step_max_t",
+                blocked: blocked.then_some(true),
+                null_family: blocked.then_some("population_independence"),
+                block_count: blocked.then_some(result.inference_design.block_count()),
             },
             groups: FunctionalGroupSummary {
                 group_a_patients: result.group_a_count,
@@ -1449,6 +1495,12 @@ impl MaxTOutput {
 struct MaxTDesignSummary {
     randomization_unit: &'static str,
     correction: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    blocked: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    null_family: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    block_count: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]

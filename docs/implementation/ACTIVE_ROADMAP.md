@@ -916,3 +916,10 @@ The existing exact randomized-interference workflow now exposes its clustered an
 fixed-outcome interference null, complete cluster-assignment unit, and exact counts. FND-06 remains
 active for broader multiplicity/calibration and method-bound pattern null consolidation, not for a
 missing executable interference design.
+
+## Checkpoint 103 blocked single-step Max-T continuation
+
+The existing complete-endpoint family-wise test now moves whole patient labels only within exact
+declared blocks and retains its two-sided maximum-statistic reference stream. FND-06 remains active
+for broader multiplicity/calibration beyond the current single-step family; the immediate blocked
+Max-T caller is complete.

@@ -119,6 +119,7 @@ pub fn patient_level_blocked_energy_distance(
         spec.permutations,
         spec.seed,
         ENERGY_NAMESPACE,
+        crate::InferenceAlternative::Greater,
     )?;
     let result = execute_energy(fingerprints, spec, &design)?;
     Ok(BlockedEnergyDistanceResult { result, design })

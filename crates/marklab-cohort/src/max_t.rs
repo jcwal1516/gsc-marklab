@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 
 use super::{
-    derive_seed_in_namespace, shuffled_labels, welch_contrast, CohortInferenceError,
+    inference_design::compile_blocked_population_independence, welch_contrast,
+    CohortInferenceError, InferenceAlternative, InferenceDesign, PatientExchangeabilityBlock,
     MAXIMUM_PATIENTS, MAXIMUM_PERMUTATIONS,
 };
 
@@ -52,6 +53,8 @@ pub struct MaxTEndpointResult {
 /// Patient-level single-step Max-T family result.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MaxTPermutationResult {
+    /// Exact whole-patient multiplicity design.
+    pub inference_design: InferenceDesign,
     /// Group A patient count.
     pub group_a_count: usize,
     /// Group B patient count.
@@ -77,6 +80,49 @@ pub fn max_t_multiple_endpoint_permutation(
     patients: &[PatientEndpointVector],
     spec: &MaxTPermutationSpec,
 ) -> Result<MaxTPermutationResult, CohortInferenceError> {
+    validate_max_t_inputs(patients, spec)?;
+    let design = InferenceDesign::population_independence_with_alternative(
+        patients.len(),
+        spec.permutations,
+        spec.seed,
+        MAX_T_NAMESPACE,
+        InferenceAlternative::TwoSided,
+    )
+    .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
+    execute_max_t(patients, spec, design)
+}
+
+/// Jointly test an endpoint family while moving patient labels only within exact blocks.
+pub fn max_t_multiple_endpoint_blocked_permutation(
+    patients: &[PatientEndpointVector],
+    assignments: &[PatientExchangeabilityBlock],
+    spec: &MaxTPermutationSpec,
+) -> Result<MaxTPermutationResult, CohortInferenceError> {
+    validate_max_t_inputs(patients, spec)?;
+    let observed_labels = patients
+        .iter()
+        .map(|patient| patient.group == spec.group_a)
+        .collect::<Vec<_>>();
+    let patient_ids = patients
+        .iter()
+        .map(|patient| patient.patient_id.clone())
+        .collect::<Vec<_>>();
+    let design = compile_blocked_population_independence(
+        &patient_ids,
+        &observed_labels,
+        assignments,
+        spec.permutations,
+        spec.seed,
+        MAX_T_NAMESPACE,
+        InferenceAlternative::TwoSided,
+    )?;
+    execute_max_t(patients, spec, design)
+}
+
+fn validate_max_t_inputs(
+    patients: &[PatientEndpointVector],
+    spec: &MaxTPermutationSpec,
+) -> Result<(), CohortInferenceError> {
     validate_spec(spec)?;
     validate_patients(patients, spec)?;
     let endpoint_count = patients[0].endpoints.len();
@@ -88,7 +134,14 @@ pub fn max_t_multiple_endpoint_permutation(
     if work > MAXIMUM_MAX_T_EVALUATIONS {
         return Err(work_limit_error());
     }
+    Ok(())
+}
 
+fn execute_max_t(
+    patients: &[PatientEndpointVector],
+    spec: &MaxTPermutationSpec,
+    design: InferenceDesign,
+) -> Result<MaxTPermutationResult, CohortInferenceError> {
     let observed_labels = patients
         .iter()
         .map(|patient| patient.group == spec.group_a)
@@ -96,10 +149,12 @@ pub fn max_t_multiple_endpoint_permutation(
     let observed = endpoint_contrasts(patients, &observed_labels)?;
     let mut null_maxima = Vec::with_capacity(spec.permutations);
     for replicate in 0..spec.permutations {
-        let labels = shuffled_labels(
-            &observed_labels,
-            derive_seed_in_namespace(spec.seed, MAX_T_NAMESPACE, replicate),
-        );
+        let labels = design
+            .permuted_indices(replicate)
+            .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?
+            .iter()
+            .map(|source| observed_labels[*source])
+            .collect::<Vec<_>>();
         let contrasts = endpoint_contrasts(patients, &labels)?;
         let maximum = contrasts
             .iter()
@@ -135,6 +190,7 @@ pub fn max_t_multiple_endpoint_permutation(
         .collect();
 
     Ok(MaxTPermutationResult {
+        inference_design: design,
         group_a_count: observed[0].group_a_count,
         group_b_count: observed[0].group_b_count,
         endpoints,
