@@ -64,6 +64,12 @@ mod beta_binomial_group_regression_agreement;
 mod beta_binomial_group_regression_sbc;
 #[path = "bayes/beta_binomial_group_regression_sensitivity.rs"]
 mod beta_binomial_group_regression_sensitivity;
+#[path = "bayes/dirichlet_multinomial_group.rs"]
+mod dirichlet_multinomial_group;
+pub(super) use dirichlet_multinomial_group::{
+    execute as execute_dirichlet_multinomial_group, prepare as prepare_dirichlet_multinomial_group,
+    PreparedDirichletMultinomialGroup,
+};
 #[path = "bayes/beta_binomial_hierarchy_agreement.rs"]
 mod beta_binomial_hierarchy_agreement;
 #[path = "bayes/beta_binomial_hierarchy_sbc.rs"]
@@ -455,6 +461,56 @@ enum BetaBinomialGroupGenderSlideHierarchySbcTopLevel {
 #[derive(Debug, Subcommand)]
 enum BetaBinomialGroupGenderSlideHierarchySbcCommand {
     BetaBinomialGroupGenderSlideHierarchySbc(Box<BetaBinomialGroupGenderSlideHierarchySbcArgs>),
+}
+
+#[derive(Debug, Args)]
+struct DirichletMultinomialGroupArgs {
+    #[arg(long)]
+    input: PathBuf,
+    #[arg(long)]
+    reference_group: String,
+    #[arg(long)]
+    comparison_group: String,
+    #[arg(long)]
+    logit_prior_sd: f64,
+    #[arg(long)]
+    group_effect_prior_sd: f64,
+    #[arg(long)]
+    concentration_prior_sd: f64,
+    #[arg(long)]
+    chains: u32,
+    #[arg(long)]
+    tune: u32,
+    #[arg(long)]
+    draws: u32,
+    #[arg(long)]
+    target_accept: f64,
+    #[arg(long)]
+    seed: u64,
+    #[arg(long)]
+    timeout_seconds: u64,
+    #[arg(long)]
+    out: PathBuf,
+}
+
+#[derive(Debug, Parser)]
+#[command(name = "marklab")]
+struct DirichletMultinomialGroupCli {
+    #[command(subcommand)]
+    command: DirichletMultinomialGroupTopLevel,
+}
+
+#[derive(Debug, Subcommand)]
+enum DirichletMultinomialGroupTopLevel {
+    Bayes {
+        #[command(subcommand)]
+        command: DirichletMultinomialGroupCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum DirichletMultinomialGroupCommand {
+    DirichletMultinomialGroup(Box<DirichletMultinomialGroupArgs>),
 }
 
 #[derive(Debug, Subcommand)]
@@ -3301,6 +3357,44 @@ pub(super) fn run_beta_binomial_group_gender_slide_hierarchy_sbc_cli() -> Result
         minimum_rank_uniformity_p_value,
         minimum_coverage_90,
         maximum_coverage_90,
+        timeout_seconds,
+        out,
+    )
+}
+
+pub(super) fn run_dirichlet_multinomial_group_cli() -> Result<(), BayesCliError> {
+    let DirichletMultinomialGroupTopLevel::Bayes { command } =
+        DirichletMultinomialGroupCli::parse_from(std::env::args_os()).command;
+    let DirichletMultinomialGroupCommand::DirichletMultinomialGroup(arguments) = command;
+    let DirichletMultinomialGroupArgs {
+        input,
+        reference_group,
+        comparison_group,
+        logit_prior_sd,
+        group_effect_prior_sd,
+        concentration_prior_sd,
+        chains,
+        tune,
+        draws,
+        target_accept,
+        seed,
+        timeout_seconds,
+        out,
+    } = *arguments;
+    dirichlet_multinomial_group::run(
+        input,
+        reference_group,
+        comparison_group,
+        logit_prior_sd,
+        group_effect_prior_sd,
+        concentration_prior_sd,
+        NutsSamplingSpec {
+            chains,
+            tune_per_chain: tune,
+            draws_per_chain: draws,
+            target_accept,
+            seed,
+        },
         timeout_seconds,
         out,
     )

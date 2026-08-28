@@ -23,6 +23,7 @@ mod bym2;
 mod car;
 mod complementarity;
 mod cross_modal;
+mod dirichlet_multinomial_group;
 mod distance_to_resource;
 mod embedding_envelope;
 mod embedding_factor;
@@ -204,6 +205,15 @@ pub use bym::{
 pub use bym2::{
     Bym2FitResult, Bym2FitSpec, Bym2FitWorkerRequest, Bym2FitWorkerResult, Bym2IcarScaling,
     Bym2InputIdentity, Bym2ModelIr, Bym2Posterior, Bym2RegionSummary,
+};
+pub use dirichlet_multinomial_group::{
+    dirichlet_multinomial_group_data_sha256, DirichletMultinomialClassPosterior,
+    DirichletMultinomialClassPredictive, DirichletMultinomialGroupInputIdentity,
+    DirichletMultinomialGroupModelIr, DirichletMultinomialGroupPosterior,
+    DirichletMultinomialGroupPosteriorPredictive, DirichletMultinomialGroupResourceLimits,
+    DirichletMultinomialGroupResult, DirichletMultinomialGroupSpec,
+    DirichletMultinomialGroupWorkerRequest, DirichletMultinomialGroupWorkerResult,
+    DirichletMultinomialPatientData,
 };
 pub use fused_gromov::{
     FgwInitializationResult, FgwPlanEntry, FgwResources, FgwSupport, FusedGromovWassersteinSpec,

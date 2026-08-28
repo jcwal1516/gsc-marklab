@@ -2550,6 +2550,41 @@ vascular transport.
   Nextest/full integration, feature matrix, benchmark, fuzz, memory tool, packaging, dependency
   audit, push, publication, deployment, or history rewrite ran.
 
+## Durable patient multiclass CellViT Bayesian checkpoint 118 — 2026-08-28
+
+- Expected red: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_dirichlet_multinomial_group_cli
+  dirichlet_multinomial_recovers_patient_unit_multiclass_group_shift -- --exact --nocapture`
+  first failed on the absent `dirichlet-multinomial-group` command. Its first wired run exposed a
+  CLI parser stack overflow; moving this command to the established boxed large-command parser
+  path removed that failure. The final command passes 1/1 and independently checks exact observed
+  patient-proportion arithmetic plus the known opposite multiclass shifts.
+- Expected durable red: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  durable_pymc_dirichlet_multinomial_group_project
+  dirichlet_multinomial_group_runs_once_then_replays_without_starting_pymc -- --exact --nocapture`
+  failed on the absent project subcommand and then passes 1/1. It proves miss, backend-disabled
+  cross-process hit, byte-identical typed result, seed invalidation, exact node/schema identity,
+  and one unchanged execution record.
+- `python3 tests/python/test_marklab_cellvit_cptac_results_adapter.py` passes 3/3, including complete
+  patient-by-class rows and retained zeros. `cargo +1.96.0 test --locked --package marklab-bayes
+  dirichlet_multinomial_group::tests:: -- --nocapture` passes 1/1 for incomplete-vector rejection.
+  Python syntax compilation and affected-file Rustfmt also pass.
+- On `mini`, the pinned CellViT Python 3.9 environment plus frozen source snapshot reran
+  `marklab_cellvit_cptac_results_adapter.py` over the exact recorded inference, projected, spatial,
+  case-map, molecular-label, clinical, verification, and transform inputs. It revalidated 366
+  slides, 178 patients, and 1,542,389 cells into
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v4-inputs`. The 525-row, 105-patient,
+  five-class molecular input includes 31 zero counts and has SHA-256
+  `00f91c5a8084d3a1e9140beb9769dca2b74ecd4e08d9eef17c258f7504c5167e`.
+- Two direct `target/debug/marklab project dirichlet-multinomial-group` processes over that exact
+  input report miss then hit; the hit ran with `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1`,
+  `cmp` passed, and `executions.jsonl` remained one line. The complete real fit has 4,000 draws,
+  R-hat 1.00199, bulk/tail ESS 1278.06/1708.53, E-BFMI 1.00882, zero divergences/tree-depth hits,
+  and result SHA-256 `8a00e2119d2e454f21be53fd666bf4200b60a78f38e57130ccf59ad0f931362c`.
+  The result is stored in the v4 bundle. No workspace-wide gate, full-integration/Nextest loop,
+  feature matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push, publication,
+  deployment, or history rewrite ran.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

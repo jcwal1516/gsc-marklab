@@ -1,4 +1,5 @@
 import importlib.util
+from collections import Counter
 from pathlib import Path
 import struct
 import unittest
@@ -32,6 +33,59 @@ class CellvitCptacResultsAdapterTest(unittest.TestCase):
             encoded, marked = self.module.canonical_f32_probability(source, 0.75)
             imported = struct.unpack("!f", struct.pack("!f", float(encoded)))[0]
             self.assertEqual(marked, int(imported >= 0.75))
+
+    def test_multiclass_group_counts_retain_zero_classes_per_patient(self):
+        rows = self.module.dirichlet_multinomial_group_rows(
+            {
+                "patient-b": Counter({0: 3, 1: 1}),
+                "patient-a": Counter({1: 2, 2: 2}),
+                "unlabeled": Counter({0: 9}),
+            },
+            ((0, "Neoplastic"), (1, "Inflammatory"), (2, "Connective")),
+            {"patient-a": "MSI", "patient-b": "MSS"},
+        )
+
+        self.assertEqual(
+            rows,
+            [
+                {
+                    "patient_id": "patient-a",
+                    "group": "MSI",
+                    "class_id": "Neoplastic",
+                    "count": 0,
+                },
+                {
+                    "patient_id": "patient-a",
+                    "group": "MSI",
+                    "class_id": "Inflammatory",
+                    "count": 2,
+                },
+                {
+                    "patient_id": "patient-a",
+                    "group": "MSI",
+                    "class_id": "Connective",
+                    "count": 2,
+                },
+                {
+                    "patient_id": "patient-b",
+                    "group": "MSS",
+                    "class_id": "Neoplastic",
+                    "count": 3,
+                },
+                {
+                    "patient_id": "patient-b",
+                    "group": "MSS",
+                    "class_id": "Inflammatory",
+                    "count": 1,
+                },
+                {
+                    "patient_id": "patient-b",
+                    "group": "MSS",
+                    "class_id": "Connective",
+                    "count": 0,
+                },
+            ],
+        )
 
 
 if __name__ == "__main__":

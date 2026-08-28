@@ -1040,3 +1040,14 @@ WS-12 without an arbitrary task runner or second persistence layer. Broader hete
 construction remains active but is not the next milestone without another caller. The dependency-
 ordered next outcome is the next Bayesian likelihood or hierarchy level required by admitted CRC
 counts/labels, followed by representative graph scaling.
+
+## Checkpoint 118 durable multiclass Bayesian continuation
+
+The admitted five-class CellViT counts now run as complete patient vectors through direct and
+durable pinned-PyMC paths, with exact environment/worker/request/input cache identity and
+backend-disabled fresh-process replay. The real 105-patient MSI/MSS fit is diagnostically complete
+and sealed in the v4 Mac-mini bundle; its exploratory class-composition contrasts are reported
+without causal or clinical claims. BAY-01/BAY-02/WS-40 remain active for independent backend
+agreement, prior sensitivity, and calibration of this likelihood before broader promotion. The
+next cohesive workflow is that bounded promotion sequence, then representative graph/topology
+scaling; UI/server/client work remains deferred.

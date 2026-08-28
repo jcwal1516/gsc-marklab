@@ -349,6 +349,46 @@ def beta_binomial_group_rows(
     return result
 
 
+def dirichlet_multinomial_group_rows(
+    patient_type_counts: dict[str, Counter[int]],
+    type_map: tuple[tuple[int, str], ...],
+    labels: dict[str, str],
+) -> list[dict[str, object]]:
+    """Retain each labeled patient and every exact CellViT class, including zeros."""
+    if not 3 <= len(type_map) <= 16:
+        raise AdapterError("Dirichlet-multinomial class count must be within 3..16")
+    class_codes = [cell_type for cell_type, _ in type_map]
+    class_ids = [class_id for _, class_id in type_map]
+    if (
+        len(set(class_codes)) != len(class_codes)
+        or len(set(class_ids)) != len(class_ids)
+        or any(not class_id or class_id.strip() != class_id for class_id in class_ids)
+    ):
+        raise AdapterError("Dirichlet-multinomial class identities are invalid")
+    admitted_codes = set(class_codes)
+    result: list[dict[str, object]] = []
+    for patient in sorted(set(patient_type_counts) & set(labels)):
+        group = labels[patient]
+        counts = patient_type_counts[patient]
+        if (
+            group not in {"MSI", "MSS"}
+            or set(counts) - admitted_codes
+            or any(count < 0 for count in counts.values())
+            or sum(counts.values()) <= 0
+        ):
+            raise AdapterError("Dirichlet-multinomial patient counts are invalid")
+        result.extend(
+            {
+                "patient_id": patient,
+                "group": group,
+                "class_id": class_id,
+                "count": counts[cell_type],
+            }
+            for cell_type, class_id in type_map
+        )
+    return result
+
+
 def beta_binomial_group_gender_rows(
     group_rows: list[dict[str, int | str]], genders: dict[str, str]
 ) -> list[dict[str, int | str]]:
@@ -567,6 +607,9 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     type_map = next(iter(type_maps))
     beta_binomial_rows = beta_binomial_patient_rows(patient_type_counts, type_map)
     beta_binomial_groups = beta_binomial_group_rows(beta_binomial_rows, labels)
+    dirichlet_multinomial_groups = dirichlet_multinomial_group_rows(
+        patient_type_counts, type_map, labels
+    )
     beta_binomial_group_genders = beta_binomial_group_gender_rows(
         beta_binomial_groups, clinical_gender
     )
@@ -586,6 +629,12 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
         for gender in ("Female", "Male")
     ):
         raise AdapterError("beta-binomial group/gender cells require four patients")
+    dirichlet_group_support = Counter(
+        str(row["group"])
+        for row in dirichlet_multinomial_groups[:: len(type_map)]
+    )
+    if any(dirichlet_group_support[group] < 4 for group in ("MSI", "MSS")):
+        raise AdapterError("Dirichlet-multinomial groups require four patients")
     write_csv(
         inputs / "beta_binomial_neoplastic_counts.csv",
         ["patient_id", "successes", "trials"],
@@ -595,6 +644,11 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
         inputs / "beta_binomial_neoplastic_counts_by_group.csv",
         ["patient_id", "group", "successes", "trials"],
         beta_binomial_groups,
+    )
+    write_csv(
+        inputs / "dirichlet_multinomial_cell_type_counts_by_group.csv",
+        ["patient_id", "group", "class_id", "count"],
+        dirichlet_multinomial_groups,
     )
     write_csv(
         inputs / "beta_binomial_neoplastic_counts_by_group_gender.csv",
@@ -1011,6 +1065,15 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "unlabeled_count_patients_excluded": len(beta_binomial_rows)
                 - len(beta_binomial_groups),
             },
+            "dirichlet_multinomial_group_definition": {
+                "observation_unit": "patient_complete_cell_type_count_vector",
+                "biological_unit": "patient",
+                "groups": ["MSI", "MSS"],
+                "class_ids": [class_id for _, class_id in type_map],
+                "patients": len(dirichlet_multinomial_groups) // len(type_map),
+                "rows": len(dirichlet_multinomial_groups),
+                "zero_counts_retained": True,
+            },
             "beta_binomial_group_gender_definition": {
                 "join_key": "patient_id",
                 "source": str(arguments.clinical.resolve()),
@@ -1059,6 +1122,11 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                     int(row["trials"]) for row in beta_binomial_rows
                 ),
                 "beta_binomial_group_patients": len(beta_binomial_groups),
+                "dirichlet_multinomial_group_patients": len(
+                    dirichlet_multinomial_groups
+                )
+                // len(type_map),
+                "dirichlet_multinomial_group_classes": len(type_map),
                 "beta_binomial_group_counts": dict(
                     sorted(Counter(str(row["group"]) for row in beta_binomial_groups).items())
                 ),

@@ -2056,3 +2056,28 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   synthetic fixtures are workflow/oracle evidence only. General heterogeneous DAG builders remain
   active. Production now returns to the next Bayesian likelihood/hierarchy with an immediate CRC
   caller.
+
+## Durable patient multiclass CellViT Bayesian checkpoint 118 — 2026-08-28
+
+- Added direct and durable patient-level Dirichlet-multinomial group regression through the pinned
+  PyMC 6.3.0/Python 3.12 backend. Complete ordered class-count vectors retain zero counts, use one
+  patient as the biological/likelihood unit, and expose exact class composition/difference,
+  concentration, posterior-predictive, diagnostic, backend, environment, worker, request, and input
+  identities under explicit patient/class/cell/iteration/output/time ceilings.
+- The Mac-mini adapter revalidated the frozen 366-slide, 178-patient, 1,542,389-cell CPTAC CellViT
+  source and wrote the fresh v4 bundle. Its molecular lane has 525 rows: every one of five hard
+  annotation classes for 105 labeled patients (81 MSS, 24 MSI), including 31 exact zero counts. The
+  input SHA-256 is `00f91c5a8084d3a1e9140beb9769dca2b74ecd4e08d9eef17c258f7504c5167e`.
+- The real two-chain fit completed 4,000 retained draws with R-hat 1.00199, bulk/tail ESS
+  1278.06/1708.53, minimum E-BFMI 1.00882, zero divergences, and zero tree-depth hits. Exploratory
+  MSI-minus-MSS mean composition differences were -0.0843 Neoplastic, +0.0855 Inflammatory,
+  -0.00784 Connective, +0.0116 Dead, and -0.00492 Epithelial. These are classifier-derived,
+  unadjusted cohort associations, not causal, clinical, external-validation, or raw-probability
+  evidence.
+- A fresh process produced the durable miss; a second process with external backend execution
+  disabled returned a byte-identical hit and left one ledger execution. The typed result SHA-256 is
+  `8a00e2119d2e454f21be53fd666bf4200b60a78f38e57130ccf59ad0f931362c` and is stored with the v4
+  bundle on the 1 TB drive. Synthetic behavior independently checks the exact observed
+  patient-proportion arithmetic and known opposite Neoplastic/Inflammatory shifts. Broader
+  two-backend agreement, prior sensitivity, and SBC remain the next promotion work rather than
+  being inferred from this real fit.
