@@ -2249,6 +2249,18 @@ vascular transport.
   clusters. Warning-denied Clippy passes for the affected cohort library/reference and CLI test;
   package no-default compilation, doctests, affected-file Rustfmt, and diff whitespace pass.
 
+## Cohort hierarchy and cluster stabilization checkpoint 101 — 2026-08-28
+
+- `cargo +1.96.0 fmt --all --check` passes. `cargo +1.96.0 clippy --locked --workspace
+  --all-targets --all-features -- -D warnings` passes in `22m39s` with no diagnostics.
+- `cargo +1.96.0 check --locked --workspace --no-default-features` passes in `18.28s`. All-feature
+  workspace doctests complete with zero failures. `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc
+  --locked --workspace --all-features --no-deps` passes in `21.46s`.
+- `git diff --check` passes. The full workspace integration/Nextest loop was not run because the
+  active instruction and checkpoints 51/52 prohibit retrying the macOS binary-verification stall.
+  No feature matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push, publication,
+  deployment, or history rewrite ran.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

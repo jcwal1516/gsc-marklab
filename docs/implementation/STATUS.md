@@ -1774,3 +1774,14 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   fewer than two clusters per group fail.
 - This advances COH-01/FND-06/WS-31/WS-34 without inferring clusters, adjusting covariates, claiming
   intracluster-correlation modeling, or adding a generic cluster framework.
+
+## Cohort hierarchy and cluster stabilization checkpoint 101 — 2026-08-28
+
+- Stabilized checkpoints 97–100 across patient-row multisite contrasts, canonical hierarchical
+  bootstrap ordering, typed patient-then-specimen draws, and whole-cluster label permutation.
+  Workspace formatting, all-target/all-feature warning-denied Clippy, no-default compilation, all-
+  feature doctests, and strict docs pass on the final production state.
+- The full workspace integration suite and Nextest were not run because checkpoints 51/52 and the
+  active instruction prohibit retrying the macOS binary-verification loop. No feature matrix,
+  benchmark, fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or
+  history rewrite ran.

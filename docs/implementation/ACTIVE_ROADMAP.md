@@ -899,3 +899,13 @@ Patient rows nested in exact treatment/exposure clusters now reduce to equal-wei
 move only as whole cluster labels through a typed cluster-level design. Four related COH-01/FND-06
 workflows have completed since checkpoint 95; run one stabilization pass, excluding the prohibited
 macOS full-integration/Nextest loop, before further production work.
+
+## Checkpoint 101 cohort hierarchy and cluster stabilization continuation
+
+The checkpoint-97–100 family passes workspace formatting, warning-denied all-target/all-feature
+Clippy, no-default compilation, all-feature doctests, and strict docs. The prohibited full
+integration/Nextest loader loop was not retried.
+
+COH-01/FND-06 remain active for interference, covariate-adjusted cluster/multisite designs, broader
+multiplicity/calibration, and real multisite/cluster validation. FND-05 real CellViT promotion
+remains data-dependent on its four exact source-owned provenance fields; do not synthesize them.
