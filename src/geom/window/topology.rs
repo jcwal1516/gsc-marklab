@@ -206,6 +206,15 @@ fn signed_area(ring: &[Point]) -> f64 {
         * 0.5
 }
 
+pub(super) fn polygon_area(polygon: &Polygon) -> f64 {
+    signed_area(&polygon.exterior).abs()
+        - polygon
+            .holes
+            .iter()
+            .map(|hole| signed_area(hole).abs())
+            .sum::<f64>()
+}
+
 fn ring_perimeter(ring: &[Point]) -> Result<f64, ObservationWindowError> {
     let perimeter = ring
         .windows(2)

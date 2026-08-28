@@ -1473,3 +1473,40 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   positive and negative compartment roles changes the partition/cache identity and creates a miss
   while preserving the exact geometry. This is geometric compartment contact, not phenotype/cell
   contact, a multiclass matrix, uncertain segmentation, patient inference, or biological evidence.
+
+## Exact compartment fragmentation and cell-mixing checkpoint 81 — 2026-08-27
+
+- Added vector-polygon fragmentation on the exact binary partition. Canonically sorted component
+  areas drive component/hole counts, largest-component area fraction, Shannon area entropy in nats,
+  entropy normalized by `ln(component_count)`, and complete perimeter/area in inverse micrometres.
+  Two islands of areas 1 and 4 have largest fraction `0.8` and normalized entropy
+  `0.7219280948873623`; the 95-square-micrometre background is one component with two holes. GEOS
+  3.14.1 independently agrees on all areas, perimeters, union, and derived ratios.
+- Added the distinct cell-mixing estimand only after declaring a typed cell table and one fixed
+  physical adjacency radius. The canonical spatial index produces exact undirected edges while
+  charging all directed visits. The four-cell 2.1-micrometre control has three edges, one cross edge,
+  observed cross fraction `1/3` versus complete-random-label expectation `2/3`, and normalized
+  same/cross edge entropy `0.9182958340544894`; role-specific neighbor incidences agree exactly.
+- Fragmentation and cell mixing retain separate result types and durable nodes. Reconstructed
+  projects hit with one execution; orientation or radius changes miss. Empty graphs, annotation/
+  geometry disagreement, and one-short point/query/pair/memory work fail explicitly. Neither
+  component areas nor edges are treated as patient replicates, and no scale was selected from the
+  result.
+- This closes bounded binary vector-component and fixed-radius mixing specializations, not
+  multiclass, multiscale stability, uncertain segmentation, real-mask validation, patient inference,
+  clinical evidence, or result-format changes.
+
+## Compartment-geometry stabilization checkpoint 82 — 2026-08-27
+
+- Stabilized the four related exact binary compartment workflows from checkpoints 79–81: oriented
+  typed-cell interface profiles, explicit-denominator contact, vector-component fragmentation, and
+  fixed-physical-radius cell mixing. Workspace formatting, all-target/all-feature warning-denied
+  Clippy, no-default compilation, all-feature doctests, and strict all-feature workspace docs pass.
+- All 13 focused geometry tests and three independent fixture regenerations remain green. The
+  canonical CRC fingerprint bundle was not recomputed; a read-only hash audit instead reconfirmed
+  all 183 source artifacts, nine stability hashes, four generated hashes, and byte-identical local/
+  Mac-mini five-file bundle copies.
+- The full workspace integration suite and Nextest were not rerun because the active instruction
+  forbids retrying the documented macOS binary-loader verification loop. No feature matrix,
+  benchmark, fuzz, memory, packaging, dependency-audit, push, publication, deployment, or history
+  rewrite was run.

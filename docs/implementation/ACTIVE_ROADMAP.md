@@ -681,3 +681,30 @@ related native caller is GEO-01D binary compartment fragmentation: consume canon
 area/perimeter identities and report an explicit component-area basis plus declared mixing entropy
 only where typed cell counts make that denominator meaningful. Do not add raster morphology,
 automatic repair, a generic morphology registry, or cell-as-patient inference.
+
+## Checkpoint 81 compartment fragmentation and cell-mixing continuation
+
+Exact canonical component areas now drive binary compartment fragmentation, while a distinct typed
+cell workflow uses one declared micrometre radius graph for cross-edge fraction, random-label
+expectation, and same/cross neighbor entropy. GEOS component evidence, an independent Python pair
+loop, empty/work boundaries, and durable orientation/radius replay cover both data flows. Polygon
+area entropy is not called cell mixing, and neither components nor edges become biological
+replicates.
+
+After the related checkpoint-79–81 geometry family stabilizes, dependency-ordered work returns to
+FND-04/WS-23. The next immediate typed-mark caller is the smallest CellViT-compatible probability-
+simplex column consumed by a soft class-composition/entropy result with complete-row semantics. It
+must preserve measured-versus-predicted provenance and must not add a generic mark registry,
+threshold probabilities, or reinterpret cells as patient replicates.
+
+## Checkpoint 82 compartment-geometry stabilization continuation
+
+The checkpoint-79–81 compartment family passes workspace formatting, warning-denied all-feature
+Clippy, no-default compilation, all-feature doctests, and strict workspace docs. Focused typed,
+durable, resource, and independent-oracle evidence remains green; the documented full-integration/
+Nextest macOS loader loop was not retried.
+
+Production work proceeds to the promoted FND-04/WS-23 probability-simplex caller described above.
+The existing CellViT annotation-probability lane is the concrete use case; the implementation must
+preserve complete rows and provenance, expose soft composition/entropy without thresholding, and
+remain separate from patient-level inference or a generalized mark/plugin registry.

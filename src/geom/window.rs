@@ -329,6 +329,16 @@ impl ObservationWindow2D {
             .saturating_mul(std::mem::size_of::<BoundarySegment>())
             .saturating_mul(3)
     }
+
+    pub(crate) fn component_areas_um2(&self) -> Vec<f64> {
+        let mut areas = self
+            .polygons
+            .iter()
+            .map(topology::polygon_area)
+            .collect::<Vec<_>>();
+        areas.sort_by(f64::total_cmp);
+        areas
+    }
 }
 
 /// Failure to decode, validate, or query an exact 2-D observation window.

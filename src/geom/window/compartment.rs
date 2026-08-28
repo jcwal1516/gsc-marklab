@@ -53,6 +53,14 @@ pub struct CompartmentPartitionDescriptor {
     pub positive_boundary_length_um: f64,
     /// Positive-compartment boundary coincident with the analyzed tissue edge.
     pub positive_outer_boundary_length_um: f64,
+    /// Number of disconnected negative-compartment polygon components.
+    pub negative_component_count: usize,
+    /// Number of holes inside negative-compartment components.
+    pub negative_hole_count: usize,
+    /// Number of disconnected positive-compartment polygon components.
+    pub positive_component_count: usize,
+    /// Number of holes inside positive-compartment components.
+    pub positive_hole_count: usize,
     /// Summed boundary-segment count validated against the caller ceiling.
     pub validated_boundary_segment_count: usize,
     /// Exact partition identity including role order and aligned interface geometry.
@@ -66,6 +74,8 @@ pub struct BinaryCompartmentPartition2D {
     negative: ObservationWindow2D,
     positive: ObservationWindow2D,
     interface: RTree<BoundarySegment>,
+    negative_component_areas_um2: Box<[f64]>,
+    positive_component_areas_um2: Box<[f64]>,
     descriptor: CompartmentPartitionDescriptor,
 }
 
@@ -161,6 +171,8 @@ impl BinaryCompartmentPartition2D {
             negative_outer_boundary_length_um,
             interface_length_um,
         )?;
+        let negative_component_areas_um2 = negative.component_areas_um2();
+        let positive_component_areas_um2 = positive.component_areas_um2();
         validate_boundary_decomposition(
             positive.perimeter_um(),
             positive_outer_boundary_length_um,
@@ -188,6 +200,10 @@ impl BinaryCompartmentPartition2D {
             negative_outer_boundary_length_um,
             positive_boundary_length_um: positive.perimeter_um(),
             positive_outer_boundary_length_um,
+            negative_component_count: negative.descriptor().component_count,
+            negative_hole_count: negative.descriptor().hole_count,
+            positive_component_count: positive.descriptor().component_count,
+            positive_hole_count: positive.descriptor().hole_count,
             validated_boundary_segment_count,
             logical_digest,
         };
@@ -196,6 +212,8 @@ impl BinaryCompartmentPartition2D {
             negative,
             positive,
             interface: RTree::bulk_load(interface_segments),
+            negative_component_areas_um2: negative_component_areas_um2.into_boxed_slice(),
+            positive_component_areas_um2: positive_component_areas_um2.into_boxed_slice(),
             descriptor,
         })
     }
@@ -238,6 +256,18 @@ impl BinaryCompartmentPartition2D {
     /// Canonical partition identity and physical summary.
     pub fn descriptor(&self) -> &CompartmentPartitionDescriptor {
         &self.descriptor
+    }
+
+    pub(crate) fn negative_component_areas_um2(&self) -> &[f64] {
+        &self.negative_component_areas_um2
+    }
+
+    pub(crate) fn positive_component_areas_um2(&self) -> &[f64] {
+        &self.positive_component_areas_um2
+    }
+
+    pub(crate) fn observation_window(&self) -> &ObservationWindow2D {
+        &self.observation
     }
 }
 

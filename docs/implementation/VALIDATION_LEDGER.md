@@ -2084,3 +2084,41 @@ vascular transport.
   affected-file Rustfmt, and diff whitespace checks pass. Workspace/Nextest loops, broad feature
   matrices, benchmarks, fuzzing, memory tools, packaging, dependency audits, push, publication,
   deployment, and history rewriting were not run.
+
+## Exact compartment fragmentation and cell-mixing checkpoint 81 — 2026-08-27
+
+- `cargo +1.96.0 test --locked --package marklab --test
+  compartment_fragmentation_workflow` first failed on missing fixture/production symbols and now
+  passes 2/2: exact two-component concentration/entropy/shape burden, explicit pre-graph mixing
+  unavailability, fresh miss, reconstructed hit, and orientation invalidation.
+- `python3 tests/fixtures/compartment_fragmentation/generate_geos_oracle.py | diff -u
+  tests/fixtures/compartment_fragmentation/geos_fragmentation_oracle.json -` passes byte-for-byte
+  against GEOS/geosop 3.14.1 plus standard-library entropy. It confirms areas 1/4/5/95/100,
+  perimeters 12/52, normalized entropy `0.7219280948873623`, and exact domain union.
+- `cargo +1.96.0 test --locked --package marklab --test compartment_cell_mixing_workflow` first
+  failed on unresolved typed/durable symbols and now passes 3/3: exact graph/edge/incidence/entropy
+  values, empty graph, one-short pair/memory limits, fresh miss, reconstructed hit, and radius
+  invalidation. Its independent standard-library Python direct-loop fixture regenerates byte-for-
+  byte with three edges, one cross edge, observed/expected `1/3`/`2/3`, and normalized entropy
+  `0.9182958340544894`.
+- The complete affected geometry command passes cell mixing 3/3, fragmentation 2/2, contact 2/2,
+  typed interface 3/3, and partition 3/3; all three independent fixture regenerations pass.
+  Targeted warning-denied Clippy over those five integrations passes. The major-checkpoint broad
+  compile/lint/doc evidence is recorded below; the documented macOS full-integration/Nextest loop
+  remains intentionally unrerun.
+
+## Compartment-geometry stabilization checkpoint 82 — 2026-08-27
+
+- `cargo +1.96.0 fmt --all --check` passes. `cargo +1.96.0 clippy --locked --workspace
+  --all-targets --all-features -- -D warnings` passes in `21m22s` with no diagnostics.
+- `cargo +1.96.0 check --locked --workspace --no-default-features` passes in `10.20s`.
+  `cargo +1.96.0 test --locked --workspace --doc --all-features` passes for every workspace package
+  with zero doctest failures. `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --workspace
+  --all-features --no-deps` passes in `23.91s`.
+- The focused five-integration command passes 13/13, and the GEOS partition/fragmentation plus
+  Python mixing fixtures regenerate byte-for-byte. `git diff --check` passes after the final ledger
+  update.
+- The full workspace integration/Nextest loop was not run because checkpoints 51/52 and the active
+  user instruction document and forbid retrying the macOS binary-verification stall. No phase-only
+  feature matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push, publication,
+  deployment, or history rewrite was run.
