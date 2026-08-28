@@ -20,13 +20,23 @@ use thiserror::Error;
 mod anisotropic_gp3d;
 #[path = "bayes/arbitrary_window_ipp.rs"]
 mod arbitrary_window_ipp;
+#[path = "bayes/arbitrary_window_ipp_fit.rs"]
+mod arbitrary_window_ipp_fit;
 pub(super) use arbitrary_window_ipp::{
     execute as execute_arbitrary_window_ipp, prepare as prepare_arbitrary_window_ipp,
     PreparedArbitraryWindowIpp,
 };
+pub(super) use arbitrary_window_ipp_fit::{
+    execute as execute_arbitrary_window_ipp_fit, prepare as prepare_arbitrary_window_ipp_fit,
+    ArbitraryWindowIppFitResult, PreparedArbitraryWindowIppFit,
+};
 
 pub(super) fn run_arbitrary_window_ipp_cli() -> Result<(), BayesCliError> {
     arbitrary_window_ipp::run_cli()
+}
+
+pub(super) fn run_arbitrary_window_ipp_fit_cli() -> Result<(), BayesCliError> {
+    arbitrary_window_ipp_fit::run_cli()
 }
 #[path = "bayes/berman_turner.rs"]
 mod berman_turner;

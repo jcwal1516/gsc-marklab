@@ -54,6 +54,7 @@ fn main() -> marklab::Result<()> {
                                     | "sparse-radius-heat"
                                     | "witness-persistence"
                                     | "arbitrary-window-ipp-likelihood"
+                                    | "fit-arbitrary-window-ipp"
                                     | "region-retrieval"
                                     | "normal-mean"
                                     | "hierarchical-normal"
@@ -190,6 +191,17 @@ fn main() -> marklab::Result<()> {
                     }) =>
         {
             bayes::run_arbitrary_window_ipp_cli().map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand == std::ffi::OsStr::new("fit-arbitrary-window-ipp")
+                    }) =>
+        {
+            bayes::run_arbitrary_window_ipp_fit_cli().map_err(bayes::into_marklab_error)
         }
         Some(command) if command == std::ffi::OsStr::new("bayes") => {
             bayes::run_cli().map_err(bayes::into_marklab_error)

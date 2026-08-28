@@ -1094,3 +1094,20 @@ arbitrary-window likelihood caller, but remain active for fitted coefficients/la
 quadrature refinement sensitivity, posterior calibration/PPC, and independent patient patterns.
 Production next advances the smallest fitted arbitrary-window caller by reusing the pinned backend;
 UI/server/client work remains deferred.
+
+## Checkpoint 123 fitted exact-window IPP continuation
+
+The admitted CellViT patch union now fits one log-linear arbitrary-window IPP through the unchanged
+pinned PyMC worker and replays durably without a second backend process. A known positive-gradient
+control and the real diagnostically complete fit pass, while the real negative horizontal gradient
+is retained as a single-slide exploratory association. BAY-PP/WS-43 no longer lack an arbitrary-
+window fitted coefficient caller; the next dependency-ordered production outcome is independent
+backend agreement, prior/quadrature sensitivity, SBC, and spatial posterior-predictive checks for
+this exact likelihood. UI/server/client work remains deferred.
+
+## Checkpoint 124 stabilization continuation
+
+The checkpoint-120–123 graph/topology/exact-window family passes workspace formatting,
+warning-denied all-target/all-feature Clippy, no-default compilation, all-feature doctests, and
+strict docs. The prohibited full-integration/Nextest loop was not retried. Production continues to
+the fitted arbitrary-window IPP promotion checks before another model family.

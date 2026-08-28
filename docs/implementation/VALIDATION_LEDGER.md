@@ -2701,6 +2701,40 @@ vascular transport.
   feature matrix, benchmark suite, fuzz, memory tool, packaging, dependency audit, push,
   publication, deployment, or history rewrite ran.
 
+## Durable fitted exact-window CellViT IPP checkpoint 123 — 2026-08-28
+
+- Expected direct red: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_arbitrary_window_ipp_fit_cli pymc_weighted_exact_window_fit_recovers_positive_covariate_effect
+  -- --exact --nocapture` failed on the absent command. The final 1/1 pass recovers the known
+  positive two-component covariate effect, total count, complete diagnostics, and exact backend
+  identity through the unchanged rectangular worker.
+- Expected durable red: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  durable_pymc_arbitrary_window_ipp_project arbitrary_window_pymc_fit_replays_without_second_backend_execution
+  -- --exact --nocapture` failed on the absent project command. The final 1/1 pass proves miss,
+  backend-disabled hit, byte identity, one ledger row, and prior-change invalidation. The existing
+  `bayes_inhomogeneous_poisson_fit_cli` exact test also passes 1/1 after the new adapter connection.
+- The real v7 2,000-event/552-node fit completed 2,000 posterior draws in 2.26 seconds with
+  335,675,392-byte maximum RSS. R-hat is 1.00293, bulk/tail ESS 1630.45/1272.84, minimum E-BFMI
+  1.21765, divergences/tree-depth hits zero, posterior coefficient -0.4566 (95% interval -0.5210 to
+  -0.3888), and total expected count 2000.97. Two independent executions agree across 7,216 numeric
+  fields within maximum absolute difference `1.93e-11`; durable miss/hit bytes are exact with one
+  execution. Canonical result SHA-256 is `a65547c01d93e9ef51ee8821f9f42e0f61f8dd078a2b80f0c296f3a57ae89b2d`
+  and is sealed in the v7 Mac-mini bundle.
+
+## Graph/topology/exact-window stabilization checkpoint 124 — 2026-08-28
+
+- `cargo +1.96.0 fmt --all --check` passes. The first workspace warning-denied Clippy run found one
+  `needless_range_loop` in the new three-source verifier. Both affected durable tests passed after
+  the zipped-iterator fix; the required final-state `cargo +1.96.0 clippy --locked --workspace
+  --all-targets --all-features -- -D warnings` passes in 27m56s.
+- `cargo +1.96.0 check --locked --workspace --no-default-features` passes in 22.23s.
+  `cargo +1.96.0 test --locked --workspace --doc --all-features` passes every package with zero
+  doctest failures. `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --workspace
+  --all-features --no-deps` passes in 25.30s, and `git diff --check` passes.
+- The prohibited full workspace integration/Nextest loop was not run. No phase-only feature
+  matrix, benchmark suite, fuzzing, memory tool, packaging, dependency audit, push, publication,
+  deployment, or history rewrite ran.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

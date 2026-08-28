@@ -2176,3 +2176,36 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   ledger execution and SHA-256 `756c7b110fe6971e07e8bc94489a6d961c04f9667863af54f4cc905f4ff55c4a`;
   the result is sealed in the v7 bundle. This closes a fixed-likelihood arbitrary-window caller,
   not arbitrary-window Bayesian fitting, effect inference, interaction, or patient replication.
+
+## Durable fitted exact-window CellViT IPP checkpoint 123 — 2026-08-28
+
+- Added direct and durable `fit-arbitrary-window-ipp` through the unchanged pinned PyMC
+  6.3.0/Python 3.12 rectangular IPP worker. A measure-preserving algebraic adapter maps each
+  arbitrary positive quadrature weight to an equal-area synthetic backend cell by adding
+  `ln(weight)` to its offset; the outer typed result restores exact node IDs, physical coordinates,
+  weights, intensities per square micrometre, expected counts, and exact MultiPolygon identity.
+- A two-component known positive-gradient control recovers a posterior coefficient above 0.5 with
+  complete diagnostics. The durable control proves miss, backend-disabled fresh-process hit,
+  byte-identical typed result, one ledger execution, and prior-change invalidation without changing
+  or copying the existing static worker/environment.
+- The real 2,000-cell/552-node v7 input completed 2,000 posterior draws in 2.26 seconds at
+  335,675,392-byte maximum RSS. Diagnostics are R-hat 1.00293, bulk/tail ESS 1630.45/1272.84,
+  minimum E-BFMI 1.21765, zero divergences, and zero tree-depth hits. The posterior horizontal
+  coefficient is -0.4566 (95% interval -0.5210 to -0.3888); total expected count is 2000.97.
+- Two independent backend executions differ only by floating reductions, with maximum absolute
+  difference `1.93e-11` across 7,216 numeric fields; this is recorded rather than called byte
+  deterministic. The durable miss/hit is byte-identical with one execution and canonical SHA-256
+  `a65547c01d93e9ef51ee8821f9f42e0f61f8dd078a2b80f0c296f3a57ae89b2d`, sealed in the v7 bundle.
+  The coefficient is an exploratory within-slide x-coordinate intensity gradient, not interaction,
+  causality, molecular association, clinical evidence, or patient-population inference.
+
+## Graph/topology/exact-window stabilization checkpoint 124 — 2026-08-28
+
+- Stabilized checkpoints 120–123: sparse CellViT graph heat, witness persistence, exact-window fixed
+  IPP likelihood, and pinned exact-window IPP fitting. Workspace formatting, all-target/all-feature
+  warning-denied Clippy, no-default compilation, all-feature doctests, strict all-feature docs, and
+  whitespace checks pass on the final production state.
+- The prohibited full-workspace integration/Nextest loader loop was not run. No feature matrix,
+  benchmark suite, fuzzing, memory tool, packaging, dependency audit, push, publication, deployment,
+  or history rewrite ran. BAY-PP/WS-43 now advance to agreement, sensitivity, calibration, and
+  spatial posterior-predictive promotion for the fitted arbitrary-window caller.
