@@ -1838,3 +1838,19 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   corrections. Focused paired-family, legacy Max-T, scalar-paired, inference-design, and CLI tests
   pass, as do affected warning-denied Clippy, package no-default compilation, strict package docs,
   affected-file formatting, and whitespace checks.
+
+## One-covariate patient Freedman-Lane checkpoint 106 — 2026-08-28
+
+- Added `marklab cohort covariate-permutation` and a typed library workflow for one independent
+  patient outcome, binary group, and prespecified nuisance covariate. The reduced intercept-plus-
+  covariate model owns fixed fits/residuals; each residual moves as one complete patient value; the
+  full model tests the adjusted group-A-minus-group-B coefficient.
+- The design records a covariate-conditional residual-permutation null, complete patient residual
+  unit, alternative, exact reduced/full columns, residual degrees of freedom, deterministic
+  covariate center/max-deviation scale, seed, and exact replicate counts. Duplicate patients,
+  undeclared groups, non-finite/constant covariates, rank deficiency, undefined statistics, and work
+  above 100 million patient-replicate evaluations fail.
+- An independent Frisch-Waugh-Lovell oracle matches the coefficient, standard error, statistic, and
+  exact p-value; reversed rows and a `1e100` covariate rescaling preserve inference, while exact
+  group-covariate collinearity fails. Focused new/legacy CLI tests, warning-denied Clippy, package
+  no-default compilation, strict package docs, affected formatting, and whitespace checks pass.

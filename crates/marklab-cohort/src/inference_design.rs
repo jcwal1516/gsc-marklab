@@ -78,6 +78,8 @@ pub enum InferenceNullFamily {
     ClusterLabelPermutation,
     /// Complete reduced-model residual vectors receive independent subject-level signs.
     SubjectResidualSignSymmetry,
+    /// Reduced-model residuals move as whole patient values conditional on fixed covariates.
+    CovariateConditionalResidualPermutation,
 }
 
 /// Atomic unit moved by one permutation schedule.
@@ -97,6 +99,8 @@ pub enum InferencePermutationUnit {
     CompleteClusterEndpoint,
     /// One complete subject residual vector across every retained visit.
     CompleteSubjectResidualVector,
+    /// One complete scalar reduced-model residual belonging to one patient.
+    CompletePatientResidual,
 }
 
 /// Multiplicity family currently owned by the shared design.
@@ -287,6 +291,26 @@ impl InferenceDesign {
             seed,
             seed_namespace,
             InferenceAlternative::TwoSided,
+        )
+    }
+
+    pub(crate) fn covariate_conditional_residual_permutation(
+        patient_count: usize,
+        permutations: usize,
+        seed: u64,
+        seed_namespace: u64,
+        alternative: InferenceAlternative,
+    ) -> Result<Self, InferenceDesignError> {
+        Self::build(
+            InferenceAnalysisLevel::Patient,
+            InferenceNullFamily::CovariateConditionalResidualPermutation,
+            InferencePermutationUnit::CompletePatientResidual,
+            vec![(0..patient_count).collect()],
+            patient_count,
+            permutations,
+            seed,
+            seed_namespace,
+            alternative,
         )
     }
 

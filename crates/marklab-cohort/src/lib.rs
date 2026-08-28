@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use thiserror::Error;
 
 mod cluster;
+mod covariate;
 mod energy;
 mod equivalence;
 mod fingerprint;
@@ -34,6 +35,10 @@ pub use inference_design::{
 pub use cluster::{
     cluster_level_permutation_test, ClusterPatientEndpoint, ClusterPermutationResult,
     ClusterPermutationSpec,
+};
+pub use covariate::{
+    patient_covariate_freedman_lane, CovariatePatientRecord, CovariatePermutationResult,
+    CovariatePermutationSpec,
 };
 pub use energy::{
     patient_level_blocked_energy_distance, patient_level_energy_distance,

@@ -938,3 +938,10 @@ condition-B-minus-condition-A vector once per replicate, with single-step or ste
 INF-01C remains active for hierarchical/local multiplicity and explicit calibration, not for a
 missing paired-family executable. The next FND-06 production caller must address a concrete
 covariate-adjusted or hierarchical family rather than generalize a registry.
+
+## Checkpoint 106 one-covariate patient Freedman-Lane continuation
+
+One independent-patient scalar outcome can now be adjusted for one prespecified nuisance covariate
+through an explicit reduced/full OLS residual-permutation design. COH-01/FND-06 remain active for
+blocked or multiple-covariate residual designs, cluster/multisite adjustment, and real validation;
+the immediate one-covariate caller is complete without a formula framework.

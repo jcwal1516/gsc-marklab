@@ -2312,6 +2312,20 @@ vascular transport.
   binary. Package no-default compilation, strict package docs, affected-file Rustfmt, and `git diff
   --check` pass. Broad checkpoint-101 gates were not repeated.
 
+## One-covariate patient Freedman-Lane checkpoint 106 — 2026-08-28
+
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  cohort_covariate_permutation_cli covariate_permutation_cli_adjusts_one_prespecified_patient_covariate
+  -- --exact --nocapture` first failed because `covariate-permutation` was absent and now passes.
+  The final named CLI target passes 1/1 with exact design/model/transform/group/effect fields.
+- `cargo +1.96.0 test --locked --package marklab-cohort --test covariate_reference --
+  --nocapture` passes 2/2. The independent FWL oracle agrees on coefficient, standard error,
+  statistic, and p-value; row reversal and `1e100` scaling are invariant; exact group-covariate
+  collinearity fails. The affected repeated Freedman-Lane CLI remains green 1/1.
+- Warning-denied Clippy passes for all `marklab-cohort` targets and the affected `marklab` CLI
+  binary. Package no-default compilation, strict package docs, affected-file Rustfmt, and `git diff
+  --check` pass. Broad checkpoint-101 gates were not repeated.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

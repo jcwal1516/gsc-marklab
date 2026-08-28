@@ -28,6 +28,8 @@ use thiserror::Error;
 
 #[path = "cohort/cluster.rs"]
 mod cluster;
+#[path = "cohort/covariate.rs"]
+mod covariate;
 #[path = "cohort/effects.rs"]
 mod effects;
 #[path = "cohort/equivalence.rs"]
@@ -116,6 +118,22 @@ enum CohortCommand {
         /// Apply step-down rather than single-step Max-T adjustment.
         #[arg(long)]
         step_down: bool,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    CovariatePermutation {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        group_a: String,
+        #[arg(long)]
+        group_b: String,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long, value_enum)]
+        alternative: CliAlternative,
         #[arg(long)]
         out: PathBuf,
     },
@@ -512,6 +530,26 @@ pub(super) fn run_cli() -> Result<(), CohortError> {
             )?;
             publish_json(&out, &PairedMaxTOutput::from_result(input, result))
         }
+        CohortTopLevel::Cohort {
+            command:
+                CohortCommand::CovariatePermutation {
+                    input,
+                    group_a,
+                    group_b,
+                    permutations,
+                    seed,
+                    alternative,
+                    out,
+                },
+        } => covariate::run(covariate::RunArgs {
+            input,
+            group_a,
+            group_b,
+            permutations,
+            seed,
+            alternative,
+            out,
+        }),
         CohortTopLevel::Cohort {
             command:
                 CohortCommand::MaxT {
