@@ -68,6 +68,8 @@ mod scalar_mark;
 mod scalar_variogram;
 mod soft_class_composition;
 mod soft_class_composition_workflow;
+mod soft_multiscale_neighborhood;
+mod soft_multiscale_neighborhood_workflow;
 mod soft_neighborhood_composition;
 mod soft_neighborhood_composition_workflow;
 mod spatial_autocorrelation;
@@ -441,6 +443,12 @@ pub use soft_class_composition::{
     SoftClassCompositionLimits, SoftClassCompositionResult,
 };
 pub use soft_class_composition_workflow::SoftClassCompositionAnalysisNode;
+pub use soft_multiscale_neighborhood::{
+    soft_multiscale_neighborhood_composition, SoftMultiscaleNeighborhoodConfig,
+    SoftMultiscaleNeighborhoodError, SoftMultiscaleNeighborhoodLimits,
+    SoftMultiscaleNeighborhoodResult, SoftMultiscaleNeighborhoodScale,
+};
+pub use soft_multiscale_neighborhood_workflow::SoftMultiscaleNeighborhoodAnalysisNode;
 pub use soft_neighborhood_composition::{
     soft_neighborhood_composition, SoftNeighborhoodCompositionConfig,
     SoftNeighborhoodCompositionError, SoftNeighborhoodCompositionLimits,

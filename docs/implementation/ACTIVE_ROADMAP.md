@@ -735,3 +735,15 @@ accept a strictly increasing bounded radius list, reuse one geometry plan, retai
 zero-neighbor states and work telemetry, and demonstrate nearby-scale stability without selecting
 radii from the output. Do not add niche clustering, topic models, patient p-values, or a generic
 neighborhood registry before that multiscale data flow is complete.
+
+## Checkpoint 85 prespecified multiscale soft-neighborhood continuation
+
+One shared physical geometry plan now evaluates a strictly increasing bounded radius list while
+retaining every scale's complete per-cell simplex vectors, typed unavailable rows, aggregate mass,
+total work, and adjacent-scale total variation. Durable identity includes the exact radius list and
+resource ceilings; no output-dependent scale choice is performed.
+
+The bounded NIC-01A specialization is complete. NIC-01 remains active for real patient/ROI
+stability and downstream reproducible neighborhoods. The next production caller should consume a
+real admitted CellViT lane at prespecified scales or advance another concrete missing mark family;
+it must not introduce niche clustering, a fingerprint registry, or cell-level population inference.

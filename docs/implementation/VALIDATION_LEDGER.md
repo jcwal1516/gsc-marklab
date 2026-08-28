@@ -2159,3 +2159,24 @@ vascular transport.
   doctests, affected-file Rustfmt, and diff whitespace checks pass. Workspace-wide gates were not
   repeated after checkpoint 82; no full integration/Nextest loop, feature matrix, benchmark, fuzz,
   memory tool, packaging, dependency audit, push, publication, deployment, or history rewrite ran.
+
+## Prespecified multiscale soft-neighborhood checkpoint 85 — 2026-08-28
+
+- `cargo +1.96.0 test --locked --package marklab --test
+  soft_neighborhood_composition_workflow complete_simplex_rows_flow_across_one_fixed_physical_radius
+  -- --exact` failed first because the new multiscale codec accepted a corrupted row neighbor count;
+  after structural row/scale/adjacent-distance validation it passes 1/1.
+- `cargo +1.96.0 test --locked --package marklab --test
+  soft_neighborhood_composition_workflow --test probability_simplex_composition_workflow --test
+  scalar_mark_input` passes 17/17. It covers one shared geometry build, exact two-scale outputs,
+  typed all-isolated scales, invalid/duplicate radii, one-short pair/memory ceilings, inconsistent
+  codec rows, fresh misses, reopened fixed/multiscale hits, and radius/radius-list invalidation.
+- `python3 tests/fixtures/soft_neighborhood/generate_python_oracle.py | diff -u
+  tests/fixtures/soft_neighborhood/python_radius_oracle.json -` passes byte-for-byte. The independent
+  direct-pair loop agrees on six total visits, every scale row/vector, second-scale aggregate
+  `[0.375,0.625]`, and adjacent total variation `0.125`.
+- Targeted warning-denied Clippy over the three affected integrations passes. `cargo +1.96.0 check
+  --locked --package marklab --no-default-features`, `cargo +1.96.0 test --locked --package marklab
+  --doc`, affected-file Rustfmt, and diff whitespace checks pass. Workspace-wide gates were not
+  repeated after checkpoint 82; no full integration/Nextest loop, feature matrix, benchmark, fuzz,
+  memory tool, packaging, dependency audit, push, publication, deployment, or history rewrite ran.

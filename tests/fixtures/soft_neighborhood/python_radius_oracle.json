@@ -4,6 +4,83 @@
     0.5,
     0.5
   ],
+  "multiscale": {
+    "adjacent_scale_total_variation_distance": [
+      0.125
+    ],
+    "scales": [
+      {
+        "directed_pair_visits": 2,
+        "mean_neighbor_class_mass": [
+          0.5,
+          0.5
+        ],
+        "radius_um": 1.5,
+        "rows": [
+          {
+            "mean_neighbor_probabilities": [
+              0.0,
+              1.0
+            ],
+            "neighbor_count": 1
+          },
+          {
+            "mean_neighbor_probabilities": [
+              1.0,
+              0.0
+            ],
+            "neighbor_count": 1
+          },
+          {
+            "mean_neighbor_probabilities": null,
+            "neighbor_count": 0
+          },
+          {
+            "mean_neighbor_probabilities": null,
+            "neighbor_count": 0
+          }
+        ],
+        "zero_neighbor_cell_count": 2
+      },
+      {
+        "directed_pair_visits": 4,
+        "mean_neighbor_class_mass": [
+          0.375,
+          0.625
+        ],
+        "radius_um": 2.5,
+        "rows": [
+          {
+            "mean_neighbor_probabilities": [
+              0.0,
+              1.0
+            ],
+            "neighbor_count": 1
+          },
+          {
+            "mean_neighbor_probabilities": [
+              0.75,
+              0.25
+            ],
+            "neighbor_count": 2
+          },
+          {
+            "mean_neighbor_probabilities": [
+              0.0,
+              1.0
+            ],
+            "neighbor_count": 1
+          },
+          {
+            "mean_neighbor_probabilities": null,
+            "neighbor_count": 0
+          }
+        ],
+        "zero_neighbor_cell_count": 1
+      }
+    ],
+    "total_directed_pair_visits": 6
+  },
   "oracle": "Python standard-library direct physical-radius pair loop",
   "radius_um": 1.5,
   "rows": [

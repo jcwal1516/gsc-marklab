@@ -1548,3 +1548,21 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   thresholded or renormalized, no radius is selected from the result, and cells/edges are not
   treated as patient replicates. Prespecified multiscale stability, patient inference, niche
   discovery, real validation, and result-format changes remain.
+
+## Prespecified multiscale soft-neighborhood checkpoint 85 — 2026-08-28
+
+- Added the bounded NIC-01A continuation over a strictly increasing caller-supplied physical-radius
+  list. One canonical geometry/index plan is built and reused across every scale; each scale retains
+  complete per-cell simplex means, stable CellIds, exact neighbor counts, typed zero-neighbor states,
+  directed-incidence aggregate class mass, and an exact graph digest.
+- Total directed visits are charged across all scales and adjacent available aggregate vectors
+  report total-variation distance without selecting or ranking radii. The independent Python loop
+  gives six total visits at 1.5/2.5 micrometres, second-scale mass `[0.375,0.625]`, and adjacent-scale
+  distance `0.125`; two all-isolated scales retain an unavailable distance rather than zero.
+- Exact table/provenance/window/radius-list/limit identity and point/class/radius/value/pair/memory
+  ceilings are durable. A reopened project returns byte-identical fixed and multiscale hits without
+  new executions; changing both radius contracts creates exactly two misses. Inconsistent retained
+  row counts are rejected by the result codec.
+- This completes one bounded prespecified NIC-01A multiscale specialization. Real patient/ROI
+  stability, scale transport, niche discovery, population inference, and result-format changes are
+  not claimed. NIC-01 remains active.
