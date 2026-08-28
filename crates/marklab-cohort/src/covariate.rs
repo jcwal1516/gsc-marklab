@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
 use super::{
-    numeric::stable_mean, CohortInferenceError, InferenceAlternative, InferenceDesign,
-    PermutationAlternative, MAXIMUM_PATIENTS, MAXIMUM_PATIENT_PERMUTATION_EVALUATIONS,
-    MAXIMUM_PERMUTATIONS,
+    inference_design::align_patient_blocks, numeric::stable_mean, CohortInferenceError,
+    InferenceAlternative, InferenceDesign, PatientExchangeabilityBlock, PermutationAlternative,
+    MAXIMUM_PATIENTS, MAXIMUM_PATIENT_PERMUTATION_EVALUATIONS, MAXIMUM_PERMUTATIONS,
 };
 
 const COVARIATE_FREEDMAN_LANE_NAMESPACE: u64 = 0x636f_765f_666c_706d;
@@ -41,6 +41,10 @@ pub struct CovariatePermutationSpec {
 pub struct CovariatePermutationResult {
     /// Exact covariate-conditional inference design.
     pub inference_design: InferenceDesign,
+    /// Whether residual movement was restricted within exact patient blocks.
+    pub blocked: bool,
+    /// Number of exact blocks, or zero for the unblocked path.
+    pub block_count: usize,
     /// Total independent patient count.
     pub patient_count: usize,
     /// Group A patient count.
@@ -84,6 +88,23 @@ pub struct CovariatePermutationResult {
 /// Test an adjusted patient group coefficient by permuting reduced-model residuals.
 pub fn patient_covariate_freedman_lane(
     records: &[CovariatePatientRecord],
+    spec: &CovariatePermutationSpec,
+) -> Result<CovariatePermutationResult, CohortInferenceError> {
+    execute_covariate_freedman_lane(records, None, spec)
+}
+
+/// Restrict reduced-model residual movement within exact patient-ID-keyed blocks.
+pub fn patient_blocked_covariate_freedman_lane(
+    records: &[CovariatePatientRecord],
+    assignments: &[PatientExchangeabilityBlock],
+    spec: &CovariatePermutationSpec,
+) -> Result<CovariatePermutationResult, CohortInferenceError> {
+    execute_covariate_freedman_lane(records, Some(assignments), spec)
+}
+
+fn execute_covariate_freedman_lane(
+    records: &[CovariatePatientRecord],
+    assignments: Option<&[PatientExchangeabilityBlock]>,
     spec: &CovariatePermutationSpec,
 ) -> Result<CovariatePermutationResult, CohortInferenceError> {
     validate_spec(spec)?;
@@ -132,13 +153,29 @@ pub fn patient_covariate_freedman_lane(
         .zip(&reduced_fit.fitted)
         .map(|(outcome, fitted)| outcome - fitted)
         .collect::<Vec<_>>();
-    let design = InferenceDesign::covariate_conditional_residual_permutation(
-        rows.len(),
-        spec.permutations,
-        spec.seed,
-        COVARIATE_FREEDMAN_LANE_NAMESPACE,
-        inference_alternative(spec.alternative),
-    )
+    let design = match assignments {
+        Some(assignments) => {
+            let patient_ids = rows
+                .iter()
+                .map(|row| row.patient_id.clone())
+                .collect::<Vec<_>>();
+            let blocks = align_patient_blocks(&patient_ids, assignments, "covariate residual")?;
+            InferenceDesign::blocked_covariate_conditional_residual_permutation(
+                &blocks,
+                spec.permutations,
+                spec.seed,
+                COVARIATE_FREEDMAN_LANE_NAMESPACE,
+                inference_alternative(spec.alternative),
+            )
+        }
+        None => InferenceDesign::covariate_conditional_residual_permutation(
+            rows.len(),
+            spec.permutations,
+            spec.seed,
+            COVARIATE_FREEDMAN_LANE_NAMESPACE,
+            inference_alternative(spec.alternative),
+        ),
+    }
     .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
 
     let mut lower_tail = 0usize;
@@ -165,6 +202,8 @@ pub fn patient_covariate_freedman_lane(
     };
     let group_a_count = rows.iter().filter(|row| row.group_a).count();
     Ok(CovariatePermutationResult {
+        blocked: assignments.is_some(),
+        block_count: assignments.map_or(0, |_| design.block_count()),
         inference_design: design,
         patient_count: rows.len(),
         group_a_count,
@@ -212,8 +251,9 @@ fn validate_spec(spec: &CovariatePermutationSpec) -> Result<(), CohortInferenceE
     Ok(())
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct Row {
+    patient_id: String,
     outcome: f64,
     covariate: f64,
     group_a: bool,
@@ -253,6 +293,7 @@ fn canonicalize(
             .insert(
                 &record.patient_id,
                 Row {
+                    patient_id: record.patient_id.clone(),
                     outcome: record.outcome,
                     covariate: record.covariate,
                     group_a,

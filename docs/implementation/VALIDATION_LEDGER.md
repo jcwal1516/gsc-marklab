@@ -2326,6 +2326,20 @@ vascular transport.
   binary. Package no-default compilation, strict package docs, affected-file Rustfmt, and `git diff
   --check` pass. Broad checkpoint-101 gates were not repeated.
 
+## Blocked one-covariate residual permutation checkpoint 107 — 2026-08-28
+
+- The blocked CLI test first failed because the five-column input was rejected and now passes. The
+  complete `cohort_covariate_permutation_cli` target passes 2/2 with blocked fields and legacy
+  unblocked-field absence.
+- `covariate_reference` passes 3/3, including the independent restricted two-block p-value and
+  reverse patient-ID assignment order. Shared alignment regressions pass: MMD 3/3, energy 2/2,
+  functional 2/2, and Max-T 3/3. The first chained command used nonexistent test target
+  `functional_reference` and exited after the preceding MMD/energy targets passed; the corrected
+  `functional_permutation_reference` command passes 2/2.
+- Warning-denied Clippy passes for all `marklab-cohort` targets and the affected `marklab` CLI
+  binary. Package no-default compilation, strict package docs, affected-file Rustfmt, and `git diff
+  --check` pass. Broad checkpoint-101 gates were not repeated.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

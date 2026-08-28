@@ -1854,3 +1854,18 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   exact p-value; reversed rows and a `1e100` covariate rescaling preserve inference, while exact
   group-covariate collinearity fails. Focused new/legacy CLI tests, warning-denied Clippy, package
   no-default compilation, strict package docs, affected formatting, and whitespace checks pass.
+
+## Blocked one-covariate residual permutation checkpoint 107 — 2026-08-28
+
+- The one-covariate patient Freedman-Lane workflow now accepts exact patient-ID-keyed blocks and
+  permutes each complete reduced-model residual only within its declared block. Reverse-ordered
+  assignments canonicalize to patient order; missing, duplicate, foreign, invalid, or entirely
+  singleton block designs fail through the shared exact block owner.
+- The CLI accepts one optional trailing `block` column and reports `blocked=true` plus exact block
+  count only on that path. The unblocked version-one JSON shape and permutation stream remain
+  unchanged. An independent two-block restricted-shuffle oracle matches the exact p-value.
+- The complete covariate CLI passes 2/2; covariate references pass 3/3; affected MMD 3/3, energy
+  2/2, functional 2/2, and Max-T 3/3 references pass after patient-block alignment reuse. A first
+  command named the nonexistent `functional_reference` target and failed before that step; the
+  canonical `functional_permutation_reference` target then passed. Affected Clippy, no-default,
+  strict docs, formatting, and whitespace checks pass.

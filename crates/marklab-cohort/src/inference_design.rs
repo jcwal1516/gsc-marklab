@@ -314,6 +314,33 @@ impl InferenceDesign {
         )
     }
 
+    pub(crate) fn blocked_covariate_conditional_residual_permutation(
+        blocks: &[String],
+        permutations: usize,
+        seed: u64,
+        seed_namespace: u64,
+        alternative: InferenceAlternative,
+    ) -> Result<Self, InferenceDesignError> {
+        let mut by_block = BTreeMap::<&str, Vec<usize>>::new();
+        for (index, block) in blocks.iter().enumerate() {
+            if !valid_block_text(block) {
+                return Err(InferenceDesignError::InvalidBlockLabel);
+            }
+            by_block.entry(block).or_default().push(index);
+        }
+        Self::build(
+            InferenceAnalysisLevel::Patient,
+            InferenceNullFamily::CovariateConditionalResidualPermutation,
+            InferencePermutationUnit::CompletePatientResidual,
+            by_block.into_values().collect(),
+            blocks.len(),
+            permutations,
+            seed,
+            seed_namespace,
+            alternative,
+        )
+    }
+
     pub(crate) fn paired_sign_flip(
         pair_count: usize,
         permutations: usize,
@@ -688,40 +715,12 @@ pub(crate) fn compile_blocked_population_independence(
     seed_namespace: u64,
     alternative: InferenceAlternative,
 ) -> Result<InferenceDesign, CohortInferenceError> {
-    if patient_ids.len() != observed_labels.len() || assignments.len() != patient_ids.len() {
+    if patient_ids.len() != observed_labels.len() {
         return Err(CohortInferenceError::InvalidInput(
             "blocked fingerprint design requires exactly one assignment per patient".into(),
         ));
     }
-    let mut by_patient = BTreeMap::<&str, &str>::new();
-    for assignment in assignments {
-        if by_patient
-            .insert(assignment.patient_id(), assignment.block())
-            .is_some()
-        {
-            return Err(CohortInferenceError::InvalidInput(format!(
-                "duplicate fingerprint block assignment for patient {}",
-                assignment.patient_id()
-            )));
-        }
-    }
-    let mut blocks = Vec::new();
-    blocks
-        .try_reserve_exact(patient_ids.len())
-        .map_err(|_| CohortInferenceError::InvalidInput("block allocation failed".into()))?;
-    for patient_id in patient_ids {
-        let block = by_patient.remove(patient_id.as_str()).ok_or_else(|| {
-            CohortInferenceError::InvalidInput(format!(
-                "missing fingerprint block assignment for patient {patient_id}"
-            ))
-        })?;
-        blocks.push(block.to_owned());
-    }
-    if let Some(patient_id) = by_patient.keys().next() {
-        return Err(CohortInferenceError::InvalidInput(format!(
-            "block assignment names unknown patient {patient_id}"
-        )));
-    }
+    let blocks = align_patient_blocks(patient_ids, assignments, "fingerprint")?;
     let design = InferenceDesign::blocked_population_independence(
         &blocks,
         permutations,
@@ -739,6 +738,48 @@ pub(crate) fn compile_blocked_population_independence(
         ));
     }
     Ok(design)
+}
+
+pub(crate) fn align_patient_blocks(
+    patient_ids: &[String],
+    assignments: &[PatientExchangeabilityBlock],
+    context: &str,
+) -> Result<Vec<String>, CohortInferenceError> {
+    if assignments.len() != patient_ids.len() {
+        return Err(CohortInferenceError::InvalidInput(format!(
+            "blocked {context} design requires exactly one assignment per patient"
+        )));
+    }
+    let mut by_patient = BTreeMap::<&str, &str>::new();
+    for assignment in assignments {
+        if by_patient
+            .insert(assignment.patient_id(), assignment.block())
+            .is_some()
+        {
+            return Err(CohortInferenceError::InvalidInput(format!(
+                "duplicate {context} block assignment for patient {}",
+                assignment.patient_id()
+            )));
+        }
+    }
+    let mut blocks = Vec::new();
+    blocks
+        .try_reserve_exact(patient_ids.len())
+        .map_err(|_| CohortInferenceError::InvalidInput("block allocation failed".into()))?;
+    for patient_id in patient_ids {
+        let block = by_patient.remove(patient_id.as_str()).ok_or_else(|| {
+            CohortInferenceError::InvalidInput(format!(
+                "missing {context} block assignment for patient {patient_id}"
+            ))
+        })?;
+        blocks.push(block.to_owned());
+    }
+    if let Some(patient_id) = by_patient.keys().next() {
+        return Err(CohortInferenceError::InvalidInput(format!(
+            "{context} block assignment names unknown patient {patient_id}"
+        )));
+    }
+    Ok(blocks)
 }
 
 fn valid_block_text(value: &str) -> bool {

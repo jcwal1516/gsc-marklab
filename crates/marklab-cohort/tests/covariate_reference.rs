@@ -1,6 +1,7 @@
 use marklab_cohort::{
-    patient_covariate_freedman_lane, CovariatePatientRecord, CovariatePermutationSpec,
-    InferenceAlternative, InferenceNullFamily, InferencePermutationUnit, PermutationAlternative,
+    patient_blocked_covariate_freedman_lane, patient_covariate_freedman_lane,
+    CovariatePatientRecord, CovariatePermutationSpec, InferenceAlternative, InferenceNullFamily,
+    InferencePermutationUnit, PatientExchangeabilityBlock, PermutationAlternative,
 };
 
 const NAMESPACE: u64 = 0x636f_765f_666c_706d;
@@ -34,7 +35,7 @@ fn patient_covariate_freedman_lane_matches_an_independent_fwl_reference() {
     );
     assert!((result.studentized_statistic - rescaled_result.studentized_statistic).abs() < 1e-12);
     assert_eq!(result.p_value, rescaled_result.p_value);
-    let reference = slow_reference(&records, &spec);
+    let reference = slow_reference(&records, &spec, &[(0..records.len()).collect::<Vec<_>>()]);
     assert!((result.effect_group_a_minus_group_b - reference.0).abs() < 1e-12);
     assert!((result.target_standard_error - reference.1).abs() < 1e-12);
     assert!((result.studentized_statistic - reference.2).abs() < 1e-12);
@@ -51,6 +52,37 @@ fn patient_covariate_freedman_lane_matches_an_independent_fwl_reference() {
         result.inference_design.alternative(),
         InferenceAlternative::TwoSided
     );
+}
+
+#[test]
+fn blocked_patient_covariate_freedman_lane_matches_restricted_residual_oracle() {
+    let records = records();
+    let spec = CovariatePermutationSpec {
+        group_a: "A".into(),
+        group_b: "B".into(),
+        permutations: 199,
+        seed: 47,
+        alternative: PermutationAlternative::TwoSided,
+    };
+    let mut assignments = records
+        .iter()
+        .map(|record| {
+            let number = record.patient_id[2..].parse::<usize>().expect("number");
+            PatientExchangeabilityBlock::new(
+                record.patient_id.clone(),
+                if number <= 3 { "north" } else { "south" },
+            )
+            .expect("assignment")
+        })
+        .collect::<Vec<_>>();
+    assignments.reverse();
+    let result = patient_blocked_covariate_freedman_lane(&records, &assignments, &spec)
+        .expect("blocked result");
+    let blocks = [vec![0, 1, 2, 6, 7, 8], vec![3, 4, 5, 9, 10, 11]];
+    let reference = slow_reference(&records, &spec, &blocks);
+    assert_eq!(result.p_value, reference.3);
+    assert!(result.blocked);
+    assert_eq!(result.block_count, 2);
 }
 
 #[test]
@@ -97,6 +129,7 @@ fn records() -> Vec<CovariatePatientRecord> {
 fn slow_reference(
     records: &[CovariatePatientRecord],
     spec: &CovariatePermutationSpec,
+    blocks: &[Vec<usize>],
 ) -> (f64, f64, f64, f64) {
     let x = records.iter().map(|row| row.covariate).collect::<Vec<_>>();
     let y = records.iter().map(|row| row.outcome).collect::<Vec<_>>();
@@ -116,10 +149,16 @@ fn slow_reference(
     for replicate in 0..spec.permutations {
         let mut indices = (0..records.len()).collect::<Vec<_>>();
         let mut state = derive_seed(spec.seed, replicate);
-        for index in (1..indices.len()).rev() {
-            state = splitmix64(state ^ index as u64);
-            let other = (state % (index as u64 + 1)) as usize;
-            indices.swap(index, other);
+        for block in blocks {
+            let mut shuffled = block.clone();
+            for index in (1..shuffled.len()).rev() {
+                state = splitmix64(state ^ index as u64);
+                let other = (state % (index as u64 + 1)) as usize;
+                shuffled.swap(index, other);
+            }
+            for (position, source) in block.iter().zip(shuffled) {
+                indices[*position] = source;
+            }
         }
         let permuted = fitted
             .iter()

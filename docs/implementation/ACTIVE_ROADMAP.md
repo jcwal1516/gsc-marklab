@@ -945,3 +945,9 @@ One independent-patient scalar outcome can now be adjusted for one prespecified 
 through an explicit reduced/full OLS residual-permutation design. COH-01/FND-06 remain active for
 blocked or multiple-covariate residual designs, cluster/multisite adjustment, and real validation;
 the immediate one-covariate caller is complete without a formula framework.
+
+## Checkpoint 107 blocked one-covariate residual continuation
+
+The same fixed one-covariate model now restricts complete patient residuals within exact declared
+blocks while preserving unblocked behavior. COH-01/FND-06 remain active for multiple nuisance
+columns, cluster/multisite adjustment, and real validation; this exact-block caller is complete.

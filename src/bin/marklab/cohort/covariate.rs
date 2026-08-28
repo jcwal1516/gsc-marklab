@@ -1,8 +1,9 @@
 use std::{fs, path::PathBuf};
 
 use marklab_cohort::{
-    patient_covariate_freedman_lane, CovariatePatientRecord, CovariatePermutationResult,
-    CovariatePermutationSpec, InferenceNullFamily, InferencePermutationUnit,
+    patient_blocked_covariate_freedman_lane, patient_covariate_freedman_lane,
+    CovariatePatientRecord, CovariatePermutationResult, CovariatePermutationSpec,
+    InferenceNullFamily, InferencePermutationUnit, PatientExchangeabilityBlock,
 };
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +16,8 @@ struct CsvRow {
     group: String,
     outcome: f64,
     covariate: f64,
+    #[serde(default)]
+    block: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -37,6 +40,10 @@ struct Design {
     randomization_unit: &'static str,
     null_family: &'static str,
     permutation_unit: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    blocked: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    block_count: Option<usize>,
     reduced_model_columns: usize,
     full_model_columns: usize,
     residual_degrees_of_freedom: usize,
@@ -80,17 +87,18 @@ pub(super) struct RunArgs {
 }
 
 pub(super) fn run(args: RunArgs) -> Result<(), CohortError> {
-    let records = read_records(&args.input)?;
-    let result = patient_covariate_freedman_lane(
-        &records,
-        &CovariatePermutationSpec {
-            group_a: args.group_a,
-            group_b: args.group_b,
-            permutations: args.permutations,
-            seed: args.seed,
-            alternative: args.alternative.into(),
-        },
-    )?;
+    let input = read_records(&args.input)?;
+    let spec = CovariatePermutationSpec {
+        group_a: args.group_a,
+        group_b: args.group_b,
+        permutations: args.permutations,
+        seed: args.seed,
+        alternative: args.alternative.into(),
+    };
+    let result = match input.blocks {
+        Some(blocks) => patient_blocked_covariate_freedman_lane(&input.records, &blocks, &spec)?,
+        None => patient_covariate_freedman_lane(&input.records, &spec)?,
+    };
     publish_json(&args.out, &Output::from_result(result, args.alternative))
 }
 
@@ -111,6 +119,8 @@ impl Output {
                 randomization_unit: "patient_residual",
                 null_family: "covariate_conditional_residual_permutation",
                 permutation_unit: "complete_patient_residual",
+                blocked: result.blocked.then_some(true),
+                block_count: result.blocked.then_some(result.block_count),
                 reduced_model_columns: result.reduced_model_columns,
                 full_model_columns: result.full_model_columns,
                 residual_degrees_of_freedom: result.residual_degrees_of_freedom,
@@ -146,7 +156,12 @@ impl Output {
     }
 }
 
-fn read_records(path: &std::path::Path) -> Result<Vec<CovariatePatientRecord>, CohortError> {
+struct Input {
+    records: Vec<CovariatePatientRecord>,
+    blocks: Option<Vec<PatientExchangeabilityBlock>>,
+}
+
+fn read_records(path: &std::path::Path) -> Result<Input, CohortError> {
     let metadata = fs::metadata(path).map_err(|source| CohortError::Output {
         path: path.to_owned(),
         source,
@@ -160,26 +175,41 @@ fn read_records(path: &std::path::Path) -> Result<Vec<CovariatePatientRecord>, C
         .flexible(false)
         .from_path(path)
         .map_err(|error| CohortError::Input(error.to_string()))?;
-    if !reader
+    let headers = reader
         .headers()
         .map_err(|error| CohortError::Input(error.to_string()))?
+        .clone();
+    let blocked = headers
         .iter()
-        .eq(["patient_id", "group", "outcome", "covariate"])
+        .eq(["patient_id", "group", "outcome", "covariate", "block"]);
+    if !blocked
+        && !headers
+            .iter()
+            .eq(["patient_id", "group", "outcome", "covariate"])
     {
         return Err(CohortError::Input(
-            "CSV header must be exactly patient_id,group,outcome,covariate".into(),
+            "CSV header must be exactly patient_id,group,outcome,covariate with optional trailing block".into(),
         ));
     }
-    reader
-        .deserialize::<CsvRow>()
-        .map(|row| {
-            let row = row.map_err(|error| CohortError::Input(error.to_string()))?;
-            Ok(CovariatePatientRecord {
-                patient_id: row.patient_id,
-                group: row.group,
-                outcome: row.outcome,
-                covariate: row.covariate,
-            })
-        })
-        .collect()
+    let mut records = Vec::new();
+    let mut blocks = blocked.then(Vec::new);
+    for row in reader.deserialize::<CsvRow>() {
+        let row = row.map_err(|error| CohortError::Input(error.to_string()))?;
+        if let Some(assignments) = &mut blocks {
+            assignments.push(
+                PatientExchangeabilityBlock::new(
+                    row.patient_id.clone(),
+                    row.block.clone().unwrap_or_default(),
+                )
+                .map_err(|error| CohortError::Input(error.to_string()))?,
+            );
+        }
+        records.push(CovariatePatientRecord {
+            patient_id: row.patient_id,
+            group: row.group,
+            outcome: row.outcome,
+            covariate: row.covariate,
+        });
+    }
+    Ok(Input { records, blocks })
 }

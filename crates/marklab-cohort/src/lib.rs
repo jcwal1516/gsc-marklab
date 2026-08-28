@@ -37,8 +37,8 @@ pub use cluster::{
     ClusterPermutationSpec,
 };
 pub use covariate::{
-    patient_covariate_freedman_lane, CovariatePatientRecord, CovariatePermutationResult,
-    CovariatePermutationSpec,
+    patient_blocked_covariate_freedman_lane, patient_covariate_freedman_lane,
+    CovariatePatientRecord, CovariatePermutationResult, CovariatePermutationSpec,
 };
 pub use energy::{
     patient_level_blocked_energy_distance, patient_level_energy_distance,
