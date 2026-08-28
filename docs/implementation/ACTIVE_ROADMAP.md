@@ -878,3 +878,10 @@ COH-01 and FND-06 remain active for covariate-adjusted/cluster/interference desi
 multisite validation. The next production outcome should use an admitted real multisite endpoint or
 advance the canonical real CellViT source-import gap; do not fabricate site labels or duplicate
 specimens as patients.
+
+## Checkpoint 98 canonical hierarchical-bootstrap ordering continuation
+
+Hierarchical bootstrap now binds its deterministic nested draws to exact patient/specimen identities
+rather than caller row order. The existing patient-first estimand and random stream are otherwise
+unchanged. COH-01/FND-06 remain active for hierarchy design ownership, cluster/interference methods,
+and real validation.

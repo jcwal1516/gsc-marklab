@@ -1740,3 +1740,13 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   pooled effect `3` over 12 patients.
 - This advances COH-01/FND-06/WS-31/WS-34 without claiming site exchangeability, residualizing
   covariates, inferring site labels, or adding a generic meta-analysis framework.
+
+## Canonical hierarchical-bootstrap ordering checkpoint 98 — 2026-08-28
+
+- Patient-first hierarchical bootstrap now canonicalizes specimens by exact specimen identity
+  within canonically ordered patients before applying its unchanged deterministic nested sampling
+  stream. Equivalent CSV row reorderings therefore produce identical stored replicate means and
+  percentile intervals instead of silently changing results.
+- The independent slow reference and existing patient-first CLI remain green. This advances
+  COH-01/FND-06 reproducibility without changing the specimen-row-mean estimand, hierarchy, seed,
+  draw count, interval method, or treating specimens as population replicates.

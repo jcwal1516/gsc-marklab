@@ -194,7 +194,7 @@ fn validate_and_group(
         )));
     }
     let mut specimens = HashSet::with_capacity(records.len());
-    let mut grouped = BTreeMap::<&str, Vec<f64>>::new();
+    let mut grouped = BTreeMap::<&str, BTreeMap<&str, f64>>::new();
     for record in records {
         if record.patient_id.trim().is_empty() || record.patient_id.trim() != record.patient_id {
             return Err(CohortInferenceError::InvalidInput(
@@ -221,14 +221,17 @@ fn validate_and_group(
         grouped
             .entry(record.patient_id.as_str())
             .or_default()
-            .push(record.endpoint);
+            .insert(record.specimen_id.as_str(), record.endpoint);
     }
     if grouped.len() < 2 {
         return Err(CohortInferenceError::InvalidInput(
             "hierarchical bootstrap requires at least two patients".into(),
         ));
     }
-    Ok(grouped.into_values().collect())
+    Ok(grouped
+        .into_values()
+        .map(|specimens| specimens.into_values().collect())
+        .collect())
 }
 
 fn nearest_rank(ordered: &[f64], probability: f64) -> f64 {
@@ -273,5 +276,33 @@ mod tests {
         assert_eq!(result.observed_mean, 4.0);
         assert_eq!(result.patient_count, 2);
         assert_eq!(result.specimen_count, 4);
+    }
+
+    #[test]
+    fn equivalent_specimen_rows_are_order_invariant() {
+        let records = [
+            ("p-1", "s-1", 1.0),
+            ("p-1", "s-2", 7.0),
+            ("p-1", "s-3", 20.0),
+            ("p-2", "s-4", 2.0),
+            ("p-2", "s-5", 11.0),
+            ("p-2", "s-6", 30.0),
+        ]
+        .into_iter()
+        .map(|(patient, specimen, endpoint)| HierarchicalScalarRecord {
+            patient_id: patient.into(),
+            specimen_id: specimen.into(),
+            endpoint,
+        })
+        .collect::<Vec<_>>();
+        let reordered = records.iter().rev().cloned().collect::<Vec<_>>();
+        let spec = HierarchicalBootstrapSpec {
+            replicates: 99,
+            seed: 59,
+            alpha: 0.05,
+        };
+        let first = hierarchical_bootstrap(&records, &spec).expect("first result");
+        let second = hierarchical_bootstrap(&reordered, &spec).expect("reordered result");
+        assert_eq!(first, second);
     }
 }

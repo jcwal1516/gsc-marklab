@@ -2221,6 +2221,14 @@ vascular transport.
   for the affected cohort library and CLI test; package no-default compilation, doctests,
   affected-file Rustfmt, and diff whitespace pass. Broad checkpoint-95 gates were not repeated.
 
+## Canonical hierarchical-bootstrap ordering checkpoint 98 — 2026-08-28
+
+- The focused row-order regression first failed with different replicate vectors and percentile
+  intervals, then passed after exact specimen-ID canonicalization. The independent slow bootstrap
+  reference and patient-first CLI integration each pass 1/1.
+- Focused warning-denied cohort Clippy, package no-default compilation, affected-file Rustfmt, and
+  diff whitespace pass. Broad checkpoint-95 gates were not repeated.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test
