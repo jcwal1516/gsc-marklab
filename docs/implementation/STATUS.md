@@ -1391,3 +1391,30 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   pinned external `pcf`/`pcfcross` agreement, broader null/edge calibration, general multitype
   coverage, and inhomogeneous intensity. The next consumed workflow is explicit cross-fitted
   intensity feeding inhomogeneous K/L, not a generic estimator registry.
+
+## Leave-one-out inhomogeneous K/L checkpoint 77 — 2026-08-27
+
+- Added one complete PP-05→PP-02 production flow. A caller fixes a physical Gaussian bandwidth and
+  deterministic cell-centred integration grid. Every observed event receives a positive finite
+  intensity from all other events, scaled by `n/(n-1)` and divided by the quadrature-estimated
+  kernel mass inside the exact polygon/multipolygon/hole window. No event contributes to its own
+  intensity and no bandwidth is learned from the reported K/L curve.
+- The typed intensity artifact retains every event row/boundary mass/training count plus every fixed
+  probe center, intensity, cell mass, total mass, grid spacing/displacement, and exact digest used by
+  the null. Standard-border K is the compensated ratio of eligible ordered-pair
+  `1/(lambda_i lambda_j)` mass to eligible-center `1/lambda_i` mass; it reduces exactly to the
+  existing homogeneous reduced-sample estimator under constant intensity. L remains `sqrt(K/pi)`.
+- The fixed gridded pilot draws whole conditioned location patterns with uniform in-cell jitter
+  restricted to the exact window; null events are weighted by that frozen observed pilot rather
+  than refitting it. One two-sided L-curve ERL family reports the descriptive within-pattern null.
+  Twenty deterministic gradient inhomogeneous-Poisson controls show no gross anti-conservatism, and
+  a prespecified tight-cluster control retains excess short-range K after reweighting.
+- A standalone Python direct loop agrees on four boundary masses, four leave-one-out intensities,
+  eligible centers/pairs, inverse-intensity sums, K, and L. Polygon-hole probe exclusion, singleton,
+  near-zero intensity, invalid finite output, and one-short memory/intensity/pair/null-draw limits
+  are explicit. The durable node uses a private exact-f64-bit codec after ordinary JSON numbers were
+  proven to alter grid digests; a reconstructed project hits with one execution and seed changes
+  miss.
+- This closes one bounded Gaussian/cell-quadrature specialization, not the PP-02/PP-05 families.
+  Continuous exact polygon-kernel integration, multiple/piecewise estimators, automatic bandwidth,
+  broader calibration, pinned `spatstat` agreement, compartments, and real scale evidence remain.

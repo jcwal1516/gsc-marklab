@@ -622,3 +622,19 @@ bandwidth/fold/boundary provenance, and consume it directly in standard-border i
 with an inhomogeneous-Poisson calibration control and durable replay. Do not expose a bandwidth
 selector, estimator registry, intensity marketplace, or inhomogeneous g until this K/L data flow is
 correct and independently checked.
+
+## Checkpoint 77 leave-one-out inhomogeneous K/L continuation
+
+One explicit Gaussian leave-one-out pilot now flows directly into standard-border inhomogeneous K/L
+and a fixed-pilot conditioned null. The result persists exact event intensities, quadrature boundary
+masses, fixed probe intensities/cell masses, grid discretization, identities, work telemetry, ERL,
+and finite/resource states. Hand/Python agreement, polygon-hole behavior, deterministic gradient
+nulls, a tight-cluster direction control, and exact durable replay exercise the cohesive workflow.
+The gridded quadrature/null approximation is declared and is not continuous exact polygon-kernel
+integration or evidence that multiple intensity estimators agree.
+
+The next immediate consumer is inhomogeneous pair-correlation g using this same persisted pilot.
+It must declare a second, distinct pair-smoothing bandwidth, use standard-border `r+h_pair`
+eligibility, freeze the intensity pilot across its conditioned null, remain separate from cumulative
+inhomogeneous K/L, and add an independent oracle/control. Do not refit or silently retune intensity,
+add a kernel/bandwidth registry, or claim the broader PP-02/PP-03/PP-05 families complete.

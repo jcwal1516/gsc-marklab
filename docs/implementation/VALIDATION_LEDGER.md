@@ -1995,3 +1995,33 @@ vascular transport.
   --locked --package marklab --doc`, `cargo +1.96.0 fmt --all --check`, and `git diff --check` pass.
   Workspace/Nextest loops, feature matrices, benchmarks, fuzzing, memory tools, packaging,
   dependency audits, push, publication, deployment, and history rewriting were not run.
+
+## Leave-one-out inhomogeneous K/L checkpoint 77 — 2026-08-27
+
+- `cargo +1.96.0 test --locked --package marklab --test inhomogeneous_spatial_typed_workflow`
+  first failed on unresolved production symbols and now passes 3/3: the exact intensity-to-K/L
+  oracle, deterministic replay, persisted fixed grid, polygon-hole probe exclusion, singleton,
+  invalid radius, near-zero intensity, and one-short memory/intensity/pair/null-draw ceilings.
+- `workers/python/.venv/bin/python
+  tests/fixtures/inhomogeneous_spatial/generate_python_oracle.py | diff -u
+  tests/fixtures/inhomogeneous_spatial/python_rectangle_oracle.json -` passes byte-for-byte. The
+  independent loop agrees on all four boundary masses/intensities and exact pair/center sums, K,
+  and L.
+- `cargo +1.96.0 test --locked --package marklab --test inhomogeneous_spatial_calibration` passes
+  2/2. Twenty prespecified gradient inhomogeneous-Poisson controls reject at most the declared gross
+  anti-conservatism ceiling; the separate tight-cluster control has excess short-range K after
+  reweighting.
+- `cargo +1.96.0 test --locked --package marklab --test
+  inhomogeneous_spatial_project_workflow` first failed on the absent durable node, then exposed
+  ordinary JSON-float digest drift during strict replay. The private codec now preserves exact f64
+  bits and the final 1/1 test proves miss, reconstructed hit with one execution, and seed-invalidated
+  second miss.
+- Targeted warning-denied Clippy over the three integrations passes after fixing one needless range
+  loop. `cargo +1.96.0 test --locked --package marklab --lib common::seeds::tests` passes 2/2 for
+  stable namespace derivation and uniqueness. `cargo +1.96.0 check --locked --package marklab
+  --no-default-features`, `cargo +1.96.0 test
+  --locked --package marklab --doc`, `cargo +1.96.0 fmt --all --check`, and `git diff --check` pass.
+  The responsibility split leaves orchestration, intensity/grid/null sampling, pair accumulation,
+  identity/resource accounting, and durable codec in separate modules. Workspace/Nextest loops,
+  feature matrices, benchmarks, fuzzing, memory tools, packaging, dependency audits, push,
+  publication, deployment, and history rewriting were not run.

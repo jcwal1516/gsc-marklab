@@ -1,0 +1,27 @@
+{
+  "area_um2": 100.0,
+  "bandwidth_um": 2.0,
+  "boundary_masses": [
+    0.7121270073467215,
+    0.7890448400367207,
+    0.874270675266562,
+    0.648281721915248
+  ],
+  "directed_pairs": 2,
+  "eligible_center_inverse_intensity_sum": 58.729176588258866,
+  "eligible_centers": 3,
+  "integration_grid": [
+    10,
+    10
+  ],
+  "intensities": [
+    0.06589474481377681,
+    0.05976753571179758,
+    0.03728287154067532,
+    0.04968278901946622
+  ],
+  "inverse_intensity_pair_sum": 507.8247524583649,
+  "k": 8.646890386675185,
+  "l": 1.6590330601969003,
+  "radius_um": 1.1
+}

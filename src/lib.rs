@@ -35,6 +35,7 @@ mod diagnostics;
 mod errors;
 mod geom;
 mod inference;
+mod inhomogeneous_spatial;
 mod io;
 mod mark_pair_plan;
 mod mark_weighted_k;
@@ -141,6 +142,13 @@ pub use geom::mask::TumorMask;
 pub use geom::window::{
     ObservationWindow2D, ObservationWindowDescriptor, ObservationWindowError,
     ObservationWindowLimits,
+};
+pub use inhomogeneous_spatial::{
+    analyze_inhomogeneous_spatial_pattern, InhomogeneousIntensityGridPoint,
+    InhomogeneousIntensityPoint, InhomogeneousIntensitySummary, InhomogeneousSpatialAnalysisNode,
+    InhomogeneousSpatialConfig, InhomogeneousSpatialError, InhomogeneousSpatialInference,
+    InhomogeneousSpatialLimits, InhomogeneousSpatialPoint, InhomogeneousSpatialPointStatus,
+    InhomogeneousSpatialResult,
 };
 pub use io::{PatternLoadDiagnostics, PatternLoadResult, PatternLoader};
 pub use mark_weighted_k::{
