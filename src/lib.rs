@@ -68,6 +68,8 @@ mod scalar_mark;
 mod scalar_variogram;
 mod soft_class_composition;
 mod soft_class_composition_workflow;
+mod soft_neighborhood_composition;
+mod soft_neighborhood_composition_workflow;
 mod spatial_autocorrelation;
 mod spatial_autocorrelation_workflow;
 mod spectra;
@@ -439,6 +441,12 @@ pub use soft_class_composition::{
     SoftClassCompositionLimits, SoftClassCompositionResult,
 };
 pub use soft_class_composition_workflow::SoftClassCompositionAnalysisNode;
+pub use soft_neighborhood_composition::{
+    soft_neighborhood_composition, SoftNeighborhoodCompositionConfig,
+    SoftNeighborhoodCompositionError, SoftNeighborhoodCompositionLimits,
+    SoftNeighborhoodCompositionResult, SoftNeighborhoodCompositionRow,
+};
+pub use soft_neighborhood_composition_workflow::SoftNeighborhoodCompositionAnalysisNode;
 pub use spatial_autocorrelation::{
     global_geary_permutation, global_moran_permutation, GlobalGearyAlternative, GlobalGearyDesign,
     GlobalGearyError, GlobalGearyLimits, GlobalGearyResult, GlobalMoranAlternative,

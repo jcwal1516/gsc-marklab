@@ -1530,3 +1530,21 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - This is descriptive per-specimen soft composition, not probability calibration, hard-label
   replacement, patient inference, spatial neighborhood composition, clinical evidence, or a generic
   mark registry. Result-format 0.3 remains unchanged.
+
+## Fixed-radius soft neighborhood checkpoint 84 — 2026-08-27
+
+- Added the immediate spatial consumer of complete probability-simplex rows. A caller fixes one
+  positive physical radius and the canonical geometry plan supplies deterministically sorted exact
+  neighbors. Every focal cell retains stable CellId, neighbor count, and the arithmetic mean of
+  complete target-neighbor simplex rows; zero-neighbor cells retain a typed unavailable vector.
+- The result also reports directed pair visits and the directed-incidence-weighted aggregate class
+  mass. The independent four-cell Python loop has two directed visits, two zero-neighbor cells,
+  focal means `[0,1]` and `[1,0]`, and aggregate mass `[0.5,0.5]`. An all-isolated radius returns
+  four typed unavailable rows and no aggregate vector rather than fabricated zeros.
+- Exact table/provenance/window/radius identities and hard point/class/value/pair/memory ceilings
+  are cache-bound. One-short pair and memory work fail. A reconstructed store-aware project returns
+  an identical hit with one execution; changing only the physical radius misses.
+- This is descriptive within-specimen soft neighborhood composition. No class probability is
+  thresholded or renormalized, no radius is selected from the result, and cells/edges are not
+  treated as patient replicates. Prespecified multiscale stability, patient inference, niche
+  discovery, real validation, and result-format changes remain.

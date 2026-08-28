@@ -1,0 +1,34 @@
+{
+  "directed_pair_visits": 2,
+  "mean_neighbor_class_mass": [
+    0.5,
+    0.5
+  ],
+  "oracle": "Python standard-library direct physical-radius pair loop",
+  "radius_um": 1.5,
+  "rows": [
+    {
+      "mean_neighbor_probabilities": [
+        0.0,
+        1.0
+      ],
+      "neighbor_count": 1
+    },
+    {
+      "mean_neighbor_probabilities": [
+        1.0,
+        0.0
+      ],
+      "neighbor_count": 1
+    },
+    {
+      "mean_neighbor_probabilities": null,
+      "neighbor_count": 0
+    },
+    {
+      "mean_neighbor_probabilities": null,
+      "neighbor_count": 0
+    }
+  ],
+  "zero_neighbor_cell_count": 2
+}

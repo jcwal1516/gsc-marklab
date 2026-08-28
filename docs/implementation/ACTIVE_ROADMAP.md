@@ -721,3 +721,17 @@ physical radius using the same complete simplex rows and canonical geometry plan
 expected neighbor class mass without hard labels, retain zero-neighbor states, bind pair/memory
 work, and remain descriptive per specimen. No automatic radius selection, niche clustering,
 patient-level p-value, or general simplex registry is justified.
+
+## Checkpoint 84 fixed-radius soft-neighborhood continuation
+
+Complete CellViT-compatible simplex rows now flow across one exact physical-radius graph into
+per-cell expected neighbor class mass, a directed-incidence aggregate, and typed zero-neighbor
+states. Deterministic sorted traversal, an independent Python pair loop, pair/memory ceilings, and
+store-verified radius-bound replay cover the complete workflow without hard labels or cell-level
+population claims.
+
+NIC-01A remains active for its prespecified multiscale contract. The next immediate caller must
+accept a strictly increasing bounded radius list, reuse one geometry plan, retain scale-specific
+zero-neighbor states and work telemetry, and demonstrate nearby-scale stability without selecting
+radii from the output. Do not add niche clustering, topic models, patient p-values, or a generic
+neighborhood registry before that multiscale data flow is complete.

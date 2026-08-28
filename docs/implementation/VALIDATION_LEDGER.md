@@ -2141,3 +2141,21 @@ vascular transport.
   immediately preceding checkpoint-82 stabilization; no Nextest/full integration loop, feature
   matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push, publication, deployment,
   or history rewrite was run.
+
+## Fixed-radius soft neighborhood checkpoint 84 — 2026-08-27
+
+- `cargo +1.96.0 test --locked --package marklab --test
+  soft_neighborhood_composition_workflow` first failed on unresolved typed/config symbols and its
+  durable test separately failed on the absent node. The final 3/3 pass covers exact per-cell/
+  aggregate probability mass, typed all-isolated and mixed zero-neighbor states, invalid radius,
+  one-short pair/memory work, fresh miss, reconstructed hit with one execution, and radius-only
+  cache invalidation.
+- `python3 tests/fixtures/soft_neighborhood/generate_python_oracle.py | diff -u
+  tests/fixtures/soft_neighborhood/python_radius_oracle.json -` passes byte-for-byte. The independent
+  direct pair loop agrees on two visits, every row state/vector, two unavailable rows, and aggregate
+  `[0.5,0.5]`.
+- The affected command passes soft neighborhood 3/3 and simplex composition 3/3. Targeted
+  warning-denied Clippy including scalar input passes. Package no-default compilation, package
+  doctests, affected-file Rustfmt, and diff whitespace checks pass. Workspace-wide gates were not
+  repeated after checkpoint 82; no full integration/Nextest loop, feature matrix, benchmark, fuzz,
+  memory tool, packaging, dependency audit, push, publication, deployment, or history rewrite ran.
