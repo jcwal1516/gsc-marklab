@@ -22,6 +22,8 @@ use marklab_cohort::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+#[path = "cohort/cluster.rs"]
+mod cluster;
 #[path = "cohort/effects.rs"]
 mod effects;
 #[path = "cohort/equivalence.rs"]
@@ -85,6 +87,22 @@ enum CohortCommand {
         condition_a: String,
         #[arg(long)]
         condition_b: String,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long, value_enum)]
+        alternative: CliAlternative,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    ClusterPermutation {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        group_a: String,
+        #[arg(long)]
+        group_b: String,
         #[arg(long)]
         permutations: usize,
         #[arg(long)]
@@ -705,6 +723,26 @@ pub(super) fn run_cli() -> Result<(), CohortError> {
                 &PairedPermutationOutput::from_result(input, alternative, result),
             )
         }
+        CohortTopLevel::Cohort {
+            command:
+                CohortCommand::ClusterPermutation {
+                    input,
+                    group_a,
+                    group_b,
+                    permutations,
+                    seed,
+                    alternative,
+                    out,
+                },
+        } => cluster::run(
+            input,
+            group_a,
+            group_b,
+            permutations,
+            seed,
+            alternative,
+            out,
+        ),
         CohortTopLevel::Cohort {
             command:
                 CohortCommand::RepeatedFreedmanLane {

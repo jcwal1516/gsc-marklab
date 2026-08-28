@@ -55,6 +55,8 @@ pub enum InferenceAnalysisLevel {
     Cell,
     /// One whole patient label is the exchangeable unit.
     Patient,
+    /// One declared cluster containing one or more patients.
+    Cluster,
 }
 
 /// Admitted null families used by current patient and cell-mark callers.
@@ -72,6 +74,8 @@ pub enum InferenceNullFamily {
     PairedSignFlip,
     /// Patients are sampled first, then specimens within each sampled patient occurrence.
     HierarchicalBootstrap,
+    /// Whole cluster group labels move under cluster-level independence.
+    ClusterLabelPermutation,
     /// Complete reduced-model residual vectors receive independent subject-level signs.
     SubjectResidualSignSymmetry,
 }
@@ -87,6 +91,8 @@ pub enum InferencePermutationUnit {
     CompletePatientPairDifference,
     /// One patient occurrence followed by its complete nested-specimen draw.
     PatientThenNestedSpecimen,
+    /// One complete cluster endpoint summary.
+    CompleteClusterEndpoint,
     /// One complete subject residual vector across every retained visit.
     CompleteSubjectResidualVector,
 }
@@ -306,6 +312,26 @@ impl InferenceDesign {
             seed,
             seed_namespace,
             InferenceAlternative::TwoSided,
+        )
+    }
+
+    pub(crate) fn cluster_label_permutation(
+        cluster_count: usize,
+        permutations: usize,
+        seed: u64,
+        seed_namespace: u64,
+        alternative: InferenceAlternative,
+    ) -> Result<Self, InferenceDesignError> {
+        Self::build(
+            InferenceAnalysisLevel::Cluster,
+            InferenceNullFamily::ClusterLabelPermutation,
+            InferencePermutationUnit::CompleteClusterEndpoint,
+            vec![(0..cluster_count).collect()],
+            cluster_count,
+            permutations,
+            seed,
+            seed_namespace,
+            alternative,
         )
     }
 

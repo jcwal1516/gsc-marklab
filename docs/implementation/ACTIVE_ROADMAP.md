@@ -892,3 +892,10 @@ Both current patient-first bootstrap callers now persist the exact hierarchical 
 then-nested-specimen draw unit through `InferenceDesign`, with their established reference stream
 unchanged. FND-06 remains active for cluster/interference and broader multiplicity/calibration; the
 hierarchical-bootstrap ownership gap is closed.
+
+## Checkpoint 100 whole-cluster inference continuation
+
+Patient rows nested in exact treatment/exposure clusters now reduce to equal-weight cluster means and
+move only as whole cluster labels through a typed cluster-level design. Four related COH-01/FND-06
+workflows have completed since checkpoint 95; run one stabilization pass, excluding the prohibited
+macOS full-integration/Nextest loop, before further production work.

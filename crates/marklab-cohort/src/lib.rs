@@ -5,6 +5,7 @@ use std::collections::HashSet;
 
 use thiserror::Error;
 
+mod cluster;
 mod energy;
 mod equivalence;
 mod fingerprint;
@@ -29,6 +30,10 @@ pub use inference_design::{
     PatientExchangeabilityBlock,
 };
 
+pub use cluster::{
+    cluster_level_permutation_test, ClusterPatientEndpoint, ClusterPermutationResult,
+    ClusterPermutationSpec,
+};
 pub use energy::{
     patient_level_blocked_energy_distance, patient_level_energy_distance,
     BlockedEnergyDistanceResult, EnergyDistanceResult, EnergyDistanceSpec, EnergyMetric,

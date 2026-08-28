@@ -1761,3 +1761,16 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   intervals, estimand, limits, and deterministic CLI outputs remain exact.
 - This advances COH-01/FND-06/WS-31/WS-34 without inferring hierarchy, adding cluster weights or
   covariates, or treating specimens as population replicates.
+
+## Whole-cluster patient inference checkpoint 100 — 2026-08-28
+
+- Added cluster-randomized scalar inference from globally unique patient rows. Every cluster must
+  retain one exact declared group; the workflow computes one equal-weight patient-endpoint mean per
+  cluster and permutes complete cluster labels, so unequal cluster sizes cannot create patient-level
+  pseudoreplication.
+- The result exposes `ClusterLabelPermutation`, `CompleteClusterEndpoint`, patient/cluster counts,
+  cluster-level group means, Welch effect/statistic, alternative, seed, and exact replicate counts.
+  An independent slow oracle matches the p-value; duplicate patients, mixed-group clusters, and
+  fewer than two clusters per group fail.
+- This advances COH-01/FND-06/WS-31/WS-34 without inferring clusters, adjusting covariates, claiming
+  intracluster-correlation modeling, or adding a generic cluster framework.

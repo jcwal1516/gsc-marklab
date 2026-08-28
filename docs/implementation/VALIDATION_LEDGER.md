@@ -2240,6 +2240,15 @@ vascular transport.
   Package no-default compilation, doctests, affected-file Rustfmt, and diff whitespace pass; broad
   checkpoint-95 gates were not repeated.
 
+## Whole-cluster patient inference checkpoint 100 — 2026-08-28
+
+- The exact CLI behavior test first failed because `cluster-permutation` was absent and now passes
+  1/1 with 12 patients, six clusters, equal cluster weighting, and hand effect `7/3`.
+- The independent slow reference passes 1/1 with exact p-value and typed cluster design; it also
+  covers duplicate patient IDs, conflicting groups within one cluster, and insufficient group
+  clusters. Warning-denied Clippy passes for the affected cohort library/reference and CLI test;
+  package no-default compilation, doctests, affected-file Rustfmt, and diff whitespace pass.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test
