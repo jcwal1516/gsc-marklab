@@ -804,3 +804,14 @@ integration/Nextest loader loop was not retried.
 Production work resumes from the remaining concrete FND-04/FND-05/FND-06 callers and real-data gaps.
 Broad gates should not be repeated until another three to five cohesive workflows, a phase exit, or
 an explicit request.
+
+## Checkpoint 91 blocked fingerprint population-inference continuation
+
+Exact patient-ID-keyed exchangeability blocks now flow through both MMD and energy-distance library
+and CLI paths. Whole patient labels move only within admitted blocks; unblocked streams and output
+shape remain unchanged, and independent slow references cover the blocked schedule.
+
+FND-06 remains active. The next immediate inference caller is the existing functional two-sample
+patient workflow used for prespecified multiscale curves: admit exact patient blocks only if its
+current curve-level statistic and deterministic schedule can be preserved. Do not infer strata,
+split curve coordinates, or create a general randomization registry.

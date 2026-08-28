@@ -13,6 +13,41 @@ const STRATIFIED_RANDOM_LABELING_NAMESPACE: u64 = 0x7374_7261_746c_6162;
 /// Shared name for the existing less/greater/two-sided permutation alternative.
 pub type InferenceAlternative = PermutationAlternative;
 
+/// One exact patient-to-exchangeability-block assignment.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PatientExchangeabilityBlock {
+    patient_id: String,
+    block: String,
+}
+
+impl PatientExchangeabilityBlock {
+    /// Validate bounded nonempty patient and block labels.
+    pub fn new(
+        patient_id: impl Into<String>,
+        block: impl Into<String>,
+    ) -> Result<Self, InferenceDesignError> {
+        let patient_id = patient_id.into();
+        let block = block.into();
+        if !valid_block_text(&patient_id) {
+            return Err(InferenceDesignError::InvalidPatientIdentity);
+        }
+        if !valid_block_text(&block) {
+            return Err(InferenceDesignError::InvalidBlockLabel);
+        }
+        Ok(Self { patient_id, block })
+    }
+
+    /// Exact patient identity.
+    pub fn patient_id(&self) -> &str {
+        &self.patient_id
+    }
+
+    /// Exact exchangeability-block label.
+    pub fn block(&self) -> &str {
+        &self.block
+    }
+}
+
 /// Biological or observational level at which exchangeable units are declared.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum InferenceAnalysisLevel {
@@ -165,6 +200,32 @@ impl InferenceDesign {
         )
     }
 
+    pub(crate) fn blocked_population_independence(
+        blocks: &[String],
+        permutations: usize,
+        seed: u64,
+        seed_namespace: u64,
+    ) -> Result<Self, InferenceDesignError> {
+        let mut by_block = BTreeMap::<&str, Vec<usize>>::new();
+        for (index, block) in blocks.iter().enumerate() {
+            if !valid_block_text(block) {
+                return Err(InferenceDesignError::InvalidBlockLabel);
+            }
+            by_block.entry(block).or_default().push(index);
+        }
+        Self::build(
+            InferenceAnalysisLevel::Patient,
+            InferenceNullFamily::PopulationIndependence,
+            InferencePermutationUnit::PatientLabel,
+            by_block.into_values().collect(),
+            blocks.len(),
+            permutations,
+            seed,
+            seed_namespace,
+            InferenceAlternative::Greater,
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn build(
         analysis_level: InferenceAnalysisLevel,
@@ -287,6 +348,12 @@ impl InferenceDesign {
 /// Failure to compile one explicit blocked-permutation schedule.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum InferenceDesignError {
+    /// Patient identity is empty, untrimmed, contains controls, or exceeds the bound.
+    #[error("patient exchangeability identity must be 1-256 trimmed non-control bytes")]
+    InvalidPatientIdentity,
+    /// Block label is empty, untrimmed, contains controls, or exceeds the bound.
+    #[error("exchangeability block must be 1-256 trimmed non-control bytes")]
+    InvalidBlockLabel,
     /// No units were supplied.
     #[error("inference design requires at least one unit")]
     NoUnits,
@@ -310,6 +377,73 @@ pub enum InferenceDesignError {
         /// Declared replicate count.
         permutations: usize,
     },
+}
+
+pub(crate) fn compile_blocked_population_independence(
+    patient_ids: &[String],
+    observed_labels: &[bool],
+    assignments: &[PatientExchangeabilityBlock],
+    permutations: usize,
+    seed: u64,
+    seed_namespace: u64,
+) -> Result<InferenceDesign, CohortInferenceError> {
+    if patient_ids.len() != observed_labels.len() || assignments.len() != patient_ids.len() {
+        return Err(CohortInferenceError::InvalidInput(
+            "blocked fingerprint design requires exactly one assignment per patient".into(),
+        ));
+    }
+    let mut by_patient = BTreeMap::<&str, &str>::new();
+    for assignment in assignments {
+        if by_patient
+            .insert(assignment.patient_id(), assignment.block())
+            .is_some()
+        {
+            return Err(CohortInferenceError::InvalidInput(format!(
+                "duplicate fingerprint block assignment for patient {}",
+                assignment.patient_id()
+            )));
+        }
+    }
+    let mut blocks = Vec::new();
+    blocks
+        .try_reserve_exact(patient_ids.len())
+        .map_err(|_| CohortInferenceError::InvalidInput("block allocation failed".into()))?;
+    for patient_id in patient_ids {
+        let block = by_patient.remove(patient_id.as_str()).ok_or_else(|| {
+            CohortInferenceError::InvalidInput(format!(
+                "missing fingerprint block assignment for patient {patient_id}"
+            ))
+        })?;
+        blocks.push(block.to_owned());
+    }
+    if let Some(patient_id) = by_patient.keys().next() {
+        return Err(CohortInferenceError::InvalidInput(format!(
+            "block assignment names unknown patient {patient_id}"
+        )));
+    }
+    let design = InferenceDesign::blocked_population_independence(
+        &blocks,
+        permutations,
+        seed,
+        seed_namespace,
+    )
+    .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
+    if !design.blocks().iter().any(|indices| {
+        indices.iter().any(|index| observed_labels[*index])
+            && indices.iter().any(|index| !observed_labels[*index])
+    }) {
+        return Err(CohortInferenceError::InvalidInput(
+            "fingerprint blocks are fully confounded with group".into(),
+        ));
+    }
+    Ok(design)
+}
+
+fn valid_block_text(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 256
+        && value.trim() == value
+        && !value.chars().any(char::is_control)
 }
 
 /// Validated patient hierarchy plus one shared typed permutation schedule.

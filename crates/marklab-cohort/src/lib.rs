@@ -26,10 +26,12 @@ use numeric::welch_contrast;
 pub use inference_design::{
     InferenceAlternative, InferenceAnalysisLevel, InferenceDesign, InferenceDesignError,
     InferenceMultiplicity, InferenceNullFamily, InferencePermutationUnit,
+    PatientExchangeabilityBlock,
 };
 
 pub use energy::{
-    patient_level_energy_distance, EnergyDistanceResult, EnergyDistanceSpec, EnergyMetric,
+    patient_level_blocked_energy_distance, patient_level_energy_distance,
+    BlockedEnergyDistanceResult, EnergyDistanceResult, EnergyDistanceSpec, EnergyMetric,
 };
 pub use equivalence::{
     tost_equivalence, EquivalenceInterval, PatientEffect, TostEquivalenceResult,
@@ -59,8 +61,8 @@ pub use max_t::{
     MaxTPermutationSpec, PatientEndpointVector,
 };
 pub use mmd::{
-    patient_level_mmd, Fingerprint, MmdEstimator, MmdKernel, MmdPermutationResult,
-    MmdPermutationSpec,
+    patient_level_blocked_mmd, patient_level_mmd, BlockedMmdPermutationResult, Fingerprint,
+    MmdEstimator, MmdKernel, MmdPermutationResult, MmdPermutationSpec,
 };
 pub use multisite::{
     multisite_spatial_inference, MultisiteEffectModel, MultisiteInferenceResult,

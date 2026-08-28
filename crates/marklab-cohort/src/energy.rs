@@ -1,7 +1,9 @@
 use super::{
     compensated_sum,
+    inference_design::compile_blocked_population_independence,
     mmd::{squared_euclidean, validate_fingerprints},
-    CohortInferenceError, Fingerprint, InferenceDesign, MAXIMUM_PERMUTATIONS,
+    CohortInferenceError, Fingerprint, InferenceDesign, PatientExchangeabilityBlock,
+    MAXIMUM_PERMUTATIONS,
 };
 
 const ENERGY_NAMESPACE: u64 = 0x656e_6572_6779_5f70;
@@ -55,11 +57,77 @@ pub struct EnergyDistanceResult {
     pub seed: u64,
 }
 
+/// Patient-level energy-distance result with its exact exchangeability design.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BlockedEnergyDistanceResult {
+    result: EnergyDistanceResult,
+    design: InferenceDesign,
+}
+
+impl BlockedEnergyDistanceResult {
+    /// Permutation-test result computed under the blocked design.
+    pub fn result(&self) -> &EnergyDistanceResult {
+        &self.result
+    }
+
+    /// Exact patient-level exchangeability design used for every replicate.
+    pub fn design(&self) -> &InferenceDesign {
+        &self.design
+    }
+
+    /// Consume the wrapper into its result and design.
+    pub fn into_parts(self) -> (EnergyDistanceResult, InferenceDesign) {
+        (self.result, self.design)
+    }
+}
+
 /// Compare patient fingerprint distributions with a frozen exact distance matrix.
 pub fn patient_level_energy_distance(
     fingerprints: &[Fingerprint],
     spec: &EnergyDistanceSpec,
 ) -> Result<EnergyDistanceResult, CohortInferenceError> {
+    validate_energy_inputs(fingerprints, spec)?;
+    let design = InferenceDesign::population_independence(
+        fingerprints.len(),
+        spec.permutations,
+        spec.seed,
+        ENERGY_NAMESPACE,
+    )
+    .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
+    execute_energy(fingerprints, spec, &design)
+}
+
+/// Compare patient fingerprint distributions within exact exchangeability blocks.
+pub fn patient_level_blocked_energy_distance(
+    fingerprints: &[Fingerprint],
+    assignments: &[PatientExchangeabilityBlock],
+    spec: &EnergyDistanceSpec,
+) -> Result<BlockedEnergyDistanceResult, CohortInferenceError> {
+    validate_energy_inputs(fingerprints, spec)?;
+    let observed_labels = fingerprints
+        .iter()
+        .map(|fingerprint| fingerprint.group == spec.group_a)
+        .collect::<Vec<_>>();
+    let patient_ids = fingerprints
+        .iter()
+        .map(|fingerprint| fingerprint.patient_id.clone())
+        .collect::<Vec<_>>();
+    let design = compile_blocked_population_independence(
+        &patient_ids,
+        &observed_labels,
+        assignments,
+        spec.permutations,
+        spec.seed,
+        ENERGY_NAMESPACE,
+    )?;
+    let result = execute_energy(fingerprints, spec, &design)?;
+    Ok(BlockedEnergyDistanceResult { result, design })
+}
+
+fn validate_energy_inputs(
+    fingerprints: &[Fingerprint],
+    spec: &EnergyDistanceSpec,
+) -> Result<(), CohortInferenceError> {
     validate_spec(spec)?;
     validate_fingerprints(fingerprints, &spec.group_a, &spec.group_b)?;
     let elements = fingerprints
@@ -75,19 +143,20 @@ pub fn patient_level_energy_distance(
     if work > MAXIMUM_ENERGY_EVALUATIONS {
         return Err(work_limit_error());
     }
+    Ok(())
+}
+
+fn execute_energy(
+    fingerprints: &[Fingerprint],
+    spec: &EnergyDistanceSpec,
+    design: &InferenceDesign,
+) -> Result<EnergyDistanceResult, CohortInferenceError> {
     let distances = build_distance_matrix(fingerprints, spec.metric)?;
     let observed_labels = fingerprints
         .iter()
         .map(|fingerprint| fingerprint.group == spec.group_a)
         .collect::<Vec<_>>();
     let observed = energy_distance(&distances, fingerprints.len(), &observed_labels)?;
-    let design = InferenceDesign::population_independence(
-        fingerprints.len(),
-        spec.permutations,
-        spec.seed,
-        ENERGY_NAMESPACE,
-    )
-    .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
     let mut exceedances = 0usize;
     for replicate in 0..spec.permutations {
         let labels = design

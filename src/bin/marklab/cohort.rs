@@ -7,14 +7,16 @@ use std::{
 use clap::{Parser, Subcommand, ValueEnum};
 use marklab_cohort::{
     functional_two_sample_permutation, max_t_multiple_endpoint_permutation,
-    paired_patient_permutation_test, patient_level_energy_distance, patient_level_mmd,
-    patient_level_permutation_test, CohortInferenceError, EnergyDistanceResult, EnergyDistanceSpec,
-    EnergyMetric, Fingerprint, FunctionalCurve, FunctionalPermutationResult,
-    FunctionalPermutationSpec, FunctionalTestStatistic, MaxTPermutationResult, MaxTPermutationSpec,
-    MmdEstimator, MmdKernel, MmdPermutationResult, MmdPermutationSpec, PairedPatientEndpoint,
+    paired_patient_permutation_test, patient_level_blocked_energy_distance,
+    patient_level_blocked_mmd, patient_level_energy_distance, patient_level_mmd,
+    patient_level_permutation_test, BlockedEnergyDistanceResult, BlockedMmdPermutationResult,
+    CohortInferenceError, EnergyDistanceResult, EnergyDistanceSpec, EnergyMetric, Fingerprint,
+    FunctionalCurve, FunctionalPermutationResult, FunctionalPermutationSpec,
+    FunctionalTestStatistic, MaxTPermutationResult, MaxTPermutationSpec, MmdEstimator, MmdKernel,
+    MmdPermutationResult, MmdPermutationSpec, PairedPatientEndpoint,
     PairedPatientPermutationResult, PairedPatientPermutationSpec, PatientEndpoint,
-    PatientEndpointVector, PatientPermutationResult, PatientPermutationSpec,
-    PermutationAlternative,
+    PatientEndpointVector, PatientExchangeabilityBlock, PatientPermutationResult,
+    PatientPermutationSpec, PermutationAlternative,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -469,19 +471,28 @@ pub(super) fn run_cli() -> Result<(), CohortError> {
                     return Err(CohortError::Input("RBF MMD requires --bandwidth".into()))
                 }
             };
-            let fingerprints = read_fingerprints(&input)?;
-            let result = patient_level_mmd(
-                &fingerprints,
-                &MmdPermutationSpec {
-                    group_a,
-                    group_b,
-                    kernel,
-                    estimator: estimator.into(),
-                    permutations,
-                    seed,
-                },
-            )?;
-            publish_json(&out, &MmdOutput::from_result(input, estimator, result))
+            let fingerprint_input = read_fingerprints(&input)?;
+            let spec = MmdPermutationSpec {
+                group_a,
+                group_b,
+                kernel,
+                estimator: estimator.into(),
+                permutations,
+                seed,
+            };
+            let output = match fingerprint_input.blocks {
+                Some(blocks) => MmdOutput::from_blocked_result(
+                    input,
+                    estimator,
+                    patient_level_blocked_mmd(&fingerprint_input.fingerprints, &blocks, &spec)?,
+                ),
+                None => MmdOutput::from_result(
+                    input,
+                    estimator,
+                    patient_level_mmd(&fingerprint_input.fingerprints, &spec)?,
+                ),
+            };
+            publish_json(&out, &output)
         }
         CohortTopLevel::Cohort {
             command:
@@ -495,18 +506,31 @@ pub(super) fn run_cli() -> Result<(), CohortError> {
                     out,
                 },
         } => {
-            let fingerprints = read_fingerprints(&input)?;
-            let result = patient_level_energy_distance(
-                &fingerprints,
-                &EnergyDistanceSpec {
-                    group_a,
-                    group_b,
-                    metric: metric.into(),
-                    permutations,
-                    seed,
-                },
-            )?;
-            publish_json(&out, &EnergyOutput::from_result(input, metric, result))
+            let fingerprint_input = read_fingerprints(&input)?;
+            let spec = EnergyDistanceSpec {
+                group_a,
+                group_b,
+                metric: metric.into(),
+                permutations,
+                seed,
+            };
+            let output = match fingerprint_input.blocks {
+                Some(blocks) => EnergyOutput::from_blocked_result(
+                    input,
+                    metric,
+                    patient_level_blocked_energy_distance(
+                        &fingerprint_input.fingerprints,
+                        &blocks,
+                        &spec,
+                    )?,
+                ),
+                None => EnergyOutput::from_result(
+                    input,
+                    metric,
+                    patient_level_energy_distance(&fingerprint_input.fingerprints, &spec)?,
+                ),
+            };
+            publish_json(&out, &output)
         }
         CohortTopLevel::Cohort {
             command:
@@ -715,6 +739,13 @@ struct FingerprintCsvRecord {
     group: String,
     feature: String,
     value: f64,
+    #[serde(default)]
+    block: Option<String>,
+}
+
+struct FingerprintInput {
+    fingerprints: Vec<Fingerprint>,
+    blocks: Option<Vec<PatientExchangeabilityBlock>>,
 }
 
 fn read_records(path: &Path) -> Result<Vec<PatientEndpoint>, CohortError> {
@@ -895,7 +926,7 @@ fn read_max_t_patients(path: &Path) -> Result<Vec<PatientEndpointVector>, Cohort
         .collect::<Vec<_>>())
 }
 
-fn read_fingerprints(path: &Path) -> Result<Vec<Fingerprint>, CohortError> {
+fn read_fingerprints(path: &Path) -> Result<FingerprintInput, CohortError> {
     validate_input_file(path)?;
     let mut reader = csv::ReaderBuilder::new()
         .flexible(false)
@@ -905,42 +936,69 @@ fn read_fingerprints(path: &Path) -> Result<Vec<Fingerprint>, CohortError> {
         .headers()
         .map_err(|error| CohortError::Input(error.to_string()))?
         .clone();
-    if !headers
+    let blocked = headers
         .iter()
-        .eq(["patient_id", "group", "feature", "value"])
+        .eq(["patient_id", "group", "feature", "value", "block"]);
+    if !blocked
+        && !headers
+            .iter()
+            .eq(["patient_id", "group", "feature", "value"])
     {
         return Err(CohortError::Input(
-            "CSV header must be exactly patient_id,group,feature,value".into(),
+            "CSV header must be exactly patient_id,group,feature,value or patient_id,group,feature,value,block".into(),
         ));
     }
-    let mut grouped = BTreeMap::<String, (String, BTreeMap<String, f64>)>::new();
+    let mut grouped = BTreeMap::<String, (String, Option<String>, BTreeMap<String, f64>)>::new();
     for decoded in reader.deserialize::<FingerprintCsvRecord>() {
         let row = decoded.map_err(|error| CohortError::Input(error.to_string()))?;
+        if blocked && row.block.is_none() {
+            return Err(CohortError::Input(format!(
+                "patient {} is missing its fingerprint block",
+                row.patient_id
+            )));
+        }
         let entry = grouped
             .entry(row.patient_id.clone())
-            .or_insert_with(|| (row.group.clone(), BTreeMap::new()));
+            .or_insert_with(|| (row.group.clone(), row.block.clone(), BTreeMap::new()));
         if entry.0 != row.group {
             return Err(CohortError::Input(format!(
                 "patient {} has conflicting group labels",
                 row.patient_id
             )));
         }
-        if entry.1.insert(row.feature.clone(), row.value).is_some() {
+        if entry.1 != row.block {
+            return Err(CohortError::Input(format!(
+                "patient {} has conflicting fingerprint blocks",
+                row.patient_id
+            )));
+        }
+        if entry.2.insert(row.feature.clone(), row.value).is_some() {
             return Err(CohortError::Input(format!(
                 "patient {} has duplicate feature {:?}",
                 row.patient_id, row.feature
             )));
         }
     }
-    Ok(grouped
-        .into_iter()
-        .map(|(patient_id, (group, features))| Fingerprint {
+    let mut fingerprints = Vec::with_capacity(grouped.len());
+    let mut blocks = blocked.then(|| Vec::with_capacity(grouped.len()));
+    for (patient_id, (group, block, features)) in grouped {
+        if let Some(assignments) = &mut blocks {
+            assignments.push(
+                PatientExchangeabilityBlock::new(patient_id.clone(), block.unwrap_or_default())
+                    .map_err(|error| CohortError::Input(error.to_string()))?,
+            );
+        }
+        fingerprints.push(Fingerprint {
             patient_id,
             group,
             values: features.values().copied().collect(),
             features: features.into_keys().collect(),
-        })
-        .collect())
+        });
+    }
+    Ok(FingerprintInput {
+        fingerprints,
+        blocks,
+    })
 }
 
 fn validate_input_file(path: &Path) -> Result<(), CohortError> {
@@ -1194,6 +1252,16 @@ struct FunctionalDesignSummary {
 }
 
 #[derive(Debug, Serialize)]
+struct FingerprintDesignSummary {
+    randomization_unit: &'static str,
+    blocked: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    null_family: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    block_count: Option<usize>,
+}
+
+#[derive(Debug, Serialize)]
 struct FunctionalGroupSummary {
     group_a_patients: usize,
     group_b_patients: usize,
@@ -1268,7 +1336,7 @@ struct MmdOutput {
     format: &'static str,
     version: u32,
     input: PathBuf,
-    design: FunctionalDesignSummary,
+    design: FingerprintDesignSummary,
     groups: FunctionalGroupSummary,
     feature_count: usize,
     kernel: MmdKernelOutput,
@@ -1289,9 +1357,11 @@ impl MmdOutput {
             format: "marklab.cohort_mmd",
             version: 1,
             input,
-            design: FunctionalDesignSummary {
+            design: FingerprintDesignSummary {
                 randomization_unit: "patient",
                 blocked: false,
+                null_family: None,
+                block_count: None,
             },
             groups: FunctionalGroupSummary {
                 group_a_patients: result.group_a_count,
@@ -1319,6 +1389,22 @@ impl MmdOutput {
             seed: result.seed,
         }
     }
+
+    fn from_blocked_result(
+        input: PathBuf,
+        estimator: CliMmdEstimator,
+        blocked: BlockedMmdPermutationResult,
+    ) -> Self {
+        let (result, design) = blocked.into_parts();
+        let mut output = Self::from_result(input, estimator, result);
+        output.design = FingerprintDesignSummary {
+            randomization_unit: "patient",
+            blocked: true,
+            null_family: Some("population_independence"),
+            block_count: Some(design.block_count()),
+        };
+        output
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -1332,7 +1418,7 @@ struct EnergyOutput {
     format: &'static str,
     version: u32,
     input: PathBuf,
-    design: FunctionalDesignSummary,
+    design: FingerprintDesignSummary,
     groups: FunctionalGroupSummary,
     feature_count: usize,
     metric: CliEnergyMetric,
@@ -1348,9 +1434,11 @@ impl EnergyOutput {
             format: "marklab.cohort_energy",
             version: 1,
             input,
-            design: FunctionalDesignSummary {
+            design: FingerprintDesignSummary {
                 randomization_unit: "patient",
                 blocked: false,
+                null_family: None,
+                block_count: None,
             },
             groups: FunctionalGroupSummary {
                 group_a_patients: result.group_a_count,
@@ -1367,5 +1455,21 @@ impl EnergyOutput {
             },
             seed: result.seed,
         }
+    }
+
+    fn from_blocked_result(
+        input: PathBuf,
+        metric: CliEnergyMetric,
+        blocked: BlockedEnergyDistanceResult,
+    ) -> Self {
+        let (result, design) = blocked.into_parts();
+        let mut output = Self::from_result(input, metric, result);
+        output.design = FingerprintDesignSummary {
+            randomization_unit: "patient",
+            blocked: true,
+            null_family: Some("population_independence"),
+            block_count: Some(design.block_count()),
+        };
+        output
     }
 }

@@ -1653,3 +1653,20 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   checkpoints 51/52 prohibit retrying the macOS binary-verification loop. No feature matrix,
   benchmark, fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or
   history rewrite was run.
+
+## Blocked fingerprint population-inference checkpoint 91 — 2026-08-28
+
+- Added exact patient-ID-keyed exchangeability blocks to the existing patient-level MMD and energy-
+  distance workflows. Every admitted fingerprint must have one bounded block assignment; missing,
+  duplicate, foreign, singleton-only, and group-confounded designs fail explicitly. Whole patient
+  labels move only within lexically ordered exact blocks, using each method's unchanged private seed
+  namespace, statistic, matrix, work limits, and plus-one one-sided-high p-value.
+- `marklab cohort mmd` and `marklab cohort energy` now accept the optional trailing `block` CSV
+  column and report `population_independence` plus the exact block count. The older four-column path
+  retains its prior JSON shape. Independent slow references match all blocked replicates after
+  reverse-order assignment input, and CLI coverage proves complete admission and conflicting-row
+  rejection.
+- This is a bounded FND-06/CMP-01C/CMP-01D/COH-01/WS-31/WS-34 increment. It enables prespecified
+  site/batch-restricted fingerprint comparisons without treating features or cells as replicates;
+  it does not infer blocks, residualize covariates, add pairing/repeated measures, or change the
+  already sealed CRC result bundle.

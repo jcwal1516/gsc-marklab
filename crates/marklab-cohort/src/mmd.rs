@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 
 use super::{
-    compensated_sum, CohortInferenceError, InferenceDesign, MAXIMUM_PATIENTS, MAXIMUM_PERMUTATIONS,
+    compensated_sum, inference_design::compile_blocked_population_independence,
+    CohortInferenceError, InferenceDesign, PatientExchangeabilityBlock, MAXIMUM_PATIENTS,
+    MAXIMUM_PERMUTATIONS,
 };
 
 const MMD_NAMESPACE: u64 = 0x6d6d_645f_7065_726d;
@@ -83,11 +85,77 @@ pub struct MmdPermutationResult {
     pub seed: u64,
 }
 
+/// Patient-level MMD result together with its exact exchangeability design.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BlockedMmdPermutationResult {
+    result: MmdPermutationResult,
+    design: InferenceDesign,
+}
+
+impl BlockedMmdPermutationResult {
+    /// Permutation-test result computed under the blocked design.
+    pub fn result(&self) -> &MmdPermutationResult {
+        &self.result
+    }
+
+    /// Exact patient-level exchangeability design used for every replicate.
+    pub fn design(&self) -> &InferenceDesign {
+        &self.design
+    }
+
+    /// Consume the wrapper into its result and design.
+    pub fn into_parts(self) -> (MmdPermutationResult, InferenceDesign) {
+        (self.result, self.design)
+    }
+}
+
 /// Compare two patient fingerprint distributions using a frozen reusable kernel matrix.
 pub fn patient_level_mmd(
     fingerprints: &[Fingerprint],
     spec: &MmdPermutationSpec,
 ) -> Result<MmdPermutationResult, CohortInferenceError> {
+    validate_mmd_inputs(fingerprints, spec)?;
+    let design = InferenceDesign::population_independence(
+        fingerprints.len(),
+        spec.permutations,
+        spec.seed,
+        MMD_NAMESPACE,
+    )
+    .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
+    execute_mmd(fingerprints, spec, &design)
+}
+
+/// Compare two patient fingerprint distributions within exact exchangeability blocks.
+pub fn patient_level_blocked_mmd(
+    fingerprints: &[Fingerprint],
+    assignments: &[PatientExchangeabilityBlock],
+    spec: &MmdPermutationSpec,
+) -> Result<BlockedMmdPermutationResult, CohortInferenceError> {
+    validate_mmd_inputs(fingerprints, spec)?;
+    let observed_labels = fingerprints
+        .iter()
+        .map(|fingerprint| fingerprint.group == spec.group_a)
+        .collect::<Vec<_>>();
+    let patient_ids = fingerprints
+        .iter()
+        .map(|fingerprint| fingerprint.patient_id.clone())
+        .collect::<Vec<_>>();
+    let design = compile_blocked_population_independence(
+        &patient_ids,
+        &observed_labels,
+        assignments,
+        spec.permutations,
+        spec.seed,
+        MMD_NAMESPACE,
+    )?;
+    let result = execute_mmd(fingerprints, spec, &design)?;
+    Ok(BlockedMmdPermutationResult { result, design })
+}
+
+fn validate_mmd_inputs(
+    fingerprints: &[Fingerprint],
+    spec: &MmdPermutationSpec,
+) -> Result<(), CohortInferenceError> {
     validate_spec(spec)?;
     validate_fingerprints(fingerprints, &spec.group_a, &spec.group_b)?;
     let matrix_elements = fingerprints
@@ -103,6 +171,14 @@ pub fn patient_level_mmd(
     if work > MAXIMUM_MMD_EVALUATIONS {
         return Err(work_limit_error());
     }
+    Ok(())
+}
+
+fn execute_mmd(
+    fingerprints: &[Fingerprint],
+    spec: &MmdPermutationSpec,
+    design: &InferenceDesign,
+) -> Result<MmdPermutationResult, CohortInferenceError> {
     let kernel = build_kernel_matrix(fingerprints, spec.kernel)?;
     let observed_labels = fingerprints
         .iter()
@@ -114,13 +190,6 @@ pub fn patient_level_mmd(
         &observed_labels,
         spec.estimator,
     )?;
-    let design = InferenceDesign::population_independence(
-        fingerprints.len(),
-        spec.permutations,
-        spec.seed,
-        MMD_NAMESPACE,
-    )
-    .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
     let mut exceedances = 0usize;
     for replicate in 0..spec.permutations {
         let labels = design

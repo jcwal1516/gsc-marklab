@@ -2123,6 +2123,27 @@ vascular transport.
   feature matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push, publication,
   deployment, or history rewrite was run.
 
+## Blocked fingerprint population-inference checkpoint 91 — 2026-08-28
+
+- `cargo +1.96.0 test --locked --features cli --test cohort_mmd_cli
+  linear_mmd_cli_accepts_complete_patient_blocks_and_reports_the_design -- --exact` first failed
+  because the fingerprint CSV boundary accepted only the legacy four-column header. After the
+  blocked path was implemented, the complete MMD CLI passes; the analogous exact energy CLI passes.
+- `cargo +1.96.0 test --locked --package marklab-cohort --test mmd_reference --test
+  energy_reference` passes 5/5. Independent slow implementations match blocked MMD and energy
+  observed statistics and exact p-values while reverse-order assignments prove patient-ID binding;
+  incomplete, duplicate, foreign, and group-confounded designs fail. `cargo +1.96.0 test --locked
+  --package marklab-cohort --lib` passes 21/21.
+- `cargo +1.96.0 test --locked --features cli --test cohort_mmd_cli` passes 3/3 and `cargo +1.96.0
+  test --locked --features cli --test cohort_energy_cli` passes 2/2. They cover complete blocked
+  inputs, within-patient block conflict rejection, and unchanged unblocked design fields with no new
+  optional keys.
+- Warning-denied Clippy passes for all `marklab-cohort` targets and for the affected `marklab` binary
+  plus both CLI integrations. Package no-default compilation, package doctests, affected-file
+  Rustfmt, and `git diff --check` pass. Workspace-wide gates were not repeated after checkpoint 90;
+  no full integration/Nextest loop, feature matrix, benchmark, fuzz, memory tool, packaging,
+  dependency audit, push, publication, deployment, or history rewrite ran.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test
