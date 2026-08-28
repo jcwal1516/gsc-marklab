@@ -1418,3 +1418,20 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - This closes one bounded Gaussian/cell-quadrature specialization, not the PP-02/PP-05 families.
   Continuous exact polygon-kernel integration, multiple/piecewise estimators, automatic bandwidth,
   broader calibration, pinned `spatstat` agreement, compartments, and real scale evidence remain.
+
+## Durable inhomogeneous pair-correlation checkpoint 78 — 2026-08-27
+
+- Added one inhomogeneous Epanechnikov pair-correlation workflow that consumes exactly the persisted
+  Gaussian leave-one-out event and fixed-grid intensity artifact already owned by K/L. Its explicit
+  pair-smoothing bandwidth is separate from the intensity bandwidth, every center uses standard-
+  border eligibility at `r+h_pair`, and the inverse-intensity kernel/center ratio reduces to the
+  homogeneous normalization under constant intensity.
+- The observed pilot is fitted once and frozen across the existing conditioned gridded null. The
+  result retains typed empty-support states, one two-sided ERL family, exact intensity/pair/null work
+  telemetry, and hard memory ceilings. A direct Python loop gives g `2.064293021119719`; twenty
+  gradient-null controls stay below the prespecified gross anti-conservatism ceiling, and a matched
+  short-range clustered control has g above one.
+- The strict durable node shares only the exact-f64 codec and pilot validation demonstrably used by
+  K/L and g. A reconstructed project returns a byte-identical hit with one ledger row, while a seed
+  change creates a second miss. No bandwidth selector, estimator/kernel registry, multitype
+  inhomogeneous expansion, or pinned `spatstat` agreement is claimed.

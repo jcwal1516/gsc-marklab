@@ -144,11 +144,13 @@ pub use geom::window::{
     ObservationWindowLimits,
 };
 pub use inhomogeneous_spatial::{
-    analyze_inhomogeneous_spatial_pattern, InhomogeneousIntensityGridPoint,
-    InhomogeneousIntensityPoint, InhomogeneousIntensitySummary, InhomogeneousSpatialAnalysisNode,
-    InhomogeneousSpatialConfig, InhomogeneousSpatialError, InhomogeneousSpatialInference,
-    InhomogeneousSpatialLimits, InhomogeneousSpatialPoint, InhomogeneousSpatialPointStatus,
-    InhomogeneousSpatialResult,
+    analyze_inhomogeneous_pair_correlation, analyze_inhomogeneous_spatial_pattern,
+    InhomogeneousIntensityGridPoint, InhomogeneousIntensityPoint, InhomogeneousIntensitySummary,
+    InhomogeneousPairCorrelationAnalysisNode, InhomogeneousPairCorrelationConfig,
+    InhomogeneousPairCorrelationPoint, InhomogeneousPairCorrelationResult,
+    InhomogeneousSpatialAnalysisNode, InhomogeneousSpatialConfig, InhomogeneousSpatialError,
+    InhomogeneousSpatialInference, InhomogeneousSpatialLimits, InhomogeneousSpatialPoint,
+    InhomogeneousSpatialPointStatus, InhomogeneousSpatialResult,
 };
 pub use io::{PatternLoadDiagnostics, PatternLoadResult, PatternLoader};
 pub use mark_weighted_k::{

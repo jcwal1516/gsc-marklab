@@ -2025,3 +2025,23 @@ vascular transport.
   identity/resource accounting, and durable codec in separate modules. Workspace/Nextest loops,
   feature matrices, benchmarks, fuzzing, memory tools, packaging, dependency audits, push,
   publication, deployment, and history rewriting were not run.
+
+## Durable inhomogeneous pair-correlation checkpoint 78 — 2026-08-27
+
+- `cargo +1.96.0 test --locked --package marklab --test
+  inhomogeneous_pair_correlation_project_workflow` first failed on the unresolved durable node and
+  now passes 1/1: fresh miss, reconstructed byte-identical hit with one execution, and seed-only
+  invalidation to a second miss.
+- The focused affected command passes inhomogeneous g typed 2/2 and durable 1/1, K/L typed 3/3 and
+  durable 1/1, and calibration 3/3. It covers the shared persisted pilot, Python value, deterministic
+  replay, zero-weight kernel endpoints, one-short memory/pair limits, twenty gradient-null controls,
+  and a matched short-range cluster direction.
+- Both `workers/python/.venv/bin/python
+  tests/fixtures/inhomogeneous_pair_correlation/generate_python_oracle.py | diff -u
+  tests/fixtures/inhomogeneous_pair_correlation/python_rectangle_oracle.json -` and the unchanged
+  K/L Python-oracle regeneration pass byte-for-byte.
+- Targeted warning-denied Clippy over the five affected integrations passes. `cargo +1.96.0 check
+  --locked --package marklab --no-default-features`, `cargo +1.96.0 test --locked --package marklab
+  --doc`, affected-file Rustfmt, and diff whitespace checks pass. Workspace/Nextest loops, broad
+  feature matrices, benchmarks, fuzzing, memory tools, packaging, dependency audits, push,
+  publication, deployment, and history rewriting were not run.

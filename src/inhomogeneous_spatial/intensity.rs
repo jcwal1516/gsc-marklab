@@ -3,9 +3,10 @@ use std::collections::BTreeSet;
 use crate::{ObservationWindow2D, Pattern};
 
 use super::{
-    analysis::{compensated_add, Counters},
+    analysis::{canonical_zero, compensated_add, Counters},
     types::{
-        InhomogeneousIntensityGridPoint, InhomogeneousSpatialConfig, InhomogeneousSpatialError,
+        InhomogeneousIntensityGridPoint, InhomogeneousIntensityPoint, InhomogeneousSpatialConfig,
+        InhomogeneousSpatialError,
     },
 };
 
@@ -23,6 +24,91 @@ pub(super) struct Grid {
     pub(super) probes: Vec<Probe>,
     pub(super) spacing_um: [f64; 2],
     pub(super) cell_area_um2: f64,
+}
+
+pub(super) struct FittedIntensity {
+    pub(super) grid: Grid,
+    pub(super) point_values: Vec<InhomogeneousIntensityPoint>,
+    pub(super) observed_intensities: Vec<f64>,
+    pub(super) probe_cdf: Vec<f64>,
+    pub(super) fixed_grid_total_mass: f64,
+    pub(super) fixed_grid: Vec<InhomogeneousIntensityGridPoint>,
+}
+
+pub(super) fn fit_intensity(
+    pattern: &Pattern,
+    window: &ObservationWindow2D,
+    config: &InhomogeneousSpatialConfig,
+    counters: &mut Counters,
+) -> Result<FittedIntensity, InhomogeneousSpatialError> {
+    let grid = build_grid(window, config)?;
+    let mut point_values = Vec::new();
+    let mut observed_intensities = Vec::new();
+    point_values
+        .try_reserve_exact(pattern.len())
+        .and_then(|()| observed_intensities.try_reserve_exact(pattern.len()))
+        .map_err(|_| InhomogeneousSpatialError::AllocationFailed)?;
+    let finite_scale = pattern.len() as f64 / (pattern.len() - 1) as f64;
+    for row in 0..pattern.len() {
+        let location = (pattern.x_um[row], pattern.y_um[row]);
+        let correction = boundary_mass(location, &grid, config, counters)?;
+        let raw = kernel_sum(
+            location,
+            &pattern.x_um,
+            &pattern.y_um,
+            Some(row),
+            config,
+            counters,
+        )?;
+        let intensity = finite_scale * raw / correction;
+        validate_intensity(row, intensity, config.minimum_intensity_per_um2)?;
+        point_values.push(InhomogeneousIntensityPoint {
+            row,
+            intensity_per_um2: canonical_zero(intensity),
+            boundary_mass: correction,
+            training_point_count: pattern.len() - 1,
+        });
+        observed_intensities.push(intensity);
+    }
+    let (probe_cdf, fixed_grid_total_mass, fixed_grid) =
+        fixed_probe_cdf(pattern, &grid, config, counters)?;
+    Ok(FittedIntensity {
+        grid,
+        point_values,
+        observed_intensities,
+        probe_cdf,
+        fixed_grid_total_mass,
+        fixed_grid,
+    })
+}
+
+pub(super) fn evaluate_fixed_intensities(
+    x: &[f64],
+    y: &[f64],
+    pattern: &Pattern,
+    fitted: &FittedIntensity,
+    config: &InhomogeneousSpatialConfig,
+    counters: &mut Counters,
+) -> Result<Vec<f64>, InhomogeneousSpatialError> {
+    let mut intensities = Vec::new();
+    intensities
+        .try_reserve_exact(x.len())
+        .map_err(|_| InhomogeneousSpatialError::AllocationFailed)?;
+    for row in 0..x.len() {
+        let location = (x[row], y[row]);
+        let correction = boundary_mass(location, &fitted.grid, config, counters)?;
+        let intensity = kernel_sum(
+            location,
+            &pattern.x_um,
+            &pattern.y_um,
+            None,
+            config,
+            counters,
+        )? / correction;
+        validate_intensity(row, intensity, config.minimum_intensity_per_um2)?;
+        intensities.push(intensity);
+    }
+    Ok(intensities)
 }
 
 pub(super) fn build_grid(

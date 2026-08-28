@@ -1,0 +1,11 @@
+{
+  "directed_pairs_in_support": 2,
+  "eligible_center_inverse_intensity_sum": 58.729176588258866,
+  "eligible_centers": 3,
+  "g": 2.064293021119719,
+  "intensity_bandwidth_um": 2.0,
+  "inverse_intensity_kernel_sum": 761.7371286875474,
+  "kernel": "epanechnikov",
+  "pair_bandwidth_um": 0.5,
+  "radius_um": 1.0
+}

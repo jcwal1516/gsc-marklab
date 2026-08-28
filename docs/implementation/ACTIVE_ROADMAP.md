@@ -638,3 +638,17 @@ It must declare a second, distinct pair-smoothing bandwidth, use standard-border
 eligibility, freeze the intensity pilot across its conditioned null, remain separate from cumulative
 inhomogeneous K/L, and add an independent oracle/control. Do not refit or silently retune intensity,
 add a kernel/bandwidth registry, or claim the broader PP-02/PP-03/PP-05 families complete.
+
+## Checkpoint 78 inhomogeneous pair-correlation continuation
+
+One explicit Epanechnikov pair bandwidth now consumes the exact persisted Gaussian leave-one-out
+pilot already emitted by K/L. Standard-border `r+h_pair` eligibility, inverse-intensity
+normalization, the frozen conditioned gridded null, ERL, hard work limits, an independent Python
+oracle, gradient-null controls, a matched-scale cluster direction, and cross-process durable replay
+exercise the complete bounded path. Intensity and pair bandwidths remain distinct cache identities.
+
+PP-02/PP-03/PP-05 remain active for multiple estimators, multitype inhomogeneous functions, broader
+correction/calibration, real scale evidence, and pinned `spatstat` agreement. With no installed
+`spatstat.explore` backend, dependency-ordered native work returns to FND-02/WS-22: the next concrete
+caller is an oriented, nonoverlapping compartment partition consumed by signed interface distance,
+without inventing a general geometry registry or silently repairing invalid pathology boundaries.

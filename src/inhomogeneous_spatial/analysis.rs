@@ -6,11 +6,8 @@ use crate::{
 };
 
 use super::{
-    identity::{configuration_digest, fixed_grid_digest, intensity_result_digest, retained_bytes},
-    intensity::{
-        boundary_mass, build_grid, extrema, fixed_probe_cdf, kernel_sum, sample_fixed_grid_pattern,
-        validate_intensity,
-    },
+    identity::{configuration_digest, into_intensity_summary, retained_bytes},
+    intensity::{evaluate_fixed_intensities, fit_intensity, sample_fixed_grid_pattern},
     pair::{evaluate_curve, geometry_limits},
     types::*,
 };
@@ -46,51 +43,25 @@ pub fn analyze_inhomogeneous_spatial_pattern(
             maximum: config.limits.maximum_retained_bytes,
         });
     }
-    let grid = build_grid(window, config)?;
     let mut counters = Counters {
         intensity_evaluations: 0,
         pair_visits: 0,
         null_draws: 0,
     };
-    let mut point_values = Vec::new();
-    let mut observed_intensities = Vec::new();
-    point_values
-        .try_reserve_exact(pattern.len())
-        .and_then(|()| observed_intensities.try_reserve_exact(pattern.len()))
-        .map_err(|_| InhomogeneousSpatialError::AllocationFailed)?;
-    let finite_scale = pattern.len() as f64 / (pattern.len() - 1) as f64;
-    for row in 0..pattern.len() {
-        let location = (pattern.x_um[row], pattern.y_um[row]);
-        let boundary_mass = boundary_mass(location, &grid, config, &mut counters)?;
-        let raw = kernel_sum(
-            location,
-            &pattern.x_um,
-            &pattern.y_um,
-            Some(row),
-            config,
-            &mut counters,
-        )?;
-        let intensity = finite_scale * raw / boundary_mass;
-        validate_intensity(row, intensity, config.minimum_intensity_per_um2)?;
-        point_values.push(InhomogeneousIntensityPoint {
-            row,
-            intensity_per_um2: canonical_zero(intensity),
-            boundary_mass,
-            training_point_count: pattern.len() - 1,
-        });
-        observed_intensities.push(intensity);
-    }
+    let fitted = fit_intensity(pattern, window, config, &mut counters)?;
 
     let geometry_limits = geometry_limits(config)?;
     let observed_plan =
         SpatialGeometryPlan2D::new(&pattern.x_um, &pattern.y_um, window, geometry_limits)
             .map_err(dependency)?;
-    let mut observed =
-        evaluate_curve(&observed_plan, &observed_intensities, config, &mut counters)?;
+    let mut observed = evaluate_curve(
+        &observed_plan,
+        &fitted.observed_intensities,
+        config,
+        &mut counters,
+    )?;
     let observed_pair_visits = observed.pair_visits;
 
-    let (probe_cdf, cdf_total, fixed_grid) =
-        fixed_probe_cdf(pattern, &grid, config, &mut counters)?;
     let mut simulated = Vec::new();
     simulated
         .try_reserve_exact(config.simulations)
@@ -105,31 +76,15 @@ pub fn analyze_inhomogeneous_spatial_pattern(
         let (x, y) = sample_fixed_grid_pattern(
             window,
             pattern.len(),
-            &grid,
-            &probe_cdf,
-            cdf_total,
+            &fitted.grid,
+            &fitted.probe_cdf,
+            fitted.fixed_grid_total_mass,
             seed,
             config,
             &mut counters,
         )?;
-        let mut intensities = Vec::new();
-        intensities
-            .try_reserve_exact(pattern.len())
-            .map_err(|_| InhomogeneousSpatialError::AllocationFailed)?;
-        for row in 0..pattern.len() {
-            let location = (x[row], y[row]);
-            let correction = boundary_mass(location, &grid, config, &mut counters)?;
-            let intensity = kernel_sum(
-                location,
-                &pattern.x_um,
-                &pattern.y_um,
-                None,
-                config,
-                &mut counters,
-            )? / correction;
-            validate_intensity(row, intensity, config.minimum_intensity_per_um2)?;
-            intensities.push(intensity);
-        }
+        let intensities =
+            evaluate_fixed_intensities(&x, &y, pattern, &fitted, config, &mut counters)?;
         let plan =
             SpatialGeometryPlan2D::new(&x, &y, window, geometry_limits).map_err(dependency)?;
         let evaluated = evaluate_curve(&plan, &intensities, config, &mut counters)?;
@@ -164,33 +119,12 @@ pub fn analyze_inhomogeneous_spatial_pattern(
         } else {
             (None, None, None, 0)
         };
-    let (minimum_intensity, maximum_intensity) = extrema(&observed_intensities)?;
-    let fixed_grid_digest = fixed_grid_digest(window, config, &fixed_grid);
-    let artifact_digest =
-        intensity_result_digest(pattern, window, config, &point_values, &fixed_grid);
+    let intensity = into_intensity_summary(pattern, window, config, fitted)?;
     Ok(InhomogeneousSpatialResult {
         case_id: pattern.meta.case_id.clone(),
         timepoint: pattern.meta.timepoint.clone(),
         window: window_summary(window.descriptor()),
-        intensity: InhomogeneousIntensitySummary {
-            estimator: "gaussian_kernel".into(),
-            kernel: "isotropic_gaussian_2d".into(),
-            cross_fit: "leave_one_out_n_over_n_minus_one".into(),
-            boundary_correction: "deterministic_cell_center_quadrature".into(),
-            bandwidth_um: config.bandwidth_um,
-            integration_grid: config.integration_grid,
-            retained_probe_count: grid.probes.len(),
-            probe_spacing_um: grid.spacing_um,
-            maximum_probe_displacement_um: 0.5 * grid.spacing_um[0].hypot(grid.spacing_um[1]),
-            minimum_intensity_per_um2: config.minimum_intensity_per_um2,
-            observed_minimum_intensity_per_um2: minimum_intensity,
-            observed_maximum_intensity_per_um2: maximum_intensity,
-            artifact_digest: artifact_digest.to_string(),
-            point_values,
-            fixed_grid_digest: fixed_grid_digest.to_string(),
-            fixed_grid_total_mass: cdf_total,
-            fixed_grid,
-        },
+        intensity,
         edge_correction: "standard_border_inverse_intensity_ratio".into(),
         configuration_digest: configuration_digest(config).to_string(),
         observed_pair_visits,

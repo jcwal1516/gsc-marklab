@@ -3,12 +3,50 @@ use marklab_workflow::ContentDigest;
 use crate::{mark_pair_plan::erl_workspace_bytes, ObservationWindow2D, Pattern};
 
 use super::{
-    intensity::probe_storage_bytes,
+    intensity::{extrema, probe_storage_bytes, FittedIntensity},
     types::{
-        InhomogeneousIntensityGridPoint, InhomogeneousIntensityPoint, InhomogeneousSpatialConfig,
-        InhomogeneousSpatialError, InhomogeneousSpatialPoint,
+        InhomogeneousIntensityGridPoint, InhomogeneousIntensityPoint,
+        InhomogeneousIntensitySummary, InhomogeneousSpatialConfig, InhomogeneousSpatialError,
+        InhomogeneousSpatialPoint,
     },
 };
+
+pub(super) fn into_intensity_summary(
+    pattern: &Pattern,
+    window: &ObservationWindow2D,
+    config: &InhomogeneousSpatialConfig,
+    fitted: FittedIntensity,
+) -> Result<InhomogeneousIntensitySummary, InhomogeneousSpatialError> {
+    let (minimum, maximum) = extrema(&fitted.observed_intensities)?;
+    let grid_digest = fixed_grid_digest(window, config, &fitted.fixed_grid);
+    let artifact_digest = intensity_result_digest(
+        pattern,
+        window,
+        config,
+        &fitted.point_values,
+        &fitted.fixed_grid,
+    );
+    Ok(InhomogeneousIntensitySummary {
+        estimator: "gaussian_kernel".into(),
+        kernel: "isotropic_gaussian_2d".into(),
+        cross_fit: "leave_one_out_n_over_n_minus_one".into(),
+        boundary_correction: "deterministic_cell_center_quadrature".into(),
+        bandwidth_um: config.bandwidth_um,
+        integration_grid: config.integration_grid,
+        retained_probe_count: fitted.grid.probes.len(),
+        probe_spacing_um: fitted.grid.spacing_um,
+        maximum_probe_displacement_um: 0.5
+            * fitted.grid.spacing_um[0].hypot(fitted.grid.spacing_um[1]),
+        minimum_intensity_per_um2: config.minimum_intensity_per_um2,
+        observed_minimum_intensity_per_um2: minimum,
+        observed_maximum_intensity_per_um2: maximum,
+        artifact_digest: artifact_digest.to_string(),
+        point_values: fitted.point_values,
+        fixed_grid_digest: grid_digest.to_string(),
+        fixed_grid_total_mass: fitted.fixed_grid_total_mass,
+        fixed_grid: fitted.fixed_grid,
+    })
+}
 
 pub(super) fn retained_bytes(
     points: usize,

@@ -1,5 +1,6 @@
 use marklab::{
-    analyze_inhomogeneous_spatial_pattern, InhomogeneousSpatialConfig, InhomogeneousSpatialLimits,
+    analyze_inhomogeneous_pair_correlation, analyze_inhomogeneous_spatial_pattern,
+    InhomogeneousPairCorrelationConfig, InhomogeneousSpatialConfig, InhomogeneousSpatialLimits,
     ObservationWindow2D, ObservationWindowLimits, Pattern, PatternMeta,
 };
 
@@ -40,8 +41,12 @@ fn gradient_pattern(replicate: usize) -> Pattern {
 }
 
 fn config(seed: u64) -> InhomogeneousSpatialConfig {
+    config_at(seed, vec![1.0, 2.0])
+}
+
+fn config_at(seed: u64, radii_um: Vec<f64>) -> InhomogeneousSpatialConfig {
     InhomogeneousSpatialConfig::new(
-        vec![1.0, 2.0],
+        radii_um,
         2.0,
         [12, 12],
         19,
@@ -79,6 +84,48 @@ fn fixed_gradient_inhomogeneous_poisson_control_is_not_grossly_anti_conservative
 
 #[test]
 fn prespecified_tight_cluster_control_has_excess_short_range_k_after_reweighting() {
+    let pattern = tight_cluster_pattern();
+    let result = analyze_inhomogeneous_spatial_pattern(&pattern, &window(), &config(77))
+        .expect("cluster result");
+    assert!(
+        result.curve[0].k.expect("short-range K") > result.curve[0].theoretical_k,
+        "the prespecified tight-cluster control should retain short-range excess"
+    );
+}
+
+#[test]
+fn inhomogeneous_g_gradient_null_and_cluster_direction_are_prespecified() {
+    let window = window();
+    let mut rejections = 0;
+    for replicate in 0..20 {
+        let result = analyze_inhomogeneous_pair_correlation(
+            &gradient_pattern(replicate),
+            &window,
+            &InhomogeneousPairCorrelationConfig::new(config(20260927 + replicate as u64), 0.5)
+                .expect("g config"),
+        )
+        .expect("g calibration result");
+        let p = result.inference.p_global.expect("global p-value");
+        assert!(p.is_finite() && (0.0..=1.0).contains(&p));
+        if p <= 0.05 {
+            rejections += 1;
+        }
+    }
+    assert!(
+        rejections <= 6,
+        "inhomogeneous g null rejected {rejections}/20 deterministic controls"
+    );
+    let cluster = analyze_inhomogeneous_pair_correlation(
+        &tight_cluster_pattern(),
+        &window,
+        &InhomogeneousPairCorrelationConfig::new(config_at(79, vec![0.3]), 0.15)
+            .expect("cluster g config"),
+    )
+    .expect("cluster g result");
+    assert!(cluster.curve[0].g.expect("short-range g") > 1.0);
+}
+
+fn tight_cluster_pattern() -> Pattern {
     let mut x = Vec::new();
     let mut y = Vec::new();
     for (center_x, center_y) in [(3.0, 3.0), (7.0, 7.0)] {
@@ -89,7 +136,7 @@ fn prespecified_tight_cluster_control_has_excess_short_range_k_after_reweighting
             }
         }
     }
-    let pattern = Pattern::from_arrays(
+    Pattern::from_arrays(
         x,
         y,
         vec![0; 40],
@@ -104,13 +151,7 @@ fn prespecified_tight_cluster_control_has_excess_short_range_k_after_reweighting
             region_id: None,
         },
     )
-    .expect("cluster pattern");
-    let result = analyze_inhomogeneous_spatial_pattern(&pattern, &window(), &config(77))
-        .expect("cluster result");
-    assert!(
-        result.curve[0].k.expect("short-range K") > result.curve[0].theoretical_k,
-        "the prespecified tight-cluster control should retain short-range excess"
-    );
+    .expect("cluster pattern")
 }
 
 fn splitmix64(mut value: u64) -> u64 {
