@@ -1051,3 +1051,14 @@ without causal or clinical claims. BAY-01/BAY-02/WS-40 remain active for indepen
 agreement, prior sensitivity, and calibration of this likelihood before broader promotion. The
 next cohesive workflow is that bounded promotion sequence, then representative graph/topology
 scaling; UI/server/client work remains deferred.
+
+## Checkpoint 119 promoted multiclass Bayesian continuation
+
+The patient Dirichlet-multinomial family now passes identical-request PyMC/NumPyro agreement, a
+fixed seven-scenario prior grid, and full-vector SBC in addition to durable real replay. The real
+CPTAC fit is sampler-consistent but materially sensitive to the declared half-scale baseline-logit
+prior, so promotion retains that limitation rather than calling the result prior-robust. The
+four-workflow family passed the scheduled workspace stabilization without retrying the prohibited
+integration/Nextest loop. BAY-01/BAY-02/WS-40/WS-44 remain active for broader justified model
+families; the next dependency-ordered production outcome is one admitted arbitrary-window
+point-process or missing hierarchy caller, followed by representative graph/topology scaling.

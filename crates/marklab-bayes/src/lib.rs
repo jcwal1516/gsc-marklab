@@ -24,6 +24,9 @@ mod car;
 mod complementarity;
 mod cross_modal;
 mod dirichlet_multinomial_group;
+mod dirichlet_multinomial_group_agreement;
+mod dirichlet_multinomial_group_sbc;
+mod dirichlet_multinomial_group_sensitivity;
 mod distance_to_resource;
 mod embedding_envelope;
 mod embedding_factor;
@@ -214,6 +217,23 @@ pub use dirichlet_multinomial_group::{
     DirichletMultinomialGroupResult, DirichletMultinomialGroupSpec,
     DirichletMultinomialGroupWorkerRequest, DirichletMultinomialGroupWorkerResult,
     DirichletMultinomialPatientData,
+};
+pub use dirichlet_multinomial_group_agreement::{
+    DirichletMultinomialClassAgreement, DirichletMultinomialGroupAgreementComparison,
+    DirichletMultinomialGroupAgreementPolicy, DirichletMultinomialGroupAgreementResult,
+    DirichletMultinomialGroupBackendSummary, NumpyroDirichletMultinomialGroupWorkerRequest,
+    NumpyroDirichletMultinomialGroupWorkerResult,
+};
+pub use dirichlet_multinomial_group_sbc::{
+    DirichletMultinomialGroupSbcCalibrationPolicy, DirichletMultinomialGroupSbcDiagnostics,
+    DirichletMultinomialGroupSbcReplicate, DirichletMultinomialGroupSbcResourceLimits,
+    DirichletMultinomialGroupSbcResult, NumpyroDirichletMultinomialGroupSbcWorkerRequest,
+    NumpyroDirichletMultinomialGroupSbcWorkerResult,
+};
+pub use dirichlet_multinomial_group_sensitivity::{
+    DirichletMultinomialGroupSensitivityResult, DirichletMultinomialGroupSensitivityScenario,
+    DirichletMultinomialGroupSensitivityScenarioResult,
+    DirichletMultinomialGroupSensitivityScenarioRun,
 };
 pub use fused_gromov::{
     FgwInitializationResult, FgwPlanEntry, FgwResources, FgwSupport, FusedGromovWassersteinSpec,

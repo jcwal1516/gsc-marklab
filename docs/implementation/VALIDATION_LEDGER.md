@@ -2585,6 +2585,35 @@ vascular transport.
   feature matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push, publication,
   deployment, or history rewrite ran.
 
+## Multiclass Bayesian promotion and stabilization checkpoint 119 — 2026-08-28
+
+- Three behavior tests first failed on absent `dirichlet-multinomial-group-agreement`,
+  `dirichlet-multinomial-group-sensitivity`, and `dirichlet-multinomial-group-sbc` commands. Their
+  final exact runs pass 1/1 each. Agreement checks all three synthetic classes and concentration
+  between independently executed PyMC/NumPyro fits. Sensitivity completes the fixed seven-scenario
+  grid. SBC completes 20/20 replicates and checks ten-bin ranks and 90% coverage for two baseline
+  logits, two group effects, concentration, and three derived class differences.
+- On the real 525-row CPTAC input, direct agreement passes every one of five reference
+  probabilities, five comparison probabilities, five group differences, and concentration. PyMC
+  reports R-hat 1.00402, bulk/tail ESS 1396.67/1688.75, minimum E-BFMI 0.99907, and zero
+  divergences/depth hits; NumPyro reports 1.00216, 4245.79/2628.51, 1.02703, and zero/zero. The
+  result SHA-256 is `288bbeaf817e440caa492032af853222d7242cf66fbb7b9e0ee181a731ebaab4`.
+- The real seven-scenario sensitivity run is complete and reports only `logit_sd_lower` as material
+  (0.98350 standardized shift at threshold 0.75); every other nonbaseline maximum is at most
+  0.41416. Its SHA-256 is `b4a2d308fa98ba1dc0a3278b0dbd705434e512bb4079ec5751f0f4f3da67f1ce`.
+  Both typed outputs are stored in the Mac-mini v4 results directory.
+- `cargo +1.96.0 test --locked --package marklab-bayes` passes 47/47 plus doctests. The final-state
+  direct and durable Dirichlet-multinomial tests each pass 1/1, including backend-disabled replay.
+  `cargo +1.96.0 fmt --all --check` passes. `cargo +1.96.0 clippy --locked --workspace
+  --all-targets --all-features -- -D warnings` passes in 26m22s. `cargo +1.96.0 check --locked
+  --workspace --no-default-features` passes in 21.06s. `cargo +1.96.0 test --locked --workspace
+  --doc --all-features` passes every package with zero failures. `RUSTDOCFLAGS='-D warnings' cargo
+  +1.96.0 doc --locked --workspace --all-features --no-deps` passes in 25.95s.
+- The full workspace integration/Nextest loop was not run because checkpoints 51/52 and the active
+  instruction prohibit retrying the macOS loader-verification loop. No feature matrix, benchmark,
+  fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or history rewrite
+  ran.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

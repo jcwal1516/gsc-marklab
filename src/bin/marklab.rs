@@ -133,6 +133,42 @@ fn main() -> marklab::Result<()> {
                     .nth(2)
                     .as_deref()
                     .is_some_and(|subcommand| {
+                        subcommand == std::ffi::OsStr::new("dirichlet-multinomial-group-agreement")
+                    }) =>
+        {
+            bayes::run_dirichlet_multinomial_group_agreement_cli()
+                .map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand
+                            == std::ffi::OsStr::new("dirichlet-multinomial-group-sensitivity")
+                    }) =>
+        {
+            bayes::run_dirichlet_multinomial_group_sensitivity_cli()
+                .map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand == std::ffi::OsStr::new("dirichlet-multinomial-group-sbc")
+                    }) =>
+        {
+            bayes::run_dirichlet_multinomial_group_sbc_cli().map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
                         matches!(
                             subcommand.to_str(),
                             Some("hmc-normal" | "advanced-cluster" | "spde-suite")

@@ -2081,3 +2081,28 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   patient-proportion arithmetic and known opposite Neoplastic/Inflammatory shifts. Broader
   two-backend agreement, prior sensitivity, and SBC remain the next promotion work rather than
   being inferred from this real fit.
+
+## Multiclass Bayesian promotion and stabilization checkpoint 119 — 2026-08-28
+
+- Added three bounded production commands around the checkpoint-118 likelihood. Agreement uses the
+  identical typed request in pinned PyMC and NumPyro and checks every class's reference/comparison
+  probability and group difference plus concentration. Sensitivity runs the fixed seven-scenario
+  half/base/double one-at-a-time prior grid. SBC calibrates every free baseline logit, every group
+  log-ratio effect, concentration, and every derived class-probability difference across 20–100
+  prior-generative replicates with exact failure dispositions and work ceilings.
+- Synthetic behavior passes complete three-class agreement, seven converged sensitivity fits, and
+  20/20 full-vector SBC replicates with accepted rank-uniformity and 90% coverage for all eight
+  calibrated quantities. The real 105-patient/five-class CPTAC input agrees across PyMC and NumPyro
+  for all 16 declared comparisons with zero divergences/tree-depth hits in both fits. Its agreement
+  result SHA-256 is `288bbeaf817e440caa492032af853222d7242cf66fbb7b9e0ee181a731ebaab4`.
+- The real prior grid is diagnostically complete but not uniformly stable: only
+  `logit_sd_lower` crosses the prespecified 0.75 posterior-SD threshold, at 0.9835; the other five
+  nonbaseline scenarios remain below 0.415. The sensitivity result SHA-256 is
+  `b4a2d308fa98ba1dc0a3278b0dbd705434e512bb4079ec5751f0f4f3da67f1ce`. Both results are sealed
+  beside the base fit in the Mac-mini v4 bundle. This limitation is retained explicitly.
+- The four-workflow family passes one scheduled stabilization: workspace formatting,
+  warning-denied all-target/all-feature Clippy in 26m22s, no-default compilation in 21.06s,
+  all-feature doctests with zero failures, and strict all-feature docs in 25.95s. The affected
+  Bayesian package passes 47/47, and final direct/durable replay tests remain green. The prohibited
+  Nextest/full-integration loader loop was not rerun. Production advances to the next immediate
+  arbitrary-window point-process or hierarchy caller, not UI/server/client work.

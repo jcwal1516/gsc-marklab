@@ -66,6 +66,12 @@ mod beta_binomial_group_regression_sbc;
 mod beta_binomial_group_regression_sensitivity;
 #[path = "bayes/dirichlet_multinomial_group.rs"]
 mod dirichlet_multinomial_group;
+#[path = "bayes/dirichlet_multinomial_group_agreement.rs"]
+mod dirichlet_multinomial_group_agreement;
+#[path = "bayes/dirichlet_multinomial_group_sbc.rs"]
+mod dirichlet_multinomial_group_sbc;
+#[path = "bayes/dirichlet_multinomial_group_sensitivity.rs"]
+mod dirichlet_multinomial_group_sensitivity;
 pub(super) use dirichlet_multinomial_group::{
     execute as execute_dirichlet_multinomial_group, prepare as prepare_dirichlet_multinomial_group,
     PreparedDirichletMultinomialGroup,
@@ -511,6 +517,176 @@ enum DirichletMultinomialGroupTopLevel {
 #[derive(Debug, Subcommand)]
 enum DirichletMultinomialGroupCommand {
     DirichletMultinomialGroup(Box<DirichletMultinomialGroupArgs>),
+}
+
+#[derive(Debug, Args)]
+struct DirichletMultinomialGroupAgreementArgs {
+    #[arg(long)]
+    input: PathBuf,
+    #[arg(long)]
+    reference_group: String,
+    #[arg(long)]
+    comparison_group: String,
+    #[arg(long)]
+    logit_prior_sd: f64,
+    #[arg(long)]
+    group_effect_prior_sd: f64,
+    #[arg(long)]
+    concentration_prior_sd: f64,
+    #[arg(long)]
+    chains: u32,
+    #[arg(long)]
+    tune: u32,
+    #[arg(long)]
+    draws: u32,
+    #[arg(long)]
+    target_accept: f64,
+    #[arg(long)]
+    seed: u64,
+    #[arg(long)]
+    maximum_standardized_difference: f64,
+    #[arg(long)]
+    minimum_probability_tolerance: f64,
+    #[arg(long)]
+    minimum_concentration_tolerance: f64,
+    #[arg(long)]
+    timeout_seconds: u64,
+    #[arg(long)]
+    out: PathBuf,
+}
+
+#[derive(Debug, Parser)]
+#[command(name = "marklab")]
+struct DirichletMultinomialGroupAgreementCli {
+    #[command(subcommand)]
+    command: DirichletMultinomialGroupAgreementTopLevel,
+}
+
+#[derive(Debug, Subcommand)]
+enum DirichletMultinomialGroupAgreementTopLevel {
+    Bayes {
+        #[command(subcommand)]
+        command: DirichletMultinomialGroupAgreementCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum DirichletMultinomialGroupAgreementCommand {
+    DirichletMultinomialGroupAgreement(Box<DirichletMultinomialGroupAgreementArgs>),
+}
+
+#[derive(Debug, Args)]
+struct DirichletMultinomialGroupSensitivityArgs {
+    #[arg(long)]
+    input: PathBuf,
+    #[arg(long)]
+    reference_group: String,
+    #[arg(long)]
+    comparison_group: String,
+    #[arg(long)]
+    logit_prior_sd: f64,
+    #[arg(long)]
+    group_effect_prior_sd: f64,
+    #[arg(long)]
+    concentration_prior_sd: f64,
+    #[arg(long)]
+    lower_scale_multiplier: f64,
+    #[arg(long)]
+    upper_scale_multiplier: f64,
+    #[arg(long)]
+    material_standardized_shift: f64,
+    #[arg(long)]
+    chains: u32,
+    #[arg(long)]
+    tune: u32,
+    #[arg(long)]
+    draws: u32,
+    #[arg(long)]
+    target_accept: f64,
+    #[arg(long)]
+    seed: u64,
+    #[arg(long)]
+    timeout_seconds: u64,
+    #[arg(long)]
+    out: PathBuf,
+}
+
+#[derive(Debug, Parser)]
+#[command(name = "marklab")]
+struct DirichletMultinomialGroupSensitivityCli {
+    #[command(subcommand)]
+    command: DirichletMultinomialGroupSensitivityTopLevel,
+}
+
+#[derive(Debug, Subcommand)]
+enum DirichletMultinomialGroupSensitivityTopLevel {
+    Bayes {
+        #[command(subcommand)]
+        command: DirichletMultinomialGroupSensitivityCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum DirichletMultinomialGroupSensitivityCommand {
+    DirichletMultinomialGroupSensitivity(Box<DirichletMultinomialGroupSensitivityArgs>),
+}
+
+#[derive(Debug, Args)]
+struct DirichletMultinomialGroupSbcArgs {
+    #[arg(long)]
+    input: PathBuf,
+    #[arg(long)]
+    reference_group: String,
+    #[arg(long)]
+    comparison_group: String,
+    #[arg(long)]
+    logit_prior_sd: f64,
+    #[arg(long)]
+    group_effect_prior_sd: f64,
+    #[arg(long)]
+    concentration_prior_sd: f64,
+    #[arg(long)]
+    replicates: u32,
+    #[arg(long)]
+    chains: u32,
+    #[arg(long)]
+    tune: u32,
+    #[arg(long)]
+    draws: u32,
+    #[arg(long)]
+    target_accept: f64,
+    #[arg(long)]
+    seed: u64,
+    #[arg(long)]
+    minimum_rank_uniformity_p_value: f64,
+    #[arg(long)]
+    minimum_coverage_90: f64,
+    #[arg(long)]
+    maximum_coverage_90: f64,
+    #[arg(long)]
+    timeout_seconds: u64,
+    #[arg(long)]
+    out: PathBuf,
+}
+
+#[derive(Debug, Parser)]
+#[command(name = "marklab")]
+struct DirichletMultinomialGroupSbcCli {
+    #[command(subcommand)]
+    command: DirichletMultinomialGroupSbcTopLevel,
+}
+
+#[derive(Debug, Subcommand)]
+enum DirichletMultinomialGroupSbcTopLevel {
+    Bayes {
+        #[command(subcommand)]
+        command: DirichletMultinomialGroupSbcCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum DirichletMultinomialGroupSbcCommand {
+    DirichletMultinomialGroupSbc(Box<DirichletMultinomialGroupSbcArgs>),
 }
 
 #[derive(Debug, Subcommand)]
@@ -3395,6 +3571,143 @@ pub(super) fn run_dirichlet_multinomial_group_cli() -> Result<(), BayesCliError>
             target_accept,
             seed,
         },
+        timeout_seconds,
+        out,
+    )
+}
+
+pub(super) fn run_dirichlet_multinomial_group_agreement_cli() -> Result<(), BayesCliError> {
+    let DirichletMultinomialGroupAgreementTopLevel::Bayes { command } =
+        DirichletMultinomialGroupAgreementCli::parse_from(std::env::args_os()).command;
+    let DirichletMultinomialGroupAgreementCommand::DirichletMultinomialGroupAgreement(arguments) =
+        command;
+    let DirichletMultinomialGroupAgreementArgs {
+        input,
+        reference_group,
+        comparison_group,
+        logit_prior_sd,
+        group_effect_prior_sd,
+        concentration_prior_sd,
+        chains,
+        tune,
+        draws,
+        target_accept,
+        seed,
+        maximum_standardized_difference,
+        minimum_probability_tolerance,
+        minimum_concentration_tolerance,
+        timeout_seconds,
+        out,
+    } = *arguments;
+    dirichlet_multinomial_group_agreement::run(
+        input,
+        reference_group,
+        comparison_group,
+        logit_prior_sd,
+        group_effect_prior_sd,
+        concentration_prior_sd,
+        NutsSamplingSpec {
+            chains,
+            tune_per_chain: tune,
+            draws_per_chain: draws,
+            target_accept,
+            seed,
+        },
+        maximum_standardized_difference,
+        minimum_probability_tolerance,
+        minimum_concentration_tolerance,
+        timeout_seconds,
+        out,
+    )
+}
+
+pub(super) fn run_dirichlet_multinomial_group_sensitivity_cli() -> Result<(), BayesCliError> {
+    let DirichletMultinomialGroupSensitivityTopLevel::Bayes { command } =
+        DirichletMultinomialGroupSensitivityCli::parse_from(std::env::args_os()).command;
+    let DirichletMultinomialGroupSensitivityCommand::DirichletMultinomialGroupSensitivity(
+        arguments,
+    ) = command;
+    let DirichletMultinomialGroupSensitivityArgs {
+        input,
+        reference_group,
+        comparison_group,
+        logit_prior_sd,
+        group_effect_prior_sd,
+        concentration_prior_sd,
+        lower_scale_multiplier,
+        upper_scale_multiplier,
+        material_standardized_shift,
+        chains,
+        tune,
+        draws,
+        target_accept,
+        seed,
+        timeout_seconds,
+        out,
+    } = *arguments;
+    dirichlet_multinomial_group_sensitivity::run(
+        input,
+        reference_group,
+        comparison_group,
+        logit_prior_sd,
+        group_effect_prior_sd,
+        concentration_prior_sd,
+        lower_scale_multiplier,
+        upper_scale_multiplier,
+        material_standardized_shift,
+        NutsSamplingSpec {
+            chains,
+            tune_per_chain: tune,
+            draws_per_chain: draws,
+            target_accept,
+            seed,
+        },
+        timeout_seconds,
+        out,
+    )
+}
+
+pub(super) fn run_dirichlet_multinomial_group_sbc_cli() -> Result<(), BayesCliError> {
+    let DirichletMultinomialGroupSbcTopLevel::Bayes { command } =
+        DirichletMultinomialGroupSbcCli::parse_from(std::env::args_os()).command;
+    let DirichletMultinomialGroupSbcCommand::DirichletMultinomialGroupSbc(arguments) = command;
+    let DirichletMultinomialGroupSbcArgs {
+        input,
+        reference_group,
+        comparison_group,
+        logit_prior_sd,
+        group_effect_prior_sd,
+        concentration_prior_sd,
+        replicates,
+        chains,
+        tune,
+        draws,
+        target_accept,
+        seed,
+        minimum_rank_uniformity_p_value,
+        minimum_coverage_90,
+        maximum_coverage_90,
+        timeout_seconds,
+        out,
+    } = *arguments;
+    dirichlet_multinomial_group_sbc::run(
+        input,
+        reference_group,
+        comparison_group,
+        logit_prior_sd,
+        group_effect_prior_sd,
+        concentration_prior_sd,
+        replicates,
+        NutsSamplingSpec {
+            chains,
+            tune_per_chain: tune,
+            draws_per_chain: draws,
+            target_accept,
+            seed,
+        },
+        minimum_rank_uniformity_p_value,
+        minimum_coverage_90,
+        maximum_coverage_90,
         timeout_seconds,
         out,
     )
