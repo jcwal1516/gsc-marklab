@@ -1601,3 +1601,21 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   This is a bounded FND-06 population-independence increment, not blocked/stratified fingerprint
   inference, pairing, repeated/multisite exchangeability, multiplicity expansion, or a general null
   registry.
+
+## Complete formal vector-mark admission checkpoint 88 — 2026-08-28
+
+- Connected the existing probability–embedding and nucleus-area–embedding cross-covariance
+  statistics to the same no-copy row-bound `VectorArtifactRef` already consumed by the binary
+  centroid workflow. Each caller accepts the older direct declared input for compatibility, but when
+  a typed vector mark is present it must name the exact separately supplied verified artifact.
+- Changed logical content, physical artifact, provenance, row link, QC, dimension, or CellId order
+  therefore cannot be substituted behind a typed mark. Probability values and measured positive
+  square-micrometre nucleus areas remain separate declared scalar estimands; vector filler components
+  remain inaccessible and non-present statuses retain their existing typed unavailable behavior.
+- The three callers share only one private lookup on `DeclaredScalarPatternInput`; their distinct
+  statistics, status rules, resource accounting, identities, and the centroid's store-aware codec/
+  scheduler remain unchanged. The complete 64-test CellViT artifact graph passes.
+- This completes the bounded MRK-02D canonical row-bound vector-admission prerequisite across its
+  three immediate formal callers. FND-05/WS-24 remain active for canonical real source import,
+  independent genuine patch vectors, and broader interchange; no vector registry, matrix copy, new
+  physical format, or result-format change was added.

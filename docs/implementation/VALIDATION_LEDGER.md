@@ -2219,3 +2219,20 @@ vascular transport.
   affected-file Rustfmt, and diff whitespace checks pass. No workspace-wide/Nextest loop, feature
   matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push, publication, deployment,
   or history rewrite ran.
+
+## Complete formal vector-mark admission checkpoint 88 — 2026-08-28
+
+- The focused probability cross-covariance test first failed on the absent typed-reference mismatch
+  error and then passed after exact artifact agreement became part of the caller. The nucleus-area
+  test independently failed on the same missing production behavior and then passed after its own
+  typed boundary was connected.
+- `cargo +1.96.0 test --locked --package marklab --test cellvit_embedding_artifact_graph` passes
+  64/64. It covers all three typed vector callers, old no-reference compatibility, exact 1,280-D
+  numeric/status oracles, artifact/table/QC/CellId/provenance drift, unavailable embedding states,
+  Arrow/Parquet equivalence and hostile inputs, hard resource bounds, centroid semantic-store
+  verification, miss/hit replay, and exact codec rejection.
+- `cargo +1.96.0 clippy --locked --package marklab --test cellvit_embedding_artifact_graph -- -D
+  warnings`, `cargo +1.96.0 check --locked --package marklab --no-default-features`, package
+  doctests, affected-file Rustfmt, and diff whitespace checks pass. Workspace-wide/Nextest loops,
+  broad feature matrices, benchmarks, fuzzing, memory tools, packaging, dependency audits, push,
+  publication, deployment, and history rewriting were not run.

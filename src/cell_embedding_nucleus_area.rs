@@ -149,6 +149,9 @@ pub enum DeclaredNucleusAreaCellEmbeddingCrossCovarianceError {
     /// The materialized table does not match the verified embedding artifact.
     #[error("declared nucleus-area cell-embedding table and verified artifact disagree")]
     EmbeddingArtifactBindingMismatch,
+    /// A typed vector-artifact mark references a different verified embedding artifact.
+    #[error("declared vector mark and supplied verified embedding artifact disagree")]
+    VectorArtifactReferenceMismatch,
     /// Declared and embedding CellIds disagree at one row.
     #[error("declared nucleus-area and cell-embedding identities disagree at row {row}")]
     CellIdBindingMismatch {
@@ -248,6 +251,14 @@ pub fn declared_nucleus_area_cell_embedding_cross_covariance_energy(
     if embedding_qc_summary != artifact.qc_summary() {
         return Err(
             DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::EmbeddingArtifactBindingMismatch,
+        );
+    }
+    if input
+        .vector_artifact_ref()
+        .is_some_and(|declared_artifact| declared_artifact != artifact)
+    {
+        return Err(
+            DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::VectorArtifactReferenceMismatch,
         );
     }
     let row_count = table.row_count();

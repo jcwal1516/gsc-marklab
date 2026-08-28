@@ -771,3 +771,15 @@ FND-06 remains active for repeated, paired/blocked fingerprint, multisite/cluste
 broader multiplicity contracts. The next inference-design connection must have an immediate method
 caller and preserve that method's deterministic reference stream; do not create a universal null or
 statistic registry.
+
+## Checkpoint 88 complete formal vector-mark admission continuation
+
+Binary centroid, probability cross-covariance, and nucleus-area cross-covariance now all consume the
+same canonical row-bound CellViT `VectorArtifactRef` when supplied. The shared contract owns only the
+verified artifact lookup and exact agreement rule; each statistic keeps its prior estimand, limits,
+availability states, and deterministic outputs.
+
+MRK-02D's bounded admission prerequisite is complete. FND-05 and WS-24 remain active because typed
+in-memory admission does not itself promote the real source importer or provide independent genuine
+patch-vector tensors. The next embedding outcome must use an admitted real source path or an existing
+patch-vector artifact; do not duplicate cell vectors as patch evidence.

@@ -3,8 +3,9 @@ use marklab::{
     declared_nucleus_area_cell_embedding_cross_covariance_energy, BinaryMarkDeclaration,
     DeclaredNucleusAreaCellEmbeddingCrossCovarianceError,
     DeclaredNucleusAreaCellEmbeddingCrossCovarianceStatus, DeclaredScalarInputError,
-    DeclaredScalarPatternInput, MarklabProject, MeasurementStatus, NucleusAreaUm2MarkDeclaration,
-    ProbabilityMarkDeclaration, ScalarMarkId,
+    DeclaredScalarPatternInput, MarkTable, MarklabProject, MeasurementStatus, MissingnessPolicy,
+    NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration, ScalarMarkColumn, ScalarMarkId,
+    ScalarMarkModality, ScalarMarkUnit, VectorArtifactRefMarkDeclaration,
 };
 
 const DIMENSION: u32 = 1_280;
@@ -184,14 +185,66 @@ fn nucleus_area_cross_covariance_matches_both_oracles_and_ignores_binary_rows() 
     let binary = binary_declaration(&mut fixture);
     let probability = probability_declaration(&mut fixture);
     let nucleus_area = nucleus_area_declaration(&mut fixture);
-    let input = declared_input(
-        &fixture,
-        binary.clone(),
-        Some(probability.clone()),
-        &fixture.cell_ids,
-    );
     let (_embedding_fixture, table, artifact) =
         verified_embedding(&fixture.cell_ids, oracle_rows());
+    let mark_table = MarkTable::new(
+        fixture.cell_ids.clone(),
+        vec![
+            ScalarMarkColumn::binary(
+                binary.clone(),
+                ScalarMarkModality::Immunohistochemistry,
+                ScalarMarkUnit::Unitless,
+                MissingnessPolicy::NotPermitted,
+                fixture.pattern.mark.clone(),
+            )
+            .expect("binary column"),
+            ScalarMarkColumn::probability(
+                probability.clone(),
+                ScalarMarkModality::Immunohistochemistry,
+                ScalarMarkUnit::Unitless,
+                MissingnessPolicy::NotPermitted,
+                fixture.pattern.mark_prob.clone().expect("probabilities"),
+            )
+            .expect("probability column"),
+            ScalarMarkColumn::continuous(
+                nucleus_area.clone(),
+                ScalarMarkModality::Morphology,
+                ScalarMarkUnit::SquareMicrometer,
+                MissingnessPolicy::NotPermitted,
+                fixture
+                    .pattern
+                    .nucleus_area_um2
+                    .clone()
+                    .expect("nucleus areas"),
+            )
+            .expect("nucleus-area column"),
+            ScalarMarkColumn::vector_artifact_ref(
+                VectorArtifactRefMarkDeclaration::new(
+                    ScalarMarkId::new("cellvit_embedding").expect("vector mark ID"),
+                    "CellViT embedding",
+                    MeasurementStatus::MorphologyPrediction,
+                )
+                .expect("vector declaration"),
+                ScalarMarkModality::Morphology,
+                ScalarMarkUnit::EmbeddingVector,
+                MissingnessPolicy::NotPermitted,
+                &table,
+                artifact,
+            )
+            .expect("vector reference"),
+        ],
+        4,
+        declared_scalar_support::cell_id_text_bytes(&fixture.cell_ids),
+    )
+    .expect("typed vector MarkTable");
+    let input = DeclaredScalarPatternInput::from_mark_table(
+        &fixture.project,
+        &fixture.pattern,
+        &mark_table,
+        fixture.slide_id.clone(),
+        fixture.frame_id.clone(),
+    )
+    .expect("typed vector input");
 
     let result = declared_nucleus_area_cell_embedding_cross_covariance_energy(
         &fixture.project,
@@ -230,6 +283,27 @@ fn nucleus_area_cross_covariance_matches_both_oracles_and_ignores_binary_rows() 
     );
     assert_eq!(result.embedding_qc_summary(), artifact.qc_summary());
     assert_eq!(result.table_logical_digest(), artifact.logical_digest());
+
+    let mut changed_rows = oracle_rows();
+    changed_rows[0] = (
+        EmbeddingStatus::Present,
+        Some(vec![1.0; DIMENSION as usize]),
+    );
+    let (_changed_fixture, changed_table, changed_artifact) =
+        verified_embedding(&fixture.cell_ids, changed_rows);
+    assert!(matches!(
+        declared_nucleus_area_cell_embedding_cross_covariance_energy(
+            &fixture.project,
+            &input,
+            nucleus_area.clone(),
+            &changed_table,
+            changed_artifact,
+            4,
+            AVAILABLE_COMPONENT_OPERATIONS,
+            WORKING_BYTES,
+        ),
+        Err(DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::VectorArtifactReferenceMismatch)
+    ));
     assert_eq!(nucleus_area.mark_id().as_str(), "nucleus_area_um2");
     assert_eq!(nucleus_area.label(), "Nucleus area");
     assert_eq!(

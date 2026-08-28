@@ -2,6 +2,7 @@ use marklab_data::{
     CellId, CoordinateFrameId, CoordinateSpace, CoordinateUnit, HierarchyId, SlideId, SpatialAxis,
     SpatialDimension,
 };
+use marklab_embeddings::CellEmbeddingArtifact;
 use marklab_workflow::{ArtifactId, ArtifactRef, MarklabProject};
 
 use crate::data::Pattern;
@@ -157,6 +158,13 @@ impl<'a> DeclaredScalarPatternInput<'a> {
     /// Typed mark table backing this input, when constructed through the table adapter.
     pub fn mark_table(&self) -> Option<&MarkTable> {
         self.mark_table
+    }
+
+    /// Existing verified vector artifact declared by the typed table, when present.
+    pub(crate) fn vector_artifact_ref(&self) -> Option<CellEmbeddingArtifact> {
+        self.mark_table
+            .and_then(MarkTable::single_vector_artifact_ref)
+            .map(|(_, artifact)| artifact)
     }
 
     /// Compact row, slide, frame, declaration, status, and provenance identity.

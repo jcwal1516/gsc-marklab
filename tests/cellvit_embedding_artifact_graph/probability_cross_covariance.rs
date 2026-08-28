@@ -2,8 +2,9 @@ use super::*;
 use marklab::{
     declared_probability_cell_embedding_cross_covariance_energy, BinaryMarkDeclaration,
     DeclaredProbabilityCellEmbeddingCrossCovarianceError,
-    DeclaredProbabilityCellEmbeddingCrossCovarianceStatus, DeclaredScalarPatternInput,
-    MeasurementStatus, ProbabilityMarkDeclaration, ScalarMarkId,
+    DeclaredProbabilityCellEmbeddingCrossCovarianceStatus, DeclaredScalarPatternInput, MarkTable,
+    MeasurementStatus, MissingnessPolicy, ProbabilityMarkDeclaration, ScalarMarkColumn,
+    ScalarMarkId, ScalarMarkModality, ScalarMarkUnit, VectorArtifactRefMarkDeclaration,
 };
 
 const DIMENSION: u32 = 1_280;
@@ -164,14 +165,54 @@ fn probability_cross_covariance_matches_oracle_and_binds_probability_values() {
     fixture.pattern.mark_prob = Some(vec![0.0, 0.0, 1.0, 1.0].into_boxed_slice());
     let binary = binary_declaration(&mut fixture);
     let probability = probability_declaration(&mut fixture);
-    let input = declared_input(
-        &fixture,
-        binary.clone(),
-        Some(probability.clone()),
-        &fixture.cell_ids,
-    );
     let (_embedding_fixture, table, artifact) =
         verified_embedding(&fixture.cell_ids, oracle_rows());
+    let mark_table = MarkTable::new(
+        fixture.cell_ids.clone(),
+        vec![
+            ScalarMarkColumn::binary(
+                binary.clone(),
+                ScalarMarkModality::Immunohistochemistry,
+                ScalarMarkUnit::Unitless,
+                MissingnessPolicy::NotPermitted,
+                fixture.pattern.mark.clone(),
+            )
+            .expect("binary column"),
+            ScalarMarkColumn::probability(
+                probability.clone(),
+                ScalarMarkModality::Immunohistochemistry,
+                ScalarMarkUnit::Unitless,
+                MissingnessPolicy::NotPermitted,
+                fixture.pattern.mark_prob.clone().expect("probabilities"),
+            )
+            .expect("probability column"),
+            ScalarMarkColumn::vector_artifact_ref(
+                VectorArtifactRefMarkDeclaration::new(
+                    ScalarMarkId::new("cellvit_embedding").expect("vector mark ID"),
+                    "CellViT embedding",
+                    MeasurementStatus::MorphologyPrediction,
+                )
+                .expect("vector declaration"),
+                ScalarMarkModality::Morphology,
+                ScalarMarkUnit::EmbeddingVector,
+                MissingnessPolicy::NotPermitted,
+                &table,
+                artifact,
+            )
+            .expect("vector reference"),
+        ],
+        4,
+        declared_scalar_support::cell_id_text_bytes(&fixture.cell_ids),
+    )
+    .expect("typed vector MarkTable");
+    let input = DeclaredScalarPatternInput::from_mark_table(
+        &fixture.project,
+        &fixture.pattern,
+        &mark_table,
+        fixture.slide_id.clone(),
+        fixture.frame_id.clone(),
+    )
+    .expect("typed vector input");
 
     let result = declared_probability_cell_embedding_cross_covariance_energy(
         &input,
@@ -207,6 +248,25 @@ fn probability_cross_covariance_matches_oracle_and_binds_probability_values() {
     );
     assert_eq!(result.embedding_qc_summary(), artifact.qc_summary());
     assert_eq!(result.table_logical_digest(), artifact.logical_digest());
+
+    let mut changed_rows = oracle_rows();
+    changed_rows[0] = (
+        EmbeddingStatus::Present,
+        Some(vec![1.0; DIMENSION as usize]),
+    );
+    let (_changed_fixture, changed_table, changed_artifact) =
+        verified_embedding(&fixture.cell_ids, changed_rows);
+    assert!(matches!(
+        declared_probability_cell_embedding_cross_covariance_energy(
+            &input,
+            &changed_table,
+            changed_artifact,
+            4,
+            AVAILABLE_COMPONENT_OPERATIONS,
+            WORKING_BYTES,
+        ),
+        Err(DeclaredProbabilityCellEmbeddingCrossCovarianceError::VectorArtifactReferenceMismatch)
+    ));
 
     let repeated = declared_probability_cell_embedding_cross_covariance_energy(
         &input,

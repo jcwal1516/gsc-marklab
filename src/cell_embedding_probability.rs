@@ -125,6 +125,9 @@ pub enum DeclaredProbabilityCellEmbeddingCrossCovarianceError {
     /// The materialized table does not match the verified embedding artifact.
     #[error("declared probability cell-embedding table and verified artifact disagree")]
     EmbeddingArtifactBindingMismatch,
+    /// A typed vector-artifact mark references a different verified embedding artifact.
+    #[error("declared vector mark and supplied verified embedding artifact disagree")]
+    VectorArtifactReferenceMismatch,
     /// Declared and embedding CellIds disagree at one row.
     #[error("declared probability and cell-embedding identities disagree at row {row}")]
     CellIdBindingMismatch {
@@ -211,6 +214,14 @@ pub fn declared_probability_cell_embedding_cross_covariance_energy(
     if embedding_qc_summary != artifact.qc_summary() {
         return Err(
             DeclaredProbabilityCellEmbeddingCrossCovarianceError::EmbeddingArtifactBindingMismatch,
+        );
+    }
+    if input
+        .vector_artifact_ref()
+        .is_some_and(|declared_artifact| declared_artifact != artifact)
+    {
+        return Err(
+            DeclaredProbabilityCellEmbeddingCrossCovarianceError::VectorArtifactReferenceMismatch,
         );
     }
 

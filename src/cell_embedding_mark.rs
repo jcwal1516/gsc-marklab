@@ -326,9 +326,8 @@ pub(crate) fn bind_declared_binary_cell_embedding_centroid(
         );
     }
     if input
-        .mark_table()
-        .and_then(|mark_table| mark_table.single_vector_artifact_ref())
-        .is_some_and(|(_, declared_artifact)| declared_artifact != artifact)
+        .vector_artifact_ref()
+        .is_some_and(|declared_artifact| declared_artifact != artifact)
     {
         return Err(
             DeclaredBinaryCellEmbeddingCentroidDiscrepancyError::VectorArtifactReferenceMismatch,
