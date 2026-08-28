@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use marklab_cohort::{
     bootstrap_equivalence, hierarchical_bootstrap, BootstrapEquivalenceResult,
     BootstrapEquivalenceSpec, HierarchicalBootstrapResult, HierarchicalBootstrapSpec,
-    HierarchicalScalarRecord,
+    HierarchicalScalarRecord, InferenceDesign, InferenceNullFamily, InferencePermutationUnit,
 };
 use serde::{Deserialize, Serialize};
 
@@ -114,15 +114,12 @@ struct HierarchicalBootstrapOutput {
 
 impl HierarchicalBootstrapOutput {
     fn from_result(input: PathBuf, result: HierarchicalBootstrapResult) -> Self {
+        let design = hierarchical_design(&result.inference_design);
         Self {
             format: "marklab.cohort_hierarchical_bootstrap",
             version: 1,
             input,
-            design: HierarchicalDesignOutput {
-                levels: ["patient", "specimen"],
-                statistic: "specimen_row_mean",
-                interval_method: "nearest_rank_percentile",
-            },
+            design,
             patients: result.patient_count,
             specimens: result.specimen_count,
             observed_mean: result.observed_mean,
@@ -145,6 +142,8 @@ impl HierarchicalBootstrapOutput {
 #[derive(Debug, Serialize)]
 struct HierarchicalDesignOutput {
     levels: [&'static str; 2],
+    null_family: &'static str,
+    permutation_unit: &'static str,
     statistic: &'static str,
     interval_method: &'static str,
 }
@@ -189,15 +188,12 @@ struct BootstrapEquivalenceIntervalOutput {
 
 impl BootstrapEquivalenceOutput {
     fn from_result(input: PathBuf, result: BootstrapEquivalenceResult) -> Self {
+        let design = hierarchical_design(&result.bootstrap.inference_design);
         Self {
             format: "marklab.cohort_bootstrap_equivalence",
             version: 1,
             input,
-            design: HierarchicalDesignOutput {
-                levels: ["patient", "specimen"],
-                statistic: "specimen_row_mean",
-                interval_method: "nearest_rank_percentile",
-            },
+            design,
             observed_mean: result.bootstrap.observed_mean,
             interval: BootstrapEquivalenceIntervalOutput {
                 lower: result.bootstrap.interval.lower,
@@ -216,5 +212,23 @@ impl BootstrapEquivalenceOutput {
             seed: result.bootstrap.seed,
             claim_status: "experimental_percentile_interval",
         }
+    }
+}
+
+fn hierarchical_design(design: &InferenceDesign) -> HierarchicalDesignOutput {
+    let null_family = match design.null_family() {
+        InferenceNullFamily::HierarchicalBootstrap => "hierarchical_bootstrap",
+        _ => unreachable!("hierarchical bootstrap returned another null family"),
+    };
+    let permutation_unit = match design.permutation_unit() {
+        InferencePermutationUnit::PatientThenNestedSpecimen => "patient_then_nested_specimen",
+        _ => unreachable!("hierarchical bootstrap returned another permutation unit"),
+    };
+    HierarchicalDesignOutput {
+        levels: ["patient", "specimen"],
+        null_family,
+        permutation_unit,
+        statistic: "specimen_row_mean",
+        interval_method: "nearest_rank_percentile",
     }
 }

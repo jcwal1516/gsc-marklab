@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, HashSet};
 
 use super::{
-    derive_seed_in_namespace, numeric::stable_mean, splitmix64, CohortInferenceError,
-    MAXIMUM_PATIENTS, MAXIMUM_PERMUTATIONS,
+    numeric::stable_mean, CohortInferenceError, InferenceDesign, MAXIMUM_PATIENTS,
+    MAXIMUM_PERMUTATIONS,
 };
 
 const HIERARCHICAL_BOOTSTRAP_NAMESPACE: u64 = 0x6869_6572_5f62_6f6f;
@@ -44,6 +44,8 @@ pub struct HierarchicalBootstrapInterval {
 /// Patient-first hierarchical scalar bootstrap result.
 #[derive(Clone, Debug, PartialEq)]
 pub struct HierarchicalBootstrapResult {
+    /// Exact patient-then-nested-specimen resampling design.
+    pub inference_design: InferenceDesign,
     /// Number of independent patients.
     pub patient_count: usize,
     /// Number of nested specimens.
@@ -131,23 +133,24 @@ pub fn hierarchical_bootstrap(
     }
     let observed_values = grouped.iter().flatten().copied().collect::<Vec<_>>();
     let observed_mean = stable_mean(&observed_values)?;
+    let inference_design = InferenceDesign::hierarchical_bootstrap(
+        &grouped.iter().map(Vec::len).collect::<Vec<_>>(),
+        spec.replicates,
+        spec.seed,
+        HIERARCHICAL_BOOTSTRAP_NAMESPACE,
+    )
+    .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
     let mut bootstrap_means = Vec::with_capacity(spec.replicates);
     let mut sampled_values = Vec::with_capacity(patient_count * max_specimens);
     for replicate in 0..spec.replicates {
-        let mut state =
-            derive_seed_in_namespace(spec.seed, HIERARCHICAL_BOOTSTRAP_NAMESPACE, replicate);
-        let mut draw_index = 0usize;
         sampled_values.clear();
-        for _ in 0..patient_count {
-            state = splitmix64(state ^ draw_index as u64);
-            draw_index += 1;
-            let specimens = &grouped[state as usize % patient_count];
-            for _ in 0..specimens.len() {
-                state = splitmix64(state ^ draw_index as u64);
-                draw_index += 1;
-                sampled_values.push(specimens[state as usize % specimens.len()]);
-            }
-        }
+        sampled_values.extend(
+            inference_design
+                .hierarchical_resample_indices(replicate)
+                .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?
+                .iter()
+                .map(|index| observed_values[*index]),
+        );
         bootstrap_means.push(stable_mean(&sampled_values)?);
     }
     let mut ordered = bootstrap_means.clone();
@@ -158,6 +161,7 @@ pub fn hierarchical_bootstrap(
         level: 1.0 - spec.alpha,
     };
     Ok(HierarchicalBootstrapResult {
+        inference_design,
         patient_count,
         specimen_count: records.len(),
         observed_mean,

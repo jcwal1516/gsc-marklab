@@ -885,3 +885,10 @@ Hierarchical bootstrap now binds its deterministic nested draws to exact patient
 rather than caller row order. The existing patient-first estimand and random stream are otherwise
 unchanged. COH-01/FND-06 remain active for hierarchy design ownership, cluster/interference methods,
 and real validation.
+
+## Checkpoint 99 typed hierarchical-bootstrap design continuation
+
+Both current patient-first bootstrap callers now persist the exact hierarchical null and patient-
+then-nested-specimen draw unit through `InferenceDesign`, with their established reference stream
+unchanged. FND-06 remains active for cluster/interference and broader multiplicity/calibration; the
+hierarchical-bootstrap ownership gap is closed.

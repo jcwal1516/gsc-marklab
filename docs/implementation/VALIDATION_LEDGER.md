@@ -2229,6 +2229,17 @@ vascular transport.
 - Focused warning-denied cohort Clippy, package no-default compilation, affected-file Rustfmt, and
   diff whitespace pass. Broad checkpoint-95 gates were not repeated.
 
+## Typed hierarchical-bootstrap design checkpoint 99 — 2026-08-28
+
+- The hierarchical-bootstrap CLI test first failed because its design omitted the typed null/unit
+  and now passes 1/1. Bootstrap-equivalence passes 1/1 with the same shared design output.
+- The independent slow reference passes unchanged. The focused design test passes exact patient/
+  specimen block counts, bounded draw indices, singleton support, empty-block rejection, and flat-
+  permutation rejection.
+- Warning-denied Clippy passes for the affected cohort library/reference and both CLI integrations.
+  Package no-default compilation, doctests, affected-file Rustfmt, and diff whitespace pass; broad
+  checkpoint-95 gates were not repeated.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

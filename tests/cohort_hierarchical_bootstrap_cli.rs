@@ -50,6 +50,11 @@ p-2,s-4,7\n",
         result["design"]["levels"],
         serde_json::json!(["patient", "specimen"])
     );
+    assert_eq!(result["design"]["null_family"], "hierarchical_bootstrap");
+    assert_eq!(
+        result["design"]["permutation_unit"],
+        "patient_then_nested_specimen"
+    );
     assert_eq!(result["observed_mean"], 4.0);
     assert_eq!(result["patients"], 2);
     assert_eq!(result["specimens"], 4);

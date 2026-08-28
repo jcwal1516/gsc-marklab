@@ -1750,3 +1750,14 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - The independent slow reference and existing patient-first CLI remain green. This advances
   COH-01/FND-06 reproducibility without changing the specimen-row-mean estimand, hierarchy, seed,
   draw count, interval method, or treating specimens as population replicates.
+
+## Typed hierarchical-bootstrap design checkpoint 99 — 2026-08-28
+
+- Added the master-plan `HierarchicalBootstrap` null with one patient occurrence followed by its
+  nested specimen draw as the atomic resampling unit. Exact canonical patient blocks/specimen counts
+  are retained, flat index permutation is unavailable, and empty patient blocks fail explicitly.
+- Both hierarchical-bootstrap and bootstrap-equivalence now consume and expose this typed design.
+  The former SplitMix patient-first/nested-specimen stream, stored replicate means, percentile
+  intervals, estimand, limits, and deterministic CLI outputs remain exact.
+- This advances COH-01/FND-06/WS-31/WS-34 without inferring hierarchy, adding cluster weights or
+  covariates, or treating specimens as population replicates.

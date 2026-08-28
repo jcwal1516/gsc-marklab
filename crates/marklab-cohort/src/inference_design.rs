@@ -70,6 +70,8 @@ pub enum InferenceNullFamily {
     PopulationIndependence,
     /// Complete within-patient differences receive independent signs.
     PairedSignFlip,
+    /// Patients are sampled first, then specimens within each sampled patient occurrence.
+    HierarchicalBootstrap,
     /// Complete reduced-model residual vectors receive independent subject-level signs.
     SubjectResidualSignSymmetry,
 }
@@ -83,6 +85,8 @@ pub enum InferencePermutationUnit {
     PatientLabel,
     /// One complete condition-B-minus-condition-A patient difference.
     CompletePatientPairDifference,
+    /// One patient occurrence followed by its complete nested-specimen draw.
+    PatientThenNestedSpecimen,
     /// One complete subject residual vector across every retained visit.
     CompleteSubjectResidualVector,
 }
@@ -274,6 +278,37 @@ impl InferenceDesign {
         )
     }
 
+    pub(crate) fn hierarchical_bootstrap(
+        specimen_counts: &[usize],
+        replicates: usize,
+        seed: u64,
+        seed_namespace: u64,
+    ) -> Result<Self, InferenceDesignError> {
+        let mut blocks = Vec::with_capacity(specimen_counts.len());
+        let mut offset = 0usize;
+        for count in specimen_counts {
+            if *count == 0 {
+                return Err(InferenceDesignError::EmptyHierarchicalBlock);
+            }
+            let end = offset
+                .checked_add(*count)
+                .ok_or(InferenceDesignError::InvalidBlockMembership)?;
+            blocks.push((offset..end).collect());
+            offset = end;
+        }
+        Self::build(
+            InferenceAnalysisLevel::Patient,
+            InferenceNullFamily::HierarchicalBootstrap,
+            InferencePermutationUnit::PatientThenNestedSpecimen,
+            blocks,
+            offset,
+            replicates,
+            seed,
+            seed_namespace,
+            InferenceAlternative::TwoSided,
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn build(
         analysis_level: InferenceAnalysisLevel,
@@ -292,7 +327,10 @@ impl InferenceDesign {
         if permutations == 0 {
             return Err(InferenceDesignError::NoPermutations);
         }
-        if !blocks.iter().any(|block| block.len() > 1) {
+        if (null_family == InferenceNullFamily::HierarchicalBootstrap && blocks.len() < 2)
+            || (null_family != InferenceNullFamily::HierarchicalBootstrap
+                && !blocks.iter().any(|block| block.len() > 1))
+        {
             return Err(InferenceDesignError::NoExchangeableUnits);
         }
         let mut observed = blocks.iter().flatten().copied().collect::<Vec<_>>();
@@ -370,6 +408,7 @@ impl InferenceDesign {
             self.permutation_unit,
             InferencePermutationUnit::CompletePatientPairDifference
                 | InferencePermutationUnit::CompleteSubjectResidualVector
+                | InferencePermutationUnit::PatientThenNestedSpecimen
         ) {
             return Err(InferenceDesignError::UnsupportedIndexOperation);
         }
@@ -441,6 +480,42 @@ impl InferenceDesign {
             .into_boxed_slice())
     }
 
+    pub(crate) fn hierarchical_resample_indices(
+        &self,
+        replicate: usize,
+    ) -> Result<Box<[usize]>, InferenceDesignError> {
+        if self.null_family != InferenceNullFamily::HierarchicalBootstrap
+            || self.permutation_unit != InferencePermutationUnit::PatientThenNestedSpecimen
+        {
+            return Err(InferenceDesignError::UnsupportedHierarchicalOperation);
+        }
+        if replicate >= self.permutations {
+            return Err(InferenceDesignError::ReplicateOutOfRange {
+                replicate,
+                permutations: self.permutations,
+            });
+        }
+        let maximum = self
+            .blocks
+            .len()
+            .checked_mul(self.blocks.iter().map(Vec::len).max().unwrap_or(0))
+            .ok_or(InferenceDesignError::InvalidBlockMembership)?;
+        let mut sampled = Vec::with_capacity(maximum);
+        let mut state = splitmix64(splitmix64(self.seed ^ self.seed_namespace) ^ replicate as u64);
+        let mut draw_index = 0usize;
+        for _ in 0..self.blocks.len() {
+            state = splitmix64(state ^ draw_index as u64);
+            draw_index += 1;
+            let specimens = &self.blocks[state as usize % self.blocks.len()];
+            for _ in 0..specimens.len() {
+                state = splitmix64(state ^ draw_index as u64);
+                draw_index += 1;
+                sampled.push(specimens[state as usize % specimens.len()]);
+            }
+        }
+        Ok(sampled.into_boxed_slice())
+    }
+
     pub(super) fn blocks(&self) -> &[Vec<usize>] {
         &self.blocks
     }
@@ -470,12 +545,18 @@ pub enum InferenceDesignError {
     /// Block membership omits, duplicates, or invents a unit row.
     #[error("inference design block membership is not a complete exact partition")]
     InvalidBlockMembership,
+    /// A declared patient contains no nested specimens.
+    #[error("hierarchical bootstrap patient blocks must contain at least one specimen")]
+    EmptyHierarchicalBlock,
     /// Index permutation was requested from a sign-symmetry design.
     #[error("index permutation is unavailable for a subject-residual sign-symmetry design")]
     UnsupportedIndexOperation,
     /// Paired-difference signs were requested from another design.
     #[error("paired-difference signs require a paired sign-flip design")]
     UnsupportedPairedSignOperation,
+    /// Hierarchical draws were requested from another design.
+    #[error("hierarchical draws require a patient-then-nested-specimen bootstrap design")]
+    UnsupportedHierarchicalOperation,
     /// Subject residual signs were requested from a design with another randomization unit.
     #[error("subject residual signs require a subject-residual sign-symmetry design")]
     UnsupportedSignOperation,
@@ -726,6 +807,38 @@ mod tests {
         assert_eq!(
             labels.subject_residual_signs(0),
             Err(InferenceDesignError::UnsupportedSignOperation)
+        );
+    }
+
+    #[test]
+    fn hierarchical_bootstrap_preserves_patient_then_specimen_units() {
+        let design =
+            InferenceDesign::hierarchical_bootstrap(&[2, 3], 19, 20260828, 0x6869_6572_5f62_6f6f)
+                .expect("hierarchical design");
+        assert_eq!(
+            design.null_family(),
+            InferenceNullFamily::HierarchicalBootstrap
+        );
+        assert_eq!(
+            design.permutation_unit(),
+            InferencePermutationUnit::PatientThenNestedSpecimen
+        );
+        assert_eq!(design.block_count(), 2);
+        assert_eq!(design.unit_count(), 5);
+        for replicate in 0..design.permutations() {
+            let draw = design
+                .hierarchical_resample_indices(replicate)
+                .expect("declared replicate");
+            assert!((4..=6).contains(&draw.len()));
+            assert!(draw.iter().all(|index| *index < 5));
+        }
+        assert_eq!(
+            design.permuted_indices(0),
+            Err(InferenceDesignError::UnsupportedIndexOperation)
+        );
+        assert_eq!(
+            InferenceDesign::hierarchical_bootstrap(&[1, 0], 9, 1, 2),
+            Err(InferenceDesignError::EmptyHierarchicalBlock)
         );
     }
 }
