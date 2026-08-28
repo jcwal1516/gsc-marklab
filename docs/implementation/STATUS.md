@@ -1722,3 +1722,9 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   active instruction prohibit retrying the macOS binary-verification loop. No feature matrix,
   benchmark, fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or
   history rewrite ran.
+
+## Multisite patient-count overflow checkpoint 96 — 2026-08-28
+
+- Multisite inference now rejects an overflowing cross-site patient total explicitly instead of
+  panicking in debug builds or wrapping in optimized builds. Existing fixed/random-effects pooling
+  and leave-one-site-out behavior is unchanged.

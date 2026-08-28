@@ -2205,6 +2205,12 @@ vascular transport.
   No feature matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push, publication,
   deployment, or history rewrite ran.
 
+## Multisite patient-count overflow checkpoint 96 — 2026-08-28
+
+- The focused regression first panicked on `usize` accumulation and now passes 1/1 with an explicit
+  input error. Both multisite unit tests and the fixed-effect CLI oracle pass. Focused warning-denied
+  Clippy and package no-default compilation pass; broad checkpoint-95 gates were not repeated.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

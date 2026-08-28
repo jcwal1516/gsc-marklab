@@ -861,3 +861,9 @@ FND-06 remains active for hierarchy-specific bootstrap, multisite/cluster/interf
 multiplicity. Production work returns to the next concrete caller or real-data gap; do not extract a
 hierarchical-bootstrap abstraction until its exact patient→specimen schedule has a second immediate
 consumer or cannot execute correctly without one.
+
+## Checkpoint 96 multisite count-boundary continuation
+
+The existing multisite workflow now checks its aggregate patient count before pooling. FND-06 and
+COH-01 remain active for substantive multisite designs and real validation; no new abstraction was
+introduced.

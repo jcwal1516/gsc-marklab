@@ -59,6 +59,13 @@ pub fn multisite_spatial_inference(
         ));
     }
     let sites = validate_sites(sites)?;
+    let total_patient_count = sites.iter().try_fold(0usize, |total, site| {
+        total.checked_add(site.patient_count).ok_or_else(|| {
+            CohortInferenceError::InvalidInput(
+                "multisite total patient count overflows usize".into(),
+            )
+        })
+    })?;
     let fixed = pool(&sites, 0.0)?;
     let q = sites
         .iter()
@@ -118,7 +125,7 @@ pub fn multisite_spatial_inference(
     Ok(MultisiteInferenceResult {
         model: spec.model,
         site_count: sites.len(),
-        total_patient_count: sites.iter().map(|site| site.patient_count).sum(),
+        total_patient_count,
         pooled_effect: pooled.effect,
         pooled_standard_error: pooled.standard_error,
         confidence_interval,
@@ -282,5 +289,30 @@ mod tests {
         assert!(result.tau_squared > 0.0);
         assert_eq!(result.pooled_effect, 3.0);
         assert!(result.prediction_interval.is_some());
+    }
+
+    #[test]
+    fn total_patient_count_overflow_is_rejected() {
+        let sites = [usize::MAX, 1, 1]
+            .into_iter()
+            .enumerate()
+            .map(|(index, patient_count)| SiteEffect {
+                site_id: format!("s-{index}"),
+                effect: index as f64,
+                standard_error: 1.0,
+                patient_count,
+            })
+            .collect::<Vec<_>>();
+        assert!(matches!(
+            multisite_spatial_inference(
+                &sites,
+                &MultisiteInferenceSpec {
+                    model: MultisiteEffectModel::FixedEffect,
+                    alpha: 0.05,
+                }
+            ),
+            Err(CohortInferenceError::InvalidInput(message))
+                if message.contains("total patient count")
+        ));
     }
 }
