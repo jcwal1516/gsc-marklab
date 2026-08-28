@@ -2340,6 +2340,19 @@ vascular transport.
   binary. Package no-default compilation, strict package docs, affected-file Rustfmt, and `git diff
   --check` pass. Broad checkpoint-101 gates were not repeated.
 
+## Inference-family stabilization checkpoint 108 — 2026-08-28
+
+- `cargo +1.96.0 fmt --all --check` passes. `cargo +1.96.0 clippy --locked --workspace
+  --all-targets --all-features -- -D warnings` passes in `27m17s` with no diagnostics.
+- `cargo +1.96.0 check --locked --workspace --no-default-features` passes in `19.60s`.
+  `cargo +1.96.0 test --locked --workspace --doc --all-features` completes every package doctest
+  with zero failures. `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --workspace
+  --all-features --no-deps` passes in `25.46s`.
+- `git diff --check` passes. The full workspace integration/Nextest loop was not run because the
+  active instruction and checkpoints 51/52 prohibit retrying the macOS binary-verification stall.
+  No feature matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push, publication,
+  deployment, or history rewrite ran.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

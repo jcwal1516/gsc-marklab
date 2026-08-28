@@ -1869,3 +1869,14 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   command named the nonexistent `functional_reference` target and failed before that step; the
   canonical `functional_permutation_reference` target then passed. Affected Clippy, no-default,
   strict docs, formatting, and whitespace checks pass.
+
+## Inference-family stabilization checkpoint 108 — 2026-08-28
+
+- Stabilized checkpoints 102–107 across explicit randomized interference, blocked/single-step/
+  step-down/paired Max-T, and unblocked/blocked one-covariate patient residual inference.
+  Workspace formatting, warning-denied all-target/all-feature Clippy, no-default compilation,
+  all-feature doctests, and strict all-feature docs pass on the final production state.
+- The full workspace integration suite and Nextest were not run because checkpoints 51/52 and the
+  active instruction prohibit retrying the macOS binary-verification loop. No feature matrix,
+  benchmark, fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or
+  history rewrite ran.

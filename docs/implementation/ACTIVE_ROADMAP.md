@@ -951,3 +951,13 @@ the immediate one-covariate caller is complete without a formula framework.
 The same fixed one-covariate model now restricts complete patient residuals within exact declared
 blocks while preserving unblocked behavior. COH-01/FND-06 remain active for multiple nuisance
 columns, cluster/multisite adjustment, and real validation; this exact-block caller is complete.
+
+## Checkpoint 108 inference-family stabilization continuation
+
+The checkpoint-102–107 family passes workspace formatting, warning-denied all-target/all-feature
+Clippy, no-default compilation, all-feature doctests, and strict docs. The prohibited full
+integration/Nextest loader loop was not retried.
+
+COH-01/FND-06 remain active for a concrete multiple-nuisance or cluster/multisite adjusted caller,
+hierarchical/local multiplicity, calibration, and real validation. Production work resumes from an
+existing typed caller; do not introduce a formula language or generic inference registry.
