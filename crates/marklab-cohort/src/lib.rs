@@ -66,8 +66,9 @@ pub use mmd::{
     MmdEstimator, MmdKernel, MmdPermutationResult, MmdPermutationSpec,
 };
 pub use multisite::{
-    multisite_spatial_inference, MultisiteEffectModel, MultisiteInferenceResult,
-    MultisiteInferenceSpec, SiteEffect, SiteSensitivityResult,
+    multisite_patient_contrast, multisite_spatial_inference, MultisiteEffectModel,
+    MultisiteInferenceResult, MultisiteInferenceSpec, MultisitePatientContrastResult,
+    MultisitePatientEndpoint, SiteEffect, SitePatientContrast, SiteSensitivityResult,
 };
 pub use noninferiority::{
     noninferiority_test, NoninferiorityDirection, NoninferiorityResult, NoninferioritySpec,

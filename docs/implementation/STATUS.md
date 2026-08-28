@@ -1728,3 +1728,15 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - Multisite inference now rejects an overflowing cross-site patient total explicitly instead of
   panicking in debug builds or wrapping in optimized builds. Existing fixed/random-effects pooling
   and leave-one-site-out behavior is unchanged.
+
+## Patient-level multisite contrast checkpoint 97 — 2026-08-28
+
+- Added a complete patient-row multisite workflow. It requires globally unique patient IDs, exact
+  site/group labels, finite endpoints, and at least two patients in each group at each site; a site
+  missing either group fails rather than borrowing patients or treating lower-level rows as units.
+- Each site reports exact group counts/means, group-A-minus-group-B effect, and Welch standard error,
+  then reuses the existing fixed-effect or REML pooling, heterogeneity, prediction interval, and
+  leave-one-site-out owner. The three-site hand oracle gives effect `3` and SE `1` at every site and
+  pooled effect `3` over 12 patients.
+- This advances COH-01/FND-06/WS-31/WS-34 without claiming site exchangeability, residualizing
+  covariates, inferring site labels, or adding a generic meta-analysis framework.

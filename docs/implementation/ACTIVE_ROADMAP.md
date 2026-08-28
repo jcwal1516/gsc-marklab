@@ -867,3 +867,14 @@ consumer or cannot execute correctly without one.
 The existing multisite workflow now checks its aggregate patient count before pooling. FND-06 and
 COH-01 remain active for substantive multisite designs and real validation; no new abstraction was
 introduced.
+
+## Checkpoint 97 patient-level multisite continuation
+
+Independent patient rows now flow through within-site two-group estimation into the existing fixed/
+REML multisite engine with exact site effects, standard errors, heterogeneity, and leave-one-site-out
+sensitivity. Patient IDs are globally unique and every site must contain both groups.
+
+COH-01 and FND-06 remain active for covariate-adjusted/cluster/interference designs and real
+multisite validation. The next production outcome should use an admitted real multisite endpoint or
+advance the canonical real CellViT source-import gap; do not fabricate site labels or duplicate
+specimens as patients.

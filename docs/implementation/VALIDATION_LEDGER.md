@@ -2211,6 +2211,16 @@ vascular transport.
   input error. Both multisite unit tests and the fixed-effect CLI oracle pass. Focused warning-denied
   Clippy and package no-default compilation pass; broad checkpoint-95 gates were not repeated.
 
+## Patient-level multisite contrast checkpoint 97 — 2026-08-28
+
+- The exact CLI behavior test first failed because `multisite-patient-contrast` was absent and now
+  passes with three site effects/SEs and the nested fixed-effect result. The full multisite CLI suite
+  passes 2/2, preserving the legacy precomputed-site summary path.
+- All three multisite unit tests pass, covering the patient-row hand oracle, duplicate patients,
+  site/group confounding, REML variation, and aggregate-count overflow. Warning-denied Clippy passes
+  for the affected cohort library and CLI test; package no-default compilation, doctests,
+  affected-file Rustfmt, and diff whitespace pass. Broad checkpoint-95 gates were not repeated.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

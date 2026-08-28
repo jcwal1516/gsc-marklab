@@ -1,8 +1,9 @@
 use std::{fs, path::PathBuf};
 
 use marklab_cohort::{
-    multisite_spatial_inference, MultisiteEffectModel, MultisiteInferenceResult,
-    MultisiteInferenceSpec, SiteEffect,
+    multisite_patient_contrast, multisite_spatial_inference, MultisiteEffectModel,
+    MultisiteInferenceResult, MultisiteInferenceSpec, MultisitePatientContrastResult,
+    MultisitePatientEndpoint, SiteEffect,
 };
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +16,15 @@ struct CsvRow {
     effect: f64,
     standard_error: f64,
     patient_count: usize,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PatientCsvRow {
+    patient_id: String,
+    site_id: String,
+    group: String,
+    endpoint: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -65,6 +75,27 @@ pub(super) fn run(
         },
     )?;
     publish_json(&out, &Output::from(result))
+}
+
+pub(super) fn run_patient_contrast(
+    input: PathBuf,
+    group_a: String,
+    group_b: String,
+    model: CliMultisiteModel,
+    alpha: f64,
+    out: PathBuf,
+) -> Result<(), CohortError> {
+    let records = read_patient_records(&input)?;
+    let result = multisite_patient_contrast(
+        &records,
+        &group_a,
+        &group_b,
+        &MultisiteInferenceSpec {
+            model: model.into(),
+            alpha,
+        },
+    )?;
+    publish_json(&out, &PatientContrastOutput::from_result(input, result))
 }
 
 impl From<MultisiteInferenceResult> for Output {
@@ -140,4 +171,112 @@ fn read_sites(path: &std::path::Path) -> Result<Vec<SiteEffect>, CohortError> {
             })
         })
         .collect()
+}
+
+fn read_patient_records(
+    path: &std::path::Path,
+) -> Result<Vec<MultisitePatientEndpoint>, CohortError> {
+    let metadata = fs::metadata(path).map_err(|source| CohortError::Output {
+        path: path.to_owned(),
+        source,
+    })?;
+    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
+        return Err(CohortError::Input(
+            "multisite patient input must be a regular file within 16 MiB".into(),
+        ));
+    }
+    let mut reader = csv::ReaderBuilder::new()
+        .flexible(false)
+        .from_path(path)
+        .map_err(|error| CohortError::Input(error.to_string()))?;
+    if !reader
+        .headers()
+        .map_err(|error| CohortError::Input(error.to_string()))?
+        .iter()
+        .eq(["patient_id", "site_id", "group", "endpoint"])
+    {
+        return Err(CohortError::Input(
+            "CSV header must be exactly patient_id,site_id,group,endpoint".into(),
+        ));
+    }
+    reader
+        .deserialize::<PatientCsvRow>()
+        .map(|row| {
+            let row = row.map_err(|error| CohortError::Input(error.to_string()))?;
+            Ok(MultisitePatientEndpoint {
+                patient_id: row.patient_id,
+                site_id: row.site_id,
+                group: row.group,
+                endpoint: row.endpoint,
+            })
+        })
+        .collect()
+}
+
+#[derive(Debug, Serialize)]
+struct PatientContrastOutput {
+    format: &'static str,
+    version: u32,
+    input: PathBuf,
+    design: PatientContrastDesign,
+    groups: PatientGroupLabels,
+    sites: Vec<PatientSiteOutput>,
+    pooled: Output,
+}
+
+#[derive(Debug, Serialize)]
+struct PatientContrastDesign {
+    randomization_unit: &'static str,
+    site_effect: &'static str,
+    standard_error: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct PatientGroupLabels {
+    group_a: String,
+    group_b: String,
+}
+
+#[derive(Debug, Serialize)]
+struct PatientSiteOutput {
+    site_id: String,
+    group_a_patients: usize,
+    group_b_patients: usize,
+    group_a_mean: f64,
+    group_b_mean: f64,
+    effect: f64,
+    standard_error: f64,
+}
+
+impl PatientContrastOutput {
+    fn from_result(input: PathBuf, result: MultisitePatientContrastResult) -> Self {
+        Self {
+            format: "marklab.cohort_multisite_patient_contrast",
+            version: 1,
+            input,
+            design: PatientContrastDesign {
+                randomization_unit: "patient",
+                site_effect: "group_a_minus_group_b",
+                standard_error: "welch_independent_groups",
+            },
+            groups: PatientGroupLabels {
+                group_a: result.group_a,
+                group_b: result.group_b,
+            },
+            sites: result
+                .sites
+                .into_iter()
+                .map(|site| PatientSiteOutput {
+                    site_id: site.site_id,
+                    group_a_patients: site.group_a_count,
+                    group_b_patients: site.group_b_count,
+                    group_a_mean: site.group_a_mean,
+                    group_b_mean: site.group_b_mean,
+                    effect: site.effect,
+                    standard_error: site.standard_error,
+                })
+                .collect(),
+            pooled: Output::from(result.pooled),
+        }
+    }
 }

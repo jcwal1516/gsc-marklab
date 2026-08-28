@@ -2257,3 +2257,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for FND-06/COH-01/WS-31/WS-34
 - Decision: add the master-plan `PairedSignFlip` null and a complete patient-pair-difference permutation unit to `InferenceDesign`, immediately consumed by the existing paired scalar permutation workflow. Preserve exact condition-B-minus-condition-A differences, current validation, private seed namespace, independent Rademacher stream, studentized statistic, less/greater/equal-tail two-sided alternatives, work bounds, and plus-one p-values. Persist the typed design in the library result and expose its null family and permutation unit in the existing version-1 CLI design summary.
 - Consequences: condition rows cannot be separated or permuted as independent patients, and existing paired numerical evidence remains exact. This does not add incomplete-pair imputation, repeated visits, covariates, cluster weights, pair matching, or a general sign-flip registry.
+
+## DEC-0286 — Estimate multisite contrasts from independent patient rows
+
+- Date: 2026-08-28
+- Status: accepted for COH-01/FND-06/WS-31/WS-34
+- Decision: add one patient-level multisite two-group workflow that requires globally unique exact patient IDs, exact site/group labels, finite scalar endpoints, and at least two patients in each declared group at every site. Compute each site's group-A-minus-group-B mean difference and Welch independent-groups standard error, then pass those typed site summaries unchanged to the existing fixed-effect or REML pooling and leave-one-site-out owner. Bound rows/sites with existing cohort limits and reject site/group confounding; expose one version-1 CLI result with per-site contrasts and nested pooled output.
+- Consequences: multisite inference becomes executable from patient endpoints without asking users to precompute standard errors or treating cells/specimens as independent units. This does not pool raw features across sites, residualize covariates, infer site labels, add patient overlap, claim exchangeability, or introduce a meta-analysis framework beyond the maintained existing models.

@@ -63,6 +63,7 @@ pub(crate) struct WelchContrast {
     pub(crate) group_a_mean: f64,
     pub(crate) group_b_mean: f64,
     pub(crate) effect: f64,
+    pub(crate) standard_error: f64,
     pub(crate) studentized: f64,
 }
 
@@ -100,6 +101,7 @@ pub(crate) fn welch_contrast(
         group_a_mean,
         group_b_mean,
         effect,
+        standard_error,
         studentized,
     })
 }

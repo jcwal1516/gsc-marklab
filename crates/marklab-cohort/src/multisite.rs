@@ -1,8 +1,35 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 use statrs::distribution::{ChiSquared, ContinuousCDF, Normal};
 
-use super::CohortInferenceError;
+use super::{numeric::welch_contrast, CohortInferenceError, MAXIMUM_PATIENTS};
+
+#[derive(Clone, Debug)]
+pub struct MultisitePatientEndpoint {
+    pub patient_id: String,
+    pub site_id: String,
+    pub group: String,
+    pub endpoint: f64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SitePatientContrast {
+    pub site_id: String,
+    pub group_a_count: usize,
+    pub group_b_count: usize,
+    pub group_a_mean: f64,
+    pub group_b_mean: f64,
+    pub effect: f64,
+    pub standard_error: f64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct MultisitePatientContrastResult {
+    pub group_a: String,
+    pub group_b: String,
+    pub sites: Vec<SitePatientContrast>,
+    pub pooled: MultisiteInferenceResult,
+}
 
 #[derive(Clone, Debug)]
 pub struct SiteEffect {
@@ -136,6 +163,99 @@ pub fn multisite_spatial_inference(
         heterogeneity_p_value,
         leave_one_site_out,
         alpha: spec.alpha,
+    })
+}
+
+pub fn multisite_patient_contrast(
+    records: &[MultisitePatientEndpoint],
+    group_a: &str,
+    group_b: &str,
+    spec: &MultisiteInferenceSpec,
+) -> Result<MultisitePatientContrastResult, CohortInferenceError> {
+    if group_a.is_empty()
+        || group_b.is_empty()
+        || group_a.trim() != group_a
+        || group_b.trim() != group_b
+        || group_a == group_b
+    {
+        return Err(CohortInferenceError::InvalidInput(
+            "multisite patient groups must be distinct exact non-empty labels".into(),
+        ));
+    }
+    if records.is_empty() || records.len() > MAXIMUM_PATIENTS {
+        return Err(CohortInferenceError::InvalidInput(format!(
+            "multisite patient contrast requires 1 to {MAXIMUM_PATIENTS} rows"
+        )));
+    }
+    let mut patients = HashSet::with_capacity(records.len());
+    let mut grouped = BTreeMap::<&str, Vec<(f64, bool)>>::new();
+    for record in records {
+        if record.patient_id.is_empty()
+            || record.patient_id.trim() != record.patient_id
+            || record.site_id.is_empty()
+            || record.site_id.trim() != record.site_id
+            || !record.endpoint.is_finite()
+        {
+            return Err(CohortInferenceError::InvalidInput(
+                "multisite patient rows require exact non-empty IDs and finite endpoints".into(),
+            ));
+        }
+        if !patients.insert(record.patient_id.as_str()) {
+            return Err(CohortInferenceError::InvalidInput(format!(
+                "duplicate multisite patient_id: {}",
+                record.patient_id
+            )));
+        }
+        let is_group_a = if record.group == group_a {
+            true
+        } else if record.group == group_b {
+            false
+        } else {
+            return Err(CohortInferenceError::InvalidInput(format!(
+                "patient {} has undeclared group {:?}",
+                record.patient_id, record.group
+            )));
+        };
+        grouped
+            .entry(record.site_id.as_str())
+            .or_default()
+            .push((record.endpoint, is_group_a));
+    }
+    let mut sites = Vec::with_capacity(grouped.len());
+    let mut effects = Vec::with_capacity(grouped.len());
+    for (site_id, rows) in grouped {
+        let values = rows.iter().map(|row| row.0).collect::<Vec<_>>();
+        let labels = rows.iter().map(|row| row.1).collect::<Vec<_>>();
+        let contrast = welch_contrast(&values, &labels).map_err(|error| match error {
+            CohortInferenceError::InvalidInput(message) => {
+                CohortInferenceError::InvalidInput(format!("site {site_id}: {message}"))
+            }
+            CohortInferenceError::NumericalFailure(message) => {
+                CohortInferenceError::NumericalFailure(format!("site {site_id}: {message}"))
+            }
+        })?;
+        sites.push(SitePatientContrast {
+            site_id: site_id.to_owned(),
+            group_a_count: contrast.group_a_count,
+            group_b_count: contrast.group_b_count,
+            group_a_mean: contrast.group_a_mean,
+            group_b_mean: contrast.group_b_mean,
+            effect: contrast.effect,
+            standard_error: contrast.standard_error,
+        });
+        effects.push(SiteEffect {
+            site_id: site_id.to_owned(),
+            effect: contrast.effect,
+            standard_error: contrast.standard_error,
+            patient_count: rows.len(),
+        });
+    }
+    let pooled = multisite_spatial_inference(&effects, spec)?;
+    Ok(MultisitePatientContrastResult {
+        group_a: group_a.to_owned(),
+        group_b: group_b.to_owned(),
+        sites,
+        pooled,
     })
 }
 
@@ -313,6 +433,64 @@ mod tests {
             ),
             Err(CohortInferenceError::InvalidInput(message))
                 if message.contains("total patient count")
+        ));
+    }
+
+    #[test]
+    fn patient_rows_produce_exact_site_contrasts_before_pooling() {
+        let records = [
+            ("a-1", "site-a", "A", 3.0),
+            ("a-2", "site-a", "A", 5.0),
+            ("a-3", "site-a", "B", 1.0),
+            ("a-4", "site-a", "B", 1.0),
+            ("b-1", "site-b", "A", 4.0),
+            ("b-2", "site-b", "A", 6.0),
+            ("b-3", "site-b", "B", 2.0),
+            ("b-4", "site-b", "B", 2.0),
+            ("c-1", "site-c", "A", 5.0),
+            ("c-2", "site-c", "A", 7.0),
+            ("c-3", "site-c", "B", 3.0),
+            ("c-4", "site-c", "B", 3.0),
+        ]
+        .into_iter()
+        .map(
+            |(patient_id, site_id, group, endpoint)| MultisitePatientEndpoint {
+                patient_id: patient_id.into(),
+                site_id: site_id.into(),
+                group: group.into(),
+                endpoint,
+            },
+        )
+        .collect::<Vec<_>>();
+        let spec = MultisiteInferenceSpec {
+            model: MultisiteEffectModel::FixedEffect,
+            alpha: 0.05,
+        };
+        let result = multisite_patient_contrast(&records, "A", "B", &spec).expect("contrast");
+        assert_eq!(result.sites.len(), 3);
+        assert!(result
+            .sites
+            .iter()
+            .all(|site| site.effect == 3.0 && site.standard_error == 1.0));
+        assert_eq!(result.pooled.pooled_effect, 3.0);
+        assert_eq!(result.pooled.total_patient_count, 12);
+
+        let mut duplicate = records.clone();
+        duplicate[4].patient_id = "a-1".into();
+        assert!(matches!(
+            multisite_patient_contrast(&duplicate, "A", "B", &spec),
+            Err(CohortInferenceError::InvalidInput(message)) if message.contains("duplicate")
+        ));
+
+        let confounded = records
+            .iter()
+            .filter(|record| !(record.site_id == "site-c" && record.group == "B"))
+            .cloned()
+            .collect::<Vec<_>>();
+        assert!(matches!(
+            multisite_patient_contrast(&confounded, "A", "B", &spec),
+            Err(CohortInferenceError::InvalidInput(message))
+                if message.contains("site site-c") && message.contains("two patients")
         ));
     }
 }
