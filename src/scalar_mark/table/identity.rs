@@ -58,6 +58,12 @@ fn write_column(
             declaration.measurement_status(),
             declaration.provenance_artifact_id(),
         ),
+        ScalarMarkColumnValues::ProbabilitySimplex { declaration, .. } => (
+            "probability_simplex",
+            declaration.label(),
+            declaration.measurement_status(),
+            declaration.provenance_artifact_id(),
+        ),
     };
     write_part(writer, kind.as_bytes())?;
     write_part(writer, column.mark_id().as_str().as_bytes())?;
@@ -93,6 +99,20 @@ fn write_column(
             }
             for value in values {
                 write_part(writer, &value.to_be_bytes())?;
+            }
+        }
+        ScalarMarkColumnValues::ProbabilitySimplex {
+            declaration,
+            row_count,
+            values,
+        } => {
+            write_part(writer, &(*row_count as u128).to_be_bytes())?;
+            write_part(writer, &(declaration.levels().len() as u128).to_be_bytes())?;
+            for level in declaration.levels() {
+                write_part(writer, level.as_bytes())?;
+            }
+            for value in values {
+                write_part(writer, &value.to_bits().to_be_bytes())?;
             }
         }
     }

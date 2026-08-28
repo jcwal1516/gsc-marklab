@@ -48,6 +48,19 @@ pub enum DeclaredScalarInputError {
         /// Declared level count.
         level_count: usize,
     },
+    /// Probability-simplex class labels are missing, duplicated, unbounded, or malformed.
+    #[error("probability simplex requires at least two unique bounded class labels")]
+    InvalidProbabilitySimplexLevels,
+    /// One probability-simplex row has the wrong class width.
+    #[error("probability-simplex row {row} has {observed} values; expected {expected}")]
+    InvalidProbabilitySimplexShape {
+        row: usize,
+        expected: usize,
+        observed: usize,
+    },
+    /// One simplex row is non-finite, outside [0,1], or does not sum to one within tolerance.
+    #[error("probability-simplex row {row} is invalid; observed sum {sum}")]
+    InvalidProbabilitySimplexRow { row: usize, sum: f64 },
     /// The current compatibility adapter requires exactly one binary column.
     #[error("declared marked analysis requires exactly one typed binary column")]
     BinaryColumnCountMismatch,
@@ -60,6 +73,9 @@ pub enum DeclaredScalarInputError {
     /// The current compatibility adapter accepts at most one compartment categorical column.
     #[error("declared marked analysis accepts at most one histologic-compartment column")]
     CategoricalColumnCountMismatch,
+    /// The current typed table accepts at most one probability-simplex column.
+    #[error("declared marked analysis accepts at most one probability-simplex column")]
+    ProbabilitySimplexColumnCountMismatch,
     /// The current dense compatibility Pattern cannot consume nullable columns.
     #[error("declared marked analysis requires missingness policy not_permitted")]
     UnsupportedMissingnessPolicy,

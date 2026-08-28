@@ -708,3 +708,16 @@ Production work proceeds to the promoted FND-04/WS-23 probability-simplex caller
 The existing CellViT annotation-probability lane is the concrete use case; the implementation must
 preserve complete rows and provenance, expose soft composition/entropy without thresholding, and
 remain separate from patient-level inference or a generalized mark/plugin registry.
+
+## Checkpoint 83 typed probability-simplex continuation
+
+Complete contiguous CellViT-compatible probability rows now flow through exact MarkTable identity
+and provenance into soft class means, row/aggregate entropy, effective class count, resource bounds,
+and store-verified durable replay. No probability is normalized, thresholded, sampled, or treated as
+an independent scalar mark; the complete row remains the semantic unit.
+
+The next immediate consumer is NIC-01A/FND-04 spatial soft neighborhood composition at one fixed
+physical radius using the same complete simplex rows and canonical geometry plan. It must report
+expected neighbor class mass without hard labels, retain zero-neighbor states, bind pair/memory
+work, and remain descriptive per specimen. No automatic radius selection, niche clustering,
+patient-level p-value, or general simplex registry is justified.

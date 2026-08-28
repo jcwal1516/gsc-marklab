@@ -6,7 +6,8 @@ use super::{
     declaration::{
         measurement_status_name, BinaryMarkDeclaration, BinaryMarkOrigin,
         HistologicCompartmentMarkDeclaration, NucleusAreaUm2MarkDeclaration,
-        ProbabilityMarkDeclaration, ProbabilityThresholdComparator, ScalarMarkValueKind,
+        ProbabilityMarkDeclaration, ProbabilitySimplexMarkDeclaration,
+        ProbabilityThresholdComparator, ScalarMarkValueKind,
     },
     DeclaredScalarInputError,
 };
@@ -124,6 +125,19 @@ pub(crate) fn validate_histologic_compartment_provenance(
     )
 }
 
+pub(crate) fn validate_probability_simplex_provenance(
+    project: &MarklabProject,
+    declaration: &ProbabilitySimplexMarkDeclaration,
+) -> Result<(), DeclaredScalarInputError> {
+    require_record(
+        project,
+        declaration.provenance_artifact_id(),
+        MARK_SCHEMA,
+        &probability_simplex_metadata(declaration),
+        &[],
+    )
+}
+
 fn require_record(
     project: &MarklabProject,
     artifact: ArtifactId,
@@ -223,6 +237,29 @@ fn histologic_compartment_metadata(
         ("modality".into(), "histology".into()),
         ("unit".into(), "categorical".into()),
         ("value_kind".into(), "categorical".into()),
+    ])
+}
+
+fn probability_simplex_metadata(
+    declaration: &ProbabilitySimplexMarkDeclaration,
+) -> BTreeMap<String, String> {
+    let levels_digest =
+        ContentDigest::from_framed(declaration.levels().iter().map(|level| level.as_bytes()));
+    BTreeMap::from([
+        ("levels_digest".into(), levels_digest.to_string()),
+        (
+            "levels_count".into(),
+            declaration.levels().len().to_string(),
+        ),
+        ("mark_id".into(), declaration.mark_id().as_str().into()),
+        ("mark_label".into(), declaration.label().into()),
+        (
+            "measurement_status".into(),
+            measurement_status_name(declaration.measurement_status()).into(),
+        ),
+        ("modality".into(), "morphology".into()),
+        ("unit".into(), "probability_simplex".into()),
+        ("value_kind".into(), "probability_simplex".into()),
     ])
 }
 

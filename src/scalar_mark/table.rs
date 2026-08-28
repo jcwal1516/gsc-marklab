@@ -7,6 +7,7 @@ use super::{
     declaration::{
         BinaryMarkDeclaration, BinaryMarkOrigin, HistologicCompartmentMarkDeclaration,
         NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration,
+        ProbabilitySimplexMarkDeclaration,
     },
     provenance::{
         validate_histologic_compartment_provenance, validate_nucleus_area_um2_provenance,
@@ -47,6 +48,8 @@ pub enum ScalarMarkUnit {
     Unitless,
     /// Square micrometres for the existing nucleus-area column.
     SquareMicrometer,
+    /// Complete dimensionless class-probability vector.
+    ProbabilitySimplex,
 }
 
 impl ScalarMarkUnit {
@@ -55,6 +58,7 @@ impl ScalarMarkUnit {
             Self::Categorical => "categorical",
             Self::Unitless => "unitless",
             Self::SquareMicrometer => "square_micrometer",
+            Self::ProbabilitySimplex => "probability_simplex",
         }
     }
 }
@@ -103,6 +107,11 @@ enum ScalarMarkColumnValues {
     Categorical {
         declaration: HistologicCompartmentMarkDeclaration,
         values: Box<[u32]>,
+    },
+    ProbabilitySimplex {
+        declaration: ProbabilitySimplexMarkDeclaration,
+        row_count: usize,
+        values: Box<[f32]>,
     },
 }
 
@@ -223,12 +232,65 @@ impl ScalarMarkColumn {
         })
     }
 
+    /// Construct complete contiguous probability-simplex rows without renormalizing values.
+    pub fn probability_simplex(
+        declaration: ProbabilitySimplexMarkDeclaration,
+        modality: ScalarMarkModality,
+        unit: ScalarMarkUnit,
+        missingness: MissingnessPolicy,
+        rows: Vec<Vec<f32>>,
+    ) -> Result<Self, DeclaredScalarInputError> {
+        if modality != ScalarMarkModality::Morphology || unit != ScalarMarkUnit::ProbabilitySimplex
+        {
+            return Err(DeclaredScalarInputError::UnitMismatch);
+        }
+        let width = declaration.levels().len();
+        let row_count = rows.len();
+        let value_count = row_count
+            .checked_mul(width)
+            .ok_or(DeclaredScalarInputError::LogicalIdentityOverflow)?;
+        let mut values = Vec::new();
+        values
+            .try_reserve_exact(value_count)
+            .map_err(|_| DeclaredScalarInputError::LogicalIdentityOverflow)?;
+        for (row, current) in rows.into_iter().enumerate() {
+            if current.len() != width {
+                return Err(DeclaredScalarInputError::InvalidProbabilitySimplexShape {
+                    row,
+                    expected: width,
+                    observed: current.len(),
+                });
+            }
+            let sum = current.iter().map(|value| f64::from(*value)).sum::<f64>();
+            if current
+                .iter()
+                .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
+                || !sum.is_finite()
+                || (sum - 1.0).abs() > 1e-5
+            {
+                return Err(DeclaredScalarInputError::InvalidProbabilitySimplexRow { row, sum });
+            }
+            values.extend(current);
+        }
+        Ok(Self {
+            values: ScalarMarkColumnValues::ProbabilitySimplex {
+                declaration,
+                row_count,
+                values: values.into_boxed_slice(),
+            },
+            modality,
+            unit,
+            missingness,
+        })
+    }
+
     fn mark_id(&self) -> &ScalarMarkId {
         match &self.values {
             ScalarMarkColumnValues::Binary { declaration, .. } => declaration.mark_id(),
             ScalarMarkColumnValues::Probability { declaration, .. } => declaration.mark_id(),
             ScalarMarkColumnValues::Continuous { declaration, .. } => declaration.mark_id(),
             ScalarMarkColumnValues::Categorical { declaration, .. } => declaration.mark_id(),
+            ScalarMarkColumnValues::ProbabilitySimplex { declaration, .. } => declaration.mark_id(),
         }
     }
 
@@ -238,6 +300,7 @@ impl ScalarMarkColumn {
             ScalarMarkColumnValues::Probability { values, .. } => values.len(),
             ScalarMarkColumnValues::Continuous { values, .. } => values.len(),
             ScalarMarkColumnValues::Categorical { values, .. } => values.len(),
+            ScalarMarkColumnValues::ProbabilitySimplex { row_count, .. } => *row_count,
         }
     }
 
@@ -332,6 +395,18 @@ impl MarkTable {
         if categorical_count > 1 {
             return Err(DeclaredScalarInputError::CategoricalColumnCountMismatch);
         }
+        let simplex_count = columns
+            .iter()
+            .filter(|column| {
+                matches!(
+                    &column.values,
+                    ScalarMarkColumnValues::ProbabilitySimplex { .. }
+                )
+            })
+            .count();
+        if simplex_count > 1 {
+            return Err(DeclaredScalarInputError::ProbabilitySimplexColumnCountMismatch);
+        }
         let table = Self {
             cell_ids: cell_ids.into_boxed_slice(),
             columns: columns.into_boxed_slice(),
@@ -391,6 +466,30 @@ impl MarkTable {
         })
     }
 
+    /// Borrow one complete row-major simplex value buffer by stable mark identity.
+    pub fn probability_simplex_values(&self, mark_id: &ScalarMarkId) -> Option<&[f32]> {
+        self.columns.iter().find_map(|column| match &column.values {
+            ScalarMarkColumnValues::ProbabilitySimplex {
+                declaration,
+                values,
+                ..
+            } if declaration.mark_id() == mark_id => Some(values.as_ref()),
+            _ => None,
+        })
+    }
+
+    /// Borrow the ordered class codebook for one simplex column.
+    pub fn probability_simplex_levels(&self, mark_id: &ScalarMarkId) -> Option<&[String]> {
+        self.columns.iter().find_map(|column| match &column.values {
+            ScalarMarkColumnValues::ProbabilitySimplex { declaration, .. }
+                if declaration.mark_id() == mark_id =>
+            {
+                Some(declaration.levels())
+            }
+            _ => None,
+        })
+    }
+
     /// Column-wide measurement status for one exact typed mark.
     pub fn measurement_status(&self, mark_id: &ScalarMarkId) -> Option<MeasurementStatus> {
         self.columns
@@ -407,6 +506,9 @@ impl MarkTable {
                     declaration.measurement_status()
                 }
                 ScalarMarkColumnValues::Categorical { declaration, .. } => {
+                    declaration.measurement_status()
+                }
+                ScalarMarkColumnValues::ProbabilitySimplex { declaration, .. } => {
                     declaration.measurement_status()
                 }
             })
@@ -601,6 +703,12 @@ impl MarkTable {
                 ScalarMarkColumnValues::Categorical { declaration, .. } => {
                     validate_histologic_compartment_provenance(project, declaration)?
                 }
+                ScalarMarkColumnValues::ProbabilitySimplex { declaration, .. } => {
+                    super::provenance::validate_probability_simplex_provenance(
+                        project,
+                        declaration,
+                    )?
+                }
                 ScalarMarkColumnValues::Binary { .. }
                 | ScalarMarkColumnValues::Probability { .. } => {}
             }
@@ -631,6 +739,9 @@ impl MarkTable {
                     ids.push(declaration.provenance_artifact_id())
                 }
                 ScalarMarkColumnValues::Categorical { declaration, .. } => {
+                    ids.push(declaration.provenance_artifact_id())
+                }
+                ScalarMarkColumnValues::ProbabilitySimplex { declaration, .. } => {
                     ids.push(declaration.provenance_artifact_id())
                 }
             }

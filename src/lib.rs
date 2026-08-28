@@ -66,6 +66,8 @@ mod qc;
 mod registration;
 mod scalar_mark;
 mod scalar_variogram;
+mod soft_class_composition;
+mod soft_class_composition_workflow;
 mod spatial_autocorrelation;
 mod spatial_autocorrelation_workflow;
 mod spectra;
@@ -423,8 +425,8 @@ pub use scalar_mark::{
     BinaryMarkDeclaration, BinaryMarkOrigin, DeclaredMarkUse, DeclaredScalarIdentity,
     DeclaredScalarInputError, DeclaredScalarPatternInput, HistologicCompartmentMarkDeclaration,
     MarkTable, MissingnessPolicy, NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration,
-    ProbabilityThresholdComparator, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality,
-    ScalarMarkUnit, ScalarMarkValueKind,
+    ProbabilitySimplexMarkDeclaration, ProbabilityThresholdComparator, ScalarMarkColumn,
+    ScalarMarkId, ScalarMarkModality, ScalarMarkUnit, ScalarMarkValueKind,
 };
 pub use scalar_variogram::{
     scalar_semivariogram, scalar_semivariogram_permutation, ScalarVariogramBin,
@@ -432,6 +434,11 @@ pub use scalar_variogram::{
     ScalarVariogramInferenceDesign, ScalarVariogramInferenceLimits, ScalarVariogramInferenceResult,
     ScalarVariogramLimits, ScalarVariogramResult, ScalarVariogramRow,
 };
+pub use soft_class_composition::{
+    soft_class_composition, SoftClassCompositionClass, SoftClassCompositionError,
+    SoftClassCompositionLimits, SoftClassCompositionResult,
+};
+pub use soft_class_composition_workflow::SoftClassCompositionAnalysisNode;
 pub use spatial_autocorrelation::{
     global_geary_permutation, global_moran_permutation, GlobalGearyAlternative, GlobalGearyDesign,
     GlobalGearyError, GlobalGearyLimits, GlobalGearyResult, GlobalMoranAlternative,

@@ -2122,3 +2122,22 @@ vascular transport.
   user instruction document and forbid retrying the macOS binary-verification stall. No phase-only
   feature matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push, publication,
   deployment, or history rewrite was run.
+
+## Typed probability-simplex composition checkpoint 83 — 2026-08-27
+
+- `cargo +1.96.0 test --locked --package marklab --test
+  probability_simplex_composition_workflow` first failed on absent fixture/type/result symbols and
+  its durable test separately failed on the absent node. The final 3/3 pass covers exact soft means
+  and entropies, deterministic replay, malformed sum/shape, point/class/value/memory ceilings,
+  fresh miss, reconstructed hit with one execution, and limit-only cache invalidation.
+- `python3 tests/fixtures/probability_simplex/generate_python_oracle.py | diff -u
+  tests/fixtures/probability_simplex/python_composition_oracle.json -` passes byte-for-byte. The
+  independent standard-library oracle agrees on all three means, row/aggregate entropy, effective
+  class count, and exact zero row-sum error.
+- The affected command passes simplex 3/3, scalar input 11/11, declared marked workflow 9/9, and
+  typed Moran 2/2. Targeted warning-denied Clippy over those four integrations passes. `cargo
+  +1.96.0 check --locked --package marklab --no-default-features`, package doctests, affected-file
+  Rustfmt, and diff whitespace checks pass. Workspace-wide gates were not repeated after the
+  immediately preceding checkpoint-82 stabilization; no Nextest/full integration loop, feature
+  matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push, publication, deployment,
+  or history rewrite was run.

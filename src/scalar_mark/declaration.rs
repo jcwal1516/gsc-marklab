@@ -263,6 +263,73 @@ pub struct HistologicCompartmentMarkDeclaration {
     provenance_artifact_id: ArtifactId,
 }
 
+/// Exact dense per-cell probability-simplex declaration.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProbabilitySimplexMarkDeclaration {
+    mark_id: ScalarMarkId,
+    label: String,
+    levels: Box<[String]>,
+    measurement_status: MeasurementStatus,
+    provenance_artifact_id: ArtifactId,
+}
+
+impl ProbabilitySimplexMarkDeclaration {
+    /// Declare an ordered class codebook and exact per-cell prediction provenance.
+    pub fn new(
+        mark_id: ScalarMarkId,
+        label: impl Into<String>,
+        levels: Vec<String>,
+        measurement_status: MeasurementStatus,
+        provenance_artifact_id: ArtifactId,
+    ) -> Result<Self, DeclaredScalarInputError> {
+        let label = label.into();
+        validate_label(&label)?;
+        validate_per_cell_status(measurement_status)?;
+        if levels.len() < 2
+            || levels.iter().any(|level| {
+                level.is_empty()
+                    || level.len() > MARK_LABEL_MAX_BYTES
+                    || level.trim() != level
+                    || level.chars().any(char::is_control)
+            })
+        {
+            return Err(DeclaredScalarInputError::InvalidProbabilitySimplexLevels);
+        }
+        let mut distinct = levels.iter().collect::<Vec<_>>();
+        distinct.sort_unstable();
+        if distinct.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(DeclaredScalarInputError::InvalidProbabilitySimplexLevels);
+        }
+        Ok(Self {
+            mark_id,
+            label,
+            levels: levels.into_boxed_slice(),
+            measurement_status,
+            provenance_artifact_id,
+        })
+    }
+
+    pub fn mark_id(&self) -> &ScalarMarkId {
+        &self.mark_id
+    }
+
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
+    pub fn levels(&self) -> &[String] {
+        &self.levels
+    }
+
+    pub fn measurement_status(&self) -> MeasurementStatus {
+        self.measurement_status
+    }
+
+    pub fn provenance_artifact_id(&self) -> ArtifactId {
+        self.provenance_artifact_id
+    }
+}
+
 impl HistologicCompartmentMarkDeclaration {
     /// Declare ordered non-empty compartment labels for the compatibility row codes.
     pub fn new(

@@ -7,8 +7,8 @@ mod table;
 
 pub use declaration::{
     BinaryMarkDeclaration, BinaryMarkOrigin, DeclaredMarkUse, HistologicCompartmentMarkDeclaration,
-    NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration, ProbabilityThresholdComparator,
-    ScalarMarkId, ScalarMarkValueKind,
+    NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration, ProbabilitySimplexMarkDeclaration,
+    ProbabilityThresholdComparator, ScalarMarkId, ScalarMarkValueKind,
 };
 pub use error::DeclaredScalarInputError;
 pub use identity::DeclaredScalarIdentity;

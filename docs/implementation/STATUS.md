@@ -1510,3 +1510,23 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   forbids retrying the documented macOS binary-loader verification loop. No feature matrix,
   benchmark, fuzz, memory, packaging, dependency-audit, push, publication, deployment, or history
   rewrite was run.
+
+## Typed probability-simplex composition checkpoint 83 — 2026-08-27
+
+- Added one contiguous CellViT-compatible probability-simplex MarkTable column. It binds ordered
+  unique class labels, morphology-prediction status, exact provenance, row/class/value identity,
+  and complete f32 rows. Every value must be finite in `[0,1]`, every row has exact class width, and
+  the supplied row sum must be within `1e-5` of one; values are preserved without renormalization,
+  thresholding, sampling, or coordinate-wise movement.
+- The immediate soft-composition caller reports class mean probabilities, mean per-cell Shannon
+  entropy, aggregate composition entropy, effective class count, and maximum row-sum error under
+  hard point/class/value/memory ceilings. The independent four-row Python oracle gives means
+  `[0.375, 0.1875, 0.4375]`, mean row entropy `0.31387058129468837`, aggregate entropy
+  `1.0433534269422904`, and effective class count `2.8387205126507515`.
+- Exact MarkTable identity/provenance now includes the class codebook, row count, and all contiguous
+  f32 bits. The store-aware durable node reopens as an identical hit with one ledger execution;
+  changing only a resource ceiling misses. Existing scalar, declared-analysis, and typed Moran
+  workflows pass unchanged.
+- This is descriptive per-specimen soft composition, not probability calibration, hard-label
+  replacement, patient inference, spatial neighborhood composition, clinical evidence, or a generic
+  mark registry. Result-format 0.3 remains unchanged.
