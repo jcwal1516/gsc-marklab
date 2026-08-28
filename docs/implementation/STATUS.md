@@ -1822,3 +1822,19 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   compilation, strict package docs, affected-file formatting, and whitespace checks. A package-wide
   filtered test command was interrupted when Cargo began launching unrelated integration binaries;
   the named Max-T library and integration targets were then run directly.
+
+## Paired endpoint-family Max-T checkpoint 105 — 2026-08-28
+
+- Added `marklab cohort paired-max-t` and a typed library workflow for exact complete endpoint
+  vectors observed under two declared conditions per patient pair. One deterministic sign is drawn
+  per pair and applied to every endpoint together; the result explicitly records the complete
+  patient-pair difference vector, two-sided null, complete-family multiplicity, condition labels,
+  single-step or step-down correction, alpha, critical value, seed, and replicate counts.
+- The implementation streams null endpoint vectors under a 100-million pair-by-endpoint-by-
+  replicate ceiling. Incomplete pairs/families, duplicate condition endpoints, non-finite values,
+  degenerate endpoint contrasts, and invalid alpha/permutation bounds fail rather than falling back
+  to unpaired or endpoint-wise signs.
+- An independent slow vector-sign oracle matches every adjusted p-value and critical value for both
+  corrections. Focused paired-family, legacy Max-T, scalar-paired, inference-design, and CLI tests
+  pass, as do affected warning-denied Clippy, package no-default compilation, strict package docs,
+  affected-file formatting, and whitespace checks.

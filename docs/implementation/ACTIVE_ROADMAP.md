@@ -930,3 +930,11 @@ The same complete patient endpoint family now supports streamed single-step and 
 including exact-block designs, without changing the randomization unit, seed stream, work ceiling,
 or legacy single-step result. INF-01C remains active for hierarchical/local families and explicit
 calibration; the immediate step-down endpoint-family caller is complete.
+
+## Checkpoint 105 paired endpoint-family Max-T continuation
+
+Paired experiments now control one complete endpoint family by signing each patient's entire
+condition-B-minus-condition-A vector once per replicate, with single-step or step-down Max-T.
+INF-01C remains active for hierarchical/local multiplicity and explicit calibration, not for a
+missing paired-family executable. The next FND-06 production caller must address a concrete
+covariate-adjusted or hierarchical family rather than generalize a registry.

@@ -19,6 +19,7 @@ mod multisite;
 mod noninferiority;
 mod numeric;
 mod paired;
+mod paired_max_t;
 mod repeated;
 
 use inference_design::PatientPermutationDesign;
@@ -83,6 +84,10 @@ pub use noninferiority::{
 pub use paired::{
     paired_patient_permutation_test, PairedConditionSummary, PairedPatientEndpoint,
     PairedPatientPermutationResult, PairedPatientPermutationSpec,
+};
+pub use paired_max_t::{
+    paired_max_t_permutation, PairedMaxTEndpointResult, PairedMaxTPermutationResult,
+    PairedMaxTPermutationSpec, PairedPatientEndpointVector,
 };
 pub use repeated::{
     repeated_measures_freedman_lane, RepeatedFreedmanLaneResult, RepeatedFreedmanLaneSpec,

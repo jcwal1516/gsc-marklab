@@ -2296,6 +2296,22 @@ vascular transport.
   binary. Package no-default compilation, strict package docs, affected-file Rustfmt, and `git diff
   --check` pass. Broad checkpoint-101 gates were not repeated.
 
+## Paired endpoint-family Max-T checkpoint 105 — 2026-08-28
+
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  cohort_paired_max_t_cli paired_max_t_cli_moves_each_complete_patient_difference_vector_as_one_unit
+  -- --exact --nocapture` first failed because `paired-max-t` was absent and now passes. The final
+  named CLI target passes 1/1 with exact condition, permutation-unit, multiplicity, correction,
+  endpoint-effect, and replicate fields.
+- `cargo +1.96.0 test --locked --package marklab-cohort --test paired_max_t_reference --
+  --nocapture` passes 2/2 for the independent slow single-step/step-down oracle and incomplete-family
+  rejection. The legacy `max_t_reference` passes 3/3, `paired_permutation_reference` passes 1/1,
+  `cohort_paired_permutation_cli` passes 1/1, and the focused inference-design library tests pass
+  3/3.
+- Warning-denied Clippy passes for all `marklab-cohort` targets and the affected `marklab` CLI
+  binary. Package no-default compilation, strict package docs, affected-file Rustfmt, and `git diff
+  --check` pass. Broad checkpoint-101 gates were not repeated.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

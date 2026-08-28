@@ -109,7 +109,8 @@ pub fn max_t_multiple_endpoint_permutation(
         MAX_T_NAMESPACE,
         InferenceAlternative::TwoSided,
     )
-    .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
+    .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?
+    .declare_complete_endpoint_family_max_t();
     execute_max_t(patients, spec, design, MaxTCorrection::SingleStep)
 }
 
@@ -126,7 +127,8 @@ pub fn max_t_multiple_endpoint_step_down_permutation(
         MAX_T_NAMESPACE,
         InferenceAlternative::TwoSided,
     )
-    .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
+    .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?
+    .declare_complete_endpoint_family_max_t();
     execute_max_t(patients, spec, design, MaxTCorrection::StepDown)
 }
 
@@ -153,7 +155,8 @@ pub fn max_t_multiple_endpoint_blocked_permutation(
         spec.seed,
         MAX_T_NAMESPACE,
         InferenceAlternative::TwoSided,
-    )?;
+    )?
+    .declare_complete_endpoint_family_max_t();
     execute_max_t(patients, spec, design, MaxTCorrection::SingleStep)
 }
 
@@ -180,7 +183,8 @@ pub fn max_t_multiple_endpoint_blocked_step_down_permutation(
         spec.seed,
         MAX_T_NAMESPACE,
         InferenceAlternative::TwoSided,
-    )?;
+    )?
+    .declare_complete_endpoint_family_max_t();
     execute_max_t(patients, spec, design, MaxTCorrection::StepDown)
 }
 
@@ -213,14 +217,11 @@ fn execute_max_t(
         .map(|patient| patient.group == spec.group_a)
         .collect::<Vec<_>>();
     let observed = endpoint_contrasts(patients, &observed_labels)?;
-    let mut observed_order = (0..observed.len()).collect::<Vec<_>>();
-    observed_order.sort_by(|left, right| {
-        observed[*right]
-            .studentized
-            .abs()
-            .total_cmp(&observed[*left].studentized.abs())
-            .then_with(|| left.cmp(right))
-    });
+    let observed_statistics = observed
+        .iter()
+        .map(|contrast| contrast.studentized)
+        .collect::<Vec<_>>();
+    let observed_order = max_t_observed_order(&observed_statistics);
     let mut exceedances = vec![0usize; observed.len()];
     let mut null_maxima = Vec::with_capacity(spec.permutations);
     for replicate in 0..spec.permutations {
@@ -249,7 +250,7 @@ fn execute_max_t(
                 }
             }
             MaxTCorrection::StepDown => accumulate_step_down_exceedances(
-                &observed,
+                &observed_statistics,
                 &observed_order,
                 &null_statistics,
                 &mut exceedances,
@@ -300,8 +301,19 @@ fn execute_max_t(
     })
 }
 
-fn accumulate_step_down_exceedances(
-    observed: &[super::numeric::WelchContrast],
+pub(crate) fn max_t_observed_order(observed_statistics: &[f64]) -> Vec<usize> {
+    let mut order = (0..observed_statistics.len()).collect::<Vec<_>>();
+    order.sort_by(|left, right| {
+        observed_statistics[*right]
+            .abs()
+            .total_cmp(&observed_statistics[*left].abs())
+            .then_with(|| left.cmp(right))
+    });
+    order
+}
+
+pub(crate) fn accumulate_step_down_exceedances(
+    observed_statistics: &[f64],
     observed_order: &[usize],
     null_statistics: &[f64],
     exceedances: &mut [usize],
@@ -309,11 +321,10 @@ fn accumulate_step_down_exceedances(
     let mut running_maximum = 0.0_f64;
     let mut tied_end = observed_order.len();
     while tied_end > 0 {
-        let observed_statistic = observed[observed_order[tied_end - 1]].studentized.abs();
+        let observed_statistic = observed_statistics[observed_order[tied_end - 1]].abs();
         let mut tied_start = tied_end - 1;
         while tied_start > 0
-            && observed[observed_order[tied_start - 1]]
-                .studentized
+            && observed_statistics[observed_order[tied_start - 1]]
                 .abs()
                 .total_cmp(&observed_statistic)
                 .is_eq()

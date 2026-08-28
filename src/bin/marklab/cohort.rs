@@ -9,16 +9,18 @@ use marklab_cohort::{
     functional_two_sample_blocked_permutation, functional_two_sample_permutation,
     max_t_multiple_endpoint_blocked_permutation,
     max_t_multiple_endpoint_blocked_step_down_permutation, max_t_multiple_endpoint_permutation,
-    max_t_multiple_endpoint_step_down_permutation, paired_patient_permutation_test,
-    patient_level_blocked_energy_distance, patient_level_blocked_mmd,
-    patient_level_energy_distance, patient_level_mmd, patient_level_permutation_test,
-    BlockedEnergyDistanceResult, BlockedFunctionalPermutationResult, BlockedMmdPermutationResult,
-    CohortInferenceError, EnergyDistanceResult, EnergyDistanceSpec, EnergyMetric, Fingerprint,
-    FunctionalCurve, FunctionalPermutationResult, FunctionalPermutationSpec,
-    FunctionalTestStatistic, InferenceNullFamily, InferencePermutationUnit, MaxTPermutationResult,
-    MaxTPermutationSpec, MmdEstimator, MmdKernel, MmdPermutationResult, MmdPermutationSpec,
-    PairedPatientEndpoint, PairedPatientPermutationResult, PairedPatientPermutationSpec,
-    PatientEndpoint, PatientEndpointVector, PatientExchangeabilityBlock, PatientPermutationResult,
+    max_t_multiple_endpoint_step_down_permutation, paired_max_t_permutation,
+    paired_patient_permutation_test, patient_level_blocked_energy_distance,
+    patient_level_blocked_mmd, patient_level_energy_distance, patient_level_mmd,
+    patient_level_permutation_test, BlockedEnergyDistanceResult,
+    BlockedFunctionalPermutationResult, BlockedMmdPermutationResult, CohortInferenceError,
+    EnergyDistanceResult, EnergyDistanceSpec, EnergyMetric, Fingerprint, FunctionalCurve,
+    FunctionalPermutationResult, FunctionalPermutationSpec, FunctionalTestStatistic,
+    InferenceNullFamily, InferencePermutationUnit, MaxTPermutationResult, MaxTPermutationSpec,
+    MmdEstimator, MmdKernel, MmdPermutationResult, MmdPermutationSpec, PairedMaxTPermutationResult,
+    PairedMaxTPermutationSpec, PairedPatientEndpoint, PairedPatientEndpointVector,
+    PairedPatientPermutationResult, PairedPatientPermutationSpec, PatientEndpoint,
+    PatientEndpointVector, PatientExchangeabilityBlock, PatientPermutationResult,
     PatientPermutationSpec, PermutationAlternative,
 };
 use serde::{Deserialize, Serialize};
@@ -95,6 +97,25 @@ enum CohortCommand {
         seed: u64,
         #[arg(long, value_enum)]
         alternative: CliAlternative,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    PairedMaxT {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        condition_a: String,
+        #[arg(long)]
+        condition_b: String,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        /// Apply step-down rather than single-step Max-T adjustment.
+        #[arg(long)]
+        step_down: bool,
         #[arg(long)]
         out: PathBuf,
     },
@@ -462,6 +483,37 @@ pub(super) fn run_cli() -> Result<(), CohortError> {
         }
         CohortTopLevel::Cohort {
             command:
+                CohortCommand::PairedMaxT {
+                    input,
+                    condition_a,
+                    condition_b,
+                    permutations,
+                    seed,
+                    alpha,
+                    step_down,
+                    out,
+                },
+        } => {
+            let records = read_paired_max_t_records(&input)?;
+            let result = paired_max_t_permutation(
+                &records,
+                &PairedMaxTPermutationSpec {
+                    condition_a,
+                    condition_b,
+                    permutations,
+                    seed,
+                    alpha,
+                    correction: if step_down {
+                        marklab_cohort::MaxTCorrection::StepDown
+                    } else {
+                        marklab_cohort::MaxTCorrection::SingleStep
+                    },
+                },
+            )?;
+            publish_json(&out, &PairedMaxTOutput::from_result(input, result))
+        }
+        CohortTopLevel::Cohort {
+            command:
                 CohortCommand::MaxT {
                     input,
                     group_a,
@@ -821,6 +873,14 @@ struct PairedCsvRecord {
 }
 
 #[derive(Debug, Deserialize)]
+struct PairedMaxTCsvRecord {
+    patient_id: String,
+    condition: String,
+    endpoint: String,
+    value: f64,
+}
+
+#[derive(Debug, Deserialize)]
 struct FunctionalCsvRecord {
     patient_id: String,
     group: String,
@@ -939,6 +999,53 @@ fn read_paired_records(path: &Path) -> Result<Vec<PairedPatientEndpoint>, Cohort
             })
         })
         .collect()
+}
+
+fn read_paired_max_t_records(path: &Path) -> Result<Vec<PairedPatientEndpointVector>, CohortError> {
+    validate_input_file(path)?;
+    let mut reader = csv::ReaderBuilder::new()
+        .flexible(false)
+        .from_path(path)
+        .map_err(|error| CohortError::Input(error.to_string()))?;
+    let headers = reader
+        .headers()
+        .map_err(|error| CohortError::Input(error.to_string()))?
+        .clone();
+    if !headers
+        .iter()
+        .eq(["patient_id", "condition", "endpoint", "value"])
+    {
+        return Err(CohortError::Input(
+            "CSV header must be exactly patient_id,condition,endpoint,value".into(),
+        ));
+    }
+    let mut grouped = BTreeMap::<(String, String), BTreeMap<String, f64>>::new();
+    for decoded in reader.deserialize::<PairedMaxTCsvRecord>() {
+        let row = decoded.map_err(|error| CohortError::Input(error.to_string()))?;
+        let key = (row.patient_id.clone(), row.condition.clone());
+        if grouped
+            .entry(key)
+            .or_default()
+            .insert(row.endpoint.clone(), row.value)
+            .is_some()
+        {
+            return Err(CohortError::Input(format!(
+                "patient {} condition {} has duplicate endpoint {:?}",
+                row.patient_id, row.condition, row.endpoint
+            )));
+        }
+    }
+    Ok(grouped
+        .into_iter()
+        .map(
+            |((patient_id, condition), endpoints)| PairedPatientEndpointVector {
+                patient_id,
+                condition,
+                values: endpoints.values().copied().collect(),
+                endpoints: endpoints.into_keys().collect(),
+            },
+        )
+        .collect())
 }
 
 fn read_functional_curves(path: &Path) -> Result<FunctionalInput, CohortError> {
@@ -1354,6 +1461,95 @@ struct PairedDesignSummary {
 #[derive(Debug, Serialize)]
 struct PairSummary {
     completed: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct PairedMaxTOutput {
+    format: &'static str,
+    version: u32,
+    input: PathBuf,
+    design: PairedMaxTDesignSummary,
+    pairs: PairSummary,
+    conditions: PairedMaxTConditionLabels,
+    endpoints: Vec<PairedMaxTEndpointOutput>,
+    alpha: f64,
+    critical_value: f64,
+    permutations: PermutationSummary,
+    seed: u64,
+}
+
+impl PairedMaxTOutput {
+    fn from_result(input: PathBuf, result: PairedMaxTPermutationResult) -> Self {
+        match result.inference_design.null_family() {
+            InferenceNullFamily::PairedSignFlip => {}
+            _ => unreachable!("paired Max-T returned another null family"),
+        }
+        match result.inference_design.permutation_unit() {
+            InferencePermutationUnit::CompletePatientPairDifferenceVector => {}
+            _ => unreachable!("paired Max-T returned another permutation unit"),
+        }
+        Self {
+            format: "marklab.cohort_paired_max_t",
+            version: 1,
+            input,
+            design: PairedMaxTDesignSummary {
+                randomization_unit: "patient_pair",
+                null_family: "paired_sign_flip",
+                permutation_unit: "complete_patient_pair_difference_vector",
+                multiplicity: "complete_endpoint_family_max_t",
+                correction: result.correction.as_str(),
+            },
+            pairs: PairSummary {
+                completed: result.pair_count,
+            },
+            conditions: PairedMaxTConditionLabels {
+                condition_a: result.condition_a,
+                condition_b: result.condition_b,
+            },
+            endpoints: result
+                .endpoints
+                .into_iter()
+                .map(|endpoint| PairedMaxTEndpointOutput {
+                    endpoint: endpoint.endpoint,
+                    effect_condition_b_minus_condition_a: endpoint
+                        .effect_condition_b_minus_condition_a,
+                    studentized_statistic: endpoint.studentized_statistic,
+                    adjusted_p_value: endpoint.adjusted_p_value,
+                })
+                .collect(),
+            alpha: result.alpha,
+            critical_value: result.critical_value,
+            permutations: PermutationSummary {
+                requested: result.permutations_requested,
+                attempted: result.permutations_attempted,
+                completed: result.permutations_completed,
+            },
+            seed: result.seed,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct PairedMaxTDesignSummary {
+    randomization_unit: &'static str,
+    null_family: &'static str,
+    permutation_unit: &'static str,
+    multiplicity: &'static str,
+    correction: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct PairedMaxTConditionLabels {
+    condition_a: String,
+    condition_b: String,
+}
+
+#[derive(Debug, Serialize)]
+struct PairedMaxTEndpointOutput {
+    endpoint: String,
+    effect_condition_b_minus_condition_a: f64,
+    studentized_statistic: f64,
+    adjusted_p_value: f64,
 }
 
 #[derive(Debug, Serialize)]

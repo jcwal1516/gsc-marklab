@@ -1,8 +1,8 @@
 use marklab_cohort::{
     max_t_multiple_endpoint_blocked_permutation,
     max_t_multiple_endpoint_blocked_step_down_permutation, max_t_multiple_endpoint_permutation,
-    max_t_multiple_endpoint_step_down_permutation, InferenceAlternative, InferenceNullFamily,
-    MaxTPermutationSpec, PatientEndpointVector, PatientExchangeabilityBlock,
+    max_t_multiple_endpoint_step_down_permutation, InferenceAlternative, InferenceMultiplicity,
+    InferenceNullFamily, MaxTPermutationSpec, PatientEndpointVector, PatientExchangeabilityBlock,
 };
 
 const NAMESPACE: u64 = 0x6d61_785f_745f_7065;
@@ -103,6 +103,10 @@ fn blocked_max_t_matches_a_patient_id_keyed_slow_reference() {
     assert_eq!(
         result.inference_design.alternative(),
         InferenceAlternative::TwoSided
+    );
+    assert_eq!(
+        result.inference_design.multiplicity(),
+        InferenceMultiplicity::CompleteEndpointFamilyMaxT
     );
 }
 

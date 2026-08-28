@@ -89,6 +89,8 @@ pub enum InferencePermutationUnit {
     PatientLabel,
     /// One complete condition-B-minus-condition-A patient difference.
     CompletePatientPairDifference,
+    /// One complete condition-B-minus-condition-A endpoint vector for one patient pair.
+    CompletePatientPairDifferenceVector,
     /// One patient occurrence followed by its complete nested-specimen draw.
     PatientThenNestedSpecimen,
     /// One complete cluster endpoint summary.
@@ -102,6 +104,8 @@ pub enum InferencePermutationUnit {
 pub enum InferenceMultiplicity {
     /// One prespecified endpoint with no multiplicity adjustment.
     SingleEndpoint,
+    /// One prespecified complete endpoint family controlled by a maximum statistic.
+    CompleteEndpointFamilyMaxT,
 }
 
 /// Complete exact blocked-permutation schedule shared by current production methods.
@@ -120,6 +124,11 @@ pub struct InferenceDesign {
 }
 
 impl InferenceDesign {
+    pub(crate) fn declare_complete_endpoint_family_max_t(mut self) -> Self {
+        self.multiplicity = InferenceMultiplicity::CompleteEndpointFamilyMaxT;
+        self
+    }
+
     /// Declare unstratified whole-mark random labeling across fixed cell locations.
     pub fn random_labeling(
         unit_count: usize,
@@ -301,6 +310,25 @@ impl InferenceDesign {
         )
     }
 
+    pub(crate) fn paired_vector_sign_flip(
+        pair_count: usize,
+        permutations: usize,
+        seed: u64,
+        seed_namespace: u64,
+    ) -> Result<Self, InferenceDesignError> {
+        Self::build(
+            InferenceAnalysisLevel::Patient,
+            InferenceNullFamily::PairedSignFlip,
+            InferencePermutationUnit::CompletePatientPairDifferenceVector,
+            vec![(0..pair_count).collect()],
+            pair_count,
+            permutations,
+            seed,
+            seed_namespace,
+            InferenceAlternative::TwoSided,
+        )
+    }
+
     pub(crate) fn hierarchical_bootstrap(
         specimen_counts: &[usize],
         replicates: usize,
@@ -450,6 +478,7 @@ impl InferenceDesign {
         if matches!(
             self.permutation_unit,
             InferencePermutationUnit::CompletePatientPairDifference
+                | InferencePermutationUnit::CompletePatientPairDifferenceVector
                 | InferencePermutationUnit::CompleteSubjectResidualVector
                 | InferencePermutationUnit::PatientThenNestedSpecimen
         ) {
@@ -496,6 +525,19 @@ impl InferenceDesign {
     ) -> Result<Box<[i8]>, InferenceDesignError> {
         if self.null_family != InferenceNullFamily::PairedSignFlip
             || self.permutation_unit != InferencePermutationUnit::CompletePatientPairDifference
+        {
+            return Err(InferenceDesignError::UnsupportedPairedSignOperation);
+        }
+        self.independent_signs(replicate)
+    }
+
+    pub(crate) fn paired_difference_vector_signs(
+        &self,
+        replicate: usize,
+    ) -> Result<Box<[i8]>, InferenceDesignError> {
+        if self.null_family != InferenceNullFamily::PairedSignFlip
+            || self.permutation_unit
+                != InferencePermutationUnit::CompletePatientPairDifferenceVector
         {
             return Err(InferenceDesignError::UnsupportedPairedSignOperation);
         }
