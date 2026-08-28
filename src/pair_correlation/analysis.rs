@@ -8,6 +8,7 @@ use crate::{
     ObservationWindow2D, Pattern,
 };
 
+use super::epanechnikov_weight;
 use super::types::*;
 
 struct Evaluation {
@@ -172,13 +173,17 @@ fn evaluate(
                 }
                 let lower = neighbor.distance_um - config.bandwidth_um;
                 let upper = neighbor.distance_um + config.bandwidth_um;
-                let start = radii.partition_point(|radius| *radius < lower);
+                let start = radii.partition_point(|radius| *radius <= lower);
                 let end = radii
-                    .partition_point(|radius| *radius <= upper)
+                    .partition_point(|radius| *radius < upper)
                     .min(eligible_end);
                 for index in start..end {
-                    let scaled = (radii[index] - neighbor.distance_um) / config.bandwidth_um;
-                    let weight = 0.75 * (1.0 - scaled * scaled) / config.bandwidth_um;
+                    let weight = epanechnikov_weight(
+                        radii[index],
+                        neighbor.distance_um,
+                        config.bandwidth_um,
+                    )
+                    .expect("partitioned compact support");
                     if weight < 0.0 || !weight.is_finite() {
                         visitor_error = Some(HomogeneousPairCorrelationError::Dependency(
                             "kernel produced an invalid weight".into(),

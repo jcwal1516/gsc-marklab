@@ -605,3 +605,20 @@ CSR, and durable execution now exist; categorical cross-g uses the admitted two-
 complete-row random labeling. Both must share only one demonstrated compact-support kernel/bandwidth
 calculation after their concrete estimators work. PP-02 inhomogeneous intensity and any general
 kernel registry remain outside this milestone.
+
+## Checkpoint 76 homogeneous pair-correlation continuation
+
+Unmarked g and directed two-level cross-g now share only the demonstrated positive-support
+Epanechnikov calculation. They retain separate density normalizations, geometry/null owners, typed
+results, cache identities, and unavailable states. Hand and independent Python loops, directional
+controls, finite/resource boundaries, conditional-CSR or complete-row random-label ERL, and
+cross-process durable replay exercise both concrete callers. PP-03 remains active because the
+available R environment still lacks `spatstat.explore`, broader calibration/corrections are absent,
+and no inhomogeneous intensity contract exists.
+
+Dependency-ordered work proceeds through one immediate PP-05→PP-02 caller: estimate a positive
+physical-bandwidth intensity without self-contribution or held-out leakage, persist exact estimator/
+bandwidth/fold/boundary provenance, and consume it directly in standard-border inhomogeneous K/L
+with an inhomogeneous-Poisson calibration control and durable replay. Do not expose a bandwidth
+selector, estimator registry, intensity marketplace, or inhomogeneous g until this K/L data flow is
+correct and independently checked.

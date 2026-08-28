@@ -151,3 +151,15 @@ fn on_radius_pairs_exceed_off_radius_pairs_and_one_short_memory_fails() {
         }) if required == maximum + 1
     ));
 }
+
+#[test]
+fn zero_weight_kernel_endpoints_are_empty_support_not_a_panic() {
+    let endpoint = pattern(vec![3.0, 4.5, 7.0], vec![5.0, 5.0, 5.0]);
+    let result =
+        homogeneous_pair_correlation(&endpoint, &window(), &config(73)).expect("endpoint result");
+    assert_eq!(
+        result.curve[0].status,
+        PairCorrelationPointStatus::NoPairsInKernelSupport
+    );
+    assert_eq!(result.curve[0].g, None);
+}

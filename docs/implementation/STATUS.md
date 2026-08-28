@@ -1367,3 +1367,27 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - Tracker re-evaluation promotes only homogeneous PP-03A pair-correlation to active. The next
   production milestone remains a distinct compact-support standard-border g/cross-g result with
   CSR and random-label calibration; inhomogeneous variants still require PP-02 intensity ownership.
+
+## Homogeneous pair-correlation checkpoint 76 — 2026-08-27
+
+- Added distinct unmarked `homogeneous_pair_correlation` and typed categorical
+  `categorical_cross_pair_correlation` result families. Both freeze one explicit physical bandwidth,
+  the positive-support Epanechnikov kernel, and standard-border center eligibility at `r+h`; neither
+  aliases shell counts, centered mark covariance, cumulative K, or cross-K.
+- Unmarked g is `area * sum(k_h(r-d_ij)) / (2*pi*r*n*eligible_centers)`. On a three-point
+  100-square-micrometre window, two directed unit-distance pairs contribute kernel mass 3 and
+  g `5.305164769729845`. Whole-pattern conditional CSR supplies its two-sided ERL family.
+- Directed categorical cross-g replaces `n` with the total target count while retaining exact
+  source-center border eligibility and declared level order. The four-point tumor-to-stroma case
+  has one supported pair, kernel mass 1.5, and cross-g `1.6711269024649011`; alternating labels
+  increase the prespecified result over segregated labels. Complete categorical rows move under
+  random labeling without rebuilding the retained geometry.
+- Independent standard-library Python pair loops regenerate both fixtures byte-for-byte. Typed
+  empty kernel support, invalid/overflowing radii, unknown levels, compensated finite accumulation,
+  exact configuration/mark/frame identity, one-byte-short memory, and bounded pair/null work are
+  enforced. Each strict durable node reopens as a verified hit with one ledger execution and a seed
+  change creates one new miss.
+- PP-03A and PP-03B each gain one bounded homogeneous specialization but remain active pending
+  pinned external `pcf`/`pcfcross` agreement, broader null/edge calibration, general multitype
+  coverage, and inhomogeneous intensity. The next consumed workflow is explicit cross-fitted
+  intensity feeding inhomogeneous K/L, not a generic estimator registry.

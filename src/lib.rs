@@ -29,6 +29,7 @@ mod config;
 mod contained_patch_nucleus_area_contrast;
 mod continuous_mark_correlation;
 mod continuous_mark_correlation_workflow;
+mod cross_pair_correlation;
 mod data;
 mod diagnostics;
 mod errors;
@@ -128,6 +129,12 @@ pub use continuous_mark_correlation::{
     ContinuousMarkCorrelationPointStatus, ContinuousMarkCorrelationResult,
 };
 pub use continuous_mark_correlation_workflow::ContinuousMarkCorrelationAnalysisNode;
+pub use cross_pair_correlation::{
+    categorical_cross_pair_correlation, CategoricalCrossPairCorrelationAnalysisNode,
+    CategoricalCrossPairCorrelationConfig, CategoricalCrossPairCorrelationError,
+    CategoricalCrossPairCorrelationInference, CategoricalCrossPairCorrelationPoint,
+    CategoricalCrossPairCorrelationResult,
+};
 pub use data::{Pattern, PatternMeta, TumorWindow};
 pub use errors::{MarklabError, Result};
 pub use geom::mask::TumorMask;

@@ -1962,3 +1962,36 @@ vascular transport.
   integration reproduced the documented tens-of-seconds macOS loader-verification delay. It was
   not retried; Nextest, feature matrices, benchmarks, fuzzing, memory tools, packaging, dependency
   audits, push, publication, deployment, and history rewriting were not run.
+
+## Homogeneous pair-correlation checkpoint 76 — 2026-08-27
+
+- `cargo +1.96.0 test --locked --package marklab --test pair_correlation_typed_workflow` first
+  failed on unresolved production symbols and passes 5/5 after implementation: hand formula,
+  independent Python agreement, on/off-radius direction, invalid support, finite-output rejection,
+  deterministic replay, typed empty support including zero-weight kernel endpoints, and
+  one-byte-short memory. The endpoint regression first reproduced an assertion panic and passes
+  after both compact-support partitions exclude the zero-weight boundary.
+- `cargo +1.96.0 test --locked --package marklab --test pair_correlation_project_workflow` first
+  failed on the absent durable node and passes 1/1: fresh miss, reconstructed exact hit with one
+  execution, and seed-invalidated second miss.
+- `cargo +1.96.0 test --locked --package marklab --test
+  categorical_cross_pair_correlation_typed_workflow` first failed on unresolved native and durable
+  symbols and now passes 4/4: exact hand/Python identities, alternating-versus-segregated direction,
+  invalid support, unknown levels, one-byte-short memory, deterministic replay, store-verified
+  cross-process hit, and seed invalidation.
+- `workers/python/.venv/bin/python tests/fixtures/pair_correlation/generate_python_oracle.py |
+  diff -u tests/fixtures/pair_correlation/python_line_oracle.json -` and
+  `workers/python/.venv/bin/python
+  tests/fixtures/categorical_cross_pair_correlation/generate_python_oracle.py | diff -u
+  tests/fixtures/categorical_cross_pair_correlation/python_line_oracle.json -` pass byte-for-byte.
+  The pinned environment has no `spatstat.explore`; it was not installed and no spatstat agreement
+  claim is made.
+- The affected regression command passes categorical cross-g 4/4, categorical cross-K typed 3/3
+  plus durable 1/1, and homogeneous g typed 5/5 plus durable 1/1. Seed namespace tests pass 2/2.
+  Targeted warning-denied Clippy over those five exact integrations passes. An earlier command that
+  accidentally included Cargo `--tests` was interrupted with exit 130 after 23 minutes because it
+  expanded to unrelated integration targets; it is not claimed as a package-wide Clippy pass.
+- `cargo +1.96.0 check --locked --package marklab --no-default-features`, `cargo +1.96.0 test
+  --locked --package marklab --doc`, `cargo +1.96.0 fmt --all --check`, and `git diff --check` pass.
+  Workspace/Nextest loops, feature matrices, benchmarks, fuzzing, memory tools, packaging,
+  dependency audits, push, publication, deployment, and history rewriting were not run.
