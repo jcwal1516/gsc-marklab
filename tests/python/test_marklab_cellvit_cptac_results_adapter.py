@@ -149,6 +149,35 @@ class CellvitCptacResultsAdapterTest(unittest.TestCase):
         self.assertEqual(result["maximum_simplices"], 500_000)
         self.assertEqual(result["timeout_seconds"], 180)
 
+    def test_arbitrary_window_ipp_events_retain_identity_and_fixed_x_covariate(self):
+        result = self.module.arbitrary_window_ipp_event_rows(
+            [
+                {"cell_id": "slide:000000001", "x_um": "10", "y_um": "20"},
+                {"cell_id": "slide:000000002", "x_um": "11", "y_um": "21"},
+            ],
+            (10.0, 20.0, 12.0, 22.0),
+        )
+
+        self.assertEqual(
+            result,
+            [
+                {
+                    "event_id": "slide:000000001",
+                    "x_um": "10",
+                    "y_um": "20",
+                    "covariate": "-1",
+                    "offset": 0,
+                },
+                {
+                    "event_id": "slide:000000002",
+                    "x_um": "11",
+                    "y_um": "21",
+                    "covariate": "0",
+                    "offset": 0,
+                },
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

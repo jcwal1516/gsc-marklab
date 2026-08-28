@@ -2151,3 +2151,28 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   descriptive approximation, not patient replication, topology stability, molecular association,
   biological validation, or performance generalization. Those broader TOP-01/WS-63 requirements
   remain active.
+
+## Exact-window CellViT Poisson likelihood checkpoint 122 — 2026-08-28
+
+- Added direct and durable `arbitrary-window-ipp-likelihood` commands over the existing exact
+  `ObservationWindow2D` owner. Events and positive weighted quadrature nodes must lie in the exact
+  MultiPolygon, including hole and disconnected-component semantics; weights must conserve exact
+  window area, and IDs, canonical input/window digests, coefficients, assumptions, finite-result
+  policy, work, retained bytes, scheduler/runtime identity, and source artifacts are explicit.
+- The independent constant-intensity oracle uses a four-square-micrometre two-component window with
+  a one-square-micrometre hole. At intensity two it exactly returns event term `2*ln(2)`, integral
+  eight, and likelihood `2*ln(2)-8`; a one-short work ceiling fails. Dedicated CLI parsing avoids
+  adding another variant to the legacy Bayes parser after the expected green attempt exposed its
+  pre-existing main-thread stack limit.
+- The frozen Mac-mini adapter revalidated 366 slides, 178 patients, and 1,542,389 cells into the v7
+  bundle. It retained 2,000 exact source-identified events and 552 positive clipped 64-by-64 cells
+  whose weights sum to 787,061.271429 square micrometres for the exact 12-component patch union.
+  The event/quadrature/window SHA-256 values are `965239e4c82c346e19fec097e26453812e7c8fe885cd495ecaf8ec8f3aef476c`,
+  `42e759b5780340d38d1bcdf92cd7830e717df5a0c33cb62202233391666af146`, and
+  `9ba8102b98f5e4f42dc4c19d9fd341b0acb6d6ecf671997ce709187312c61fb4`.
+- At the constant-intensity MLE, the fixed likelihood has intercept -5.975159, integral 2,000,
+  likelihood -13,950.318, declared work 2,552, and 232,296 retained bytes. Direct execution took
+  0.05 seconds at 16,695,296-byte maximum RSS. Direct/miss/hit outputs are byte-identical with one
+  ledger execution and SHA-256 `756c7b110fe6971e07e8bc94489a6d961c04f9667863af54f4cc905f4ff55c4a`;
+  the result is sealed in the v7 bundle. This closes a fixed-likelihood arbitrary-window caller,
+  not arbitrary-window Bayesian fitting, effect inference, interaction, or patient replication.

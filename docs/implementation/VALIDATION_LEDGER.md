@@ -2671,6 +2671,36 @@ vascular transport.
   integration/Nextest loop, feature matrix, benchmark suite, fuzz, memory tool, packaging,
   dependency audit, push, publication, deployment, or history rewrite ran.
 
+## Exact-window CellViT Poisson likelihood checkpoint 122 — 2026-08-28
+
+- Expected direct red: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  arbitrary_window_ipp_cli weighted_arbitrary_window_likelihood_matches_constant_intensity_oracle_and_bounds_work
+  -- --exact --nocapture` failed on the absent command. Its first production attempt exposed a
+  main-thread stack overflow in the legacy monolithic Bayes parser; the dedicated-parser path leaves
+  `target/debug/marklab bayes --help` passing and the final exact test passes 1/1.
+- The direct oracle covers one exact MultiPolygon with a hole and disconnected component, exact
+  constant-intensity event/integral/likelihood arithmetic, finite/status fields, and one-short work.
+  The adapter test was red on the absent boundary and the complete suite now passes 6/6.
+- Expected durable red: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  durable_arbitrary_window_ipp_project arbitrary_window_ipp_replays_across_processes_and_invalidates_on_source_change
+  -- --exact --nocapture` failed on the absent project command. The final 1/1 pass proves miss/hit
+  byte identity, one ledger record, and exact source-byte invalidation. Affected-file Rustfmt and
+  `git diff --check` pass.
+- On `mini`, the frozen adapter revalidated 366 slides, 178 patients, and 1,542,389 cells into
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v7-inputs`. It emitted 2,000 exact events
+  and 552 positive clipped quadrature cells for the exact 12-component, 787,061.271429-square-
+  micrometre patch union. Event/quadrature/window digests are `965239e4c82c346e19fec097e26453812e7c8fe885cd495ecaf8ec8f3aef476c`,
+  `42e759b5780340d38d1bcdf92cd7830e717df5a0c33cb62202233391666af146`, and
+  `9ba8102b98f5e4f42dc4c19d9fd341b0acb6d6ecf671997ce709187312c61fb4`.
+- `/usr/bin/time -l target/debug/marklab bayes arbitrary-window-ipp-likelihood ...` completed in
+  0.05 seconds at 16,695,296-byte maximum RSS. At intercept -5.975159 and coefficient zero, the
+  event term is -11,950.318, integral 2,000, likelihood -13,950.318, work 2,552, and retained bytes
+  232,296. Direct and durable outputs compare byte-for-byte, the ledger remains one line, and result
+  SHA-256 is `756c7b110fe6971e07e8bc94489a6d961c04f9667863af54f4cc905f4ff55c4a`, sealed in the v7 bundle.
+  No broad workspace gate was repeated after checkpoint 119; no full integration/Nextest loop,
+  feature matrix, benchmark suite, fuzz, memory tool, packaging, dependency audit, push,
+  publication, deployment, or history rewrite ran.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

@@ -18,6 +18,16 @@ use thiserror::Error;
 
 #[path = "bayes/anisotropic_gp3d.rs"]
 mod anisotropic_gp3d;
+#[path = "bayes/arbitrary_window_ipp.rs"]
+mod arbitrary_window_ipp;
+pub(super) use arbitrary_window_ipp::{
+    execute as execute_arbitrary_window_ipp, prepare as prepare_arbitrary_window_ipp,
+    PreparedArbitraryWindowIpp,
+};
+
+pub(super) fn run_arbitrary_window_ipp_cli() -> Result<(), BayesCliError> {
+    arbitrary_window_ipp::run_cli()
+}
 #[path = "bayes/berman_turner.rs"]
 mod berman_turner;
 #[path = "bayes/beta_binomial_hierarchy.rs"]

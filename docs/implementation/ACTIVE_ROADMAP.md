@@ -1083,3 +1083,14 @@ TOP-01/TOP-01A/WS-63 no longer lack a representative admitted pathology-scale ex
 active for prespecified patient-level endpoints, replicated patients/cohorts, and perturbation or
 subsampling stability. The next dependency-ordered outcome is the smallest admitted arbitrary-
 window point-process caller; UI/server/client work remains deferred.
+
+## Checkpoint 122 exact-window point-process continuation
+
+The exact MultiPolygon owner now drives a fixed inhomogeneous-Poisson likelihood with explicit
+positive area-partition quadrature, physical units, holes/disconnected components, hard work/memory
+ceilings, and durable cross-process replay. The admitted 2,000-cell patch union has direct/durable
+evidence under its homogeneous maximum-likelihood baseline. BAY-PP/WS-43 no longer lack every
+arbitrary-window likelihood caller, but remain active for fitted coefficients/latent fields,
+quadrature refinement sensitivity, posterior calibration/PPC, and independent patient patterns.
+Production next advances the smallest fitted arbitrary-window caller by reusing the pinned backend;
+UI/server/client work remains deferred.

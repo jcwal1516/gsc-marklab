@@ -53,6 +53,7 @@ fn main() -> marklab::Result<()> {
                                 "marked-prepost"
                                     | "sparse-radius-heat"
                                     | "witness-persistence"
+                                    | "arbitrary-window-ipp-likelihood"
                                     | "region-retrieval"
                                     | "normal-mean"
                                     | "hierarchical-normal"
@@ -178,6 +179,17 @@ fn main() -> marklab::Result<()> {
                     }) =>
         {
             bayes_advanced::run_cli().map_err(bayes_advanced::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand == std::ffi::OsStr::new("arbitrary-window-ipp-likelihood")
+                    }) =>
+        {
+            bayes::run_arbitrary_window_ipp_cli().map_err(bayes::into_marklab_error)
         }
         Some(command) if command == std::ffi::OsStr::new("bayes") => {
             bayes::run_cli().map_err(bayes::into_marklab_error)

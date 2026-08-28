@@ -483,6 +483,98 @@ def witness_persistence_input(
     }
 
 
+def arbitrary_window_ipp_event_rows(
+    coordinate_rows: list[dict[str, object]],
+    bounds: tuple[float, float, float, float],
+) -> list[dict[str, object]]:
+    """Retain exact events and one fixed bounding-box-scaled x covariate."""
+    xmin, ymin, xmax, ymax = bounds
+    if (
+        not 1 <= len(coordinate_rows) <= MAXIMUM_COORDINATE_CELLS
+        or not all(math.isfinite(value) for value in bounds)
+        or xmin >= xmax
+        or ymin >= ymax
+    ):
+        raise AdapterError("arbitrary-window IPP event bounds are invalid")
+    result = []
+    previous_id = None
+    for row in coordinate_rows:
+        cell_id = row.get("cell_id")
+        try:
+            x_um = float(row["x_um"])
+            y_um = float(row["y_um"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise AdapterError("arbitrary-window IPP event coordinates are invalid") from error
+        if (
+            not isinstance(cell_id, str)
+            or not cell_id
+            or cell_id.strip() != cell_id
+            or (previous_id is not None and cell_id <= previous_id)
+            or not all(math.isfinite(value) for value in (x_um, y_um))
+            or not xmin <= x_um <= xmax
+            or not ymin <= y_um <= ymax
+        ):
+            raise AdapterError("arbitrary-window IPP event identity or bounds are invalid")
+        result.append(
+            {
+                "event_id": cell_id,
+                "x_um": format(x_um, ".17g"),
+                "y_um": format(y_um, ".17g"),
+                "covariate": format(2.0 * (x_um - xmin) / (xmax - xmin) - 1.0, ".17g"),
+                "offset": 0,
+            }
+        )
+        previous_id = cell_id
+    return result
+
+
+def arbitrary_window_ipp_quadrature(shapely_window: object) -> list[dict[str, object]]:
+    """Partition the exact patch union into weighted 64-by-64 clipped cells."""
+    from shapely.geometry import box
+
+    xmin, ymin, xmax, ymax = (float(value) for value in shapely_window.bounds)
+    grid_x = 64
+    grid_y = 64
+    width = (xmax - xmin) / grid_x
+    height = (ymax - ymin) / grid_y
+    rows = []
+    for iy in range(grid_y):
+        for ix in range(grid_x):
+            clipped = shapely_window.intersection(
+                box(
+                    xmin + ix * width,
+                    ymin + iy * height,
+                    xmin + (ix + 1) * width,
+                    ymin + (iy + 1) * height,
+                )
+            )
+            weight = float(clipped.area)
+            if weight <= 0.0:
+                continue
+            point = clipped.representative_point()
+            x_um = float(point.x)
+            y_um = float(point.y)
+            if not all(math.isfinite(value) for value in (weight, x_um, y_um)):
+                raise AdapterError("arbitrary-window IPP quadrature is non-finite")
+            rows.append(
+                {
+                    "node_id": f"q-{iy:03d}-{ix:03d}",
+                    "x_um": format(x_um, ".17g"),
+                    "y_um": format(y_um, ".17g"),
+                    "weight_um2": format(weight, ".17g"),
+                    "covariate": format(
+                        2.0 * (x_um - xmin) / (xmax - xmin) - 1.0, ".17g"
+                    ),
+                    "offset": 0,
+                }
+            )
+    weight_sum = math.fsum(float(row["weight_um2"]) for row in rows)
+    area = float(shapely_window.area)
+    if not rows or abs(weight_sum - area) > max(area, 1.0) * 1e-10:
+        raise AdapterError("arbitrary-window IPP quadrature does not conserve area")
+    return rows
+
+
 def beta_binomial_group_gender_rows(
     group_rows: list[dict[str, int | str]], genders: dict[str, str]
 ) -> list[dict[str, int | str]]:
@@ -825,6 +917,20 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     write_json(inputs / "sparse_radius_heat.json", sparse_graph_heat)
     witness_persistence = witness_persistence_input(coordinate_rows)
     write_json(inputs / "witness_persistence.json", witness_persistence)
+    arbitrary_window_ipp_events = arbitrary_window_ipp_event_rows(
+        coordinate_rows, tuple(float(value) for value in shapely_window.bounds)
+    )
+    arbitrary_window_ipp_nodes = arbitrary_window_ipp_quadrature(shapely_window)
+    write_csv(
+        inputs / "arbitrary_window_ipp_events.csv",
+        ["event_id", "x_um", "y_um", "covariate", "offset"],
+        arbitrary_window_ipp_events,
+    )
+    write_csv(
+        inputs / "arbitrary_window_ipp_quadrature.csv",
+        ["node_id", "x_um", "y_um", "weight_um2", "covariate", "offset"],
+        arbitrary_window_ipp_nodes,
+    )
 
     vector_fields = ["object_id", "x_um", "y_um"] + [
         f"embedding_{index}" for index in range(1280)
@@ -1191,6 +1297,18 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "max_scale_um": witness_persistence["max_scale_um"],
                 "maximum_simplices": witness_persistence["maximum_simplices"],
             },
+            "arbitrary_window_ipp_definition": {
+                "statistical_unit": "one_observed_point_pattern",
+                "window": "exact_selected_patch_union",
+                "quadrature": "64_by_64_bounding_grid_exact_shapely_cell_intersection_weights",
+                "covariate": "fixed_bounding_box_scaled_x_in_minus_one_to_one",
+                "event_count": len(arbitrary_window_ipp_events),
+                "quadrature_node_count": len(arbitrary_window_ipp_nodes),
+                "quadrature_weight_um2": math.fsum(
+                    float(row["weight_um2"]) for row in arbitrary_window_ipp_nodes
+                ),
+                "population_claim": "single_slide_descriptive_fixed_likelihood_only",
+            },
             "beta_binomial_group_gender_definition": {
                 "join_key": "patient_id",
                 "source": str(arguments.clinical.resolve()),
@@ -1227,6 +1345,10 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "witness_persistence_landmarks": witness_persistence[
                     "landmark_count"
                 ],
+                "arbitrary_window_ipp_events": len(arbitrary_window_ipp_events),
+                "arbitrary_window_ipp_quadrature_nodes": len(
+                    arbitrary_window_ipp_nodes
+                ),
                 "raw_vector_rows": len(vector_rows),
                 "raw_vector_pair_visits": len(vector_rows) * (len(vector_rows) - 1) // 2,
                 "projected_rows": len(projected_rows),

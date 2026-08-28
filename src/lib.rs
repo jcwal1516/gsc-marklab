@@ -11,6 +11,7 @@ static TEST_ALLOCATOR: dhat::Alloc = dhat::Alloc;
 #[cfg(test)]
 mod algorithm_tests;
 mod api;
+mod arbitrary_window_ipp;
 mod binary_nucleus_area_contrast;
 mod categorical_neighborhood_mixing;
 mod categorical_neighborhood_mixing_workflow;
@@ -93,6 +94,11 @@ mod wsi;
 pub use cli::run_cli;
 
 pub use api::{AnalysisEngine, DeclaredMarkedAnalysisRun, MarkedAnalysisRun};
+pub use arbitrary_window_ipp::{
+    arbitrary_window_ipp_log_likelihood, ArbitraryWindowIppError, ArbitraryWindowIppEvent,
+    ArbitraryWindowIppLikelihoodResult, ArbitraryWindowIppLimits, ArbitraryWindowIppQuadratureNode,
+    ArbitraryWindowIppSpec, ArbitraryWindowIppWindowSummary,
+};
 pub use binary_nucleus_area_contrast::{
     declared_binary_group_nucleus_area_contrast, DeclaredBinaryGroupNucleusAreaContrast,
     DeclaredBinaryGroupNucleusAreaContrastError, DeclaredBinaryGroupNucleusAreaContrastStatus,

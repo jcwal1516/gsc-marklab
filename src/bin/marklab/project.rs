@@ -5,7 +5,9 @@ use std::{
 };
 
 use clap::{Parser, Subcommand};
-use marklab::{MarkedPatternResult, MarkedPrePostNode, ResultDocument};
+use marklab::{
+    ArbitraryWindowIppLikelihoodResult, MarkedPatternResult, MarkedPrePostNode, ResultDocument,
+};
 use marklab_bayes::{
     BackendContract, BetaBinomialGroupGenderRegressionWorkerResult,
     BetaBinomialGroupGenderSlideHierarchyWorkerResult, BetaBinomialGroupRegressionWorkerResult,
@@ -27,10 +29,11 @@ use marklab_workflow::{
 use super::{
     bayes::{
         self, fused_gromov::PreparedFusedGromovWasserstein, BayesCliError,
-        PreparedBetaBinomialGroupGenderRegression, PreparedBetaBinomialGroupGenderSlideHierarchy,
-        PreparedBetaBinomialGroupRegression, PreparedBetaBinomialHierarchy,
-        PreparedDirichletMultinomialGroup, PreparedGaussianHierarchy, PreparedGriddedLgcpFit,
-        PreparedNormalMean, PreparedStudentTHierarchy,
+        PreparedArbitraryWindowIpp, PreparedBetaBinomialGroupGenderRegression,
+        PreparedBetaBinomialGroupGenderSlideHierarchy, PreparedBetaBinomialGroupRegression,
+        PreparedBetaBinomialHierarchy, PreparedDirichletMultinomialGroup,
+        PreparedGaussianHierarchy, PreparedGriddedLgcpFit, PreparedNormalMean,
+        PreparedStudentTHierarchy,
     },
     topology::{self, PreparedWitnessPersistence, TopologyCliError},
 };
@@ -326,6 +329,32 @@ enum ProjectTopLevel {
     },
 }
 
+#[derive(Debug, clap::Args)]
+struct ArbitraryWindowIppProjectArgs {
+    #[arg(long)]
+    project: PathBuf,
+    #[arg(long)]
+    events: PathBuf,
+    #[arg(long)]
+    quadrature: PathBuf,
+    #[arg(long)]
+    window: PathBuf,
+    #[arg(long, allow_hyphen_values = true)]
+    intercept: f64,
+    #[arg(long, allow_hyphen_values = true)]
+    coefficient: f64,
+    #[arg(long)]
+    maximum_events: usize,
+    #[arg(long)]
+    maximum_quadrature_nodes: usize,
+    #[arg(long)]
+    maximum_work: usize,
+    #[arg(long, default_value_t = 16 * 1024 * 1024)]
+    maximum_retained_bytes: usize,
+    #[arg(long)]
+    out: PathBuf,
+}
+
 #[derive(Debug, Subcommand)]
 enum ProjectCommand {
     RegionRetrieval {
@@ -370,6 +399,7 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    ArbitraryWindowIppLikelihood(Box<ArbitraryWindowIppProjectArgs>),
     NormalMean {
         #[arg(long)]
         project: PathBuf,
@@ -739,6 +769,21 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
                     out,
                 },
         } => run_witness_persistence(project, input, out),
+        ProjectTopLevel::Project {
+            command: ProjectCommand::ArbitraryWindowIppLikelihood(arguments),
+        } => run_arbitrary_window_ipp(
+            arguments.project,
+            arguments.events,
+            arguments.quadrature,
+            arguments.window,
+            arguments.intercept,
+            arguments.coefficient,
+            arguments.maximum_events,
+            arguments.maximum_quadrature_nodes,
+            arguments.maximum_work,
+            arguments.maximum_retained_bytes,
+            arguments.out,
+        ),
         ProjectTopLevel::Project {
             command:
                 ProjectCommand::NormalMean {
@@ -1248,6 +1293,107 @@ fn run_witness_persistence(
     };
     bayes::publish_json(&output_path, &run.output)?;
     eprintln!("project witness-persistence cache_status={cache_status}");
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_arbitrary_window_ipp(
+    project_path: PathBuf,
+    events_path: PathBuf,
+    quadrature_path: PathBuf,
+    window_path: PathBuf,
+    intercept: f64,
+    coefficient: f64,
+    maximum_events: usize,
+    maximum_quadrature_nodes: usize,
+    maximum_work: usize,
+    maximum_retained_bytes: usize,
+    output_path: PathBuf,
+) -> Result<(), BayesCliError> {
+    let kinds = [
+        "application/vnd.marklab.source.arbitrary-window-ipp-events+csv;version=1",
+        "application/vnd.marklab.source.arbitrary-window-ipp-quadrature+csv;version=1",
+        "application/vnd.marklab.source.observation-window+geojson;version=1",
+    ];
+    let paths = [events_path, quadrature_path, window_path];
+    let before = [
+        source_artifact(&paths[0], kinds[0])?,
+        source_artifact(&paths[1], kinds[1])?,
+        source_artifact(&paths[2], kinds[2])?,
+    ];
+    let prepared = bayes::prepare_arbitrary_window_ipp(
+        paths[0].clone(),
+        paths[1].clone(),
+        paths[2].clone(),
+        intercept,
+        coefficient,
+        maximum_events,
+        maximum_quadrature_nodes,
+        maximum_work,
+        maximum_retained_bytes,
+    )?;
+    let after = [
+        source_artifact(&paths[0], kinds[0])?,
+        source_artifact(&paths[1], kinds[1])?,
+        source_artifact(&paths[2], kinds[2])?,
+    ];
+    if before != after {
+        return Err(BayesCliError::Input(
+            "arbitrary-window IPP source changed while the durable request was prepared".into(),
+        ));
+    }
+    let configuration_bytes = serde_json::to_vec(&serde_json::json!({
+        "intercept": intercept,
+        "coefficient": coefficient,
+        "maximum_events": maximum_events,
+        "maximum_quadrature_nodes": maximum_quadrature_nodes,
+        "maximum_work": maximum_work,
+        "maximum_retained_bytes": maximum_retained_bytes,
+    }))?;
+    let runtime = native_runtime_provenance()?;
+    let limits = DurableProjectLimits::new(
+        PROJECT_CONTROL_BYTES,
+        PROJECT_LEDGER_BYTES,
+        PROJECT_LEDGER_RECORDS,
+        PROJECT_RECORD_BYTES,
+        MAXIMUM_RESULT_BYTES,
+    )
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let mut durable = DurableProject::open_or_create(&project_path, limits)
+        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    report_recovery(&durable);
+    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    for artifact in &before {
+        project
+            .register_reference(artifact.clone())
+            .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    }
+    let node = ArbitraryWindowIppProjectNode::new(paths, before, prepared, configuration_bytes)?;
+    let graph = WorkflowGraph::new([node.spec().clone()])
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
+    })
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let schema = ArtifactSchema::new("marklab.arbitrary_window_ipp_likelihood_result", 1)
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let run = execute_algorithm(
+        &mut durable,
+        &mut project,
+        &graph,
+        &node,
+        &scheduler,
+        schema,
+        runtime,
+    )
+    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    let cache_status = match run.cache_status {
+        CacheStatus::Hit => "hit",
+        CacheStatus::Miss => "miss",
+    };
+    bayes::publish_json(&output_path, &run.output)?;
+    eprintln!("project arbitrary-window-ipp-likelihood cache_status={cache_status}");
     Ok(())
 }
 
@@ -2465,6 +2611,100 @@ impl WorkflowNode for WitnessPersistenceProjectNode {
 
     fn output_kind(&self) -> &'static str {
         "application/vnd.marklab.gudhi-witness-persistence-result+json;version=1"
+    }
+}
+
+struct ArbitraryWindowIppProjectNode {
+    spec: NodeSpec,
+    input_paths: [PathBuf; 3],
+    input_artifacts: [ArtifactRef; 3],
+    prepared: PreparedArbitraryWindowIpp,
+    configuration_bytes: Vec<u8>,
+}
+
+impl ArbitraryWindowIppProjectNode {
+    fn new(
+        input_paths: [PathBuf; 3],
+        input_artifacts: [ArtifactRef; 3],
+        prepared: PreparedArbitraryWindowIpp,
+        configuration_bytes: Vec<u8>,
+    ) -> Result<Self, BayesCliError> {
+        Ok(Self {
+            spec: NodeSpec::new(
+                NodeId::new("arbitrary-window-ipp-likelihood")
+                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
+                "fixed_point_process_likelihood",
+                1,
+                Vec::new(),
+            )
+            .map_err(|error| BayesCliError::Input(error.to_string()))?,
+            input_paths,
+            input_artifacts,
+            prepared,
+            configuration_bytes,
+        })
+    }
+}
+
+impl WorkflowNode for ArbitraryWindowIppProjectNode {
+    type Output = ArbitraryWindowIppLikelihoodResult;
+
+    fn spec(&self) -> &NodeSpec {
+        &self.spec
+    }
+
+    fn input_artifacts(&self) -> &[ArtifactRef] {
+        &self.input_artifacts
+    }
+
+    fn verify_input_content(&self) -> Result<(), NodeError> {
+        let kinds = [
+            "application/vnd.marklab.source.arbitrary-window-ipp-events+csv;version=1",
+            "application/vnd.marklab.source.arbitrary-window-ipp-quadrature+csv;version=1",
+            "application/vnd.marklab.source.observation-window+geojson;version=1",
+        ];
+        for index in 0..self.input_paths.len() {
+            let observed = source_artifact(&self.input_paths[index], kinds[index])
+                .map_err(NodeError::input)?;
+            if observed != self.input_artifacts[index] {
+                return Err(NodeError::input(BayesCliError::Input(
+                    "arbitrary-window IPP source no longer matches its durable identity".into(),
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
+        CacheKeyMaterial {
+            configuration_digest: ContentDigest::from_framed([
+                b"marklab-project-arbitrary-window-ipp-likelihood-node-v1".as_slice(),
+                self.configuration_bytes.as_slice(),
+            ]),
+            execution_policy: b"native-safe-rust-weighted-arbitrary-window-ipp-v1",
+            implementation_identity: "marklab-project-arbitrary-window-ipp-likelihood-node-v1",
+        }
+    }
+
+    fn execute(&self) -> Result<Self::Output, NodeError> {
+        bayes::execute_arbitrary_window_ipp(&self.prepared).map_err(NodeError::execution)
+    }
+
+    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
+        marklab::exact_float_json::encode(output).map_err(NodeError::encoding)
+    }
+
+    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
+        let output: ArbitraryWindowIppLikelihoodResult =
+            marklab::exact_float_json::decode(bytes).map_err(NodeError::decode)?;
+        output
+            .validate_for_spec(&self.prepared.window, &self.prepared.spec)
+            .map_err(NodeError::decode)?;
+        Ok(output)
+    }
+
+    fn output_kind(&self) -> &'static str {
+        "application/vnd.marklab.arbitrary-window-ipp-likelihood-result+json;version=1"
     }
 }
 
