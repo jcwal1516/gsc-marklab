@@ -2353,6 +2353,18 @@ vascular transport.
   No feature matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push, publication,
   deployment, or history rewrite ran.
 
+## Named nuisance-matrix Freedman-Lane checkpoint 109 — 2026-08-28
+
+- The exact matrix CLI test first failed because `covariate-matrix-permutation` was absent and now
+  passes 1/1 with ordered names/transforms, dimensions, adjusted hand effect, and exact counts.
+- `covariate_matrix_reference` passes 2/2. Its independent modified-Gram-Schmidt/FWL oracle agrees
+  on coefficient, standard error, statistic, and blocked/unblocked p-values; reverse patient order
+  and `1e100`/`1e-100` column rescaling are invariant; missing and collinear columns fail. Legacy
+  `covariate_reference` passes 3/3 and `cohort_covariate_permutation_cli` passes 2/2.
+- Warning-denied Clippy passes for all `marklab-cohort` targets and the affected `marklab` CLI
+  binary. Package no-default compilation, strict package docs, affected-file Rustfmt, and `git diff
+  --check` pass. Broad checkpoint-108 gates were not repeated.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

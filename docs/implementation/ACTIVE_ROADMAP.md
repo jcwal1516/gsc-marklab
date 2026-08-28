@@ -961,3 +961,10 @@ integration/Nextest loader loop was not retried.
 COH-01/FND-06 remain active for a concrete multiple-nuisance or cluster/multisite adjusted caller,
 hierarchical/local multiplicity, calibration, and real validation. Production work resumes from an
 existing typed caller; do not introduce a formula language or generic inference registry.
+
+## Checkpoint 109 named nuisance-matrix continuation
+
+Independent-patient residual inference now supports an exact fixed matrix of 1–32 named nuisance
+columns with optional patient blocks and no formula surface. COH-01/FND-06 remain active for
+cluster/multisite-adjusted callers, hierarchical/local multiplicity, calibration, and real
+validation; general regression syntax is not a remaining prerequisite.

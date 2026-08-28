@@ -227,7 +227,7 @@ fn execute_covariate_freedman_lane(
     })
 }
 
-fn validate_spec(spec: &CovariatePermutationSpec) -> Result<(), CohortInferenceError> {
+pub(crate) fn validate_spec(spec: &CovariatePermutationSpec) -> Result<(), CohortInferenceError> {
     if spec.group_a.trim().is_empty() || spec.group_b.trim().is_empty() {
         return Err(CohortInferenceError::InvalidInput(
             "group labels must be non-empty".into(),
@@ -317,15 +317,15 @@ fn canonicalize(
     Ok(rows)
 }
 
-struct OlsFit {
-    fitted: Vec<f64>,
-    target_coefficient: f64,
-    target_standard_error: f64,
-    target_statistic: f64,
-    residual_degrees_of_freedom: usize,
+pub(crate) struct OlsFit {
+    pub(crate) fitted: Vec<f64>,
+    pub(crate) target_coefficient: f64,
+    pub(crate) target_standard_error: f64,
+    pub(crate) target_statistic: f64,
+    pub(crate) residual_degrees_of_freedom: usize,
 }
 
-fn fit_ols(
+pub(crate) fn fit_ols(
     design: &[Vec<f64>],
     outcome: &[f64],
     target_index: Option<usize>,
@@ -452,7 +452,7 @@ fn solve(matrix: &[Vec<f64>], rhs: &[f64]) -> Result<Vec<f64>, CohortInferenceEr
     Ok(solution)
 }
 
-fn inference_alternative(alternative: PermutationAlternative) -> InferenceAlternative {
+pub(crate) fn inference_alternative(alternative: PermutationAlternative) -> InferenceAlternative {
     match alternative {
         PermutationAlternative::Less => InferenceAlternative::Less,
         PermutationAlternative::Greater => InferenceAlternative::Greater,

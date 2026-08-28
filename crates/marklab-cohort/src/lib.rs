@@ -7,6 +7,7 @@ use thiserror::Error;
 
 mod cluster;
 mod covariate;
+mod covariate_matrix;
 mod energy;
 mod equivalence;
 mod fingerprint;
@@ -39,6 +40,10 @@ pub use cluster::{
 pub use covariate::{
     patient_blocked_covariate_freedman_lane, patient_covariate_freedman_lane,
     CovariatePatientRecord, CovariatePermutationResult, CovariatePermutationSpec,
+};
+pub use covariate_matrix::{
+    patient_blocked_covariate_matrix_freedman_lane, patient_covariate_matrix_freedman_lane,
+    CovariateMatrixPatientRecord, CovariateMatrixPermutationResult,
 };
 pub use energy::{
     patient_level_blocked_energy_distance, patient_level_energy_distance,

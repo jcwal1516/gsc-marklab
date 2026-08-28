@@ -30,6 +30,8 @@ use thiserror::Error;
 mod cluster;
 #[path = "cohort/covariate.rs"]
 mod covariate;
+#[path = "cohort/covariate_matrix.rs"]
+mod covariate_matrix;
 #[path = "cohort/effects.rs"]
 mod effects;
 #[path = "cohort/equivalence.rs"]
@@ -122,6 +124,22 @@ enum CohortCommand {
         out: PathBuf,
     },
     CovariatePermutation {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        group_a: String,
+        #[arg(long)]
+        group_b: String,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long, value_enum)]
+        alternative: CliAlternative,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    CovariateMatrixPermutation {
         #[arg(long)]
         input: PathBuf,
         #[arg(long)]
@@ -542,6 +560,26 @@ pub(super) fn run_cli() -> Result<(), CohortError> {
                     out,
                 },
         } => covariate::run(covariate::RunArgs {
+            input,
+            group_a,
+            group_b,
+            permutations,
+            seed,
+            alternative,
+            out,
+        }),
+        CohortTopLevel::Cohort {
+            command:
+                CohortCommand::CovariateMatrixPermutation {
+                    input,
+                    group_a,
+                    group_b,
+                    permutations,
+                    seed,
+                    alternative,
+                    out,
+                },
+        } => covariate_matrix::run(covariate_matrix::RunArgs {
             input,
             group_a,
             group_b,

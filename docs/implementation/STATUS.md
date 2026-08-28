@@ -1880,3 +1880,18 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   active instruction prohibit retrying the macOS binary-verification loop. No feature matrix,
   benchmark, fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or
   history rewrite ran.
+
+## Named nuisance-matrix Freedman-Lane checkpoint 109 — 2026-08-28
+
+- Added `marklab cohort covariate-matrix-permutation` and typed unblocked/blocked library workflows
+  for 1–32 exact ordered nuisance columns per independent patient. The reduced model contains only
+  intercept plus the fixed nuisance matrix; the full model adds one group indicator; complete
+  patient residuals move globally or only within exact patient-ID blocks.
+- Every nuisance name, center, max-deviation scale, model dimension, residual degree of freedom,
+  group identity, alternative, seed, block state, and replicate count is explicit. Missing,
+  duplicate, non-finite, constant, inconsistent, or rank-deficient columns fail. A 100-million
+  OLS-work ceiling accounts for patient rows, squared/cubic column work, and all requested fits.
+- An independent modified-Gram-Schmidt/FWL oracle matches coefficient, standard error, statistic,
+  and exact unblocked/blocked p-values. Patient-order and extreme per-column rescaling are invariant;
+  missing and collinear columns fail. Matrix references pass 2/2, the matrix CLI 1/1, legacy scalar
+  covariate references 3/3 and CLI 2/2, plus affected Clippy/no-default/strict-doc/format checks.
