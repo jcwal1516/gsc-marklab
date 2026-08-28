@@ -2,8 +2,10 @@ use super::*;
 use marklab::{
     declared_binary_cell_embedding_centroid_discrepancy, BinaryMarkDeclaration,
     DeclaredBinaryCellEmbeddingCentroidDiscrepancyError,
-    DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus, DeclaredScalarPatternInput,
-    MeasurementStatus, ProbabilityMarkDeclaration, ScalarMarkId,
+    DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus, DeclaredScalarInputError,
+    DeclaredScalarPatternInput, MarkTable, MeasurementStatus, MissingnessPolicy,
+    ProbabilityMarkDeclaration, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
+    VectorArtifactRefMarkDeclaration,
 };
 
 const DIMENSION: u32 = 1_280;
@@ -159,6 +161,226 @@ fn alternating(even: f32, odd: f32) -> Vec<f32> {
     (0..DIMENSION)
         .map(|index| if index.is_multiple_of(2) { even } else { odd })
         .collect()
+}
+
+fn vector_declaration() -> VectorArtifactRefMarkDeclaration {
+    VectorArtifactRefMarkDeclaration::new(
+        ScalarMarkId::new("cellvit_embedding").expect("vector mark ID"),
+        "CellViT embedding",
+        MeasurementStatus::MorphologyPrediction,
+    )
+    .expect("vector declaration")
+}
+
+#[test]
+fn verified_cellvit_artifact_is_a_row_bound_typed_vector_mark_for_the_centroid_caller() {
+    let mut declared_fixture = declared_scalar_support::fixture();
+    let binary = binary_declaration(&mut declared_fixture);
+    let (_embedding_fixture, table, artifact) =
+        verified_embedding(&declared_fixture.cell_ids, DIMENSION, available_rows());
+    let vector_mark_id = ScalarMarkId::new("cellvit_embedding").expect("vector mark ID");
+    let vector = ScalarMarkColumn::vector_artifact_ref(
+        vector_declaration(),
+        ScalarMarkModality::Morphology,
+        ScalarMarkUnit::EmbeddingVector,
+        MissingnessPolicy::NotPermitted,
+        &table,
+        artifact,
+    )
+    .expect("row-bound vector artifact reference");
+    let mark_table = MarkTable::new(
+        declared_fixture.cell_ids.clone(),
+        vec![
+            ScalarMarkColumn::binary(
+                binary.clone(),
+                ScalarMarkModality::Immunohistochemistry,
+                ScalarMarkUnit::Unitless,
+                MissingnessPolicy::NotPermitted,
+                declared_fixture.pattern.mark.clone(),
+            )
+            .expect("binary column"),
+            vector,
+        ],
+        4,
+        declared_scalar_support::cell_id_text_bytes(&declared_fixture.cell_ids),
+    )
+    .expect("typed vector mark table");
+    assert_eq!(
+        mark_table.vector_artifact_ref(&vector_mark_id),
+        Some(artifact)
+    );
+    let input = DeclaredScalarPatternInput::from_mark_table(
+        &declared_fixture.project,
+        &declared_fixture.pattern,
+        &mark_table,
+        declared_fixture.slide_id.clone(),
+        declared_fixture.frame_id.clone(),
+    )
+    .expect("declared vector input");
+    let result = declared_binary_cell_embedding_centroid_discrepancy(
+        &input,
+        &table,
+        artifact,
+        4,
+        AVAILABLE_COMPONENT_OPERATIONS,
+        WORKING_BYTES,
+    )
+    .expect("typed vector centroid discrepancy");
+    assert_eq!(result.mean_squared_component_difference(), Some(20.0));
+}
+
+#[test]
+fn vector_artifact_reference_rejects_row_qc_and_caller_identity_drift() {
+    let mut declared_fixture = declared_scalar_support::fixture();
+    let binary = binary_declaration(&mut declared_fixture);
+    let (_embedding_fixture, table, artifact) =
+        verified_embedding(&declared_fixture.cell_ids, DIMENSION, available_rows());
+    let mut changed_rows = available_rows();
+    changed_rows[0] = (
+        EmbeddingStatus::Present,
+        Some(vec![1.0; DIMENSION as usize]),
+    );
+    let (_changed_fixture, changed_table, changed_artifact) =
+        verified_embedding(&declared_fixture.cell_ids, DIMENSION, changed_rows);
+    assert!(matches!(
+        ScalarMarkColumn::vector_artifact_ref(
+            vector_declaration(),
+            ScalarMarkModality::Morphology,
+            ScalarMarkUnit::EmbeddingVector,
+            MissingnessPolicy::NotPermitted,
+            &table,
+            changed_artifact,
+        ),
+        Err(DeclaredScalarInputError::VectorArtifactBindingMismatch)
+    ));
+    let vector = ScalarMarkColumn::vector_artifact_ref(
+        vector_declaration(),
+        ScalarMarkModality::Morphology,
+        ScalarMarkUnit::EmbeddingVector,
+        MissingnessPolicy::NotPermitted,
+        &table,
+        artifact,
+    )
+    .expect("vector reference");
+    assert!(matches!(
+        MarkTable::new(
+            declared_fixture.alternate_cell_ids.clone(),
+            vec![
+                ScalarMarkColumn::binary(
+                    binary.clone(),
+                    ScalarMarkModality::Immunohistochemistry,
+                    ScalarMarkUnit::Unitless,
+                    MissingnessPolicy::NotPermitted,
+                    declared_fixture.pattern.mark.clone(),
+                )
+                .expect("binary column"),
+                vector.clone(),
+            ],
+            4,
+            declared_scalar_support::cell_id_text_bytes(&declared_fixture.alternate_cell_ids),
+        ),
+        Err(DeclaredScalarInputError::VectorArtifactCellIdentityMismatch)
+    ));
+    let mark_table = MarkTable::new(
+        declared_fixture.cell_ids.clone(),
+        vec![
+            ScalarMarkColumn::binary(
+                binary.clone(),
+                ScalarMarkModality::Immunohistochemistry,
+                ScalarMarkUnit::Unitless,
+                MissingnessPolicy::NotPermitted,
+                declared_fixture.pattern.mark.clone(),
+            )
+            .expect("binary column"),
+            vector,
+        ],
+        4,
+        declared_scalar_support::cell_id_text_bytes(&declared_fixture.cell_ids),
+    )
+    .expect("vector mark table");
+    let input = DeclaredScalarPatternInput::from_mark_table(
+        &declared_fixture.project,
+        &declared_fixture.pattern,
+        &mark_table,
+        declared_fixture.slide_id.clone(),
+        declared_fixture.frame_id.clone(),
+    )
+    .expect("declared vector input");
+    assert!(matches!(
+        declared_binary_cell_embedding_centroid_discrepancy(
+            &input,
+            &changed_table,
+            changed_artifact,
+            4,
+            AVAILABLE_COMPONENT_OPERATIONS,
+            WORKING_BYTES,
+        ),
+        Err(DeclaredBinaryCellEmbeddingCentroidDiscrepancyError::VectorArtifactReferenceMismatch)
+    ));
+
+    let mut missing_rows = available_rows();
+    missing_rows[0] = (EmbeddingStatus::MissingVector, None);
+    let (_missing_fixture, missing_table, missing_artifact) =
+        verified_embedding(&declared_fixture.cell_ids, DIMENSION, missing_rows);
+    assert!(matches!(
+        ScalarMarkColumn::vector_artifact_ref(
+            vector_declaration(),
+            ScalarMarkModality::Morphology,
+            ScalarMarkUnit::EmbeddingVector,
+            MissingnessPolicy::NotPermitted,
+            &missing_table,
+            missing_artifact,
+        ),
+        Err(DeclaredScalarInputError::VectorArtifactMissingnessMismatch)
+    ));
+    let nullable_vector = ScalarMarkColumn::vector_artifact_ref(
+        vector_declaration(),
+        ScalarMarkModality::Morphology,
+        ScalarMarkUnit::EmbeddingVector,
+        MissingnessPolicy::Allowed,
+        &missing_table,
+        missing_artifact,
+    )
+    .expect("explicitly nullable vector reference");
+    let nullable_mark_table = MarkTable::new(
+        declared_fixture.cell_ids.clone(),
+        vec![
+            ScalarMarkColumn::binary(
+                binary,
+                ScalarMarkModality::Immunohistochemistry,
+                ScalarMarkUnit::Unitless,
+                MissingnessPolicy::NotPermitted,
+                declared_fixture.pattern.mark.clone(),
+            )
+            .expect("binary column"),
+            nullable_vector,
+        ],
+        4,
+        declared_scalar_support::cell_id_text_bytes(&declared_fixture.cell_ids),
+    )
+    .expect("nullable vector MarkTable");
+    let nullable_input = DeclaredScalarPatternInput::from_mark_table(
+        &declared_fixture.project,
+        &declared_fixture.pattern,
+        &nullable_mark_table,
+        declared_fixture.slide_id.clone(),
+        declared_fixture.frame_id.clone(),
+    )
+    .expect("nullable typed vector input");
+    let nullable_result = declared_binary_cell_embedding_centroid_discrepancy(
+        &nullable_input,
+        &missing_table,
+        missing_artifact,
+        4,
+        AVAILABLE_COMPONENT_OPERATIONS,
+        WORKING_BYTES,
+    )
+    .expect("status-aware vector result");
+    assert_eq!(
+        nullable_result.marked_counts().missing_vector_count()
+            + nullable_result.unmarked_counts().missing_vector_count(),
+        1
+    );
 }
 
 #[test]

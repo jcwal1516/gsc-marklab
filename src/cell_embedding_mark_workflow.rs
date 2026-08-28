@@ -81,16 +81,14 @@ impl<'node, 'pattern> DeclaredBinaryCellEmbeddingCentroidNode<'node, 'pattern> {
         .map_err(NodeError::input)?;
 
         let mut semantic_inputs = input.semantic_artifact_ids().to_vec();
-        semantic_inputs.extend([
+        for artifact_id in [
             artifact.embedding_artifact_id(),
             artifact.row_link_artifact_id(),
             artifact.provenance_artifact_id(),
-        ]);
-        let mut distinct = semantic_inputs.clone();
-        distinct.sort_unstable();
-        distinct.dedup();
-        if distinct.len() != semantic_inputs.len() {
-            return Err(NodeError::input(CentroidNodeInputError::SemanticRoleAlias));
+        ] {
+            if !semantic_inputs.contains(&artifact_id) {
+                semantic_inputs.push(artifact_id);
+            }
         }
         for artifact_id in &semantic_inputs {
             if project.artifact_record(*artifact_id).is_none() {
@@ -295,8 +293,6 @@ fn decode_output(
 enum CentroidNodeInputError {
     #[error("required centroid workflow semantic artifact is absent")]
     SemanticArtifactMissing,
-    #[error("centroid workflow semantic artifact roles alias")]
-    SemanticRoleAlias,
     #[error("centroid workflow input binding changed")]
     BindingChanged,
 }

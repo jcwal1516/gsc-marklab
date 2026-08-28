@@ -273,6 +273,47 @@ pub struct ProbabilitySimplexMarkDeclaration {
     provenance_artifact_id: ArtifactId,
 }
 
+/// Declared semantics for one row-bound verified cell-embedding artifact reference.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VectorArtifactRefMarkDeclaration {
+    mark_id: ScalarMarkId,
+    label: String,
+    measurement_status: MeasurementStatus,
+}
+
+impl VectorArtifactRefMarkDeclaration {
+    /// Declare a per-cell vector reference without copying its verified matrix.
+    pub fn new(
+        mark_id: ScalarMarkId,
+        label: impl Into<String>,
+        measurement_status: MeasurementStatus,
+    ) -> Result<Self, DeclaredScalarInputError> {
+        let label = label.into();
+        validate_label(&label)?;
+        validate_per_cell_status(measurement_status)?;
+        Ok(Self {
+            mark_id,
+            label,
+            measurement_status,
+        })
+    }
+
+    /// Stable vector-mark identifier.
+    pub fn mark_id(&self) -> &ScalarMarkId {
+        &self.mark_id
+    }
+
+    /// Human-readable vector-mark label.
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
+    /// How the referenced per-cell vectors were obtained.
+    pub fn measurement_status(&self) -> MeasurementStatus {
+        self.measurement_status
+    }
+}
+
 impl ProbabilitySimplexMarkDeclaration {
     /// Declare an ordered class codebook and exact per-cell prediction provenance.
     pub fn new(

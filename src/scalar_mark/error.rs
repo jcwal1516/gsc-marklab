@@ -76,6 +76,18 @@ pub enum DeclaredScalarInputError {
     /// The current typed table accepts at most one probability-simplex column.
     #[error("declared marked analysis accepts at most one probability-simplex column")]
     ProbabilitySimplexColumnCountMismatch,
+    /// The current typed table accepts at most one cell-embedding artifact reference.
+    #[error("declared marked analysis accepts at most one vector-artifact-reference column")]
+    VectorArtifactRefColumnCountMismatch,
+    /// A vector reference's verified artifact, materialized table, shape, or QC disagree.
+    #[error("vector artifact reference and verified cell-embedding table disagree")]
+    VectorArtifactBindingMismatch,
+    /// A vector reference's ordered CellIds differ from the MarkTable rows.
+    #[error("vector artifact reference CellIds differ from the typed mark table")]
+    VectorArtifactCellIdentityMismatch,
+    /// A non-nullable vector reference contains an unavailable embedding row.
+    #[error("non-nullable vector artifact reference contains unavailable rows")]
+    VectorArtifactMissingnessMismatch,
     /// The current dense compatibility Pattern cannot consume nullable columns.
     #[error("declared marked analysis requires missingness policy not_permitted")]
     UnsupportedMissingnessPolicy,

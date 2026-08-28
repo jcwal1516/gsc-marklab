@@ -431,6 +431,7 @@ pub use scalar_mark::{
     MarkTable, MissingnessPolicy, NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration,
     ProbabilitySimplexMarkDeclaration, ProbabilityThresholdComparator, ScalarMarkColumn,
     ScalarMarkId, ScalarMarkModality, ScalarMarkUnit, ScalarMarkValueKind,
+    VectorArtifactRefMarkDeclaration,
 };
 pub use scalar_variogram::{
     scalar_semivariogram, scalar_semivariogram_permutation, ScalarVariogramBin,

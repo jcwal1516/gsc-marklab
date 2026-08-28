@@ -1,13 +1,15 @@
 use marklab_data::{CellId, CoordinateFrameId, MeasurementStatus, SlideId};
-use marklab_workflow::{ArtifactId, ArtifactRef, MarklabProject};
+use marklab_embeddings::{CellEmbeddingArtifact, CellEmbeddingTable};
+use marklab_workflow::{ArtifactId, ArtifactRef, ContentDigest, MarklabProject};
 
 use crate::data::Pattern;
 
+use super::identity::cell_ids_identity;
 use super::{
     declaration::{
         BinaryMarkDeclaration, BinaryMarkOrigin, HistologicCompartmentMarkDeclaration,
         NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration,
-        ProbabilitySimplexMarkDeclaration,
+        ProbabilitySimplexMarkDeclaration, VectorArtifactRefMarkDeclaration,
     },
     provenance::{
         validate_histologic_compartment_provenance, validate_nucleus_area_um2_provenance,
@@ -50,6 +52,8 @@ pub enum ScalarMarkUnit {
     SquareMicrometer,
     /// Complete dimensionless class-probability vector.
     ProbabilitySimplex,
+    /// Dimensionless high-dimensional morphology vector stored in a verified artifact.
+    EmbeddingVector,
 }
 
 impl ScalarMarkUnit {
@@ -59,6 +63,7 @@ impl ScalarMarkUnit {
             Self::Unitless => "unitless",
             Self::SquareMicrometer => "square_micrometer",
             Self::ProbabilitySimplex => "probability_simplex",
+            Self::EmbeddingVector => "embedding_vector",
         }
     }
 }
@@ -68,7 +73,10 @@ impl ScalarMarkUnit {
 pub enum MissingnessPolicy {
     /// Every row must contain a value.
     NotPermitted,
-    /// Missing values are admissible; the current dense Pattern adapter rejects this policy.
+    /// Missing values are admissible.
+    ///
+    /// The compatibility Pattern adapter rejects this for materialized scalar columns. A vector
+    /// artifact reference may use it because its verified embedding table owns explicit row status.
     Allowed,
 }
 
@@ -81,7 +89,7 @@ impl MissingnessPolicy {
     }
 }
 
-/// One dense typed scalar column aligned to every `MarkTable` row.
+/// One typed scalar value column or row-bound vector artifact aligned to every `MarkTable` row.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScalarMarkColumn {
     values: ScalarMarkColumnValues,
@@ -112,6 +120,12 @@ enum ScalarMarkColumnValues {
         declaration: ProbabilitySimplexMarkDeclaration,
         row_count: usize,
         values: Box<[f32]>,
+    },
+    VectorArtifactRef {
+        declaration: VectorArtifactRefMarkDeclaration,
+        artifact: Box<CellEmbeddingArtifact>,
+        row_count: usize,
+        cell_ids_logical_digest: ContentDigest,
     },
 }
 
@@ -284,6 +298,49 @@ impl ScalarMarkColumn {
         })
     }
 
+    /// Bind one verified cell-embedding artifact to exact ordered MarkTable rows.
+    ///
+    /// The matrix remains owned by the existing embedding table/artifact store; this column retains
+    /// metadata and row identity only.
+    pub fn vector_artifact_ref(
+        declaration: VectorArtifactRefMarkDeclaration,
+        modality: ScalarMarkModality,
+        unit: ScalarMarkUnit,
+        missingness: MissingnessPolicy,
+        table: &CellEmbeddingTable,
+        artifact: CellEmbeddingArtifact,
+    ) -> Result<Self, DeclaredScalarInputError> {
+        if unit != ScalarMarkUnit::EmbeddingVector {
+            return Err(DeclaredScalarInputError::UnitMismatch);
+        }
+        let row_count = table.row_count();
+        let row_count_u64 = u64::try_from(row_count)
+            .map_err(|_| DeclaredScalarInputError::LogicalIdentityOverflow)?;
+        let qc = table.qc_summary();
+        if qc != artifact.qc_summary()
+            || row_count_u64 != artifact.row_count()
+            || table.dimension() != artifact.dimension()
+            || qc.logical_digest() != artifact.logical_digest()
+        {
+            return Err(DeclaredScalarInputError::VectorArtifactBindingMismatch);
+        }
+        if missingness == MissingnessPolicy::NotPermitted && qc.present_count() != qc.row_count() {
+            return Err(DeclaredScalarInputError::VectorArtifactMissingnessMismatch);
+        }
+        let (cell_ids_logical_digest, _) = cell_ids_identity(table.cell_ids())?;
+        Ok(Self {
+            values: ScalarMarkColumnValues::VectorArtifactRef {
+                declaration,
+                artifact: Box::new(artifact),
+                row_count,
+                cell_ids_logical_digest,
+            },
+            modality,
+            unit,
+            missingness,
+        })
+    }
+
     fn mark_id(&self) -> &ScalarMarkId {
         match &self.values {
             ScalarMarkColumnValues::Binary { declaration, .. } => declaration.mark_id(),
@@ -291,6 +348,7 @@ impl ScalarMarkColumn {
             ScalarMarkColumnValues::Continuous { declaration, .. } => declaration.mark_id(),
             ScalarMarkColumnValues::Categorical { declaration, .. } => declaration.mark_id(),
             ScalarMarkColumnValues::ProbabilitySimplex { declaration, .. } => declaration.mark_id(),
+            ScalarMarkColumnValues::VectorArtifactRef { declaration, .. } => declaration.mark_id(),
         }
     }
 
@@ -301,6 +359,7 @@ impl ScalarMarkColumn {
             ScalarMarkColumnValues::Continuous { values, .. } => values.len(),
             ScalarMarkColumnValues::Categorical { values, .. } => values.len(),
             ScalarMarkColumnValues::ProbabilitySimplex { row_count, .. } => *row_count,
+            ScalarMarkColumnValues::VectorArtifactRef { row_count, .. } => *row_count,
         }
     }
 
@@ -309,7 +368,7 @@ impl ScalarMarkColumn {
     }
 }
 
-/// Stable `CellId` rows with row-aligned typed scalar columns.
+/// Stable `CellId` rows with row-aligned typed mark columns.
 pub struct MarkTable {
     cell_ids: Box<[CellId]>,
     columns: Box<[ScalarMarkColumn]>,
@@ -317,7 +376,7 @@ pub struct MarkTable {
 }
 
 impl MarkTable {
-    /// Construct a bounded row-aligned table and validate every retained scalar value.
+    /// Construct a bounded row-aligned table and validate every retained value or artifact binding.
     pub fn new(
         cell_ids: Vec<CellId>,
         columns: Vec<ScalarMarkColumn>,
@@ -358,6 +417,18 @@ impl MarkTable {
                     observed: column.len(),
                 });
             }
+        }
+        let (cell_ids_logical_digest, _) = cell_ids_identity(&cell_ids)?;
+        if columns.iter().any(|column| {
+            matches!(
+                &column.values,
+                ScalarMarkColumnValues::VectorArtifactRef {
+                    cell_ids_logical_digest: observed,
+                    ..
+                } if *observed != cell_ids_logical_digest
+            )
+        }) {
+            return Err(DeclaredScalarInputError::VectorArtifactCellIdentityMismatch);
         }
         let mut mark_ids = columns
             .iter()
@@ -406,6 +477,18 @@ impl MarkTable {
             .count();
         if simplex_count > 1 {
             return Err(DeclaredScalarInputError::ProbabilitySimplexColumnCountMismatch);
+        }
+        let vector_ref_count = columns
+            .iter()
+            .filter(|column| {
+                matches!(
+                    &column.values,
+                    ScalarMarkColumnValues::VectorArtifactRef { .. }
+                )
+            })
+            .count();
+        if vector_ref_count > 1 {
+            return Err(DeclaredScalarInputError::VectorArtifactRefColumnCountMismatch);
         }
         let table = Self {
             cell_ids: cell_ids.into_boxed_slice(),
@@ -490,6 +573,31 @@ impl MarkTable {
         })
     }
 
+    /// Return the compact verified embedding artifact for one exact vector mark.
+    pub fn vector_artifact_ref(&self, mark_id: &ScalarMarkId) -> Option<CellEmbeddingArtifact> {
+        self.columns.iter().find_map(|column| match &column.values {
+            ScalarMarkColumnValues::VectorArtifactRef {
+                declaration,
+                artifact,
+                ..
+            } if declaration.mark_id() == mark_id => Some(**artifact),
+            _ => None,
+        })
+    }
+
+    pub(crate) fn single_vector_artifact_ref(
+        &self,
+    ) -> Option<(&VectorArtifactRefMarkDeclaration, CellEmbeddingArtifact)> {
+        self.columns.iter().find_map(|column| match &column.values {
+            ScalarMarkColumnValues::VectorArtifactRef {
+                declaration,
+                artifact,
+                ..
+            } => Some((declaration, **artifact)),
+            _ => None,
+        })
+    }
+
     /// Column-wide measurement status for one exact typed mark.
     pub fn measurement_status(&self, mark_id: &ScalarMarkId) -> Option<MeasurementStatus> {
         self.columns
@@ -509,6 +617,9 @@ impl MarkTable {
                     declaration.measurement_status()
                 }
                 ScalarMarkColumnValues::ProbabilitySimplex { declaration, .. } => {
+                    declaration.measurement_status()
+                }
+                ScalarMarkColumnValues::VectorArtifactRef { declaration, .. } => {
                     declaration.measurement_status()
                 }
             })
@@ -552,11 +663,13 @@ impl MarkTable {
                 observed: self.cell_ids.len(),
             });
         }
-        if self
-            .columns
-            .iter()
-            .any(|column| column.missingness() != MissingnessPolicy::NotPermitted)
-        {
+        if self.columns.iter().any(|column| {
+            column.missingness() != MissingnessPolicy::NotPermitted
+                && !matches!(
+                    &column.values,
+                    ScalarMarkColumnValues::VectorArtifactRef { .. }
+                )
+        }) {
             return Err(DeclaredScalarInputError::UnsupportedMissingnessPolicy);
         }
         let binary = self.binary_column()?;
@@ -709,6 +822,7 @@ impl MarkTable {
                         declaration,
                     )?
                 }
+                ScalarMarkColumnValues::VectorArtifactRef { .. } => {}
                 ScalarMarkColumnValues::Binary { .. }
                 | ScalarMarkColumnValues::Probability { .. } => {}
             }
@@ -744,6 +858,12 @@ impl MarkTable {
                 ScalarMarkColumnValues::ProbabilitySimplex { declaration, .. } => {
                     ids.push(declaration.provenance_artifact_id())
                 }
+                ScalarMarkColumnValues::VectorArtifactRef { artifact, .. } => ids.extend([
+                    artifact.embedding_artifact_id(),
+                    artifact.expected_cells_artifact_id(),
+                    artifact.row_link_artifact_id(),
+                    artifact.provenance_artifact_id(),
+                ]),
             }
         }
         let mut distinct = ids.clone();

@@ -747,3 +747,15 @@ The bounded NIC-01A specialization is complete. NIC-01 remains active for real p
 stability and downstream reproducible neighborhoods. The next production caller should consume a
 real admitted CellViT lane at prespecified scales or advance another concrete missing mark family;
 it must not introduce niche clustering, a fingerprint registry, or cell-level population inference.
+
+## Checkpoint 86 row-bound vector-artifact continuation
+
+One existing CellViT centroid workflow now consumes a canonical `VectorArtifactRef` MarkTable
+column that points to the verified embedding artifact without copying vectors. Exact ordered CellId,
+shape, QC, missingness, provenance, and physical/logical artifact identities are bound into the
+typed table and its store-aware cache path.
+
+FND-04, FND-05, MRK-02D, and WS-24 remain active. The next vector caller may reuse this exact column
+only when it already consumes the same `CellEmbeddingTable`/`CellEmbeddingArtifact`; do not create a
+generic reference registry or claim independent patch embeddings. Canonical real source-import
+promotion remains distinct from this in-memory typed connection.

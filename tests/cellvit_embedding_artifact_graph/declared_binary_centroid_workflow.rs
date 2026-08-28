@@ -5,10 +5,11 @@ use marklab::{
     verify_cell_embedding_table_arrow_from_store, ArtifactDraft, ArtifactId, BinaryMarkDeclaration,
     CacheStatus, DeclaredBinaryCellEmbeddingCentroidDiscrepancy,
     DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus, DeclaredBinaryCellEmbeddingCentroidNode,
-    DeclaredScalarPatternInput, LocalArtifactStore, LocalScheduler, MarklabProject,
-    MeasurementStatus, NodeError, NodeId, NodeRun, Pattern, PatternMeta,
-    ProbabilityMarkDeclaration, ProbabilityThresholdComparator, ProjectError, ScalarMarkId,
-    SchedulerLimits, WorkflowError, WorkflowGraph, WorkflowNode,
+    DeclaredScalarPatternInput, LocalArtifactStore, LocalScheduler, MarkTable, MarklabProject,
+    MeasurementStatus, MissingnessPolicy, NodeError, NodeId, NodeRun, Pattern, PatternMeta,
+    ProbabilityMarkDeclaration, ProbabilityThresholdComparator, ProjectError, ScalarMarkColumn,
+    ScalarMarkId, ScalarMarkModality, ScalarMarkUnit, SchedulerLimits,
+    VectorArtifactRefMarkDeclaration, WorkflowError, WorkflowGraph, WorkflowNode,
 };
 
 use super::*;
@@ -400,14 +401,44 @@ fn assert_decode_rejected(node: &DeclaredBinaryCellEmbeddingCentroidNode<'_, '_>
 #[test]
 fn declared_binary_centroid_workflow_miss_hit_matches_direct_and_exact_codec() {
     let mut fixture = workflow_fixture(available_rows(), vec![0, 1, 1, 0], CODEC_BYTES);
-    let input = declared_input(
+    let mark_table = MarkTable::new(
+        fixture.cell_ids.clone(),
+        vec![
+            ScalarMarkColumn::binary(
+                fixture.binary.clone(),
+                ScalarMarkModality::Immunohistochemistry,
+                ScalarMarkUnit::Unitless,
+                MissingnessPolicy::NotPermitted,
+                fixture.pattern.mark.clone(),
+            )
+            .expect("binary column"),
+            ScalarMarkColumn::vector_artifact_ref(
+                VectorArtifactRefMarkDeclaration::new(
+                    ScalarMarkId::new("cellvit_embedding").expect("vector mark ID"),
+                    "CellViT embedding",
+                    MeasurementStatus::MorphologyPrediction,
+                )
+                .expect("vector declaration"),
+                ScalarMarkModality::Morphology,
+                ScalarMarkUnit::EmbeddingVector,
+                MissingnessPolicy::NotPermitted,
+                &fixture.table,
+                fixture.artifact,
+            )
+            .expect("vector artifact reference"),
+        ],
+        fixture.cell_ids.len(),
+        fixture.cell_ids.iter().map(|id| id.as_str().len()).sum(),
+    )
+    .expect("typed vector MarkTable");
+    let input = DeclaredScalarPatternInput::from_mark_table(
         &fixture.project,
         &fixture.pattern,
-        &fixture.cell_ids,
+        &mark_table,
         fixture.slide_id.clone(),
         fixture.frame_id.clone(),
-        fixture.binary.clone(),
-    );
+    )
+    .expect("declared typed vector input");
     let direct = declared_binary_cell_embedding_centroid_discrepancy(
         &input,
         &fixture.table,

@@ -2180,3 +2180,26 @@ vascular transport.
   --doc`, affected-file Rustfmt, and diff whitespace checks pass. Workspace-wide gates were not
   repeated after checkpoint 82; no full integration/Nextest loop, feature matrix, benchmark, fuzz,
   memory tool, packaging, dependency audit, push, publication, deployment, or history rewrite ran.
+
+## Row-bound CellViT vector-artifact checkpoint 86 — 2026-08-28
+
+- `cargo +1.96.0 test --locked --package marklab --test cellvit_embedding_artifact_graph
+  verified_cellvit_artifact_is_a_row_bound_typed_vector_mark_for_the_centroid_caller -- --exact`
+  first failed on the absent vector declaration/unit/column/accessor. The focused typed test then
+  passed after implementing the no-copy row-bound artifact reference.
+- The first typed workflow run failed with `Input { source: SemanticRoleAlias }` because the new
+  MarkTable and the existing centroid boundary correctly named the same embedding roles. After the
+  caller verified artifact agreement and formed one exact semantic-input union, the focused
+  workflow test passes with a store miss, identical hit, one successful execution, and the unchanged
+  exact private codec.
+- `cargo +1.96.0 test --locked --package marklab --test cellvit_embedding_artifact_graph
+  declared_binary_centroid` passes 14/14. It covers the new typed/no-copy path, artifact/table/QC/
+  CellId mismatch, nullable and non-nullable status policies, caller-reference mismatch, semantic
+  store verification, cache identity, exact limits, availability states, and codec rejection.
+  The separate affected MarkTable/simplex/neighborhood command passes 17/17.
+- Targeted warning-denied Clippy over the four affected integrations passes after boxing the compact
+  artifact metadata inside the existing column enum. `cargo +1.96.0 check --locked --package
+  marklab --no-default-features`, package doctests, affected-file Rustfmt, and diff whitespace checks
+  pass. Workspace-wide gates were not repeated; no full integration/Nextest loop, feature matrix,
+  benchmark, fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or
+  history rewrite ran.

@@ -64,6 +64,16 @@ fn write_column(
             declaration.measurement_status(),
             declaration.provenance_artifact_id(),
         ),
+        ScalarMarkColumnValues::VectorArtifactRef {
+            declaration,
+            artifact,
+            ..
+        } => (
+            "vector_artifact_ref",
+            declaration.label(),
+            declaration.measurement_status(),
+            artifact.provenance_artifact_id(),
+        ),
     };
     write_part(writer, kind.as_bytes())?;
     write_part(writer, column.mark_id().as_str().as_bytes())?;
@@ -113,6 +123,39 @@ fn write_column(
             }
             for value in values {
                 write_part(writer, &value.to_bits().to_be_bytes())?;
+            }
+        }
+        ScalarMarkColumnValues::VectorArtifactRef {
+            artifact,
+            row_count,
+            cell_ids_logical_digest,
+            ..
+        } => {
+            write_part(writer, &(*row_count as u128).to_be_bytes())?;
+            write_part(writer, &(artifact.dimension() as u128).to_be_bytes())?;
+            write_part(writer, b"f32")?;
+            write_part(writer, artifact.embedding_artifact_id().digest().as_bytes())?;
+            write_part(
+                writer,
+                artifact.expected_cells_artifact_id().digest().as_bytes(),
+            )?;
+            write_part(writer, artifact.row_link_artifact_id().digest().as_bytes())?;
+            write_part(
+                writer,
+                artifact.provenance_artifact_id().digest().as_bytes(),
+            )?;
+            write_part(writer, artifact.logical_digest().as_bytes())?;
+            write_part(writer, cell_ids_logical_digest.as_bytes())?;
+            let qc = artifact.qc_summary();
+            for count in [
+                qc.row_count(),
+                qc.present_count(),
+                qc.missing_vector_count(),
+                qc.extraction_failed_count(),
+                qc.qc_rejected_count(),
+                qc.all_zero_present_count(),
+            ] {
+                write_part(writer, &(count as u128).to_be_bytes())?;
             }
         }
     }

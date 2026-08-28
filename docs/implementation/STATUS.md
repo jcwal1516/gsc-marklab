@@ -1566,3 +1566,23 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - This completes one bounded prespecified NIC-01A multiscale specialization. Real patient/ROI
   stability, scale transport, niche discovery, population inference, and result-format changes are
   not claimed. NIC-01 remains active.
+
+## Row-bound CellViT vector-artifact checkpoint 86 — 2026-08-28
+
+- Added the first concrete `VectorArtifactRef` MarkTable column over the existing verified
+  `CellEmbeddingArtifact`. Construction uses the materialized table only to prove exact QC, shape,
+  logical-table, and ordered CellId agreement, then retains metadata and a row-identity digest; the
+  matrix, row link, provenance graph, artifact store, and Arrow/Parquet codecs remain single-owned.
+- The column binds stable mark ID/label, morphology-prediction status, modality, embedding-vector
+  unit, missingness, embedding/expected-cell/row-link/provenance artifact identities, dimension,
+  dtype, QC counts, and logical digest into MarkTable identity. `NotPermitted` rejects any unavailable
+  row; `Allowed` preserves missing-vector, extraction-failed, and QC-rejected states in the verified
+  table without exposing filler components.
+- The existing declared binary CellViT centroid statistic is the immediate production caller. It
+  rejects a typed vector reference that differs from the separately supplied verified artifact.
+  Its store-aware node now forms one exact semantic-input union when the typed table and existing
+  explicit embedding boundary name the same verified artifacts; the typed path returns a miss then
+  an identical hit without a second execution.
+- This is one bounded FND-04/FND-05/MRK-02D specialization. Other vector statistics, canonical real
+  source-import promotion, independent genuine patch tensors, broader vector interchange, and
+  result-format changes remain active or unavailable as previously recorded.

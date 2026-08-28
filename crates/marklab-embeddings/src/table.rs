@@ -503,6 +503,11 @@ impl CellEmbeddingTable {
         self.cells.len()
     }
 
+    /// Ordered canonical CellIds bound to the row-major matrix.
+    pub fn cell_ids(&self) -> &[CellId] {
+        &self.cells
+    }
+
     /// Fixed vector dimension.
     pub fn dimension(&self) -> u32 {
         self.dimension

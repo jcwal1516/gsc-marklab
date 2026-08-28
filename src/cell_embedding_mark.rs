@@ -176,6 +176,9 @@ pub enum DeclaredBinaryCellEmbeddingCentroidDiscrepancyError {
     /// The materialized table does not match the verified embedding artifact.
     #[error("declared binary cell-embedding table and verified artifact disagree")]
     EmbeddingArtifactBindingMismatch,
+    /// A typed vector-artifact mark references a different verified embedding artifact.
+    #[error("declared vector mark and supplied verified embedding artifact disagree")]
+    VectorArtifactReferenceMismatch,
     /// Declared and embedding CellIds disagree at one row.
     #[error("declared binary and cell-embedding identities disagree at row {row}")]
     CellIdBindingMismatch {
@@ -320,6 +323,15 @@ pub(crate) fn bind_declared_binary_cell_embedding_centroid(
     if embedding_qc_summary != artifact.qc_summary() {
         return Err(
             DeclaredBinaryCellEmbeddingCentroidDiscrepancyError::EmbeddingArtifactBindingMismatch,
+        );
+    }
+    if input
+        .mark_table()
+        .and_then(|mark_table| mark_table.single_vector_artifact_ref())
+        .is_some_and(|(_, declared_artifact)| declared_artifact != artifact)
+    {
+        return Err(
+            DeclaredBinaryCellEmbeddingCentroidDiscrepancyError::VectorArtifactReferenceMismatch,
         );
     }
 

@@ -9,6 +9,7 @@ pub use declaration::{
     BinaryMarkDeclaration, BinaryMarkOrigin, DeclaredMarkUse, HistologicCompartmentMarkDeclaration,
     NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration, ProbabilitySimplexMarkDeclaration,
     ProbabilityThresholdComparator, ScalarMarkId, ScalarMarkValueKind,
+    VectorArtifactRefMarkDeclaration,
 };
 pub use error::DeclaredScalarInputError;
 pub use identity::DeclaredScalarIdentity;
