@@ -114,6 +114,8 @@ pub enum InferenceMultiplicity {
     SingleEndpoint,
     /// One prespecified complete endpoint family controlled by a maximum statistic.
     CompleteEndpointFamilyMaxT,
+    /// Prespecified ordered families opened serially, each controlled by local Max-T.
+    OrderedFamilyGatekeepingMaxT,
 }
 
 /// Complete exact blocked-permutation schedule shared by current production methods.
@@ -134,6 +136,11 @@ pub struct InferenceDesign {
 impl InferenceDesign {
     pub(crate) fn declare_complete_endpoint_family_max_t(mut self) -> Self {
         self.multiplicity = InferenceMultiplicity::CompleteEndpointFamilyMaxT;
+        self
+    }
+
+    pub(crate) fn declare_ordered_family_gatekeeping_max_t(mut self) -> Self {
+        self.multiplicity = InferenceMultiplicity::OrderedFamilyGatekeepingMaxT;
         self
     }
 

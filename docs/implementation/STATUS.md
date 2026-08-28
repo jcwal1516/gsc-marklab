@@ -1931,3 +1931,24 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   package docs, affected formatting, and whitespace checks pass. Real effect validation remains
   unavailable because no admitted user-authorized CRC dataset declares randomized treatment groups
   at the cluster assignment unit.
+
+## Ordered endpoint-family gatekeeping checkpoint 112 — 2026-08-28
+
+- Added `marklab cohort hierarchical-max-t` and `hierarchical_gatekeeping_max_t` for two or more
+  prespecified ordered endpoint families. One deterministic whole-patient label schedule feeds each
+  local complete-family single-step or step-down Max-T test; the first family is open, and its
+  successor opens only when every endpoint in the current family is rejected at the declared
+  family-wise alpha.
+- Exact family order/names/members, patient/group counts, shared population-independence null,
+  patient-label unit, local correction/critical values/p-values, gated decisions, opening rule,
+  seed, alpha, and replicate counts are explicit. Families must exactly partition every patient's
+  complete endpoint vector under a 100-million patient-by-endpoint-by-permutation ceiling. Closed
+  families retain local diagnostics but cannot report rejected endpoints.
+- Independent slow label-shuffle oracles match every local critical value, single-step and
+  step-down adjusted p-value, opened-family count, and gated decision. A primary non-rejection
+  closes the secondary family even when its local diagnostic is small; overlap, incomplete
+  partitions, and fewer than two families fail. New references pass 2/2 and CLI 1/1; legacy Max-T
+  references pass 5/5 and CLIs 4/4. Affected warning-denied package and root-binary Clippy,
+  no-default compilation, strict docs, formatting, and whitespace checks pass. Real CRC execution
+  remains unavailable because no admitted artifact contains a prospectively prespecified ordered
+  endpoint-family hierarchy; no hierarchy was selected after viewing outcomes.

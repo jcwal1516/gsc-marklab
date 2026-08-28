@@ -44,6 +44,8 @@ mod fingerprint;
 mod functional_equivalence;
 #[path = "cohort/hierarchical_bootstrap.rs"]
 mod hierarchical_bootstrap;
+#[path = "cohort/hierarchical_max_t.rs"]
+mod hierarchical_max_t;
 #[path = "cohort/multisite.rs"]
 mod multisite;
 #[path = "cohort/noninferiority.rs"]
@@ -281,6 +283,25 @@ enum CohortCommand {
         #[arg(long)]
         alpha: f64,
         /// Apply step-down rather than single-step Max-T adjustment.
+        #[arg(long)]
+        step_down: bool,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    HierarchicalMaxT {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        group_a: String,
+        #[arg(long)]
+        group_b: String,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        /// Apply step-down rather than single-step Max-T within each opened family.
         #[arg(long)]
         step_down: bool,
         #[arg(long)]
@@ -669,6 +690,28 @@ pub(super) fn run_cli() -> Result<(), CohortError> {
             };
             publish_json(&out, &MaxTOutput::from_result(input, result, blocked))
         }
+        CohortTopLevel::Cohort {
+            command:
+                CohortCommand::HierarchicalMaxT {
+                    input,
+                    group_a,
+                    group_b,
+                    permutations,
+                    seed,
+                    alpha,
+                    step_down,
+                    out,
+                },
+        } => hierarchical_max_t::run(hierarchical_max_t::RunArgs {
+            input,
+            group_a,
+            group_b,
+            permutations,
+            seed,
+            alpha,
+            step_down,
+            out,
+        }),
         CohortTopLevel::Cohort {
             command:
                 CohortCommand::Mmd {

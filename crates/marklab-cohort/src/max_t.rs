@@ -7,6 +7,7 @@ use super::{
 };
 
 const MAX_T_NAMESPACE: u64 = 0x6d61_785f_745f_7065;
+const HIERARCHICAL_MAX_T_NAMESPACE: u64 = 0x6869_6572_6d61_7874;
 const MAXIMUM_MAX_T_EVALUATIONS: usize = 100_000_000;
 
 /// One complete prespecified endpoint vector for one independent patient.
@@ -94,6 +95,181 @@ pub struct MaxTPermutationResult {
     pub permutations_completed: usize,
     /// Base seed.
     pub seed: u64,
+}
+
+/// One prespecified ordered endpoint family in a serial gatekeeping procedure.
+#[derive(Clone, Debug)]
+pub struct OrderedEndpointFamily {
+    /// Exact unique family name.
+    pub family: String,
+    /// Nonempty exact endpoints belonging only to this family.
+    pub endpoints: Vec<String>,
+}
+
+/// One endpoint's local Max-T result and gated rejection decision.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HierarchicalMaxTEndpointResult {
+    /// Exact endpoint name.
+    pub endpoint: String,
+    /// Signed group-A-minus-group-B mean effect.
+    pub effect_group_a_minus_group_b: f64,
+    /// Welch-style observed statistic.
+    pub studentized_statistic: f64,
+    /// Max-T adjusted p-value within this endpoint's opened local family.
+    pub local_adjusted_p_value: f64,
+    /// Whether the family was open and this endpoint passed the family-wise alpha.
+    pub rejected: bool,
+}
+
+/// One ordered local family and its serial gatekeeping state.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HierarchicalMaxTFamilyResult {
+    /// Zero-based prespecified family position.
+    pub order: usize,
+    /// Exact family name.
+    pub family: String,
+    /// Whether every preceding family rejected every one of its endpoints.
+    pub opened: bool,
+    /// Whether this opened family rejected every endpoint and therefore opened its successor.
+    pub all_endpoints_rejected: bool,
+    /// Local complete-family Max-T critical value.
+    pub critical_value: f64,
+    /// Ordered endpoint results.
+    pub endpoints: Vec<HierarchicalMaxTEndpointResult>,
+}
+
+/// Serial gatekeeping result over prespecified ordered endpoint families.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HierarchicalMaxTResult {
+    /// Shared whole-patient label-permutation design.
+    pub inference_design: InferenceDesign,
+    /// Local Max-T correction used identically within every family.
+    pub correction: MaxTCorrection,
+    /// Group A patient count.
+    pub group_a_count: usize,
+    /// Group B patient count.
+    pub group_b_count: usize,
+    /// Ordered family results, including closed-family local diagnostics.
+    pub families: Vec<HierarchicalMaxTFamilyResult>,
+    /// Number of serially opened families.
+    pub opened_family_count: usize,
+    /// Family-wise alpha used at every opened local family.
+    pub alpha: f64,
+    /// Requested replicate count.
+    pub permutations_requested: usize,
+    /// Attempted replicate count.
+    pub permutations_attempted: usize,
+    /// Completed replicate count.
+    pub permutations_completed: usize,
+    /// Base deterministic seed.
+    pub seed: u64,
+}
+
+/// Apply strong-FWER serial gatekeeping to prespecified complete endpoint families.
+pub fn hierarchical_gatekeeping_max_t(
+    patients: &[PatientEndpointVector],
+    families: &[OrderedEndpointFamily],
+    spec: &MaxTPermutationSpec,
+    correction: MaxTCorrection,
+) -> Result<HierarchicalMaxTResult, CohortInferenceError> {
+    validate_max_t_inputs(patients, spec)?;
+    validate_ordered_families(&patients[0].endpoints, families)?;
+    let design = InferenceDesign::population_independence_with_alternative(
+        patients.len(),
+        spec.permutations,
+        spec.seed,
+        HIERARCHICAL_MAX_T_NAMESPACE,
+        InferenceAlternative::TwoSided,
+    )
+    .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?
+    .declare_ordered_family_gatekeeping_max_t();
+    let mut offset = 0usize;
+    let mut opened = true;
+    let mut results = Vec::with_capacity(families.len());
+    for (order, family) in families.iter().enumerate() {
+        let end = offset + family.endpoints.len();
+        let local_patients = patients
+            .iter()
+            .map(|patient| PatientEndpointVector {
+                patient_id: patient.patient_id.clone(),
+                group: patient.group.clone(),
+                endpoints: patient.endpoints[offset..end].to_vec(),
+                values: patient.values[offset..end].to_vec(),
+            })
+            .collect::<Vec<_>>();
+        let local = execute_max_t(&local_patients, spec, design.clone(), correction)?;
+        let endpoints = local
+            .endpoints
+            .into_iter()
+            .map(|endpoint| HierarchicalMaxTEndpointResult {
+                rejected: opened && endpoint.adjusted_p_value <= spec.alpha,
+                endpoint: endpoint.endpoint,
+                effect_group_a_minus_group_b: endpoint.effect_group_a_minus_group_b,
+                studentized_statistic: endpoint.studentized_statistic,
+                local_adjusted_p_value: endpoint.adjusted_p_value,
+            })
+            .collect::<Vec<_>>();
+        let all_endpoints_rejected = opened && endpoints.iter().all(|endpoint| endpoint.rejected);
+        results.push(HierarchicalMaxTFamilyResult {
+            order,
+            family: family.family.clone(),
+            opened,
+            all_endpoints_rejected,
+            critical_value: local.critical_value,
+            endpoints,
+        });
+        opened = all_endpoints_rejected;
+        offset = end;
+    }
+    let opened_family_count = results.iter().filter(|family| family.opened).count();
+    let group_a_count = patients
+        .iter()
+        .filter(|patient| patient.group == spec.group_a)
+        .count();
+    Ok(HierarchicalMaxTResult {
+        inference_design: design,
+        correction,
+        group_a_count,
+        group_b_count: patients.len() - group_a_count,
+        families: results,
+        opened_family_count,
+        alpha: spec.alpha,
+        permutations_requested: spec.permutations,
+        permutations_attempted: spec.permutations,
+        permutations_completed: spec.permutations,
+        seed: spec.seed,
+    })
+}
+
+fn validate_ordered_families(
+    endpoints: &[String],
+    families: &[OrderedEndpointFamily],
+) -> Result<(), CohortInferenceError> {
+    if families.len() < 2 {
+        return Err(CohortInferenceError::InvalidInput(
+            "hierarchical Max-T requires at least two ordered endpoint families".into(),
+        ));
+    }
+    let mut names = HashSet::with_capacity(families.len());
+    let mut flattened = Vec::with_capacity(endpoints.len());
+    for family in families {
+        if family.family.is_empty()
+            || family.family.trim() != family.family
+            || !names.insert(family.family.as_str())
+            || family.endpoints.is_empty()
+        {
+            return Err(CohortInferenceError::InvalidInput(
+                "ordered endpoint families require exact unique names and nonempty members".into(),
+            ));
+        }
+        flattened.extend(family.endpoints.iter().cloned());
+    }
+    if flattened != endpoints {
+        return Err(CohortInferenceError::InvalidInput(
+            "ordered endpoint families must exactly partition the complete endpoint vector".into(),
+        ));
+    }
+    Ok(())
 }
 
 /// Jointly test a complete scalar endpoint family using whole-patient Max-T permutations.

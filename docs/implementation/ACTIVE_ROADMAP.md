@@ -983,3 +983,12 @@ fixed reduced/full OLS design permutes complete cluster residuals. COH-01/FND-06
 adjusted whole-cluster executable; they remain active for hierarchical/local multiplicity,
 calibration, and real validation. The next dependency-ordered production outcome is one concrete
 hierarchical endpoint-family multiplicity workflow, not a generic testing registry.
+
+## Checkpoint 112 ordered endpoint-family gatekeeping continuation
+
+Prespecified endpoint families now receive local single-step or step-down Max-T control under one
+whole-patient label schedule, and a family opens only after every endpoint in its predecessor is
+rejected. INF-01C no longer lacks a concrete hierarchical/local multiplicity executable; broader
+graphical/recycling policies and explicit calibration remain. The next dependency-ordered outcome
+is a multiclass CellViT geometry/mark workflow using the existing typed partition and MarkTable
+owners, not another inference abstraction.

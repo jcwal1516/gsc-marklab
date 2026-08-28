@@ -80,10 +80,11 @@ pub use hierarchical_bootstrap::{
     HierarchicalBootstrapSpec, HierarchicalScalarRecord,
 };
 pub use max_t::{
-    max_t_multiple_endpoint_blocked_permutation,
+    hierarchical_gatekeeping_max_t, max_t_multiple_endpoint_blocked_permutation,
     max_t_multiple_endpoint_blocked_step_down_permutation, max_t_multiple_endpoint_permutation,
-    max_t_multiple_endpoint_step_down_permutation, MaxTCorrection, MaxTEndpointResult,
-    MaxTPermutationResult, MaxTPermutationSpec, PatientEndpointVector,
+    max_t_multiple_endpoint_step_down_permutation, HierarchicalMaxTEndpointResult,
+    HierarchicalMaxTFamilyResult, HierarchicalMaxTResult, MaxTCorrection, MaxTEndpointResult,
+    MaxTPermutationResult, MaxTPermutationSpec, OrderedEndpointFamily, PatientEndpointVector,
 };
 pub use mmd::{
     patient_level_blocked_mmd, patient_level_mmd, BlockedMmdPermutationResult, Fingerprint,

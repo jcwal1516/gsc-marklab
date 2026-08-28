@@ -2403,6 +2403,30 @@ vascular transport.
   feature matrices, benchmarks, fuzzing, memory tools, packaging, dependency audits, push,
   publication, deployment, and history rewriting were not run.
 
+## Ordered endpoint-family gatekeeping checkpoint 112 — 2026-08-28
+
+- `cargo +1.96.0 test --locked --features cli --test cohort_hierarchical_max_t_cli
+  hierarchical_max_t_cli_opens_only_ordered_complete_families` first failed with the expected
+  unrecognized `hierarchical-max-t` subcommand, then passed 1/1 with two opened families and the
+  exact typed design.
+- `cargo +1.96.0 test --locked --package marklab-cohort --test hierarchical_max_t_reference`
+  passes 2/2. Its first compile attempt exposed a test-only helper shadowed by a local fixture;
+  renaming that fixture made the unchanged production code pass. Independent whole-patient shuffle
+  oracles match single-step and step-down local critical values, adjusted p-values, opened-family
+  counts, and gated decisions. Primary-family failure closes descendants; overlapping/incomplete
+  partitions and one-family input fail.
+- The affected reference command over `hierarchical_max_t_reference`, `max_t_reference`, and
+  `paired_max_t_reference` passes 7/7. The affected CLI command over
+  `cohort_hierarchical_max_t_cli`, `cohort_max_t_cli`, and `cohort_paired_max_t_cli` passes 5/5.
+- Warning-denied all-target/all-feature `marklab-cohort` Clippy passes in 59.82s; warning-denied
+  `marklab` CLI-binary Clippy passes in 2m58s. Package no-default compilation passes in 32.32s,
+  strict warning-denied package docs pass in 11.03s, and affected-file Rustfmt plus `git diff
+  --check` pass.
+- No admitted CRC artifact contains a prospectively fixed ordered endpoint-family hierarchy, so no
+  post-outcome hierarchy or real rejection claim is fabricated. Workspace integration/Nextest,
+  workspace-wide gates, feature matrices, benchmarks, fuzzing, memory tools, packaging, dependency
+  audits, push, publication, deployment, and history rewriting were not run.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test
