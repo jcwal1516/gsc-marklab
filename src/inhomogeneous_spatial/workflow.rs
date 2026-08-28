@@ -12,9 +12,7 @@ use crate::{
 
 use super::{
     analyze_inhomogeneous_spatial_pattern,
-    codec::{
-        decode_exact_float_json, encode_exact_float_json, invalid, validate_intensity_summary,
-    },
+    codec::{invalid, validate_intensity_summary},
     configuration_digest, InhomogeneousSpatialConfig, InhomogeneousSpatialLimits,
     InhomogeneousSpatialResult,
 };
@@ -111,11 +109,11 @@ impl WorkflowNode for InhomogeneousSpatialAnalysisNode<'_> {
 
     fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
         validate(output, self.pattern, self.window, self.config).map_err(NodeError::encoding)?;
-        encode_exact_float_json(output).map_err(NodeError::encoding)
+        crate::exact_float_json::encode(output).map_err(NodeError::encoding)
     }
 
     fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
-        let output = decode_exact_float_json(bytes).map_err(NodeError::decode)?;
+        let output = crate::exact_float_json::decode(bytes).map_err(NodeError::decode)?;
         validate(&output, self.pattern, self.window, self.config).map_err(NodeError::decode)?;
         Ok(output)
     }

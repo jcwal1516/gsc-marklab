@@ -783,3 +783,24 @@ MRK-02D's bounded admission prerequisite is complete. FND-05 and WS-24 remain ac
 in-memory admission does not itself promote the real source importer or provide independent genuine
 patch-vector tensors. The next embedding outcome must use an admitted real source path or an existing
 patch-vector artifact; do not duplicate cell vectors as patch evidence.
+
+## Checkpoint 89 durable ordinal-mark continuation
+
+One measured-IHC ordinal column now flows through exact MarkTable provenance into counts,
+proportions, CDF, empirical median interval, and entropy summaries, then through store-aware durable
+miss/hit replay. No result treats ordered category codes as equally spaced numbers.
+
+FND-04 remains active for broader categorical/interchange and real measurement evidence. IHC-01
+remains data-dependent: the synthetic contract does not supply provenance-complete continuous or
+ordinal IHC with batch, threshold, registration, and uncertainty metadata. The next mark caller must
+use an admitted real lane or another named missing family, not a generic mark registry.
+
+## Checkpoint 90 typed-mark and inference stabilization continuation
+
+The checkpoint-83–89 family passes workspace formatting, warning-denied all-feature/all-target
+Clippy, no-default compilation, all-feature doctests, and strict docs. The prohibited macOS full
+integration/Nextest loader loop was not retried.
+
+Production work resumes from the remaining concrete FND-04/FND-05/FND-06 callers and real-data gaps.
+Broad gates should not be repeated until another three to five cohesive workflows, a phase exit, or
+an explicit request.

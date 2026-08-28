@@ -2222,3 +2222,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for FND-06/CMP-01B/COH-01/WS-31/WS-34
 - Decision: extend the existing `marklab-cohort::InferenceDesign` only with the population-independence null now shared by the patient-level MMD and energy-distance callers. One whole patient group label is the atomic unit, the common unblocked patient set is the exact exchangeability block, the alternative remains one-sided high, and each method retains its existing private seed namespace. The shared schedule must reproduce the current Fisher–Yates label stream bit-for-bit so observed statistics, null replicates, p-values, seeds, work bounds, and public result formats do not change.
 - Consequences: the two fingerprint distribution tests stop owning duplicate permutation mechanics while preserving deterministic evidence already sealed in the CRC bundle. This does not add stratified MMD/energy, pairing, repeated/multisite exchangeability, a universal null registry, new multiplicity policy, or a result/schema change.
+
+## DEC-0280 — Preserve ordinal IHC levels without interval arithmetic
+
+- Date: 2026-08-28
+- Status: accepted for FND-04/IHC-01/WF-01/WS-12/WS-23
+- Decision: add one dense non-nullable ordinal MarkTable specialization with an ordered unique level codebook, measured IHC status/provenance, and exact zero-based row codes. Its immediate bounded composition caller reports counts, proportions, cumulative proportions, lower/upper empirical median levels, Shannon entropy, normalized entropy, and effective level count. It must not report a mean, variance, distance, or linear contrast of ordinal codes. Bind exact levels/rows/provenance/limits into the existing durable project path.
+- Consequences: FND-04 gains a scientifically valid ordinal data flow without pretending unequal category spacing is quantitative. This does not add threshold inference, proportional-odds modeling, missing/partial ordering, general categorical interchange, real IHC evidence, or a generic mark registry.

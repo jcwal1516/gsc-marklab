@@ -2236,3 +2236,37 @@ vascular transport.
   doctests, affected-file Rustfmt, and diff whitespace checks pass. Workspace-wide/Nextest loops,
   broad feature matrices, benchmarks, fuzzing, memory tools, packaging, dependency audits, push,
   publication, deployment, and history rewriting were not run.
+
+## Durable ordinal IHC composition checkpoint 89 — 2026-08-28
+
+- The focused ordinal integration first failed on unresolved production symbols. Its durable test
+  then failed because ordinary JSON decimal replay changed entropy from
+  `1.0397207708399179` to `1.039720770839918`. After moving the already proven bit-tag finite-f64
+  codec into one crate-private owner, the final ordinal integration passes 2/2 with exact miss/hit/
+  limit invalidation.
+- `python3 tests/fixtures/ordinal_composition/generate_python_oracle.py | diff -u
+  tests/fixtures/ordinal_composition/python_oracle.json -` passes byte-for-byte. The independent
+  standard-library oracle agrees on every count/proportion/CDF, both median levels, entropy,
+  normalized entropy, and effective level count.
+- The affected five-integration command passes 18/18: ordinal 2, scalar MarkTable 11,
+  probability-simplex composition 3, and both legacy inhomogeneous exact-codec durable workflows.
+  Targeted warning-denied Clippy, package no-default compilation, package doctests, affected-file
+  Rustfmt, and diff whitespace checks pass.
+
+## Typed-mark and inference stabilization checkpoint 90 — 2026-08-28
+
+- `cargo +1.96.0 fmt --all --check` passes. `cargo +1.96.0 clippy --locked --workspace
+  --all-targets --all-features -- -D warnings` first passed in `25m08s`; after final retained-byte
+  accounting changed production, the required final-state rerun passes in `21m01s` with no
+  diagnostics.
+- The final-state `cargo +1.96.0 check --locked --workspace --no-default-features` passes in `8.93s`.
+  `cargo +1.96.0 test --locked --workspace --doc --all-features` passes for every workspace package
+  with zero doctest failures after an `11.53s` final-state compile.
+- The first strict-doc run found one existing `[0,1]` comment parsed as a broken intra-doc link.
+  After formatting the range as code, `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked
+  --workspace --all-features --no-deps` passes on the final state in `12.26s`. `git diff --check`
+  passes.
+- The full workspace integration/Nextest loop was not run because checkpoints 51/52 and the active
+  instruction document and forbid retrying the macOS binary-verification stall. No phase-only
+  feature matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push, publication,
+  deployment, or history rewrite was run.

@@ -8,7 +8,7 @@ use super::identity::cell_ids_identity;
 use super::{
     declaration::{
         BinaryMarkDeclaration, BinaryMarkOrigin, HistologicCompartmentMarkDeclaration,
-        NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration,
+        NucleusAreaUm2MarkDeclaration, OrdinalMarkDeclaration, ProbabilityMarkDeclaration,
         ProbabilitySimplexMarkDeclaration, VectorArtifactRefMarkDeclaration,
     },
     provenance::{
@@ -52,6 +52,8 @@ pub enum ScalarMarkUnit {
     SquareMicrometer,
     /// Complete dimensionless class-probability vector.
     ProbabilitySimplex,
+    /// Ordered categorical code with no interval-scale interpretation.
+    Ordinal,
     /// Dimensionless high-dimensional morphology vector stored in a verified artifact.
     EmbeddingVector,
 }
@@ -63,6 +65,7 @@ impl ScalarMarkUnit {
             Self::Unitless => "unitless",
             Self::SquareMicrometer => "square_micrometer",
             Self::ProbabilitySimplex => "probability_simplex",
+            Self::Ordinal => "ordinal",
             Self::EmbeddingVector => "embedding_vector",
         }
     }
@@ -120,6 +123,10 @@ enum ScalarMarkColumnValues {
         declaration: ProbabilitySimplexMarkDeclaration,
         row_count: usize,
         values: Box<[f32]>,
+    },
+    Ordinal {
+        declaration: OrdinalMarkDeclaration,
+        values: Box<[u32]>,
     },
     VectorArtifactRef {
         declaration: VectorArtifactRefMarkDeclaration,
@@ -298,6 +305,44 @@ impl ScalarMarkColumn {
         })
     }
 
+    /// Construct one complete measured-IHC ordinal column without interval arithmetic.
+    pub fn ordinal(
+        declaration: OrdinalMarkDeclaration,
+        modality: ScalarMarkModality,
+        unit: ScalarMarkUnit,
+        missingness: MissingnessPolicy,
+        values: impl Into<Box<[u32]>>,
+    ) -> Result<Self, DeclaredScalarInputError> {
+        if unit != ScalarMarkUnit::Ordinal {
+            return Err(DeclaredScalarInputError::UnitMismatch);
+        }
+        if modality != ScalarMarkModality::Immunohistochemistry {
+            return Err(DeclaredScalarInputError::OrdinalModalityMismatch);
+        }
+        let values = values.into();
+        if let Some((row, code)) = values
+            .iter()
+            .copied()
+            .enumerate()
+            .find(|(_, code)| *code as usize >= declaration.levels().len())
+        {
+            return Err(DeclaredScalarInputError::InvalidOrdinalValue {
+                row,
+                code,
+                level_count: declaration.levels().len(),
+            });
+        }
+        Ok(Self {
+            values: ScalarMarkColumnValues::Ordinal {
+                declaration,
+                values,
+            },
+            modality,
+            unit,
+            missingness,
+        })
+    }
+
     /// Bind one verified cell-embedding artifact to exact ordered MarkTable rows.
     ///
     /// The matrix remains owned by the existing embedding table/artifact store; this column retains
@@ -348,6 +393,7 @@ impl ScalarMarkColumn {
             ScalarMarkColumnValues::Continuous { declaration, .. } => declaration.mark_id(),
             ScalarMarkColumnValues::Categorical { declaration, .. } => declaration.mark_id(),
             ScalarMarkColumnValues::ProbabilitySimplex { declaration, .. } => declaration.mark_id(),
+            ScalarMarkColumnValues::Ordinal { declaration, .. } => declaration.mark_id(),
             ScalarMarkColumnValues::VectorArtifactRef { declaration, .. } => declaration.mark_id(),
         }
     }
@@ -359,6 +405,7 @@ impl ScalarMarkColumn {
             ScalarMarkColumnValues::Continuous { values, .. } => values.len(),
             ScalarMarkColumnValues::Categorical { values, .. } => values.len(),
             ScalarMarkColumnValues::ProbabilitySimplex { row_count, .. } => *row_count,
+            ScalarMarkColumnValues::Ordinal { values, .. } => values.len(),
             ScalarMarkColumnValues::VectorArtifactRef { row_count, .. } => *row_count,
         }
     }
@@ -478,6 +525,13 @@ impl MarkTable {
         if simplex_count > 1 {
             return Err(DeclaredScalarInputError::ProbabilitySimplexColumnCountMismatch);
         }
+        let ordinal_count = columns
+            .iter()
+            .filter(|column| matches!(&column.values, ScalarMarkColumnValues::Ordinal { .. }))
+            .count();
+        if ordinal_count > 1 {
+            return Err(DeclaredScalarInputError::OrdinalColumnCountMismatch);
+        }
         let vector_ref_count = columns
             .iter()
             .filter(|column| {
@@ -573,6 +627,29 @@ impl MarkTable {
         })
     }
 
+    /// Borrow one exact dense ordinal code column by stable mark identity.
+    pub fn ordinal_values(&self, mark_id: &ScalarMarkId) -> Option<&[u32]> {
+        self.columns.iter().find_map(|column| match &column.values {
+            ScalarMarkColumnValues::Ordinal {
+                declaration,
+                values,
+            } if declaration.mark_id() == mark_id => Some(values.as_ref()),
+            _ => None,
+        })
+    }
+
+    /// Borrow the exact ordered level codebook for one ordinal mark.
+    pub fn ordinal_levels(&self, mark_id: &ScalarMarkId) -> Option<&[String]> {
+        self.columns.iter().find_map(|column| match &column.values {
+            ScalarMarkColumnValues::Ordinal { declaration, .. }
+                if declaration.mark_id() == mark_id =>
+            {
+                Some(declaration.levels())
+            }
+            _ => None,
+        })
+    }
+
     /// Return the compact verified embedding artifact for one exact vector mark.
     pub fn vector_artifact_ref(&self, mark_id: &ScalarMarkId) -> Option<CellEmbeddingArtifact> {
         self.columns.iter().find_map(|column| match &column.values {
@@ -617,6 +694,9 @@ impl MarkTable {
                     declaration.measurement_status()
                 }
                 ScalarMarkColumnValues::ProbabilitySimplex { declaration, .. } => {
+                    declaration.measurement_status()
+                }
+                ScalarMarkColumnValues::Ordinal { declaration, .. } => {
                     declaration.measurement_status()
                 }
                 ScalarMarkColumnValues::VectorArtifactRef { declaration, .. } => {
@@ -822,6 +902,9 @@ impl MarkTable {
                         declaration,
                     )?
                 }
+                ScalarMarkColumnValues::Ordinal { declaration, .. } => {
+                    super::provenance::validate_ordinal_provenance(project, declaration)?
+                }
                 ScalarMarkColumnValues::VectorArtifactRef { .. } => {}
                 ScalarMarkColumnValues::Binary { .. }
                 | ScalarMarkColumnValues::Probability { .. } => {}
@@ -856,6 +939,9 @@ impl MarkTable {
                     ids.push(declaration.provenance_artifact_id())
                 }
                 ScalarMarkColumnValues::ProbabilitySimplex { declaration, .. } => {
+                    ids.push(declaration.provenance_artifact_id())
+                }
+                ScalarMarkColumnValues::Ordinal { declaration, .. } => {
                     ids.push(declaration.provenance_artifact_id())
                 }
                 ScalarMarkColumnValues::VectorArtifactRef { artifact, .. } => ids.extend([

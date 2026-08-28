@@ -64,6 +64,12 @@ fn write_column(
             declaration.measurement_status(),
             declaration.provenance_artifact_id(),
         ),
+        ScalarMarkColumnValues::Ordinal { declaration, .. } => (
+            "ordinal",
+            declaration.label(),
+            declaration.measurement_status(),
+            declaration.provenance_artifact_id(),
+        ),
         ScalarMarkColumnValues::VectorArtifactRef {
             declaration,
             artifact,
@@ -123,6 +129,18 @@ fn write_column(
             }
             for value in values {
                 write_part(writer, &value.to_bits().to_be_bytes())?;
+            }
+        }
+        ScalarMarkColumnValues::Ordinal {
+            declaration,
+            values,
+        } => {
+            write_part(writer, &(declaration.levels().len() as u128).to_be_bytes())?;
+            for level in declaration.levels() {
+                write_part(writer, level.as_bytes())?;
+            }
+            for value in values {
+                write_part(writer, &value.to_be_bytes())?;
             }
         }
         ScalarMarkColumnValues::VectorArtifactRef {

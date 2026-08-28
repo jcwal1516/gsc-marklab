@@ -281,6 +281,64 @@ pub struct VectorArtifactRefMarkDeclaration {
     measurement_status: MeasurementStatus,
 }
 
+/// Exact dense ordered-category declaration for the current measured-IHC caller.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OrdinalMarkDeclaration {
+    mark_id: ScalarMarkId,
+    label: String,
+    levels: Box<[String]>,
+    measurement_status: MeasurementStatus,
+    provenance_artifact_id: ArtifactId,
+}
+
+impl OrdinalMarkDeclaration {
+    /// Declare a complete ordered codebook and its exact provenance artifact.
+    pub fn new(
+        mark_id: ScalarMarkId,
+        label: impl Into<String>,
+        levels: Vec<String>,
+        measurement_status: MeasurementStatus,
+        provenance_artifact_id: ArtifactId,
+    ) -> Result<Self, DeclaredScalarInputError> {
+        let label = label.into();
+        validate_label(&label)?;
+        validate_per_cell_status(measurement_status)?;
+        validate_ordered_levels(&levels)?;
+        Ok(Self {
+            mark_id,
+            label,
+            levels: levels.into_boxed_slice(),
+            measurement_status,
+            provenance_artifact_id,
+        })
+    }
+
+    /// Stable ordinal-mark identifier.
+    pub fn mark_id(&self) -> &ScalarMarkId {
+        &self.mark_id
+    }
+
+    /// Human-readable ordinal-mark label.
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
+    /// Ordered level codebook indexed by the retained row codes.
+    pub fn levels(&self) -> &[String] {
+        &self.levels
+    }
+
+    /// How the per-cell ordinal observations were obtained.
+    pub fn measurement_status(&self) -> MeasurementStatus {
+        self.measurement_status
+    }
+
+    /// Exact provenance artifact identity.
+    pub fn provenance_artifact_id(&self) -> ArtifactId {
+        self.provenance_artifact_id
+    }
+}
+
 impl VectorArtifactRefMarkDeclaration {
     /// Declare a per-cell vector reference without copying its verified matrix.
     pub fn new(
@@ -503,6 +561,26 @@ fn validate_label(label: &str) -> Result<(), DeclaredScalarInputError> {
         || label.chars().any(char::is_control)
     {
         return Err(DeclaredScalarInputError::InvalidMarkLabel);
+    }
+    Ok(())
+}
+
+fn validate_ordered_levels(levels: &[String]) -> Result<(), DeclaredScalarInputError> {
+    if levels.len() < 2
+        || levels.len() > u32::MAX as usize
+        || levels.iter().any(|level| {
+            level.is_empty()
+                || level.len() > MARK_LABEL_MAX_BYTES
+                || level.trim() != level
+                || level.chars().any(char::is_control)
+        })
+    {
+        return Err(DeclaredScalarInputError::InvalidOrdinalLevels);
+    }
+    let mut distinct = levels.iter().collect::<Vec<_>>();
+    distinct.sort_unstable();
+    if distinct.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(DeclaredScalarInputError::InvalidOrdinalLevels);
     }
     Ok(())
 }

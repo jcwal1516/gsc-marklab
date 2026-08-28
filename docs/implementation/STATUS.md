@@ -1619,3 +1619,37 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   three immediate formal callers. FND-05/WS-24 remain active for canonical real source import,
   independent genuine patch vectors, and broader interchange; no vector registry, matrix copy, new
   physical format, or result-format change was added.
+
+## Durable ordinal IHC composition checkpoint 89 — 2026-08-28
+
+- Added one complete dense ordinal MarkTable specialization for a measured IHC caller. It binds a
+  stable mark ID/label, ordered unique level codebook, exact zero-based row codes, measurement
+  status, provenance, modality/unit/missingness, and every row value into table identity. Duplicate/
+  malformed levels, invalid codes, non-IHC modality, unit drift, and multiple ordinal columns fail.
+- The immediate descriptive composition reports level counts/proportions, inclusive cumulative
+  proportions, lower/upper empirical median levels, Shannon entropy in nats, entropy normalized by
+  `ln(level_count)`, and effective level count. It deliberately reports no code mean, variance,
+  distance, or linear contrast because ordinal code spacing is not an interval scale.
+- The independent Python oracle gives counts `[1,2,0,1]`, CDF `[0.25,0.75,0.75,1]`, median interval
+  `weak`–`weak`, entropy `1.0397207708399179`, normalized entropy `0.75`, and effective count
+  `2.82842712474619`. Point/level/memory ceilings are explicit.
+- The durable node reopens as an identical hit with one execution and a limit-only change misses.
+  Ordinary JSON decimals were proven to alter one entropy bit, so the exact finite-f64 codec already
+  required by inhomogeneous K/L and g now has a crate-private shared owner. Both legacy durable
+  workflows pass unchanged. This is bounded FND-04/IHC-01 coverage, not real IHC evidence,
+  thresholding, proportional-odds inference, or result-format 0.3 change.
+
+## Typed-mark and inference stabilization checkpoint 90 — 2026-08-28
+
+- Stabilized checkpoints 83–89 across probability-simplex marks, fixed/multiscale soft
+  neighborhoods, verified vector-artifact marks and all three formal callers, patient
+  population-independence schedules, and ordinal IHC composition. Workspace formatting,
+  all-target/all-feature warning-denied Clippy, no-default compilation, all-feature doctests, and
+  strict workspace docs pass.
+- Strict docs initially found one pre-existing `[0,1]` comment parsed as a broken link; rendering it
+  as code fixed the concrete finding and the focused strict-doc rerun passed. No production or
+  scientific result changed.
+- The full workspace integration suite and Nextest were not rerun because the active instruction and
+  checkpoints 51/52 prohibit retrying the macOS binary-verification loop. No feature matrix,
+  benchmark, fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or
+  history rewrite was run.

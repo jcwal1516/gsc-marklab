@@ -41,6 +41,7 @@ mod cross_pair_correlation;
 mod data;
 mod diagnostics;
 mod errors;
+mod exact_float_json;
 mod geom;
 mod inference;
 mod inhomogeneous_spatial;
@@ -53,6 +54,8 @@ mod multiscale_residual;
 mod nearest_space;
 mod nearest_space_workflow;
 mod neighborhood;
+mod ordinal_composition;
+mod ordinal_composition_workflow;
 mod output;
 mod pair_correlation;
 mod pair_correlation_workflow;
@@ -388,6 +391,11 @@ pub use nearest_space::{
 };
 pub use nearest_space_workflow::NearestSpaceAnalysisNode;
 pub use neighborhood::graph::{SpatialEdge, SpatialGraph};
+pub use ordinal_composition::{
+    ordinal_class_composition, OrdinalClassCompositionConfig, OrdinalClassCompositionError,
+    OrdinalClassCompositionLimits, OrdinalClassCompositionResult,
+};
+pub use ordinal_composition_workflow::OrdinalClassCompositionAnalysisNode;
 pub use output::{
     AnalysisResult, AnalysisSection, AnalysisStatus, AnisotropySummary, ArtifactStatus,
     BetaPosteriorGroupSummary, BetaPosteriorSummary, ComponentAnalysisSummary,
@@ -428,9 +436,9 @@ pub use registration::{
 pub use scalar_mark::{
     BinaryMarkDeclaration, BinaryMarkOrigin, DeclaredMarkUse, DeclaredScalarIdentity,
     DeclaredScalarInputError, DeclaredScalarPatternInput, HistologicCompartmentMarkDeclaration,
-    MarkTable, MissingnessPolicy, NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration,
-    ProbabilitySimplexMarkDeclaration, ProbabilityThresholdComparator, ScalarMarkColumn,
-    ScalarMarkId, ScalarMarkModality, ScalarMarkUnit, ScalarMarkValueKind,
+    MarkTable, MissingnessPolicy, NucleusAreaUm2MarkDeclaration, OrdinalMarkDeclaration,
+    ProbabilityMarkDeclaration, ProbabilitySimplexMarkDeclaration, ProbabilityThresholdComparator,
+    ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit, ScalarMarkValueKind,
     VectorArtifactRefMarkDeclaration,
 };
 pub use scalar_variogram::{

@@ -6,7 +6,7 @@ use super::{
     declaration::{
         measurement_status_name, BinaryMarkDeclaration, BinaryMarkOrigin,
         HistologicCompartmentMarkDeclaration, NucleusAreaUm2MarkDeclaration,
-        ProbabilityMarkDeclaration, ProbabilitySimplexMarkDeclaration,
+        OrdinalMarkDeclaration, ProbabilityMarkDeclaration, ProbabilitySimplexMarkDeclaration,
         ProbabilityThresholdComparator, ScalarMarkValueKind,
     },
     DeclaredScalarInputError,
@@ -138,6 +138,19 @@ pub(crate) fn validate_probability_simplex_provenance(
     )
 }
 
+pub(crate) fn validate_ordinal_provenance(
+    project: &MarklabProject,
+    declaration: &OrdinalMarkDeclaration,
+) -> Result<(), DeclaredScalarInputError> {
+    require_record(
+        project,
+        declaration.provenance_artifact_id(),
+        MARK_SCHEMA,
+        &ordinal_metadata(declaration),
+        &[],
+    )
+}
+
 fn require_record(
     project: &MarklabProject,
     artifact: ArtifactId,
@@ -260,6 +273,27 @@ fn probability_simplex_metadata(
         ("modality".into(), "morphology".into()),
         ("unit".into(), "probability_simplex".into()),
         ("value_kind".into(), "probability_simplex".into()),
+    ])
+}
+
+fn ordinal_metadata(declaration: &OrdinalMarkDeclaration) -> BTreeMap<String, String> {
+    let levels_digest =
+        ContentDigest::from_framed(declaration.levels().iter().map(|level| level.as_bytes()));
+    BTreeMap::from([
+        ("levels_digest".into(), levels_digest.to_string()),
+        (
+            "levels_count".into(),
+            declaration.levels().len().to_string(),
+        ),
+        ("mark_id".into(), declaration.mark_id().as_str().into()),
+        ("mark_label".into(), declaration.label().into()),
+        (
+            "measurement_status".into(),
+            measurement_status_name(declaration.measurement_status()).into(),
+        ),
+        ("modality".into(), "immunohistochemistry".into()),
+        ("unit".into(), "ordinal".into()),
+        ("value_kind".into(), "ordinal".into()),
     ])
 }
 

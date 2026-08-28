@@ -58,9 +58,22 @@ pub enum DeclaredScalarInputError {
         expected: usize,
         observed: usize,
     },
-    /// One simplex row is non-finite, outside [0,1], or does not sum to one within tolerance.
+    /// One simplex row is non-finite, outside `[0, 1]`, or does not sum to one within tolerance.
     #[error("probability-simplex row {row} is invalid; observed sum {sum}")]
     InvalidProbabilitySimplexRow { row: usize, sum: f64 },
+    /// Ordinal levels are missing, duplicated, unbounded, or malformed.
+    #[error("ordinal marks require at least two unique bounded ordered level labels")]
+    InvalidOrdinalLevels,
+    /// An ordinal row code does not index the declared ordered levels.
+    #[error("ordinal code {code} at row {row} exceeds {level_count} declared levels")]
+    InvalidOrdinalValue {
+        row: usize,
+        code: u32,
+        level_count: usize,
+    },
+    /// The current ordinal specialization is measured immunohistochemistry.
+    #[error("ordinal mark modality must be immunohistochemistry")]
+    OrdinalModalityMismatch,
     /// The current compatibility adapter requires exactly one binary column.
     #[error("declared marked analysis requires exactly one typed binary column")]
     BinaryColumnCountMismatch,
@@ -76,6 +89,9 @@ pub enum DeclaredScalarInputError {
     /// The current typed table accepts at most one probability-simplex column.
     #[error("declared marked analysis accepts at most one probability-simplex column")]
     ProbabilitySimplexColumnCountMismatch,
+    /// The current typed table accepts at most one ordinal column.
+    #[error("declared marked analysis accepts at most one ordinal column")]
+    OrdinalColumnCountMismatch,
     /// The current typed table accepts at most one cell-embedding artifact reference.
     #[error("declared marked analysis accepts at most one vector-artifact-reference column")]
     VectorArtifactRefColumnCountMismatch,
