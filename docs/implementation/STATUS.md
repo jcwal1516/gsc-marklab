@@ -1991,3 +1991,25 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   Durable real mixing remains unavailable because that derived CSV has zero stable `cell_id` rows;
   uncertainty-bearing real mixing remains unavailable because it has only winning-class confidence,
   not a complete class-probability simplex. No identities or probabilities were fabricated.
+
+## Stable CellViT source identity and real durable mixing checkpoint 115 — 2026-08-28
+
+- CSV and Parquet Pattern ingestion now retain one optional dense source `cell_id` column and
+  materialize it through the existing typed `CellId` owner. Import rejects partial, malformed,
+  duplicate, or non-increasing retained identities; older inputs remain valid through the defaulted
+  absence state. The CPTAC adapter uses the exact slide ID plus zero-padded source row for both
+  coordinate and vector lanes.
+- The first real durable attempt found one exact threshold-binding defect: row 81 had been classified
+  before its winning-class confidence was serialized and imported as `f32`. The adapter now derives
+  the binary value from the exact imported representation. The accepted v3 export differs from the
+  first stable-ID export only at that binary row and has zero binding mismatches; v1/v2 remain
+  diagnostic inputs and are not promoted.
+- The pinned Mac-mini CellViT environment revalidated all 366 slides, 178 patients, and 1,542,389
+  rows into `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v3-inputs`. The exact 2,000-row
+  coordinate input digest is `95b933c04a60abfef5cbf02784e7fd582dfdc6e3b129c0f6c84801e91c786709`;
+  its unchanged window digest is `9ba8102b98f5e4f42dc4c19d9fd341b0acb6d6ecf671997ce709187312c61fb4`.
+- Two fresh Rust test processes execute the real four-class, 50-micrometre workflow as miss then hit,
+  return byte-identical typed output, and leave one durable execution. Focused interchange,
+  categorical oracle/resource, scalar MarkTable, importer, adapter, formatting, syntax, LSP-outline,
+  and whitespace checks pass. Full class-probability uncertainty remains unavailable because the
+  admitted export has winning-class confidence only.

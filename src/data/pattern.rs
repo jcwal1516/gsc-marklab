@@ -1,11 +1,15 @@
 use std::collections::BTreeMap;
 
+use marklab_data::CellId;
 use serde::{Deserialize, Serialize};
 
 use crate::errors::{MarklabError, Result};
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Pattern {
+    /// Optional exact, row-aligned source cell identities retained by typed importers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cell_ids: Option<Box<[String]>>,
     pub x_um: Box<[f64]>,
     pub y_um: Box<[f64]>,
     pub mark: Box<[u8]>,
@@ -98,6 +102,7 @@ impl Pattern {
         let valid = vec![1; mark.len()].into_boxed_slice();
 
         Ok(Self {
+            cell_ids: None,
             x_um: x_um.into_boxed_slice(),
             y_um: y_um.into_boxed_slice(),
             mark: mark.into_boxed_slice(),
@@ -127,6 +132,28 @@ impl Pattern {
 
     pub fn is_empty(&self) -> bool {
         self.mark.is_empty()
+    }
+
+    /// Materialize validated typed cell identities retained by a source adapter.
+    pub fn typed_cell_ids(&self) -> Result<Option<Box<[CellId]>>> {
+        self.cell_ids
+            .as_deref()
+            .map(|values| {
+                values
+                    .iter()
+                    .enumerate()
+                    .map(|(row, value)| {
+                        CellId::new(value).map_err(|error| {
+                            MarklabError::Schema(format!(
+                                "cell_id at retained row {} is invalid: {error}",
+                                row + 1
+                            ))
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()
+                    .map(Vec::into_boxed_slice)
+            })
+            .transpose()
     }
 
     pub fn n_marked(&self) -> usize {

@@ -88,6 +88,7 @@ impl NonviableFlags {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct DecodedCellRow {
+    pub cell_id: Option<String>,
     pub x_um: f64,
     pub y_um: f64,
     pub mark: u8,

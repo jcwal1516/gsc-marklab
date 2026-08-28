@@ -1010,3 +1010,13 @@ cell IDs. The existing probability-simplex neighborhood path remains the uncerta
 the admitted CellViT export contains only winning-class confidence, so no full simplex is inferred.
 The next production outcome is the remaining concrete multiclass geometry or source-import identity
 connection, not another mark abstraction.
+
+## Checkpoint 115 stable CellViT identity continuation
+
+Exact source cell identities now survive the existing CSV/Parquet Pattern boundary and materialize
+as typed CellIds. The accepted 2,000-cell CPTAC export drives the four-class 50-micrometre mixing
+node through two fresh processes as miss then durable hit with one execution. FND-04/WS-23/WS-25 no
+longer carry the real stable-ID blocker; direct MarkTable export and other interchange formats remain
+active. Full uncertainty-bearing multiclass mixing remains honestly unavailable for this source
+because winning-class confidence is not a class-probability simplex. Production advances to the
+next admitted multiclass geometry/mark caller before bounded project-DAG work.

@@ -5,6 +5,7 @@ use crate::{
     errors::{MarklabError, Result},
     geom::{mask::TumorMask, spatial_index::mean_nearest_neighbor_distance},
 };
+use marklab_data::CellId;
 
 use super::{
     checked_finite, checked_positive, checked_probability, row::DecodedCellRow,
@@ -43,10 +44,19 @@ impl CategoricalStratumEncoder {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct DenseOptionalColumn<T> {
     values: Vec<T>,
     presence: Option<bool>,
+}
+
+impl<T> Default for DenseOptionalColumn<T> {
+    fn default() -> Self {
+        Self {
+            values: Vec::new(),
+            presence: None,
+        }
+    }
 }
 
 impl<T> DenseOptionalColumn<T> {
@@ -155,6 +165,7 @@ pub(crate) struct PatternBuilder<'a> {
     x: Vec<f64>,
     y: Vec<f64>,
     marks: Vec<u8>,
+    cell_ids: DenseOptionalColumn<CellId>,
     qc_bins: DenseOptionalColumn<u16>,
     component_ids: DenseOptionalColumn<u32>,
     mark_prob: DenseOptionalColumn<f32>,
@@ -194,6 +205,7 @@ impl<'a> PatternBuilder<'a> {
             x: Vec::new(),
             y: Vec::new(),
             marks: Vec::new(),
+            cell_ids: DenseOptionalColumn::default(),
             qc_bins: DenseOptionalColumn::default(),
             component_ids: DenseOptionalColumn::default(),
             mark_prob: DenseOptionalColumn::default(),
@@ -257,6 +269,19 @@ impl<'a> PatternBuilder<'a> {
         self.x.push(row.x_um);
         self.y.push(row.y_um);
         self.marks.push(row.mark);
+        self.cell_ids.push(
+            row.cell_id
+                .map(|value| {
+                    CellId::new(&value).map_err(|error| {
+                        MarklabError::Schema(format!(
+                            "{} row {row_number} cell_id is invalid: {error}",
+                            self.source_name
+                        ))
+                    })
+                })
+                .transpose()?,
+            "cell_id",
+        )?;
         self.internal_control_bin.push_optional(
             row.internal_control
                 .as_ref()
@@ -345,6 +370,24 @@ impl<'a> PatternBuilder<'a> {
         })?;
 
         let mut pattern = Pattern::from_arrays(self.x, self.y, self.marks, meta)?;
+        if let Some(cell_ids) = self.cell_ids.finish() {
+            for row in 1..cell_ids.len() {
+                if cell_ids[row - 1] >= cell_ids[row] {
+                    return Err(MarklabError::Schema(format!(
+                        "{} retained cell_id values must be strictly increasing; row {} is not canonical",
+                        self.source_name,
+                        row + 1
+                    )));
+                }
+            }
+            pattern.cell_ids = Some(
+                cell_ids
+                    .iter()
+                    .map(|cell_id| cell_id.as_str().to_owned())
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
+            );
+        }
         pattern.qc_bin = self.qc_bins.finish();
         pattern.component_id = self.component_ids.finish();
         insert_finished_stratum(

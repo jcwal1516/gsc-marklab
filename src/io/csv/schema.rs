@@ -2,6 +2,7 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub(super) struct CellRow {
+    pub cell_id: Option<String>,
     pub x_um: f64,
     pub y_um: f64,
     pub mark: u8,

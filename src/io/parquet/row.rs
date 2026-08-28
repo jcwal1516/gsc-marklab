@@ -6,6 +6,7 @@ use super::schema::BatchColumns;
 
 pub(super) fn decode_cell_row(columns: &BatchColumns<'_>, row: usize) -> DecodedCellRow {
     DecodedCellRow {
+        cell_id: optional_exact_string(columns.cell_id, row),
         x_um: columns.x.value(row),
         y_um: columns.y.value(row),
         mark: columns.mark.value(row),
@@ -43,6 +44,11 @@ pub(super) fn decode_cell_row(columns: &BatchColumns<'_>, row: usize) -> Decoded
         local_dab_od: optional_f32(columns.local_dab_od, row),
         local_hematoxylin_od: optional_f32(columns.local_hematoxylin_od, row),
     }
+}
+
+fn optional_exact_string(column: Option<&StringArray>, row: usize) -> Option<String> {
+    let column = column?;
+    (!column.is_null(row)).then(|| column.value(row).to_owned())
 }
 
 fn optional_string(column: Option<&StringArray>, row: usize) -> Option<String> {

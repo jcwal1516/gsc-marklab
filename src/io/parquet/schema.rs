@@ -6,6 +6,7 @@ use arrow::array::{
 use crate::errors::{MarklabError, Result};
 
 pub(super) struct BatchColumns<'a> {
+    pub cell_id: Option<&'a StringArray>,
     pub x: &'a Float64Array,
     pub y: &'a Float64Array,
     pub mark: &'a UInt8Array,
@@ -39,6 +40,7 @@ pub(super) struct BatchColumns<'a> {
 impl<'a> BatchColumns<'a> {
     pub(super) fn try_new(batch: &'a RecordBatch) -> Result<Self> {
         Ok(Self {
+            cell_id: optional(batch, "cell_id")?,
             x: required(batch, "x_um")?,
             y: required(batch, "y_um")?,
             mark: required(batch, "mark")?,

@@ -31,6 +31,7 @@ pub(super) fn visit_decoded_rows(
         })?;
         visit(
             DecodedCellRow {
+                cell_id: row.cell_id,
                 x_um: row.x_um,
                 y_um: row.y_um,
                 mark: row.mark,

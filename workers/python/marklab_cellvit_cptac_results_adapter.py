@@ -13,6 +13,8 @@ import math
 import os
 from pathlib import Path
 import statistics
+import struct
+import unicodedata
 from typing import Any, Iterable
 
 
@@ -51,6 +53,39 @@ def bounded_indices(count: int, maximum: int, identity: str) -> list[int]:
     return sorted(
         heapq.nsmallest(maximum, range(count), key=lambda row: stable_rank(identity, row))
     )
+
+
+def source_cell_id(slide_id: str, source_row: int) -> str:
+    """Return the canonical CellId shared by coordinate and vector lanes."""
+    if (
+        not slide_id
+        or slide_id.strip() != slide_id
+        or any(unicodedata.category(character) == "Cc" for character in slide_id)
+        or not isinstance(source_row, int)
+        or source_row < 0
+        or source_row >= 1_000_000_000
+    ):
+        raise AdapterError("source cell identity is invalid")
+    identity = f"{slide_id}:{source_row:09d}"
+    if len(identity.encode("utf-8")) > 255:
+        raise AdapterError("source cell identity exceeds the typed CellId bound")
+    return identity
+
+
+def canonical_f32_probability(value: float, threshold: float) -> tuple[str, int]:
+    """Encode one probability and threshold the exact f32 value Rust imports."""
+    if (
+        not math.isfinite(value)
+        or value < 0.0
+        or value > 1.0
+        or not math.isfinite(threshold)
+        or threshold < 0.0
+        or threshold > 1.0
+    ):
+        raise AdapterError("probability or threshold is invalid")
+    encoded = format(value, ".9g")
+    imported = struct.unpack("!f", struct.pack("!f", float(encoded)))[0]
+    return encoded, int(imported >= threshold)
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -603,11 +638,15 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
         if not shapely_window.covers(Point(x_um, y_um)):
             raise AdapterError("representative point escapes the exact selected-patch union")
         probability = float(cell["type_prob"])
+        probability_text, high_confidence = canonical_f32_probability(
+            probability, HIGH_CONFIDENCE_THRESHOLD
+        )
         coordinate_rows.append(
             {
+                "cell_id": source_cell_id(representative_id, row),
                 "x_um": format(x_um, ".17g"),
                 "y_um": format(y_um, ".17g"),
-                "mark": int(probability >= HIGH_CONFIDENCE_THRESHOLD),
+                "mark": high_confidence,
                 "case_id": representative_case["case_id"],
                 "timepoint": "baseline",
                 "protein": "cellvit_predicted_class_confidence",
@@ -615,10 +654,11 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "valid_ihc": "true",
                 "slide_id": representative_id,
                 "histologic_compartment": dict(next(iter(type_maps)))[int(cell["type"])],
-                "mark_probability": format(probability, ".9g"),
+                "mark_probability": probability_text,
             }
         )
     coordinate_fields = [
+        "cell_id",
         "x_um",
         "y_um",
         "mark",
@@ -641,7 +681,7 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     for row in vector_indices:
         values = representative_graph.x[row].detach().cpu().numpy()
         record = {
-            "object_id": f"{representative_id}:{row:09d}",
+            "object_id": source_cell_id(representative_id, row),
             "x_um": format(float(representative_graph.positions[row, 0]) * representative_mpp, ".17g"),
             "y_um": format(float(representative_graph.positions[row, 1]) * representative_mpp, ".17g"),
         }

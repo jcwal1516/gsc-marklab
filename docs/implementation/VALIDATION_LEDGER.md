@@ -2476,6 +2476,36 @@ vascular transport.
   Nextest loop, feature matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push,
   publication, deployment, or history rewrite ran.
 
+## Stable CellViT source identity and real durable mixing checkpoint 115 — 2026-08-28
+
+- Expected red: the CSV/Parquet interchange test failed because `Pattern` had no `cell_ids` field.
+  After the typed import path passed, the first real durable child failed with
+  `ThresholdBindingMismatch { row: 81 }`; this exposed pre-serialization thresholding in the Python
+  adapter. The focused adapter oracle then passed after thresholding the exact exported-as-`f32`
+  value.
+- On `mini`, `/Volumes/500GB/marklab/env/cellvit-mps-py39/bin/python3` plus the frozen CellViT source
+  reran `marklab_cellvit_cptac_results_adapter.py` over the recorded inference, projected, spatial,
+  case-map, molecular-label, clinical, verification, and transform inputs. The accepted v3 run
+  revalidated 366 slides, 178 patients, and 1,542,389 cells. Its adapter digest is
+  `1e2eb28d1e0481534c6102cf5338024a287b8859bc549aece1a345891a72b668`; the 2,000-row coordinate and
+  window digests are `95b933c04a60abfef5cbf02784e7fd582dfdc6e3b129c0f6c84801e91c786709`
+  and `9ba8102b98f5e4f42dc4c19d9fd341b0acb6d6ecf671997ce709187312c61fb4`.
+  A direct audit found 2,000 unique strictly increasing IDs, all 512 vector IDs in the coordinate
+  identity set, zero threshold mismatches, and only row 81 differing from the rejected v1 export.
+- `MARKLAB_REAL_CELLVIT_CATEGORICAL_CSV=... MARKLAB_REAL_CELLVIT_CATEGORICAL_WINDOW=... cargo
+  +1.96.0 test --locked --package marklab --all-features --test
+  categorical_neighborhood_mixing_real_cellvit
+  admitted_cellvit_categorical_mixing_replays_across_fresh_processes -- --ignored --exact
+  --nocapture` passes. Its two child processes report miss then hit, byte-identical result JSON, and
+  execution count one. The corresponding ignored real interchange test passes.
+- The three affected integration targets pass 2/0/1, 1/0/1, and 4/0/0 (passed/failed/ignored).
+  `scalar_mark_input` passes 11/11 and `cargo +1.96.0 test --locked --package marklab --all-features
+  --lib io::` passes 8/8. The two-test Python adapter oracle, Python syntax compilation,
+  affected-file Rustfmt, both LSP outlines, and `git diff --check` pass.
+- No workspace-wide Clippy/test, Nextest, no-default matrix, strict docs, benchmark, fuzz, memory
+  tool, packaging, dependency audit, push, publication, deployment, or history rewrite ran at this
+  ordinary milestone.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test
