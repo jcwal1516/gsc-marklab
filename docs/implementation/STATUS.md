@@ -2034,3 +2034,25 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   10.15s, all-feature doctests with zero failures, strict all-feature docs in 13.12s, formatting,
   and whitespace. The prohibited full-integration/Nextest loader loop was not run. The next
   production outcome is bounded durable project-DAG execution and cross-process whole-graph resume.
+
+## Bounded parallel marked project DAG checkpoint 117 — 2026-08-28
+
+- Added the first complete dependency-bearing project executor for the existing marked pre/post
+  workflow. It plans the two root analyses from explicit per-root thread/memory declarations plus
+  host node/thread/memory and total-row ceilings, runs both roots concurrently only when the plan
+  admits them, and executes the typed comparison after exact dependency reconstruction.
+- A roots-only target provides a real process boundary. The first fresh process records two root
+  misses and ledgers `[1,1,0]`; the next restores both roots and records one comparison miss; the
+  third returns three hits with ledgers fixed at `[1,1,1]`. Every node delegates objects, pending
+  intent, ledger, head, recovery, cache keys, codec validation, and transaction semantics to its
+  existing fixed durable-project shard.
+- The comparison exactly equals the direct `compare_marked_prepost` owner. A one-node host budget
+  deterministically serializes roots; Auto threads, a root exceeding host resources, and one-short
+  total rows fail before execution. New behavior tests pass 4/4 and existing project workflows pass
+  12/12. Targeted warning-denied Clippy, root no-default compilation, strict docs, LSP outline,
+  formatting, and whitespace checks pass.
+- No authorized CRC artifact currently contains paired pre/post or repeated timepoint CellViT
+  Patterns, so real scientific pre/post execution is unavailable with that exact data blocker;
+  synthetic fixtures are workflow/oracle evidence only. General heterogeneous DAG builders remain
+  active. Production now returns to the next Bayesian likelihood/hierarchy with an immediate CRC
+  caller.

@@ -2528,6 +2528,28 @@ vascular transport.
   fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or history rewrite
   ran.
 
+## Bounded parallel marked project DAG checkpoint 117 — 2026-08-28
+
+- Expected red: the new integration failed on unresolved `execute_marked_prepost_dag`,
+  `plan_marked_prepost_dag`, `MarkedPrePostDagLimits`, and `MarkedPrePostDagTarget` imports. The
+  exact behavior test then passed after the fixed typed executor was connected.
+- `cargo +1.96.0 test --locked --package marklab --all-features --test
+  marked_prepost_dag_workflow` passes 4/4. Its fresh root-only, resume, and replay child executions
+  take 0.22s, 0.10s, and 0.01s on the final run and prove cache states
+  `[miss,miss,null]`, `[hit,hit,miss]`, and `[hit,hit,hit]` with durable counts `[1,1,0]`,
+  `[1,1,1]`, and `[1,1,1]`. The comparison matches the direct compatibility owner exactly.
+- `cargo +1.96.0 test --locked --package marklab --all-features --test project_workflow` passes
+  12/12, including dependency identity, durable dependency restore, failure atomicity, semantic
+  store verification, and direct marked/pre/post parity.
+- `cargo +1.96.0 clippy --locked --package marklab --lib --test marked_prepost_dag_workflow
+  --all-features -- -D warnings` passes in 1m09s. `cargo +1.96.0 check --locked --package marklab
+  --no-default-features` passes in 12.22s. Strict all-feature root-package docs pass in 12.71s;
+  affected Rustfmt, LSP outline, and `git diff --check` pass.
+- Real CRC pre/post evidence was not run because the admitted cohorts have no paired repeated-
+  timepoint CellViT Pattern inputs. No workspace-wide gate was repeated after checkpoint 116, and no
+  Nextest/full integration, feature matrix, benchmark, fuzz, memory tool, packaging, dependency
+  audit, push, publication, deployment, or history rewrite ran.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

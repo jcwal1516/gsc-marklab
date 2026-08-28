@@ -1030,3 +1030,13 @@ named input blocker rather than an implementation pretext. The four related work
 scheduled workspace stabilization gates. Production now advances to the smallest bounded project
 DAG that plans resources, executes ready nodes in parallel, survives a process boundary, and reuses
 the existing scheduler, ledger, head, pending-intent recovery, and artifact store.
+
+## Checkpoint 117 bounded marked DAG continuation
+
+The first fixed typed DAG now plans explicit rows/threads/memory, runs independent marked roots in a
+bounded parallel wave, stops cleanly after that wave, resumes the dependent comparison in a fresh
+process, and replays all three node shards without new ledger rows. This advances PLAT-01/WF-01/
+WS-12 without an arbitrary task runner or second persistence layer. Broader heterogeneous graph
+construction remains active but is not the next milestone without another caller. The dependency-
+ordered next outcome is the next Bayesian likelihood or hierarchy level required by admitted CRC
+counts/labels, followed by representative graph scaling.

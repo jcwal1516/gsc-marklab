@@ -51,6 +51,7 @@ mod io;
 mod mark_pair_plan;
 mod mark_weighted_k;
 mod mark_weighted_k_workflow;
+mod marked_prepost_dag;
 mod multimodal;
 mod multiscale_residual;
 mod nearest_space;
@@ -203,6 +204,10 @@ pub use mark_weighted_k::{
     MarkWeightedKLimits, MarkWeightedKPoint, MarkWeightedKPointStatus, MarkWeightedKResult,
 };
 pub use mark_weighted_k_workflow::MarkWeightedKAnalysisNode;
+pub use marked_prepost_dag::{
+    execute_marked_prepost_dag, plan_marked_prepost_dag, MarkedPrePostDagError,
+    MarkedPrePostDagLimits, MarkedPrePostDagPlan, MarkedPrePostDagRun, MarkedPrePostDagTarget,
+};
 pub use marklab_data::{
     BlockId, CellId, CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry,
     CoordinateSpace, CoordinateUnit, CoreId, FrameTransform, HierarchyId, HierarchyKind,

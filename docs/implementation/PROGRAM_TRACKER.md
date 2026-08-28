@@ -170,7 +170,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | NUL-01E | blocked with named prerequisite | Requires exact overlap-aware windows and a justified stationarity contract. |
 | PATH-01 | blocked with named prerequisite | Requires WS-22/GEO-01 compartments, boundaries, and object geometry. |
 | PERT-01 | active | IC-0193 provides a bounded randomized synthetic perturbation/control specialization with research-only mediation; real designed perturbations with dose/time and spatial readouts remain missing. |
-| PLAT-01 | active | Immutable artifacts, exact identities, durable heads/ledger/recovery/replay, and typed native/PyMC/POT execution drive K/L, F/G/J, categorical/probability connection, continuous correlation/weighted K, cross-K, real TCGA M0–M4/M6, Schürch CODEX, and seven PyMC workflows. General multi-node orchestration remains. |
+| PLAT-01 | active | Immutable artifacts, exact identities, durable heads/ledger/recovery/replay, typed native/PyMC/POT execution, and one bounded parallel/resumable marked DAG are live. Broader project construction and heterogeneous multi-node orchestration remain. |
 | PP-01 | blocked with named prerequisite | The complete unmarked standard-border K/L workflow is delivered; stable PP-01 promotion still requires remaining FND-02/FND-03/FND-06 contracts, pinned external-oracle fixtures, null calibration, intensity-gradient policy, and scale evidence. |
 | PP-02 | active | Standard-border inhomogeneous K/L and g consume the identical persisted Gaussian leave-one-out event/fixed-grid pilot, use inverse-intensity pair/center normalization, a frozen conditioned null, ERL, hard bounds, and durable replay. Multiple estimators, pinned `Kinhom/Linhom/pcfinhom` agreement, broader calibration, corrections, compartments, and real scale evidence remain. |
 | PP-03 | active | Homogeneous Epanechnikov g, directed two-level cross-g, and one inhomogeneous g specialization use explicit pair bandwidth, standard-border `r+h` eligibility, typed empty support, appropriate whole-pattern or complete-row nulls, ERL, hard bounds, and durable replay. General multitype/corrections, pinned spatstat agreement, and broader calibration remain. |
@@ -208,7 +208,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | UX-01 | blocked with named prerequisite | Requires stable PLAT-01/WF-01 project and result contracts for a UI that does not duplicate science. |
 | WAV-01A | gated pending explicit user decision | The master plan rejects raster wavelets by default; admission requires a raster-defined question and explicit approval. |
 | WAV-01B | planned | Genuine DoG remains in scope for a future explicit raster/image scale-space endpoint. |
-| WF-01 | active | Typed keys, store-verified semantic artifacts, exact admission, composition, and replay include K/L, F/G/J, compartment interface/contact/fragmentation, binary/multiclass/soft cell mixing, real stable-ID CellViT mixing/pair curves, categorical/probability connection, continuous correlation/weighted K, real TCGA/Schürch fingerprints, and marked/Moran graphs. General schema, resource planning, parallel scheduling, and whole-graph resume remain. |
+| WF-01 | active | Typed keys, store-verified artifacts, exact admission, composition, and replay now include a resource-planned parallel marked pre/post DAG with process-boundary resume, plus the existing spatial/mark/embedding/CRC workflows. General heterogeneous schema construction and arbitrary whole-graph scheduling remain. |
 
 ## Dependency-ordered workstream coverage
 
@@ -218,7 +218,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | WS-01 | complete | Legacy characterization and compatibility matrix closed. |
 | WS-10 | complete | Workspace and compatibility-shell phase slice closed. |
 | WS-11 | complete | Catalog/store/cache plus canonical durable project heads, append-only execution ledger, verified replay, and interrupted-run recovery are implemented. |
-| WS-12 | active | Typed durable execution covers native/POT, PyMC, spatial point/mark methods, compartment geometry/mixing, real stable-ID CellViT multiclass mixing and pair curves, soft simplex composition/neighborhoods, marked/Moran graphs, and real TCGA/Schürch workflows with cross-process replay. General DAG/resource/parallel/whole-graph resume remains. |
+| WS-12 | active | Typed durable execution covers native/POT/PyMC/scientific nodes plus a fixed three-node marked DAG with explicit resource waves, parallel roots, roots-only interruption, cross-process comparison resume, and all-hit replay. General heterogeneous DAG construction and arbitrary whole-graph scheduling remain. |
 | WS-13 | active | Durable PyMC Normal-mean, Gaussian/Student-t/beta-binomial patient hierarchies, beta-binomial group regression, gridded-LGCP and POT FGW workflows share one closed static descriptor with exact environment/adapter/license/schema/control identity; direct NumPyro agreement callers are pinned. Generalized discovery, broader backend classes, doctor/admission validation, and capability/security manifests remain. |
 | WS-20 | complete | Typed identity and cohort hierarchy closed by C-01. |
 | WS-21 | complete | Coordinate, unit, dimensionality, transform, and uncertainty slice closed by C-02. |
