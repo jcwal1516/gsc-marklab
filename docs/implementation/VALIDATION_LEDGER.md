@@ -2179,6 +2179,19 @@ vascular transport.
   FND-06 family closes; the prohibited full integration/Nextest loop and specialized gates did not
   run.
 
+## Typed paired-patient sign-flip checkpoint 94 — 2026-08-28
+
+- `cargo +1.96.0 test --locked --features cli --test cohort_paired_permutation_cli
+  paired_cli_matches_the_hand_oracle_and_is_byte_deterministic -- --exact` first failed because the
+  CLI design omitted the typed paired null and complete-difference unit; the final integration passes
+  1/1 with exact hand values and byte-identical repeated outputs.
+- `cargo +1.96.0 test --locked --package marklab-cohort --test paired_permutation_reference` passes
+  1/1. Its independent slow SplitMix/Rademacher implementation matches the exact p-value, while the
+  result exposes `PairedSignFlip`, `CompletePatientPairDifference`, and the prespecified alternative.
+- Warning-denied Clippy passes for the affected cohort library/reference and paired CLI binary/test.
+  Package no-default compilation, package doctests, affected-file Rustfmt, and diff whitespace pass.
+  Broad gates are recorded once in the following stabilization checkpoint.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

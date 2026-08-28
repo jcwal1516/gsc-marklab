@@ -68,6 +68,8 @@ pub enum InferenceNullFamily {
     PatientLabelPermutation,
     /// Whole patient labels move under population independence.
     PopulationIndependence,
+    /// Complete within-patient differences receive independent signs.
+    PairedSignFlip,
     /// Complete reduced-model residual vectors receive independent subject-level signs.
     SubjectResidualSignSymmetry,
 }
@@ -79,6 +81,8 @@ pub enum InferencePermutationUnit {
     CompleteScalarMark,
     /// One whole patient group label.
     PatientLabel,
+    /// One complete condition-B-minus-condition-A patient difference.
+    CompletePatientPairDifference,
     /// One complete subject residual vector across every retained visit.
     CompleteSubjectResidualVector,
 }
@@ -250,6 +254,26 @@ impl InferenceDesign {
         )
     }
 
+    pub(crate) fn paired_sign_flip(
+        pair_count: usize,
+        permutations: usize,
+        seed: u64,
+        seed_namespace: u64,
+        alternative: InferenceAlternative,
+    ) -> Result<Self, InferenceDesignError> {
+        Self::build(
+            InferenceAnalysisLevel::Patient,
+            InferenceNullFamily::PairedSignFlip,
+            InferencePermutationUnit::CompletePatientPairDifference,
+            vec![(0..pair_count).collect()],
+            pair_count,
+            permutations,
+            seed,
+            seed_namespace,
+            alternative,
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn build(
         analysis_level: InferenceAnalysisLevel,
@@ -342,7 +366,11 @@ impl InferenceDesign {
 
     /// Deterministic mapping from each output position to one whole source unit.
     pub fn permuted_indices(&self, replicate: usize) -> Result<Box<[usize]>, InferenceDesignError> {
-        if self.permutation_unit == InferencePermutationUnit::CompleteSubjectResidualVector {
+        if matches!(
+            self.permutation_unit,
+            InferencePermutationUnit::CompletePatientPairDifference
+                | InferencePermutationUnit::CompleteSubjectResidualVector
+        ) {
             return Err(InferenceDesignError::UnsupportedIndexOperation);
         }
         if replicate >= self.permutations {
@@ -377,6 +405,22 @@ impl InferenceDesign {
         {
             return Err(InferenceDesignError::UnsupportedSignOperation);
         }
+        self.independent_signs(replicate)
+    }
+
+    pub(crate) fn paired_difference_signs(
+        &self,
+        replicate: usize,
+    ) -> Result<Box<[i8]>, InferenceDesignError> {
+        if self.null_family != InferenceNullFamily::PairedSignFlip
+            || self.permutation_unit != InferencePermutationUnit::CompletePatientPairDifference
+        {
+            return Err(InferenceDesignError::UnsupportedPairedSignOperation);
+        }
+        self.independent_signs(replicate)
+    }
+
+    fn independent_signs(&self, replicate: usize) -> Result<Box<[i8]>, InferenceDesignError> {
         if replicate >= self.permutations {
             return Err(InferenceDesignError::ReplicateOutOfRange {
                 replicate,
@@ -429,6 +473,9 @@ pub enum InferenceDesignError {
     /// Index permutation was requested from a sign-symmetry design.
     #[error("index permutation is unavailable for a subject-residual sign-symmetry design")]
     UnsupportedIndexOperation,
+    /// Paired-difference signs were requested from another design.
+    #[error("paired-difference signs require a paired sign-flip design")]
+    UnsupportedPairedSignOperation,
     /// Subject residual signs were requested from a design with another randomization unit.
     #[error("subject residual signs require a subject-residual sign-symmetry design")]
     UnsupportedSignOperation,

@@ -13,10 +13,10 @@ use marklab_cohort::{
     BlockedEnergyDistanceResult, BlockedFunctionalPermutationResult, BlockedMmdPermutationResult,
     CohortInferenceError, EnergyDistanceResult, EnergyDistanceSpec, EnergyMetric, Fingerprint,
     FunctionalCurve, FunctionalPermutationResult, FunctionalPermutationSpec,
-    FunctionalTestStatistic, MaxTPermutationResult, MaxTPermutationSpec, MmdEstimator, MmdKernel,
-    MmdPermutationResult, MmdPermutationSpec, PairedPatientEndpoint,
-    PairedPatientPermutationResult, PairedPatientPermutationSpec, PatientEndpoint,
-    PatientEndpointVector, PatientExchangeabilityBlock, PatientPermutationResult,
+    FunctionalTestStatistic, InferenceNullFamily, InferencePermutationUnit, MaxTPermutationResult,
+    MaxTPermutationSpec, MmdEstimator, MmdKernel, MmdPermutationResult, MmdPermutationSpec,
+    PairedPatientEndpoint, PairedPatientPermutationResult, PairedPatientPermutationSpec,
+    PatientEndpoint, PatientEndpointVector, PatientExchangeabilityBlock, PatientPermutationResult,
     PatientPermutationSpec, PermutationAlternative,
 };
 use serde::{Deserialize, Serialize};
@@ -1173,6 +1173,16 @@ impl PairedPermutationOutput {
         alternative: CliAlternative,
         result: PairedPatientPermutationResult,
     ) -> Self {
+        let null_family = match result.inference_design.null_family() {
+            InferenceNullFamily::PairedSignFlip => "paired_sign_flip",
+            _ => unreachable!("paired permutation returned another null family"),
+        };
+        let permutation_unit = match result.inference_design.permutation_unit() {
+            InferencePermutationUnit::CompletePatientPairDifference => {
+                "complete_patient_pair_difference"
+            }
+            _ => unreachable!("paired permutation returned another permutation unit"),
+        };
         Self {
             format: "marklab.cohort_paired_permutation",
             version: 1,
@@ -1180,6 +1190,8 @@ impl PairedPermutationOutput {
             design: PairedDesignSummary {
                 randomization_unit: "patient_pair",
                 operation: "sign_flip",
+                null_family,
+                permutation_unit,
             },
             pairs: PairSummary {
                 completed: result.pair_count,
@@ -1212,6 +1224,8 @@ impl PairedPermutationOutput {
 struct PairedDesignSummary {
     randomization_unit: &'static str,
     operation: &'static str,
+    null_family: &'static str,
+    permutation_unit: &'static str,
 }
 
 #[derive(Debug, Serialize)]

@@ -839,3 +839,14 @@ FND-06 remains active. The next immediate existing caller is the patient-first h
 bootstrap: determine whether its patient/slide/region resampling schedule can be represented without
 changing its current hierarchy, seed stream, or confidence interval. Do not make lower-level units
 population replicates or build a generic bootstrap framework.
+
+## Checkpoint 94 typed paired-patient sign-flip continuation
+
+The explicit master-plan paired-sign null now owns the exact whole-patient difference schedule used
+by the existing paired CLI. A bounded inspection deferred hierarchical-bootstrap extraction because
+its patient→specimen draw hierarchy cannot fit the current flat schedule without speculative
+infrastructure.
+
+Four related FND-06 workflows have completed since checkpoint 90. Run one stabilization pass over
+the affected workspace surfaces, excluding the prohibited macOS full-integration/Nextest loop, then
+return to the next concrete production caller or real-data gap.

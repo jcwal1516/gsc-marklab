@@ -1699,3 +1699,15 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - This advances FND-06/COH-01/WS-31/WS-34 without asserting residual symmetry from the data. It does
   not add covariates, align visits, substitute a paired endpoint analysis, add cluster bootstrap
   weights, or generalize a resampling registry.
+
+## Typed paired-patient sign-flip checkpoint 94 — 2026-08-28
+
+- Routed the existing paired scalar workflow through the master-plan `PairedSignFlip` null with one
+  complete condition-B-minus-condition-A patient difference as the atomic unit. Condition rows are
+  never separated, and index permutation is explicitly unavailable for this sign design.
+- The typed schedule reproduces the former private Rademacher stream exactly, preserving the
+  studentized statistic, less/greater/equal-tail two-sided alternatives, plus-one p-values, limits,
+  and deterministic CLI bytes. The library result retains the design; the CLI now reports its null
+  family and complete-pair-difference unit.
+- This advances FND-06/COH-01/WS-31/WS-34. It does not impute incomplete pairs, align repeated visits,
+  add covariates or matching, or generalize a sign-flip registry.

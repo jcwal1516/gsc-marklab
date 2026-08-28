@@ -1,9 +1,8 @@
 use std::collections::BTreeMap;
 
 use super::{
-    compensated_sum, derive_seed_in_namespace, splitmix64, CohortInferenceError,
-    PermutationAlternative, MAXIMUM_PATIENTS, MAXIMUM_PATIENT_PERMUTATION_EVALUATIONS,
-    MAXIMUM_PERMUTATIONS,
+    compensated_sum, CohortInferenceError, InferenceDesign, PermutationAlternative,
+    MAXIMUM_PATIENTS, MAXIMUM_PATIENT_PERMUTATION_EVALUATIONS, MAXIMUM_PERMUTATIONS,
 };
 
 const PAIRED_SIGN_FLIP_NAMESPACE: u64 = 0x7061_6972_5f73_6967;
@@ -46,6 +45,8 @@ pub struct PairedConditionSummary {
 /// Cohort-valid paired patient sign-flip result.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PairedPatientPermutationResult {
+    /// Exact paired sign-flip inference design.
+    pub inference_design: InferenceDesign,
     /// Number of complete independent patient pairs.
     pub pair_count: usize,
     /// Condition A summary.
@@ -106,19 +107,24 @@ pub fn paired_patient_permutation_test(
         ));
     }
     let observed = studentized_mean(&differences)?;
+    let inference_design = InferenceDesign::paired_sign_flip(
+        pairs.len(),
+        spec.permutations,
+        spec.seed,
+        PAIRED_SIGN_FLIP_NAMESPACE,
+        spec.alternative,
+    )
+    .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
 
     let mut lower_tail = 0usize;
     let mut upper_tail = 0usize;
     let mut signed = vec![0.0; differences.len()];
     for replicate in 0..spec.permutations {
-        let mut state = derive_seed_in_namespace(spec.seed, PAIRED_SIGN_FLIP_NAMESPACE, replicate);
-        for (index, (target, difference)) in signed.iter_mut().zip(&differences).enumerate() {
-            state = splitmix64(state ^ index as u64);
-            *target = if state & 1 == 0 {
-                *difference
-            } else {
-                -*difference
-            };
+        let signs = inference_design
+            .paired_difference_signs(replicate)
+            .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
+        for ((target, difference), sign) in signed.iter_mut().zip(&differences).zip(signs.iter()) {
+            *target = *difference * f64::from(*sign);
         }
         let statistic = studentized_mean(&signed)?;
         lower_tail += usize::from(statistic.statistic <= observed.statistic);
@@ -134,6 +140,7 @@ pub fn paired_patient_permutation_test(
     };
 
     Ok(PairedPatientPermutationResult {
+        inference_design,
         pair_count: pairs.len(),
         condition_a: PairedConditionSummary {
             label: spec.condition_a.clone(),

@@ -2250,3 +2250,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for FND-06/COH-01/WS-31/WS-34
 - Decision: add one explicit subject-residual sign-symmetry null and complete-subject-residual-vector permutation unit to `InferenceDesign`, immediately consumed by the existing repeated-measures Freedman–Lane workflow. Preserve the current reduced/full subject-fixed-effect models, private seed namespace, independent Rademacher sign stream, two-sided absolute studentized statistic, work bound, and plus-one p-value exactly. Persist the typed design in the library result and expose its null family and permutation unit in the existing version-1 CLI design summary.
 - Consequences: visits and residual coordinates cannot be mistaken for independently randomized population units, while the established repeated workflow remains numerically unchanged. This does not claim residual exchangeability, add visit alignment or covariates, substitute a paired endpoint test, add cluster bootstrap weights, or create a generic resampling registry.
+
+## DEC-0285 — Own complete paired differences in the inference design
+
+- Date: 2026-08-28
+- Status: accepted for FND-06/COH-01/WS-31/WS-34
+- Decision: add the master-plan `PairedSignFlip` null and a complete patient-pair-difference permutation unit to `InferenceDesign`, immediately consumed by the existing paired scalar permutation workflow. Preserve exact condition-B-minus-condition-A differences, current validation, private seed namespace, independent Rademacher stream, studentized statistic, less/greater/equal-tail two-sided alternatives, work bounds, and plus-one p-values. Persist the typed design in the library result and expose its null family and permutation unit in the existing version-1 CLI design summary.
+- Consequences: condition rows cannot be separated or permuted as independent patients, and existing paired numerical evidence remains exact. This does not add incomplete-pair imputation, repeated visits, covariates, cluster weights, pair matching, or a general sign-flip registry.

@@ -1,6 +1,6 @@
 use marklab_cohort::{
-    paired_patient_permutation_test, PairedPatientEndpoint, PairedPatientPermutationSpec,
-    PermutationAlternative,
+    paired_patient_permutation_test, InferenceNullFamily, InferencePermutationUnit,
+    PairedPatientEndpoint, PairedPatientPermutationSpec, PermutationAlternative,
 };
 
 const NAMESPACE: u64 = 0x7061_6972_5f73_6967;
@@ -37,6 +37,15 @@ fn paired_sign_flip_matches_a_slow_reference() {
 
     let result = paired_patient_permutation_test(&records, &spec).expect("paired result");
     assert_eq!(result.p_value, slow_reference_p_value(&differences, &spec));
+    assert_eq!(
+        result.inference_design.null_family(),
+        InferenceNullFamily::PairedSignFlip
+    );
+    assert_eq!(
+        result.inference_design.permutation_unit(),
+        InferencePermutationUnit::CompletePatientPairDifference
+    );
+    assert_eq!(result.inference_design.alternative(), spec.alternative);
 }
 
 fn slow_reference_p_value(differences: &[f64], spec: &PairedPatientPermutationSpec) -> f64 {

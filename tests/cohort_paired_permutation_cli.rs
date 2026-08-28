@@ -56,6 +56,11 @@ p-4,B,9\n",
     assert_eq!(result["format"], "marklab.cohort_paired_permutation");
     assert_eq!(result["version"], 1);
     assert_eq!(result["design"]["randomization_unit"], "patient_pair");
+    assert_eq!(result["design"]["null_family"], "paired_sign_flip");
+    assert_eq!(
+        result["design"]["permutation_unit"],
+        "complete_patient_pair_difference"
+    );
     assert_eq!(result["pairs"]["completed"], 4);
     assert_eq!(result["conditions"]["condition_a"]["mean"], 2.5);
     assert_eq!(result["conditions"]["condition_b"]["mean"], 6.0);
