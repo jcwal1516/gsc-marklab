@@ -43,7 +43,8 @@ mod cross_pair_correlation;
 mod data;
 mod diagnostics;
 mod errors;
-mod exact_float_json;
+#[doc(hidden)]
+pub mod exact_float_json;
 mod geom;
 mod inference;
 mod inhomogeneous_spatial;

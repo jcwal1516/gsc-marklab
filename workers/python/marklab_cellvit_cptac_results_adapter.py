@@ -389,6 +389,63 @@ def dirichlet_multinomial_group_rows(
     return result
 
 
+def sparse_radius_heat_input(coordinate_rows: list[dict[str, object]]) -> dict[str, object]:
+    """Build the bounded representative CellViT sparse-graph heat request."""
+    if not 2 <= len(coordinate_rows) <= MAXIMUM_COORDINATE_CELLS:
+        raise AdapterError("sparse graph heat requires 2..2000 admitted cells")
+    nodes = []
+    previous_id = None
+    neoplastic = 0
+    for row in coordinate_rows:
+        cell_id = row.get("cell_id")
+        compartment = row.get("histologic_compartment")
+        try:
+            x_um = float(row["x_um"])
+            y_um = float(row["y_um"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise AdapterError("sparse graph heat coordinates are invalid") from error
+        if (
+            not isinstance(cell_id, str)
+            or not cell_id
+            or cell_id.strip() != cell_id
+            or (previous_id is not None and cell_id <= previous_id)
+            or not isinstance(compartment, str)
+            or not compartment
+            or not math.isfinite(x_um)
+            or not math.isfinite(y_um)
+        ):
+            raise AdapterError("sparse graph heat cell identity or signal is invalid")
+        signal = float(compartment == "Neoplastic")
+        neoplastic += int(signal)
+        nodes.append(
+            {
+                "id": cell_id,
+                "coordinates_um": [x_um, y_um],
+                "signal": signal,
+            }
+        )
+        previous_id = cell_id
+    if not 0 < neoplastic < len(nodes):
+        raise AdapterError("sparse graph heat requires varying Neoplastic indicator signal")
+    pair_limit = len(nodes) * (len(nodes) - 1) // 2
+    edge_limit = min(pair_limit, 500_000)
+    maximum_order = 64
+    maximum_matrix_vector_work = maximum_order * (len(nodes) + 2 * edge_limit)
+    maximum_working_bytes = len(nodes) * 448 + edge_limit * 64 + 65 * 8
+    return {
+        "nodes": nodes,
+        "radius_um": 50.0,
+        "time": 0.1,
+        "tolerance": 1e-6,
+        "maximum_order": maximum_order,
+        "maximum_nodes": len(nodes),
+        "maximum_candidate_pairs": pair_limit,
+        "maximum_edges": edge_limit,
+        "maximum_matrix_vector_work": maximum_matrix_vector_work,
+        "maximum_working_bytes": maximum_working_bytes,
+    }
+
+
 def beta_binomial_group_gender_rows(
     group_rows: list[dict[str, int | str]], genders: dict[str, str]
 ) -> list[dict[str, int | str]]:
@@ -727,6 +784,8 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     ]
     write_csv(inputs / "coordinate_scalar_cells.csv", coordinate_fields, coordinate_rows)
     write_json(inputs / "coordinate_window.geojson", geometry)
+    sparse_graph_heat = sparse_radius_heat_input(coordinate_rows)
+    write_json(inputs / "sparse_radius_heat.json", sparse_graph_heat)
 
     vector_fields = ["object_id", "x_um", "y_um"] + [
         f"embedding_{index}" for index in range(1280)
@@ -1074,6 +1133,15 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "rows": len(dirichlet_multinomial_groups),
                 "zero_counts_retained": True,
             },
+            "sparse_radius_heat_definition": {
+                "observation_unit": "cell_radius_graph_node",
+                "signal": "hard_neoplastic_indicator",
+                "population_claim": "single_slide_descriptive_only",
+                "node_count": len(sparse_graph_heat["nodes"]),
+                "radius_um": sparse_graph_heat["radius_um"],
+                "time": sparse_graph_heat["time"],
+                "tolerance": sparse_graph_heat["tolerance"],
+            },
             "beta_binomial_group_gender_definition": {
                 "join_key": "patient_id",
                 "source": str(arguments.clinical.resolve()),
@@ -1105,6 +1173,7 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
             "preparation": {
                 "coordinate_cells": len(coordinate_rows),
                 "coordinate_marked": sum(int(row["mark"]) for row in coordinate_rows),
+                "sparse_graph_heat_nodes": len(sparse_graph_heat["nodes"]),
                 "raw_vector_rows": len(vector_rows),
                 "raw_vector_pair_visits": len(vector_rows) * (len(vector_rows) - 1) // 2,
                 "projected_rows": len(projected_rows),

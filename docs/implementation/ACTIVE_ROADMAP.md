@@ -1062,3 +1062,13 @@ four-workflow family passed the scheduled workspace stabilization without retryi
 integration/Nextest loop. BAY-01/BAY-02/WS-40/WS-44 remain active for broader justified model
 families; the next dependency-ordered production outcome is one admitted arbitrary-window
 point-process or missing hierarchy caller, followed by representative graph/topology scaling.
+
+## Checkpoint 120 representative sparse graph continuation
+
+One graph signal now scales from the prior 128-node dense ceiling to an admitted 2,000-cell CellViT
+radius graph without dense storage or eigendecomposition. Exact small-graph agreement, negative-grid
+construction, hard resource edges, durable cross-process replay, and measured real workload bounds
+pass. GSP-01/FR-01B/WS-61/WS-62 remain active for sparse wavelets/scattering/eigensolvers,
+perturbation calibration, and replicated patient evidence. The next dependency-ordered production
+outcome is representative admitted topology or the smallest arbitrary-window point-process caller;
+UI/server/client work remains deferred.

@@ -14,6 +14,7 @@ mod heterogeneous;
 mod hodge;
 mod hypergraph;
 mod motif;
+mod sparse_heat;
 mod validation;
 
 pub use cellular::{
@@ -36,6 +37,9 @@ pub use hypergraph::{
 pub use motif::{
     typed_triangle_motif_workflow, MotifEdgeInput, MotifNodeInput, TypedTriangleMotifResult,
     TypedTriangleMotifSpec,
+};
+pub use sparse_heat::{
+    graph_sparse_radius_heat_workflow, GraphSparseRadiusHeatResult, GraphSparseRadiusHeatSpec,
 };
 pub use validation::{
     validate_graph_mathematics_suite, GraphMathematicsValidationResult, GraphValidationEntry,
@@ -1094,7 +1098,7 @@ fn matrix_vector(matrix: &[Vec<f64>], vector: &[f64]) -> Vec<f64> {
         .collect()
 }
 
-fn heat_chebyshev_coefficients(time: f64, lambda_max: f64, order: usize) -> Vec<f64> {
+pub(crate) fn heat_chebyshev_coefficients(time: f64, lambda_max: f64, order: usize) -> Vec<f64> {
     let samples = (8 * (order + 1)).max(1_024);
     (0..=order)
         .map(|degree| {
@@ -1110,7 +1114,12 @@ fn heat_chebyshev_coefficients(time: f64, lambda_max: f64, order: usize) -> Vec<
         .collect()
 }
 
-fn heat_grid_error(time: f64, lambda_max: f64, coefficients: &[f64], points: usize) -> f64 {
+pub(crate) fn heat_grid_error(
+    time: f64,
+    lambda_max: f64,
+    coefficients: &[f64],
+    points: usize,
+) -> f64 {
     (0..points)
         .map(|index| {
             let scaled = -1.0 + 2.0 * index as f64 / (points - 1) as f64;

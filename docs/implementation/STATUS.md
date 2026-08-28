@@ -2106,3 +2106,26 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   Bayesian package passes 47/47, and final direct/durable replay tests remain green. The prohibited
   Nextest/full-integration loader loop was not rerun. Production advances to the next immediate
   arbitrary-window point-process or hierarchy caller, not UI/server/client work.
+
+## Representative sparse CellViT graph heat checkpoint 120 — 2026-08-28
+
+- Added a user-visible sparse exact-radius graph heat workflow and durable project path. It uses a
+  deterministic uniform-cell search to retain every radius edge, a binary combinatorial
+  Laplacian, the conservative `[0,2*d_max]` spectral interval, and adaptive Chebyshev application
+  without materializing a dense Laplacian or eigensystem. Isolated nodes retain their signals.
+  Node, candidate, edge, matrix-vector, and conservative working-memory ceilings are explicit.
+- Independent small controls agree with the existing dense eigensolver on a path and a 25-node grid
+  spanning negative cell keys; candidate, edge, and working-byte one-short limits fail before an
+  over-budget result. Durable output reuses the existing exact-f64 codec and proves miss, fresh
+  process hit, byte identity, one ledger execution, and changed-input invalidation.
+- The Mac-mini v5 adapter revalidated 366 slides, 178 patients, and 1,542,389 cells and emitted the
+  exact 2,000-cell representative graph request with source CellIds and a hard Neoplastic indicator.
+  Its SHA-256 is `49d5509ff4996b8e23baa8d0c8118fa579f43cd07c95ed9b301124ebc7e35dcf`.
+  At 50 µm the graph has 24,755 edges and nine isolated nodes after 56,086 candidate checks. The
+  selected order is 13, matrix-vector work is 669,630, accounted working memory is 2,268,208 bytes,
+  measured wall time is 0.07s, and measured maximum RSS is 14,958,592 bytes.
+- Direct and durable real outputs share SHA-256
+  `769ece4d0b37345e053abff0c387da42feabaec47431db870dbee9c8fdb3f593` and the latter replays with
+  one ledger record. This is a single-slide descriptive graph signal, not patient-population,
+  topology, biological-calibration, or performance-generalization evidence. Arbitrary-window point
+  processes, sparse wavelets/scattering/eigensolvers, and representative topology remain active.

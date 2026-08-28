@@ -87,6 +87,31 @@ class CellvitCptacResultsAdapterTest(unittest.TestCase):
             ],
         )
 
+    def test_sparse_graph_heat_input_retains_cell_identity_and_neoplastic_signal(self):
+        result = self.module.sparse_radius_heat_input(
+            [
+                {
+                    "cell_id": "slide:000000001",
+                    "x_um": "10.5",
+                    "y_um": "20.25",
+                    "histologic_compartment": "Inflammatory",
+                },
+                {
+                    "cell_id": "slide:000000002",
+                    "x_um": "11.5",
+                    "y_um": "20.25",
+                    "histologic_compartment": "Neoplastic",
+                },
+            ]
+        )
+
+        self.assertEqual(result["nodes"][0]["id"], "slide:000000001")
+        self.assertEqual(result["nodes"][0]["signal"], 0.0)
+        self.assertEqual(result["nodes"][1]["signal"], 1.0)
+        self.assertEqual(result["maximum_nodes"], 2)
+        self.assertEqual(result["radius_um"], 50.0)
+        self.assertGreaterEqual(result["maximum_edges"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

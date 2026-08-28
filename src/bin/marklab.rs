@@ -51,6 +51,7 @@ fn main() -> marklab::Result<()> {
                             subcommand.to_str(),
                             Some(
                                 "marked-prepost"
+                                    | "sparse-radius-heat"
                                     | "region-retrieval"
                                     | "normal-mean"
                                     | "hierarchical-normal"

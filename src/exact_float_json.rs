@@ -4,7 +4,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 const FLOAT_BITS_KEY: &str = "__marklab_f64_bits";
 
-pub(crate) fn encode<T: Serialize>(value: &T) -> io::Result<Box<[u8]>> {
+pub fn encode<T: Serialize>(value: &T) -> io::Result<Box<[u8]>> {
     let mut value = serde_json::to_value(value).map_err(invalid_owned)?;
     encode_float_bits(&mut value);
     serde_json::to_vec_pretty(&value)
@@ -12,7 +12,7 @@ pub(crate) fn encode<T: Serialize>(value: &T) -> io::Result<Box<[u8]>> {
         .map_err(invalid_owned)
 }
 
-pub(crate) fn decode<T: DeserializeOwned>(bytes: &[u8]) -> io::Result<T> {
+pub fn decode<T: DeserializeOwned>(bytes: &[u8]) -> io::Result<T> {
     let mut value: serde_json::Value = serde_json::from_slice(bytes).map_err(invalid_owned)?;
     decode_float_bits(&mut value)?;
     serde_json::from_value(value).map_err(invalid_owned)

@@ -2614,6 +2614,36 @@ vascular transport.
   fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or history rewrite
   ran.
 
+## Representative sparse CellViT graph heat checkpoint 120 — 2026-08-28
+
+- Expected red: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  graph_sparse_radius_heat_cli
+  sparse_radius_heat_matches_the_exact_small_graph_and_enforces_work_limits -- --exact --nocapture`
+  failed on the absent `sparse-radius-heat` graph command. The final two-test target passes the path
+  and negative-grid dense-eigensolver differentials plus candidate/edge/working-byte boundaries.
+- Expected durable red: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  durable_sparse_radius_heat_project
+  sparse_radius_heat_replays_across_processes_and_invalidates_on_input_change -- --exact
+  --nocapture` failed on the absent project subcommand. Its first changed-input miss exposed decimal
+  JSON normalization; connecting the node to the existing exact-f64 codec produced the final 1/1
+  pass with miss/hit byte identity, one ledger row, and changed-input miss.
+- `python3 tests/python/test_marklab_cellvit_cptac_results_adapter.py` passes 4/4, including exact
+  CellId/coordinate retention and the hard Neoplastic signal request. `cargo +1.96.0 test --locked
+  --package marklab-graph` passes 1/1 plus doctests after the documented serial binary-verification
+  delay. Affected-file Rustfmt and diff whitespace checks pass.
+- On `mini`, the pinned/frozen adapter revalidated 366 slides, 178 patients, and 1,542,389 cells
+  into `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v5-inputs`. The 2,000-node graph input
+  SHA-256 is `49d5509ff4996b8e23baa8d0c8118fa579f43cd07c95ed9b301124ebc7e35dcf`.
+  `/usr/bin/time -l target/debug/marklab graph sparse-radius-heat ...` completed in 0.07s with
+  14,958,592-byte maximum RSS. It retained 24,755 edges and nine isolates after 56,086 candidates,
+  selected order 13, performed 669,630 declared matvec work, and accounted 2,268,208 working bytes.
+- Two real `marklab project sparse-radius-heat` processes report miss then hit; `cmp` passes,
+  `executions.jsonl` remains one line, and the direct/durable result SHA-256 is
+  `769ece4d0b37345e053abff0c387da42feabaec47431db870dbee9c8fdb3f593`. The result is stored in the
+  v5 Mac-mini bundle. No workspace-wide gate was repeated after checkpoint 119; no full
+  integration/Nextest loop, feature matrix, benchmark suite, fuzz, memory tool, packaging,
+  dependency audit, push, publication, deployment, or history rewrite ran.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test
