@@ -992,3 +992,10 @@ rejected. INF-01C no longer lacks a concrete hierarchical/local multiplicity exe
 graphical/recycling policies and explicit calibration remain. The next dependency-ordered outcome
 is a multiclass CellViT geometry/mark workflow using the existing typed partition and MarkTable
 owners, not another inference abstraction.
+
+## Checkpoint 113 adjusted/hierarchical inference stabilization continuation
+
+The checkpoint-109–112 family passes workspace formatting, warning-denied all-target/all-feature
+Clippy, no-default compilation, all-feature doctests, and strict docs. The prohibited full
+integration/Nextest loader loop was not retried. Production now advances to the smallest admitted
+multiclass CellViT geometry/mark caller and its typed interchange boundary.

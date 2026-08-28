@@ -2427,6 +2427,21 @@ vascular transport.
   workspace-wide gates, feature matrices, benchmarks, fuzzing, memory tools, packaging, dependency
   audits, push, publication, deployment, and history rewriting were not run.
 
+## Adjusted and hierarchical inference stabilization checkpoint 113 — 2026-08-28
+
+- `cargo +1.96.0 fmt --all --check` passes.
+- `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings` passes in
+  15m11s with no diagnostics.
+- `cargo +1.96.0 check --locked --workspace --no-default-features` passes in 22.29s.
+  `cargo +1.96.0 test --locked --workspace --doc --all-features` compiles in 36.20s and completes
+  every package doctest with zero failures.
+- `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --workspace --all-features --no-deps`
+  passes in 25.97s. `git diff --check` passes.
+- The full workspace integration/Nextest loop was not run because the active instruction and
+  checkpoints 51/52 prohibit retrying the macOS binary-verification loop. No feature matrix,
+  benchmark, fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or
+  history rewrite ran.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

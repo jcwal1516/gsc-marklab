@@ -1952,3 +1952,15 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   no-default compilation, strict docs, formatting, and whitespace checks pass. Real CRC execution
   remains unavailable because no admitted artifact contains a prospectively prespecified ordered
   endpoint-family hierarchy; no hierarchy was selected after viewing outcomes.
+
+## Adjusted and hierarchical inference stabilization checkpoint 113 — 2026-08-28
+
+- Stabilized checkpoints 109–112 across named nuisance-matrix patient inference, adjusted
+  within-site pooling, covariate-adjusted whole-cluster residual permutation, and ordered
+  endpoint-family gatekeeping. Workspace formatting, warning-denied all-target/all-feature Clippy,
+  no-default compilation, all-feature doctests, and strict all-feature docs pass on the final
+  production state.
+- The full workspace integration/Nextest loop was not run because checkpoints 51/52 and the active
+  instruction prohibit retrying the macOS binary-verification loop. No feature matrix, benchmark,
+  fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or history rewrite
+  ran. The next production outcome remains multiclass CellViT geometry/marks with typed interchange.
