@@ -2281,6 +2281,21 @@ vascular transport.
   compilation, doctests, affected-file Rustfmt, and diff whitespace pass; broad checkpoint-101 gates
   were not repeated.
 
+## Patient-family step-down Max-T checkpoint 104 — 2026-08-28
+
+- `cargo +1.96.0 test --locked --package marklab --features cli --test cohort_max_t_cli
+  max_t_cli_exposes_step_down_adjustment_for_the_complete_endpoint_family -- --exact --nocapture`
+  first failed because `--step-down` was absent and now passes. The complete named CLI target passes
+  3/3 with legacy single-step, blocked single-step, and step-down behavior.
+- `cargo +1.96.0 test --locked --package marklab-cohort --lib max_t -- --nocapture` passes 1/1.
+  `cargo +1.96.0 test --locked --package marklab-cohort --test max_t_reference -- --nocapture`
+  passes 3/3; the new independent slow oracle agrees for unrestricted and exact-block step-down
+  streams. One broader package-filter command was interrupted after its Max-T unit passed because
+  Cargo began launching unrelated integration binaries through the prohibited macOS loader loop.
+- Warning-denied Clippy passes for all `marklab-cohort` targets and the affected `marklab` CLI
+  binary. Package no-default compilation, strict package docs, affected-file Rustfmt, and `git diff
+  --check` pass. Broad checkpoint-101 gates were not repeated.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

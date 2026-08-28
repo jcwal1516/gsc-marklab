@@ -923,3 +923,10 @@ The existing complete-endpoint family-wise test now moves whole patient labels o
 declared blocks and retains its two-sided maximum-statistic reference stream. FND-06 remains active
 for broader multiplicity/calibration beyond the current single-step family; the immediate blocked
 Max-T caller is complete.
+
+## Checkpoint 104 patient-family step-down Max-T continuation
+
+The same complete patient endpoint family now supports streamed single-step and step-down Max-T,
+including exact-block designs, without changing the randomization unit, seed stream, work ceiling,
+or legacy single-step result. INF-01C remains active for hierarchical/local families and explicit
+calibration; the immediate step-down endpoint-family caller is complete.

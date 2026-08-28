@@ -1807,3 +1807,18 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   path, preserving legacy unblocked JSON shape.
 - This advances FND-06/COH-01/CMP-01B/WS-31/WS-34 without endpoint selection, inferred blocks,
   covariate residualization, step-down testing, or a generic multiplicity registry.
+
+## Patient-family step-down Max-T checkpoint 104 — 2026-08-28
+
+- Added step-down Max-T to the existing complete patient endpoint family for both unrestricted and
+  exact-block label designs. Each permutation remains whole-patient and shared across endpoints;
+  exact observed-statistic ties form one step and adjusted p-values are monotone in decreasing
+  observed absolute Welch order.
+- The implementation streams one null endpoint vector at a time under the existing 100-million-
+  evaluation ceiling. It preserves endpoint order, the initial complete-family critical value,
+  alpha, seed namespace, block compiler, and legacy single-step CLI output.
+- Independent slow unrestricted/blocked references match every adjusted p-value. Focused unit,
+  reference, and CLI tests pass, as do affected warning-denied Clippy, package no-default
+  compilation, strict package docs, affected-file formatting, and whitespace checks. A package-wide
+  filtered test command was interrupted when Cargo began launching unrelated integration binaries;
+  the named Max-T library and integration targets were then run directly.

@@ -1,7 +1,8 @@
 use marklab_cohort::{
-    max_t_multiple_endpoint_blocked_permutation, max_t_multiple_endpoint_permutation,
-    InferenceAlternative, InferenceNullFamily, MaxTPermutationSpec, PatientEndpointVector,
-    PatientExchangeabilityBlock,
+    max_t_multiple_endpoint_blocked_permutation,
+    max_t_multiple_endpoint_blocked_step_down_permutation, max_t_multiple_endpoint_permutation,
+    max_t_multiple_endpoint_step_down_permutation, InferenceAlternative, InferenceNullFamily,
+    MaxTPermutationSpec, PatientEndpointVector, PatientExchangeabilityBlock,
 };
 
 const NAMESPACE: u64 = 0x6d61_785f_745f_7065;
@@ -103,6 +104,128 @@ fn blocked_max_t_matches_a_patient_id_keyed_slow_reference() {
         result.inference_design.alternative(),
         InferenceAlternative::TwoSided
     );
+}
+
+#[test]
+fn step_down_max_t_matches_slow_unblocked_and_blocked_references() {
+    let patients = [
+        ("a-1", "A", [8.0, 4.0, 2.0]),
+        ("a-2", "A", [9.0, 7.0, 5.0]),
+        ("b-1", "B", [1.0, 2.0, 3.0]),
+        ("b-2", "B", [2.0, 3.0, 4.0]),
+        ("a-3", "A", [7.0, 5.0, 2.5]),
+        ("a-4", "A", [10.0, 8.0, 4.5]),
+        ("b-3", "B", [2.0, 1.0, 3.5]),
+        ("b-4", "B", [3.0, 4.0, 4.0]),
+    ]
+    .into_iter()
+    .map(|(patient, group, values)| PatientEndpointVector {
+        patient_id: patient.into(),
+        group: group.into(),
+        endpoints: vec!["strong".into(), "middle".into(), "weak".into()],
+        values: values.into(),
+    })
+    .collect::<Vec<_>>();
+    let assignments = [
+        ("b-4", "south"),
+        ("b-3", "south"),
+        ("a-4", "south"),
+        ("a-3", "south"),
+        ("b-2", "north"),
+        ("b-1", "north"),
+        ("a-2", "north"),
+        ("a-1", "north"),
+    ]
+    .into_iter()
+    .map(|(patient, block)| PatientExchangeabilityBlock::new(patient, block).expect("assignment"))
+    .collect::<Vec<_>>();
+    let spec = MaxTPermutationSpec {
+        group_a: "A".into(),
+        group_b: "B".into(),
+        permutations: 199,
+        seed: 41,
+        alpha: 0.05,
+    };
+
+    let unblocked = max_t_multiple_endpoint_step_down_permutation(&patients, &spec)
+        .expect("unblocked step-down Max-T");
+    let blocked =
+        max_t_multiple_endpoint_blocked_step_down_permutation(&patients, &assignments, &spec)
+            .expect("blocked step-down Max-T");
+    assert_eq!(
+        endpoint_p_values(&unblocked.endpoints),
+        slow_step_down_reference(&patients, &spec, false)
+    );
+    assert_eq!(
+        endpoint_p_values(&blocked.endpoints),
+        slow_step_down_reference(&patients, &spec, true)
+    );
+    assert_eq!(blocked.inference_design.block_count(), 2);
+}
+
+fn endpoint_p_values(endpoints: &[marklab_cohort::MaxTEndpointResult]) -> Vec<f64> {
+    endpoints
+        .iter()
+        .map(|endpoint| endpoint.adjusted_p_value)
+        .collect()
+}
+
+fn slow_step_down_reference(
+    patients: &[PatientEndpointVector],
+    spec: &MaxTPermutationSpec,
+    blocked: bool,
+) -> Vec<f64> {
+    let observed_labels = patients
+        .iter()
+        .map(|patient| patient.group == spec.group_a)
+        .collect::<Vec<_>>();
+    let observed = statistics(patients, &observed_labels);
+    let mut order = (0..observed.len()).collect::<Vec<_>>();
+    order.sort_by(|left, right| {
+        observed[*right]
+            .abs()
+            .total_cmp(&observed[*left].abs())
+            .then_with(|| left.cmp(right))
+    });
+    let mut exceedances = vec![0usize; observed.len()];
+    for replicate in 0..spec.permutations {
+        let mut labels = observed_labels.clone();
+        let mut state = derive_seed(spec.seed, replicate);
+        let blocks: &[&[usize]] = if blocked {
+            &[&[0, 1, 2, 3], &[4, 5, 6, 7]]
+        } else {
+            &[&[0, 1, 2, 3, 4, 5, 6, 7]]
+        };
+        for block in blocks {
+            let mut sources = block.to_vec();
+            for index in (1..sources.len()).rev() {
+                state = splitmix64(state ^ index as u64);
+                let other = (state % (index as u64 + 1)) as usize;
+                sources.swap(index, other);
+            }
+            for (position, source) in block.iter().zip(sources) {
+                labels[*position] = observed_labels[source];
+            }
+        }
+        let null = statistics(patients, &labels);
+        for (rank, endpoint_index) in order.iter().enumerate() {
+            let maximum = order[rank..]
+                .iter()
+                .map(|remaining| null[*remaining].abs())
+                .fold(0.0_f64, f64::max);
+            exceedances[*endpoint_index] += usize::from(maximum >= observed[*endpoint_index].abs());
+        }
+    }
+    let mut adjusted = exceedances
+        .into_iter()
+        .map(|count| (count as f64 + 1.0) / (spec.permutations + 1) as f64)
+        .collect::<Vec<_>>();
+    let mut previous = 0.0_f64;
+    for endpoint_index in order {
+        previous = previous.max(adjusted[endpoint_index]);
+        adjusted[endpoint_index] = previous;
+    }
+    adjusted
 }
 
 fn slow_blocked_reference(

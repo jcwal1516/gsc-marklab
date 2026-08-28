@@ -46,22 +46,43 @@ pub struct MaxTEndpointResult {
     pub effect_group_a_minus_group_b: f64,
     /// Welch-style observed statistic.
     pub studentized_statistic: f64,
-    /// Inclusive-plus-one single-step Max-T adjusted p-value.
+    /// Inclusive-plus-one Max-T adjusted p-value under the declared correction.
     pub adjusted_p_value: f64,
 }
 
-/// Patient-level single-step Max-T family result.
+/// Multiplicity correction applied to the complete endpoint family.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MaxTCorrection {
+    /// Compare every endpoint with the maximum over the complete family.
+    SingleStep,
+    /// Remove more extreme hypotheses successively while preserving monotone adjusted p-values.
+    StepDown,
+}
+
+impl MaxTCorrection {
+    /// Stable result identity used by the version-one CLI document.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::SingleStep => "single_step_max_t",
+            Self::StepDown => "step_down_max_t",
+        }
+    }
+}
+
+/// Patient-level Max-T family result.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MaxTPermutationResult {
     /// Exact whole-patient multiplicity design.
     pub inference_design: InferenceDesign,
+    /// Exact family-wise multiplicity correction.
+    pub correction: MaxTCorrection,
     /// Group A patient count.
     pub group_a_count: usize,
     /// Group B patient count.
     pub group_b_count: usize,
     /// Ordered endpoint results.
     pub endpoints: Vec<MaxTEndpointResult>,
-    /// Conservative empirical `(1-alpha)` null maximum threshold.
+    /// Conservative empirical `(1-alpha)` complete-family null maximum threshold.
     pub critical_value: f64,
     /// Family-wise alpha.
     pub alpha: f64,
@@ -89,7 +110,24 @@ pub fn max_t_multiple_endpoint_permutation(
         InferenceAlternative::TwoSided,
     )
     .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
-    execute_max_t(patients, spec, design)
+    execute_max_t(patients, spec, design, MaxTCorrection::SingleStep)
+}
+
+/// Jointly test a complete scalar endpoint family using step-down whole-patient Max-T.
+pub fn max_t_multiple_endpoint_step_down_permutation(
+    patients: &[PatientEndpointVector],
+    spec: &MaxTPermutationSpec,
+) -> Result<MaxTPermutationResult, CohortInferenceError> {
+    validate_max_t_inputs(patients, spec)?;
+    let design = InferenceDesign::population_independence_with_alternative(
+        patients.len(),
+        spec.permutations,
+        spec.seed,
+        MAX_T_NAMESPACE,
+        InferenceAlternative::TwoSided,
+    )
+    .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
+    execute_max_t(patients, spec, design, MaxTCorrection::StepDown)
 }
 
 /// Jointly test an endpoint family while moving patient labels only within exact blocks.
@@ -116,7 +154,34 @@ pub fn max_t_multiple_endpoint_blocked_permutation(
         MAX_T_NAMESPACE,
         InferenceAlternative::TwoSided,
     )?;
-    execute_max_t(patients, spec, design)
+    execute_max_t(patients, spec, design, MaxTCorrection::SingleStep)
+}
+
+/// Apply step-down Max-T while moving patient labels only within exact blocks.
+pub fn max_t_multiple_endpoint_blocked_step_down_permutation(
+    patients: &[PatientEndpointVector],
+    assignments: &[PatientExchangeabilityBlock],
+    spec: &MaxTPermutationSpec,
+) -> Result<MaxTPermutationResult, CohortInferenceError> {
+    validate_max_t_inputs(patients, spec)?;
+    let observed_labels = patients
+        .iter()
+        .map(|patient| patient.group == spec.group_a)
+        .collect::<Vec<_>>();
+    let patient_ids = patients
+        .iter()
+        .map(|patient| patient.patient_id.clone())
+        .collect::<Vec<_>>();
+    let design = compile_blocked_population_independence(
+        &patient_ids,
+        &observed_labels,
+        assignments,
+        spec.permutations,
+        spec.seed,
+        MAX_T_NAMESPACE,
+        InferenceAlternative::TwoSided,
+    )?;
+    execute_max_t(patients, spec, design, MaxTCorrection::StepDown)
 }
 
 fn validate_max_t_inputs(
@@ -141,12 +206,22 @@ fn execute_max_t(
     patients: &[PatientEndpointVector],
     spec: &MaxTPermutationSpec,
     design: InferenceDesign,
+    correction: MaxTCorrection,
 ) -> Result<MaxTPermutationResult, CohortInferenceError> {
     let observed_labels = patients
         .iter()
         .map(|patient| patient.group == spec.group_a)
         .collect::<Vec<_>>();
     let observed = endpoint_contrasts(patients, &observed_labels)?;
+    let mut observed_order = (0..observed.len()).collect::<Vec<_>>();
+    observed_order.sort_by(|left, right| {
+        observed[*right]
+            .studentized
+            .abs()
+            .total_cmp(&observed[*left].studentized.abs())
+            .then_with(|| left.cmp(right))
+    });
+    let mut exceedances = vec![0usize; observed.len()];
     let mut null_maxima = Vec::with_capacity(spec.permutations);
     for replicate in 0..spec.permutations {
         let labels = design
@@ -156,41 +231,63 @@ fn execute_max_t(
             .map(|source| observed_labels[*source])
             .collect::<Vec<_>>();
         let contrasts = endpoint_contrasts(patients, &labels)?;
-        let maximum = contrasts
+        let null_statistics = contrasts
             .iter()
             .map(|contrast| contrast.studentized.abs())
-            .fold(0.0_f64, f64::max);
+            .collect::<Vec<_>>();
+        let maximum = null_statistics.iter().copied().fold(0.0_f64, f64::max);
         if !maximum.is_finite() {
             return Err(CohortInferenceError::NumericalFailure(
                 "Max-T null maximum is non-finite".into(),
             ));
         }
         null_maxima.push(maximum);
+        match correction {
+            MaxTCorrection::SingleStep => {
+                for (index, contrast) in observed.iter().enumerate() {
+                    exceedances[index] += usize::from(maximum >= contrast.studentized.abs());
+                }
+            }
+            MaxTCorrection::StepDown => accumulate_step_down_exceedances(
+                &observed,
+                &observed_order,
+                &null_statistics,
+                &mut exceedances,
+            ),
+        }
     }
     let mut ordered_maxima = null_maxima.clone();
     ordered_maxima.sort_by(f64::total_cmp);
     let rank = ((1.0 - spec.alpha) * (spec.permutations + 1) as f64).ceil() as usize;
     let critical_value = ordered_maxima[rank.saturating_sub(1).min(ordered_maxima.len() - 1)];
+    let mut adjusted_p_values = exceedances
+        .into_iter()
+        .map(|count| (count as f64 + 1.0) / (spec.permutations + 1) as f64)
+        .collect::<Vec<_>>();
+    if correction == MaxTCorrection::StepDown {
+        let mut previous = 0.0_f64;
+        for endpoint_index in &observed_order {
+            previous = previous.max(adjusted_p_values[*endpoint_index]);
+            adjusted_p_values[*endpoint_index] = previous;
+        }
+    }
     let endpoints = patients[0]
         .endpoints
         .iter()
-        .zip(observed.iter())
-        .map(|(endpoint, contrast)| {
-            let exceedances = null_maxima
-                .iter()
-                .filter(|maximum| **maximum >= contrast.studentized.abs())
-                .count();
-            MaxTEndpointResult {
+        .zip(observed.iter().zip(adjusted_p_values))
+        .map(
+            |(endpoint, (contrast, adjusted_p_value))| MaxTEndpointResult {
                 endpoint: endpoint.clone(),
                 effect_group_a_minus_group_b: contrast.effect,
                 studentized_statistic: contrast.studentized,
-                adjusted_p_value: (exceedances as f64 + 1.0) / (spec.permutations + 1) as f64,
-            }
-        })
+                adjusted_p_value,
+            },
+        )
         .collect();
 
     Ok(MaxTPermutationResult {
         inference_design: design,
+        correction,
         group_a_count: observed[0].group_a_count,
         group_b_count: observed[0].group_b_count,
         endpoints,
@@ -201,6 +298,37 @@ fn execute_max_t(
         permutations_completed: spec.permutations,
         seed: spec.seed,
     })
+}
+
+fn accumulate_step_down_exceedances(
+    observed: &[super::numeric::WelchContrast],
+    observed_order: &[usize],
+    null_statistics: &[f64],
+    exceedances: &mut [usize],
+) {
+    let mut running_maximum = 0.0_f64;
+    let mut tied_end = observed_order.len();
+    while tied_end > 0 {
+        let observed_statistic = observed[observed_order[tied_end - 1]].studentized.abs();
+        let mut tied_start = tied_end - 1;
+        while tied_start > 0
+            && observed[observed_order[tied_start - 1]]
+                .studentized
+                .abs()
+                .total_cmp(&observed_statistic)
+                .is_eq()
+        {
+            tied_start -= 1;
+        }
+        for endpoint_index in &observed_order[tied_start..tied_end] {
+            running_maximum = running_maximum.max(null_statistics[*endpoint_index]);
+        }
+        let exceeds = running_maximum >= observed_statistic;
+        for endpoint_index in &observed_order[tied_start..tied_end] {
+            exceedances[*endpoint_index] += usize::from(exceeds);
+        }
+        tied_end = tied_start;
+    }
 }
 
 fn validate_spec(spec: &MaxTPermutationSpec) -> Result<(), CohortInferenceError> {

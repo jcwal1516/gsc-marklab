@@ -7,17 +7,18 @@ use std::{
 use clap::{Parser, Subcommand, ValueEnum};
 use marklab_cohort::{
     functional_two_sample_blocked_permutation, functional_two_sample_permutation,
-    max_t_multiple_endpoint_blocked_permutation, max_t_multiple_endpoint_permutation,
-    paired_patient_permutation_test, patient_level_blocked_energy_distance,
-    patient_level_blocked_mmd, patient_level_energy_distance, patient_level_mmd,
-    patient_level_permutation_test, BlockedEnergyDistanceResult,
-    BlockedFunctionalPermutationResult, BlockedMmdPermutationResult, CohortInferenceError,
-    EnergyDistanceResult, EnergyDistanceSpec, EnergyMetric, Fingerprint, FunctionalCurve,
-    FunctionalPermutationResult, FunctionalPermutationSpec, FunctionalTestStatistic,
-    InferenceNullFamily, InferencePermutationUnit, MaxTPermutationResult, MaxTPermutationSpec,
-    MmdEstimator, MmdKernel, MmdPermutationResult, MmdPermutationSpec, PairedPatientEndpoint,
-    PairedPatientPermutationResult, PairedPatientPermutationSpec, PatientEndpoint,
-    PatientEndpointVector, PatientExchangeabilityBlock, PatientPermutationResult,
+    max_t_multiple_endpoint_blocked_permutation,
+    max_t_multiple_endpoint_blocked_step_down_permutation, max_t_multiple_endpoint_permutation,
+    max_t_multiple_endpoint_step_down_permutation, paired_patient_permutation_test,
+    patient_level_blocked_energy_distance, patient_level_blocked_mmd,
+    patient_level_energy_distance, patient_level_mmd, patient_level_permutation_test,
+    BlockedEnergyDistanceResult, BlockedFunctionalPermutationResult, BlockedMmdPermutationResult,
+    CohortInferenceError, EnergyDistanceResult, EnergyDistanceSpec, EnergyMetric, Fingerprint,
+    FunctionalCurve, FunctionalPermutationResult, FunctionalPermutationSpec,
+    FunctionalTestStatistic, InferenceNullFamily, InferencePermutationUnit, MaxTPermutationResult,
+    MaxTPermutationSpec, MmdEstimator, MmdKernel, MmdPermutationResult, MmdPermutationSpec,
+    PairedPatientEndpoint, PairedPatientPermutationResult, PairedPatientPermutationSpec,
+    PatientEndpoint, PatientEndpointVector, PatientExchangeabilityBlock, PatientPermutationResult,
     PatientPermutationSpec, PermutationAlternative,
 };
 use serde::{Deserialize, Serialize};
@@ -190,6 +191,9 @@ enum CohortCommand {
         seed: u64,
         #[arg(long)]
         alpha: f64,
+        /// Apply step-down rather than single-step Max-T adjustment.
+        #[arg(long)]
+        step_down: bool,
         #[arg(long)]
         out: PathBuf,
     },
@@ -465,6 +469,7 @@ pub(super) fn run_cli() -> Result<(), CohortError> {
                     permutations,
                     seed,
                     alpha,
+                    step_down,
                     out,
                 },
         } => {
@@ -476,8 +481,16 @@ pub(super) fn run_cli() -> Result<(), CohortError> {
                 seed,
                 alpha,
             };
-            let (result, blocked) = match max_t_input.blocks {
-                Some(blocks) => (
+            let (result, blocked) = match (max_t_input.blocks, step_down) {
+                (Some(blocks), true) => (
+                    max_t_multiple_endpoint_blocked_step_down_permutation(
+                        &max_t_input.patients,
+                        &blocks,
+                        &spec,
+                    )?,
+                    true,
+                ),
+                (Some(blocks), false) => (
                     max_t_multiple_endpoint_blocked_permutation(
                         &max_t_input.patients,
                         &blocks,
@@ -485,7 +498,11 @@ pub(super) fn run_cli() -> Result<(), CohortError> {
                     )?,
                     true,
                 ),
-                None => (
+                (None, true) => (
+                    max_t_multiple_endpoint_step_down_permutation(&max_t_input.patients, &spec)?,
+                    false,
+                ),
+                (None, false) => (
                     max_t_multiple_endpoint_permutation(&max_t_input.patients, &spec)?,
                     false,
                 ),
@@ -1460,7 +1477,7 @@ impl MaxTOutput {
             input,
             design: MaxTDesignSummary {
                 randomization_unit: "patient",
-                correction: "single_step_max_t",
+                correction: result.correction.as_str(),
                 blocked: blocked.then_some(true),
                 null_family: blocked.then_some("population_independence"),
                 block_count: blocked.then_some(result.inference_design.block_count()),
