@@ -2236,3 +2236,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for FND-06/CMP-01/CMP-01B/COH-01/WS-31/WS-34
 - Decision: extend the existing MMD and energy-distance patient workflows with an optional exact `patient_id`→block assignment table. Every admitted patient must occur exactly once, every block label must be nonempty/bounded, and at least one block must contain both declared groups; reject missing, duplicate, foreign, singleton-only, and group-confounded block designs. Reuse each method's existing kernel/distance matrix, statistic, private seed namespace, work limits, and `InferenceDesign` Fisher–Yates schedule, moving whole patient labels only within blocks. Preserve the unblocked APIs and their output bytes; blocked CLI inputs use one optional trailing `block` CSV column and report the null family and block count.
 - Consequences: patient/site-restricted fingerprint tests become user-visible without changing unblocked results or treating cells/features as exchangeable units. This does not add automatic site selection, paired/repeated fingerprints, covariate residualization, multiplicity expansion, or a general permutation registry.
+
+## DEC-0283 — Admit exact patient blocks for functional curve inference
+
+- Date: 2026-08-28
+- Status: accepted for FND-06/COH-01/WS-31/WS-34
+- Decision: extend the existing common-axis functional two-sample permutation with the same exact patient-ID→block assignments already admitted by MMD and energy distance. Preserve each complete curve and patient label as the atomic unit, the existing L2 statistic, private seed namespace, work bound, one-sided-high plus-one p-value, and unblocked output bytes. Blocked CLI input uses one optional trailing `block` column and reports the population-independence null and exact block count.
+- Consequences: prespecified multiscale patient curves can be compared within site/batch restrictions without splitting axis values or inferring strata. This does not add curve registration, smoothing, axis selection, covariate residualization, paired/repeated curves, multiplicity expansion, or a general randomization registry.

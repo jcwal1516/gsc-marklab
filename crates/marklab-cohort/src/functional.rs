@@ -1,8 +1,9 @@
 use std::collections::HashSet;
 
 use super::{
-    compensated_sum, derive_seed_in_namespace, shuffled_labels, CohortInferenceError,
-    MAXIMUM_PATIENTS, MAXIMUM_PERMUTATIONS,
+    compensated_sum, inference_design::compile_blocked_population_independence,
+    CohortInferenceError, InferenceDesign, PatientExchangeabilityBlock, MAXIMUM_PATIENTS,
+    MAXIMUM_PERMUTATIONS,
 };
 
 const FUNCTIONAL_PERMUTATION_NAMESPACE: u64 = 0x6675_6e63_5f70_6572;
@@ -74,11 +75,77 @@ pub struct FunctionalPermutationResult {
     pub seed: u64,
 }
 
+/// Functional permutation result together with its exact exchangeability design.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BlockedFunctionalPermutationResult {
+    result: FunctionalPermutationResult,
+    design: InferenceDesign,
+}
+
+impl BlockedFunctionalPermutationResult {
+    /// Functional result computed under the blocked design.
+    pub fn result(&self) -> &FunctionalPermutationResult {
+        &self.result
+    }
+
+    /// Exact patient-level exchangeability design used for every replicate.
+    pub fn design(&self) -> &InferenceDesign {
+        &self.design
+    }
+
+    /// Consume the wrapper into its result and design.
+    pub fn into_parts(self) -> (FunctionalPermutationResult, InferenceDesign) {
+        (self.result, self.design)
+    }
+}
+
 /// Compare one common-axis curve per patient using whole-patient label permutations.
 pub fn functional_two_sample_permutation(
     curves: &[FunctionalCurve],
     spec: &FunctionalPermutationSpec,
 ) -> Result<FunctionalPermutationResult, CohortInferenceError> {
+    validate_functional_inputs(curves, spec)?;
+    let design = InferenceDesign::population_independence(
+        curves.len(),
+        spec.permutations,
+        spec.seed,
+        FUNCTIONAL_PERMUTATION_NAMESPACE,
+    )
+    .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
+    execute_functional(curves, spec, &design)
+}
+
+/// Compare one common-axis curve per patient within exact exchangeability blocks.
+pub fn functional_two_sample_blocked_permutation(
+    curves: &[FunctionalCurve],
+    assignments: &[PatientExchangeabilityBlock],
+    spec: &FunctionalPermutationSpec,
+) -> Result<BlockedFunctionalPermutationResult, CohortInferenceError> {
+    validate_functional_inputs(curves, spec)?;
+    let observed_labels = curves
+        .iter()
+        .map(|curve| curve.group == spec.group_a)
+        .collect::<Vec<_>>();
+    let patient_ids = curves
+        .iter()
+        .map(|curve| curve.patient_id.clone())
+        .collect::<Vec<_>>();
+    let design = compile_blocked_population_independence(
+        &patient_ids,
+        &observed_labels,
+        assignments,
+        spec.permutations,
+        spec.seed,
+        FUNCTIONAL_PERMUTATION_NAMESPACE,
+    )?;
+    let result = execute_functional(curves, spec, &design)?;
+    Ok(BlockedFunctionalPermutationResult { result, design })
+}
+
+fn validate_functional_inputs(
+    curves: &[FunctionalCurve],
+    spec: &FunctionalPermutationSpec,
+) -> Result<(), CohortInferenceError> {
     validate_spec(spec)?;
     validate_curves(curves, spec)?;
     let axis_len = curves[0].axis.len();
@@ -90,7 +157,14 @@ pub fn functional_two_sample_permutation(
     if work > MAXIMUM_FUNCTIONAL_EVALUATIONS {
         return Err(work_limit_error());
     }
+    Ok(())
+}
 
+fn execute_functional(
+    curves: &[FunctionalCurve],
+    spec: &FunctionalPermutationSpec,
+    design: &InferenceDesign,
+) -> Result<FunctionalPermutationResult, CohortInferenceError> {
     let observed_labels = curves
         .iter()
         .map(|curve| curve.group == spec.group_a)
@@ -98,10 +172,12 @@ pub fn functional_two_sample_permutation(
     let observed = evaluate(curves, &observed_labels, spec.statistic)?;
     let mut exceedances = 0usize;
     for replicate in 0..spec.permutations {
-        let labels = shuffled_labels(
-            &observed_labels,
-            derive_seed_in_namespace(spec.seed, FUNCTIONAL_PERMUTATION_NAMESPACE, replicate),
-        );
+        let labels = design
+            .permuted_indices(replicate)
+            .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?
+            .iter()
+            .map(|source| observed_labels[*source])
+            .collect::<Vec<_>>();
         let permuted = evaluate(curves, &labels, spec.statistic)?;
         exceedances += usize::from(permuted.statistic >= observed.statistic);
     }

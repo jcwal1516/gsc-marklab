@@ -44,7 +44,8 @@ pub use fingerprint::{
     SpatialFingerprintInput,
 };
 pub use functional::{
-    functional_two_sample_permutation, FunctionalCurve, FunctionalPermutationResult,
+    functional_two_sample_blocked_permutation, functional_two_sample_permutation,
+    BlockedFunctionalPermutationResult, FunctionalCurve, FunctionalPermutationResult,
     FunctionalPermutationSpec, FunctionalTestStatistic,
 };
 pub use functional_equivalence::{

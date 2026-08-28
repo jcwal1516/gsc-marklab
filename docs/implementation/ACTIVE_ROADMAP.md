@@ -815,3 +815,15 @@ FND-06 remains active. The next immediate inference caller is the existing funct
 patient workflow used for prespecified multiscale curves: admit exact patient blocks only if its
 current curve-level statistic and deterministic schedule can be preserved. Do not infer strata,
 split curve coordinates, or create a general randomization registry.
+
+## Checkpoint 92 blocked functional-curve continuation
+
+The existing common-axis functional L2 test now admits exact patient-ID-keyed blocks through the
+same population-independence design as MMD and energy. Complete curves and whole patient labels stay
+atomic, the unblocked seed stream is unchanged, and both library and CLI paths retain explicit
+design evidence.
+
+FND-06 remains active for repeated/multisite/cluster/interference and broader multiplicity. The next
+immediate caller is the existing repeated-measures Freedman–Lane workflow: inspect its current
+subject/visit/covariate semantics and connect only a shared design contract it already exercises.
+Do not generalize beyond that executable caller or treat visits as independent patients.

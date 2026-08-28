@@ -1670,3 +1670,17 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   site/batch-restricted fingerprint comparisons without treating features or cells as replicates;
   it does not infer blocks, residualize covariates, add pairing/repeated measures, or change the
   already sealed CRC result bundle.
+
+## Blocked functional-curve inference checkpoint 92 — 2026-08-28
+
+- Added the same exact patient-ID-keyed exchangeability blocks to the existing common-axis
+  functional L2 permutation. Every complete curve remains attached to one whole patient label;
+  neither axis coordinates nor values are split. The unblocked path now uses the shared
+  `InferenceDesign` while reproducing its former private seed stream and numerical result exactly.
+- `marklab cohort functional-permutation` accepts an optional trailing `block` column, rejects
+  conflicting block declarations within a curve, and reports population independence plus exact
+  block count only on the blocked path. Its legacy four-column JSON shape remains unchanged.
+- An independent slow curve-level reference matches exact blocked p-values under reverse-order
+  patient assignments. This advances FND-06/COH-01/WS-31/WS-34 for prespecified multiscale patient
+  summaries; it does not register or smooth curves, infer blocks, select scales, residualize
+  covariates, or add paired/repeated inference.

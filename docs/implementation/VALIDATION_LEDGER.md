@@ -2144,6 +2144,23 @@ vascular transport.
   no full integration/Nextest loop, feature matrix, benchmark, fuzz, memory tool, packaging,
   dependency audit, push, publication, deployment, or history rewrite ran.
 
+## Blocked functional-curve inference checkpoint 92 — 2026-08-28
+
+- `cargo +1.96.0 test --locked --features cli --test cohort_functional_permutation_cli
+  functional_l2_cli_accepts_complete_patient_blocks_and_reports_the_design -- --exact` first failed
+  on the legacy four-column-only CSV boundary and then passed after production admission.
+- `cargo +1.96.0 test --locked --package marklab-cohort --test
+  functional_permutation_reference` passes 2/2. The existing unblocked and new blocked L2 p-values
+  match independent slow implementations exactly; reverse-order assignments prove patient-ID rather
+  than row-position binding. The focused functional library unit tests pass 2/2.
+- `cargo +1.96.0 test --locked --features cli --test cohort_functional_permutation_cli` passes 3/3
+  for legacy unblocked output, complete blocked output, and conflicting within-curve block rejection.
+  Warning-denied Clippy passes for the affected cohort library/reference and CLI binary/integration.
+  Package no-default compilation, package doctests, affected-file Rustfmt, and diff whitespace pass.
+- Workspace-wide gates were not repeated after checkpoint 90. The prohibited full integration/
+  Nextest loader loop, feature matrix, benchmark, fuzz, memory tool, packaging, dependency audit,
+  push, publication, deployment, and history rewrite did not run.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

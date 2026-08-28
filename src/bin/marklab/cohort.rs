@@ -6,10 +6,11 @@ use std::{
 
 use clap::{Parser, Subcommand, ValueEnum};
 use marklab_cohort::{
-    functional_two_sample_permutation, max_t_multiple_endpoint_permutation,
-    paired_patient_permutation_test, patient_level_blocked_energy_distance,
-    patient_level_blocked_mmd, patient_level_energy_distance, patient_level_mmd,
-    patient_level_permutation_test, BlockedEnergyDistanceResult, BlockedMmdPermutationResult,
+    functional_two_sample_blocked_permutation, functional_two_sample_permutation,
+    max_t_multiple_endpoint_permutation, paired_patient_permutation_test,
+    patient_level_blocked_energy_distance, patient_level_blocked_mmd,
+    patient_level_energy_distance, patient_level_mmd, patient_level_permutation_test,
+    BlockedEnergyDistanceResult, BlockedFunctionalPermutationResult, BlockedMmdPermutationResult,
     CohortInferenceError, EnergyDistanceResult, EnergyDistanceSpec, EnergyMetric, Fingerprint,
     FunctionalCurve, FunctionalPermutationResult, FunctionalPermutationSpec,
     FunctionalTestStatistic, MaxTPermutationResult, MaxTPermutationSpec, MmdEstimator, MmdKernel,
@@ -625,21 +626,31 @@ pub(super) fn run_cli() -> Result<(), CohortError> {
                     out,
                 },
         } => {
-            let curves = read_functional_curves(&input)?;
-            let result = functional_two_sample_permutation(
-                &curves,
-                &FunctionalPermutationSpec {
-                    group_a,
-                    group_b,
-                    statistic: statistic.into(),
-                    permutations,
-                    seed,
-                },
-            )?;
-            publish_json(
-                &out,
-                &FunctionalPermutationOutput::from_result(input, statistic, result),
-            )
+            let functional_input = read_functional_curves(&input)?;
+            let spec = FunctionalPermutationSpec {
+                group_a,
+                group_b,
+                statistic: statistic.into(),
+                permutations,
+                seed,
+            };
+            let output = match functional_input.blocks {
+                Some(blocks) => FunctionalPermutationOutput::from_blocked_result(
+                    input,
+                    statistic,
+                    functional_two_sample_blocked_permutation(
+                        &functional_input.curves,
+                        &blocks,
+                        &spec,
+                    )?,
+                ),
+                None => FunctionalPermutationOutput::from_result(
+                    input,
+                    statistic,
+                    functional_two_sample_permutation(&functional_input.curves, &spec)?,
+                ),
+            };
+            publish_json(&out, &output)
         }
         CohortTopLevel::Cohort {
             command:
@@ -723,6 +734,13 @@ struct FunctionalCsvRecord {
     group: String,
     axis: f64,
     value: f64,
+    #[serde(default)]
+    block: Option<String>,
+}
+
+struct FunctionalInput {
+    curves: Vec<FunctionalCurve>,
+    blocks: Option<Vec<PatientExchangeabilityBlock>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -824,7 +842,7 @@ fn read_paired_records(path: &Path) -> Result<Vec<PairedPatientEndpoint>, Cohort
         .collect()
 }
 
-fn read_functional_curves(path: &Path) -> Result<Vec<FunctionalCurve>, CohortError> {
+fn read_functional_curves(path: &Path) -> Result<FunctionalInput, CohortError> {
     validate_input_file(path)?;
     let mut reader = csv::ReaderBuilder::new()
         .flexible(false)
@@ -834,12 +852,15 @@ fn read_functional_curves(path: &Path) -> Result<Vec<FunctionalCurve>, CohortErr
         .headers()
         .map_err(|error| CohortError::Input(error.to_string()))?
         .clone();
-    if !headers.iter().eq(["patient_id", "group", "axis", "value"]) {
+    let blocked = headers
+        .iter()
+        .eq(["patient_id", "group", "axis", "value", "block"]);
+    if !blocked && !headers.iter().eq(["patient_id", "group", "axis", "value"]) {
         return Err(CohortError::Input(
-            "CSV header must be exactly patient_id,group,axis,value".into(),
+            "CSV header must be exactly patient_id,group,axis,value or patient_id,group,axis,value,block".into(),
         ));
     }
-    let mut grouped = BTreeMap::<String, (String, Vec<(f64, f64)>)>::new();
+    let mut grouped = BTreeMap::<String, (String, Option<String>, Vec<(f64, f64)>)>::new();
     for decoded in reader.deserialize::<FunctionalCsvRecord>() {
         let row = decoded.map_err(|error| CohortError::Input(error.to_string()))?;
         if !row.axis.is_finite() || !row.value.is_finite() {
@@ -847,35 +868,53 @@ fn read_functional_curves(path: &Path) -> Result<Vec<FunctionalCurve>, CohortErr
                 "functional CSV axis and value fields must be finite".into(),
             ));
         }
+        if blocked && row.block.is_none() {
+            return Err(CohortError::Input(format!(
+                "patient {} is missing its functional block",
+                row.patient_id
+            )));
+        }
         let entry = grouped
             .entry(row.patient_id.clone())
-            .or_insert_with(|| (row.group.clone(), Vec::new()));
+            .or_insert_with(|| (row.group.clone(), row.block.clone(), Vec::new()));
         if entry.0 != row.group {
             return Err(CohortError::Input(format!(
                 "patient {} has conflicting group labels",
                 row.patient_id
             )));
         }
-        entry.1.push((row.axis, row.value));
+        if entry.1 != row.block {
+            return Err(CohortError::Input(format!(
+                "patient {} has conflicting functional blocks",
+                row.patient_id
+            )));
+        }
+        entry.2.push((row.axis, row.value));
     }
-    grouped
-        .into_iter()
-        .map(|(patient_id, (group, mut points))| {
-            points.sort_by(|left, right| left.0.total_cmp(&right.0));
-            if points.windows(2).any(|pair| pair[0].0 >= pair[1].0) {
-                return Err(CohortError::Input(format!(
-                    "patient {patient_id} has duplicate or non-increasing axis rows"
-                )));
-            }
-            let (axis, values): (Vec<_>, Vec<_>) = points.into_iter().unzip();
-            Ok(FunctionalCurve {
-                patient_id,
-                group,
-                axis,
-                values,
-            })
-        })
-        .collect()
+    let mut curves = Vec::with_capacity(grouped.len());
+    let mut blocks = blocked.then(|| Vec::with_capacity(grouped.len()));
+    for (patient_id, (group, block, mut points)) in grouped {
+        points.sort_by(|left, right| left.0.total_cmp(&right.0));
+        if points.windows(2).any(|pair| pair[0].0 >= pair[1].0) {
+            return Err(CohortError::Input(format!(
+                "patient {patient_id} has duplicate or non-increasing axis rows"
+            )));
+        }
+        if let Some(assignments) = &mut blocks {
+            assignments.push(
+                PatientExchangeabilityBlock::new(patient_id.clone(), block.unwrap_or_default())
+                    .map_err(|error| CohortError::Input(error.to_string()))?,
+            );
+        }
+        let (axis, values): (Vec<_>, Vec<_>) = points.into_iter().unzip();
+        curves.push(FunctionalCurve {
+            patient_id,
+            group,
+            axis,
+            values,
+        });
+    }
+    Ok(FunctionalInput { curves, blocks })
 }
 
 fn read_max_t_patients(path: &Path) -> Result<Vec<PatientEndpointVector>, CohortError> {
@@ -1197,7 +1236,7 @@ struct FunctionalPermutationOutput {
     format: &'static str,
     version: u32,
     input: PathBuf,
-    design: FunctionalDesignSummary,
+    design: PopulationDesignSummary,
     groups: FunctionalGroupSummary,
     axis: Vec<f64>,
     group_a_mean: Vec<f64>,
@@ -1220,9 +1259,11 @@ impl FunctionalPermutationOutput {
             format: "marklab.cohort_functional_permutation",
             version: 1,
             input,
-            design: FunctionalDesignSummary {
+            design: PopulationDesignSummary {
                 randomization_unit: "patient",
                 blocked: false,
+                null_family: None,
+                block_count: None,
             },
             groups: FunctionalGroupSummary {
                 group_a_patients: result.group_a_count,
@@ -1243,16 +1284,26 @@ impl FunctionalPermutationOutput {
             seed: result.seed,
         }
     }
+
+    fn from_blocked_result(
+        input: PathBuf,
+        statistic: CliFunctionalStatistic,
+        blocked: BlockedFunctionalPermutationResult,
+    ) -> Self {
+        let (result, design) = blocked.into_parts();
+        let mut output = Self::from_result(input, statistic, result);
+        output.design = PopulationDesignSummary {
+            randomization_unit: "patient",
+            blocked: true,
+            null_family: Some("population_independence"),
+            block_count: Some(design.block_count()),
+        };
+        output
+    }
 }
 
 #[derive(Debug, Serialize)]
-struct FunctionalDesignSummary {
-    randomization_unit: &'static str,
-    blocked: bool,
-}
-
-#[derive(Debug, Serialize)]
-struct FingerprintDesignSummary {
+struct PopulationDesignSummary {
     randomization_unit: &'static str,
     blocked: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1336,7 +1387,7 @@ struct MmdOutput {
     format: &'static str,
     version: u32,
     input: PathBuf,
-    design: FingerprintDesignSummary,
+    design: PopulationDesignSummary,
     groups: FunctionalGroupSummary,
     feature_count: usize,
     kernel: MmdKernelOutput,
@@ -1357,7 +1408,7 @@ impl MmdOutput {
             format: "marklab.cohort_mmd",
             version: 1,
             input,
-            design: FingerprintDesignSummary {
+            design: PopulationDesignSummary {
                 randomization_unit: "patient",
                 blocked: false,
                 null_family: None,
@@ -1397,7 +1448,7 @@ impl MmdOutput {
     ) -> Self {
         let (result, design) = blocked.into_parts();
         let mut output = Self::from_result(input, estimator, result);
-        output.design = FingerprintDesignSummary {
+        output.design = PopulationDesignSummary {
             randomization_unit: "patient",
             blocked: true,
             null_family: Some("population_independence"),
@@ -1418,7 +1469,7 @@ struct EnergyOutput {
     format: &'static str,
     version: u32,
     input: PathBuf,
-    design: FingerprintDesignSummary,
+    design: PopulationDesignSummary,
     groups: FunctionalGroupSummary,
     feature_count: usize,
     metric: CliEnergyMetric,
@@ -1434,7 +1485,7 @@ impl EnergyOutput {
             format: "marklab.cohort_energy",
             version: 1,
             input,
-            design: FingerprintDesignSummary {
+            design: PopulationDesignSummary {
                 randomization_unit: "patient",
                 blocked: false,
                 null_family: None,
@@ -1464,7 +1515,7 @@ impl EnergyOutput {
     ) -> Self {
         let (result, design) = blocked.into_parts();
         let mut output = Self::from_result(input, metric, result);
-        output.design = FingerprintDesignSummary {
+        output.design = PopulationDesignSummary {
             randomization_unit: "patient",
             blocked: true,
             null_family: Some("population_independence"),
