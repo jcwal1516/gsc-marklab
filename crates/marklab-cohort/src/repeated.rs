@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
-    derive_seed_in_namespace, splitmix64, CohortInferenceError,
-    MAXIMUM_PATIENT_PERMUTATION_EVALUATIONS, MAXIMUM_PERMUTATIONS,
+    CohortInferenceError, InferenceDesign, MAXIMUM_PATIENT_PERMUTATION_EVALUATIONS,
+    MAXIMUM_PERMUTATIONS,
 };
 
 const REPEATED_FREEDMAN_LANE_NAMESPACE: u64 = 0x7265_7065_6174_666c;
@@ -23,6 +23,7 @@ pub struct RepeatedFreedmanLaneSpec {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RepeatedFreedmanLaneResult {
+    pub inference_design: InferenceDesign,
     pub subject_count: usize,
     pub row_count: usize,
     pub full_model_columns: usize,
@@ -72,26 +73,30 @@ pub fn repeated_measures_freedman_lane(
         .zip(&reduced_fit.fitted)
         .map(|(outcome, fitted)| outcome - fitted)
         .collect::<Vec<_>>();
+    let inference_design = InferenceDesign::subject_residual_sign_symmetry(
+        subject_count,
+        spec.permutations,
+        spec.seed,
+        REPEATED_FREEDMAN_LANE_NAMESPACE,
+    )
+    .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
 
     let mut upper_tail = 0_usize;
     let mut permuted_outcomes = vec![0.0; rows.len()];
     for replicate in 0..spec.permutations {
-        let mut state =
-            derive_seed_in_namespace(spec.seed, REPEATED_FREEDMAN_LANE_NAMESPACE, replicate);
-        let mut signs = vec![1.0; subject_count];
-        for (subject, sign) in signs.iter_mut().enumerate() {
-            state = splitmix64(state ^ subject as u64);
-            *sign = if state & 1 == 0 { 1.0 } else { -1.0 };
-        }
+        let signs = inference_design
+            .subject_residual_signs(replicate)
+            .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
         for (index, row) in rows.iter().enumerate() {
             permuted_outcomes[index] =
-                reduced_fit.fitted[index] + signs[row.subject_index] * residuals[index];
+                reduced_fit.fitted[index] + f64::from(signs[row.subject_index]) * residuals[index];
         }
         let statistic = fit_ols(&full, &permuted_outcomes, true)?.target_statistic;
         upper_tail += usize::from(statistic.abs() >= observed.target_statistic.abs());
     }
     let p_value = (upper_tail as f64 + 1.0) / (spec.permutations + 1) as f64;
     Ok(RepeatedFreedmanLaneResult {
+        inference_design,
         subject_count,
         row_count: rows.len(),
         full_model_columns: full[0].len(),

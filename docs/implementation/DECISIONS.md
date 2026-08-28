@@ -2243,3 +2243,10 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for FND-06/COH-01/WS-31/WS-34
 - Decision: extend the existing common-axis functional two-sample permutation with the same exact patient-ID→block assignments already admitted by MMD and energy distance. Preserve each complete curve and patient label as the atomic unit, the existing L2 statistic, private seed namespace, work bound, one-sided-high plus-one p-value, and unblocked output bytes. Blocked CLI input uses one optional trailing `block` column and reports the population-independence null and exact block count.
 - Consequences: prespecified multiscale patient curves can be compared within site/batch restrictions without splitting axis values or inferring strata. This does not add curve registration, smoothing, axis selection, covariate residualization, paired/repeated curves, multiplicity expansion, or a general randomization registry.
+
+## DEC-0284 — Own repeated-subject residual signs in the inference design
+
+- Date: 2026-08-28
+- Status: accepted for FND-06/COH-01/WS-31/WS-34
+- Decision: add one explicit subject-residual sign-symmetry null and complete-subject-residual-vector permutation unit to `InferenceDesign`, immediately consumed by the existing repeated-measures Freedman–Lane workflow. Preserve the current reduced/full subject-fixed-effect models, private seed namespace, independent Rademacher sign stream, two-sided absolute studentized statistic, work bound, and plus-one p-value exactly. Persist the typed design in the library result and expose its null family and permutation unit in the existing version-1 CLI design summary.
+- Consequences: visits and residual coordinates cannot be mistaken for independently randomized population units, while the established repeated workflow remains numerically unchanged. This does not claim residual exchangeability, add visit alignment or covariates, substitute a paired endpoint test, add cluster bootstrap weights, or create a generic resampling registry.

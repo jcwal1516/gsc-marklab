@@ -55,6 +55,14 @@ s-4,v-3,42.4,1\n",
     assert_eq!(result["design"]["subject_count"], 4);
     assert_eq!(result["design"]["row_count"], 12);
     assert_eq!(
+        result["design"]["null_family"],
+        "subject_residual_sign_symmetry"
+    );
+    assert_eq!(
+        result["design"]["permutation_unit"],
+        "complete_subject_residual_vector"
+    );
+    assert_eq!(
         result["design"]["residual_randomization"],
         "whole_subject_sign_flip"
     );

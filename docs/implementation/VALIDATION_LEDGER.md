@@ -2161,6 +2161,24 @@ vascular transport.
   Nextest loader loop, feature matrix, benchmark, fuzz, memory tool, packaging, dependency audit,
   push, publication, deployment, and history rewrite did not run.
 
+## Typed repeated-subject residual design checkpoint 93 — 2026-08-28
+
+- `cargo +1.96.0 test --locked --features cli --test cohort_repeated_freedman_lane_cli
+  repeated_freedman_lane_recovers_the_common_within_subject_slope -- --exact` first failed because
+  the CLI design omitted the typed null family and permutation unit. The final full CLI integration
+  passes 1/1 with byte-identical repeated executions, four subjects/12 visits, common within-subject
+  slope `2.1`, and the explicit complete-subject residual-vector unit.
+- `cargo +1.96.0 test --locked --package marklab-cohort --lib
+  inference_design::tests::subject_residual_signs_match_the_former_whole_subject_stream -- --exact`
+  passes 1/1. Its independent direct SplitMix/Rademacher loop matches every old sign at every
+  replicate; wrong-operation and replicate-range failures are explicit. The exact duplicate
+  subject/visit regression also passes 1/1.
+- Warning-denied Clippy passes for the affected cohort library/reference and repeated CLI binary/
+  integration. Package no-default compilation, package doctests, affected-file Rustfmt, and diff
+  whitespace pass. Workspace-wide gates are deferred until the current three-to-five-workflow
+  FND-06 family closes; the prohibited full integration/Nextest loop and specialized gates did not
+  run.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

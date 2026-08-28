@@ -827,3 +827,15 @@ FND-06 remains active for repeated/multisite/cluster/interference and broader mu
 immediate caller is the existing repeated-measures Freedman–Lane workflow: inspect its current
 subject/visit/covariate semantics and connect only a shared design contract it already exercises.
 Do not generalize beyond that executable caller or treat visits as independent patients.
+
+## Checkpoint 93 typed repeated-subject residual continuation
+
+The repeated-measures Freedman–Lane caller now persists an explicit subject-residual sign-symmetry
+design. One complete subject residual vector is the atomic unit, the former deterministic sign
+stream is unchanged, and the CLI exposes the exact null/permutation-unit contract while retaining
+its residual-exchangeability claim ceiling.
+
+FND-06 remains active. The next immediate existing caller is the patient-first hierarchical
+bootstrap: determine whether its patient/slide/region resampling schedule can be represented without
+changing its current hierarchy, seed stream, or confidence interval. Do not make lower-level units
+population replicates or build a generic bootstrap framework.

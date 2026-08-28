@@ -68,6 +68,8 @@ pub enum InferenceNullFamily {
     PatientLabelPermutation,
     /// Whole patient labels move under population independence.
     PopulationIndependence,
+    /// Complete reduced-model residual vectors receive independent subject-level signs.
+    SubjectResidualSignSymmetry,
 }
 
 /// Atomic unit moved by one permutation schedule.
@@ -77,6 +79,8 @@ pub enum InferencePermutationUnit {
     CompleteScalarMark,
     /// One whole patient group label.
     PatientLabel,
+    /// One complete subject residual vector across every retained visit.
+    CompleteSubjectResidualVector,
 }
 
 /// Multiplicity family currently owned by the shared design.
@@ -226,6 +230,26 @@ impl InferenceDesign {
         )
     }
 
+    /// Declare independent sign symmetry for complete subject residual vectors.
+    pub(crate) fn subject_residual_sign_symmetry(
+        subject_count: usize,
+        permutations: usize,
+        seed: u64,
+        seed_namespace: u64,
+    ) -> Result<Self, InferenceDesignError> {
+        Self::build(
+            InferenceAnalysisLevel::Patient,
+            InferenceNullFamily::SubjectResidualSignSymmetry,
+            InferencePermutationUnit::CompleteSubjectResidualVector,
+            vec![(0..subject_count).collect()],
+            subject_count,
+            permutations,
+            seed,
+            seed_namespace,
+            InferenceAlternative::TwoSided,
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn build(
         analysis_level: InferenceAnalysisLevel,
@@ -318,6 +342,9 @@ impl InferenceDesign {
 
     /// Deterministic mapping from each output position to one whole source unit.
     pub fn permuted_indices(&self, replicate: usize) -> Result<Box<[usize]>, InferenceDesignError> {
+        if self.permutation_unit == InferencePermutationUnit::CompleteSubjectResidualVector {
+            return Err(InferenceDesignError::UnsupportedIndexOperation);
+        }
         if replicate >= self.permutations {
             return Err(InferenceDesignError::ReplicateOutOfRange {
                 replicate,
@@ -338,6 +365,36 @@ impl InferenceDesign {
             }
         }
         Ok(indices.into_boxed_slice())
+    }
+
+    /// Deterministic ±1 sign for every complete subject residual vector.
+    pub(crate) fn subject_residual_signs(
+        &self,
+        replicate: usize,
+    ) -> Result<Box<[i8]>, InferenceDesignError> {
+        if self.null_family != InferenceNullFamily::SubjectResidualSignSymmetry
+            || self.permutation_unit != InferencePermutationUnit::CompleteSubjectResidualVector
+        {
+            return Err(InferenceDesignError::UnsupportedSignOperation);
+        }
+        if replicate >= self.permutations {
+            return Err(InferenceDesignError::ReplicateOutOfRange {
+                replicate,
+                permutations: self.permutations,
+            });
+        }
+        let mut state = splitmix64(splitmix64(self.seed ^ self.seed_namespace) ^ replicate as u64);
+        Ok((0..self.unit_count)
+            .map(|subject| {
+                state = splitmix64(state ^ subject as u64);
+                if state & 1 == 0 {
+                    1
+                } else {
+                    -1
+                }
+            })
+            .collect::<Vec<_>>()
+            .into_boxed_slice())
     }
 
     pub(super) fn blocks(&self) -> &[Vec<usize>] {
@@ -369,6 +426,12 @@ pub enum InferenceDesignError {
     /// Block membership omits, duplicates, or invents a unit row.
     #[error("inference design block membership is not a complete exact partition")]
     InvalidBlockMembership,
+    /// Index permutation was requested from a sign-symmetry design.
+    #[error("index permutation is unavailable for a subject-residual sign-symmetry design")]
+    UnsupportedIndexOperation,
+    /// Subject residual signs were requested from a design with another randomization unit.
+    #[error("subject residual signs require a subject-residual sign-symmetry design")]
+    UnsupportedSignOperation,
     /// Requested replicate is outside the declared schedule.
     #[error("inference replicate {replicate} is outside 0..{permutations}")]
     ReplicateOutOfRange {
@@ -562,5 +625,60 @@ mod tests {
                 labels.iter().filter(|label| **label).count()
             );
         }
+    }
+
+    #[test]
+    fn subject_residual_signs_match_the_former_whole_subject_stream() {
+        let namespace = 0x7265_7065_6174_666c;
+        let design = InferenceDesign::subject_residual_sign_symmetry(4, 19, 20260825, namespace)
+            .expect("subject residual design");
+        assert_eq!(design.analysis_level(), InferenceAnalysisLevel::Patient);
+        assert_eq!(
+            design.null_family(),
+            InferenceNullFamily::SubjectResidualSignSymmetry
+        );
+        assert_eq!(
+            design.permutation_unit(),
+            InferencePermutationUnit::CompleteSubjectResidualVector
+        );
+        assert_eq!(design.alternative(), InferenceAlternative::TwoSided);
+
+        for replicate in 0..design.permutations() {
+            let mut state = splitmix64(splitmix64(20260825 ^ namespace) ^ replicate as u64);
+            let expected = (0..4)
+                .map(|subject| {
+                    state = splitmix64(state ^ subject as u64);
+                    if state & 1 == 0 {
+                        1
+                    } else {
+                        -1
+                    }
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                design
+                    .subject_residual_signs(replicate)
+                    .expect("declared replicate")
+                    .as_ref(),
+                expected
+            );
+        }
+        assert_eq!(
+            design.subject_residual_signs(19),
+            Err(InferenceDesignError::ReplicateOutOfRange {
+                replicate: 19,
+                permutations: 19,
+            })
+        );
+        assert_eq!(
+            design.permuted_indices(0),
+            Err(InferenceDesignError::UnsupportedIndexOperation)
+        );
+        let labels = InferenceDesign::random_labeling(4, 19, 1, InferenceAlternative::TwoSided)
+            .expect("random-labeling design");
+        assert_eq!(
+            labels.subject_residual_signs(0),
+            Err(InferenceDesignError::UnsupportedSignOperation)
+        );
     }
 }

@@ -1684,3 +1684,18 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   patient assignments. This advances FND-06/COH-01/WS-31/WS-34 for prespecified multiscale patient
   summaries; it does not register or smooth curves, infer blocks, select scales, residualize
   covariates, or add paired/repeated inference.
+
+## Typed repeated-subject residual design checkpoint 93 — 2026-08-28
+
+- Routed the existing repeated-measures Freedman–Lane workflow through an explicit
+  `SubjectResidualSignSymmetry` inference design whose atomic permutation unit is one complete
+  subject residual vector. Every visit for a subject therefore receives the same deterministic ±1
+  sign; visits and residual coordinates never become independent population units.
+- The typed design reproduces every former method-namespaced Rademacher sign exactly, so the reduced
+  and full subject-fixed-effect models, target coefficient/standard error/statistic, two-sided
+  plus-one p-value, work limit, and seed remain unchanged. The library result now retains the design,
+  and the CLI reports its null family and permutation unit alongside the existing explicit residual-
+  exchangeability assumption.
+- This advances FND-06/COH-01/WS-31/WS-34 without asserting residual symmetry from the data. It does
+  not add covariates, align visits, substitute a paired endpoint analysis, add cluster bootstrap
+  weights, or generalize a resampling registry.

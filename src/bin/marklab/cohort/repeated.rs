@@ -1,8 +1,8 @@
 use std::{fs, path::PathBuf};
 
 use marklab_cohort::{
-    repeated_measures_freedman_lane, RepeatedFreedmanLaneResult, RepeatedFreedmanLaneSpec,
-    RepeatedMeasureRecord,
+    repeated_measures_freedman_lane, InferenceNullFamily, InferencePermutationUnit,
+    RepeatedFreedmanLaneResult, RepeatedFreedmanLaneSpec, RepeatedMeasureRecord,
 };
 use serde::{Deserialize, Serialize};
 
@@ -38,6 +38,8 @@ struct Design {
     reduced_model_columns: usize,
     residual_degrees_of_freedom: usize,
     target_columns: [&'static str; 1],
+    null_family: &'static str,
+    permutation_unit: &'static str,
     residual_randomization: &'static str,
     exchangeability_assumption: &'static str,
 }
@@ -66,6 +68,16 @@ pub(super) fn run(
 
 impl From<RepeatedFreedmanLaneResult> for Output {
     fn from(result: RepeatedFreedmanLaneResult) -> Self {
+        let null_family = match result.inference_design.null_family() {
+            InferenceNullFamily::SubjectResidualSignSymmetry => "subject_residual_sign_symmetry",
+            _ => unreachable!("repeated Freedman-Lane returned another null family"),
+        };
+        let permutation_unit = match result.inference_design.permutation_unit() {
+            InferencePermutationUnit::CompleteSubjectResidualVector => {
+                "complete_subject_residual_vector"
+            }
+            _ => unreachable!("repeated Freedman-Lane returned another permutation unit"),
+        };
         Self {
             format: "marklab.cohort_repeated_freedman_lane",
             version: 1,
@@ -76,6 +88,8 @@ impl From<RepeatedFreedmanLaneResult> for Output {
                 reduced_model_columns: result.reduced_model_columns,
                 residual_degrees_of_freedom: result.residual_degrees_of_freedom,
                 target_columns: ["target"],
+                null_family,
+                permutation_unit,
                 residual_randomization: "whole_subject_sign_flip",
                 exchangeability_assumption:
                     "reduced-model residual vectors are sign-exchangeable by independent subject",
