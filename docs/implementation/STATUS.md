@@ -2129,3 +2129,25 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   one ledger record. This is a single-slide descriptive graph signal, not patient-population,
   topology, biological-calibration, or performance-generalization evidence. Arbitrary-window point
   processes, sparse wavelets/scattering/eigensolvers, and representative topology remain active.
+
+## Representative CellViT witness persistence checkpoint 121 — 2026-08-28
+
+- Added `marklab project witness-persistence` over the existing pinned GUDHI 3.13.0 worker. The
+  durable node binds the exact source artifact, canonical typed request, GUDHI/Python versions,
+  environment-lock and worker digests, executable/runtime identity, bounded process policy, result
+  schema, and exact-f64 artifact codec. A fresh-process hit validates the typed result without
+  starting GUDHI again.
+- The CellViT adapter now emits one bounded witness request from the same exact 2,000 stable source
+  CellIds and physical micrometre coordinates used by the representative graph lane: deterministic
+  farthest-point selection, 64 landmarks, dimensions 0–2, `nu=0`, 200-micrometre maximum scale,
+  field 2, 500,000-simplex ceiling, and 180-second process ceiling.
+- The frozen Mac-mini sources revalidated 366 slides, 178 patients, and 1,542,389 cells into the v6
+  bundle. The input SHA-256 is `deea7b94b38f2430e8004e9f26d607572669b93cc904dc6e9f4e844c31c40755`.
+  Direct execution completed in 2.04 seconds at 40,288,256-byte maximum RSS, selected 64 landmarks
+  with 118.624-micrometre coverage radius, and retained 388 simplices (64/150/174 by dimension).
+- Direct, durable-miss, and backend-disabled durable-hit outputs are byte-identical with SHA-256
+  `81eba331498cdebeb0cd460b6368db694e0260ada53a14df4a6a7c3acd346f40`; one ledger execution remains,
+  and the typed result is sealed in the v6 bundle on the 1 TB drive. This is a bounded single-slide
+  descriptive approximation, not patient replication, topology stability, molecular association,
+  biological validation, or performance generalization. Those broader TOP-01/WS-63 requirements
+  remain active.

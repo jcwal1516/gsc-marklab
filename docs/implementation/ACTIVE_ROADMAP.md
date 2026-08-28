@@ -1072,3 +1072,14 @@ pass. GSP-01/FR-01B/WS-61/WS-62 remain active for sparse wavelets/scattering/eig
 perturbation calibration, and replicated patient evidence. The next dependency-ordered production
 outcome is representative admitted topology or the smallest arbitrary-window point-process caller;
 UI/server/client work remains deferred.
+
+## Checkpoint 121 representative witness-topology continuation
+
+The existing pinned GUDHI witness complex now consumes one exact 2,000-cell CellViT coordinate
+sample with physical units, stable source identities, deterministic farthest-point landmarks, and
+explicit point/simplex/time ceilings. Direct execution and the new durable project path agree
+byte-for-byte, and a fresh process replays with backend execution disabled and one ledger record.
+TOP-01/TOP-01A/WS-63 no longer lack a representative admitted pathology-scale execution, but remain
+active for prespecified patient-level endpoints, replicated patients/cohorts, and perturbation or
+subsampling stability. The next dependency-ordered outcome is the smallest admitted arbitrary-
+window point-process caller; UI/server/client work remains deferred.

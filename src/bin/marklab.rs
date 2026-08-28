@@ -52,6 +52,7 @@ fn main() -> marklab::Result<()> {
                             Some(
                                 "marked-prepost"
                                     | "sparse-radius-heat"
+                                    | "witness-persistence"
                                     | "region-retrieval"
                                     | "normal-mean"
                                     | "hierarchical-normal"

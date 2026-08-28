@@ -446,6 +446,43 @@ def sparse_radius_heat_input(coordinate_rows: list[dict[str, object]]) -> dict[s
     }
 
 
+def witness_persistence_input(
+    coordinate_rows: list[dict[str, object]],
+) -> dict[str, object]:
+    """Build the bounded representative CellViT witness-complex request."""
+    if not 3 <= len(coordinate_rows) <= MAXIMUM_COORDINATE_CELLS:
+        raise AdapterError("witness persistence requires 3..2000 admitted cells")
+    points = []
+    previous_id = None
+    for row in coordinate_rows:
+        cell_id = row.get("cell_id")
+        try:
+            coordinates_um = [float(row["x_um"]), float(row["y_um"])]
+        except (KeyError, TypeError, ValueError) as error:
+            raise AdapterError("witness persistence coordinates are invalid") from error
+        if (
+            not isinstance(cell_id, str)
+            or not cell_id
+            or cell_id.strip() != cell_id
+            or (previous_id is not None and cell_id <= previous_id)
+            or not all(math.isfinite(value) for value in coordinates_um)
+        ):
+            raise AdapterError("witness persistence cell identity or coordinates are invalid")
+        points.append({"id": cell_id, "coordinates_um": coordinates_um})
+        previous_id = cell_id
+    return {
+        "points": points,
+        "landmark_method": "farthest_point",
+        "landmark_count": min(64, len(points) - 1),
+        "maximum_dimension": 2,
+        "nu": 0,
+        "max_scale_um": 200.0,
+        "coefficient_field": 2,
+        "maximum_simplices": 500_000,
+        "timeout_seconds": 180,
+    }
+
+
 def beta_binomial_group_gender_rows(
     group_rows: list[dict[str, int | str]], genders: dict[str, str]
 ) -> list[dict[str, int | str]]:
@@ -786,6 +823,8 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     write_json(inputs / "coordinate_window.geojson", geometry)
     sparse_graph_heat = sparse_radius_heat_input(coordinate_rows)
     write_json(inputs / "sparse_radius_heat.json", sparse_graph_heat)
+    witness_persistence = witness_persistence_input(coordinate_rows)
+    write_json(inputs / "witness_persistence.json", witness_persistence)
 
     vector_fields = ["object_id", "x_um", "y_um"] + [
         f"embedding_{index}" for index in range(1280)
@@ -1142,6 +1181,16 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "time": sparse_graph_heat["time"],
                 "tolerance": sparse_graph_heat["tolerance"],
             },
+            "witness_persistence_definition": {
+                "observation_unit": "cell_coordinate",
+                "population_claim": "single_slide_descriptive_only",
+                "point_count": len(witness_persistence["points"]),
+                "landmark_method": witness_persistence["landmark_method"],
+                "landmark_count": witness_persistence["landmark_count"],
+                "maximum_dimension": witness_persistence["maximum_dimension"],
+                "max_scale_um": witness_persistence["max_scale_um"],
+                "maximum_simplices": witness_persistence["maximum_simplices"],
+            },
             "beta_binomial_group_gender_definition": {
                 "join_key": "patient_id",
                 "source": str(arguments.clinical.resolve()),
@@ -1174,6 +1223,10 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "coordinate_cells": len(coordinate_rows),
                 "coordinate_marked": sum(int(row["mark"]) for row in coordinate_rows),
                 "sparse_graph_heat_nodes": len(sparse_graph_heat["nodes"]),
+                "witness_persistence_points": len(witness_persistence["points"]),
+                "witness_persistence_landmarks": witness_persistence[
+                    "landmark_count"
+                ],
                 "raw_vector_rows": len(vector_rows),
                 "raw_vector_pair_visits": len(vector_rows) * (len(vector_rows) - 1) // 2,
                 "projected_rows": len(projected_rows),

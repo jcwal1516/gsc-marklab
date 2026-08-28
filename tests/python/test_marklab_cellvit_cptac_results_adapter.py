@@ -112,6 +112,43 @@ class CellvitCptacResultsAdapterTest(unittest.TestCase):
         self.assertEqual(result["radius_um"], 50.0)
         self.assertGreaterEqual(result["maximum_edges"], 1)
 
+    def test_witness_persistence_input_retains_exact_cell_identity_and_coordinates(self):
+        result = self.module.witness_persistence_input(
+            [
+                {
+                    "cell_id": "slide:000000001",
+                    "x_um": "10.5",
+                    "y_um": "20.25",
+                },
+                {
+                    "cell_id": "slide:000000002",
+                    "x_um": "11.5",
+                    "y_um": "20.25",
+                },
+                {
+                    "cell_id": "slide:000000003",
+                    "x_um": "11.5",
+                    "y_um": "21.25",
+                },
+            ]
+        )
+
+        self.assertEqual(
+            result["points"],
+            [
+                {"id": "slide:000000001", "coordinates_um": [10.5, 20.25]},
+                {"id": "slide:000000002", "coordinates_um": [11.5, 20.25]},
+                {"id": "slide:000000003", "coordinates_um": [11.5, 21.25]},
+            ],
+        )
+        self.assertEqual(result["landmark_method"], "farthest_point")
+        self.assertEqual(result["landmark_count"], 2)
+        self.assertEqual(result["maximum_dimension"], 2)
+        self.assertEqual(result["nu"], 0)
+        self.assertEqual(result["max_scale_um"], 200.0)
+        self.assertEqual(result["maximum_simplices"], 500_000)
+        self.assertEqual(result["timeout_seconds"], 180)
+
 
 if __name__ == "__main__":
     unittest.main()

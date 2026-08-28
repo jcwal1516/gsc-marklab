@@ -461,8 +461,16 @@ fn run_raster_morphology(input: PathBuf, out: PathBuf) -> Result<(), TopologyCli
     publish_json(&out, &result)
 }
 
-fn run_witness_persistence(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
-    let bytes = read_input(&input)?;
+pub(crate) struct PreparedWitnessPersistence {
+    pub(crate) request: WitnessPersistenceWorkerRequest,
+    pub(crate) request_bytes: Vec<u8>,
+    timeout_seconds: u64,
+}
+
+pub(crate) fn prepare_witness_persistence(
+    input: &Path,
+) -> Result<PreparedWitnessPersistence, TopologyCliError> {
+    let bytes = read_input(input)?;
     let spec: WitnessPersistenceSpec = serde_json::from_slice(&bytes)?;
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let lock_path = repository.join("workers/python/uv.lock");
@@ -474,9 +482,43 @@ fn run_witness_persistence(input: PathBuf, out: PathBuf) -> Result<(), TopologyC
         WitnessPersistenceWorkerRequest::new(spec, sha256_hex(&lock), sha256_hex(&worker))
             .map_err(|error| TopologyCliError::Input(error.to_string()))?;
     let request_bytes = serde_json::to_vec(&request)?;
-    let response = run_worker(&repository, &worker_path, &request_bytes, timeout_seconds)?;
-    let result = WitnessPersistenceResult::parse_and_validate(&response, &request, &request_bytes)
-        .map_err(|error| TopologyCliError::Backend(error.to_string()))?;
+    Ok(PreparedWitnessPersistence {
+        request,
+        request_bytes,
+        timeout_seconds,
+    })
+}
+
+pub(crate) fn execute_witness_persistence(
+    prepared: &PreparedWitnessPersistence,
+) -> Result<WitnessPersistenceResult, TopologyCliError> {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let lock_path = repository.join("workers/python/uv.lock");
+    let worker_path = repository.join("workers/python/marklab_gudhi_witness_persistence_worker.py");
+    if sha256_hex(&read_required(&lock_path)?) != prepared.request.backend.environment_lock_sha256
+        || sha256_hex(&read_required(&worker_path)?) != prepared.request.backend.worker_sha256
+    {
+        return Err(TopologyCliError::Backend(
+            "GUDHI environment or worker changed after request preparation".into(),
+        ));
+    }
+    let response = run_worker(
+        &repository,
+        &worker_path,
+        &prepared.request_bytes,
+        prepared.timeout_seconds,
+    )?;
+    WitnessPersistenceResult::parse_and_validate(
+        &response,
+        &prepared.request,
+        &prepared.request_bytes,
+    )
+    .map_err(|error| TopologyCliError::Backend(error.to_string()))
+}
+
+fn run_witness_persistence(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+    let prepared = prepare_witness_persistence(&input)?;
+    let result = execute_witness_persistence(&prepared)?;
     publish_json(&out, &result)
 }
 
@@ -534,6 +576,12 @@ pub(crate) fn run_worker(
     request: &[u8],
     timeout_seconds: u64,
 ) -> Result<Vec<u8>, TopologyCliError> {
+    if std::env::var_os("MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION").is_some() {
+        return Err(TopologyCliError::Backend(
+            "external backend execution is disabled by MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION"
+                .into(),
+        ));
+    }
     let interpreter = repository.join("target/pymc-venv/bin/python");
     if !interpreter.is_file() {
         return Err(TopologyCliError::Backend(format!(

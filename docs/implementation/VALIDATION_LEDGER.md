@@ -2644,6 +2644,33 @@ vascular transport.
   integration/Nextest loop, feature matrix, benchmark suite, fuzz, memory tool, packaging,
   dependency audit, push, publication, deployment, or history rewrite ran.
 
+## Representative CellViT witness persistence checkpoint 121 — 2026-08-28
+
+- Expected adapter red: `python3 tests/python/test_marklab_cellvit_cptac_results_adapter.py
+  CellvitCptacResultsAdapterTest.test_witness_persistence_input_retains_exact_cell_identity_and_coordinates`
+  failed because `witness_persistence_input` was absent. The final exact test and complete adapter
+  suite pass 1/1 and 5/5 with exact CellId/coordinate retention and declared topology bounds.
+- Expected durable red: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  durable_gudhi_witness_project witness_persistence_replays_without_a_second_gudhi_execution --
+  --exact --nocapture` failed on the absent project subcommand. The final 1/1 pass proves miss then
+  fresh-process hit with `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1`, byte identity, one ledger
+  record, exact source digest/schema identity, and changed-request invalidation.
+- `cargo +1.96.0 test --locked --package marklab-topology` passes with zero unit/doc tests, and the
+  existing `topology_witness_persistence_cli` exact five-point test passes 1/1 against the
+  farthest-point/tree oracle. Affected-file Rustfmt and `git diff --check` pass.
+- On `mini`, the pinned/frozen adapter revalidated 366 slides, 178 patients, and 1,542,389 cells
+  into `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v6-inputs`. The 2,000-point witness
+  input SHA-256 is `deea7b94b38f2430e8004e9f26d607572669b93cc904dc6e9f4e844c31c40755`.
+  `/usr/bin/time -l target/debug/marklab topology witness-persistence ...` completed in 2.04 seconds
+  with 40,288,256-byte maximum RSS and a 428,629-byte result. It selected 64 landmarks, recorded
+  118.623619-micrometre coverage, and retained 388 simplices (64/150/174 by dimension).
+- Real direct and durable outputs compare byte-for-byte; the second process succeeds with backend
+  execution disabled, the ledger stays at one line, and result SHA-256 is
+  `81eba331498cdebeb0cd460b6368db694e0260ada53a14df4a6a7c3acd346f40`. The result is sealed in the
+  v6 Mac-mini bundle. No workspace-wide gate was repeated after checkpoint 119; no full
+  integration/Nextest loop, feature matrix, benchmark suite, fuzz, memory tool, packaging,
+  dependency audit, push, publication, deployment, or history rewrite ran.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

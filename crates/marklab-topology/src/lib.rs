@@ -392,37 +392,46 @@ impl WitnessPersistenceResult {
     ) -> Result<Self, TopologyError> {
         let result: Self = serde_json::from_slice(bytes)
             .map_err(|error| TopologyError::Backend(error.to_string()))?;
+        result.validate(request, request_bytes)?;
+        Ok(result)
+    }
+
+    pub fn validate(
+        &self,
+        request: &WitnessPersistenceWorkerRequest,
+        request_bytes: &[u8],
+    ) -> Result<(), TopologyError> {
         let known_ids = request
             .points
             .iter()
             .map(|point| point.id.as_str())
             .collect::<HashSet<_>>();
-        if result.format != "marklab.witness_persistence"
-            || result.version != 1
-            || result.backend.name != request.backend.name
-            || result.backend.version != request.backend.version
-            || result.backend.python_version != request.backend.python_version
-            || result.backend.license != request.backend.license
-            || result.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || result.backend.worker_sha256 != request.backend.worker_sha256
-            || result.request_sha256 != sha256_hex(request_bytes)
-            || result.landmark_ids.len() != request.landmark_count
-            || result
+        if self.format != "marklab.witness_persistence"
+            || self.version != 1
+            || self.backend.name != request.backend.name
+            || self.backend.version != request.backend.version
+            || self.backend.python_version != request.backend.python_version
+            || self.backend.license != request.backend.license
+            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
+            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || self.request_sha256 != sha256_hex(request_bytes)
+            || self.landmark_ids.len() != request.landmark_count
+            || self
                 .landmark_ids
                 .iter()
                 .any(|id| !known_ids.contains(id.as_str()))
-            || result.approximation.landmark_count != request.landmark_count
-            || result.approximation.nu != request.nu
-            || !result.approximation.coverage_radius_um.is_finite()
-            || result.filtration.validation_status != "passed"
-            || result.filtration.simplices.len() > request.maximum_simplices
-            || result.claim_status != "experimental_witness_approximation"
+            || self.approximation.landmark_count != request.landmark_count
+            || self.approximation.nu != request.nu
+            || !self.approximation.coverage_radius_um.is_finite()
+            || self.filtration.validation_status != "passed"
+            || self.filtration.simplices.len() > request.maximum_simplices
+            || self.claim_status != "experimental_witness_approximation"
         {
             return Err(TopologyError::Backend(
                 "witness result identity or contract mismatch".into(),
             ));
         }
-        Ok(result)
+        Ok(())
     }
 }
 
