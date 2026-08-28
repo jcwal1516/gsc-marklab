@@ -148,6 +148,11 @@ pub struct InterferenceRandomizationResult {
 pub struct RandomizedInterferenceResult {
     pub format: &'static str,
     pub version: u32,
+    pub analysis_level: &'static str,
+    pub null_family: &'static str,
+    pub randomization_unit: &'static str,
+    pub unit_count: usize,
+    pub cluster_count: usize,
     pub design_provenance: String,
     pub graph_provenance: String,
     pub assignment_mechanism: &'static str,
@@ -309,6 +314,11 @@ pub fn randomized_binary_interference(
     Ok(RandomizedInterferenceResult {
         format: "marklab.randomized_binary_interference",
         version: 1,
+        analysis_level: "clustered_units",
+        null_family: "randomized_interference_fixed_outcomes",
+        randomization_unit: "complete_cluster_assignment_state",
+        unit_count: spec.units.len(),
+        cluster_count: clusters.len(),
         design_provenance: spec.design_provenance,
         graph_provenance: spec.graph_provenance,
         assignment_mechanism: "complete_randomization_within_cluster",

@@ -1785,3 +1785,14 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   active instruction prohibit retrying the macOS binary-verification loop. No feature matrix,
   benchmark, fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or
   history rewrite ran.
+
+## Explicit randomized-interference design checkpoint 102 — 2026-08-28
+
+- The existing randomized binary interference result now explicitly reports clustered-unit analysis,
+  the randomized-interference fixed-outcome null, complete cluster assignment state as the atomic
+  randomization unit, and exact unit/cluster counts.
+- Assignment enumeration, within-cluster treated counts, graph/exposure mapping, HT/Hájek
+  estimands, positivity, ChaCha20 stream, fixed-outcome test, limits, p-value, and prior output fields
+  remain unchanged. The deterministic CLI and all causal library tests pass.
+- This closes the concrete FND-06 interference design-summary gap without adding a cross-crate
+  abstraction or claiming observational interference identification.

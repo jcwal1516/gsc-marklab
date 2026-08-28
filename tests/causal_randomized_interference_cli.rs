@@ -44,6 +44,17 @@ fn complete_randomization_derives_exact_exposure_probabilities_and_replays() {
     assert_eq!(fs::read(&first).unwrap(), fs::read(&second).unwrap());
     let result: serde_json::Value = serde_json::from_slice(&fs::read(first).unwrap()).unwrap();
     assert_eq!(result["format"], "marklab.randomized_binary_interference");
+    assert_eq!(result["analysis_level"], "clustered_units");
+    assert_eq!(
+        result["null_family"],
+        "randomized_interference_fixed_outcomes"
+    );
+    assert_eq!(
+        result["randomization_unit"],
+        "complete_cluster_assignment_state"
+    );
+    assert_eq!(result["unit_count"], 4);
+    assert_eq!(result["cluster_count"], 1);
     assert_eq!(
         result["assignment_mechanism"],
         "complete_randomization_within_cluster"

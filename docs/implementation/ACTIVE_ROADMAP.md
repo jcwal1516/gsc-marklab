@@ -909,3 +909,10 @@ integration/Nextest loader loop was not retried.
 COH-01/FND-06 remain active for interference, covariate-adjusted cluster/multisite designs, broader
 multiplicity/calibration, and real multisite/cluster validation. FND-05 real CellViT promotion
 remains data-dependent on its four exact source-owned provenance fields; do not synthesize them.
+
+## Checkpoint 102 explicit randomized-interference design continuation
+
+The existing exact randomized-interference workflow now exposes its clustered analysis level,
+fixed-outcome interference null, complete cluster-assignment unit, and exact counts. FND-06 remains
+active for broader multiplicity/calibration and method-bound pattern null consolidation, not for a
+missing executable interference design.

@@ -2261,6 +2261,15 @@ vascular transport.
   No feature matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push, publication,
   deployment, or history rewrite ran.
 
+## Explicit randomized-interference design checkpoint 102 — 2026-08-28
+
+- The exact causal CLI test first failed because analysis/null/randomization-unit fields were absent
+  and now passes 1/1 with byte-identical replay, six assignment states, exact exposure probabilities,
+  199 null values, four units, and one cluster.
+- All three causal library tests pass. Warning-denied Clippy passes for the causal library and
+  affected CLI test; package no-default compilation, doctests, affected-file Rustfmt, and diff
+  whitespace pass. Broad checkpoint-101 gates were not repeated.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test
