@@ -1,7 +1,7 @@
 use super::{
-    compensated_sum, derive_seed_in_namespace,
+    compensated_sum,
     mmd::{squared_euclidean, validate_fingerprints},
-    shuffled_labels, CohortInferenceError, Fingerprint, MAXIMUM_PERMUTATIONS,
+    CohortInferenceError, Fingerprint, InferenceDesign, MAXIMUM_PERMUTATIONS,
 };
 
 const ENERGY_NAMESPACE: u64 = 0x656e_6572_6779_5f70;
@@ -81,12 +81,21 @@ pub fn patient_level_energy_distance(
         .map(|fingerprint| fingerprint.group == spec.group_a)
         .collect::<Vec<_>>();
     let observed = energy_distance(&distances, fingerprints.len(), &observed_labels)?;
+    let design = InferenceDesign::population_independence(
+        fingerprints.len(),
+        spec.permutations,
+        spec.seed,
+        ENERGY_NAMESPACE,
+    )
+    .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
     let mut exceedances = 0usize;
     for replicate in 0..spec.permutations {
-        let labels = shuffled_labels(
-            &observed_labels,
-            derive_seed_in_namespace(spec.seed, ENERGY_NAMESPACE, replicate),
-        );
+        let labels = design
+            .permuted_indices(replicate)
+            .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?
+            .iter()
+            .map(|source| observed_labels[*source])
+            .collect::<Vec<_>>();
         let statistic = energy_distance(&distances, fingerprints.len(), &labels)?;
         exceedances += usize::from(statistic >= observed);
     }

@@ -2203,3 +2203,19 @@ vascular transport.
   pass. Workspace-wide gates were not repeated; no full integration/Nextest loop, feature matrix,
   benchmark, fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or
   history rewrite ran.
+
+## Patient population-independence design checkpoint 87 — 2026-08-28
+
+- The focused `marklab-cohort` unit test first failed on the absent
+  `InferenceDesign::population_independence` constructor and `PopulationIndependence` null-family
+  variant. It now passes 1/1 and proves every shared index permutation reproduces the legacy
+  method-namespaced whole-label Fisher–Yates stream with exact group-count preservation.
+- `cargo +1.96.0 test --locked --package marklab-cohort --test mmd_reference --test
+  energy_reference --test inference_design_reference` passes 4/4. The unchanged independent slow
+  references agree exactly on linear/RBF biased/unbiased MMD statistics and p-values, Euclidean
+  energy distance and p-value, deterministic blocked schedules, and design rejection boundaries.
+- `cargo +1.96.0 clippy --locked --package marklab-cohort --all-targets -- -D warnings`, `cargo
+  +1.96.0 check --locked --package marklab-cohort --no-default-features`, package doctests,
+  affected-file Rustfmt, and diff whitespace checks pass. No workspace-wide/Nextest loop, feature
+  matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push, publication, deployment,
+  or history rewrite ran.

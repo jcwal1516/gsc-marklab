@@ -1,8 +1,7 @@
 use std::collections::HashSet;
 
 use super::{
-    compensated_sum, derive_seed_in_namespace, shuffled_labels, CohortInferenceError,
-    MAXIMUM_PATIENTS, MAXIMUM_PERMUTATIONS,
+    compensated_sum, CohortInferenceError, InferenceDesign, MAXIMUM_PATIENTS, MAXIMUM_PERMUTATIONS,
 };
 
 const MMD_NAMESPACE: u64 = 0x6d6d_645f_7065_726d;
@@ -115,12 +114,21 @@ pub fn patient_level_mmd(
         &observed_labels,
         spec.estimator,
     )?;
+    let design = InferenceDesign::population_independence(
+        fingerprints.len(),
+        spec.permutations,
+        spec.seed,
+        MMD_NAMESPACE,
+    )
+    .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
     let mut exceedances = 0usize;
     for replicate in 0..spec.permutations {
-        let labels = shuffled_labels(
-            &observed_labels,
-            derive_seed_in_namespace(spec.seed, MMD_NAMESPACE, replicate),
-        );
+        let labels = design
+            .permuted_indices(replicate)
+            .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?
+            .iter()
+            .map(|source| observed_labels[*source])
+            .collect::<Vec<_>>();
         let statistic = mmd_squared(&kernel, fingerprints.len(), &labels, spec.estimator)?;
         exceedances += usize::from(statistic >= observed);
     }

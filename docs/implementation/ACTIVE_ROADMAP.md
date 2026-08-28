@@ -759,3 +759,15 @@ FND-04, FND-05, MRK-02D, and WS-24 remain active. The next vector caller may reu
 only when it already consumes the same `CellEmbeddingTable`/`CellEmbeddingArtifact`; do not create a
 generic reference registry or claim independent patch embeddings. Canonical real source-import
 promotion remains distinct from this in-memory typed connection.
+
+## Checkpoint 87 patient population-independence continuation
+
+Patient-level MMD and energy distance now delegate their exact whole-label schedules to the shared
+`InferenceDesign::PopulationIndependence` owner while preserving both method-specific seed streams
+and every existing numerical result. This removes duplicate permutation mechanics from the two
+fingerprint distribution callers without changing their public specs or result formats.
+
+FND-06 remains active for repeated, paired/blocked fingerprint, multisite/cluster/interference, and
+broader multiplicity contracts. The next inference-design connection must have an immediate method
+caller and preserve that method's deterministic reference stream; do not create a universal null or
+statistic registry.

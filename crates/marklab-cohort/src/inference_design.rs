@@ -22,7 +22,7 @@ pub enum InferenceAnalysisLevel {
     Patient,
 }
 
-/// Admitted null family for the two current design callers.
+/// Admitted null families used by current patient and cell-mark callers.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum InferenceNullFamily {
     /// Whole scalar values move freely across fixed cell locations.
@@ -31,6 +31,8 @@ pub enum InferenceNullFamily {
     StratifiedRandomLabeling,
     /// Whole patient group labels move within exact declared patient blocks.
     PatientLabelPermutation,
+    /// Whole patient labels move under population independence.
+    PopulationIndependence,
 }
 
 /// Atomic unit moved by one permutation schedule.
@@ -49,7 +51,7 @@ pub enum InferenceMultiplicity {
     SingleEndpoint,
 }
 
-/// Complete exact blocked-permutation schedule shared by two production methods.
+/// Complete exact blocked-permutation schedule shared by current production methods.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InferenceDesign {
     analysis_level: InferenceAnalysisLevel,
@@ -140,6 +142,26 @@ impl InferenceDesign {
             seed,
             PATIENT_PERMUTATION_NAMESPACE,
             alternative,
+        )
+    }
+
+    /// Declare one method-owned unblocked whole-patient population-independence schedule.
+    pub(crate) fn population_independence(
+        unit_count: usize,
+        permutations: usize,
+        seed: u64,
+        seed_namespace: u64,
+    ) -> Result<Self, InferenceDesignError> {
+        Self::build(
+            InferenceAnalysisLevel::Patient,
+            InferenceNullFamily::PopulationIndependence,
+            InferencePermutationUnit::PatientLabel,
+            vec![(0..unit_count).collect()],
+            unit_count,
+            permutations,
+            seed,
+            seed_namespace,
+            InferenceAlternative::Greater,
         )
     }
 
@@ -365,5 +387,46 @@ impl PatientPermutationDesign {
             .iter()
             .map(|source| records[*source].is_group_a)
             .collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{derive_seed_in_namespace, shuffled_labels};
+
+    #[test]
+    fn population_independence_preserves_whole_labels_and_exact_method_stream() {
+        let labels = [true, true, false, false, true, false];
+        let namespace = 0x7465_7374_5f70_6f70;
+        let design =
+            InferenceDesign::population_independence(labels.len(), 19, 20260828, namespace)
+                .expect("population-independence design");
+        assert_eq!(design.analysis_level(), InferenceAnalysisLevel::Patient);
+        assert_eq!(
+            design.null_family(),
+            InferenceNullFamily::PopulationIndependence
+        );
+        assert_eq!(
+            design.permutation_unit(),
+            InferencePermutationUnit::PatientLabel
+        );
+        for replicate in 0..design.permutations() {
+            let observed = design
+                .permuted_indices(replicate)
+                .expect("declared replicate")
+                .iter()
+                .map(|source| labels[*source])
+                .collect::<Vec<_>>();
+            let expected = shuffled_labels(
+                &labels,
+                derive_seed_in_namespace(20260828, namespace, replicate),
+            );
+            assert_eq!(observed, expected);
+            assert_eq!(
+                observed.iter().filter(|label| **label).count(),
+                labels.iter().filter(|label| **label).count()
+            );
+        }
     }
 }

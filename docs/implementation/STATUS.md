@@ -1586,3 +1586,18 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - This is one bounded FND-04/FND-05/MRK-02D specialization. Other vector statistics, canonical real
   source-import promotion, independent genuine patch tensors, broader vector interchange, and
   result-format changes remain active or unavailable as previously recorded.
+
+## Patient population-independence design checkpoint 87 — 2026-08-28
+
+- Routed the existing patient-level MMD and energy-distance workflows through the shared
+  `marklab-cohort::InferenceDesign` under an explicit `PopulationIndependence` null. One complete
+  patient group label is the permutation unit and the unblocked admitted patient set is the exact
+  exchangeability block; neither fingerprints nor feature coordinates are split.
+- Both methods retain their existing private seed namespaces and one-sided-high alternatives. The
+  shared Fisher–Yates index schedule reproduces every former label vector exactly, so observed
+  statistics, null replicates, plus-one p-values, requested/attempted/completed counts, seeds, work
+  bounds, CLI outputs, and the sealed CRC bundle remain unchanged.
+- Independent slow references pass for linear/RBF biased/unbiased MMD and Euclidean energy distance.
+  This is a bounded FND-06 population-independence increment, not blocked/stratified fingerprint
+  inference, pairing, repeated/multisite exchangeability, multiplicity expansion, or a general null
+  registry.
