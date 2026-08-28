@@ -18,6 +18,7 @@ mod inference_design;
 mod max_t;
 mod mmd;
 mod multisite;
+mod multisite_covariate;
 mod noninferiority;
 mod numeric;
 mod paired;
@@ -87,6 +88,10 @@ pub use multisite::{
     multisite_patient_contrast, multisite_spatial_inference, MultisiteEffectModel,
     MultisiteInferenceResult, MultisiteInferenceSpec, MultisitePatientContrastResult,
     MultisitePatientEndpoint, SiteEffect, SitePatientContrast, SiteSensitivityResult,
+};
+pub use multisite_covariate::{
+    multisite_covariate_patient_contrast, AdjustedSitePatientContrast,
+    MultisiteCovariateContrastResult, MultisiteCovariatePatientRecord,
 };
 pub use noninferiority::{
     noninferiority_test, NoninferiorityDirection, NoninferiorityResult, NoninferioritySpec,

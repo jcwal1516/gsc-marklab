@@ -968,3 +968,10 @@ Independent-patient residual inference now supports an exact fixed matrix of 1â€
 columns with optional patient blocks and no formula surface. COH-01/FND-06 remain active for
 cluster/multisite-adjusted callers, hierarchical/local multiplicity, calibration, and real
 validation; general regression syntax is not a remaining prerequisite.
+
+## Checkpoint 110 adjusted multisite patient continuation
+
+The existing fixed/REML multisite engine now consumes adjusted within-site patient coefficients and
+standard errors from the same exact nuisance matrix, with canonical site/patient order and retained
+transforms. COH-01/FND-06 remain active for covariate-adjusted cluster randomization, hierarchical/
+local multiplicity, calibration, and real multisite validation; adjusted site pooling is complete.

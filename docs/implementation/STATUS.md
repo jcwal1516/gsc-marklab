@@ -1895,3 +1895,18 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   and exact unblocked/blocked p-values. Patient-order and extreme per-column rescaling are invariant;
   missing and collinear columns fail. Matrix references pass 2/2, the matrix CLI 1/1, legacy scalar
   covariate references 3/3 and CLI 2/2, plus affected Clippy/no-default/strict-doc/format checks.
+
+## Adjusted multisite patient contrast checkpoint 110 — 2026-08-28
+
+- Added `marklab cohort multisite-covariate-contrast` and a typed library workflow that fits the
+  same exact 1–32-column nuisance design independently within every site. Each site reports its
+  adjusted group coefficient, OLS standard error, residual degrees of freedom, patient counts, and
+  site-specific centers/scales before the existing fixed-effect or REML pool runs.
+- Patient IDs are globally unique and site rows canonicalize by patient ID. The independent oracle
+  initially exposed order-dependent floating accumulation; canonicalization now makes reversed-row
+  results exact. Incomplete matrices, non-finite/constant columns, fewer than two patients per group,
+  site-specific rank deficiency, invalid site counts, and work above 100 million units fail.
+- Independent modified-Gram-Schmidt/FWL site effects/SEs and inverse-variance pooling agree. The
+  adjusted multisite reference passes 2/2, its CLI 1/1, and legacy multisite CLI 2/2. The first
+  warning-denied Clippy run found one range-loop warning; the corrected final-state package/CLI
+  Clippy, no-default, strict docs, formatting, and whitespace checks pass.

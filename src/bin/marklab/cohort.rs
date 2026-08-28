@@ -205,6 +205,20 @@ enum CohortCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    MultisiteCovariateContrast {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        group_a: String,
+        #[arg(long)]
+        group_b: String,
+        #[arg(long, value_enum)]
+        model: CliMultisiteModel,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        out: PathBuf,
+    },
     FunctionalPermutation {
         #[arg(long)]
         input: PathBuf,
@@ -929,6 +943,17 @@ pub(super) fn run_cli() -> Result<(), CohortError> {
                     out,
                 },
         } => multisite::run_patient_contrast(input, group_a, group_b, model, alpha, out),
+        CohortTopLevel::Cohort {
+            command:
+                CohortCommand::MultisiteCovariateContrast {
+                    input,
+                    group_a,
+                    group_b,
+                    model,
+                    alpha,
+                    out,
+                },
+        } => multisite::run_covariate_contrast(input, group_a, group_b, model, alpha, out),
     }
 }
 

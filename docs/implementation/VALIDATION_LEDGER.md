@@ -2365,6 +2365,19 @@ vascular transport.
   binary. Package no-default compilation, strict package docs, affected-file Rustfmt, and `git diff
   --check` pass. Broad checkpoint-108 gates were not repeated.
 
+## Adjusted multisite patient contrast checkpoint 110 — 2026-08-28
+
+- The exact adjusted-multisite CLI test first failed because `multisite-covariate-contrast` was
+  absent and now passes 1/1 over three sites/24 patients/two nuisance columns.
+- `multisite_covariate_reference` first found exact row-order drift in site SEs/pooling and now
+  passes 2/2 after canonical patient ordering. Its independent QR/FWL oracle agrees on every site
+  coefficient/SE and fixed pool; incomplete and site-collinear designs fail. The legacy
+  `cohort_multisite_inference_cli` passes 2/2.
+- The first warning-denied cohort Clippy run failed on `needless_range_loop`; the iterator fix made
+  final-state warning-denied Clippy pass for all cohort targets and the affected root CLI. Package
+  no-default compilation, strict package docs, affected-file Rustfmt, and `git diff --check` pass.
+  Broad checkpoint-108 gates were not repeated.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test
