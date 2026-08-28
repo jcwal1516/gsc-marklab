@@ -1435,3 +1435,25 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   K/L and g. A reconstructed project returns a byte-identical hit with one ledger row, while a seed
   change creates a second miss. No bandwidth selector, estimator/kernel registry, multitype
   inhomogeneous expansion, or pinned `spatstat` agreement is claimed.
+
+## Exact binary compartment-interface checkpoint 79 — 2026-08-27
+
+- Added one physical-frame-bound binary compartment partition over the existing exact polygon/
+  multipolygon/hole window owner. Negative and positive compartment windows must tessellate the
+  analyzed domain with aligned canonical segments and area agreement within sixteen f64 ULPs. Every
+  outer segment belongs to exactly one compartment and every internal segment has one exact mate;
+  gaps, overlaps, frame drift, representation drift, absent interfaces, and excessive segment work
+  fail without snapping, repair, overlay inference, or rasterization.
+- Only matched internal segments enter the interface R-tree. Signed distance is positive on the
+  declared positive side, negative on the negative side, exact zero on the shared interface, and
+  unavailable outside the analyzed window. A tissue-edge point therefore retains its distance to
+  the biological interface rather than incorrectly becoming zero. GEOS 3.14.1 independently agrees
+  on compartment/domain areas, union, shared line, interface length, and all declared distances.
+- The immediate typed caller consumes the existing row-aligned `histologic_compartment` MarkTable.
+  It retains stable CellIds, row labels, per-cell signed micrometre distances, two compartment
+  summaries, exact provenance/configuration/partition identities, and hard point/query/memory
+  bounds. Non-interface annotation/geometry disagreement fails. A reconstructed durable project
+  returns the identical profile as a hit with one execution; changing only the query ceiling misses.
+- This is a descriptive per-specimen binary specialization. It does not treat cells as patient
+  replicates or claim multiclass/residual/uncertain partitions, contact fractions, phenotype
+  inference, patient effects, real pathology validation, clinical use, or result-format changes.

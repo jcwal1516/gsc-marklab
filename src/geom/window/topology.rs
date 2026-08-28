@@ -27,6 +27,20 @@ impl BoundarySegment {
         segment_distance_2(self.start, self.end, point)
     }
 
+    pub(super) fn length(&self) -> f64 {
+        (self.end[0] - self.start[0]).hypot(self.end[1] - self.start[1])
+    }
+
+    pub(super) fn canonical_key(&self) -> [u64; 4] {
+        let start = [self.start[0].to_bits(), self.start[1].to_bits()];
+        let end = [self.end[0].to_bits(), self.end[1].to_bits()];
+        if start <= end {
+            [start[0], start[1], end[0], end[1]]
+        } else {
+            [end[0], end[1], start[0], start[1]]
+        }
+    }
+
     fn adjacent(&self, other: &Self) -> bool {
         self.ring_id == other.ring_id
             && (self.index_in_ring.abs_diff(other.index_in_ring) == 1

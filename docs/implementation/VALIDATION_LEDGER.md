@@ -2045,3 +2045,25 @@ vascular transport.
   --doc`, affected-file Rustfmt, and diff whitespace checks pass. Workspace/Nextest loops, broad
   feature matrices, benchmarks, fuzzing, memory tools, packaging, dependency audits, push,
   publication, deployment, and history rewriting were not run.
+
+## Exact binary compartment-interface checkpoint 79 — 2026-08-27
+
+- `cargo +1.96.0 test --locked --package marklab --test compartment_partition_domain` first failed
+  on unresolved partition symbols and now passes 3/3: exact oriented distance, tissue-edge
+  distinction, frame binding, gap/overlap/unaligned-segment rejection, absent shared interface,
+  non-finite/outside queries, and one-short segment work.
+- `cargo +1.96.0 test --locked --package marklab --test
+  compartment_interface_profile_typed_workflow` first failed on unresolved typed-profile symbols;
+  its durable test separately failed on the absent node. The final 3/3 pass covers typed cell rows,
+  deterministic summaries, spatial-label mismatch, one-short point/query/memory limits, fresh miss,
+  reconstructed identical hit with one ledger execution, and limit-only cache invalidation.
+- `python3 tests/fixtures/compartment_partition/generate_geos_oracle.py | diff -u
+  tests/fixtures/compartment_partition/geos_rectangle_oracle.json -` passes byte-for-byte against
+  installed GEOS/geosop 3.14.1. The independent engine confirms both 50-square-micrometre
+  compartments, 100-square-micrometre union/domain, exact shared 10-micrometre line, and query
+  distances 3, 2, and 5 micrometres.
+- Targeted warning-denied Clippy over both integrations passes after one iterator cleanup. `cargo
+  +1.96.0 check --locked --package marklab --no-default-features`, `cargo +1.96.0 test --locked
+  --package marklab --doc`, affected-file Rustfmt, and diff whitespace checks pass. Workspace/
+  Nextest loops, broad feature matrices, benchmarks, fuzzing, memory tools, packaging, dependency
+  audits, push, publication, deployment, and history rewriting were not run.

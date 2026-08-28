@@ -652,3 +652,18 @@ correction/calibration, real scale evidence, and pinned `spatstat` agreement. Wi
 `spatstat.explore` backend, dependency-ordered native work returns to FND-02/WS-22: the next concrete
 caller is an oriented, nonoverlapping compartment partition consumed by signed interface distance,
 without inventing a general geometry registry or silently repairing invalid pathology boundaries.
+
+## Checkpoint 79 exact binary compartment-interface continuation
+
+One exact negative/positive compartment tessellation now consumes the canonical physical window and
+feeds typed cell rows through an internal-interface-only signed-distance profile. Exact aligned
+segments, area coverage, frame identity, categorical annotation agreement, GEOS area/union/
+intersection/distance evidence, work ceilings, and cross-process durable replay exercise the full
+bounded path. Tissue-edge distance and biological-interface distance remain distinct.
+
+FND-02/WS-22 and GEO-01 remain active for multiclass/residual/uncertain compartments, real masks,
+objects, morphology, volumes, and broader external agreement. The next immediate caller on this
+same admitted interface is GEO-01B contact fraction: report shared-interface length over an explicit
+compartment-boundary denominator, preserve outer-versus-internal roles, and add no cell-level
+replication or generic morphology registry. GEO-01C phenotype/patient inference waits for a real
+annotated cohort rather than synthetic significance evidence.

@@ -1,0 +1,15 @@
+{
+  "geos_version": "3.14.1",
+  "interface_length_um": 10.0,
+  "intersection_wkt": "LINESTRING (5 0, 5 10)",
+  "negative_area_um2": 50.0,
+  "observation_area_um2": 100.0,
+  "oracle": "GEOS geosop",
+  "positive_area_um2": 50.0,
+  "query_distances_um": {
+    "stroma": 3.0,
+    "tissue_edge": 5.0,
+    "tumor": 2.0
+  },
+  "union_equals_observation": true
+}

@@ -24,6 +24,8 @@ mod classical_workflow;
 mod cli;
 mod common;
 mod comparison;
+mod compartment_interface;
+mod compartment_interface_workflow;
 mod config;
 #[cfg(feature = "parquet")]
 mod contained_patch_nucleus_area_contrast;
@@ -110,6 +112,11 @@ pub use classical::{
     KlPointStatus, CLASSICAL_SPATIAL_FORMAT, CLASSICAL_SPATIAL_FORMAT_VERSION,
 };
 pub use classical_workflow::ClassicalSpatialAnalysisNode;
+pub use compartment_interface::{
+    analyze_compartment_interface_profile, CompartmentInterfaceCell, CompartmentInterfaceError,
+    CompartmentInterfaceLimits, CompartmentInterfaceProfile, CompartmentInterfaceSummary,
+};
+pub use compartment_interface_workflow::CompartmentInterfaceAnalysisNode;
 pub use config::{
     AnalysisConfig, AnalysisConfigSection, ComparisonSection, ComponentMode, CurveMargins,
     DiagnosticsSection, InferenceSection, MultiscaleResidualSection, NeighborhoodNullModel,
@@ -140,8 +147,9 @@ pub use data::{Pattern, PatternMeta, TumorWindow};
 pub use errors::{MarklabError, Result};
 pub use geom::mask::TumorMask;
 pub use geom::window::{
-    ObservationWindow2D, ObservationWindowDescriptor, ObservationWindowError,
-    ObservationWindowLimits,
+    BinaryCompartmentPartition2D, CompartmentPartitionDescriptor, CompartmentPartitionError,
+    CompartmentPartitionLimits, ObservationWindow2D, ObservationWindowDescriptor,
+    ObservationWindowError, ObservationWindowLimits,
 };
 pub use inhomogeneous_spatial::{
     analyze_inhomogeneous_pair_correlation, analyze_inhomogeneous_spatial_pattern,

@@ -8,7 +8,12 @@ use marklab_workflow::{ContentDigest, ContentDigestWriter};
 use rstar::RTree;
 use thiserror::Error;
 
+mod compartment;
 mod topology;
+pub use compartment::{
+    BinaryCompartmentPartition2D, CompartmentPartitionDescriptor, CompartmentPartitionError,
+    CompartmentPartitionLimits,
+};
 use topology::{BoundarySegment, Point, Polygon, TopologySummary};
 
 const DIGEST_DOMAIN: &[u8] = b"marklab-observation-window-2d-v1";
