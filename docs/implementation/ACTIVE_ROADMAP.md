@@ -850,3 +850,14 @@ infrastructure.
 Four related FND-06 workflows have completed since checkpoint 90. Run one stabilization pass over
 the affected workspace surfaces, excluding the prohibited macOS full-integration/Nextest loop, then
 return to the next concrete production caller or real-data gap.
+
+## Checkpoint 95 patient inference-design stabilization continuation
+
+The checkpoint-91–94 family passes workspace formatting, warning-denied all-target/all-feature
+Clippy, no-default compilation, all-feature doctests, and strict docs. The prohibited macOS full
+integration/Nextest loader loop was not retried.
+
+FND-06 remains active for hierarchy-specific bootstrap, multisite/cluster/interference, and broader
+multiplicity. Production work returns to the next concrete caller or real-data gap; do not extract a
+hierarchical-bootstrap abstraction until its exact patient→specimen schedule has a second immediate
+consumer or cannot execute correctly without one.

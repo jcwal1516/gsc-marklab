@@ -1711,3 +1711,14 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   family and complete-pair-difference unit.
 - This advances FND-06/COH-01/WS-31/WS-34. It does not impute incomplete pairs, align repeated visits,
   add covariates or matching, or generalize a sign-flip registry.
+
+## Patient inference-design stabilization checkpoint 95 — 2026-08-28
+
+- Stabilized checkpoints 91–94 across blocked patient MMD/energy/functional inference, repeated-
+  subject residual signs, and paired complete-difference signs. Workspace formatting, all-target/
+  all-feature warning-denied Clippy, no-default compilation, all-feature doctests, and strict docs
+  pass on the final production state.
+- The full workspace integration suite and Nextest were not run because checkpoints 51/52 and the
+  active instruction prohibit retrying the macOS binary-verification loop. No feature matrix,
+  benchmark, fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or
+  history rewrite ran.
