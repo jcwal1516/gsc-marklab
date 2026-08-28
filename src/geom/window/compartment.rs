@@ -45,6 +45,14 @@ pub struct CompartmentPartitionDescriptor {
     pub interface_segment_count: usize,
     /// Total shared-interface length in micrometres.
     pub interface_length_um: f64,
+    /// Complete negative-compartment polygon boundary length.
+    pub negative_boundary_length_um: f64,
+    /// Negative-compartment boundary coincident with the analyzed tissue edge.
+    pub negative_outer_boundary_length_um: f64,
+    /// Complete positive-compartment polygon boundary length.
+    pub positive_boundary_length_um: f64,
+    /// Positive-compartment boundary coincident with the analyzed tissue edge.
+    pub positive_outer_boundary_length_um: f64,
     /// Summed boundary-segment count validated against the caller ceiling.
     pub validated_boundary_segment_count: usize,
     /// Exact partition identity including role order and aligned interface geometry.
@@ -138,15 +146,26 @@ impl BinaryCompartmentPartition2D {
         if interface_segments.len() != interface_keys.len() {
             return Err(not_exact("shared interface segment identity is ambiguous"));
         }
-        let interface_length_um = interface_segments
-            .iter()
-            .map(BoundarySegment::length)
-            .sum::<f64>();
+        let interface_length_um = segment_key_length_sum(interface_keys.iter());
         if !interface_length_um.is_finite() || interface_length_um <= 0.0 {
             return Err(not_exact(
                 "shared interface length is not finite and positive",
             ));
         }
+        let negative_outer_boundary_length_um =
+            boundary_length_for_keys(&negative, &observation_segments);
+        let positive_outer_boundary_length_um =
+            boundary_length_for_keys(&positive, &observation_segments);
+        validate_boundary_decomposition(
+            negative.perimeter_um(),
+            negative_outer_boundary_length_um,
+            interface_length_um,
+        )?;
+        validate_boundary_decomposition(
+            positive.perimeter_um(),
+            positive_outer_boundary_length_um,
+            interface_length_um,
+        )?;
         let logical_digest = partition_digest(
             &observation,
             &negative_compartment_id,
@@ -165,6 +184,10 @@ impl BinaryCompartmentPartition2D {
             positive_area_um2: positive.area_um2(),
             interface_segment_count: interface_segments.len(),
             interface_length_um,
+            negative_boundary_length_um: negative.perimeter_um(),
+            negative_outer_boundary_length_um,
+            positive_boundary_length_um: positive.perimeter_um(),
+            positive_outer_boundary_length_um,
             validated_boundary_segment_count,
             logical_digest,
         };
@@ -226,6 +249,44 @@ fn segment_keys(window: &ObservationWindow2D) -> BTreeSet<SegmentKey> {
         .iter()
         .map(BoundarySegment::canonical_key)
         .collect()
+}
+
+fn boundary_length_for_keys(window: &ObservationWindow2D, keys: &BTreeSet<SegmentKey>) -> f64 {
+    let window_keys = segment_keys(window);
+    segment_key_length_sum(window_keys.intersection(keys))
+}
+
+fn segment_key_length_sum<'a>(keys: impl Iterator<Item = &'a SegmentKey>) -> f64 {
+    let mut sum = 0.0;
+    let mut correction = 0.0;
+    for key in keys {
+        let start = [f64::from_bits(key[0]), f64::from_bits(key[1])];
+        let end = [f64::from_bits(key[2]), f64::from_bits(key[3])];
+        let length = (end[0] - start[0]).hypot(end[1] - start[1]);
+        let corrected = length - correction;
+        let next = sum + corrected;
+        correction = (next - sum) - corrected;
+        sum = next;
+    }
+    sum + correction
+}
+
+fn validate_boundary_decomposition(
+    perimeter: f64,
+    outer: f64,
+    interface: f64,
+) -> Result<(), CompartmentPartitionError> {
+    let decomposed = outer + interface;
+    if !outer.is_finite()
+        || outer < 0.0
+        || !decomposed.is_finite()
+        || decomposed.to_bits().abs_diff(perimeter.to_bits()) > 16
+    {
+        return Err(not_exact(
+            "shared and outer segments do not reconstruct compartment perimeter",
+        ));
+    }
+    Ok(())
 }
 
 fn validate_exact_tessellation(

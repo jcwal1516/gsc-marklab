@@ -1457,3 +1457,19 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - This is a descriptive per-specimen binary specialization. It does not treat cells as patient
   replicates or claim multiclass/residual/uncertain partitions, contact fractions, phenotype
   inference, patient effects, real pathology validation, clinical use, or result-format changes.
+
+## Exact compartment-contact checkpoint 80 — 2026-08-27
+
+- Added the immediate GEO-01B caller over the exact binary partition. For each negative/positive
+  role it separately retains shared internal-interface length, analyzed-tissue outer-boundary
+  length, and the complete compartment polygon boundary. Contact fraction is fixed as shared over
+  complete boundary; it cannot silently substitute a cell-count, tissue-window, convex-hull, or
+  shared-only denominator.
+- The partition now reconstructs each canonical compartment perimeter from deterministically sorted,
+  compensated shared and outer segment sums and rejects disagreement beyond sixteen f64 ULPs. GEOS
+  3.14.1 independently reports 10 micrometres shared, 20 outer, and 30 complete boundary for each
+  rectangle, giving contact `1/3` for both roles.
+- A strict separate durable node reopens as an identical hit with one execution. Swapping the
+  positive and negative compartment roles changes the partition/cache identity and creates a miss
+  while preserving the exact geometry. This is geometric compartment contact, not phenotype/cell
+  contact, a multiclass matrix, uncertain segmentation, patient inference, or biological evidence.

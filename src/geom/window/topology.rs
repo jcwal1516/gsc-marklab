@@ -27,10 +27,6 @@ impl BoundarySegment {
         segment_distance_2(self.start, self.end, point)
     }
 
-    pub(super) fn length(&self) -> f64 {
-        (self.end[0] - self.start[0]).hypot(self.end[1] - self.start[1])
-    }
-
     pub(super) fn canonical_key(&self) -> [u64; 4] {
         let start = [self.start[0].to_bits(), self.start[1].to_bits()];
         let end = [self.end[0].to_bits(), self.end[1].to_bits()];

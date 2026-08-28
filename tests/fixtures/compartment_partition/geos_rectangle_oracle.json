@@ -1,4 +1,6 @@
 {
+  "compartment_boundary_length_um": 30.0,
+  "compartment_outer_boundary_length_um": 20.0,
   "geos_version": "3.14.1",
   "interface_length_um": 10.0,
   "intersection_wkt": "LINESTRING (5 0, 5 10)",

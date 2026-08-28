@@ -667,3 +667,17 @@ same admitted interface is GEO-01B contact fraction: report shared-interface len
 compartment-boundary denominator, preserve outer-versus-internal roles, and add no cell-level
 replication or generic morphology registry. GEO-01C phenotype/patient inference waits for a real
 annotated cohort rather than synthetic significance evidence.
+
+## Checkpoint 80 exact compartment-contact continuation
+
+The exact binary partition now reports shared-interface, tissue-edge, and complete compartment-
+boundary lengths and fixes contact as shared over complete boundary for each oriented role. GEOS
+perimeter/intersection agreement and cross-process miss/hit/orientation invalidation exercise the
+complete bounded result. No cell count enters the denominator and equal numerical fractions do not
+erase negative/positive identities.
+
+GEO-01B remains active for multiclass/phenotype contact, uncertainty, and real validation. The next
+related native caller is GEO-01D binary compartment fragmentation: consume canonical component/hole/
+area/perimeter identities and report an explicit component-area basis plus declared mixing entropy
+only where typed cell counts make that denominator meaningful. Do not add raster morphology,
+automatic repair, a generic morphology registry, or cell-as-patient inference.

@@ -49,6 +49,9 @@ result = {
     "union_equals_observation": geosop("-a", union, "-b", DOMAIN, "equals") == "true",
     "intersection_wkt": intersection,
     "interface_length_um": metric(intersection, "length"),
+    "compartment_boundary_length_um": metric(NEGATIVE, "length"),
+    "compartment_outer_boundary_length_um": metric(NEGATIVE, "length")
+    - metric(intersection, "length"),
     "query_distances_um": {
         "stroma": distance("POINT (2 5)"),
         "tumor": distance("POINT (7 5)"),

@@ -24,6 +24,8 @@ mod classical_workflow;
 mod cli;
 mod common;
 mod comparison;
+mod compartment_contact;
+mod compartment_contact_workflow;
 mod compartment_interface;
 mod compartment_interface_workflow;
 mod config;
@@ -112,6 +114,10 @@ pub use classical::{
     KlPointStatus, CLASSICAL_SPATIAL_FORMAT, CLASSICAL_SPATIAL_FORMAT_VERSION,
 };
 pub use classical_workflow::ClassicalSpatialAnalysisNode;
+pub use compartment_contact::{
+    compartment_contact_fractions, CompartmentContactFraction, CompartmentContactResult,
+};
+pub use compartment_contact_workflow::CompartmentContactAnalysisNode;
 pub use compartment_interface::{
     analyze_compartment_interface_profile, CompartmentInterfaceCell, CompartmentInterfaceError,
     CompartmentInterfaceLimits, CompartmentInterfaceProfile, CompartmentInterfaceSummary,

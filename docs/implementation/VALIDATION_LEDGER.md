@@ -2067,3 +2067,20 @@ vascular transport.
   --package marklab --doc`, affected-file Rustfmt, and diff whitespace checks pass. Workspace/
   Nextest loops, broad feature matrices, benchmarks, fuzzing, memory tools, packaging, dependency
   audits, push, publication, deployment, and history rewriting were not run.
+
+## Exact compartment-contact checkpoint 80 — 2026-08-27
+
+- `cargo +1.96.0 test --locked --package marklab --test
+  compartment_contact_fraction_workflow` first failed on unresolved production and durable symbols
+  and now passes 2/2: exact shared/outer/complete denominator values, GEOS-backed fraction `1/3`,
+  fresh miss, reconstructed identical hit with one execution, and role-swap cache invalidation.
+- The affected three-integration command passes contact 2/2, typed interface profile 3/3, and exact
+  partition 3/3 after deterministic sorted compensated segment-length accumulation. `python3
+  tests/fixtures/compartment_partition/generate_geos_oracle.py | diff -u
+  tests/fixtures/compartment_partition/geos_rectangle_oracle.json -` passes byte-for-byte against
+  GEOS/geosop 3.14.1 including the new 30/20 micrometre denominator components.
+- Targeted warning-denied Clippy over all three integrations passes. `cargo +1.96.0 check --locked
+  --package marklab --no-default-features`, `cargo +1.96.0 test --locked --package marklab --doc`,
+  affected-file Rustfmt, and diff whitespace checks pass. Workspace/Nextest loops, broad feature
+  matrices, benchmarks, fuzzing, memory tools, packaging, dependency audits, push, publication,
+  deployment, and history rewriting were not run.

@@ -152,7 +152,9 @@ struct PartitionArtifact<'a> {
     validated_boundary_segment_count: usize,
 }
 
-fn partition_artifact(partition: &BinaryCompartmentPartition2D) -> Result<ArtifactRef, NodeError> {
+pub(crate) fn partition_artifact(
+    partition: &BinaryCompartmentPartition2D,
+) -> Result<ArtifactRef, NodeError> {
     let descriptor = partition.descriptor();
     let bytes = serde_json::to_vec(&PartitionArtifact {
         logical_digest: descriptor.logical_digest.to_string(),
