@@ -2365,3 +2365,36 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   verifies it. Focused tests, all eight adapter tests, Python syntax, targeted Clippy, no-default
   compilation, formatting, and whitespace checks pass. Agreement, sensitivity, SBC, and
   replicated-pattern PPC remain the next promotion work; broad gates were not repeated after 128.
+
+## Replicated-patient CellViT field promotion checkpoint 130 — 2026-08-29
+
+- The durable fit result is now typed version 2 with every physical node's latent and expected-count
+  posterior plus deterministic per-slide total-count and node-variance predictive checks. The real
+  miss completed in 168.43 seconds at 458,604,544-byte RSS; a fresh backend-disabled process returned
+  a byte-identical hit with one ledger row. SHA-256 is
+  `f9bc6c51ed0cfd5b18558855dc5115853448580ab14cd6347f68949fdbcbe08f`.
+- The posterior and complete diagnostics are unchanged: the MSI-minus-MSS log-intensity effect is
+  0.18694 with interval [-0.51781, 0.88489]. All 16 deployed-pattern total and coarse node-variance
+  checks are non-rejecting; minimum two-sided tails are 0.9365 and 0.0555, respectively.
+- Independent NumPyro agreement required an explicit sampler-specific depth capacity. Depth 10 and
+  12 left 1,211 and 3 ceiling hits and remain rejected diagnostics. Depth 13 completed in 279.10
+  seconds with R-hat 1.00386, bulk/tail ESS 1434.62/1966.82, E-BFMI 0.92293, and zero divergences/
+  depth hits. Every global, patient, slide, latent-node, and expected-count interval overlaps; the
+  largest standardized differences are 0.124 globally and 1.481 over nodes. SHA-256 is
+  `2f5051523b5b21a06cefd1c978499fc8e61821e27190864b8542b06277fcfbe9`.
+- The fixed nine-scenario real grid completed in 1,841.59 seconds. Patient/slide prior-scale changes
+  do not cross 0.75 SD, but field amplitude/length changes materially alter slide effects, up to
+  2.079 SD. Three scenarios have 4, 250, and 6 tree-depth hits; halved amplitude and doubled length
+  produce minimum node-variance tails of zero. The fixed spatial decomposition is therefore unstable,
+  even though the group effect shifts by less than 0.08 SD. SHA-256 is
+  `b9bb082f9b8c1d7fc2e6ae9505e70a1fc2bcf87158c719054aae40563af4b8ce`.
+- Deployed-prior real-geometry SBC is rejected: 14/20 draws exceed the 69,377-event ceiling and two
+  admitted fits saturate tree depth. A separately named count-scale prior passes 20/20 in 252.49
+  seconds; rank-uniformity p-values are 0.163–0.834 and 90% coverage is 0.80–1.00. Its SHA-256 is
+  `481f9969bf5d684b3e199cc58b6161f7162ef5241d05a134ac3c69b00b53c16a`.
+- The hash-verified bundle, including every rejected diagnostic and the durable project, is on the
+  Mac mini 1 TB drive at `results-cellvit-categorical-v15-lgcp-promotion`. Five focused final-state
+  integrations, the builder, Python syntax, affected and workspace all-feature Clippy, workspace
+  formatting/no-default/doctests/strict docs, and whitespace checks pass. The prohibited full
+  integration/Nextest loop was not run. This is null and unstable evidence, not a biological,
+  interaction-process, causal, clinical, significance, or transportability claim.

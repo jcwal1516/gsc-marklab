@@ -81,6 +81,18 @@ pub(super) fn run_replicated_arbitrary_window_lgcp_fit_cli() -> Result<(), Bayes
     replicated_arbitrary_window_lgcp_fit::run_cli()
 }
 
+pub(super) fn run_replicated_arbitrary_window_lgcp_agreement_cli() -> Result<(), BayesCliError> {
+    replicated_arbitrary_window_lgcp_agreement::run_cli()
+}
+
+pub(super) fn run_replicated_arbitrary_window_lgcp_sensitivity_cli() -> Result<(), BayesCliError> {
+    replicated_arbitrary_window_lgcp_sensitivity::run_cli()
+}
+
+pub(super) fn run_replicated_arbitrary_window_lgcp_sbc_cli() -> Result<(), BayesCliError> {
+    replicated_arbitrary_window_lgcp_sbc::run_cli()
+}
+
 pub(super) fn run_arbitrary_window_lgcp_sensitivity_cli() -> Result<(), BayesCliError> {
     arbitrary_window_lgcp_sensitivity::run_cli()
 }
@@ -280,8 +292,14 @@ mod psis_loo;
 mod rejection_abc;
 #[path = "bayes/replicated.rs"]
 mod replicated;
+#[path = "bayes/replicated_arbitrary_window_lgcp_agreement.rs"]
+mod replicated_arbitrary_window_lgcp_agreement;
 #[path = "bayes/replicated_arbitrary_window_lgcp_fit.rs"]
 mod replicated_arbitrary_window_lgcp_fit;
+#[path = "bayes/replicated_arbitrary_window_lgcp_sbc.rs"]
+mod replicated_arbitrary_window_lgcp_sbc;
+#[path = "bayes/replicated_arbitrary_window_lgcp_sensitivity.rs"]
+mod replicated_arbitrary_window_lgcp_sensitivity;
 pub(super) use replicated_arbitrary_window_lgcp_fit::{
     execute as execute_replicated_arbitrary_window_lgcp_fit,
     prepare as prepare_replicated_arbitrary_window_lgcp_fit,

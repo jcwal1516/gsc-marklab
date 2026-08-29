@@ -181,6 +181,12 @@ def summary(values: np.ndarray) -> dict[str, float]:
     }
 
 
+def two_sided_tail(replicated: np.ndarray, observed: float) -> float:
+    lower = float(np.mean(replicated <= observed))
+    upper = float(np.mean(replicated >= observed))
+    return min(1.0, 2.0 * min(lower, upper))
+
+
 def flattened(tree: Any, names: list[str]) -> np.ndarray:
     return np.concatenate([np.asarray(tree[name].values).reshape(-1) for name in names])
 
@@ -306,6 +312,50 @@ def fit(config: dict[str, Any], request_sha256: str, lock_digest: str, worker_di
     divergences = int(np.asarray(stats["diverging"]).sum())
     depth_hits = int(np.asarray(stats["reached_max_treedepth"]).sum())
     posterior = trace.posterior
+    expected_draws = np.asarray(posterior["expected_count"], dtype=np.float64).reshape(
+        -1, len(config["counts"])
+    )
+    predictive_seed = int.from_bytes(
+        hashlib.sha256(
+            f"marklab-replicated-lgcp-posterior-predictive-v1\0{config['seed']}".encode()
+        ).digest()[:8],
+        "little",
+    )
+    replicated_counts = np.random.default_rng(predictive_seed).poisson(expected_draws)
+    pattern_posterior_predictive = []
+    for index, pattern_id in enumerate(config["pattern_ids"]):
+        selected = config["pattern_index"] == index
+        observed_nodes = config["counts"][selected]
+        replicated_nodes = replicated_counts[:, selected]
+        observed_total = int(observed_nodes.sum())
+        replicated_totals = replicated_nodes.sum(axis=1)
+        observed_variance = float(np.var(observed_nodes))
+        replicated_variances = np.var(replicated_nodes, axis=1)
+        pattern_posterior_predictive.append(
+            {
+                "pattern_id": pattern_id,
+                "observed_total_count": observed_total,
+                "replicate_count": int(replicated_totals.size),
+                "replicated_total_count_mean": float(replicated_totals.mean()),
+                "replicated_total_count_sd": float(replicated_totals.std(ddof=1)),
+                "replicated_total_count_interval_lower": float(
+                    np.quantile(replicated_totals, 0.025)
+                ),
+                "replicated_total_count_interval_upper": float(
+                    np.quantile(replicated_totals, 0.975)
+                ),
+                "total_count_two_sided_tail_probability": two_sided_tail(
+                    replicated_totals, observed_total
+                ),
+                "observed_node_count_variance": observed_variance,
+                "replicated_node_count_variance_mean": float(
+                    replicated_variances.mean()
+                ),
+                "node_variance_two_sided_tail_probability": two_sided_tail(
+                    replicated_variances, observed_variance
+                ),
+            }
+        )
     policy = config["policy"]
     complete = (
         prior_finite
@@ -318,7 +368,7 @@ def fit(config: dict[str, Any], request_sha256: str, lock_digest: str, worker_di
     )
     return {
         "format": RESULT_FORMAT,
-        "version": 1,
+        "version": 2,
         "backend": {
             "name": "pymc", "version": pm.__version__,
             "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
@@ -345,6 +395,16 @@ def fit(config: dict[str, Any], request_sha256: str, lock_digest: str, worker_di
             {"pattern_id": pattern_id, "effect": summary(np.asarray(posterior["pattern_effect"])[..., index])}
             for index, pattern_id in enumerate(config["pattern_ids"])
         ],
+        "nodes": [
+            {
+                "pattern_id": config["request"]["nodes"][index]["pattern_id"],
+                "node_id": config["request"]["nodes"][index]["node_id"],
+                "latent_effect": summary(np.asarray(posterior["latent_effect"])[..., index]),
+                "expected_count": summary(expected_draws[:, index]),
+            }
+            for index in range(len(config["counts"]))
+        ],
+        "pattern_posterior_predictive": pattern_posterior_predictive,
         "diagnostics": {
             "prior_predictive_finite": prior_finite, "posterior_finite": True,
             "r_hat": r_hat, "ess_bulk": bulk, "ess_tail": tail,

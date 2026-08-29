@@ -5,10 +5,10 @@ use std::{fmt::Write as _, fs};
 use assert_cmd::Command;
 
 #[test]
-fn replicated_exact_window_lgcp_keeps_patient_and_pattern_as_hierarchy_levels() {
+fn replicated_lgcp_runs_prespecified_hierarchy_and_kernel_sensitivity_grid() {
     let directory = tempfile::tempdir().expect("tempdir");
     let input = directory.path().join("patterns.csv");
-    let output = directory.path().join("fit.json");
+    let output = directory.path().join("sensitivity.json");
     let mut csv = String::from(
         "pattern_id,patient_id,group,cohort,node_id,x_um,y_um,weight_um2,window_area_um2,covariate,count,window_sha256,event_sha256\n",
     );
@@ -47,7 +47,7 @@ fn replicated_exact_window_lgcp_keeps_patient_and_pattern_as_hierarchy_levels() 
         .expect("binary")
         .args([
             "bayes",
-            "fit-replicated-arbitrary-window-lgcp",
+            "replicated-arbitrary-window-lgcp-sensitivity",
             "--input",
             input.to_str().unwrap(),
             "--reference-group",
@@ -92,8 +92,10 @@ fn replicated_exact_window_lgcp_keeps_patient_and_pattern_as_hierarchy_levels() 
             "64",
             "--maximum-total-events",
             "1000",
-            "--maximum-draw-node-work",
-            "192000",
+            "--maximum-total-draw-node-work",
+            "1728000",
+            "--material-standardized-shift",
+            "0.75",
             "--timeout-seconds",
             "240",
             "--out",
@@ -105,52 +107,27 @@ fn replicated_exact_window_lgcp_keeps_patient_and_pattern_as_hierarchy_levels() 
     let result: serde_json::Value = serde_json::from_slice(&fs::read(output).unwrap()).unwrap();
     assert_eq!(
         result["format"],
-        "marklab.bayesian_replicated_arbitrary_window_lgcp_fit"
+        "marklab.replicated_arbitrary_window_lgcp_sensitivity"
     );
-    assert_eq!(result["fit_state"], "complete", "{result}");
-    assert_eq!(result["patient_count"], 8);
-    assert_eq!(result["pattern_count"], 16);
-    assert_eq!(result["total_node_count"], 64);
-    assert_eq!(result["statistical_unit"], "patient");
-    assert_eq!(result["pattern_unit"], "slide_pattern_nested_in_patient");
-    assert!(
-        result["posterior"]["group_effect"]["mean"]
-            .as_f64()
-            .unwrap()
-            > 0.5
-    );
-    assert!(result["posterior"]["patient_sd"]["mean"].as_f64().unwrap() > 0.0);
-    assert!(result["posterior"]["pattern_sd"]["mean"].as_f64().unwrap() > 0.0);
-    let predictive = result["pattern_posterior_predictive"]
-        .as_array()
-        .expect("typed pattern posterior predictive rows");
-    assert_eq!(predictive.len(), 16);
-    assert!(predictive.iter().all(|pattern| {
-        pattern["replicate_count"] == 3000
-            && pattern["observed_total_count"].as_u64().is_some()
-            && pattern["replicated_total_count_mean"]
+    let scenarios = result["scenarios"].as_array().unwrap();
+    assert_eq!(scenarios.len(), 9);
+    assert_eq!(result["all_fits_complete"], true, "{result}");
+    assert_eq!(result["total_draw_node_work"], 1_728_000);
+    assert_eq!(scenarios[0]["name"], "baseline");
+    assert_eq!(scenarios[0]["maximum_standardized_shift"], 0.0);
+    assert!(scenarios.iter().all(|scenario| {
+        scenario["fit"]["backend"]["name"] == "pymc"
+            && scenario["fit"]["request_sha256"].as_str().unwrap().len() == 64
+            && scenario["fit"]["pattern_posterior_predictive"]
+                .as_array()
+                .is_some_and(|rows| rows.len() == 16)
+            && scenario["maximum_standardized_shift"]
                 .as_f64()
                 .is_some_and(f64::is_finite)
-            && pattern["observed_node_count_variance"]
-                .as_f64()
-                .is_some_and(f64::is_finite)
-            && pattern["replicated_node_count_variance_mean"]
-                .as_f64()
-                .is_some_and(f64::is_finite)
-            && pattern["total_count_two_sided_tail_probability"]
-                .as_f64()
-                .is_some_and(|value| (0.0..=1.0).contains(&value))
-            && pattern["node_variance_two_sided_tail_probability"]
-                .as_f64()
-                .is_some_and(|value| (0.0..=1.0).contains(&value))
     }));
-    assert_eq!(result["diagnostics"]["divergences"], 0);
-    assert_eq!(
-        result["assumptions"][0],
-        "patients_are_independent_population_units"
-    );
+    assert_eq!(result["statistical_unit"], "patient");
     assert_eq!(
         result["claim_status"],
-        "experimental_replicated_pattern_hierarchy"
+        "experimental_hierarchy_and_kernel_sensitivity"
     );
 }

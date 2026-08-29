@@ -181,28 +181,67 @@ pub(crate) struct WorkerRequest {
     resources: Resources,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Posterior {
-    intercept: SarScalarSummary,
-    group_effect: SarScalarSummary,
-    covariate_effect: SarScalarSummary,
-    patient_sd: SarScalarSummary,
-    pattern_sd: SarScalarSummary,
+impl WorkerRequest {
+    pub(crate) fn input_sha256(&self) -> &str {
+        &self.input_sha256
+    }
+
+    pub(crate) fn first_node_identity(&self) -> (&str, &str) {
+        (&self.nodes[0].pattern_id, &self.nodes[0].node_id)
+    }
+
+    pub(crate) fn completed_draws(&self) -> u64 {
+        u64::from(self.sampling.chains) * u64::from(self.sampling.draws_per_chain)
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct PatientEffect {
-    patient_id: String,
-    effect: SarScalarSummary,
+pub(crate) struct Posterior {
+    pub(crate) intercept: SarScalarSummary,
+    pub(crate) group_effect: SarScalarSummary,
+    pub(crate) covariate_effect: SarScalarSummary,
+    pub(crate) patient_sd: SarScalarSummary,
+    pub(crate) pattern_sd: SarScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct PatternEffect {
-    pattern_id: String,
-    effect: SarScalarSummary,
+pub(crate) struct PatientEffect {
+    pub(crate) patient_id: String,
+    pub(crate) effect: SarScalarSummary,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PatternEffect {
+    pub(crate) pattern_id: String,
+    pub(crate) effect: SarScalarSummary,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct NodePosterior {
+    pub(crate) pattern_id: String,
+    pub(crate) node_id: String,
+    pub(crate) latent_effect: SarScalarSummary,
+    pub(crate) expected_count: SarScalarSummary,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PatternPosteriorPredictive {
+    pub(crate) pattern_id: String,
+    pub(crate) observed_total_count: u64,
+    pub(crate) replicate_count: u64,
+    pub(crate) replicated_total_count_mean: f64,
+    pub(crate) replicated_total_count_sd: f64,
+    pub(crate) replicated_total_count_interval_lower: f64,
+    pub(crate) replicated_total_count_interval_upper: f64,
+    pub(crate) total_count_two_sided_tail_probability: f64,
+    pub(crate) observed_node_count_variance: f64,
+    pub(crate) replicated_node_count_variance_mean: f64,
+    pub(crate) node_variance_two_sided_tail_probability: f64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -214,10 +253,12 @@ struct WorkerResult {
     input_sha256: String,
     request_sha256: String,
     fit_state: FitState,
-    sampling: SamplingSummary,
+    pub(crate) sampling: SamplingSummary,
     posterior: Posterior,
     patient_effects: Vec<PatientEffect>,
     pattern_effects: Vec<PatternEffect>,
+    nodes: Vec<NodePosterior>,
+    pattern_posterior_predictive: Vec<PatternPosteriorPredictive>,
     diagnostics: NormalMeanDiagnostics,
 }
 
@@ -226,15 +267,17 @@ struct WorkerResult {
 pub(crate) struct ResultDocument {
     format: String,
     version: u32,
-    backend: WorkerBackend,
-    input_sha256: String,
-    request_sha256: String,
-    fit_state: FitState,
-    sampling: SamplingSummary,
-    posterior: Posterior,
-    patient_effects: Vec<PatientEffect>,
-    pattern_effects: Vec<PatternEffect>,
-    diagnostics: NormalMeanDiagnostics,
+    pub(crate) backend: WorkerBackend,
+    pub(crate) input_sha256: String,
+    pub(crate) request_sha256: String,
+    pub(crate) fit_state: FitState,
+    pub(crate) sampling: SamplingSummary,
+    pub(crate) posterior: Posterior,
+    pub(crate) patient_effects: Vec<PatientEffect>,
+    pub(crate) pattern_effects: Vec<PatternEffect>,
+    pub(crate) nodes: Vec<NodePosterior>,
+    pub(crate) pattern_posterior_predictive: Vec<PatternPosteriorPredictive>,
+    pub(crate) diagnostics: NormalMeanDiagnostics,
     patient_count: usize,
     pattern_count: usize,
     total_node_count: usize,
@@ -296,6 +339,8 @@ pub(crate) fn execute(
         posterior: worker.posterior,
         patient_effects: worker.patient_effects,
         pattern_effects: worker.pattern_effects,
+        nodes: worker.nodes,
+        pattern_posterior_predictive: worker.pattern_posterior_predictive,
         diagnostics: worker.diagnostics,
         patient_count: request.patients.len(),
         pattern_count: request.patterns.len(),
@@ -783,8 +828,21 @@ fn validate_result(
             .all(|(effect, pattern)| {
                 effect.pattern_id == pattern.pattern_id && summary_valid(&effect.effect)
             });
+    let predictive_valid = predictive_valid(
+        &result.pattern_posterior_predictive,
+        request,
+        result.sampling.completed_draws,
+    );
+    let nodes_valid = result.nodes.len() == request.nodes.len()
+        && result.nodes.iter().zip(&request.nodes).all(|(row, node)| {
+            row.pattern_id == node.pattern_id
+                && row.node_id == node.node_id
+                && summary_valid(&row.latent_effect)
+                && summary_valid(&row.expected_count)
+                && row.expected_count.mean > 0.0
+        });
     if result.format != "marklab.bayesian_replicated_arbitrary_window_lgcp_fit"
-        || result.version != 1
+        || result.version != 2
         || result.backend.name != request.backend.name
         || result.backend.version != request.backend.version
         || result.backend.python_version != request.backend.python_version
@@ -799,6 +857,8 @@ fn validate_result(
         || summaries.iter().any(|summary| !summary_valid(summary))
         || !patient_effects_valid
         || !pattern_effects_valid
+        || !predictive_valid
+        || !nodes_valid
         || (result.fit_state == FitState::Complete) != diagnostics_pass
     {
         return Err(BayesCliError::Backend(
@@ -839,8 +899,21 @@ impl ResultDocument {
                 .all(|(effect, pattern)| {
                     effect.pattern_id == pattern.pattern_id && summary_valid(&effect.effect)
                 });
+        let predictive_valid = predictive_valid(
+            &self.pattern_posterior_predictive,
+            request,
+            self.sampling.completed_draws,
+        );
+        let nodes_valid = self.nodes.len() == request.nodes.len()
+            && self.nodes.iter().zip(&request.nodes).all(|(row, node)| {
+                row.pattern_id == node.pattern_id
+                    && row.node_id == node.node_id
+                    && summary_valid(&row.latent_effect)
+                    && summary_valid(&row.expected_count)
+                    && row.expected_count.mean > 0.0
+            });
         if self.format != "marklab.bayesian_replicated_arbitrary_window_lgcp_fit"
-            || self.version != 1
+            || self.version != 2
             || self.backend.name != request.backend.name
             || self.backend.version != request.backend.version
             || self.backend.python_version != request.backend.python_version
@@ -856,6 +929,8 @@ impl ResultDocument {
             || self.pattern_effects.len() != request.patterns.len()
             || !patient_effects_valid
             || !pattern_effects_valid
+            || !predictive_valid
+            || !nodes_valid
             || self.statistical_unit != "patient"
             || self.pattern_unit != "slide_pattern_nested_in_patient"
             || (self.fit_state == FitState::Complete) != diagnostics_pass
@@ -866,6 +941,39 @@ impl ResultDocument {
         }
         Ok(())
     }
+}
+
+pub(crate) fn predictive_valid(
+    rows: &[PatternPosteriorPredictive],
+    request: &WorkerRequest,
+    completed_draws: u64,
+) -> bool {
+    rows.len() == request.patterns.len()
+        && rows.iter().zip(&request.patterns).all(|(row, pattern)| {
+            let finite = [
+                row.replicated_total_count_mean,
+                row.replicated_total_count_sd,
+                row.replicated_total_count_interval_lower,
+                row.replicated_total_count_interval_upper,
+                row.total_count_two_sided_tail_probability,
+                row.observed_node_count_variance,
+                row.replicated_node_count_variance_mean,
+                row.node_variance_two_sided_tail_probability,
+            ]
+            .into_iter()
+            .all(f64::is_finite);
+            row.pattern_id == pattern.pattern_id
+                && row.observed_total_count == pattern.event_count
+                && row.replicate_count == completed_draws
+                && finite
+                && row.replicated_total_count_sd >= 0.0
+                && row.replicated_total_count_interval_lower
+                    <= row.replicated_total_count_interval_upper
+                && row.observed_node_count_variance >= 0.0
+                && row.replicated_node_count_variance_mean >= 0.0
+                && (0.0..=1.0).contains(&row.total_count_two_sided_tail_probability)
+                && (0.0..=1.0).contains(&row.node_variance_two_sided_tail_probability)
+        })
 }
 
 fn summary_valid(summary: &SarScalarSummary) -> bool {

@@ -1168,3 +1168,15 @@ remains experimental pending independent-backend agreement, prior/kernel sensiti
 replicated-pattern posterior-predictive checks. Production continues directly through those checks;
 hard-multitype fitting follows unless a promotion diagnostic exposes a model defect. UI/server/client
 work remains deferred.
+
+## Checkpoint 130 replicated-patient field promotion continuation
+
+The exact 8-patient/16-slide CellViT hierarchy now has typed node posteriors, per-pattern predictive
+checks, durable version-2 replay, complete PyMC/NumPyro agreement, a fixed nine-scenario hierarchy/
+kernel grid, and prior-generative SBC. The MSI-minus-MSS effect remains null-compatible and stable
+across the grid, but the spatial decomposition is materially kernel-sensitive; three scenarios are
+nonconverged. The deployed diffuse prior is rejected for calibration, while a separately named
+physical count-scale prior passes 20/20 on the real geometry. BAY-PP/BAY-PP-A/WS-43/WS-44 therefore
+advance without a false stability claim. Production next tests the smallest existing bounded path
+for inferred replicated-field scales; if none is feasible, it retains this exact blocker and moves
+to the immediate hard-multitype CellViT caller. UI/server/client work remains deferred.

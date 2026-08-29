@@ -282,13 +282,13 @@ impl StaticBackendWorkflow {
                     "application/vnd.marklab.source.replicated-arbitrary-window-lgcp+csv;version=1",
                 ],
                 output_kind:
-                    "application/vnd.marklab.pymc-replicated-arbitrary-window-lgcp-fit+json;version=1",
+                    "application/vnd.marklab.pymc-replicated-arbitrary-window-lgcp-fit+json;version=2",
                 result_schema_id:
-                    "marklab.pymc_replicated_arbitrary_window_lgcp_fit_result",
+                    "marklab.pymc_replicated_arbitrary_window_lgcp_fit_result_v2",
                 node_id: "pymc-replicated-arbitrary-window-lgcp-fit",
                 node_kind: "bayesian_replicated_point_process_latent_field_fit",
                 implementation_identity:
-                    "marklab-project-pymc-replicated-arbitrary-window-lgcp-fit-node-v1",
+                    "marklab-project-pymc-replicated-arbitrary-window-lgcp-fit-node-v2",
                 deterministic_controls:
                     "seeded-nuts-patient-pattern-hierarchy-fixed-matern-request",
             },

@@ -5,10 +5,10 @@ use std::{fmt::Write as _, fs};
 use assert_cmd::Command;
 
 #[test]
-fn replicated_exact_window_lgcp_keeps_patient_and_pattern_as_hierarchy_levels() {
+fn replicated_patient_lgcp_sbc_calibrates_population_hierarchy_and_field() {
     let directory = tempfile::tempdir().expect("tempdir");
     let input = directory.path().join("patterns.csv");
-    let output = directory.path().join("fit.json");
+    let output = directory.path().join("sbc.json");
     let mut csv = String::from(
         "pattern_id,patient_id,group,cohort,node_id,x_um,y_um,weight_um2,window_area_um2,covariate,count,window_sha256,event_sha256\n",
     );
@@ -25,14 +25,12 @@ fn replicated_exact_window_lgcp_keeps_patient_and_pattern_as_hierarchy_levels() 
                 for node_index in 0..4 {
                     let ix = node_index % 2;
                     let iy = node_index / 2;
-                    let covariate = ix * 2 - 1;
-                    let base = if group_index == 0 { 3 } else { 12 };
-                    let count = base + ix + pattern_index + patient_index * 2;
                     writeln!(
                         csv,
-                        "{pattern},{patient},{group},synthetic,q-{node_index},{},{},1,4,{covariate},{count},{:064x},{:064x}",
+                        "{pattern},{patient},{group},synthetic,q-{node_index},{},{},1,4,{},2,{:064x},{:064x}",
                         ix as f64 + 0.5,
                         iy as f64 + 0.5,
+                        ix * 2 - 1,
                         group_index * 100 + patient_index * 10 + pattern_index + 1,
                         group_index * 1000 + patient_index * 100 + pattern_index + 1,
                     )
@@ -47,7 +45,7 @@ fn replicated_exact_window_lgcp_keeps_patient_and_pattern_as_hierarchy_levels() 
         .expect("binary")
         .args([
             "bayes",
-            "fit-replicated-arbitrary-window-lgcp",
+            "replicated-arbitrary-window-lgcp-sbc",
             "--input",
             input.to_str().unwrap(),
             "--reference-group",
@@ -57,31 +55,33 @@ fn replicated_exact_window_lgcp_keeps_patient_and_pattern_as_hierarchy_levels() 
             "--intercept-prior-mean",
             "1",
             "--intercept-prior-sd",
-            "1",
+            "0.5",
             "--group-effect-prior-sd",
-            "1",
+            "0.5",
             "--covariate-effect-prior-sd",
-            "1",
+            "0.5",
             "--patient-sd-prior-scale",
-            "0.5",
+            "0.3",
             "--pattern-sd-prior-scale",
-            "0.5",
+            "0.3",
             "--field-amplitude",
             "0.1",
             "--field-length-scale-um",
             "1",
             "--jitter",
             "0.000001",
+            "--replicates",
+            "20",
             "--chains",
-            "2",
+            "4",
             "--tune",
-            "1500",
+            "750",
             "--draws",
-            "1500",
+            "1000",
             "--target-accept",
             "0.95",
             "--seed",
-            "16201",
+            "20260829",
             "--maximum-patients",
             "8",
             "--maximum-patterns",
@@ -93,9 +93,15 @@ fn replicated_exact_window_lgcp_keeps_patient_and_pattern_as_hierarchy_levels() 
             "--maximum-total-events",
             "1000",
             "--maximum-draw-node-work",
-            "192000",
+            "256000",
+            "--minimum-rank-uniformity-p-value",
+            "0.001",
+            "--minimum-coverage-90",
+            "0.65",
+            "--maximum-coverage-90",
+            "1",
             "--timeout-seconds",
-            "240",
+            "300",
             "--out",
             output.to_str().unwrap(),
         ])
@@ -105,52 +111,31 @@ fn replicated_exact_window_lgcp_keeps_patient_and_pattern_as_hierarchy_levels() 
     let result: serde_json::Value = serde_json::from_slice(&fs::read(output).unwrap()).unwrap();
     assert_eq!(
         result["format"],
-        "marklab.bayesian_replicated_arbitrary_window_lgcp_fit"
+        "marklab.replicated_arbitrary_window_lgcp_sbc"
     );
     assert_eq!(result["fit_state"], "complete", "{result}");
-    assert_eq!(result["patient_count"], 8);
-    assert_eq!(result["pattern_count"], 16);
-    assert_eq!(result["total_node_count"], 64);
-    assert_eq!(result["statistical_unit"], "patient");
-    assert_eq!(result["pattern_unit"], "slide_pattern_nested_in_patient");
+    assert_eq!(result["replicates"].as_array().unwrap().len(), 20);
     assert!(
-        result["posterior"]["group_effect"]["mean"]
-            .as_f64()
-            .unwrap()
-            > 0.5
+        result["failures"].as_array().unwrap().is_empty(),
+        "{result}"
     );
-    assert!(result["posterior"]["patient_sd"]["mean"].as_f64().unwrap() > 0.0);
-    assert!(result["posterior"]["pattern_sd"]["mean"].as_f64().unwrap() > 0.0);
-    let predictive = result["pattern_posterior_predictive"]
-        .as_array()
-        .expect("typed pattern posterior predictive rows");
-    assert_eq!(predictive.len(), 16);
-    assert!(predictive.iter().all(|pattern| {
-        pattern["replicate_count"] == 3000
-            && pattern["observed_total_count"].as_u64().is_some()
-            && pattern["replicated_total_count_mean"]
-                .as_f64()
-                .is_some_and(f64::is_finite)
-            && pattern["observed_node_count_variance"]
-                .as_f64()
-                .is_some_and(f64::is_finite)
-            && pattern["replicated_node_count_variance_mean"]
-                .as_f64()
-                .is_some_and(f64::is_finite)
-            && pattern["total_count_two_sided_tail_probability"]
-                .as_f64()
-                .is_some_and(|value| (0.0..=1.0).contains(&value))
-            && pattern["node_variance_two_sided_tail_probability"]
-                .as_f64()
-                .is_some_and(|value| (0.0..=1.0).contains(&value))
-    }));
-    assert_eq!(result["diagnostics"]["divergences"], 0);
-    assert_eq!(
-        result["assumptions"][0],
-        "patients_are_independent_population_units"
-    );
+    assert_eq!(result["physical_latent_pattern_id"], "comparison-p0-s0");
+    assert_eq!(result["physical_latent_node_id"], "q-0");
+    assert_eq!(result["backend"]["name"], "numpyro");
+    for parameter in ["group_effect", "patient_sd", "pattern_sd", "latent_node"] {
+        assert_eq!(
+            result["diagnostics"][parameter]["rank_histogram"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|value| value.as_u64().unwrap())
+                .sum::<u64>(),
+            20
+        );
+    }
+    assert_eq!(result["statistical_unit"], "patient");
     assert_eq!(
         result["claim_status"],
-        "experimental_replicated_pattern_hierarchy"
+        "experimental_simulation_calibration"
     );
 }

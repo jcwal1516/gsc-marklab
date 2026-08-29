@@ -5,10 +5,10 @@ use std::{fmt::Write as _, fs};
 use assert_cmd::Command;
 
 #[test]
-fn replicated_exact_window_lgcp_keeps_patient_and_pattern_as_hierarchy_levels() {
+fn pymc_and_numpyro_agree_on_the_same_replicated_patient_lgcp() {
     let directory = tempfile::tempdir().expect("tempdir");
     let input = directory.path().join("patterns.csv");
-    let output = directory.path().join("fit.json");
+    let output = directory.path().join("agreement.json");
     let mut csv = String::from(
         "pattern_id,patient_id,group,cohort,node_id,x_um,y_um,weight_um2,window_area_um2,covariate,count,window_sha256,event_sha256\n",
     );
@@ -47,7 +47,7 @@ fn replicated_exact_window_lgcp_keeps_patient_and_pattern_as_hierarchy_levels() 
         .expect("binary")
         .args([
             "bayes",
-            "fit-replicated-arbitrary-window-lgcp",
+            "replicated-arbitrary-window-lgcp-agreement",
             "--input",
             input.to_str().unwrap(),
             "--reference-group",
@@ -94,8 +94,16 @@ fn replicated_exact_window_lgcp_keeps_patient_and_pattern_as_hierarchy_levels() 
             "1000",
             "--maximum-draw-node-work",
             "192000",
+            "--maximum-standardized-difference",
+            "5",
+            "--minimum-parameter-tolerance",
+            "0.12",
+            "--minimum-field-tolerance",
+            "0.2",
+            "--numpyro-maximum-tree-depth",
+            "12",
             "--timeout-seconds",
-            "240",
+            "300",
             "--out",
             output.to_str().unwrap(),
         ])
@@ -105,52 +113,50 @@ fn replicated_exact_window_lgcp_keeps_patient_and_pattern_as_hierarchy_levels() 
     let result: serde_json::Value = serde_json::from_slice(&fs::read(output).unwrap()).unwrap();
     assert_eq!(
         result["format"],
-        "marklab.bayesian_replicated_arbitrary_window_lgcp_fit"
+        "marklab.replicated_arbitrary_window_lgcp_backend_agreement"
     );
     assert_eq!(result["fit_state"], "complete", "{result}");
-    assert_eq!(result["patient_count"], 8);
-    assert_eq!(result["pattern_count"], 16);
-    assert_eq!(result["total_node_count"], 64);
-    assert_eq!(result["statistical_unit"], "patient");
-    assert_eq!(result["pattern_unit"], "slide_pattern_nested_in_patient");
-    assert!(
-        result["posterior"]["group_effect"]["mean"]
-            .as_f64()
-            .unwrap()
-            > 0.5
-    );
-    assert!(result["posterior"]["patient_sd"]["mean"].as_f64().unwrap() > 0.0);
-    assert!(result["posterior"]["pattern_sd"]["mean"].as_f64().unwrap() > 0.0);
-    let predictive = result["pattern_posterior_predictive"]
-        .as_array()
-        .expect("typed pattern posterior predictive rows");
-    assert_eq!(predictive.len(), 16);
-    assert!(predictive.iter().all(|pattern| {
-        pattern["replicate_count"] == 3000
-            && pattern["observed_total_count"].as_u64().is_some()
-            && pattern["replicated_total_count_mean"]
-                .as_f64()
-                .is_some_and(f64::is_finite)
-            && pattern["observed_node_count_variance"]
-                .as_f64()
-                .is_some_and(f64::is_finite)
-            && pattern["replicated_node_count_variance_mean"]
-                .as_f64()
-                .is_some_and(f64::is_finite)
-            && pattern["total_count_two_sided_tail_probability"]
-                .as_f64()
-                .is_some_and(|value| (0.0..=1.0).contains(&value))
-            && pattern["node_variance_two_sided_tail_probability"]
-                .as_f64()
-                .is_some_and(|value| (0.0..=1.0).contains(&value))
-    }));
-    assert_eq!(result["diagnostics"]["divergences"], 0);
+    assert_eq!(result["agreement_status"], "agree_within_monte_carlo_error");
+    assert_eq!(result["pymc"]["backend"]["name"], "pymc");
+    assert_eq!(result["numpyro"]["backend"]["name"], "numpyro");
+    assert_eq!(result["numpyro"]["maximum_tree_depth"], 12);
+    assert_eq!(result["numpyro"]["diagnostics"]["max_tree_depth_hits"], 0);
+    for name in [
+        "intercept",
+        "group_effect",
+        "covariate_effect",
+        "patient_sd",
+        "pattern_sd",
+        "patient_effects",
+        "pattern_effects",
+        "latent_effect",
+        "expected_count",
+    ] {
+        assert_eq!(
+            result["comparison"][name]["passes"], true,
+            "{name}: {result}"
+        );
+    }
+    assert_eq!(result["comparison"]["patient_count"], 8);
+    assert_eq!(result["comparison"]["pattern_count"], 16);
+    assert_eq!(result["comparison"]["node_count"], 64);
     assert_eq!(
-        result["assumptions"][0],
-        "patients_are_independent_population_units"
+        result["pymc"]["pattern_posterior_predictive"]
+            .as_array()
+            .unwrap()
+            .len(),
+        16
     );
+    assert_eq!(
+        result["numpyro"]["pattern_posterior_predictive"]
+            .as_array()
+            .unwrap()
+            .len(),
+        16
+    );
+    assert_eq!(result["statistical_unit"], "patient");
     assert_eq!(
         result["claim_status"],
-        "experimental_replicated_pattern_hierarchy"
+        "experimental_cross_backend_validation"
     );
 }

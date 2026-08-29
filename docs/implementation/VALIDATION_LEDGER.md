@@ -2941,6 +2941,44 @@ vascular transport.
   Nextest loop, feature matrix, benchmarks, fuzzing, memory tools, packaging, dependency audit,
   push, publication, deployment, and history rewrite did not run.
 
+## Replicated-patient CellViT field promotion checkpoint 130 — 2026-08-29
+
+- The direct PPC assertion first failed because `pattern_posterior_predictive` was absent, then the
+  exact direct and durable tests passed with 16 typed rows, 3,000 deterministic replicates per
+  synthetic pattern, version-2 cache identity, fresh-process backend-disabled byte replay, and one
+  ledger row. The sensitivity, agreement, and SBC integrations each first failed on an absent CLI
+  command. Their final combined command passes 5/5; the existing replicated builder passes 1/1.
+- The nine-fit synthetic sensitivity oracle passes with an exact 1,728,000 draw-node total and zero
+  baseline shifts. PyMC/NumPyro agree on all five globals, eight patient effects, 16 slide effects,
+  and 64 latent/expected nodes. The four-chain SBC accepts 20/20 replicates for group effect,
+  patient SD, slide SD, and one prespecified physical latent node without hidden failures.
+- The real version-2 durable miss/hit is byte-identical with one ledger row. The miss took 168.43
+  seconds at 458,604,544-byte RSS; SHA-256 is
+  `f9bc6c51ed0cfd5b18558855dc5115853448580ab14cd6347f68949fdbcbe08f`.
+  All 16 total-count and node-variance PPC rows are retained; minimum tails are 0.9365/0.0555.
+- Real agreement at NumPyro depth 10 and 12 is retained but rejected for 1,211 and 3 depth hits.
+  Depth 13 completed in 279.10 seconds with zero divergences/depth hits and all 473 compared
+  quantities interval-overlapping. SHA-256 is
+  `2f5051523b5b21a06cefd1c978499fc8e61821e27190864b8542b06277fcfbe9`.
+- The real nine-scenario sensitivity run took 1,841.59 seconds under 7,992,000 draw-node work.
+  Patient/slide scale scenarios stay below 0.366 SD, while field scenarios reach 2.079 SD and three
+  fits have 4/250/6 depth hits. SHA-256 is
+  `b9bb082f9b8c1d7fc2e6ae9505e70a1fc2bcf87158c719054aae40563af4b8ce`.
+  This negative stability result is final evidence, not an optimization target.
+- Deployed-prior SBC retained 16 failures: 14 event-ceiling excesses and two depth-saturated fits.
+  The separately named physical count-scale prior completed 20/20 on the same 222-node geometry in
+  252.49 seconds; SHA-256 is
+  `481f9969bf5d684b3e199cc58b6161f7162ef5241d05a134ac3c69b00b53c16a`.
+  `ssh mini 'cd ...v15-lgcp-promotion && shasum -a 256 -c results_sha256.txt'` passes all eight
+  canonical/diagnostic files and the sealed durable ledger has one row.
+- Final focused Python syntax, affected Rustfmt, `git diff --check`, warning-denied affected Clippy,
+  package no-default compilation, and all six focused integrations pass. The scheduled stabilization
+  commands `cargo +1.96.0 fmt --all --check`, workspace all-target/all-feature warning-denied Clippy,
+  workspace no-default compilation, all-feature doctests, and strict workspace docs all pass. The
+  documented full-integration/Nextest loader loop was not retried; no feature matrix, benchmark,
+  fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or history rewrite
+  ran.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test
