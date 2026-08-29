@@ -1,6 +1,8 @@
 mod analysis;
 mod codec;
 mod compartment_analysis;
+mod compartment_g;
+mod compartment_g_workflow;
 mod compartment_identity;
 mod compartment_types;
 mod compartment_workflow;
@@ -15,9 +17,14 @@ mod workflow;
 
 pub use analysis::analyze_inhomogeneous_spatial_pattern;
 pub use compartment_analysis::analyze_piecewise_compartment_spatial_pattern;
+pub use compartment_g::analyze_piecewise_compartment_pair_correlation;
+#[cfg(feature = "cli")]
+pub(crate) use compartment_g_workflow::encode_piecewise_compartment_pair_correlation_result;
+pub use compartment_g_workflow::PiecewiseCompartmentPairCorrelationAnalysisNode;
 pub use compartment_types::{
     PiecewiseCompartmentIntensityLevel, PiecewiseCompartmentIntensityPoint,
-    PiecewiseCompartmentIntensitySummary, PiecewiseCompartmentRole,
+    PiecewiseCompartmentIntensitySummary, PiecewiseCompartmentPairCorrelationConfig,
+    PiecewiseCompartmentPairCorrelationResult, PiecewiseCompartmentRole,
     PiecewiseCompartmentSpatialConfig, PiecewiseCompartmentSpatialLimits,
     PiecewiseCompartmentSpatialResult,
 };

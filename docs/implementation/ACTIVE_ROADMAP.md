@@ -1565,3 +1565,14 @@ sealed CRC manifest contains only whole observation windows and the admitted mul
 no compartment polygon files, so real execution is unavailable without fabricating a tessellation.
 Production next applies this same exact estimator/null artifact to the existing inhomogeneous g
 owner; it must reuse the current compact-support pair pass rather than duplicate pair mathematics.
+
+## Checkpoint 164 piecewise binary-compartment pair correlation
+
+The same exact leave-one-out binary-compartment intensity artifact and fixed two-count null now feed
+Epanechnikov inhomogeneous g through direct, durable, and fresh-process CLI paths. The Gaussian and
+piecewise callers share only exact partition preparation/null sampling and the existing compact-
+support pair accumulation/validation; estimator and result identities remain explicit. The admitted
+real-data blocker is unchanged and no tessellation is synthesized. Production next advances PP-05
+bandwidth selection only through the existing Gaussian K/L caller: candidate bandwidths and the
+selection score must be prespecified, persisted, independent of the final K/L/g deviation, and
+verified against an analytic likelihood oracle before any real result is considered.

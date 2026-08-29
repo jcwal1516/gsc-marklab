@@ -3,7 +3,8 @@ use marklab_workflow::ContentDigest;
 use crate::{mark_pair_plan::erl_workspace_bytes, BinaryCompartmentPartition2D, Pattern};
 
 use super::{
-    InhomogeneousSpatialError, InhomogeneousSpatialPoint, PiecewiseCompartmentIntensityPoint,
+    InhomogeneousPairCorrelationPoint, InhomogeneousSpatialError, InhomogeneousSpatialPoint,
+    PiecewiseCompartmentIntensityPoint, PiecewiseCompartmentPairCorrelationConfig,
     PiecewiseCompartmentRole, PiecewiseCompartmentSpatialConfig,
 };
 
@@ -133,5 +134,36 @@ pub(super) fn retained_bytes(
         .and_then(|value| value.checked_add(radius_work))
         .and_then(|value| value.checked_add(unique_work))
         .and_then(|value| value.checked_add(erl))
+        .ok_or(InhomogeneousSpatialError::SizeOverflow)
+}
+
+pub(super) fn piecewise_g_configuration_digest(
+    config: &PiecewiseCompartmentPairCorrelationConfig,
+) -> ContentDigest {
+    ContentDigest::from_framed([
+        b"marklab-piecewise-compartment-pair-correlation-config-v1".as_slice(),
+        piecewise_configuration_digest(&config.intensity).as_bytes(),
+        &config.pair_bandwidth_um.to_bits().to_be_bytes(),
+    ])
+}
+
+pub(super) fn piecewise_g_retained_bytes(
+    points: usize,
+    partition: &BinaryCompartmentPartition2D,
+    config: &PiecewiseCompartmentPairCorrelationConfig,
+) -> Result<usize, InhomogeneousSpatialError> {
+    let base = retained_bytes(points, partition, &config.intensity)?;
+    let extra = config
+        .intensity
+        .radii_um
+        .len()
+        .checked_mul(
+            2 * std::mem::size_of::<InhomogeneousPairCorrelationPoint>()
+                + 6 * std::mem::size_of::<f64>()
+                + 3 * std::mem::size_of::<usize>()
+                + 2 * std::mem::size_of::<bool>(),
+        )
+        .ok_or(InhomogeneousSpatialError::SizeOverflow)?;
+    base.checked_add(extra)
         .ok_or(InhomogeneousSpatialError::SizeOverflow)
 }

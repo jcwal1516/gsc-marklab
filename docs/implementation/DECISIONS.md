@@ -2934,3 +2934,23 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   the final CRC manifest and no compartment/mask files in the admitted v25 multitype inputs, so a
   provenance-complete real binary tessellation remains unavailable and no CellViT labels are
   converted into invented geometry.
+
+## DEC-0350 — Consume the exact binary-compartment estimator in pair correlation
+
+- Date: 2026-08-29
+- Status: accepted for PP-02/PP-03/PP-03A/PP-05/PLAT-01/WF-01/WS-12/WS-22/WS-30
+- Decision: add `analyze_piecewise_compartment_pair_correlation` and `marklab project
+  piecewise-compartment-pair-correlation` as the second immediate caller of the DEC-0349 intensity
+  artifact. Reuse its exact role assignment, `(n_c-1)/area_c` rows, interface/sparse policy, fixed
+  two-compartment-count null samples, deterministic seed namespace, oriented partition identity,
+  resource controls, scheduler, store, ledger, recovery, and exact-float codec. Keep a separately
+  named result/config and explicit positive Epanechnikov pair bandwidth below every radius. Extract
+  only the now-proven shared partition source preparation/output transaction and the compact-support
+  g accumulator/validator; do not add an estimator registry or duplicate project infrastructure.
+- Consequences: an independent unequal-count direct loop agrees on eligible centers, directed
+  kernel-support pairs, inverse-intensity center/kernel sums, and normalized g. Durable execution
+  proves pair-bandwidth invalidation and a verified reopen hit. Fresh processes produce
+  byte-identical output with one ledger row while the second process disables external backend
+  execution. Existing Gaussian K/L and g and piecewise K/L regressions remain green after the
+  shared extraction. The checkpoint-163 real-data blocker is unchanged: no admitted exact binary
+  compartment polygon tessellation exists, so no real piecewise g result is fabricated.

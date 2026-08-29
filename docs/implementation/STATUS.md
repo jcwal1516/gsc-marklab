@@ -3315,3 +3315,29 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   162 remains the latest broad stabilization; no workspace-wide/Nextest loop, feature matrix,
   benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history rewrite
   runs.
+
+## Piecewise binary-compartment pair-correlation checkpoint 164 — 2026-08-29
+
+- Added `analyze_piecewise_compartment_pair_correlation`, its durable typed node, and `marklab
+  project piecewise-compartment-pair-correlation`. The result reuses exactly the checkpoint-163
+  `(n_c-1)/area_c` event artifact, fixed negative/positive-count exact-window null samples, role/
+  interface/sparse policy, deterministic seed namespace, and hard query/pair/draw/memory limits,
+  while binding a distinct positive Epanechnikov pair bandwidth below every requested radius.
+- Extracted only requirements now shared by both immediate callers: bounded four-source partition
+  preparation and create-new output, exact null sampling, compact-support g accumulation, and g
+  curve validation. K/L and g retain separate public configs/results/schemas/nodes; the Gaussian
+  estimator/result family and result-format 0.3 remain unchanged.
+- On the unequal-count rectangle, an independent direct loop reports two boundary-eligible centers
+  and four directed pairs at radius 2 and bandwidth 0.5, then agrees with production on the inverse-
+  intensity center/kernel sums and normalized g. Durable tests prove pair-bandwidth invalidation.
+  Fresh CLI processes return a miss then backend-disabled byte-identical hit with one ledger row.
+- Sixteen focused piecewise/Gaussian K/L/g direct, durable, and CLI tests pass after the shared
+  extraction. Warning-denied affected Clippy first reports one complex sampled-pattern tuple; after
+  replacing it with a named internal type, the three piecewise targets pass 8/8 and the exact Clippy
+  command passes. Root no-default compilation, strict affected docs, affected formatting, and
+  whitespace checks pass.
+- The checkpoint-163 admission result remains authoritative: no provenance-complete exact binary
+  compartment polygons exist in the admitted CRC artifacts, so no real piecewise g result is run or
+  fabricated. Checkpoint 162 remains the latest broad stabilization; no workspace-wide/Nextest
+  loop, feature matrix, benchmark, fuzzing, packaging, dependency, push, publication, deployment,
+  or history rewrite runs.

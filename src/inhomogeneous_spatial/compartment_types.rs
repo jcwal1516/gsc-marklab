@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::ClassicalWindowSummary;
+use crate::{ClassicalWindowSummary, InhomogeneousPairCorrelationPoint, PairCorrelationKernel};
 
 use super::{InhomogeneousSpatialError, InhomogeneousSpatialInference, InhomogeneousSpatialPoint};
 
@@ -225,6 +225,83 @@ pub struct PiecewiseCompartmentSpatialResult {
     pub limits: PiecewiseCompartmentSpatialLimits,
     /// Standard-border intensity-reweighted K/L curve.
     pub curve: Vec<InhomogeneousSpatialPoint>,
+    /// Whole-pattern fixed-compartment-count ERL inference.
+    pub inference: InhomogeneousSpatialInference,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+/// Configuration for piecewise-compartment intensity-reweighted pair correlation.
+pub struct PiecewiseCompartmentPairCorrelationConfig {
+    pub(super) intensity: PiecewiseCompartmentSpatialConfig,
+    pub(super) pair_bandwidth_um: f64,
+}
+
+impl PiecewiseCompartmentPairCorrelationConfig {
+    /// Require a positive finite compact-support bandwidth below every radius.
+    pub fn new(
+        intensity: PiecewiseCompartmentSpatialConfig,
+        pair_bandwidth_um: f64,
+    ) -> Result<Self, InhomogeneousSpatialError> {
+        if !pair_bandwidth_um.is_finite()
+            || pair_bandwidth_um <= 0.0
+            || intensity.radii_um().iter().any(|radius| {
+                *radius <= pair_bandwidth_um || !(*radius + pair_bandwidth_um).is_finite()
+            })
+        {
+            return Err(InhomogeneousSpatialError::InvalidConfig(
+                "pair bandwidth must be finite, positive, below every radius, and have finite support"
+                    .into(),
+            ));
+        }
+        Ok(Self {
+            intensity,
+            pair_bandwidth_um,
+        })
+    }
+
+    /// Bound piecewise intensity and inference configuration.
+    pub fn intensity_config(&self) -> &PiecewiseCompartmentSpatialConfig {
+        &self.intensity
+    }
+
+    /// Epanechnikov compact-support bandwidth in micrometres.
+    pub fn pair_bandwidth_um(&self) -> f64 {
+        self.pair_bandwidth_um
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+/// Typed piecewise-compartment intensity-reweighted pair-correlation result.
+pub struct PiecewiseCompartmentPairCorrelationResult {
+    /// Case identity inherited from the point pattern.
+    pub case_id: String,
+    /// Timepoint identity inherited from the point pattern.
+    pub timepoint: String,
+    /// Exact analyzed observation-window summary.
+    pub window: ClassicalWindowSummary,
+    /// Persisted piecewise intensity artifact.
+    pub intensity: PiecewiseCompartmentIntensitySummary,
+    /// Compact-support pair kernel.
+    pub kernel: PairCorrelationKernel,
+    /// Pair-kernel bandwidth in micrometres.
+    pub pair_bandwidth_um: f64,
+    /// Named spatial edge correction.
+    pub edge_correction: String,
+    /// Exact analysis-configuration identity.
+    pub configuration_digest: String,
+    /// Observed compartment membership queries performed.
+    pub compartment_queries: usize,
+    /// Pair visits used by the observed curve.
+    pub observed_pair_visits: usize,
+    /// Pair visits across observed and null curves.
+    pub total_pair_visits: usize,
+    /// Conservative retained-storage estimate.
+    pub estimated_storage_bytes: usize,
+    /// Bound resource controls.
+    pub limits: PiecewiseCompartmentSpatialLimits,
+    /// Standard-border intensity-reweighted pair-correlation curve.
+    pub curve: Vec<InhomogeneousPairCorrelationPoint>,
     /// Whole-pattern fixed-compartment-count ERL inference.
     pub inference: InhomogeneousSpatialInference,
 }

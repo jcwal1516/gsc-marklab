@@ -20,11 +20,11 @@ use super::{
     types::{InhomogeneousSpatialError, InhomogeneousSpatialInference},
 };
 
-struct Evaluation {
-    points: Vec<InhomogeneousPairCorrelationPoint>,
-    values: Vec<f64>,
-    eligible: Vec<bool>,
-    pair_visits: usize,
+pub(super) struct Evaluation {
+    pub(super) points: Vec<InhomogeneousPairCorrelationPoint>,
+    pub(super) values: Vec<f64>,
+    pub(super) eligible: Vec<bool>,
+    pub(super) pair_visits: usize,
 }
 
 pub fn analyze_inhomogeneous_pair_correlation(
@@ -66,7 +66,9 @@ pub fn analyze_inhomogeneous_pair_correlation(
     let mut observed = evaluate_g(
         &observed_plan,
         &fitted.observed_intensities,
-        config,
+        &base.radii_um,
+        config.pair_bandwidth_um,
+        base.limits.maximum_pair_visits,
         &mut counters,
     )?;
     let observed_pair_visits = observed.pair_visits;
@@ -95,7 +97,14 @@ pub fn analyze_inhomogeneous_pair_correlation(
             evaluate_fixed_intensities(&x, &y, pattern, &fitted, base, &mut counters)?;
         let plan =
             SpatialGeometryPlan2D::new(&x, &y, window, geometry_limits).map_err(dependency)?;
-        let evaluated = evaluate_g(&plan, &intensities, config, &mut counters)?;
+        let evaluated = evaluate_g(
+            &plan,
+            &intensities,
+            &base.radii_um,
+            config.pair_bandwidth_um,
+            base.limits.maximum_pair_visits,
+            &mut counters,
+        )?;
         for (joint, current) in jointly_eligible.iter_mut().zip(&evaluated.eligible) {
             *joint &= *current;
         }
@@ -159,26 +168,25 @@ pub fn analyze_inhomogeneous_pair_correlation(
     })
 }
 
-fn evaluate_g(
+pub(super) fn evaluate_g(
     plan: &SpatialGeometryPlan2D,
     intensities: &[f64],
-    config: &InhomogeneousPairCorrelationConfig,
+    radii: &[f64],
+    pair_bandwidth_um: f64,
+    maximum_pair_visits: usize,
     counters: &mut Counters,
 ) -> Result<Evaluation, InhomogeneousSpatialError> {
-    let base = &config.intensity;
-    let radii = &base.radii_um;
     let mut centers = zeroed_vec::<usize>(radii.len())?;
     let mut center_inverse_sums = zeroed_vec::<f64>(radii.len())?;
     let mut center_corrections = zeroed_vec::<f64>(radii.len())?;
     let mut pairs = zeroed_vec::<usize>(radii.len())?;
     let mut kernel_sums = zeroed_vec::<f64>(radii.len())?;
     let mut kernel_corrections = zeroed_vec::<f64>(radii.len())?;
-    let maximum_query = radii[radii.len() - 1] + config.pair_bandwidth_um;
+    let maximum_query = radii[radii.len() - 1] + pair_bandwidth_um;
     let starting_visits = counters.pair_visits;
     for source in 0..intensities.len() {
         let boundary = plan.boundary_distances()[source];
-        let eligible_end =
-            radii.partition_point(|radius| *radius + config.pair_bandwidth_um <= boundary);
+        let eligible_end = radii.partition_point(|radius| *radius + pair_bandwidth_um <= boundary);
         let inverse_source = 1.0 / intensities[source];
         for index in 0..eligible_end {
             centers[index] = centers[index]
@@ -199,23 +207,20 @@ fn evaluate_g(
                 if visitor_error.is_some() {
                     return;
                 }
-                if let Err(error) = counters.charge_pair(base.limits.maximum_pair_visits) {
+                if let Err(error) = counters.charge_pair(maximum_pair_visits) {
                     visitor_error = Some(error);
                     return;
                 }
-                let lower = neighbor.distance_um - config.pair_bandwidth_um;
-                let upper = neighbor.distance_um + config.pair_bandwidth_um;
+                let lower = neighbor.distance_um - pair_bandwidth_um;
+                let upper = neighbor.distance_um + pair_bandwidth_um;
                 let start = radii.partition_point(|radius| *radius <= lower);
                 let end = radii
                     .partition_point(|radius| *radius < upper)
                     .min(eligible_end);
                 for index in start..end {
-                    let kernel = epanechnikov_weight(
-                        radii[index],
-                        neighbor.distance_um,
-                        config.pair_bandwidth_um,
-                    )
-                    .expect("partitioned positive kernel support");
+                    let kernel =
+                        epanechnikov_weight(radii[index], neighbor.distance_um, pair_bandwidth_um)
+                            .expect("partitioned positive kernel support");
                     let weight = kernel * inverse_source / intensities[neighbor.index];
                     if !weight.is_finite() || weight <= 0.0 {
                         visitor_error = Some(InhomogeneousSpatialError::Dependency(

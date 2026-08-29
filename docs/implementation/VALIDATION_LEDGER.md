@@ -4067,3 +4067,26 @@ vascular transport.
   returns no mask, compartment, or GeoJSON file. Real exact-partition evidence is recorded
   unavailable rather than synthesized. Affected formatting and final whitespace/diff/status checks
   pass; no broad gate runs.
+
+## Piecewise binary-compartment pair-correlation checkpoint 164 — 2026-08-29
+
+- The direct test first fails to compile because
+  `analyze_piecewise_compartment_pair_correlation` and its config are absent. Its final independent
+  loop passes exact eligible-center, kernel-support-pair, inverse-intensity sum, normalized-g,
+  kernel, bandwidth, and fixed-count-null assertions.
+- The durable test first fails on the absent
+  `PiecewiseCompartmentPairCorrelationAnalysisNode`, then passes miss/hit equality, one ledger row,
+  and pair-bandwidth invalidation. The CLI test first fails with `unrecognized subcommand
+  'piecewise-compartment-pair-correlation'`, then passes fresh-process miss/hit byte equality and
+  one ledger row with `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1` on the hit.
+- The final command covering the piecewise direct/durable/CLI targets plus the existing Gaussian
+  inhomogeneous K/L and g direct/durable/CLI targets passes 16/16. This includes both checkpoint-163
+  CLI processes after the shared source-preparation extraction.
+- Warning-denied affected Clippy first reports `clippy::type-complexity` for the exact three-vector
+  null sample return. After a named `SampledPiecewisePattern` replaces the tuple, the three focused
+  piecewise targets pass 8/8 and the exact affected Clippy command passes. `cargo +1.96.0 check
+  --locked --package marklab --no-default-features` and `RUSTDOCFLAGS='-D warnings' cargo +1.96.0
+  doc --locked --package marklab --features cli --no-deps` pass.
+- The successful bounded real-partition admission check from checkpoint 163 is not repeated because
+  this workflow requires the identical partition artifact. Affected formatting, whitespace, direct
+  diff, and status checks pass; no broad gate runs.

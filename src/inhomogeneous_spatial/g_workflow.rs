@@ -16,8 +16,8 @@ use super::{
     codec::{invalid, validate_intensity_summary},
     g::g_configuration_digest,
     workflow::window_artifact,
-    InhomogeneousPairCorrelationConfig, InhomogeneousPairCorrelationResult,
-    InhomogeneousSpatialLimits,
+    InhomogeneousPairCorrelationConfig, InhomogeneousPairCorrelationPoint,
+    InhomogeneousPairCorrelationResult, InhomogeneousSpatialInference, InhomogeneousSpatialLimits,
 };
 
 const NODE_KIND: &str = "inhomogeneous_pair_correlation";
@@ -205,7 +205,15 @@ fn validate(
         return Err(invalid("result does not match its cache-bound request"));
     }
     validate_intensity_summary(&result.intensity, pattern, window, intensity)?;
-    for (point, radius) in result.curve.iter().zip(intensity.radii_um()) {
+    validate_g_curve(&result.curve, &result.inference, intensity.radii_um())
+}
+
+pub(super) fn validate_g_curve(
+    curve: &[InhomogeneousPairCorrelationPoint],
+    inference: &InhomogeneousSpatialInference,
+    radii_um: &[f64],
+) -> io::Result<()> {
+    for (point, radius) in curve.iter().zip(radii_um) {
         let status_consistent = match point.status {
             PairCorrelationPointStatus::Available => {
                 point.eligible_centers > 0
@@ -247,16 +255,19 @@ fn validate(
             ));
         }
     }
-    let inference = [
-        result.inference.p_global,
-        result.inference.erl_depth,
-        result.inference.critical_depth,
+    let inference_values = [
+        inference.p_global,
+        inference.erl_depth,
+        inference.critical_depth,
     ];
-    if inference.iter().flatten().any(|value| !value.is_finite())
-        || inference.iter().any(Option::is_some) != inference.iter().all(Option::is_some)
-        || result.inference.eligible_radius_count
-            != result
-                .curve
+    if inference_values
+        .iter()
+        .flatten()
+        .any(|value| !value.is_finite())
+        || inference_values.iter().any(Option::is_some)
+            != inference_values.iter().all(Option::is_some)
+        || inference.eligible_radius_count
+            != curve
                 .iter()
                 .filter(|point| point.inference_eligible)
                 .count()

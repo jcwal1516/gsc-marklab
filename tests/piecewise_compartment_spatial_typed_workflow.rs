@@ -1,9 +1,10 @@
 use approx::assert_abs_diff_eq;
 use marklab::{
-    analyze_piecewise_compartment_spatial_pattern, BinaryCompartmentPartition2D,
-    CompartmentPartitionLimits, CoordinateFrame, CoordinateFrameId, CoordinateRegistry,
-    CoordinateSpace, CoordinateUnit, InhomogeneousSpatialError, ObservationWindow2D,
-    ObservationWindowLimits, Pattern, PatternMeta, PiecewiseCompartmentRole,
+    analyze_piecewise_compartment_pair_correlation, analyze_piecewise_compartment_spatial_pattern,
+    BinaryCompartmentPartition2D, CompartmentPartitionLimits, CoordinateFrame, CoordinateFrameId,
+    CoordinateRegistry, CoordinateSpace, CoordinateUnit, InhomogeneousSpatialError,
+    ObservationWindow2D, ObservationWindowLimits, Pattern, PatternMeta,
+    PiecewiseCompartmentPairCorrelationConfig, PiecewiseCompartmentRole,
     PiecewiseCompartmentSpatialConfig, PiecewiseCompartmentSpatialLimits, SpatialAxis,
 };
 
@@ -19,6 +20,76 @@ fn framed_window(
     .expect("window")
     .with_coordinate_frame(registry, frame.clone())
     .expect("framed window")
+}
+
+#[test]
+fn leave_one_out_piecewise_compartment_intensity_flows_into_epanechnikov_g() {
+    let (pattern, observation, partition) = fixture();
+    let base = PiecewiseCompartmentSpatialConfig::new(
+        vec![2.0],
+        19,
+        20260829,
+        0.05,
+        PiecewiseCompartmentSpatialLimits::new(16, 8, 16, 1_000_000, 1_000_000, 1 << 20)
+            .expect("limits"),
+    )
+    .expect("base config");
+    let config =
+        PiecewiseCompartmentPairCorrelationConfig::new(base, 0.5).expect("pair-correlation config");
+    let result = analyze_piecewise_compartment_pair_correlation(&pattern, &partition, &config)
+        .expect("piecewise-compartment g result");
+
+    let intensities = [0.02, 0.02, 0.04, 0.04, 0.04];
+    let radius = 2.0;
+    let bandwidth = 0.5;
+    let mut centers = 0;
+    let mut pairs = 0;
+    let mut center_sum = 0.0;
+    let mut kernel_sum = 0.0;
+    for source in 0..pattern.len() {
+        if observation
+            .boundary_distance_um(pattern.x_um[source], pattern.y_um[source])
+            .expect("boundary distance")
+            < radius + bandwidth
+        {
+            continue;
+        }
+        centers += 1;
+        center_sum += 1.0 / intensities[source];
+        for target in 0..pattern.len() {
+            if source == target {
+                continue;
+            }
+            let distance = (pattern.x_um[source] - pattern.x_um[target])
+                .hypot(pattern.y_um[source] - pattern.y_um[target]);
+            let scaled = (radius - distance) / bandwidth;
+            if scaled.abs() < 1.0 {
+                pairs += 1;
+                let kernel = 0.75 * (1.0 - scaled * scaled) / bandwidth;
+                kernel_sum += kernel / (intensities[source] * intensities[target]);
+            }
+        }
+    }
+    let oracle_g = kernel_sum / (2.0 * std::f64::consts::PI * radius * center_sum);
+    let point = &result.curve[0];
+    assert_eq!(point.eligible_centers, centers);
+    assert_eq!(point.directed_pairs_in_support, pairs);
+    assert_abs_diff_eq!(
+        point.eligible_center_inverse_intensity_sum,
+        center_sum,
+        epsilon = 1e-12
+    );
+    assert_abs_diff_eq!(
+        point.inverse_intensity_kernel_sum,
+        kernel_sum,
+        epsilon = 1e-12
+    );
+    assert_abs_diff_eq!(point.g.expect("g"), oracle_g, epsilon = 1e-12);
+    assert_eq!(result.pair_bandwidth_um, bandwidth);
+    assert_eq!(
+        result.inference.null_model,
+        "fixed_binary_compartment_counts_uniform_within_exact_partition"
+    );
 }
 
 fn fixture() -> (Pattern, ObservationWindow2D, BinaryCompartmentPartition2D) {

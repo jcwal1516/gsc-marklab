@@ -199,17 +199,19 @@ pub use geom::window::{
 };
 pub use inhomogeneous_spatial::{
     analyze_inhomogeneous_pair_correlation, analyze_inhomogeneous_spatial_pattern,
-    analyze_piecewise_compartment_spatial_pattern, InhomogeneousIntensityGridPoint,
-    InhomogeneousIntensityPoint, InhomogeneousIntensitySummary,
+    analyze_piecewise_compartment_pair_correlation, analyze_piecewise_compartment_spatial_pattern,
+    InhomogeneousIntensityGridPoint, InhomogeneousIntensityPoint, InhomogeneousIntensitySummary,
     InhomogeneousPairCorrelationAnalysisNode, InhomogeneousPairCorrelationConfig,
     InhomogeneousPairCorrelationPoint, InhomogeneousPairCorrelationResult,
     InhomogeneousSpatialAnalysisNode, InhomogeneousSpatialConfig, InhomogeneousSpatialError,
     InhomogeneousSpatialInference, InhomogeneousSpatialLimits, InhomogeneousSpatialPoint,
     InhomogeneousSpatialPointStatus, InhomogeneousSpatialResult,
     PiecewiseCompartmentIntensityLevel, PiecewiseCompartmentIntensityPoint,
-    PiecewiseCompartmentIntensitySummary, PiecewiseCompartmentRole,
-    PiecewiseCompartmentSpatialAnalysisNode, PiecewiseCompartmentSpatialConfig,
-    PiecewiseCompartmentSpatialLimits, PiecewiseCompartmentSpatialResult,
+    PiecewiseCompartmentIntensitySummary, PiecewiseCompartmentPairCorrelationAnalysisNode,
+    PiecewiseCompartmentPairCorrelationConfig, PiecewiseCompartmentPairCorrelationResult,
+    PiecewiseCompartmentRole, PiecewiseCompartmentSpatialAnalysisNode,
+    PiecewiseCompartmentSpatialConfig, PiecewiseCompartmentSpatialLimits,
+    PiecewiseCompartmentSpatialResult,
 };
 pub use io::{PatternLoadDiagnostics, PatternLoadResult, PatternLoader};
 pub use mark_weighted_k::{

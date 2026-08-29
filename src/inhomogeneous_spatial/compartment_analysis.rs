@@ -19,14 +19,20 @@ use super::{
     InhomogeneousSpatialError, InhomogeneousSpatialInference, InhomogeneousSpatialPoint,
 };
 
-struct FittedPiecewiseIntensity {
-    roles: Vec<PiecewiseCompartmentRole>,
-    intensities: Vec<f64>,
-    negative_count: usize,
-    positive_count: usize,
-    negative_intensity: f64,
-    positive_intensity: f64,
-    point_values: Vec<PiecewiseCompartmentIntensityPoint>,
+pub(super) struct FittedPiecewiseIntensity {
+    pub(super) roles: Vec<PiecewiseCompartmentRole>,
+    pub(super) intensities: Vec<f64>,
+    pub(super) negative_count: usize,
+    pub(super) positive_count: usize,
+    pub(super) negative_intensity: f64,
+    pub(super) positive_intensity: f64,
+    pub(super) point_values: Vec<PiecewiseCompartmentIntensityPoint>,
+}
+
+pub(super) struct SampledPiecewisePattern {
+    pub(super) x: Vec<f64>,
+    pub(super) y: Vec<f64>,
+    pub(super) intensities: Vec<f64>,
 }
 
 struct EnvelopeSummary {
@@ -104,54 +110,24 @@ pub fn analyze_piecewise_compartment_spatial_pattern(
         .map_err(|_| InhomogeneousSpatialError::AllocationFailed)?;
     let mut jointly_eligible = observed.eligible.clone();
     for simulation in 0..config.simulations {
-        let seed_index = simulation
-            .checked_mul(2)
-            .ok_or(InhomogeneousSpatialError::SizeOverflow)?;
-        let negative_seed = derive_seed(
-            config.seed,
-            SeedEndpoint::PiecewiseCompartmentSpatialNull,
-            seed_index,
-        );
-        let positive_seed = derive_seed(
-            config.seed,
-            SeedEndpoint::PiecewiseCompartmentSpatialNull,
-            seed_index
-                .checked_add(1)
-                .ok_or(InhomogeneousSpatialError::SizeOverflow)?,
-        );
-        let (negative_x, negative_y) = sample_compartment(
-            partition.negative_window(),
-            fitted.negative_count,
-            negative_seed,
-            &mut counters.null_draws,
-            config.limits.maximum_null_draws,
+        let sampled = sample_piecewise_null_pattern(
+            pattern.len(),
+            partition,
+            &fitted,
+            config,
+            simulation,
+            &mut counters,
         )?;
-        let (positive_x, positive_y) = sample_compartment(
-            partition.positive_window(),
-            fitted.positive_count,
-            positive_seed,
-            &mut counters.null_draws,
-            config.limits.maximum_null_draws,
-        )?;
-        let mut x = Vec::new();
-        let mut y = Vec::new();
-        let mut intensities = Vec::new();
-        x.try_reserve_exact(pattern.len())
-            .and_then(|()| y.try_reserve_exact(pattern.len()))
-            .and_then(|()| intensities.try_reserve_exact(pattern.len()))
-            .map_err(|_| InhomogeneousSpatialError::AllocationFailed)?;
-        x.extend(negative_x);
-        x.extend(positive_x);
-        y.extend(negative_y);
-        y.extend(positive_y);
-        intensities.resize(fitted.negative_count, fitted.negative_intensity);
-        intensities.resize(pattern.len(), fitted.positive_intensity);
-        let plan =
-            SpatialGeometryPlan2D::new(&x, &y, partition.observation_window(), geometry_limits)
-                .map_err(dependency)?;
+        let plan = SpatialGeometryPlan2D::new(
+            &sampled.x,
+            &sampled.y,
+            partition.observation_window(),
+            geometry_limits,
+        )
+        .map_err(dependency)?;
         let evaluated = evaluate_curve(
             &plan,
-            &intensities,
+            &sampled.intensities,
             &config.radii_um,
             config.limits.maximum_pair_visits,
             &mut counters,
@@ -169,47 +145,13 @@ pub fn analyze_piecewise_compartment_spatial_pattern(
         &jointly_eligible,
         config,
     )?;
-    let descriptor = partition.descriptor();
-    let intensity_artifact_digest = piecewise_intensity_digest(
-        pattern,
-        partition,
-        fitted.negative_count,
-        fitted.positive_count,
-        fitted.negative_intensity,
-        fitted.positive_intensity,
-        &fitted.point_values,
-    );
-    let point_values = fitted.point_values;
     let compartment_queries = fitted.roles.len();
+    let intensity = into_piecewise_intensity_summary(pattern, partition, fitted);
     Ok(PiecewiseCompartmentSpatialResult {
         case_id: pattern.meta.case_id.clone(),
         timepoint: pattern.meta.timepoint.clone(),
         window: window_summary(partition.observation_window().descriptor()),
-        intensity: PiecewiseCompartmentIntensitySummary {
-            estimator: "piecewise_constant_binary_compartment".into(),
-            cross_fit: "leave_one_out_within_compartment".into(),
-            boundary_correction: "exact_compartment_area".into(),
-            interface_event_policy: "reject".into(),
-            partition_digest: descriptor.logical_digest.to_string(),
-            artifact_digest: intensity_artifact_digest.to_string(),
-            negative: PiecewiseCompartmentIntensityLevel {
-                role: PiecewiseCompartmentRole::Negative,
-                compartment_id: descriptor.negative_compartment_id.clone(),
-                area_um2: descriptor.negative_area_um2,
-                event_count: fitted.negative_count,
-                leave_one_out_training_count: fitted.negative_count - 1,
-                intensity_per_um2: fitted.negative_intensity,
-            },
-            positive: PiecewiseCompartmentIntensityLevel {
-                role: PiecewiseCompartmentRole::Positive,
-                compartment_id: descriptor.positive_compartment_id.clone(),
-                area_um2: descriptor.positive_area_um2,
-                event_count: fitted.positive_count,
-                leave_one_out_training_count: fitted.positive_count - 1,
-                intensity_per_um2: fitted.positive_intensity,
-            },
-            point_values,
-        },
+        intensity,
         edge_correction: "standard_border_inverse_intensity_ratio".into(),
         configuration_digest: piecewise_configuration_digest(config).to_string(),
         compartment_queries,
@@ -234,7 +176,49 @@ pub fn analyze_piecewise_compartment_spatial_pattern(
     })
 }
 
-fn fit_piecewise_intensity(
+pub(super) fn into_piecewise_intensity_summary(
+    pattern: &Pattern,
+    partition: &BinaryCompartmentPartition2D,
+    fitted: FittedPiecewiseIntensity,
+) -> PiecewiseCompartmentIntensitySummary {
+    let descriptor = partition.descriptor();
+    let artifact_digest = piecewise_intensity_digest(
+        pattern,
+        partition,
+        fitted.negative_count,
+        fitted.positive_count,
+        fitted.negative_intensity,
+        fitted.positive_intensity,
+        &fitted.point_values,
+    );
+    PiecewiseCompartmentIntensitySummary {
+        estimator: "piecewise_constant_binary_compartment".into(),
+        cross_fit: "leave_one_out_within_compartment".into(),
+        boundary_correction: "exact_compartment_area".into(),
+        interface_event_policy: "reject".into(),
+        partition_digest: descriptor.logical_digest.to_string(),
+        artifact_digest: artifact_digest.to_string(),
+        negative: PiecewiseCompartmentIntensityLevel {
+            role: PiecewiseCompartmentRole::Negative,
+            compartment_id: descriptor.negative_compartment_id.clone(),
+            area_um2: descriptor.negative_area_um2,
+            event_count: fitted.negative_count,
+            leave_one_out_training_count: fitted.negative_count - 1,
+            intensity_per_um2: fitted.negative_intensity,
+        },
+        positive: PiecewiseCompartmentIntensityLevel {
+            role: PiecewiseCompartmentRole::Positive,
+            compartment_id: descriptor.positive_compartment_id.clone(),
+            area_um2: descriptor.positive_area_um2,
+            event_count: fitted.positive_count,
+            leave_one_out_training_count: fitted.positive_count - 1,
+            intensity_per_um2: fitted.positive_intensity,
+        },
+        point_values: fitted.point_values,
+    }
+}
+
+pub(super) fn fit_piecewise_intensity(
     pattern: &Pattern,
     partition: &BinaryCompartmentPartition2D,
     config: &PiecewiseCompartmentSpatialConfig,
@@ -338,7 +322,7 @@ fn require_two(compartment_id: &str, observed: usize) -> Result<(), Inhomogeneou
     Ok(())
 }
 
-fn sample_compartment(
+pub(super) fn sample_compartment(
     window: &crate::ObservationWindow2D,
     point_count: usize,
     seed: u64,
@@ -352,6 +336,59 @@ fn sample_compartment(
         }
         Err(error) => Err(dependency(error)),
     }
+}
+
+pub(super) fn sample_piecewise_null_pattern(
+    point_count: usize,
+    partition: &BinaryCompartmentPartition2D,
+    fitted: &FittedPiecewiseIntensity,
+    config: &PiecewiseCompartmentSpatialConfig,
+    simulation: usize,
+    counters: &mut Counters,
+) -> Result<SampledPiecewisePattern, InhomogeneousSpatialError> {
+    let seed_index = simulation
+        .checked_mul(2)
+        .ok_or(InhomogeneousSpatialError::SizeOverflow)?;
+    let negative_seed = derive_seed(
+        config.seed,
+        SeedEndpoint::PiecewiseCompartmentSpatialNull,
+        seed_index,
+    );
+    let positive_seed = derive_seed(
+        config.seed,
+        SeedEndpoint::PiecewiseCompartmentSpatialNull,
+        seed_index
+            .checked_add(1)
+            .ok_or(InhomogeneousSpatialError::SizeOverflow)?,
+    );
+    let (negative_x, negative_y) = sample_compartment(
+        partition.negative_window(),
+        fitted.negative_count,
+        negative_seed,
+        &mut counters.null_draws,
+        config.limits.maximum_null_draws,
+    )?;
+    let (positive_x, positive_y) = sample_compartment(
+        partition.positive_window(),
+        fitted.positive_count,
+        positive_seed,
+        &mut counters.null_draws,
+        config.limits.maximum_null_draws,
+    )?;
+    let mut x = Vec::new();
+    let mut y = Vec::new();
+    let mut intensities = Vec::new();
+    x.try_reserve_exact(point_count)
+        .and_then(|()| y.try_reserve_exact(point_count))
+        .and_then(|()| intensities.try_reserve_exact(point_count))
+        .map_err(|_| InhomogeneousSpatialError::AllocationFailed)?;
+    x.extend(negative_x);
+    x.extend(positive_x);
+    y.extend(negative_y);
+    y.extend(positive_y);
+    intensities.resize(fitted.negative_count, fitted.negative_intensity);
+    intensities.resize(point_count, fitted.positive_intensity);
+    Ok(SampledPiecewisePattern { x, y, intensities })
 }
 
 fn attach_envelope(

@@ -3,9 +3,11 @@ use marklab::{
     CompartmentPartitionLimits, CoordinateFrame, CoordinateFrameId, CoordinateRegistry,
     CoordinateSpace, CoordinateUnit, DurableProject, DurableProjectLimits, LocalScheduler,
     MarklabProject, NativeRuntimeProvenance, NodeId, ObservationWindow2D, ObservationWindowLimits,
-    Pattern, PatternMeta, PiecewiseCompartmentSpatialAnalysisNode,
-    PiecewiseCompartmentSpatialConfig, PiecewiseCompartmentSpatialLimits,
-    PiecewiseCompartmentSpatialResult, SchedulerLimits, SpatialAxis, WorkflowGraph,
+    Pattern, PatternMeta, PiecewiseCompartmentPairCorrelationAnalysisNode,
+    PiecewiseCompartmentPairCorrelationConfig, PiecewiseCompartmentPairCorrelationResult,
+    PiecewiseCompartmentSpatialAnalysisNode, PiecewiseCompartmentSpatialConfig,
+    PiecewiseCompartmentSpatialLimits, PiecewiseCompartmentSpatialResult, SchedulerLimits,
+    SpatialAxis, WorkflowGraph,
 };
 
 fn runtime() -> NativeRuntimeProvenance {
@@ -38,11 +40,7 @@ fn window(
     .expect("framed window")
 }
 
-fn run_once(
-    path: &std::path::Path,
-    seed: u64,
-    swap_roles: bool,
-) -> (CacheStatus, PiecewiseCompartmentSpatialResult, usize) {
+fn fixture(swap_roles: bool) -> (Pattern, BinaryCompartmentPartition2D) {
     let frame = CoordinateFrameId::new("piecewise-compartment-project-xy").expect("frame ID");
     let registry = CoordinateRegistry::new(
         vec![CoordinateFrame::new(
@@ -102,6 +100,15 @@ fn run_once(
         },
     )
     .expect("pattern");
+    (pattern, partition)
+}
+
+fn run_once(
+    path: &std::path::Path,
+    seed: u64,
+    swap_roles: bool,
+) -> (CacheStatus, PiecewiseCompartmentSpatialResult, usize) {
+    let (pattern, partition) = fixture(swap_roles);
     let config = PiecewiseCompartmentSpatialConfig::new(
         vec![1.1, 2.1],
         19,
@@ -141,6 +148,56 @@ fn run_once(
     (run.cache_status, run.output, durable.execution_count())
 }
 
+fn run_g_once(
+    path: &std::path::Path,
+    pair_bandwidth_um: f64,
+) -> (
+    CacheStatus,
+    PiecewiseCompartmentPairCorrelationResult,
+    usize,
+) {
+    let (pattern, partition) = fixture(false);
+    let base = PiecewiseCompartmentSpatialConfig::new(
+        vec![2.0],
+        19,
+        20260829,
+        0.05,
+        PiecewiseCompartmentSpatialLimits::new(16, 8, 16, 1_000_000, 1_000_000, 1 << 20)
+            .expect("limits"),
+    )
+    .expect("base config");
+    let config =
+        PiecewiseCompartmentPairCorrelationConfig::new(base, pair_bandwidth_um).expect("g config");
+    let mut project = MarklabProject::new();
+    let node = PiecewiseCompartmentPairCorrelationAnalysisNode::new(
+        &mut project,
+        NodeId::new("piecewise-compartment-pair-correlation").expect("node ID"),
+        &pattern,
+        &partition,
+        &config,
+    )
+    .expect("node");
+    let graph = WorkflowGraph::new([node.spec().clone()]).expect("graph");
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: 1 << 20,
+    })
+    .expect("scheduler");
+    let limits = DurableProjectLimits::new(64 * 1024, 1 << 20, 64, 64 * 1024, 1 << 20)
+        .expect("durable limits");
+    let mut durable = DurableProject::open_or_create(path, limits).expect("durable project");
+    let run = execute_algorithm(
+        &mut durable,
+        &mut project,
+        &graph,
+        &node,
+        &scheduler,
+        ArtifactSchema::new("marklab.piecewise_compartment_pair_correlation", 1).expect("schema"),
+        runtime(),
+    )
+    .expect("run");
+    (run.cache_status, run.output, durable.execution_count())
+}
+
 #[test]
 fn piecewise_compartment_spatial_reopens_as_a_verified_hit_and_seed_change_misses() {
     let root = tempfile::tempdir().expect("root");
@@ -159,4 +216,20 @@ fn piecewise_compartment_spatial_reopens_as_a_verified_hit_and_seed_change_misse
     assert_eq!(swapped.0, CacheStatus::Miss);
     assert_eq!(swapped.2, 3);
     assert_eq!(swapped.1.intensity.negative.compartment_id, "tumor");
+}
+
+#[test]
+fn piecewise_compartment_g_reopens_as_a_verified_hit_and_bandwidth_change_misses() {
+    let root = tempfile::tempdir().expect("root");
+    let path = root.path().join("project");
+    let first = run_g_once(&path, 0.5);
+    assert_eq!(first.0, CacheStatus::Miss);
+    assert_eq!(first.2, 1);
+    let replay = run_g_once(&path, 0.5);
+    assert_eq!(replay.0, CacheStatus::Hit);
+    assert_eq!(replay.1, first.1);
+    assert_eq!(replay.2, 1);
+    let changed = run_g_once(&path, 0.4);
+    assert_eq!(changed.0, CacheStatus::Miss);
+    assert_eq!(changed.2, 2);
 }

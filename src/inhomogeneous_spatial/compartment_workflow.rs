@@ -156,7 +156,9 @@ struct PartitionArtifact<'a> {
     validated_boundary_segment_count: usize,
 }
 
-fn partition_artifact(partition: &BinaryCompartmentPartition2D) -> Result<ArtifactRef, NodeError> {
+pub(super) fn partition_artifact(
+    partition: &BinaryCompartmentPartition2D,
+) -> Result<ArtifactRef, NodeError> {
     let descriptor = partition.descriptor();
     let bytes = serde_json::to_vec(&PartitionArtifact {
         logical_digest: descriptor.logical_digest.to_string(),
@@ -227,7 +229,7 @@ fn validate(
     {
         return Err(invalid("result does not match its cache-bound request"));
     }
-    validate_intensity(result, pattern, partition)?;
+    validate_piecewise_intensity(&result.intensity, pattern, partition)?;
     validate_curve(result, config)?;
     if result.intensity.partition_digest != descriptor.logical_digest.to_string() {
         return Err(invalid("partition digest is inconsistent"));
@@ -235,12 +237,11 @@ fn validate(
     Ok(())
 }
 
-fn validate_intensity(
-    result: &PiecewiseCompartmentSpatialResult,
+pub(super) fn validate_piecewise_intensity(
+    summary: &super::PiecewiseCompartmentIntensitySummary,
     pattern: &Pattern,
     partition: &BinaryCompartmentPartition2D,
 ) -> io::Result<()> {
-    let summary = &result.intensity;
     let descriptor = partition.descriptor();
     if summary.estimator != "piecewise_constant_binary_compartment"
         || summary.cross_fit != "leave_one_out_within_compartment"
