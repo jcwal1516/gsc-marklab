@@ -2268,3 +2268,37 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   full-workspace integration/Nextest loader loop and unrelated broad gates were not run. BAY-PP and
   WS-43 remain active for a scientifically justified latent spatial field, multitype/marked models,
   and independent patient patterns; UI/server/client work remains deferred.
+
+## Durable exact-window CellViT latent-field checkpoint 127 — 2026-08-28
+
+- Added direct and durable `fit-arbitrary-window-lgcp` execution through the existing pinned PyMC
+  6.3.0 dense gridded-LGCP worker. The narrow adapter preserves exact MultiPolygon identity,
+  positive area-partition weights, exact event-to-node membership, and physical node coordinates;
+  it replaces only the source worker's synthetic grid covariance with a fixed physical Matérn-3/2
+  covariance. The durable node binds all four source artifacts, both worker identities, the lock,
+  request, fixed kernel, sampling controls, and resource policy to the existing scheduler, ledger,
+  artifact store, and exact-f64 codec.
+- A four-node exact-window control is algebraically identical to the existing rectangular LGCP and
+  agrees within `1e-10` for the intercept, coefficient, and every latent-field mean. Its spatial
+  check independently recovers observed node-density variance 28.75 and four-pair mean density
+  contrast 7.0. Cross-process durable miss/hit output is byte-identical with one ledger execution
+  and no second backend start.
+- The Mac-mini adapter re-audited 366 slides, 178 patients, and 1,542,389 cells into the v11 bundle.
+  The admitted single-slide field has 2,000 exact events, 2,000 exact membership rows, and 32
+  positive clipped nodes over 787,061.271429 square micrometres. The final 4,000-draw fit is
+  complete: R-hat 1.00492, bulk/tail ESS 1783.98/2034.15, minimum E-BFMI 0.94255, zero divergences,
+  and zero tree-depth hits. Its exploratory horizontal coefficient is -0.5597 with interval
+  [-1.1049, 0.0173]; the result SHA-256 is
+  `8ff67152ce931e51b11399b73344c178d56b1c61c0dd58772fc414644514142e`.
+- The 32-replicate physical spatial PPC is negative: no replica reaches the observed node-density
+  variance or 600-micrometre neighbor contrast. A fixed five-scenario half/base/double amplitude
+  and length-scale grid completes in 57.44 seconds at 349,552,640-byte maximum RSS; no scenario
+  crosses the prespecified 0.75 standardized-shift threshold, with maximum 0.694 at the doubled
+  length scale. Its sealed SHA-256 is
+  `da284929a3a1e6cd4b0f83b27a570754a257f621b5fafbd40e600937b92ad2fc`.
+- This is a coarse, fixed-kernel, single-pattern latent-intensity model. It is not evidence of point
+  attraction, a patient-population effect, biological significance, or adequate residual spatial
+  fit. Focused direct/durable/oracle tests, the seven adapter tests, Python syntax checks, targeted
+  warning-denied Clippy, package no-default compilation, affected-file formatting, and whitespace
+  checks pass. BAY-PP/WS-43 remain active for quadrature/component sensitivity, inferred field
+  hyperparameters with calibration, multitype/marked likelihoods, and independent patient patterns.

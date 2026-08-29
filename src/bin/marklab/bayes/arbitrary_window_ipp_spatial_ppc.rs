@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fs, path::PathBuf};
+use std::{fs, path::PathBuf};
 
 use clap::{Parser, Subcommand};
 use marklab_bayes::{
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     arbitrary_window_ipp_fit::{self, PreparedArbitraryWindowIppFit},
-    publish_json, run_worker, BayesCliError,
+    arbitrary_window_ipp_membership, publish_json, run_worker, BayesCliError,
 };
 
 const PYMC_VERSION: &str = "6.3.0";
@@ -78,13 +78,6 @@ struct Arguments {
     timeout_seconds: u64,
     #[arg(long)]
     out: PathBuf,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct MembershipRow {
-    event_id: String,
-    quadrature_node_id: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -192,10 +185,15 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
         arguments.maximum_draw_node_work,
         arguments.timeout_seconds,
     )?;
-    let membership = read_membership(&membership_path)?;
-    let event_membership_digest = sha256_hex(&serde_json::to_vec(&membership)?);
-    let observed_node_counts = observed_counts(&prepared, &membership)?;
-    let neighbor_pairs = neighbor_pairs(&prepared, arguments.neighbor_radius_um)?;
+    let membership = arbitrary_window_ipp_membership::prepare(
+        &membership_path,
+        &prepared.input.spec.events,
+        &prepared.input.spec.quadrature,
+    )?;
+    let neighbor_pairs = arbitrary_window_ipp_membership::physical_neighbor_pairs(
+        &prepared.input.spec.quadrature,
+        arguments.neighbor_radius_um,
+    )?;
     if neighbor_pairs.is_empty() || neighbor_pairs.len() > arguments.maximum_neighbor_pairs {
         return Err(BayesCliError::Input(format!(
             "spatial PPC physical neighbor pairs must be 1..={}: observed {}",
@@ -216,7 +214,7 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
     }
     let input = SpatialPpcInputIdentity {
         events_digest: prepared.input_identity.events_digest.clone(),
-        event_membership_digest,
+        event_membership_digest: membership.digest,
         quadrature_digest: prepared.input_identity.quadrature_digest.clone(),
         window_logical_digest: prepared.input_identity.window_logical_digest.clone(),
     };
@@ -245,7 +243,7 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
         source_request_sha256: &prepared.request_sha256,
         source_request: &prepared.request,
         input: input.clone(),
-        observed_node_counts,
+        observed_node_counts: membership.observed_node_counts,
         node_weights_um2: prepared
             .input
             .spec
@@ -270,79 +268,6 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
     let result: SpatialPpcResult = serde_json::from_slice(&bytes)?;
     validate(&result, &request, &request_sha256, &prepared)?;
     publish_json(&arguments.out, &result)
-}
-
-fn read_membership(path: &PathBuf) -> Result<Vec<MembershipRow>, BayesCliError> {
-    let mut reader = csv::ReaderBuilder::new().flexible(false).from_path(path)?;
-    let rows = reader.deserialize().collect::<Result<Vec<_>, _>>()?;
-    if rows.len() > 100_000 {
-        return Err(BayesCliError::Input(
-            "spatial PPC membership exceeds 100000 rows".into(),
-        ));
-    }
-    Ok(rows)
-}
-
-fn observed_counts(
-    prepared: &PreparedArbitraryWindowIppFit,
-    membership: &[MembershipRow],
-) -> Result<Vec<u64>, BayesCliError> {
-    if membership.len() != prepared.input.spec.events.len() {
-        return Err(BayesCliError::Input(
-            "spatial PPC membership must contain every event exactly once".into(),
-        ));
-    }
-    let node_indices = prepared
-        .input
-        .spec
-        .quadrature
-        .iter()
-        .enumerate()
-        .map(|(index, node)| (node.node_id.as_str(), index))
-        .collect::<BTreeMap<_, _>>();
-    let mut counts = vec![0_u64; node_indices.len()];
-    for (event, row) in prepared.input.spec.events.iter().zip(membership) {
-        if event.event_id != row.event_id {
-            return Err(BayesCliError::Input(
-                "spatial PPC membership event identities differ from canonical events".into(),
-            ));
-        }
-        let index = node_indices
-            .get(row.quadrature_node_id.as_str())
-            .ok_or_else(|| {
-                BayesCliError::Input(format!(
-                    "spatial PPC event {} references absent quadrature node {}",
-                    row.event_id, row.quadrature_node_id
-                ))
-            })?;
-        counts[*index] += 1;
-    }
-    Ok(counts)
-}
-
-fn neighbor_pairs(
-    prepared: &PreparedArbitraryWindowIppFit,
-    radius_um: f64,
-) -> Result<Vec<[usize; 2]>, BayesCliError> {
-    let radius_squared = radius_um * radius_um;
-    let nodes = &prepared.input.spec.quadrature;
-    let mut pairs = Vec::new();
-    for left in 0..nodes.len() {
-        for right in (left + 1)..nodes.len() {
-            let dx = nodes[left].x_um - nodes[right].x_um;
-            let dy = nodes[left].y_um - nodes[right].y_um;
-            let distance_squared = dx.mul_add(dx, dy * dy);
-            if !distance_squared.is_finite() {
-                return Err(BayesCliError::Input(
-                    "spatial PPC neighbor distance is non-finite".into(),
-                ));
-            }
-            if distance_squared <= radius_squared {
-                pairs.push([left, right]);
-            }
-        }
-    }
-    Ok(pairs)
 }
 
 fn validate(

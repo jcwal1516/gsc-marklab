@@ -1134,3 +1134,15 @@ BAY-PP/WS-43 remain active for the next immediate CRC caller that can justify a 
 multitype/marked likelihood, or independent patient-pattern hierarchy. BAY-02/WS-44 no longer lack
 weighted-IPP agreement, prior sensitivity, quadrature, SBC, or spatial PPC. UI/server/client work
 remains deferred.
+
+## Checkpoint 127 exact-window latent-field continuation
+
+One admitted exact MultiPolygon CellViT pattern now has direct and durable fixed-kernel LGCP fitting,
+exact source/backend/cache identity, a rectangular differential oracle, physical spatial PPC, and a
+prespecified five-fit kernel sensitivity grid. The sampler is stable across the declared grid, but
+the real coarse field under-replicates both observed density variation and 600-micrometre neighbor
+contrast, so it remains experimental rather than a biological explanation. BAY-PP/WS-43 no longer
+lack every arbitrary-window latent-field caller; they remain active for exact quadrature/component
+sensitivity, calibrated hyperparameter inference, multitype/marked models, and independent patient
+patterns. Production continues to the smallest of those with an immediate admitted CRC caller;
+UI/server/client work remains deferred.

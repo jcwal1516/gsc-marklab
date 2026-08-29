@@ -62,6 +62,7 @@ enum StaticBackendWorkflow {
     PymcStudentTHierarchy,
     PymcGriddedLgcp,
     PymcArbitraryWindowIpp,
+    PymcArbitraryWindowLgcp,
     PotFusedGromovWasserstein,
 }
 
@@ -251,6 +252,26 @@ impl StaticBackendWorkflow {
                 implementation_identity: "marklab-project-pymc-arbitrary-window-ipp-fit-node-v1",
                 deterministic_controls: "seeded-nuts-weighted-exact-window-ipp-request",
             },
+            Self::PymcArbitraryWindowLgcp => StaticBackendDescriptor {
+                backend_id: "pymc",
+                backend_version: "6.3.0",
+                python_version: "3.12",
+                license: "Apache-2.0",
+                input_kinds: &[
+                    "application/vnd.marklab.source.arbitrary-window-lgcp-events+csv;version=1",
+                    "application/vnd.marklab.source.arbitrary-window-lgcp-membership+csv;version=1",
+                    "application/vnd.marklab.source.arbitrary-window-lgcp-quadrature+csv;version=1",
+                    "application/vnd.marklab.source.observation-window+geojson;version=1",
+                ],
+                output_kind:
+                    "application/vnd.marklab.pymc-arbitrary-window-lgcp-fit+json;version=1",
+                result_schema_id: "marklab.pymc_arbitrary_window_lgcp_fit_result",
+                node_id: "pymc-arbitrary-window-lgcp-fit",
+                node_kind: "bayesian_point_process_latent_field_fit",
+                implementation_identity: "marklab-project-pymc-arbitrary-window-lgcp-fit-node-v1",
+                deterministic_controls:
+                    "seeded-nuts-weighted-exact-window-fixed-matern-lgcp-request",
+            },
             Self::PotFusedGromovWasserstein => StaticBackendDescriptor {
                 backend_id: "pot",
                 backend_version: "0.9.7.post1",
@@ -414,6 +435,64 @@ struct ArbitraryWindowIppFitProjectArgs {
     out: PathBuf,
 }
 
+#[derive(Debug, clap::Args)]
+struct ArbitraryWindowLgcpFitProjectArgs {
+    #[arg(long)]
+    project: PathBuf,
+    #[arg(long)]
+    events: PathBuf,
+    #[arg(long)]
+    event_membership: PathBuf,
+    #[arg(long)]
+    quadrature: PathBuf,
+    #[arg(long)]
+    window: PathBuf,
+    #[arg(long, allow_hyphen_values = true)]
+    intercept_prior_mean: f64,
+    #[arg(long)]
+    intercept_prior_sd: f64,
+    #[arg(long, allow_hyphen_values = true)]
+    coefficient_prior_mean: f64,
+    #[arg(long)]
+    coefficient_prior_sd: f64,
+    #[arg(long)]
+    field_amplitude: f64,
+    #[arg(long)]
+    field_length_scale_um: f64,
+    #[arg(long)]
+    jitter: f64,
+    #[arg(long)]
+    chains: u32,
+    #[arg(long)]
+    tune: u32,
+    #[arg(long)]
+    draws: u32,
+    #[arg(long)]
+    target_accept: f64,
+    #[arg(long)]
+    seed: u64,
+    #[arg(long)]
+    maximum_events: usize,
+    #[arg(long)]
+    maximum_quadrature_nodes: usize,
+    #[arg(long)]
+    maximum_draw_node_work: u64,
+    #[arg(long)]
+    prediction_replicates: u32,
+    #[arg(long)]
+    prediction_seed: u64,
+    #[arg(long)]
+    maximum_predictive_points: u64,
+    #[arg(long)]
+    neighbor_radius_um: f64,
+    #[arg(long)]
+    maximum_neighbor_pairs: usize,
+    #[arg(long)]
+    timeout_seconds: u64,
+    #[arg(long)]
+    out: PathBuf,
+}
+
 #[derive(Debug, Subcommand)]
 enum ProjectCommand {
     RegionRetrieval {
@@ -460,6 +539,7 @@ enum ProjectCommand {
     },
     ArbitraryWindowIppLikelihood(Box<ArbitraryWindowIppProjectArgs>),
     FitArbitraryWindowIpp(Box<ArbitraryWindowIppFitProjectArgs>),
+    ArbitraryWindowLgcp(Box<ArbitraryWindowLgcpFitProjectArgs>),
     NormalMean {
         #[arg(long)]
         project: PathBuf,
@@ -865,6 +945,39 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             arguments.maximum_events,
             arguments.maximum_quadrature_nodes,
             arguments.maximum_draw_node_work,
+            arguments.timeout_seconds,
+            arguments.out,
+        ),
+        ProjectTopLevel::Project {
+            command: ProjectCommand::ArbitraryWindowLgcp(arguments),
+        } => run_arbitrary_window_lgcp(
+            arguments.project,
+            arguments.events,
+            arguments.event_membership,
+            arguments.quadrature,
+            arguments.window,
+            arguments.intercept_prior_mean,
+            arguments.intercept_prior_sd,
+            arguments.coefficient_prior_mean,
+            arguments.coefficient_prior_sd,
+            arguments.field_amplitude,
+            arguments.field_length_scale_um,
+            arguments.jitter,
+            NutsSamplingSpec {
+                chains: arguments.chains,
+                tune_per_chain: arguments.tune,
+                draws_per_chain: arguments.draws,
+                target_accept: arguments.target_accept,
+                seed: arguments.seed,
+            },
+            arguments.maximum_events,
+            arguments.maximum_quadrature_nodes,
+            arguments.maximum_draw_node_work,
+            arguments.prediction_replicates,
+            arguments.prediction_seed,
+            arguments.maximum_predictive_points,
+            arguments.neighbor_radius_um,
+            arguments.maximum_neighbor_pairs,
             arguments.timeout_seconds,
             arguments.out,
         ),
@@ -1571,6 +1684,119 @@ fn run_arbitrary_window_ipp_fit(
     };
     bayes::publish_json(&output_path, &run.output)?;
     eprintln!("project fit-arbitrary-window-ipp cache_status={cache_status}");
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_arbitrary_window_lgcp(
+    project_path: PathBuf,
+    events_path: PathBuf,
+    membership_path: PathBuf,
+    quadrature_path: PathBuf,
+    window_path: PathBuf,
+    intercept_prior_mean: f64,
+    intercept_prior_sd: f64,
+    coefficient_prior_mean: f64,
+    coefficient_prior_sd: f64,
+    field_amplitude: f64,
+    field_length_scale_um: f64,
+    jitter: f64,
+    sampling: NutsSamplingSpec,
+    maximum_events: usize,
+    maximum_quadrature_nodes: usize,
+    maximum_draw_node_work: u64,
+    prediction_replicates: u32,
+    prediction_seed: u64,
+    maximum_predictive_points: u64,
+    neighbor_radius_um: f64,
+    maximum_neighbor_pairs: usize,
+    timeout_seconds: u64,
+    output_path: PathBuf,
+) -> Result<(), BayesCliError> {
+    let backend = StaticBackendWorkflow::PymcArbitraryWindowLgcp.descriptor();
+    let paths = [events_path, membership_path, quadrature_path, window_path];
+    let before = [
+        source_artifact(&paths[0], backend.input_kinds[0])?,
+        source_artifact(&paths[1], backend.input_kinds[1])?,
+        source_artifact(&paths[2], backend.input_kinds[2])?,
+        source_artifact(&paths[3], backend.input_kinds[3])?,
+    ];
+    let prepared = bayes::prepare_arbitrary_window_lgcp_fit(
+        paths[0].clone(),
+        paths[1].clone(),
+        paths[2].clone(),
+        paths[3].clone(),
+        intercept_prior_mean,
+        intercept_prior_sd,
+        coefficient_prior_mean,
+        coefficient_prior_sd,
+        field_amplitude,
+        field_length_scale_um,
+        jitter,
+        sampling,
+        maximum_events,
+        maximum_quadrature_nodes,
+        maximum_draw_node_work,
+        prediction_replicates,
+        prediction_seed,
+        maximum_predictive_points,
+        neighbor_radius_um,
+        maximum_neighbor_pairs,
+        timeout_seconds,
+    )?;
+    let after = [
+        source_artifact(&paths[0], backend.input_kinds[0])?,
+        source_artifact(&paths[1], backend.input_kinds[1])?,
+        source_artifact(&paths[2], backend.input_kinds[2])?,
+        source_artifact(&paths[3], backend.input_kinds[3])?,
+    ];
+    if before != after {
+        return Err(BayesCliError::Input(
+            "arbitrary-window LGCP source changed while the durable request was prepared".into(),
+        ));
+    }
+    let runtime = native_runtime_provenance()?;
+    let limits = DurableProjectLimits::new(
+        PROJECT_CONTROL_BYTES,
+        PROJECT_LEDGER_BYTES,
+        PROJECT_LEDGER_RECORDS,
+        PROJECT_RECORD_BYTES,
+        MAXIMUM_RESULT_BYTES,
+    )
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let mut durable = DurableProject::open_or_create(&project_path, limits)
+        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    report_recovery(&durable);
+    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    for artifact in &before {
+        project
+            .register_reference(artifact.clone())
+            .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    }
+    let node = ArbitraryWindowLgcpProjectNode::new(paths, before, prepared, backend)?;
+    let graph = WorkflowGraph::new([node.spec().clone()])
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
+    })
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let run = execute_algorithm(
+        &mut durable,
+        &mut project,
+        &graph,
+        &node,
+        &scheduler,
+        backend.result_schema()?,
+        runtime,
+    )
+    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    let cache_status = match run.cache_status {
+        CacheStatus::Hit => "hit",
+        CacheStatus::Miss => "miss",
+    };
+    bayes::publish_json(&output_path, &run.output)?;
+    eprintln!("project arbitrary-window-lgcp cache_status={cache_status}");
     Ok(())
 }
 
@@ -2974,6 +3200,101 @@ impl WorkflowNode for ArbitraryWindowIppFitProjectNode {
         let output: ArbitraryWindowIppFitResult =
             marklab::exact_float_json::decode(bytes).map_err(NodeError::decode)?;
         output.validate(&self.prepared).map_err(NodeError::decode)?;
+        Ok(output)
+    }
+
+    fn output_kind(&self) -> &'static str {
+        self.backend.output_kind
+    }
+}
+
+struct ArbitraryWindowLgcpProjectNode {
+    spec: NodeSpec,
+    input_paths: [PathBuf; 4],
+    input_artifacts: [ArtifactRef; 4],
+    prepared: bayes::PreparedArbitraryWindowLgcpFit,
+    backend: StaticBackendDescriptor,
+    execution_policy: Vec<u8>,
+}
+
+impl ArbitraryWindowLgcpProjectNode {
+    fn new(
+        input_paths: [PathBuf; 4],
+        input_artifacts: [ArtifactRef; 4],
+        prepared: bayes::PreparedArbitraryWindowLgcpFit,
+        backend: StaticBackendDescriptor,
+    ) -> Result<Self, BayesCliError> {
+        backend.validate_request_backend(&prepared.request.backend)?;
+        Ok(Self {
+            spec: NodeSpec::new(
+                NodeId::new(backend.node_id)
+                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
+                backend.node_kind,
+                1,
+                Vec::new(),
+            )
+            .map_err(|error| BayesCliError::Input(error.to_string()))?,
+            input_paths,
+            input_artifacts,
+            prepared,
+            backend,
+            execution_policy: backend.execution_policy(),
+        })
+    }
+}
+
+impl WorkflowNode for ArbitraryWindowLgcpProjectNode {
+    type Output = bayes::ArbitraryWindowLgcpFitResult;
+
+    fn spec(&self) -> &NodeSpec {
+        &self.spec
+    }
+
+    fn input_artifacts(&self) -> &[ArtifactRef] {
+        &self.input_artifacts
+    }
+
+    fn verify_input_content(&self) -> Result<(), NodeError> {
+        for ((path, artifact), kind) in self
+            .input_paths
+            .iter()
+            .zip(&self.input_artifacts)
+            .zip(self.backend.input_kinds)
+        {
+            let observed = source_artifact(path, kind).map_err(NodeError::input)?;
+            if &observed != artifact {
+                return Err(NodeError::input(BayesCliError::Input(
+                    "arbitrary-window LGCP source no longer matches its durable identity".into(),
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
+        CacheKeyMaterial {
+            configuration_digest: self
+                .backend
+                .configuration_digest(&self.prepared.request.backend, &self.prepared.request_bytes),
+            execution_policy: &self.execution_policy,
+            implementation_identity: self.backend.implementation_identity,
+        }
+    }
+
+    fn execute(&self) -> Result<Self::Output, NodeError> {
+        bayes::execute_arbitrary_window_lgcp_fit(&self.prepared).map_err(NodeError::execution)
+    }
+
+    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
+        marklab::exact_float_json::encode(output).map_err(NodeError::encoding)
+    }
+
+    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
+        let output: bayes::ArbitraryWindowLgcpFitResult =
+            marklab::exact_float_json::decode(bytes).map_err(NodeError::decode)?;
+        output
+            .validate_for(&self.prepared)
+            .map_err(NodeError::decode)?;
         Ok(output)
     }
 

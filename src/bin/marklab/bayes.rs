@@ -24,6 +24,8 @@ mod arbitrary_window_ipp;
 mod arbitrary_window_ipp_agreement;
 #[path = "bayes/arbitrary_window_ipp_fit.rs"]
 mod arbitrary_window_ipp_fit;
+#[path = "bayes/arbitrary_window_ipp_membership.rs"]
+mod arbitrary_window_ipp_membership;
 #[path = "bayes/arbitrary_window_ipp_quadrature_sensitivity.rs"]
 mod arbitrary_window_ipp_quadrature_sensitivity;
 #[path = "bayes/arbitrary_window_ipp_sbc.rs"]
@@ -32,6 +34,10 @@ mod arbitrary_window_ipp_sbc;
 mod arbitrary_window_ipp_sensitivity;
 #[path = "bayes/arbitrary_window_ipp_spatial_ppc.rs"]
 mod arbitrary_window_ipp_spatial_ppc;
+#[path = "bayes/arbitrary_window_lgcp_fit.rs"]
+mod arbitrary_window_lgcp_fit;
+#[path = "bayes/arbitrary_window_lgcp_sensitivity.rs"]
+mod arbitrary_window_lgcp_sensitivity;
 pub(super) use arbitrary_window_ipp::{
     execute as execute_arbitrary_window_ipp, prepare as prepare_arbitrary_window_ipp,
     PreparedArbitraryWindowIpp,
@@ -40,9 +46,21 @@ pub(super) use arbitrary_window_ipp_fit::{
     execute as execute_arbitrary_window_ipp_fit, prepare as prepare_arbitrary_window_ipp_fit,
     ArbitraryWindowIppFitResult, PreparedArbitraryWindowIppFit,
 };
+pub(super) use arbitrary_window_lgcp_fit::{
+    execute as execute_arbitrary_window_lgcp_fit, prepare as prepare_arbitrary_window_lgcp_fit,
+    FitResult as ArbitraryWindowLgcpFitResult, PreparedArbitraryWindowLgcpFit,
+};
 
 pub(super) fn run_arbitrary_window_ipp_cli() -> Result<(), BayesCliError> {
     arbitrary_window_ipp::run_cli()
+}
+
+pub(super) fn run_arbitrary_window_lgcp_fit_cli() -> Result<(), BayesCliError> {
+    arbitrary_window_lgcp_fit::run_cli()
+}
+
+pub(super) fn run_arbitrary_window_lgcp_sensitivity_cli() -> Result<(), BayesCliError> {
+    arbitrary_window_lgcp_sensitivity::run_cli()
 }
 
 pub(super) fn run_arbitrary_window_ipp_fit_cli() -> Result<(), BayesCliError> {

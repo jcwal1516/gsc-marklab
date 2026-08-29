@@ -979,6 +979,16 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     arbitrary_window_ipp_event_membership = arbitrary_window_ipp_event_membership_rows(
         coordinate_rows, tuple(float(value) for value in shapely_window.bounds), 64
     )
+    arbitrary_window_lgcp_event_membership = arbitrary_window_ipp_event_membership_rows(
+        coordinate_rows, tuple(float(value) for value in shapely_window.bounds), 8
+    )
+    arbitrary_window_lgcp_nodes = arbitrary_window_ipp_quadrature(shapely_window, 8)
+    lgcp_node_ids = {str(row["node_id"]) for row in arbitrary_window_lgcp_nodes}
+    if any(
+        row["quadrature_node_id"] not in lgcp_node_ids
+        for row in arbitrary_window_lgcp_event_membership
+    ):
+        raise AdapterError("arbitrary-window LGCP event membership references an empty cell")
     arbitrary_window_ipp_coarse_nodes = arbitrary_window_ipp_quadrature(
         shapely_window, 48
     )
@@ -995,6 +1005,16 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
         inputs / "arbitrary_window_ipp_event_membership.csv",
         ["event_id", "quadrature_node_id"],
         arbitrary_window_ipp_event_membership,
+    )
+    write_csv(
+        inputs / "arbitrary_window_lgcp_event_membership.csv",
+        ["event_id", "quadrature_node_id"],
+        arbitrary_window_lgcp_event_membership,
+    )
+    write_csv(
+        inputs / "arbitrary_window_lgcp_quadrature.csv",
+        ["node_id", "x_um", "y_um", "weight_um2", "covariate", "offset"],
+        arbitrary_window_lgcp_nodes,
     )
     write_csv(
         inputs / "arbitrary_window_ipp_quadrature.csv",
@@ -1397,6 +1417,18 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 ),
                 "population_claim": "single_slide_descriptive_fixed_likelihood_only",
             },
+            "arbitrary_window_lgcp_definition": {
+                "statistical_unit": "one_observed_point_pattern",
+                "window": "exact_selected_patch_union",
+                "quadrature": "8_by_8_bounding_grid_exact_shapely_cell_intersection_weights",
+                "event_membership": "exact_event_id_to_8_by_8_bounding_grid_cell",
+                "event_count": len(arbitrary_window_lgcp_event_membership),
+                "quadrature_node_count": len(arbitrary_window_lgcp_nodes),
+                "quadrature_weight_um2": math.fsum(
+                    float(row["weight_um2"]) for row in arbitrary_window_lgcp_nodes
+                ),
+                "population_claim": "single_slide_experimental_latent_field_only",
+            },
             "beta_binomial_group_gender_definition": {
                 "join_key": "patient_id",
                 "source": str(arguments.clinical.resolve()),
@@ -1445,6 +1477,12 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                     len(arbitrary_window_ipp_nodes),
                     len(arbitrary_window_ipp_fine_nodes),
                 ],
+                "arbitrary_window_lgcp_event_memberships": len(
+                    arbitrary_window_lgcp_event_membership
+                ),
+                "arbitrary_window_lgcp_quadrature_nodes": len(
+                    arbitrary_window_lgcp_nodes
+                ),
                 "raw_vector_rows": len(vector_rows),
                 "raw_vector_pair_visits": len(vector_rows) * (len(vector_rows) - 1) // 2,
                 "projected_rows": len(projected_rows),

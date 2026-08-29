@@ -2821,6 +2821,50 @@ vascular transport.
   tools, packaging, dependency audits, push, publication, deployment, and history rewrite did not
   run.
 
+## Durable exact-window CellViT latent-field checkpoint 127 — 2026-08-28
+
+- Expected direct-fit red: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_arbitrary_window_lgcp_fit_cli` failed on the absent `fit-arbitrary-window-lgcp` command.
+  The final test passes and differentially agrees within `1e-10` with the existing rectangular
+  PyMC LGCP for the intercept, coefficient, and every four-node latent mean; independent observed
+  spatial summaries are exactly 28.75 density variance and 7.0 mean four-pair contrast.
+- Expected durable red: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  durable_pymc_arbitrary_window_lgcp_project` failed on the absent project command. The final test
+  passes with a miss, backend-disabled fresh-process hit, byte identity, one execution record, and
+  typed exact-f64 hit validation. Expected sensitivity red likewise failed on the absent
+  `arbitrary-window-lgcp-sensitivity` command before the final five-scenario test passed.
+- The combined affected Rust command over direct LGCP, sensitivity, durable LGCP, shared IPP spatial
+  membership, and durable IPP passes 5/5. The adapter direct-file suite passes 7/7. The initial
+  `python3 -m unittest tests/python/test_marklab_cellvit_cptac_results_adapter.py` attempt failed
+  before discovery because `tests.python` is not an importable package; the repository's direct
+  `python3 tests/python/test_marklab_cellvit_cptac_results_adapter.py` command then passes. A first
+  syntax command named a nonexistent historical IPP worker path after compiling the preceding
+  files; the corrected command over the adapter, exact-window LGCP wrapper, IPP spatial wrapper,
+  and source gridded-LGCP worker passes.
+- The Mac-mini adapter re-audited 366 slides, 178 patients, and 1,542,389 cells in 106.64 seconds at
+  730,546,176-byte maximum RSS. The v11 input contains 2,000 memberships over 32 positive exact
+  clipped nodes, 30 occupied nodes, and area 787,061.271429 square micrometres. Raw input SHA-256
+  values are `965239e4c82c346e19fec097e26453812e7c8fe885cd495ecaf8ec8f3aef476c` events,
+  `22c580b4429b186ebd16b38aeb01cf30f755218d95943ef10fa0d17108e2a20e` membership,
+  `afa0c1e4e4d1cdc73a12e7617d18bcd51a449867ae0752dd17161e879618f22a` quadrature, and
+  `9ba8102b98f5e4f42dc4c19d9fd341b0acb6d6ecf671997ce709187312c61fb4` window.
+- The identity-final real durable miss took 15.09 seconds at 302,612,480-byte maximum RSS; a second
+  process with external backend execution disabled returned the byte-identical hit with one ledger
+  execution. The 4,000 retained-draw fit has R-hat 1.00492, bulk/tail ESS 1783.98/2034.15, minimum
+  E-BFMI 0.94255, zero divergences/depth hits, and SHA-256
+  `8ff67152ce931e51b11399b73344c178d56b1c61c0dd58772fc414644514142e`.
+  Its 32-replicate/77-pair physical PPC has zero upper-tail probability for both observed summaries.
+- The real five-fit fixed-kernel sensitivity command completed in 57.44 seconds at
+  349,552,640-byte maximum RSS and declared 640,000 draw-node operations. All fits are complete with
+  zero divergences; the maximum standardized change is 0.69398 at the doubled 1,024-micrometre
+  length scale, below the prespecified 0.75 threshold. The sealed v11 result SHA-256 is
+  `da284929a3a1e6cd4b0f83b27a570754a257f621b5fafbd40e600937b92ad2fc`.
+- Targeted warning-denied Clippy over the affected binary and five integrations passes. `cargo
+  +1.96.0 check --locked --package marklab --no-default-features`, Python syntax checks,
+  affected-file Rustfmt, and diff whitespace checks pass. No workspace-wide integration/Nextest
+  loop, full feature matrix, broad docs, benchmarks, fuzzing, memory tool, packaging, dependency
+  audit, push, publication, deployment, or history rewrite ran.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test
