@@ -3002,6 +3002,34 @@ vascular transport.
   gates, the documented full-integration/Nextest loop, feature matrix, benchmarks, fuzzing, memory
   tools, packaging, dependency audit, push, publication, deployment, and history rewrite did not run.
 
+## Inferred shared-kernel agreement/calibration checkpoint 132 — 2026-08-29
+
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_replicated_arbitrary_window_lgcp_inferred_kernel_agreement_cli -- --nocapture` first failed
+  on the absent command and then passed. The final-state rerun passes in 23.95 seconds.
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_replicated_arbitrary_window_lgcp_inferred_kernel_sbc_cli -- --nocapture` first failed on the
+  absent command and then passed. The final-state 20-replicate rerun passes in 238.55 seconds.
+- The real agreement ran with two chains, 2,000 tune/draws, and explicit PyMC/NumPyro depth 13 in
+  929.57 seconds at 970,342,400-byte maximum RSS. Both backends are complete, and all global,
+  patient, slide, latent, and expected-count comparisons pass. SHA-256 is
+  `7e1336748f4cf32b629429865e0869d3213c5fd4a8cc0634ae8f2799150050e0`.
+- The first real-geometry SBC ran 20 replicates at four chains, 750 tune, and 1,000 draws in 814.20
+  seconds at 6,024,445,952-byte maximum RSS. It retains one R-hat failure and is nonconverged. The
+  only sampling-capacity retry ran four chains, 1,000 tune, and 1,500 draws in 1,063.25 seconds at
+  6,345,883,648-byte maximum RSS; it retains one divergence and is nonconverged. Their SHA-256 values
+  are `ee77fe54cdce6a935471cc317b925fbd0d8b8599d1c4cd619ddb634b2440bbf0` and
+  `c366c0b8a09053383296b4f5ce86bcb07db51cfd40a02cd9aa2a68b509ea8b28`.
+- Python `py_compile` passes for both new workers. Affected Rustfmt passes. `cargo +1.96.0 clippy
+  --locked --package marklab --features cli --bin marklab --test
+  bayes_replicated_arbitrary_window_lgcp_inferred_kernel_agreement_cli --test
+  bayes_replicated_arbitrary_window_lgcp_inferred_kernel_sbc_cli -- -D warnings` passes.
+  `cargo +1.96.0 check --locked --package marklab --no-default-features` passes.
+- `ssh mini 'cd ...v17-lgcp-inferred-promotion && shasum -a 256 -c
+  promotion_results_sha256.txt'` passes all seven sealed files. Broad workspace gates, the documented
+  full-integration/Nextest loop, feature matrix, benchmarks, fuzzing, packaging, dependency audit,
+  push, publication, deployment, and history rewrite did not run.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

@@ -134,20 +134,20 @@ struct NumpyroResult {
 }
 
 #[derive(Debug, Serialize)]
-struct ScalarAgreement {
+pub(crate) struct ScalarAgreement {
     absolute_mean_difference: f64,
     combined_mcse: f64,
     standardized_difference: f64,
     intervals_overlap: bool,
-    passes: bool,
+    pub(crate) passes: bool,
 }
 
 #[derive(Debug, Serialize)]
-struct VectorAgreement {
+pub(crate) struct VectorAgreement {
     element_count: usize,
     maximum_standardized_difference: f64,
     all_intervals_overlap: bool,
-    passes: bool,
+    pub(crate) passes: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -537,7 +537,7 @@ fn compare(
     }
 }
 
-fn compare_scalar(
+pub(crate) fn compare_scalar(
     left: &SarScalarSummary,
     right: &SarScalarSummary,
     left_ess: f64,
@@ -559,7 +559,7 @@ fn compare_scalar(
     }
 }
 
-fn compare_vector<'a>(
+pub(crate) fn compare_vector<'a>(
     left: impl Iterator<Item = &'a SarScalarSummary>,
     right: impl Iterator<Item = &'a SarScalarSummary>,
     left_ess: f64,
@@ -588,7 +588,7 @@ fn overlap(left: &SarScalarSummary, right: &SarScalarSummary) -> bool {
     left.interval_lower <= right.interval_upper && right.interval_lower <= left.interval_upper
 }
 
-fn summary_valid(summary: &SarScalarSummary) -> bool {
+pub(crate) fn summary_valid(summary: &SarScalarSummary) -> bool {
     [
         summary.mean,
         summary.sd,
@@ -601,7 +601,7 @@ fn summary_valid(summary: &SarScalarSummary) -> bool {
         && summary.interval_lower <= summary.interval_upper
 }
 
-fn backend_matches(result: &WorkerBackend, expected: &BackendContract) -> bool {
+pub(crate) fn backend_matches(result: &WorkerBackend, expected: &BackendContract) -> bool {
     result.name == expected.name
         && result.version == expected.version
         && result.python_version == expected.python_version

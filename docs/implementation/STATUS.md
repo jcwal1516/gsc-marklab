@@ -2422,3 +2422,31 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   bundle verifies the input, final result, and rejected depth-10 diagnostic. Direct/durable tests,
   Python syntax, affected Rustfmt, warning-denied Clippy, package no-default compilation, and
   whitespace checks pass. Broad gates were not repeated after checkpoint 130.
+
+## Inferred shared-kernel agreement/calibration checkpoint 132 — 2026-08-29
+
+- Added `replicated-arbitrary-window-lgcp-inferred-kernel-agreement` with an independent pinned
+  NumPyro dynamic-kernel implementation. The real 16-slide result is complete in both backends:
+  NumPyro R-hat 1.00873, bulk/tail ESS 555.24/798.35, E-BFMI 0.62361, and zero divergences/depth
+  hits. All seven global, eight patient, 16 slide, 222 latent-node, and 222 expected-count comparisons
+  pass; SHA-256 is `7e1336748f4cf32b629429865e0869d3213c5fd4a8cc0634ae8f2799150050e0`.
+- Added `replicated-arbitrary-window-lgcp-inferred-kernel-sbc`. Its 20-replicate synthetic oracle
+  passes ranks and 90% coverage for the group effect, patient/slide scales, inferred amplitude,
+  physical length, and one physical latent node. The worker retains every failed replicate and exact
+  backend/environment/worker/source-request identity under event/node/iteration/kernel/time/output
+  ceilings.
+- Full admitted 222-node real-geometry count-scale SBC is not fully calibrated. The 4x1,000-draw
+  run completes 19/20 because replicate 18 has R-hat 1.01048; SHA-256 is
+  `ee77fe54cdce6a935471cc317b925fbd0d8b8599d1c4cd619ddb634b2440bbf0`. The only declared capacity
+  retry, 4x1,500 draws with unchanged seed/priors/geometry/thresholds, also completes 19/20 because
+  replicate 15 has one divergence; SHA-256 is
+  `c366c0b8a09053383296b4f5ce86bcb07db51cfd40a02cd9aa2a68b509ea8b28`. All completed-replicate
+  aggregate rank p-values and coverage bounds pass, but the strict no-failure rule correctly keeps
+  both results nonconverged.
+- The hash-verified v17 Mac-mini 1 TB bundle is
+  `results-cellvit-categorical-v17-lgcp-inferred-promotion`; it retains the canonical durable fit,
+  real agreement, both negative SBC attempts, the rejected depth-10 fit, unchanged input, and claim
+  limitations. Real SBC elapsed/maximum RSS were 814.20 s/6,024,445,952 bytes and
+  1,063.25 s/6,345,883,648 bytes. Focused agreement/SBC integrations, Python syntax, affected
+  Rustfmt, warning-denied affected Clippy, package no-default compilation, bundle checksums, and
+  whitespace checks pass. Broad gates were not repeated after checkpoint 130.

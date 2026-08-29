@@ -98,15 +98,15 @@ struct Arguments {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct KernelPriors {
-    field_amplitude_scale: f64,
-    field_length_scale_scale_um: f64,
-    jitter: f64,
+pub(crate) struct KernelPriors {
+    pub(crate) field_amplitude_scale: f64,
+    pub(crate) field_length_scale_scale_um: f64,
+    pub(crate) jitter: f64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct KernelResources {
+pub(crate) struct KernelResources {
     maximum_kernel_cube_work: u64,
     kernel_cube_work: u64,
     maximum_tree_depth: u32,
@@ -127,14 +127,14 @@ struct WorkerRequest<'a> {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct Posterior {
-    intercept: SarScalarSummary,
-    group_effect: SarScalarSummary,
-    covariate_effect: SarScalarSummary,
-    patient_sd: SarScalarSummary,
-    pattern_sd: SarScalarSummary,
-    field_amplitude: SarScalarSummary,
-    field_length_scale_um: SarScalarSummary,
+pub(crate) struct Posterior {
+    pub(crate) intercept: SarScalarSummary,
+    pub(crate) group_effect: SarScalarSummary,
+    pub(crate) covariate_effect: SarScalarSummary,
+    pub(crate) patient_sd: SarScalarSummary,
+    pub(crate) pattern_sd: SarScalarSummary,
+    pub(crate) field_amplitude: SarScalarSummary,
+    pub(crate) field_length_scale_um: SarScalarSummary,
 }
 
 #[derive(Debug, Deserialize)]
@@ -163,19 +163,19 @@ struct WorkerResult {
 pub(crate) struct ResultDocument {
     format: String,
     version: u32,
-    backend: WorkerBackend,
-    source_backend: WorkerBackend,
-    input_sha256: String,
-    request_sha256: String,
-    source_request_sha256: String,
-    fit_state: FitState,
-    sampling: SamplingSummary,
-    posterior: Posterior,
-    patient_effects: Vec<PatientEffect>,
-    pattern_effects: Vec<PatternEffect>,
-    nodes: Vec<NodePosterior>,
-    pattern_posterior_predictive: Vec<PatternPosteriorPredictive>,
-    diagnostics: NormalMeanDiagnostics,
+    pub(crate) backend: WorkerBackend,
+    pub(crate) source_backend: WorkerBackend,
+    pub(crate) input_sha256: String,
+    pub(crate) request_sha256: String,
+    pub(crate) source_request_sha256: String,
+    pub(crate) fit_state: FitState,
+    pub(crate) sampling: SamplingSummary,
+    pub(crate) posterior: Posterior,
+    pub(crate) patient_effects: Vec<PatientEffect>,
+    pub(crate) pattern_effects: Vec<PatternEffect>,
+    pub(crate) nodes: Vec<NodePosterior>,
+    pub(crate) pattern_posterior_predictive: Vec<PatternPosteriorPredictive>,
+    pub(crate) diagnostics: NormalMeanDiagnostics,
     patient_count: usize,
     pattern_count: usize,
     total_node_count: usize,
@@ -209,6 +209,14 @@ impl PreparedReplicatedArbitraryWindowLgcpInferredKernel {
 
     pub(crate) fn request_bytes(&self) -> &[u8] {
         &self.request_bytes
+    }
+
+    pub(crate) fn request_sha256(&self) -> &str {
+        &self.request_sha256
+    }
+
+    pub(crate) fn source_request(&self) -> &replicated_arbitrary_window_lgcp_fit::WorkerRequest {
+        &self.source.request
     }
 }
 

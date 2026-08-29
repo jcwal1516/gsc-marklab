@@ -1191,3 +1191,13 @@ coarse slide predictive checks, and retains a null-compatible MSI effect; the de
 rejected diagnostic. BAY-PP/BAY-PP-A/WS-43 advance to inferred-kernel calibration/agreement or the
 immediate fitted hard-multitype CellViT caller, whichever is the smaller existing-backend path.
 UI/server/client work remains deferred.
+
+## Checkpoint 132 inferred replicated-field promotion continuation
+
+The inferred shared-kernel replicated CellViT model now agrees independently between PyMC and
+NumPyro for every global, hierarchy, latent-field, and expected-count quantity, and its six-quantity
+synthetic SBC oracle passes. Full real-geometry count-scale SBC remains honestly nonconverged at
+19/20 under both baseline and one stronger sampling capacity because of one marginal R-hat failure
+and one divergence, respectively; no thresholds, seed, priors, or geometry were tuned. BAY-PP/
+BAY-PP-A/WS-43 therefore retain an exact calibration limitation and advance to the immediate fitted
+hard-multitype CellViT caller. UI/server/client work remains deferred.
