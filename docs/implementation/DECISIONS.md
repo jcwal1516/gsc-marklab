@@ -3001,3 +3001,21 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   a static independent GEOS fixture, must agree before durable CLI promotion. This does not create
   a general geometry algebra API, correction registry, arbitrary estimator framework, or new null
   family.
+
+## DEC-0353 — Partition exact window boundaries into visible circle arcs for isotropic K/L
+
+- Date: 2026-08-29
+- Status: accepted for PP-01/PP-06C/FND-02/FND-03/PLAT-01/WF-01/WS-12/WS-22/WS-30
+- Decision: add a separately named isotropic homogeneous K/L workflow. For each directed pair
+  `i -> j`, partition the circumference centered at event `i` with radius `distance(i,j)` at every
+  analytic intersection with the canonical polygon/multipolygon boundary, classify each open arc
+  by exact-window midpoint membership, and use the reciprocal visible-circumference fraction as the
+  directed Ripley weight. Normalize the cumulative directed weights by `area(W)/(n*(n-1))` and
+  reuse the existing whole-pattern conditional-CSR null, ERL, project, scheduler, store, ledger,
+  recovery, source/runtime identity, and transactional output. Bound points, radii, unordered pair
+  visits, directed arc evaluations, segment-circle tests, arc-membership queries, CSR draws, and
+  retained/working memory. Reject nonpositive or nonfinite visible fractions.
+- Consequences: rectangle and polygon-hole hand fractions plus an independent dense angular oracle
+  must agree before durable promotion. Border, translation, and result-format 0.3 outputs remain
+  unchanged. This does not add a general correction registry, curved-window format, rasterized arc
+  approximation, automatic correction selection, or inhomogeneous isotropic family.

@@ -4162,3 +4162,36 @@ vascular transport.
   `336b9ce32d50dd9b3d782506ff574bdb52fc0153f88afde4b0be83ccb5e6552f`.
 - Affected formatting, final whitespace, direct diff, dependency-lock, and status checks pass. No
   workspace-wide gate, loader loop, full feature matrix, publication, deployment, or push runs.
+
+## Isotropic visible-arc K/L checkpoint 168 — 2026-08-29
+
+- Red-first direct: `cargo +1.96.0 test --locked --package marklab --test
+  isotropic_spatial_typed_workflow -- --nocapture` fails only on absent estimator/config/limits/
+  status exports. The first implemented run reaches the hole K assertion and exposes a test-only
+  84-versus-96 area error; correcting the independent normalization produces green. The final four
+  cases cover exact rectangle, hole, boundary-centered, million-angle concave differential,
+  exact/one-short work and memory, and tangent-only zero-visible-measure behavior.
+- Red-first durable: the matching project-workflow target fails only on the absent node/document.
+  Its first green attempt exposes one-ULP direct-versus-canonical formula normalization; an explicit
+  one-ULP direct assertion then exposes non-idempotent first-round-trip JSON. The document owner now
+  emits a stable fixed point within three bounded passes. Isotropic and translation workflow tests
+  pass with exact canonical miss/hit bytes, round trips, corruption rejection, and limit identity.
+- Red-first CLI: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  isotropic_spatial_project_cli -- --nocapture` fails with `unrecognized subcommand
+  'isotropic-spatial'`, then passes a fresh miss and backend-disabled byte-identical hit with one
+  ledger row.
+- The final affected command over three isotropic, three translation, and
+  `classical_spatial_domain` targets passes 24/24. Warning-denied affected Clippy passes for the
+  library, CLI binary, three isotropic targets, and translation document regression.
+  `cargo +1.96.0 check --locked --package marklab --no-default-features` passes.
+- Strict package docs first fail because `[0,1]` in a public error comment is interpreted as an
+  intra-doc link. The literal is backticked and the same warning-denied docs command then passes;
+  no lint allowance is added.
+- The identity-final real run uses the frozen 512-cell/12-component checkpoint-157 input, radius
+  20, 19 simulations, seed 20260829, exact 2,616,320 pair visits, and explicit arc/draw/memory
+  limits. The miss takes 6.28 seconds at 22,478,848-byte maximum RSS; a fresh
+  `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1` hit takes 5.78 seconds at 21,659,648 bytes. `cmp`
+  passes, the ledger has one row, and both outputs hash to
+  `98961c7825ae78f3805b3f643494607a83f0600edaf0582266b4cdc8cf6c0ceb`.
+- Affected formatting, whitespace, direct diff, and status checks pass. No workspace-wide gate,
+  loader loop, full feature matrix, publication, deployment, or push runs.

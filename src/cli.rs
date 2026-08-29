@@ -70,6 +70,8 @@ mod inhomogeneous_pair_correlation;
 mod inhomogeneous_project;
 #[path = "cli/inhomogeneous_spatial.rs"]
 mod inhomogeneous_spatial;
+#[path = "cli/isotropic_spatial.rs"]
+mod isotropic_spatial;
 #[path = "cli/multimodal.rs"]
 mod multimodal;
 #[path = "cli/nearest_space.rs"]
@@ -531,6 +533,36 @@ enum ProjectCommands {
         max_overlap_candidate_work: usize,
         #[arg(long)]
         max_overlap_output_vertices: usize,
+        #[arg(long)]
+        max_csr_draws: usize,
+    },
+    IsotropicSpatial {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        cells: PathBuf,
+        #[arg(long)]
+        mask: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long, value_delimiter = ',')]
+        radii_um: Vec<f64>,
+        #[arg(long)]
+        simulations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        max_pair_visits: usize,
+        #[arg(long)]
+        max_visible_arc_evaluations: usize,
+        #[arg(long)]
+        max_arc_segment_tests: usize,
+        #[arg(long)]
+        max_arc_membership_queries: usize,
         #[arg(long)]
         max_csr_draws: usize,
     },
@@ -1035,6 +1067,37 @@ pub fn run_cli() -> Result<()> {
                 maximum_overlap_evaluations: max_overlap_evaluations,
                 maximum_overlap_candidate_work: max_overlap_candidate_work,
                 maximum_overlap_output_vertices: max_overlap_output_vertices,
+                maximum_csr_draws: max_csr_draws,
+            }),
+            ProjectCommands::IsotropicSpatial {
+                project,
+                cells,
+                mask,
+                out,
+                radii_um,
+                simulations,
+                seed,
+                alpha,
+                memory_budget_mib,
+                max_pair_visits,
+                max_visible_arc_evaluations,
+                max_arc_segment_tests,
+                max_arc_membership_queries,
+                max_csr_draws,
+            } => isotropic_spatial::run_project(isotropic_spatial::Request {
+                project,
+                cells,
+                mask,
+                out,
+                radii_um,
+                simulations,
+                seed,
+                alpha,
+                memory_budget_mib,
+                maximum_pair_visits: max_pair_visits,
+                maximum_visible_arc_evaluations: max_visible_arc_evaluations,
+                maximum_arc_segment_tests: max_arc_segment_tests,
+                maximum_arc_membership_queries: max_arc_membership_queries,
                 maximum_csr_draws: max_csr_draws,
             }),
             ProjectCommands::GaussianBandwidthSelectedSpatial {

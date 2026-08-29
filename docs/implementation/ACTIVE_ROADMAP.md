@@ -1609,3 +1609,14 @@ or tuning. Production next advances only PP-06C visible-boundary/isotropic corre
 same homogeneous K/L caller. It requires a direct analytic arc-fraction oracle, arbitrary-window
 boundary geometry, exact pair and angular-work ceilings, and a separately named result identity;
 do not add a correction registry or change border/translation output bytes.
+
+## Checkpoint 168 isotropic visible-arc K/L
+
+PP-06C is complete with analytic arbitrary-window segment-circle arc partitioning, directed
+visible-fraction weights, exact hand/differential geometry oracles, hard angular-work bounds,
+strict durable encoding, and real 512-cell capacity evidence. PP-06D remains explicitly gated on a
+genuinely periodic rectangle and user approval, so no toroidal method is added. Production next
+advances the existing PP-03A homogeneous pair-correlation caller with translation correction using
+the already validated polygon-overlap owner; only after that concrete result is green may an
+isotropic-g caller reuse the visible-arc owner. Keep correction identities separate and do not add
+automatic correction selection or a general registry.

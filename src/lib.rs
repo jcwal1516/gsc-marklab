@@ -50,6 +50,8 @@ mod geom;
 mod inference;
 mod inhomogeneous_spatial;
 mod io;
+mod isotropic_spatial;
+mod isotropic_spatial_workflow;
 mod mark_pair_plan;
 mod mark_weighted_k;
 mod mark_weighted_k_workflow;
@@ -219,6 +221,14 @@ pub use inhomogeneous_spatial::{
     PiecewiseCompartmentSpatialResult, SelectedInhomogeneousSpatialResult,
 };
 pub use io::{PatternLoadDiagnostics, PatternLoadResult, PatternLoader};
+pub use isotropic_spatial::{
+    analyze_isotropic_spatial_pattern, IsotropicCacheStatus, IsotropicConfigurationSummary,
+    IsotropicGeometrySummary, IsotropicKlPoint, IsotropicSpatialConfig, IsotropicSpatialError,
+    IsotropicSpatialLimits, IsotropicSpatialResult, IsotropicSpatialResultDocument,
+    IsotropicSpatialStatus, IsotropicWorkflowIdentity, ISOTROPIC_SPATIAL_FORMAT,
+    ISOTROPIC_SPATIAL_FORMAT_VERSION,
+};
+pub use isotropic_spatial_workflow::IsotropicSpatialAnalysisNode;
 pub use mark_weighted_k::{
     continuous_mark_weighted_k, MarkWeightedKComponentInference, MarkWeightedKConfig,
     MarkWeightedKError, MarkWeightedKGeometrySummary, MarkWeightedKInferenceSummary,

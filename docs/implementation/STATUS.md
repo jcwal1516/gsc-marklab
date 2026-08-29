@@ -3415,3 +3415,37 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   classical-plus-translation command passes 39/39. Warning-denied affected Clippy, root no-default
   compilation, strict affected docs, GEOS fixture regeneration, affected formatting, and
   whitespace checks pass. No workspace-wide/Nextest loop or unrelated broad gate runs.
+
+## Isotropic visible-arc K/L checkpoint 168 — 2026-08-29
+
+- Added `analyze_isotropic_spatial_pattern`, a strict version-one isotropic document, durable typed
+  node, and `marklab project isotropic-spatial`. Every unordered pair is inspected once; each
+  eligible direction uses the reciprocal fraction of its distance circle visible in the exact
+  window, then K is `area * directed_weight_sum / (n*(n-1))`. The existing conditional-CSR/ERL,
+  project, scheduler, store, ledger, recovery, raw source, parsed geometry, and runtime owners are
+  reused under a distinct seed and result identity. Border, translation, and format-0.3 bytes are
+  unchanged.
+- `ObservationWindow2D` now computes visible fractions by analytic segment-circle intersection
+  angles followed by exact-window midpoint classification of each open arc. Shared-vertex/tangent
+  angles are tolerance-deduplicated; fractions within numerical endpoint tolerance are clamped to
+  `[0,1]`. Point/radius/unordered-pair/directed-arc/segment-test/membership-query/CSR-draw/memory
+  ceilings are explicit and cache-bound. Nonpositive visible measure, finite failures, and work
+  exhaustion fail before output.
+- Independent hand oracles give directed fractions `2/3` and `1` in a rectangle, `5/6` and `11/12`
+  around a square hole, and `1/4` and `1/2` for boundary-centered circles. A one-million-angle
+  concave-window sampler agrees independently. Exact 20/19 pair, 40/39 arc, 160/159 segment,
+  one-short membership and memory boundaries pass; a tangent-only boundary pair is rejected.
+- Canonical JSON normalization revealed and fixed a one-ULP first-round-trip drift. Both isotropic
+  and translation documents now emit a bounded stable numeric fixed point, preserving the existing
+  stable translation bytes and guaranteeing isotropic miss/hit byte identity. Strict unknown/value
+  corruption and arc-limit cache invalidation are covered.
+- The final bounded real run reuses checkpoint 157's frozen 512 cells and 12-component window at
+  radius 20, 19 simulations, seed 20260829, and exact ceilings. Its miss completes in 6.28 seconds
+  at 22,478,848-byte maximum RSS; a fresh backend-disabled hit completes in 5.78 seconds at
+  21,659,648 bytes. Both hash to
+  `98961c7825ae78f3805b3f643494607a83f0600edaf0582266b4cdc8cf6c0ceb` with one ledger row.
+  L is 31.084 micrometres and p=0.10; this is capacity evidence, not biological or patient evidence.
+- The final affected classical/isotropic/translation command passes 24/24. Warning-denied affected
+  Clippy and root no-default compilation pass. Strict docs first reject one accidental `[0,1]`
+  intra-doc link and pass after the literal is backticked. Affected formatting, whitespace, diff,
+  and status checks pass; no broad workspace/loader loop runs.
