@@ -1340,3 +1340,15 @@ boundary without a project-store change. FR-01B/GSP-01/WS-62 no longer lack ever
 sparse wavelet-like decomposition, but sparse eigensolvers/basis trees, sparse scattering, patient
 replication, and biological endpoints remain. Production proceeds to the smallest sparse scattering
 or replicated topology stability caller; UI/server/client/remote work remains deferred.
+
+## Checkpoint 145 sparse scattering and graph-family stabilization
+
+The same admitted 2,000-cell graph now produces four first-order and six second-order fixed
+scattering coefficients through 13 bounded sparse heat applications, agrees with independently
+recomputed dense spectral coefficients on the small oracle, and replays byte-identically from the
+identity-final native runtime with one ledger execution. Checkpoints 143–145 close the immediate
+pathology-scale sparse heat stability/filter/scattering ladder and pass the scheduled workspace
+stabilization without retrying the prohibited integration/Nextest loop. FR-01B/GSP-01/WS-62 remain
+active for sparse eigensolvers/bases, replicated patient evidence, and broader physical/segmentation
+perturbations. Production next advances the smallest admitted replicated topology stability or
+patient-level graph endpoint; UI/server/client/remote work remains deferred.

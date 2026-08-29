@@ -10,13 +10,14 @@ use marklab_graph::{
     cellular_complex_workflow, graph_chebyshev_heat_workflow, graph_diffusion_wavelet_workflow,
     graph_heat_workflow, graph_scattering_workflow, graph_sparse_radius_diffusion_wavelet_workflow,
     graph_sparse_radius_heat_stability_workflow, graph_sparse_radius_heat_workflow,
-    graph_spectral_workflow, graph_spectrum_null_test, graph_wavelet_workflow,
-    heterogeneous_graph_message_workflow, hypergraph_signal_workflow, simplicial_hodge_workflow,
-    typed_triangle_motif_workflow, validate_graph_mathematics_suite, CellularComplexSpec,
-    GraphChebyshevHeatSpec, GraphDiffusionWaveletSpec, GraphHeatSpec, GraphScatteringSpec,
-    GraphSparseRadiusDiffusionWaveletSpec, GraphSparseRadiusHeatSpec,
-    GraphSparseRadiusHeatStabilitySpec, GraphSpectralSpec, GraphSpectrumNullSpec, GraphWaveletSpec,
-    HeterogeneousMessageSpec, HypergraphSignalSpec, SimplicialHodgeSpec, TypedTriangleMotifSpec,
+    graph_sparse_radius_scattering_workflow, graph_spectral_workflow, graph_spectrum_null_test,
+    graph_wavelet_workflow, heterogeneous_graph_message_workflow, hypergraph_signal_workflow,
+    simplicial_hodge_workflow, typed_triangle_motif_workflow, validate_graph_mathematics_suite,
+    CellularComplexSpec, GraphChebyshevHeatSpec, GraphDiffusionWaveletSpec, GraphHeatSpec,
+    GraphScatteringSpec, GraphSparseRadiusDiffusionWaveletSpec, GraphSparseRadiusHeatSpec,
+    GraphSparseRadiusHeatStabilitySpec, GraphSparseRadiusScatteringSpec, GraphSpectralSpec,
+    GraphSpectrumNullSpec, GraphWaveletSpec, HeterogeneousMessageSpec, HypergraphSignalSpec,
+    SimplicialHodgeSpec, TypedTriangleMotifSpec,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -83,6 +84,12 @@ enum GraphCommand {
         out: PathBuf,
     },
     SparseRadiusDiffusionWavelet {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    SparseRadiusScattering {
         #[arg(long)]
         input: PathBuf,
         #[arg(long)]
@@ -176,6 +183,9 @@ pub(crate) fn run_cli() -> Result<(), GraphCliError> {
         GraphTopLevel::Graph {
             command: GraphCommand::SparseRadiusDiffusionWavelet { input, out },
         } => run_sparse_radius_diffusion_wavelet(input, out),
+        GraphTopLevel::Graph {
+            command: GraphCommand::SparseRadiusScattering { input, out },
+        } => run_sparse_radius_scattering(input, out),
         GraphTopLevel::Graph {
             command: GraphCommand::DiffusionWavelet { input, out },
         } => run_diffusion_wavelet(input, out),
@@ -293,6 +303,14 @@ fn run_sparse_radius_diffusion_wavelet(input: PathBuf, out: PathBuf) -> Result<(
     let bytes = read_input(&input)?;
     let spec: GraphSparseRadiusDiffusionWaveletSpec = serde_json::from_slice(&bytes)?;
     let result = graph_sparse_radius_diffusion_wavelet_workflow(spec)
+        .map_err(|error| GraphCliError::Input(error.to_string()))?;
+    publish_json(&out, &result)
+}
+
+fn run_sparse_radius_scattering(input: PathBuf, out: PathBuf) -> Result<(), GraphCliError> {
+    let bytes = read_input(&input)?;
+    let spec: GraphSparseRadiusScatteringSpec = serde_json::from_slice(&bytes)?;
+    let result = graph_sparse_radius_scattering_workflow(spec)
         .map_err(|error| GraphCliError::Input(error.to_string()))?;
     publish_json(&out, &result)
 }

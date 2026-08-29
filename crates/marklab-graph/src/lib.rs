@@ -17,6 +17,7 @@ mod motif;
 mod sparse_diffusion_wavelet;
 mod sparse_heat;
 mod sparse_heat_stability;
+mod sparse_scattering;
 mod validation;
 
 pub use cellular::{
@@ -50,6 +51,11 @@ pub use sparse_heat::{
 pub use sparse_heat_stability::{
     graph_sparse_radius_heat_stability_workflow, GraphSparseRadiusHeatStabilityResult,
     GraphSparseRadiusHeatStabilitySpec, SparseRadiusHeatPerturbationResult,
+};
+pub use sparse_scattering::{
+    graph_sparse_radius_scattering_workflow, GraphSparseRadiusScatteringResult,
+    GraphSparseRadiusScatteringSpec, SparseRadiusFirstOrderScatteringResult,
+    SparseRadiusSecondOrderScatteringResult,
 };
 pub use validation::{
     validate_graph_mathematics_suite, GraphMathematicsValidationResult, GraphValidationEntry,

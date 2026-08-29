@@ -3473,3 +3473,32 @@ vascular transport.
   sealed file, including the rejected-boundary stderr.
 - Affected-file Rustfmt and `git diff --check` pass. Broad workspace gates were not repeated two
   workflows after checkpoint 142; the documented Nextest/full-integration loop was not run.
+
+## Sparse radius scattering checkpoint 145 — 2026-08-29
+
+- `cargo +1.96 test --locked --package marklab --features cli --test
+  graph_sparse_radius_scattering_cli` first fails on the absent direct command and passes in the
+  final state. Its independent dense spectral oracle checks every first/second-order coefficient,
+  exact eight-application plan, and one-short aggregate candidate rejection.
+- `cargo +1.96 test --locked --package marklab --features cli --test
+  durable_sparse_radius_scattering_project` first fails on the absent project command and passes in
+  the final state with miss, fresh-process hit, byte identity, and one ledger row. `cargo +1.96 test
+  --locked --package marklab-graph` passes. The focused command over exact scattering, sparse
+  wavelet, and direct/durable sparse scattering passes 4/4 integrations; after the Clippy cleanup,
+  the final direct/durable pair passes again.
+- The first workspace Clippy attempt reports only `clippy::needless-range-loop` in the new
+  first-modulus propagation. After converting it to the equivalent enumerated iterator and
+  revalidating focused behavior, `cargo +1.96 clippy --locked --workspace --all-targets
+  --all-features -- -D warnings` passes in 48.77 seconds. `cargo +1.96 fmt --all --check`, `cargo
+  +1.96 check --locked --workspace --no-default-features` (4.66 seconds), `cargo +1.96 test --locked
+  --workspace --doc --all-features` (11.57 seconds), and `RUSTDOCFLAGS='-D warnings' cargo +1.96 doc
+  --locked --workspace --all-features --no-deps` (4.31 seconds) pass.
+- The pre-final-runtime remote miss completes in 7.60 seconds at 18,448,384-byte maximum RSS. The
+  identity-final v37 miss completes in 10.64 seconds at 20,348,928-byte maximum RSS and is
+  scientifically byte-identical. Its fresh-process hit passes `cmp` with one ledger row. Result
+  SHA-256 is `d1c2a01c709a20528665d21a7d8d45d450f8dc403ae1a06924990514dfab71e0`.
+  `ssh mini 'cd /Volumes/1TB/marklab/runs/results-cellvit-categorical-v37-sparse-scattering-final
+  && shasum -a 256 -c bundle_sha256.txt'` verifies every sealed file.
+- Final affected-file Rustfmt and `git diff --check` pass. The documented macOS Nextest/full-
+  integration loop was not run; no feature matrix, benchmark, fuzzing, packaging, dependency audit,
+  push, publication, deployment, or history rewrite ran.

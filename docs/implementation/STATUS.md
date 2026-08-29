@@ -2759,3 +2759,33 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   signal decomposition, not a sparse eigensolver/basis tree, scattering, patient reproducibility,
   molecular association, biological significance, causal, or clinical evidence. Focused affected
   tests and formatting pass. Broad gates were not repeated two workflows after checkpoint 142.
+
+## Sparse radius scattering checkpoint 145 — 2026-08-29
+
+- Added direct and durable `sparse-radius-scattering`. It composes the DEC-0331 telescoping sparse
+  heat filters with pointwise absolute value and graph-node mean/energy aggregation. Fixed order one
+  or two is supported over 1–16 increasing times; second-order paths use only strictly coarser
+  filters. Exact heat-application planning, aggregate candidate/matrix-vector work, peak graph
+  working, retained storage, finite-result, input, output, and durable artifact bounds are explicit.
+- The five-node order-two behavior test independently recomputes every required heat action with the
+  dense spectral owner, agrees for all three first-order and three second-order coefficients, proves
+  the exact eight-application plan, and rejects a one-short aggregate candidate ceiling. The durable
+  integration proves miss, fresh-process hit, byte identity, and one ledger row. Existing exact and
+  sparse wavelet/scattering integrations remain green.
+- The real four-scale 2,000-node/24,755-edge run produces four first-order mean magnitudes
+  0.03287–0.05329 and six second-order magnitudes 0.003766–0.008553. All 13 heat applications
+  complete with 729,118 candidate evaluations, 8,756,700 matrix-vector work, 2,268,248-byte peak
+  estimated graph storage, and 1,288,192-byte conservative retained storage. The identity-final miss
+  completes in 10.64 seconds at 20,348,928-byte maximum RSS; its fresh-process hit is byte-identical
+  with one ledger row. Result SHA-256 is
+  `d1c2a01c709a20528665d21a7d8d45d450f8dc403ae1a06924990514dfab71e0`.
+- The hash-verified canonical 1-TB bundle is
+  `results-cellvit-categorical-v37-sparse-scattering-final`; v36 is retained as matching pre-final-
+  iterator identity evidence. This is one-specimen descriptive graph signal, not patient
+  reproducibility, molecular association, biological significance, causal, or clinical evidence.
+- At the three-workflow checkpoint, workspace formatting, warning-denied all-target/all-feature
+  Clippy, workspace no-default compilation, all-feature doctests, strict all-feature workspace docs,
+  focused tests, bundle verification, and whitespace checks pass. Clippy first found and the focused
+  tests revalidated one iterator-form cleanup before its final pass. The documented macOS Nextest/
+  full-integration loop was not run; no feature matrix, benchmark, fuzzing, packaging, dependency
+  audit, push, publication, deployment, or history rewrite ran.
