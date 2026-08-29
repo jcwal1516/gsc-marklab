@@ -2980,3 +2980,24 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   `Rscript` is present but `spatstat.explore` is absent and the repository has no pinned R
   environment; pinned external agreement remains unavailable rather than installing an unpinned
   package.
+
+## DEC-0352 — Use bounded exact polygon intersection for translation-corrected K/L
+
+- Date: 2026-08-29
+- Status: accepted for PP-01/PP-06B/FND-02/FND-03/PLAT-01/WF-01/WS-12/WS-22/WS-30
+- Decision: add a separately named translation-corrected homogeneous K/L workflow over the
+  canonical `ObservationWindow2D`. For every unordered pair within a requested radius, compute the
+  exact area of `W` intersected with its displacement translate, contribute both ordered directions
+  with weight `area(W) / overlap`, and normalize by `n * (n - 1)`. Reuse the existing whole-pattern
+  conditional-CSR null, ERL inference, exact point/window identities, scheduler, artifact store,
+  ledger, recovery, and transactional output. Keep standard-border result bytes and semantics
+  unchanged. Use `geo` 0.33.1 with default features disabled solely for valid polygon/multipolygon
+  Boolean intersection and planar unsigned area; it is MIT OR Apache-2.0, supports Rust 1.88, and
+  therefore fits the repository license and pinned Rust 1.96 envelope without triangulation,
+  projection, or parallel defaults. Bound point/radius/pair/overlap-call/conservative segment-pair/
+  overlap-output/draw/memory work explicitly and reject nonpositive or nonfinite overlap.
+- Consequences: the new strict result family reports translation rather than border correction and
+  remains separate from result-format 0.3. Rectangle and concave-polygon hand oracles, followed by
+  a static independent GEOS fixture, must agree before durable CLI promotion. This does not create
+  a general geometry algebra API, correction registry, arbitrary estimator framework, or new null
+  family.

@@ -1598,3 +1598,14 @@ Clippy, no-default compilation, doctests, and strict docs are current; the docum
 loop is not retried. Production next advances only the PP-06B polygon-overlap geometry immediately
 consumed by translation-corrected homogeneous K/L, with an exact rectangle/polygon oracle and hard
 overlap/pair/memory ceilings before any broader correction surface.
+
+## Checkpoint 167 translation-corrected polygon-window K/L
+
+PP-06B is complete: exact canonical polygon/multipolygon translation overlap is consumed directly
+by homogeneous K/L with whole-pattern conditional CSR, strict finite output, independent hand and
+GEOS fixtures, hard work/memory ceilings, and durable fresh-process replay. The bounded real
+512-cell CPTAC run establishes capacity and retains its one-specimen p=0.10 without interpretation
+or tuning. Production next advances only PP-06C visible-boundary/isotropic correction through this
+same homogeneous K/L caller. It requires a direct analytic arc-fraction oracle, arbitrary-window
+boundary geometry, exact pair and angular-work ceilings, and a separately named result identity;
+do not add a correction registry or change border/translation output bytes.

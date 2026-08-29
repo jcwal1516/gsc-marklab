@@ -1,5 +1,8 @@
 use std::io::Write;
 
+use geo::{
+    Area, BooleanOps, Coord, LineString, MultiPolygon as GeoMultiPolygon, Polygon as GeoPolygon,
+};
 use geojson::{GeoJson, Geometry, Value};
 use marklab_data::{
     CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit, SpatialAxis,
@@ -103,6 +106,7 @@ pub struct ObservationWindowDescriptor {
 #[derive(Clone, Debug)]
 pub struct ObservationWindow2D {
     polygons: Vec<Polygon>,
+    translation_geometry: GeoMultiPolygon<f64>,
     boundary: RTree<BoundarySegment>,
     geometry_digest: ContentDigest,
     descriptor: ObservationWindowDescriptor,
@@ -195,10 +199,12 @@ impl ObservationWindow2D {
             segments,
         } = topology::validate_and_canonicalize(&mut polygons, limits.maximum_topology_candidates)?;
         let logical_digest = window_digest(&polygons)?;
+        let translation_geometry = to_geo_multipolygon(&polygons);
         let boundary = RTree::bulk_load(segments);
         let component_count = polygons.len();
         Ok(Self {
             polygons,
+            translation_geometry,
             boundary,
             geometry_digest: logical_digest,
             descriptor: ObservationWindowDescriptor {
@@ -339,6 +345,57 @@ impl ObservationWindow2D {
         areas.sort_by(f64::total_cmp);
         areas
     }
+
+    pub(crate) fn translation_segment_count(&self) -> usize {
+        self.descriptor
+            .vertex_count
+            .saturating_sub(self.descriptor.ring_count)
+    }
+
+    pub(crate) fn translation_overlap_area_um2(
+        &self,
+        displacement_x_um: f64,
+        displacement_y_um: f64,
+        maximum_output_vertices: usize,
+    ) -> Result<TranslationOverlap2D, ObservationWindowError> {
+        if !displacement_x_um.is_finite() || !displacement_y_um.is_finite() {
+            return Err(ObservationWindowError::NonFiniteTranslation);
+        }
+        let translated = translate_geo_multipolygon(
+            &self.translation_geometry,
+            displacement_x_um,
+            displacement_y_um,
+        )?;
+        let intersection = self.translation_geometry.intersection(&translated);
+        let output_vertices = intersection
+            .0
+            .iter()
+            .flat_map(|polygon| std::iter::once(polygon.exterior()).chain(polygon.interiors()))
+            .map(|ring| ring.0.len())
+            .try_fold(0_usize, |total, count| total.checked_add(count))
+            .ok_or(ObservationWindowError::SizeOverflow)?;
+        if output_vertices > maximum_output_vertices {
+            return Err(
+                ObservationWindowError::TranslationOutputVertexLimitExceeded {
+                    observed: output_vertices,
+                    maximum: maximum_output_vertices,
+                },
+            );
+        }
+        let area_um2 = intersection.unsigned_area();
+        if !area_um2.is_finite() {
+            return Err(ObservationWindowError::NonFiniteTranslationOverlap);
+        }
+        Ok(TranslationOverlap2D {
+            area_um2: canonical_zero(area_um2),
+            output_vertices,
+        })
+    }
+}
+
+pub(crate) struct TranslationOverlap2D {
+    pub(crate) area_um2: f64,
+    pub(crate) output_vertices: usize,
 }
 
 /// Failure to decode, validate, or query an exact 2-D observation window.
@@ -422,9 +479,92 @@ pub enum ObservationWindowError {
     /// Boundary query coordinates are non-finite.
     #[error("observation-window query point must be finite")]
     NonFiniteQueryPoint,
+    /// Translation displacement is non-finite.
+    #[error("observation-window translation displacement must be finite")]
+    NonFiniteTranslation,
+    /// Translating a finite input coordinate overflowed.
+    #[error("observation-window translated coordinate is non-finite")]
+    TranslationCoordinateOverflow,
+    /// Boolean-intersection output exceeds the caller ceiling.
+    #[error("translation overlap produced {observed} positions; maximum is {maximum}")]
+    TranslationOutputVertexLimitExceeded {
+        /// Observed output positions.
+        observed: usize,
+        /// Caller ceiling.
+        maximum: usize,
+    },
+    /// Boolean-intersection area is non-finite.
+    #[error("translation overlap area is non-finite")]
+    NonFiniteTranslationOverlap,
     /// Checked count or byte arithmetic overflowed.
     #[error("observation-window size arithmetic overflow")]
     SizeOverflow,
+}
+
+fn to_geo_multipolygon(polygons: &[Polygon]) -> GeoMultiPolygon<f64> {
+    GeoMultiPolygon::new(
+        polygons
+            .iter()
+            .map(|polygon| {
+                GeoPolygon::new(
+                    to_geo_ring(&polygon.exterior),
+                    polygon.holes.iter().map(|ring| to_geo_ring(ring)).collect(),
+                )
+            })
+            .collect(),
+    )
+}
+
+fn to_geo_ring(ring: &[Point]) -> LineString<f64> {
+    LineString::new(
+        ring.iter()
+            .map(|point| Coord {
+                x: point[0],
+                y: point[1],
+            })
+            .collect(),
+    )
+}
+
+fn translate_geo_multipolygon(
+    geometry: &GeoMultiPolygon<f64>,
+    displacement_x_um: f64,
+    displacement_y_um: f64,
+) -> Result<GeoMultiPolygon<f64>, ObservationWindowError> {
+    geometry
+        .0
+        .iter()
+        .map(|polygon| {
+            Ok(GeoPolygon::new(
+                translate_geo_ring(polygon.exterior(), displacement_x_um, displacement_y_um)?,
+                polygon
+                    .interiors()
+                    .iter()
+                    .map(|ring| translate_geo_ring(ring, displacement_x_um, displacement_y_um))
+                    .collect::<Result<Vec<_>, _>>()?,
+            ))
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(GeoMultiPolygon::new)
+}
+
+fn translate_geo_ring(
+    ring: &LineString<f64>,
+    displacement_x_um: f64,
+    displacement_y_um: f64,
+) -> Result<LineString<f64>, ObservationWindowError> {
+    ring.0
+        .iter()
+        .map(|coordinate| {
+            let x = coordinate.x + displacement_x_um;
+            let y = coordinate.y + displacement_y_um;
+            if !x.is_finite() || !y.is_finite() {
+                return Err(ObservationWindowError::TranslationCoordinateOverflow);
+            }
+            Ok(Coord { x, y })
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(LineString::new)
 }
 
 fn extract_geometry(geojson: GeoJson) -> Result<Geometry, ObservationWindowError> {

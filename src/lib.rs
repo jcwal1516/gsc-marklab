@@ -87,6 +87,8 @@ mod spatial_autocorrelation_workflow;
 mod spectra;
 #[cfg(feature = "cli")]
 mod synthetic_smoke;
+mod translation_spatial;
+mod translation_spatial_workflow;
 mod workflow;
 #[cfg(feature = "wsi")]
 mod wsi;
@@ -510,6 +512,14 @@ pub use spatial_autocorrelation::{
 pub use spatial_autocorrelation_workflow::{
     GlobalMoranAnalysisNode, GlobalMoranPrePostNode, GlobalMoranPrePostResult,
 };
+pub use translation_spatial::{
+    analyze_translation_spatial_pattern, TranslationCacheStatus, TranslationConfigurationSummary,
+    TranslationGeometrySummary, TranslationKlPoint, TranslationSpatialConfig,
+    TranslationSpatialError, TranslationSpatialLimits, TranslationSpatialResult,
+    TranslationSpatialResultDocument, TranslationSpatialStatus, TranslationWorkflowIdentity,
+    TRANSLATION_SPATIAL_FORMAT, TRANSLATION_SPATIAL_FORMAT_VERSION,
+};
+pub use translation_spatial_workflow::TranslationSpatialAnalysisNode;
 pub use workflow::{
     DeclaredMarkedAnalysisNode, DeclaredMarkedAnalysisResult, MarkedAnalysisNode, MarkedPrePostNode,
 };

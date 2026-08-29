@@ -182,7 +182,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | PP-04C | complete | J is persisted only when F/G exist and `1-F` exceeds the exact configured floor; unavailable radii remain typed and no infinity or non-finite result is serialized. |
 | PP-05 | active | The Gaussian estimator persists `n/(n-1)` leave-one-out event rows, deterministic window-mass quadrature, fixed probe intensities/masses, exact digests, finite floors, and hard bounds consumed by inhomogeneous K/L and g. K/L can select from a prespecified increasing bandwidth list by persisted mean leave-one-out log intensity without inspecting the spatial curve. The exact binary-compartment estimator persists `(n_c-1)/area_c` rows, rejects interface/sparse roles, fixes both counts under its exact-window null, and runs durably through K/L and g. Broader cross-fitting/calibration, real admissible evidence, and pinned external agreement remain. |
 | PP-06A | complete | Standard reduced-sample border K/L is implemented as A*q(r)/(n*m(r)) with exact eligible-center/ordered-pair counts, hand and brute-force oracles, typed unavailable states, and deterministic CSR inference. |
-| PP-06B | blocked with named prerequisite | Requires validated polygon-overlap geometry and PP-01 baseline. |
+| PP-06B | complete | Exact polygon/multipolygon translation overlap now feeds homogeneous K/L with whole-pattern conditional CSR, independent rectangle/concave/GEOS oracles, hard Boolean/pair/draw/memory ceilings, durable replay, and a bounded 512-cell CRC capacity run. |
 | PP-06C | blocked with named prerequisite | Requires visible-boundary arc geometry and PP-01 baseline. |
 | PP-06D | gated pending explicit user decision | The master plan rejects toroidal behavior by default; admission requires a genuinely periodic rectangular design and explicit user approval. |
 | REG-01 | blocked with named prerequisite | Requires BACK-01 and GEO-01 uncertainty-bearing geometry. |
@@ -405,3 +405,17 @@ strict all-feature docs. No finding changes production or tracker states. The do
 loader loop and phase/release feature matrix remain excluded. The next implementable dependency is
 PP-06B's exact polygon-overlap translation correction through the existing homogeneous K/L caller;
 pinned PP-05 spatstat agreement remains blocked on an absent repository-owned R environment.
+
+## Translation-corrected polygon-window K/L checkpoint 167
+
+PP-06B is complete through a separate strict translation result family, leaving the existing
+standard-border bytes unchanged. Valid canonical polygon/multipolygon windows now compute
+`area(W intersect (W+h))` with bounded Boolean work and output complexity; each unordered pair
+contributes both ordered `area/overlap` weights before `n(n-1)` normalization. Rectangle, concave,
+and static GEOS 3.14.1 holed-multipolygon oracles agree, and zero-measure overlaps fail explicitly.
+The durable project CLI binds raw source, parsed point/window, full configuration, native runtime,
+and `geo` adapter identities and replays byte-identically without execution. A frozen 512-cell
+CPTAC window completes at 20 micrometres in 6.68 seconds with 22,528,000-byte maximum RSS, then
+replays backend-disabled with one ledger row. This is bounded capacity evidence, not a biological
+claim. Production next advances PP-06C visible-boundary/isotropic correction only through the same
+homogeneous K/L caller and an independent arc-fraction oracle; no correction registry is promoted.

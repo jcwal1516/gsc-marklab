@@ -3385,3 +3385,33 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   dependency audit, push, publication, deployment, or history rewrite runs.
 - Final formatting, whitespace, direct diff, and status checks pass. The user's pre-existing CRC
   outcome and README/package metadata work remains unstaged and unmodified.
+
+## Translation-corrected polygon-window K/L checkpoint 167 — 2026-08-29
+
+- Added `analyze_translation_spatial_pattern`, its strict version-one document, durable typed node,
+  and `marklab project translation-spatial`. The existing standard-border classical family and
+  result-format 0.3 are unchanged. The estimator evaluates each unordered displacement once,
+  contributes both ordered `area(W)/area(W intersect (W+h))` weights, normalizes by `n(n-1)`, and
+  uses the existing whole-pattern conditional-CSR/ERL owners under a distinct seed namespace.
+- `ObservationWindow2D` now retains one geometry derived from its already validated canonical
+  rings. `geo` 0.33.1 is admitted with default features disabled for Boolean intersection and
+  planar area only; its lock-compatible `geo-types` is 0.7.19, preserving the existing
+  `thiserror` 2.0.18 selection. Point/radius/pair/overlap-call/conservative segment-pair/output-
+  vertex/CSR-draw/retained-memory ceilings are cache-bound. Zero-measure and nonfinite overlap,
+  translated-coordinate overflow, and output-complexity exhaustion fail explicitly.
+- The 10-by-10 rectangle gives overlap 90 and K `10000/90`; a concave seven-unit L gives overlap 3
+  and K `49/3`. A static GEOS 3.14.1 holed, disconnected multipolygon fixture independently gives
+  area 93 and translated overlap 61.8125. Exact 20/19 pair and overlap edges, 320/319 candidate
+  work, preflight output, one-byte-short memory, strict codec corruption, cache invalidation, and
+  fresh-process miss/backend-disabled hit byte identity are covered.
+- A bounded capacity run reuses the frozen 512-cell CPTAC input and 12-component exact window from
+  checkpoint 157 at one prespecified 20-micrometre radius, 19 simulations, seed 20260829, and exact
+  ceilings. The miss completes in 6.68 seconds at 22,528,000-byte maximum RSS; the fresh disabled-
+  execution hit completes in 5.76 seconds. Both results hash to
+  `336b9ce32d50dd9b3d782506ff574bdb52fc0153f88afde4b0be83ccb5e6552f`, and the ledger has one row.
+  Observed L is 30.826 micrometres with p=0.10; this is one-specimen capacity evidence and is not
+  interpreted as interaction or patient evidence.
+- Five final new behavior tests pass after the source/runtime correction; the earlier affected
+  classical-plus-translation command passes 39/39. Warning-denied affected Clippy, root no-default
+  compilation, strict affected docs, GEOS fixture regeneration, affected formatting, and
+  whitespace checks pass. No workspace-wide/Nextest loop or unrelated broad gate runs.

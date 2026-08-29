@@ -4129,3 +4129,36 @@ vascular transport.
   not run. Checkpoints 163--165 retain their exact focused/direct/durable/CLI evidence. Final
   `git diff --check`, direct diff review, and `git status --short` pass with only the user's
   pre-existing unstaged/untracked changes after commit.
+
+## Translation-corrected polygon-window K/L checkpoint 167 — 2026-08-29
+
+- Red-first direct: `cargo +1.96.0 test --locked --package marklab --test
+  translation_spatial_typed_workflow -- --nocapture` fails only on the absent estimator/config/
+  limits/status exports, then passes 3/3. The final cases cover exact rectangle and concave hand
+  values, a static GEOS 3.14.1 holed-multipolygon oracle, exact/one-short pair, overlap, candidate-
+  work and memory limits, preflight output complexity, and zero-measure overlap.
+- Red-first durable: `cargo +1.96.0 test --locked --package marklab --test
+  translation_spatial_project_workflow -- --nocapture` first exposes one test-local name shadowing;
+  after that correction it fails only on the absent node/document and then passes. Final evidence
+  covers canonical round trip, unknown/value/work corruption, miss/hit equality, one successful
+  run, and overlap-limit invalidation.
+- Red-first CLI: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  translation_spatial_project_cli -- --nocapture` fails with `unrecognized subcommand
+  'translation-spatial'`, then passes a fresh miss and backend-disabled byte-identical hit with one
+  ledger row. The final three-target command passes 5/5 after raw-source/runtime identity and null-
+  geometry validation are added.
+- The affected command over the three translation targets plus `classical_spatial_domain`,
+  `classical_spatial_workflow`, `classical_spatial_cli`, and `durable_classical_project` passes
+  39/39. `cargo +1.96.0 clippy --locked --package marklab --features cli --lib --bin marklab` with
+  all three new targets and `-- -D warnings` passes. `cargo +1.96.0 check --locked --package marklab
+  --no-default-features` and strict CLI package docs pass.
+- `PATH=/opt/homebrew/bin:/usr/bin:/bin target/pymc-venv/bin/python
+  tests/fixtures/translation_overlap/generate_geos_oracle.py | diff -u ... -` passes exactly.
+  The bounded real miss uses the frozen checkpoint-157 512-cell/12-component input, radius 20,
+  19 simulations, seed 20260829, exact 2,616,320 pair visits, and explicit overlap/draw/memory
+  limits. It completes in 6.68 seconds at 22,528,000-byte maximum RSS. A fresh
+  `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1` hit completes in 5.76 seconds; `cmp` passes, the
+  ledger has one row, and both outputs hash to
+  `336b9ce32d50dd9b3d782506ff574bdb52fc0153f88afde4b0be83ccb5e6552f`.
+- Affected formatting, final whitespace, direct diff, dependency-lock, and status checks pass. No
+  workspace-wide gate, loader loop, full feature matrix, publication, deployment, or push runs.
