@@ -3131,3 +3131,34 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   `c71a28bff748f8d618c2672bfdbd913ffdcd7047d5045e9fab165611a4653e53`. Focused Rust/Python tests,
   Python compilation, affected formatting, warning-denied Clippy, root no-default compilation,
   remote complete rehash, and whitespace checks pass. No broad workspace gate runs.
+
+## Real exact-window inhomogeneous K/L checkpoint 157 — 2026-08-29
+
+- Added `marklab project inhomogeneous-spatial` as the smallest user-facing durable connection to
+  the existing PP-02 node. It reuses the exact-float result codec, project, scheduler, artifact
+  store, native runtime identity, source/window/config identities, ledger/recovery, and caller-
+  supplied point/radius/probe/intensity/pair/null/memory ceilings. The categorical-pair CLI also
+  drops its private window reader in favor of the already shared bounded UTF-8 owner.
+- The first real exact-window run fails during output validation before ledger commit: a
+  high-coordinate grid centre built as `min + index*spacing + 0.5*spacing` differs bitwise from the
+  validator's algebraically equivalent reconstruction. The durable CLI oracle is changed to retain
+  the real high-coordinate rectangle, fails with `fixed intensity grid row is inconsistent`, and
+  passes after validation uses the builder's exact operation order.
+- The identity-final run uses the first provenance-sorted frozen CPTAC slide: 512 exact cells, its
+  12-component patch-union window, 20/50/100-micrometre radii, 50-micrometre Gaussian leave-one-out
+  bandwidth, a fixed 16x16 grid, 19 conditioned simulations, seed 20260829, and explicit resource
+  ceilings. It completes in 6.26 seconds at 22,118,400-byte maximum RSS. A fresh backend-disabled
+  process returns a byte-identical hit; SHA-256 is
+  `26861081dda3ee587d20aa0f9fe79056cc1676b46cbfeaebdb981fc2918654d5` and the ledger remains one row.
+- L-minus-r values are -18.686, +16.992, and +22.135 micrometres; all radii are jointly eligible.
+  The global 19-draw p=0.05 is the smallest attainable value and is not treated as evidence. Only
+  37/256 bounding-grid centres fall inside the disconnected window, fixed-grid mass is 205.30 for
+  512 cells, and fitted event intensity spans 4.36e-9 to 4.22e12 per square micrometre. This
+  configuration is retained as an unreliable real-scale/capacity diagnostic without tuning and is
+  not promoted.
+- The 17-file 1-TB bundle is
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v51-inhomogeneous-kl-final`;
+  `SHA256SUMS` hashes to
+  `5e2af34ed49a52d1a044ae8f75442ad622f9477c0e0b311c417bbbdfad00cd74`. Six affected direct/durable
+  tests, warning-denied Clippy, no-default compilation, affected formatting, remote rehash, and
+  whitespace checks pass. No broad workspace gate runs.

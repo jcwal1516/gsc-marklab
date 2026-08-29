@@ -2811,3 +2811,25 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   Pair-only balanced accuracy is 0.25, and adding the block changes M0–M3 balanced accuracy by
   -0.25 with interval [-0.625, 0.25]. Minimum step-down adjusted p is 0.44. The block is
   null-compatible, unstable in its lower tail, nonincremental, and is not promoted or fused.
+
+## DEC-0344 — Expose the existing inhomogeneous K/L owner and retain its real scale failure
+
+- Date: 2026-08-29
+- Status: accepted for PP-02/PLAT-01/WF-01/WS-12/WS-30
+- Decision: add `marklab project inhomogeneous-spatial` as a narrow durable CLI over the existing
+  Gaussian leave-one-out, fixed-grid, standard-border inhomogeneous K/L node. Reuse the exact-float
+  codec, project, scheduler, artifact store, runtime identity, source/window/config identities,
+  ledger/recovery, and explicit point/radius/probe/intensity/pair/null/memory controls. Exercise one
+  provenance-sorted frozen 512-cell CPTAC slide with its exact 12-component patch-union window at
+  fixed 20/50/100-micrometre radii, 50-micrometre bandwidth, 16x16 grid, 19 simulations, and seed
+  20260829. Treat it only as descriptive specimen-scale evidence; do not tune the estimator after
+  observing diagnostics.
+- Consequences: the real window first exposes a bitwise validation defect: grid construction uses
+  `min + index * spacing` followed by `+ 0.5 * spacing`, while validation used the algebraically
+  equivalent `min + (index + 0.5) * spacing`. A high-coordinate durable regression fails before and
+  passes after validation reuses the builder's exact operation order. The identity-final result
+  replays byte-identically with one ledger row. All radii are finite, but only 37/256 probes lie in
+  the disconnected window, fixed-grid mass is 205.30 for 512 cells, and event intensity ranges from
+  4.36e-9 to 4.22e12 per square micrometre. The minimum attainable 19-draw global p=0.05 is not
+  promoted. This exact window/grid/bandwidth result is an unreliable real-scale diagnostic, not
+  evidence for interaction or a reason to tune hidden defaults.

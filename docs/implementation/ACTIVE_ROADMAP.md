@@ -1485,3 +1485,14 @@ endpoint p below 0.44; it is not promoted or fused. MRK-01/MRK-02C/WS-23/WS-30/W
 patient evidence without a second pair engine. The next broad-goal continuation must select another
 immediate scientific caller from the remaining active workstreams; it must not generalize project,
 backend, mark, or endpoint infrastructure solely from this negative result.
+
+## Checkpoint 157 real inhomogeneous K/L scale diagnostic
+
+The existing PP-02 estimator now has a durable project CLI and a real exact-window CellViT caller.
+The first 512-cell result replays exactly, but the 16x16 bounding grid retains only 37 probes across
+the 12 disconnected components and yields an untenable intensity range, so its minimum-resolution
+p=0.05 is not promoted. This closes the absence of every real-scale PP-02 caller negatively; it does
+not satisfy pinned external agreement, multiple estimators/corrections, compartment calibration, or
+stable scale policy. Do not tune this result. The next broad-goal continuation should select another
+immediate scientific caller rather than generalize estimator or project infrastructure from this
+failure.

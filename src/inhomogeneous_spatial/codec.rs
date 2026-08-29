@@ -89,8 +89,10 @@ fn validate_fixed_grid(
     let mut correction = 0.0;
     for y in 0..grid[1] {
         for x in 0..grid[0] {
-            let center_x = min_x + (x as f64 + 0.5) * spacing[0];
-            let center_y = min_y + (y as f64 + 0.5) * spacing[1];
+            let cell_min_x = min_x + x as f64 * spacing[0];
+            let cell_min_y = min_y + y as f64 * spacing[1];
+            let center_x = cell_min_x + 0.5 * spacing[0];
+            let center_y = cell_min_y + 0.5 * spacing[1];
             if !window.contains(center_x, center_y) {
                 continue;
             }

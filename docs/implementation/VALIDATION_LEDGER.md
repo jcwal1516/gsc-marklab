@@ -3866,3 +3866,34 @@ vascular transport.
   whitespace checks pass. No workspace-wide test/Clippy/docs, Nextest/full integration, feature
   matrix, benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history
   rewrite runs.
+
+## Real exact-window inhomogeneous K/L checkpoint 157 — 2026-08-29
+
+- Red-first evidence: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  inhomogeneous_spatial_project_cli -- --nocapture` first fails because `project
+  inhomogeneous-spatial` is absent. It passes miss/fresh backend-disabled hit, byte equality, typed
+  result, and one-ledger assertions after the narrow CLI is implemented.
+- The first real command fails after computation with `output encoding failed: fixed intensity grid
+  row is inconsistent`. The CLI oracle is changed to the real high-coordinate rectangle and 16x16
+  grid; it reproduces the failure. `build_grid` and `validate_fixed_grid` used different floating-
+  operation order for cell centres. After the validator uses the builder's exact operations, the
+  same oracle passes without tolerance or schema changes.
+- `/usr/bin/time -l target/debug/marklab project inhomogeneous-spatial ...` completes the identity-
+  final real miss in 6.26 seconds at 22,118,400-byte maximum RSS. The result performs 5,641,561
+  intensity evaluations, 155,510 total pair visits, and 14,312 null draws under 100,000,000,
+  10,000,000, and 1,000,000 ceilings. A fresh
+  `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1` process reports a hit; `cmp` passes, the ledger
+  remains one row, and both results hash to
+  `26861081dda3ee587d20aa0f9fe79056cc1676b46cbfeaebdb981fc2918654d5`.
+- The real result retains L-minus-r -18.686/+16.992/+22.135 micrometres, 37/256 grid probes,
+  fixed-grid mass 205.30, intensity range 4.36e-9 to 4.22e12 per square micrometre, and the minimum
+  attainable 19-draw p=0.05. It is recorded as unreliable scale/capacity evidence, not interaction.
+- The focused command over `inhomogeneous_spatial_project_cli`,
+  `inhomogeneous_spatial_project_workflow`, and `inhomogeneous_spatial_typed_workflow` passes 6/6.
+  Warning-denied affected Clippy and clean root no-default compilation pass. Remote
+  `shasum -a 256 -c SHA256SUMS` verifies all 16 listed files in the 17-file v51 bundle;
+  `SHA256SUMS` hashes to
+  `5e2af34ed49a52d1a044ae8f75442ad622f9477c0e0b311c417bbbdfad00cd74`. Affected formatting and
+  whitespace checks pass. No workspace-wide test/Clippy/docs, Nextest/full integration, feature
+  matrix, benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history
+  rewrite runs.

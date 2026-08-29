@@ -108,8 +108,7 @@ impl WorkflowNode for InhomogeneousSpatialAnalysisNode<'_> {
     }
 
     fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
-        validate(output, self.pattern, self.window, self.config).map_err(NodeError::encoding)?;
-        crate::exact_float_json::encode(output).map_err(NodeError::encoding)
+        encode_result(output, self.pattern, self.window, self.config).map_err(NodeError::encoding)
     }
 
     fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
@@ -121,6 +120,16 @@ impl WorkflowNode for InhomogeneousSpatialAnalysisNode<'_> {
     fn output_kind(&self) -> &'static str {
         RESULT_KIND
     }
+}
+
+pub(crate) fn encode_result(
+    output: &InhomogeneousSpatialResult,
+    pattern: &Pattern,
+    window: &ObservationWindow2D,
+    config: &InhomogeneousSpatialConfig,
+) -> io::Result<Box<[u8]>> {
+    validate(output, pattern, window, config)?;
+    crate::exact_float_json::encode(output)
 }
 
 #[derive(Serialize)]

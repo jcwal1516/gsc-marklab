@@ -23,4 +23,6 @@ pub use types::{
     InhomogeneousSpatialLimits, InhomogeneousSpatialPoint, InhomogeneousSpatialPointStatus,
     InhomogeneousSpatialResult,
 };
+#[cfg(feature = "cli")]
+pub(crate) use workflow::encode_result;
 pub use workflow::InhomogeneousSpatialAnalysisNode;

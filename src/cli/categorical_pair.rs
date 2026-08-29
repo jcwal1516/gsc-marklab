@@ -18,7 +18,7 @@ use crate::{
     SlideId, SpatialAxis, StoreId, TumorMask, WorkflowGraph,
 };
 
-use super::classical::{native_runtime_provenance, source_artifact};
+use super::classical::{native_runtime_provenance, read_bounded_utf8, source_artifact};
 
 const SOURCE_CELLS_KIND: &str = "application/vnd.marklab.source.categorical-cell-table;version=1";
 const SOURCE_WINDOW_KIND: &str = "application/vnd.marklab.source.observation-window;version=1";
@@ -56,7 +56,8 @@ pub(super) fn run_project(request: Request) -> Result<()> {
             "--memory-budget-mib must be positive".into(),
         ));
     }
-    let window_text = read_bounded_window(&request.mask)?;
+    let window_limits = ObservationWindowLimits::default();
+    let window_text = read_bounded_utf8(&request.mask, window_limits.maximum_input_bytes)?;
     let mask = TumorMask::from_geojson_str(&window_text)
         .map_err(|error| MarklabError::Geometry(error.to_string()))?;
     let pattern = PatternLoader::new(&mask).load(&request.cells)?;
@@ -107,9 +108,8 @@ pub(super) fn run_project(request: Request) -> Result<()> {
         Vec::new(),
     )
     .map_err(|error| MarklabError::Validation(error.to_string()))?;
-    let window =
-        ObservationWindow2D::from_geojson_str(&window_text, ObservationWindowLimits::default())
-            .map_err(|error| MarklabError::Geometry(error.to_string()))?;
+    let window = ObservationWindow2D::from_geojson_str(&window_text, window_limits)
+        .map_err(|error| MarklabError::Geometry(error.to_string()))?;
 
     let cells_after = source_artifact(&request.cells, SOURCE_CELLS_KIND)?;
     let window_after = source_artifact(&request.mask, SOURCE_WINDOW_KIND)?;
@@ -361,15 +361,4 @@ fn publish_record(
         .register_artifact(record)
         .map_err(|error| MarklabError::Validation(error.to_string()))?;
     Ok(id)
-}
-
-fn read_bounded_window(path: &PathBuf) -> Result<String> {
-    let metadata = fs::metadata(path).map_err(|source| MarklabError::io(path, source))?;
-    let maximum = ObservationWindowLimits::default().maximum_input_bytes as u64;
-    if metadata.len() > maximum {
-        return Err(MarklabError::Validation(format!(
-            "observation window exceeds {maximum} bytes"
-        )));
-    }
-    fs::read_to_string(path).map_err(|source| MarklabError::io(path, source))
 }

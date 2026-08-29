@@ -172,7 +172,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | PERT-01 | active | IC-0193 provides a bounded randomized synthetic perturbation/control specialization with research-only mediation; real designed perturbations with dose/time and spatial readouts remain missing. |
 | PLAT-01 | active | Immutable artifacts, exact identities, durable heads/ledger/recovery/replay, typed native/PyMC/POT execution, and one bounded parallel/resumable marked DAG are live. Broader project construction and heterogeneous multi-node orchestration remain. |
 | PP-01 | blocked with named prerequisite | The complete unmarked standard-border K/L workflow is delivered; stable PP-01 promotion still requires remaining FND-02/FND-03/FND-06 contracts, pinned external-oracle fixtures, null calibration, intensity-gradient policy, and scale evidence. |
-| PP-02 | active | Standard-border inhomogeneous K/L and g consume the identical persisted Gaussian leave-one-out event/fixed-grid pilot, use inverse-intensity pair/center normalization, a frozen conditioned null, ERL, hard bounds, and durable replay. Multiple estimators, pinned `Kinhom/Linhom/pcfinhom` agreement, broader calibration, corrections, compartments, and real scale evidence remain. |
+| PP-02 | active with negative real-scale evidence | Standard-border inhomogeneous K/L and g consume the identical persisted Gaussian leave-one-out event/fixed-grid pilot, use inverse-intensity pair/center normalization, a frozen conditioned null, ERL, hard bounds, and durable replay. One real 512-cell/12-component exact-window caller replays but fails the fixed-grid mass/intensity-range scale diagnostic. Multiple estimators, pinned `Kinhom/Linhom/pcfinhom` agreement, broader calibration, corrections, compartments, and a stable real scale policy remain. |
 | PP-03 | active | Homogeneous Epanechnikov g, directed two-level cross-g, and one inhomogeneous g specialization use explicit pair bandwidth, standard-border `r+h` eligibility, typed empty support, appropriate whole-pattern or complete-row nulls, ERL, hard bounds, and durable replay. General multitype/corrections, pinned spatstat agreement, and broader calibration remain. |
 | PP-03A | active | Bounded homogeneous and Gaussian-pilot inhomogeneous compact-support g specializations have independent Python oracles, conditional-pattern inference, finite/resource guards, and durable replay; the inhomogeneous result persists exactly the same pilot as K/L while keeping its pair bandwidth distinct. Pinned external agreement and broader null/edge calibration remain. |
 | PP-03B | active | Directed cross-K and two-level Epanechnikov cross-g use exact source/target counts, boundary-eligible source centers, typed unknown/empty support, random-label envelopes, and store-verified durable replay. Inhomogeneous intensity, general multitype coverage/corrections, and pinned external agreement remain. |
@@ -309,3 +309,11 @@ hits, slide-within-patient reduction, fold-internal held-out evaluation, and ste
 are verified. The real block is lower-tail unstable and nonincremental, so it is retained without
 fusion. MRK-01/MRK-02C, PLAT-01/WF-01, and WS-12/WS-23/WS-30/WS-31 advance but remain broader active
 workstreams.
+
+## Real exact-window inhomogeneous K/L checkpoint 157
+
+PP-02 now has a durable project CLI and one real provenance-complete physical-scale caller. Exact
+grid-operation identity and backend-disabled replay are verified. The fixed 16x16 grid is inadequate
+for the disconnected 12-component window and produces an extreme intensity range, so the result is
+retained without promotion or tuning. PP-02, PLAT-01/WF-01, and WS-12/WS-30 advance but remain
+active.
