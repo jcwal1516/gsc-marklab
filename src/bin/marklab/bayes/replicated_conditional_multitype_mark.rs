@@ -300,6 +300,16 @@ pub(crate) struct Prepared {
     timeout_seconds: u64,
 }
 
+impl Prepared {
+    pub(crate) fn request_bytes(&self) -> &[u8] {
+        &self.request_bytes
+    }
+
+    pub(crate) fn request_sha256(&self) -> &str {
+        &self.request_sha256
+    }
+}
+
 pub(super) fn run_cli() -> Result<(), BayesCliError> {
     let Top::Bayes { command } = Cli::parse_from(std::env::args_os()).command;
     let Command::FitReplicatedConditionalMultitypeMark(args) = command;
