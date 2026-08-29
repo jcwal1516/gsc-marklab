@@ -1294,3 +1294,13 @@ Production proceeds to the smallest existing-backend independent agreement/calib
 this inferred caller; if bounded promotion repeats the scalar caller's real-geometry calibration
 failure, retain the exact result and then move to representative graph/topology scaling rather than
 tuning it away. UI/server/client/remote work remains deferred.
+
+## Checkpoint 141 inferred multitype agreement continuation
+
+The inferred shared-kernel multitype hierarchy now agrees independently between PyMC and NumPyro for
+all 1,424 reported quantities without repeating PyMC. BAY-02/BAY-04/WS-40/WS-44 no longer lack an
+independent implementation for this caller. Production proceeds to bounded prior-generative or SBC
+calibration using the exact real geometry; any failed replicate or capacity ceiling is retained
+rather than tuned away. After that promotion check, proceed to representative graph/topology scaling
+unless a distinct richer multitype likelihood has an immediate admitted CRC caller.
+UI/server/client/remote work remains deferred.

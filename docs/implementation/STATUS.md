@@ -2694,3 +2694,10 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   milestone after checkpoint 139, so broad workspace gates were not repeated. No Nextest/full-
   integration loop, feature matrix, benchmark, fuzzing, packaging, dependency audit, push,
   publication, deployment, or history rewrite ran.
+
+## Replicated multitype inferred-kernel agreement checkpoint 141 — 2026-08-29
+
+- Added exact-baseline `replicated-arbitrary-window-multitype-lgcp-inferred-kernel-agreement` and an independent NumPyro 0.21.0/JAX 0.11.1 implementation. The command freshly prepares and validates the complete PyMC request, reads its typed result, then starts only NumPyro. It compares 15 type parameters, two kernel parameters, three pairwise group effects, 24 patient/type, 48 slide/type, 666 latent-node/type, and 666 expected-count quantities.
+- The planted-shift integration passes in 32.17 seconds. The real NumPyro fit completes in 438.12 seconds at 1,179,484,160-byte maximum RSS with R-hat 1.00921, bulk/tail ESS 450.57/719.58, E-BFMI 0.67400, zero divergences, and zero depth hits. NumPyro amplitude/length are 1.03231 [0.95201, 1.12134] and 284.68 [234.41, 336.85] micrometres.
+- All 1,424 quantities pass and every interval overlaps. Maximum standardized differences are 0.872 for kernel parameters and 0.933 for expected counts. Agreement SHA-256 is `2295cd21b1a836627f1fa39c9082195686ce304865f484f429c533b913ead589`; the hash-verified bundle is `results-cellvit-categorical-v32-replicated-multitype-lgcp-inferred-agreement`.
+- Focused warning-denied Clippy, package no-default CLI compilation, Python syntax, affected-file Rustfmt, exact integration, bundle verification, and whitespace checks pass. Broad workspace gates were not repeated two milestones after checkpoint 139. No Nextest/full-integration loop, feature matrix, benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or history rewrite ran.

@@ -3413,3 +3413,10 @@ vascular transport.
   workspace gates were not repeated one milestone after checkpoint 139; no Nextest/full-integration
   loop, feature matrix, benchmark, fuzzing, packaging, dependency audit, push, publication,
   deployment, or history rewrite ran.
+
+## Replicated multitype inferred-kernel agreement checkpoint 141 — 2026-08-29
+
+- `cargo +1.96.0 test --locked --package marklab --features cli --test bayes_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_agreement_cli` first failed on the absent command and passes in 32.17 seconds. It creates one typed PyMC baseline, then validates that exact result and starts only NumPyro; all seven comparison categories pass.
+- `/usr/bin/time -l target/debug/marklab bayes replicated-arbitrary-window-multitype-lgcp-inferred-kernel-agreement ...` starts only the real NumPyro fit and completes in 438.12 seconds at 1,179,484,160-byte maximum RSS. R-hat is 1.00921, bulk/tail ESS 450.57/719.58, E-BFMI 0.67400, with zero divergences and depth hits.
+- All 1,424 real quantities pass the fixed maximum-standardized-difference 5.0 and minimum parameter/field tolerance 0.12/0.2 rules with interval overlap. Kernel and expected-count maxima are 0.8713 and 0.9324. Output SHA-256 is `2295cd21b1a836627f1fa39c9082195686ce304865f484f429c533b913ead589`.
+- Focused warning-denied Clippy, package no-default CLI compilation, worker `py_compile`, affected-file Rustfmt, and `git diff --check` pass. `ssh mini 'cd ...v32-replicated-multitype-lgcp-inferred-agreement && shasum -a 256 -c bundle_sha256.txt'` verifies all 21 files. Broad workspace gates were not repeated two milestones after checkpoint 139; no Nextest/full-integration loop, feature matrix, benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or history rewrite ran.
