@@ -1541,3 +1541,15 @@ corrections, and pinned external agreement remain. Checkpoints 154, 156, 157, 15
 form more than the required three-to-five related production milestones since checkpoint 145, so
 the next boundary is one major stabilization pass without retrying the prohibited macOS
 Nextest/full-integration loader loop.
+
+## Checkpoint 162 point-process/mark stabilization
+
+The production sequence from complete-simplex pair mixing through hard-pair patient inference,
+inhomogeneous K/L and g, categorical cross-g, and patient cross-g now passes one workspace
+stabilization boundary: formatting, warning-denied all-target/all-feature Clippy, workspace
+no-default compilation, all-feature doctests, and strict all-feature docs. The documented macOS
+Nextest/full-integration loader loop is not retried, and the phase/release-only compile matrix is not
+promoted into this non-phase checkpoint. No gate finding requires production changes. Production
+next advances PP-05's second explicit intensity estimator only through the existing exact binary
+compartment owner and immediate K/L/g callers; if no provenance-complete real partition is
+admitted, real evidence remains a named data blocker rather than an invented compartment.

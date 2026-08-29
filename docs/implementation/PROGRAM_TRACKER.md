@@ -353,3 +353,12 @@ permutation/bootstrap, and step-down Max-T. Eight endpoints survive all slides, 
 held-out balanced accuracy by 0.25 beyond M0--M3 with interval [-0.625, 0], and its minimum adjusted
 p is 0.921. It is explicitly nonincremental, not promoted, and not fused. PP-03B gains patient
 replication but remains active for inhomogeneous/general multitype corrections and external agreement.
+
+## Point-process/mark stabilization checkpoint 162
+
+Checkpoints 154, 156, 157, 159, 160, and 161 pass a single non-loader workspace stabilization:
+formatting, warning-denied all-target/all-feature Clippy, no-default workspace compilation,
+all-feature doctests, and strict all-feature docs. No production finding is open. The documented
+macOS loader loop and phase/release-only compile matrix remain outside this checkpoint. Tracker
+states are unchanged; the next active dependency is PP-05's second explicit estimator through an
+existing exact compartment caller, without hidden bandwidth or post-result tuning.

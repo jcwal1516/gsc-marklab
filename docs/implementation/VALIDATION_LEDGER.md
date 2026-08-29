@@ -4019,3 +4019,21 @@ vascular transport.
 - Affected formatting, whitespace, direct diff, and status checks pass. No Rust package changes, so
   affected Clippy/no-default checks are not applicable. No broad workspace gate runs at this
   ordinary milestone; the scheduled stabilization follows.
+
+## Point-process/mark stabilization checkpoint 162 — 2026-08-29
+
+- `cargo +1.96.0 fmt --all --check` passes.
+- `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings` passes
+  without findings in 49.66 seconds.
+- `cargo +1.96.0 check --locked --workspace --no-default-features` passes in 1.44 seconds.
+- `cargo +1.96.0 test --locked --workspace --doc --all-features` passes all 17 package doctest
+  binaries in 14.20 seconds.
+- `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --workspace --all-features --no-deps`
+  passes in 4.27 seconds.
+- The documented macOS Nextest/full-integration loader loop is not run. The full compile matrix is
+  reserved for phase/release boundaries by `WORKSPACE_POLICY.md`, so it is not applicable here.
+  Checkpoints 154/156/157/159/160/161 retain their focused, real-data, replay, and remote-bundle
+  evidence. No benchmark, fuzzing, DHAT, RSS, packaging, dependency, push, publication, deployment,
+  or history rewrite command runs.
+- `git diff --check`, direct diff review, and `git status --short` pass with only the user's
+  pre-existing unstaged/untracked CRC outcome changes remaining after the stabilization commit.

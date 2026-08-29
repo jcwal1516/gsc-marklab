@@ -3268,3 +3268,21 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   all 64 replay-byte comparisons, 64 one-row ledgers, summary promotion identity, formatting,
   whitespace, diff, and status checks pass. No Rust package changes in this checkpoint, so affected
   Clippy/no-default checks are not applicable; checkpoint 160 retains the current Rust evidence.
+
+## Point-process/mark stabilization checkpoint 162 — 2026-08-29
+
+- Stabilized the related production run comprising complete-simplex pair mixing, patient hard-pair
+  inference, real inhomogeneous K/L and g, durable categorical cross-g, and patient cross-g. No
+  retrospective cleanup or behavior change is required after direct diff review.
+- `cargo +1.96.0 fmt --all --check` passes. `cargo +1.96.0 clippy --locked --workspace
+  --all-targets --all-features -- -D warnings` passes in 49.66 seconds without findings.
+  `cargo +1.96.0 check --locked --workspace --no-default-features` passes in 1.44 seconds.
+- `cargo +1.96.0 test --locked --workspace --doc --all-features` passes all 17 package doctest
+  binaries in 14.20 seconds. `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --workspace
+  --all-features --no-deps` passes in 4.27 seconds.
+- The documented macOS Nextest/full-integration loader loop is not retried. The complete feature
+  matrix is reserved by `WORKSPACE_POLICY.md` for phase/release boundaries and is not run here.
+  Focused behavior, real miss/hit, remote rehash, and patient-unit evidence remain recorded at
+  checkpoints 154/156/157/159/160/161. No successful expensive gate is repeated.
+- Final formatting, whitespace, direct diff, and status checks pass. No benchmark, fuzzing, DHAT,
+  RSS, packaging, dependency audit, push, publication, deployment, or history rewrite runs.
