@@ -14,11 +14,10 @@ use super::{
         VectorAgreement,
     },
     replicated_conditional_multitype_mark::{self, Args as FitArgs, Output as FitOutput},
-    run_worker, BayesCliError,
+    replicated_conditional_multitype_mark_numpyro::{self, JAX_VERSION},
+    BayesCliError,
 };
 
-const NUMPYRO_VERSION: &str = "0.21.0";
-const JAX_VERSION: &str = "0.11.1";
 const MAXIMUM_RESULT_BYTES: u64 = 8 * 1_048_576;
 
 #[derive(Debug, Parser)]
@@ -274,17 +273,18 @@ fn run(args: Args) -> Result<(), BayesCliError> {
             "PyMC result does not match the exact agreement request".into(),
         ));
     }
-    let (numpyro, numpyro_request_sha, numpyro_backend) = execute_numpyro(
+    let execution = replicated_conditional_multitype_mark_numpyro::execute(
         &prepared,
         args.numpyro_maximum_tree_depth,
         args.timeout_seconds,
     )?;
+    let numpyro: NumpyroResult = serde_json::from_value(execution.result)?;
     validate_numpyro(
         &numpyro,
         &pymc_view,
         &prepared,
-        &numpyro_request_sha,
-        &numpyro_backend,
+        &execution.request_sha256,
+        &execution.backend,
         args.numpyro_maximum_tree_depth,
     )?;
     let comparison = compare(
@@ -326,46 +326,6 @@ fn run(args: Args) -> Result<(), BayesCliError> {
             claim_status: "experimental_patient_hierarchy_cross_backend_validation",
         },
     )
-}
-
-fn execute_numpyro(
-    prepared: &replicated_conditional_multitype_mark::Prepared,
-    depth: u32,
-    timeout: u64,
-) -> Result<(NumpyroResult, String, BackendContract), BayesCliError> {
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let directory = repository.join("workers/python");
-    let backend = BackendContract {
-        name: "numpyro",
-        version: NUMPYRO_VERSION,
-        python_version: "3.12",
-        environment_lock_sha256: sha256_hex(&read_bounded(
-            &directory.join("uv.lock"),
-            MAXIMUM_RESULT_BYTES,
-        )?),
-        worker_sha256: sha256_hex(&read_bounded(
-            &directory.join("marklab_numpyro_replicated_conditional_multitype_mark_worker.py"),
-            MAXIMUM_RESULT_BYTES,
-        )?),
-    };
-    let request = serde_json::json!({
-        "format": "marklab.numpyro_replicated_conditional_multitype_mark_request",
-        "version": 1,
-        "backend": backend,
-        "jax_version": JAX_VERSION,
-        "source_request_sha256": prepared.request_sha256(),
-        "source_request": serde_json::from_slice::<serde_json::Value>(prepared.request_bytes())?,
-        "maximum_tree_depth": depth,
-    });
-    let bytes = serde_json::to_vec(&request)?;
-    let request_sha256 = sha256_hex(&bytes);
-    let output = run_worker(
-        repository,
-        "marklab_numpyro_replicated_conditional_multitype_mark_worker.py",
-        &bytes,
-        timeout,
-    )?;
-    Ok((serde_json::from_slice(&output)?, request_sha256, backend))
 }
 
 fn validate_numpyro(

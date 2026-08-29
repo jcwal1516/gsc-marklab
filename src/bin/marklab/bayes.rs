@@ -121,6 +121,11 @@ pub(super) fn run_replicated_conditional_multitype_mark_agreement_cli() -> Resul
     replicated_conditional_multitype_mark_agreement::run_cli()
 }
 
+pub(super) fn run_replicated_conditional_multitype_mark_sensitivity_cli(
+) -> Result<(), BayesCliError> {
+    replicated_conditional_multitype_mark_sensitivity::run_cli()
+}
+
 pub(super) fn run_replicated_arbitrary_window_lgcp_agreement_cli() -> Result<(), BayesCliError> {
     replicated_arbitrary_window_lgcp_agreement::run_cli()
 }
@@ -174,6 +179,10 @@ mod conditional_multitype_mark_sensitivity;
 mod replicated_conditional_multitype_mark;
 #[path = "bayes/replicated_conditional_multitype_mark_agreement.rs"]
 mod replicated_conditional_multitype_mark_agreement;
+#[path = "bayes/replicated_conditional_multitype_mark_numpyro.rs"]
+mod replicated_conditional_multitype_mark_numpyro;
+#[path = "bayes/replicated_conditional_multitype_mark_sensitivity.rs"]
+mod replicated_conditional_multitype_mark_sensitivity;
 pub(super) use conditional_multitype_mark::{
     backend_contract as conditional_multitype_mark_backend_contract,
     execute as execute_conditional_multitype_mark, Args as ConditionalMultitypeMarkArgs,

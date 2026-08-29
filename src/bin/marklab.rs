@@ -379,6 +379,21 @@ fn main() -> marklab::Result<()> {
                     .as_deref()
                     .is_some_and(|subcommand| {
                         subcommand
+                            == std::ffi::OsStr::new(
+                                "replicated-conditional-multitype-mark-sensitivity",
+                            )
+                    }) =>
+        {
+            bayes::run_replicated_conditional_multitype_mark_sensitivity_cli()
+                .map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand
                             == std::ffi::OsStr::new("replicated-arbitrary-window-lgcp-agreement")
                     }) =>
         {
