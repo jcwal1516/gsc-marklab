@@ -202,6 +202,31 @@ class CellvitCptacResultsAdapterTest(unittest.TestCase):
         self.assertEqual(coarse[0]["quadrature_node_id"], "q-000-000")
         self.assertEqual(coarse[1]["quadrature_node_id"], "q-003-003")
 
+    def test_replicated_lgcp_selection_balances_patients_and_keeps_two_slides_each(self):
+        case_map = {}
+        labels = {}
+        for group in ("MSI", "MSS"):
+            for patient_index in range(5):
+                patient = f"{group}-p{patient_index}"
+                labels[patient] = group
+                for slide_index in range(3):
+                    slide = f"{patient}-s{slide_index}"
+                    case_map[slide] = {"case_id": patient}
+
+        selected = self.module.replicated_lgcp_selection(case_map, labels, 4, 2)
+
+        self.assertEqual(len(selected), 16)
+        patient_counts = Counter(row["patient_id"] for row in selected.values())
+        self.assertEqual(set(patient_counts.values()), {2})
+        group_patients = {
+            group: {row["patient_id"] for row in selected.values() if row["group"] == group}
+            for group in ("MSI", "MSS")
+        }
+        self.assertEqual(
+            {group: len(patients) for group, patients in group_patients.items()},
+            {"MSI": 4, "MSS": 4},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

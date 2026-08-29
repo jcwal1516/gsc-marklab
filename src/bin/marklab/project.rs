@@ -63,6 +63,7 @@ enum StaticBackendWorkflow {
     PymcGriddedLgcp,
     PymcArbitraryWindowIpp,
     PymcArbitraryWindowLgcp,
+    PymcReplicatedArbitraryWindowLgcp,
     PotFusedGromovWasserstein,
 }
 
@@ -271,6 +272,25 @@ impl StaticBackendWorkflow {
                 implementation_identity: "marklab-project-pymc-arbitrary-window-lgcp-fit-node-v1",
                 deterministic_controls:
                     "seeded-nuts-weighted-exact-window-fixed-matern-lgcp-request",
+            },
+            Self::PymcReplicatedArbitraryWindowLgcp => StaticBackendDescriptor {
+                backend_id: "pymc",
+                backend_version: "6.3.0",
+                python_version: "3.12",
+                license: "Apache-2.0",
+                input_kinds: &[
+                    "application/vnd.marklab.source.replicated-arbitrary-window-lgcp+csv;version=1",
+                ],
+                output_kind:
+                    "application/vnd.marklab.pymc-replicated-arbitrary-window-lgcp-fit+json;version=1",
+                result_schema_id:
+                    "marklab.pymc_replicated_arbitrary_window_lgcp_fit_result",
+                node_id: "pymc-replicated-arbitrary-window-lgcp-fit",
+                node_kind: "bayesian_replicated_point_process_latent_field_fit",
+                implementation_identity:
+                    "marklab-project-pymc-replicated-arbitrary-window-lgcp-fit-node-v1",
+                deterministic_controls:
+                    "seeded-nuts-patient-pattern-hierarchy-fixed-matern-request",
             },
             Self::PotFusedGromovWasserstein => StaticBackendDescriptor {
                 backend_id: "pot",
@@ -493,6 +513,62 @@ struct ArbitraryWindowLgcpFitProjectArgs {
     out: PathBuf,
 }
 
+#[derive(Debug, clap::Args)]
+struct ReplicatedArbitraryWindowLgcpFitProjectArgs {
+    #[arg(long)]
+    project: PathBuf,
+    #[arg(long)]
+    input: PathBuf,
+    #[arg(long)]
+    reference_group: String,
+    #[arg(long)]
+    comparison_group: String,
+    #[arg(long, allow_hyphen_values = true)]
+    intercept_prior_mean: f64,
+    #[arg(long)]
+    intercept_prior_sd: f64,
+    #[arg(long)]
+    group_effect_prior_sd: f64,
+    #[arg(long)]
+    covariate_effect_prior_sd: f64,
+    #[arg(long)]
+    patient_sd_prior_scale: f64,
+    #[arg(long)]
+    pattern_sd_prior_scale: f64,
+    #[arg(long)]
+    field_amplitude: f64,
+    #[arg(long)]
+    field_length_scale_um: f64,
+    #[arg(long)]
+    jitter: f64,
+    #[arg(long)]
+    chains: u32,
+    #[arg(long)]
+    tune: u32,
+    #[arg(long)]
+    draws: u32,
+    #[arg(long)]
+    target_accept: f64,
+    #[arg(long)]
+    seed: u64,
+    #[arg(long)]
+    maximum_patients: usize,
+    #[arg(long)]
+    maximum_patterns: usize,
+    #[arg(long)]
+    maximum_nodes_per_pattern: usize,
+    #[arg(long)]
+    maximum_total_nodes: usize,
+    #[arg(long)]
+    maximum_total_events: u64,
+    #[arg(long)]
+    maximum_draw_node_work: u64,
+    #[arg(long)]
+    timeout_seconds: u64,
+    #[arg(long)]
+    out: PathBuf,
+}
+
 #[derive(Debug, Subcommand)]
 enum ProjectCommand {
     RegionRetrieval {
@@ -540,6 +616,7 @@ enum ProjectCommand {
     ArbitraryWindowIppLikelihood(Box<ArbitraryWindowIppProjectArgs>),
     FitArbitraryWindowIpp(Box<ArbitraryWindowIppFitProjectArgs>),
     ArbitraryWindowLgcp(Box<ArbitraryWindowLgcpFitProjectArgs>),
+    ReplicatedArbitraryWindowLgcp(Box<ReplicatedArbitraryWindowLgcpFitProjectArgs>),
     NormalMean {
         #[arg(long)]
         project: PathBuf,
@@ -978,6 +1055,38 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             arguments.maximum_predictive_points,
             arguments.neighbor_radius_um,
             arguments.maximum_neighbor_pairs,
+            arguments.timeout_seconds,
+            arguments.out,
+        ),
+        ProjectTopLevel::Project {
+            command: ProjectCommand::ReplicatedArbitraryWindowLgcp(arguments),
+        } => run_replicated_arbitrary_window_lgcp(
+            arguments.project,
+            arguments.input,
+            arguments.reference_group,
+            arguments.comparison_group,
+            arguments.intercept_prior_mean,
+            arguments.intercept_prior_sd,
+            arguments.group_effect_prior_sd,
+            arguments.covariate_effect_prior_sd,
+            arguments.patient_sd_prior_scale,
+            arguments.pattern_sd_prior_scale,
+            arguments.field_amplitude,
+            arguments.field_length_scale_um,
+            arguments.jitter,
+            NutsSamplingSpec {
+                chains: arguments.chains,
+                tune_per_chain: arguments.tune,
+                draws_per_chain: arguments.draws,
+                target_accept: arguments.target_accept,
+                seed: arguments.seed,
+            },
+            arguments.maximum_patients,
+            arguments.maximum_patterns,
+            arguments.maximum_nodes_per_pattern,
+            arguments.maximum_total_nodes,
+            arguments.maximum_total_events,
+            arguments.maximum_draw_node_work,
             arguments.timeout_seconds,
             arguments.out,
         ),
@@ -1797,6 +1906,105 @@ fn run_arbitrary_window_lgcp(
     };
     bayes::publish_json(&output_path, &run.output)?;
     eprintln!("project arbitrary-window-lgcp cache_status={cache_status}");
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_replicated_arbitrary_window_lgcp(
+    project_path: PathBuf,
+    input_path: PathBuf,
+    reference_group: String,
+    comparison_group: String,
+    intercept_prior_mean: f64,
+    intercept_prior_sd: f64,
+    group_effect_prior_sd: f64,
+    covariate_effect_prior_sd: f64,
+    patient_sd_prior_scale: f64,
+    pattern_sd_prior_scale: f64,
+    field_amplitude: f64,
+    field_length_scale_um: f64,
+    jitter: f64,
+    sampling: NutsSamplingSpec,
+    maximum_patients: usize,
+    maximum_patterns: usize,
+    maximum_nodes_per_pattern: usize,
+    maximum_total_nodes: usize,
+    maximum_total_events: u64,
+    maximum_draw_node_work: u64,
+    timeout_seconds: u64,
+    output_path: PathBuf,
+) -> Result<(), BayesCliError> {
+    let backend = StaticBackendWorkflow::PymcReplicatedArbitraryWindowLgcp.descriptor();
+    let before = source_artifact(&input_path, backend.input_kinds[0])?;
+    let prepared = bayes::prepare_replicated_arbitrary_window_lgcp_fit(
+        input_path.clone(),
+        reference_group,
+        comparison_group,
+        intercept_prior_mean,
+        intercept_prior_sd,
+        group_effect_prior_sd,
+        covariate_effect_prior_sd,
+        patient_sd_prior_scale,
+        pattern_sd_prior_scale,
+        field_amplitude,
+        field_length_scale_um,
+        jitter,
+        sampling,
+        maximum_patients,
+        maximum_patterns,
+        maximum_nodes_per_pattern,
+        maximum_total_nodes,
+        maximum_total_events,
+        maximum_draw_node_work,
+        timeout_seconds,
+    )?;
+    let after = source_artifact(&input_path, backend.input_kinds[0])?;
+    if before != after {
+        return Err(BayesCliError::Input(
+            "replicated LGCP source changed while the durable request was prepared".into(),
+        ));
+    }
+    let runtime = native_runtime_provenance()?;
+    let limits = DurableProjectLimits::new(
+        PROJECT_CONTROL_BYTES,
+        PROJECT_LEDGER_BYTES,
+        PROJECT_LEDGER_RECORDS,
+        PROJECT_RECORD_BYTES,
+        MAXIMUM_RESULT_BYTES,
+    )
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let mut durable = DurableProject::open_or_create(&project_path, limits)
+        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    report_recovery(&durable);
+    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    project
+        .register_reference(before.clone())
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let node =
+        ReplicatedArbitraryWindowLgcpProjectNode::new(input_path, before, prepared, backend)?;
+    let graph = WorkflowGraph::new([node.spec().clone()])
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
+    })
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let run = execute_algorithm(
+        &mut durable,
+        &mut project,
+        &graph,
+        &node,
+        &scheduler,
+        backend.result_schema()?,
+        runtime,
+    )
+    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    let cache_status = match run.cache_status {
+        CacheStatus::Hit => "hit",
+        CacheStatus::Miss => "miss",
+    };
+    bayes::publish_json(&output_path, &run.output)?;
+    eprintln!("project replicated-arbitrary-window-lgcp cache_status={cache_status}");
     Ok(())
 }
 
@@ -3291,6 +3499,96 @@ impl WorkflowNode for ArbitraryWindowLgcpProjectNode {
 
     fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
         let output: bayes::ArbitraryWindowLgcpFitResult =
+            marklab::exact_float_json::decode(bytes).map_err(NodeError::decode)?;
+        output
+            .validate_for(&self.prepared)
+            .map_err(NodeError::decode)?;
+        Ok(output)
+    }
+
+    fn output_kind(&self) -> &'static str {
+        self.backend.output_kind
+    }
+}
+
+struct ReplicatedArbitraryWindowLgcpProjectNode {
+    spec: NodeSpec,
+    input_path: PathBuf,
+    input_artifact: ArtifactRef,
+    prepared: bayes::PreparedReplicatedArbitraryWindowLgcpFit,
+    backend: StaticBackendDescriptor,
+    execution_policy: Vec<u8>,
+}
+
+impl ReplicatedArbitraryWindowLgcpProjectNode {
+    fn new(
+        input_path: PathBuf,
+        input_artifact: ArtifactRef,
+        prepared: bayes::PreparedReplicatedArbitraryWindowLgcpFit,
+        backend: StaticBackendDescriptor,
+    ) -> Result<Self, BayesCliError> {
+        backend.validate_request_backend(&prepared.request.backend)?;
+        Ok(Self {
+            spec: NodeSpec::new(
+                NodeId::new(backend.node_id)
+                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
+                backend.node_kind,
+                1,
+                Vec::new(),
+            )
+            .map_err(|error| BayesCliError::Input(error.to_string()))?,
+            input_path,
+            input_artifact,
+            prepared,
+            backend,
+            execution_policy: backend.execution_policy(),
+        })
+    }
+}
+
+impl WorkflowNode for ReplicatedArbitraryWindowLgcpProjectNode {
+    type Output = bayes::ReplicatedArbitraryWindowLgcpFitResult;
+
+    fn spec(&self) -> &NodeSpec {
+        &self.spec
+    }
+
+    fn input_artifacts(&self) -> &[ArtifactRef] {
+        std::slice::from_ref(&self.input_artifact)
+    }
+
+    fn verify_input_content(&self) -> Result<(), NodeError> {
+        let observed = source_artifact(&self.input_path, self.backend.input_kinds[0])
+            .map_err(NodeError::input)?;
+        if observed != self.input_artifact {
+            return Err(NodeError::input(BayesCliError::Input(
+                "replicated LGCP source no longer matches its durable identity".into(),
+            )));
+        }
+        Ok(())
+    }
+
+    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
+        CacheKeyMaterial {
+            configuration_digest: self
+                .backend
+                .configuration_digest(&self.prepared.request.backend, &self.prepared.request_bytes),
+            execution_policy: &self.execution_policy,
+            implementation_identity: self.backend.implementation_identity,
+        }
+    }
+
+    fn execute(&self) -> Result<Self::Output, NodeError> {
+        bayes::execute_replicated_arbitrary_window_lgcp_fit(&self.prepared)
+            .map_err(NodeError::execution)
+    }
+
+    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
+        marklab::exact_float_json::encode(output).map_err(NodeError::encoding)
+    }
+
+    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
+        let output: bayes::ReplicatedArbitraryWindowLgcpFitResult =
             marklab::exact_float_json::decode(bytes).map_err(NodeError::decode)?;
         output
             .validate_for(&self.prepared)

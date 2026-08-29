@@ -45,6 +45,48 @@ def stable_rank(*parts: object) -> int:
     return int.from_bytes(hashlib.sha256(framed).digest(), "big")
 
 
+def replicated_lgcp_selection(
+    case_map: dict[str, dict[str, str]],
+    labels: dict[str, str],
+    patients_per_group: int,
+    patterns_per_patient: int,
+) -> dict[str, dict[str, str]]:
+    """Select a balanced provenance-sorted repeated-slide patient subset."""
+    if not 4 <= patients_per_group <= 8 or not 2 <= patterns_per_patient <= 4:
+        raise AdapterError("replicated LGCP selection controls are invalid")
+    by_patient: dict[str, list[str]] = defaultdict(list)
+    for slide_id, row in case_map.items():
+        patient = row.get("case_id")
+        if isinstance(patient, str) and patient in labels:
+            by_patient[patient].append(slide_id)
+    selected: dict[str, dict[str, str]] = {}
+    for group in ("MSI", "MSS"):
+        candidates = [
+            patient
+            for patient, slides in by_patient.items()
+            if labels[patient] == group and len(slides) >= patterns_per_patient
+        ]
+        candidates.sort(
+            key=lambda patient: (
+                stable_rank("replicated-lgcp-patient", patient),
+                patient,
+            )
+        )
+        if len(candidates) < patients_per_group:
+            raise AdapterError(f"replicated LGCP lacks repeated-slide {group} patients")
+        for patient in candidates[:patients_per_group]:
+            slides = sorted(
+                by_patient[patient],
+                key=lambda slide: (
+                    stable_rank("replicated-lgcp-slide", patient, slide),
+                    slide,
+                ),
+            )[:patterns_per_patient]
+            for slide in slides:
+                selected[slide] = {"patient_id": patient, "group": group}
+    return selected
+
+
 def bounded_indices(count: int, maximum: int, identity: str) -> list[int]:
     if count < 0 or maximum < 1:
         raise AdapterError("invalid deterministic sample bounds")
@@ -734,6 +776,7 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     labels = load_labels(arguments.labels)
     clinical_age = load_clinical_age(arguments.clinical)
     clinical_gender = load_clinical_gender(arguments.clinical)
+    replicated_selection = replicated_lgcp_selection(case_map, labels, 4, 2)
     inference_verification = json.loads(arguments.inference_verification.read_text())
     spatial_verification = json.loads(arguments.spatial_verification.read_text())
     if (
@@ -757,6 +800,7 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     type_maps: set[tuple[tuple[int, str], ...]] = set()
     mpp_pairs: set[tuple[float, float]] = set()
     representative: tuple[int, str, dict[str, str], Any, dict[str, Any]] | None = None
+    replicated_lgcp_rows: list[dict[str, object]] = []
 
     for position, (file_id, case) in enumerate(sorted(case_map.items()), 1):
         slide_root = inference_root / file_id
@@ -840,11 +884,56 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
             rank = stable_rank("representative-slide", file_id)
             if representative is None or rank < representative[0]:
                 representative = (rank, file_id, case, graph, payload)
+        if file_id in replicated_selection:
+            geometry, pattern_window = patch_window(metadata)
+            xmin, ymin, xmax, ymax = (float(value) for value in pattern_window.bounds)
+            pattern_nodes = arbitrary_window_ipp_quadrature(pattern_window, 4)
+            node_ids = {str(row["node_id"]) for row in pattern_nodes}
+            counts: Counter[str] = Counter()
+            event_digest = hashlib.sha256()
+            for row in range(n):
+                cell_id = source_cell_id(file_id, row)
+                x_um = float(graph.positions[row, 0]) * target_mpp
+                y_um = float(graph.positions[row, 1]) * target_mpp
+                if not pattern_window.covers(Point(x_um, y_um)):
+                    raise AdapterError("replicated LGCP point escapes its exact patch union")
+                event_digest.update(cell_id.encode())
+                event_digest.update(b"\n")
+                ix = min(int((x_um - xmin) * 4 / (xmax - xmin)), 3)
+                iy = min(int((y_um - ymin) * 4 / (ymax - ymin)), 3)
+                node_id = f"q-{iy:03d}-{ix:03d}"
+                if node_id not in node_ids:
+                    raise AdapterError("replicated LGCP cell maps outside positive window nodes")
+                counts[node_id] += 1
+            selection = replicated_selection[file_id]
+            window_digest = hashlib.sha256(
+                json.dumps(geometry, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest()
+            for node in pattern_nodes:
+                replicated_lgcp_rows.append(
+                    {
+                        "pattern_id": file_id,
+                        "patient_id": selection["patient_id"],
+                        "group": selection["group"],
+                        "cohort": "CPTAC-COAD",
+                        "node_id": node["node_id"],
+                        "x_um": node["x_um"],
+                        "y_um": node["y_um"],
+                        "weight_um2": node["weight_um2"],
+                        "window_area_um2": float(pattern_window.area),
+                        "covariate": node["covariate"],
+                        "count": counts[node["node_id"]],
+                        "window_sha256": window_digest,
+                        "event_sha256": event_digest.hexdigest(),
+                    }
+                )
         if position % 50 == 0:
             print(json.dumps({"audit_slides": position, "cells": raw_counts["cells"]}), flush=True)
 
     if widths != {1280} or len(type_maps) != 1 or len(mpp_pairs) != 1 or representative is None:
         raise AdapterError("cohort-wide CellViT width, annotation, scale, or representative admission differs")
+    if {row["pattern_id"] for row in replicated_lgcp_rows} != set(replicated_selection):
+        raise AdapterError("replicated LGCP selection was not fully materialized")
 
     type_map = next(iter(type_maps))
     beta_binomial_rows = beta_binomial_patient_rows(patient_type_counts, type_map)
@@ -901,6 +990,28 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
         inputs / "beta_binomial_neoplastic_slide_counts_by_group_gender.csv",
         ["slide_id", "patient_id", "group", "gender", "successes", "trials"],
         beta_binomial_group_gender_slides,
+    )
+    write_csv(
+        inputs / "replicated_arbitrary_window_lgcp_patterns.csv",
+        [
+            "pattern_id",
+            "patient_id",
+            "group",
+            "cohort",
+            "node_id",
+            "x_um",
+            "y_um",
+            "weight_um2",
+            "window_area_um2",
+            "covariate",
+            "count",
+            "window_sha256",
+            "event_sha256",
+        ],
+        sorted(
+            replicated_lgcp_rows,
+            key=lambda row: (str(row["pattern_id"]), str(row["node_id"])),
+        ),
     )
     reaggregated_slides: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     for row in beta_binomial_group_gender_slides:
@@ -1473,6 +1584,17 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                     float(row["weight_um2"]) for row in arbitrary_window_lgcp_nodes
                 ),
                 "population_claim": "single_slide_experimental_latent_field_only",
+            },
+            "replicated_arbitrary_window_lgcp_definition": {
+                "statistical_unit": "patient",
+                "pattern_unit": "two_exact_slide_patterns_nested_in_patient",
+                "selection": "four_provenance_sorted_patients_per_MSI_MSS_group_and_two_slides_each",
+                "patient_count": len(
+                    {row["patient_id"] for row in replicated_selection.values()}
+                ),
+                "pattern_count": len(replicated_selection),
+                "node_count": len(replicated_lgcp_rows),
+                "population_claim": "exploratory_replicated_pattern_hierarchy",
             },
             "beta_binomial_group_gender_definition": {
                 "join_key": "patient_id",

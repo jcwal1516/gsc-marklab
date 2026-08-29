@@ -2335,3 +2335,33 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   not rerun. Exact-window fixed-kernel LGCP no longer lacks agreement, SBC, prior/kernel sensitivity,
   quadrature sensitivity, physical PPC, or durable replay. BAY-PP/WS-43 advance to an independent-
   patient replicated-pattern or immediate multitype/marked CRC caller.
+
+## Durable replicated-patient CellViT field checkpoint 129 — 2026-08-28
+
+- Added direct and durable `fit-replicated-arbitrary-window-lgcp` execution for exact slide patterns
+  nested inside independent patients. Separate window/event identities and physical nodes feed a
+  fixed Matérn field per slide, patient and slide random intercepts, and MSI/MSS plus within-slide x
+  effects. Slide effects sum to zero within patient and fields within slide; patient effects remain
+  unconstrained zero-mean draws so patients govern group uncertainty.
+- A known-shift control uses eight patients, two patterns each, and 64 nodes. It recovers the
+  positive group shift with complete diagnostics. Its durable path proves miss, fresh-process
+  backend-disabled hit, byte-identical exact-f64 output, one ledger execution, and typed replay.
+  Prior finiteness is checked with 500 deterministic prior draws.
+- The Mac-mini adapter selected four provenance-sorted repeated-slide patients per MSI/MSS group and
+  two slides each from the frozen 366-slide, 178-patient, 1,542,389-cell source. The v14 input has 16
+  exact slide patterns, 222 positive clipped nodes, and 69,377 cells; SHA-256 is
+  `4c19d880519901524db244c3891eb165222df3c169a4278090caa983d5bc0ee7`.
+- The first unconstrained diagnostic had 4 divergences and 3,731 depth hits. A group-wise
+  patient-centering attempt converged but was rejected because it conditioned away between-patient
+  group uncertainty. Centering only slide effects within patient and fields within slide produced
+  the retained population-valid fit; neither rejected artifact is final evidence.
+- The final durable miss completed in 171.81 seconds at 453,492,736-byte maximum RSS. R-hat is
+  1.00772, bulk/tail ESS 999.07/1401.69, E-BFMI 0.95955, and divergences/depth hits are zero. The
+  exploratory MSI-minus-MSS log-intensity effect is 0.1869 with interval [-0.5178, 0.8849]; patient
+  SD is 0.5503 and slide SD 0.7633. This is a null-compatible eight-patient subset result, not
+  molecular, causal, clinical, or transportability evidence.
+- The backend-disabled hit is byte-identical with one ledger execution. Final SHA-256 is
+  `e088d056e48cd28aade956068000f74d9cddd761386c7efb28b7677082d15161` and the v14 final manifest
+  verifies it. Focused tests, all eight adapter tests, Python syntax, targeted Clippy, no-default
+  compilation, formatting, and whitespace checks pass. Agreement, sensitivity, SBC, and
+  replicated-pattern PPC remain the next promotion work; broad gates were not repeated after 128.

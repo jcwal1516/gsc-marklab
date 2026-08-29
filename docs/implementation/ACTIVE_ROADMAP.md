@@ -1157,3 +1157,14 @@ slide pattern. BAY-PP/BAY-PP-A/WS-43/WS-44 no longer lack promotion checks for t
 production now advances to the smallest provenance-complete independent-patient replicated-pattern
 caller, falling back to the immediate hard-multitype CellViT caller only if patient-specific exact
 windows cannot be admitted within bounds. UI/server/client work remains deferred.
+
+## Checkpoint 129 replicated-patient field continuation
+
+Eight independent CPTAC patients now run through a durable exact-window hierarchy with two distinct
+slide patterns per patient, rather than treating slides, nodes, or cells as population replicates.
+The real MSI/MSS contrast is null-compatible and both patient and slide variation are retained.
+BAY-PP/WS-43 no longer lack every fitted independent-patient pattern caller, but this bounded model
+remains experimental pending independent-backend agreement, prior/kernel sensitivity, SBC, and
+replicated-pattern posterior-predictive checks. Production continues directly through those checks;
+hard-multitype fitting follows unless a promotion diagnostic exposes a model defect. UI/server/client
+work remains deferred.

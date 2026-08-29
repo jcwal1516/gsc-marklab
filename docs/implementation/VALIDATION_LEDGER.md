@@ -2907,6 +2907,40 @@ vascular transport.
   run; no feature matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push,
   publication, deployment, or history rewrite ran.
 
+## Durable replicated-patient CellViT field checkpoint 129 — 2026-08-28
+
+- Expected direct red: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_replicated_arbitrary_window_lgcp_fit_cli -- --nocapture` failed on the absent command. The
+  final known-shift control passes with eight patients, two patterns each, exact 64-node identity,
+  positive group recovery, patient/pattern uncertainty, complete diagnostics, and patient unit.
+- Expected durable red: the focused durable integration failed on the absent project command. Its
+  final run passes with miss, fresh backend-disabled hit, byte identity, one ledger execution,
+  exact-f64 codec, and typed hit validation. The existing replicated-model builder remains green.
+- The adapter selection test first failed on its absent owner, then passes four patients per MSI/MSS
+  group and two provenance-sorted slides each. The first real adapter run stopped after 7.51 seconds
+  because the existing 2,000-row membership guard rejected an all-cell use. The caller now streams
+  exact all-cell counts/digests without materializing that table; the guard remains unchanged. The
+  v14 audit completed in 94.95 seconds at 904,511,488-byte RSS and emitted eight patients, 16
+  patterns, 222 nodes, and 69,377 cells. Input SHA-256 is
+  `4c19d880519901524db244c3891eb165222df3c169a4278090caa983d5bc0ee7`.
+- The initial unconstrained sampler had four divergences and 3,731 depth hits. Group-wise patient
+  centering then converged but was rejected because it removed between-patient group uncertainty.
+  The retained model leaves patient effects unconstrained while centering slide effects within
+  patient and fields within slide. Neither rejected artifact was sealed as final evidence.
+- The final durable miss completed in 171.81 seconds at 453,492,736-byte RSS. Diagnostics are R-hat
+  1.00772, bulk/tail ESS 999.07/1401.69, E-BFMI 0.95955, zero divergences, and zero depth hits. The
+  MSI-minus-MSS log-intensity effect is 0.18694 with interval [-0.51781, 0.88489], patient SD
+  0.55032, and slide SD 0.76332. A fresh backend-disabled process returned the byte-identical hit;
+  the project has one ledger row. SHA-256 is
+  `e088d056e48cd28aade956068000f74d9cddd761386c7efb28b7677082d15161`, and the v14 final manifest
+  passes `shasum -a 256 -c`.
+- The final affected command passes direct, durable, and builder integrations 3/3; the adapter
+  passes 8/8 and Python syntax passes. Targeted warning-denied Clippy and package no-default
+  compilation pass after fixing one reported unnecessary cast. Affected Rustfmt and whitespace
+  checks pass. Broad gates were not repeated after checkpoint 128; the prohibited integration/
+  Nextest loop, feature matrix, benchmarks, fuzzing, memory tools, packaging, dependency audit,
+  push, publication, deployment, and history rewrite did not run.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

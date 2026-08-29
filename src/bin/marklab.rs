@@ -56,6 +56,7 @@ fn main() -> marklab::Result<()> {
                                     | "arbitrary-window-ipp-likelihood"
                                     | "fit-arbitrary-window-ipp"
                                     | "arbitrary-window-lgcp"
+                                    | "replicated-arbitrary-window-lgcp"
                                     | "region-retrieval"
                                     | "normal-mean"
                                     | "hierarchical-normal"
@@ -238,6 +239,17 @@ fn main() -> marklab::Result<()> {
                     }) =>
         {
             bayes::run_arbitrary_window_lgcp_sbc_cli().map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand == std::ffi::OsStr::new("fit-replicated-arbitrary-window-lgcp")
+                    }) =>
+        {
+            bayes::run_replicated_arbitrary_window_lgcp_fit_cli().map_err(bayes::into_marklab_error)
         }
         Some(command)
             if command == std::ffi::OsStr::new("bayes")
