@@ -3247,3 +3247,39 @@ vascular transport.
   instruction document and forbid retrying the macOS binary-verification stall. No phase-only
   feature matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push, publication,
   deployment, or history rewrite was run.
+
+## Replicated-patient conditional CellViT marks checkpoint 136 — 2026-08-29
+
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_replicated_conditional_multitype_mark_cli -- --nocapture` first failed on the absent command
+  and passes in the final state. Its exact 5-by-3/15-by-3 grid oracle checks 1,936 total edges,
+  114/30 same-type edges per separated/mixed pattern, and positive intervals for all three known
+  group affinity shifts.
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  durable_pymc_replicated_conditional_multitype_mark_project -- --nocapture` first failed on the
+  absent project command and passes in the final state. Two fresh processes prove miss, backend-
+  disabled hit, byte identity, and one durable execution. The combined final direct/durable command
+  passes both targets in 17.33 and 26.05 seconds.
+- `target/pymc-venv/bin/python -m unittest
+  tests.python.test_marklab_cellvit_cptac_results_adapter` passes 9/9. Both changed Python files pass
+  `py_compile`. The pinned Mac-mini CellViT environment re-audited 366 slides, 178 patients, and
+  1,542,389 cells in 115.03 seconds at 665,829,376-byte maximum RSS. The final 8-patient/16-slide,
+  8,192-cell input digest is
+  `ebecd5a5bf47261bdaeb965255b5b5bfd3f74f6bebf01ca5c5e8447856a7e9c6`.
+- The first 30,130-cell real attempt exceeded the explicit 1,200-second worker ceiling; total elapsed
+  and maximum RSS were 1,208.22 seconds and 898,449,408 bytes. The bounded 8,192-cell target-0.95
+  fit completed in 548.66 seconds but retained 76 divergences. Its backend-disabled replay is exact
+  with one ledger row. The sole target-0.99/depth-13 capacity retry completed in 1,201.20 seconds at
+  731,693,056-byte maximum RSS with R-hat 1.00729, bulk/tail ESS 630.90/858.52, E-BFMI 0.69379,
+  and zero divergences/depth hits. A formatted-source runtime-identity rerun completed in 1,197.25
+  seconds at 677,183,488-byte maximum RSS and reproduced that result byte-for-byte. Its fresh
+  backend-disabled hit is byte-identical with one final v2 ledger row; result SHA-256 is
+  `15a3b52b498280f0baf80e0f53b2fa9b33b059936ceffec50ceca77237bcc8e4`.
+- `cargo +1.96.0 clippy --locked --package marklab --features cli --bin marklab --test
+  bayes_replicated_conditional_multitype_mark_cli --test
+  durable_pymc_replicated_conditional_multitype_mark_project -- -D warnings`, package no-default
+  compilation, affected-file Rustfmt checks, and `git diff --check` pass. `ssh mini 'cd
+  ...v25-replicated-conditional-multitype && shasum -a 256 -c bundle_sha256.txt'` verifies every
+  sealed file. Broad workspace gates and the documented full-integration/Nextest loop were not
+  rerun after checkpoint 135; no feature matrix, benchmark, fuzzing, packaging, dependency audit,
+  push, publication, deployment, or history rewrite ran.

@@ -22,6 +22,7 @@ OBJECTIVE = "RESULTS-CELLVIT-2DAY-01"
 SCHEMA_VERSION = "1.0"
 SEED = 20_260_826
 MAXIMUM_COORDINATE_CELLS = 2_000
+MAXIMUM_REPLICATED_CONDITIONAL_CELLS = 512
 MAXIMUM_RAW_VECTOR_CELLS = 512
 PROJECTED_PATIENTS = 30
 PROJECTED_CELLS_PER_PATIENT = 100
@@ -85,6 +86,70 @@ def replicated_lgcp_selection(
             for slide in slides:
                 selected[slide] = {"patient_id": patient, "group": group}
     return selected
+
+
+def replicated_conditional_mark_rows(
+    slide_id: str,
+    patient_id: str,
+    group: str,
+    cells: list[dict[str, Any]],
+    positions: Any,
+    target_mpp: float,
+    type_map: dict[int, str],
+    maximum_points: int,
+) -> list[dict[str, object]]:
+    """Materialize one bounded common-vocabulary hard-mark slide pattern."""
+    admitted = {"Neoplastic", "Inflammatory", "Connective"}
+    if (
+        not slide_id
+        or not patient_id
+        or group not in {"MSI", "MSS"}
+        or not math.isfinite(target_mpp)
+        or target_mpp <= 0.0
+        or not 6 <= maximum_points <= 10_000
+        or len(cells) != len(positions)
+        or not admitted <= set(type_map.values())
+    ):
+        raise AdapterError("replicated conditional-mark controls are invalid")
+    candidates = [
+        row
+        for row, cell in enumerate(cells)
+        if type_map.get(int(cell["type"])) in admitted
+    ]
+    selected = sorted(
+        heapq.nsmallest(
+            maximum_points,
+            candidates,
+            key=lambda row: (
+                stable_rank("replicated-conditional-mark-cell", slide_id, row),
+                row,
+            ),
+        )
+    )
+    rows = []
+    for source_row in selected:
+        x_um = float(positions[source_row][0]) * target_mpp
+        y_um = float(positions[source_row][1]) * target_mpp
+        type_id = type_map[int(cells[source_row]["type"])]
+        if not math.isfinite(x_um) or not math.isfinite(y_um):
+            raise AdapterError("replicated conditional-mark coordinate is nonfinite")
+        rows.append(
+            {
+                "pattern_id": slide_id,
+                "patient_id": patient_id,
+                "group": group,
+                "point_id": source_cell_id(slide_id, source_row),
+                "x_um": x_um,
+                "y_um": y_um,
+                "type_id": type_id,
+            }
+        )
+    support = Counter(str(row["type_id"]) for row in rows)
+    if len(rows) < 6 or any(support[type_id] < 2 for type_id in sorted(admitted)):
+        raise AdapterError(
+            "replicated conditional-mark sample lacks two cells in every common type"
+        )
+    return rows
 
 
 def bounded_indices(count: int, maximum: int, identity: str) -> list[int]:
@@ -801,6 +866,7 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     mpp_pairs: set[tuple[float, float]] = set()
     representative: tuple[int, str, dict[str, str], Any, dict[str, Any]] | None = None
     replicated_lgcp_rows: list[dict[str, object]] = []
+    replicated_conditional_mark_table: list[dict[str, object]] = []
 
     for position, (file_id, case) in enumerate(sorted(case_map.items()), 1):
         slide_root = inference_root / file_id
@@ -906,6 +972,18 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                     raise AdapterError("replicated LGCP cell maps outside positive window nodes")
                 counts[node_id] += 1
             selection = replicated_selection[file_id]
+            replicated_conditional_mark_table.extend(
+                replicated_conditional_mark_rows(
+                    file_id,
+                    selection["patient_id"],
+                    selection["group"],
+                    cells,
+                    positions,
+                    target_mpp,
+                    valid_types,
+                    MAXIMUM_REPLICATED_CONDITIONAL_CELLS,
+                )
+            )
             window_digest = hashlib.sha256(
                 json.dumps(geometry, sort_keys=True, separators=(",", ":")).encode()
             ).hexdigest()
@@ -934,6 +1012,10 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
         raise AdapterError("cohort-wide CellViT width, annotation, scale, or representative admission differs")
     if {row["pattern_id"] for row in replicated_lgcp_rows} != set(replicated_selection):
         raise AdapterError("replicated LGCP selection was not fully materialized")
+    if {
+        str(row["pattern_id"]) for row in replicated_conditional_mark_table
+    } != set(replicated_selection):
+        raise AdapterError("replicated conditional-mark selection was not fully materialized")
 
     type_map = next(iter(type_maps))
     beta_binomial_rows = beta_binomial_patient_rows(patient_type_counts, type_map)
@@ -1012,6 +1094,19 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
             replicated_lgcp_rows,
             key=lambda row: (str(row["pattern_id"]), str(row["node_id"])),
         ),
+    )
+    write_csv(
+        inputs / "replicated_conditional_multitype_marks.csv",
+        [
+            "pattern_id",
+            "patient_id",
+            "group",
+            "point_id",
+            "x_um",
+            "y_um",
+            "type_id",
+        ],
+        replicated_conditional_mark_table,
     )
     reaggregated_slides: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     for row in beta_binomial_group_gender_slides:
@@ -1596,6 +1691,20 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "node_count": len(replicated_lgcp_rows),
                 "population_claim": "exploratory_replicated_pattern_hierarchy",
             },
+            "replicated_conditional_multitype_mark_definition": {
+                "statistical_unit": "patient",
+                "pattern_unit": "two_slide_patterns_nested_in_patient",
+                "selection": "same_four_provenance_sorted_patients_per_MSI_MSS_group_and_two_slides_each_as_replicated_LGCP",
+                "cell_selection": "stable_identity_only_SHA256_rank_after_declared_common_type_vocabulary_filter",
+                "type_vocabulary": ["Neoplastic", "Inflammatory", "Connective"],
+                "maximum_cells_per_pattern": MAXIMUM_REPLICATED_CONDITIONAL_CELLS,
+                "patient_count": len(
+                    {row["patient_id"] for row in replicated_selection.values()}
+                ),
+                "pattern_count": len(replicated_selection),
+                "cell_count": len(replicated_conditional_mark_table),
+                "population_claim": "exploratory_patient_population_conditional_mark_hierarchy",
+            },
             "beta_binomial_group_gender_definition": {
                 "join_key": "patient_id",
                 "source": str(arguments.clinical.resolve()),
@@ -1695,6 +1804,9 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                         str(row["patient_id"])
                         for row in beta_binomial_group_gender_slides
                     ).values()
+                ),
+                "replicated_conditional_mark_cells": len(
+                    replicated_conditional_mark_table
                 ),
             },
             "executions": {},

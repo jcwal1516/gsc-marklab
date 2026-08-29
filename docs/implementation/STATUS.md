@@ -2522,3 +2522,38 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - The five-workflow major stabilization passes workspace formatting, warning-denied all-target/
   all-feature Clippy, workspace no-default compilation, all-feature doctests, and strict all-feature
   workspace docs. The documented macOS Nextest/full-integration loader loop was not retried.
+
+## Replicated-patient conditional CellViT marks checkpoint 136 — 2026-08-29
+
+- Added direct and durable `fit-replicated-conditional-multitype-mark` through pinned PyMC 6.3.0.
+  The model fixes separate exact slide radius graphs, keeps patient as the population unit, nests
+  two slides per patient, and separates composition-intercept from spatial pair-potential baseline,
+  MSI-minus-MSS, patient, and slide variation under exact reference gauges.
+- The known-shift control uses eight patients, 16 patterns, and 720 cells. An independent exact-grid
+  oracle gives 1,936 total radius edges and 114/30 same-type edges per separated/mixed pattern; all
+  three group affinity intervals recover the positive shift. Its durable path proves miss, fresh-
+  process backend-disabled hit, byte identity, and one ledger row.
+- The Mac-mini adapter revalidated all 366 slides, 178 patients, and 1,542,389 cells. It reused the
+  exact replicated-LGCP patient/slide selection, filtered to the common Neoplastic, Inflammatory,
+  and Connective vocabulary, and sampled only by stable source CellId. A 30,130-cell attempt exceeded
+  its 1,200-second limit at 1,208.22 seconds and 898,449,408-byte maximum RSS. The retained bounded
+  input has eight patients, 16 slides, 8,192 cells, and SHA-256
+  `ebecd5a5bf47261bdaeb965255b5b5bfd3f74f6bebf01ca5c5e8447856a7e9c6`.
+- The target-acceptance 0.95 fit completed in 548.66 seconds but retained 76 divergences and remains
+  nonconverged. The only capacity retry used unchanged data, priors, seed, estimand, and diagnostic
+  thresholds with target acceptance 0.99, 2,000 warmup iterations, and depth capacity 13. It is
+  complete: R-hat 1.00729, bulk/tail ESS 630.90/858.52, E-BFMI 0.69379, and zero divergences/depth
+  hits. The first completed run took 1,201.20 seconds at 731,693,056-byte maximum RSS. After
+  affected-file formatting changed the exact native runtime digest, the versioned final durable
+  execution reproduced it byte-for-byte in 1,197.25 seconds at 677,183,488-byte maximum RSS.
+- MSI-minus-MSS affinity intervals are null-compatible: Neoplastic–Connective -0.0259
+  [-0.1774, 0.1195], Neoplastic–Inflammatory -0.00934 [-0.1640, 0.1460], and Connective–Inflammatory
+  0.00544 [-0.1624, 0.1654]. This is not equivalence, absence-of-biology, joint-Gibbs,
+  location-attraction, causal, clinical, external-validation, or transportability evidence.
+- A fresh backend-disabled process returns the byte-identical hit with one ledger row. Result
+  SHA-256 is `15a3b52b498280f0baf80e0f53b2fa9b33b059936ceffec50ceca77237bcc8e4`;
+  the hash-verified Mac-mini 1 TB bundle is
+  `results-cellvit-categorical-v25-replicated-conditional-multitype`. Focused direct/durable tests,
+  the nine-test adapter suite, Python syntax, affected warning-denied Clippy, package no-default
+  compilation, affected Rustfmt, and whitespace checks pass. Broad gates were not repeated after
+  checkpoint 135.

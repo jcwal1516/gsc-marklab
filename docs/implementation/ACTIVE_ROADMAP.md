@@ -1229,3 +1229,17 @@ closes the immediate single-pattern implementation/promotion ladder without clai
 SBC proves 2,000-cell or patient-population calibration. BAY-PP/MRK-02A/WS-43 advance to
 representative independent-patient pattern fitting or a named provenance/resource blocker. The
 five-workflow family is ready for one major stabilization; UI/server/client work remains deferred.
+
+## Checkpoint 136 replicated conditional-mark continuation
+
+Eight independent CPTAC patients now drive one durable three-type conditional-mark hierarchy with
+two slide patterns nested inside each patient. The real MSI-minus-MSS invariant affinity intervals
+all span zero, and the retained higher-acceptance fit is diagnostically complete and replays in a
+fresh backend-disabled process with one execution. The 30,130-cell admission exceeded its process
+ceiling, so the final lane truthfully uses the declared provenance-complete 512-cell-per-slide
+identity-ranked subset without dropping patients or slides. BAY-PP/MRK-02A/WS-41/WS-43 no longer
+lack every independent-patient hard-mark caller; they remain active for independent-backend
+agreement, prior/hierarchy sensitivity, calibrated patient replication, normalized joint fitting,
+and broader cohorts. Production proceeds to the smallest of those promotion checks before the next
+distinct Bayesian likelihood or representative graph/topology scaling; UI/server/client work
+remains deferred.

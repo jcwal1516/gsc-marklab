@@ -66,6 +66,7 @@ enum StaticBackendWorkflow {
     PymcReplicatedArbitraryWindowLgcp,
     PymcReplicatedArbitraryWindowLgcpInferredKernel,
     PymcConditionalMultitypeMark,
+    PymcReplicatedConditionalMultitypeMark,
     PotFusedGromovWasserstein,
 }
 
@@ -330,6 +331,24 @@ impl StaticBackendWorkflow {
                     "marklab-project-pymc-conditional-multitype-mark-fit-node-v1",
                 deterministic_controls:
                     "seeded-nuts-fixed-location-radius-graph-conditional-mark-request",
+            },
+            Self::PymcReplicatedConditionalMultitypeMark => StaticBackendDescriptor {
+                backend_id: "pymc",
+                backend_version: "6.3.0",
+                python_version: "3.12",
+                license: "Apache-2.0",
+                input_kinds: &[
+                    "application/vnd.marklab.source.replicated-conditional-multitype-mark+csv;version=1",
+                ],
+                output_kind:
+                    "application/vnd.marklab.pymc-replicated-conditional-multitype-mark-fit+json;version=1",
+                result_schema_id: "marklab.replicated_conditional_multitype_mark_fit",
+                node_id: "pymc-replicated-conditional-multitype-mark-fit",
+                node_kind: "bayesian_patient_replicated_conditional_multitype_mark_fit",
+                implementation_identity:
+                    "marklab-project-pymc-replicated-conditional-multitype-mark-fit-node-v2",
+                deterministic_controls:
+                    "seeded-nuts-patient-pattern-fixed-location-conditional-mark-request",
             },
             Self::PotFusedGromovWasserstein => StaticBackendDescriptor {
                 backend_id: "pot",
@@ -712,6 +731,62 @@ struct ConditionalMultitypeMarkProjectArgs {
     out: PathBuf,
 }
 
+#[derive(Debug, clap::Args)]
+struct ReplicatedConditionalMultitypeMarkProjectArgs {
+    #[arg(long)]
+    project: PathBuf,
+    #[arg(long)]
+    input: PathBuf,
+    #[arg(long)]
+    reference_group: String,
+    #[arg(long)]
+    reference_type: String,
+    #[arg(long)]
+    radius_um: f64,
+    #[arg(long)]
+    intercept_prior_sd: f64,
+    #[arg(long)]
+    interaction_prior_sd: f64,
+    #[arg(long)]
+    group_effect_prior_sd: f64,
+    #[arg(long)]
+    patient_sd_prior_scale: f64,
+    #[arg(long)]
+    pattern_sd_prior_scale: f64,
+    #[arg(long)]
+    chains: u32,
+    #[arg(long)]
+    tune: u32,
+    #[arg(long)]
+    draws: u32,
+    #[arg(long)]
+    target_accept: f64,
+    #[arg(long)]
+    seed: u64,
+    #[arg(long)]
+    maximum_patients: usize,
+    #[arg(long)]
+    maximum_patterns: usize,
+    #[arg(long)]
+    maximum_points: usize,
+    #[arg(long)]
+    maximum_types: usize,
+    #[arg(long)]
+    maximum_neighbor_visits: u64,
+    #[arg(long)]
+    maximum_edges: usize,
+    #[arg(long)]
+    maximum_draw_parameter_work: u64,
+    #[arg(long)]
+    maximum_working_bytes: usize,
+    #[arg(long)]
+    maximum_tree_depth: u32,
+    #[arg(long)]
+    timeout_seconds: u64,
+    #[arg(long)]
+    out: PathBuf,
+}
+
 #[derive(Debug, Subcommand)]
 enum ProjectCommand {
     RegionRetrieval {
@@ -764,6 +839,7 @@ enum ProjectCommand {
         Box<ReplicatedArbitraryWindowLgcpInferredKernelProjectArgs>,
     ),
     ConditionalMultitypeMark(Box<ConditionalMultitypeMarkProjectArgs>),
+    ReplicatedConditionalMultitypeMark(Box<ReplicatedConditionalMultitypeMarkProjectArgs>),
     NormalMean {
         #[arg(long)]
         project: PathBuf,
@@ -1274,6 +1350,9 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
         ProjectTopLevel::Project {
             command: ProjectCommand::ConditionalMultitypeMark(arguments),
         } => run_conditional_multitype_mark(*arguments),
+        ProjectTopLevel::Project {
+            command: ProjectCommand::ReplicatedConditionalMultitypeMark(arguments),
+        } => run_replicated_conditional_multitype_mark(*arguments),
         ProjectTopLevel::Project {
             command:
                 ProjectCommand::NormalMean {
@@ -2411,6 +2490,133 @@ fn run_conditional_multitype_mark(
     };
     bayes::publish_json(&output_path, &run.output)?;
     eprintln!("project conditional-multitype-mark cache_status={cache_status}");
+    Ok(())
+}
+
+fn run_replicated_conditional_multitype_mark(
+    arguments: ReplicatedConditionalMultitypeMarkProjectArgs,
+) -> Result<(), BayesCliError> {
+    let backend = StaticBackendWorkflow::PymcReplicatedConditionalMultitypeMark.descriptor();
+    let before = source_artifact(&arguments.input, backend.input_kinds[0])?;
+    let input_bytes = fs::read(&arguments.input).map_err(|source| BayesCliError::Io {
+        path: arguments.input.clone(),
+        source,
+    })?;
+    if input_bytes.len() as u64 > MAXIMUM_INPUT_BYTES {
+        return Err(BayesCliError::Input(
+            "replicated conditional-mark source exceeds durable input ceiling".into(),
+        ));
+    }
+    let input_sha256 = marklab_bayes::sha256_hex(&input_bytes);
+    let request_backend = bayes::replicated_conditional_multitype_mark_backend_contract()?;
+    backend.validate_request_backend(&request_backend)?;
+    let configuration_bytes = serde_json::to_vec(&serde_json::json!({
+        "reference_group": &arguments.reference_group,
+        "reference_type": &arguments.reference_type,
+        "radius_um": arguments.radius_um,
+        "intercept_prior_sd": arguments.intercept_prior_sd,
+        "interaction_prior_sd": arguments.interaction_prior_sd,
+        "group_effect_prior_sd": arguments.group_effect_prior_sd,
+        "patient_sd_prior_scale": arguments.patient_sd_prior_scale,
+        "pattern_sd_prior_scale": arguments.pattern_sd_prior_scale,
+        "chains": arguments.chains,
+        "tune": arguments.tune,
+        "draws": arguments.draws,
+        "target_accept": arguments.target_accept,
+        "seed": arguments.seed,
+        "maximum_patients": arguments.maximum_patients,
+        "maximum_patterns": arguments.maximum_patterns,
+        "maximum_points": arguments.maximum_points,
+        "maximum_types": arguments.maximum_types,
+        "maximum_neighbor_visits": arguments.maximum_neighbor_visits,
+        "maximum_edges": arguments.maximum_edges,
+        "maximum_draw_parameter_work": arguments.maximum_draw_parameter_work,
+        "maximum_working_bytes": arguments.maximum_working_bytes,
+        "maximum_tree_depth": arguments.maximum_tree_depth,
+        "timeout_seconds": arguments.timeout_seconds,
+    }))?;
+    let after = source_artifact(&arguments.input, backend.input_kinds[0])?;
+    if before != after {
+        return Err(BayesCliError::Input(
+            "replicated conditional-mark source changed while prepared".into(),
+        ));
+    }
+    let output_path = arguments.out.clone();
+    let project_path = arguments.project.clone();
+    let node = ReplicatedConditionalMultitypeMarkProjectNode::new(
+        arguments.input.clone(),
+        before.clone(),
+        bayes::ReplicatedConditionalMultitypeMarkArgs {
+            input: arguments.input,
+            reference_group: arguments.reference_group,
+            reference_type: arguments.reference_type,
+            radius_um: arguments.radius_um,
+            intercept_prior_sd: arguments.intercept_prior_sd,
+            interaction_prior_sd: arguments.interaction_prior_sd,
+            group_effect_prior_sd: arguments.group_effect_prior_sd,
+            patient_sd_prior_scale: arguments.patient_sd_prior_scale,
+            pattern_sd_prior_scale: arguments.pattern_sd_prior_scale,
+            chains: arguments.chains,
+            tune: arguments.tune,
+            draws: arguments.draws,
+            target_accept: arguments.target_accept,
+            seed: arguments.seed,
+            maximum_patients: arguments.maximum_patients,
+            maximum_patterns: arguments.maximum_patterns,
+            maximum_points: arguments.maximum_points,
+            maximum_types: arguments.maximum_types,
+            maximum_neighbor_visits: arguments.maximum_neighbor_visits,
+            maximum_edges: arguments.maximum_edges,
+            maximum_draw_parameter_work: arguments.maximum_draw_parameter_work,
+            maximum_working_bytes: arguments.maximum_working_bytes,
+            maximum_tree_depth: arguments.maximum_tree_depth,
+            timeout_seconds: arguments.timeout_seconds,
+            out: PathBuf::new(),
+        },
+        input_sha256,
+        request_backend,
+        configuration_bytes,
+        backend,
+    )?;
+    let runtime = native_runtime_provenance()?;
+    let limits = DurableProjectLimits::new(
+        PROJECT_CONTROL_BYTES,
+        PROJECT_LEDGER_BYTES,
+        PROJECT_LEDGER_RECORDS,
+        PROJECT_RECORD_BYTES,
+        MAXIMUM_RESULT_BYTES,
+    )
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let mut durable = DurableProject::open_or_create(&project_path, limits)
+        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    report_recovery(&durable);
+    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    project
+        .register_reference(before)
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let graph = WorkflowGraph::new([node.spec().clone()])
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
+    })
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let run = execute_algorithm(
+        &mut durable,
+        &mut project,
+        &graph,
+        &node,
+        &scheduler,
+        backend.result_schema()?,
+        runtime,
+    )
+    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    let cache_status = match run.cache_status {
+        CacheStatus::Hit => "hit",
+        CacheStatus::Miss => "miss",
+    };
+    bayes::publish_json(&output_path, &run.output)?;
+    eprintln!("project replicated-conditional-multitype-mark cache_status={cache_status}");
     Ok(())
 }
 
@@ -4189,6 +4395,112 @@ impl WorkflowNode for ConditionalMultitypeMarkProjectNode {
         output
             .validate_for(
                 &self.input_sha256,
+                &self.arguments.reference_type,
+                self.arguments.radius_um,
+                &self.request_backend,
+            )
+            .map_err(NodeError::decode)?;
+        Ok(output)
+    }
+
+    fn output_kind(&self) -> &'static str {
+        self.backend.output_kind
+    }
+}
+
+struct ReplicatedConditionalMultitypeMarkProjectNode {
+    spec: NodeSpec,
+    input_path: PathBuf,
+    input_artifact: ArtifactRef,
+    arguments: bayes::ReplicatedConditionalMultitypeMarkArgs,
+    input_sha256: String,
+    request_backend: BackendContract,
+    configuration_bytes: Vec<u8>,
+    backend: StaticBackendDescriptor,
+    execution_policy: Vec<u8>,
+}
+
+impl ReplicatedConditionalMultitypeMarkProjectNode {
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        input_path: PathBuf,
+        input_artifact: ArtifactRef,
+        arguments: bayes::ReplicatedConditionalMultitypeMarkArgs,
+        input_sha256: String,
+        request_backend: BackendContract,
+        configuration_bytes: Vec<u8>,
+        backend: StaticBackendDescriptor,
+    ) -> Result<Self, BayesCliError> {
+        backend.validate_request_backend(&request_backend)?;
+        Ok(Self {
+            spec: NodeSpec::new(
+                NodeId::new(backend.node_id)
+                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
+                backend.node_kind,
+                1,
+                Vec::new(),
+            )
+            .map_err(|error| BayesCliError::Input(error.to_string()))?,
+            input_path,
+            input_artifact,
+            arguments,
+            input_sha256,
+            request_backend,
+            configuration_bytes,
+            backend,
+            execution_policy: backend.execution_policy(),
+        })
+    }
+}
+
+impl WorkflowNode for ReplicatedConditionalMultitypeMarkProjectNode {
+    type Output = bayes::ReplicatedConditionalMultitypeMarkResult;
+
+    fn spec(&self) -> &NodeSpec {
+        &self.spec
+    }
+
+    fn input_artifacts(&self) -> &[ArtifactRef] {
+        std::slice::from_ref(&self.input_artifact)
+    }
+
+    fn verify_input_content(&self) -> Result<(), NodeError> {
+        let observed = source_artifact(&self.input_path, self.backend.input_kinds[0])
+            .map_err(NodeError::input)?;
+        if observed != self.input_artifact {
+            return Err(NodeError::input(BayesCliError::Input(
+                "replicated conditional-mark source no longer matches durable identity".into(),
+            )));
+        }
+        Ok(())
+    }
+
+    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
+        CacheKeyMaterial {
+            configuration_digest: self
+                .backend
+                .configuration_digest(&self.request_backend, &self.configuration_bytes),
+            execution_policy: &self.execution_policy,
+            implementation_identity: self.backend.implementation_identity,
+        }
+    }
+
+    fn execute(&self) -> Result<Self::Output, NodeError> {
+        bayes::execute_replicated_conditional_multitype_mark(self.arguments.clone())
+            .map_err(NodeError::execution)
+    }
+
+    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
+        marklab::exact_float_json::encode(output).map_err(NodeError::encoding)
+    }
+
+    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
+        let output: bayes::ReplicatedConditionalMultitypeMarkResult =
+            marklab::exact_float_json::decode(bytes).map_err(NodeError::decode)?;
+        output
+            .validate_for(
+                &self.input_sha256,
+                &self.arguments.reference_group,
                 &self.arguments.reference_type,
                 self.arguments.radius_um,
                 &self.request_backend,

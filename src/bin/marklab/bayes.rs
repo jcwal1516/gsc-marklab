@@ -112,6 +112,10 @@ pub(super) fn run_conditional_multitype_mark_sbc_cli() -> Result<(), BayesCliErr
     conditional_multitype_mark_sbc::run_cli()
 }
 
+pub(super) fn run_replicated_conditional_multitype_mark_cli() -> Result<(), BayesCliError> {
+    replicated_conditional_multitype_mark::run_cli()
+}
+
 pub(super) fn run_replicated_arbitrary_window_lgcp_agreement_cli() -> Result<(), BayesCliError> {
     replicated_arbitrary_window_lgcp_agreement::run_cli()
 }
@@ -161,10 +165,18 @@ mod conditional_multitype_mark_agreement;
 mod conditional_multitype_mark_sbc;
 #[path = "bayes/conditional_multitype_mark_sensitivity.rs"]
 mod conditional_multitype_mark_sensitivity;
+#[path = "bayes/replicated_conditional_multitype_mark.rs"]
+mod replicated_conditional_multitype_mark;
 pub(super) use conditional_multitype_mark::{
     backend_contract as conditional_multitype_mark_backend_contract,
     execute as execute_conditional_multitype_mark, Args as ConditionalMultitypeMarkArgs,
     Output as ConditionalMultitypeMarkResult,
+};
+pub(super) use replicated_conditional_multitype_mark::{
+    backend_contract as replicated_conditional_multitype_mark_backend_contract,
+    execute as execute_replicated_conditional_multitype_mark,
+    Args as ReplicatedConditionalMultitypeMarkArgs,
+    Output as ReplicatedConditionalMultitypeMarkResult,
 };
 #[path = "bayes/beta_binomial_hierarchy.rs"]
 mod beta_binomial_hierarchy;

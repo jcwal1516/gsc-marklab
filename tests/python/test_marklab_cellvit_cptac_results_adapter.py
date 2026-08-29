@@ -227,6 +227,52 @@ class CellvitCptacResultsAdapterTest(unittest.TestCase):
             {"MSI": 4, "MSS": 4},
         )
 
+    def test_replicated_conditional_marks_use_common_types_and_identity_only_sampling(self):
+        type_map = {
+            1: "Neoplastic",
+            2: "Inflammatory",
+            3: "Connective",
+            4: "Dead",
+            5: "Epithelial",
+        }
+        cells = [
+            {"type": 1},
+            {"type": 2},
+            {"type": 3},
+            {"type": 4},
+            {"type": 5},
+        ] * 5
+        positions = [(float(index), float(index + 1)) for index in range(len(cells))]
+
+        rows = self.module.replicated_conditional_mark_rows(
+            "slide-a",
+            "patient-a",
+            "MSI",
+            cells,
+            positions,
+            0.5,
+            type_map,
+            12,
+        )
+
+        self.assertEqual(len(rows), 12)
+        self.assertEqual(
+            set(row["type_id"] for row in rows),
+            {"Neoplastic", "Inflammatory", "Connective"},
+        )
+        self.assertTrue(all(row["pattern_id"] == "slide-a" for row in rows))
+        self.assertTrue(all(row["patient_id"] == "patient-a" for row in rows))
+        self.assertTrue(all(row["group"] == "MSI" for row in rows))
+        self.assertTrue(all(":000000" in str(row["point_id"]) for row in rows))
+        self.assertEqual(
+            [(row["x_um"], row["y_um"]) for row in rows],
+            [
+                (positions[int(str(row["point_id"]).rsplit(":", 1)[1])][0] * 0.5,
+                 positions[int(str(row["point_id"]).rsplit(":", 1)[1])][1] * 0.5)
+                for row in rows
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
