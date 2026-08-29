@@ -1315,3 +1315,16 @@ representative graph/topology scaling with exact small-reference oracles and pat
 ceilings. Richer cross-type covariance or pairwise interaction waits for an immediate scientific
 caller that can distinguish it from the already-fitted independent-field and conditional-mark
 models. UI/server/client/remote work remains deferred.
+
+## Checkpoint 143 sparse graph stability continuation
+
+The admitted 2,000-cell CPTAC sparse radius-heat graph now has one direct and durable coordinate-
+perturbation workflow with exact zero-jitter identity, finite-only results, and pre-execution
+aggregate work admission. Sixteen prespecified 1-micrometre axis-jitter replicates change the
+filtered signal by at most 0.00987 relative L2 against the fixed 0.10 diagnostic threshold; edge
+counts span 24,705–24,775 around the 24,755-edge reference. A fresh process returns byte-identical
+durable output with one ledger execution. FR-01B/GSP-01/WS-61/WS-62 no longer lack every real graph-
+coordinate perturbation caller, but patient replication, cell subsampling, segmentation uncertainty,
+sparse wavelets/scattering, and analytic perturbation bounds remain. Production proceeds to the
+smallest sparse wavelet/scattering or replicated topology caller with an admitted CRC endpoint;
+UI/server/client/remote work remains deferred.

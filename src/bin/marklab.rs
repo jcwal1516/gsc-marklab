@@ -52,6 +52,7 @@ fn main() -> marklab::Result<()> {
                             Some(
                                 "marked-prepost"
                                     | "sparse-radius-heat"
+                                    | "sparse-radius-heat-stability"
                                     | "witness-persistence"
                                     | "arbitrary-window-ipp-likelihood"
                                     | "fit-arbitrary-window-ipp"

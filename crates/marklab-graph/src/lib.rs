@@ -15,6 +15,7 @@ mod hodge;
 mod hypergraph;
 mod motif;
 mod sparse_heat;
+mod sparse_heat_stability;
 mod validation;
 
 pub use cellular::{
@@ -40,6 +41,10 @@ pub use motif::{
 };
 pub use sparse_heat::{
     graph_sparse_radius_heat_workflow, GraphSparseRadiusHeatResult, GraphSparseRadiusHeatSpec,
+};
+pub use sparse_heat_stability::{
+    graph_sparse_radius_heat_stability_workflow, GraphSparseRadiusHeatStabilityResult,
+    GraphSparseRadiusHeatStabilitySpec, SparseRadiusHeatPerturbationResult,
 };
 pub use validation::{
     validate_graph_mathematics_suite, GraphMathematicsValidationResult, GraphValidationEntry,

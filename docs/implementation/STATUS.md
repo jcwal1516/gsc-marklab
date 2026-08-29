@@ -2708,3 +2708,29 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - The deterministic small oracle passes. The 4,096-draw exact real-geometry run completes in 1.75 seconds at 565,854,208-byte maximum RSS under a 717,619,200-byte estimate and 1-GiB ceiling. It executes exactly 2,727,936 node-type simulations and 187,392,000 kernel-cube work.
 - All seven moment checks pass; the largest mean/SD-relative errors are 0.0354/0.0169. Whitened field mean/second moment are -0.00111/1.00001 with maximum centering error 8.44e-15. Poisson residual mean/second moment are -0.000256/0.99918. Result SHA-256 is `71445bb843aa9ab15ebc0e7a234ad1ebf9861bbbbeae7239e799b9379b23e0fe`; the hash-verified bundle is `results-cellvit-categorical-v33-replicated-multitype-lgcp-inferred-promotion`.
 - Final direct, durable, agreement, and calibration integrations pass in 13.80, 24.88, 32.87, and 1.30 seconds. Focused checks pass. At this three-workflow boundary, workspace formatting, all-target/all-feature warning-denied Clippy, workspace no-default compilation, all-feature doctests, strict docs, bundle verification, and whitespace checks pass. The documented Nextest/full-integration loader loop was not run; no feature matrix, benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or history rewrite ran.
+
+## Sparse radius-heat coordinate stability checkpoint 143 — 2026-08-29
+
+- Added direct and durable `sparse-radius-heat-stability`. It reuses the exact sparse radius-heat
+  owner for an unperturbed reference and 1–64 deterministic SHA-256-seeded independent per-axis
+  physical coordinate perturbations while fixing node IDs and signals. It reports graph, edge,
+  isolate, aggregate work, and relative filtered-signal L2 diagnostics under per-run and
+  pre-execution aggregate candidate/matrix-vector ceilings. Non-finite controls/results and
+  undefined zero-reference relative changes are rejected.
+- The exact zero-jitter identity oracle passes and the underlying sparse transform retains its
+  independent dense-eigensolver/negative-grid agreement. The durable integration proves miss,
+  fresh-process hit, byte identity, and one execution row. The admitted CPTAC run has 2,000 nodes,
+  24,755 baseline edges, nine isolates, and 16 prespecified 1-micrometre jitter replicates. Edge
+  counts span 24,705–24,775 and maximum relative filtered-signal change is 0.009872 against the
+  fixed 0.10 diagnostic threshold. Observed totals are 955,108 candidate evaluations and
+  11,378,068 matrix-vector work.
+- The real durable miss completes in 8.94 seconds at 15,482,880-byte maximum RSS; a fresh-process
+  hit is byte-identical with one ledger row. Result SHA-256 is
+  `fc09927bc10c9f5f8099c2af78b12b554d01a489868ae5fe6db91a399f89d881`; the hash-verified 1-TB
+  bundle is `results-cellvit-categorical-v34-sparse-heat-stability`. This remains one-specimen,
+  one-signal/radius/time/jitter evidence, not patient reproducibility, segmentation or subsampling
+  calibration, molecular association, biological significance, causality, or clinical evidence.
+- The affected graph package, legacy sparse direct/durable integrations, and new direct/durable
+  integrations pass. Affected files are formatted and the bundle verifies. This is the first
+  workflow after checkpoint 142, so broad workspace gates were not repeated; the documented
+  Nextest/full-integration loop remains excluded.

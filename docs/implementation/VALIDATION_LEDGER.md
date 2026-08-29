@@ -3428,3 +3428,24 @@ vascular transport.
 - Seven prior-moment checks, recovered whitened moments (-0.00111/1.00001), slide centering (8.44e-15 maximum), and 2,727,936 Poisson residuals (-0.000256/0.99918 first/second moments) pass. Output SHA-256 is `71445bb843aa9ab15ebc0e7a234ad1ebf9861bbbbeae7239e799b9379b23e0fe`.
 - The final combined direct/durable/agreement/calibration command passes in 13.80/24.88/32.87/1.30 seconds. Focused warning-denied Clippy, package no-default CLI compilation, worker `py_compile`, affected-file Rustfmt, and `git diff --check` pass. `ssh mini 'cd ...v33-replicated-multitype-lgcp-inferred-promotion && shasum -a 256 -c bundle_sha256.txt'` verifies all 22 files.
 - At this three-workflow stabilization boundary, `cargo +1.96.0 fmt --all --check`, `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings`, `cargo +1.96.0 check --locked --workspace --no-default-features`, `cargo +1.96.0 test --locked --workspace --doc --all-features`, and `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --workspace --all-features --no-deps` pass. The documented macOS Nextest/full-integration loader loop was not run; no feature matrix, benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or history rewrite ran.
+
+## Sparse radius-heat coordinate stability checkpoint 143 — 2026-08-29
+
+- `cargo +1.96 test --locked --package marklab --features cli --test
+  graph_sparse_radius_heat_stability_cli` first fails on the absent direct subcommand and passes in
+  the final state. Its five-node zero-jitter oracle requires four exact graph-digest/signal
+  identities and rejects a one-short aggregate candidate ceiling before execution.
+- `cargo +1.96 test --locked --package marklab --features cli --test
+  durable_sparse_radius_heat_stability_project` first fails on the absent project subcommand and
+  passes in the final state with miss, fresh-process hit, byte identity, and one ledger row.
+  `cargo +1.96 test --locked --package marklab-graph` passes. The final affected integration command
+  over legacy/new direct and durable sparse-heat targets passes 5/5 assertions across four targets.
+- The remote durable miss over the exact admitted 2,000-cell input completes in 8.94 seconds at
+  15,482,880-byte maximum RSS. Sixteen fixed 1-micrometre perturbations execute 955,108 candidate
+  and 11,378,068 matrix-vector work; maximum relative L2 change is 0.009872 and edge counts span
+  24,705–24,775. A second remote process reports `cache_status=hit`; `cmp` passes and
+  `executions.jsonl` remains one row. `ssh mini 'cd
+  /Volumes/1TB/marklab/runs/results-cellvit-categorical-v34-sparse-heat-stability && shasum -a 256
+  -c bundle_sha256.txt'` verifies every sealed file.
+- Affected-file Rustfmt passes. Broad workspace gates were not repeated one workflow after
+  checkpoint 142, and the documented Nextest/full-integration loader loop was not run.

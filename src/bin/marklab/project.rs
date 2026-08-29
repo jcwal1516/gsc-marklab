@@ -16,7 +16,9 @@ use marklab_bayes::{
     NutsSamplingSpec, StudentTHierarchyWorkerResult, WorkerResult,
 };
 use marklab_graph::{
-    graph_sparse_radius_heat_workflow, GraphSparseRadiusHeatResult, GraphSparseRadiusHeatSpec,
+    graph_sparse_radius_heat_stability_workflow, graph_sparse_radius_heat_workflow,
+    GraphSparseRadiusHeatResult, GraphSparseRadiusHeatSpec, GraphSparseRadiusHeatStabilityResult,
+    GraphSparseRadiusHeatStabilitySpec,
 };
 use marklab_topology::WitnessPersistenceResult;
 use marklab_workflow::{
@@ -991,6 +993,14 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    SparseRadiusHeatStability {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
     WitnessPersistence {
         #[arg(long)]
         project: PathBuf,
@@ -1373,6 +1383,14 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
                     out,
                 },
         } => run_sparse_radius_heat(project, input, out),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::SparseRadiusHeatStability {
+                    project,
+                    input,
+                    out,
+                },
+        } => run_sparse_radius_heat_stability(project, input, out),
         ProjectTopLevel::Project {
             command:
                 ProjectCommand::WitnessPersistence {
@@ -1981,6 +1999,80 @@ fn run_sparse_radius_heat(
     };
     bayes::publish_json(&output_path, &run.output)?;
     eprintln!("project sparse-radius-heat cache_status={cache_status}");
+    Ok(())
+}
+
+fn run_sparse_radius_heat_stability(
+    project_path: PathBuf,
+    input_path: PathBuf,
+    output_path: PathBuf,
+) -> Result<(), BayesCliError> {
+    let input_kind =
+        "application/vnd.marklab.source.graph-sparse-radius-heat-stability+json;version=1";
+    let before = source_artifact(&input_path, input_kind)?;
+    let metadata = fs::metadata(&input_path).map_err(|source| BayesCliError::Io {
+        path: input_path.clone(),
+        source,
+    })?;
+    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
+        return Err(BayesCliError::Input(
+            "sparse radius heat stability input must be a regular file within 16 MiB".into(),
+        ));
+    }
+    let request_bytes = fs::read(&input_path).map_err(|source| BayesCliError::Io {
+        path: input_path.clone(),
+        source,
+    })?;
+    let spec: GraphSparseRadiusHeatStabilitySpec = serde_json::from_slice(&request_bytes)?;
+    let after = source_artifact(&input_path, input_kind)?;
+    if before != after {
+        return Err(BayesCliError::Input(
+            "sparse radius heat stability input changed while the durable request was prepared"
+                .into(),
+        ));
+    }
+    let runtime = native_runtime_provenance()?;
+    let limits = DurableProjectLimits::new(
+        PROJECT_CONTROL_BYTES,
+        PROJECT_LEDGER_BYTES,
+        PROJECT_LEDGER_RECORDS,
+        PROJECT_RECORD_BYTES,
+        MAXIMUM_RESULT_BYTES,
+    )
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let mut durable = DurableProject::open_or_create(&project_path, limits)
+        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    report_recovery(&durable);
+    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    project
+        .register_reference(before.clone())
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let node = SparseRadiusHeatStabilityProjectNode::new(input_path, before, spec, request_bytes)?;
+    let graph = WorkflowGraph::new([node.spec().clone()])
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
+    })
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let schema = ArtifactSchema::new("marklab.graph_sparse_radius_heat_stability_result", 1)
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let run = execute_algorithm(
+        &mut durable,
+        &mut project,
+        &graph,
+        &node,
+        &scheduler,
+        schema,
+        runtime,
+    )
+    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    let cache_status = match run.cache_status {
+        CacheStatus::Hit => "hit",
+        CacheStatus::Miss => "miss",
+    };
+    bayes::publish_json(&output_path, &run.output)?;
+    eprintln!("project sparse-radius-heat-stability cache_status={cache_status}");
     Ok(())
 }
 
@@ -4125,6 +4217,97 @@ impl WorkflowNode for SparseRadiusHeatProjectNode {
 
     fn output_kind(&self) -> &'static str {
         "application/vnd.marklab.graph-sparse-radius-heat-result+json;version=1"
+    }
+}
+
+struct SparseRadiusHeatStabilityProjectNode {
+    spec: NodeSpec,
+    input_path: PathBuf,
+    input_artifacts: [ArtifactRef; 1],
+    graph_spec: GraphSparseRadiusHeatStabilitySpec,
+    request_bytes: Vec<u8>,
+}
+
+impl SparseRadiusHeatStabilityProjectNode {
+    fn new(
+        input_path: PathBuf,
+        input: ArtifactRef,
+        graph_spec: GraphSparseRadiusHeatStabilitySpec,
+        request_bytes: Vec<u8>,
+    ) -> Result<Self, BayesCliError> {
+        Ok(Self {
+            spec: NodeSpec::new(
+                NodeId::new("sparse-radius-heat-stability")
+                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
+                "graph_coordinate_perturbation_stability",
+                1,
+                Vec::new(),
+            )
+            .map_err(|error| BayesCliError::Input(error.to_string()))?,
+            input_path,
+            input_artifacts: [input],
+            graph_spec,
+            request_bytes,
+        })
+    }
+}
+
+impl WorkflowNode for SparseRadiusHeatStabilityProjectNode {
+    type Output = GraphSparseRadiusHeatStabilityResult;
+
+    fn spec(&self) -> &NodeSpec {
+        &self.spec
+    }
+
+    fn input_artifacts(&self) -> &[ArtifactRef] {
+        &self.input_artifacts
+    }
+
+    fn verify_input_content(&self) -> Result<(), NodeError> {
+        let observed = source_artifact(
+            &self.input_path,
+            "application/vnd.marklab.source.graph-sparse-radius-heat-stability+json;version=1",
+        )
+        .map_err(NodeError::input)?;
+        if observed != self.input_artifacts[0] {
+            return Err(NodeError::input(BayesCliError::Input(
+                "sparse radius heat stability input no longer matches its durable identity".into(),
+            )));
+        }
+        Ok(())
+    }
+
+    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
+        CacheKeyMaterial {
+            configuration_digest: ContentDigest::from_framed([
+                b"marklab-project-sparse-radius-heat-stability-node-v1".as_slice(),
+                self.request_bytes.as_slice(),
+            ]),
+            execution_policy: b"native-safe-rust-sparse-radius-heat-stability-v1",
+            implementation_identity: "marklab-project-sparse-radius-heat-stability-node-v1",
+        }
+    }
+
+    fn execute(&self) -> Result<Self::Output, NodeError> {
+        graph_sparse_radius_heat_stability_workflow(self.graph_spec.clone())
+            .map_err(NodeError::execution)
+    }
+
+    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
+        marklab::exact_float_json::encode(output).map_err(NodeError::encoding)
+    }
+
+    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
+        let output: GraphSparseRadiusHeatStabilityResult =
+            marklab::exact_float_json::decode(bytes).map_err(NodeError::decode)?;
+        output
+            .validate_for_spec(&self.graph_spec)
+            .map_err(NodeError::decode)?;
+        Ok(output)
+    }
+
+    fn output_kind(&self) -> &'static str {
+        "application/vnd.marklab.graph-sparse-radius-heat-stability-result+json;version=1"
     }
 }
 
