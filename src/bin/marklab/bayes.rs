@@ -81,6 +81,11 @@ pub(super) fn run_replicated_arbitrary_window_lgcp_fit_cli() -> Result<(), Bayes
     replicated_arbitrary_window_lgcp_fit::run_cli()
 }
 
+pub(super) fn run_replicated_arbitrary_window_lgcp_inferred_kernel_cli() -> Result<(), BayesCliError>
+{
+    replicated_arbitrary_window_lgcp_inferred_kernel::run_cli()
+}
+
 pub(super) fn run_replicated_arbitrary_window_lgcp_agreement_cli() -> Result<(), BayesCliError> {
     replicated_arbitrary_window_lgcp_agreement::run_cli()
 }
@@ -296,6 +301,14 @@ mod replicated;
 mod replicated_arbitrary_window_lgcp_agreement;
 #[path = "bayes/replicated_arbitrary_window_lgcp_fit.rs"]
 mod replicated_arbitrary_window_lgcp_fit;
+#[path = "bayes/replicated_arbitrary_window_lgcp_inferred_kernel.rs"]
+mod replicated_arbitrary_window_lgcp_inferred_kernel;
+pub(super) use replicated_arbitrary_window_lgcp_inferred_kernel::{
+    execute as execute_replicated_arbitrary_window_lgcp_inferred_kernel,
+    prepare as prepare_replicated_arbitrary_window_lgcp_inferred_kernel,
+    PreparedReplicatedArbitraryWindowLgcpInferredKernel,
+    ResultDocument as ReplicatedArbitraryWindowLgcpInferredKernelResult,
+};
 #[path = "bayes/replicated_arbitrary_window_lgcp_sbc.rs"]
 mod replicated_arbitrary_window_lgcp_sbc;
 #[path = "bayes/replicated_arbitrary_window_lgcp_sensitivity.rs"]

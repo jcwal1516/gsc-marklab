@@ -2398,3 +2398,27 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   formatting/no-default/doctests/strict docs, and whitespace checks pass. The prohibited full
   integration/Nextest loop was not run. This is null and unstable evidence, not a biological,
   interaction-process, causal, clinical, significance, or transportability claim.
+
+## Inferred shared-kernel replicated CellViT field checkpoint 131 — 2026-08-29
+
+- Added direct and durable `fit-replicated-arbitrary-window-lgcp-inferred-kernel`. It reuses the
+  exact DEC-0312 patient/pattern/window request and pinned PyMC environment but infers one positive
+  shared Matérn amplitude and micrometre length scale. Sixteen symbolic per-slide block Choleskies
+  replace the fixed covariance under exact 222-node, 888,000 draw-node, 45,750 pattern-cube, and
+  1,200-second ceilings.
+- The known-shift control recovers its patient-group effect with finite inferred scales, all node
+  posteriors, 16 predictive rows, and complete diagnostics. Its durable test proves miss, fresh-
+  process backend-disabled hit, byte identity, one ledger row, and exact-f64 replay.
+- The first real fit at depth 10 completed in 527.65 seconds but had 377 tree-depth hits and is
+  rejected. With only the explicit capacity changed to 13, the final real fit completed in 582.67
+  seconds at 475,627,520-byte RSS with R-hat 1.00453, bulk/tail ESS 514.84/830.86, E-BFMI 0.65048,
+  and zero divergences/depth hits.
+- Shared amplitude is 0.6192 with interval [0.5357, 0.7187]; length scale is 335.3 micrometres with
+  interval [251.5, 434.9]. The MSI-minus-MSS effect remains null-compatible at 0.1972 with interval
+  [-0.5878, 0.9295]. Minimum total-count/node-variance predictive tails are 0.95/0.7395. This
+  addresses the fixed-grid instability without claiming attraction or biological significance.
+- The backend-disabled hit is byte-identical with one ledger row. SHA-256 is
+  `4ddb116a550c61dabc76c6eef10a25c646b9445748692d076b83921ff39a0b8f`; the v16 Mac-mini 1 TB
+  bundle verifies the input, final result, and rejected depth-10 diagnostic. Direct/durable tests,
+  Python syntax, affected Rustfmt, warning-denied Clippy, package no-default compilation, and
+  whitespace checks pass. Broad gates were not repeated after checkpoint 130.

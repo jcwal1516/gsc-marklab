@@ -1180,3 +1180,14 @@ physical count-scale prior passes 20/20 on the real geometry. BAY-PP/BAY-PP-A/WS
 advance without a false stability claim. Production next tests the smallest existing bounded path
 for inferred replicated-field scales; if none is feasible, it retains this exact blocker and moves
 to the immediate hard-multitype CellViT caller. UI/server/client work remains deferred.
+
+## Checkpoint 131 inferred replicated-field continuation
+
+The unchanged eight-patient/16-slide exact-window caller now infers one shared isotropic Matérn
+amplitude and physical length scale through the existing pinned PyMC environment. Its blockwise
+symbolic covariance is bounded by exact node, draw-node, pattern-cube, time, and output ceilings and
+replays durably without a second backend execution. The depth-13 real fit is complete, improves the
+coarse slide predictive checks, and retains a null-compatible MSI effect; the depth-10 fit remains a
+rejected diagnostic. BAY-PP/BAY-PP-A/WS-43 advance to inferred-kernel calibration/agreement or the
+immediate fitted hard-multitype CellViT caller, whichever is the smaller existing-backend path.
+UI/server/client work remains deferred.

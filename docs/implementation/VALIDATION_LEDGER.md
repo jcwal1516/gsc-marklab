@@ -2979,6 +2979,29 @@ vascular transport.
   fuzz, memory tool, packaging, dependency audit, push, publication, deployment, or history rewrite
   ran.
 
+## Inferred shared-kernel replicated CellViT field checkpoint 131 — 2026-08-29
+
+- The direct behavior test first failed on the absent
+  `fit-replicated-arbitrary-window-lgcp-inferred-kernel` command. It then passed with eight patients,
+  16 patterns, 64 nodes, recovered positive group shift, finite inferred amplitude/length, complete
+  diagnostics, node posteriors, and pattern PPC. The durable test first failed on the absent project
+  command and then passed miss/fresh-process backend-disabled hit/byte identity/one ledger row.
+- The real depth-10 durable miss completed in 527.65 seconds but retained 377 tree-depth hits and
+  `fit_state=nonconverged`. The explicit depth-13 regression first failed on its absent CLI control;
+  final direct/durable tests pass with that exact control and the zero-hit policy unchanged.
+- The real depth-13 miss completed in 582.67 seconds at 475,627,520-byte RSS. Diagnostics are R-hat
+  1.00453, bulk/tail ESS 514.84/830.86, E-BFMI 0.65048, zero divergences, and zero depth hits. A
+  fresh backend-disabled process returned the byte-identical hit and the ledger has one row.
+  SHA-256 is `4ddb116a550c61dabc76c6eef10a25c646b9445748692d076b83921ff39a0b8f`.
+- `ssh mini 'cd ...v16-lgcp-inferred-kernel && shasum -a 256 -c
+  inferred_results_sha256.txt'` passes the unchanged input, canonical fit, and rejected depth-10
+  diagnostic; the sealed durable ledger has one row. The scientific group interval crosses zero,
+  while the inferred kernel and improved PPC are reported without attraction or significance claims.
+- Final Python syntax, affected Rustfmt, warning-denied affected Clippy, package no-default
+  compilation, and `git diff --check` pass. The two focused integrations pass. Broad workspace
+  gates, the documented full-integration/Nextest loop, feature matrix, benchmarks, fuzzing, memory
+  tools, packaging, dependency audit, push, publication, deployment, and history rewrite did not run.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

@@ -193,6 +193,70 @@ impl WorkerRequest {
     pub(crate) fn completed_draws(&self) -> u64 {
         u64::from(self.sampling.chains) * u64::from(self.sampling.draws_per_chain)
     }
+
+    pub(crate) fn patient_count(&self) -> usize {
+        self.patients.len()
+    }
+
+    pub(crate) fn pattern_count(&self) -> usize {
+        self.patterns.len()
+    }
+
+    pub(crate) fn node_count(&self) -> usize {
+        self.nodes.len()
+    }
+
+    pub(crate) fn event_count(&self) -> u64 {
+        self.nodes.iter().map(|node| node.count).sum()
+    }
+
+    pub(crate) fn cohort_count(&self) -> usize {
+        self.patterns
+            .iter()
+            .map(|pattern| pattern.cohort.as_str())
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+    }
+
+    pub(crate) fn groups(&self) -> [String; 2] {
+        [self.reference_group.clone(), self.comparison_group.clone()]
+    }
+
+    pub(crate) fn kernel_cube_work(&self) -> Option<u64> {
+        self.patterns.iter().try_fold(0_u64, |work, pattern| {
+            let nodes = pattern.node_count as u64;
+            work.checked_add(nodes.checked_pow(3)?)
+        })
+    }
+
+    pub(crate) fn diagnostic_policy(&self) -> &DiagnosticPolicy {
+        &self.diagnostic_policy
+    }
+
+    pub(crate) fn patient_effects_valid(&self, rows: &[PatientEffect]) -> bool {
+        rows.len() == self.patients.len()
+            && rows.iter().zip(&self.patients).all(|(row, patient)| {
+                row.patient_id == patient.patient_id && summary_valid(&row.effect)
+            })
+    }
+
+    pub(crate) fn pattern_effects_valid(&self, rows: &[PatternEffect]) -> bool {
+        rows.len() == self.patterns.len()
+            && rows.iter().zip(&self.patterns).all(|(row, pattern)| {
+                row.pattern_id == pattern.pattern_id && summary_valid(&row.effect)
+            })
+    }
+
+    pub(crate) fn nodes_valid(&self, rows: &[NodePosterior]) -> bool {
+        rows.len() == self.nodes.len()
+            && rows.iter().zip(&self.nodes).all(|(row, node)| {
+                row.pattern_id == node.pattern_id
+                    && row.node_id == node.node_id
+                    && summary_valid(&row.latent_effect)
+                    && summary_valid(&row.expected_count)
+                    && row.expected_count.mean > 0.0
+            })
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
