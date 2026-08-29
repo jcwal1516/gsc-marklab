@@ -3071,3 +3071,27 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - The focused new test and affected probability-simplex composition/neighborhood tests pass 7/7.
   Warning-denied affected Clippy, no-default compilation, strict affected docs, formatting, and
   whitespace checks pass. No broad workspace gate runs at this ordinary milestone.
+
+## SCIENCE-CRC-FINAL-01 patient-evidence seal checkpoint 155 — 2026-08-29
+
+- Extended only the existing final CRC sealer with optional patient-replicated exact-bottleneck
+  evidence. Before copying, it independently revalidates the frozen patient/slide/request
+  identities, two slides per patient, 512 cells per slide, summary/execution identities, every
+  miss/hit digest and byte comparison, every one-row project ledger, aggregate backend work, and
+  the unstable/no-fusion state. The option-absent sealer path and schema/version remain unchanged.
+- No M0--M7, graph, topology, retrieval, cohort, Bayesian, external-validation, or outcome analysis
+  is rerun. The already sealed checkpoint-153 source is copied into the final evidence and reported
+  separately as unstable and null-compatible rather than promoted or fused.
+- The final bundle is `/Volumes/1TB/marklab/runs/science-crc-final-01-v3`. All 666 manifest artifacts
+  independently rehash. Manifest SHA-256 is
+  `0948a7c49af75de447132dfbabcd3a8b4e702c14e0e997e42b6aef076c1117b4`; interpretation SHA-256 is
+  `058c4492f4f9225324d79d7519e3cd5abc6f5ff3637b996401b944b88ace2a4a`.
+- The retained patient result remains 0/8 stable, 8/8 with essential-count mismatch, and maximum
+  finite distance `18807.03660672011` versus 600 square micrometres. The MSI-minus-MSS effect is
+  `2972.21834719212`, with whole-patient bootstrap interval
+  `[-3738.5436356459386, 10085.458614861542]` and exact p=0.60. All 16 hits are backend-disabled and
+  byte-identical to their misses; all 16 ledgers remain one row.
+- Focused sealer tests, Python compilation, real-source validation, remote complete rehash, bundle
+  identity, interpretation classification, and ledger-count checks pass. Checkpoint 145 remains the
+  requested broad baseline; no broad gate or external backend runs. SCIENCE-CRC-FINAL-01 is
+  complete, and no general Marklab capability is promoted next.

@@ -3803,3 +3803,28 @@ vascular transport.
   class probability vector is absent, so no real soft-multiclass run is claimed.
 - No workspace-wide test/Clippy/docs, Nextest/full integration, feature matrix, benchmark, fuzzing,
   memory, packaging, dependency, push, publication, deployment, or history-rewrite command runs.
+
+## SCIENCE-CRC-FINAL-01 patient-evidence seal checkpoint 155 — 2026-08-29
+
+- Red-first evidence: `target/pymc-venv/bin/python -m unittest
+  tests.python.test_crc_final_science_bundle.CrcFinalScienceBundleTest.test_patient_witness_addendum_revalidates_patient_replay_and_unstable_result`
+  first errors because `patient_witness_bottleneck_addendum` is absent. After the narrow sealer
+  connection, `target/pymc-venv/bin/python -m unittest tests.python.test_crc_final_science_bundle`
+  passes 3/3, including deliberate hit-byte corruption rejection. Python compilation passes.
+- The new validator passes against local
+  `target/patient-witness-bottleneck-real-v1/bundle-v49`: eight patients, 16 nested slides, 16
+  byte-identical backend-disabled hits, 16 one-row ledgers, and 96 miss-side backend executions.
+- The real sealer runs once on the Mac mini with the previously sealed canonical, graph/topology,
+  outcome, v48 one-specimen bottleneck, and v49 patient bottleneck sources. It writes only
+  `/Volumes/1TB/marklab/runs/science-crc-final-01-v3`; no scientific analysis or external backend
+  runs.
+- An independent manifest expansion piped to `shasum -a 256 -c -` verifies all 666 artifacts and
+  confirms 667 total files including the manifest. Manifest and interpretation SHA-256 values are
+  `0948a7c49af75de447132dfbabcd3a8b4e702c14e0e997e42b6aef076c1117b4` and
+  `058c4492f4f9225324d79d7519e3cd5abc6f5ff3637b996401b944b88ace2a4a`. Sixteen copied project
+  ledgers are present, and the final interpretation records 16 verified backend-disabled hits,
+  byte equality, one-row ledgers, 0/8 stability, 8/8 essential mismatch, and the null-compatible
+  whole-patient effect and interval.
+- Checkpoint 145 remains the requested broad workspace baseline. No workspace-wide test/Clippy/docs,
+  Nextest/full integration, feature matrix, benchmark, fuzzing, memory, packaging, dependency,
+  push, publication, deployment, or history-rewrite command runs.

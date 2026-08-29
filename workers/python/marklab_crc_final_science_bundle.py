@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -121,6 +123,241 @@ def witness_bottleneck_addendum(root: Path) -> dict[str, object]:
     }
 
 
+def _csv_rows(path: Path) -> list[dict[str, str]]:
+    if not path.is_file() or path.is_symlink():
+        raise BundleError(f"required regular artifact is absent: {path}")
+    with path.open(newline="", encoding="utf-8") as source:
+        rows = list(csv.DictReader(source))
+    if not rows:
+        raise BundleError(f"required table is empty: {path}")
+    return rows
+
+
+def _relative_regular_file(root: Path, relative: object, role: str) -> Path:
+    if not isinstance(relative, str) or not relative:
+        raise BundleError(f"patient witness {role} path is absent")
+    relative_path = Path(relative)
+    if relative_path.is_absolute() or ".." in relative_path.parts:
+        raise BundleError(f"patient witness {role} path escapes its source root")
+    path = root / relative_path
+    if not path.is_file() or path.is_symlink():
+        raise BundleError(f"patient witness {role} artifact is absent")
+    return path
+
+
+def patient_witness_bottleneck_addendum(root: Path) -> dict[str, object]:
+    """Revalidate the sealed patient-unit exact-bottleneck workflow."""
+    prepared = root / "prepared"
+    executed = root / "executed"
+    summary = read_json(root / "summary" / "summary.json")
+    execution = read_json(executed / "execution_manifest.json")
+    design = read_json(prepared / "design.json")
+    manifest_rows = _csv_rows(prepared / "manifest.csv")
+    patient_rows = _csv_rows(root / "summary" / "patient_results.csv")
+    if (
+        design.get("population_unit") != "patient"
+        or design.get("pattern_unit") != "slide_nested_within_patient"
+        or design.get("patterns_per_patient") != 2
+        or design.get("selection_uses_molecular_label") is not False
+        or summary.get("schema_name")
+        != "marklab_crc_witness_bottleneck_patient_summary"
+        or summary.get("schema_version") != "1.0"
+        or summary.get("population_unit") != "patient"
+        or summary.get("pattern_unit") != "slide_nested_within_patient"
+        or execution.get("schema_name")
+        != "marklab_crc_witness_bottleneck_patient_execution"
+        or execution.get("schema_version") != "1.0"
+        or execution.get("population_unit") != "patient"
+    ):
+        raise BundleError("patient witness design, summary, or execution identity differs")
+
+    manifest: dict[str, tuple[str, str]] = {}
+    patterns_by_patient: dict[str, list[str]] = {}
+    manifest_groups: dict[str, str] = {}
+    for row in manifest_rows:
+        pattern = row.get("pattern_id", "")
+        patient = row.get("patient_id", "")
+        group = row.get("group", "")
+        if (
+            not pattern
+            or Path(pattern).name != pattern
+            or not patient
+            or not group
+            or pattern in manifest
+            or row.get("cell_count") != "512"
+        ):
+            raise BundleError("patient witness manifest identity is absent or duplicated")
+        if patient in manifest_groups and manifest_groups[patient] != group:
+            raise BundleError("patient witness manifest has conflicting patient groups")
+        manifest_groups[patient] = group
+        _relative_regular_file(prepared, row.get("request"), "request")
+        manifest[pattern] = (patient, group)
+        patterns_by_patient.setdefault(patient, []).append(pattern)
+    if any(len(patterns) != 2 for patterns in patterns_by_patient.values()):
+        raise BundleError("patient witness manifest must contain two slides per patient")
+
+    patient_identity: dict[str, str] = {}
+    for row in patient_rows:
+        patient = row.get("patient_id", "")
+        group = row.get("group", "")
+        if not patient or not group or patient in patient_identity:
+            raise BundleError("patient witness summary identity is absent or duplicated")
+        patient_identity[patient] = group
+        if row.get("pattern_count") != "2":
+            raise BundleError("patient witness summary must retain two nested slides")
+    if patient_identity != manifest_groups:
+        raise BundleError("patient witness manifest and summary identities differ")
+    group_counts = {
+        group: sum(patient_group == group for patient_group in patient_identity.values())
+        for group in set(patient_identity.values())
+    }
+    if set(group_counts) != {"MSI", "MSS"} or min(group_counts.values()) < 2:
+        raise BundleError("patient witness molecular groups differ")
+
+    executions = execution.get("executions")
+    if not isinstance(executions, list) or len(executions) != len(manifest):
+        raise BundleError("patient witness execution count differs from its manifest")
+    seen: set[str] = set()
+    total_backends = 0
+    for row in executions:
+        if not isinstance(row, dict):
+            raise BundleError("patient witness execution row is malformed")
+        pattern = row.get("pattern_id")
+        if not isinstance(pattern, str) or pattern not in manifest or pattern in seen:
+            raise BundleError("patient witness execution identity differs")
+        seen.add(pattern)
+        patient, group = manifest[pattern]
+        if row.get("patient_id") != patient or row.get("group") != group:
+            raise BundleError("patient witness execution patient identity differs")
+        miss = _relative_regular_file(executed, row.get("miss"), "miss")
+        hit = _relative_regular_file(executed, row.get("hit"), "hit")
+        miss_bytes = miss.read_bytes()
+        if miss_bytes != hit.read_bytes():
+            raise BundleError(f"patient witness replay bytes differ for {pattern}")
+        digest = hashlib.sha256(miss_bytes).hexdigest()
+        if (
+            row.get("miss_sha256") != digest
+            or row.get("hit_sha256") != digest
+            or row.get("result_bytes_equal") is not True
+            or row.get("ledger_execution_count") != 1
+        ):
+            raise BundleError("patient witness replay receipt differs from artifacts")
+        ledger = executed / "projects" / pattern / "executions.jsonl"
+        if not ledger.is_file() or ledger.is_symlink():
+            raise BundleError(f"patient witness durable ledger is absent for {pattern}")
+        ledger_count = sum(
+            bool(line.strip())
+            for line in ledger.read_text(encoding="utf-8").splitlines()
+        )
+        if ledger_count != 1:
+            raise BundleError("patient witness durable ledger must contain exactly one execution")
+        backend_count = row.get("total_backend_executions_on_miss")
+        if not isinstance(backend_count, int) or backend_count < 1:
+            raise BundleError("patient witness backend execution count is invalid")
+        total_backends += backend_count
+
+    patient_count = len(patient_identity)
+    pattern_count = len(manifest)
+    if (
+        set(manifest) != seen
+        or design.get("patient_count") != patient_count
+        or design.get("pattern_count") != pattern_count
+        or summary.get("patient_count") != patient_count
+        or summary.get("pattern_count") != pattern_count
+        or execution.get("pattern_count") != pattern_count
+        or execution.get("miss_count") != pattern_count
+        or execution.get("backend_disabled_hit_count") != pattern_count
+        or execution.get("all_result_bytes_equal") is not True
+        or execution.get("all_ledgers_one_execution") is not True
+        or execution.get("total_backend_executions_on_misses") != total_backends
+    ):
+        raise BundleError("patient witness counts or durable replay proof differ")
+
+    group_comparison = summary.get("group_comparison")
+    replay_summary = summary.get("durable_replay")
+    interval = (
+        group_comparison.get("whole_patient_bootstrap_interval_95")
+        if isinstance(group_comparison, dict)
+        else None
+    )
+    finite_values = (
+        summary.get("maximum_patient_finite_bottleneck_distance_um_squared"),
+        summary.get("maximum_bottleneck_distance_um_squared_allowed"),
+        group_comparison.get("mean_difference_msi_minus_mss")
+        if isinstance(group_comparison, dict)
+        else None,
+        *(interval if isinstance(interval, list) else []),
+    )
+    p_value = (
+        group_comparison.get("exact_two_sided_p_value")
+        if isinstance(group_comparison, dict)
+        else None
+    )
+    assignment_count = (
+        group_comparison.get("exact_assignment_count")
+        if isinstance(group_comparison, dict)
+        else None
+    )
+    if (
+        not isinstance(group_comparison, dict)
+        or not isinstance(interval, list)
+        or len(interval) != 2
+        or len(finite_values) != 5
+        or any(
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            for value in finite_values
+        )
+        or finite_values[0] < 0.0
+        or finite_values[1] <= 0.0
+        or interval[0] > interval[1]
+        or summary.get("stable_patient_count") != 0
+        or summary.get("all_patients_stable") is not False
+        or summary.get("patients_with_infinite_essential_mismatch") != patient_count
+        or summary.get("promotion_status") != "unstable_not_promoted"
+        or summary.get("fusion_status") != "not_added_without_prespecified_stability"
+        or assignment_count != math.comb(patient_count, group_counts["MSI"])
+        or isinstance(p_value, bool)
+        or not isinstance(p_value, (int, float))
+        or not math.isfinite(p_value)
+        or not 0.0 <= p_value <= 1.0
+        or not isinstance(replay_summary, dict)
+        or replay_summary.get("miss_count") != pattern_count
+        or replay_summary.get("backend_disabled_hit_count") != pattern_count
+        or replay_summary.get("all_result_bytes_equal") is not True
+        or replay_summary.get("all_ledgers_one_execution") is not True
+    ):
+        raise BundleError("patient witness unstable result or uncertainty differs")
+
+    return {
+        "statistical_unit": "patient",
+        "pattern_unit": "slide_nested_within_patient",
+        "patient_count": patient_count,
+        "pattern_count": pattern_count,
+        "stable_patient_count": 0,
+        "patients_with_infinite_essential_mismatch": patient_count,
+        "maximum_bottleneck_distance_um_squared_allowed": summary[
+            "maximum_bottleneck_distance_um_squared_allowed"
+        ],
+        "maximum_patient_finite_bottleneck_distance_um_squared": summary[
+            "maximum_patient_finite_bottleneck_distance_um_squared"
+        ],
+        "group_comparison": group_comparison,
+        "promotion_status": summary["promotion_status"],
+        "fusion_status": summary["fusion_status"],
+        "durable_replay": {
+            "verified_miss_count": pattern_count,
+            "verified_hit_count": pattern_count,
+            "all_result_bytes_equal": True,
+            "all_ledgers_one_execution": True,
+            "backend_execution_disabled_on_hits": True,
+            "total_backend_executions_on_misses": total_backends,
+        },
+        "claim_limitation": summary["claim_limitation"],
+    }
+
+
 def _copy_file(source: Path, staging: Path, relative: str) -> None:
     if not source.is_file() or source.is_symlink():
         raise BundleError(f"required regular artifact is absent: {source}")
@@ -192,6 +429,11 @@ def build(arguments: argparse.Namespace) -> None:
         if arguments.witness_bottleneck is not None
         else None
     )
+    patient_witness_bottleneck = (
+        arguments.patient_witness_bottleneck.resolve()
+        if arguments.patient_witness_bottleneck is not None
+        else None
+    )
     output = arguments.out.resolve()
     if output.exists() or output.is_symlink():
         raise BundleError(f"output already exists: {output}")
@@ -211,6 +453,11 @@ def build(arguments: argparse.Namespace) -> None:
     bottleneck_addendum = (
         witness_bottleneck_addendum(witness_bottleneck)
         if witness_bottleneck is not None
+        else None
+    )
+    patient_bottleneck_addendum = (
+        patient_witness_bottleneck_addendum(patient_witness_bottleneck)
+        if patient_witness_bottleneck is not None
         else None
     )
     cohort_tests = {
@@ -355,6 +602,24 @@ def build(arguments: argparse.Namespace) -> None:
         interpretation["durable_replay"]["witness_bottleneck"] = bottleneck_addendum[
             "durable_replay"
         ]
+    if patient_bottleneck_addendum is not None:
+        interpretation["unstable"].append(
+            {
+                "finding": "patient-replicated exact witness-diagram bottleneck stability failed in every admitted patient and is not promoted into the fused fingerprint",
+                "stability": patient_bottleneck_addendum,
+            }
+        )
+        interpretation["null"].append(
+            {
+                "finding": "patient maximum finite witness-bottleneck distance did not establish MSI-versus-MSS separation",
+                "effect_and_uncertainty": patient_bottleneck_addendum[
+                    "group_comparison"
+                ],
+            }
+        )
+        interpretation["durable_replay"]["patient_witness_bottleneck"] = (
+            patient_bottleneck_addendum["durable_replay"]
+        )
     staging = output.with_name(f".{output.name}.{os.getpid()}.tmp")
     if staging.exists() or staging.is_symlink():
         raise BundleError(f"staging path already exists: {staging}")
@@ -384,6 +649,12 @@ def build(arguments: argparse.Namespace) -> None:
             staging,
             "graph_topology/witness_bottleneck",
         )
+    if patient_witness_bottleneck is not None:
+        _copy_tree(
+            patient_witness_bottleneck,
+            staging,
+            "graph_topology/patient_witness_bottleneck",
+        )
     write_json(staging / "scientific_interpretation.json", interpretation)
     files = sorted(path for path in staging.rglob("*") if path.is_file())
     manifest = {
@@ -407,6 +678,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--graph", required=True, type=Path)
     parser.add_argument("--outcome", required=True, type=Path)
     parser.add_argument("--witness-bottleneck", type=Path)
+    parser.add_argument("--patient-witness-bottleneck", type=Path)
     parser.add_argument("--out", required=True, type=Path)
     return parser.parse_args()
 

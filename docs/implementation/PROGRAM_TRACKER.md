@@ -291,3 +291,12 @@ artifacts: the complete previously sealed patient analysis plus the exact bottle
 addendum is explicitly one-specimen, unstable, backend-disabled replayed, and excluded from fusion.
 No completed analysis was rerun and no patient-level conclusion changed. SCIENCE-CRC-FINAL-01 is
 complete; broader master-plan states remain unchanged and no next software capability is promoted.
+
+## SCIENCE-CRC-FINAL-01 checkpoint 155 final patient-evidence bundle
+
+The final canonical `/Volumes/1TB/marklab/runs/science-crc-final-01-v3` bundle contains 666 verified
+artifacts and adds the complete eight-patient/16-slide exact-bottleneck result without rerunning any
+science. Its 16 backend-disabled replays are byte-identical with one ledger row each. The patient
+result is unstable in all eight patients and null-compatible between MSI/MSS, so it remains outside
+fusion. The scientific objective is complete; broader master-plan states remain unchanged and no
+next software capability is promoted.

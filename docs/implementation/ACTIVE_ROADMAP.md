@@ -1462,3 +1462,14 @@ production multiclass expected-pair statistic. Production next advances the exis
 multiclass categorical pair curves to the frozen patient subset with patient-unit multiplicity and
 incremental-value checks; it must reuse the current categorical pair owner and cohort inference,
 not create another pair engine or endpoint registry.
+
+## Checkpoint 155 SCIENCE-CRC-FINAL-01 final patient-evidence seal
+
+The canonical `/Volumes/1TB/marklab/runs/science-crc-final-01-v3` bundle now includes the complete
+patient-replicated exact-bottleneck checkpoint after independently revalidating all 16 miss/hit
+pairs, all 16 one-row ledgers, patient/slide/request identities, backend work, and the frozen
+unstable/no-fusion result. All 666 listed artifacts rehash. No scientific analysis was rerun, and
+the overall interpretation remains: descriptive local H&E organization is supported, but a stable
+transferable molecular-class spatial fingerprint is not established. SCIENCE-CRC-FINAL-01 is
+complete. No general project/plugin, Bayesian, graph/topology catalog, simulation/SBI, UI, server,
+client, remote-execution, packaging, release, or hardening work is promoted.

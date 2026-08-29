@@ -2765,3 +2765,22 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   `type` plus scalar winning-class `type_prob`, not a complete ordered class-probability vector, so
   real multiclass soft-pair evidence is unavailable without fabrication. Hard labels are not
   substituted and leftover mass is not invented.
+
+## DEC-0342 — Seal patient-replicated exact bottleneck evidence without rerunning science
+
+- Date: 2026-08-29
+- Status: accepted for SCIENCE-CRC-FINAL-01 only
+- Decision: extend the existing final CRC sealer with one optional
+  `--patient-witness-bottleneck` source. Revalidate the frozen patient/slide manifest, two-slide
+  nesting, 512-cell requests, summary identities, every miss/hit digest and byte comparison, every
+  one-row project ledger, aggregate backend count, patient-unit uncertainty, unstable promotion
+  state, and no-fusion state before copying the already sealed source. Add the result separately to
+  the unstable and null interpretation groups, retain its patient-unit claim limitation, and leave
+  all prior M0--M7, graph/topology, external, outcome, Bayesian, fusion, and overall conclusions
+  unchanged. Preserve the existing schema/version and behavior when the optional source is absent.
+- Consequences: `science-crc-final-01-v3` contains 666 independently rehashed artifacts, including
+  the complete eight-patient/16-slide checkpoint-153 tree. It records 0/8 stable patients, 8/8 with
+  essential-count mismatch, maximum finite distance 18,807.04 versus 600 square micrometres, and an
+  MSI-minus-MSS effect of 2,972.22 with interval [-3,738.54, 10,085.46] and exact p=0.60. Sixteen
+  backend-disabled hits remain byte-identical with one ledger row each. No scientific analysis or
+  external backend is rerun, and the block remains excluded from fusion.
