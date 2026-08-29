@@ -3095,3 +3095,39 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   identity, interpretation classification, and ledger-count checks pass. Checkpoint 145 remains the
   requested broad baseline; no broad gate or external backend runs. SCIENCE-CRC-FINAL-01 is
   complete, and no general Marklab capability is promoted next.
+
+## Patient hard-categorical pair checkpoint 156 — 2026-08-29
+
+- Added `marklab project categorical-pair` as the smallest durable CLI connection to the existing
+  typed hard-categorical pair node. The command reuses `DurableProject`, the local scheduler and
+  artifact store, exact result codec, source/window/config/runtime identities, ledger/recovery, and
+  caller-supplied memory/pair/null-work bounds. A fresh process with external backend execution
+  disabled returns an identical hit with one ledger row.
+- Added the bounded patient prepare/execute/summarize path for the frozen four-MSI/four-MSS,
+  two-slide-per-patient CPTAC CellViT subset. Preparation revalidates all 8,192 stable CellIds against
+  raw morphology types, exact physical coordinates, and exact patch-union windows. Four declared
+  directed tumor–inflammatory/connective pairs run at 20, 50, 100, and 200 micrometres with 99
+  complete-row random-label permutations in at most six processes. Labels are not used for
+  selection, preparation, pair/radius choice, or within-slide inference.
+- The first real pass is retained as a boundary failure: 52 outputs publish while 12 outputs from
+  three high-precision windows fail durable decode before ledger commit because a redundant JSON
+  perimeter summary moves by one ULP. The complete 11-component window becomes the regression
+  oracle. Decode still requires the exact canonical window digest and exact config identity, reports
+  the mismatched field, and uses the existing finite comparison only for area/perimeter summaries.
+- The identity-final binary SHA-256 is
+  `f046d5aea6f0b09c7281ea3d91de9464cf501b1045af94e53cb61779be7087ce`. Six processes complete 64
+  misses in 70.28 seconds at 33,456,128-byte maximum RSS. One fresh backend-disabled pass completes
+  64/64 byte-identical hits in 64.47 seconds; all 64 ledgers remain one row.
+- Twenty-one of 32 declared pair/radius/component endpoints are jointly inference-eligible in every
+  slide; 11 predominantly large-radius endpoints remain structurally unavailable. Nested-slide
+  rank stability median/q10 is 0.7619/0.4333. Pair-only leave-one-patient-out balanced accuracy is
+  0.25 with exact p=0.8857. Adding pairs changes M0–M3 balanced accuracy from 0.625 to 0.375, an
+  increment of -0.25 with whole-patient bootstrap interval [-0.625, 0.25]. The smallest step-down
+  Max-T adjusted p across 21 endpoints is 0.44. The block is null-compatible, lower-tail unstable,
+  nonincremental, and is not promoted or fused.
+- The 1,239-file 1-TB bundle is
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v50-patient-hard-pair-final`;
+  `SHA256SUMS` hashes to
+  `c71a28bff748f8d618c2672bfdbd913ffdcd7047d5045e9fab165611a4653e53`. Focused Rust/Python tests,
+  Python compilation, affected formatting, warning-denied Clippy, root no-default compilation,
+  remote complete rehash, and whitespace checks pass. No broad workspace gate runs.

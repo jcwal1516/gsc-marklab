@@ -3828,3 +3828,41 @@ vascular transport.
 - Checkpoint 145 remains the requested broad workspace baseline. No workspace-wide test/Clippy/docs,
   Nextest/full integration, feature matrix, benchmark, fuzzing, memory, packaging, dependency,
   push, publication, deployment, or history-rewrite command runs.
+
+## Patient hard-categorical pair checkpoint 156 — 2026-08-29
+
+- Red-first CLI evidence: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  categorical_pair_project_cli -- --nocapture` first fails because `project categorical-pair` is
+  absent, then passes cross-process miss/hit, byte equality, typed format, and one-ledger assertions.
+  The hit process sets `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1`.
+- Red-first patient evidence: `target/pymc-venv/bin/python -m unittest
+  tests.python.test_crc_categorical_pair_patient` first fails because the patient workflow is
+  absent. Its final eight-patient fake-process oracle passes preparation, 64 misses, 64 hits,
+  deliberate structural endpoint unavailability, one-row ledgers, held-out increment, and patient
+  Max-T. A real summary first exposes unequal specimen endpoint sets; the oracle is extended to
+  reproduce that boundary, fails, and passes after complete endpoint intersection precedes patient
+  reduction.
+- The first real execution retains 52 result files and 12 failures across three windows. A fresh
+  diagnostic reports `decoded categorical pair window perimeter does not match its cache-bound
+  request`. The full high-precision 11-component window is added to the CLI regression and fails.
+  After retaining exact canonical geometry/config digests and applying the existing finite
+  comparison to redundant area/perimeter summaries, the exact regression passes.
+- `/usr/bin/time -l ... execute --maximum-processes 6` completes the identity-final 64 misses in
+  70.28 seconds at 33,456,128-byte maximum RSS. The single fresh backend-disabled replay completes
+  64/64 hits in 64.47 seconds; all outputs are byte-identical and all ledgers remain one row. Binary
+  SHA-256 is `f046d5aea6f0b09c7281ea3d91de9464cf501b1045af94e53cb61779be7087ce`.
+- The deterministic summary retains 21/32 complete endpoints and 11 structural blockers. Pair-only
+  balanced accuracy is 0.25 with exact 70-assignment p=0.8857. The M0–M3-plus-pair increment is
+  -0.25 with interval [-0.625, 0.25]. Nested-slide median/q10 stability is 0.7619/0.4333, and minimum
+  step-down Max-T adjusted p is 0.44. No endpoint, radius, subset, or threshold is tuned.
+- `target/pymc-venv/bin/python -m unittest tests.python.test_crc_categorical_pair_patient
+  tests.python.test_marklab_cellvit_cptac_results_adapter
+  tests.python.test_crc_graph_topology_summary` passes 13/13; Python compilation passes. The focused
+  Rust command over `categorical_pair_project_cli` and `categorical_pair_project_workflow` passes
+  3/3. Warning-denied affected Clippy and root no-default compilation pass.
+- Remote `shasum -a 256 -c SHA256SUMS` verifies all 1,238 listed files in the 1,239-file v50 bundle;
+  `SHA256SUMS` hashes to
+  `c71a28bff748f8d618c2672bfdbd913ffdcd7047d5045e9fab165611a4653e53`. Affected formatting and
+  whitespace checks pass. No workspace-wide test/Clippy/docs, Nextest/full integration, feature
+  matrix, benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history
+  rewrite runs.

@@ -2784,3 +2784,30 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   MSI-minus-MSS effect of 2,972.22 with interval [-3,738.54, 10,085.46] and exact p=0.60. Sixteen
   backend-disabled hits remain byte-identical with one ledger row each. No scientific analysis or
   external backend is rerun, and the block remains excluded from fusion.
+
+## DEC-0343 — Replicate prespecified hard CellViT pair curves at the patient unit
+
+- Date: 2026-08-29
+- Status: accepted for MRK-01/MRK-02C/CMP-01F/PLAT-01/WF-01/WS-12/WS-23/WS-30/WS-31
+- Decision: expose the existing categorical pair owner through `marklab project categorical-pair`,
+  preserving exact typed CSV/window/source/config/runtime identities, bounds, codec, scheduler,
+  artifact store, ledger, and recovery. Add one narrow patient workflow over the frozen four-MSI/
+  four-MSS, two-slide-per-patient CPTAC subset. Revalidate every stable CellId, raw CellViT type,
+  physical coordinate, and exact patch-union window; run the four prespecified directed tumor–
+  inflammatory/connective pairs at 20, 50, 100, and 200 micrometres with 99 complete-row random-
+  labeling permutations; and use at most six processes. Reduce slides only inside patients, retain
+  structurally unavailable endpoints before population inference, preprocess inside held-out folds,
+  compare incremental value beyond M0–M3, and reuse step-down patient Max-T across the complete
+  estimable endpoint family. Do not tune pairs, radii, subset, eligibility, or thresholds after
+  observing results.
+- Consequences: a high-precision 11-component real window exposes an existing exact-float replay
+  defect: JSON parsing can move a redundant perimeter summary by one ULP even though the canonical
+  window digest is unchanged. The decoder now reports the exact mismatched field and uses its
+  existing finite comparison for area/perimeter summaries while retaining exact digest/config
+  identity; the regression fixture fails before and passes after the fix. The retained first real
+  pass publishes 52 results and rejects 12 before ledger commit. The identity-final pass completes
+  64 misses and 64 backend-disabled byte-identical hits with one row per ledger. Twenty-one of 32
+  endpoints are estimable across every slide; nested-slide stability median/q10 is 0.762/0.433.
+  Pair-only balanced accuracy is 0.25, and adding the block changes M0–M3 balanced accuracy by
+  -0.25 with interval [-0.625, 0.25]. Minimum step-down adjusted p is 0.44. The block is
+  null-compatible, unstable in its lower tail, nonincremental, and is not promoted or fused.

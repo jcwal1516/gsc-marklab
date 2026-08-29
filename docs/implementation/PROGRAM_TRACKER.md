@@ -300,3 +300,12 @@ science. Its 16 backend-disabled replays are byte-identical with one ledger row 
 result is unstable in all eight patients and null-compatible between MSI/MSS, so it remains outside
 fusion. The scientific objective is complete; broader master-plan states remain unchanged and no
 next software capability is promoted.
+
+## Patient hard-categorical pair checkpoint 156
+
+Hard multiclass pair curves now run through the durable project engine and a bounded frozen
+eight-patient/16-slide workflow. Exact raw CellViT correspondence, 64 misses, 64 backend-disabled
+hits, slide-within-patient reduction, fold-internal held-out evaluation, and step-down patient Max-T
+are verified. The real block is lower-tail unstable and nonincremental, so it is retained without
+fusion. MRK-01/MRK-02C, PLAT-01/WF-01, and WS-12/WS-23/WS-30/WS-31 advance but remain broader active
+workstreams.

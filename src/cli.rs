@@ -54,6 +54,8 @@ fn batch_output_path(root: &Path, raw_id: &str) -> Result<PathBuf> {
 mod analyze;
 #[path = "cli/batch.rs"]
 mod batch;
+#[path = "cli/categorical_pair.rs"]
+mod categorical_pair;
 #[path = "cli/classical.rs"]
 mod classical;
 #[path = "cli/multimodal.rs"]
@@ -390,6 +392,34 @@ enum SimulateCommands {
 
 #[derive(Debug, Subcommand)]
 enum ProjectCommands {
+    CategoricalPair {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        cells: PathBuf,
+        #[arg(long)]
+        mask: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        source_level: String,
+        #[arg(long)]
+        target_level: String,
+        #[arg(long, value_delimiter = ',')]
+        radii_um: Vec<f64>,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        max_pair_visits: usize,
+        #[arg(long)]
+        max_null_pair_evaluations: usize,
+    },
     Classical {
         #[arg(long)]
         project: PathBuf,
@@ -612,6 +642,35 @@ pub fn run_cli() -> Result<()> {
             maximum_csr_draws: max_csr_draws,
         }),
         Commands::Project { command } => match command {
+            ProjectCommands::CategoricalPair {
+                project,
+                cells,
+                mask,
+                out,
+                source_level,
+                target_level,
+                radii_um,
+                permutations,
+                seed,
+                alpha,
+                memory_budget_mib,
+                max_pair_visits,
+                max_null_pair_evaluations,
+            } => categorical_pair::run_project(categorical_pair::Request {
+                project,
+                cells,
+                mask,
+                out,
+                source_level,
+                target_level,
+                radii_um,
+                permutations,
+                seed,
+                alpha,
+                memory_budget_mib,
+                maximum_pair_visits: max_pair_visits,
+                maximum_null_pair_evaluations: max_null_pair_evaluations,
+            }),
             ProjectCommands::Classical {
                 project,
                 cells,

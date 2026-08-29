@@ -127,10 +127,7 @@ impl WorkflowNode for CategoricalPairAnalysisNode<'_> {
     }
 
     fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
-        validate_result(output).map_err(NodeError::encoding)?;
-        serde_json::to_vec_pretty(&ResultWire::from(output))
-            .map(Vec::into_boxed_slice)
-            .map_err(NodeError::encoding)
+        encode_result(output).map_err(NodeError::encoding)
     }
 
     fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
@@ -159,35 +156,57 @@ impl WorkflowNode for CategoricalPairAnalysisNode<'_> {
             .and_then(|value| u32::try_from(value).ok())
             .ok_or_else(|| NodeError::decode(invalid("cache-bound target level is absent")))?;
         let descriptor = self.window.descriptor();
-        if result.configuration_digest != configuration_digest(self.config)
-            || result.source_level != self.config.source_level()
-            || result.target_level != self.config.target_level()
-            || result.limits != self.config.limits()
-            || result.inference.permutations_requested != self.config.permutations()
-            || result.inference.seed != self.config.seed()
-            || result.inference.alpha.to_bits() != self.config.alpha().to_bits()
-            || result.coordinate_frame_id != *self.input.coordinate_frame_id()
-            || result.mark_id != mark_id
-            || result.measurement_status
-                != table.measurement_status(&result.mark_id).ok_or_else(|| {
-                    NodeError::decode(invalid("decoded categorical mark is absent"))
-                })?
-            || result.source_count != codes.iter().filter(|code| **code == source_code).count()
-            || result.target_count != codes.iter().filter(|code| **code == target_code).count()
-            || result.geometry.point_count != self.input.pattern().len()
-            || result.window.logical_digest != descriptor.logical_digest.to_string()
-            || result.window.area_um2.to_bits() != descriptor.area_um2.to_bits()
-            || result.window.perimeter_um.to_bits() != descriptor.perimeter_um.to_bits()
-            || result.curve.len() != self.config.radii_um().len()
-            || result
-                .curve
-                .iter()
-                .zip(self.config.radii_um())
-                .any(|(point, radius)| point.radius_um.to_bits() != radius.to_bits())
+        let expected_status = table
+            .measurement_status(&result.mark_id)
+            .ok_or_else(|| NodeError::decode(invalid("decoded categorical mark is absent")))?;
+        let mismatch = if result.configuration_digest != configuration_digest(self.config) {
+            Some("configuration digest")
+        } else if result.source_level != self.config.source_level() {
+            Some("source level")
+        } else if result.target_level != self.config.target_level() {
+            Some("target level")
+        } else if result.limits != self.config.limits() {
+            Some("resource limits")
+        } else if result.inference.permutations_requested != self.config.permutations() {
+            Some("permutation count")
+        } else if result.inference.seed != self.config.seed() {
+            Some("seed")
+        } else if result.inference.alpha.to_bits() != self.config.alpha().to_bits() {
+            Some("alpha")
+        } else if result.coordinate_frame_id != *self.input.coordinate_frame_id() {
+            Some("coordinate frame")
+        } else if result.mark_id != mark_id {
+            Some("mark identity")
+        } else if result.measurement_status != expected_status {
+            Some("measurement status")
+        } else if result.source_count != codes.iter().filter(|code| **code == source_code).count() {
+            Some("source count")
+        } else if result.target_count != codes.iter().filter(|code| **code == target_code).count() {
+            Some("target count")
+        } else if result.geometry.point_count != self.input.pattern().len() {
+            Some("point count")
+        } else if result.window.logical_digest != descriptor.logical_digest.to_string() {
+            Some("window digest")
+        } else if !same(result.window.area_um2, descriptor.area_um2) {
+            Some("window area")
+        } else if !same(result.window.perimeter_um, descriptor.perimeter_um) {
+            Some("window perimeter")
+        } else if result.curve.len() != self.config.radii_um().len() {
+            Some("radius count")
+        } else if result
+            .curve
+            .iter()
+            .zip(self.config.radii_um())
+            .any(|(point, radius)| point.radius_um.to_bits() != radius.to_bits())
         {
-            return Err(NodeError::decode(invalid(
-                "decoded categorical pair result does not match its cache-bound request",
-            )));
+            Some("radius axis")
+        } else {
+            None
+        };
+        if let Some(mismatch) = mismatch {
+            return Err(NodeError::decode(invalid(format!(
+                "decoded categorical pair {mismatch} does not match its cache-bound request"
+            ))));
         }
         Ok(result)
     }
@@ -195,6 +214,13 @@ impl WorkflowNode for CategoricalPairAnalysisNode<'_> {
     fn output_kind(&self) -> &'static str {
         RESULT_KIND
     }
+}
+
+pub(crate) fn encode_result(output: &CategoricalPairResult) -> io::Result<Box<[u8]>> {
+    validate_result(output)?;
+    serde_json::to_vec_pretty(&ResultWire::from(output))
+        .map(Vec::into_boxed_slice)
+        .map_err(io::Error::other)
 }
 
 #[derive(Serialize)]

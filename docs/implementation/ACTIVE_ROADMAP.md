@@ -1473,3 +1473,15 @@ the overall interpretation remains: descriptive local H&E organization is suppor
 transferable molecular-class spatial fingerprint is not established. SCIENCE-CRC-FINAL-01 is
 complete. No general project/plugin, Bayesian, graph/topology catalog, simulation/SBI, UI, server,
 client, remote-execution, packaging, release, or hardening work is promoted.
+
+## Checkpoint 156 patient hard-categorical pair closure
+
+The existing hard categorical pair statistic now has a durable user-facing project command and one
+frozen eight-patient/16-slide real CellViT workflow with exact raw-row/window correspondence,
+bounded parallel execution, backend-disabled replay, held-out incremental evaluation, and
+step-down whole-patient Max-T. Twenty-one endpoints are estimable across all nested slides, but the
+block is lower-tail unstable, reduces balanced accuracy beyond M0–M3 by 0.25, and has no adjusted
+endpoint p below 0.44; it is not promoted or fused. MRK-01/MRK-02C/WS-23/WS-30/WS-31 gain real
+patient evidence without a second pair engine. The next broad-goal continuation must select another
+immediate scientific caller from the remaining active workstreams; it must not generalize project,
+backend, mark, or endpoint infrastructure solely from this negative result.
