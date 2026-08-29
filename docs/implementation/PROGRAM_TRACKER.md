@@ -175,7 +175,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | PP-02 | active with negative real-scale evidence | Standard-border inhomogeneous K/L and g consume the identical persisted Gaussian leave-one-out event/fixed-grid pilot, use inverse-intensity pair/center normalization, a frozen conditioned null, ERL, hard bounds, and durable replay. One real 512-cell/12-component exact-window caller replays but fails the fixed-grid mass/intensity-range scale diagnostic. Multiple estimators, pinned `Kinhom/Linhom/pcfinhom` agreement, broader calibration, corrections, compartments, and a stable real scale policy remain. |
 | PP-03 | active | Homogeneous Epanechnikov g, directed two-level cross-g, and one inhomogeneous g specialization use explicit pair bandwidth, standard-border `r+h` eligibility, typed empty support, appropriate whole-pattern or complete-row nulls, ERL, hard bounds, and durable replay. The inhomogeneous specialization now has a project CLI and a retained real exact-window scale failure. General multitype/corrections, pinned spatstat agreement, and broader calibration remain. |
 | PP-03A | active | Bounded homogeneous and Gaussian-pilot inhomogeneous compact-support g specializations have independent Python oracles, conditional-pattern inference, finite/resource guards, user-facing durable replay, and one real exact-window diagnostic; the inhomogeneous result persists exactly the same pilot as K/L while keeping its pair bandwidth distinct. Its real pilot is inadequate and unpromoted. Pinned external agreement and broader null/edge calibration remain. |
-| PP-03B | active | Directed cross-K and two-level Epanechnikov cross-g use exact source/target counts, boundary-eligible source centers, typed unknown/empty support, random-label envelopes, hard bounds, and user-facing durable replay. Cross-g now has a real fixed-slide null-compatible caller through the shared exact categorical adapter. Patient replication, inhomogeneous intensity, general multitype coverage/corrections, and pinned external agreement remain. |
+| PP-03B | active | Directed cross-K and two-level Epanechnikov cross-g use exact source/target counts, boundary-eligible source centers, typed unknown/empty support, random-label envelopes, hard bounds, and user-facing durable replay. Cross-g now has fixed-slide and eight-patient/16-slide real callers; the patient block is nonincremental and unfused. Inhomogeneous intensity, general multitype coverage/corrections, and pinned external agreement remain. |
 | PP-04 | complete | Exact reduced-sample F/G/J runs on polygon/multipolygon/hole windows with fixed cell-centred probes, whole-pattern conditional CSR, separate ERL envelopes, pinned SciPy nearest-distance agreement, null/control calibration, typed sparse/denominator states, hard limits, and durable replay. |
 | PP-04A | complete | Event-to-nearest-distinct-event G uses the canonical exact index, deterministic tie policy, explicit simple-point rejection, boundary-eligible denominators, and independent brute-force/SciPy oracles. |
 | PP-04B | complete | Empty-space F uses a fixed declared rectangular cell-centred probe grid, exact window/hole membership, boundary-eligible denominators, spacing/discretization metadata, and the same probes for every null pattern. |
@@ -344,3 +344,12 @@ provenance, hierarchy, coordinate, project/store, and output-transaction adapter
 configs, schemas, nulls, and codecs remain separate. Frozen v50 categorical-pair bytes are unchanged.
 The real cross-g result is null-compatible and structurally unavailable at larger radii, so PP-03B
 remains active for patient replication, broader multitype/correction coverage, and external agreement.
+
+## Patient categorical cross-g checkpoint 161
+
+The frozen eight-patient/16-slide design now executes all 64 directed cross-g workflows durably and
+reduces them at the patient unit with fold-internal held-out evaluation, exact whole-patient
+permutation/bootstrap, and step-down Max-T. Eight endpoints survive all slides, but the block lowers
+held-out balanced accuracy by 0.25 beyond M0--M3 with interval [-0.625, 0], and its minimum adjusted
+p is 0.921. It is explicitly nonincremental, not promoted, and not fused. PP-03B gains patient
+replication but remains active for inhomogeneous/general multitype corrections and external agreement.

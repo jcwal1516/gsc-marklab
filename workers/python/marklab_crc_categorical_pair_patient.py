@@ -30,10 +30,18 @@ MEMORY_BUDGET_MIB = 64
 PCA_COMPONENTS = 3
 MAXIMUM_PROCESSES = 6
 MAXIMUM_TIMEOUT_SECONDS = 600
+CATEGORICAL_PAIR_ANALYSIS = "categorical-pair"
+CATEGORICAL_CROSS_G_ANALYSIS = "categorical-cross-pair-correlation"
+CROSS_G_BANDWIDTH_UM = 10.0
 
 
 class CategoricalPairPatientError(ValueError):
     """The frozen patient categorical-pair contract is invalid or incomplete."""
+
+
+def _validate_analysis(analysis: str) -> None:
+    if analysis not in {CATEGORICAL_PAIR_ANALYSIS, CATEGORICAL_CROSS_G_ANALYSIS}:
+        raise CategoricalPairPatientError(f"unsupported categorical analysis: {analysis}")
 
 
 def _load_module(path: Path, name: str):
@@ -318,8 +326,10 @@ def execute(
     timeout_seconds: int,
     *,
     replay: bool,
+    analysis: str = CATEGORICAL_PAIR_ANALYSIS,
 ) -> dict[str, Any]:
     """Run every declared pair durably, or replay hits with backend execution disabled."""
+    _validate_analysis(analysis)
     prepared = prepared.resolve()
     marklab = marklab.resolve()
     output = output.resolve()
@@ -411,7 +421,7 @@ def execute(
         command = [
             str(marklab),
             "project",
-            "categorical-pair",
+            analysis,
             "--project",
             str(project),
             "--cells",
@@ -426,19 +436,27 @@ def execute(
             target,
             "--radii-um",
             ",".join(format(radius, ".17g") for radius in RADII_UM),
-            "--permutations",
-            str(WITHIN_PATTERN_PERMUTATIONS),
-            "--seed",
-            "20260829",
-            "--alpha",
-            str(ALPHA),
-            "--memory-budget-mib",
-            str(MEMORY_BUDGET_MIB),
-            "--max-pair-visits",
-            str(maximum_pairs),
-            "--max-null-pair-evaluations",
-            str(maximum_null_work),
         ]
+        if analysis == CATEGORICAL_CROSS_G_ANALYSIS:
+            command.extend(
+                ["--bandwidth-um", format(CROSS_G_BANDWIDTH_UM, ".17g")]
+            )
+        command.extend(
+            [
+                "--permutations",
+                str(WITHIN_PATTERN_PERMUTATIONS),
+                "--seed",
+                "20260829",
+                "--alpha",
+                str(ALPHA),
+                "--memory-budget-mib",
+                str(MEMORY_BUDGET_MIB),
+                "--max-pair-visits",
+                str(maximum_pairs),
+                "--max-null-pair-evaluations",
+                str(maximum_null_work),
+            ]
+        )
         try:
             completed = subprocess.run(
                 command,
@@ -499,7 +517,11 @@ def execute(
         for status in sorted({row["cache_status"] for row in records})
     }
     result = {
-        "schema_name": "marklab_crc_categorical_pair_patient_execution",
+        "schema_name": (
+            "marklab_crc_categorical_pair_patient_execution"
+            if analysis == CATEGORICAL_PAIR_ANALYSIS
+            else "marklab_crc_categorical_cross_g_patient_execution"
+        ),
         "schema_version": "1.0",
         "population_unit": "patient",
         "replay": replay,
@@ -606,6 +628,56 @@ def _result_features(
     return features, unavailable
 
 
+def _cross_g_result_features(
+    document: dict[str, Any], source: str, target: str
+) -> tuple[dict[str, float], list[dict[str, str]]]:
+    if (
+        document.get("source_level") != source
+        or document.get("target_level") != target
+        or document.get("kernel") != "epanechnikov"
+        or float(document.get("bandwidth_um", "nan")) != CROSS_G_BANDWIDTH_UM
+        or int(document.get("source_count", 0)) <= 0
+        or int(document.get("target_count", 0)) <= 0
+    ):
+        raise CategoricalPairPatientError("typed categorical cross-g result identity differs")
+    inference = document.get("inference")
+    if (
+        not isinstance(inference, dict)
+        or inference.get("null_model") != "random_labeling"
+        or inference.get("permutation_unit") != "complete_categorical_row"
+        or inference.get("permutations_completed") != WITHIN_PATTERN_PERMUTATIONS
+    ):
+        raise CategoricalPairPatientError("categorical cross-g random-labeling execution differs")
+    curve = document.get("curve")
+    if not isinstance(curve, list) or len(curve) != len(RADII_UM):
+        raise CategoricalPairPatientError("categorical cross-g curve shape differs")
+    pair = _pair_id(source, target)
+    features: dict[str, float] = {}
+    unavailable: list[dict[str, str]] = []
+    for radius, point in zip(RADII_UM, curve):
+        if not isinstance(point, dict) or float(point.get("radius_um", "nan")) != radius:
+            raise CategoricalPairPatientError("categorical cross-g radius identity differs")
+        cross_g = point.get("cross_g")
+        theoretical = float(point.get("theoretical_cross_g", "nan"))
+        endpoint = f"{pair}.cross_g_relative_excess.r{radius:g}um"
+        if (
+            point.get("inference_eligible") is True
+            and isinstance(cross_g, (int, float))
+            and not isinstance(cross_g, bool)
+            and math.isfinite(cross_g)
+            and math.isfinite(theoretical)
+            and theoretical > 0.0
+        ):
+            features[endpoint] = float(cross_g) / theoretical - 1.0
+        else:
+            unavailable.append(
+                {"endpoint": endpoint, "reason": "not_jointly_inference_eligible"}
+            )
+    if any(not math.isfinite(value) for value in features.values()):
+        raise CategoricalPairPatientError("categorical cross-g feature is non-finite")
+    return features, unavailable
+
+
 def summarize(
     prepared: Path,
     execution: Path,
@@ -613,8 +685,11 @@ def summarize(
     marklab: Path,
     output: Path,
     seed: int,
+    *,
+    analysis: str = CATEGORICAL_PAIR_ANALYSIS,
 ) -> dict[str, Any]:
     """Reduce slides inside patients and run held-out and Max-T population inference."""
+    _validate_analysis(analysis)
     prepared = prepared.resolve()
     execution = execution.resolve()
     baseline_path = baseline_path.resolve()
@@ -624,8 +699,15 @@ def summarize(
         raise CategoricalPairPatientError(f"output already exists: {output}")
     execution_manifest = _read_json(execution / "execution_manifest.json")
     replay_manifest = _read_json(execution / "replay_manifest.json")
+    expected_execution_schema = (
+        "marklab_crc_categorical_pair_patient_execution"
+        if analysis == CATEGORICAL_PAIR_ANALYSIS
+        else "marklab_crc_categorical_cross_g_patient_execution"
+    )
     if (
-        execution_manifest.get("cache_status_counts") != {"miss": 64}
+        execution_manifest.get("schema_name") != expected_execution_schema
+        or replay_manifest.get("schema_name") != expected_execution_schema
+        or execution_manifest.get("cache_status_counts") != {"miss": 64}
         or replay_manifest.get("cache_status_counts") != {"hit": 64}
         or replay_manifest.get("all_replay_bytes_equal") is not True
         or replay_manifest.get("all_ledgers_one_execution") is not True
@@ -649,12 +731,17 @@ def summarize(
     specimen_features: dict[str, dict[str, float]] = {row["pattern_id"]: {} for row in manifest}
     unavailable_rows: list[dict[str, str]] = []
     result_paths: list[Path] = []
+    feature_reader = (
+        _result_features
+        if analysis == CATEGORICAL_PAIR_ANALYSIS
+        else _cross_g_result_features
+    )
     for row in manifest:
         pattern = row["pattern_id"]
         for source, target in PAIR_FAMILIES:
             pair = _pair_id(source, target)
             path = execution / "results" / pair / f"{pattern}.json"
-            features, unavailable = _result_features(_read_json(path), source, target)
+            features, unavailable = feature_reader(_read_json(path), source, target)
             overlap = set(specimen_features[pattern]) & set(features)
             if overlap:
                 raise CategoricalPairPatientError("categorical-pair endpoint is duplicated")
@@ -663,12 +750,29 @@ def summarize(
                 {"pattern_id": pattern, **record} for record in unavailable
             )
             result_paths.append(path)
-    declared = {
-        f"{_pair_id(source, target)}.{component}.r{radius:g}um"
-        for source, target in PAIR_FAMILIES
-        for component in ("connection_excess", "cross_k_relative_excess")
-        for radius in RADII_UM
-    }
+    if analysis == CATEGORICAL_PAIR_ANALYSIS:
+        declared = {
+            f"{_pair_id(source, target)}.{component}.r{radius:g}um"
+            for source, target in PAIR_FAMILIES
+            for component in ("connection_excess", "cross_k_relative_excess")
+            for radius in RADII_UM
+        }
+        block_name = "categorical_pair"
+        only_model_name = "categorical_pair_only"
+        augmented_model_name = "m0_m3_categorical_pair"
+        summary_schema = "marklab_crc_categorical_pair_patient_summary"
+        bundle_schema = "marklab_crc_categorical_pair_patient_bundle"
+    else:
+        declared = {
+            f"{_pair_id(source, target)}.cross_g_relative_excess.r{radius:g}um"
+            for source, target in PAIR_FAMILIES
+            for radius in RADII_UM
+        }
+        block_name = "categorical_cross_g"
+        only_model_name = "categorical_cross_g_only"
+        augmented_model_name = "m0_m3_categorical_cross_g"
+        summary_schema = "marklab_crc_categorical_cross_g_patient_summary"
+        bundle_schema = "marklab_crc_categorical_cross_g_patient_bundle"
     complete = set.intersection(*(set(row) for row in specimen_features.values()))
     incomplete = declared - complete
     unavailable_rows.extend(
@@ -720,10 +824,10 @@ def summarize(
     }
     model_blocks = {
         "m0_m3_nonspatial": {"baseline": baseline},
-        "categorical_pair_only": {"categorical_pair": pair_block},
-        "m0_m3_categorical_pair": {
+        only_model_name: {block_name: pair_block},
+        augmented_model_name: {
             "baseline": baseline,
-            "categorical_pair": pair_block,
+            block_name: pair_block,
         },
     }
     models: dict[str, Any] = {}
@@ -736,7 +840,7 @@ def summarize(
         models[name] = result
     increment = summary_owner.incremental_summary(
         models["m0_m3_nonspatial"],
-        models["m0_m3_categorical_pair"],
+        models[augmented_model_name],
         seed + 100,
         lane,
     )
@@ -831,7 +935,7 @@ def summarize(
         source_digest.update(_sha256(path).encode("ascii"))
         source_digest.update(b"\n")
     summary = {
-        "schema_name": "marklab_crc_categorical_pair_patient_summary",
+        "schema_name": summary_schema,
         "schema_version": "1.0",
         "population_unit": "patient",
         "pattern_unit": "slide_nested_within_patient",
@@ -866,12 +970,21 @@ def summarize(
         ],
         "source_result_sha256": source_digest.hexdigest(),
     }
+    if analysis == CATEGORICAL_CROSS_G_ANALYSIS:
+        if increment["balanced_accuracy_increment"] <= 0.0:
+            summary["promotion_status"] = "nonincremental_not_promoted"
+            summary["fusion_status"] = (
+                "not_added_without_positive_incremental_information"
+            )
+        else:
+            summary["promotion_status"] = "positive_increment_candidate_not_promoted"
+            summary["fusion_status"] = "not_added_without_prespecified_stability_review"
     _write_json(staging / "summary.json", summary)
     artifacts = sorted(path for path in staging.rglob("*") if path.is_file())
     _write_json(
         staging / "manifest.json",
         {
-            "schema_name": "marklab_crc_categorical_pair_patient_bundle",
+            "schema_name": bundle_schema,
             "schema_version": "1.0",
             "population_unit": "patient",
             "source_result_sha256": summary["source_result_sha256"],
@@ -899,6 +1012,11 @@ def parse_args() -> argparse.Namespace:
     execute_parser.add_argument("--maximum-processes", type=int, default=MAXIMUM_PROCESSES)
     execute_parser.add_argument("--timeout-seconds", type=int, default=300)
     execute_parser.add_argument("--replay", action="store_true")
+    execute_parser.add_argument(
+        "--analysis",
+        choices=(CATEGORICAL_PAIR_ANALYSIS, CATEGORICAL_CROSS_G_ANALYSIS),
+        default=CATEGORICAL_PAIR_ANALYSIS,
+    )
     summary_parser = commands.add_parser("summarize")
     summary_parser.add_argument("--prepared", required=True, type=Path)
     summary_parser.add_argument("--execution", required=True, type=Path)
@@ -906,6 +1024,11 @@ def parse_args() -> argparse.Namespace:
     summary_parser.add_argument("--marklab", required=True, type=Path)
     summary_parser.add_argument("--out", required=True, type=Path)
     summary_parser.add_argument("--seed", type=int, default=20260829)
+    summary_parser.add_argument(
+        "--analysis",
+        choices=(CATEGORICAL_PAIR_ANALYSIS, CATEGORICAL_CROSS_G_ANALYSIS),
+        default=CATEGORICAL_PAIR_ANALYSIS,
+    )
     return parser.parse_args()
 
 
@@ -921,6 +1044,7 @@ def main() -> None:
             arguments.maximum_processes,
             arguments.timeout_seconds,
             replay=arguments.replay,
+            analysis=arguments.analysis,
         )
     elif arguments.command == "summarize":
         summarize(
@@ -930,6 +1054,7 @@ def main() -> None:
             arguments.marklab,
             arguments.out,
             arguments.seed,
+            analysis=arguments.analysis,
         )
     else:  # pragma: no cover
         raise AssertionError(f"unknown command: {arguments.command}")

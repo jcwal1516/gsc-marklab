@@ -1529,3 +1529,15 @@ not promoted as patient evidence. Production next applies this exact cross-g wor
 eight-patient/16-slide design with slides nested in patients, fold-internal evaluation, and
 whole-patient inference; it must reuse the existing patient categorical workflow rather than create
 a parallel inference framework.
+
+## Checkpoint 161 patient categorical cross-g
+
+The same four directed cross-g families now run over the frozen eight-patient/16-slide CPTAC design
+through 64 durable misses and 64 backend-disabled hits. Eight endpoints are complete across every
+nested slide, but cross-g-only held-out balanced accuracy is 0.125 and adding the block lowers the
+M0--M3 baseline by 0.25 with interval [-0.625, 0]. The block is explicitly not promoted or fused.
+PP-03B no longer lacks patient replication, while inhomogeneous multitype intensity, broader
+corrections, and pinned external agreement remain. Checkpoints 154, 156, 157, 159, 160, and 161 now
+form more than the required three-to-five related production milestones since checkpoint 145, so
+the next boundary is one major stabilization pass without retrying the prohibited macOS
+Nextest/full-integration loader loop.

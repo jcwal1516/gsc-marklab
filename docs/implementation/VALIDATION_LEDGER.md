@@ -3989,3 +3989,33 @@ vascular transport.
 - Affected formatting, whitespace, direct diff, and status checks pass. No workspace-wide/Nextest
   loop, full feature matrix, benchmark, fuzzing, packaging, dependency, push, publication,
   deployment, or history rewrite runs.
+
+## Patient categorical cross-g checkpoint 161 — 2026-08-29
+
+- Red-first extension: the expanded fake-process behavior test first errors because `execute` does
+  not accept the cross-g `analysis`; after statistic-specific execution/extraction is added it
+  passes. A second red requires explicit `promotion_status` and `fusion_status`; the completed test
+  passes with `nonincremental_not_promoted` and
+  `not_added_without_positive_incremental_information`.
+- `target/pymc-venv/bin/python -m unittest tests.python.test_crc_categorical_pair_patient
+  tests.python.test_crc_graph_topology_summary
+  tests.python.test_marklab_cellvit_cptac_results_adapter` passes 13/13. `target/pymc-venv/bin/python
+  -m py_compile workers/python/marklab_crc_categorical_pair_patient.py` passes.
+- `/usr/bin/time -l ... execute --analysis categorical-cross-pair-correlation --maximum-processes
+  6` completes 64 real misses in 69.93 seconds at 31,244,288-byte parent maximum RSS. The single
+  `--replay` pass completes 64 backend-disabled hits in 64.17 seconds at 33,554,432-byte maximum
+  RSS. Execution/replay manifest SHA-256 values are
+  `bd97b6d1c798ccb1c7a5a9f5c6c2e700a338cb1b5db219ed9a610c72dd437c96` and
+  `93529b700120623dfe3603131217695dfe2e73a216a81ed362099b12cd95b9e2`.
+- The identity-final summary admits eight endpoints, reports stability median/q10 0.762/0.512,
+  cross-g-only balanced accuracy 0.125 with exact p=0.9714, increment -0.25 with interval
+  [-0.625, 0], and minimum adjusted p=0.921. Summary and patient-fingerprint SHA-256 values are
+  `742ac465b3b457d37a6fc89418ba36b136782a62c3563d61bcb9b1560440b288` and
+  `142ed82c25b0ef0bff377cb1e0a20bcbbbdc393eecec8e79c76ff730dfba4f94`.
+- Absolute-path remote hashing verifies all 687 listed artifacts plus `SHA256SUMS`. An independent
+  remote Python expansion compares all 64 miss/hit pairs, verifies all 64 ledgers have one row, and
+  confirms the explicit nonpromotion/fusion state. Manifest SHA-256 is
+  `d094671df0d0dd01e912322ba2c99afe3a4c90c73032d529530bde7e67f8b4b6`.
+- Affected formatting, whitespace, direct diff, and status checks pass. No Rust package changes, so
+  affected Clippy/no-default checks are not applicable. No broad workspace gate runs at this
+  ordinary milestone; the scheduled stabilization follows.

@@ -3240,3 +3240,31 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   regression tests, warning-denied affected Clippy, no-default compilation, affected formatting,
   complete remote rehash, replay/parity comparisons, whitespace, diff, and status checks pass. No
   broad workspace gate runs.
+
+## Patient categorical cross-g checkpoint 161 — 2026-08-29
+
+- Parameterized the existing categorical patient workflow only at its statistic boundary. The
+  default categorical-pair command, schemas, preparation, results, and v50 bytes remain unchanged;
+  cross-g reuses the frozen design, bounded six-process execution, patient nesting, endpoint
+  intersection, fold-internal held-out evaluation, whole-patient permutation/bootstrap, Max-T, and
+  leakage blockers.
+- The behavior oracle now runs both statistics: 64 fake misses plus 64 backend-disabled hits each,
+  byte equality, one-row ledgers, structural endpoint removal, patient reduction, held-out increment,
+  explicit cross-g nonpromotion/fusion, and patient Max-T. The exact affected 13-test Python suite
+  and compilation pass.
+- The real 64 cross-g misses complete in 69.93 seconds at 31,244,288-byte parent maximum RSS. The
+  single backend-disabled replay pass completes 64 hits in 64.17 seconds at 33,554,432-byte maximum
+  RSS. Every result is byte-identical, all 64 ledgers remain one row, and the binary SHA-256 is
+  `b45b5afe3f2ecd13907ab4479773d04f6a681ea793731e5e78828786ca7bbe00`.
+- Eight of 16 endpoints are complete across every slide. Nested-slide median/q10/minimum stability
+  is 0.762/0.512/0.405. Cross-g-only balanced accuracy is 0.125 with exact p=0.9714. Adding cross-g
+  changes M0--M3 balanced accuracy from 0.625 to 0.375, an increment of -0.25 with whole-patient
+  interval [-0.625, 0]. Minimum step-down adjusted p is 0.921. The block is explicitly
+  nonincremental, not promoted, and not fused.
+- The 688-file 1-TB bundle is
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v54-patient-cross-g-final`;
+  `SHA256SUMS` hashes to
+  `d094671df0d0dd01e912322ba2c99afe3a4c90c73032d529530bde7e67f8b4b6`. Remote complete rehash,
+  all 64 replay-byte comparisons, 64 one-row ledgers, summary promotion identity, formatting,
+  whitespace, diff, and status checks pass. No Rust package changes in this checkpoint, so affected
+  Clippy/no-default checks are not applicable; checkpoint 160 retains the current Rust evidence.

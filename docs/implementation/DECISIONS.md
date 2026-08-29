@@ -2890,3 +2890,22 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   backend-disabled process returns a byte-identical hit with one ledger row. Only 20/50 micrometres
   retain inference; global p=0.20, 100 micrometres lacks an envelope, and 200 micrometres has no
   eligible center. This remains a descriptive one-specimen null result pending patient replication.
+
+## DEC-0348 — Reuse the frozen patient categorical design for cross-g population inference
+
+- Date: 2026-08-29
+- Status: accepted for PP-03/PP-03B/MRK-02A/FND-06/COH-01/WF-01/WS-12/WS-23/WS-30/WS-31
+- Decision: parameterize only the statistic-specific execution and feature extraction in the
+  existing frozen categorical-pair patient workflow. Cross-g reuses the exact prepared
+  eight-patient/16-slide identities, four pair directions, 20/50/100/200-micrometre radii,
+  10-micrometre bandwidth, 99 complete-row within-slide permutations, seed, per-job limits,
+  six-process ceiling, backend-disabled replay proof, complete-endpoint intersection, slide-to-
+  patient reduction, fold-internal standardization/PCA, held-out retrieval/classification,
+  stratified whole-patient bootstrap, exact patient-label permutation, step-down patient Max-T,
+  and acquisition-site blocker. Preserve default categorical-pair schemas and behavior. Add an
+  explicit nonpromotion/fusion state for the new cross-g summary.
+- Consequences: 64 real misses and 64 backend-disabled hits complete with byte equality and one row
+  per ledger. Eight of 16 endpoints remain complete. Nested-slide median/q10 is 0.762/0.512, but
+  cross-g-only balanced accuracy is 0.125 with exact p=0.9714 and the increment beyond M0--M3 is
+  -0.25 with interval [-0.625, 0]. Minimum adjusted endpoint p is 0.921. The block is
+  `nonincremental_not_promoted` and is not fused.

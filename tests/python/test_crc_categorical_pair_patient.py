@@ -59,7 +59,10 @@ from pathlib import Path
 import sys
 
 args = sys.argv[1:]
-if args[:2] == ["project", "categorical-pair"]:
+if args[:2] in (
+    ["project", "categorical-pair"],
+    ["project", "categorical-cross-pair-correlation"],
+):
     def value(name):
         return args[args.index(name) + 1]
     project = Path(value("--project"))
@@ -70,7 +73,7 @@ if args[:2] == ["project", "categorical-pair"]:
             raise SystemExit("backend-disabled replay missed")
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_bytes(stored.read_bytes())
-        print("project categorical-pair cache_status=hit", file=sys.stderr)
+        print(f"project {args[1]} cache_status=hit", file=sys.stderr)
         raise SystemExit(0)
     source = value("--source-level")
     target = value("--target-level")
@@ -87,31 +90,59 @@ if args[:2] == ["project", "categorical-pair"]:
             and target == "Neoplastic"
             and index == len(radii) - 1
         )
-        curve.append({
-            "radius_um": radius,
-            "connection_probability": expected + delta if eligible else None,
-            "cross_k": theoretical * (1.0 + delta) if eligible else None,
-            "theoretical_cross_k": theoretical,
-            "connection_inference_eligible": eligible,
-            "cross_k_inference_eligible": eligible,
-        })
-    document = {
-        "format": "marklab.categorical-pair/1",
-        "source_level": source,
-        "target_level": target,
-        "source_count": 2,
-        "target_count": 2,
-        "expected_random_label_connection": expected,
-        "curve": curve,
-        "inference": {"permutations_requested": 99, "permutations_completed": 99},
-    }
+        if args[1] == "categorical-pair":
+            curve.append(
+                {
+                    "radius_um": radius,
+                    "connection_probability": expected + delta if eligible else None,
+                    "cross_k": theoretical * (1.0 + delta) if eligible else None,
+                    "theoretical_cross_k": theoretical,
+                    "connection_inference_eligible": eligible,
+                    "cross_k_inference_eligible": eligible,
+                }
+            )
+        else:
+            curve.append(
+                {
+                    "radius_um": radius,
+                    "cross_g": 1.0 + delta if eligible else None,
+                    "theoretical_cross_g": 1.0,
+                    "inference_eligible": eligible,
+                }
+            )
+    if args[1] == "categorical-pair":
+        document = {
+            "format": "marklab.categorical-pair/1",
+            "source_level": source,
+            "target_level": target,
+            "source_count": 2,
+            "target_count": 2,
+            "expected_random_label_connection": expected,
+            "curve": curve,
+            "inference": {"permutations_requested": 99, "permutations_completed": 99},
+        }
+    else:
+        document = {
+            "source_level": source,
+            "target_level": target,
+            "source_count": 2,
+            "target_count": 2,
+            "kernel": "epanechnikov",
+            "bandwidth_um": 10.0,
+            "curve": curve,
+            "inference": {
+                "null_model": "random_labeling",
+                "permutation_unit": "complete_categorical_row",
+                "permutations_completed": 99,
+            },
+        }
     encoded = (json.dumps(document, sort_keys=True) + "\n").encode()
     project.mkdir(parents=True, exist_ok=True)
     stored.write_bytes(encoded)
     (project / "executions.jsonl").write_text("{}\n", encoding="utf-8")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_bytes(encoded)
-    print("project categorical-pair cache_status=miss", file=sys.stderr)
+    print(f"project {args[1]} cache_status=miss", file=sys.stderr)
 elif args[:2] == ["cohort", "max-t"]:
     def value(name):
         return args[args.index(name) + 1]
@@ -241,6 +272,60 @@ class CrcCategoricalPairPatientTest(unittest.TestCase):
             self.assertIn("balanced_accuracy_increment", summary["incremental_information"])
             self.assertEqual(
                 len(list((executed / "projects").glob("*/*/executions.jsonl"))), 64
+            )
+
+            cross_executed = root / "cross_executed"
+            cross_summary_root = root / "cross_summary"
+            module.execute(
+                prepared,
+                fake,
+                cross_executed,
+                2,
+                30,
+                replay=False,
+                analysis="categorical-cross-pair-correlation",
+            )
+            cross_replay = module.execute(
+                prepared,
+                fake,
+                cross_executed,
+                2,
+                30,
+                replay=True,
+                analysis="categorical-cross-pair-correlation",
+            )
+            cross_summary = module.summarize(
+                prepared,
+                cross_executed,
+                baseline,
+                fake,
+                cross_summary_root,
+                20260829,
+                analysis="categorical-cross-pair-correlation",
+            )
+
+            self.assertEqual(cross_replay["cache_status_counts"], {"hit": 64})
+            self.assertTrue(cross_replay["all_replay_bytes_equal"])
+            self.assertEqual(
+                cross_summary["schema_name"],
+                "marklab_crc_categorical_cross_g_patient_summary",
+            )
+            self.assertEqual(cross_summary["declared_endpoint_count"], 16)
+            self.assertIn(
+                "balanced_accuracy_increment",
+                cross_summary["incremental_information"],
+            )
+            self.assertEqual(
+                cross_summary["promotion_status"],
+                "nonincremental_not_promoted",
+            )
+            self.assertEqual(
+                cross_summary["fusion_status"],
+                "not_added_without_positive_incremental_information",
+            )
+            self.assertEqual(
+                len(list((cross_executed / "projects").glob("*/*/executions.jsonl"))),
+                64,
             )
 
 
