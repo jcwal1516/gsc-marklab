@@ -1283,3 +1283,14 @@ exact windows; if that bounded path is unavailable, retain the exact blocker and
 representative graph/topology workflow. Pairwise interaction and cross-type latent covariance remain
 distinct future likelihoods rather than claims from independent type fields. UI/server/client/remote
 work remains deferred.
+
+## Checkpoint 140 inferred multitype-kernel continuation
+
+The exact eight-patient/16-slide multitype Cox hierarchy now infers one shared physical Matérn kernel
+durably and remains diagnostically complete with null-compatible absolute and pairwise MSI-minus-MSS
+effects. BAY-PP/WS-43 no longer lack an admitted inferred-kernel multitype caller, but independent
+type fields still cannot represent cross-type latent covariance or pairwise Gibbs interaction.
+Production proceeds to the smallest existing-backend independent agreement/calibration check for
+this inferred caller; if bounded promotion repeats the scalar caller's real-geometry calibration
+failure, retain the exact result and then move to representative graph/topology scaling rather than
+tuning it away. UI/server/client/remote work remains deferred.

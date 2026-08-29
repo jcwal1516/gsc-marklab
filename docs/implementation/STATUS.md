@@ -2666,3 +2666,31 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   The documented Nextest/full-integration loader loop was not run. No feature matrix, benchmark,
   fuzzing, memory tool, packaging, dependency audit, push, publication, deployment, or history
   rewrite ran.
+
+## Replicated multitype inferred-kernel checkpoint 140 — 2026-08-29
+
+- Added direct and durable `fit-replicated-arbitrary-window-multitype-lgcp-inferred-kernel` through
+  pinned PyMC 6.3.0. It reuses the exact checkpoint-138 patient/type/window request, type-specific
+  hierarchy and independent latent fields, but infers one shared positive Matérn amplitude and
+  physical length inside the model. Dynamic Cholesky factors are built separately for each slide;
+  exact source, backend, source-worker, inferred-worker, request, kernel-prior, depth, type/node/draw,
+  output, time, and 45,750 sum-of-slide-cubes work identities are retained.
+- The planted eight-patient/16-slide/three-type oracle recovers the known type-A group shift, finite
+  positive kernel scales, all 192 node/type posteriors, and zero divergences/depth hits. Its direct
+  and durable integrations pass in 15.88 and 24.89 seconds. The durable test proves miss, fresh
+  backend-disabled hit, byte identity, and one ledger execution through the existing project engine.
+- The real durable miss completes in 625.25 seconds at 1,284,538,368-byte maximum RSS. Diagnostics
+  are complete: R-hat 1.00782, bulk/tail ESS 479.79/727.01, E-BFMI 0.67294, zero divergences, and zero
+  depth hits. Shared amplitude is 1.03498 [0.95688, 1.11971] and length is 286.13 [236.41, 337.82]
+  micrometres. Neoplastic, Connective, and Inflammatory MSI-minus-MSS effects are -0.2724
+  [-1.1339, 0.5677], 0.0137 [-0.6675, 0.6957], and 0.2224 [-0.8507, 1.2024]; every pairwise
+  differential interval also spans zero.
+- A fresh backend-disabled process returns a byte-identical hit and the inferred project has one
+  execution row. Result SHA-256 is
+  `4e437daefdc20133f674877515d911b918f6c7d27380cb3c69d51835771c7e88`; the hash-verified 1-TB
+  bundle is `results-cellvit-categorical-v31-replicated-multitype-lgcp-inferred-kernel`.
+- Focused warning-denied Clippy, package no-default CLI compilation, Python syntax, affected-file
+  Rustfmt, both integrations, bundle verification, and whitespace checks pass. This is one ordinary
+  milestone after checkpoint 139, so broad workspace gates were not repeated. No Nextest/full-
+  integration loop, feature matrix, benchmark, fuzzing, packaging, dependency audit, push,
+  publication, deployment, or history rewrite ran.

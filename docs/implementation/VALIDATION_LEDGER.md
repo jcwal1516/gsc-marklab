@@ -3384,3 +3384,32 @@ vascular transport.
   --all-features --no-deps` pass. The documented macOS Nextest/full-integration loader loop was not
   run. No feature matrix, benchmark, fuzzing, memory tool, packaging, dependency audit, push,
   publication, deployment, or history rewrite ran.
+
+## Replicated multitype inferred-kernel checkpoint 140 — 2026-08-29
+
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_cli` first failed on the absent
+  command and passes in the final state in 15.88 seconds. The exact planted-shift oracle retains
+  eight patients, 16 slides, three types, 64 nodes, 192 node/type rows, positive finite inferred
+  scales, all node/type posteriors, and zero divergences/depth hits.
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  durable_pymc_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_project` first failed on
+  the absent project command and passes in 24.89 seconds with miss, fresh backend-disabled hit, byte
+  identity, one ledger row, exact source/backend/worker/request/kernel/resource identity, and replay
+  validation of every type, hierarchy, node, and predictive row.
+- `/usr/bin/time -l target/debug/marklab project
+  replicated-arbitrary-window-multitype-lgcp-inferred-kernel ...` completes the real durable miss in
+  625.25 seconds at 1,284,538,368-byte maximum RSS under 2,664,000 draw-node-type and 45,750 kernel-
+  cube work. R-hat is 1.00782, bulk/tail ESS 479.79/727.01, E-BFMI 0.67294, with zero divergences and
+  depth hits. Shared amplitude/length are 1.03498 [0.95688, 1.11971] and 286.13 [236.41, 337.82]
+  micrometres; all absolute and pairwise group intervals span zero.
+- A fresh `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1` command reports `cache_status=hit`; `cmp`
+  passes and `wc -l .../executions.jsonl` is one. Result SHA-256 is
+  `4e437daefdc20133f674877515d911b918f6c7d27380cb3c69d51835771c7e88`. `ssh mini 'cd
+  ...v31-replicated-multitype-lgcp-inferred-kernel && shasum -a 256 -c bundle_sha256.txt'` verifies
+  all 20 files.
+- Focused warning-denied Clippy over the binary and both integrations, package no-default CLI
+  compilation, worker `py_compile`, affected-file Rustfmt, and `git diff --check` pass. Broad
+  workspace gates were not repeated one milestone after checkpoint 139; no Nextest/full-integration
+  loop, feature matrix, benchmark, fuzzing, packaging, dependency audit, push, publication,
+  deployment, or history rewrite ran.

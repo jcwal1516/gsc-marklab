@@ -202,56 +202,56 @@ struct WorkerRequest {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct TypePosterior {
-    type_id: String,
-    intercept: SarScalarSummary,
-    group_effect: SarScalarSummary,
-    covariate_effect: SarScalarSummary,
-    patient_sd: SarScalarSummary,
-    pattern_sd: SarScalarSummary,
+pub(crate) struct TypePosterior {
+    pub(crate) type_id: String,
+    pub(crate) intercept: SarScalarSummary,
+    pub(crate) group_effect: SarScalarSummary,
+    pub(crate) covariate_effect: SarScalarSummary,
+    pub(crate) patient_sd: SarScalarSummary,
+    pub(crate) pattern_sd: SarScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct PairDifference {
-    type_a: String,
-    type_b: String,
-    difference: SarScalarSummary,
+pub(crate) struct PairDifference {
+    pub(crate) type_a: String,
+    pub(crate) type_b: String,
+    pub(crate) difference: SarScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct HierarchyEffect {
-    owner_id: String,
-    type_id: String,
-    effect: SarScalarSummary,
+pub(crate) struct HierarchyEffect {
+    pub(crate) owner_id: String,
+    pub(crate) type_id: String,
+    pub(crate) effect: SarScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct NodeTypePosterior {
-    pattern_id: String,
-    node_id: String,
-    type_id: String,
-    latent_effect: SarScalarSummary,
-    expected_count: SarScalarSummary,
+pub(crate) struct NodeTypePosterior {
+    pub(crate) pattern_id: String,
+    pub(crate) node_id: String,
+    pub(crate) type_id: String,
+    pub(crate) latent_effect: SarScalarSummary,
+    pub(crate) expected_count: SarScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct PatternTypePredictive {
-    pattern_id: String,
-    type_id: String,
-    observed_total_count: u64,
-    replicate_count: u64,
-    replicated_total_count_mean: f64,
-    replicated_total_count_sd: f64,
-    replicated_total_count_interval_lower: f64,
-    replicated_total_count_interval_upper: f64,
-    total_count_two_sided_tail_probability: f64,
-    observed_node_count_variance: f64,
-    replicated_node_count_variance_mean: f64,
-    node_variance_two_sided_tail_probability: f64,
+pub(crate) struct PatternTypePredictive {
+    pub(crate) pattern_id: String,
+    pub(crate) type_id: String,
+    pub(crate) observed_total_count: u64,
+    pub(crate) replicate_count: u64,
+    pub(crate) replicated_total_count_mean: f64,
+    pub(crate) replicated_total_count_sd: f64,
+    pub(crate) replicated_total_count_interval_lower: f64,
+    pub(crate) replicated_total_count_interval_upper: f64,
+    pub(crate) total_count_two_sided_tail_probability: f64,
+    pub(crate) observed_node_count_variance: f64,
+    pub(crate) replicated_node_count_variance_mean: f64,
+    pub(crate) node_variance_two_sided_tail_probability: f64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1061,7 +1061,7 @@ fn validate_result(
     Ok(())
 }
 
-fn type_posteriors_valid(rows: &[TypePosterior], types: &[String]) -> bool {
+pub(crate) fn type_posteriors_valid(rows: &[TypePosterior], types: &[String]) -> bool {
     rows.len() == types.len()
         && rows.iter().zip(types).all(|(row, identity)| {
             row.type_id == *identity
@@ -1077,7 +1077,7 @@ fn type_posteriors_valid(rows: &[TypePosterior], types: &[String]) -> bool {
         })
 }
 
-fn pair_differences_valid(rows: &[PairDifference], types: &[String]) -> bool {
+pub(crate) fn pair_differences_valid(rows: &[PairDifference], types: &[String]) -> bool {
     let expected = (0..types.len())
         .flat_map(|left| {
             (left + 1..types.len()).map(move |right| (types[left].as_str(), types[right].as_str()))
@@ -1089,7 +1089,7 @@ fn pair_differences_valid(rows: &[PairDifference], types: &[String]) -> bool {
         })
 }
 
-fn hierarchy_effects_valid<'a>(
+pub(crate) fn hierarchy_effects_valid<'a>(
     rows: &[HierarchyEffect],
     owners: impl Iterator<Item = &'a str>,
     types: &[String],
@@ -1150,7 +1150,7 @@ fn predictive_valid(
     })
 }
 
-fn summary_valid(summary: &SarScalarSummary) -> bool {
+pub(crate) fn summary_valid(summary: &SarScalarSummary) -> bool {
     [
         summary.mean,
         summary.sd,
