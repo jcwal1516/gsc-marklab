@@ -1380,3 +1380,16 @@ software capability is promoted here. General project/plugin infrastructure, spa
 unrelated Bayesian families, mechanistic simulation/SBI, UI/workbench/server/client/collaboration,
 remote execution, packaging, release work, and broader hardening remain deferred unless separately
 authorized.
+
+## Checkpoint 148 sparse component-basis continuation
+
+The admitted 2,000-cell exact-radius graph now has a resource-bounded component-aware low-frequency
+basis with complete nullspace retention, analytic small-graph agreement, compact typed durable
+output, and identity-final one-ledger replay. FR-01B/GSP-01/WS-62 no longer lack every sparse-basis
+caller, while this geometry-only result does not yet estimate signal energy, a physical-scale
+endpoint, perturbation bounds, or patient replication. Under the resumed master-plan objective,
+production next advances the smallest sparse Fourier energy/scale summary that consumes this exact
+basis and has an immediate admitted scalar CellViT graph signal; it must preserve component policy,
+compare with the exact dense oracle, and remain descriptive until patient-level calibration exists.
+Generic solver/plugin infrastructure, GPU parity, UI/server/client/remote execution, and unrelated
+method expansion remain deferred until an immediate caller requires them.

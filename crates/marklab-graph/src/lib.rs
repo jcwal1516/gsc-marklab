@@ -14,9 +14,11 @@ mod heterogeneous;
 mod hodge;
 mod hypergraph;
 mod motif;
+mod sparse_basis;
 mod sparse_diffusion_wavelet;
 mod sparse_heat;
 mod sparse_heat_stability;
+mod sparse_radius_graph;
 mod sparse_scattering;
 mod validation;
 
@@ -40,6 +42,10 @@ pub use hypergraph::{
 pub use motif::{
     typed_triangle_motif_workflow, MotifEdgeInput, MotifNodeInput, TypedTriangleMotifResult,
     TypedTriangleMotifSpec,
+};
+pub use sparse_basis::{
+    graph_sparse_radius_basis_workflow, GraphSparseRadiusBasisResult, GraphSparseRadiusBasisSpec,
+    SparseRadiusBasisComponent, SparseRadiusBasisMode,
 };
 pub use sparse_diffusion_wavelet::{
     graph_sparse_radius_diffusion_wavelet_workflow, GraphSparseRadiusDiffusionWaveletResult,
@@ -1473,14 +1479,26 @@ fn validate(spec: &GraphSpectralSpec) -> Result<(), GraphError> {
     Ok(())
 }
 
-struct EigenDecomposition {
-    values: Vec<f64>,
-    vectors: Vec<Vec<f64>>,
-    rotations: usize,
+pub(crate) struct EigenDecomposition {
+    pub(crate) values: Vec<f64>,
+    pub(crate) vectors: Vec<Vec<f64>>,
+    pub(crate) rotations: usize,
 }
 
 fn symmetric_eigendecomposition(input: &[Vec<f64>]) -> Result<EigenDecomposition, GraphError> {
+    symmetric_eigendecomposition_with_limit(input, MAXIMUM_JACOBI_ROTATIONS)
+}
+
+pub(crate) fn symmetric_eigendecomposition_with_limit(
+    input: &[Vec<f64>],
+    maximum_rotations: usize,
+) -> Result<EigenDecomposition, GraphError> {
     let size = input.len();
+    if size < 2 || maximum_rotations == 0 {
+        return Err(GraphError::Invalid(
+            "symmetric eigendecomposition controls are invalid".into(),
+        ));
+    }
     let mut matrix = input.to_vec();
     let mut vectors = vec![vec![0.0; size]; size];
     for (index, row) in vectors.iter_mut().enumerate() {
@@ -1501,7 +1519,7 @@ fn symmetric_eigendecomposition(input: &[Vec<f64>]) -> Result<EigenDecomposition
         if maximum <= 1e-13 {
             break;
         }
-        if rotations == MAXIMUM_JACOBI_ROTATIONS {
+        if rotations == maximum_rotations {
             return Err(GraphError::Numerical(
                 "Jacobi eigendecomposition did not converge".into(),
             ));

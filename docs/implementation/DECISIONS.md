@@ -2618,3 +2618,26 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   final bundle supports descriptive local H&E organization and one direction-level independent H&E
   association but does not establish a stable transferable molecular-class spatial fingerprint,
   causal biology, clinical utility, or shared CODEX/CellViT raw feature space.
+
+## DEC-0335 — Retain the complete component nullspace in a bounded sparse graph basis
+
+- Date: 2026-08-29
+- Status: accepted for FR-01B/GSP-01/WF-01/WS-12/WS-62
+- Decision: add direct and durable `sparse-radius-basis` for the existing exact-radius pathology
+  graph. Reuse the canonical uniform-cell graph owner and binary combinatorial Laplacian. Discover
+  exact connected components first and require the requested mode count to contain one normalized
+  zero mode per component. Approximate only the remaining low modes with deterministic component-
+  wise shifted-Laplacian subspace iteration, double zero-sum reorthogonalization, and a bounded
+  small Rayleigh-Ritz rotation. Admit candidate pairs, edges, components, matrix-vector work,
+  orthogonalization work, Ritz rotations, working bytes, and retained bytes before execution.
+  Store each eigenvector only on its owning component and validate exact derived residual,
+  orthogonality, component-nullspace, and global eigenvalue-order diagnostics when replaying.
+- Consequences: the admitted 2,000-cell/24,755-edge graph has 24 connected components, including
+  nine isolates. The final 32-mode request retains all 24 zero modes and eight nonzero low modes;
+  maximum residual is `3.3187388269244314e-8` against `1e-4`, and maximum orthogonality error is
+  `6.5503158452884236e-15`. A 16-mode request is rejected for truncating the nullspace, 256
+  iterations are retained as insufficient at residual `0.0007614772278499663`, and dense zero-
+  padded output is rejected above the unchanged 1-MiB artifact ceiling. The compact component-local
+  result replays byte-identically with one ledger execution. This is an experimental geometry
+  basis, not a signal-energy endpoint, generic solver framework, patient reproducibility result,
+  molecular association, biological significance, causality, or clinical utility.

@@ -3577,3 +3577,40 @@ vascular transport.
 - Checkpoint 145 remains the latest broad workspace stabilization. No Nextest/full-integration
   loop, workspace-wide test/Clippy/docs, feature matrix, benchmark, fuzzing, memory tool, packaging,
   dependency audit, push, publication, deployment, or history rewrite ran.
+
+## Sparse component-basis checkpoint 148 — 2026-08-29
+
+- Red-first evidence: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  graph_sparse_radius_basis_cli -- --nocapture` first failed because `sparse-radius-basis` was not a
+  graph subcommand. `cargo +1.96.0 test --locked --package marklab --features cli --test
+  durable_sparse_radius_basis_project -- --nocapture` then failed because the matching project
+  command was absent. Both pass after the direct and durable paths were implemented. The focused
+  typed-corruption unit test first failed because replay validation trusted the stored maximum
+  residual; a follow-up red also exposed a pre-validation oversized-component allocation. Both pass
+  after bounded derived residual, orthogonality, nullspace, and ordering validation.
+- `cargo +1.96.0 test --locked --package marklab-graph` passes 5/5 unit tests and doctests. The
+  affected integration command covering direct/durable basis, heat, diffusion-wavelet, and
+  scattering passes all eight targets and nine tests, including the exact five-node path spectrum
+  and fresh-process one-ledger basis replay.
+- `cargo +1.96.0 clippy --locked --package marklab-graph --all-targets -- -D warnings` passes.
+  `cargo +1.96.0 clippy --locked --package marklab --features cli --test
+  graph_sparse_radius_basis_cli --test durable_sparse_radius_basis_project -- -D warnings` passes.
+  `cargo +1.96.0 check --locked --package marklab-graph --no-default-features` passes.
+  `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --package marklab-graph --no-deps` passes.
+- The final runtime binary SHA-256 is
+  `71f73265e6b299ab0b9c9a062c9fbe6f5562437f7723c8c890963f15643579e2`; the exact request SHA-256 is
+  `d3a0b9a8d2b5663e87a1fc2cc284163b3264c0c4eecdbce3017d4a061606c2ad`. `/usr/bin/time -l
+  target/debug/marklab project sparse-radius-basis ...` completes the identity-final real 2,000-node
+  miss in 8.07 seconds at 28,524,544-byte maximum RSS. The result has 24,755 edges, 24 components,
+  32 modes, maximum residual `3.3187388269244314e-8`, and orthogonality error
+  `6.5503158452884236e-15`.
+- A fresh `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1 target/debug/marklab project
+  sparse-radius-basis ...` process reports `cache_status=hit`; `cmp` passes and the execution ledger
+  remains one row. Miss and hit both hash to
+  `31ab52bb440176ec6989380e28c5a143ec42e15d656ddd678d5c705acf4468a5`.
+- Local and remote `shasum -a 256 -c SHA256SUMS` verify every file in
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v43-sparse-radius-basis-final`; its manifest
+  hash is `63ba1b1279eb09476e50872e74d3c15e9d2affc38a0b82bee0c843ee0a931338`.
+- Affected-file Rustfmt passes. `git diff --check` passes. Checkpoint 145 remains the latest broad
+  workspace stabilization; no Nextest/full-workspace loop, feature matrix, benchmark, fuzzing,
+  memory tool, packaging, dependency audit, push, publication, deployment, or history rewrite ran.

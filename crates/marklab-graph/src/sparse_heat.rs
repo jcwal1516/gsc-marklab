@@ -1,9 +1,10 @@
-use std::collections::{BTreeMap, BTreeSet};
-
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
-use crate::{heat_chebyshev_coefficients, heat_grid_error, GraphError, GraphNodeInput};
+use crate::{
+    heat_chebyshev_coefficients, heat_grid_error,
+    sparse_radius_graph::{build_sparse_radius_graph, graph_digest, laplacian_product},
+    GraphError, GraphNodeInput,
+};
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -99,82 +100,18 @@ pub fn graph_sparse_radius_heat_workflow(
     mut spec: GraphSparseRadiusHeatSpec,
 ) -> Result<GraphSparseRadiusHeatResult, GraphError> {
     validate(&spec)?;
-    spec.nodes.sort_by(|left, right| left.id.cmp(&right.id));
-    let mut ids = BTreeSet::new();
-    let mut cells = BTreeMap::<(i64, i64), Vec<usize>>::new();
-    for (index, node) in spec.nodes.iter().enumerate() {
-        if node.id.is_empty()
-            || node.id.trim() != node.id
-            || !ids.insert(node.id.as_str())
-            || node
-                .coordinates_um
-                .iter()
-                .chain(std::iter::once(&node.signal))
-                .any(|value| !value.is_finite())
-        {
-            return Err(GraphError::Invalid(
-                "sparse heat nodes require unique exact IDs and finite coordinates/signals".into(),
-            ));
-        }
-        let key = cell_key(node.coordinates_um, spec.radius_um)?;
-        cells.entry(key).or_default().push(index);
-    }
-
-    let radius_squared = spec.radius_um * spec.radius_um;
-    let mut candidates = 0_u64;
-    let mut edges = Vec::<(usize, usize)>::new();
-    let mut degrees = vec![0_u32; spec.nodes.len()];
-    for (left, node) in spec.nodes.iter().enumerate() {
-        let (cell_x, cell_y) = cell_key(node.coordinates_um, spec.radius_um)?;
-        for dx in -1_i64..=1 {
-            for dy in -1_i64..=1 {
-                let (Some(neighbor_x), Some(neighbor_y)) =
-                    (cell_x.checked_add(dx), cell_y.checked_add(dy))
-                else {
-                    continue;
-                };
-                let Some(neighbors) = cells.get(&(neighbor_x, neighbor_y)) else {
-                    continue;
-                };
-                for &right in neighbors {
-                    if right <= left {
-                        continue;
-                    }
-                    candidates = candidates.checked_add(1).ok_or_else(|| {
-                        GraphError::Invalid("candidate pair count overflow".into())
-                    })?;
-                    if candidates > spec.maximum_candidate_pairs {
-                        return Err(GraphError::Invalid(
-                            "candidate pair count exceeds caller maximum".into(),
-                        ));
-                    }
-                    let right_node = &spec.nodes[right];
-                    let dx = node.coordinates_um[0] - right_node.coordinates_um[0];
-                    let dy = node.coordinates_um[1] - right_node.coordinates_um[1];
-                    if dx.mul_add(dx, dy * dy) <= radius_squared {
-                        if edges.len() as u64 >= spec.maximum_edges {
-                            return Err(GraphError::Invalid(
-                                "edge count exceeds caller maximum".into(),
-                            ));
-                        }
-                        degrees[left] = degrees[left]
-                            .checked_add(1)
-                            .ok_or_else(|| GraphError::Invalid("node degree overflow".into()))?;
-                        degrees[right] = degrees[right]
-                            .checked_add(1)
-                            .ok_or_else(|| GraphError::Invalid("node degree overflow".into()))?;
-                        edges.push((left, right));
-                    }
-                }
-            }
-        }
-    }
+    let graph = build_sparse_radius_graph(
+        std::mem::take(&mut spec.nodes),
+        spec.radius_um,
+        spec.maximum_nodes,
+        spec.maximum_candidate_pairs,
+        spec.maximum_edges,
+    )?;
+    spec.nodes = graph.nodes;
+    let edges = graph.edges;
+    let degrees = graph.degrees;
+    let candidates = graph.candidate_pair_evaluations;
     let maximum_degree = degrees.iter().copied().max().unwrap_or(0);
-    if maximum_degree == 0 {
-        return Err(GraphError::Invalid(
-            "sparse radius graph must contain at least one edge".into(),
-        ));
-    }
     let spectral_upper_bound = 2.0 * f64::from(maximum_degree);
     let reference_order = (spec.maximum_order + 32).clamp(64, 512);
     let reference = heat_chebyshev_coefficients(spec.time, spectral_upper_bound, reference_order);
@@ -222,7 +159,7 @@ pub fn graph_sparse_radius_heat_workflow(
     let working_bytes = conservative_working_bytes(
         spec.nodes.len(),
         edges.len(),
-        cells.len(),
+        graph.cell_count,
         coefficients.len(),
     )?;
     if working_bytes > spec.maximum_working_bytes {
@@ -301,19 +238,6 @@ fn validate(spec: &GraphSparseRadiusHeatSpec) -> Result<(), GraphError> {
     Ok(())
 }
 
-fn cell_key(coordinates: [f64; 2], radius: f64) -> Result<(i64, i64), GraphError> {
-    let scaled = [coordinates[0] / radius, coordinates[1] / radius];
-    if scaled
-        .iter()
-        .any(|value| !value.is_finite() || *value < i64::MIN as f64 || *value > i64::MAX as f64)
-    {
-        return Err(GraphError::Invalid(
-            "sparse heat coordinate cannot be represented by the radius grid".into(),
-        ));
-    }
-    Ok((scaled[0].floor() as i64, scaled[1].floor() as i64))
-}
-
 fn conservative_working_bytes(
     nodes: usize,
     edges: usize,
@@ -375,31 +299,9 @@ fn scaled_laplacian_product(
     input: &[f64],
 ) -> Vec<f64> {
     let scale = 2.0 / spectral_upper_bound;
-    let mut output = degrees
-        .iter()
+    laplacian_product(degrees, edges, input)
+        .into_iter()
         .zip(input)
-        .map(|(degree, value)| (scale * f64::from(*degree) - 1.0) * value)
-        .collect::<Vec<_>>();
-    for &(left, right) in edges {
-        output[left] -= scale * input[right];
-        output[right] -= scale * input[left];
-    }
-    output
-}
-
-fn graph_digest(nodes: &[GraphNodeInput], edges: &[(usize, usize)], radius: f64) -> String {
-    let mut digest = Sha256::new();
-    digest.update(b"marklab-sparse-radius-graph-v1\0");
-    digest.update(radius.to_bits().to_be_bytes());
-    for node in nodes {
-        digest.update((node.id.len() as u64).to_be_bytes());
-        digest.update(node.id.as_bytes());
-        digest.update(node.coordinates_um[0].to_bits().to_be_bytes());
-        digest.update(node.coordinates_um[1].to_bits().to_be_bytes());
-    }
-    for &(left, right) in edges {
-        digest.update((left as u64).to_be_bytes());
-        digest.update((right as u64).to_be_bytes());
-    }
-    format!("{:x}", digest.finalize())
+        .map(|(laplacian, value)| scale * laplacian - value)
+        .collect()
 }

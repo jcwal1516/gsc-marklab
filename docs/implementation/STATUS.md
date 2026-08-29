@@ -2863,3 +2863,38 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   stabilization; Nextest, full-workspace tests, broad Clippy/docs, feature matrices, benchmarks,
   fuzzing, packaging, dependency audits, push, publication, deployment, and history rewriting were
   not run.
+
+## Sparse component-basis checkpoint 148 — 2026-08-29
+
+- Added direct and durable `sparse-radius-basis` on the existing exact uniform-cell radius graph.
+  The method discovers connected components exactly, retains their complete normalized zero
+  eigenspace, and approximates only the remaining low modes with deterministic component-wise
+  shifted-Laplacian subspace iteration and a bounded small Rayleigh-Ritz solve. Exact node order,
+  graph digest, component policy, signal-ignored geometry semantics, native runtime, request, and
+  artifact identities are durable.
+- Node/candidate/edge/component, matrix-vector, orthogonalization, Ritz-rotation, working-byte, and
+  retained-byte ceilings are admitted before iteration. Component-local mode storage keeps the
+  sufficient exact-float result below the unchanged 1-MiB project ceiling. Replay validation
+  recomputes residual and orthogonality diagnostics and rejects nullspace or eigenvalue-order
+  corruption.
+- The five-node path CLI agrees with the analytic combinatorial-Laplacian eigenvalues
+  `0`, `2-2*cos(pi/5)`, and `2-2*cos(2*pi/5)` within `1e-9`. Unit controls retain both zero modes of
+  a disconnected graph, reject one-short matrix-vector work before iteration, prove geometry-only
+  invariance to signal changes, and reject corrupted typed diagnostics. Direct/durable basis and all
+  affected sparse heat, wavelet, and scattering integrations pass.
+- The real 2,000-cell/24,755-edge CPTAC graph has 24 components, including nine isolates. Its
+  32-mode basis contains all 24 zero modes and eight nonzero low modes. At 512 fixed iterations,
+  maximum residual is `3.3187388269244314e-8` against `1e-4` and orthogonality error is
+  `6.5503158452884236e-15`; the identity-final miss takes 8.07 seconds at 28,524,544-byte maximum
+  RSS. A 16-mode nullspace truncation, a 256-iteration residual failure, and the initial dense
+  result's artifact-
+  ceiling failure remain recorded rather than hidden.
+- A fresh process reports `cache_status=hit`, emits SHA-256
+  `31ab52bb440176ec6989380e28c5a143ec42e15d656ddd678d5c705acf4468a5` byte-identically, and leaves
+  one ledger row. The hash-verified 1-TB bundle is
+  `results-cellvit-categorical-v43-sparse-radius-basis-final`; `SHA256SUMS` hashes to
+  `63ba1b1279eb09476e50872e74d3c15e9d2affc38a0b82bee0c843ee0a931338`.
+- Affected formatting, graph-package tests, eight new/legacy CLI integrations, warning-denied
+  affected Clippy and graph docs, graph no-default compilation, remote bundle verification, and
+  whitespace checks pass. Checkpoint 145 remains the latest broad stabilization; the prohibited
+  macOS Nextest/full-integration loop and other broad or specialized gates were not run.
