@@ -5,11 +5,13 @@ use std::{fmt::Write as _, fs};
 use assert_cmd::Command;
 
 #[test]
-fn weighted_exact_window_ipp_runs_fixed_prior_scale_grid() {
+fn exact_window_ipp_compares_three_area_conserving_quadrature_resolutions() {
     let directory = tempfile::tempdir().expect("tempdir");
     let events = directory.path().join("events.csv");
-    let quadrature = directory.path().join("quadrature.csv");
     let window = directory.path().join("window.geojson");
+    let coarse = directory.path().join("coarse.csv");
+    let baseline = directory.path().join("baseline.csv");
+    let fine = directory.path().join("fine.csv");
     let output = directory.path().join("sensitivity.json");
     let mut event_csv = String::from("event_id,x_um,y_um,covariate,offset\n");
     for index in 0..10 {
@@ -20,27 +22,29 @@ fn weighted_exact_window_ipp_runs_fixed_prior_scale_grid() {
     }
     fs::write(&events, event_csv).unwrap();
     fs::write(
-        &quadrature,
-        "node_id,x_um,y_um,weight_um2,covariate,offset\nleft-a,0.25,0.5,0.5,-1,0\nleft-b,0.75,0.5,0.5,-1,0\nright-a,3.25,0.5,0.5,1,0\nright-b,3.75,0.5,0.5,1,0\n",
-    )
-    .unwrap();
-    fs::write(
         &window,
         r#"{"type":"MultiPolygon","coordinates":[[[[0,0],[1,0],[1,1],[0,1],[0,0]]],[[[3,0],[4,0],[4,1],[3,1],[3,0]]]]}"#,
     )
     .unwrap();
+    write_quadrature(&coarse, 2);
+    write_quadrature(&baseline, 4);
+    write_quadrature(&fine, 8);
 
     Command::cargo_bin("marklab")
         .expect("binary")
         .args([
             "bayes",
-            "arbitrary-window-ipp-sensitivity",
+            "arbitrary-window-ipp-quadrature-sensitivity",
             "--events",
             events.to_str().unwrap(),
-            "--quadrature",
-            quadrature.to_str().unwrap(),
             "--window",
             window.to_str().unwrap(),
+            "--coarse-quadrature",
+            coarse.to_str().unwrap(),
+            "--baseline-quadrature",
+            baseline.to_str().unwrap(),
+            "--fine-quadrature",
+            fine.to_str().unwrap(),
             "--intercept-prior-mean",
             "0",
             "--intercept-prior-sd",
@@ -62,9 +66,9 @@ fn weighted_exact_window_ipp_runs_fixed_prior_scale_grid() {
             "--maximum-events",
             "50",
             "--maximum-quadrature-nodes",
-            "4",
-            "--maximum-draw-node-work",
-            "8000",
+            "16",
+            "--maximum-total-draw-node-work",
+            "56000",
             "--material-standardized-shift",
             "0.75",
             "--timeout-seconds",
@@ -79,34 +83,42 @@ fn weighted_exact_window_ipp_runs_fixed_prior_scale_grid() {
         serde_json::from_slice(&fs::read(output).unwrap()).expect("result JSON");
     assert_eq!(
         result["format"],
-        "marklab.arbitrary_window_ipp_prior_sensitivity"
+        "marklab.arbitrary_window_ipp_quadrature_sensitivity"
     );
-    assert_eq!(result["scenarios"].as_array().unwrap().len(), 5);
+    assert_eq!(result["resolutions"].as_array().unwrap().len(), 3);
     assert_eq!(result["all_fits_complete"], true);
-    assert_eq!(result["scenarios"][0]["backend"]["name"], "pymc");
-    assert_eq!(result["scenarios"][0]["backend"]["version"], "6.3.0");
-    assert_eq!(
-        result["scenarios"][0]["request_sha256"]
-            .as_str()
-            .unwrap()
-            .len(),
-        64
-    );
-    assert_eq!(
-        result["scenarios"][0]["input"]["window_logical_digest"]
-            .as_str()
-            .unwrap()
-            .len(),
-        64
-    );
-    assert!(
-        result["scenarios"][0]["posterior"]["coefficient"]["mean"]
-            .as_f64()
-            .unwrap()
-            > 0.5
-    );
+    assert!(result["resolutions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|resolution| resolution["backend"]["name"] == "pymc"
+            && resolution["request_sha256"].as_str().unwrap().len() == 64
+            && resolution["input"]["quadrature_digest"]
+                .as_str()
+                .unwrap()
+                .len()
+                == 64));
+    assert_eq!(result["material_change"], false);
+    assert!(result["maximum_standardized_shift"].as_f64().unwrap() < 0.1);
     assert_eq!(
         result["claim_status"],
-        "experimental_prior_scale_sensitivity"
+        "experimental_quadrature_sensitivity"
     );
+}
+
+fn write_quadrature(path: &std::path::Path, nodes_per_component: usize) {
+    let mut csv = String::from("node_id,x_um,y_um,weight_um2,covariate,offset\n");
+    for component in ["left", "right"] {
+        let covariate = if component == "left" { -1 } else { 1 };
+        let x = if component == "left" { 0.5 } else { 3.5 };
+        for index in 0..nodes_per_component {
+            writeln!(
+                csv,
+                "{component}-{index:02},{x},0.5,{},{covariate},0",
+                1.0 / nodes_per_component as f64
+            )
+            .unwrap();
+        }
+    }
+    fs::write(path, csv).unwrap();
 }

@@ -178,6 +178,19 @@ class CellvitCptacResultsAdapterTest(unittest.TestCase):
             ],
         )
 
+    def test_arbitrary_window_ipp_events_retain_quadrature_membership_when_requested(self):
+        result = self.module.arbitrary_window_ipp_event_membership_rows(
+            [
+                {"cell_id": "slide:000000001", "x_um": "10", "y_um": "20"},
+                {"cell_id": "slide:000000002", "x_um": "12", "y_um": "22"},
+            ],
+            (10.0, 20.0, 12.0, 22.0),
+            8,
+        )
+
+        self.assertEqual(result[0]["quadrature_node_id"], "q-000-000")
+        self.assertEqual(result[1]["quadrature_node_id"], "q-007-007")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -24,8 +24,14 @@ mod arbitrary_window_ipp;
 mod arbitrary_window_ipp_agreement;
 #[path = "bayes/arbitrary_window_ipp_fit.rs"]
 mod arbitrary_window_ipp_fit;
+#[path = "bayes/arbitrary_window_ipp_quadrature_sensitivity.rs"]
+mod arbitrary_window_ipp_quadrature_sensitivity;
+#[path = "bayes/arbitrary_window_ipp_sbc.rs"]
+mod arbitrary_window_ipp_sbc;
 #[path = "bayes/arbitrary_window_ipp_sensitivity.rs"]
 mod arbitrary_window_ipp_sensitivity;
+#[path = "bayes/arbitrary_window_ipp_spatial_ppc.rs"]
+mod arbitrary_window_ipp_spatial_ppc;
 pub(super) use arbitrary_window_ipp::{
     execute as execute_arbitrary_window_ipp, prepare as prepare_arbitrary_window_ipp,
     PreparedArbitraryWindowIpp,
@@ -49,6 +55,18 @@ pub(super) fn run_arbitrary_window_ipp_agreement_cli() -> Result<(), BayesCliErr
 
 pub(super) fn run_arbitrary_window_ipp_sensitivity_cli() -> Result<(), BayesCliError> {
     arbitrary_window_ipp_sensitivity::run_cli()
+}
+
+pub(super) fn run_arbitrary_window_ipp_quadrature_sensitivity_cli() -> Result<(), BayesCliError> {
+    arbitrary_window_ipp_quadrature_sensitivity::run_cli()
+}
+
+pub(super) fn run_arbitrary_window_ipp_sbc_cli() -> Result<(), BayesCliError> {
+    arbitrary_window_ipp_sbc::run_cli()
+}
+
+pub(super) fn run_arbitrary_window_ipp_spatial_ppc_cli() -> Result<(), BayesCliError> {
+    arbitrary_window_ipp_spatial_ppc::run_cli()
 }
 #[path = "bayes/berman_turner.rs"]
 mod berman_turner;

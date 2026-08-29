@@ -2229,3 +2229,42 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - This promotes cross-backend and prior-scale evidence only. SBC, quadrature refinement, and spatial
   posterior-predictive checks remain active; the real negative x-gradient remains a single-slide
   descriptive association without population, causal, interaction, or clinical interpretation.
+
+## Exact-window IPP diagnostic promotion checkpoint 126 — 2026-08-28
+
+- Added bounded 48/64/80 exact-area quadrature sensitivity, prior-generative NumPyro SBC, and a
+  PyMC spatial posterior-predictive command over exact event-to-node membership and a fixed
+  physical-radius node graph. Every fit/scenario now retains backend, lock, worker, request, input,
+  and sampling identity. The spatial caller reuses the existing PyMC validator, likelihood, and
+  sampler; no second likelihood adapter or diagnostic registry was added.
+- The Mac-mini adapter re-audited all 366 slides, 178 patients, and 1,542,389 cells and wrote the
+  v10 bundle. Its 2,000 exact events map one-to-one to 2,000 membership rows over 381 occupied nodes;
+  all memberships reference the 552-node baseline quadrature. Membership SHA-256 is
+  `99f95d5850db48daa97441baae93c37dfd6bef7055f2b436b43898d35c624da6`.
+- All 372/552/845-node quadrature fits complete; the largest shift is 0.00193 posterior SD and no
+  resolution reaches the 0.75 materiality threshold. Under the deployed diffuse priors, SBC
+  completes 16/20 replicates and truthfully returns `not_accepted`: four deterministic prior draws
+  imply 21.5 million to 4.80 billion cells and exceed the ten-million count ceiling. The separately
+  named physically scaled prior completes and accepts 20/20 replicates, with rank means
+  0.389/0.512/0.414, 90% coverage 0.80/0.95/0.70, maximum R-hat 1.01666, and zero divergences.
+- The real 100-micrometre PPC uses 3,233 physical neighbor pairs and 2,000 posterior-replicated
+  patterns. The fit is complete, but only 4.05% of replicas meet the observed node-density variance
+  and 2.0% meet the observed neighbor density contrast. This is evidence that the simple fixed
+  x-gradient model under-replicates local spatial variation, not evidence of biological
+  significance. The statistical unit remains one observed point pattern.
+- Refactoring the shared sampler changed its exact worker digest, so the real durable fit and every
+  affected diagnostic were refreshed once. The durable miss and backend-disabled fresh-process hit
+  are byte-identical with one ledger execution. Final result SHA-256 values are
+  `bc13a44e7ac7a17bc7ad3931712a16b9d19eabba4f318e7d0d8e58fae18b309b` fit,
+  `0fd65d12afd1eb6d8649f0f10cf1d3378b4e65e94b62f8e95cc6fdd2a7e4262c` agreement,
+  `e9ab431fd1f204e4e90e022730983fd4101302b2c528f4327cef125a480a71f8` prior sensitivity,
+  `a5df627be5f735004d1130181eb73edf3e3866391a6dbf2a17c1ee542e4fa364` quadrature,
+  `e1bb2af3d46be486ebcc28e1b1cbdb263e71c6ced9ab7eb1ee051ab1d11c264f` deployed-prior SBC,
+  `74f06d3a5472f0b5aa95b197d9a2c3f66a85ea8eb21a8a28c92a3450fa67725a` physical-prior SBC,
+  and `ead46ba7f9f05aa7b0aa654e41e774853a5e14adbce3f023380ad0e73e963d42` spatial PPC; the complete
+  hashes and successful `shasum -c` manifest are sealed in the v10 results directory.
+- Focused analytic/integration tests, all seven adapter tests, targeted warning-denied Clippy,
+  package no-default compilation, formatting, and whitespace checks pass. The prohibited
+  full-workspace integration/Nextest loader loop and unrelated broad gates were not run. BAY-PP and
+  WS-43 remain active for a scientifically justified latent spatial field, multitype/marked models,
+  and independent patient patterns; UI/server/client work remains deferred.

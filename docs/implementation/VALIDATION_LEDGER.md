@@ -2758,6 +2758,69 @@ vascular transport.
   integration/Nextest loop, feature matrix, benchmark suite, fuzz, memory tool, packaging,
   dependency audit, push, publication, deployment, or history rewrite ran.
 
+## Exact-window IPP diagnostic promotion checkpoint 126 — 2026-08-28
+
+- Expected adapter red: `python3 tests/python/test_marklab_cellvit_cptac_results_adapter.py
+  CellvitCptacResultsAdapterTest.test_arbitrary_window_ipp_events_retain_quadrature_membership_when_requested`
+  failed because the exact event-to-node mapping was absent. The final full adapter suite passes
+  7/7, and Python syntax compilation passes for the adapter, shared PyMC worker, spatial-PPC
+  worker, and NumPyro SBC worker.
+- Expected SBC red: the exact CLI test first failed on the absent command. The all-draws-rejected
+  regression then failed with non-JSON `nan` calibration summaries before the worker emitted a
+  finite zero-completion diagnostic. `cargo +1.96.0 test --locked --package marklab --features cli
+  --test bayes_arbitrary_window_ipp_sbc_cli -- --nocapture` passes 2/2, covering accepted
+  prior-generative rank/coverage and explicit generated-count-ceiling failures.
+- Expected spatial-PPC red: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_arbitrary_window_ipp_spatial_ppc_cli
+  weighted_exact_window_ipp_spatial_ppc_uses_event_node_membership_and_physical_neighbors --
+  --exact --nocapture` failed on the absent command. The final 1/1 pass checks exact membership,
+  two physical neighbor pairs, analytic node-density variance 1,075 and neighbor contrast 50,
+  2,000 bounded replicas, finite tails, and complete diagnostics.
+- Identity regressions first failed because prior- and quadrature-sensitivity scenarios lacked
+  backend/request/input fields. The combined final command over
+  `bayes_arbitrary_window_ipp_sensitivity_cli` and
+  `bayes_arbitrary_window_ipp_quadrature_sensitivity_cli` passes 2/2 with exact PyMC/worker,
+  request, logical input, sampling, work, and shift evidence. The final agreement control passes
+  1/1; direct fit passes 1/1; durable fit passes 1/1 with miss, backend-disabled hit, byte identity,
+  one ledger execution, and changed-prior invalidation.
+- The Mac-mini adapter command with the pinned CellViT environment and explicit CellViT checkout
+  `PYTHONPATH` re-audited 366 slides and 1,542,389 cells in 110.49 seconds at 689,995,776-byte
+  maximum RSS. The v10 bundle contains 2,000 events, 2,000 identity-aligned membership rows, 381
+  occupied nodes, and 552 baseline nodes; every referenced node exists. Membership SHA-256 is
+  `99f95d5850db48daa97441baae93c37dfd6bef7055f2b436b43898d35c624da6`.
+- The final real durable fit miss took 7.11 seconds at 316,522,496-byte maximum RSS; a fresh process
+  with `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1` returned the hit, `cmp` passed, and the ledger
+  contains one line. Result SHA-256 is
+  `bc13a44e7ac7a17bc7ad3931712a16b9d19eabba4f318e7d0d8e58fae18b309b`.
+- Final real backend agreement took 5.14 seconds at 563,822,592-byte maximum RSS and retains the
+  prior 0.000352/0.000793/0.631 intercept/coefficient/count differences with all gates passing;
+  SHA-256 is `0fd65d12afd1eb6d8649f0f10cf1d3378b4e65e94b62f8e95cc6fdd2a7e4262c`.
+  Final prior sensitivity took 8.23 seconds at 313,507,840-byte maximum RSS; all five fits complete,
+  maximum shift remains 0.0603, no scenario is material, and SHA-256 is
+  `e9ab431fd1f204e4e90e022730983fd4101302b2c528f4327cef125a480a71f8`.
+- Final 372/552/845-node quadrature sensitivity took 5.41 seconds at 340,246,528-byte maximum RSS,
+  declared 3,538,000 draw-node operations, maximum standardized shift 0.00193, and no material
+  change. SHA-256 is `a5df627be5f735004d1130181eb73edf3e3866391a6dbf2a17c1ee542e4fa364`.
+- The deployed-prior SBC took 13.10 seconds at 1,196,376,064-byte maximum RSS. It completes 16/20
+  replicas with all three completed-replicate calibration summaries accepted, zero divergences,
+  and four exact generated-count-ceiling failures; the overall result is correctly `not_accepted`.
+  SHA-256 is `e1bb2af3d46be486ebcc28e1b1cbdb263e71c6ced9ab7eb1ee051ab1d11c264f`.
+  The separately named physical-prior SBC took 15.01 seconds at 1,323,335,680-byte maximum RSS and
+  accepts 20/20 with maximum R-hat 1.01666 and zero divergences; SHA-256 is
+  `74f06d3a5472f0b5aa95b197d9a2c3f66a85ea8eb21a8a28c92a3450fa67725a`.
+- The final real spatial PPC took 1.83 seconds at 428,130,304-byte maximum RSS over 3,233 fixed
+  100-micrometre neighbor pairs and 7,570,000 predictive work units. The complete fit has tail
+  probabilities 0.0405 for node-density variance and 0.0200 for neighbor density contrast;
+  SHA-256 is `ead46ba7f9f05aa7b0aa654e41e774853a5e14adbce3f023380ad0e73e963d42`.
+  `shasum -a 256 -c results_final_sha256.txt` passes for all seven final v10 results.
+- `cargo +1.96.0 clippy --locked --package marklab --features cli --bin marklab` with the seven
+  affected integration targets and `-D warnings` passes on the final state in 2m06s. `cargo +1.96.0 check --locked
+  --package marklab --no-default-features` passes in 9.73s. Affected-file Rustfmt,
+  `cargo +1.96.0 fmt --all --check`, and `git diff --check` pass. The prohibited workspace
+  integration/Nextest loader loop, full feature matrix, broad docs, benchmarks, fuzzing, memory
+  tools, packaging, dependency audits, push, publication, deployment, and history rewrite did not
+  run.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

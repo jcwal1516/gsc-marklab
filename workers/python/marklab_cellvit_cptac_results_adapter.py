@@ -528,13 +528,69 @@ def arbitrary_window_ipp_event_rows(
     return result
 
 
-def arbitrary_window_ipp_quadrature(shapely_window: object) -> list[dict[str, object]]:
-    """Partition the exact patch union into weighted 64-by-64 clipped cells."""
+def arbitrary_window_ipp_event_membership_rows(
+    coordinate_rows: list[dict[str, object]],
+    bounds: tuple[float, float, float, float],
+    quadrature_grid_size: int,
+) -> list[dict[str, str]]:
+    """Map each exact event identity to its deterministic quadrature grid cell."""
+    xmin, ymin, xmax, ymax = bounds
+    if (
+        not 1 <= len(coordinate_rows) <= MAXIMUM_COORDINATE_CELLS
+        or not all(math.isfinite(value) for value in bounds)
+        or xmin >= xmax
+        or ymin >= ymax
+        or not 8 <= quadrature_grid_size <= 128
+    ):
+        raise AdapterError("arbitrary-window IPP membership bounds are invalid")
+    result = []
+    previous_id = None
+    for row in coordinate_rows:
+        cell_id = row.get("cell_id")
+        try:
+            x_um = float(row["x_um"])
+            y_um = float(row["y_um"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise AdapterError("arbitrary-window IPP membership coordinates are invalid") from error
+        if (
+            not isinstance(cell_id, str)
+            or not cell_id
+            or cell_id.strip() != cell_id
+            or (previous_id is not None and cell_id <= previous_id)
+            or not all(math.isfinite(value) for value in (x_um, y_um))
+            or not xmin <= x_um <= xmax
+            or not ymin <= y_um <= ymax
+        ):
+            raise AdapterError("arbitrary-window IPP membership identity or bounds are invalid")
+        ix = min(
+            int((x_um - xmin) * quadrature_grid_size / (xmax - xmin)),
+            quadrature_grid_size - 1,
+        )
+        iy = min(
+            int((y_um - ymin) * quadrature_grid_size / (ymax - ymin)),
+            quadrature_grid_size - 1,
+        )
+        result.append(
+            {
+                "event_id": cell_id,
+                "quadrature_node_id": f"q-{iy:03d}-{ix:03d}",
+            }
+        )
+        previous_id = cell_id
+    return result
+
+
+def arbitrary_window_ipp_quadrature(
+    shapely_window: object, grid_size: int = 64
+) -> list[dict[str, object]]:
+    """Partition the exact patch union into weighted clipped grid cells."""
     from shapely.geometry import box
 
+    if not 8 <= grid_size <= 128:
+        raise AdapterError("arbitrary-window IPP quadrature grid is outside 8..128")
     xmin, ymin, xmax, ymax = (float(value) for value in shapely_window.bounds)
-    grid_x = 64
-    grid_y = 64
+    grid_x = grid_size
+    grid_y = grid_size
     width = (xmax - xmin) / grid_x
     height = (ymax - ymin) / grid_y
     rows = []
@@ -920,16 +976,40 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     arbitrary_window_ipp_events = arbitrary_window_ipp_event_rows(
         coordinate_rows, tuple(float(value) for value in shapely_window.bounds)
     )
-    arbitrary_window_ipp_nodes = arbitrary_window_ipp_quadrature(shapely_window)
+    arbitrary_window_ipp_event_membership = arbitrary_window_ipp_event_membership_rows(
+        coordinate_rows, tuple(float(value) for value in shapely_window.bounds), 64
+    )
+    arbitrary_window_ipp_coarse_nodes = arbitrary_window_ipp_quadrature(
+        shapely_window, 48
+    )
+    arbitrary_window_ipp_nodes = arbitrary_window_ipp_quadrature(shapely_window, 64)
+    arbitrary_window_ipp_fine_nodes = arbitrary_window_ipp_quadrature(
+        shapely_window, 80
+    )
     write_csv(
         inputs / "arbitrary_window_ipp_events.csv",
         ["event_id", "x_um", "y_um", "covariate", "offset"],
         arbitrary_window_ipp_events,
     )
     write_csv(
+        inputs / "arbitrary_window_ipp_event_membership.csv",
+        ["event_id", "quadrature_node_id"],
+        arbitrary_window_ipp_event_membership,
+    )
+    write_csv(
         inputs / "arbitrary_window_ipp_quadrature.csv",
         ["node_id", "x_um", "y_um", "weight_um2", "covariate", "offset"],
         arbitrary_window_ipp_nodes,
+    )
+    write_csv(
+        inputs / "arbitrary_window_ipp_quadrature_coarse.csv",
+        ["node_id", "x_um", "y_um", "weight_um2", "covariate", "offset"],
+        arbitrary_window_ipp_coarse_nodes,
+    )
+    write_csv(
+        inputs / "arbitrary_window_ipp_quadrature_fine.csv",
+        ["node_id", "x_um", "y_um", "weight_um2", "covariate", "offset"],
+        arbitrary_window_ipp_fine_nodes,
     )
 
     vector_fields = ["object_id", "x_um", "y_um"] + [
@@ -1301,9 +1381,17 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "statistical_unit": "one_observed_point_pattern",
                 "window": "exact_selected_patch_union",
                 "quadrature": "64_by_64_bounding_grid_exact_shapely_cell_intersection_weights",
+                "event_membership": "exact_event_id_to_64_by_64_bounding_grid_cell",
                 "covariate": "fixed_bounding_box_scaled_x_in_minus_one_to_one",
                 "event_count": len(arbitrary_window_ipp_events),
+                "event_membership_count": len(arbitrary_window_ipp_event_membership),
                 "quadrature_node_count": len(arbitrary_window_ipp_nodes),
+                "quadrature_sensitivity_grid_sizes": [48, 64, 80],
+                "quadrature_sensitivity_node_counts": [
+                    len(arbitrary_window_ipp_coarse_nodes),
+                    len(arbitrary_window_ipp_nodes),
+                    len(arbitrary_window_ipp_fine_nodes),
+                ],
                 "quadrature_weight_um2": math.fsum(
                     float(row["weight_um2"]) for row in arbitrary_window_ipp_nodes
                 ),
@@ -1346,9 +1434,17 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                     "landmark_count"
                 ],
                 "arbitrary_window_ipp_events": len(arbitrary_window_ipp_events),
+                "arbitrary_window_ipp_event_memberships": len(
+                    arbitrary_window_ipp_event_membership
+                ),
                 "arbitrary_window_ipp_quadrature_nodes": len(
                     arbitrary_window_ipp_nodes
                 ),
+                "arbitrary_window_ipp_quadrature_sensitivity_nodes": [
+                    len(arbitrary_window_ipp_coarse_nodes),
+                    len(arbitrary_window_ipp_nodes),
+                    len(arbitrary_window_ipp_fine_nodes),
+                ],
                 "raw_vector_rows": len(vector_rows),
                 "raw_vector_pair_visits": len(vector_rows) * (len(vector_rows) - 1) // 2,
                 "projected_rows": len(projected_rows),

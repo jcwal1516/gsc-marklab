@@ -279,7 +279,8 @@ def tree_values(tree: Any, names: list[str]) -> np.ndarray:
     return np.concatenate([np.asarray(tree[name].values).reshape(-1) for name in names])
 
 
-def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str) -> dict[str, Any]:
+def sample_model(config: dict[str, Any]) -> dict[str, Any]:
+    """Run the shared fixed likelihood and retain draws for concrete diagnostics."""
     with pm.Model():
         intercept = pm.Normal(
             "intercept", config["intercept_prior_mean"], config["intercept_prior_sd"]
@@ -321,6 +322,31 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
     intensity = np.exp(eta)
     expected = config["cell_area"] * intensity
     pearson = (config["observed_counts"][None, :] - expected) / np.sqrt(expected)
+    return {
+        "prior": prior,
+        "posterior": posterior,
+        "intercept": intercept_draws,
+        "coefficient": coefficient_draws,
+        "intensity": intensity,
+        "expected": expected,
+        "pearson": pearson,
+    }
+
+
+def result_from_sample(
+    config: dict[str, Any],
+    sampled: dict[str, Any],
+    request_sha: str,
+    lock_sha: str,
+    worker_sha: str,
+) -> dict[str, Any]:
+    prior = sampled["prior"]
+    posterior = sampled["posterior"]
+    intercept_draws = sampled["intercept"]
+    coefficient_draws = sampled["coefficient"]
+    intensity = sampled["intensity"]
+    expected = sampled["expected"]
+    pearson = sampled["pearson"]
     rng = np.random.default_rng(seed_for(config["seed"], "predictive"))
     replicated = rng.poisson(expected)
     prior_intercept = np.asarray(prior["prior"]["intercept"].values, dtype=np.float64).reshape(-1)
@@ -426,6 +452,12 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
             "replicated_zero_cells_mean": float(replicated_zeros.mean()),
         },
     }
+
+
+def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str) -> dict[str, Any]:
+    return result_from_sample(
+        config, sample_model(config), request_sha, lock_sha, worker_sha
+    )
 
 
 def main() -> None:

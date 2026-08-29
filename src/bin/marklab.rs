@@ -225,6 +225,41 @@ fn main() -> marklab::Result<()> {
         {
             bayes::run_arbitrary_window_ipp_sensitivity_cli().map_err(bayes::into_marklab_error)
         }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand
+                            == std::ffi::OsStr::new("arbitrary-window-ipp-quadrature-sensitivity")
+                    }) =>
+        {
+            bayes::run_arbitrary_window_ipp_quadrature_sensitivity_cli()
+                .map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand == std::ffi::OsStr::new("arbitrary-window-ipp-sbc")
+                    }) =>
+        {
+            bayes::run_arbitrary_window_ipp_sbc_cli().map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand == std::ffi::OsStr::new("arbitrary-window-ipp-spatial-ppc")
+                    }) =>
+        {
+            bayes::run_arbitrary_window_ipp_spatial_ppc_cli().map_err(bayes::into_marklab_error)
+        }
         Some(command) if command == std::ffi::OsStr::new("bayes") => {
             bayes::run_cli().map_err(bayes::into_marklab_error)
         }

@@ -1,11 +1,16 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use marklab_bayes::{FitState, NormalMeanDiagnostics, NutsSamplingSpec, SarScalarSummary};
+use marklab_bayes::{
+    FitState, NormalMeanDiagnostics, NutsSamplingSpec, SamplingSummary, SarScalarSummary,
+    WorkerBackend,
+};
 use serde::Serialize;
 
 use super::{
-    arbitrary_window_ipp_fit::{self, ArbitraryWindowIppFitPosterior},
+    arbitrary_window_ipp_fit::{
+        self, ArbitraryWindowIppFitInputIdentity, ArbitraryWindowIppFitPosterior,
+    },
     publish_json, BayesCliError,
 };
 
@@ -74,6 +79,10 @@ struct SensitivityScenario {
     name: String,
     intercept_prior_sd: f64,
     coefficient_prior_sd: f64,
+    backend: WorkerBackend,
+    input: ArbitraryWindowIppFitInputIdentity,
+    request_sha256: String,
+    sampling: SamplingSummary,
     fit_state: FitState,
     posterior: ArbitraryWindowIppFitPosterior,
     diagnostics: NormalMeanDiagnostics,
@@ -202,6 +211,10 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
                 name: name.into(),
                 intercept_prior_sd: intercept_sd,
                 coefficient_prior_sd: coefficient_sd,
+                backend: fit.backend,
+                input: fit.input,
+                request_sha256: fit.request_sha256,
+                sampling: fit.sampling,
                 fit_state: fit.fit_state,
                 posterior: fit.posterior,
                 diagnostics: fit.diagnostics,

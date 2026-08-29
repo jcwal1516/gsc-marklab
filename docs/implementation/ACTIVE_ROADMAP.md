@@ -1120,3 +1120,17 @@ materially prior-scale-sensitive under those declared checks. BAY-PP/BAY-02/WS-4
 active for SBC, quadrature refinement, and spatial posterior-predictive diagnostics before this
 likelihood family is promoted. Production continues directly to those checks; UI/server/client work
 remains deferred.
+
+## Checkpoint 126 exact-window IPP diagnostic continuation
+
+The weighted exact-window family now has exact-identity quadrature refinement, prior-generative SBC,
+and a real spatial posterior-predictive check in addition to durable fitting, independent-backend
+agreement, and prior sensitivity. The likelihood/sampler calibrates under a separately named
+physical count-scale prior, while the deployed diffuse prior is not accepted because four of 20
+draws exceed the explicit ten-million-cell ceiling. The real fixed x-gradient fit also
+under-replicates node-density variance and 100-micrometre neighbor contrast, so it is retained as an
+inadequate nonspatial descriptive model rather than promoted to a biological spatial explanation.
+BAY-PP/WS-43 remain active for the next immediate CRC caller that can justify a latent spatial field,
+multitype/marked likelihood, or independent patient-pattern hierarchy. BAY-02/WS-44 no longer lack
+weighted-IPP agreement, prior sensitivity, quadrature, SBC, or spatial PPC. UI/server/client work
+remains deferred.
