@@ -1,9 +1,10 @@
 use std::path::PathBuf;
 
 use crate::{
-    execute_algorithm_with_store, inhomogeneous_spatial::encode_result, ArtifactSchema,
-    InhomogeneousSpatialAnalysisNode, InhomogeneousSpatialConfig, InhomogeneousSpatialLimits,
-    LocalScheduler, MarklabError, NodeId, Result, SchedulerLimits, WorkflowGraph,
+    execute_algorithm_with_store, inhomogeneous_spatial::encode_selected_spatial_result,
+    ArtifactSchema, GaussianBandwidthSelectedSpatialAnalysisNode, GaussianBandwidthSelectionConfig,
+    GaussianBandwidthSelectionLimits, InhomogeneousSpatialLimits, LocalScheduler, MarklabError,
+    NodeId, Result, SchedulerLimits, WorkflowGraph,
 };
 
 use super::{
@@ -17,7 +18,7 @@ pub(super) struct Request {
     pub mask: PathBuf,
     pub out: PathBuf,
     pub radii_um: Vec<f64>,
-    pub bandwidth_um: f64,
+    pub candidate_bandwidths_um: Vec<f64>,
     pub integration_grid: [usize; 2],
     pub simulations: usize,
     pub seed: u64,
@@ -28,6 +29,8 @@ pub(super) struct Request {
     pub maximum_intensity_evaluations: usize,
     pub maximum_pair_visits: usize,
     pub maximum_null_draws: usize,
+    pub maximum_bandwidth_candidates: usize,
+    pub maximum_selection_intensity_evaluations: usize,
 }
 
 pub(super) fn run_project(request: Request) -> Result<()> {
@@ -43,11 +46,11 @@ pub(super) fn run_project(request: Request) -> Result<()> {
         cells: &request.cells,
         mask: &request.mask,
         memory_budget_mib: request.memory_budget_mib,
-        store_id: "inhomogeneous-spatial-store",
+        store_id: "gaussian-bandwidth-selected-spatial-store",
         source_change_message:
-            "inhomogeneous spatial source changed while its durable input was prepared",
+            "Gaussian bandwidth-selection source changed while its durable input was prepared",
     })?;
-    let limits = InhomogeneousSpatialLimits::new(
+    let analysis_limits = InhomogeneousSpatialLimits::new(
         pattern.len(),
         request.radii_um.len(),
         request.maximum_probes,
@@ -57,20 +60,26 @@ pub(super) fn run_project(request: Request) -> Result<()> {
         memory_bytes,
     )
     .map_err(|error| MarklabError::Validation(error.to_string()))?;
-    let config = InhomogeneousSpatialConfig::new(
+    let selection_limits = GaussianBandwidthSelectionLimits::new(
+        request.maximum_bandwidth_candidates,
+        request.maximum_selection_intensity_evaluations,
+    )
+    .map_err(|error| MarklabError::Validation(error.to_string()))?;
+    let config = GaussianBandwidthSelectionConfig::new(
         request.radii_um,
-        request.bandwidth_um,
+        request.candidate_bandwidths_um,
         request.integration_grid,
         request.simulations,
         request.seed,
         request.alpha,
         request.minimum_intensity_per_um2,
-        limits,
+        analysis_limits,
+        selection_limits,
     )
     .map_err(|error| MarklabError::Validation(error.to_string()))?;
-    let node = InhomogeneousSpatialAnalysisNode::new(
+    let node = GaussianBandwidthSelectedSpatialAnalysisNode::new(
         &mut project,
-        NodeId::new("inhomogeneous-spatial")
+        NodeId::new("gaussian-bandwidth-selected-spatial")
             .map_err(|error| MarklabError::Validation(error.to_string()))?,
         &pattern,
         &window,
@@ -89,18 +98,18 @@ pub(super) fn run_project(request: Request) -> Result<()> {
         &graph,
         &node,
         &scheduler,
-        ArtifactSchema::new("marklab.inhomogeneous_spatial", 1)
+        ArtifactSchema::new("marklab.gaussian_bandwidth_selected_spatial", 1)
             .map_err(|error| MarklabError::Validation(error.to_string()))?,
         native_runtime_provenance()?,
         &store,
     )
     .map_err(|error| MarklabError::Compute(error.to_string()))?;
-    let encoded = encode_result(&run.output, &pattern, &window, &config)
+    let encoded = encode_selected_spatial_result(&run.output, &pattern, &window, &config)
         .map_err(|error| MarklabError::Compute(error.to_string()))?;
     write_output(
         &request.out,
         &encoded,
         run.cache_status,
-        "inhomogeneous-spatial",
+        "gaussian-bandwidth-selected-spatial",
     )
 }

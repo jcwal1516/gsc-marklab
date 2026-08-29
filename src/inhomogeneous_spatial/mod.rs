@@ -1,4 +1,7 @@
 mod analysis;
+mod bandwidth;
+mod bandwidth_types;
+mod bandwidth_workflow;
 mod codec;
 mod compartment_analysis;
 mod compartment_g;
@@ -16,6 +19,15 @@ mod types;
 mod workflow;
 
 pub use analysis::analyze_inhomogeneous_spatial_pattern;
+pub use bandwidth::analyze_selected_inhomogeneous_spatial_pattern;
+pub use bandwidth_types::{
+    GaussianBandwidthCandidateScore, GaussianBandwidthSelectionConfig,
+    GaussianBandwidthSelectionLimits, GaussianBandwidthSelectionSummary,
+    SelectedInhomogeneousSpatialResult,
+};
+#[cfg(feature = "cli")]
+pub(crate) use bandwidth_workflow::encode_selected_spatial_result;
+pub use bandwidth_workflow::GaussianBandwidthSelectedSpatialAnalysisNode;
 pub use compartment_analysis::analyze_piecewise_compartment_spatial_pattern;
 pub use compartment_g::analyze_piecewise_compartment_pair_correlation;
 #[cfg(feature = "cli")]

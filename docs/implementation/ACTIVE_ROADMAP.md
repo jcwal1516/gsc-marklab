@@ -1576,3 +1576,16 @@ real-data blocker is unchanged and no tessellation is synthesized. Production ne
 bandwidth selection only through the existing Gaussian K/L caller: candidate bandwidths and the
 selection score must be prespecified, persisted, independent of the final K/L/g deviation, and
 verified against an analytic likelihood oracle before any real result is considered.
+
+## Checkpoint 165 prespecified Gaussian bandwidth selection
+
+The existing Gaussian K/L owner now selects only from a prespecified increasing bandwidth list by
+persisted mean leave-one-out log event intensity, with exact smallest-bandwidth tie policy and an
+explicit prohibition on using the spatial curve. Direct, durable, and fresh-process CLI evidence
+binds every candidate/score/work control and preserves the existing fixed-bandwidth K/L and g paths.
+The known real 16x16 pilot remains quadrature-inadmissible and is not tuned; pinned spatstat
+agreement is also unavailable because no repository-pinned R environment or installed
+`spatstat.explore` exists. Production next leaves PP-05's external agreement as a named backend
+blocker and advances the exact polygon-overlap prerequisite for PP-06B translation correction
+through the existing homogeneous K/L caller, without adding an overlap framework beyond that
+immediate correction.

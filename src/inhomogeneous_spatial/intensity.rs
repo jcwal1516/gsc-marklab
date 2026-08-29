@@ -35,6 +35,11 @@ pub(super) struct FittedIntensity {
     pub(super) fixed_grid: Vec<InhomogeneousIntensityGridPoint>,
 }
 
+pub(super) struct FittedEventIntensity {
+    pub(super) point_values: Vec<InhomogeneousIntensityPoint>,
+    pub(super) observed_intensities: Vec<f64>,
+}
+
 pub(super) fn fit_intensity(
     pattern: &Pattern,
     window: &ObservationWindow2D,
@@ -42,6 +47,25 @@ pub(super) fn fit_intensity(
     counters: &mut Counters,
 ) -> Result<FittedIntensity, InhomogeneousSpatialError> {
     let grid = build_grid(window, config)?;
+    let events = fit_event_intensity(pattern, &grid, config, counters)?;
+    let (probe_cdf, fixed_grid_total_mass, fixed_grid) =
+        fixed_probe_cdf(pattern, &grid, config, counters)?;
+    Ok(FittedIntensity {
+        grid,
+        point_values: events.point_values,
+        observed_intensities: events.observed_intensities,
+        probe_cdf,
+        fixed_grid_total_mass,
+        fixed_grid,
+    })
+}
+
+pub(super) fn fit_event_intensity(
+    pattern: &Pattern,
+    grid: &Grid,
+    config: &InhomogeneousSpatialConfig,
+    counters: &mut Counters,
+) -> Result<FittedEventIntensity, InhomogeneousSpatialError> {
     let mut point_values = Vec::new();
     let mut observed_intensities = Vec::new();
     point_values
@@ -51,7 +75,7 @@ pub(super) fn fit_intensity(
     let finite_scale = pattern.len() as f64 / (pattern.len() - 1) as f64;
     for row in 0..pattern.len() {
         let location = (pattern.x_um[row], pattern.y_um[row]);
-        let correction = boundary_mass(location, &grid, config, counters)?;
+        let correction = boundary_mass(location, grid, config, counters)?;
         let raw = kernel_sum(
             location,
             &pattern.x_um,
@@ -70,15 +94,9 @@ pub(super) fn fit_intensity(
         });
         observed_intensities.push(intensity);
     }
-    let (probe_cdf, fixed_grid_total_mass, fixed_grid) =
-        fixed_probe_cdf(pattern, &grid, config, counters)?;
-    Ok(FittedIntensity {
-        grid,
+    Ok(FittedEventIntensity {
         point_values,
         observed_intensities,
-        probe_cdf,
-        fixed_grid_total_mass,
-        fixed_grid,
     })
 }
 

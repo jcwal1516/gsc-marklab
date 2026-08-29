@@ -4090,3 +4090,27 @@ vascular transport.
 - The successful bounded real-partition admission check from checkpoint 163 is not repeated because
   this workflow requires the identical partition artifact. Affected formatting, whitespace, direct
   diff, and status checks pass; no broad gate runs.
+
+## Prespecified Gaussian bandwidth-selection checkpoint 165 — 2026-08-29
+
+- Red-first direct evidence: `cargo +1.96.0 test --locked --package marklab --test
+  inhomogeneous_spatial_bandwidth_selection -- --nocapture` fails on the absent selector/config/
+  limits, then passes 2/2 independent score/selection and one-short aggregate-work tests.
+- Red-first durable evidence: the matching project-workflow test fails on the absent node, then
+  passes miss/hit equality, one ledger row, and candidate-list invalidation. Red-first CLI evidence
+  fails with `unrecognized subcommand 'gaussian-bandwidth-selected-spatial'`, then passes fresh
+  miss/backend-disabled hit byte equality and one ledger row.
+- The final affected command over selected K/L plus existing fixed Gaussian K/L and g direct,
+  durable, and fresh-process CLI targets passes 13/13. This explicitly revalidates both prior CLIs
+  after their exact point-table/window/project preparation is shared. The three selected targets
+  pass 4/4 again after formatting.
+- Warning-denied affected Clippy first reports a needless borrow introduced by event-fit extraction,
+  then reports a boolean literal assertion after that fix. Focused selector/fixed-K/L tests pass
+  after the production fix, the direct selector passes after the test fix, and the exact affected
+  Clippy command then passes. `cargo +1.96.0 check --locked --package marklab
+  --no-default-features` and strict package docs with CLI/no-deps pass.
+- `command -v Rscript` returns `/opt/homebrew/bin/Rscript`; `Rscript -e
+  'packageVersion("spatstat.explore")'` fails exactly because that package is absent. `rg --files`
+  finds no `renv.lock`, R package metadata, R profile, or R source. No package is installed. The
+  checkpoint-157 real grid failure is reused as the exact reason not to run a selected real result.
+  Affected formatting, whitespace, direct diff, and status checks pass; no broad gate runs.

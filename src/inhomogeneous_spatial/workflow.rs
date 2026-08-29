@@ -179,7 +179,7 @@ fn config_artifact(config: &InhomogeneousSpatialConfig) -> Result<ArtifactRef, N
     ArtifactRef::from_bytes(CONFIG_KIND, &bytes).map_err(NodeError::input)
 }
 
-fn validate(
+pub(super) fn validate(
     result: &InhomogeneousSpatialResult,
     pattern: &Pattern,
     window: &ObservationWindow2D,

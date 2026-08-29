@@ -3341,3 +3341,31 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   fabricated. Checkpoint 162 remains the latest broad stabilization; no workspace-wide/Nextest
   loop, feature matrix, benchmark, fuzzing, packaging, dependency, push, publication, deployment,
   or history rewrite runs.
+
+## Prespecified Gaussian bandwidth-selection checkpoint 165 — 2026-08-29
+
+- Added `analyze_selected_inhomogeneous_spatial_pattern`, its durable node, and `marklab project
+  gaussian-bandwidth-selected-spatial`. Callers must supply a strictly increasing bandwidth list.
+  Every candidate is scored only by mean log boundary-corrected leave-one-out event intensity;
+  exact ties retain the smallest bandwidth. Every score, intensity range, evaluation count,
+  candidate/config/artifact identity, and the explicit false `selection_uses_spatial_curve` flag is
+  persisted before the existing Gaussian K/L workflow runs once at the selected bandwidth.
+- Selection candidate count and aggregate intensity evaluations have separate hard ceilings; the
+  selected analysis retains its existing probe/intensity/pair/draw/memory limits. Candidate-list
+  changes invalidate durable identity. A shared point-table/window/project preparation and
+  create-new output boundary is extracted only after fixed Gaussian K/L, Gaussian g, and selected
+  K/L all require it; existing store IDs, schemas, nodes, and result bytes remain separate.
+- An independent four-point/10x10-grid Gaussian loop agrees with all three candidate scores and
+  selects 1 micrometre from the fixed `[1,2,3]` list. A one-short aggregate selection-evaluation
+  limit fails. Fresh CLI processes return a miss then backend-disabled byte-identical hit with one
+  ledger row; durable candidate-list invalidation is verified.
+- The real CPTAC diagnostic is not rerun or tuned. Its retained 16x16 pilot contains only 37/256
+  in-window probes and already fails fixed-grid mass/intensity-range reliability, so bandwidth
+  selection cannot make that quadrature admissible. `/opt/homebrew/bin/Rscript` exists, but
+  `packageVersion("spatstat.explore")` fails because the package is absent and no repository-pinned
+  R environment exists. Pinned external agreement remains an exact backend/environment blocker.
+- Thirteen focused selected/fixed Gaussian K/L/g direct, durable, and CLI tests pass after shared
+  preparation extraction. Warning-denied affected Clippy finds and resolves one needless borrow and
+  one boolean assertion form before its final pass. Root no-default compilation, strict affected
+  docs, affected formatting, and whitespace checks pass. No broad gate or unpinned package install
+  runs.

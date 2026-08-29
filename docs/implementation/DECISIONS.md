@@ -2954,3 +2954,29 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   execution. Existing Gaussian K/L and g and piecewise K/L regressions remain green after the
   shared extraction. The checkpoint-163 real-data blocker is unchanged: no admitted exact binary
   compartment polygon tessellation exists, so no real piecewise g result is fabricated.
+
+## DEC-0351 — Select Gaussian bandwidth only by prespecified leave-one-out likelihood
+
+- Date: 2026-08-29
+- Status: accepted for PP-02/PP-05/PLAT-01/WF-01/WS-12/WS-30
+- Decision: add `analyze_selected_inhomogeneous_spatial_pattern` and `marklab project
+  gaussian-bandwidth-selected-spatial`. Require a strictly increasing, caller-supplied candidate
+  bandwidth list before execution. Score every candidate by the mean log of the existing
+  boundary-corrected leave-one-out event intensities, select the maximum, and break exact ties
+  toward the smallest bandwidth. Persist every candidate score, intensity extrema, charged work,
+  selected index/bandwidth, score/config/artifact identities, and an explicit false
+  `selection_uses_spatial_curve`; only then run the existing Gaussian K/L workflow once at the
+  selected bandwidth. Bound candidate count, aggregate selection intensity evaluations, downstream
+  analysis work, retained output, project/store/runtime identity, and exact-float replay. Do not
+  inspect K/L/g, envelopes, p-values, or real outcomes during selection.
+- Consequences: an independent direct Gaussian/grid loop agrees on all three candidate scores and
+  selects 1 micrometre for the four-point fixture; a one-short aggregate evaluation ceiling fails.
+  Candidate-list changes invalidate durable identity, and fresh processes prove byte-identical
+  miss/hit replay with one ledger row. The point-table/window/project preparation now shared by the
+  existing Gaussian K/L, Gaussian g, and selected K/L CLIs is extracted without changing their
+  schemas/store IDs/output bytes; all three CLI regressions pass. No real selected result is run:
+  the retained exact CPTAC caller has only 37/256 in-window probes and already failed its grid-mass/
+  intensity-range diagnostic, so bandwidth selection cannot repair the quadrature support. Local
+  `Rscript` is present but `spatstat.explore` is absent and the repository has no pinned R
+  environment; pinned external agreement remains unavailable rather than installing an unpinned
+  package.
