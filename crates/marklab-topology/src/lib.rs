@@ -298,6 +298,58 @@ pub struct WitnessPersistenceStabilityResult {
     pub claim_status: String,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WitnessPersistenceBottleneckStabilitySpec {
+    pub stability: WitnessPersistenceStabilitySpec,
+    pub maximum_bottleneck_distance_um_squared: f64,
+    pub maximum_bottleneck_comparisons: u64,
+    pub maximum_bottleneck_interval_budget: u64,
+    pub maximum_bottleneck_backend_executions: u64,
+    pub bottleneck_timeout_seconds: u64,
+    pub maximum_total_backend_executions: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WitnessBottleneckDimensionResult {
+    pub dimension: usize,
+    pub status: String,
+    pub bottleneck_distance_um_squared: Option<f64>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WitnessBottleneckPerturbationResult {
+    pub replicate: usize,
+    pub by_dimension: Vec<WitnessBottleneckDimensionResult>,
+    pub maximum_finite_bottleneck_distance_um_squared: f64,
+    pub has_infinite_essential_mismatch: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WitnessPersistenceBottleneckStabilityResult {
+    pub format: String,
+    pub version: u32,
+    pub backend: TopologyBackendContract,
+    pub bottleneck_request_sha256: String,
+    pub bottleneck_metric: String,
+    pub essential_interval_policy: String,
+    pub stability: WitnessPersistenceStabilityResult,
+    pub perturbations: Vec<WitnessBottleneckPerturbationResult>,
+    pub maximum_bottleneck_distance_um_squared_allowed: f64,
+    pub maximum_finite_bottleneck_distance_um_squared: f64,
+    pub has_infinite_essential_mismatch: bool,
+    pub bottleneck_comparisons: u64,
+    pub bottleneck_interval_count: u64,
+    pub bottleneck_backend_executions: u64,
+    pub total_backend_executions: u64,
+    pub stable_under_bottleneck_threshold: bool,
+    pub stable_under_all_declared_thresholds: bool,
+    pub claim_status: String,
+}
+
 #[derive(Debug, Error)]
 pub enum TopologyError {
     #[error("invalid topology specification: {0}")]

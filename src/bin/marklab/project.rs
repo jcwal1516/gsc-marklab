@@ -26,7 +26,10 @@ use marklab_graph::{
     GraphSparseRadiusHeatStabilitySpec, GraphSparseRadiusScatteringResult,
     GraphSparseRadiusScatteringSpec,
 };
-use marklab_topology::{WitnessPersistenceResult, WitnessPersistenceStabilityResult};
+use marklab_topology::{
+    WitnessPersistenceBottleneckStabilityResult, WitnessPersistenceResult,
+    WitnessPersistenceStabilityResult,
+};
 use marklab_workflow::{
     execute_algorithm, ArtifactRef, ArtifactSchema, CacheKeyMaterial, CacheStatus, ContentDigest,
     DurableProject, DurableProjectLimits, DurableRecoveryAction, LocalScheduler, MarklabProject,
@@ -44,7 +47,8 @@ use super::{
         PreparedNormalMean, PreparedStudentTHierarchy,
     },
     topology::{
-        self, PreparedWitnessPersistence, PreparedWitnessPersistenceStability, TopologyCliError,
+        self, PreparedWitnessPersistence, PreparedWitnessPersistenceBottleneckStability,
+        PreparedWitnessPersistenceStability, TopologyCliError,
     },
 };
 
@@ -1057,6 +1061,14 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    WitnessPersistenceBottleneckStability {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
     ArbitraryWindowIppLikelihood(Box<ArbitraryWindowIppProjectArgs>),
     FitArbitraryWindowIpp(Box<ArbitraryWindowIppFitProjectArgs>),
     ArbitraryWindowLgcp(Box<ArbitraryWindowLgcpFitProjectArgs>),
@@ -1487,6 +1499,14 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
                     out,
                 },
         } => run_witness_persistence_stability(project, input, out),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::WitnessPersistenceBottleneckStability {
+                    project,
+                    input,
+                    out,
+                },
+        } => run_witness_persistence_bottleneck_stability(project, input, out),
         ProjectTopLevel::Project {
             command: ProjectCommand::ArbitraryWindowIppLikelihood(arguments),
         } => run_arbitrary_window_ipp(
@@ -2574,6 +2594,71 @@ fn run_witness_persistence_stability(
     };
     bayes::publish_json(&output_path, &run.output)?;
     eprintln!("project witness-persistence-stability cache_status={cache_status}");
+    Ok(())
+}
+
+fn run_witness_persistence_bottleneck_stability(
+    project_path: PathBuf,
+    input_path: PathBuf,
+    output_path: PathBuf,
+) -> Result<(), BayesCliError> {
+    let input_kind =
+        "application/vnd.marklab.source.witness-persistence-bottleneck-stability+json;version=1";
+    let before = source_artifact(&input_path, input_kind)?;
+    let prepared = topology::prepare_witness_persistence_bottleneck_stability(&input_path)
+        .map_err(topology_error)?;
+    let after = source_artifact(&input_path, input_kind)?;
+    if before != after {
+        return Err(BayesCliError::Input(
+            "witness bottleneck stability input changed while the durable request was prepared"
+                .into(),
+        ));
+    }
+    let runtime = native_runtime_provenance()?;
+    let limits = DurableProjectLimits::new(
+        PROJECT_CONTROL_BYTES,
+        PROJECT_LEDGER_BYTES,
+        PROJECT_LEDGER_RECORDS,
+        PROJECT_RECORD_BYTES,
+        MAXIMUM_RESULT_BYTES,
+    )
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let mut durable = DurableProject::open_or_create(&project_path, limits)
+        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    report_recovery(&durable);
+    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    project
+        .register_reference(before.clone())
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let node = WitnessPersistenceBottleneckStabilityProjectNode::new(input_path, before, prepared)?;
+    let graph = WorkflowGraph::new([node.spec().clone()])
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
+    })
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let schema = ArtifactSchema::new(
+        "marklab.gudhi_witness_persistence_bottleneck_stability_result",
+        1,
+    )
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let run = execute_algorithm(
+        &mut durable,
+        &mut project,
+        &graph,
+        &node,
+        &scheduler,
+        schema,
+        runtime,
+    )
+    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    let cache_status = match run.cache_status {
+        CacheStatus::Hit => "hit",
+        CacheStatus::Miss => "miss",
+    };
+    bayes::publish_json(&output_path, &run.output)?;
+    eprintln!("project witness-persistence-bottleneck-stability cache_status={cache_status}");
     Ok(())
 }
 
@@ -5206,6 +5291,102 @@ impl WorkflowNode for WitnessPersistenceStabilityProjectNode {
 
     fn output_kind(&self) -> &'static str {
         "application/vnd.marklab.gudhi-witness-persistence-stability-result+json;version=1"
+    }
+}
+
+struct WitnessPersistenceBottleneckStabilityProjectNode {
+    spec: NodeSpec,
+    input_path: PathBuf,
+    input_artifacts: [ArtifactRef; 1],
+    prepared: PreparedWitnessPersistenceBottleneckStability,
+}
+
+impl WitnessPersistenceBottleneckStabilityProjectNode {
+    fn new(
+        input_path: PathBuf,
+        input: ArtifactRef,
+        prepared: PreparedWitnessPersistenceBottleneckStability,
+    ) -> Result<Self, BayesCliError> {
+        Ok(Self {
+            spec: NodeSpec::new(
+                NodeId::new("gudhi-witness-persistence-bottleneck-stability")
+                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
+                "topological_witness_coordinate_bottleneck_stability",
+                1,
+                Vec::new(),
+            )
+            .map_err(|error| BayesCliError::Input(error.to_string()))?,
+            input_path,
+            input_artifacts: [input],
+            prepared,
+        })
+    }
+}
+
+impl WorkflowNode for WitnessPersistenceBottleneckStabilityProjectNode {
+    type Output = WitnessPersistenceBottleneckStabilityResult;
+
+    fn spec(&self) -> &NodeSpec {
+        &self.spec
+    }
+
+    fn input_artifacts(&self) -> &[ArtifactRef] {
+        &self.input_artifacts
+    }
+
+    fn verify_input_content(&self) -> Result<(), NodeError> {
+        let observed = source_artifact(
+            &self.input_path,
+            "application/vnd.marklab.source.witness-persistence-bottleneck-stability+json;version=1",
+        )
+        .map_err(NodeError::input)?;
+        if observed != self.input_artifacts[0] {
+            return Err(NodeError::input(BayesCliError::Input(
+                "witness bottleneck stability input no longer matches its durable identity".into(),
+            )));
+        }
+        Ok(())
+    }
+
+    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
+        let mut frames = Vec::with_capacity(self.prepared.stability.runs.len() + 3);
+        frames.push(b"marklab-project-witness-persistence-bottleneck-stability-node-v1".as_slice());
+        frames.extend(
+            self.prepared
+                .stability
+                .runs
+                .iter()
+                .map(|run| run.request_bytes.as_slice()),
+        );
+        frames.push(self.prepared.backend.environment_lock_sha256.as_bytes());
+        frames.push(self.prepared.backend.worker_sha256.as_bytes());
+        CacheKeyMaterial {
+            configuration_digest: ContentDigest::from_framed(frames),
+            execution_policy: b"bounded-gudhi-witness-persistence-bottleneck-stability-v1",
+            implementation_identity:
+                "marklab-project-witness-persistence-bottleneck-stability-node-v1",
+        }
+    }
+
+    fn execute(&self) -> Result<Self::Output, NodeError> {
+        topology::execute_witness_persistence_bottleneck_stability(&self.prepared)
+            .map_err(NodeError::execution)
+    }
+
+    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
+        marklab::exact_float_json::encode(output).map_err(NodeError::encoding)
+    }
+
+    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
+        let output: WitnessPersistenceBottleneckStabilityResult =
+            marklab::exact_float_json::decode(bytes).map_err(NodeError::decode)?;
+        topology::validate_witness_persistence_bottleneck_stability_result(&self.prepared, &output)
+            .map_err(NodeError::decode)?;
+        Ok(output)
+    }
+
+    fn output_kind(&self) -> &'static str {
+        "application/vnd.marklab.gudhi-witness-persistence-bottleneck-stability-result+json;version=1"
     }
 }
 

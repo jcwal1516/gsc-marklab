@@ -274,3 +274,12 @@ do not enter fusion because both have zero held-out incremental balanced accurac
 one frozen stability gate. Exact unavailable lanes and acquisition-site identity blockers are
 retained. Broader active/planned/blocked master-plan entries are intentionally not promoted by this
 science-only checkpoint.
+
+## SCIENCE-CRC-FINAL-01 checkpoint 151 addendum
+
+The interrupted exact witness-bottleneck checkpoint is complete and retains a second, independently
+named unstable coordinate-perturbation diagnostic: maximum finite exact distance 7,131.39 square
+micrometres exceeds the frozen 600-square-micrometre ceiling and essential-interval counts mismatch.
+It replays backend-disabled with byte identity and one ledger row. This addendum does not alter the
+checkpoint 147 patient-level graph/topology exclusion, M0--M7 conclusions, or broader master-plan
+states. No next general capability is promoted under the replacement science-only objective.

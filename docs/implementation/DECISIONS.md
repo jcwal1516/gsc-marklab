@@ -2684,3 +2684,24 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   `[-0.375, 0.375]`. The block fails promotion and is not fused. FR-01B/GSP-01/WS-62 close with
   negative promotion evidence; broader kernels, bands, GPU parity, solver frameworks, and transform
   catalogs are not implemented without a new immediate endpoint.
+
+## DEC-0338 — Compare witness diagrams by exact bottleneck distance
+
+- Date: 2026-08-29
+- Status: accepted for SCIENCE-CRC-FINAL-01/TOP-01/TOP-01A/WF-01/WS-12/WS-63
+- Decision: add direct and durable `witness-persistence-bottleneck-stability` as the immediate
+  correctness metric for the existing DEC-0333 perturbation workflow. Reuse its baseline and
+  perturbed pinned-GUDHI witness results, then make one bounded GUDHI 3.13.0 worker invocation that
+  computes exact `gudhi.bottleneck_distance(..., e=0.0)` separately in dimensions 0--2. Reconstruct
+  essential intervals with infinite death only when baseline and perturbed essential counts match;
+  otherwise retain a typed infinite-count mismatch and fail the stability gate. Bind exact
+  backend/environment/worker/request/runtime identity and cap comparisons, total retained
+  intervals, bottleneck processes, total external processes, and timeout. Keep total-persistence
+  change separately named and do not tune the fixed 600-square-micrometre diagnostic ceiling.
+- Consequences: the admitted 2,000-cell/16-perturbation result is unstable. Maximum finite exact
+  bottleneck distance is `7131.385451975762` square micrometres and at least one comparison has an
+  essential-count mismatch. The identity-final miss uses 18 total backend executions; a fresh
+  backend-disabled process returns the same result bytes with one ledger row. This strengthens the
+  negative one-specimen topology stability finding, does not enter the frozen patient fingerprint,
+  and does not establish a biological, population, molecular-class, causal, clinical, or
+  transportability result.

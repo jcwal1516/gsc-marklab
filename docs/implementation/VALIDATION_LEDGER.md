@@ -3693,3 +3693,36 @@ vascular transport.
   `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --workspace --all-features --no-deps`.
   The prohibited Nextest/full-integration loop was not run. No feature matrix, benchmark, fuzzing,
   memory tool, packaging, dependency audit, push, publication, deployment, or history rewrite ran.
+
+## Witness bottleneck-stability checkpoint 151 — 2026-08-29
+
+- Red-first direct evidence: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  topology_witness_bottleneck_stability_cli -- --nocapture` first fails because
+  `witness-persistence-bottleneck-stability` is not a topology command. The durable target first
+  fails for the corresponding absent project command. Both pass after the direct and durable paths
+  are implemented.
+- `target/gudhi-venv/bin/python -m unittest
+  tests.python.test_gudhi_witness_bottleneck_worker` passes the analytic interval-distance and typed
+  essential-mismatch oracles. `cargo +1.96.0 test --locked --package marklab-topology` passes. The
+  final focused command over the old/new direct and durable witness integrations passes all six
+  targets. Python compilation and the affected CLI build pass.
+- Warning-denied topology all-target Clippy and root Clippy for the new integrations pass.
+  Topology no-default compilation and warning-denied topology docs pass. Affected formatting passes.
+  Checkpoint 150 already ran the latest broad workspace gates, so they are not repeated.
+- The exact source/request/runtime/worker SHA-256 values are respectively
+  `85935f75e6afeb5c8004925fd69e6e07e0d6057996f68b14e28cbc02decdc91a`,
+  `ea23f548f64a12043a08911744a17805b9c067542ee79f8d120762b4dffd8556`,
+  `af3722def3320834487f5375c2ddd220af19e3266e44d623b0c9f6b7b3776382`, and
+  `15e1dae22362a25ed79f56b078d149ad620d69f9cc72cb0b2a3c774019bbb912`.
+  The real miss completes in 31.35 seconds at 52,920,320-byte maximum RSS. Its 48 comparisons and
+  7,660 intervals remain below 48 and 48,000,000, and its 18 total backends equal the declared cap.
+- A fresh `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1 target/debug/marklab project
+  witness-persistence-bottleneck-stability ...` process returns a hit. `cmp` passes; miss/hit both
+  hash to `11818914ec96521516a94e03c08710d3a75ff2eba12df16f6b7568003f87d2ef` and the
+  ledger remains one row. The result truthfully fails the 600-square-micrometre threshold at
+  `7131.385451975762` and retains typed infinite essential mismatches.
+- Local and remote `shasum -a 256 -c SHA256SUMS` verify every listed file in
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v48-witness-bottleneck-stability-final`;
+  its manifest hash is `77018e4fd3c7f95ec68577cb6b689d9801bf12997aa5b71bd0007788625faa6c`.
+  The prohibited macOS Nextest/full-integration loop and other broad or specialized gates were not
+  run.

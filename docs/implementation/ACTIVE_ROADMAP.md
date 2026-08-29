@@ -1418,3 +1418,15 @@ with an immediate admitted caller: true persistence-diagram bottleneck distance 
 pinned-GUDHI witness perturbation workflow, followed by the already admitted patient patterns if
 the direct metric is feasible. Total-persistence change must remain separately named and cannot be
 relabeled as bottleneck distance. UI/server/client/remote/plugin work remains deferred.
+
+## Checkpoint 151 witness bottleneck closure and science-only return
+
+The existing pinned-GUDHI witness perturbations now have exact per-dimension L-infinity bottleneck
+comparison, typed essential-count mismatch, bounded direct/durable execution, and one-ledger
+backend-disabled replay. The real maximum finite distance is 7,131.39 square micrometres against the
+fixed 600-square-micrometre ceiling, and essential counts also mismatch, so the result is retained as
+unstable and is not fused. The active objective is SCIENCE-CRC-FINAL-01 only. Reuse checkpoint 147's
+sealed patient-level graph/topology, M0--M7, external-validation, outcome, and interpretation results;
+add this diagnostic to the final science evidence without rerunning completed analyses. No general
+software capability, Bayesian family, graph/topology catalog, simulator, UI, server, client, remote,
+packaging, or hardening outcome is promoted.

@@ -2968,3 +2968,28 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - FR-01B/GSP-01/WS-62 close with a negative promotion result. Broader sparse kernels/bands, GPU
   parity, solver/plugin frameworks, and transform catalogs are killed absent a new immediate
   endpoint; instability is not tuned away.
+
+## Witness bottleneck-stability checkpoint 151 — 2026-08-29
+
+- Added direct and durable exact GUDHI bottleneck comparison for the already admitted witness
+  perturbation workflow. The typed result distinguishes finite exact distances from an infinite
+  essential-count mismatch and preserves the existing total-persistence diagnostic separately.
+  Comparison, interval, backend-execution, total-process, timeout, source, request, environment,
+  worker, and runtime identities are bounded and durable.
+- Independent oracles recover bottleneck distance 1 for intervals `[0,2]` and `[0,3]`, exact zero
+  under zero jitter, and typed failure when essential counts differ. One-short comparison admission
+  fails before the bottleneck backend starts. Direct and durable focused integrations pass.
+- The fixed real 2,000-cell/16-perturbation result is unstable: maximum finite bottleneck distance
+  is `7131.385451975762` square micrometres against the unchanged 600-square-micrometre ceiling, and
+  at least one comparison has an essential-count mismatch. The pre-existing witness thresholds also
+  remain failed. This result is retained without scale, landmark, seed, subset, or threshold tuning.
+- The identity-final miss completes in 31.35 seconds at 52,920,320-byte maximum RSS using 17
+  witness executions plus one batched bottleneck process. A fresh backend-disabled process emits
+  byte-identical SHA-256 `11818914ec96521516a94e03c08710d3a75ff2eba12df16f6b7568003f87d2ef`
+  and leaves one ledger row. The 12-file 1-TB bundle
+  `results-cellvit-categorical-v48-witness-bottleneck-stability-final` rehashes completely;
+  `SHA256SUMS` hashes to
+  `77018e4fd3c7f95ec68577cb6b689d9801bf12997aa5b71bd0007788625faa6c`.
+- The science-only objective resumes after this interrupted checkpoint. The exact bottleneck result
+  is an additional unstable topology diagnostic and is not promoted into the patient fingerprint.
+  No general Marklab capability is promoted next.

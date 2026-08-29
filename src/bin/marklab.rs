@@ -59,6 +59,7 @@ fn main() -> marklab::Result<()> {
                                     | "sparse-radius-scattering"
                                     | "witness-persistence"
                                     | "witness-persistence-stability"
+                                    | "witness-persistence-bottleneck-stability"
                                     | "arbitrary-window-ipp-likelihood"
                                     | "fit-arbitrary-window-ipp"
                                     | "arbitrary-window-lgcp"
