@@ -1328,3 +1328,15 @@ coordinate perturbation caller, but patient replication, cell subsampling, segme
 sparse wavelets/scattering, and analytic perturbation bounds remain. Production proceeds to the
 smallest sparse wavelet/scattering or replicated topology caller with an admitted CRC endpoint;
 UI/server/client/remote work remains deferred.
+
+## Checkpoint 144 sparse diffusion-wavelet continuation
+
+The admitted 2,000-cell radius graph now runs a four-scale sparse telescoping diffusion filter bank
+through the existing Chebyshev heat owner, with dense spectral agreement on the exact small oracle,
+3.33e-16 real reconstruction error, explicit aggregate work/output bounds, and one-ledger durable
+replay. The first redundant schema exceeded the unchanged 1-MiB artifact ceiling and remains
+rejected; retaining only the sufficient detail/coarse representation resolves that concrete
+boundary without a project-store change. FR-01B/GSP-01/WS-62 no longer lack every pathology-scale
+sparse wavelet-like decomposition, but sparse eigensolvers/basis trees, sparse scattering, patient
+replication, and biological endpoints remain. Production proceeds to the smallest sparse scattering
+or replicated topology stability caller; UI/server/client/remote work remains deferred.

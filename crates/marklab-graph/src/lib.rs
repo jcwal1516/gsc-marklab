@@ -14,6 +14,7 @@ mod heterogeneous;
 mod hodge;
 mod hypergraph;
 mod motif;
+mod sparse_diffusion_wavelet;
 mod sparse_heat;
 mod sparse_heat_stability;
 mod validation;
@@ -38,6 +39,10 @@ pub use hypergraph::{
 pub use motif::{
     typed_triangle_motif_workflow, MotifEdgeInput, MotifNodeInput, TypedTriangleMotifResult,
     TypedTriangleMotifSpec,
+};
+pub use sparse_diffusion_wavelet::{
+    graph_sparse_radius_diffusion_wavelet_workflow, GraphSparseRadiusDiffusionWaveletResult,
+    GraphSparseRadiusDiffusionWaveletSpec, SparseRadiusDiffusionWaveletScaleResult,
 };
 pub use sparse_heat::{
     graph_sparse_radius_heat_workflow, GraphSparseRadiusHeatResult, GraphSparseRadiusHeatSpec,

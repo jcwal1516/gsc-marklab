@@ -2734,3 +2734,28 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   integrations pass. Affected files are formatted and the bundle verifies. This is the first
   workflow after checkpoint 142, so broad workspace gates were not repeated; the documented
   Nextest/full-integration loop remains excluded.
+
+## Sparse radius diffusion wavelet checkpoint 144 — 2026-08-29
+
+- Added direct and durable `sparse-radius-diffusion-wavelet`. For 1–16 strictly increasing positive
+  diffusion times it constructs the concrete telescoping filter bank `I-H(t0)`, successive
+  `H(t[j-1])-H(t[j])`, and final `H(t[last])` through the existing adaptive sparse Chebyshev heat
+  owner. It retains only sufficient detail/coarse signals, reports scale energies and approximation
+  bounds, and enforces per-scale/aggregate candidate/matrix-vector, peak working, retained-output,
+  and shared artifact ceilings.
+- The five-node behavior test agrees with independent dense spectral heat at all three test scales,
+  reconstructs every intermediate heat signal and the input, and rejects a one-short aggregate
+  candidate budget. The durable integration proves miss, fresh-process hit, byte identity, and one
+  execution row. Existing sparse-heat and exact diffusion-wavelet integrations remain green.
+- The first real complete schema encoded 1,409,419 durable bytes because it redundantly retained
+  every heat signal and detail, exceeding the unchanged 1,048,576-byte artifact ceiling. It created
+  no execution and is retained. The sufficient filter-bank schema encodes 710,433 bytes. Its real
+  durable miss completes in 10.42 seconds at 29,278,208-byte maximum RSS on the same 2,000-node,
+  24,755-edge graph at times 0.025/0.05/0.10/0.20. Selected orders are 8/10/13/18, total observed
+  candidate/matrix-vector work is 224,344/2,523,990, and reconstruction error is 3.33e-16.
+- A fresh process returns the byte-identical hit with one ledger row. Result SHA-256 is
+  `2c7ebc610198c39aee8585aeeb6958b9ed1ae821547d01d284e7491a35417d27`; the hash-verified 1-TB
+  bundle is `results-cellvit-categorical-v35-sparse-diffusion-wavelet`. This is one-specimen graph-
+  signal decomposition, not a sparse eigensolver/basis tree, scattering, patient reproducibility,
+  molecular association, biological significance, causal, or clinical evidence. Focused affected
+  tests and formatting pass. Broad gates were not repeated two workflows after checkpoint 142.

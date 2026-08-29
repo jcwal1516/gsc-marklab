@@ -3449,3 +3449,27 @@ vascular transport.
   -c bundle_sha256.txt'` verifies every sealed file.
 - Affected-file Rustfmt passes. Broad workspace gates were not repeated one workflow after
   checkpoint 142, and the documented Nextest/full-integration loader loop was not run.
+
+## Sparse radius diffusion wavelet checkpoint 144 — 2026-08-29
+
+- `cargo +1.96 test --locked --package marklab --features cli --test
+  graph_sparse_radius_diffusion_wavelet_cli` first fails on the absent direct command. After the
+  initial implementation passes, the real durable artifact exceeds 1 MiB; the strengthened test
+  then fails while redundant `filtered_signal` fields remain. The final sufficient detail/coarse
+  representation passes dense spectral agreement at every scale, exact telescoping reconstruction,
+  absent redundant fields, and one-short aggregate work rejection.
+- `cargo +1.96 test --locked --package marklab --features cli --test
+  durable_sparse_radius_diffusion_wavelet_project` first fails on the absent project command and
+  passes after wiring; it passes again after the sufficient-result schema change with miss,
+  fresh-process hit, byte identity, and one ledger row. `cargo +1.96 test --locked --package
+  marklab-graph` passes. The final focused command over sparse heat, exact diffusion wavelet, and
+  direct/durable sparse diffusion wavelet passes 5/5 tests across four integration targets.
+- The retained first real attempt fails exactly with `encoded 1409419 inline bytes, exceeding limit
+  1048576` and leaves zero ledger rows. The final remote miss completes in 10.42 seconds at
+  29,278,208-byte maximum RSS; its artifact is 710,433 bytes, total candidate/matrix-vector work is
+  224,344/2,523,990, and reconstruction error is 3.33e-16. A second process reports a hit, `cmp`
+  passes, and the ledger remains one row. `ssh mini 'cd /Volumes/1TB/marklab/runs/results-cellvit-
+  categorical-v35-sparse-diffusion-wavelet && shasum -a 256 -c bundle_sha256.txt'` verifies every
+  sealed file, including the rejected-boundary stderr.
+- Affected-file Rustfmt and `git diff --check` pass. Broad workspace gates were not repeated two
+  workflows after checkpoint 142; the documented Nextest/full-integration loop was not run.
