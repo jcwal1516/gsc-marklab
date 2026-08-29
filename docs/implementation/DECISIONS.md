@@ -2662,3 +2662,25 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   `238.16657412282206` centered energy is retained as unresolved. This is one-specimen descriptive
   truncation evidence, not a calibrated physical wavelength, patient-level effect, molecular
   association, biological significance, causality, or clinical utility.
+
+## DEC-0337 — Close sparse Fourier promotion on a fixed patient-replicated result
+
+- Date: 2026-08-29
+- Status: accepted for FR-01B/GSP-01/WF-01/WS-12/WS-62
+- Decision: raise the bounded sparse-basis total-mode ceiling from 64 to 128 only because the frozen
+  16-slide CRC variants have 28–70 exact connected components and require at most 78 total modes to
+  retain every component-zero mode plus the prespecified eight nonzero modes. Add the narrow
+  `marklab_crc_sparse_fourier_patient.py` prepare/execute/summarize path. Independently preflight
+  exact components under 20-million pair checks and require agreement with each Rust result; run
+  baseline, 80% cell subsample, 1-micrometre jitter, and 45/55-micrometre variants in at most six
+  processes; average two slides only inside patient; reuse fold-internal PCA, patient-held-out
+  retrieval/classification, all whole-patient label assignments, bootstrap uncertainty, and the
+  existing frozen stability/fusion gate. Do not select modes, scales, features, patients, or
+  thresholds from the result.
+- Consequences: all 80 misses and 80 fresh backend-disabled hits complete with byte identity and one
+  ledger row each. Coordinate stability passes, but cell subsampling, nearby-scale, and nested-slide
+  stability fail. Fourier-only balanced accuracy is 0.50, and adding Fourier features leaves the
+  M0–M3 balanced accuracy at 0.625 for an exact increment of zero with bootstrap interval
+  `[-0.375, 0.375]`. The block fails promotion and is not fused. FR-01B/GSP-01/WS-62 close with
+  negative promotion evidence; broader kernels, bands, GPU parity, solver frameworks, and transform
+  catalogs are not implemented without a new immediate endpoint.

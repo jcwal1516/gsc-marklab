@@ -2929,3 +2929,42 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   Clippy/docs, graph no-default compilation, remote bundle verification, and whitespace checks
   pass. Checkpoint 145 remains the latest broad stabilization; the prohibited macOS Nextest/full-
   integration loop and other broad or specialized gates were not run.
+
+## Patient-replicated sparse Fourier checkpoint 150 — 2026-08-29
+
+- Expanded the bounded basis ceiling from 64 to 128 modes for one demonstrated caller: the frozen
+  CRC variants have up to 70 exact components and need at most 78 total modes to retain the complete
+  nullspace plus exactly eight nonzero modes. A 130-node/65-component oracle first fails the old
+  ceiling, then returns 65 zero and eight nonzero modes under the new cap. Mode count must also not
+  exceed node count.
+- Added the narrow `marklab_crc_sparse_fourier_patient.py` prepare/execute/summarize CLI. It converts
+  the existing 16-slide graph requests without label-based selection, independently audits exact
+  components under 9,707,200 of 20,000,000 admitted pair checks, verifies the Rust result counts,
+  executes five frozen variants in at most six bounded processes, and keeps two slides nested inside
+  each of eight patients. All feature scaling/PCA stays inside each held-out patient fold; the
+  existing whole-patient permutation, bootstrap, retrieval, stability, and fusion owners are reused.
+- The identity-final runtime SHA-256 is
+  `16c6e9e1ad435cdea2fe0c0f2e0c2701a34798451aaae0f65c1d76681bb2205b`.
+  Six processes complete 80 misses in 88.00 seconds. The one allowed fresh replay pass completes
+  80/80 backend-disabled byte-identical hits in 78.74 seconds; every project ledger remains one row.
+  Replay wall time includes the documented repeated macOS binary verification and is not presented
+  as eigensolver performance.
+- The fixed patient result is unstable and nonincremental. Coordinate-jitter median/q10 Spearman
+  pass at 0.9762/0.8906, but cell-subsample values are 0.7306/0.00952, nearby-scale values are
+  0.7714/0.1952, and leave-one-slide values are 0.6667/0.3731. Fourier-only balanced accuracy is
+  0.50 with exact whole-patient permutation p=0.6286. M0–M3 and M0–M3-plus-Fourier both have balanced
+  accuracy 0.625; the increment is exactly zero with whole-patient bootstrap interval
+  `[-0.375, 0.375]`. The block fails the frozen fusion gate and is not promoted.
+- The final summary SHA-256 is
+  `9dc6ad63f7aeb69a7954aab7b81bc2d0b820113bbdb20bd0701f2d229fda5857`. The exact workflow SHA-256
+  is `dc3c60323f3fa87ca59ce42bbe662c2f4f074383c4d93a95f11ac9cdb4e988bc`. The 656-file 1-TB bundle
+  `results-cellvit-categorical-v46-patient-sparse-fourier-final` rehashes completely; `SHA256SUMS`
+  hashes to `fb2b819f4936f6c5e848601618260303645f4139adff1e86df54543fee1cef59`.
+- At this third related graph workflow, workspace formatting, warning-denied all-target/all-feature
+  Clippy, workspace no-default compilation, all-feature doctests, and strict all-feature workspace
+  docs pass. Focused Rust/Python tests and Python compilation pass. The prohibited Nextest/full-
+  integration loader loop was not run; no feature matrix, benchmark, fuzzing, memory tool,
+  packaging, dependency audit, push, publication, deployment, or history rewrite ran.
+- FR-01B/GSP-01/WS-62 close with a negative promotion result. Broader sparse kernels/bands, GPU
+  parity, solver/plugin frameworks, and transform catalogs are killed absent a new immediate
+  endpoint; instability is not tuned away.

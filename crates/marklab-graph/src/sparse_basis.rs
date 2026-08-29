@@ -7,7 +7,7 @@ use crate::{
     symmetric_eigendecomposition_with_limit, GraphError, GraphNodeInput,
 };
 
-const MAXIMUM_MODES: usize = 64;
+const MAXIMUM_MODES: usize = 128;
 const MAXIMUM_ITERATIONS: usize = 512;
 const SUBSPACE_STEP: f64 = 0.99;
 
@@ -420,6 +420,7 @@ pub fn graph_sparse_radius_basis_workflow(
 
 fn validate_spec(spec: &GraphSparseRadiusBasisSpec) -> Result<(), GraphError> {
     if !(2..=MAXIMUM_MODES).contains(&spec.mode_count)
+        || spec.mode_count > spec.nodes.len()
         || !(1..=MAXIMUM_ITERATIONS).contains(&spec.maximum_iterations)
         || !spec.residual_tolerance.is_finite()
         || !(1e-12..=0.1).contains(&spec.residual_tolerance)
@@ -872,5 +873,42 @@ mod tests {
         let validation =
             std::panic::catch_unwind(|| oversized_component_count.validate_for_spec(&spec));
         assert!(matches!(validation, Ok(Err(_))));
+    }
+
+    #[test]
+    fn pathology_component_count_can_retain_eight_nonzero_modes_above_sixty_four_total() {
+        let mut spec = path_spec();
+        spec.nodes = (0..65)
+            .flat_map(|component| {
+                (0..2).map(move |within| GraphNodeInput {
+                    id: format!("component-{component:02}-node-{within}"),
+                    coordinates_um: [component as f64 * 10.0 + within as f64, 0.0],
+                    signal: within as f64,
+                })
+            })
+            .collect();
+        spec.mode_count = 73;
+        spec.maximum_iterations = 1;
+        spec.maximum_nodes = 130;
+        spec.maximum_candidate_pairs = 8_385;
+        spec.maximum_edges = 65;
+        spec.maximum_components = 65;
+        spec.maximum_matrix_vector_work = 1_000;
+        spec.maximum_orthogonalization_work = 10_000;
+        spec.maximum_ritz_rotations = 1;
+        spec.maximum_working_bytes = 1_000_000;
+        spec.maximum_retained_bytes = 1_000_000;
+
+        let result = graph_sparse_radius_basis_workflow(spec).expect("expanded bounded basis");
+        assert_eq!(result.component_count, 65);
+        assert_eq!(result.returned_mode_count, 73);
+        assert_eq!(
+            result
+                .modes
+                .iter()
+                .filter(|mode| mode.component_zero_mode)
+                .count(),
+            65
+        );
     }
 }

@@ -1405,3 +1405,16 @@ smallest patient-replicated Fourier-energy/stability endpoint on the already adm
 subset, keeping patient as the population unit and reusing exact graph identities. Physical-scale
 bands or analytic perturbation bounds follow only if that replicated caller exposes a concrete need;
 generic solver/plugin infrastructure and unrelated work remain deferred.
+
+## Checkpoint 150 patient sparse Fourier closure
+
+The fixed eight-nonzero-mode Fourier block now has exact component admission, five frozen
+subsample/coordinate/radius variants, patient-nested stability, held-out evaluation, whole-patient
+permutation/bootstrap uncertainty, and 80-node durable replay. It is stable only to coordinate
+jitter, adds exactly zero balanced accuracy beyond M0–M3, and fails the frozen fusion gate.
+FR-01B/GSP-01/WS-62 therefore close with negative promotion evidence; broader graph-transform
+catalog expansion stops. Production next advances the smallest remaining topology correctness gap
+with an immediate admitted caller: true persistence-diagram bottleneck distance for the existing
+pinned-GUDHI witness perturbation workflow, followed by the already admitted patient patterns if
+the direct metric is feasible. Total-persistence change must remain separately named and cannot be
+relabeled as bottleneck distance. UI/server/client/remote/plugin work remains deferred.

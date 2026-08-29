@@ -3650,3 +3650,46 @@ vascular transport.
 - Affected-file Rustfmt and `git diff --check` pass. Checkpoint 145 remains the latest broad
   stabilization; no Nextest/full-workspace loop, feature matrix, benchmark, fuzzing, memory tool,
   packaging, dependency audit, push, publication, deployment, or history rewrite ran.
+
+## Patient-replicated sparse Fourier checkpoint 150 — 2026-08-29
+
+- Red-first Rust evidence: the focused
+  `pathology_component_count_can_retain_eight_nonzero_modes_above_sixty_four_total` test first fails
+  with invalid controls under the 64-mode ceiling. It passes after the bounded ceiling becomes 128
+  and returns 65 component-zero plus eight nonzero modes on 130 nodes; mode count is also bounded by
+  node count.
+- Red-first patient behavior evidence: `target/pymc-venv/bin/python -m unittest
+  tests.python.test_crc_sparse_fourier_patient` first fails because
+  `marklab_crc_sparse_fourier_patient.py` is absent. Preparation, fixed-mode feature extraction, and
+  patient summary pass after implementation. A fourth bounded-execution test first fails because
+  `execute_requests` is absent, then passes 40 fake misses and 40 byte-identical hits with two
+  processes. The final focused Python suite passes 4/4; `python -m py_compile` passes.
+- `cargo +1.96.0 test --locked --package marklab-graph` passes 7/7 unit tests and doctests. The
+  final focused Rust command over direct/durable sparse basis and Fourier integrations passes all
+  four targets. Warning-denied affected Clippy, graph no-default compilation, and affected docs pass.
+- The real `prepare` command admits eight patients, 16 nested slides, five variants, and 80 exact
+  requests. Independent component preflight performs 9,707,200 pair checks below 20,000,000;
+  components span 28–70 and total modes 36–78, always retaining eight nonzero modes under 128.
+- After the scheduled stabilization gates, runtime binary SHA-256 is
+  `16c6e9e1ad435cdea2fe0c0f2e0c2701a34798451aaae0f65c1d76681bb2205b`.
+  `/usr/bin/time -l ... execute --maximum-processes 6` completes 80 identity-final misses in 88.00
+  seconds. The single backend-disabled replay command completes 80/80 hits in 78.74 seconds; every
+  result is byte-identical and all 80 ledgers remain one row. No replay retry ran.
+- The deterministic `summarize` command reports patient-unit stability and held-out inference.
+  Fourier-only balanced accuracy is 0.50 with exact 70-assignment p=0.6286; adding Fourier to M0–M3
+  changes balanced accuracy and retrieval by zero, with bootstrap increment interval
+  `[-0.375, 0.375]`. Only coordinate stability passes; the frozen fusion gate rejects the block.
+  Summary SHA-256 is `9dc6ad63f7aeb69a7954aab7b81bc2d0b820113bbdb20bd0701f2d229fda5857`.
+- Local and remote verification rehash all 656 files in
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v46-patient-sparse-fourier-final`; manifest
+  SHA-256 is `fb2b819f4936f6c5e848601618260303645f4139adff1e86df54543fee1cef59`.
+  The sealed workflow hashes to `dc3c60323f3fa87ca59ce42bbe662c2f4f074383c4d93a95f11ac9cdb4e988bc`.
+  Remote verification also proves all 80 ledger files have exactly one row.
+- Major-checkpoint commands pass once:
+  `cargo +1.96.0 fmt --all --check`;
+  `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings`;
+  `cargo +1.96.0 test --locked --workspace --doc --all-features`;
+  `cargo +1.96.0 check --locked --workspace --no-default-features`; and
+  `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --workspace --all-features --no-deps`.
+  The prohibited Nextest/full-integration loop was not run. No feature matrix, benchmark, fuzzing,
+  memory tool, packaging, dependency audit, push, publication, deployment, or history rewrite ran.
