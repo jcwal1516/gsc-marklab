@@ -273,6 +273,57 @@ class CellvitCptacResultsAdapterTest(unittest.TestCase):
             ],
         )
 
+    def test_replicated_multitype_lgcp_counts_every_common_type_on_every_exact_node(self):
+        type_map = {
+            1: "Neoplastic",
+            2: "Inflammatory",
+            3: "Connective",
+            4: "Dead",
+            5: "Epithelial",
+        }
+        cells = [{"type": value} for value in [1, 2, 3, 4, 5, 1]]
+        positions = [
+            (0.25, 0.25),
+            (1.25, 0.25),
+            (0.25, 1.25),
+            (1.25, 1.25),
+            (2.25, 2.25),
+            (3.25, 3.25),
+        ]
+        nodes = [
+            {
+                "node_id": f"q-{iy:03d}-{ix:03d}",
+                "x_um": ix + 0.5,
+                "y_um": iy + 0.5,
+                "weight_um2": 1.0,
+                "covariate": -1.0 + 2.0 * (ix + 0.5) / 4.0,
+            }
+            for iy in range(4)
+            for ix in range(4)
+        ]
+
+        rows = self.module.replicated_multitype_lgcp_rows(
+            "slide-a",
+            "patient-a",
+            "MSI",
+            cells,
+            positions,
+            1.0,
+            type_map,
+            (0.0, 0.0, 4.0, 4.0),
+            nodes,
+            "a" * 64,
+        )
+
+        self.assertEqual(len(rows), 48)
+        self.assertEqual(
+            {str(row["type_id"]) for row in rows},
+            {"Neoplastic", "Inflammatory", "Connective"},
+        )
+        self.assertEqual(sum(int(row["count"]) for row in rows), 4)
+        self.assertEqual(len({str(row["event_sha256"]) for row in rows}), 1)
+        self.assertTrue(all(float(row["window_area_um2"]) == 16.0 for row in rows))
+
 
 if __name__ == "__main__":
     unittest.main()

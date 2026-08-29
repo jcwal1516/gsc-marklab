@@ -134,6 +134,10 @@ pub(super) fn run_replicated_arbitrary_window_lgcp_agreement_cli() -> Result<(),
     replicated_arbitrary_window_lgcp_agreement::run_cli()
 }
 
+pub(super) fn run_replicated_arbitrary_window_multitype_lgcp_cli() -> Result<(), BayesCliError> {
+    replicated_arbitrary_window_multitype_lgcp::run_cli()
+}
+
 pub(super) fn run_replicated_arbitrary_window_lgcp_sensitivity_cli() -> Result<(), BayesCliError> {
     replicated_arbitrary_window_lgcp_sensitivity::run_cli()
 }
@@ -390,11 +394,20 @@ pub(super) use replicated_arbitrary_window_lgcp_inferred_kernel::{
 mod replicated_arbitrary_window_lgcp_sbc;
 #[path = "bayes/replicated_arbitrary_window_lgcp_sensitivity.rs"]
 mod replicated_arbitrary_window_lgcp_sensitivity;
+#[path = "bayes/replicated_arbitrary_window_multitype_lgcp.rs"]
+mod replicated_arbitrary_window_multitype_lgcp;
 pub(super) use replicated_arbitrary_window_lgcp_fit::{
     execute as execute_replicated_arbitrary_window_lgcp_fit,
     prepare as prepare_replicated_arbitrary_window_lgcp_fit,
     PreparedReplicatedArbitraryWindowLgcpFit,
     ResultDocument as ReplicatedArbitraryWindowLgcpFitResult,
+};
+pub(super) use replicated_arbitrary_window_multitype_lgcp::{
+    execute_prepared as execute_replicated_arbitrary_window_multitype_lgcp,
+    prepare as prepare_replicated_arbitrary_window_multitype_lgcp,
+    Args as ReplicatedArbitraryWindowMultitypeLgcpArgs,
+    Output as ReplicatedArbitraryWindowMultitypeLgcpResult,
+    Prepared as PreparedReplicatedArbitraryWindowMultitypeLgcp,
 };
 #[path = "bayes/retrieval.rs"]
 pub(crate) mod retrieval;

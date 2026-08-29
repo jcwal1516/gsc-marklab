@@ -2592,3 +2592,40 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   workspace docs, and final whitespace checks. The documented macOS Nextest/full-integration loader
   loop was not retried. No feature matrix, benchmark, fuzzing, memory tool, packaging, dependency
   audit, push, publication, deployment, or history rewrite ran.
+
+## Replicated exact-window multitype LGCP checkpoint 138 — 2026-08-29
+
+- Added direct and durable `fit-replicated-arbitrary-window-multitype-lgcp` through pinned PyMC
+  6.3.0. Every admitted hard type has one count on every positive exact-window node. The model keeps
+  patient as the population unit, slides nested inside patient, and separate type-specific group,
+  patient, slide, x-covariate, and fixed-Matérn field terms. It reports every type posterior, all
+  pairwise group-effect differences, hierarchy/node posteriors, and slide/type count and node-
+  variance predictive checks. It explicitly identifies independent Cox fields rather than Gibbs
+  interaction.
+- The synthetic eight-patient/16-slide/three-type oracle recovers an A-only comparison-group shift
+  and a positive A-minus-B differential. The same integration rejects an incomplete node-type table
+  and a one-short 192-row ceiling before backend execution. Its direct 2/2 and durable 1/1 tests pass
+  in 13.28 and 22.31 seconds; the durable test proves miss, fresh backend-disabled hit, byte identity,
+  and one ledger row.
+- The Mac-mini adapter re-audited 366 slides, 178 patients, and 1,542,389 cells in 103.36 seconds at
+  643,956,736-byte maximum RSS. The admitted table has eight patients, 16 exact slide windows, 222
+  positive nodes, 666 node-type rows, and 65,570 cells in the complete Neoplastic/Inflammatory/
+  Connective filtered event partition. Input SHA-256 is
+  `c862ce9790274f1f099f040716de864b5185cc3084004ccef7693376a95f791f`.
+- The identity-final real durable miss completed in 256.49 seconds at 641,417,216-byte maximum RSS.
+  It is complete with R-hat 1.00530, bulk/tail ESS 1172.17/1634.16, E-BFMI 0.95063, zero divergences,
+  and zero depth hits. Neoplastic MSI-minus-MSS is -0.2319 [-1.0402, 0.5617], Connective 0.00867
+  [-0.6325, 0.6324], and Inflammatory 0.2367 [-0.7657, 1.2031]; every pairwise group-effect
+  difference also spans zero. This is null-compatible, not equivalence or absence-of-biology
+  evidence. Result SHA-256 is
+  `84beaf85b062cbe3641ae4cbc4a50037954684408dafcb56cc96985e4d9255b1`.
+- A fresh backend-disabled process returns the byte-identical result with one execution row. The
+  hash-verified Mac-mini 1 TB bundle is
+  `results-cellvit-categorical-v28-replicated-multitype-lgcp`. The earlier v27 bundle is retained as
+  pre-final-validator identity evidence; its scientific posterior and diagnostic subtrees are
+  byte-equivalent to v28 and it is not canonical.
+- The adapter suite passes 10/10; both changed Python files pass syntax compilation. Focused
+  warning-denied Clippy, package no-default compilation, affected-file Rustfmt, and whitespace checks
+  pass. Broad workspace gates were not repeated immediately after checkpoint 137; no Nextest/full
+  integration loop, feature matrix, benchmark, fuzzing, packaging, dependency audit, push,
+  publication, deployment, or history rewrite ran.

@@ -3312,3 +3312,36 @@ vascular transport.
   all pass. The forbidden macOS Nextest/full-integration loader loop was not retried; no feature
   matrix, benchmark, fuzzing, memory tool, packaging, dependency audit, push, publication,
   deployment, or history rewrite ran.
+
+## Replicated exact-window multitype LGCP checkpoint 138 — 2026-08-29
+
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_replicated_arbitrary_window_multitype_lgcp_fit_cli -- --nocapture` first failed on the absent
+  command. The final 2/2 run passes in 13.28 seconds: one exact known type-specific shift recovery,
+  one incomplete-type rejection, and one one-short 192-row ceiling rejection.
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  durable_pymc_replicated_arbitrary_window_multitype_lgcp_project -- --nocapture` first failed on the
+  absent project subcommand and passes in 22.31 seconds with miss, fresh backend-disabled hit, byte
+  identity, one execution row, and exact replay validation of every identity, prior/resource field,
+  type pair, hierarchy effect, node posterior, and predictive row.
+- `target/pymc-venv/bin/python -m unittest
+  tests.python.test_marklab_cellvit_cptac_results_adapter` passes 10/10. The new oracle proves 48
+  complete node-type rows, four retained common-type cells, excluded foreign hard types, one typed
+  event digest, and exact area conservation. Both changed workers pass `py_compile`.
+- The first remote adapter command used the verification run as `--inference-root` and failed before
+  output because manifests were absent; the second found the exact inference source but lacked the
+  frozen CellViT source on `PYTHONPATH`. Each failed `.part` directory was moved to Trash. The final
+  pinned Python-3.9/frozen-source command re-audited 366 slides, 178 patients, and 1,542,389 cells in
+  103.36 seconds at 643,956,736-byte maximum RSS and produced the 666-row input SHA-256
+  `c862ce9790274f1f099f040716de864b5185cc3084004ccef7693376a95f791f`.
+- `/usr/bin/time -l target/debug/marklab project
+  replicated-arbitrary-window-multitype-lgcp ...` completes the identity-final miss in 256.49
+  seconds at 641,417,216-byte maximum RSS. The typed result is complete at R-hat 1.00530,
+  bulk/tail ESS 1172.17/1634.16, E-BFMI 0.95063, and zero divergences/depth hits. A second command
+  with `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1` reports a hit; `cmp` passes and the ledger has
+  one row. `/usr/bin/shasum -a 256 -c bundle_sha256.txt` verifies every v28 bundle file.
+- Targeted warning-denied Clippy over the binary and both integrations, package no-default
+  compilation, final debug build, affected-file Rustfmt, and `git diff --check` pass. Broad workspace
+  gates were not repeated after checkpoint 137; no full integration/Nextest loop, feature matrix,
+  benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or history rewrite
+  ran.

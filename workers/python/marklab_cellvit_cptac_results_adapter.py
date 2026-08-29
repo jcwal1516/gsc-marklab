@@ -152,6 +152,95 @@ def replicated_conditional_mark_rows(
     return rows
 
 
+def replicated_multitype_lgcp_rows(
+    slide_id: str,
+    patient_id: str,
+    group: str,
+    cells: list[dict[str, Any]],
+    positions: Any,
+    target_mpp: float,
+    type_map: dict[int, str],
+    bounds: tuple[float, float, float, float],
+    pattern_nodes: list[dict[str, object]],
+    window_sha256: str,
+    grid_size: int = 4,
+) -> list[dict[str, object]]:
+    """Count one complete common hard-type partition on exact window nodes."""
+    admitted = ("Connective", "Inflammatory", "Neoplastic")
+    xmin, ymin, xmax, ymax = bounds
+    if (
+        not slide_id
+        or not patient_id
+        or group not in {"MSI", "MSS"}
+        or len(cells) != len(positions)
+        or not math.isfinite(target_mpp)
+        or target_mpp <= 0.0
+        or not 2 <= grid_size <= 64
+        or not all(math.isfinite(value) for value in bounds)
+        or xmin >= xmax
+        or ymin >= ymax
+        or set(admitted) - set(type_map.values())
+        or len(window_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in window_sha256)
+    ):
+        raise AdapterError("replicated multitype LGCP controls are invalid")
+    nodes = {str(row["node_id"]): row for row in pattern_nodes}
+    if len(nodes) != len(pattern_nodes) or not nodes:
+        raise AdapterError("replicated multitype LGCP nodes are invalid")
+    counts: Counter[tuple[str, str]] = Counter()
+    event_digest = hashlib.sha256()
+    for source_row, cell in enumerate(cells):
+        type_id = type_map.get(int(cell["type"]))
+        if type_id not in admitted:
+            continue
+        x_um = float(positions[source_row][0]) * target_mpp
+        y_um = float(positions[source_row][1]) * target_mpp
+        if (
+            not math.isfinite(x_um)
+            or not math.isfinite(y_um)
+            or not xmin <= x_um <= xmax
+            or not ymin <= y_um <= ymax
+        ):
+            raise AdapterError("replicated multitype LGCP coordinate is invalid")
+        ix = min(int((x_um - xmin) * grid_size / (xmax - xmin)), grid_size - 1)
+        iy = min(int((y_um - ymin) * grid_size / (ymax - ymin)), grid_size - 1)
+        node_id = f"q-{iy:03d}-{ix:03d}"
+        if node_id not in nodes:
+            raise AdapterError("replicated multitype LGCP cell maps outside positive nodes")
+        counts[(node_id, type_id)] += 1
+        event_digest.update(source_cell_id(slide_id, source_row).encode())
+        event_digest.update(b"\0")
+        event_digest.update(type_id.encode())
+        event_digest.update(b"\n")
+    digest = event_digest.hexdigest()
+    window_area = math.fsum(float(node["weight_um2"]) for node in pattern_nodes)
+    result = []
+    for node in sorted(pattern_nodes, key=lambda row: str(row["node_id"])):
+        node_id = str(node["node_id"])
+        for type_id in admitted:
+            result.append(
+                {
+                    "pattern_id": slide_id,
+                    "patient_id": patient_id,
+                    "group": group,
+                    "cohort": "CPTAC-COAD",
+                    "node_id": node_id,
+                    "type_id": type_id,
+                    "x_um": node["x_um"],
+                    "y_um": node["y_um"],
+                    "weight_um2": node["weight_um2"],
+                    "window_area_um2": window_area,
+                    "covariate": node["covariate"],
+                    "count": counts[(node_id, type_id)],
+                    "window_sha256": window_sha256,
+                    "event_sha256": digest,
+                }
+            )
+    if sum(int(row["count"]) for row in result) == 0:
+        raise AdapterError("replicated multitype LGCP filtered event set is empty")
+    return result
+
+
 def bounded_indices(count: int, maximum: int, identity: str) -> list[int]:
     if count < 0 or maximum < 1:
         raise AdapterError("invalid deterministic sample bounds")
@@ -866,6 +955,7 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     mpp_pairs: set[tuple[float, float]] = set()
     representative: tuple[int, str, dict[str, str], Any, dict[str, Any]] | None = None
     replicated_lgcp_rows: list[dict[str, object]] = []
+    replicated_multitype_lgcp_table: list[dict[str, object]] = []
     replicated_conditional_mark_table: list[dict[str, object]] = []
 
     for position, (file_id, case) in enumerate(sorted(case_map.items()), 1):
@@ -987,6 +1077,20 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
             window_digest = hashlib.sha256(
                 json.dumps(geometry, sort_keys=True, separators=(",", ":")).encode()
             ).hexdigest()
+            replicated_multitype_lgcp_table.extend(
+                replicated_multitype_lgcp_rows(
+                    file_id,
+                    selection["patient_id"],
+                    selection["group"],
+                    cells,
+                    positions,
+                    target_mpp,
+                    valid_types,
+                    (xmin, ymin, xmax, ymax),
+                    pattern_nodes,
+                    window_digest,
+                )
+            )
             for node in pattern_nodes:
                 replicated_lgcp_rows.append(
                     {
@@ -1012,6 +1116,10 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
         raise AdapterError("cohort-wide CellViT width, annotation, scale, or representative admission differs")
     if {row["pattern_id"] for row in replicated_lgcp_rows} != set(replicated_selection):
         raise AdapterError("replicated LGCP selection was not fully materialized")
+    if {
+        str(row["pattern_id"]) for row in replicated_multitype_lgcp_table
+    } != set(replicated_selection):
+        raise AdapterError("replicated multitype LGCP selection was not fully materialized")
     if {
         str(row["pattern_id"]) for row in replicated_conditional_mark_table
     } != set(replicated_selection):
@@ -1107,6 +1215,26 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
             "type_id",
         ],
         replicated_conditional_mark_table,
+    )
+    write_csv(
+        inputs / "replicated_arbitrary_window_multitype_lgcp_patterns.csv",
+        [
+            "pattern_id",
+            "patient_id",
+            "group",
+            "cohort",
+            "node_id",
+            "type_id",
+            "x_um",
+            "y_um",
+            "weight_um2",
+            "window_area_um2",
+            "covariate",
+            "count",
+            "window_sha256",
+            "event_sha256",
+        ],
+        replicated_multitype_lgcp_table,
     )
     reaggregated_slides: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     for row in beta_binomial_group_gender_slides:
@@ -1705,6 +1833,22 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "cell_count": len(replicated_conditional_mark_table),
                 "population_claim": "exploratory_patient_population_conditional_mark_hierarchy",
             },
+            "replicated_arbitrary_window_multitype_lgcp_definition": {
+                "statistical_unit": "patient",
+                "pattern_unit": "two_exact_slide_patterns_nested_in_patient",
+                "selection": "same_four_provenance_sorted_patients_per_MSI_MSS_group_and_two_slides_each_as_replicated_LGCP",
+                "event_filter": "complete_Neoplastic_Inflammatory_Connective_hard_type_partition",
+                "type_vocabulary": ["Connective", "Inflammatory", "Neoplastic"],
+                "patient_count": len(
+                    {row["patient_id"] for row in replicated_selection.values()}
+                ),
+                "pattern_count": len(replicated_selection),
+                "node_type_rows": len(replicated_multitype_lgcp_table),
+                "filtered_event_count": sum(
+                    int(row["count"]) for row in replicated_multitype_lgcp_table
+                ),
+                "population_claim": "exploratory_patient_population_multitype_cox_process",
+            },
             "beta_binomial_group_gender_definition": {
                 "join_key": "patient_id",
                 "source": str(arguments.clinical.resolve()),
@@ -1807,6 +1951,9 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 ),
                 "replicated_conditional_mark_cells": len(
                     replicated_conditional_mark_table
+                ),
+                "replicated_multitype_lgcp_node_type_rows": len(
+                    replicated_multitype_lgcp_table
                 ),
             },
             "executions": {},

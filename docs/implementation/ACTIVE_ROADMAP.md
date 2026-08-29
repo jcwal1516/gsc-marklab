@@ -1257,3 +1257,16 @@ caller that addresses the remaining conditional-on-locations limitation through 
 point-process backend; if representative normalized joint mark/location fitting exceeds exact state
 or process ceilings, retain that exact blocker and advance to the next bounded Bayesian spatial
 caller. UI/server/client/remote work remains deferred.
+
+## Checkpoint 138 replicated multitype point-process continuation
+
+The same eight CPTAC patients and 16 exact slide windows now drive one durable three-type Cox-process
+hierarchy over 222 clipped physical nodes and 65,570 filtered cells. The fit jointly models each
+hard type's location intensity, is diagnostically complete, and replays from a fresh backend-disabled
+process with one ledger execution. Every absolute and pairwise MSI-minus-MSS interval spans zero.
+BAY-PP/WS-43 no longer lack every admitted patient-replicated multitype location-process caller, but
+this fixed-kernel independent-field model is not pairwise interaction or cross-type covariance.
+Production proceeds through independent-backend agreement, fixed hierarchy/kernel sensitivity,
+prior-generative calibration, and spatial PPC adequacy for this exact caller before adding richer
+cross-type fields or moving to representative graph/topology scaling. UI/server/client/remote work
+remains deferred.
