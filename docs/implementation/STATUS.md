@@ -3187,3 +3187,28 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   rehash, bundle identity, interpretation, replay-count, ledger-count, formatting, whitespace,
   diff, and status checks pass. No completed scientific analysis, Bayesian backend, or broad
   checkpoint gate reruns. SCIENCE-CRC-FINAL-01 is complete; no general capability is promoted.
+
+## Real exact-window inhomogeneous pair-correlation checkpoint 159 — 2026-08-29
+
+- Added `marklab project inhomogeneous-pair-correlation` over the existing typed PP-03A node. It
+  reuses the exact K/L persisted pilot, source/window/config/runtime identities, scheduler, durable
+  project, artifact store, ledger/recovery, exact-float result codec, and explicit probe/intensity/
+  pair/null/memory bounds. No estimator or project infrastructure is duplicated.
+- Red-first CLI evidence fails solely because the project subcommand is absent. The completed test
+  proves a fresh miss, a fresh backend-disabled hit, byte equality, typed kernel/result content,
+  and one ledger row on a high-coordinate exact-window regression.
+- The identity-final real run uses the same frozen 512-cell CPTAC slide and 12-component exact
+  window as checkpoint 157, with 20/50/100-micrometre radii, 50-micrometre intensity bandwidth,
+  10-micrometre pair bandwidth, fixed 16x16 grid, 19 simulations, and seed 20260829. The miss takes
+  8.07 seconds at 22,790,144-byte maximum RSS; the backend-disabled hit takes 5.66 seconds. Both
+  hash to `46539d2263b16abf0dd88be2b8e54961788a03be51b9f0bf1a1a261ee0b98d3a`, and the ledger has one row.
+- Estimated g is 0.002930, 1.215872, and 0.898092. All radii are eligible, but the global p=0.05 is
+  the smallest possible with 19 draws. Only 37/256 probes lie inside the disconnected window,
+  fixed-grid mass is 205.30 for 512 cells, and intensity spans 4.36e-9 to 4.22e12 per square
+  micrometre. The result is retained as unreliable real-scale/capacity evidence, not inhibition.
+- The 12-file 1-TB bundle is
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v52-inhomogeneous-g-final`;
+  `SHA256SUMS` hashes to
+  `1a3a9b13110d3d19df91f8a2960410fec3d0d05de1d05cb3a40e495e84b6bc63`. Four focused direct/durable
+  tests, warning-denied affected Clippy, no-default compilation, affected formatting, remote
+  complete rehash, whitespace, diff, and status checks pass. No broad workspace gate runs.

@@ -3924,3 +3924,37 @@ vascular transport.
   broad workspace baseline; no workspace-wide/Nextest loop, Bayesian backend, feature matrix,
   benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history rewrite
   runs.
+
+## Real exact-window inhomogeneous pair-correlation checkpoint 159 — 2026-08-29
+
+- Red-first: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  inhomogeneous_pair_correlation_project_cli -- --nocapture` fails with `unrecognized subcommand
+  'inhomogeneous-pair-correlation'`. It passes after the narrow project command is implemented.
+- The final focused command over `inhomogeneous_pair_correlation_project_cli`,
+  `inhomogeneous_pair_correlation_project_workflow`, and
+  `inhomogeneous_pair_correlation_typed_workflow` passes 4/4, including the independent Python
+  value oracle, zero-support state, one-short work limits, cache invalidation, fresh-process
+  backend-disabled replay, byte equality, and one ledger row.
+- `/usr/bin/time -l target/debug/marklab project inhomogeneous-pair-correlation ...` completes the
+  fixed real miss in 8.07 seconds at 22,790,144-byte maximum RSS. A fresh
+  `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1` process reports a hit in 5.66 seconds; `cmp`
+  passes, the ledger remains one row, and both outputs hash to
+  `46539d2263b16abf0dd88be2b8e54961788a03be51b9f0bf1a1a261ee0b98d3a`.
+- Exact-float decoding retains g 0.002930/1.215872/0.898092, 37/256 probes, grid mass 205.30,
+  intensity range 4.36e-9 to 4.22e12 per square micrometre, 5,641,561 intensity evaluations,
+  155,827 total pair visits, 14,312 null draws, and minimum-resolution p=0.05. No scale, grid,
+  bandwidth, subset, or threshold is tuned.
+- `cargo +1.96.0 clippy --locked --package marklab --features cli --lib --bin marklab --test
+  inhomogeneous_pair_correlation_project_cli --test
+  inhomogeneous_pair_correlation_project_workflow --test
+  inhomogeneous_pair_correlation_typed_workflow -- -D warnings` passes. `cargo +1.96.0 check
+  --locked --package marklab --no-default-features` passes.
+- The first two remote hash commands fail after copying because the non-login SSH PATH cannot find
+  `shasum`, then cannot find `find`, `wc`, or `tr`. The corrected absolute-path command uses
+  `/usr/bin/find`, `/usr/bin/sort`, `/usr/bin/shasum`, `/usr/bin/wc`, `/usr/bin/tr`,
+  `/usr/bin/awk`, and `/usr/bin/cmp`; it verifies all 11 listed artifacts plus `SHA256SUMS`, one
+  ledger row, and byte-identical replay. Manifest SHA-256 is
+  `1a3a9b13110d3d19df91f8a2960410fec3d0d05de1d05cb3a40e495e84b6bc63`.
+- Affected formatting, whitespace, direct diff, and status checks pass. No workspace-wide/Nextest
+  loop, full feature matrix, benchmark, fuzzing, packaging, dependency, push, publication,
+  deployment, or history rewrite runs.

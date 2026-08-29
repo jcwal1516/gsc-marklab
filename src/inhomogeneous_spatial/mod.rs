@@ -15,6 +15,8 @@ pub use g_types::{
     InhomogeneousPairCorrelationConfig, InhomogeneousPairCorrelationPoint,
     InhomogeneousPairCorrelationResult,
 };
+#[cfg(feature = "cli")]
+pub(crate) use g_workflow::encode_pair_correlation_result;
 pub use g_workflow::InhomogeneousPairCorrelationAnalysisNode;
 pub(crate) use identity::configuration_digest;
 pub use types::{

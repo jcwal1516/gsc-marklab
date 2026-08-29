@@ -2853,3 +2853,22 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   0.762/0.433 and the minimum adjusted endpoint p-value remains 0.44. All 64 backend-disabled hits
   are byte-identical with one ledger row each. The overall scientific conclusion is unchanged: a
   stable transferable molecular-class spatial fingerprint is not established.
+
+## DEC-0346 — Expose persisted-pilot inhomogeneous pair-correlation and retain its scale failure
+
+- Date: 2026-08-29
+- Status: accepted for PP-02/PP-03/PP-03A/PLAT-01/WF-01/WS-12/WS-30
+- Decision: add `marklab project inhomogeneous-pair-correlation` as the narrow user-facing durable
+  path over the existing DEC-0269 node. Reuse the exact K/L Gaussian leave-one-out pilot, exact
+  window, fixed-grid conditioned null, ERL, scheduler, artifact store, ledger, recovery, native
+  runtime identity, exact-float codec, and caller-supplied limits. Keep the Epanechnikov pair
+  bandwidth distinct from the intensity bandwidth and bind both into the durable identity. Exercise
+  the same frozen 512-cell CPTAC slide and exact 12-component window as DEC-0344 at fixed
+  20/50/100-micrometre radii, 50-micrometre intensity bandwidth, 10-micrometre pair bandwidth,
+  16x16 grid, 19 simulations, and seed 20260829. Do not tune after observing the result.
+- Consequences: the real miss completes in 8.07 seconds at 22,790,144-byte maximum RSS; a fresh
+  backend-disabled process returns a byte-identical hit with one ledger row. Estimated g is
+  0.00293, 1.21587, and 0.89809, but the common pilot retains only 37/256 probes, grid mass 205.30
+  for 512 cells, and an intensity range from 4.36e-9 to 4.22e12 per square micrometre. The
+  minimum-resolution p=0.05 is not promoted. This is a durable real-scale capacity failure, not
+  evidence of inhibition and not a reason to tune hidden defaults.

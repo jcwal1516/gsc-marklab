@@ -1508,3 +1508,13 @@ all 64 backend-disabled hits remain byte-identical with one ledger row each. The
 conclusion is unchanged and SCIENCE-CRC-FINAL-01 is complete. No general Marklab method,
 infrastructure, Bayesian, simulation/SBI, UI/server/client, packaging, release, or hardening outcome
 is promoted next.
+
+## Checkpoint 159 real inhomogeneous pair-correlation diagnostic
+
+The resumed master-plan goal adds only the missing durable project path to the existing PP-03A
+inhomogeneous g owner. The frozen real 512-cell exact-window caller replays byte-identically with
+one ledger row, but its shared 16x16 intensity pilot remains grossly inadequate and the result is
+not interpreted or tuned. PP-03A no longer lacks every user-facing or real-data durable caller, but
+pinned external agreement and broader correction/null calibration remain. Production next advances
+the smallest dependency-ordered point-process gap after K/L/g—one bounded F/G/J workflow—without a
+generic estimator registry or duplicated geometry/null infrastructure.
