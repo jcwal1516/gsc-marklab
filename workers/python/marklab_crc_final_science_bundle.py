@@ -58,6 +58,69 @@ def graph_topology_interpretation(summary: dict[str, Any]) -> dict[str, object]:
     }
 
 
+def witness_bottleneck_addendum(root: Path) -> dict[str, object]:
+    miss_path = root / "durable_miss.json"
+    hit_path = root / "durable_hit.json"
+    if not miss_path.is_file() or not hit_path.is_file():
+        raise BundleError("witness bottleneck durable miss or hit is absent")
+    miss_bytes = miss_path.read_bytes()
+    if miss_bytes != hit_path.read_bytes():
+        raise BundleError("witness bottleneck durable replay bytes differ")
+    ledger_path = root / "project" / "executions.jsonl"
+    if not ledger_path.is_file():
+        raise BundleError("witness bottleneck durable ledger is absent")
+    ledger_count = sum(
+        bool(line.strip()) for line in ledger_path.read_text(encoding="utf-8").splitlines()
+    )
+    if ledger_count != 1:
+        raise BundleError("witness bottleneck durable ledger must contain exactly one execution")
+    results_path = root / "RESULTS.md"
+    if (
+        not results_path.is_file()
+        or "MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1"
+        not in results_path.read_text(encoding="utf-8")
+    ):
+        raise BundleError("witness bottleneck backend-disabled replay evidence is absent")
+    result = json.loads(miss_bytes)
+    if (
+        result.get("format") != "marklab.witness_persistence_bottleneck_stability"
+        or result.get("version") != 1
+        or not isinstance(result.get("stable_under_bottleneck_threshold"), bool)
+        or not isinstance(result.get("stable_under_all_declared_thresholds"), bool)
+        or not isinstance(result.get("has_infinite_essential_mismatch"), bool)
+    ):
+        raise BundleError("witness bottleneck result identity or stability state differs")
+    return {
+        "statistical_unit": "one_specimen_point_pattern",
+        "role": "supplemental_correctness_and_coordinate_perturbation_diagnostic",
+        "maximum_bottleneck_distance_um_squared_allowed": result[
+            "maximum_bottleneck_distance_um_squared_allowed"
+        ],
+        "maximum_finite_bottleneck_distance_um_squared": result[
+            "maximum_finite_bottleneck_distance_um_squared"
+        ],
+        "has_infinite_essential_mismatch": result[
+            "has_infinite_essential_mismatch"
+        ],
+        "stable_under_bottleneck_threshold": result[
+            "stable_under_bottleneck_threshold"
+        ],
+        "stable_under_all_declared_thresholds": result[
+            "stable_under_all_declared_thresholds"
+        ],
+        "bottleneck_comparisons": result["bottleneck_comparisons"],
+        "bottleneck_interval_count": result["bottleneck_interval_count"],
+        "total_backend_executions_on_miss": result["total_backend_executions"],
+        "durable_replay": {
+            "result_bytes_equal": True,
+            "ledger_execution_count": ledger_count,
+            "result_sha256": hashlib.sha256(miss_bytes).hexdigest(),
+            "backend_execution_disabled_on_hit": True,
+        },
+        "claim_limitation": "one-specimen diagnostic; not a patient replicate or fused fingerprint component",
+    }
+
+
 def _copy_file(source: Path, staging: Path, relative: str) -> None:
     if not source.is_file() or source.is_symlink():
         raise BundleError(f"required regular artifact is absent: {source}")
@@ -124,6 +187,11 @@ def build(arguments: argparse.Namespace) -> None:
     canonical = arguments.canonical.resolve()
     graph = arguments.graph.resolve()
     outcome = arguments.outcome.resolve()
+    witness_bottleneck = (
+        arguments.witness_bottleneck.resolve()
+        if arguments.witness_bottleneck is not None
+        else None
+    )
     output = arguments.out.resolve()
     if output.exists() or output.is_symlink():
         raise BundleError(f"output already exists: {output}")
@@ -140,6 +208,11 @@ def build(arguments: argparse.Namespace) -> None:
     ):
         raise BundleError("source population unit or durable replay proof differs")
     graph_interpretation = graph_topology_interpretation(graph_summary)
+    bottleneck_addendum = (
+        witness_bottleneck_addendum(witness_bottleneck)
+        if witness_bottleneck is not None
+        else None
+    )
     cohort_tests = {
         model: _cohort_test_summary(graph / "cohort-tests-v1", model)
         for model in (
@@ -272,6 +345,16 @@ def build(arguments: argparse.Namespace) -> None:
             "m7_durable_miss_hit_sha256": m7["durable_miss_hit_sha256"],
         },
     }
+    if bottleneck_addendum is not None:
+        interpretation["unstable"].append(
+            {
+                "finding": "exact witness-diagram bottleneck distance independently confirms one-specimen coordinate instability and is not promoted into the patient fingerprint",
+                "stability": bottleneck_addendum,
+            }
+        )
+        interpretation["durable_replay"]["witness_bottleneck"] = bottleneck_addendum[
+            "durable_replay"
+        ]
     staging = output.with_name(f".{output.name}.{os.getpid()}.tmp")
     if staging.exists() or staging.is_symlink():
         raise BundleError(f"staging path already exists: {staging}")
@@ -295,6 +378,12 @@ def build(arguments: argparse.Namespace) -> None:
         "nonspatial-manifest.csv",
     ):
         _copy_file(graph / relative, staging, f"graph_topology/{relative}")
+    if witness_bottleneck is not None:
+        _copy_tree(
+            witness_bottleneck,
+            staging,
+            "graph_topology/witness_bottleneck",
+        )
     write_json(staging / "scientific_interpretation.json", interpretation)
     files = sorted(path for path in staging.rglob("*") if path.is_file())
     manifest = {
@@ -317,6 +406,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--canonical", required=True, type=Path)
     parser.add_argument("--graph", required=True, type=Path)
     parser.add_argument("--outcome", required=True, type=Path)
+    parser.add_argument("--witness-bottleneck", type=Path)
     parser.add_argument("--out", required=True, type=Path)
     return parser.parse_args()
 

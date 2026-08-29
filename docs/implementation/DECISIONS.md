@@ -2705,3 +2705,21 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   negative one-specimen topology stability finding, does not enter the frozen patient fingerprint,
   and does not establish a biological, population, molecular-class, causal, clinical, or
   transportability result.
+
+## DEC-0339 — Seal the exact bottleneck result as a supplemental science diagnostic
+
+- Date: 2026-08-29
+- Status: accepted for SCIENCE-CRC-FINAL-01 only
+- Decision: extend the existing final CRC sealer with one optional `--witness-bottleneck` input.
+  Require byte-identical durable miss/hit files, exactly one execution-ledger row, recorded backend-
+  disabled replay, and the exact typed bottleneck result identity. Copy the complete hash-sealed
+  source tree into the final graph/topology evidence, add its finite-distance, essential-mismatch,
+  work, replay, and claim-limitation fields to the unstable interpretation, and preserve the
+  existing schema name/version and result-format 0.3 compatibility when the optional input is
+  absent. Do not rerun or alter M0--M7, external validation, outcome analysis, fusion gates, or the
+  overall conclusion.
+- Consequences: `science-crc-final-01-v2` contains 529 independently rehashed artifacts and adds the
+  unstable 7,131.39-versus-600-square-micrometre one-specimen result without treating it as a
+  patient replicate or fused feature. The patient-level conclusion remains unchanged. This is a
+  science-bundle completion connection, not a general plugin, registry, project, backend, or
+  topology framework.

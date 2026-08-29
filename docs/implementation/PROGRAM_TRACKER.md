@@ -283,3 +283,11 @@ micrometres exceeds the frozen 600-square-micrometre ceiling and essential-inter
 It replays backend-disabled with byte identity and one ledger row. This addendum does not alter the
 checkpoint 147 patient-level graph/topology exclusion, M0--M7 conclusions, or broader master-plan
 states. No next general capability is promoted under the replacement science-only objective.
+
+## SCIENCE-CRC-FINAL-01 checkpoint 152 final bundle
+
+The final canonical `/Volumes/1TB/marklab/runs/science-crc-final-01-v2` bundle contains 529 verified
+artifacts: the complete previously sealed patient analysis plus the exact bottleneck addendum. The
+addendum is explicitly one-specimen, unstable, backend-disabled replayed, and excluded from fusion.
+No completed analysis was rerun and no patient-level conclusion changed. SCIENCE-CRC-FINAL-01 is
+complete; broader master-plan states remain unchanged and no next software capability is promoted.

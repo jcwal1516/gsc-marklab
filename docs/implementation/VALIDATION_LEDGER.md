@@ -3726,3 +3726,27 @@ vascular transport.
   its manifest hash is `77018e4fd3c7f95ec68577cb6b689d9801bf12997aa5b71bd0007788625faa6c`.
   The prohibited macOS Nextest/full-integration loop and other broad or specialized gates were not
   run.
+
+## SCIENCE-CRC-FINAL-01 canonical bundle checkpoint 152 — 2026-08-29
+
+- Red-first evidence: `target/pymc-venv/bin/python -m unittest
+  tests.python.test_crc_final_science_bundle.CrcFinalScienceBundleTest.test_witness_bottleneck_addendum_requires_one_execution_and_equal_replay`
+  first errors because `witness_bottleneck_addendum` is absent. After the narrow sealer connection,
+  `target/pymc-venv/bin/python -m unittest tests.python.test_crc_final_science_bundle` passes 2/2,
+  including rejection of a second ledger row. Python compilation passes.
+- The real sealer runs once on the Mac mini with the previously sealed canonical, graph/topology,
+  outcome, and v48 bottleneck sources and writes only the new
+  `/Volumes/1TB/marklab/runs/science-crc-final-01-v2` output. No M0--M7, external backend, graph,
+  topology, retrieval, cohort, Bayesian, external-validation, or outcome analysis is rerun.
+- An independent `jq` manifest expansion piped to `shasum -a 256 -c -` verifies all 529 listed
+  artifacts. The directory has 530 files including its manifest. Manifest and interpretation hashes
+  are `8c03b980b72c2423253e074fc874ce67fe37057707860998f4a27fde180e4e18` and
+  `d9e8348c9834f6004f5d8656aaa5aeb316ff24d61eb945282cdc41a1555e9c39`.
+- The copied bottleneck miss/hit compare byte-identically, hash to
+  `11818914ec96521516a94e03c08710d3a75ff2eba12df16f6b7568003f87d2ef`, and retain one ledger row.
+  The final interpretation records the 7,131.39-versus-600-square-micrometre failure, essential-
+  count mismatch, one-specimen claim limit, exclusion from fusion, and unchanged patient conclusion.
+- Focused formatting, whitespace, direct diff, and status checks pass. Existing broad stabilization
+  evidence is not rerun; no Nextest/full integration, workspace-wide test/Clippy/docs, feature
+  matrix, benchmark, fuzzing, memory, packaging, dependency, push, publication, deployment, or
+  history-rewrite command runs.

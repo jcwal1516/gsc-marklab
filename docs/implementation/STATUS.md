@@ -2993,3 +2993,27 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - The science-only objective resumes after this interrupted checkpoint. The exact bottleneck result
   is an additional unstable topology diagnostic and is not promoted into the patient fingerprint.
   No general Marklab capability is promoted next.
+
+## SCIENCE-CRC-FINAL-01 canonical bundle checkpoint 152 — 2026-08-29
+
+- Extended only the existing CRC final sealer with optional exact witness-bottleneck evidence. It
+  requires typed result identity, byte-identical miss/hit output, one ledger execution, and recorded
+  backend-disabled replay before copying the source tree and adding the explicitly one-specimen
+  unstable diagnostic. With the option absent, the existing sealer behavior remains unchanged.
+- No scientific analysis was rerun. The existing patient-held-out graph/topology results, whole-
+  patient permutation/bootstrap, M0--M7, retained pinned Bayesian fit, Schuerch H&E/CODEX evidence,
+  outcome evidence, unavailable blockers, fusion gates, and overall interpretation are copied from
+  their previously sealed sources.
+- The final bundle is `/Volumes/1TB/marklab/runs/science-crc-final-01-v2`. All 529 manifest artifacts
+  independently rehash successfully. Manifest SHA-256 is
+  `8c03b980b72c2423253e074fc874ce67fe37057707860998f4a27fde180e4e18`; interpretation SHA-256 is
+  `d9e8348c9834f6004f5d8656aaa5aeb316ff24d61eb945282cdc41a1555e9c39`.
+- The exact bottleneck addendum remains unstable at `7131.385451975762` versus 600 square
+  micrometres with essential-count mismatch. Its miss/hit SHA-256 is
+  `11818914ec96521516a94e03c08710d3a75ff2eba12df16f6b7568003f87d2ef` with one ledger row. It is
+  not a patient replicate and is not fused. The patient conclusion is unchanged: descriptive local
+  H&E organization is supported, but no stable transferable molecular-class spatial fingerprint is
+  established.
+- Focused sealer tests, Python compilation, remote independent manifest rehash, bundle identity,
+  replay-byte, ledger-row, formatting, whitespace, diff, and status checks pass. Existing broad
+  stabilization evidence was not rerun; no unrelated software outcome is promoted.

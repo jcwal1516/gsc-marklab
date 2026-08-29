@@ -1430,3 +1430,12 @@ sealed patient-level graph/topology, M0--M7, external-validation, outcome, and i
 add this diagnostic to the final science evidence without rerunning completed analyses. No general
 software capability, Bayesian family, graph/topology catalog, simulator, UI, server, client, remote,
 packaging, or hardening outcome is promoted.
+
+## Checkpoint 152 SCIENCE-CRC-FINAL-01 completion
+
+The canonical v2 science bundle now includes the exact bottleneck checkpoint as a supplemental
+one-specimen unstable diagnostic while retaining all previously sealed patient-level M0--M7,
+graph/topology, external, outcome, replay, blocker, and claim-limitation evidence. All 529 listed
+artifacts rehash; the patient-level conclusion and frozen fusion exclusions are unchanged. The
+science objective is complete. No general Marklab, Bayesian, graph/topology, simulation/SBI, UI,
+server, client, remote, packaging, release, or hardening work is promoted.
