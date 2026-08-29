@@ -112,10 +112,7 @@ impl WorkflowNode for CategoricalCrossPairCorrelationAnalysisNode<'_> {
             .map_err(NodeError::execution)
     }
     fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
-        validate(output, self.input, self.window, self.config).map_err(NodeError::encoding)?;
-        serde_json::to_vec_pretty(output)
-            .map(Vec::into_boxed_slice)
-            .map_err(NodeError::encoding)
+        encode_result(output, self.input, self.window, self.config).map_err(NodeError::encoding)
     }
     fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
         let output = serde_json::from_slice(bytes).map_err(NodeError::decode)?;
@@ -125,6 +122,18 @@ impl WorkflowNode for CategoricalCrossPairCorrelationAnalysisNode<'_> {
     fn output_kind(&self) -> &'static str {
         RESULT_KIND
     }
+}
+
+pub(crate) fn encode_result(
+    output: &CategoricalCrossPairCorrelationResult,
+    input: &DeclaredScalarPatternInput<'_>,
+    window: &ObservationWindow2D,
+    config: &CategoricalCrossPairCorrelationConfig,
+) -> io::Result<Box<[u8]>> {
+    validate(output, input, window, config)?;
+    serde_json::to_vec_pretty(output)
+        .map(Vec::into_boxed_slice)
+        .map_err(io::Error::other)
 }
 
 #[derive(Serialize)]

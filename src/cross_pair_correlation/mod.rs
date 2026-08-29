@@ -9,4 +9,6 @@ pub use types::{
     CategoricalCrossPairCorrelationInference, CategoricalCrossPairCorrelationPoint,
     CategoricalCrossPairCorrelationResult,
 };
+#[cfg(feature = "cli")]
+pub(crate) use workflow::encode_result;
 pub use workflow::CategoricalCrossPairCorrelationAnalysisNode;

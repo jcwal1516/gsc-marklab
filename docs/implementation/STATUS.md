@@ -3212,3 +3212,31 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   `1a3a9b13110d3d19df91f8a2960410fec3d0d05de1d05cb3a40e495e84b6bc63`. Four focused direct/durable
   tests, warning-denied affected Clippy, no-default compilation, affected formatting, remote
   complete rehash, whitespace, diff, and status checks pass. No broad workspace gate runs.
+
+## Durable real categorical cross-g checkpoint 160 — 2026-08-29
+
+- Added `marklab project categorical-cross-pair-correlation` over the existing typed PP-03B node.
+  Red-first CLI evidence fails only because the subcommand is absent; the completed test proves a
+  fresh miss/hit across processes, backend-disabled replay, byte equality, typed source/target/
+  kernel/curve content, and one ledger row.
+- Extracted the exact categorical project input adapter now used by both `categorical-pair` and
+  cross-g: stable CellIds, codebook/codes, patient/slide hierarchy, physical frame, typed MarkTable
+  provenance, source identities, bounded durable project/store opening, and create-new output. The
+  scientific nodes, configs, schemas, nulls, and codecs remain separate. A fresh v50-identity pair
+  run is byte-identical to the sealed v50 artifact with SHA-256
+  `4045fdbfffc0579e74ef009842eccbabf5a20a2bc13f7356cd31d9ea77ad46aa`.
+- The fixed real caller uses the first frozen 512-cell CPTAC slide, its exact 12-component window,
+  Neoplastic-to-Inflammatory direction, 20/50/100/200-micrometre radii, 10-micrometre bandwidth, 19
+  complete-row permutations, and seed 20260829. The miss takes 5.96 seconds at 28,868,608-byte
+  maximum RSS; the backend-disabled hit takes 5.67 seconds. Both hash to
+  `f36687f80cd3570300f1fc7416a4bf00807e8c74308fe96c765b4874c9fa2634`, with one ledger row.
+- Cross-g is 0.5912 and 0.6037 at the inference-eligible 20/50-micrometre endpoints; global p=0.20.
+  The 100-micrometre value 2.0257 has only three eligible source centers and no envelope; 200
+  micrometres is typed unavailable with no eligible centers. The result is one-specimen,
+  null-compatible, and not promoted as patient evidence.
+- The 24-file 1-TB bundle is
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v53-cross-g-final`; `SHA256SUMS` hashes to
+  `1e4a8d0186ce76f5daa853f3fcfef6d0e4129f2b3fb3b384804aa86f68bd9797`. Seven focused new/oracle/
+  regression tests, warning-denied affected Clippy, no-default compilation, affected formatting,
+  complete remote rehash, replay/parity comparisons, whitespace, diff, and status checks pass. No
+  broad workspace gate runs.

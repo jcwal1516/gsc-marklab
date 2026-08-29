@@ -2872,3 +2872,21 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   for 512 cells, and an intensity range from 4.36e-9 to 4.22e12 per square micrometre. The
   minimum-resolution p=0.05 is not promoted. This is a durable real-scale capacity failure, not
   evidence of inhibition and not a reason to tune hidden defaults.
+
+## DEC-0347 — Share the exact categorical project adapter for durable cross-g
+
+- Date: 2026-08-29
+- Status: accepted for PP-03/PP-03B/MRK-01/MRK-02A/PLAT-01/WF-01/WS-12/WS-23/WS-30
+- Decision: expose the existing `CategoricalCrossPairCorrelationAnalysisNode` as `marklab project
+  categorical-cross-pair-correlation`. Extract only the categorical project preparation already
+  required identically by this command and `categorical-pair`: bounded source reads, stable CellIds,
+  exact codebook/codes, patient/slide hierarchy, physical coordinate frame, morphology-predicted
+  MarkTable provenance, immutable source digests, durable project/store opening, create-new output,
+  and explicit cache status. Keep each scientific node, schema, config, limits, null, and codec
+  separate. Preserve the existing categorical-pair store/provenance identities and prove frozen v50
+  output bytes unchanged.
+- Consequences: the real first frozen CPTAC slide runs Neoplastic-to-Inflammatory cross-g at
+  20/50/100/200 micrometres with 10-micrometre bandwidth and 19 complete-row permutations. A fresh
+  backend-disabled process returns a byte-identical hit with one ledger row. Only 20/50 micrometres
+  retain inference; global p=0.20, 100 micrometres lacks an envelope, and 200 micrometres has no
+  eligible center. This remains a descriptive one-specimen null result pending patient replication.

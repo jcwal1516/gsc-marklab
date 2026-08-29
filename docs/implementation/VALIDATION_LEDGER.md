@@ -3958,3 +3958,34 @@ vascular transport.
 - Affected formatting, whitespace, direct diff, and status checks pass. No workspace-wide/Nextest
   loop, full feature matrix, benchmark, fuzzing, packaging, dependency, push, publication,
   deployment, or history rewrite runs.
+
+## Durable real categorical cross-g checkpoint 160 — 2026-08-29
+
+- Red-first: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  categorical_cross_pair_correlation_project_cli -- --nocapture` fails with `unrecognized
+  subcommand 'categorical-cross-pair-correlation'`. It passes after the narrow command and concrete
+  shared adapter extraction.
+- The final focused command over `categorical_cross_pair_correlation_project_cli`,
+  `categorical_cross_pair_correlation_typed_workflow`, and `categorical_pair_project_cli` passes
+  7/7. It covers the independent Python direct-pair oracle, directional control, unknown/support/
+  one-short boundaries, durable cache invalidation, both fresh-process CLIs, high-precision window
+  replay, and the existing categorical-pair regression.
+- `/usr/bin/time -l target/debug/marklab project categorical-cross-pair-correlation ...` completes
+  the real miss in 5.96 seconds at 28,868,608-byte maximum RSS. A fresh
+  `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1` process reports a hit in 5.67 seconds. `cmp`
+  passes, the ledger remains one row, and both outputs hash to
+  `f36687f80cd3570300f1fc7416a4bf00807e8c74308fe96c765b4874c9fa2634`.
+- A new `categorical-pair` run with the exact v50 request produces byte-identical output to the
+  sealed v50 artifact; both hash to
+  `4045fdbfffc0579e74ef009842eccbabf5a20a2bc13f7356cd31d9ea77ad46aa`.
+- Warning-denied affected Clippy passes for the library, binary, new CLI/oracle tests, and existing
+  categorical-pair CLI. `cargo +1.96.0 check --locked --package marklab --no-default-features`
+  passes. The initial combined command crosses the 30-second yield after its tests finish; process
+  inspection confirms it has exited, and the exact Clippy and no-default commands are then captured
+  separately as successful incremental invocations.
+- Absolute-path remote hashing verifies all 23 listed artifacts plus `SHA256SUMS`, both one-row
+  ledgers, byte-identical cross-g replay, and byte-identical categorical-pair parity. Manifest
+  SHA-256 is `1e4a8d0186ce76f5daa853f3fcfef6d0e4129f2b3fb3b384804aa86f68bd9797`.
+- Affected formatting, whitespace, direct diff, and status checks pass. No workspace-wide/Nextest
+  loop, full feature matrix, benchmark, fuzzing, packaging, dependency, push, publication,
+  deployment, or history rewrite runs.

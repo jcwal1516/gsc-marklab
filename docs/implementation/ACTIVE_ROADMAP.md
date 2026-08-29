@@ -1515,6 +1515,17 @@ The resumed master-plan goal adds only the missing durable project path to the e
 inhomogeneous g owner. The frozen real 512-cell exact-window caller replays byte-identically with
 one ledger row, but its shared 16x16 intensity pilot remains grossly inadequate and the result is
 not interpreted or tuned. PP-03A no longer lacks every user-facing or real-data durable caller, but
-pinned external agreement and broader correction/null calibration remain. Production next advances
-the smallest dependency-ordered point-process gap after K/L/g—one bounded F/G/J workflow—without a
-generic estimator registry or duplicated geometry/null infrastructure.
+pinned external agreement and broader correction/null calibration remain. A tracker audit confirms
+that PP-04 F/G/J is already complete, so it is not duplicated. Production instead advances the
+existing PP-03B categorical cross-g owner through the same durable typed categorical input path.
+
+## Checkpoint 160 durable real categorical cross-g
+
+The existing directed categorical cross-g estimator now has a durable user-facing project command
+and one fixed real CellViT caller. Its exact categorical input/provenance adapter is shared with
+`categorical-pair`, whose frozen v50 output remains byte-identical after extraction. The real
+one-slide cross-g result is null-compatible and loses inferential support at larger radii, so it is
+not promoted as patient evidence. Production next applies this exact cross-g workflow to the frozen
+eight-patient/16-slide design with slides nested in patients, fold-internal evaluation, and
+whole-patient inference; it must reuse the existing patient categorical workflow rather than create
+a parallel inference framework.

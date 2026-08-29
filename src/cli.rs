@@ -54,6 +54,10 @@ fn batch_output_path(root: &Path, raw_id: &str) -> Result<PathBuf> {
 mod analyze;
 #[path = "cli/batch.rs"]
 mod batch;
+#[path = "cli/categorical_cross_pair_correlation.rs"]
+mod categorical_cross_pair_correlation;
+#[path = "cli/categorical_mark_project.rs"]
+mod categorical_mark_project;
 #[path = "cli/categorical_pair.rs"]
 mod categorical_pair;
 #[path = "cli/classical.rs"]
@@ -424,6 +428,36 @@ enum ProjectCommands {
         #[arg(long)]
         max_null_pair_evaluations: usize,
     },
+    CategoricalCrossPairCorrelation {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        cells: PathBuf,
+        #[arg(long)]
+        mask: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        source_level: String,
+        #[arg(long)]
+        target_level: String,
+        #[arg(long, value_delimiter = ',')]
+        radii_um: Vec<f64>,
+        #[arg(long)]
+        bandwidth_um: f64,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        max_pair_visits: usize,
+        #[arg(long)]
+        max_null_pair_evaluations: usize,
+    },
     InhomogeneousSpatial {
         #[arg(long)]
         project: PathBuf,
@@ -749,6 +783,39 @@ pub fn run_cli() -> Result<()> {
                 maximum_pair_visits: max_pair_visits,
                 maximum_null_pair_evaluations: max_null_pair_evaluations,
             }),
+            ProjectCommands::CategoricalCrossPairCorrelation {
+                project,
+                cells,
+                mask,
+                out,
+                source_level,
+                target_level,
+                radii_um,
+                bandwidth_um,
+                permutations,
+                seed,
+                alpha,
+                memory_budget_mib,
+                max_pair_visits,
+                max_null_pair_evaluations,
+            } => categorical_cross_pair_correlation::run_project(
+                categorical_cross_pair_correlation::Request {
+                    project,
+                    cells,
+                    mask,
+                    out,
+                    source_level,
+                    target_level,
+                    radii_um,
+                    bandwidth_um,
+                    permutations,
+                    seed,
+                    alpha,
+                    memory_budget_mib,
+                    maximum_pair_visits: max_pair_visits,
+                    maximum_null_pair_evaluations: max_null_pair_evaluations,
+                },
+            ),
             ProjectCommands::InhomogeneousSpatial {
                 project,
                 cells,

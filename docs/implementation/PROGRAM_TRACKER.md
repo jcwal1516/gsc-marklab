@@ -175,7 +175,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | PP-02 | active with negative real-scale evidence | Standard-border inhomogeneous K/L and g consume the identical persisted Gaussian leave-one-out event/fixed-grid pilot, use inverse-intensity pair/center normalization, a frozen conditioned null, ERL, hard bounds, and durable replay. One real 512-cell/12-component exact-window caller replays but fails the fixed-grid mass/intensity-range scale diagnostic. Multiple estimators, pinned `Kinhom/Linhom/pcfinhom` agreement, broader calibration, corrections, compartments, and a stable real scale policy remain. |
 | PP-03 | active | Homogeneous Epanechnikov g, directed two-level cross-g, and one inhomogeneous g specialization use explicit pair bandwidth, standard-border `r+h` eligibility, typed empty support, appropriate whole-pattern or complete-row nulls, ERL, hard bounds, and durable replay. The inhomogeneous specialization now has a project CLI and a retained real exact-window scale failure. General multitype/corrections, pinned spatstat agreement, and broader calibration remain. |
 | PP-03A | active | Bounded homogeneous and Gaussian-pilot inhomogeneous compact-support g specializations have independent Python oracles, conditional-pattern inference, finite/resource guards, user-facing durable replay, and one real exact-window diagnostic; the inhomogeneous result persists exactly the same pilot as K/L while keeping its pair bandwidth distinct. Its real pilot is inadequate and unpromoted. Pinned external agreement and broader null/edge calibration remain. |
-| PP-03B | active | Directed cross-K and two-level Epanechnikov cross-g use exact source/target counts, boundary-eligible source centers, typed unknown/empty support, random-label envelopes, and store-verified durable replay. Inhomogeneous intensity, general multitype coverage/corrections, and pinned external agreement remain. |
+| PP-03B | active | Directed cross-K and two-level Epanechnikov cross-g use exact source/target counts, boundary-eligible source centers, typed unknown/empty support, random-label envelopes, hard bounds, and user-facing durable replay. Cross-g now has a real fixed-slide null-compatible caller through the shared exact categorical adapter. Patient replication, inhomogeneous intensity, general multitype coverage/corrections, and pinned external agreement remain. |
 | PP-04 | complete | Exact reduced-sample F/G/J runs on polygon/multipolygon/hole windows with fixed cell-centred probes, whole-pattern conditional CSR, separate ERL envelopes, pinned SciPy nearest-distance agreement, null/control calibration, typed sparse/denominator states, hard limits, and durable replay. |
 | PP-04A | complete | Event-to-nearest-distinct-event G uses the canonical exact index, deterministic tie policy, explicit simple-point rejection, boundary-eligible denominators, and independent brute-force/SciPy oracles. |
 | PP-04B | complete | Empty-space F uses a fixed declared rectangular cell-centred probe grid, exact window/hole membership, boundary-eligible denominators, spacing/discretization metadata, and the same probes for every null pattern. |
@@ -335,3 +335,12 @@ real provenance-complete caller. The real miss/hit is byte-identical with one le
 input/config/runtime identity. The common 16x16 pilot is inadequate for the disconnected window,
 so the apparent short-range deviation and minimum-resolution p=0.05 are retained without
 interpretation or tuning. PP-03/PP-03A, PLAT-01/WF-01, and WS-12/WS-30 advance but remain active.
+
+## Durable real categorical cross-g checkpoint 160
+
+The existing PP-03B directed cross-g node now has a user-facing durable project command and one real
+four-radius CellViT caller. `categorical-pair` and cross-g share only their exact categorical input,
+provenance, hierarchy, coordinate, project/store, and output-transaction adapter; their estimators,
+configs, schemas, nulls, and codecs remain separate. Frozen v50 categorical-pair bytes are unchanged.
+The real cross-g result is null-compatible and structurally unavailable at larger radii, so PP-03B
+remains active for patient replication, broader multitype/correction coverage, and external agreement.
