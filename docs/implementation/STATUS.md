@@ -2898,3 +2898,34 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   affected Clippy and graph docs, graph no-default compilation, remote bundle verification, and
   whitespace checks pass. Checkpoint 145 remains the latest broad stabilization; the prohibited
   macOS Nextest/full-integration loop and other broad or specialized gates were not run.
+
+## Sparse Fourier signal-energy checkpoint 149 — 2026-08-29
+
+- Added direct and durable `sparse-radius-fourier-energy` as the first signal-bearing consumer of the
+  component-aware sparse basis. It binds an exact sorted scalar-signal digest, reports each signed
+  coefficient and squared energy, separates component means from nonzero low-frequency variation,
+  and retains total, centered, captured, and unresolved energy with explicit zero-denominator
+  states. Conservative node-by-mode projection and summary-byte ceilings are checked before the
+  basis runs.
+- The independent five-node path oracle builds a signal from a normalized constant mode with
+  coefficient 2 and first nonzero analytic eigenmode with coefficient 3. Production recovers total,
+  component-zero, and nonzero low-frequency energies 13, 4, and 9 within `1e-8`; a one-short
+  projection ceiling rejects before basis execution. Unit coverage retains explicit all-zero and
+  component-constant fraction states. The durable integration proves miss, fresh-process backend-
+  disabled hit, byte identity, and one ledger row.
+- The fixed real hard-Neoplastic signal has 1,450 positive values across the admitted 2,000 nodes.
+  Component-zero energy is `1190.7037035326675` of 1,450 total. The eight retained nonzero modes
+  contain `21.1297223445104` of `259.29629646733247` within-component centered energy, a fraction of
+  `0.08148871631559318`; `238.16657412282206` remains unresolved. The result is retained as mostly-
+  unresolved one-specimen truncation evidence, without changing graph radius, signal, modes,
+  iterations, tolerance, or thresholds.
+- The identity-final miss completes in 7.97 seconds at 25,739,264-byte maximum RSS. A fresh process
+  reports `cache_status=hit`; outputs hash byte-identically to
+  `e38bec64677b5fbc2ea82eda47dcec15b0ae4d3c7226ec55ef6b5e7076fc192d` with one ledger row. The
+  hash-verified 1-TB bundle is `results-cellvit-categorical-v44-sparse-fourier-energy-final`, whose
+  `SHA256SUMS` hashes to
+  `5784d40fd46568ea0a92495bcba417efb8c3ba98cb77d0f66ef99be84d702b38`.
+- Affected formatting, graph-package and direct/durable basis/Fourier tests, warning-denied affected
+  Clippy/docs, graph no-default compilation, remote bundle verification, and whitespace checks
+  pass. Checkpoint 145 remains the latest broad stabilization; the prohibited macOS Nextest/full-
+  integration loop and other broad or specialized gates were not run.

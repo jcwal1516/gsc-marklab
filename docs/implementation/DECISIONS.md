@@ -2641,3 +2641,24 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   result replays byte-identically with one ledger execution. This is an experimental geometry
   basis, not a signal-energy endpoint, generic solver framework, patient reproducibility result,
   molecular association, biological significance, causality, or clinical utility.
+
+## DEC-0336 — Separate component means from sparse low-frequency signal energy
+
+- Date: 2026-08-29
+- Status: accepted for FR-01B/GSP-01/WF-01/WS-12/WS-62
+- Decision: add direct and durable `sparse-radius-fourier-energy` as the immediate scalar-signal
+  consumer of DEC-0335. Bind a separate exact signal digest, project the sorted scalar signal onto
+  every retained component-local mode, and report signed coefficients plus squared energy. Separate
+  the complete component-zero energy from nonzero low-frequency energy, total and within-component
+  centered energy, captured and unresolved centered energy, and typed zero-denominator fraction
+  states. Pre-admit conservative node-by-mode projection work and retained summary bytes; reuse the
+  existing graph, basis, scheduler, artifact store, project ledger, native runtime, and exact-float
+  codec without adding a solver or transform registry.
+- Consequences: the analytic five-node path signal made from one constant and one known eigenmode
+  recovers energies 4 and 9 with total 13, and a one-short projection ceiling fails before basis
+  execution. On the admitted 2,000-cell hard-Neoplastic signal, component means contain
+  `1190.7037035326675` of 1,450 total energy, while the eight retained nonzero low modes contain
+  `21.1297223445104`, or `0.08148871631559318` of within-component centered energy. The remaining
+  `238.16657412282206` centered energy is retained as unresolved. This is one-specimen descriptive
+  truncation evidence, not a calibrated physical wavelength, patient-level effect, molecular
+  association, biological significance, causality, or clinical utility.

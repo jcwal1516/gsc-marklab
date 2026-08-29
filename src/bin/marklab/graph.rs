@@ -9,13 +9,14 @@ use clap::{Parser, Subcommand};
 use marklab_graph::{
     cellular_complex_workflow, graph_chebyshev_heat_workflow, graph_diffusion_wavelet_workflow,
     graph_heat_workflow, graph_scattering_workflow, graph_sparse_radius_basis_workflow,
-    graph_sparse_radius_diffusion_wavelet_workflow, graph_sparse_radius_heat_stability_workflow,
-    graph_sparse_radius_heat_workflow, graph_sparse_radius_scattering_workflow,
-    graph_spectral_workflow, graph_spectrum_null_test, graph_wavelet_workflow,
-    heterogeneous_graph_message_workflow, hypergraph_signal_workflow, simplicial_hodge_workflow,
-    typed_triangle_motif_workflow, validate_graph_mathematics_suite, CellularComplexSpec,
-    GraphChebyshevHeatSpec, GraphDiffusionWaveletSpec, GraphHeatSpec, GraphScatteringSpec,
-    GraphSparseRadiusBasisSpec, GraphSparseRadiusDiffusionWaveletSpec, GraphSparseRadiusHeatSpec,
+    graph_sparse_radius_diffusion_wavelet_workflow, graph_sparse_radius_fourier_energy_workflow,
+    graph_sparse_radius_heat_stability_workflow, graph_sparse_radius_heat_workflow,
+    graph_sparse_radius_scattering_workflow, graph_spectral_workflow, graph_spectrum_null_test,
+    graph_wavelet_workflow, heterogeneous_graph_message_workflow, hypergraph_signal_workflow,
+    simplicial_hodge_workflow, typed_triangle_motif_workflow, validate_graph_mathematics_suite,
+    CellularComplexSpec, GraphChebyshevHeatSpec, GraphDiffusionWaveletSpec, GraphHeatSpec,
+    GraphScatteringSpec, GraphSparseRadiusBasisSpec, GraphSparseRadiusDiffusionWaveletSpec,
+    GraphSparseRadiusFourierEnergySpec, GraphSparseRadiusHeatSpec,
     GraphSparseRadiusHeatStabilitySpec, GraphSparseRadiusScatteringSpec, GraphSpectralSpec,
     GraphSpectrumNullSpec, GraphWaveletSpec, HeterogeneousMessageSpec, HypergraphSignalSpec,
     SimplicialHodgeSpec, TypedTriangleMotifSpec,
@@ -79,6 +80,12 @@ enum GraphCommand {
         out: PathBuf,
     },
     SparseRadiusBasis {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    SparseRadiusFourierEnergy {
         #[arg(long)]
         input: PathBuf,
         #[arg(long)]
@@ -187,6 +194,9 @@ pub(crate) fn run_cli() -> Result<(), GraphCliError> {
         GraphTopLevel::Graph {
             command: GraphCommand::SparseRadiusBasis { input, out },
         } => run_sparse_radius_basis(input, out),
+        GraphTopLevel::Graph {
+            command: GraphCommand::SparseRadiusFourierEnergy { input, out },
+        } => run_sparse_radius_fourier_energy(input, out),
         GraphTopLevel::Graph {
             command: GraphCommand::SparseRadiusHeatStability { input, out },
         } => run_sparse_radius_heat_stability(input, out),
@@ -305,6 +315,14 @@ fn run_sparse_radius_basis(input: PathBuf, out: PathBuf) -> Result<(), GraphCliE
     let bytes = read_input(&input)?;
     let spec: GraphSparseRadiusBasisSpec = serde_json::from_slice(&bytes)?;
     let result = graph_sparse_radius_basis_workflow(spec)
+        .map_err(|error| GraphCliError::Input(error.to_string()))?;
+    publish_json(&out, &result)
+}
+
+fn run_sparse_radius_fourier_energy(input: PathBuf, out: PathBuf) -> Result<(), GraphCliError> {
+    let bytes = read_input(&input)?;
+    let spec: GraphSparseRadiusFourierEnergySpec = serde_json::from_slice(&bytes)?;
+    let result = graph_sparse_radius_fourier_energy_workflow(spec)
         .map_err(|error| GraphCliError::Input(error.to_string()))?;
     publish_json(&out, &result)
 }

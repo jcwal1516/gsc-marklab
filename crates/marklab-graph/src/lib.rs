@@ -16,6 +16,7 @@ mod hypergraph;
 mod motif;
 mod sparse_basis;
 mod sparse_diffusion_wavelet;
+mod sparse_fourier;
 mod sparse_heat;
 mod sparse_heat_stability;
 mod sparse_radius_graph;
@@ -50,6 +51,10 @@ pub use sparse_basis::{
 pub use sparse_diffusion_wavelet::{
     graph_sparse_radius_diffusion_wavelet_workflow, GraphSparseRadiusDiffusionWaveletResult,
     GraphSparseRadiusDiffusionWaveletSpec, SparseRadiusDiffusionWaveletScaleResult,
+};
+pub use sparse_fourier::{
+    graph_sparse_radius_fourier_energy_workflow, GraphSparseRadiusFourierEnergyResult,
+    GraphSparseRadiusFourierEnergySpec, SparseRadiusFourierModeEnergy,
 };
 pub use sparse_heat::{
     graph_sparse_radius_heat_workflow, GraphSparseRadiusHeatResult, GraphSparseRadiusHeatSpec,

@@ -1393,3 +1393,15 @@ basis and has an immediate admitted scalar CellViT graph signal; it must preserv
 compare with the exact dense oracle, and remain descriptive until patient-level calibration exists.
 Generic solver/plugin infrastructure, GPU parity, UI/server/client/remote execution, and unrelated
 method expansion remain deferred until an immediate caller requires them.
+
+## Checkpoint 149 sparse Fourier energy continuation
+
+The exact admitted hard-Neoplastic signal now projects durably onto the component-aware basis with
+analytic path agreement, explicit component-mean separation, bounded projection, and one-ledger
+identity-final replay. Its eight retained nonzero modes explain only 8.15% of within-component
+centered energy, so no broad low-frequency or biological claim is promoted. FR-01B/GSP-01/WS-62 no
+longer lack every pathology-scale sparse signal-energy caller. Production next advances the
+smallest patient-replicated Fourier-energy/stability endpoint on the already admitted frozen CRC
+subset, keeping patient as the population unit and reusing exact graph identities. Physical-scale
+bands or analytic perturbation bounds follow only if that replicated caller exposes a concrete need;
+generic solver/plugin infrastructure and unrelated work remain deferred.

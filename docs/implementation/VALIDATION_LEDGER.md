@@ -3614,3 +3614,39 @@ vascular transport.
 - Affected-file Rustfmt passes. `git diff --check` passes. Checkpoint 145 remains the latest broad
   workspace stabilization; no Nextest/full-workspace loop, feature matrix, benchmark, fuzzing,
   memory tool, packaging, dependency audit, push, publication, deployment, or history rewrite ran.
+
+## Sparse Fourier signal-energy checkpoint 149 — 2026-08-29
+
+- Red-first evidence: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  graph_sparse_radius_fourier_energy_cli -- --nocapture` first fails after one corrected test-only
+  moved-path compile error because the graph subcommand is absent. `cargo +1.96.0 test --locked
+  --package marklab --features cli --test durable_sparse_radius_fourier_energy_project --
+  --nocapture` independently fails because the project subcommand is absent. Both pass after the
+  direct and durable production paths are implemented.
+- The final focused command covering direct/durable sparse basis and Fourier targets passes four
+  integrations. The analytic path result agrees with constant/nonzero eigenmode energies 4/9 and
+  total 13 within `1e-8`, and rejects planned projection work 14 against required 15 before basis
+  execution. `cargo +1.96.0 test --locked --package marklab-graph` passes 6/6 unit tests and
+  doctests, including typed all-zero and component-constant fraction states.
+- `cargo +1.96.0 clippy --locked --package marklab-graph --all-targets -- -D warnings` passes.
+  `cargo +1.96.0 clippy --locked --package marklab --features cli --test
+  graph_sparse_radius_fourier_energy_cli --test durable_sparse_radius_fourier_energy_project -- -D
+  warnings` passes. `cargo +1.96.0 check --locked --package marklab-graph --no-default-features`
+  passes. `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --package marklab-graph --no-deps`
+  passes.
+- The exact request SHA-256 is
+  `a1a04f155818981d1ec514970316c85f2ef061e7ecabc117c6b4b3b266cd8a61`; final runtime binary
+  SHA-256 is `27f8ec740b9e92ca9ab45f755624c5749c19d4420252debe9bf5dccf47c1419f`.
+  `/usr/bin/time -l target/debug/marklab project sparse-radius-fourier-energy ...` completes the
+  real 2,000-node miss in 7.97 seconds at 25,739,264-byte maximum RSS. Its 3,063 actual projection
+  visits are below the conservative 64,000 ceiling.
+- A fresh `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1 target/debug/marklab project
+  sparse-radius-fourier-energy ...` process reports `cache_status=hit`; `cmp` passes and the ledger
+  remains one row. Both results hash to
+  `e38bec64677b5fbc2ea82eda47dcec15b0ae4d3c7226ec55ef6b5e7076fc192d`.
+- Local and remote `shasum -a 256 -c SHA256SUMS` verify every file in
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v44-sparse-fourier-energy-final`; its
+  manifest hash is `5784d40fd46568ea0a92495bcba417efb8c3ba98cb77d0f66ef99be84d702b38`.
+- Affected-file Rustfmt and `git diff --check` pass. Checkpoint 145 remains the latest broad
+  stabilization; no Nextest/full-workspace loop, feature matrix, benchmark, fuzzing, memory tool,
+  packaging, dependency audit, push, publication, deployment, or history rewrite ran.

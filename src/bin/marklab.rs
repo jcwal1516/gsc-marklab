@@ -53,6 +53,7 @@ fn main() -> marklab::Result<()> {
                                 "marked-prepost"
                                     | "sparse-radius-heat"
                                     | "sparse-radius-basis"
+                                    | "sparse-radius-fourier-energy"
                                     | "sparse-radius-heat-stability"
                                     | "sparse-radius-diffusion-wavelet"
                                     | "sparse-radius-scattering"
