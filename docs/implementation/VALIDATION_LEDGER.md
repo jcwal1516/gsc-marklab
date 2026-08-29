@@ -2865,6 +2865,48 @@ vascular transport.
   loop, full feature matrix, broad docs, benchmarks, fuzzing, memory tool, packaging, dependency
   audit, push, publication, deployment, or history rewrite ran.
 
+## Exact-window latent-field promotion checkpoint 128 — 2026-08-28
+
+- Expected agreement red: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_arbitrary_window_lgcp_agreement_cli -- --nocapture` failed on the absent command. The final
+  control passes with both exact adapter/source NumPyro identities, complete diagnostics, and
+  Monte Carlo-aware agreement for global parameters and every four-node latent/count summary.
+- Expected SBC red likewise failed on the absent `arbitrary-window-lgcp-sbc` command. The final
+  four-node control passes 20/20 complete dispositions, physical-node identity, rank histograms,
+  coverage, and outer/source worker validation while calling the existing gridded SBC owner.
+  Expected quadrature red failed on the absent sensitivity command; its final 4/6/8-node control
+  passes exact area/membership, complete fits, analytic near-zero-field stability, and 36,000 exact
+  draw-node operations.
+- The first real v12 adapter attempt audited all 366 slides but failed before publication because
+  its existing internal membership/quadrature guards required grid size at least eight. A focused
+  four-grid regression then failed under the same guard. After admitting the immediate 4/6/8 LGCP
+  caller under the still-bounded 4–128 internal range, the regression and full adapter suite pass.
+  The failed `.part` directory was moved to trash. The final adapter completed in 93.91 seconds at
+  991,035,392-byte maximum RSS and emitted 11/22/32 positive exact-clipped nodes with 2,000 complete
+  identity-aligned memberships at every resolution.
+- The real agreement completed in 15.66 seconds at 591,396,864-byte maximum RSS. Both fits are
+  complete with zero divergences/depth hits. Intercept/coefficient differences are 0.00215/0.00492,
+  maximum standardized latent/count differences are 0.744/1.580, and every node interval overlaps.
+  SHA-256 is `8f80eecad54f21b964317029bd846d4a597f658854657f3521a2ec25d324f635`.
+- The deployed-prior physical SBC completed in 44.93 seconds at 1,498,644,480-byte maximum RSS and
+  accepts 20/20 with rank-uniformity p-values 0.163/0.534/0.834 and 90% coverage 0.90/0.80/0.90 for
+  intercept/coefficient/physical latent node. SHA-256 is
+  `9670d00a8e003de46d5ceeafda09cca6dc7b4fd219f652a80b8d1ad15274fa62`.
+- The real 11/22/32-node quadrature sensitivity completed in 28.58 seconds at 334,839,808-byte
+  maximum RSS. All 260,000 draw-node operations complete; maximum global shift is 0.512 posterior
+  SD, total-count relative shift is below 0.00075, and no resolution is material at 0.75. Its
+  aggregation-dependent spatial PPC is retained rather than compared as an invariant. SHA-256 is
+  `c32b4903302c944a674dc4b1a2bbbf60a64a8c618bd2a7f11249b105c9b8e487`.
+- The combined affected command over seven integration binaries passes 7/7; the adapter passes 7/7
+  and all four changed Python workers compile. `cargo +1.96.0 fmt --all --check` passes. `cargo
+  +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings` passes in 28.35
+  seconds. Workspace no-default compilation passes in 1.10 seconds, all-feature doctests pass with
+  zero failures after 19.96 seconds, and strict all-feature docs pass in 8.44 seconds. Diff
+  whitespace checks pass. The v12 `shasum -a 256 -c results_sha256.txt` manifest verifies all five
+  exact-window LGCP results. The prohibited full-workspace integration/Nextest loader loop was not
+  run; no feature matrix, benchmark, fuzz, memory tool, packaging, dependency audit, push,
+  publication, deployment, or history rewrite ran.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

@@ -95,22 +95,22 @@ struct Arguments {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct InputIdentity {
-    events_digest: String,
-    event_membership_digest: String,
-    quadrature_digest: String,
-    window_logical_digest: String,
+    pub(crate) events_digest: String,
+    pub(crate) event_membership_digest: String,
+    pub(crate) quadrature_digest: String,
+    pub(crate) window_logical_digest: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct PhysicalNode {
-    node_id: String,
+pub(crate) struct PhysicalNode {
+    pub(crate) node_id: String,
     x_um: f64,
     y_um: f64,
     weight_um2: f64,
     covariate: f64,
     offset: f64,
-    count: u64,
+    pub(crate) count: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -120,9 +120,9 @@ pub(crate) struct WorkerRequest {
     pub(crate) backend: BackendContract,
     pub(crate) source_request_sha256: String,
     pub(crate) source_request: GriddedLgcpFitWorkerRequest,
-    input: InputIdentity,
+    pub(crate) input: InputIdentity,
     window: ArbitraryWindowIppWindowSummary,
-    nodes: Vec<PhysicalNode>,
+    pub(crate) nodes: Vec<PhysicalNode>,
     physical_covariance: Vec<f64>,
     physical_cholesky: Vec<f64>,
     neighbor_pairs: Vec<[usize; 2]>,
@@ -130,7 +130,7 @@ pub(crate) struct WorkerRequest {
     maximum_neighbor_pairs: usize,
     maximum_events: usize,
     maximum_quadrature_nodes: usize,
-    covariance_sha256: String,
+    pub(crate) covariance_sha256: String,
     maximum_draw_node_work: u64,
     dense_factorization_work_units: u64,
 }

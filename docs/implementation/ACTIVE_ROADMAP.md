@@ -1146,3 +1146,14 @@ lack every arbitrary-window latent-field caller; they remain active for exact qu
 sensitivity, calibrated hyperparameter inference, multitype/marked models, and independent patient
 patterns. Production continues to the smallest of those with an immediate admitted CRC caller;
 UI/server/client work remains deferred.
+
+## Checkpoint 128 promoted exact-window latent-field continuation
+
+The exact-window fixed-kernel CellViT LGCP now has independent PyMC/NumPyro agreement, 20/20
+prior-generative calibration, fixed-kernel and 11/22/32-node resolution sensitivity, physical PPC,
+and durable replay. Its global posterior passes the declared backend/calibration/sensitivity gates,
+but its deployed-resolution spatial PPC remains inadequate and all evidence comes from one observed
+slide pattern. BAY-PP/BAY-PP-A/WS-43/WS-44 no longer lack promotion checks for this bounded model;
+production now advances to the smallest provenance-complete independent-patient replicated-pattern
+caller, falling back to the immediate hard-multitype CellViT caller only if patient-specific exact
+windows cannot be admitted within bounds. UI/server/client work remains deferred.

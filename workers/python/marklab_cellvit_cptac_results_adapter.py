@@ -540,7 +540,7 @@ def arbitrary_window_ipp_event_membership_rows(
         or not all(math.isfinite(value) for value in bounds)
         or xmin >= xmax
         or ymin >= ymax
-        or not 8 <= quadrature_grid_size <= 128
+        or not 4 <= quadrature_grid_size <= 128
     ):
         raise AdapterError("arbitrary-window IPP membership bounds are invalid")
     result = []
@@ -586,8 +586,8 @@ def arbitrary_window_ipp_quadrature(
     """Partition the exact patch union into weighted clipped grid cells."""
     from shapely.geometry import box
 
-    if not 8 <= grid_size <= 128:
-        raise AdapterError("arbitrary-window IPP quadrature grid is outside 8..128")
+    if not 4 <= grid_size <= 128:
+        raise AdapterError("arbitrary-window IPP quadrature grid is outside 4..128")
     xmin, ymin, xmax, ymax = (float(value) for value in shapely_window.bounds)
     grid_x = grid_size
     grid_y = grid_size
@@ -983,6 +983,25 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
         coordinate_rows, tuple(float(value) for value in shapely_window.bounds), 8
     )
     arbitrary_window_lgcp_nodes = arbitrary_window_ipp_quadrature(shapely_window, 8)
+    arbitrary_window_lgcp_coarse_membership = arbitrary_window_ipp_event_membership_rows(
+        coordinate_rows, tuple(float(value) for value in shapely_window.bounds), 4
+    )
+    arbitrary_window_lgcp_coarse_nodes = arbitrary_window_ipp_quadrature(shapely_window, 4)
+    arbitrary_window_lgcp_intermediate_membership = arbitrary_window_ipp_event_membership_rows(
+        coordinate_rows, tuple(float(value) for value in shapely_window.bounds), 6
+    )
+    arbitrary_window_lgcp_intermediate_nodes = arbitrary_window_ipp_quadrature(shapely_window, 6)
+    for membership_rows, nodes, name in (
+        (arbitrary_window_lgcp_coarse_membership, arbitrary_window_lgcp_coarse_nodes, "coarse"),
+        (
+            arbitrary_window_lgcp_intermediate_membership,
+            arbitrary_window_lgcp_intermediate_nodes,
+            "intermediate",
+        ),
+    ):
+        node_ids = {str(row["node_id"]) for row in nodes}
+        if any(row["quadrature_node_id"] not in node_ids for row in membership_rows):
+            raise AdapterError(f"arbitrary-window LGCP {name} membership references an empty cell")
     lgcp_node_ids = {str(row["node_id"]) for row in arbitrary_window_lgcp_nodes}
     if any(
         row["quadrature_node_id"] not in lgcp_node_ids
@@ -1015,6 +1034,26 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
         inputs / "arbitrary_window_lgcp_quadrature.csv",
         ["node_id", "x_um", "y_um", "weight_um2", "covariate", "offset"],
         arbitrary_window_lgcp_nodes,
+    )
+    write_csv(
+        inputs / "arbitrary_window_lgcp_event_membership_coarse.csv",
+        ["event_id", "quadrature_node_id"],
+        arbitrary_window_lgcp_coarse_membership,
+    )
+    write_csv(
+        inputs / "arbitrary_window_lgcp_quadrature_coarse.csv",
+        ["node_id", "x_um", "y_um", "weight_um2", "covariate", "offset"],
+        arbitrary_window_lgcp_coarse_nodes,
+    )
+    write_csv(
+        inputs / "arbitrary_window_lgcp_event_membership_intermediate.csv",
+        ["event_id", "quadrature_node_id"],
+        arbitrary_window_lgcp_intermediate_membership,
+    )
+    write_csv(
+        inputs / "arbitrary_window_lgcp_quadrature_intermediate.csv",
+        ["node_id", "x_um", "y_um", "weight_um2", "covariate", "offset"],
+        arbitrary_window_lgcp_intermediate_nodes,
     )
     write_csv(
         inputs / "arbitrary_window_ipp_quadrature.csv",
@@ -1424,6 +1463,12 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "event_membership": "exact_event_id_to_8_by_8_bounding_grid_cell",
                 "event_count": len(arbitrary_window_lgcp_event_membership),
                 "quadrature_node_count": len(arbitrary_window_lgcp_nodes),
+                "quadrature_sensitivity_grid_sizes": [4, 6, 8],
+                "quadrature_sensitivity_node_counts": [
+                    len(arbitrary_window_lgcp_coarse_nodes),
+                    len(arbitrary_window_lgcp_intermediate_nodes),
+                    len(arbitrary_window_lgcp_nodes),
+                ],
                 "quadrature_weight_um2": math.fsum(
                     float(row["weight_um2"]) for row in arbitrary_window_lgcp_nodes
                 ),
@@ -1483,6 +1528,11 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "arbitrary_window_lgcp_quadrature_nodes": len(
                     arbitrary_window_lgcp_nodes
                 ),
+                "arbitrary_window_lgcp_quadrature_sensitivity_nodes": [
+                    len(arbitrary_window_lgcp_coarse_nodes),
+                    len(arbitrary_window_lgcp_intermediate_nodes),
+                    len(arbitrary_window_lgcp_nodes),
+                ],
                 "raw_vector_rows": len(vector_rows),
                 "raw_vector_pair_visits": len(vector_rows) * (len(vector_rows) - 1) // 2,
                 "projected_rows": len(projected_rows),

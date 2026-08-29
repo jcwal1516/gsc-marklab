@@ -2302,3 +2302,36 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   warning-denied Clippy, package no-default compilation, affected-file formatting, and whitespace
   checks pass. BAY-PP/WS-43 remain active for quadrature/component sensitivity, inferred field
   hyperparameters with calibration, multitype/marked likelihoods, and independent patient patterns.
+
+## Exact-window latent-field promotion checkpoint 128 — 2026-08-28
+
+- Added independent NumPyro 0.21.0/JAX 0.11.1 agreement and prior-generative SBC around the exact
+  physical covariance without copying either sampler. Both narrow adapters validate and call the
+  existing PyMC exact-window contract plus the existing NumPyro gridded-LGCP fit/SBC owners, while
+  retaining outer/source workers, lock, JAX, request, input, covariance, sampling, calibration, and
+  resource identities.
+- The real PyMC/NumPyro fit agrees under the existing Monte Carlo-aware rules. Intercept and
+  coefficient mean differences are 0.00215 and 0.00492; every one of 32 latent-effect and
+  expected-count intervals overlaps. Maximum standardized field differences are 0.744 latent and
+  1.580 expected count, both below 5.0; both fits are complete with zero divergences/depth hits.
+  Result SHA-256 is `8f80eecad54f21b964317029bd846d4a597f658854657f3521a2ec25d324f635`.
+- The deployed prior completes and accepts 20/20 physical-field SBC replicates. Intercept,
+  coefficient, and prespecified physical-node rank-uniformity p-values are 0.163/0.534/0.834,
+  normalized mean ranks 0.496/0.497/0.587, and 90% coverage 0.90/0.80/0.90. No replicate is hidden or
+  replaced; SHA-256 is `9670d00a8e003de46d5ceeafda09cca6dc7b4fd219f652a80b8d1ad15274fa62`.
+- The Mac-mini adapter re-audited the frozen 366-slide, 178-patient, 1,542,389-cell source into the
+  v12 bundle and emitted exact 4/6/8 bounding-grid partitions with 11/22/32 positive clipped nodes.
+  All three 4,000-draw fits complete. Relative to the deployed 32-node result, the maximum global
+  shift is 0.512 posterior SD and total expected-count differences are below 0.075%, so neither
+  coarser partition reaches the prespecified 0.75 materiality threshold. The quadrature result
+  SHA-256 is `c32b4903302c944a674dc4b1a2bbbf60a64a8c618bd2a7f11249b105c9b8e487`.
+- Spatial PPC tails vary with aggregation: the 11-node check has 0.25 upper tails, whereas the
+  deployed 32-node check remains zero for both summaries. Thus global posterior resolution
+  stability does not rescue spatial adequacy or make cross-resolution node-density summaries
+  interchangeable. The v12 manifest verifies all five base/promotion results by SHA-256.
+- This four-workflow family passes one scheduled stabilization: workspace formatting,
+  all-target/all-feature warning-denied Clippy, no-default compilation, all-feature doctests, strict
+  docs, and whitespace checks. The prohibited full-workspace integration/Nextest loader loop was
+  not rerun. Exact-window fixed-kernel LGCP no longer lacks agreement, SBC, prior/kernel sensitivity,
+  quadrature sensitivity, physical PPC, or durable replay. BAY-PP/WS-43 advance to an independent-
+  patient replicated-pattern or immediate multitype/marked CRC caller.

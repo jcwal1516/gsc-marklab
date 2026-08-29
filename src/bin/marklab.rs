@@ -210,6 +210,41 @@ fn main() -> marklab::Result<()> {
                     .nth(2)
                     .as_deref()
                     .is_some_and(|subcommand| {
+                        subcommand == std::ffi::OsStr::new("arbitrary-window-lgcp-agreement")
+                    }) =>
+        {
+            bayes::run_arbitrary_window_lgcp_agreement_cli().map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand
+                            == std::ffi::OsStr::new("arbitrary-window-lgcp-quadrature-sensitivity")
+                    }) =>
+        {
+            bayes::run_arbitrary_window_lgcp_quadrature_sensitivity_cli()
+                .map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand == std::ffi::OsStr::new("arbitrary-window-lgcp-sbc")
+                    }) =>
+        {
+            bayes::run_arbitrary_window_lgcp_sbc_cli().map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
                         subcommand == std::ffi::OsStr::new("arbitrary-window-lgcp-sensitivity")
                     }) =>
         {
