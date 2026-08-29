@@ -1270,3 +1270,16 @@ Production proceeds through independent-backend agreement, fixed hierarchy/kerne
 prior-generative calibration, and spatial PPC adequacy for this exact caller before adding richer
 cross-type fields or moving to representative graph/topology scaling. UI/server/client/remote work
 remains deferred.
+
+## Checkpoint 139 replicated multitype promotion continuation
+
+The durable eight-patient/16-slide multitype Cox hierarchy now agrees independently for all 1,422
+reported quantities, retains a complete eight-scenario real hierarchy/kernel grid, and passes an
+analytic 4,096-draw prior-generator calibration on the exact admitted geometry. MSI-minus-MSS type
+contrasts remain null-compatible and stable under the grid, while slide effects and local expected
+counts are materially fixed-kernel-sensitive. BAY-PP/WS-43 therefore advance to the smallest
+existing-backend inferred-kernel multitype caller, which must preserve patient replication and the
+exact windows; if that bounded path is unavailable, retain the exact blocker and move to the next
+representative graph/topology workflow. Pairwise interaction and cross-type latent covariance remain
+distinct future likelihoods rather than claims from independent type fields. UI/server/client/remote
+work remains deferred.

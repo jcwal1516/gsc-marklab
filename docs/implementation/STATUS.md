@@ -2629,3 +2629,40 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   pass. Broad workspace gates were not repeated immediately after checkpoint 137; no Nextest/full
   integration loop, feature matrix, benchmark, fuzzing, packaging, dependency audit, push,
   publication, deployment, or history rewrite ran.
+
+## Replicated multitype LGCP promotion checkpoint 139 — 2026-08-29
+
+- Added exact-baseline `replicated-arbitrary-window-multitype-lgcp-sensitivity`. Eight deterministic
+  NumPyro scenarios vary patient SD, slide SD, fixed field amplitude, and fixed field length by
+  0.5x/2x in bounded four-process waves while retaining every full typed fit. The small planted-
+  shift oracle truthfully finishes seven scenarios and retains one doubled-length divergence after
+  its single 2x2,000-draw capacity increase.
+- The real 8-patient/16-slide/666-row grid completes all eight scenarios in 407.87 seconds at
+  1,204,912,128-byte maximum RSS, with zero divergences and depth hits throughout. Type-group and
+  pairwise group-difference shifts remain below 0.1231/0.1264 baseline SD. Field scenarios move
+  slide effects and local expected counts by up to 3.4168/8.5574 SD, so the population contrast is
+  stable under this grid but local reconstruction is materially fixed-kernel-sensitive. Sensitivity
+  SHA-256 is `38586b490710c2f7529093f51fe9fef7928cc231a6c7820e05870588b455ccdc`.
+- Added `replicated-arbitrary-window-multitype-lgcp-prior-calibration` through NumPy 2.4.6 in the
+  existing pinned Python lock. Its independent generator compares five Gaussian/half-normal prior
+  families with analytic moments, centered fields with exact `HLLᵀH` covariance, and conditional
+  Poisson residuals with zero-mean/unit-second-moment oracles under exact simulation-work and a
+  conservative Python/NumPy working-byte ceiling. The behavior test caught and corrected a type/node
+  covariance-axis interleave before passing.
+- The 4,096-draw identity-final real calibration completes in 1.47 seconds at 393,920,512-byte maximum RSS under a
+  673,972,224-byte estimate and 1-GiB ceiling. Every prior-moment error is below 0.016, field
+  covariance RMSE is 0.00752 amplitude squared, and 2,727,936 Poisson residuals have mean -0.00119
+  and second moment 0.99993. Calibration SHA-256 is
+  `956211a290cf4a8d781ef2be4ac61dc59d0cba4085c503e885f90e0dc14b3e6c`.
+- Together with checkpoint 138 and DEC-0324 agreement across all 1,422 quantities, this closes the
+  immediate fixed-kernel promotion ladder without claiming posterior SBC or invariant local fields.
+  The hash-verified 1-TB bundle is
+  `results-cellvit-categorical-v30-replicated-multitype-lgcp-promotion`. The v29 pre-final-identity
+  bundle is retained as noncanonical evidence.
+- Focused agreement and sensitivity integrations pass in 22.29 and 51.42 seconds; the identity-final
+  NumPy calibration integration passes in 3.37 seconds. Python syntax, focused warning-denied Clippy, package no-default CLI compilation, remote
+  bundle verification, workspace formatting, all-target/all-feature warning-denied Clippy,
+  workspace no-default compilation, all-feature doctests, strict docs, and whitespace checks pass.
+  The documented Nextest/full-integration loader loop was not run. No feature matrix, benchmark,
+  fuzzing, memory tool, packaging, dependency audit, push, publication, deployment, or history
+  rewrite ran.

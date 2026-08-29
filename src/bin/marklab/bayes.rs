@@ -143,6 +143,16 @@ pub(super) fn run_replicated_arbitrary_window_multitype_lgcp_agreement_cli(
     replicated_arbitrary_window_multitype_lgcp_agreement::run_cli()
 }
 
+pub(super) fn run_replicated_arbitrary_window_multitype_lgcp_prior_calibration_cli(
+) -> Result<(), BayesCliError> {
+    replicated_arbitrary_window_multitype_lgcp_prior_calibration::run_cli()
+}
+
+pub(super) fn run_replicated_arbitrary_window_multitype_lgcp_sensitivity_cli(
+) -> Result<(), BayesCliError> {
+    replicated_arbitrary_window_multitype_lgcp_sensitivity::run_cli()
+}
+
 pub(super) fn run_replicated_arbitrary_window_lgcp_sensitivity_cli() -> Result<(), BayesCliError> {
     replicated_arbitrary_window_lgcp_sensitivity::run_cli()
 }
@@ -405,6 +415,10 @@ mod replicated_arbitrary_window_multitype_lgcp;
 mod replicated_arbitrary_window_multitype_lgcp_agreement;
 #[path = "bayes/replicated_arbitrary_window_multitype_lgcp_numpyro.rs"]
 mod replicated_arbitrary_window_multitype_lgcp_numpyro;
+#[path = "bayes/replicated_arbitrary_window_multitype_lgcp_prior_calibration.rs"]
+mod replicated_arbitrary_window_multitype_lgcp_prior_calibration;
+#[path = "bayes/replicated_arbitrary_window_multitype_lgcp_sensitivity.rs"]
+mod replicated_arbitrary_window_multitype_lgcp_sensitivity;
 pub(super) use replicated_arbitrary_window_lgcp_fit::{
     execute as execute_replicated_arbitrary_window_lgcp_fit,
     prepare as prepare_replicated_arbitrary_window_lgcp_fit,

@@ -3345,3 +3345,42 @@ vascular transport.
   gates were not repeated after checkpoint 137; no full integration/Nextest loop, feature matrix,
   benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or history rewrite
   ran.
+
+## Replicated multitype LGCP promotion checkpoint 139 — 2026-08-29
+
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_replicated_arbitrary_window_multitype_lgcp_sensitivity_cli -- --nocapture` first exercised
+  2x1,500 draws and retained one divergence in each of `patient_scale_double` and
+  `field_amplitude_double`. The single declared 2x2,000-draw capacity increase retained one exact
+  divergence only in `field_length_double`; the final test passes by requiring that truthful
+  aggregate `nonconverged` disposition, all eight finite fits, and the planted type-A shift.
+- `/usr/bin/time -l target/debug/marklab bayes
+  replicated-arbitrary-window-multitype-lgcp-sensitivity ...` completes the real 8-patient,
+  16-slide, 666-row grid in 407.87 seconds at 1,204,912,128-byte maximum RSS. All eight scenarios
+  are complete with zero divergences/depth hits. The maximum type-group/pair shifts are
+  0.1231/0.1264 baseline SD, while slide/local-expected shifts reach 3.4168/8.5574 SD. The 3,563,381-
+  byte output SHA-256 is `38586b490710c2f7529093f51fe9fef7928cc231a6c7820e05870588b455ccdc`.
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_replicated_arbitrary_window_multitype_lgcp_prior_calibration_cli -- --nocapture` first failed
+  on the absent command. Its first implemented run found an empirical-covariance type/node axis
+  interleave (0.214 amplitude-squared RMSE); after correcting that production boundary, the exact
+  deterministic test passes all five moment, centered-covariance, and Poisson checks.
+- `/usr/bin/time -l target/debug/marklab bayes
+  replicated-arbitrary-window-multitype-lgcp-prior-calibration ...` completes 4,096 real-geometry
+  draws in the identity-final NumPy run in 1.47 seconds at 393,920,512-byte maximum RSS. The declared estimate/ceiling are
+  673,972,224/1,073,741,824 bytes under exact NumPy 2.4.6 identity. All moment checks pass, covariance RMSE is 0.00752 amplitude
+  squared, and 2,727,936 Poisson residuals have mean -0.00119 and second moment 0.99993. Output
+  SHA-256 is `956211a290cf4a8d781ef2be4ac61dc59d0cba4085c503e885f90e0dc14b3e6c`.
+- The combined focused command passes agreement and sensitivity in 22.29 and 51.42 seconds; after
+  correcting the calibration backend identity from NumPyro to the NumPy generator actually used,
+  its identity-final focused test passes in 3.37 seconds. Focused warning-denied Clippy, package no-default CLI
+  compilation, worker `py_compile`, affected-file Rustfmt, and `git diff --check` pass. `ssh mini
+  'cd ...v30-replicated-multitype-lgcp-promotion && shasum -a 256 -c bundle_sha256.txt'` verifies
+  all 14 sealed files, including the durable fit and three promotion results.
+- At this three-workflow stabilization boundary, `cargo +1.96.0 fmt --all --check`, `cargo +1.96.0
+  clippy --locked --workspace --all-targets --all-features -- -D warnings`, `cargo +1.96.0 check
+  --locked --workspace --no-default-features`, `cargo +1.96.0 test --locked --workspace --doc
+  --all-features`, and `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --workspace
+  --all-features --no-deps` pass. The documented macOS Nextest/full-integration loader loop was not
+  run. No feature matrix, benchmark, fuzzing, memory tool, packaging, dependency audit, push,
+  publication, deployment, or history rewrite ran.

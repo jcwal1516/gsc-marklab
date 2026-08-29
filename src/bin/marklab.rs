@@ -438,6 +438,36 @@ fn main() -> marklab::Result<()> {
                     .as_deref()
                     .is_some_and(|subcommand| {
                         subcommand
+                            == std::ffi::OsStr::new(
+                                "replicated-arbitrary-window-multitype-lgcp-prior-calibration",
+                            )
+                    }) =>
+        {
+            bayes::run_replicated_arbitrary_window_multitype_lgcp_prior_calibration_cli()
+                .map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand
+                            == std::ffi::OsStr::new(
+                                "replicated-arbitrary-window-multitype-lgcp-sensitivity",
+                            )
+                    }) =>
+        {
+            bayes::run_replicated_arbitrary_window_multitype_lgcp_sensitivity_cli()
+                .map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand
                             == std::ffi::OsStr::new("replicated-arbitrary-window-lgcp-agreement")
                     }) =>
         {

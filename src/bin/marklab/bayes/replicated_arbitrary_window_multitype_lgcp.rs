@@ -329,6 +329,10 @@ impl Prepared {
     pub(crate) fn request_sha256(&self) -> &str {
         &self.request_sha256
     }
+
+    pub(crate) fn draw_node_type_work(&self) -> u64 {
+        self.request.resources.draw_node_type_work
+    }
 }
 
 pub(super) fn run_cli() -> Result<(), BayesCliError> {
