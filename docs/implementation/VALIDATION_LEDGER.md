@@ -4114,3 +4114,18 @@ vascular transport.
   finds no `renv.lock`, R package metadata, R profile, or R source. No package is installed. The
   checkpoint-157 real grid failure is reused as the exact reason not to run a selected real result.
   Affected formatting, whitespace, direct diff, and status checks pass; no broad gate runs.
+
+## PP-05 estimator-family stabilization checkpoint 166 — 2026-08-29
+
+- `cargo +1.96.0 fmt --all --check` passes.
+- `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings` passes
+  without findings in 56.09 seconds.
+- `cargo +1.96.0 check --locked --workspace --no-default-features` passes.
+- `cargo +1.96.0 test --locked --workspace --doc --all-features` passes all 17 package doctest
+  binaries.
+- `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --workspace --all-features --no-deps`
+  passes and generates the root plus 16 other package documentation trees.
+- The prohibited macOS Nextest/full-integration loop and phase/release-only full feature matrix are
+  not run. Checkpoints 163--165 retain their exact focused/direct/durable/CLI evidence. Final
+  `git diff --check`, direct diff review, and `git status --short` pass with only the user's
+  pre-existing unstaged/untracked changes after commit.

@@ -1589,3 +1589,12 @@ agreement is also unavailable because no repository-pinned R environment or inst
 blocker and advances the exact polygon-overlap prerequisite for PP-06B translation correction
 through the existing homogeneous K/L caller, without adding an overlap framework beyond that
 immediate correction.
+
+## Checkpoint 166 PP-05 estimator-family stabilization
+
+The three-workflow binary-compartment and Gaussian-selection sequence passes one non-loader
+workspace stabilization without findings. Formatting, warning-denied all-target/all-feature
+Clippy, no-default compilation, doctests, and strict docs are current; the documented macOS loader
+loop is not retried. Production next advances only the PP-06B polygon-overlap geometry immediately
+consumed by translation-corrected homogeneous K/L, with an exact rectangle/polygon oracle and hard
+overlap/pair/memory ceilings before any broader correction surface.

@@ -3369,3 +3369,19 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   one boolean assertion form before its final pass. Root no-default compilation, strict affected
   docs, affected formatting, and whitespace checks pass. No broad gate or unpinned package install
   runs.
+
+## PP-05 estimator-family stabilization checkpoint 166 — 2026-08-29
+
+- Stabilized the three related post-checkpoint-162 workflows: exact binary-compartment
+  inhomogeneous K/L, the same estimator/null through compact-support g, and prespecified Gaussian
+  leave-one-out-likelihood bandwidth-selected K/L. Direct review finds no retrospective production
+  cleanup or behavior change required.
+- `cargo +1.96.0 fmt --all --check` passes. Workspace all-target/all-feature warning-denied Clippy
+  passes in 56.09 seconds without findings. Workspace no-default compilation passes. All-feature
+  doctests pass all 17 package binaries, and strict all-feature workspace docs pass.
+- The documented macOS Nextest/full-integration discovery loop is not run. The phase/release-only
+  compile matrix remains inapplicable. Focused behavior, CLI replay, exact blocker, and real
+  nonpromotion evidence remain recorded at checkpoints 163--165. No benchmark, fuzzing, packaging,
+  dependency audit, push, publication, deployment, or history rewrite runs.
+- Final formatting, whitespace, direct diff, and status checks pass. The user's pre-existing CRC
+  outcome and README/package metadata work remains unstaged and unmodified.

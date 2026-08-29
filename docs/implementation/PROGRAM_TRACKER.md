@@ -396,3 +396,12 @@ retains only 37/256 probes; no tuning run is substituted. `Rscript` exists local
 `spatstat.explore` and a pinned R environment do not, so external agreement remains an exact backend
 blocker. PP-05 remains active for pinned agreement and broader calibrated cross-fitting rather than
 another hidden/default selector.
+
+## PP-05 estimator-family stabilization checkpoint 166
+
+The checkpoint-163--165 estimator family passes one workspace non-loader stabilization: formatting,
+warning-denied all-target/all-feature Clippy, no-default compilation, all-feature doctests, and
+strict all-feature docs. No finding changes production or tracker states. The documented macOS
+loader loop and phase/release feature matrix remain excluded. The next implementable dependency is
+PP-06B's exact polygon-overlap translation correction through the existing homogeneous K/L caller;
+pinned PP-05 spatstat agreement remains blocked on an absent repository-owned R environment.
