@@ -2818,3 +2818,48 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   affected files are formatted and whitespace checks pass. This is one ordinary workflow after the
   checkpoint-145 stabilization, so broad gates were not repeated and the prohibited Nextest/full-
   integration loop was not run.
+
+## Final CRC scientific analysis checkpoint 147 — 2026-08-29
+
+- `SCIENCE-CRC-FINAL-01` replaces broad master-plan completion as the completed objective. The final
+  science lane reuses the admitted CPTAC-COAD eight-patient/16-slide/8,192-cell identity-ranked
+  subset, exact 50-micrometre hard-Neoplastic graph signal, raw 1,280-dimensional CellViT tensors,
+  existing TCGA M0--M6, pinned M7, Schuerch H&E/CODEX, and CRC outcome bundles. No threshold, subset,
+  scale, molecular label, or model was selected from the observed result.
+- Every slide now has bounded order-two scattering at 45/50/55 micrometres, deterministic 80% cell
+  subsampling, 1-micrometre coordinate perturbation, witness persistence at 180/200/220 micrometres,
+  four witness perturbations, and a witness cell-subsample result. Two slides remain nested inside
+  each patient. Exact selected tensor rows were recovered from source CellIds and their physical
+  coordinates were checked against the allowlisted CellViT graph tensors before nonspatial means
+  and population SDs were formed.
+- Graph scattering passes cell-subsample, coordinate, and nearby-radius stability summaries but
+  fails the frozen two-slide patient gate: median/q10 leave-one-slide patient-rank Spearman are
+  0.7857/0.2857 against 0.8/0.6. Witness topology is unstable: only 5/16 slide diagnostics pass all
+  coordinate thresholds, cell-subsample and nearby-scale q10 are 0.2417/0.2750, and two-slide
+  median/q10 are 0.6535/0.4048.
+- All standardization and three-component-per-block PCA are fitted inside each patient-held-out
+  training fold. The composition/clinical/nonspatial baseline has balanced accuracy 0.625 with a
+  whole-patient bootstrap interval 0.25--0.875 and exact 70-assignment p=0.3429. Adding graph or
+  topology changes balanced accuracy and nearest-patient group retrieval by exactly zero. Graph-
+  only energy/MMD p-values are 0.485/0.440; topology-only values are 0.906/1.000. Neither block
+  passes the strictly-positive incremental-information gate, so neither is added to fusion.
+- The final interpretation retains rather than dilutes prior evidence: descriptive short-range
+  tumor organization recurs in admitted H&E cohorts, the independent Schuerch H&E CellViT cohort
+  supports its frozen direction-level MSI/MSS score, and TCGA M1 has a positive distance-effect
+  increment. A stable transferable molecular-class fingerprint is not established: TCGA M6,
+  graph/topology increments, Schuerch CODEX class recurrence, and M7 are null-compatible, while
+  graph/topology and the existing M2 grid contain explicit instability.
+- Graph 80, topology 64, and patient-retrieval 32 unique project executions replay byte-identically
+  from fresh backend-disabled processes without new ledger rows. The topology nodes started 128
+  exact pinned-GUDHI backend executions on misses. The retained M7 miss/hit SHA-256 remains
+  `a0d211414e4a8c0b16c2f682d5bb7f85aa9b2b549996a347b9b36f0c595f847a`.
+- The final 1-TB bundle is `/Volumes/1TB/marklab/runs/science-crc-final-01`. All 517 listed artifacts
+  rehash successfully; manifest SHA-256 is
+  `3bd77f27a3f06f2a59d703a6b0335a51d2ba1b55fda1b76aac10e36e29dd5bf9` and interpretation SHA-256
+  is `731668a7693e547f9ccd5d988403321e472242fadc38b5220aa59695b6f5cef2`.
+- Focused Python behavior tests, Python compilation, the affected CLI build, remote bundle
+  verification, and whitespace checks pass. No Rust production package changed, so affected-package
+  Clippy/no-default/docs are not applicable. Checkpoint 145 remains the latest broad workspace
+  stabilization; Nextest, full-workspace tests, broad Clippy/docs, feature matrices, benchmarks,
+  fuzzing, packaging, dependency audits, push, publication, deployment, and history rewriting were
+  not run.

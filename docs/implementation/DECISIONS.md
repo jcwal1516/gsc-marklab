@@ -2593,3 +2593,28 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - Status: accepted for TOP-01/TOP-01A/WF-01/WS-12/WS-63
 - Decision: add direct and durable `witness-persistence-stability` for the immediate admitted 2,000-cell witness caller. Hold exact point IDs, landmark method/count, dimension, `nu`, field, maximum scale, and simplex ceiling fixed; generate 1–32 deterministic SHA-256-seeded independent per-axis coordinate-jitter replicates; execute every request through the existing pinned GUDHI 3.13.0 worker. Report landmark-ID overlap, coverage-radius change, simplex-count L1 change, and per-dimension finite/essential-count and total-persistence changes. Pre-admit backend executions, total point work, aggregate simplex ceiling, and aggregate timeout. Preserve exact backend/lock/worker/request/source/runtime identity and durable replay.
 - Consequences: the prespecified real 1-micrometre/16-replicate diagnostic is unstable: minimum landmark overlap 0.890625 misses 0.90 and maximum total-persistence change 43,950 square micrometres exceeds 10,000, while coverage and simplex-count thresholds pass. Thresholds are not relaxed. Total-persistence change is explicitly not bottleneck distance. This is one-specimen coordinate sensitivity, not patient reproducibility, subsampling/segmentation calibration, molecular association, external validation, biological significance, causality, or clinical utility.
+
+## DEC-0334 — Close the CRC question with frozen patient graph/topology gates
+
+- Date: 2026-08-29
+- Status: accepted for SCIENCE-CRC-FINAL-01 only
+- Decision: reuse the exact provenance-sorted four-MSI/four-MSS, two-slide-per-patient CPTAC subset
+  already fitted by the replicated conditional-mark hierarchy. For each slide, compute the existing
+  order-two hard-Neoplastic scattering at 45/50/55 micrometres, deterministic 80% cell subsampling,
+  and 1-micrometre coordinate perturbation; compute existing pinned-GUDHI witness summaries at
+  180/200/220 micrometres, the same cell subsample, and four coordinate perturbations. Aggregate
+  slides only inside patients. Fit standardization and at most three PCA components per feature
+  block inside every patient-held-out training fold. Compare graph and topology additions against
+  composition, source Age/Gender, and nonspatial CellViT mean/SD features with nearest-centroid and
+  nearest-patient evaluation, all 70 four-versus-four patient-label assignments, 1,000 whole-patient
+  bootstrap replicates, and the existing energy/linear-MMD owners. Reuse the previously frozen M3
+  median/q10 stability thresholds and require a strictly positive held-out balanced-accuracy
+  increment before fusion. Seal existing M0--M7 and external/outcome evidence with the result; do
+  not create a general fingerprint/plugin framework or add a Bayesian model.
+- Consequences: graph scattering is stable to subsampling, coordinate perturbation, and nearby
+  radii but fails nested-slide stability; witness topology fails coordinate and lower-tail
+  subsample/scale/nested-slide checks. Both additions change held-out balanced accuracy by zero, so
+  neither enters fusion. This negative admission result is retained without tuning. The canonical
+  final bundle supports descriptive local H&E organization and one direction-level independent H&E
+  association but does not establish a stable transferable molecular-class spatial fingerprint,
+  causal biology, clinical utility, or shared CODEX/CellViT raw feature space.

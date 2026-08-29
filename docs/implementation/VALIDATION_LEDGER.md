@@ -3526,3 +3526,54 @@ vascular transport.
   `ssh mini 'cd /Volumes/1TB/marklab/runs/results-cellvit-categorical-v39-witness-stability-final
   && shasum -a 256 -c bundle_sha256.txt'` verifies every sealed file. Affected-file Rustfmt and
   `git diff --check` pass; broad workspace gates were not repeated one workflow after checkpoint 145.
+
+## Final CRC scientific analysis checkpoint 147 — 2026-08-29
+
+- Red-first behavior evidence:
+  `target/pymc-venv/bin/python -m unittest tests.python.test_crc_graph_topology_final`
+  first failed because `marklab_crc_graph_topology_final.py` was absent; focused additions then
+  failed on the absent CLI, nonspatial summary, held-out model, and patient-rank stability owners.
+  `target/pymc-venv/bin/python -m unittest tests.python.test_crc_graph_topology_summary` first
+  failed because its summary owner was absent. `target/pymc-venv/bin/python -m unittest
+  tests.python.test_crc_final_science_bundle` first failed because the final sealer was absent.
+- The final focused command
+  `target/pymc-venv/bin/python -m unittest tests.python.test_crc_final_science_bundle
+  tests.python.test_crc_graph_topology_final tests.python.test_crc_graph_topology_summary` passes
+  9/9. `target/pymc-venv/bin/python -m py_compile
+  workers/python/marklab_crc_graph_topology_final.py
+  workers/python/marklab_crc_graph_topology_summary.py
+  workers/python/marklab_crc_final_science_bundle.py` passes.
+- `cargo +1.96.0 build --locked --features cli --bin marklab` passes in 33.82 seconds before the
+  real project executions. No Rust production source changed after checkpoint 146, so there is no
+  affected Rust package for warning-denied Clippy, no-default compilation, or docs.
+- The exact admitted marks were copied read-only from
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v25-replicated-conditional-multitype/inputs/replicated_conditional_multitype_marks.csv`;
+  local SHA-256 `ebecd5a5bf47261bdaeb965255b5b5bfd3f74f6bebf01ca5c5e8447856a7e9c6`
+  matches the source. `prepare --marks ... --out target/science-crc-final/prepared-v1` admits eight
+  patients, 16 slide patterns, and 512 cells per pattern without label-based selection.
+- Six bounded parallel processes ran the existing commands `marklab project
+  sparse-radius-scattering`, `marklab project witness-persistence`, and `marklab project
+  witness-persistence-stability` over the declared requests. Fresh processes with
+  `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1` return 80/80 graph and 64/64 topology hits; every
+  result is byte-identical to its miss output and ledgers remain at 80 and 64 total rows.
+- The allowlisted CellViT extraction ran on the Mac mini through
+  `PYTHONPATH=/Users/user/Bench/CellViT-plus-plus
+  /Users/user/Bench/CellViT-plus-plus/.venv-cellvit/bin/python ... extract-nonspatial` and verifies
+  exact source rows/coordinates for all 16 1,280-dimensional graphs. Provenance SHA-256 is
+  `b86420b55dfba1e72797e654d61fa49d6fa0570e4d65613ba09c058e7e163ce9`.
+- Existing `marklab cohort energy` and `marklab cohort mmd --kernel linear --estimator unbiased`
+  commands complete 999 patient-label permutations for the baseline, graph, topology, augmented,
+  and final admitted blocks. Thirty-two fold-specific `marklab project region-retrieval` misses
+  then replay as 32/32 backend-disabled hits with byte identity and one row per fold ledger. The
+  first declared 64-visit retrieval bound fails before execution as expected because exact work is
+  `(n(n-1)+n)*d`; the corrected explicit 10,000 ceiling is retained and remains far below 250M.
+- `python3 marklab_crc_final_science_bundle.py --canonical
+  /Volumes/1TB/marklab/runs/results-crc-spatial-fingerprint-v1 --graph
+  /Volumes/1TB/marklab/runs/science-crc-final-01-work-v1 --outcome
+  /Volumes/1TB/marklab/runs/crc-spatial-phenotype-outcome-01-v3 --out
+  /Volumes/1TB/marklab/runs/science-crc-final-01` passes. The independent read-only verifier hashes
+  all 517 manifest artifacts with zero errors. Manifest SHA-256 is
+  `3bd77f27a3f06f2a59d703a6b0335a51d2ba1b55fda1b76aac10e36e29dd5bf9`.
+- Checkpoint 145 remains the latest broad workspace stabilization. No Nextest/full-integration
+  loop, workspace-wide test/Clippy/docs, feature matrix, benchmark, fuzzing, memory tool, packaging,
+  dependency audit, push, publication, deployment, or history rewrite ran.

@@ -1364,3 +1364,19 @@ perturbation diagnostic, but patient replication, subsampling/segmentation stabi
 metric comparison, and pathology-linked endpoints remain. Production next advances the smallest
 patient-replicated graph/topology endpoint using admitted specimen identities; UI/server/client/
 remote execution remain deferred.
+
+## Checkpoint 147 SCIENCE-CRC-FINAL-01 completion
+
+The patient-replicated graph/topology endpoint is complete on the frozen eight-patient/16-slide
+CPTAC subset and is sealed with the existing TCGA M0--M6, pinned M7, Schuerch H&E/CODEX, and CRC
+outcome evidence. Graph and witness-topology blocks are excluded from fusion by their prespecified
+individual gates: neither adds patient-held-out balanced accuracy, graph fails nested-slide
+stability, and topology fails coordinate and lower-tail subsample/scale/nested-slide stability.
+The final interpretation supports descriptive local H&E spatial organization and one independent
+direction-level H&E association, but not a stable transferable molecular-class fingerprint.
+
+The user explicitly replaced broad master-plan completion with this scientific objective. No next
+software capability is promoted here. General project/plugin infrastructure, sparse eigensolvers,
+unrelated Bayesian families, mechanistic simulation/SBI, UI/workbench/server/client/collaboration,
+remote execution, packaging, release work, and broader hardening remain deferred unless separately
+authorized.

@@ -264,3 +264,13 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | WS-A | complete | Alias grouping for implementation control and baseline preservation closed. |
 | WS-B | complete | Alias grouping for workspace replatforming and compatibility shell closed. |
 | WS-C | planned | Initial substrate slices through C-06 exist; broader marks/interchange/source promotion remain in total scope after the active classical workflow. |
+
+## SCIENCE-CRC-FINAL-01 checkpoint 147
+
+The CRC scientific objective is complete without changing broader master-plan state. Existing TCGA
+M0--M6, pinned M7, compatible Schuerch H&E, orthogonal Schuerch CODEX, and outcome evidence are
+sealed with a bounded patient-replicated graph/topology analysis. The new graph and topology blocks
+do not enter fusion because both have zero held-out incremental balanced accuracy and fail at least
+one frozen stability gate. Exact unavailable lanes and acquisition-site identity blockers are
+retained. Broader active/planned/blocked master-plan entries are intentionally not promoted by this
+science-only checkpoint.
