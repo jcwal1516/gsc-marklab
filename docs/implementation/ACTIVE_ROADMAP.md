@@ -1352,3 +1352,15 @@ stabilization without retrying the prohibited integration/Nextest loop. FR-01B/G
 active for sparse eigensolvers/bases, replicated patient evidence, and broader physical/segmentation
 perturbations. Production next advances the smallest admitted replicated topology stability or
 patient-level graph endpoint; UI/server/client/remote work remains deferred.
+
+## Checkpoint 146 witness-topology stability continuation
+
+The admitted 2,000-cell/64-landmark GUDHI witness workflow now has exact zero-jitter identity,
+bounded deterministic physical coordinate perturbations, typed direct/durable execution, and
+backend-disabled replay. Its prespecified 16-replicate 1-micrometre result is unstable: landmark
+overlap and total-persistence change fail their fixed thresholds while coverage-radius and simplex-
+count changes pass. TOP-01/TOP-01A/WS-63 no longer lack every pathology-scale coordinate-
+perturbation diagnostic, but patient replication, subsampling/segmentation stability, bottleneck-
+metric comparison, and pathology-linked endpoints remain. Production next advances the smallest
+patient-replicated graph/topology endpoint using admitted specimen identities; UI/server/client/
+remote execution remain deferred.

@@ -222,6 +222,82 @@ pub struct WitnessPersistenceResult {
     pub claim_status: String,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WitnessPersistenceStabilitySpec {
+    pub points: Vec<TopologyPointInput>,
+    pub landmark_method: LandmarkMethod,
+    pub landmark_count: usize,
+    pub maximum_dimension: usize,
+    pub nu: usize,
+    pub max_scale_um: f64,
+    pub coefficient_field: u32,
+    pub maximum_simplices: usize,
+    pub timeout_seconds: u64,
+    pub perturbation_replicates: usize,
+    pub maximum_coordinate_jitter_um: f64,
+    pub seed: u64,
+    pub minimum_landmark_id_match_fraction: f64,
+    pub maximum_coverage_radius_change_um: f64,
+    pub maximum_simplex_count_l1_change: u64,
+    pub maximum_total_persistence_change_um_squared: f64,
+    pub maximum_backend_executions: u64,
+    pub maximum_total_point_work: u64,
+    pub maximum_total_simplex_budget: u64,
+    pub maximum_total_timeout_seconds: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WitnessDimensionStabilityResult {
+    pub dimension: usize,
+    pub finite_pair_count_change: u64,
+    pub essential_count_change: u64,
+    pub total_persistence_change_um_squared: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WitnessPerturbationStabilityResult {
+    pub replicate: usize,
+    pub request_sha256: String,
+    pub maximum_coordinate_displacement_um: f64,
+    pub landmark_id_match_fraction: f64,
+    pub coverage_radius_change_um: f64,
+    pub simplex_count_l1_change: u64,
+    pub by_dimension: Vec<WitnessDimensionStabilityResult>,
+    pub maximum_total_persistence_change_um_squared: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WitnessPersistenceStabilityResult {
+    pub format: String,
+    pub version: u32,
+    pub statistical_unit: String,
+    pub perturbation_rule: String,
+    pub finite_result_policy: String,
+    pub seed: u64,
+    pub perturbation_replicates: usize,
+    pub maximum_coordinate_jitter_um: f64,
+    pub minimum_landmark_id_match_fraction_allowed: f64,
+    pub maximum_coverage_radius_change_um_allowed: f64,
+    pub maximum_simplex_count_l1_change_allowed: u64,
+    pub maximum_total_persistence_change_um_squared_allowed: f64,
+    pub baseline: WitnessPersistenceResult,
+    pub perturbations: Vec<WitnessPerturbationStabilityResult>,
+    pub minimum_landmark_id_match_fraction: f64,
+    pub maximum_coverage_radius_change_um: f64,
+    pub maximum_simplex_count_l1_change: u64,
+    pub maximum_total_persistence_change_um_squared: f64,
+    pub backend_executions: u64,
+    pub total_point_work: u64,
+    pub total_simplex_budget: u64,
+    pub total_timeout_seconds: u64,
+    pub stable_under_declared_thresholds: bool,
+    pub claim_status: String,
+}
+
 #[derive(Debug, Error)]
 pub enum TopologyError {
     #[error("invalid topology specification: {0}")]

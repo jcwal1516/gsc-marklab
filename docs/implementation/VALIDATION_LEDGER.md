@@ -3502,3 +3502,27 @@ vascular transport.
 - Final affected-file Rustfmt and `git diff --check` pass. The documented macOS Nextest/full-
   integration loop was not run; no feature matrix, benchmark, fuzzing, packaging, dependency audit,
   push, publication, deployment, or history rewrite ran.
+
+## Witness-persistence coordinate stability checkpoint 146 — 2026-08-29
+
+- `cargo +1.96 test --locked --package marklab --features cli --test
+  topology_witness_persistence_stability_cli` first fails on the absent command, then its first
+  compile rejects an unowned direct `sha2` import. Reusing `marklab-topology`'s canonical SHA-256
+  owner preserves the dependency boundary; the final test passes exact two-replicate zero-jitter
+  identity and one-short aggregate point-work rejection.
+- `cargo +1.96 test --locked --package marklab --features cli --test
+  durable_gudhi_witness_stability_project` first fails on the absent project command and passes in
+  the final state with miss, fresh-process `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1` hit, byte
+  identity, and one ledger row. `cargo +1.96 test --locked --package marklab-topology` passes. The
+  final focused command over legacy/new direct and durable witness targets passes 4/4 integrations.
+- The first Mac-mini standalone execution fails before project creation with missing exact pinned
+  path `/Users/user/Bench/gsc-marklab/workers/python/uv.lock`; its stderr is retained. The unchanged
+  SHA-256-identified input executes through the existing local pinned GUDHI environment: all 17
+  backend runs complete in 31.34 seconds at 48,824,320-byte maximum RSS, 34,000 point-work, and an
+  8,500,000-simplex aggregate ceiling. The fixed diagnostic is unstable at 0.890625 minimum landmark
+  overlap and 43,950.386-square-micrometre maximum total-persistence change.
+- A fresh backend-disabled process reports `cache_status=hit`; `cmp` passes and the ledger remains
+  one row. Result SHA-256 is `883d07beed9916a250b41ad57899ecbba31940ae5c0b6096646677fa7cea0326`.
+  `ssh mini 'cd /Volumes/1TB/marklab/runs/results-cellvit-categorical-v39-witness-stability-final
+  && shasum -a 256 -c bundle_sha256.txt'` verifies every sealed file. Affected-file Rustfmt and
+  `git diff --check` pass; broad workspace gates were not repeated one workflow after checkpoint 145.

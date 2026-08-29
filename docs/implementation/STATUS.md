@@ -2789,3 +2789,32 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   tests revalidated one iterator-form cleanup before its final pass. The documented macOS Nextest/
   full-integration loop was not run; no feature matrix, benchmark, fuzzing, packaging, dependency
   audit, push, publication, deployment, or history rewrite ran.
+
+## Witness-persistence coordinate stability checkpoint 146 — 2026-08-29
+
+- Added direct and durable `witness-persistence-stability` through the existing pinned GUDHI 3.13.0
+  environment and worker. It fixes exact point IDs and all witness controls, generates 1–32
+  deterministic SHA-256-seeded independent per-axis physical perturbations, and reports landmark-ID
+  overlap, coverage-radius change, simplex-count L1 change, and per-dimension finite/essential-count
+  and total-persistence changes. Backend execution, total point work, aggregate simplex ceiling,
+  aggregate timeout, finite-result, source, request, runtime, and artifact bounds are explicit.
+- The five-point zero-jitter oracle executes three exact GUDHI requests and requires identity across
+  every reported diagnostic; a one-short 15-point aggregate budget is rejected before backend start.
+  The durable integration proves miss, fresh-process backend-disabled hit, byte identity, and one
+  execution row. Existing direct/durable witness tests remain green.
+- The real 2,000-cell/64-landmark, 16-replicate, 1-micrometre diagnostic is truthfully unstable.
+  Minimum landmark overlap is 0.890625 against a fixed 0.90 threshold, and maximum per-dimension
+  total-persistence change is 43,950.386 square micrometres against 10,000. Maximum coverage change
+  1.65024 micrometres and simplex-count L1 change 13 pass their fixed 5/100 thresholds. Total-
+  persistence change is not described as bottleneck distance, and thresholds were not changed.
+- The remote standalone binary first fails before project creation because its compile-time pinned
+  `/Users/user/Bench/gsc-marklab/workers/python/uv.lock` path is absent on the Mac mini. That exact
+  stderr is retained. The SHA-identified 2,000-point input then executes in this checkout's existing
+  pinned environment in 31.34 seconds at 48,824,320-byte maximum RSS. A fresh backend-disabled
+  process returns the byte-identical hit with one ledger row. Result SHA-256 is
+  `883d07beed9916a250b41ad57899ecbba31940ae5c0b6096646677fa7cea0326`; the complete project is
+  hash-sealed back on the 1-TB drive as `results-cellvit-categorical-v39-witness-stability-final`.
+- Focused topology package and all four existing/new direct/durable witness integrations pass;
+  affected files are formatted and whitespace checks pass. This is one ordinary workflow after the
+  checkpoint-145 stabilization, so broad gates were not repeated and the prohibited Nextest/full-
+  integration loop was not run.
