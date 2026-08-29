@@ -3286,3 +3286,32 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   checkpoints 154/156/157/159/160/161. No successful expensive gate is repeated.
 - Final formatting, whitespace, direct diff, and status checks pass. No benchmark, fuzzing, DHAT,
   RSS, packaging, dependency audit, push, publication, deployment, or history rewrite runs.
+
+## Piecewise binary-compartment intensity/K-L checkpoint 163 — 2026-08-29
+
+- Added `analyze_piecewise_compartment_spatial_pattern`, its durable typed node, and `marklab
+  project piecewise-compartment-spatial` as the second explicit PP-05 estimator and immediate PP-02
+  K/L caller. It reuses the exact oriented `BinaryCompartmentPartition2D`, shared standard-border
+  inverse-intensity pair accumulator, scheduler, artifact store, ledger/recovery, native runtime
+  identity, exact-float codec, and result-format 0.3 compatibility shell.
+- Each observed event persists `(n_c-1)/area_c`, its exact role/compartment/count/training-count,
+  and the oriented partition digest. Both compartments require at least two events; interface
+  events are rejected. Null patterns fix the two observed compartment counts and sample uniformly
+  within the corresponding exact polygon windows under a new deterministic seed namespace. Point,
+  radius, membership-query, pair-visit, null-draw, boundary-segment/input, and retained-memory
+  ceilings are explicit.
+- The unequal-count rectangle oracle uses two stroma and three tumor events over equal 50-square-
+  micrometre areas, independently loops over boundary-eligible directed pairs, and agrees on every
+  center/pair inverse-intensity sum and K/L value. Interface, sparse-compartment, one-short query,
+  and one-short null-draw failures are covered. Durable evidence proves deterministic replay, seed
+  and role-order invalidation, fresh-process miss/hit byte identity, and one ledger row.
+- Bounded read-only admission checks find only whole `window.geojson` artifacts in
+  `science-crc-final-01-v4` and no mask/compartment/GeoJSON files in the admitted v25 multitype
+  input directory. A real piecewise run is therefore unavailable because no provenance-complete
+  segment-aligned binary polygon tessellation exists; categorical CellViT labels are not converted
+  into invented geometry.
+- Twelve focused new/affected K/L/g tests pass. Warning-denied affected Clippy, root no-default
+  compilation, strict affected docs, affected formatting, and whitespace checks pass. Checkpoint
+  162 remains the latest broad stabilization; no workspace-wide/Nextest loop, feature matrix,
+  benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history rewrite
+  runs.

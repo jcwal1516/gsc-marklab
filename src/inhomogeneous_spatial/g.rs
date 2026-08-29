@@ -199,7 +199,7 @@ fn evaluate_g(
                 if visitor_error.is_some() {
                     return;
                 }
-                if let Err(error) = counters.charge_pair(base) {
+                if let Err(error) = counters.charge_pair(base.limits.maximum_pair_visits) {
                     visitor_error = Some(error);
                     return;
                 }

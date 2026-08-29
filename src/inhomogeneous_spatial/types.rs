@@ -267,6 +267,17 @@ pub enum InhomogeneousSpatialError {
     PairVisitLimitExceeded { maximum: usize },
     #[error("inhomogeneous null draws exceeded maximum {maximum}")]
     NullDrawLimitExceeded { maximum: usize },
+    #[error("inhomogeneous compartment queries exceeded maximum {maximum}")]
+    CompartmentQueryLimitExceeded { maximum: usize },
+    #[error("point row {row} lies exactly on the declared compartment interface")]
+    PointOnCompartmentInterface { row: usize },
+    #[error(
+        "compartment {compartment_id} has {observed} events; leave-one-out intensity requires at least two"
+    )]
+    SparseCompartment {
+        compartment_id: String,
+        observed: usize,
+    },
     #[error("inhomogeneous workflow requires {required} retained bytes; maximum is {maximum}")]
     RetainedByteLimitExceeded { required: usize, maximum: usize },
     #[error("inhomogeneous workflow allocation failed")]

@@ -4037,3 +4037,33 @@ vascular transport.
   or history rewrite command runs.
 - `git diff --check`, direct diff review, and `git status --short` pass with only the user's
   pre-existing unstaged/untracked CRC outcome changes remaining after the stabilization commit.
+
+## Piecewise binary-compartment intensity/K-L checkpoint 163 — 2026-08-29
+
+- Red-first direct evidence: `cargo +1.96.0 test --locked --package marklab --test
+  piecewise_compartment_spatial_typed_workflow -- --nocapture` fails on the absent public estimator,
+  role, config, and limits, then passes 3/3 after implementation. The direct-loop unequal-count
+  oracle and interface/sparse/query/draw boundaries are included.
+- Red-first durable evidence: `cargo +1.96.0 test --locked --package marklab --test
+  piecewise_compartment_spatial_project_workflow -- --nocapture` fails on the absent node, then
+  passes miss/hit, byte-equivalent typed output, one ledger row, seed invalidation, and oriented-role
+  invalidation.
+- Red-first CLI evidence: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  piecewise_compartment_spatial_project_cli -- --nocapture` fails with `unrecognized subcommand
+  'piecewise-compartment-spatial'`, then passes a fresh miss and fresh backend-disabled hit with
+  byte-identical output and one ledger row.
+- The final affected command over the three new tests plus existing
+  `inhomogeneous_spatial_{typed,project}_workflow` and
+  `inhomogeneous_pair_correlation_{typed,project}_workflow` passes 12/12. This revalidates the
+  Gaussian K/L and g paths after the shared pair accumulator is narrowed to radii plus pair ceiling.
+- `cargo +1.96.0 clippy --locked --package marklab --features cli --lib --bin marklab` with the same
+  seven integration targets and `-- -D warnings` first reports one complex envelope tuple. The
+  focused piecewise tests pass again after replacing it with a named internal summary, and the exact
+  warning-denied Clippy command then passes. `cargo +1.96.0 check --locked --package marklab
+  --no-default-features` passes. `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --package
+  marklab --features cli --no-deps` passes.
+- `ssh mini` read-only `jq` filtering of the final-v4 manifest lists only whole observation
+  `window.geojson` artifacts. A bounded `find` under the admitted v25 multitype input directory
+  returns no mask, compartment, or GeoJSON file. Real exact-partition evidence is recorded
+  unavailable rather than synthesized. Affected formatting and final whitespace/diff/status checks
+  pass; no broad gate runs.

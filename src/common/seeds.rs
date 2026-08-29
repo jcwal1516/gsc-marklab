@@ -18,6 +18,7 @@ pub(crate) enum SeedEndpoint {
     NearestSpaceCsr = 0x6667_6a5f_6373_725f,
     PairCorrelationCsr = 0x7061_6972_5f67_6373,
     InhomogeneousSpatialNull = 0x696e_686f_6d5f_6e75,
+    PiecewiseCompartmentSpatialNull = 0x7063_5f63_6d70_5f6e,
 }
 
 /// Derive a stable seed from a base seed, endpoint namespace, and run index.
@@ -77,6 +78,7 @@ mod tests {
             SeedEndpoint::NearestSpaceCsr,
             SeedEndpoint::PairCorrelationCsr,
             SeedEndpoint::InhomogeneousSpatialNull,
+            SeedEndpoint::PiecewiseCompartmentSpatialNull,
         ];
         let mut seeds = endpoints
             .into_iter()

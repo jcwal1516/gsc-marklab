@@ -18,11 +18,11 @@ pub(super) struct Evaluation {
 pub(super) fn evaluate_curve(
     plan: &SpatialGeometryPlan2D,
     intensities: &[f64],
-    config: &InhomogeneousSpatialConfig,
+    radii_um: &[f64],
+    maximum_pair_visits: usize,
     counters: &mut Counters,
 ) -> Result<Evaluation, InhomogeneousSpatialError> {
-    let width = config
-        .radii_um
+    let width = radii_um
         .len()
         .checked_add(1)
         .ok_or(InhomogeneousSpatialError::SizeOverflow)?;
@@ -37,7 +37,7 @@ pub(super) fn evaluate_curve(
     let mut weight_end_corrections = zeroed_vec::<f64>(width)?;
     let mut center_inverse_sum = 0.0;
     let mut center_inverse_correction = 0.0;
-    let maximum_radius = config.radii_um[config.radii_um.len() - 1];
+    let maximum_radius = radii_um[radii_um.len() - 1];
     let starting_visits = counters.pair_visits;
     for source in 0..intensities.len() {
         let inverse_source = 1.0 / intensities[source];
@@ -46,9 +46,7 @@ pub(super) fn evaluate_curve(
             &mut center_inverse_correction,
             inverse_source,
         );
-        let end = config
-            .radii_um
-            .partition_point(|radius| *radius <= plan.boundary_distances()[source]);
+        let end = radii_um.partition_point(|radius| *radius <= plan.boundary_distances()[source]);
         eligible_ends[end] = eligible_ends[end]
             .checked_add(1)
             .ok_or(InhomogeneousSpatialError::SizeOverflow)?;
@@ -58,7 +56,7 @@ pub(super) fn evaluate_curve(
             inverse_source,
         );
         let query_radius = maximum_radius.min(plan.boundary_distances()[source]);
-        if query_radius < config.radii_um[0] {
+        if query_radius < radii_um[0] {
             continue;
         }
         let mut visitor_error = None;
@@ -67,14 +65,12 @@ pub(super) fn evaluate_curve(
                 if visitor_error.is_some() {
                     return;
                 }
-                if let Err(error) = counters.charge_pair(config) {
+                if let Err(error) = counters.charge_pair(maximum_pair_visits) {
                     visitor_error = Some(error);
                     return;
                 }
-                let start = config
-                    .radii_um
-                    .partition_point(|radius| *radius < neighbor.distance_um);
-                if start >= end || start >= config.radii_um.len() {
+                let start = radii_um.partition_point(|radius| *radius < neighbor.distance_um);
+                if start >= end || start >= radii_um.len() {
                     return;
                 }
                 pair_starts[start] = match pair_starts[start].checked_add(1) {
@@ -123,11 +119,11 @@ pub(super) fn evaluate_curve(
     let mut values = Vec::new();
     let mut eligible = Vec::new();
     points
-        .try_reserve_exact(config.radii_um.len())
-        .and_then(|()| values.try_reserve_exact(config.radii_um.len()))
-        .and_then(|()| eligible.try_reserve_exact(config.radii_um.len()))
+        .try_reserve_exact(radii_um.len())
+        .and_then(|()| values.try_reserve_exact(radii_um.len()))
+        .and_then(|()| eligible.try_reserve_exact(radii_um.len()))
         .map_err(|_| InhomogeneousSpatialError::AllocationFailed)?;
-    for (index, radius_um) in config.radii_um.iter().copied().enumerate() {
+    for (index, radius_um) in radii_um.iter().copied().enumerate() {
         eligible_centers = eligible_centers
             .checked_sub(eligible_ends[index])
             .ok_or(InhomogeneousSpatialError::SizeOverflow)?;

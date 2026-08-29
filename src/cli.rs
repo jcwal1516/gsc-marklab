@@ -70,6 +70,8 @@ mod inhomogeneous_spatial;
 mod multimodal;
 #[path = "cli/nearest_space.rs"]
 mod nearest_space;
+#[path = "cli/piecewise_compartment_spatial.rs"]
+mod piecewise_compartment_spatial;
 #[path = "cli/prepost.rs"]
 mod prepost;
 #[path = "cli/profile.rs"]
@@ -494,6 +496,42 @@ enum ProjectCommands {
         #[arg(long)]
         max_null_draws: usize,
     },
+    PiecewiseCompartmentSpatial {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        cells: PathBuf,
+        #[arg(long)]
+        observation_mask: PathBuf,
+        #[arg(long)]
+        negative_mask: PathBuf,
+        #[arg(long)]
+        positive_mask: PathBuf,
+        #[arg(long)]
+        negative_compartment_id: String,
+        #[arg(long)]
+        positive_compartment_id: String,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long, value_delimiter = ',')]
+        radii_um: Vec<f64>,
+        #[arg(long)]
+        simulations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        max_boundary_segments: usize,
+        #[arg(long)]
+        max_compartment_queries: usize,
+        #[arg(long)]
+        max_pair_visits: usize,
+        #[arg(long)]
+        max_null_draws: usize,
+    },
     InhomogeneousPairCorrelation {
         #[arg(long)]
         project: PathBuf,
@@ -852,6 +890,45 @@ pub fn run_cli() -> Result<()> {
                 maximum_pair_visits: max_pair_visits,
                 maximum_null_draws: max_null_draws,
             }),
+            ProjectCommands::PiecewiseCompartmentSpatial {
+                project,
+                cells,
+                observation_mask,
+                negative_mask,
+                positive_mask,
+                negative_compartment_id,
+                positive_compartment_id,
+                out,
+                radii_um,
+                simulations,
+                seed,
+                alpha,
+                memory_budget_mib,
+                max_boundary_segments,
+                max_compartment_queries,
+                max_pair_visits,
+                max_null_draws,
+            } => {
+                piecewise_compartment_spatial::run_project(piecewise_compartment_spatial::Request {
+                    project,
+                    cells,
+                    observation_mask,
+                    negative_mask,
+                    positive_mask,
+                    negative_compartment_id,
+                    positive_compartment_id,
+                    out,
+                    radii_um,
+                    simulations,
+                    seed,
+                    alpha,
+                    memory_budget_mib,
+                    maximum_boundary_segments: max_boundary_segments,
+                    maximum_compartment_queries: max_compartment_queries,
+                    maximum_pair_visits: max_pair_visits,
+                    maximum_null_draws: max_null_draws,
+                })
+            }
             ProjectCommands::InhomogeneousPairCorrelation {
                 project,
                 cells,

@@ -57,7 +57,8 @@ pub fn analyze_inhomogeneous_spatial_pattern(
     let mut observed = evaluate_curve(
         &observed_plan,
         &fitted.observed_intensities,
-        config,
+        &config.radii_um,
+        config.limits.maximum_pair_visits,
         &mut counters,
     )?;
     let observed_pair_visits = observed.pair_visits;
@@ -87,7 +88,13 @@ pub fn analyze_inhomogeneous_spatial_pattern(
             evaluate_fixed_intensities(&x, &y, pattern, &fitted, config, &mut counters)?;
         let plan =
             SpatialGeometryPlan2D::new(&x, &y, window, geometry_limits).map_err(dependency)?;
-        let evaluated = evaluate_curve(&plan, &intensities, config, &mut counters)?;
+        let evaluated = evaluate_curve(
+            &plan,
+            &intensities,
+            &config.radii_um,
+            config.limits.maximum_pair_visits,
+            &mut counters,
+        )?;
         for (joint, current) in jointly_eligible.iter_mut().zip(&evaluated.eligible) {
             *joint &= *current;
         }
@@ -169,15 +176,15 @@ impl Counters {
 
     pub(super) fn charge_pair(
         &mut self,
-        config: &InhomogeneousSpatialConfig,
+        maximum_pair_visits: usize,
     ) -> Result<(), InhomogeneousSpatialError> {
         self.pair_visits = self
             .pair_visits
             .checked_add(1)
             .ok_or(InhomogeneousSpatialError::SizeOverflow)?;
-        if self.pair_visits > config.limits.maximum_pair_visits {
+        if self.pair_visits > maximum_pair_visits {
             return Err(InhomogeneousSpatialError::PairVisitLimitExceeded {
-                maximum: config.limits.maximum_pair_visits,
+                maximum: maximum_pair_visits,
             });
         }
         Ok(())

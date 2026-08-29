@@ -2909,3 +2909,28 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   cross-g-only balanced accuracy is 0.125 with exact p=0.9714 and the increment beyond M0--M3 is
   -0.25 with interval [-0.625, 0]. Minimum adjusted endpoint p is 0.921. The block is
   `nonincremental_not_promoted` and is not fused.
+
+## DEC-0349 — Add exact binary-compartment piecewise intensity through inhomogeneous K/L
+
+- Date: 2026-08-29
+- Status: accepted for PP-02/PP-05/FND-02/FND-03/FND-06/PLAT-01/WF-01/WS-12/WS-22/WS-30
+- Decision: add a separately named piecewise-constant binary-compartment intensity estimator and
+  consume it immediately in standard-border inhomogeneous K/L. For each observed event in
+  compartment `c`, persist the leave-one-out value `(n_c - 1) / area_c`; require at least two
+  events in both exact compartments and reject observed events exactly on the shared interface.
+  Condition the location null on both observed compartment counts and sample each count uniformly
+  inside its exact polygonal compartment with one new deterministic seed namespace. Persist the
+  oriented partition, event rows, estimator/cross-fit/null identities, configuration, native
+  runtime, exact-float output, and explicit point/radius/compartment-query/pair/draw/memory limits.
+  Expose only `marklab project piecewise-compartment-spatial`; do not add an estimator registry or
+  change the Gaussian result family.
+- Consequences: unequal-count analytic evidence (two events over 50 square micrometres versus three
+  over 50) independently recomputes every observed inverse-intensity center/pair sum and K/L value.
+  Interface, sparse-compartment, one-short query, and one-short null-draw boundaries fail
+  explicitly. Direct and durable tests prove deterministic results, seed and oriented-partition
+  cache invalidation, fresh-process miss/hit byte identity, and one ledger row. The shared K/L pair
+  accumulator now accepts only radii and its pair ceiling, leaving Gaussian output bytes and
+  policies unchanged. A bounded read-only admission check finds only whole observation windows in
+  the final CRC manifest and no compartment/mask files in the admitted v25 multitype inputs, so a
+  provenance-complete real binary tessellation remains unavailable and no CellViT labels are
+  converted into invented geometry.

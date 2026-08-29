@@ -269,6 +269,14 @@ impl BinaryCompartmentPartition2D {
     pub(crate) fn observation_window(&self) -> &ObservationWindow2D {
         &self.observation
     }
+
+    pub(crate) fn negative_window(&self) -> &ObservationWindow2D {
+        &self.negative
+    }
+
+    pub(crate) fn positive_window(&self) -> &ObservationWindow2D {
+        &self.positive
+    }
 }
 
 type SegmentKey = [u64; 4];

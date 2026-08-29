@@ -1553,3 +1553,15 @@ promoted into this non-phase checkpoint. No gate finding requires production cha
 next advances PP-05's second explicit intensity estimator only through the existing exact binary
 compartment owner and immediate K/L/g callers; if no provenance-complete real partition is
 admitted, real evidence remains a named data blocker rather than an invented compartment.
+
+## Checkpoint 163 piecewise binary-compartment intensity/K-L
+
+The exact oriented binary partition now supplies a second PP-05 intensity estimator to a complete
+direct, durable, and project-CLI inhomogeneous K/L workflow. Event intensity is explicitly
+leave-one-out within compartment, the null fixes both compartment counts, interface events and
+sparse roles fail, and observed/null work and retained memory are bounded. Fresh processes prove
+miss/hit byte identity and one ledger execution; seed and role order invalidate the cache. The
+sealed CRC manifest contains only whole observation windows and the admitted multitype inputs have
+no compartment polygon files, so real execution is unavailable without fabricating a tessellation.
+Production next applies this same exact estimator/null artifact to the existing inhomogeneous g
+owner; it must reuse the current compact-support pair pass rather than duplicate pair mathematics.
