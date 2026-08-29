@@ -3780,3 +3780,26 @@ vascular transport.
   137 total files include the manifest. `SHA256SUMS` hashes to
   `bf6cc998ce8709f766a5ef9c984a28defe8d09265922f16b218f14478ec46e14`.
   Whitespace and direct diff checks pass. No broad or specialized workspace gate runs.
+
+## Multiclass soft pair-mixing checkpoint 154 — 2026-08-29
+
+- Red-first evidence: `cargo +1.96.0 test --locked --package marklab --test
+  soft_pair_mixing_workflow --no-default-features -- --nocapture` first fails solely because
+  `soft_pair_mixing` and its typed node/config/limits do not exist after two test-fixture type errors
+  are corrected. The exact target passes after implementation.
+- The final focused command covering `soft_pair_mixing_workflow`,
+  `soft_neighborhood_composition_workflow`, and `probability_simplex_composition_workflow` passes
+  7/7 under no-default features. The new analytic oracle recovers 0.5 observed A↔B probability,
+  0.125 null probability, enrichment 4, and 1/12 A→A null; a maximum of one pair visit rejects when
+  two are required. Durable miss/hit equality and one execution row pass.
+- `cargo +1.96.0 clippy --locked --package marklab --no-default-features --lib --test
+  soft_pair_mixing_workflow -- -D warnings` passes. `cargo +1.96.0 check --locked --package marklab
+  --no-default-features` and `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --package marklab
+  --no-default-features --no-deps` pass. Affected formatting and whitespace checks pass.
+- Read-only Mac mini inspection of the admitted representative 3,247-cell JSON confirms keys
+  `bbox`, `cell_status`, `centroid`, `contour`, `edge_information`, `edge_position`, `offset_global`,
+  `patch_coordinates`, `type`, and `type_prob`; only `type_prob` is probabilistic. The paired graph
+  has tensors `x`, `positions`, and metadata keys `nuclei_types`/`wsi_metadata`. A complete ordered
+  class probability vector is absent, so no real soft-multiclass run is claimed.
+- No workspace-wide test/Clippy/docs, Nextest/full integration, feature matrix, benchmark, fuzzing,
+  memory, packaging, dependency, push, publication, deployment, or history-rewrite command runs.

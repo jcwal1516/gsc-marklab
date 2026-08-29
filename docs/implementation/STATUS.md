@@ -3046,3 +3046,28 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - Focused patient and existing preparation tests, Python compilation, formatting, remote complete
   rehash, whitespace, diff, and status checks pass. No broad workspace gate is rerun at this
   ordinary milestone.
+
+## Multiclass soft pair-mixing checkpoint 154 — 2026-08-29
+
+- Added public `soft_pair_mixing` and a durable analysis node over the existing complete
+  probability-simplex MarkTable column, exact framed observation window, and spatial geometry plan.
+  Every directed physical-radius pair contributes the full class outer product. The result retains
+  ordered source/target class identities, expected mass, pair probability, exact complete-row
+  without-replacement random-label probability, and typed enrichment only for positive null mass.
+  No row is thresholded, sampled, renormalized, or collapsed.
+- The independent hand oracle uses four complete three-class rows with only A↔B inside radius. It
+  recovers observed A→B and B→A probabilities 0.5, null probability 0.125, enrichment 4.0, and A→A
+  null probability 1/12. A one-short pair ceiling fails at two visits. Durable execution reports a
+  miss then an identical hit with one ledger row.
+- Explicit ceilings cover points, classes, simplex values, directed visits, all observed-plus-null
+  probability products, retained matrix/geometry memory, scheduler output, and project artifacts.
+  Replay validation checks exact request identities, matrix ordering, finite/range/ratio relations,
+  aggregate simplex mass within the existing `1e-5` row tolerance, and derived work counts.
+- Read-only admission on the authorized representative CPTAC CellViT slide confirms 3,247 cell
+  records with keys including `type` and scalar `type_prob`, but no complete class probability
+  vector. The paired `.pt` graph contains only embeddings, positions, hard `nuclei_types`, and WSI
+  metadata. Real multiclass soft-pair evidence is therefore unavailable; no one-hot or invented
+  residual-class vector is substituted.
+- The focused new test and affected probability-simplex composition/neighborhood tests pass 7/7.
+  Warning-denied affected Clippy, no-default compilation, strict affected docs, formatting, and
+  whitespace checks pass. No broad workspace gate runs at this ordinary milestone.

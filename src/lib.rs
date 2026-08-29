@@ -80,6 +80,8 @@ mod soft_multiscale_neighborhood;
 mod soft_multiscale_neighborhood_workflow;
 mod soft_neighborhood_composition;
 mod soft_neighborhood_composition_workflow;
+mod soft_pair_mixing;
+mod soft_pair_mixing_workflow;
 mod spatial_autocorrelation;
 mod spatial_autocorrelation_workflow;
 mod spectra;
@@ -484,6 +486,11 @@ pub use soft_neighborhood_composition::{
     SoftNeighborhoodCompositionResult, SoftNeighborhoodCompositionRow,
 };
 pub use soft_neighborhood_composition_workflow::SoftNeighborhoodCompositionAnalysisNode;
+pub use soft_pair_mixing::{
+    soft_pair_mixing, SoftPairMixingCell, SoftPairMixingConfig, SoftPairMixingError,
+    SoftPairMixingLimits, SoftPairMixingResult,
+};
+pub use soft_pair_mixing_workflow::SoftPairMixingAnalysisNode;
 pub use spatial_autocorrelation::{
     global_geary_permutation, global_moran_permutation, GlobalGearyAlternative, GlobalGearyDesign,
     GlobalGearyError, GlobalGearyLimits, GlobalGearyResult, GlobalMoranAlternative,

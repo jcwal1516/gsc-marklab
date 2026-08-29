@@ -2745,3 +2745,23 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   remains unstable and the topological block is not promoted or fused. This closes the immediate
   patient-replication gap negatively without claiming absence of topology, biological mechanism,
   causality, clinical utility, external validation, or transportability.
+
+## DEC-0341 — Preserve complete soft class identity in pair mixing
+
+- Date: 2026-08-29
+- Status: accepted for FND-03/FND-04/MRK-02C/WF-01/WS-12/WS-23/WS-30
+- Decision: add `soft_pair_mixing` and a durable `SoftPairMixingAnalysisNode` for one complete
+  ordered probability-simplex MarkTable column at one physical radius. For every directed radius
+  pair, accumulate the full source-by-target outer product without thresholding, sampling labels,
+  renormalizing rows, or collapsing classes. Report expected pair mass and probability, the exact
+  without-replacement complete-row random-label probability, and a typed enrichment ratio only
+  where its null denominator is positive. Bind exact declared mark/window/frame/radius/graph/config
+  identities and cap points, classes, simplex values, pair visits, probability products, retained
+  bytes, and durable output. Keep this descriptive; patient-level inference remains a separate
+  caller.
+- Consequences: a three-class analytic oracle recovers directed A→B and B→A probability 0.5,
+  without-replacement expectation 0.125, and enrichment 4.0; a one-short pair bound fails and the
+  durable result reopens as a one-ledger hit. The authorized CPTAC CellViT records expose only hard
+  `type` plus scalar winning-class `type_prob`, not a complete ordered class-probability vector, so
+  real multiclass soft-pair evidence is unavailable without fabrication. Hard labels are not
+  substituted and leftover mass is not invented.

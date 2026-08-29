@@ -1451,3 +1451,14 @@ catalog expansion stops until an independently stable filtration or external pat
 admitted. Production next advances the smallest uncertainty-bearing multiclass mark statistic with
 an existing CellViT probability-simplex caller, reusing the current MarkTable, spatial plan,
 scheduler, artifact store, and patient-valid inference rather than adding a mark framework.
+
+## Checkpoint 154 multiclass soft pair-mixing continuation
+
+Complete probability-simplex rows now flow through a bounded exact source-by-target pair matrix,
+without-replacement null expectation, and durable replay without thresholding or sampled labels.
+The admitted CellViT exports contain only the winning class and its scalar confidence, so the real
+multiclass simplex lane is named unavailable rather than fabricated. MRK-02C no longer lacks the
+production multiclass expected-pair statistic. Production next advances the existing hard
+multiclass categorical pair curves to the frozen patient subset with patient-unit multiplicity and
+incremental-value checks; it must reuse the current categorical pair owner and cohort inference,
+not create another pair engine or endpoint registry.
