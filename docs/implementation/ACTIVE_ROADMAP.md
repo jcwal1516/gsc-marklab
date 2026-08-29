@@ -1496,3 +1496,15 @@ not satisfy pinned external agreement, multiple estimators/corrections, compartm
 stable scale policy. Do not tune this result. The next broad-goal continuation should select another
 immediate scientific caller rather than generalize estimator or project infrastructure from this
 failure.
+
+## Checkpoint 158 SCIENCE-CRC-FINAL-01 final seal
+
+The science-only objective supersedes broad software expansion. The canonical
+`/Volumes/1TB/marklab/runs/science-crc-final-01-v4` bundle now includes every previously sealed
+M0--M7, graph/topology, outcome, external-validation, one-specimen bottleneck, patient bottleneck,
+and completed patient hard-pair artifact. All 1,905 listed artifacts rehash. The newly incorporated
+hard-pair block is lower-tail unstable, nonincremental, null-compatible, and excluded from fusion;
+all 64 backend-disabled hits remain byte-identical with one ledger row each. The scientific
+conclusion is unchanged and SCIENCE-CRC-FINAL-01 is complete. No general Marklab method,
+infrastructure, Bayesian, simulation/SBI, UI/server/client, packaging, release, or hardening outcome
+is promoted next.

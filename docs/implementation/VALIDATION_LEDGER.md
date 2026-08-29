@@ -3897,3 +3897,30 @@ vascular transport.
   whitespace checks pass. No workspace-wide test/Clippy/docs, Nextest/full integration, feature
   matrix, benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history
   rewrite runs.
+
+## SCIENCE-CRC-FINAL-01 final seal checkpoint 158 — 2026-08-29
+
+- Red-first: `target/pymc-venv/bin/python -m unittest
+  tests.python.test_crc_final_science_bundle.CrcFinalScienceBundleTest.test_categorical_pair_addendum_revalidates_patient_replay_and_nonpromotion`
+  first errors with `AttributeError` because `categorical_pair_addendum` is absent. After the narrow
+  validator is implemented, the test passes and deliberate hit corruption is rejected.
+- `target/pymc-venv/bin/python -m unittest tests.python.test_crc_final_science_bundle
+  tests.python.test_crc_categorical_pair_patient` passes 5/5. `target/pymc-venv/bin/python -m
+  py_compile workers/python/marklab_crc_final_science_bundle.py
+  workers/python/marklab_crc_categorical_pair_patient.py` passes.
+- The sealer runs once on `ssh mini` with the existing canonical, graph/topology, outcome, v48
+  bottleneck, v49 patient-bottleneck, and v50 patient hard-pair sources and writes only
+  `/Volumes/1TB/marklab/runs/science-crc-final-01-v4`. No scientific workflow or external backend
+  reruns. The final validator code then passes read-only against the remote v50 source and reports
+  eight patients, 16 patterns, 64 verified hits, and `unstable_nonincremental_not_added`.
+- Independent `jq` manifest expansion piped to `shasum -a 256 -c -` verifies all 1,905 artifacts;
+  1,906 files include the manifest. Manifest and interpretation SHA-256 values are
+  `1fe3dbeec3de956f2cdd6a9e67f8ccd983ae26301bfe44383fbb42a525b4f2b2` and
+  `34f29d358deeac520facfd0cd644fc800461c2af049e89424d0d053ed35023ed`.
+  All 64 copied pair ledgers contain one row; the interpretation retains 64 verified misses and 64
+  backend-disabled byte-identical hits, the -0.25 held-out increment with interval [-0.625, 0.25],
+  and exclusion from fusion.
+- Affected formatting, whitespace, direct diff, and status checks pass. Checkpoint 145 remains the
+  broad workspace baseline; no workspace-wide/Nextest loop, Bayesian backend, feature matrix,
+  benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history rewrite
+  runs.

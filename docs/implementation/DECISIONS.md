@@ -2833,3 +2833,23 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   4.36e-9 to 4.22e12 per square micrometre. The minimum attainable 19-draw global p=0.05 is not
   promoted. This exact window/grid/bandwidth result is an unreliable real-scale diagnostic, not
   evidence for interaction or a reason to tune hidden defaults.
+
+## DEC-0345 — Seal the completed patient hard-pair result into the final CRC bundle
+
+- Date: 2026-08-29
+- Status: accepted for SCIENCE-CRC-FINAL-01
+- Decision: extend only the existing CRC final sealer with an optional `--categorical-pair`
+  source. Before copying it, revalidate the frozen eight-patient/16-slide identities, exact
+  prepared-input digests, four prespecified pair families, all 64 miss/hit digests and byte
+  comparisons, all 64 one-row project ledgers, six-process ceiling, backend-disabled replay
+  evidence, patient nesting, fold-internal preprocessing, whole-patient permutation, step-down
+  Max-T, stability, incremental-information, and site-identity blocker. Preserve bundle schema 1.0
+  and result-format 0.3, and preserve option-absent behavior. Classify the result as null, unstable,
+  and nonincremental; do not promote it into fusion or rerun any completed analysis.
+- Consequences: `/Volumes/1TB/marklab/runs/science-crc-final-01-v4` contains 1,905 independently
+  rehashed artifacts plus its manifest. The pair-only balanced accuracy is 0.25, its exact
+  whole-patient permutation p-value is 0.8857, and adding the block to M0--M3 changes balanced
+  accuracy by -0.25 with interval [-0.625, 0.25]. Nested-slide stability median/q10 remains
+  0.762/0.433 and the minimum adjusted endpoint p-value remains 0.44. All 64 backend-disabled hits
+  are byte-identical with one ledger row each. The overall scientific conclusion is unchanged: a
+  stable transferable molecular-class spatial fingerprint is not established.

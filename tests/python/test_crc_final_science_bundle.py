@@ -238,6 +238,244 @@ class CrcFinalScienceBundleTest(unittest.TestCase):
             with self.assertRaisesRegex(module.BundleError, "replay bytes differ"):
                 module.patient_witness_bottleneck_addendum(root)
 
+    def test_categorical_pair_addendum_revalidates_patient_replay_and_nonpromotion(self):
+        module = load_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "prepared").mkdir()
+            (root / "execution" / "results").mkdir(parents=True)
+            (root / "execution" / "replay").mkdir()
+            (root / "execution" / "projects").mkdir()
+            (root / "summary").mkdir()
+            manifest_rows = []
+            patient_rows = []
+            miss_records = []
+            hit_records = []
+            pairs = (
+                ("Connective", "Neoplastic"),
+                ("Inflammatory", "Neoplastic"),
+                ("Neoplastic", "Connective"),
+                ("Neoplastic", "Inflammatory"),
+            )
+            for patient_index in range(8):
+                patient = f"P{patient_index + 1}"
+                group = "MSI" if patient_index < 4 else "MSS"
+                patient_rows.append(
+                    {
+                        "cohort": "CPTAC_COAD_CellViT",
+                        "patient_id": patient,
+                        "group": group,
+                        "feature": "pair.r20um",
+                        "value": float(patient_index),
+                    }
+                )
+                for slide_index in range(2):
+                    pattern = f"{patient}-S{slide_index + 1}"
+                    pattern_root = root / "prepared" / "patterns" / pattern
+                    pattern_root.mkdir(parents=True)
+                    cells = pattern_root / "cells.csv"
+                    window = pattern_root / "window.geojson"
+                    cells.write_text(
+                        "x_um,y_um,histologic_compartment\n0,0,Neoplastic\n",
+                        encoding="utf-8",
+                    )
+                    window.write_text("{}\n", encoding="utf-8")
+                    manifest_rows.append(
+                        {
+                            "pattern_id": pattern,
+                            "patient_id": patient,
+                            "group": group,
+                            "cell_count": 512,
+                            "cells": f"patterns/{pattern}/cells.csv",
+                            "window": f"patterns/{pattern}/window.geojson",
+                            "source_payload_sha256": "0" * 64,
+                            "prepared_cells_sha256": module.sha256(cells),
+                            "prepared_window_sha256": module.sha256(window),
+                        }
+                    )
+                    for source, target in pairs:
+                        pair = f"{source.lower()}-to-{target.lower()}"
+                        miss = (
+                            root
+                            / "execution"
+                            / "results"
+                            / pair
+                            / f"{pattern}.json"
+                        )
+                        hit = (
+                            root
+                            / "execution"
+                            / "replay"
+                            / pair
+                            / f"{pattern}.json"
+                        )
+                        miss.parent.mkdir(parents=True, exist_ok=True)
+                        hit.parent.mkdir(parents=True, exist_ok=True)
+                        payload = (
+                            json.dumps(
+                                {
+                                    "format": "marklab.categorical-pair/1",
+                                    "pattern_id": pattern,
+                                    "pair": pair,
+                                    "source_level": source,
+                                    "target_level": target,
+                                },
+                                sort_keys=True,
+                            )
+                            + "\n"
+                        ).encode()
+                        miss.write_bytes(payload)
+                        hit.write_bytes(payload)
+                        ledger = root / "execution" / "projects" / pattern / pair
+                        ledger.mkdir(parents=True)
+                        (ledger / "executions.jsonl").write_text(
+                            "{}\n", encoding="utf-8"
+                        )
+                        digest = hashlib.sha256(payload).hexdigest()
+                        common = {
+                            "pattern_id": pattern,
+                            "source_level": source,
+                            "target_level": target,
+                            "result_sha256": digest,
+                            "replay_bytes_equal": True,
+                            "ledger_execution_count": 1,
+                        }
+                        miss_records.append(
+                            {
+                                **common,
+                                "cache_status": "miss",
+                                "result": f"results/{pair}/{pattern}.json",
+                            }
+                        )
+                        hit_records.append(
+                            {
+                                **common,
+                                "cache_status": "hit",
+                                "result": f"replay/{pair}/{pattern}.json",
+                            }
+                        )
+            with (root / "prepared" / "manifest.csv").open(
+                "w", newline="", encoding="utf-8"
+            ) as target:
+                writer = csv.DictWriter(target, fieldnames=list(manifest_rows[0]))
+                writer.writeheader()
+                writer.writerows(manifest_rows)
+            with (root / "summary" / "patient_fingerprints.csv").open(
+                "w", newline="", encoding="utf-8"
+            ) as target:
+                writer = csv.DictWriter(target, fieldnames=list(patient_rows[0]))
+                writer.writeheader()
+                writer.writerows(patient_rows)
+            (root / "prepared" / "design.json").write_text(
+                json.dumps(
+                    {
+                        "population_unit": "patient",
+                        "pattern_unit": "slide_nested_within_patient",
+                        "patient_count": 8,
+                        "pattern_count": 16,
+                        "patterns_per_patient": 2,
+                        "selection_uses_molecular_label": False,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            summary = {
+                "schema_name": "marklab_crc_categorical_pair_patient_summary",
+                "schema_version": "1.0",
+                "population_unit": "patient",
+                "pattern_unit": "slide_nested_within_patient",
+                "patient_count": 8,
+                "pattern_count": 16,
+                "declared_endpoint_count": 32,
+                "admitted_endpoint_count": 21,
+                "nested_slide_stability": {"median": 0.76, "q10": 0.43},
+                "models": {
+                    "categorical_pair_only": {
+                        "balanced_accuracy": 0.25,
+                        "whole_patient_permutation": {
+                            "assignment_count": 70,
+                            "p_value_inclusive_exact": 0.88,
+                        },
+                    },
+                    "m0_m3_nonspatial": {"balanced_accuracy": 0.625},
+                    "m0_m3_categorical_pair": {"balanced_accuracy": 0.375},
+                },
+                "incremental_information": {
+                    "balanced_accuracy_increment": -0.25,
+                    "whole_patient_bootstrap_interval_95": [-0.625, 0.25],
+                },
+                "population_max_t": {
+                    "endpoints": [
+                        {"adjusted_p_value": 0.44 + 0.01 * index}
+                        for index in range(21)
+                    ]
+                },
+                "durable_replay": {
+                    "miss_count": 64,
+                    "backend_disabled_hit_count": 64,
+                    "all_result_bytes_equal": True,
+                    "all_ledgers_one_execution": True,
+                },
+                "leakage_checks": {
+                    "patient_held_out": True,
+                    "preprocessing_inside_each_training_fold": True,
+                    "slides_nested_inside_patients": True,
+                    "site_held_out": "unavailable_exact_blocker_no_acquisition_site_field_in_admitted_CPTAC_manifest",
+                },
+                "claim_limitations": ["eight-patient resource-feasible exploratory subset"],
+            }
+            (root / "summary" / "summary.json").write_text(
+                json.dumps(summary), encoding="utf-8"
+            )
+            (root / "RESULTS.md").write_text(
+                "Replay used `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1`.\n",
+                encoding="utf-8",
+            )
+            for filename, replay, records, status in (
+                ("execution_manifest.json", False, miss_records, "miss"),
+                ("replay_manifest.json", True, hit_records, "hit"),
+            ):
+                (root / "execution" / filename).write_text(
+                    json.dumps(
+                        {
+                            "schema_name": "marklab_crc_categorical_pair_patient_execution",
+                            "schema_version": "1.0",
+                            "population_unit": "patient",
+                            "replay": replay,
+                            "job_count": 64,
+                            "maximum_processes": 6,
+                            "cache_status_counts": {status: 64},
+                            "all_replay_bytes_equal": True,
+                            "all_ledgers_one_execution": True,
+                            "binary_sha256": "1" * 64,
+                            "records": records,
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+            addendum = module.categorical_pair_addendum(root)
+
+            self.assertEqual(addendum["patient_count"], 8)
+            self.assertEqual(addendum["durable_replay"]["verified_hit_count"], 64)
+            self.assertEqual(
+                addendum["incremental_information"]["balanced_accuracy_increment"],
+                -0.25,
+            )
+            self.assertEqual(
+                addendum["fusion_status"], "unstable_nonincremental_not_added"
+            )
+            corrupted_hit = (
+                root
+                / "execution"
+                / "replay"
+                / "connective-to-neoplastic"
+                / "P1-S1.json"
+            )
+            corrupted_hit.write_text("{}\n", encoding="utf-8")
+            with self.assertRaisesRegex(module.BundleError, "digest or ledger proof differs"):
+                module.categorical_pair_addendum(root)
+
 
 if __name__ == "__main__":
     unittest.main()

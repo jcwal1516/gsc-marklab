@@ -3162,3 +3162,28 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   `5e2af34ed49a52d1a044ae8f75442ad622f9477c0e0b311c417bbbdfad00cd74`. Six affected direct/durable
   tests, warning-denied Clippy, no-default compilation, affected formatting, remote rehash, and
   whitespace checks pass. No broad workspace gate runs.
+
+## SCIENCE-CRC-FINAL-01 final seal checkpoint 158 — 2026-08-29
+
+- The previously interrupted witness-persistence work was already complete at checkpoints 151 and
+  155: 16 patient misses and 16 backend-disabled byte-identical hits, one row per ledger, with the
+  observed 0/8 stable result and essential-count mismatches retained outside fusion. It was not
+  rerun.
+- Extended only the final CRC sealer with optional patient hard-pair evidence completed after the
+  v3 seal. The sealer independently revalidates eight patient and 16 nested-slide identities,
+  prepared-input digests, four prespecified pair families, 64 miss/hit digests and byte comparisons,
+  64 one-row ledgers, six-process bound, backend-disabled replay, fold-internal preprocessing,
+  whole-patient inference, stability, incremental information, and the acquisition-site blocker.
+- The final bundle is `/Volumes/1TB/marklab/runs/science-crc-final-01-v4`. All 1,905 manifest
+  artifacts independently rehash and 1,906 files include the manifest. Manifest SHA-256 is
+  `1fe3dbeec3de956f2cdd6a9e67f8ccd983ae26301bfe44383fbb42a525b4f2b2`; interpretation SHA-256 is
+  `34f29d358deeac520facfd0cd644fc800461c2af049e89424d0d053ed35023ed`.
+- The added pair block remains null, lower-tail unstable, and nonincremental: pair-only balanced
+  accuracy 0.25, exact patient-label p=0.8857, increment beyond M0--M3 -0.25 with interval
+  [-0.625, 0.25], nested-slide median/q10 0.762/0.433, and minimum step-down adjusted p=0.44. It is
+  not fused. The final conclusion remains that descriptive local CRC H&E organization is supported,
+  while a stable transferable molecular-class spatial fingerprint is not established.
+- Focused sealer/patient tests, Python compilation, one remote seal, independent complete manifest
+  rehash, bundle identity, interpretation, replay-count, ledger-count, formatting, whitespace,
+  diff, and status checks pass. No completed scientific analysis, Bayesian backend, or broad
+  checkpoint gate reruns. SCIENCE-CRC-FINAL-01 is complete; no general capability is promoted.

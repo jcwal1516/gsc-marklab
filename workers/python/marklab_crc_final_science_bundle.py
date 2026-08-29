@@ -358,6 +358,261 @@ def patient_witness_bottleneck_addendum(root: Path) -> dict[str, object]:
     }
 
 
+def categorical_pair_addendum(root: Path) -> dict[str, object]:
+    """Revalidate the patient-unit hard categorical-pair workflow and replay."""
+    prepared = root / "prepared"
+    execution_root = root / "execution"
+    summary_root = root / "summary"
+    design = read_json(prepared / "design.json")
+    summary = read_json(summary_root / "summary.json")
+    miss_manifest = read_json(execution_root / "execution_manifest.json")
+    hit_manifest = read_json(execution_root / "replay_manifest.json")
+    manifest_rows = _csv_rows(prepared / "manifest.csv")
+    patient_rows = _csv_rows(summary_root / "patient_fingerprints.csv")
+    results_path = root / "RESULTS.md"
+    if (
+        not results_path.is_file()
+        or results_path.is_symlink()
+        or "MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1"
+        not in results_path.read_text(encoding="utf-8")
+    ):
+        raise BundleError("categorical pair backend-disabled replay evidence is absent")
+    if (
+        design.get("population_unit") != "patient"
+        or design.get("pattern_unit") != "slide_nested_within_patient"
+        or design.get("patient_count") != 8
+        or design.get("pattern_count") != 16
+        or design.get("selection_uses_molecular_label") is not False
+        or summary.get("schema_name")
+        != "marklab_crc_categorical_pair_patient_summary"
+        or summary.get("schema_version") != "1.0"
+        or summary.get("population_unit") != "patient"
+        or summary.get("pattern_unit") != "slide_nested_within_patient"
+        or summary.get("patient_count") != 8
+        or summary.get("pattern_count") != 16
+    ):
+        raise BundleError("categorical pair design or summary identity differs")
+
+    patterns: dict[str, tuple[str, str]] = {}
+    patterns_by_patient: dict[str, list[str]] = {}
+    groups: dict[str, str] = {}
+    for row in manifest_rows:
+        pattern = row.get("pattern_id", "")
+        patient = row.get("patient_id", "")
+        group = row.get("group", "")
+        if (
+            not pattern
+            or Path(pattern).name != pattern
+            or not patient
+            or group not in {"MSI", "MSS"}
+            or pattern in patterns
+            or row.get("cell_count") != "512"
+            or groups.setdefault(patient, group) != group
+        ):
+            raise BundleError("categorical pair manifest identity differs")
+        cells = _relative_regular_file(prepared, row.get("cells"), "cells")
+        window = _relative_regular_file(prepared, row.get("window"), "window")
+        if (
+            row.get("prepared_cells_sha256") != sha256(cells)
+            or row.get("prepared_window_sha256") != sha256(window)
+        ):
+            raise BundleError("categorical pair prepared input digest differs")
+        patterns[pattern] = (patient, group)
+        patterns_by_patient.setdefault(patient, []).append(pattern)
+    group_counts = {
+        group: sum(patient_group == group for patient_group in groups.values())
+        for group in set(groups.values())
+    }
+    if (
+        len(patterns) != 16
+        or len(groups) != 8
+        or group_counts != {"MSI": 4, "MSS": 4}
+        or any(
+            len(patient_patterns) != 2
+            for patient_patterns in patterns_by_patient.values()
+        )
+    ):
+        raise BundleError("categorical pair patient nesting or group balance differs")
+
+    fingerprint_identity = {
+        (row.get("patient_id", ""), row.get("group", "")) for row in patient_rows
+    }
+    if (
+        {patient for patient, _ in fingerprint_identity} != set(groups)
+        or any(groups.get(patient) != group for patient, group in fingerprint_identity)
+    ):
+        raise BundleError("categorical pair patient fingerprints differ from the manifest")
+
+    pair_families = {
+        ("Connective", "Neoplastic"),
+        ("Inflammatory", "Neoplastic"),
+        ("Neoplastic", "Connective"),
+        ("Neoplastic", "Inflammatory"),
+    }
+    expected_keys = {
+        (pattern, source, target)
+        for pattern in patterns
+        for source, target in pair_families
+    }
+
+    def validate_execution(
+        document: dict[str, Any], replay: bool
+    ) -> dict[tuple[str, str, str], dict[str, Any]]:
+        expected_status = "hit" if replay else "miss"
+        records = document.get("records")
+        if (
+            document.get("schema_name")
+            != "marklab_crc_categorical_pair_patient_execution"
+            or document.get("schema_version") != "1.0"
+            or document.get("population_unit") != "patient"
+            or document.get("replay") is not replay
+            or document.get("job_count") != 64
+            or document.get("maximum_processes") not in range(1, 7)
+            or document.get("cache_status_counts") != {expected_status: 64}
+            or document.get("all_replay_bytes_equal") is not True
+            or document.get("all_ledgers_one_execution") is not True
+            or not isinstance(document.get("binary_sha256"), str)
+            or len(document["binary_sha256"]) != 64
+            or not isinstance(records, list)
+            or len(records) != 64
+        ):
+            raise BundleError("categorical pair execution identity or bounds differ")
+        validated: dict[tuple[str, str, str], dict[str, Any]] = {}
+        for row in records:
+            if not isinstance(row, dict):
+                raise BundleError("categorical pair execution row is malformed")
+            key = (
+                row.get("pattern_id"),
+                row.get("source_level"),
+                row.get("target_level"),
+            )
+            if key not in expected_keys or key in validated:
+                raise BundleError(
+                    "categorical pair execution identity is absent or duplicated"
+                )
+            result = _relative_regular_file(execution_root, row.get("result"), "result")
+            digest = sha256(result)
+            pattern, source, target = key
+            result_document = read_json(result)
+            pair = f"{source.lower()}-to-{target.lower()}"
+            ledger = execution_root / "projects" / pattern / pair / "executions.jsonl"
+            ledger_count = (
+                sum(
+                    bool(line.strip())
+                    for line in ledger.read_text(encoding="utf-8").splitlines()
+                )
+                if ledger.is_file() and not ledger.is_symlink()
+                else 0
+            )
+            if (
+                row.get("cache_status") != expected_status
+                or row.get("result_sha256") != digest
+                or result_document.get("format") != "marklab.categorical-pair/1"
+                or result_document.get("source_level") != source
+                or result_document.get("target_level") != target
+                or row.get("replay_bytes_equal") is not True
+                or row.get("ledger_execution_count") != 1
+                or ledger_count != 1
+            ):
+                raise BundleError("categorical pair result digest or ledger proof differs")
+            validated[key] = {"path": result, "sha256": digest}
+        if set(validated) != expected_keys:
+            raise BundleError("categorical pair execution family is incomplete")
+        return validated
+
+    misses = validate_execution(miss_manifest, False)
+    hits = validate_execution(hit_manifest, True)
+    if miss_manifest["binary_sha256"] != hit_manifest["binary_sha256"]:
+        raise BundleError("categorical pair runtime identity differs across replay")
+    for key, miss in misses.items():
+        hit = hits[key]
+        if (
+            miss["sha256"] != hit["sha256"]
+            or miss["path"].read_bytes() != hit["path"].read_bytes()
+        ):
+            raise BundleError(f"categorical pair replay bytes differ for {key[0]}")
+
+    stability = summary.get("nested_slide_stability")
+    models = summary.get("models")
+    increment = summary.get("incremental_information")
+    max_t = summary.get("population_max_t")
+    replay_summary = summary.get("durable_replay")
+    leakage = summary.get("leakage_checks")
+    interval = (
+        increment.get("whole_patient_bootstrap_interval_95")
+        if isinstance(increment, dict)
+        else None
+    )
+    pair_model = (
+        models.get("categorical_pair_only") if isinstance(models, dict) else None
+    )
+    permutation = (
+        pair_model.get("whole_patient_permutation")
+        if isinstance(pair_model, dict)
+        else None
+    )
+    endpoints = max_t.get("endpoints") if isinstance(max_t, dict) else None
+    if (
+        not isinstance(stability, dict)
+        or not isinstance(models, dict)
+        or not isinstance(increment, dict)
+        or not isinstance(interval, list)
+        or len(interval) != 2
+        or increment.get("balanced_accuracy_increment", 1.0) > 0.0
+        or interval[0] > interval[1]
+        or not isinstance(pair_model, dict)
+        or not isinstance(permutation, dict)
+        or permutation.get("assignment_count") != math.comb(8, 4)
+        or not isinstance(endpoints, list)
+        or len(endpoints) != summary.get("admitted_endpoint_count")
+        or any(not isinstance(endpoint, dict) for endpoint in endpoints)
+        or not isinstance(replay_summary, dict)
+        or replay_summary.get("miss_count") != 64
+        or replay_summary.get("backend_disabled_hit_count") != 64
+        or replay_summary.get("all_result_bytes_equal") is not True
+        or replay_summary.get("all_ledgers_one_execution") is not True
+        or not isinstance(leakage, dict)
+        or leakage.get("patient_held_out") is not True
+        or leakage.get("preprocessing_inside_each_training_fold") is not True
+        or leakage.get("slides_nested_inside_patients") is not True
+        or not str(leakage.get("site_held_out", "")).startswith(
+            "unavailable_exact_blocker_"
+        )
+    ):
+        raise BundleError("categorical pair stability, inference, or leakage evidence differs")
+    adjusted_p_values = [endpoint.get("adjusted_p_value") for endpoint in endpoints]
+    if any(
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or not 0.0 <= value <= 1.0
+        for value in adjusted_p_values
+    ):
+        raise BundleError("categorical pair Max-T result is invalid")
+    return {
+        "statistical_unit": "patient",
+        "pattern_unit": "slide_nested_within_patient",
+        "patient_count": 8,
+        "pattern_count": 16,
+        "declared_endpoint_count": summary["declared_endpoint_count"],
+        "admitted_endpoint_count": summary["admitted_endpoint_count"],
+        "nested_slide_stability": stability,
+        "pair_only_model": pair_model,
+        "incremental_information": increment,
+        "minimum_step_down_max_t_adjusted_p_value": min(adjusted_p_values),
+        "fusion_status": "unstable_nonincremental_not_added",
+        "durable_replay": {
+            "verified_miss_count": 64,
+            "verified_hit_count": 64,
+            "all_result_bytes_equal": True,
+            "all_ledgers_one_execution": True,
+            "backend_execution_disabled_on_hits": True,
+        },
+        "leakage_checks": leakage,
+        "claim_limitations": summary["claim_limitations"],
+    }
+
+
 def _copy_file(source: Path, staging: Path, relative: str) -> None:
     if not source.is_file() or source.is_symlink():
         raise BundleError(f"required regular artifact is absent: {source}")
@@ -434,6 +689,11 @@ def build(arguments: argparse.Namespace) -> None:
         if arguments.patient_witness_bottleneck is not None
         else None
     )
+    categorical_pair = (
+        arguments.categorical_pair.resolve()
+        if arguments.categorical_pair is not None
+        else None
+    )
     output = arguments.out.resolve()
     if output.exists() or output.is_symlink():
         raise BundleError(f"output already exists: {output}")
@@ -458,6 +718,11 @@ def build(arguments: argparse.Namespace) -> None:
     patient_bottleneck_addendum = (
         patient_witness_bottleneck_addendum(patient_witness_bottleneck)
         if patient_witness_bottleneck is not None
+        else None
+    )
+    categorical_pair_result = (
+        categorical_pair_addendum(categorical_pair)
+        if categorical_pair is not None
         else None
     )
     cohort_tests = {
@@ -620,6 +885,32 @@ def build(arguments: argparse.Namespace) -> None:
         interpretation["durable_replay"]["patient_witness_bottleneck"] = (
             patient_bottleneck_addendum["durable_replay"]
         )
+    if categorical_pair_result is not None:
+        interpretation["unstable"].append(
+            {
+                "finding": "prespecified hard CellViT pair curves were lower-tail unstable across nested slides and are not promoted into the fused fingerprint",
+                "stability": categorical_pair_result["nested_slide_stability"],
+            }
+        )
+        interpretation["null"].append(
+            {
+                "finding": "patient hard-categorical pair curves did not improve held-out MSI/MSS classification beyond composition, technical covariates, and nonspatial CellViT embeddings",
+                "pair_only_model": categorical_pair_result["pair_only_model"],
+                "incremental_information": categorical_pair_result[
+                    "incremental_information"
+                ],
+                "minimum_step_down_max_t_adjusted_p_value": categorical_pair_result[
+                    "minimum_step_down_max_t_adjusted_p_value"
+                ],
+            }
+        )
+        interpretation["durable_replay"]["patient_categorical_pair"] = (
+            categorical_pair_result["durable_replay"]
+        )
+        interpretation["overall_conclusion"] = (
+            interpretation["overall_conclusion"]
+            + " Prespecified hard-categorical pair curves were likewise lower-tail unstable and reduced held-out balanced accuracy, so they were retained without fusion."
+        )
     staging = output.with_name(f".{output.name}.{os.getpid()}.tmp")
     if staging.exists() or staging.is_symlink():
         raise BundleError(f"staging path already exists: {staging}")
@@ -655,6 +946,12 @@ def build(arguments: argparse.Namespace) -> None:
             staging,
             "graph_topology/patient_witness_bottleneck",
         )
+    if categorical_pair is not None:
+        _copy_tree(
+            categorical_pair,
+            staging,
+            "patient_spatial/categorical_pair",
+        )
     write_json(staging / "scientific_interpretation.json", interpretation)
     files = sorted(path for path in staging.rglob("*") if path.is_file())
     manifest = {
@@ -679,6 +976,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--outcome", required=True, type=Path)
     parser.add_argument("--witness-bottleneck", type=Path)
     parser.add_argument("--patient-witness-bottleneck", type=Path)
+    parser.add_argument("--categorical-pair", type=Path)
     parser.add_argument("--out", required=True, type=Path)
     return parser.parse_args()
 

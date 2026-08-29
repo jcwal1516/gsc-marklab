@@ -317,3 +317,13 @@ grid-operation identity and backend-disabled replay are verified. The fixed 16x1
 for the disconnected 12-component window and produces an extreme intensity range, so the result is
 retained without promotion or tuning. PP-02, PLAT-01/WF-01, and WS-12/WS-30 advance but remain
 active.
+
+## SCIENCE-CRC-FINAL-01 checkpoint 158 final seal
+
+The final v4 bundle adds the already completed eight-patient hard-categorical pair evidence to all
+previously sealed M0--M7, graph/topology, external, outcome, and exact-bottleneck evidence without
+rerunning any analysis. The sealer verifies 64 misses, 64 backend-disabled byte-identical hits, 64
+one-row ledgers, patient nesting, held-out/permutation/Max-T inference, stability, and leakage
+blockers. The block is null-compatible, lower-tail unstable, and nonincremental, so fusion remains
+unchanged. All 1,905 manifest artifacts rehash. SCIENCE-CRC-FINAL-01 is complete; broader
+master-plan states remain unchanged and no next software workstream is promoted.
