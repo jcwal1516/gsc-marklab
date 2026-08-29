@@ -3079,6 +3079,27 @@ vascular transport.
   finite-state calibration; no feature matrix, benchmark, fuzzing, packaging, dependency audit,
   push, publication, deployment, or history rewrite ran.
 
+## Exact finite-state conditional multitype calibration checkpoint 135 — 2026-08-29
+
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_conditional_multitype_mark_sbc_cli -- --nocapture` first failed on the absent command and
+  passes in the final state. It checks exactly 19,683 states, the analytic `9*ln(3)` zero-parameter
+  log normalizer, 20 exact dispositions, and all ten parameter diagnostics.
+- The final standalone run completes in 19.94 seconds at 1,473,626,112-byte maximum RSS with 20/20
+  complete replicates, no failures, minimum rank-uniformity p-value 0.04872, and 90% coverage
+  0.75–1.00. SHA-256 is `64e933ef674901e2b1ac2cda73bb0ad322be14a93c75fddfe54cdc41ac5edeea`.
+- Python `py_compile` passes for the SBC worker. `ssh mini 'cd ...v21-conditional-multitype-
+  calibration && shasum -a 256 -c calibration_sha256.txt'` passes its three sealed files. Major
+  stabilization commands are recorded below after they run; the documented Nextest/full-integration
+  loader loop remains prohibited. No benchmark, fuzzing, packaging, dependency audit, push,
+  publication, deployment, or history rewrite ran.
+- Major stabilization passes: `cargo +1.96.0 fmt --all --check`; `cargo +1.96.0 clippy --locked
+  --workspace --all-targets --all-features -- -D warnings` in 24.85 seconds; `cargo +1.96.0 check
+  --locked --workspace --no-default-features` in 1.24 seconds; `cargo +1.96.0 test --locked
+  --workspace --doc --all-features` with zero failures; and `RUSTDOCFLAGS='-D warnings' cargo
+  +1.96.0 doc --locked --workspace --all-features --no-deps`. The documented macOS Nextest/full-
+  integration loader loop was not retried, so no full integration result is claimed.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

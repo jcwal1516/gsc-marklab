@@ -2499,3 +2499,26 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   agreement/sensitivity integrations, both worker syntax checks, affected Rustfmt, warning-denied
   affected Clippy, package no-default compilation, checksums, and whitespace checks pass. Exact
   finite-state calibration remains active; broad gates were not repeated before that fifth workflow.
+
+## Exact finite-state conditional multitype calibration checkpoint 135 — 2026-08-29
+
+- Added `conditional-multitype-mark-sbc`. It enumerates all joint label states on a bounded graph,
+  samples exact normalized symmetric Gibbs labels from prior-drawn truths, and refits the same
+  conditional composite pseudoposterior. It retains every disposition and calibrates all free
+  intercepts/potentials plus gauge-invariant affinities under explicit state, enumeration-work,
+  enumeration-byte, iteration, result, and process ceilings.
+- The analytic oracle has nine sites, three types, eight edges, exactly 19,683 states, and
+  zero-parameter log normalizer `9*ln(3)`. All 20 replicates complete. Across ten calibrated
+  quantities, rank-uniformity p-values are 0.0487–0.991 and 90% coverage is 0.75–1.00, clearing the
+  prespecified 0.001 and 0.65–1.00 bounds. The final run completes in 19.94 seconds at
+  1,473,626,112-byte maximum RSS; SHA-256 is
+  `64e933ef674901e2b1ac2cda73bb0ad322be14a93c75fddfe54cdc41ac5edeea`.
+- The hash-verified v21 Mac-mini 1 TB bundle is
+  `results-cellvit-categorical-v21-conditional-multitype-calibration`. This small-graph oracle does
+  not replace real CellViT evidence, claim large-graph calibration, or normalize the pseudolikelihood.
+  Its focused integration and worker syntax pass. This is the fifth cohesive workflow since
+  checkpoint 130, so one major stabilization follows; the prohibited Nextest/full-integration loader
+  loop remains excluded.
+- The five-workflow major stabilization passes workspace formatting, warning-denied all-target/
+  all-feature Clippy, workspace no-default compilation, all-feature doctests, and strict all-feature
+  workspace docs. The documented macOS Nextest/full-integration loader loop was not retried.

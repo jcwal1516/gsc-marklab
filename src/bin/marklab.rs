@@ -338,6 +338,17 @@ fn main() -> marklab::Result<()> {
                     .nth(2)
                     .as_deref()
                     .is_some_and(|subcommand| {
+                        subcommand == std::ffi::OsStr::new("conditional-multitype-mark-sbc")
+                    }) =>
+        {
+            bayes::run_conditional_multitype_mark_sbc_cli().map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
                         subcommand
                             == std::ffi::OsStr::new("replicated-arbitrary-window-lgcp-agreement")
                     }) =>

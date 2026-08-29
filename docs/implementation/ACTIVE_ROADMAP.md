@@ -1220,3 +1220,12 @@ prior grid. The synthetic control truthfully remains interaction-prior-sensitive
 WS-43 advance to exact finite-state simulation calibration; failure there is retained as a composite-
 posterior limitation rather than tuned away. Independent-patient replication and normalized joint
 fitting remain active after calibration. UI/server/client work remains deferred.
+
+## Checkpoint 135 conditional multitype calibration continuation
+
+The conditional hard-multitype implementation now has exact finite-state prior-generative
+calibration for every free parameter and invariant pair affinity on a bounded three-type graph. This
+closes the immediate single-pattern implementation/promotion ladder without claiming that small-state
+SBC proves 2,000-cell or patient-population calibration. BAY-PP/MRK-02A/WS-43 advance to
+representative independent-patient pattern fitting or a named provenance/resource blocker. The
+five-workflow family is ready for one major stabilization; UI/server/client work remains deferred.

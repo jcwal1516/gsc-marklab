@@ -108,6 +108,10 @@ pub(super) fn run_conditional_multitype_mark_sensitivity_cli() -> Result<(), Bay
     conditional_multitype_mark_sensitivity::run_cli()
 }
 
+pub(super) fn run_conditional_multitype_mark_sbc_cli() -> Result<(), BayesCliError> {
+    conditional_multitype_mark_sbc::run_cli()
+}
+
 pub(super) fn run_replicated_arbitrary_window_lgcp_agreement_cli() -> Result<(), BayesCliError> {
     replicated_arbitrary_window_lgcp_agreement::run_cli()
 }
@@ -153,6 +157,8 @@ mod berman_turner;
 mod conditional_multitype_mark;
 #[path = "bayes/conditional_multitype_mark_agreement.rs"]
 mod conditional_multitype_mark_agreement;
+#[path = "bayes/conditional_multitype_mark_sbc.rs"]
+mod conditional_multitype_mark_sbc;
 #[path = "bayes/conditional_multitype_mark_sensitivity.rs"]
 mod conditional_multitype_mark_sensitivity;
 pub(super) use conditional_multitype_mark::{
