@@ -1243,3 +1243,17 @@ agreement, prior/hierarchy sensitivity, calibrated patient replication, normaliz
 and broader cohorts. Production proceeds to the smallest of those promotion checks before the next
 distinct Bayesian likelihood or representative graph/topology scaling; UI/server/client work
 remains deferred.
+
+## Checkpoint 137 replicated conditional-mark promotion continuation
+
+The durable eight-patient/16-slide conditional hard-mark hierarchy now agrees with an independent
+NumPyro implementation across all 101 declared real-data quantities, completes the fixed four-fit
+patient/pattern scale-prior grid below its prespecified 0.75-SD materiality threshold, and passes a
+20/20 exact finite-state four-patient/eight-pattern hierarchy calibration after one declared
+sampler-capacity increase. The real MSI-minus-MSS intervals remain null-compatible. BAY-02/BAY-03/
+BAY-PP/WS-40/WS-41/WS-43/WS-44 no longer lack the immediate agreement, hierarchy-sensitivity, or
+calibration promotion checks for this caller. Production proceeds to the smallest admitted CRC
+caller that addresses the remaining conditional-on-locations limitation through an existing pinned
+point-process backend; if representative normalized joint mark/location fitting exceeds exact state
+or process ceilings, retain that exact blocker and advance to the next bounded Bayesian spatial
+caller. UI/server/client/remote work remains deferred.

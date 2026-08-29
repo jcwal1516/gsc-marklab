@@ -2557,3 +2557,38 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   the nine-test adapter suite, Python syntax, affected warning-denied Clippy, package no-default
   compilation, affected Rustfmt, and whitespace checks pass. Broad gates were not repeated after
   checkpoint 135.
+
+## Replicated conditional-mark promotion checkpoint 137 — 2026-08-29
+
+- Added `replicated-conditional-multitype-mark-agreement`. It validates the exact typed PyMC result
+  against a freshly prepared source request and runs only the independent NumPyro implementation.
+  The real eight-patient/16-slide result is complete at 4 chains, 2,000 warmup, 1,000 retained draws,
+  target acceptance 0.99, and depth 13. All 101 baseline/group/patient/scale/score/pattern
+  comparisons pass; NumPyro R-hat is 1.00454, bulk/tail ESS 588.24/866.40, E-BFMI 0.69987, with
+  zero divergences/depth hits. Result SHA-256 is
+  `1aaa8fa967347b03d2d60b8627c7e26adbc4d3df5b8a4c87274f6a9a30363a47`.
+- Added `replicated-conditional-multitype-mark-sensitivity`. Four fixed NumPyro fits vary only the
+  patient or pattern hierarchy scale prior by 0.5x/2x around the exact PyMC baseline. All complete
+  in one four-process wave. No group, patient, or hierarchy posterior shift reaches the declared
+  0.75-SD threshold; the largest observed hierarchy shift is 0.44044 SD and the largest group shift
+  is 0.01588 SD. Result SHA-256 is
+  `41a909c6ea98397b892dc4f33b60f26b8732296188440913f6ce1a82ffb82a0b`.
+- Added `replicated-conditional-multitype-mark-sbc`. For each prior draw it enumerates all 729 joint
+  states separately on every six-site pattern, samples exact normalized Gibbs labels through the
+  full patient/pattern hierarchy, and refits the production NumPyro composite model. It calibrates
+  six invariant baseline/group affinities and four hierarchy scales with exact dispositions and
+  state/work/byte/iteration/output/time ceilings. The first 2x1,000-draw run completed 15/20; five
+  retained failures were exclusively R-hat 1.01025–1.01312 with adequate ESS/E-BFMI and zero
+  divergences/depth hits. The single unchanged-model/seed/threshold retry at 2x1,500 draws completes
+  20/20 and clears the declared rank/coverage bounds. The analytic zero-parameter normalizer is
+  `6*ln(3)` per pattern. This is bounded small-pattern calibration, not normalized or 8,192-cell
+  joint-likelihood evidence.
+- The final exact calibration integration passes in 74.73 seconds. The related fit, durable replay,
+  agreement, and sensitivity integrations all pass (15.49, 26.07, 45.27, and 45.00 seconds).
+  Focused warning-denied Clippy, package no-default compilation/docs, Python syntax, affected-file
+  Rustfmt, and whitespace checks pass.
+- This four-workflow family boundary passes workspace formatting, warning-denied all-target/
+  all-feature Clippy, workspace no-default compilation, all-feature doctests, strict all-feature
+  workspace docs, and final whitespace checks. The documented macOS Nextest/full-integration loader
+  loop was not retried. No feature matrix, benchmark, fuzzing, memory tool, packaging, dependency
+  audit, push, publication, deployment, or history rewrite ran.

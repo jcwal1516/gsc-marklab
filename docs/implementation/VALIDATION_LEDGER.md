@@ -3283,3 +3283,32 @@ vascular transport.
   sealed file. Broad workspace gates and the documented full-integration/Nextest loop were not
   rerun after checkpoint 135; no feature matrix, benchmark, fuzzing, packaging, dependency audit,
   push, publication, deployment, or history rewrite ran.
+
+## Replicated conditional-mark promotion checkpoint 137 — 2026-08-29
+
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_replicated_conditional_multitype_mark_sbc_cli -- --nocapture` first failed on the absent
+  command. The initial implemented 2x1,000-draw capacity produced 15 complete dispositions and five
+  exact R-hat-only failures (1.01025–1.01312). With the sole capacity increase to 1,000 warmup and
+  1,500 retained draws, the final formatted-state run passes 1/1 in 74.73 seconds with 20/20 exact
+  hierarchy refits, ten rank/coverage families, 729 states per six-site/three-type pattern, and the
+  independent `6*ln(3)` zero-potential partition oracle.
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_replicated_conditional_multitype_mark_cli --test
+  durable_pymc_replicated_conditional_multitype_mark_project --test
+  bayes_replicated_conditional_multitype_mark_agreement_cli --test
+  bayes_replicated_conditional_multitype_mark_sensitivity_cli -- --nocapture` passes all four
+  integrations. Individual test times are 15.49, 26.07, 45.27, and 45.00 seconds. The durable test
+  retains fresh-process miss/backend-disabled hit/one-ledger proof; agreement covers all 101
+  quantities; sensitivity retains all four fixed scenarios.
+- `cargo +1.96.0 clippy --locked --package marklab --features cli --bin marklab --test
+  bayes_replicated_conditional_multitype_mark_sbc_cli -- -D warnings`, `cargo +1.96.0 check
+  --locked --package marklab --no-default-features`, package doctests, worker `py_compile`,
+  affected-file Rustfmt, and `git diff --check` pass.
+- At the four-workflow major checkpoint, `cargo +1.96.0 fmt --all --check`, `cargo +1.96.0 clippy
+  --locked --workspace --all-targets --all-features -- -D warnings`, `cargo +1.96.0 check --locked
+  --workspace --no-default-features`, `cargo +1.96.0 test --locked --workspace --doc --all-features`,
+  and `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --workspace --all-features --no-deps`
+  all pass. The forbidden macOS Nextest/full-integration loader loop was not retried; no feature
+  matrix, benchmark, fuzzing, memory tool, packaging, dependency audit, push, publication,
+  deployment, or history rewrite ran.
