@@ -3030,6 +3030,28 @@ vascular transport.
   full-integration/Nextest loop, feature matrix, benchmarks, fuzzing, packaging, dependency audit,
   push, publication, deployment, and history rewrite did not run.
 
+## Conditional hard-multitype CellViT mark checkpoint 133 — 2026-08-29
+
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_conditional_multitype_mark_cli -- --nocapture` first failed on the absent command and passes
+  in the final state. Its independent three-class spatial-segregation oracle requires all three
+  cross-affinity upper intervals below zero and conditional score improvement above 20.
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  durable_pymc_conditional_multitype_mark_project -- --nocapture` first failed on the absent project
+  command and passes in the final state. Two fresh processes prove miss/backend-disabled hit, byte
+  identity, and one execution-ledger row.
+- The real durable miss over the exact admitted 2,000-cell table and 24,755-edge radius graph runs in
+  30.00 seconds at 879,837,184-byte maximum RSS. Diagnostics are R-hat 1.00110, bulk/tail ESS
+  1,601.24/1,896.05, E-BFMI 0.96426, and zero divergences/depth hits. A fresh process with
+  `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1` returns a byte-identical hit; the ledger has one
+  row. SHA-256 is `03ddbacba4b729ac0814079298067cf3499d9f9427028a27e1197d68a0c5a371`.
+- Python `py_compile`, affected Rustfmt, `git diff --check`, warning-denied affected Clippy, and
+  `cargo +1.96.0 check --locked --package marklab --no-default-features` pass. `ssh mini 'cd
+  ...v19-conditional-multitype && shasum -a 256 -c conditional_multitype_sha256.txt'` passes all
+  five sealed files. Broad workspace gates, the documented full-integration/Nextest loop, feature
+  matrix, benchmarks, fuzzing, packaging, dependency audit, push, publication, deployment, and
+  history rewrite did not run.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

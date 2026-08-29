@@ -96,6 +96,10 @@ pub(super) fn run_replicated_arbitrary_window_lgcp_inferred_kernel_sbc_cli(
     replicated_arbitrary_window_lgcp_inferred_kernel_sbc::run_cli()
 }
 
+pub(super) fn run_conditional_multitype_mark_cli() -> Result<(), BayesCliError> {
+    conditional_multitype_mark::run_cli()
+}
+
 pub(super) fn run_replicated_arbitrary_window_lgcp_agreement_cli() -> Result<(), BayesCliError> {
     replicated_arbitrary_window_lgcp_agreement::run_cli()
 }
@@ -137,6 +141,13 @@ pub(super) fn run_arbitrary_window_ipp_spatial_ppc_cli() -> Result<(), BayesCliE
 }
 #[path = "bayes/berman_turner.rs"]
 mod berman_turner;
+#[path = "bayes/conditional_multitype_mark.rs"]
+mod conditional_multitype_mark;
+pub(super) use conditional_multitype_mark::{
+    backend_contract as conditional_multitype_mark_backend_contract,
+    execute as execute_conditional_multitype_mark, Args as ConditionalMultitypeMarkArgs,
+    Output as ConditionalMultitypeMarkResult,
+};
 #[path = "bayes/beta_binomial_hierarchy.rs"]
 mod beta_binomial_hierarchy;
 pub(super) use beta_binomial_hierarchy::{

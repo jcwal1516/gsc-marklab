@@ -1201,3 +1201,13 @@ synthetic SBC oracle passes. Full real-geometry count-scale SBC remains honestly
 and one divergence, respectively; no thresholds, seed, priors, or geometry were tuned. BAY-PP/
 BAY-PP-A/WS-43 therefore retain an exact calibration limitation and advance to the immediate fitted
 hard-multitype CellViT caller. UI/server/client work remains deferred.
+
+## Checkpoint 133 conditional multitype continuation
+
+The admitted four-class CellViT table now has a typed pinned-PyMC fit and durable replay on its exact
+50-micrometre fixed-location graph. This closes the immediate single-pattern hard-multitype mark
+caller without calling a conditional pseudolikelihood a location-process interaction model. BAY-PP/
+MRK-02A/WS-43 remain active for independent-patient replication, normalized joint likelihood or
+controlled simulation, prior/backend/calibration checks, and population-level contrasts. Production
+continues through the smallest of those with an immediate admitted CRC caller; UI/server/client work
+remains deferred.

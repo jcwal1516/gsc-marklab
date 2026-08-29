@@ -2450,3 +2450,30 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   1,063.25 s/6,345,883,648 bytes. Focused agreement/SBC integrations, Python syntax, affected
   Rustfmt, warning-denied affected Clippy, package no-default compilation, bundle checksums, and
   whitespace checks pass. Broad gates were not repeated after checkpoint 130.
+
+## Conditional hard-multitype CellViT mark checkpoint 133 — 2026-08-29
+
+- Added direct and durable `fit-conditional-multitype-mark` through pinned PyMC 6.3.0. It consumes
+  the existing typed CellViT CSV interchange, fixes the exact physical-radius location graph, and
+  fits all 3–8 hard types jointly through symmetric single-site categorical conditionals. Reference
+  intercept and reference/reference potential are exactly zero; reported pair affinities are
+  gauge-invariant cross-minus-average-homotypic contrasts.
+- The three-class separated-cluster oracle recovers negative affinity intervals and improves the
+  composite conditional score over intercept-only independent labeling. The durable test proves
+  miss, fresh-process backend-disabled hit, byte identity, and one ledger row. The result labels its
+  type-count/edge check as a one-step conditional expectation, not a joint posterior simulation.
+- The unchanged admitted 2,000-cell CPTAC table retains Neoplastic 1,450, Inflammatory 365,
+  Connective 118, and Dead 67 on 24,755 exact 50-micrometre edges. Its real fit completes in 30.00
+  seconds at 879,837,184-byte maximum RSS with R-hat 1.00110, bulk/tail ESS 1,601.24/1,896.05,
+  E-BFMI 0.96426, and zero divergences/depth hits. All six affinity intervals are negative; the
+  conditional score improvement is 777.26 and the one-step expected same-type edge interval
+  [20,586.6, 21,215.4] contains 20,898 observed.
+- A fresh backend-disabled process returns the byte-identical hit with one ledger row. Result SHA-256
+  is `03ddbacba4b729ac0814079298067cf3499d9f9427028a27e1197d68a0c5a371`; the final v19 Mac-mini
+  1 TB bundle `results-cellvit-categorical-v19-conditional-multitype` verifies its source, result,
+  durable control/ledger, and limitations. This is single-slide fixed-location descriptive evidence,
+  not a normalized joint Gibbs model, exact-count random-label test, patient effect, location-process
+  attraction, biological, causal, clinical, significance, or transportability claim.
+- Focused direct/durable integrations, Python syntax, affected Rustfmt, warning-denied affected
+  Clippy, package no-default compilation, bundle checksums, and whitespace checks pass. Broad gates
+  were not repeated after checkpoint 130.
