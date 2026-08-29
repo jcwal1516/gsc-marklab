@@ -1211,3 +1211,12 @@ MRK-02A/WS-43 remain active for independent-patient replication, normalized join
 controlled simulation, prior/backend/calibration checks, and population-level contrasts. Production
 continues through the smallest of those with an immediate admitted CRC caller; UI/server/client work
 remains deferred.
+
+## Checkpoint 134 conditional multitype promotion continuation
+
+The fixed-location four-class conditional model now agrees across independent PyMC/NumPyro
+implementations for every reported quantity and is stable across its prespecified five-scenario real
+prior grid. The synthetic control truthfully remains interaction-prior-sensitive. BAY-PP/MRK-02A/
+WS-43 advance to exact finite-state simulation calibration; failure there is retained as a composite-
+posterior limitation rather than tuned away. Independent-patient replication and normalized joint
+fitting remain active after calibration. UI/server/client work remains deferred.

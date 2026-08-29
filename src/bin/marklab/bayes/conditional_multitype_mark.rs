@@ -241,6 +241,24 @@ pub(crate) struct Output {
     claim_status: String,
 }
 
+pub(crate) struct Prepared {
+    backend: BackendContract,
+    request: WorkerRequest,
+    request_bytes: Vec<u8>,
+    request_sha256: String,
+    timeout_seconds: u64,
+}
+
+impl Prepared {
+    pub(crate) fn request_bytes(&self) -> &[u8] {
+        &self.request_bytes
+    }
+
+    pub(crate) fn request_sha256(&self) -> &str {
+        &self.request_sha256
+    }
+}
+
 pub(super) fn run_cli() -> Result<(), BayesCliError> {
     let Top::Bayes { command } = Cli::parse_from(std::env::args_os()).command;
     let Command::FitConditionalMultitypeMark(args) = command;
@@ -249,6 +267,10 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
 }
 
 pub(crate) fn execute(args: Args) -> Result<Output, BayesCliError> {
+    execute_prepared(&prepare(args)?)
+}
+
+pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
     validate_controls(&args)?;
     let metadata = fs::metadata(&args.input).map_err(|source| BayesCliError::Io {
         path: args.input.clone(),
@@ -414,7 +436,6 @@ pub(crate) fn execute(args: Args) -> Result<Output, BayesCliError> {
         maximum_tree_depth: args.maximum_tree_depth,
         timeout_seconds: args.timeout_seconds,
     };
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let backend = backend_contract()?;
     let rows = points
         .iter()
@@ -457,16 +478,32 @@ pub(crate) fn execute(args: Args) -> Result<Output, BayesCliError> {
         ));
     }
     let request_sha = sha256_hex(&request_bytes);
+    Ok(Prepared {
+        backend,
+        request,
+        request_bytes,
+        request_sha256: request_sha,
+        timeout_seconds: args.timeout_seconds,
+    })
+}
+
+pub(crate) fn execute_prepared(prepared: &Prepared) -> Result<Output, BayesCliError> {
+    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let worker_bytes = run_worker(
         repository,
         "marklab_pymc_conditional_multitype_mark_worker.py",
-        &request_bytes,
-        args.timeout_seconds,
+        &prepared.request_bytes,
+        prepared.timeout_seconds,
     )?;
     let result: WorkerResult = serde_json::from_slice(&worker_bytes)?;
-    validate_result(&result, &request, &backend, &request_sha)?;
-    let point_count = request.points.len();
-    let edge_count = request.edges.len();
+    validate_result(
+        &result,
+        &prepared.request,
+        &prepared.backend,
+        &prepared.request_sha256,
+    )?;
+    let point_count = prepared.request.points.len();
+    let edge_count = prepared.request.edges.len();
     Ok(Output {
         format: "marklab.conditional_multitype_mark_fit".into(),
         version: 1,
@@ -475,11 +512,11 @@ pub(crate) fn execute(args: Args) -> Result<Output, BayesCliError> {
         request_sha256: result.request_sha256,
         fit_state: result.fit_state,
         sampling: result.sampling,
-        radius_um: request.radius_um,
-        type_ids,
-        reference_type: args.reference_type,
+        radius_um: prepared.request.radius_um,
+        type_ids: prepared.request.type_ids.clone(),
+        reference_type: prepared.request.reference_type.clone(),
         point_count,
-        type_count: request.type_ids.len(),
+        type_count: prepared.request.type_ids.len(),
         edge_count,
         type_intercepts: result.type_intercepts,
         pair_potentials: result.pair_potentials,
@@ -487,7 +524,21 @@ pub(crate) fn execute(args: Args) -> Result<Output, BayesCliError> {
         comparison: result.comparison,
         posterior_predictive: result.posterior_predictive,
         diagnostics: result.diagnostics,
-        resources: request.resources,
+        resources: Resources {
+            maximum_points: prepared.request.resources.maximum_points,
+            maximum_types: prepared.request.resources.maximum_types,
+            maximum_neighbor_visits: prepared.request.resources.maximum_neighbor_visits,
+            neighbor_visits: prepared.request.resources.neighbor_visits,
+            maximum_edges: prepared.request.resources.maximum_edges,
+            maximum_draw_parameter_work: prepared.request.resources.maximum_draw_parameter_work,
+            draw_parameter_work: prepared.request.resources.draw_parameter_work,
+            maximum_working_bytes: prepared.request.resources.maximum_working_bytes,
+            estimated_working_bytes: prepared.request.resources.estimated_working_bytes,
+            memory_scope: prepared.request.resources.memory_scope.clone(),
+            maximum_output_bytes: prepared.request.resources.maximum_output_bytes,
+            maximum_tree_depth: prepared.request.resources.maximum_tree_depth,
+            timeout_seconds: prepared.request.resources.timeout_seconds,
+        },
         statistical_unit: "one_fixed_location_pattern".into(),
         null_model: "fixed_location_independent_categorical_labels_intercept_only".into(),
         assumptions: [

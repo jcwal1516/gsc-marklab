@@ -3052,6 +3052,33 @@ vascular transport.
   matrix, benchmarks, fuzzing, packaging, dependency audit, push, publication, deployment, and
   history rewrite did not run.
 
+## Conditional hard-multitype promotion checkpoint 134 — 2026-08-29
+
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_conditional_multitype_mark_agreement_cli -- --nocapture` first failed on the absent command
+  and passes in the final state. It independently compares intercepts, potentials, invariant
+  affinities, conditional score, expected same-edge count, and expected type counts.
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_conditional_multitype_mark_sensitivity_cli -- --nocapture` first failed on the absent
+  command. Its first fitted run retained one marginal R-hat failure and material interaction-prior
+  shifts; the final capacity run passes and requires `material_prior_sensitivity` on that synthetic
+  control. Final direct, durable, agreement, and sensitivity integrations pass in 4.57, 14.97, 8.56,
+  and 15.93 seconds.
+- The real agreement completes in 37.30 seconds at 1,308,311,552-byte maximum RSS. PyMC/NumPyro
+  diagnostics are R-hat 1.00110/1.00124, bulk ESS 1,601.24/1,250.12, tail ESS
+  1,896.05/1,954.47, E-BFMI 0.96426/1.02740, and zero divergences/depth hits. SHA-256 is
+  `50299b063e86bfba900f4587100544a7adf550855e0c5a6372b446701f41bf8f`.
+- The real five-scenario grid completes in 106.77 seconds at 1,139,654,656-byte maximum RSS. Every
+  scenario is complete; maximum affinity shifts are 0.111, 0.050, 0.647, and 0.190 baseline SD for
+  half/double intercept and half/double interaction priors. SHA-256 is
+  `f923906bade54e9ac62b309bbecb1fbf341f07c8d3d5cccb0368e9bc3e31fe6c`.
+- Both new worker `py_compile` checks, affected Rustfmt, `git diff --check`, warning-denied affected
+  Clippy, and package no-default compilation pass. `ssh mini 'cd ...v20-conditional-multitype-
+  promotion && shasum -a 256 -c conditional_multitype_promotion_sha256.txt'` passes all five files.
+  Broad workspace gates and the documented full-integration/Nextest loop were not run before exact
+  finite-state calibration; no feature matrix, benchmark, fuzzing, packaging, dependency audit,
+  push, publication, deployment, or history rewrite ran.
+
 ## Typed probability-simplex composition checkpoint 83 — 2026-08-27
 
 - `cargo +1.96.0 test --locked --package marklab --test

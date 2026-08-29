@@ -2477,3 +2477,25 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - Focused direct/durable integrations, Python syntax, affected Rustfmt, warning-denied affected
   Clippy, package no-default compilation, bundle checksums, and whitespace checks pass. Broad gates
   were not repeated after checkpoint 130.
+
+## Conditional hard-multitype promotion checkpoint 134 — 2026-08-29
+
+- Added `conditional-multitype-mark-agreement` with an independent pinned NumPyro implementation.
+  The real PyMC and NumPyro fits are both complete with zero divergences/depth hits. All four
+  intercepts, ten symmetric potentials, six invariant affinities, four expected type counts,
+  composite score, and expected same-type edge count pass. Maximum standardized differences are
+  0.186/0.038/0.033 for intercepts/potentials/affinities and 1.155 for the score. Real agreement runs
+  in 37.30 seconds at 1,308,311,552-byte maximum RSS; SHA-256 is
+  `50299b063e86bfba900f4587100544a7adf550855e0c5a6372b446701f41bf8f`.
+- Added a fixed five-fit half/base/double PyMC prior grid. The synthetic separated-class control
+  correctly reports material interaction-prior sensitivity rather than promising universal
+  stability. All five real fits complete; the largest affinity shift is 0.647 baseline SD for the
+  half interaction prior and the other scenario maxima are at most 0.190 SD, below the prespecified
+  0.75 threshold. The real grid runs in 106.77 seconds at 1,139,654,656-byte maximum RSS; SHA-256 is
+  `f923906bade54e9ac62b309bbecb1fbf341f07c8d3d5cccb0368e9bc3e31fe6c`.
+- The hash-verified v20 Mac-mini 1 TB bundle is
+  `results-cellvit-categorical-v20-conditional-multitype-promotion`; it contains the unchanged
+  source, base fit, agreement, sensitivity, and exact limitations. Four focused direct/durable/
+  agreement/sensitivity integrations, both worker syntax checks, affected Rustfmt, warning-denied
+  affected Clippy, package no-default compilation, checksums, and whitespace checks pass. Exact
+  finite-state calibration remains active; broad gates were not repeated before that fifth workflow.
