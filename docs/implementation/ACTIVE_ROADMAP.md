@@ -1304,3 +1304,14 @@ calibration using the exact real geometry; any failed replicate or capacity ceil
 rather than tuned away. After that promotion check, proceed to representative graph/topology scaling
 unless a distinct richer multitype likelihood has an immediate admitted CRC caller.
 UI/server/client/remote work remains deferred.
+
+## Checkpoint 142 inferred multitype calibration continuation
+
+The durable inferred shared-kernel multitype caller now has complete independent-backend agreement
+and exact-real-geometry analytic prior-generator/likelihood calibration. BAY-02/BAY-04/WS-40/WS-44
+no longer lack the immediate promotion evidence for this caller, while posterior SBC remains a
+truthful limitation rather than being implied by generator checks. Production now moves to
+representative graph/topology scaling with exact small-reference oracles and pathology resource
+ceilings. Richer cross-type covariance or pairwise interaction waits for an immediate scientific
+caller that can distinguish it from the already-fitted independent-field and conditional-mark
+models. UI/server/client/remote work remains deferred.
