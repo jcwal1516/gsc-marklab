@@ -325,6 +325,10 @@ impl Prepared {
     pub(crate) fn request_bytes(&self) -> &[u8] {
         &self.request_bytes
     }
+
+    pub(crate) fn request_sha256(&self) -> &str {
+        &self.request_sha256
+    }
 }
 
 pub(super) fn run_cli() -> Result<(), BayesCliError> {
