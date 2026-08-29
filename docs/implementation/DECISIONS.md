@@ -2723,3 +2723,25 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   patient replicate or fused feature. The patient-level conclusion remains unchanged. This is a
   science-bundle completion connection, not a general plugin, registry, project, backend, or
   topology framework.
+
+## DEC-0340 — Replicate exact bottleneck stability at the patient unit
+
+- Date: 2026-08-29
+- Status: accepted for CMP-01F/TOP-01/TOP-01A/WF-01/WS-12/WS-63
+- Decision: add the narrow `marklab_crc_witness_bottleneck_patient.py` prepare/execute/summarize
+  workflow for the frozen four-MSI/four-MSS, two-slide-per-patient CPTAC caller. Generate the
+  existing four-replicate one-micrometre witness perturbation request for each exact 512-cell slide,
+  wrap it in the DEC-0338 exact bottleneck controls, and run each through the existing durable
+  project command in at most six processes. Budget all 12 dimension/replicate comparisons and both
+  diagrams against 12,000,000 intervals, then prove one fresh backend-disabled hit and one ledger
+  row per slide. Reduce slides only inside patients by the conservative maximum finite distance and
+  any essential-count mismatch; report a prespecified MSI-minus-MSS mean difference, 1,000 whole-
+  patient bootstrap draws, and all 70 exact four-of-eight label assignments. Do not change the
+  filtration, scale, landmarks, subset, threshold, or fusion gate after observing results.
+- Consequences: all 16 misses and 16 hits complete byte-identically with 96 total miss-side backend
+  executions. Zero of eight patients passes both slides; all eight have an essential-count mismatch,
+  and maximum patient finite distance is 18,807.04 square micrometres against 600. The MSI-minus-MSS
+  effect is 2,972.22 with bootstrap interval [-3,738.54, 10,085.46] and exact p=0.60. The filtration
+  remains unstable and the topological block is not promoted or fused. This closes the immediate
+  patient-replication gap negatively without claiming absence of topology, biological mechanism,
+  causality, clinical utility, external validation, or transportability.

@@ -1439,3 +1439,15 @@ graph/topology, external, outcome, replay, blocker, and claim-limitation evidenc
 artifacts rehash; the patient-level conclusion and frozen fusion exclusions are unchanged. The
 science objective is complete. No general Marklab, Bayesian, graph/topology, simulation/SBI, UI,
 server, client, remote, packaging, release, or hardening work is promoted.
+
+## Checkpoint 153 patient exact-bottleneck continuation
+
+The frozen eight-patient/16-slide CRC topology subset now has exact diagram bottleneck stability at
+the patient population unit, including bounded six-process durable execution, 16 backend-disabled
+hits, conservative slide-within-patient aggregation, bootstrap uncertainty, and all 70 patient-label
+assignments. The result is unstable in every patient and null-compatible between MSI/MSS, so CMP-01F
+and TOP-01A gain patient evidence but no stable filtration or fusion promotion. Broader topology
+catalog expansion stops until an independently stable filtration or external pathology endpoint is
+admitted. Production next advances the smallest uncertainty-bearing multiclass mark statistic with
+an existing CellViT probability-simplex caller, reusing the current MarkTable, spatial plan,
+scheduler, artifact store, and patient-valid inference rather than adding a mark framework.

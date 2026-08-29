@@ -3750,3 +3750,33 @@ vascular transport.
   evidence is not rerun; no Nextest/full integration, workspace-wide test/Clippy/docs, feature
   matrix, benchmark, fuzzing, memory, packaging, dependency, push, publication, deployment, or
   history-rewrite command runs.
+
+## Patient witness-bottleneck checkpoint 153 — 2026-08-29
+
+- Red-first behavior evidence: `target/pymc-venv/bin/python -m unittest
+  tests.python.test_crc_witness_bottleneck_patient` first fails because the patient workflow is
+  absent. Its end-to-end fake process oracle passes after implementation, proving prepare,
+  two-process misses, backend-disabled hits, byte equality, one-row ledgers, patient nesting, exact
+  group comparison, and unstable nonpromotion.
+- The first real execution command fails before GUDHI with `bottleneck interval budget exceeds
+  caller maximum`: the prepared 4,000,000 ceiling omitted the three homology dimensions from the
+  conservative owner bound. A focused assertion first fails 4,000,000 versus 12,000,000; after the
+  exact bound is fixed, the test passes. The failed partial output is retained.
+- `target/pymc-venv/bin/python -m unittest tests.python.test_crc_witness_bottleneck_patient
+  tests.python.test_crc_graph_topology_final` passes 7/7. Python compilation and
+  `cargo +1.96.0 fmt --all --check` pass. No Rust package changed, so affected Clippy/no-default/docs
+  are not applicable.
+- Real preparation admits eight patients, 16 slides, 8,192 cells, four perturbations, 12 comparisons
+  and 12,000,000 conservative intervals per slide. `/usr/bin/time -l ... execute ...
+  --maximum-processes 6` completes in 42.48 seconds with 38,191,104-byte parent maximum RSS. The
+  execution manifest reports 16 misses, 16 backend-disabled hits, byte identity, one row in every
+  ledger, and exactly 96 miss-side backend executions under the declared cap.
+- The deterministic patient summary reports 0/8 stable, 8/8 with an essential-count mismatch,
+  maximum finite distance `18807.03660672011`, MSI-minus-MSS mean difference
+  `2972.21834719212`, bootstrap interval `[-3738.5436356459386, 10085.458614861542]`, and exact
+  70-assignment p=0.60. It retains `unstable_not_promoted` and no fusion.
+- Local and remote `shasum -a 256 -c SHA256SUMS` verify all 136 listed files in
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v49-patient-witness-bottleneck-final`;
+  137 total files include the manifest. `SHA256SUMS` hashes to
+  `bf6cc998ce8709f766a5ef9c984a28defe8d09265922f16b218f14478ec46e14`.
+  Whitespace and direct diff checks pass. No broad or specialized workspace gate runs.

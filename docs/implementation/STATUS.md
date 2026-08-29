@@ -3017,3 +3017,32 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - Focused sealer tests, Python compilation, remote independent manifest rehash, bundle identity,
   replay-byte, ledger-row, formatting, whitespace, diff, and status checks pass. Existing broad
   stabilization evidence was not rerun; no unrelated software outcome is promoted.
+
+## Patient witness-bottleneck checkpoint 153 — 2026-08-29
+
+- Added a narrow prepare/execute/summarize workflow that applies the existing exact GUDHI
+  bottleneck project command to the frozen eight-patient/16-slide CPTAC topology subset. Every
+  request retains the exact 512 stable-CellId rows, 200-micrometre witness scale, 64 landmarks,
+  dimensions 0--2, four deterministic one-micrometre perturbations, seed, and 600-square-
+  micrometre threshold. Labels are not used for selection or feature construction.
+- The first real preparation is retained as a pre-backend admission failure: 4,000,000 intervals
+  were insufficient for 12 comparisons times both diagrams times the 500,000-simplex ceiling. The
+  corrected exact 12,000,000 ceiling passes without changing the scientific design. Six bounded
+  processes complete 16 misses and 16 fresh backend-disabled hits in 42.48 seconds; all results are
+  byte-identical, all ledgers remain one row, and misses use exactly 96 external processes.
+- The patient-unit result is unstable and null-compatible. Zero of eight patients passes both
+  slides, all eight have at least one essential-count mismatch, and maximum finite patient distance
+  is `18807.03660672011` square micrometres. The MSI-minus-MSS mean difference is
+  `2972.21834719212`, with whole-patient bootstrap interval
+  `[-3738.5436356459386, 10085.458614861542]` and exact 70-assignment p-value 0.60. The block is not
+  promoted or fused; instability is not tuned away.
+- Summary, patient-row, and execution-manifest SHA-256 values are
+  `b9d04d8013bd634f745bb9640b68301139b83034164294883924d328f86026b4`,
+  `15be3057dbfd307b2fb73b776a62966e5d3f43baf415cf30f1ac78bc860735d4`, and
+  `7bef99dbb4fba9711254a219d5b1de66c6f37adcf394190397026783149ba5d4`.
+  The 137-file 1-TB bundle is
+  `results-cellvit-categorical-v49-patient-witness-bottleneck-final`; its `SHA256SUMS` hashes to
+  `bf6cc998ce8709f766a5ef9c984a28defe8d09265922f16b218f14478ec46e14`.
+- Focused patient and existing preparation tests, Python compilation, formatting, remote complete
+  rehash, whitespace, diff, and status checks pass. No broad workspace gate is rerun at this
+  ordinary milestone.
