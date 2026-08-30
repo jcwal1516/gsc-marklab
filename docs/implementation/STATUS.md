@@ -3477,3 +3477,26 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   fresh-process translation-g CLI test and both seed namespace tests. Warning-denied affected
   Clippy, root no-default compilation, strict affected docs, affected formatting, and whitespace
   checks pass. No workspace-wide/Nextest loader loop or unrelated broad gate runs.
+
+## Isotropic homogeneous pair correlation checkpoint 170 — 2026-08-29
+
+- Added `analyze_isotropic_pair_correlation`, its strict version-one document, durable node, and
+  `marklab project isotropic-pair-correlation`. Each compact-support unordered displacement
+  evaluates both exact visible-circle fractions once, reuses them across represented radii, and
+  accumulates the Epanechnikov kernel times both reciprocal fractions before
+  `area(W)/(2*pi*r*n*(n-1))` normalization. Conditional CSR/ERL has a distinct seed namespace.
+- Isotropic K/L and g share only visible-arc work accounting; exact window geometry, project,
+  scheduler, store, ledger, recovery, source/runtime identity, and transaction owners are reused.
+  Existing border/translation/isotropic result bytes and result-format 0.3 are unchanged.
+- A rectangle with directed fractions `2/3` and `1` gives weighted kernel sum `15/4` and g
+  `375/(8*pi)`. A square-hole oracle with fractions `5/6` and `11/12` agrees independently. Strict
+  kernel endpoints and exact 20/19 pair, 40/39 arc, 160/159 segment, one-short membership, and
+  one-byte-short memory boundaries pass.
+- The hash-verified checkpoint-157 512-cell/12-component input runs at radius 20, bandwidth 10, 19
+  simulations, and seed 20260829. The miss takes 8.32 seconds at 22,528,000-byte RSS; the fresh
+  backend-disabled hit takes 5.79 seconds at 21,708,800 bytes. Both hash to
+  `dc082a26b2b144f563151acd42a3423c296f57cdf85c25cbfe039abbd211bd8b` with one ledger row. Observed
+  g is 2.135402 and p=0.10; this is one-specimen capacity evidence only.
+- Nine focused isotropic K/L/g direct and durable tests plus the fresh-process g CLI test pass.
+  Warning-denied affected Clippy, root no-default compilation, strict docs, affected formatting,
+  and whitespace checks pass. No workspace-wide/Nextest loop or unrelated broad gate runs.

@@ -1,5 +1,6 @@
 mod analysis;
 mod document;
+pub(crate) mod edge;
 mod types;
 
 pub use analysis::analyze_isotropic_spatial_pattern;

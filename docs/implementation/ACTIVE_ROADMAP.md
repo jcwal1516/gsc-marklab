@@ -1633,3 +1633,16 @@ RSS and replays backend-disabled byte-identically with one ledger row; its g and
 patient or biological result. Production next may apply the already validated visible-arc owner to
 one separately named isotropic homogeneous g caller. Do not add correction selection, a registry,
 or an automatic combined result.
+
+## Checkpoint 170 isotropic homogeneous pair correlation
+
+PP-03A now has a separate exact visible-arc isotropic Epanechnikov g workflow. Each contributing
+unordered displacement evaluates both directed visible fractions once and reuses them across
+compact-support radii; conditional CSR, ERL, strict finite output, exact identities, and hard work
+bounds remain explicit. Rectangle and square-hole analytic oracles agree, and the frozen 512-cell
+CPTAC capacity run completes in 8.32 seconds at 22,528,000-byte maximum RSS before a 5.79-second
+backend-disabled byte-identical hit with one ledger row. Its g=2.1354 and p=0.10 are not patient or
+biological evidence. The homogeneous border/translation/isotropic K/L/g correction ladder is now
+implemented; pinned external agreement remains blocked on the absent repository-owned spatstat
+environment. Production next should advance another immediate WS-30 caller rather than a
+correction registry or automatic selector.

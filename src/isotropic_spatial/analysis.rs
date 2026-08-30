@@ -8,11 +8,11 @@ use crate::{
     },
     common::seeds::{derive_seed, SeedEndpoint},
     data::Pattern,
-    geom::window::{ObservationWindow2D, ObservationWindowError},
+    geom::window::ObservationWindow2D,
     permutation::envelopes::GlobalEnvelope,
 };
 
-use super::types::*;
+use super::{edge::IsotropicArcBudget, types::*};
 
 /// Compute exact homogeneous isotropic K/L with conditional-CSR inference.
 pub fn analyze_isotropic_spatial_pattern(
@@ -96,7 +96,7 @@ pub fn analyze_isotropic_spatial_pattern(
         });
     }
 
-    let mut budget = IsotropicWorkBudget::new(config.limits, window);
+    let mut budget = IsotropicArcBudget::new(config.limits, window);
     let observed = isotropic_curve(
         &pattern.x_um,
         &pattern.y_um,
@@ -199,7 +199,7 @@ fn isotropic_curve(
     y: &[f64],
     window: &ObservationWindow2D,
     radii_um: &[f64],
-    budget: &mut IsotropicWorkBudget,
+    budget: &mut IsotropicArcBudget,
 ) -> Result<IsotropicCurveWork, IsotropicSpatialError> {
     let mut directed_pair_starts = vec![0_usize; radii_um.len()];
     let mut evaluation_starts = vec![0_usize; radii_um.len()];
@@ -308,100 +308,6 @@ fn unavailable_curve(radii_um: &[f64]) -> Vec<IsotropicKlPoint> {
             upper_l: None,
         })
         .collect()
-}
-
-struct IsotropicWorkBudget {
-    limits: IsotropicSpatialLimits,
-    segment_count: usize,
-    pair_visits: usize,
-    visible_arc_evaluations: usize,
-    arc_segment_tests: usize,
-    arc_membership_queries: usize,
-    maximum_intersection_angles: usize,
-}
-
-impl IsotropicWorkBudget {
-    fn new(limits: IsotropicSpatialLimits, window: &ObservationWindow2D) -> Self {
-        Self {
-            limits,
-            segment_count: window.translation_segment_count(),
-            pair_visits: 0,
-            visible_arc_evaluations: 0,
-            arc_segment_tests: 0,
-            arc_membership_queries: 0,
-            maximum_intersection_angles: 0,
-        }
-    }
-
-    fn charge_pair(&mut self) -> Result<(), IsotropicSpatialError> {
-        self.pair_visits = self
-            .pair_visits
-            .checked_add(1)
-            .ok_or(IsotropicSpatialError::SizeOverflow)?;
-        if self.pair_visits > self.limits.maximum_pair_visits {
-            return Err(IsotropicSpatialError::PairVisitLimitExceeded {
-                observed: self.pair_visits,
-                maximum: self.limits.maximum_pair_visits,
-            });
-        }
-        Ok(())
-    }
-
-    fn visible_fraction(
-        &mut self,
-        window: &ObservationWindow2D,
-        center_x: f64,
-        center_y: f64,
-        radius: f64,
-        center: usize,
-        neighbor: usize,
-    ) -> Result<f64, IsotropicSpatialError> {
-        self.visible_arc_evaluations = self
-            .visible_arc_evaluations
-            .checked_add(1)
-            .ok_or(IsotropicSpatialError::SizeOverflow)?;
-        if self.visible_arc_evaluations > self.limits.maximum_visible_arc_evaluations {
-            return Err(IsotropicSpatialError::VisibleArcEvaluationLimitExceeded {
-                observed: self.visible_arc_evaluations,
-                maximum: self.limits.maximum_visible_arc_evaluations,
-            });
-        }
-        self.arc_segment_tests = self
-            .arc_segment_tests
-            .checked_add(self.segment_count)
-            .ok_or(IsotropicSpatialError::SizeOverflow)?;
-        if self.arc_segment_tests > self.limits.maximum_arc_segment_tests {
-            return Err(IsotropicSpatialError::ArcSegmentTestLimitExceeded {
-                required: self.arc_segment_tests,
-                maximum: self.limits.maximum_arc_segment_tests,
-            });
-        }
-        let remaining_queries = self
-            .limits
-            .maximum_arc_membership_queries
-            .saturating_sub(self.arc_membership_queries);
-        let arc = window
-            .visible_circle_arc_fraction(center_x, center_y, radius, remaining_queries)
-            .map_err(|error| match error {
-                ObservationWindowError::VisibleArcMembershipQueryLimitExceeded { .. } => {
-                    IsotropicSpatialError::ArcMembershipQueryLimitExceeded {
-                        maximum: self.limits.maximum_arc_membership_queries,
-                    }
-                }
-                other => IsotropicSpatialError::Window(other),
-            })?;
-        self.arc_membership_queries = self
-            .arc_membership_queries
-            .checked_add(arc.membership_queries)
-            .ok_or(IsotropicSpatialError::SizeOverflow)?;
-        self.maximum_intersection_angles = self
-            .maximum_intersection_angles
-            .max(arc.boundary_intersection_angles);
-        if arc.fraction <= 0.0 {
-            return Err(IsotropicSpatialError::NonPositiveVisibleArc { center, neighbor });
-        }
-        Ok(arc.fraction)
-    }
 }
 
 fn validate_pattern_shape(pattern: &Pattern) -> Result<(), IsotropicSpatialError> {

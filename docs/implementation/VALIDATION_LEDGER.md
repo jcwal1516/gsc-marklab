@@ -4231,3 +4231,24 @@ vascular transport.
   translation K/L targets. Root no-default compilation and strict CLI package docs pass. Affected
   rustfmt and whitespace/diff checks pass. No workspace-wide/Nextest loop, full feature matrix,
   benchmark, fuzzing, packaging, dependency, publication, deployment, or push runs.
+
+## Isotropic homogeneous pair correlation checkpoint 170 — 2026-08-29
+
+- Red-first direct fails only on absent isotropic-g estimator/config exports, then passes rectangle
+  and square-hole analytic visible-fraction/normalization oracles plus strict compact-support and
+  exact/one-short work boundaries. Red-first durable fails only on absent node/document exports and
+  then passes miss/hit, stable strict round-trip, corruption rejection, and arc-limit invalidation.
+  Red-first CLI fails with an unrecognized subcommand and then passes fresh-process miss plus
+  backend-disabled byte-identical hit with one ledger row.
+- The final affected non-CLI command passes 9/9 across isotropic K/L and g direct/durable targets;
+  the isotropic-g CLI target passes 1/1. Warning-denied affected Clippy, root no-default compilation,
+  strict CLI package docs, affected rustfmt, and whitespace checks pass.
+- Frozen input hashes match checkpoints 157/169. The radius-20/bandwidth-10 miss takes 8.32 seconds
+  at 22,528,000-byte RSS and the disabled hit 5.79 seconds at 21,708,800 bytes. `cmp` passes, the
+  ledger remains one row, and both outputs hash to
+  `dc082a26b2b144f563151acd42a3423c296f57cdf85c25cbfe039abbd211bd8b`.
+- The real capacity result records 130,816/2,616,320 observed/total pair visits, 1,624/15,950
+  observed/total directed arc evaluations, 765,600 segment tests, 19,570 membership queries,
+  maximum four intersection angles, 72,336 estimated bytes, and 65,365 CSR draws. Its g and p-value
+  are retained without biological interpretation. No broad workspace/loader, feature matrix,
+  benchmark, fuzzing, packaging, dependency, publication, deployment, or push command runs.

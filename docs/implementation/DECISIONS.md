@@ -3039,3 +3039,20 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   prove byte-identical miss/hit replay while backend execution is disabled on the hit. Existing
   standard-border and translation K/L bytes remain unchanged. The frozen 512-cell capacity run is
   retained only as one-specimen execution evidence, not spatial interaction or patient evidence.
+
+## DEC-0355 — Apply exact visible-arc weights to homogeneous pair correlation
+
+- Date: 2026-08-29
+- Status: accepted for PP-03/PP-03A/PP-06C/FND-02/FND-03/PLAT-01/WF-01/WS-12/WS-22/WS-30
+- Decision: add a separately named isotropic homogeneous pair-correlation workflow. For each
+  unordered displacement in at least one strict Epanechnikov support interval, evaluate the
+  existing exact visible-circle fraction at both event centres once, reuse those directed
+  fractions across represented radii, multiply the kernel by both reciprocal fractions, and use
+  `area(W)/(2*pi*r*n*(n-1))` normalization. Reuse conditional CSR, ERL, project, store, ledger,
+  recovery, source/window/runtime identity, and bounded output under distinct config/result/seed
+  identities. Share only the visible-arc work budget now required by isotropic K/L and g.
+- Consequences: rectangle and polygon-hole analytic fractions agree with the normalized estimator;
+  compact-support emptiness remains unavailable, not zero. Exact pair, arc, segment, membership,
+  draw, and memory ceilings apply, and a fresh backend-disabled process replays the canonical hit
+  without execution. Border, translation, and isotropic K/L bytes remain unchanged. No correction
+  registry, automatic selection, or combined estimator family is added.

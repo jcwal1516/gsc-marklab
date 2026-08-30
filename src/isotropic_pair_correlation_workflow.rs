@@ -5,42 +5,42 @@ use marklab_workflow::{
 use serde::Serialize;
 
 use crate::{
-    geom::window::ObservationWindow2D,
-    isotropic_spatial::{
-        analyze_isotropic_spatial_pattern, IsotropicSpatialConfig, IsotropicSpatialLimits,
-        IsotropicSpatialResult, IsotropicSpatialResultDocument,
+    isotropic_pair_correlation::{
+        analyze_isotropic_pair_correlation, isotropic_pair_correlation_configuration_digest,
+        IsotropicPairCorrelationConfig, IsotropicPairCorrelationResult,
+        IsotropicPairCorrelationResultDocument,
     },
+    isotropic_spatial_workflow::window_artifact,
     workflow::pattern_artifact,
-    Pattern,
+    ObservationWindow2D, PairCorrelationKernel, Pattern,
 };
 
-const NODE_KIND: &str = "isotropic_spatial_analysis";
-const WINDOW_KIND: &str = "application/vnd.marklab.observation-window-2d+json;version=1";
-const CONFIG_KIND: &str = "application/vnd.marklab.isotropic-spatial-config+json;version=1";
-const RESULT_KIND: &str = "application/vnd.marklab.isotropic-spatial-result+json;version=1";
-const EXECUTION_POLICY: &[u8] =
-    b"serial;exact-segment-circle-visible-arcs;whole-pattern-conditional-csr;erl";
-const ADAPTER_REVISION: &str = "isotropic-spatial-analysis-node-v1";
+const CONFIG_KIND: &str =
+    "application/vnd.marklab.isotropic-pair-correlation-config+json;version=1";
+const RESULT_KIND: &str =
+    "application/vnd.marklab.isotropic-pair-correlation-result+json;version=1";
+const POLICY: &[u8] =
+    b"serial;exact-visible-arcs;epanechnikov;explicit-bandwidth;whole-pattern-conditional-csr;erl";
 
-/// Cache-addressed exact isotropic homogeneous K/L node.
-pub struct IsotropicSpatialAnalysisNode<'a> {
+/// Cache-addressed exact isotropic homogeneous pair-correlation node.
+pub struct IsotropicPairCorrelationAnalysisNode<'a> {
     spec: NodeSpec,
     pattern: &'a Pattern,
     window: &'a ObservationWindow2D,
-    config: &'a IsotropicSpatialConfig,
+    config: &'a IsotropicPairCorrelationConfig,
     inputs: Vec<ArtifactRef>,
     configuration_digest: ContentDigest,
     implementation_identity: String,
 }
 
-impl<'a> IsotropicSpatialAnalysisNode<'a> {
-    /// Catalog exact pattern, window, and configuration identities.
+impl<'a> IsotropicPairCorrelationAnalysisNode<'a> {
+    /// Catalog exact pattern, window, bandwidth, null, and resource identities.
     pub fn new(
         project: &mut MarklabProject,
         id: NodeId,
         pattern: &'a Pattern,
         window: &'a ObservationWindow2D,
-        config: &'a IsotropicSpatialConfig,
+        config: &'a IsotropicPairCorrelationConfig,
     ) -> Result<Self, NodeError> {
         Self::new_with_implementation_identity(
             project,
@@ -49,26 +49,24 @@ impl<'a> IsotropicSpatialAnalysisNode<'a> {
             window,
             config,
             format!(
-                "marklab/{};adapter={ADAPTER_REVISION}",
+                "marklab/{};adapter=isotropic-pair-correlation-node-v1",
                 env!("CARGO_PKG_VERSION")
             ),
             Vec::new(),
         )
     }
-
     pub(crate) fn new_with_implementation_identity(
         project: &mut MarklabProject,
         id: NodeId,
         pattern: &'a Pattern,
         window: &'a ObservationWindow2D,
-        config: &'a IsotropicSpatialConfig,
+        config: &'a IsotropicPairCorrelationConfig,
         implementation_identity: String,
         source_artifacts: Vec<ArtifactRef>,
     ) -> Result<Self, NodeError> {
         let pattern_ref = pattern_artifact(pattern)?;
         let window_ref = window_artifact(window)?;
         let config_ref = config_artifact(config)?;
-        let spec = NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?;
         let mut inputs = vec![pattern_ref, window_ref, config_ref.clone()];
         inputs.extend(source_artifacts);
         for artifact in &inputs {
@@ -77,7 +75,8 @@ impl<'a> IsotropicSpatialAnalysisNode<'a> {
                 .map_err(NodeError::input)?;
         }
         Ok(Self {
-            spec,
+            spec: NodeSpec::new(id, "isotropic_pair_correlation_analysis", 1, Vec::new())
+                .map_err(NodeError::input)?,
             pattern,
             window,
             config,
@@ -86,24 +85,20 @@ impl<'a> IsotropicSpatialAnalysisNode<'a> {
             implementation_identity,
         })
     }
-
     /// Dependency-free graph specification.
     pub fn spec(&self) -> &NodeSpec {
         &self.spec
     }
 }
 
-impl WorkflowNode for IsotropicSpatialAnalysisNode<'_> {
-    type Output = IsotropicSpatialResult;
-
+impl WorkflowNode for IsotropicPairCorrelationAnalysisNode<'_> {
+    type Output = IsotropicPairCorrelationResult;
     fn spec(&self) -> &NodeSpec {
         &self.spec
     }
-
     fn input_artifacts(&self) -> &[ArtifactRef] {
         &self.inputs
     }
-
     fn verify_input_content(&self) -> Result<(), NodeError> {
         let pattern = pattern_artifact(self.pattern)?;
         self.inputs[0]
@@ -118,86 +113,57 @@ impl WorkflowNode for IsotropicSpatialAnalysisNode<'_> {
             .verify_identity(config.digest(), config.byte_len())
             .map_err(NodeError::input)
     }
-
     fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
         CacheKeyMaterial {
             configuration_digest: self.configuration_digest,
-            execution_policy: EXECUTION_POLICY,
+            execution_policy: POLICY,
             implementation_identity: &self.implementation_identity,
         }
     }
-
     fn execute(&self) -> Result<Self::Output, NodeError> {
-        analyze_isotropic_spatial_pattern(self.pattern, self.window, self.config)
+        analyze_isotropic_pair_correlation(self.pattern, self.window, self.config)
             .map_err(NodeError::execution)
     }
-
     fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
-        IsotropicSpatialResultDocument::new(output.clone())
+        IsotropicPairCorrelationResultDocument::new(output.clone())
             .and_then(|document| document.to_json_pretty())
             .map(String::into_bytes)
             .map(Vec::into_boxed_slice)
             .map_err(NodeError::encoding)
     }
-
     fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
         let text = std::str::from_utf8(bytes).map_err(NodeError::decode)?;
-        IsotropicSpatialResultDocument::from_json(text)
-            .map(IsotropicSpatialResultDocument::into_analysis)
+        IsotropicPairCorrelationResultDocument::from_json(text)
+            .map(IsotropicPairCorrelationResultDocument::into_analysis)
             .map_err(NodeError::decode)
     }
-
     fn output_kind(&self) -> &'static str {
         RESULT_KIND
     }
 }
 
 #[derive(Serialize)]
-struct WindowArtifact {
-    kind: &'static str,
-    logical_digest: String,
-    area_um2: f64,
-    perimeter_um: f64,
-    bounds_um: [f64; 4],
-    component_count: usize,
-    hole_count: usize,
-    ring_count: usize,
-    vertex_count: usize,
-}
-
-pub(crate) fn window_artifact(window: &ObservationWindow2D) -> Result<ArtifactRef, NodeError> {
-    let descriptor = window.descriptor();
-    let encoded = serde_json::to_vec(&WindowArtifact {
-        kind: "marklab.observation_window_2d",
-        logical_digest: descriptor.logical_digest.to_string(),
-        area_um2: descriptor.area_um2,
-        perimeter_um: descriptor.perimeter_um,
-        bounds_um: descriptor.bounds_um,
-        component_count: descriptor.component_count,
-        hole_count: descriptor.hole_count,
-        ring_count: descriptor.ring_count,
-        vertex_count: descriptor.vertex_count,
-    })
-    .map_err(NodeError::input)?;
-    ArtifactRef::from_bytes(WINDOW_KIND, &encoded).map_err(NodeError::input)
-}
-
-#[derive(Serialize)]
 struct ConfigArtifact<'a> {
     radii_um: &'a [f64],
+    bandwidth_um: f64,
+    kernel: PairCorrelationKernel,
     simulations: usize,
     seed: u64,
     alpha: f64,
-    limits: IsotropicSpatialLimits,
+    limits: crate::IsotropicSpatialLimits,
+    logical_digest: String,
 }
 
-fn config_artifact(config: &IsotropicSpatialConfig) -> Result<ArtifactRef, NodeError> {
+fn config_artifact(config: &IsotropicPairCorrelationConfig) -> Result<ArtifactRef, NodeError> {
     let encoded = serde_json::to_vec(&ConfigArtifact {
         radii_um: config.radii_um(),
+        bandwidth_um: config.bandwidth_um(),
+        kernel: PairCorrelationKernel::Epanechnikov,
         simulations: config.simulations(),
         seed: config.seed(),
         alpha: config.alpha(),
         limits: config.limits(),
+        logical_digest: isotropic_pair_correlation_configuration_digest(config).to_string(),
     })
     .map_err(NodeError::input)?;
     ArtifactRef::from_bytes(CONFIG_KIND, &encoded).map_err(NodeError::input)

@@ -70,6 +70,8 @@ mod inhomogeneous_pair_correlation;
 mod inhomogeneous_project;
 #[path = "cli/inhomogeneous_spatial.rs"]
 mod inhomogeneous_spatial;
+#[path = "cli/isotropic_pair_correlation.rs"]
+mod isotropic_pair_correlation;
 #[path = "cli/isotropic_spatial.rs"]
 mod isotropic_spatial;
 #[path = "cli/multimodal.rs"]
@@ -581,6 +583,38 @@ enum ProjectCommands {
         out: PathBuf,
         #[arg(long, value_delimiter = ',')]
         radii_um: Vec<f64>,
+        #[arg(long)]
+        simulations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        max_pair_visits: usize,
+        #[arg(long)]
+        max_visible_arc_evaluations: usize,
+        #[arg(long)]
+        max_arc_segment_tests: usize,
+        #[arg(long)]
+        max_arc_membership_queries: usize,
+        #[arg(long)]
+        max_csr_draws: usize,
+    },
+    IsotropicPairCorrelation {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        cells: PathBuf,
+        #[arg(long)]
+        mask: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long, value_delimiter = ',')]
+        radii_um: Vec<f64>,
+        #[arg(long)]
+        bandwidth_um: f64,
         #[arg(long)]
         simulations: usize,
         #[arg(long)]
@@ -1157,6 +1191,39 @@ pub fn run_cli() -> Result<()> {
                 mask,
                 out,
                 radii_um,
+                simulations,
+                seed,
+                alpha,
+                memory_budget_mib,
+                maximum_pair_visits: max_pair_visits,
+                maximum_visible_arc_evaluations: max_visible_arc_evaluations,
+                maximum_arc_segment_tests: max_arc_segment_tests,
+                maximum_arc_membership_queries: max_arc_membership_queries,
+                maximum_csr_draws: max_csr_draws,
+            }),
+            ProjectCommands::IsotropicPairCorrelation {
+                project,
+                cells,
+                mask,
+                out,
+                radii_um,
+                bandwidth_um,
+                simulations,
+                seed,
+                alpha,
+                memory_budget_mib,
+                max_pair_visits,
+                max_visible_arc_evaluations,
+                max_arc_segment_tests,
+                max_arc_membership_queries,
+                max_csr_draws,
+            } => isotropic_pair_correlation::run_project(isotropic_pair_correlation::Request {
+                project,
+                cells,
+                mask,
+                out,
+                radii_um,
+                bandwidth_um,
                 simulations,
                 seed,
                 alpha,

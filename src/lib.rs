@@ -50,6 +50,8 @@ mod geom;
 mod inference;
 mod inhomogeneous_spatial;
 mod io;
+mod isotropic_pair_correlation;
+mod isotropic_pair_correlation_workflow;
 mod isotropic_spatial;
 mod isotropic_spatial_workflow;
 mod mark_pair_plan;
@@ -223,6 +225,14 @@ pub use inhomogeneous_spatial::{
     PiecewiseCompartmentSpatialResult, SelectedInhomogeneousSpatialResult,
 };
 pub use io::{PatternLoadDiagnostics, PatternLoadResult, PatternLoader};
+pub use isotropic_pair_correlation::{
+    analyze_isotropic_pair_correlation, IsotropicPairCorrelationConfig,
+    IsotropicPairCorrelationConfigurationSummary, IsotropicPairCorrelationGeometrySummary,
+    IsotropicPairCorrelationPoint, IsotropicPairCorrelationResult,
+    IsotropicPairCorrelationResultDocument, ISOTROPIC_PAIR_CORRELATION_FORMAT,
+    ISOTROPIC_PAIR_CORRELATION_FORMAT_VERSION,
+};
+pub use isotropic_pair_correlation_workflow::IsotropicPairCorrelationAnalysisNode;
 pub use isotropic_spatial::{
     analyze_isotropic_spatial_pattern, IsotropicCacheStatus, IsotropicConfigurationSummary,
     IsotropicGeometrySummary, IsotropicKlPoint, IsotropicSpatialConfig, IsotropicSpatialError,
