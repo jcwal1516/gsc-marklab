@@ -32,6 +32,13 @@ MAXIMUM_PROCESSES = 6
 MAXIMUM_TIMEOUT_SECONDS = 600
 CATEGORICAL_PAIR_ANALYSIS = "categorical-pair"
 CATEGORICAL_CROSS_G_ANALYSIS = "categorical-cross-pair-correlation"
+TRANSLATION_CROSS_G_ANALYSIS = "translation-categorical-cross-pair-correlation"
+ISOTROPIC_CROSS_G_ANALYSIS = "isotropic-categorical-cross-pair-correlation"
+CROSS_G_ANALYSES = (
+    CATEGORICAL_CROSS_G_ANALYSIS,
+    TRANSLATION_CROSS_G_ANALYSIS,
+    ISOTROPIC_CROSS_G_ANALYSIS,
+)
 CROSS_G_BANDWIDTH_UM = 10.0
 
 
@@ -40,8 +47,24 @@ class CategoricalPairPatientError(ValueError):
 
 
 def _validate_analysis(analysis: str) -> None:
-    if analysis not in {CATEGORICAL_PAIR_ANALYSIS, CATEGORICAL_CROSS_G_ANALYSIS}:
+    if analysis not in {CATEGORICAL_PAIR_ANALYSIS, *CROSS_G_ANALYSES}:
         raise CategoricalPairPatientError(f"unsupported categorical analysis: {analysis}")
+
+
+def _correction_name(analysis: str) -> str:
+    return {
+        CATEGORICAL_CROSS_G_ANALYSIS: "standard_border_radius_plus_bandwidth",
+        TRANSLATION_CROSS_G_ANALYSIS: "translation",
+        ISOTROPIC_CROSS_G_ANALYSIS: "isotropic",
+    }[analysis]
+
+
+def _analysis_token(analysis: str) -> str:
+    return {
+        CATEGORICAL_CROSS_G_ANALYSIS: "categorical_cross_g",
+        TRANSLATION_CROSS_G_ANALYSIS: "translation_categorical_cross_g",
+        ISOTROPIC_CROSS_G_ANALYSIS: "isotropic_categorical_cross_g",
+    }[analysis]
 
 
 def _load_module(path: Path, name: str):
@@ -94,6 +117,24 @@ def _read_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise CategoricalPairPatientError(f"JSON root must be an object: {path}")
     return value
+
+
+def _window_segment_count(path: Path) -> int:
+    document = _read_json(path)
+    coordinates = document.get("coordinates")
+    if document.get("type") != "MultiPolygon" or not isinstance(coordinates, list):
+        raise CategoricalPairPatientError("prepared window must be a GeoJSON MultiPolygon")
+    segments = 0
+    for polygon in coordinates:
+        if not isinstance(polygon, list):
+            raise CategoricalPairPatientError("prepared window polygon is invalid")
+        for ring in polygon:
+            if not isinstance(ring, list) or len(ring) < 4 or ring[0] != ring[-1]:
+                raise CategoricalPairPatientError("prepared window ring is invalid")
+            segments += len(ring) - 1
+    if not 1 <= segments <= 4096:
+        raise CategoricalPairPatientError("prepared window segment count is invalid")
+    return segments
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -378,6 +419,7 @@ def execute(
         cell_count = int(row["cell_count"])
         maximum_pairs = cell_count * (cell_count - 1)
         maximum_null_work = maximum_pairs * WITHIN_PATTERN_PERMUTATIONS
+        window_segments = _window_segment_count(window)
         for source, target in PAIR_FAMILIES:
             pair = _pair_id(source, target)
             project = output / "projects" / pattern / pair
@@ -396,6 +438,7 @@ def execute(
                     baseline,
                     maximum_pairs,
                     maximum_null_work,
+                    window_segments,
                 )
             )
     if len(jobs) != len(manifest) * len(PAIR_FAMILIES) or len(jobs) > 256:
@@ -413,6 +456,7 @@ def execute(
             baseline,
             maximum_pairs,
             maximum_null_work,
+            window_segments,
         ) = job
         result.parent.mkdir(parents=True, exist_ok=True)
         environment = os.environ.copy()
@@ -437,7 +481,7 @@ def execute(
             "--radii-um",
             ",".join(format(radius, ".17g") for radius in RADII_UM),
         ]
-        if analysis == CATEGORICAL_CROSS_G_ANALYSIS:
+        if analysis in CROSS_G_ANALYSES:
             command.extend(
                 ["--bandwidth-um", format(CROSS_G_BANDWIDTH_UM, ".17g")]
             )
@@ -457,6 +501,28 @@ def execute(
                 str(maximum_null_work),
             ]
         )
+        if analysis == TRANSLATION_CROSS_G_ANALYSIS:
+            command.extend(
+                [
+                    "--max-overlap-evaluations",
+                    str(maximum_pairs),
+                    "--max-overlap-candidate-work",
+                    str(maximum_pairs * window_segments * window_segments),
+                    "--max-overlap-output-vertices",
+                    str(window_segments * window_segments + 2 * window_segments),
+                ]
+            )
+        elif analysis == ISOTROPIC_CROSS_G_ANALYSIS:
+            command.extend(
+                [
+                    "--max-visible-arc-evaluations",
+                    str(maximum_pairs),
+                    "--max-arc-segment-tests",
+                    str(maximum_pairs * window_segments),
+                    "--max-arc-membership-queries",
+                    str(maximum_pairs * max(1, 2 * window_segments)),
+                ]
+            )
         try:
             completed = subprocess.run(
                 command,
@@ -520,7 +586,7 @@ def execute(
         "schema_name": (
             "marklab_crc_categorical_pair_patient_execution"
             if analysis == CATEGORICAL_PAIR_ANALYSIS
-            else "marklab_crc_categorical_cross_g_patient_execution"
+            else f"marklab_crc_{_analysis_token(analysis)}_patient_execution"
         ),
         "schema_version": "1.0",
         "population_unit": "patient",
@@ -629,12 +695,13 @@ def _result_features(
 
 
 def _cross_g_result_features(
-    document: dict[str, Any], source: str, target: str
+    document: dict[str, Any], source: str, target: str, correction: str
 ) -> tuple[dict[str, float], list[dict[str, str]]]:
     if (
         document.get("source_level") != source
         or document.get("target_level") != target
         or document.get("kernel") != "epanechnikov"
+        or document.get("edge_correction") != correction
         or float(document.get("bandwidth_um", "nan")) != CROSS_G_BANDWIDTH_UM
         or int(document.get("source_count", 0)) <= 0
         or int(document.get("target_count", 0)) <= 0
@@ -702,7 +769,7 @@ def summarize(
     expected_execution_schema = (
         "marklab_crc_categorical_pair_patient_execution"
         if analysis == CATEGORICAL_PAIR_ANALYSIS
-        else "marklab_crc_categorical_cross_g_patient_execution"
+        else f"marklab_crc_{_analysis_token(analysis)}_patient_execution"
     )
     if (
         execution_manifest.get("schema_name") != expected_execution_schema
@@ -731,17 +798,17 @@ def summarize(
     specimen_features: dict[str, dict[str, float]] = {row["pattern_id"]: {} for row in manifest}
     unavailable_rows: list[dict[str, str]] = []
     result_paths: list[Path] = []
-    feature_reader = (
-        _result_features
-        if analysis == CATEGORICAL_PAIR_ANALYSIS
-        else _cross_g_result_features
-    )
     for row in manifest:
         pattern = row["pattern_id"]
         for source, target in PAIR_FAMILIES:
             pair = _pair_id(source, target)
             path = execution / "results" / pair / f"{pattern}.json"
-            features, unavailable = feature_reader(_read_json(path), source, target)
+            if analysis == CATEGORICAL_PAIR_ANALYSIS:
+                features, unavailable = _result_features(_read_json(path), source, target)
+            else:
+                features, unavailable = _cross_g_result_features(
+                    _read_json(path), source, target, _correction_name(analysis)
+                )
             overlap = set(specimen_features[pattern]) & set(features)
             if overlap:
                 raise CategoricalPairPatientError("categorical-pair endpoint is duplicated")
@@ -768,11 +835,12 @@ def summarize(
             for source, target in PAIR_FAMILIES
             for radius in RADII_UM
         }
-        block_name = "categorical_cross_g"
-        only_model_name = "categorical_cross_g_only"
-        augmented_model_name = "m0_m3_categorical_cross_g"
-        summary_schema = "marklab_crc_categorical_cross_g_patient_summary"
-        bundle_schema = "marklab_crc_categorical_cross_g_patient_bundle"
+        token = _analysis_token(analysis)
+        block_name = token
+        only_model_name = f"{token}_only"
+        augmented_model_name = f"m0_m3_{token}"
+        summary_schema = f"marklab_crc_{token}_patient_summary"
+        bundle_schema = f"marklab_crc_{token}_patient_bundle"
     complete = set.intersection(*(set(row) for row in specimen_features.values()))
     incomplete = declared - complete
     unavailable_rows.extend(
@@ -970,7 +1038,7 @@ def summarize(
         ],
         "source_result_sha256": source_digest.hexdigest(),
     }
-    if analysis == CATEGORICAL_CROSS_G_ANALYSIS:
+    if analysis in CROSS_G_ANALYSES:
         if increment["balanced_accuracy_increment"] <= 0.0:
             summary["promotion_status"] = "nonincremental_not_promoted"
             summary["fusion_status"] = (
@@ -1014,7 +1082,7 @@ def parse_args() -> argparse.Namespace:
     execute_parser.add_argument("--replay", action="store_true")
     execute_parser.add_argument(
         "--analysis",
-        choices=(CATEGORICAL_PAIR_ANALYSIS, CATEGORICAL_CROSS_G_ANALYSIS),
+        choices=(CATEGORICAL_PAIR_ANALYSIS, *CROSS_G_ANALYSES),
         default=CATEGORICAL_PAIR_ANALYSIS,
     )
     summary_parser = commands.add_parser("summarize")
@@ -1026,7 +1094,7 @@ def parse_args() -> argparse.Namespace:
     summary_parser.add_argument("--seed", type=int, default=20260829)
     summary_parser.add_argument(
         "--analysis",
-        choices=(CATEGORICAL_PAIR_ANALYSIS, CATEGORICAL_CROSS_G_ANALYSIS),
+        choices=(CATEGORICAL_PAIR_ANALYSIS, *CROSS_G_ANALYSES),
         default=CATEGORICAL_PAIR_ANALYSIS,
     )
     return parser.parse_args()

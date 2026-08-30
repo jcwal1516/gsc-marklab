@@ -1675,3 +1675,13 @@ boundary-source oracle, durable seed invalidation, three fresh CLI regressions, 
 backend-disabled replay pass. Its one-specimen result remains capacity evidence. The corrected
 categorical cross-g ladder is complete; next production should address an inhomogeneous or
 patient-replicated caller, not correction-selection infrastructure.
+
+## Checkpoint 174 corrected categorical patient sensitivity
+
+The prespecified eight-patient corrected cross-g sensitivities complete with 64 misses followed by
+64 backend-disabled byte-identical hits per correction. Translation and isotropic variants retain
+moderate nested-slide rank stability but add no held-out balanced accuracy, reduce retrieval by
+0.125, and remain Max-T null-compatible; both are therefore excluded from fusion without tuning.
+Under SCIENCE-CRC-FINAL-01, general method expansion now stops. Production next reuses admitted
+graph/topology and completed M0--M7 evidence to finish only the bounded real-patient stability,
+incremental-information, held-out/permutation, external-comparison, final-bundle, and replay lanes.

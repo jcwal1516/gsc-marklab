@@ -442,3 +442,13 @@ strict docs without a finding. The macOS Nextest/full-integration loader loop re
 PP-01's native correction ladder is complete, while PP-03/PP-03A and WS-30 remain active for
 pinned external agreement, broader multitype callers, and calibration rather than new correction
 infrastructure.
+
+## Corrected categorical patient sensitivity checkpoint 174
+
+The existing patient owner now consumes both exact corrected categorical cross-g workflows under
+separate identities and exact geometry ceilings. Each authorized eight-patient run proves 64
+misses, 64 backend-disabled byte-identical hits, and one ledger execution. Translation and
+isotropic blocks are individually null-compatible and nonincremental beyond M0/M3, so the
+prespecified fusion gate excludes them. This closes the corrected categorical sensitivity needed
+by SCIENCE-CRC-FINAL-01 without completing or promoting broader PP-03/WS-30 catalog work. The next
+tracker action is only the remaining real CRC graph/topology analysis and final scientific seal.

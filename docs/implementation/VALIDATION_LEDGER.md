@@ -4292,3 +4292,34 @@ vascular transport.
 - The result retains 1,872 directed pairs, 936 unordered visits, 1,624 arc evaluations, 77,952
   segment tests, 2,017 membership queries, maximum four intersection angles, 229,000 estimated
   bytes, and 35,568 null pair evaluations. Cross-g 0.604679 and p=0.10 are not patient claims.
+
+## Corrected categorical patient sensitivity checkpoint 174 — 2026-08-29
+
+- Red-first extension of `tests.python.test_crc_categorical_pair_patient` fails with
+  `unsupported categorical analysis: translation-categorical-cross-pair-correlation`, then passes
+  after the patient executor receives only the two existing corrected selections and their exact
+  geometry ceilings. Final `env PYTHONDONTWRITEBYTECODE=1 target/pymc-venv/bin/python -m unittest
+  tests.python.test_crc_categorical_pair_patient` passes 1/1 in 7.26 seconds.
+- Authorized translation execution at
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v55-patient-translation-cross-g-work`
+  completes 64 misses in 106.71 seconds at 31,129,600-byte RSS and 64 backend-disabled hits in
+  89.33 seconds at 23,609,344-byte RSS. Execution, replay, manifest, and summary hashes are
+  `9ef63dd3fd353983291978b5cac0e6525519236f0dfdbafda0cb5a20699c250a`,
+  `565157e2ad9b311a7aebe55a709bf80ac2dcb342e25f400b93bbccae9180d2e9`,
+  `22fecf22584a492cb5862bc9dc0de002380abc4e8ce65b5ae2397d605fb77ef1`, and
+  `f57bf257ddd4a62bcc644ce622af0f64abae142923613a0939e8684cea6b83f5`.
+- Authorized isotropic execution at
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v56-patient-isotropic-cross-g-work`
+  completes 64 misses in 91.93 seconds at 32,784,384-byte RSS and 64 backend-disabled hits in
+  87.94 seconds at 23,625,728-byte RSS. The corresponding four hashes are
+  `46e85b6c3b6b1e81acc1975ae33674ea42a24cea2cab5a262a254e5627763103`,
+  `cafc373d11d96f6e6adcfa42cd548b2ee26d19d3d7348830729bd31fc7072e87`,
+  `7742cfc27941a57ad462a6324194d5a7458a6e9c7479dc63d94152f585f5666f`, and
+  `5057ef35d90257db386e3687eb16c82bea8aec9dbb2c2aa90ff298dc2b911bd1`.
+- Both summaries verify byte equality, one ledger execution, whole-patient held-out preprocessing,
+  exact 70-assignment label permutation, 999-step-down-Max-T draws, and the same unavailable
+  acquisition-site blocker. Both show zero balanced-accuracy increment, -0.125 retrieval
+  increment, bootstrap interval [-0.375, 0.375], and no fusion. Translation minimum adjusted
+  p=0.454 and isotropic minimum adjusted p=0.332 are retained without tuning or significance claim.
+- Direct diff and whitespace checks follow this ledger update. No workspace-wide/Nextest loader,
+  packaging, benchmark, fuzzing, publication, deployment, or push command runs.

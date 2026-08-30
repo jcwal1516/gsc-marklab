@@ -62,6 +62,8 @@ args = sys.argv[1:]
 if args[:2] in (
     ["project", "categorical-pair"],
     ["project", "categorical-cross-pair-correlation"],
+    ["project", "translation-categorical-cross-pair-correlation"],
+    ["project", "isotropic-categorical-cross-pair-correlation"],
 ):
     def value(name):
         return args[args.index(name) + 1]
@@ -129,6 +131,11 @@ if args[:2] in (
             "target_count": 2,
             "kernel": "epanechnikov",
             "bandwidth_um": 10.0,
+            "edge_correction": {
+                "categorical-cross-pair-correlation": "standard_border_radius_plus_bandwidth",
+                "translation-categorical-cross-pair-correlation": "translation",
+                "isotropic-categorical-cross-pair-correlation": "isotropic",
+            }[args[1]],
             "curve": curve,
             "inference": {
                 "null_model": "random_labeling",
@@ -327,6 +334,52 @@ class CrcCategoricalPairPatientTest(unittest.TestCase):
                 len(list((cross_executed / "projects").glob("*/*/executions.jsonl"))),
                 64,
             )
+
+            for analysis, schema in (
+                (
+                    "translation-categorical-cross-pair-correlation",
+                    "marklab_crc_translation_categorical_cross_g_patient_summary",
+                ),
+                (
+                    "isotropic-categorical-cross-pair-correlation",
+                    "marklab_crc_isotropic_categorical_cross_g_patient_summary",
+                ),
+            ):
+                corrected_execution = root / f"{analysis}_executed"
+                corrected_summary_root = root / f"{analysis}_summary"
+                module.execute(
+                    prepared,
+                    fake,
+                    corrected_execution,
+                    2,
+                    30,
+                    replay=False,
+                    analysis=analysis,
+                )
+                corrected_replay = module.execute(
+                    prepared,
+                    fake,
+                    corrected_execution,
+                    2,
+                    30,
+                    replay=True,
+                    analysis=analysis,
+                )
+                corrected_summary = module.summarize(
+                    prepared,
+                    corrected_execution,
+                    baseline,
+                    fake,
+                    corrected_summary_root,
+                    20260829,
+                    analysis=analysis,
+                )
+                self.assertEqual(corrected_replay["cache_status_counts"], {"hit": 64})
+                self.assertEqual(corrected_summary["schema_name"], schema)
+                self.assertEqual(
+                    corrected_summary["promotion_status"],
+                    "nonincremental_not_promoted",
+                )
 
 
 if __name__ == "__main__":

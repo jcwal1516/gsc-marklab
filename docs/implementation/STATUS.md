@@ -3548,3 +3548,26 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   Cross-g is 0.604679 and p=0.10; this is one-specimen capacity evidence only.
 - Warning-denied affected Clippy, root no-default compilation, strict docs, formatting, and
   whitespace checks pass. No broad gate runs after checkpoint 171.
+
+## Corrected categorical patient sensitivity checkpoint 174 — 2026-08-29
+
+- The existing eight-patient/16-slide CellViT categorical executor now selects the translation and
+  isotropic directed cross-g project workflows with correction-specific exact geometry ceilings.
+  Population inference remains at the patient unit: slides are nested diagnostics, preprocessing
+  is fit inside each leave-one-patient-out fold, molecular labels are permuted as whole patients,
+  and the same prespecified positive-increment fusion gate is retained.
+- On the authorized CPTAC subset, each correction completed 64 durable misses and 64 fresh-process
+  backend-disabled hits with byte-identical results and one execution per ledger. Translation took
+  106.71/89.33 seconds at 31,129,600/23,609,344-byte RSS; isotropic took 91.93/87.94 seconds at
+  32,784,384/23,625,728-byte RSS. The deployed binary and worker hash to
+  `10c7de4877b060cef4c3a770af4d43aed8fa786240a79c94ebe9f1439338c53d` and
+  `10ac6df0aac124ff42363214818b238ec66b3c537dd5f0eb24aeb649276293ea`.
+- Translation nested-slide rank stability has median 0.8452 and q10 0.55; isotropic has median
+  0.8095 and q10 0.5024. Both add 0.0 held-out balanced accuracy and -0.125 retrieval accuracy
+  beyond M0/M3, with whole-patient bootstrap interval [-0.375, 0.375]. Neither is promoted or
+  fused. Across all 16 endpoints, translation adjusted p-values are at least 0.454 and isotropic
+  adjusted p-values at least 0.332; these null-compatible, nonincremental results are retained
+  without scale, endpoint, subset, threshold, or correction selection.
+- The focused Python patient integration passes 1/1 in 7.26 seconds. The correction-specific
+  manifests and summaries are sealed on the authorized 1 TB drive; no broad workspace gate is
+  repeated after checkpoint 171.

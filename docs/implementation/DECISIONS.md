@@ -3087,3 +3087,20 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   weighted kernel sum 4.5, and cross-g `9/pi`. Durable and fresh-process disabled replay pass while
   border/translation bytes remain unchanged. No correction registry or automatic comparison is
   introduced.
+
+## DEC-0358 — Reuse corrected categorical cross-g as prespecified patient sensitivities
+
+- Date: 2026-08-29
+- Status: accepted for SCIENCE-CRC-FINAL-01/PP-03B/CMP-01F/WF-01/WS-12/WS-30
+- Decision: allow the existing eight-patient categorical-pair executor and summary to select the
+  separately named translation and isotropic cross-g project commands. Preserve the frozen four
+  source/target directions, 20/50/100/200-micrometre radii, 10-micrometre bandwidth, complete-row
+  random-labeling null, two slides nested per patient, fold-internal preprocessing, whole-patient
+  bootstrap/permutation, Max-T family, and positive-increment promotion rule. Derive only the
+  correction-specific exact geometry ceilings from each admitted window; do not pool corrections,
+  search scales, or add an automatic selector.
+- Consequences: every corrected analysis has a distinct execution, result, block, and schema
+  identity while reusing the existing project ledger, artifact store, scheduler, and patient
+  inference. A corrected block enters fusion only if its prespecified held-out increment is
+  positive and its individual stability check passes. Null, unstable, and nonincremental outcomes
+  remain durable scientific results rather than triggers for retuning.
