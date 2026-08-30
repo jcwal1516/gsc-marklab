@@ -4637,3 +4637,41 @@ vascular transport.
   `cargo +1.96.0 check --locked --package marklab --no-default-features`, affected Rustfmt, and
   focused whitespace checks pass. Remote `shasum -a 256 -c SHA256SUMS` passes for the complete v64
   bundle. The workspace/Nextest loader loop and broad gates are not run.
+
+## Durable embedding kernel mark-correlation checkpoint 187 — 2026-08-30
+
+- The behavior test is written before the final admission implementation. Its first local retry is
+  blocked at compilation by 16 errors in the concurrent user-owned finite-Neumaier refactor; no
+  unrelated file is changed. A non-git mini snapshot of the exact working tree then runs
+  `CARGO_INCREMENTAL=0 cargo +1.96.0 test --locked --package marklab --features cli --test
+  kernel_mark_correlation_project_cli
+  kernel_mark_correlation_is_bounded_then_replays_exact_direct_bytes -- --nocapture` successfully.
+  After radial-memory, parsed-byte identity, and pre-project semantic-admission regressions are
+  added, that target passes again together with `bayes_kernel_mark_correlation_cli` 1/1 each.
+- The first combined local focused run passes the analytic direct target but correctly rejects the
+  replay because a concurrent Cargo process replaces `target/debug/marklab` between miss and hit,
+  changing its exact runtime identity. The test is corrected to copy one executable into its
+  temporary directory. The exact local project test then passes 1/1 while other builds continue,
+  proving all admission failures, direct-byte parity, miss, backend-disabled hit, exact ledger
+  identities, and one execution row against one immutable runtime.
+- The real source/input/bin hashes are
+  `3fe55c5b1e0e57395f64957956d527009c01440d1a4da828c973c790312377a2`,
+  `c7cb66ffe4fb889eb8ca6ddb19e146377f1d6d0a2c19ed1e9b71725fa2f70ea2`, and
+  `a362cc4aacb19b88ef5bc9c1aac698c0d70d7087e58964cce57f9e05aa162c60`. The 3,000-row caller
+  completes a 9.12-second miss at 46,481,408-byte RSS and a separate 6.60-second disabled hit at
+  22,282,240 bytes. Direct/miss/hit `cmp` and SHA-256 equality pass; the ledger has one row.
+  Standard-library pair auditing confirms zero cross-patient pairs in every reported physical bin.
+- `CARGO_INCREMENTAL=0 cargo +1.96.0 check --locked --package marklab --no-default-features`
+  passes. Direct Rustfmt and focused whitespace checks pass. Warning-denied affected Clippy is
+  attempted exactly as
+  `CARGO_INCREMENTAL=0 cargo +1.96.0 clippy --locked --package marklab --features cli --bin
+  marklab --test kernel_mark_correlation_project_cli -- -D warnings`; it stops on the concurrent
+  refactor's existing `clippy::ptr_arg` finding at
+  `src/bin/marklab/bayes/embedding_spatial.rs:190`, so no Clippy pass is claimed and that user-owned
+  file is not changed.
+- Remote `shasum -c SHA256SUMS` passes every v65 file. Run-manifest and checksum SHA-256 are
+  `3edba3f64c6884a43b6f5d7c6f654fb0086fdce9c0041ecdf4a6e9dd1adb4848` and
+  `92a7248200ec4a7c345a7acd23e697fbc7ae7ba265f6485e2fdd24c16891e21a`. The temporary mini build
+  snapshot is moved to Trash after its exact executable is sealed in the bundle. No broad
+  workspace/Nextest loop, benchmark, fuzzing, packaging, dependency, push, publication,
+  deployment, or history-rewrite command runs.

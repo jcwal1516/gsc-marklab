@@ -56,6 +56,8 @@ use super::{
 mod projected_embedding_variograms;
 #[path = "project/embedding_cross_covariance.rs"]
 mod embedding_cross_covariance;
+#[path = "project/kernel_mark_correlation.rs"]
+mod kernel_mark_correlation;
 #[path = "project/region_retrieval.rs"]
 mod region_retrieval;
 #[path = "project/vector_semivariogram.rs"]
@@ -1038,6 +1040,28 @@ enum ProjectCommand {
         #[arg(long)]
         memory_budget_mib: usize,
     },
+    KernelMarkCorrelation {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        bins: PathBuf,
+        #[arg(long)]
+        kernel: String,
+        #[arg(long)]
+        global_reference_tolerance: f64,
+        #[arg(long)]
+        maximum_points: usize,
+        #[arg(long)]
+        maximum_dimension: usize,
+        #[arg(long)]
+        maximum_pair_visits: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
     RegionRetrieval {
         #[arg(long)]
         project: PathBuf,
@@ -1544,6 +1568,32 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             maximum_pair_visits,
             maximum_matrix_elements,
             memory_budget_mib,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::KernelMarkCorrelation {
+                    project,
+                    input,
+                    bins,
+                    kernel,
+                    global_reference_tolerance,
+                    maximum_points,
+                    maximum_dimension,
+                    maximum_pair_visits,
+                    memory_budget_mib,
+                    out,
+                },
+        } => kernel_mark_correlation::run(
+            project,
+            input,
+            bins,
+            kernel,
+            global_reference_tolerance,
+            maximum_points,
+            maximum_dimension,
+            maximum_pair_visits,
+            memory_budget_mib,
+            out,
         ),
         ProjectTopLevel::Project {
             command:

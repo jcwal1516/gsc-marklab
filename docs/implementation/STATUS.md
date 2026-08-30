@@ -3896,3 +3896,39 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   passes. Both focused integration tests, warning-denied affected Clippy, package no-default
   compilation, affected formatting, and whitespace checks pass. No broad workspace/Nextest loop
   runs.
+
+## Durable embedding kernel mark-correlation checkpoint 187 — 2026-08-30
+
+- Added `marklab project kernel-mark-correlation` around the existing IC-0085 training-frozen
+  linear/cosine/RBF/Laplacian kernel statistic. Exact parsed input/bin bytes, kernel/tolerance,
+  point/dimension/pair/memory controls, implementation, native runtime/executable, scheduler, and
+  result schema now own the durable identity. The existing analytic statistic and direct CLI are
+  unchanged.
+- Admission now reproduces all core row, feature, split, and physical-bin invariants before the
+  durable project opens. The memory ceiling conservatively includes the radial training-pair
+  distance vector, capacity growth, and stable-sort scratch. Artifact identities are derived from
+  the exact bytes parsed and then checked against the live sources, closing the preparation ABA
+  gap. One-short source, radial-memory, point, dimension, pair-work, invalid-row, and invalid-bin
+  cases publish neither project nor result.
+- The admitted 3,000-row/30-patient/16-component CellViT table requires 3,597,600 pair visits and
+  57,561,600 component operations. Training-only RBF scale is 0.8774239814749609. Normalized
+  similarity decreases across 0--25/25--50/50--100/100--200 micrometres in training
+  (1.418/1.308/1.238/1.174), validation (1.342/1.244/1.195/1.143), and test
+  (1.400/1.302/1.233/1.163); all assigned nearby-bin pairs are within patient.
+- The durable miss takes 9.12 seconds at 46,481,408-byte maximum RSS. A separate
+  backend-disabled process returns a hit in 6.60 seconds at 22,282,240 bytes. Direct, miss, and hit
+  are byte-identical at SHA-256
+  `aa9986d6440f84c752272fb80b4d82f84e221362ad8e84d9a2ad4fd80b0f2115`, with one ledger row.
+  This is descriptive split-level capacity evidence, not patient-population or molecular-class
+  inference.
+- The sealed bundle is
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v65-durable-kernel-mark-final`.
+  Run-manifest and checksum-manifest SHA-256 are
+  `3edba3f64c6884a43b6f5d7c6f654fb0086fdce9c0041ecdf4a6e9dd1adb4848` and
+  `92a7248200ec4a7c345a7acd23e697fbc7ae7ba265f6485e2fdd24c16891e21a`; complete remote rehash
+  passes. Both focused tests pass on the mini snapshot; the analytic direct test and isolated
+  executable durable test pass in the current checkout. Package no-default compilation and
+  affected formatting/whitespace checks pass. Warning-denied affected Clippy is not green because
+  it stops on the concurrent refactor's existing `clippy::ptr_arg` finding at
+  `src/bin/marklab/bayes/embedding_spatial.rs:190`; that user-owned file is not changed. No broad
+  workspace/Nextest loop runs.

@@ -548,3 +548,15 @@ operations; the full 3,000-row table remains correctly outside the fixed work ce
 advances EMB-01, SIG-01H, WF-01, WS-12, and WS-32 only for the concrete caller and makes no
 patient-population claim. The next immediate workflow is durable IC-0085 kernel mark correlation;
 IC-0084 remains data-blocked on matched cross-modal correspondence.
+
+## Durable embedding kernel mark-correlation checkpoint 187
+
+The existing IC-0085 training-frozen kernel mark correlation now executes through a bounded typed
+project node with exact parsed-byte source/bin, kernel/configuration, native runtime/executable, and
+result-schema identity. Core row/split/bin invariants and conservative radial scale-fit memory are
+admitted before durable state exists. Its independent analytic oracle and direct output remain
+unchanged. The complete admitted 3,000-row/30-patient/16-component caller fits the fixed
+57,561,600-component-operation ceiling and replays backend-disabled with one ledger row. This
+advances EMB-01, SIG-01H, PLAT-01, WF-01, WS-12, and WS-32 for the concrete caller only; it makes no
+patient-population, recurrence, molecular, or significance claim. The next immediate workflow is
+durable IC-0086 embedding spatial-dependence envelope; IC-0084 remains data-blocked.

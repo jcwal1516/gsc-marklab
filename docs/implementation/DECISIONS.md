@@ -3268,3 +3268,21 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   bound and durably replays without execution; the full 3,000-row table remains rejected rather
   than weakening the 250-million-operation ceiling. This result is descriptive capacity evidence,
   not patient inference, and does not authorize cell-pair pseudoreplication or biological claims.
+
+## DEC-0369 — Durably execute the existing frozen embedding-kernel mark correlation
+
+- Date: 2026-08-30
+- Status: accepted for EMB-KERNEL-01/EMB-01/SIG-01H/PLAT-01/WF-01/WS-12/WS-32
+- Decision: add one native `marklab project kernel-mark-correlation` caller around IC-0085. Reuse
+  the exact kernel statistic, direct output shape, physical-bin parser, scheduler, artifact store,
+  ledger, recovery, native runtime identity, and exact-float durable codec. Derive source artifact
+  identities from the exact retained bytes that are parsed, then reverify the live files. Admit all
+  core row, feature, split, and bin invariants before project creation. Cache-bind kernel kind,
+  global-reference tolerance bits, point/dimension/pair-work limits, retained-memory budget, and
+  executable identity. Conservatively include radial scale-fit distances, vector growth, and stable
+  sort scratch in memory admission.
+- Consequences: the admitted 3,000-row/30-patient/16-component caller fits RBF preprocessing only on
+  training patients and durably replays a direct-byte-identical result without a second execution.
+  Invalid semantic inputs and under-budget radial jobs create neither a project nor an output. This
+  does not add a kernel selector, learned kernel, plugin, result format, automatic bandwidth/scale
+  choice, patient-population inference, or authority to treat cell pairs as patient replicates.

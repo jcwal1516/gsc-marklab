@@ -1820,3 +1820,15 @@ CellViT view completes a miss and backend-disabled byte-identical hit with one l
 descriptive split-level capacity evidence, not patient inference. Production next advances the
 existing training-fit kernel mark-correlation workflow through the same project engine, using its
 already audited 30-patient real caller rather than a generic embedding registry.
+
+## Checkpoint 187 durable embedding kernel mark correlation
+
+IC-0085 now has a strict native `marklab project kernel-mark-correlation` path over its existing
+training-frozen kernel and direct CLI. Exact parsed bytes, physical bins, kernel/tolerance,
+point/dimension/pair/memory controls, native executable/runtime, and typed result schema are
+cache-bound. Full semantic admission precedes project creation, including conservative radial
+scale-fit storage. The admitted 3,000-row/30-patient CellViT caller completes a direct-byte-identical
+miss and fresh backend-disabled hit with one ledger row. Its consistent short-range similarity is
+descriptive split-level capacity evidence, not patient-population inference. Production next
+advances the existing IC-0086 complete-vector spatial-dependence envelope through the same bounded
+durable path; IC-0084 remains blocked on matched cross-modal correspondence.
