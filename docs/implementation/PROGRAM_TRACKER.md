@@ -452,3 +452,11 @@ isotropic blocks are individually null-compatible and nonincremental beyond M0/M
 prespecified fusion gate excludes them. This closes the corrected categorical sensitivity needed
 by SCIENCE-CRC-FINAL-01 without completing or promoting broader PP-03/WS-30 catalog work. The next
 tracker action is only the remaining real CRC graph/topology analysis and final scientific seal.
+
+## SCIENCE-CRC-FINAL-01 read-only completion audit checkpoint 175
+
+Checkpoint 158 already owns the requested final patient-level graph/topology, M0--M7, external,
+outcome, interpretation, and durable-replay bundle. The fresh 1-TB audit verifies all 1,905 listed
+artifacts, 64 categorical-pair and 16 patient-witness byte-identical hits, and their one-execution
+ledgers without rerunning science or backends. The conclusion and frozen fusion exclusions remain
+unchanged. SCIENCE-CRC-FINAL-01 is complete, and no broader master-plan state is promoted.

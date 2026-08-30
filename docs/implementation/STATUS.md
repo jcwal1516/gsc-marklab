@@ -3571,3 +3571,24 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - The focused Python patient integration passes 1/1 in 7.26 seconds. The correction-specific
   manifests and summaries are sealed on the authorized 1 TB drive; no broad workspace gate is
   repeated after checkpoint 171.
+
+## SCIENCE-CRC-FINAL-01 read-only completion audit checkpoint 175 — 2026-08-29
+
+- A bounded reconciliation confirms the requested witness checkpoint and every remaining
+  science-critical lane were already completed and committed at checkpoints 147, 151, 155, and
+  158. No graph, topology, M0--M7, Bayesian, external-validation, or outcome workflow is rerun.
+- `/Volumes/1TB/marklab/runs/science-crc-final-01-v4` remains the canonical bundle. A fresh
+  read-only Mac mini audit rehashes all 1,905 declared artifacts with zero missing or mismatched
+  files; 1,906 files include the manifest. Manifest and interpretation SHA-256 remain
+  `1fe3dbeec3de956f2cdd6a9e67f8ccd983ae26301bfe44383fbb42a525b4f2b2` and
+  `34f29d358deeac520facfd0cd644fc800461c2af049e89424d0d053ed35023ed`.
+- Replay evidence remains intact without starting an external backend: all 64 patient categorical
+  pair hits and all 16 patient witness-bottleneck hits are byte-identical to their misses, every
+  corresponding ledger has one execution, and graph/topology ledgers retain exactly five/four
+  prespecified variant executions per pattern. Thirteen focused final-sealer, graph/topology, and
+  patient-witness tests pass.
+- The scientific conclusion is unchanged. Descriptive local CRC H&E organization and one
+  independent direction-level H&E association are supported; a stable transferable
+  molecular-class spatial fingerprint is not established. The corrected cross-g sensitivities at
+  checkpoint 174 are supplemental null/nonincremental evidence and do not alter the frozen fusion
+  result or require an expensive scientific rerun.

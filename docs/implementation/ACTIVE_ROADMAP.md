@@ -1685,3 +1685,12 @@ moderate nested-slide rank stability but add no held-out balanced accuracy, redu
 Under SCIENCE-CRC-FINAL-01, general method expansion now stops. Production next reuses admitted
 graph/topology and completed M0--M7 evidence to finish only the bounded real-patient stability,
 incremental-information, held-out/permutation, external-comparison, final-bundle, and replay lanes.
+
+## Checkpoint 175 SCIENCE-CRC-FINAL-01 read-only completion audit
+
+The graph/topology, stability, incremental, patient-held-out/permutation, external-comparison, M7,
+final-bundle, and replay lanes named by the replacement goal were already completed at checkpoints
+147, 151, 155, and 158. A new read-only Mac mini audit rehashes every one of the 1,905 canonical v4
+artifacts and revalidates patient replay/ledger invariants without backend execution. Checkpoint
+174's corrected cross-g sensitivities remain supplemental and excluded from fusion. The science
+objective is complete; no additional production or software workstream is promoted.

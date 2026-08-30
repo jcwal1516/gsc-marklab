@@ -4323,3 +4323,22 @@ vascular transport.
   p=0.454 and isotropic minimum adjusted p=0.332 are retained without tuning or significance claim.
 - Direct diff and whitespace checks follow this ledger update. No workspace-wide/Nextest loader,
   packaging, benchmark, fuzzing, publication, deployment, or push command runs.
+
+## SCIENCE-CRC-FINAL-01 read-only completion audit checkpoint 175 — 2026-08-29
+
+- On `ssh mini`, a standard-library SHA-256 audit of
+  `/Volumes/1TB/marklab/runs/science-crc-final-01-v4/manifest.json` verifies all 1,905 declared
+  artifacts, 1,906 total files including the manifest, zero missing paths, and zero digest
+  mismatches. Manifest and `scientific_interpretation.json` hashes exactly match checkpoint 158.
+- Direct manifest/ledger inspection verifies 64 categorical-pair replay hits with byte equality and
+  64 one-row ledgers; 16 patient witness-bottleneck misses plus 16 backend-disabled byte-identical
+  hits with 16 one-row ledgers; and the intended five graph/four topology variant executions per
+  pattern. No external backend or completed analysis is started.
+- `env PYTHONDONTWRITEBYTECODE=1 target/pymc-venv/bin/python -m unittest
+  tests.python.test_crc_final_science_bundle tests.python.test_crc_graph_topology_final
+  tests.python.test_crc_graph_topology_summary tests.python.test_crc_witness_bottleneck_patient`
+  passes 13/13 in 0.84 seconds.
+- Checkpoint 145 remains the requested broad baseline. Final whitespace, diff, and status checks
+  run after this entry; no workspace-wide/Nextest loader, Bayesian backend, feature matrix,
+  benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history rewrite
+  command runs.
