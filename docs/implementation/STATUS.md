@@ -3763,3 +3763,17 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   follow checkpoint 180, so its affected Rust gates remain current. No broad workspace/Nextest
   loop, benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history
   rewrite runs.
+
+## Scalar/vector durable stabilization checkpoint 182 — 2026-08-29
+
+- Stabilized checkpoints 178--181 as one four-workflow sequence: real contour-area preparation and
+  scalar capacity, patient scalar inference, durable raw-vector project execution, and durable
+  169-patient M4 replay. Direct review retains the distinct scalar/vector codecs and scientific
+  gates, the shared existing Bayes vector CSV adapter, and no speculative registry or runner.
+- `cargo +1.96.0 fmt --all --check`, warning-denied workspace all-target/all-feature Clippy,
+  workspace no-default compilation, all-feature workspace doctests, and strict warning-denied
+  all-feature workspace docs pass once without findings.
+- The documented macOS Nextest/full-integration loader loop is not retried. Focused behavior,
+  real-data miss/hit, reference-compatibility, remote rehash, and patient-unit evidence remains at
+  checkpoints 178--181. No feature matrix, benchmark, fuzzing, packaging, dependency, push,
+  publication, deployment, or history rewrite runs.

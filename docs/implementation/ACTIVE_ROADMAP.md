@@ -1758,3 +1758,11 @@ ULP and are retained explicitly. The sealed M4 patient science is unchanged. Fou
 workflows have now completed since checkpoint 177, so production pauses for one non-loader major
 stabilization checkpoint before the next dependency-ordered caller; do not rerun patient science or
 the documented macOS Nextest/full-integration loop.
+
+## Checkpoint 182 scalar/vector durable stabilization
+
+The four-workflow scalar/vector sequence passes the complete non-loader workspace checkpoint with
+no finding. The macOS integration/Nextest loader loop remains excluded. SIG-01F patient scalar and
+raw-vector durability are current; production next should advance a different immediate scientific
+caller or an independently justified external/correction gap, not rerun these null/nonincremental
+patient results or add an embedding framework.

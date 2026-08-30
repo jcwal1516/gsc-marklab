@@ -4512,3 +4512,15 @@ vascular transport.
   `28e3a37dceebeed20f42519935f43fd770cdbb8a2a205a82dc5f8716ff5ac762`. The existing patient M4
   science is not rerun or reinterpreted. No broad workspace/Nextest loop, benchmark, fuzzing,
   packaging, dependency, push, publication, deployment, or history rewrite command runs.
+
+## Scalar/vector durable stabilization checkpoint 182 — 2026-08-29
+
+- `cargo +1.96.0 fmt --all --check` passes. `cargo +1.96.0 clippy --locked --workspace
+  --all-targets --all-features -- -D warnings` passes in 77 seconds without findings.
+- `cargo +1.96.0 check --locked --workspace --no-default-features` and `cargo +1.96.0 test
+  --locked --workspace --doc --all-features` pass in one combined 18.9-second command.
+  `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --workspace --all-features --no-deps`
+  passes in 25.3 seconds.
+- The documented macOS Nextest/full-integration loader loop is not retried. No feature matrix,
+  benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or history
+  rewrite runs. Final diff, whitespace, and status checks follow.

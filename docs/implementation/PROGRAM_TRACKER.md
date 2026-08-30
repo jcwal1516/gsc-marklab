@@ -499,3 +499,11 @@ identity, frozen-reference structural identity, and one ledger each. Twenty-seve
 from the older runtime by exactly one ULP; no other field differs. This completes durable patient
 M4 execution without changing its sealed null/stability/held-out findings. SIG-01F remains active
 only for the independently named correction, external-agreement, and promotion gaps.
+
+## Scalar/vector durable stabilization checkpoint 182
+
+Checkpoints 178--181 pass workspace formatting, warning-denied all-target/all-feature Clippy,
+workspace no-default compilation, all-feature doctests, and strict docs without a finding. The
+documented loader loop is not retried. SIG-01F/NUL-01D and WF-01/WS-12 evidence is current through
+real patient durable replay; active status remains only for independently named statistical and
+external-validation gaps.
