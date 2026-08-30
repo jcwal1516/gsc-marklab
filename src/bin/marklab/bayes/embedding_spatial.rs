@@ -8,7 +8,10 @@ use marklab_bayes::{
     VectorSemivariogramResult, VectorSemivariogramSpec,
 };
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use super::{run_worker, MAXIMUM_INPUT_BYTES};
 
@@ -21,7 +24,7 @@ pub(super) fn run_vector_semivariogram(
 ) -> Result<(), BayesCliError> {
     let input_bytes = read(&input)?;
     let bin_bytes = read(&bins)?;
-    let weight_bytes = weights.as_ref().map(read).transpose()?;
+    let weight_bytes = weights.as_deref().map(read).transpose()?;
     let (points, feature_names) = read_points(&input_bytes)?;
     let bins = read_bins(&bin_bytes)?;
     let pair_weights = weight_bytes.as_deref().map(read_weights).transpose()?;
@@ -187,7 +190,7 @@ pub(crate) fn execute_projected_variograms(
     ))
 }
 
-pub(super) fn read(path: &PathBuf) -> Result<Vec<u8>, BayesCliError> {
+pub(super) fn read(path: &Path) -> Result<Vec<u8>, BayesCliError> {
     super::input_file::read_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,

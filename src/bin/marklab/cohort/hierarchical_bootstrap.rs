@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use marklab_cohort::{
     bootstrap_equivalence, hierarchical_bootstrap, BootstrapEquivalenceResult,
@@ -69,7 +69,7 @@ pub(super) fn run_equivalence(
     )
 }
 
-fn read_records(path: &PathBuf) -> Result<Vec<HierarchicalScalarRecord>, CohortError> {
+fn read_records(path: &Path) -> Result<Vec<HierarchicalScalarRecord>, CohortError> {
     validate_input_file(path)?;
     let mut reader = csv::ReaderBuilder::new()
         .flexible(false)

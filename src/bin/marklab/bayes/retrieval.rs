@@ -4,7 +4,7 @@ use marklab_bayes::{
     RegionRetrievalError, RegionRetrievalResult, RetrievalLeakagePolicy, TrainingRegion,
 };
 use serde::Serialize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub(crate) struct PreparedRegionRetrievalInputs {
     pub training_sha256: String,
@@ -43,8 +43,8 @@ pub(super) fn run(
 }
 
 pub(crate) fn prepare_inputs(
-    training: &PathBuf,
-    query: &PathBuf,
+    training: &Path,
+    query: &Path,
 ) -> Result<PreparedRegionRetrievalInputs, BayesCliError> {
     let training_bytes = embedding_spatial::read(training)?;
     let query_bytes = embedding_spatial::read(query)?;
