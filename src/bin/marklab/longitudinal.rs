@@ -1,7 +1,5 @@
 use std::{
-    ffi::OsString,
-    fs::{self, OpenOptions},
-    io::Write,
+    fs,
     path::{Path, PathBuf},
 };
 
@@ -13,6 +11,8 @@ use marklab_longitudinal::{
 };
 use serde::Serialize;
 use thiserror::Error;
+
+use super::exclusive_json_output::{publish_pretty_json, ExclusiveJsonOutputError};
 
 const MAXIMUM_INPUT_BYTES: u64 = 16 * 1024 * 1024;
 
@@ -146,57 +146,14 @@ fn read_input(input_path: PathBuf) -> Result<Vec<u8>, LongitudinalCliError> {
 }
 
 fn publish_json(path: &Path, result: &impl Serialize) -> Result<(), LongitudinalCliError> {
-    match fs::symlink_metadata(path) {
-        Ok(_) => {
-            return Err(LongitudinalCliError::Input(format!(
-                "output already exists: {}",
-                path.display()
-            )))
+    publish_pretty_json(path, result, "longitudinal").map_err(|error| match error {
+        ExclusiveJsonOutputError::OutputExists => {
+            LongitudinalCliError::Input(format!("output already exists: {}", path.display()))
         }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(source) => {
-            return Err(LongitudinalCliError::Io {
-                path: path.to_owned(),
-                source,
-            })
+        ExclusiveJsonOutputError::OutputMustNameFile => {
+            LongitudinalCliError::Input("output must name a file".into())
         }
-    }
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    fs::create_dir_all(parent).map_err(|source| LongitudinalCliError::Io {
-        path: parent.to_owned(),
-        source,
-    })?;
-    let file_name = path
-        .file_name()
-        .ok_or_else(|| LongitudinalCliError::Input("output must name a file".into()))?;
-    let mut staging_name = OsString::from(".");
-    staging_name.push(file_name);
-    staging_name.push(format!(".marklab-longitudinal-{}.tmp", std::process::id()));
-    let staging = parent.join(staging_name);
-    let bytes = serde_json::to_vec_pretty(result)?;
-    let publication = (|| -> Result<(), LongitudinalCliError> {
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&staging)
-            .map_err(|source| LongitudinalCliError::Io {
-                path: staging.clone(),
-                source,
-            })?;
-        file.write_all(&bytes)
-            .and_then(|()| file.write_all(b"\n"))
-            .and_then(|()| file.sync_all())
-            .map_err(|source| LongitudinalCliError::Io {
-                path: staging.clone(),
-                source,
-            })?;
-        fs::rename(&staging, path).map_err(|source| LongitudinalCliError::Io {
-            path: path.to_owned(),
-            source,
-        })
-    })();
-    if publication.is_err() {
-        let _ = fs::remove_file(&staging);
-    }
-    publication
+        ExclusiveJsonOutputError::Io { path, source } => LongitudinalCliError::Io { path, source },
+        ExclusiveJsonOutputError::Json(error) => LongitudinalCliError::Json(error),
+    })
 }

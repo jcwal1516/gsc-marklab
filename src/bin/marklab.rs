@@ -16,6 +16,8 @@ mod causal;
 mod causal_model;
 #[path = "marklab/cohort.rs"]
 mod cohort;
+#[path = "marklab/exclusive_json_output.rs"]
+mod exclusive_json_output;
 #[path = "marklab/graph.rs"]
 mod graph;
 #[path = "marklab/longitudinal.rs"]

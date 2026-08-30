@@ -1,7 +1,5 @@
 use std::{
-    ffi::OsString,
-    fs::{self, OpenOptions},
-    io::Write,
+    fs,
     path::{Path, PathBuf},
 };
 
@@ -9,6 +7,8 @@ use clap::{Parser, Subcommand};
 use marklab_numerics::{evaluate_stable_primitives, StablePrimitivesSpec};
 use serde::Serialize;
 use thiserror::Error;
+
+use super::exclusive_json_output::{publish_pretty_json, ExclusiveJsonOutputError};
 
 const MAXIMUM_INPUT_BYTES: u64 = 16 * 1024 * 1024;
 
@@ -84,57 +84,14 @@ fn run(input: PathBuf, out: PathBuf) -> Result<(), NumericsCliError> {
 }
 
 fn publish_json(path: &Path, result: &impl Serialize) -> Result<(), NumericsCliError> {
-    match fs::symlink_metadata(path) {
-        Ok(_) => {
-            return Err(NumericsCliError::Input(format!(
-                "output already exists: {}",
-                path.display()
-            )))
+    publish_pretty_json(path, result, "numerics").map_err(|error| match error {
+        ExclusiveJsonOutputError::OutputExists => {
+            NumericsCliError::Input(format!("output already exists: {}", path.display()))
         }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(source) => {
-            return Err(NumericsCliError::Io {
-                path: path.to_owned(),
-                source,
-            })
+        ExclusiveJsonOutputError::OutputMustNameFile => {
+            NumericsCliError::Input("output must name a file".into())
         }
-    }
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    fs::create_dir_all(parent).map_err(|source| NumericsCliError::Io {
-        path: parent.to_owned(),
-        source,
-    })?;
-    let file_name = path
-        .file_name()
-        .ok_or_else(|| NumericsCliError::Input("output must name a file".into()))?;
-    let mut staging_name = OsString::from(".");
-    staging_name.push(file_name);
-    staging_name.push(format!(".marklab-numerics-{}.tmp", std::process::id()));
-    let staging = parent.join(staging_name);
-    let bytes = serde_json::to_vec_pretty(result)?;
-    let publication = (|| -> Result<(), NumericsCliError> {
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&staging)
-            .map_err(|source| NumericsCliError::Io {
-                path: staging.clone(),
-                source,
-            })?;
-        file.write_all(&bytes)
-            .and_then(|()| file.write_all(b"\n"))
-            .and_then(|()| file.sync_all())
-            .map_err(|source| NumericsCliError::Io {
-                path: staging.clone(),
-                source,
-            })?;
-        fs::rename(&staging, path).map_err(|source| NumericsCliError::Io {
-            path: path.to_owned(),
-            source,
-        })
-    })();
-    if publication.is_err() {
-        let _ = fs::remove_file(&staging);
-    }
-    publication
+        ExclusiveJsonOutputError::Io { path, source } => NumericsCliError::Io { path, source },
+        ExclusiveJsonOutputError::Json(error) => NumericsCliError::Json(error),
+    })
 }

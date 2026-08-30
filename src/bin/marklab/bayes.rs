@@ -1,6 +1,5 @@
 use std::{
-    ffi::OsString,
-    fs::{self, OpenOptions},
+    fs,
     io::{Read, Write},
     path::{Path, PathBuf},
     process::{Command, ExitStatus, Stdio},
@@ -15,6 +14,8 @@ use marklab_bayes::{
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+use super::exclusive_json_output::{publish_pretty_json, ExclusiveJsonOutputError};
 
 #[path = "bayes/anisotropic_gp3d.rs"]
 mod anisotropic_gp3d;
@@ -7347,57 +7348,14 @@ fn validate_process_result(
 }
 
 pub(super) fn publish_json(path: &Path, result: &impl Serialize) -> Result<(), BayesCliError> {
-    match fs::symlink_metadata(path) {
-        Ok(_) => {
-            return Err(BayesCliError::Input(format!(
-                "output already exists: {}",
-                path.display()
-            )))
+    publish_pretty_json(path, result, "bayes").map_err(|error| match error {
+        ExclusiveJsonOutputError::OutputExists => {
+            BayesCliError::Input(format!("output already exists: {}", path.display()))
         }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(source) => {
-            return Err(BayesCliError::Io {
-                path: path.to_owned(),
-                source,
-            })
+        ExclusiveJsonOutputError::OutputMustNameFile => {
+            BayesCliError::Input("output must name a file".into())
         }
-    }
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    fs::create_dir_all(parent).map_err(|source| BayesCliError::Io {
-        path: parent.to_owned(),
-        source,
-    })?;
-    let file_name = path
-        .file_name()
-        .ok_or_else(|| BayesCliError::Input("output must name a file".into()))?;
-    let mut staging_name = OsString::from(".");
-    staging_name.push(file_name);
-    staging_name.push(format!(".marklab-bayes-{}.tmp", std::process::id()));
-    let staging = parent.join(staging_name);
-    let bytes = serde_json::to_vec_pretty(result)?;
-    let publication = (|| -> Result<(), BayesCliError> {
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&staging)
-            .map_err(|source| BayesCliError::Io {
-                path: staging.clone(),
-                source,
-            })?;
-        file.write_all(&bytes)
-            .and_then(|()| file.write_all(b"\n"))
-            .and_then(|()| file.sync_all())
-            .map_err(|source| BayesCliError::Io {
-                path: staging.clone(),
-                source,
-            })?;
-        fs::rename(&staging, path).map_err(|source| BayesCliError::Io {
-            path: path.to_owned(),
-            source,
-        })
-    })();
-    if publication.is_err() {
-        let _ = fs::remove_file(&staging);
-    }
-    publication
+        ExclusiveJsonOutputError::Io { path, source } => BayesCliError::Io { path, source },
+        ExclusiveJsonOutputError::Json(error) => BayesCliError::Json(error),
+    })
 }
