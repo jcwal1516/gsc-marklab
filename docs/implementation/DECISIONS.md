@@ -3104,3 +3104,21 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   inference. A corrected block enters fusion only if its prespecified held-out increment is
   positive and its individual stability check passes. Null, unstable, and nonincremental outcomes
   remain durable scientific results rather than triggers for retuning.
+
+## DEC-0359 — Estimate directed cross-g from separate type-specific intensity pilots
+
+- Date: 2026-08-29
+- Status: accepted for PP-03/PP-03B/PP-05/NUL-01C/FND-03/FND-04/FND-06/WF-01/WS-12/WS-30/WS-31
+- Decision: add one separately named two-level inhomogeneous categorical cross-g workflow. Fit the
+  existing boundary-corrected Gaussian leave-one-out estimator independently to the declared
+  source and target rows, retain both fixed-grid intensity artifacts, and normalize each
+  standard-border Epanechnikov source-to-target contribution by the product of its source and
+  target intensities and the eligible-source inverse-intensity sum. The null independently samples
+  whole source and target location patterns from their fixed fitted grids while conditioning on
+  both type counts. Use distinct source/target seed namespaces and the existing project, scheduler,
+  artifact store, typed categorical input, ERL, exact-float codec, and work/memory owners.
+- Consequences: each role requires at least two rows for leave-one-out intensity; missing or sparse
+  levels are explicit failures. Point, radius, probe, intensity-evaluation, pair-visit, null-draw,
+  and retained-memory ceilings are cache-bound. This is not random labeling, a joint normalized
+  multitype fit, automatic bandwidth selection, a correction registry, or evidence that an
+  inadmissible real intensity pilot should be tuned.

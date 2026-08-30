@@ -2,6 +2,9 @@ mod analysis;
 mod bandwidth;
 mod bandwidth_types;
 mod bandwidth_workflow;
+mod categorical_cross_g;
+mod categorical_cross_g_types;
+mod categorical_cross_g_workflow;
 mod codec;
 mod compartment_analysis;
 mod compartment_g;
@@ -28,6 +31,16 @@ pub use bandwidth_types::{
 #[cfg(feature = "cli")]
 pub(crate) use bandwidth_workflow::encode_selected_spatial_result;
 pub use bandwidth_workflow::GaussianBandwidthSelectedSpatialAnalysisNode;
+pub use categorical_cross_g::inhomogeneous_categorical_cross_pair_correlation;
+pub use categorical_cross_g_types::{
+    InhomogeneousCategoricalCrossPairCorrelationConfig,
+    InhomogeneousCategoricalCrossPairCorrelationError,
+    InhomogeneousCategoricalCrossPairCorrelationPoint,
+    InhomogeneousCategoricalCrossPairCorrelationResult,
+};
+#[cfg(feature = "cli")]
+pub(crate) use categorical_cross_g_workflow::encode_result as encode_categorical_cross_g_result;
+pub use categorical_cross_g_workflow::InhomogeneousCategoricalCrossPairCorrelationAnalysisNode;
 pub use compartment_analysis::analyze_piecewise_compartment_spatial_pattern;
 pub use compartment_g::analyze_piecewise_compartment_pair_correlation;
 #[cfg(feature = "cli")]

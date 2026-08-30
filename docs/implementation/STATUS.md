@@ -3592,3 +3592,30 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   molecular-class spatial fingerprint is not established. The corrected cross-g sensitivities at
   checkpoint 174 are supplemental null/nonincremental evidence and do not alter the frozen fusion
   result or require an expensive scientific rerun.
+
+## Type-specific inhomogeneous categorical cross-g checkpoint 176 — 2026-08-29
+
+- Added `inhomogeneous_categorical_cross_pair_correlation`, its strict durable node, and `marklab
+  project inhomogeneous-categorical-cross-pair-correlation`. The declared source and target levels
+  each retain a separate existing Gaussian leave-one-out event/fixed-grid intensity artifact.
+  Directed Epanechnikov contributions use the product of source/target inverse intensities and the
+  eligible-source inverse-intensity denominator under standard-border `r+h` eligibility.
+- The null independently samples complete source and target location patterns from their fixed
+  type-specific grids while conditioning on both observed counts. Source/target seed namespaces,
+  typed categorical/source/window/config/runtime identity, ERL, project/store/ledger/recovery,
+  exact-float result bytes, and point/probe/intensity/pair/null/memory ceilings are explicit.
+- An independent 20-by-20 Gaussian/grid calculation agrees on both type intensities, inverse-
+  intensity kernel sum, center denominator, and normalized cross-g. Fewer than two rows per role
+  and one-byte-short retained memory fail before output. Direct/durable tests pass 3/3 and the
+  fresh-process CLI miss/backend-disabled hit is byte-identical with one ledger row.
+- The prespecified real diagnostic reuses checkpoint 157's hash-frozen 512 cells and exact window,
+  Neoplastic-to-Inflammatory direction, 20-micrometre radius, 50-micrometre intensity bandwidth,
+  10-micrometre pair bandwidth, 16-by-16 grid, 19 simulations, seed 20260829, and fixed 1e-12
+  minimum intensity. The identity-final binary hashes to
+  `8f5640960a44a29f07b3589e2b12ddef7209a1d90706848cad805b987dd8b5c5`. Execution stops in 9.68
+  seconds at 22,986,752-byte RSS because a role-local event intensity is 1.10276e-32 per square
+  micrometre. No result publishes and the ledger remains empty; no parameter or subset is changed.
+- Seventeen affected regression tests, two seed tests, warning-denied affected Clippy, package
+  no-default compilation, strict affected docs, formatting, and whitespace checks pass. The first
+  no-default attempt correctly exposes a CLI-only encoder annotation and passes after the encoder
+  remains available to the feature-independent durable node. No broad workspace/Nextest loop runs.

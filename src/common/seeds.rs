@@ -22,6 +22,8 @@ pub(crate) enum SeedEndpoint {
     NearestSpaceCsr = 0x6667_6a5f_6373_725f,
     PairCorrelationCsr = 0x7061_6972_5f67_6373,
     InhomogeneousSpatialNull = 0x696e_686f_6d5f_6e75,
+    InhomogeneousCrossSourceNull = 0x696e_685f_7873_7263,
+    InhomogeneousCrossTargetNull = 0x696e_685f_7874_6774,
     PiecewiseCompartmentSpatialNull = 0x7063_5f63_6d70_5f6e,
 }
 
@@ -86,6 +88,8 @@ mod tests {
             SeedEndpoint::NearestSpaceCsr,
             SeedEndpoint::PairCorrelationCsr,
             SeedEndpoint::InhomogeneousSpatialNull,
+            SeedEndpoint::InhomogeneousCrossSourceNull,
+            SeedEndpoint::InhomogeneousCrossTargetNull,
             SeedEndpoint::PiecewiseCompartmentSpatialNull,
         ];
         let mut seeds = endpoints

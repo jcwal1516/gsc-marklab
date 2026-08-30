@@ -64,6 +64,8 @@ mod categorical_pair;
 mod classical;
 #[path = "cli/inhomogeneous_bandwidth_selection.rs"]
 mod inhomogeneous_bandwidth_selection;
+#[path = "cli/inhomogeneous_categorical_cross_pair_correlation.rs"]
+mod inhomogeneous_categorical_cross_pair_correlation;
 #[path = "cli/inhomogeneous_pair_correlation.rs"]
 mod inhomogeneous_pair_correlation;
 #[path = "cli/inhomogeneous_project.rs"]
@@ -858,6 +860,48 @@ enum ProjectCommands {
         #[arg(long)]
         max_null_draws: usize,
     },
+    InhomogeneousCategoricalCrossPairCorrelation {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        cells: PathBuf,
+        #[arg(long)]
+        mask: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        source_level: String,
+        #[arg(long)]
+        target_level: String,
+        #[arg(long, value_delimiter = ',')]
+        radii_um: Vec<f64>,
+        #[arg(long)]
+        intensity_bandwidth_um: f64,
+        #[arg(long)]
+        pair_bandwidth_um: f64,
+        #[arg(long)]
+        grid_x: usize,
+        #[arg(long)]
+        grid_y: usize,
+        #[arg(long)]
+        simulations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        minimum_intensity_per_um2: f64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        max_probes: usize,
+        #[arg(long)]
+        max_intensity_evaluations: usize,
+        #[arg(long)]
+        max_pair_visits: usize,
+        #[arg(long)]
+        max_null_draws: usize,
+    },
     Classical {
         #[arg(long)]
         project: PathBuf,
@@ -1535,6 +1579,50 @@ pub fn run_cli() -> Result<()> {
                     cells,
                     mask,
                     out,
+                    radii_um,
+                    intensity_bandwidth_um,
+                    pair_bandwidth_um,
+                    integration_grid: [grid_x, grid_y],
+                    simulations,
+                    seed,
+                    alpha,
+                    minimum_intensity_per_um2,
+                    memory_budget_mib,
+                    maximum_probes: max_probes,
+                    maximum_intensity_evaluations: max_intensity_evaluations,
+                    maximum_pair_visits: max_pair_visits,
+                    maximum_null_draws: max_null_draws,
+                },
+            ),
+            ProjectCommands::InhomogeneousCategoricalCrossPairCorrelation {
+                project,
+                cells,
+                mask,
+                out,
+                source_level,
+                target_level,
+                radii_um,
+                intensity_bandwidth_um,
+                pair_bandwidth_um,
+                grid_x,
+                grid_y,
+                simulations,
+                seed,
+                alpha,
+                minimum_intensity_per_um2,
+                memory_budget_mib,
+                max_probes,
+                max_intensity_evaluations,
+                max_pair_visits,
+                max_null_draws,
+            } => inhomogeneous_categorical_cross_pair_correlation::run_project(
+                inhomogeneous_categorical_cross_pair_correlation::Request {
+                    project,
+                    cells,
+                    mask,
+                    out,
+                    source_level,
+                    target_level,
                     radii_um,
                     intensity_bandwidth_um,
                     pair_bandwidth_um,

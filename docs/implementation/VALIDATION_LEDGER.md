@@ -4342,3 +4342,29 @@ vascular transport.
   run after this entry; no workspace-wide/Nextest loader, Bayesian backend, feature matrix,
   benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history rewrite
   command runs.
+
+## Type-specific inhomogeneous categorical cross-g checkpoint 176 — 2026-08-29
+
+- Red-first `cargo +1.96.0 test --locked --package marklab --test
+  inhomogeneous_categorical_cross_pair_correlation_typed_workflow` fails only on the absent public
+  function/config, then passes 3/3 after the analytic caller, sparse-type guard, exact one-short
+  memory boundary, durable miss/hit, and seed invalidation are implemented. The first analytic
+  assertion exposes a test-only false symmetry assumption for boundary-corrected intensities; the
+  independent oracle is corrected to evaluate all four role/event boundary masses and then agrees.
+- `cargo +1.96.0 test --locked --package marklab --features cli` over the new typed/CLI targets and
+  the affected standard categorical cross-g plus unmarked inhomogeneous g direct/durable/CLI
+  targets passes 17/17. `cargo +1.96.0 test --locked --package marklab --lib
+  common::seeds::tests` passes 2/2.
+- Warning-denied affected Clippy passes for the library, CLI binary, and both new targets. Package
+  no-default compilation first fails because the durable node's encoder is accidentally gated on
+  `cli`, then passes after removing only that gate. Strict CLI package docs and
+  `cargo +1.96.0 fmt --all --check` pass.
+- The final binary hash matches locally and on the Mac mini at
+  `8f5640960a44a29f07b3589e2b12ddef7209a1d90706848cad805b987dd8b5c5`. The fixed real command at
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v57-inhomogeneous-cross-g-work` exits 1 in
+  9.68 seconds at 22,986,752-byte RSS with exact observed intensity
+  `1.1027597985337386e-32 < 1e-12`. `miss.json` is absent and `executions.jsonl` has zero rows.
+  The earlier pre-allocation-hardening binary reaches the identical blocker and is superseded.
+- Final direct diff, whitespace, and status checks follow. No bandwidth/floor/pair/scale/subset
+  search, broad workspace/Nextest loader loop, benchmark, fuzzing, packaging, dependency, push,
+  publication, deployment, or history rewrite command runs.

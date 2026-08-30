@@ -31,4 +31,5 @@ pub use types::{
 };
 #[cfg(feature = "cli")]
 pub(crate) use workflow::encode_result;
+pub(crate) use workflow::window_artifact;
 pub use workflow::CategoricalCrossPairCorrelationAnalysisNode;

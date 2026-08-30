@@ -1694,3 +1694,14 @@ final-bundle, and replay lanes named by the replacement goal were already comple
 artifacts and revalidates patient replay/ledger invariants without backend execution. Checkpoint
 174's corrected cross-g sensitivities remain supplemental and excluded from fusion. The science
 objective is complete; no additional production or software workstream is promoted.
+
+## Checkpoint 176 type-specific inhomogeneous categorical cross-g
+
+PP-03B now has one explicit type-specific inhomogeneous caller: separate Gaussian leave-one-out
+source/target intensity artifacts feed directed standard-border Epanechnikov cross-g, and an
+independent fixed-grid two-pattern null preserves both type counts. Analytic, sparse-type,
+resource-bound, durable, and fresh-process CLI evidence passes. The frozen 512-cell CPTAC caller
+fails before output because a declared type intensity is approximately 1.10e-32 per square
+micrometre against the fixed 1e-12 floor; the failure is retained without tuning. Production next
+must come from a different immediate caller or an independently justified calibrated intensity
+design, not a floor/bandwidth/scale/subset search or a generalized multitype registry.
