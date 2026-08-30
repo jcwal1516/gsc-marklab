@@ -3056,3 +3056,19 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   draw, and memory ceilings apply, and a fresh backend-disabled process replays the canonical hit
   without execution. Border, translation, and isotropic K/L bytes remain unchanged. No correction
   registry, automatic selection, or combined estimator family is added.
+
+## DEC-0356 — Apply exact polygon translation overlap to directed categorical cross-g
+
+- Date: 2026-08-29
+- Status: accepted for PP-03/PP-03B/PP-06B/MRK-01/FND-03/FND-04/WF-01/WS-12/WS-23/WS-30
+- Decision: add a separate translation-corrected directed two-level categorical cross-g caller.
+  Retain the typed compartment rows, declared source/target order, Epanechnikov bandwidth,
+  complete-row random-labeling null, and ERL family. Evaluate exact polygon overlap once per
+  contributing retained unordered displacement, reuse it for either directed assignment, multiply
+  source-to-target kernel weights by `area(W)/overlap`, and normalize by
+  `area(W)/(2*pi*r*n_source*n_target)`. Reuse project, store, ledger, recovery, categorical input,
+  and translation-overlap owners under a distinct result/cache identity.
+- Consequences: a four-cell rectangle agrees at overlap 24, weighted sum `7/4`, and cross-g
+  `49/(8*pi)`. Fresh processes prove byte-identical miss/hit replay with execution disabled on the
+  hit. Standard-border bytes remain unchanged; no correction registry or automatic comparison is
+  added.

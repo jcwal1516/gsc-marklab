@@ -1655,3 +1655,13 @@ all-feature doctests, and strict docs are current; the documented macOS loader l
 The correction ladder now has exact native behavior and durable capacity evidence. Pinned spatstat
 agreement remains a named environment blocker, so the next production outcome should come from a
 different immediate scientific caller rather than more correction infrastructure.
+
+## Checkpoint 172 translation-corrected directed categorical cross-g
+
+The typed CellViT categorical cross-g caller now has a separate exact polygon translation workflow.
+One overlap per contributing retained unordered displacement is reused for declared source-to-target
+kernel weights and complete-row random-label replicates. Rectangle, durable seed invalidation,
+fresh-process backend-disabled replay, and standard-border regressions pass. A frozen 512-cell
+capacity run completes in 7.96 seconds and replays with one ledger row; its one-specimen result is
+not population evidence. Production next may add isotropic categorical cross-g only through the
+existing visible-arc owner, without a correction registry.

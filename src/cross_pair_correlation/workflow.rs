@@ -142,7 +142,7 @@ struct WindowArtifact {
     frame: String,
 }
 
-fn window_artifact(window: &ObservationWindow2D) -> Result<ArtifactRef, NodeError> {
+pub(crate) fn window_artifact(window: &ObservationWindow2D) -> Result<ArtifactRef, NodeError> {
     let frame = window
         .coordinate_frame_id()
         .ok_or_else(|| NodeError::input(invalid("window has no frame")))?;

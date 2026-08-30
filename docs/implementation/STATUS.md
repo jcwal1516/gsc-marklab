@@ -3515,3 +3515,20 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   durable, CLI, exact geometry, real-capacity, and backend-disabled replay evidence remains in
   checkpoints 167--170. No benchmark, fuzzing, packaging, dependency, publication, deployment,
   push, or history rewrite runs.
+
+## Translation-corrected directed categorical cross-g checkpoint 172 — 2026-08-29
+
+- Added `translation_categorical_cross_pair_correlation`, its store-aware node, and `marklab project
+  translation-categorical-cross-pair-correlation`. Typed labels, declared direction, bandwidth,
+  complete-row random labeling, and ERL remain intact; exact overlap is evaluated once per retained
+  contributing unordered displacement under a separate result/cache identity.
+- The rectangle oracle gives one source-to-target pair, overlap 24, weighted sum `7/4`, and cross-g
+  `49/(8*pi)`. Direct replay, durable miss/hit/seed invalidation, and fresh-process disabled replay
+  pass with standard-border regressions unchanged.
+- The frozen 512-cell Neoplastic-to-Inflammatory capacity miss takes 7.96 seconds at 25,673,728-byte
+  RSS; the hit takes 5.83 seconds at 22,872,064 bytes. Both hash to
+  `a6f18a64141d8f93c460f67e753591c37836c5208abb29a195c4651e08a625e8` with one ledger row.
+  Counts are 140/26, cross-g 0.655655, and p=0.10; this is not patient evidence.
+- Six direct/durable tests and both CLI targets pass. Warning-denied affected Clippy, root
+  no-default compilation, strict docs, formatting, and whitespace checks pass. No broad gate runs
+  after checkpoint 171.

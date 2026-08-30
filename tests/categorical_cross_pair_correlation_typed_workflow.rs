@@ -2,14 +2,16 @@
 
 use approx::assert_abs_diff_eq;
 use marklab::{
-    categorical_cross_pair_correlation, execute_algorithm_with_store, ArtifactRef, ArtifactSchema,
+    categorical_cross_pair_correlation, execute_algorithm_with_store,
+    translation_categorical_cross_pair_correlation, ArtifactRef, ArtifactSchema,
     BinaryMarkDeclaration, CacheStatus, CategoricalCrossPairCorrelationAnalysisNode,
     CategoricalCrossPairCorrelationConfig, CategoricalPairLimits, DeclaredScalarPatternInput,
     DurableProject, DurableProjectLimits, HistologicCompartmentMarkDeclaration, LocalScheduler,
     MarkTable, MeasurementStatus, MissingnessPolicy, NativeRuntimeProvenance, NodeId,
     ObservationWindow2D, ObservationWindowLimits, PairCorrelationKernel,
     PairCorrelationPointStatus, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
-    SchedulerLimits, WorkflowGraph,
+    SchedulerLimits, TranslationCategoricalCrossPairCorrelationAnalysisNode,
+    TranslationCategoricalCrossPairCorrelationConfig, TranslationSpatialLimits, WorkflowGraph,
 };
 
 #[path = "support/declared_scalar.rs"]
@@ -329,4 +331,105 @@ fn categorical_cross_g_reopens_as_a_store_verified_hit() {
     assert_eq!(durable_run(&path, 20260827), (CacheStatus::Miss, 1));
     assert_eq!(durable_run(&path, 20260827), (CacheStatus::Hit, 1));
     assert_eq!(durable_run(&path, 20260828), (CacheStatus::Miss, 2));
+}
+
+#[test]
+fn translation_corrected_directed_cross_g_matches_the_rectangle_overlap_oracle() {
+    let (fixture, pattern, table, window) = input_fixture([0, 0, 1, 1]);
+    let input = DeclaredScalarPatternInput::from_mark_table(
+        &fixture.project,
+        &pattern,
+        &table,
+        fixture.slide_id.clone(),
+        fixture.frame_id.clone(),
+    )
+    .expect("declared input");
+    let config = TranslationCategoricalCrossPairCorrelationConfig::new(
+        config(20260829),
+        TranslationSpatialLimits::new(16, 16, 64, 64, 2_048, 64, 1, 1 << 20)
+            .expect("translation limits"),
+    )
+    .expect("translation cross-g config");
+
+    let result = translation_categorical_cross_pair_correlation(&input, &window, &config)
+        .expect("translation cross-g");
+    let point = &result.curve[0];
+    assert_eq!(result.edge_correction, "translation");
+    assert_eq!(point.directed_source_target_pairs_in_support, 1);
+    assert_eq!(point.overlap_evaluations, 1);
+    assert_abs_diff_eq!(
+        point.translation_overlap_area_sum_um2,
+        24.0,
+        epsilon = 1e-12
+    );
+    assert_abs_diff_eq!(
+        point.translation_weighted_kernel_sum,
+        7.0 / 4.0,
+        epsilon = 1e-12
+    );
+    assert_abs_diff_eq!(
+        point.cross_g.expect("cross g"),
+        49.0 / (8.0 * std::f64::consts::PI),
+        epsilon = 1e-12
+    );
+}
+
+fn translation_config(seed: u64) -> TranslationCategoricalCrossPairCorrelationConfig {
+    TranslationCategoricalCrossPairCorrelationConfig::new(
+        config(seed),
+        TranslationSpatialLimits::new(16, 16, 64, 64, 2_048, 64, 1, 1 << 20)
+            .expect("translation limits"),
+    )
+    .expect("translation config")
+}
+
+#[test]
+fn translation_cross_g_reopens_as_a_store_verified_hit() {
+    let root = tempfile::tempdir().expect("root");
+    let path = root.path().join("project");
+    let run_once = |seed| {
+        let (mut fixture, pattern, table, window) = input_fixture([0, 0, 1, 1]);
+        let input = DeclaredScalarPatternInput::from_mark_table(
+            &fixture.project,
+            &pattern,
+            &table,
+            fixture.slide_id.clone(),
+            fixture.frame_id.clone(),
+        )
+        .expect("input");
+        let config = translation_config(seed);
+        let node = TranslationCategoricalCrossPairCorrelationAnalysisNode::new(
+            &mut fixture.project,
+            NodeId::new("translation-categorical-cross-g").expect("ID"),
+            &input,
+            &window,
+            &config,
+        )
+        .expect("node");
+        let graph = WorkflowGraph::new([node.spec().clone()]).expect("graph");
+        let scheduler = LocalScheduler::new(SchedulerLimits {
+            max_inline_output_bytes: 1 << 20,
+        })
+        .expect("scheduler");
+        let mut durable = DurableProject::open_or_create(
+            &path,
+            DurableProjectLimits::new(64 * 1024, 1 << 20, 64, 64 * 1024, 1 << 20).expect("limits"),
+        )
+        .expect("durable");
+        let result = execute_algorithm_with_store(
+            &mut durable,
+            &mut fixture.project,
+            &graph,
+            &node,
+            &scheduler,
+            ArtifactSchema::new("marklab.translation_categorical_cross_g", 1).expect("schema"),
+            runtime(),
+            &fixture.store,
+        )
+        .expect("run");
+        (result.cache_status, durable.execution_count())
+    };
+    assert_eq!(run_once(20260829), (CacheStatus::Miss, 1));
+    assert_eq!(run_once(20260829), (CacheStatus::Hit, 1));
+    assert_eq!(run_once(20260830), (CacheStatus::Miss, 2));
 }

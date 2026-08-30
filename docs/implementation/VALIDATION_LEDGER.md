@@ -4266,3 +4266,16 @@ vascular transport.
 - The known-stalling macOS Nextest/full-integration loader loop is excluded rather than retried.
   Checkpoints 167--170 retain the exact focused behavior, CLI, durable replay, and real-capacity
   evidence invalidated by none of these read-only gates.
+
+## Translation-corrected directed categorical cross-g checkpoint 172 — 2026-08-29
+
+- Red-first direct, durable, and CLI tests fail respectively on absent function/config, node, and
+  subcommand, then pass. The full categorical typed target passes 6/6 and both standard/translation
+  CLI targets pass. Warning-denied affected Clippy, root no-default compilation, strict docs,
+  rustfmt, and whitespace checks pass.
+- The frozen 512-cell miss takes 7.96 seconds at 25,673,728-byte RSS and the disabled hit 5.83
+  seconds at 22,872,064 bytes. `cmp` passes, one ledger row remains, and both hash to
+  `a6f18a64141d8f93c460f67e753591c37836c5208abb29a195c4651e08a625e8`.
+- The result retains 1,872 directed pairs, 936 unordered visits, 812 overlaps, 1,870,848 segment-pair
+  operations, maximum 60 output positions, 170,536 estimated bytes, and 35,568 null pair
+  evaluations. Cross-g 0.655655 and p=0.10 are not patient-level claims.

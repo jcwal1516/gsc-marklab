@@ -474,6 +474,42 @@ enum ProjectCommands {
         #[arg(long)]
         max_null_pair_evaluations: usize,
     },
+    TranslationCategoricalCrossPairCorrelation {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        cells: PathBuf,
+        #[arg(long)]
+        mask: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        source_level: String,
+        #[arg(long)]
+        target_level: String,
+        #[arg(long, value_delimiter = ',')]
+        radii_um: Vec<f64>,
+        #[arg(long)]
+        bandwidth_um: f64,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        max_pair_visits: usize,
+        #[arg(long)]
+        max_null_pair_evaluations: usize,
+        #[arg(long)]
+        max_overlap_evaluations: usize,
+        #[arg(long)]
+        max_overlap_candidate_work: usize,
+        #[arg(long)]
+        max_overlap_output_vertices: usize,
+    },
     InhomogeneousSpatial {
         #[arg(long)]
         project: PathBuf,
@@ -1068,6 +1104,47 @@ pub fn run_cli() -> Result<()> {
                     memory_budget_mib,
                     maximum_pair_visits: max_pair_visits,
                     maximum_null_pair_evaluations: max_null_pair_evaluations,
+                },
+            ),
+            ProjectCommands::TranslationCategoricalCrossPairCorrelation {
+                project,
+                cells,
+                mask,
+                out,
+                source_level,
+                target_level,
+                radii_um,
+                bandwidth_um,
+                permutations,
+                seed,
+                alpha,
+                memory_budget_mib,
+                max_pair_visits,
+                max_null_pair_evaluations,
+                max_overlap_evaluations,
+                max_overlap_candidate_work,
+                max_overlap_output_vertices,
+            } => categorical_cross_pair_correlation::run_translation_project(
+                categorical_cross_pair_correlation::TranslationRequest {
+                    base: categorical_cross_pair_correlation::Request {
+                        project,
+                        cells,
+                        mask,
+                        out,
+                        source_level,
+                        target_level,
+                        radii_um,
+                        bandwidth_um,
+                        permutations,
+                        seed,
+                        alpha,
+                        memory_budget_mib,
+                        maximum_pair_visits: max_pair_visits,
+                        maximum_null_pair_evaluations: max_null_pair_evaluations,
+                    },
+                    maximum_overlap_evaluations: max_overlap_evaluations,
+                    maximum_overlap_candidate_work: max_overlap_candidate_work,
+                    maximum_overlap_output_vertices: max_overlap_output_vertices,
                 },
             ),
             ProjectCommands::InhomogeneousSpatial {
