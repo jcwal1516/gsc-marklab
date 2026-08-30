@@ -1,8 +1,18 @@
 # Marklab active roadmap
 
-Last updated: 2026-08-26
+Last updated: 2026-08-30
 
 Authority: this file is the bounded dependency-ordered execution view derived from `PROGRAM_TRACKER.md` and the immutable `MASTER_PLAN.md`. It does not replace the master plan. Non-goals apply only to this increment; every excluded future capability remains represented in `PROGRAM_TRACKER.md`.
+
+## Full-program resumption override — 2026-08-30
+
+Later explicit user direction resumes the full dependency-ordered Marklab master plan after the
+bounded gastric checkpoint. The completed CRC scientific bundle remains sealed and the active
+gastric run remains undisturbed; neither narrow scientific override limits subsequent independent
+production work. Continue with concrete user-facing workflows, durable replay where applicable,
+and truthful real-data evidence before shared infrastructure. The next selected workflow after the
+dense-witness checkpoint is durable embedding cross-covariance by distance through the existing
+typed CLI, mathematical owner, hand/rotation oracle, project ledger, scheduler, and artifact store.
 
 ## SCIENCE-CRC-FINAL-01 override — 2026-08-29
 
@@ -1788,3 +1798,14 @@ no finding. The macOS integration/Nextest loader loop remains excluded. SIG-01F 
 raw-vector durability are current; production next should advance a different immediate scientific
 caller or an independently justified external/correction gap, not rerun these null/nonincremental
 patient results or add an embedding framework.
+
+## Checkpoint 185 dense witness durability and 64-landmark gastric topology
+
+The concrete gastric caller proves that valid witness and witness-stability typed results can
+exceed the former one-MiB project ceiling. Those two project commands now share a caller-local
+32-MiB durable/scheduler/artifact bound while the backend process, input, work, simplex, and timeout
+bounds remain unchanged. The provenance-complete four-slide 512-witness/64-landmark design
+completes 64 misses and 64 backend-disabled byte-identical hits with one ledger each; the separate
+graph proof likewise completes 80 misses and hits. Mixed lower-tail topology stability remains
+descriptive and unpromoted. Production next advances the existing embedding cross-covariance by
+distance CLI through the same durable project path, without a plugin or statistic registry.

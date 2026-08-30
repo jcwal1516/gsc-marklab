@@ -99,7 +99,7 @@ class GastricCellvitInterimTest(unittest.TestCase):
         bounded = module.field_requests(large, seed=731)
         self.assertEqual(len(bounded["topology"]["stability"]["points"]), 512)
         self.assertEqual(len(bounded["topology"]["subsample"]["points"]), 409)
-        self.assertEqual(bounded["topology"]["stability"]["landmark_count"], 32)
+        self.assertEqual(bounded["topology"]["stability"]["landmark_count"], 64)
 
     def test_existing_output_is_refused(self):
         module = load_module()
@@ -184,6 +184,21 @@ class GastricCellvitInterimTest(unittest.TestCase):
         self.assertEqual(summary["median_spearman"], 1.0)
         self.assertEqual(summary["q10_spearman"], 1.0)
         self.assertEqual(summary["promotion_gate"], "not_applied_in_interim_analysis")
+
+    def test_failed_topology_attempts_keep_their_original_run_identities(self):
+        module = load_module()
+        root = Path("/analysis")
+
+        attempts = module.failed_resource_attempts(root / "gastric-he-cellvit-interim-v5")
+
+        self.assertEqual(
+            [Path(attempt["root"]).name for attempt in attempts],
+            ["gastric-he-cellvit-interim-v1", "gastric-he-cellvit-interim-v2"],
+        )
+        self.assertEqual(attempts[0]["completed_results"], 53)
+        self.assertEqual(attempts[0]["failed_result_size_requests"], 11)
+        self.assertEqual(attempts[1]["completed_results"], 56)
+        self.assertEqual(attempts[1]["failed_result_size_requests"], 8)
 
 
 if __name__ == "__main__":

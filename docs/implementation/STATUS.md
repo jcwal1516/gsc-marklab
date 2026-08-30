@@ -3832,3 +3832,34 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   independent rehash reports zero mismatches. Five focused tests and source compilation pass. No
   broad workspace gate, completed CRC workflow, active CellViT process, or external publication is
   touched.
+
+## Dense durable witness and 64-landmark gastric checkpoint 185 — 2026-08-30
+
+- `marklab project witness-persistence` and `witness-persistence-stability` now admit at most
+  32 MiB of typed durable output, consistently across the project ledger, inline artifact store,
+  and scheduler. The change is local to these two immediate callers; their existing 16-MiB bounded
+  worker streams, input/work/simplex/timeout controls, exact backend identity, codecs, transaction
+  behavior, and result-format 0.3 remain unchanged.
+- Red-first dense regressions produce 19,689,026-byte direct witness and 21,364,731-byte aggregate
+  stability results against the former 1,048,576-byte ceiling. Both then complete a miss followed
+  by a fresh backend-disabled byte-identical hit with exactly one ledger execution. The two full
+  affected integration targets pass 2/2 each.
+- The four completed full-tissue gastric slides are regenerated from their exact source artifacts
+  at 512 witnesses and 64 farthest-point landmarks. All 64 topology misses complete in 118.09
+  seconds at 80,035,840-byte parent maximum RSS; the fresh backend-disabled pass returns 64/64
+  byte-identical hits in 144.30 seconds at 62,095,360 bytes, with one ledger row per project. The
+  largest published result is 3,553,790 bytes. A separate fresh graph root completes 80 misses and
+  80 disabled hits with the same replay/ledger guarantees.
+- The retained checkpoint-184 v2 inventory is corrected from its mid-run count to 56 completed and
+  eight failed 64-landmark requests. Both superseded 53/11 and 56/8 attempts remain named in the
+  new summary. The 64-landmark result stays mixed rather than being promoted: cell-subsample q10 is
+  0.078--1.0, nearby-scale q10 is 0.787--1.0, and only 4/16 fields pass the legacy coordinate
+  thresholds. The one paired patient's topology cosine is 0.985; no population, treatment, or
+  significance claim is added.
+- The 11-artifact canonical provisional summary is
+  `/Volumes/1TB/marklab/runs/gastric-he-cellvit-interim-summary-v3`. Manifest and summary SHA-256 are
+  `ca151f925b44f2d0e05152c57e00fe164754bad39986a1913e40f836dde4fec8` and
+  `0202d80853bcdabf54c62776a97f03e0dbc7358ef113dcf75bdcde2e0817de1d`; remote independent rehash
+  reports zero mismatches. Six Python tests, both Rust integration targets, affected warning-denied
+  Clippy, package no-default compilation, affected formatting, and whitespace checks pass. No broad
+  workspace/Nextest loop runs.

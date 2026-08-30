@@ -22,7 +22,7 @@ SEED = 20260830
 FIELD_COUNT = 4
 MAXIMUM_FIELD_CELLS = 2_000
 MAXIMUM_TOPOLOGY_CELLS = 512
-TOPOLOGY_LANDMARK_COUNT = 32
+TOPOLOGY_LANDMARK_COUNT = 64
 GRAPH_RADII_UM = (45.0, 50.0, 55.0)
 GRAPH_TIMES = (0.025, 0.05, 0.1, 0.2)
 TOPOLOGY_SCALES_UM = (180.0, 200.0, 220.0)
@@ -825,6 +825,25 @@ def _similarity_rows(vectors: dict[str, list[float]]) -> list[dict[str, object]]
     return result
 
 
+def failed_resource_attempts(topology_root: Path) -> list[dict[str, object]]:
+    """Retain the identities and outcomes of the two superseded topology designs."""
+    return [
+        {
+            "root": str(topology_root.with_name("gastric-he-cellvit-interim-v1")),
+            "topology_cell_ceiling": 2000,
+            "completed_results": 53,
+            "failed_result_size_requests": 11,
+        },
+        {
+            "root": str(topology_root.with_name("gastric-he-cellvit-interim-v2")),
+            "topology_cell_ceiling": 512,
+            "landmark_count": 64,
+            "completed_results": 56,
+            "failed_result_size_requests": 8,
+        },
+    ]
+
+
 def summarize(graph_root: Path, topology_root: Path, output: Path) -> None:
     """Seal descriptive four-slide summaries from the valid durable result families."""
     graph_root, topology_root, output = graph_root.resolve(), topology_root.resolve(), output.resolve()
@@ -1044,21 +1063,7 @@ def summarize(graph_root: Path, topology_root: Path, output: Path) -> None:
                 "paired_descriptive_results": paired,
                 "incremental_information": "unavailable_until_all_seven_slides_and_a_declared_patient_endpoint_are_admitted",
                 "promotion_gate": "not_applied_in_interim_analysis",
-                "failed_resource_attempts_retained": [
-                    {
-                        "root": str(graph_root),
-                        "topology_cell_ceiling": 2000,
-                        "completed_results": 53,
-                        "failed_result_size_requests": 11,
-                    },
-                    {
-                        "root": str(topology_root.with_name("gastric-he-cellvit-interim-v2")),
-                        "topology_cell_ceiling": 512,
-                        "landmark_count": 64,
-                        "completed_results": 55,
-                        "failed_result_size_requests": 9,
-                    },
-                ],
+                "failed_resource_attempts_retained": failed_resource_attempts(topology_root),
                 "claim_limitations": [
                     "four of seven gastric slides are complete",
                     "three patient lanes and one complete pre/post pair are descriptive only",

@@ -3236,3 +3236,19 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   molecular/outcome inference, or treatment-effect claim applies until all seven slides and a
   declared patient endpoint are admitted. Failed 2,000-cell and 64-landmark topology attempts are
   retained as resource evidence; CRC conclusions and result-format 0.3 remain unchanged.
+
+## DEC-0367 — Admit dense typed witness results without reducing the real landmark design
+
+- Date: 2026-08-30
+- Status: accepted for TOP-01/WF-01/WS-12/WS-62
+- Decision: raise the durable result, inline artifact, and scheduler output ceilings from one MiB
+  to 32 MiB only for `marklab project witness-persistence` and
+  `witness-persistence-stability`. Keep the existing bounded worker stream, exact GUDHI/Python/
+  lock/worker/runtime identity, input, point, simplex, process, timeout, and transaction controls.
+  Restore the immediate gastric design to 512 deterministic witnesses and 64 farthest-point
+  landmarks; do not generalize the limit or create a backend/result registry.
+- Consequences: synthetic typed results of 19.7 and 21.4 MiB and all 64 real 64-landmark gastric
+  requests durably miss and replay without another backend execution. The largest real result is
+  3.55 MiB. The earlier 32-landmark approximation and both failed larger-output attempts remain
+  retained; the mixed stability result, no-promotion policy, patient unit, and result-format 0.3 do
+  not change.

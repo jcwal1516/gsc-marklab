@@ -93,3 +93,59 @@ fn witness_persistence_replays_without_a_second_gudhi_execution() {
         "marklab.gudhi_witness_persistence_result"
     );
 }
+
+#[test]
+fn dense_witness_result_above_one_mib_replays_without_a_second_gudhi_execution() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let input = directory.path().join("dense-witness.json");
+    let project = directory.path().join("project");
+    let first = directory.path().join("first.json");
+    let second = directory.path().join("second.json");
+    let points = (0..512)
+        .map(|index| {
+            let column = index % 32;
+            let row = index / 32;
+            serde_json::json!({
+                "id":format!("dense-field:{index:09}"),
+                "coordinates_um":[
+                    column as f64 * 7.0 + (row % 3) as f64 * 0.37,
+                    row as f64 * 7.0 + (column % 5) as f64 * 0.23
+                ]
+            })
+        })
+        .collect::<Vec<_>>();
+    let spec = serde_json::json!({
+        "points":points,
+        "landmark_method":"farthest_point",
+        "landmark_count":64,
+        "maximum_dimension":2,
+        "nu":0,
+        "max_scale_um":200.0,
+        "coefficient_field":2,
+        "maximum_simplices":500000,
+        "timeout_seconds":180
+    });
+    fs::write(&input, serde_json::to_vec(&spec).unwrap()).expect("fixture");
+
+    command(&project, &input, &first)
+        .assert()
+        .success()
+        .stderr(predicates::str::contains("cache_status=miss"));
+    assert!(
+        fs::metadata(&first).unwrap().len() > 1024 * 1024,
+        "the regression must exercise a result above the former one-MiB ceiling"
+    );
+    command(&project, &input, &second)
+        .env("MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION", "1")
+        .assert()
+        .success()
+        .stderr(predicates::str::contains("cache_status=hit"));
+    assert_eq!(fs::read(&first).unwrap(), fs::read(&second).unwrap());
+    assert_eq!(
+        fs::read_to_string(project.join("executions.jsonl"))
+            .unwrap()
+            .lines()
+            .count(),
+        1
+    );
+}

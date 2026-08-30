@@ -526,3 +526,14 @@ Graph median field-rank stability is high, topology is lower-tail mixed, and one
 pair remains descriptive. This is provisional real-data evidence for EMB-01, TOP-01, WS-61,
 WS-62, and WF-01; it changes no capability state, applies no promotion gate, and does not count fields or
 slides as independent patients.
+
+## Dense durable witness and 64-landmark gastric checkpoint 185
+
+The two existing witness project callers now carry a concrete 32-MiB typed-result ceiling proven
+above the former one-MiB limit without changing their backend or mathematical contracts. The
+provenance-complete four-slide gastric design therefore completes and backend-disabled replays all
+64 topology requests at 512 witnesses and 64 landmarks, while the separate 80-workflow graph proof
+remains complete. The lower-tail topology instability is retained and no promotion gate is applied.
+This advances TOP-01, WF-01, WS-12, and WS-62 for the real dense caller but does not complete their
+broader catalogs. Under the resumed full-program mandate, the next immediate workflow is durable
+embedding cross-covariance by distance through its existing direct CLI and analytic oracle.

@@ -66,6 +66,7 @@ const PROJECT_LEDGER_BYTES: usize = 16 * 1024 * 1024;
 const PROJECT_LEDGER_RECORDS: usize = 10_000;
 const PROJECT_RECORD_BYTES: usize = 64 * 1024;
 const MAXIMUM_RESULT_BYTES: usize = 1024 * 1024;
+const MAXIMUM_WITNESS_RESULT_BYTES: usize = 32 * 1024 * 1024;
 const MARKED_RESULT_KIND: &str = "application/vnd.marklab.result+json;version=0.3";
 
 #[derive(Clone, Copy)]
@@ -2589,13 +2590,13 @@ fn run_witness_persistence(
         PROJECT_LEDGER_BYTES,
         PROJECT_LEDGER_RECORDS,
         PROJECT_RECORD_BYTES,
-        MAXIMUM_RESULT_BYTES,
+        MAXIMUM_WITNESS_RESULT_BYTES,
     )
     .map_err(|error| BayesCliError::Input(error.to_string()))?;
     let mut durable = DurableProject::open_or_create(&project_path, limits)
         .map_err(|error| BayesCliError::Backend(error.to_string()))?;
     report_recovery(&durable);
-    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
+    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_WITNESS_RESULT_BYTES)
         .map_err(|error| BayesCliError::Input(error.to_string()))?;
     project
         .register_reference(before.clone())
@@ -2604,7 +2605,7 @@ fn run_witness_persistence(
     let graph = WorkflowGraph::new([node.spec().clone()])
         .map_err(|error| BayesCliError::Input(error.to_string()))?;
     let scheduler = LocalScheduler::new(SchedulerLimits {
-        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
+        max_inline_output_bytes: MAXIMUM_WITNESS_RESULT_BYTES,
     })
     .map_err(|error| BayesCliError::Input(error.to_string()))?;
     let schema = ArtifactSchema::new("marklab.gudhi_witness_persistence_result", 1)
@@ -2650,13 +2651,13 @@ fn run_witness_persistence_stability(
         PROJECT_LEDGER_BYTES,
         PROJECT_LEDGER_RECORDS,
         PROJECT_RECORD_BYTES,
-        MAXIMUM_RESULT_BYTES,
+        MAXIMUM_WITNESS_RESULT_BYTES,
     )
     .map_err(|error| BayesCliError::Input(error.to_string()))?;
     let mut durable = DurableProject::open_or_create(&project_path, limits)
         .map_err(|error| BayesCliError::Backend(error.to_string()))?;
     report_recovery(&durable);
-    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
+    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_WITNESS_RESULT_BYTES)
         .map_err(|error| BayesCliError::Input(error.to_string()))?;
     project
         .register_reference(before.clone())
@@ -2665,7 +2666,7 @@ fn run_witness_persistence_stability(
     let graph = WorkflowGraph::new([node.spec().clone()])
         .map_err(|error| BayesCliError::Input(error.to_string()))?;
     let scheduler = LocalScheduler::new(SchedulerLimits {
-        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
+        max_inline_output_bytes: MAXIMUM_WITNESS_RESULT_BYTES,
     })
     .map_err(|error| BayesCliError::Input(error.to_string()))?;
     let schema = ArtifactSchema::new("marklab.gudhi_witness_persistence_stability_result", 1)

@@ -4581,3 +4581,33 @@ vascular transport.
 - `git diff --check` and direct status/diff review follow. No broad workspace/Nextest loader,
   Bayesian backend, benchmark, fuzzing, packaging, dependency, push, publication, deployment, or
   history-rewrite command runs.
+
+## Dense durable witness and 64-landmark gastric checkpoint 185 — 2026-08-30
+
+- Red-first focused runs of
+  `dense_witness_result_above_one_mib_replays_without_a_second_gudhi_execution` and
+  `dense_witness_stability_above_one_mib_replays_without_more_gudhi_executions` fail at the former
+  1,048,576-byte project ceiling with 19,689,026- and 21,364,731-byte encoded results. After the
+  caller-local 32-MiB limit, each passes a miss, fresh backend-disabled byte-identical hit, and
+  one-row ledger. Full `durable_gudhi_witness_project` and
+  `durable_gudhi_witness_stability_project` targets pass 2/2 each.
+- The new Python provenance test first fails because the failed-attempt identity owner is absent,
+  then passes after the summary binds the retained v1/v2 roots independently of its current graph
+  input. `tests.python.test_gastric_cellvit_interim` passes 6/6, including the restored 64-landmark
+  request ceiling and corrected 56/8 v2 history.
+- `prepare` on `mini` re-reads the four completed slides in 17.69 seconds and records 742,771 cells,
+  5,593 tissue patches, 512 topology cells, and 64 landmarks. A copied-binary execution attempt
+  stops before publication because its exact build-checkout lock path is absent on `mini`; zero
+  results publish. The same prepared requests then run from their build checkout in four bounded
+  processes: topology 64 misses in 118.09 seconds, 64 backend-disabled hits in 144.30 seconds,
+  graph 80 misses in 178.09 seconds, and 80 disabled hits in 158.46 seconds. All bytes match and all
+  144 ledgers remain one row.
+- Remote counts confirm 64 topology results/hits/ledgers and 80 graph results/hits/ledgers. The
+  independently rehashed 11-artifact summary has zero mismatches; manifest and summary SHA-256 are
+  `ca151f925b44f2d0e05152c57e00fe164754bad39986a1913e40f836dde4fec8` and
+  `0202d80853bcdabf54c62776a97f03e0dbc7358ef113dcf75bdcde2e0817de1d`.
+- `cargo +1.96.0 clippy --locked --package marklab --features cli --bin marklab --test
+  durable_gudhi_witness_project --test durable_gudhi_witness_stability_project -- -D warnings`,
+  `cargo +1.96.0 check --locked --package marklab --no-default-features`, affected Rustfmt, and
+  focused `git diff --check` pass. The checkpoint-182 broad non-loader evidence remains current;
+  the documented workspace/Nextest loader loop is not rerun.
