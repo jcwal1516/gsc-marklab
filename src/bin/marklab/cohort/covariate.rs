@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
 use marklab_cohort::{
     patient_blocked_covariate_freedman_lane, patient_covariate_freedman_lane,
@@ -7,7 +7,9 @@ use marklab_cohort::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{publication::publish_json, CliAlternative, CohortError, MAXIMUM_INPUT_BYTES};
+use super::{
+    input::validate_input_file_with_message, publication::publish_json, CliAlternative, CohortError,
+};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -162,15 +164,7 @@ struct Input {
 }
 
 fn read_records(path: &std::path::Path) -> Result<Input, CohortError> {
-    let metadata = fs::metadata(path).map_err(|source| CohortError::Output {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(CohortError::Input(
-            "covariate input must be a regular file within 16 MiB".into(),
-        ));
-    }
+    validate_input_file_with_message(path, "covariate input must be a regular file within 16 MiB")?;
     let mut reader = csv::ReaderBuilder::new()
         .flexible(false)
         .from_path(path)

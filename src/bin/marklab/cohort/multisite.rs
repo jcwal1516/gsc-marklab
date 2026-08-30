@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fs, path::PathBuf};
+use std::{collections::BTreeMap, path::PathBuf};
 
 use marklab_cohort::{
     multisite_covariate_patient_contrast, multisite_patient_contrast, multisite_spatial_inference,
@@ -8,7 +8,10 @@ use marklab_cohort::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{publication::publish_json, CliMultisiteModel, CohortError, MAXIMUM_INPUT_BYTES};
+use super::{
+    input::validate_input_file_with_message, publication::publish_json, CliMultisiteModel,
+    CohortError,
+};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -169,15 +172,7 @@ impl From<MultisiteInferenceResult> for Output {
 }
 
 fn read_sites(path: &std::path::Path) -> Result<Vec<SiteEffect>, CohortError> {
-    let metadata = fs::metadata(path).map_err(|source| CohortError::Output {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(CohortError::Input(
-            "multisite input must be a regular file within 16 MiB".into(),
-        ));
-    }
+    validate_input_file_with_message(path, "multisite input must be a regular file within 16 MiB")?;
     let mut reader = csv::ReaderBuilder::new()
         .flexible(false)
         .from_path(path)
@@ -209,15 +204,10 @@ fn read_sites(path: &std::path::Path) -> Result<Vec<SiteEffect>, CohortError> {
 fn read_patient_records(
     path: &std::path::Path,
 ) -> Result<Vec<MultisitePatientEndpoint>, CohortError> {
-    let metadata = fs::metadata(path).map_err(|source| CohortError::Output {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(CohortError::Input(
-            "multisite patient input must be a regular file within 16 MiB".into(),
-        ));
-    }
+    validate_input_file_with_message(
+        path,
+        "multisite patient input must be a regular file within 16 MiB",
+    )?;
     let mut reader = csv::ReaderBuilder::new()
         .flexible(false)
         .from_path(path)
@@ -249,15 +239,10 @@ fn read_patient_records(
 fn read_covariate_records(
     path: &std::path::Path,
 ) -> Result<Vec<MultisiteCovariatePatientRecord>, CohortError> {
-    let metadata = fs::metadata(path).map_err(|source| CohortError::Output {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(CohortError::Input(
-            "multisite covariate input must be a regular file within 16 MiB".into(),
-        ));
-    }
+    validate_input_file_with_message(
+        path,
+        "multisite covariate input must be a regular file within 16 MiB",
+    )?;
     let mut reader = csv::ReaderBuilder::new()
         .flexible(false)
         .from_path(path)

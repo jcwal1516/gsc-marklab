@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fs, path::PathBuf};
+use std::{collections::BTreeMap, path::PathBuf};
 
 use marklab_cohort::{
     cluster_covariate_matrix_freedman_lane, ClusterCovariatePatientRecord,
@@ -7,7 +7,9 @@ use marklab_cohort::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{publication::publish_json, CliAlternative, CohortError, MAXIMUM_INPUT_BYTES};
+use super::{
+    input::validate_input_file_with_message, publication::publish_json, CliAlternative, CohortError,
+};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -165,15 +167,10 @@ impl Output {
 }
 
 fn read_records(path: &std::path::Path) -> Result<Vec<ClusterCovariatePatientRecord>, CohortError> {
-    let metadata = fs::metadata(path).map_err(|source| CohortError::Output {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(CohortError::Input(
-            "cluster-covariate input must be a regular file within 16 MiB".into(),
-        ));
-    }
+    validate_input_file_with_message(
+        path,
+        "cluster-covariate input must be a regular file within 16 MiB",
+    )?;
     let mut reader = csv::ReaderBuilder::new()
         .flexible(false)
         .from_path(path)

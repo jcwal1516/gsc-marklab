@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fs, path::PathBuf};
+use std::{collections::BTreeMap, path::PathBuf};
 
 use marklab_cohort::{
     functional_equivalence_band, FunctionalDifferenceCurve, FunctionalEquivalenceResult,
@@ -6,7 +6,7 @@ use marklab_cohort::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{publication::publish_json, CohortError, MAXIMUM_INPUT_BYTES};
+use super::{input::validate_input_file_with_message, publication::publish_json, CohortError};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -100,15 +100,10 @@ impl From<FunctionalEquivalenceResult> for Output {
 fn read_curves(
     path: &std::path::Path,
 ) -> Result<(Vec<FunctionalDifferenceCurve>, Vec<f64>), CohortError> {
-    let metadata = fs::metadata(path).map_err(|source| CohortError::Output {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(CohortError::Input(
-            "functional equivalence input must be a regular file within 16 MiB".into(),
-        ));
-    }
+    validate_input_file_with_message(
+        path,
+        "functional equivalence input must be a regular file within 16 MiB",
+    )?;
     let mut reader = csv::ReaderBuilder::new()
         .flexible(false)
         .from_path(path)

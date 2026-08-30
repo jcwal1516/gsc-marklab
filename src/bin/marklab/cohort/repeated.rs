@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
 use marklab_cohort::{
     repeated_measures_freedman_lane, InferenceNullFamily, InferencePermutationUnit,
@@ -6,7 +6,7 @@ use marklab_cohort::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{publication::publish_json, CohortError, MAXIMUM_INPUT_BYTES};
+use super::{input::validate_input_file_with_message, publication::publish_json, CohortError};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -110,15 +110,7 @@ impl From<RepeatedFreedmanLaneResult> for Output {
 }
 
 fn read_records(path: &std::path::Path) -> Result<Vec<RepeatedMeasureRecord>, CohortError> {
-    let metadata = fs::metadata(path).map_err(|source| CohortError::Output {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(CohortError::Input(
-            "repeated input must be a regular file within 16 MiB".into(),
-        ));
-    }
+    validate_input_file_with_message(path, "repeated input must be a regular file within 16 MiB")?;
     let mut reader = csv::ReaderBuilder::new()
         .flexible(false)
         .from_path(path)
