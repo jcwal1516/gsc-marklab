@@ -3,6 +3,8 @@ use std::collections::HashSet;
 use serde::Serialize;
 use thiserror::Error;
 
+use crate::embedding_spatial::{FiniteNeumaierError, FiniteNeumaierSum};
+
 #[derive(Clone, Debug)]
 pub struct MultiscaleEmbeddingSummary {
     pub sample_id: String,
@@ -88,38 +90,13 @@ pub enum MultiscaleKernelError {
     Numeric,
 }
 
-#[derive(Clone, Copy, Default)]
-struct StableSum {
-    sum: f64,
-    correction: f64,
-}
-
-impl StableSum {
-    fn add(&mut self, value: f64) -> Result<(), MultiscaleKernelError> {
-        if !value.is_finite() {
-            return Err(MultiscaleKernelError::Numeric);
-        }
-        let next = self.sum + value;
-        if !next.is_finite() {
-            return Err(MultiscaleKernelError::Numeric);
-        }
-        self.correction += if self.sum.abs() >= value.abs() {
-            (self.sum - next) + value
-        } else {
-            (value - next) + self.sum
-        };
-        self.sum = next;
-        Ok(())
-    }
-
-    fn total(self) -> Result<f64, MultiscaleKernelError> {
-        let value = self.sum + self.correction;
-        value
-            .is_finite()
-            .then_some(value)
-            .ok_or(MultiscaleKernelError::Numeric)
+impl From<FiniteNeumaierError> for MultiscaleKernelError {
+    fn from(_: FiniteNeumaierError) -> Self {
+        Self::Numeric
     }
 }
+
+type StableSum = FiniteNeumaierSum;
 
 pub fn multiscale_embedding_kernel(
     mut spec: MultiscaleEmbeddingKernelSpec,

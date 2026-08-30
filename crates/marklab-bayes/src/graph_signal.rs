@@ -5,7 +5,10 @@ use rand_chacha::ChaCha20Rng;
 use serde::Serialize;
 use thiserror::Error;
 
-use crate::sha256_hex;
+use crate::{
+    embedding_spatial::{FiniteNeumaierError, FiniteNeumaierSum},
+    sha256_hex,
+};
 
 #[derive(Clone, Debug, Serialize)]
 pub struct GraphSignalNode {
@@ -174,46 +177,19 @@ pub enum GraphSignalError {
     Numeric(String),
 }
 
-#[derive(Clone, Copy, Default)]
-struct StableSum {
-    sum: f64,
-    correction: f64,
-}
-
-impl StableSum {
-    fn add(&mut self, value: f64) -> Result<(), GraphSignalError> {
-        if !value.is_finite() {
-            return Err(GraphSignalError::Numeric(
-                "a graph contribution is non-finite".into(),
-            ));
-        }
-        let next = self.sum + value;
-        if !next.is_finite() {
-            return Err(GraphSignalError::Numeric("a graph sum overflowed".into()));
-        }
-        self.correction += if self.sum.abs() >= value.abs() {
-            (self.sum - next) + value
-        } else {
-            (value - next) + self.sum
+impl From<FiniteNeumaierError> for GraphSignalError {
+    fn from(error: FiniteNeumaierError) -> Self {
+        let message = match error {
+            FiniteNeumaierError::NonFiniteInput => "a graph contribution is non-finite",
+            FiniteNeumaierError::SumOverflow => "a graph sum overflowed",
+            FiniteNeumaierError::CorrectionOverflow => "a graph correction overflowed",
+            FiniteNeumaierError::TotalOverflow => "a graph total overflowed",
         };
-        if !self.correction.is_finite() {
-            return Err(GraphSignalError::Numeric(
-                "a graph correction overflowed".into(),
-            ));
-        }
-        self.sum = next;
-        Ok(())
-    }
-
-    fn total(self) -> Result<f64, GraphSignalError> {
-        let result = self.sum + self.correction;
-        if result.is_finite() {
-            Ok(result)
-        } else {
-            Err(GraphSignalError::Numeric("a graph total overflowed".into()))
-        }
+        Self::Numeric(message.into())
     }
 }
+
+type StableSum = FiniteNeumaierSum;
 
 struct ResolvedGraph {
     nodes: Vec<GraphSignalNode>,
@@ -616,7 +592,7 @@ fn dirichlet_numerator(
         }
         numerator.add(weight * squared.total()?)?;
     }
-    numerator.total()
+    Ok(numerator.total()?)
 }
 
 fn signal_variation(nodes: &[GraphSignalNode]) -> Result<f64, GraphSignalError> {
@@ -637,5 +613,5 @@ fn signal_variation(nodes: &[GraphSignalNode]) -> Result<f64, GraphSignalError> 
             variation.add((value - mean) * (value - mean))?;
         }
     }
-    variation.total()
+    Ok(variation.total()?)
 }

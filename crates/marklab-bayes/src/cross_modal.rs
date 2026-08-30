@@ -5,7 +5,10 @@ use rand_chacha::ChaCha20Rng;
 use serde::Serialize;
 use thiserror::Error;
 
-use crate::EmbeddingDistanceBin;
+use crate::{
+    embedding_spatial::{FiniteNeumaierError, FiniteNeumaierSum},
+    EmbeddingDistanceBin,
+};
 
 #[derive(Clone, Debug)]
 pub struct EmbeddingModalityRow {
@@ -115,50 +118,19 @@ pub enum CrossModalCovarianceError {
     Numeric(String),
 }
 
-#[derive(Clone, Copy, Default)]
-struct StableSum {
-    sum: f64,
-    correction: f64,
-}
-
-impl StableSum {
-    fn add(&mut self, value: f64) -> Result<(), CrossModalCovarianceError> {
-        if !value.is_finite() {
-            return Err(CrossModalCovarianceError::Numeric(
-                "a covariance contribution is non-finite".into(),
-            ));
-        }
-        let next = self.sum + value;
-        if !next.is_finite() {
-            return Err(CrossModalCovarianceError::Numeric(
-                "a covariance sum overflowed".into(),
-            ));
-        }
-        self.correction += if self.sum.abs() >= value.abs() {
-            (self.sum - next) + value
-        } else {
-            (value - next) + self.sum
+impl From<FiniteNeumaierError> for CrossModalCovarianceError {
+    fn from(error: FiniteNeumaierError) -> Self {
+        let message = match error {
+            FiniteNeumaierError::NonFiniteInput => "a covariance contribution is non-finite",
+            FiniteNeumaierError::SumOverflow => "a covariance sum overflowed",
+            FiniteNeumaierError::CorrectionOverflow => "a covariance correction overflowed",
+            FiniteNeumaierError::TotalOverflow => "a covariance total overflowed",
         };
-        if !self.correction.is_finite() {
-            return Err(CrossModalCovarianceError::Numeric(
-                "a covariance correction overflowed".into(),
-            ));
-        }
-        self.sum = next;
-        Ok(())
-    }
-
-    fn total(self) -> Result<f64, CrossModalCovarianceError> {
-        let result = self.sum + self.correction;
-        if result.is_finite() {
-            Ok(result)
-        } else {
-            Err(CrossModalCovarianceError::Numeric(
-                "a covariance total overflowed".into(),
-            ))
-        }
+        Self::Numeric(message.into())
     }
 }
+
+type StableSum = FiniteNeumaierSum;
 
 struct ResolvedPair {
     a_index: usize,

@@ -3,7 +3,10 @@ use std::collections::{HashMap, HashSet};
 use serde::Serialize;
 use thiserror::Error;
 
-use crate::EmbeddingDistanceBin;
+use crate::{
+    embedding_spatial::{FiniteNeumaierError, FiniteNeumaierSum},
+    EmbeddingDistanceBin,
+};
 
 #[derive(Clone, Debug)]
 pub struct KernelEmbeddingRow {
@@ -105,50 +108,19 @@ pub enum EmbeddingKernelError {
     Numeric(String),
 }
 
-#[derive(Clone, Copy, Default)]
-struct StableSum {
-    sum: f64,
-    correction: f64,
-}
-
-impl StableSum {
-    fn add(&mut self, value: f64) -> Result<(), EmbeddingKernelError> {
-        if !value.is_finite() {
-            return Err(EmbeddingKernelError::Numeric(
-                "a kernel contribution is non-finite".into(),
-            ));
-        }
-        let next = self.sum + value;
-        if !next.is_finite() {
-            return Err(EmbeddingKernelError::Numeric(
-                "a kernel sum overflowed".into(),
-            ));
-        }
-        self.correction += if self.sum.abs() >= value.abs() {
-            (self.sum - next) + value
-        } else {
-            (value - next) + self.sum
+impl From<FiniteNeumaierError> for EmbeddingKernelError {
+    fn from(error: FiniteNeumaierError) -> Self {
+        let message = match error {
+            FiniteNeumaierError::NonFiniteInput => "a kernel contribution is non-finite",
+            FiniteNeumaierError::SumOverflow => "a kernel sum overflowed",
+            FiniteNeumaierError::CorrectionOverflow => "a kernel correction overflowed",
+            FiniteNeumaierError::TotalOverflow => "a kernel total overflowed",
         };
-        if !self.correction.is_finite() {
-            return Err(EmbeddingKernelError::Numeric(
-                "a kernel correction overflowed".into(),
-            ));
-        }
-        self.sum = next;
-        Ok(())
-    }
-
-    fn total(self) -> Result<f64, EmbeddingKernelError> {
-        let result = self.sum + self.correction;
-        if result.is_finite() {
-            Ok(result)
-        } else {
-            Err(EmbeddingKernelError::Numeric(
-                "a kernel total overflowed".into(),
-            ))
-        }
+        Self::Numeric(message.into())
     }
 }
+
+type StableSum = FiniteNeumaierSum;
 
 pub fn build_embedding_kernel(
     spec: &EmbeddingKernelSpec,
@@ -502,7 +474,7 @@ fn centered_dot(left: &[f64], right: &[f64], center: &[f64]) -> Result<f64, Embe
     for ((left, right), center) in left.iter().zip(right).zip(center) {
         sum.add((left - center) * (right - center))?;
     }
-    sum.total()
+    Ok(sum.total()?)
 }
 
 fn squared_centered_norm(values: &[f64], center: &[f64]) -> Result<f64, EmbeddingKernelError> {
@@ -510,7 +482,7 @@ fn squared_centered_norm(values: &[f64], center: &[f64]) -> Result<f64, Embeddin
     for (value, center) in values.iter().zip(center) {
         sum.add((value - center) * (value - center))?;
     }
-    sum.total()
+    Ok(sum.total()?)
 }
 
 fn squared_distance(left: &[f64], right: &[f64]) -> Result<f64, EmbeddingKernelError> {
@@ -518,7 +490,7 @@ fn squared_distance(left: &[f64], right: &[f64]) -> Result<f64, EmbeddingKernelE
     for (left, right) in left.iter().zip(right) {
         sum.add((left - right) * (left - right))?;
     }
-    sum.total()
+    Ok(sum.total()?)
 }
 
 fn l1_distance(left: &[f64], right: &[f64]) -> Result<f64, EmbeddingKernelError> {
@@ -526,5 +498,5 @@ fn l1_distance(left: &[f64], right: &[f64]) -> Result<f64, EmbeddingKernelError>
     for (left, right) in left.iter().zip(right) {
         sum.add((left - right).abs())?;
     }
-    sum.total()
+    Ok(sum.total()?)
 }

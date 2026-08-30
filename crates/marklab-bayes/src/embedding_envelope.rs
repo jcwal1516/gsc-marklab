@@ -6,7 +6,10 @@ use rand_chacha::ChaCha20Rng;
 use serde::Serialize;
 use thiserror::Error;
 
-use crate::EmbeddingDistanceBin;
+use crate::{
+    embedding_spatial::{FiniteNeumaierError, FiniteNeumaierSum},
+    EmbeddingDistanceBin,
+};
 
 #[derive(Clone, Debug)]
 pub struct EmbeddingEnvelopeRow {
@@ -87,50 +90,19 @@ pub enum EmbeddingEnvelopeError {
     Numeric(String),
 }
 
-#[derive(Clone, Copy, Default)]
-struct StableSum {
-    sum: f64,
-    correction: f64,
-}
-
-impl StableSum {
-    fn add(&mut self, value: f64) -> Result<(), EmbeddingEnvelopeError> {
-        if !value.is_finite() {
-            return Err(EmbeddingEnvelopeError::Numeric(
-                "a curve contribution is non-finite".into(),
-            ));
-        }
-        let next = self.sum + value;
-        if !next.is_finite() {
-            return Err(EmbeddingEnvelopeError::Numeric(
-                "a curve sum overflowed".into(),
-            ));
-        }
-        self.correction += if self.sum.abs() >= value.abs() {
-            (self.sum - next) + value
-        } else {
-            (value - next) + self.sum
+impl From<FiniteNeumaierError> for EmbeddingEnvelopeError {
+    fn from(error: FiniteNeumaierError) -> Self {
+        let message = match error {
+            FiniteNeumaierError::NonFiniteInput => "a curve contribution is non-finite",
+            FiniteNeumaierError::SumOverflow => "a curve sum overflowed",
+            FiniteNeumaierError::CorrectionOverflow => "a curve correction overflowed",
+            FiniteNeumaierError::TotalOverflow => "a curve total overflowed",
         };
-        if !self.correction.is_finite() {
-            return Err(EmbeddingEnvelopeError::Numeric(
-                "a curve correction overflowed".into(),
-            ));
-        }
-        self.sum = next;
-        Ok(())
-    }
-
-    fn total(self) -> Result<f64, EmbeddingEnvelopeError> {
-        let result = self.sum + self.correction;
-        if result.is_finite() {
-            Ok(result)
-        } else {
-            Err(EmbeddingEnvelopeError::Numeric(
-                "a curve total overflowed".into(),
-            ))
-        }
+        Self::Numeric(message.into())
     }
 }
+
+type StableSum = FiniteNeumaierSum;
 
 struct PairPlan {
     left: usize,
@@ -367,7 +339,9 @@ fn curve(
                     if *count == 0 {
                         Ok(0.0)
                     } else {
-                        sum.total().map(|value| value / *count as f64)
+                        sum.total()
+                            .map(|value| value / *count as f64)
+                            .map_err(EmbeddingEnvelopeError::from)
                     }
                 })
                 .collect()
