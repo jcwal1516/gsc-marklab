@@ -3532,3 +3532,19 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - Six direct/durable tests and both CLI targets pass. Warning-denied affected Clippy, root
   no-default compilation, strict docs, formatting, and whitespace checks pass. No broad gate runs
   after checkpoint 171.
+
+## Isotropic directed categorical cross-g checkpoint 173 — 2026-08-29
+
+- Added `isotropic_categorical_cross_pair_correlation`, its store-aware node, and `marklab project
+  isotropic-categorical-cross-pair-correlation`. Exact fractions are evaluated twice per retained
+  contributing unordered displacement; the source-centred fraction supplies each directed
+  kernel/fraction weight through complete-row random labeling and ERL.
+- A boundary-source rectangle gives fractions `1/2` and `1`, weighted sum 4.5, and cross-g `9/pi`.
+  Direct, durable miss/hit/seed invalidation, and fresh backend-disabled replay pass. The full typed
+  target passes 8/8 and all three categorical cross-g CLI targets pass.
+- The frozen 512-cell Neoplastic-to-Inflammatory miss takes 7.90 seconds at 25,165,824-byte RSS;
+  the hit takes 5.83 seconds at 23,494,656 bytes. Both hash to
+  `73036c3fb94b2194a726e7f03c2a59429e82d1790004aaef5d918d06544ca395` with one ledger row.
+  Cross-g is 0.604679 and p=0.10; this is one-specimen capacity evidence only.
+- Warning-denied affected Clippy, root no-default compilation, strict docs, formatting, and
+  whitespace checks pass. No broad gate runs after checkpoint 171.

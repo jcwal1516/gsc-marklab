@@ -3,8 +3,11 @@ use std::path::PathBuf;
 use crate::{
     cross_pair_correlation, execute_algorithm_with_store, ArtifactSchema,
     CategoricalCrossPairCorrelationAnalysisNode, CategoricalCrossPairCorrelationConfig,
-    CategoricalPairLimits, DeclaredScalarPatternInput, LocalScheduler, MarklabError, NodeId,
-    Result, SchedulerLimits, TranslationCategoricalCrossPairCorrelationAnalysisNode,
+    CategoricalPairLimits, DeclaredScalarPatternInput,
+    IsotropicCategoricalCrossPairCorrelationAnalysisNode,
+    IsotropicCategoricalCrossPairCorrelationConfig, IsotropicSpatialLimits, LocalScheduler,
+    MarklabError, NodeId, Result, SchedulerLimits,
+    TranslationCategoricalCrossPairCorrelationAnalysisNode,
     TranslationCategoricalCrossPairCorrelationConfig, TranslationSpatialLimits, WorkflowGraph,
 };
 
@@ -35,6 +38,13 @@ pub(super) struct TranslationRequest {
     pub maximum_overlap_evaluations: usize,
     pub maximum_overlap_candidate_work: usize,
     pub maximum_overlap_output_vertices: usize,
+}
+
+pub(super) struct IsotropicRequest {
+    pub base: Request,
+    pub maximum_visible_arc_evaluations: usize,
+    pub maximum_arc_segment_tests: usize,
+    pub maximum_arc_membership_queries: usize,
 }
 
 pub(super) fn run_project(request: Request) -> Result<()> {
@@ -192,5 +202,90 @@ pub(super) fn run_translation_project(request: TranslationRequest) -> Result<()>
         &encoded,
         run.cache_status,
         "translation-categorical-cross-pair-correlation",
+    )
+}
+
+pub(super) fn run_isotropic_project(request: IsotropicRequest) -> Result<()> {
+    let mut prepared = prepare(PrepareRequest {
+        project: &request.base.project,
+        cells: &request.base.cells,
+        mask: &request.base.mask,
+        memory_budget_mib: request.base.memory_budget_mib,
+        store_id: "isotropic-categorical-cross-g-store",
+    })?;
+    let input = DeclaredScalarPatternInput::from_mark_table(
+        &prepared.project,
+        &prepared.pattern,
+        &prepared.table,
+        prepared.slide_id.clone(),
+        prepared.frame_id.clone(),
+    )
+    .map_err(|error| MarklabError::Validation(error.to_string()))?;
+    let categorical_limits = CategoricalPairLimits::new(
+        prepared.pattern.len(),
+        request.base.radii_um.len(),
+        request.base.maximum_pair_visits,
+        request.base.maximum_null_pair_evaluations,
+        prepared.memory_bytes,
+    )
+    .map_err(|error| MarklabError::Validation(error.to_string()))?;
+    let base = CategoricalCrossPairCorrelationConfig::new(
+        request.base.radii_um,
+        request.base.bandwidth_um,
+        request.base.source_level,
+        request.base.target_level,
+        request.base.permutations,
+        request.base.seed,
+        request.base.alpha,
+        categorical_limits,
+    )
+    .map_err(|error| MarklabError::Validation(error.to_string()))?;
+    let isotropic_limits = IsotropicSpatialLimits::new(
+        prepared.pattern.len().max(1),
+        base.radii_um().len().max(1),
+        request.base.maximum_pair_visits,
+        request.maximum_visible_arc_evaluations,
+        request.maximum_arc_segment_tests,
+        request.maximum_arc_membership_queries,
+        1,
+        prepared.memory_bytes,
+    )
+    .map_err(|error| MarklabError::Validation(error.to_string()))?;
+    let config = IsotropicCategoricalCrossPairCorrelationConfig::new(base, isotropic_limits)
+        .map_err(|error| MarklabError::Validation(error.to_string()))?;
+    let node = IsotropicCategoricalCrossPairCorrelationAnalysisNode::new(
+        &mut prepared.project,
+        NodeId::new("isotropic-categorical-cross-pair-correlation")
+            .map_err(|error| MarklabError::Validation(error.to_string()))?,
+        &input,
+        &prepared.window,
+        &config,
+    )
+    .map_err(|error| MarklabError::Validation(error.to_string()))?;
+    let graph = WorkflowGraph::new([node.spec().clone()])
+        .map_err(|error| MarklabError::Validation(error.to_string()))?;
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: prepared.memory_bytes,
+    })
+    .map_err(|error| MarklabError::Validation(error.to_string()))?;
+    let run = execute_algorithm_with_store(
+        &mut prepared.durable,
+        &mut prepared.project,
+        &graph,
+        &node,
+        &scheduler,
+        ArtifactSchema::new("marklab.isotropic_categorical_cross_g", 1)
+            .map_err(|error| MarklabError::Validation(error.to_string()))?,
+        native_runtime_provenance()?,
+        &prepared.store,
+    )
+    .map_err(|error| MarklabError::Compute(error.to_string()))?;
+    let encoded = cross_pair_correlation::encode_isotropic_result(&run.output, &config)
+        .map_err(|error| MarklabError::Compute(error.to_string()))?;
+    write_output(
+        &request.base.out,
+        &encoded,
+        run.cache_status,
+        "isotropic-categorical-cross-pair-correlation",
     )
 }

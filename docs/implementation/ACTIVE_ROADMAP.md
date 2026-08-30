@@ -1665,3 +1665,13 @@ fresh-process backend-disabled replay, and standard-border regressions pass. A f
 capacity run completes in 7.96 seconds and replays with one ledger row; its one-specimen result is
 not population evidence. Production next may add isotropic categorical cross-g only through the
 existing visible-arc owner, without a correction registry.
+
+## Checkpoint 173 isotropic directed categorical cross-g
+
+The typed categorical cross-g caller now has a separate exact visible-arc workflow. Both directed
+fractions are evaluated once per contributing unordered displacement and the source-centred
+fraction follows each directed label assignment through complete-row random labeling. A
+boundary-source oracle, durable seed invalidation, three fresh CLI regressions, and real 512-cell
+backend-disabled replay pass. Its one-specimen result remains capacity evidence. The corrected
+categorical cross-g ladder is complete; next production should address an inhomogeneous or
+patient-replicated caller, not correction-selection infrastructure.

@@ -4279,3 +4279,16 @@ vascular transport.
 - The result retains 1,872 directed pairs, 936 unordered visits, 812 overlaps, 1,870,848 segment-pair
   operations, maximum 60 output positions, 170,536 estimated bytes, and 35,568 null pair
   evaluations. Cross-g 0.655655 and p=0.10 are not patient-level claims.
+
+## Isotropic directed categorical cross-g checkpoint 173 — 2026-08-29
+
+- Red-first direct, durable, and CLI tests fail on absent function/config, node, and subcommand,
+  then pass. The typed categorical target passes 8/8; standard, translation, and isotropic CLI
+  targets pass 3/3. Warning-denied affected Clippy, root no-default compilation, strict docs,
+  rustfmt, and whitespace checks pass.
+- The frozen 512-cell miss/hit take 7.90/5.83 seconds at 25,165,824/23,494,656-byte RSS. `cmp`
+  passes, one ledger row remains, and both hash to
+  `73036c3fb94b2194a726e7f03c2a59429e82d1790004aaef5d918d06544ca395`.
+- The result retains 1,872 directed pairs, 936 unordered visits, 1,624 arc evaluations, 77,952
+  segment tests, 2,017 membership queries, maximum four intersection angles, 229,000 estimated
+  bytes, and 35,568 null pair evaluations. Cross-g 0.604679 and p=0.10 are not patient claims.

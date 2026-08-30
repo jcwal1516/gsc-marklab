@@ -3,10 +3,12 @@
 use approx::assert_abs_diff_eq;
 use marklab::{
     categorical_cross_pair_correlation, execute_algorithm_with_store,
-    translation_categorical_cross_pair_correlation, ArtifactRef, ArtifactSchema,
-    BinaryMarkDeclaration, CacheStatus, CategoricalCrossPairCorrelationAnalysisNode,
-    CategoricalCrossPairCorrelationConfig, CategoricalPairLimits, DeclaredScalarPatternInput,
-    DurableProject, DurableProjectLimits, HistologicCompartmentMarkDeclaration, LocalScheduler,
+    isotropic_categorical_cross_pair_correlation, translation_categorical_cross_pair_correlation,
+    ArtifactRef, ArtifactSchema, BinaryMarkDeclaration, CacheStatus,
+    CategoricalCrossPairCorrelationAnalysisNode, CategoricalCrossPairCorrelationConfig,
+    CategoricalPairLimits, DeclaredScalarPatternInput, DurableProject, DurableProjectLimits,
+    HistologicCompartmentMarkDeclaration, IsotropicCategoricalCrossPairCorrelationAnalysisNode,
+    IsotropicCategoricalCrossPairCorrelationConfig, IsotropicSpatialLimits, LocalScheduler,
     MarkTable, MeasurementStatus, MissingnessPolicy, NativeRuntimeProvenance, NodeId,
     ObservationWindow2D, ObservationWindowLimits, PairCorrelationKernel,
     PairCorrelationPointStatus, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
@@ -423,6 +425,113 @@ fn translation_cross_g_reopens_as_a_store_verified_hit() {
             &node,
             &scheduler,
             ArtifactSchema::new("marklab.translation_categorical_cross_g", 1).expect("schema"),
+            runtime(),
+            &fixture.store,
+        )
+        .expect("run");
+        (result.cache_status, durable.execution_count())
+    };
+    assert_eq!(run_once(20260829), (CacheStatus::Miss, 1));
+    assert_eq!(run_once(20260829), (CacheStatus::Hit, 1));
+    assert_eq!(run_once(20260830), (CacheStatus::Miss, 2));
+}
+
+#[test]
+fn isotropic_directed_cross_g_uses_the_source_centered_visible_fraction() {
+    let (fixture, pattern, table, _) = input_fixture([0, 1, 1, 0]);
+    let window = ObservationWindow2D::from_geojson_str(
+        r#"{"type":"MultiPolygon","coordinates":[[[[0,-2],[4,-2],[4,2],[0,2],[0,-2]]]]}"#,
+        ObservationWindowLimits::default(),
+    )
+    .expect("window")
+    .with_coordinate_frame(
+        fixture.project.coordinate_registry().expect("registry"),
+        fixture.frame_id.clone(),
+    )
+    .expect("framed window");
+    let input = DeclaredScalarPatternInput::from_mark_table(
+        &fixture.project,
+        &pattern,
+        &table,
+        fixture.slide_id.clone(),
+        fixture.frame_id.clone(),
+    )
+    .expect("declared input");
+    let config = IsotropicCategoricalCrossPairCorrelationConfig::new(
+        config(20260829),
+        IsotropicSpatialLimits::new(16, 16, 64, 128, 512, 1_024, 1, 1 << 20)
+            .expect("isotropic limits"),
+    )
+    .expect("isotropic cross-g config");
+
+    let result = isotropic_categorical_cross_pair_correlation(&input, &window, &config)
+        .expect("isotropic cross-g");
+    let point = &result.curve[0];
+    assert_eq!(result.edge_correction, "isotropic");
+    assert_eq!(point.directed_source_target_pairs_in_support, 2);
+    assert_eq!(point.visible_arc_evaluations, 2);
+    assert_abs_diff_eq!(point.visible_arc_fraction_sum, 1.5, epsilon = 1e-12);
+    assert_abs_diff_eq!(
+        point.inverse_visible_arc_weighted_kernel_sum,
+        4.5,
+        epsilon = 1e-12
+    );
+    assert_abs_diff_eq!(
+        point.cross_g.expect("cross g"),
+        9.0 / std::f64::consts::PI,
+        epsilon = 1e-12
+    );
+}
+
+fn isotropic_config(seed: u64) -> IsotropicCategoricalCrossPairCorrelationConfig {
+    IsotropicCategoricalCrossPairCorrelationConfig::new(
+        config(seed),
+        IsotropicSpatialLimits::new(16, 16, 64, 128, 512, 1_024, 1, 1 << 20)
+            .expect("isotropic limits"),
+    )
+    .expect("isotropic config")
+}
+
+#[test]
+fn isotropic_cross_g_reopens_as_a_store_verified_hit() {
+    let root = tempfile::tempdir().expect("root");
+    let path = root.path().join("project");
+    let run_once = |seed| {
+        let (mut fixture, pattern, table, window) = input_fixture([0, 0, 1, 1]);
+        let input = DeclaredScalarPatternInput::from_mark_table(
+            &fixture.project,
+            &pattern,
+            &table,
+            fixture.slide_id.clone(),
+            fixture.frame_id.clone(),
+        )
+        .expect("input");
+        let config = isotropic_config(seed);
+        let node = IsotropicCategoricalCrossPairCorrelationAnalysisNode::new(
+            &mut fixture.project,
+            NodeId::new("isotropic-categorical-cross-g").expect("ID"),
+            &input,
+            &window,
+            &config,
+        )
+        .expect("node");
+        let graph = WorkflowGraph::new([node.spec().clone()]).expect("graph");
+        let scheduler = LocalScheduler::new(SchedulerLimits {
+            max_inline_output_bytes: 1 << 20,
+        })
+        .expect("scheduler");
+        let mut durable = DurableProject::open_or_create(
+            &path,
+            DurableProjectLimits::new(64 * 1024, 1 << 20, 64, 64 * 1024, 1 << 20).expect("limits"),
+        )
+        .expect("durable");
+        let result = execute_algorithm_with_store(
+            &mut durable,
+            &mut fixture.project,
+            &graph,
+            &node,
+            &scheduler,
+            ArtifactSchema::new("marklab.isotropic_categorical_cross_g", 1).expect("schema"),
             runtime(),
             &fixture.store,
         )

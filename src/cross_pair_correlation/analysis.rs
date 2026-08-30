@@ -382,7 +382,7 @@ fn zeroed_vec<T: Default + Clone>(
     Ok(values)
 }
 
-fn measurement_status_name(status: MeasurementStatus) -> &'static str {
+pub(super) fn measurement_status_name(status: MeasurementStatus) -> &'static str {
     match status {
         MeasurementStatus::Measured => "measured",
         MeasurementStatus::ImportedPrediction => "imported_prediction",
@@ -391,7 +391,7 @@ fn measurement_status_name(status: MeasurementStatus) -> &'static str {
     }
 }
 
-fn resolve(
+pub(super) fn resolve(
     levels: &[String],
     requested: &str,
 ) -> Result<u32, CategoricalCrossPairCorrelationError> {

@@ -3072,3 +3072,18 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   `49/(8*pi)`. Fresh processes prove byte-identical miss/hit replay with execution disabled on the
   hit. Standard-border bytes remain unchanged; no correction registry or automatic comparison is
   added.
+
+## DEC-0357 — Apply source-centred visible-arc weights to directed categorical cross-g
+
+- Date: 2026-08-29
+- Status: accepted for PP-03/PP-03B/PP-06C/MRK-01/FND-03/FND-04/WF-01/WS-12/WS-23/WS-30
+- Decision: add a separate isotropic directed categorical cross-g caller. For each retained
+  contributing unordered displacement, evaluate both exact visible-circle fractions once and reuse
+  the fraction centred at the current directed source for every label assignment and represented
+  radius. Multiply the Epanechnikov kernel by its reciprocal and normalize by
+  `area(W)/(2*pi*r*n_source*n_target)`. Preserve typed labels, direction, complete-row random
+  labeling, ERL, project/store/recovery, and exact source/window/runtime identities.
+- Consequences: a boundary-source rectangle proves the directional fractions `1/2` and `1`,
+  weighted kernel sum 4.5, and cross-g `9/pi`. Durable and fresh-process disabled replay pass while
+  border/translation bytes remain unchanged. No correction registry or automatic comparison is
+  introduced.

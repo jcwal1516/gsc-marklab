@@ -192,10 +192,13 @@ pub use continuous_mark_correlation::{
 };
 pub use continuous_mark_correlation_workflow::ContinuousMarkCorrelationAnalysisNode;
 pub use cross_pair_correlation::{
-    categorical_cross_pair_correlation, translation_categorical_cross_pair_correlation,
-    CategoricalCrossPairCorrelationAnalysisNode, CategoricalCrossPairCorrelationConfig,
-    CategoricalCrossPairCorrelationError, CategoricalCrossPairCorrelationInference,
-    CategoricalCrossPairCorrelationPoint, CategoricalCrossPairCorrelationResult,
+    categorical_cross_pair_correlation, isotropic_categorical_cross_pair_correlation,
+    translation_categorical_cross_pair_correlation, CategoricalCrossPairCorrelationAnalysisNode,
+    CategoricalCrossPairCorrelationConfig, CategoricalCrossPairCorrelationError,
+    CategoricalCrossPairCorrelationInference, CategoricalCrossPairCorrelationPoint,
+    CategoricalCrossPairCorrelationResult, IsotropicCategoricalCrossPairCorrelationAnalysisNode,
+    IsotropicCategoricalCrossPairCorrelationConfig, IsotropicCategoricalCrossPairCorrelationPoint,
+    IsotropicCategoricalCrossPairCorrelationResult,
     TranslationCategoricalCrossPairCorrelationAnalysisNode,
     TranslationCategoricalCrossPairCorrelationConfig,
     TranslationCategoricalCrossPairCorrelationPoint,
