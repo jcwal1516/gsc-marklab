@@ -15,6 +15,17 @@ broad-hardening work is deferred. Completed M0--M7, graph/topology, stability, h
 external-comparison, Bayesian, bundle, and replay evidence must be reused rather than rerun unless a
 concrete result-critical defect is found.
 
+## GASTRIC-CELLVIT-INTERIM-01 override — 2026-08-30
+
+Later user direction identifies CRC as the completed method-development pilot and the seven-slide
+local gastric H&E series as the next target. While CellViT continues, analyze only explicitly
+completed full-tissue slides in separately versioned provisional outputs. Use all admitted cells
+for composition and embedding summaries, four label-blind spatial fields per slide for bounded
+graph/topology diagnostics, continuous stability without an interim promotion gate, and patients
+as the population unit. Do not treat fields, cells, or the two paired slide sets as independent
+patients, interrupt the active inference process, tune from interim results, or reopen completed
+CRC claims.
+
 ## Full-program mandate override — 2026-08-24
 
 The explicit full-program implementation mandate pauses and supersedes the PLAT-DUR-01 outcome below. Its files and inherited hunks remain preserved and are not active targets. The point-process stream now includes exact rectangular IPP/LGCP, cluster/Strauss/Geyer workflows, multitype/categorical/continuous/embedding model constructors, replicated hierarchical LGCP construction, and simultaneous count/translation-K PPC diagnostics. SPDE, latent-parent, exchange, and replicated-cluster inference retain exact named prerequisites. The next independent pseudocode stream begins with vector semivariograms for spatial embeddings, followed by projected embedding variograms. This override remains in force until terminal completion or a changed mandate.

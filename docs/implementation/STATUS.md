@@ -3800,3 +3800,35 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   no-default compilation, and whitespace checks pass. Checkpoint 182 remains the latest broad
   non-loader stabilization and is not repeated. This closes the interrupted durability increment;
   subsequent work is restricted by the SCIENCE-CRC-FINAL-01 override.
+
+## Full-tissue gastric CellViT interim checkpoint 184 — 2026-08-30
+
+- Added one narrow standalone gastric adapter over the active seven-slide CellViT run. It admits
+  only four explicitly completed slides, verifies every graph/cell row correspondence, scans every
+  1,280-dimensional embedding for finite full-slide mean/SD, and retains all five hard-class
+  counts. The four slides contain 742,771 cells across all 5,593 available tissue patches and three
+  patient lanes, including one completed pre/post pair. The fifth slide continues independently.
+- Every slide is partitioned label-blind into four nearest-anchor tissue fields using four
+  farthest-point patch anchors. Up to 2,000 deterministic cells per field feed the existing durable
+  45/50/55-micrometre sparse scattering workflows; all 80 misses have one-row ledgers and all 80
+  fresh backend-disabled hits are byte-identical. Coordinate-perturbation median/q10 field-rank
+  stability is 1.0/1.0 in every slide. Cell-subsample and nearby-scale medians are 1.0 throughout,
+  with isolated feature minima down to 0.4 retained rather than hidden.
+- The first 2,000-cell topology design and a 512-cell/64-landmark correction truthfully fail the
+  existing 1-MiB durable output ceiling in 11 and nine dense-field requests. The retained final
+  approximation uses at most 512 witnesses and 32 farthest-point landmarks. All 64 corrected
+  misses and 64 backend-disabled hits pass with one ledger and byte equality. Topology remains
+  mixed: legacy coordinate thresholds pass only 8/16 fields; cell-subsample q10 ranges 0.052--0.840
+  and nearby-scale q10 0.689--1.0. No interim promotion gate is applied.
+- Full-slide versus spatially balanced sample embedding-mean cosine is 0.996, 0.992, 0.845, and
+  0.997; the lower GS-26-1340 value is retained as spatial heterogeneity/sampling sensitivity.
+  The one complete patient's pre/post cosine is 0.958 for composition, 0.968 for nonspatial
+  embeddings, 0.970 for graph, and 0.994 for coarse topology. These are descriptive paired values,
+  not treatment effects or population inference.
+- The remote provisional summary is
+  `/Volumes/1TB/marklab/runs/gastric-he-cellvit-interim-summary-v1`. Its 11-artifact manifest and
+  summary hash to `6f834c48af8c691588990ee098ac771165cbe3e92a277d67ee8e040b93152475`
+  and `a0f248f7802aad529347b917a0ac693b8602c726c8f59ff3937ec459371d8f21`;
+  independent rehash reports zero mismatches. Five focused tests and source compilation pass. No
+  broad workspace gate, completed CRC workflow, active CellViT process, or external publication is
+  touched.

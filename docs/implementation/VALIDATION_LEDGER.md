@@ -4550,3 +4550,34 @@ vascular transport.
 - Checkpoint 182's broad non-loader stabilization remains current. The documented macOS Nextest/
   full-integration loader loop, feature matrix, benchmark, fuzzing, packaging, dependency audit,
   push, publication, deployment, and history rewrite are not run.
+
+## Full-tissue gastric CellViT interim checkpoint 184 — 2026-08-30
+
+- Red-first `env PYTHONDONTWRITEBYTECODE=1 target/pymc-venv/bin/python -m unittest
+  tests.python.test_gastric_cellvit_interim` initially fails because the gastric adapter is absent.
+  Its final five tests pass, covering deterministic full-tissue field partitioning, all-cell
+  embedding summaries, exact physical request scales/work bounds, output refusal, bounded durable
+  miss/backend-disabled replay, byte equality, one-row ledgers, and continuous four-field
+  stability without a promotion gate. Source compilation passes.
+- Read-only mini QC verifies four completed regular graph/cell outputs: 31,305, 148,874, 90,090,
+  and 472,502 rows by 1,280 dimensions; graph/cell row and centroid correspondence is exact, no
+  duplicate centroid exists, every sampled embedding is finite, and selected/available tissue
+  patches are 198/198, 752/752, 1,269/1,269, and 3,374/3,374. Exact output MPP is
+  0.22583049163298027. The active fifth slide is not read as a completed input.
+- The first four-process graph/topology execution publishes all 80 graph results but only 53/64
+  topology results. It truthfully fails on a 3,326,450-byte 1,600-cell witness result against the
+  1,048,576-byte project ceiling. A second 512-cell/64-landmark design publishes 55/64 topology
+  results and retains nine analogous failures. Neither partial tree is discarded or called green.
+- The final 512-witness/32-landmark topology design completes 64/64 misses. Fresh processes with
+  backend execution disabled complete 80/80 graph hits and 64/64 topology hits; all replay bytes
+  match and all 144 project ledgers contain exactly one row. Remote counts independently confirm
+  80 graph results/ledgers and 64 topology results/ledgers.
+- The final summary reports 742,771 cells, 5,593 tissue patches, three patients, one paired patient,
+  continuous graph/topology stability, slide/patient similarity matrices, paired descriptive
+  changes, exact failed resource attempts, and no interim promotion/incremental claim. Remote
+  standard-library rehash verifies all 11 declared artifacts with zero mismatch. Manifest and
+  summary SHA-256 values are `6f834c48af8c691588990ee098ac771165cbe3e92a277d67ee8e040b93152475`
+  and `a0f248f7802aad529347b917a0ac693b8602c726c8f59ff3937ec459371d8f21`.
+- `git diff --check` and direct status/diff review follow. No broad workspace/Nextest loader,
+  Bayesian backend, benchmark, fuzzing, packaging, dependency, push, publication, deployment, or
+  history-rewrite command runs.

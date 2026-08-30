@@ -3219,3 +3219,20 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   one-ledger execution, and fresh backend-disabled replay. Its frozen PCA/bin/curve result remains
   unchanged. This does not add a backend registry, projection selector, new statistic, new result
   format, patient inference, or authority to retune a null or unstable result.
+
+## DEC-0366 — Treat completed full-tissue gastric slides as a provisional nested analysis
+
+- Date: 2026-08-30
+- Status: accepted for EMB-01/TOP-01/WF-01/WS-12/WS-61/WS-62
+- Decision: admit only explicitly completed slides from the active seven-slide gastric CellViT run.
+  Use every cell for hard composition and 1,280-dimensional mean/SD summaries. Partition each slide
+  into four label-blind nearest-anchor fields using four farthest-point tissue-patch anchors, and
+  feed at most 2,000 deterministic field cells to existing sparse scattering. Bound witness
+  topology to 512 deterministic field cells and 32 farthest-point landmarks so its complete typed
+  output fits the existing durable codec. Retain 80% cell subsampling, one-micrometre coordinate
+  perturbation, 45/50/55-micrometre graph radii, and 180/200/220-micrometre topology scales.
+- Consequences: all-cell and bounded spatial summaries run without interrupting inference or
+  treating fields/slides as patients. Stability remains continuous and no promotion gate,
+  molecular/outcome inference, or treatment-effect claim applies until all seven slides and a
+  declared patient endpoint are admitted. Failed 2,000-cell and 64-landmark topology attempts are
+  retained as resource evidence; CRC conclusions and result-format 0.3 remain unchanged.

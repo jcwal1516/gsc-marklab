@@ -516,3 +516,13 @@ typed replay validation, direct-result parity, and a fresh backend-disabled hit 
 ledger row. Its admitted real result is unchanged from the frozen PCA/bin/curve evidence. This
 advances EMB-01, SIG-01H, WF-01, and WS-12 only for this concrete caller; it does not promote the
 block, generalize backend infrastructure, or change the existing null/unstable CRC conclusions.
+
+## Full-tissue gastric CellViT interim checkpoint 184
+
+Four of seven completed full-tissue gastric slides now have exact all-cell composition/nonspatial
+embedding summaries plus sixteen label-blind bounded spatial fields. Existing durable sparse graph
+and pinned topology callers complete and replay backend-disabled at 80 and 64 one-row executions.
+Graph median field-rank stability is high, topology is lower-tail mixed, and one complete pre/post
+pair remains descriptive. This is provisional real-data evidence for EMB-01, TOP-01, WS-61,
+WS-62, and WF-01; it changes no capability state, applies no promotion gate, and does not count fields or
+slides as independent patients.
