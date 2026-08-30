@@ -13,6 +13,7 @@ use crate::{CellEmbeddingTable, EmbeddingStatus};
 use super::{
     super::{
         arrow::{build_embedding_record_batch, validate_embedding_table_bindings},
+        enforce_decoded_budget, enforce_retained_budget, enforce_row_group_budget,
         CellEmbeddingTablePhysicalBindings, ColumnarWriteSummary, EmbeddingColumnarBudgets,
         EmbeddingColumnarError,
     },
@@ -317,45 +318,6 @@ pub(super) fn validity_bytes(values: usize) -> Result<usize, EmbeddingColumnarEr
         .checked_add(7)
         .map(|value| value / 8)
         .ok_or(EmbeddingColumnarError::SizeOverflow)
-}
-
-fn enforce_decoded_budget(
-    required: u64,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_decoded_bytes() {
-        return Err(EmbeddingColumnarError::DecodedByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_decoded_bytes(),
-        });
-    }
-    Ok(())
-}
-
-fn enforce_row_group_budget(
-    required: usize,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_row_group_bytes() {
-        return Err(EmbeddingColumnarError::RowGroupByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_row_group_bytes(),
-        });
-    }
-    Ok(())
-}
-
-fn enforce_retained_budget(
-    required: usize,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_retained_bytes() {
-        return Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_retained_bytes(),
-        });
-    }
-    Ok(())
 }
 
 pub(super) struct ParquetDigestingWriter<'a> {

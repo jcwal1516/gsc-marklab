@@ -4,14 +4,18 @@ use marklab_project::ContentDigest;
 use parquet::{
     file::metadata::{ParquetMetaData, ParquetMetaDataReader},
     format::{
-        ColumnChunk, ColumnMetaData, ColumnOrder, CompressionCodec, ConvertedType, Encoding,
-        FieldRepetitionType, FileMetaData, LogicalType, PageHeader, PageType, SchemaElement, Type,
+        ColumnOrder, ConvertedType, Encoding, FieldRepetitionType, FileMetaData, LogicalType,
+        PageHeader, PageType, SchemaElement, Type,
     },
     thrift::TSerializable,
 };
 
 use crate::{CellPatchAssignmentMode, CellPatchLink};
 
+pub(super) use super::super::physical::parquet_failure;
+use super::super::physical::{
+    absolute_slice, page_limits, read_exact_at, validate_column_features, validate_footer_length,
+};
 use super::profile::CellPatchParquetProfile;
 use crate::columnar::{
     multiscale::{
@@ -918,65 +922,6 @@ fn decoded_bytes(
     })
 }
 
-fn validate_footer_length(
-    footer_len: usize,
-    footer_length_offset: usize,
-) -> Result<usize, MultiscaleColumnarError> {
-    if footer_len == 0 || footer_len > MAXIMUM_FOOTER_BYTES {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidFooterLength));
-    }
-    let footer_start = footer_length_offset
-        .checked_sub(footer_len)
-        .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidFooterLength))?;
-    if footer_start < PARQUET_MAGIC.len() {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidFooterLength));
-    }
-    Ok(footer_start)
-}
-
-fn validate_column_features(
-    column: &ColumnChunk,
-    metadata: &ColumnMetaData,
-) -> Result<(), MultiscaleColumnarError> {
-    if column.file_path.is_some()
-        || column.file_offset != 0
-        || column.offset_index_offset.is_some()
-        || column.offset_index_length.is_some()
-        || column.column_index_offset.is_some()
-        || column.column_index_length.is_some()
-        || column.crypto_metadata.is_some()
-        || column.encrypted_column_metadata.is_some()
-        || metadata.codec != CompressionCodec::UNCOMPRESSED
-        || metadata.encodings != [Encoding::PLAIN, Encoding::RLE]
-        || metadata.key_value_metadata.is_some()
-        || metadata.index_page_offset.is_some()
-        || metadata.dictionary_page_offset.is_some()
-        || metadata.statistics.is_some()
-        || metadata.bloom_filter_offset.is_some()
-        || metadata.bloom_filter_length.is_some()
-        || metadata.size_statistics.is_some()
-        || metadata.geospatial_statistics.is_some()
-    {
-        return Err(parquet_failure(SpatialParquetFailure::ForbiddenFeature));
-    }
-    Ok(())
-}
-
-fn absolute_slice(bytes: &[u8], base: usize, start: usize, end: usize) -> Option<&[u8]> {
-    bytes.get(start.checked_sub(base)?..end.checked_sub(base)?)
-}
-
-fn page_limits() -> CompactLimits {
-    CompactLimits {
-        maximum_depth: 8,
-        maximum_fields: 64,
-        maximum_collection_elements: 16,
-        maximum_total_elements: 64,
-        maximum_string_bytes: MAXIMUM_PAGE_HEADER_BYTES,
-        maximum_total_string_bytes: MAXIMUM_PAGE_HEADER_BYTES,
-    }
-}
-
 fn footer_compact_limits(
     expected_groups: usize,
     profile: CellPatchParquetProfile,
@@ -1013,19 +958,4 @@ fn footer_compact_limits(
         maximum_string_bytes: MAXIMUM_APPLICATION_METADATA_BYTES,
         maximum_total_string_bytes: MAXIMUM_FOOTER_BYTES,
     })
-}
-
-fn read_exact_at<R: Read + Seek + ?Sized>(
-    reader: &mut R,
-    offset: u64,
-    buffer: &mut [u8],
-) -> Result<(), MultiscaleColumnarError> {
-    reader
-        .seek(SeekFrom::Start(offset))
-        .and_then(|_| reader.read_exact(buffer))
-        .map_err(|_| parquet_failure(SpatialParquetFailure::ArtifactRead))
-}
-
-pub(super) fn parquet_failure(reason: SpatialParquetFailure) -> MultiscaleColumnarError {
-    MultiscaleColumnarError::Parquet { reason }
 }

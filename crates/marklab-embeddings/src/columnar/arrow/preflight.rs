@@ -7,8 +7,8 @@ use crate::{EmbeddingStatus, ExpectedCellSet};
 
 use super::{
     super::{
-        ArrowIpcFailure, CellEmbeddingTablePhysicalBindings, EmbeddingColumnarBudgets,
-        EmbeddingColumnarError,
+        enforce_file_budget, ArrowIpcFailure, CellEmbeddingTablePhysicalBindings,
+        EmbeddingColumnarBudgets, EmbeddingColumnarError,
     },
     preflight_reader::{
         declared_table_logical_digest_reader, preflight_cell_embedding_table_arrow_reader,
@@ -88,12 +88,7 @@ pub fn preflight_cell_embedding_table_arrow_bytes(
 ) -> Result<CellEmbeddingArrowPreflight, EmbeddingColumnarError> {
     let encoded_byte_len =
         u64::try_from(bytes.len()).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
-    if encoded_byte_len > budgets.maximum_file_bytes() {
-        return Err(EmbeddingColumnarError::FileByteBudgetExceeded {
-            observed: encoded_byte_len,
-            maximum: budgets.maximum_file_bytes(),
-        });
-    }
+    enforce_file_budget(encoded_byte_len, budgets)?;
     preflight_cell_embedding_table_arrow_reader(
         &mut Cursor::new(bytes),
         ContentDigest::from_bytes(bytes),

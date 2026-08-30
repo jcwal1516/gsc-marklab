@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use super::EmbeddingColumnarBudgets;
+
 /// Closed Arrow IPC profile rejection reasons.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ArrowIpcFailure {
@@ -151,4 +153,56 @@ pub enum EmbeddingColumnarError {
         /// Closed rejection reason.
         reason: ParquetFailure,
     },
+}
+
+pub(crate) fn enforce_file_budget(
+    observed: u64,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<(), EmbeddingColumnarError> {
+    if observed > budgets.maximum_file_bytes() {
+        return Err(EmbeddingColumnarError::FileByteBudgetExceeded {
+            observed,
+            maximum: budgets.maximum_file_bytes(),
+        });
+    }
+    Ok(())
+}
+
+pub(crate) fn enforce_retained_budget(
+    required: usize,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<(), EmbeddingColumnarError> {
+    if required > budgets.maximum_retained_bytes() {
+        return Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
+            required,
+            maximum: budgets.maximum_retained_bytes(),
+        });
+    }
+    Ok(())
+}
+
+pub(crate) fn enforce_row_group_budget(
+    required: usize,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<(), EmbeddingColumnarError> {
+    if required > budgets.maximum_row_group_bytes() {
+        return Err(EmbeddingColumnarError::RowGroupByteBudgetExceeded {
+            required,
+            maximum: budgets.maximum_row_group_bytes(),
+        });
+    }
+    Ok(())
+}
+
+pub(crate) fn enforce_decoded_budget(
+    required: u64,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<(), EmbeddingColumnarError> {
+    if required > budgets.maximum_decoded_bytes() {
+        return Err(EmbeddingColumnarError::DecodedByteBudgetExceeded {
+            required,
+            maximum: budgets.maximum_decoded_bytes(),
+        });
+    }
+    Ok(())
 }

@@ -1,11 +1,18 @@
 #![cfg(feature = "parquet")]
 
 #[allow(dead_code)]
+#[path = "support/columnar_adversarial.rs"]
+mod adversarial_support;
+#[allow(dead_code)]
 #[path = "support/multiscale_matrix_columnar.rs"]
 mod support;
 
-use std::{collections::BTreeMap, io::Cursor, io::Write, mem::size_of};
+use std::{collections::BTreeMap, io::Cursor, mem::size_of};
 
+use adversarial_support::{
+    arrow_buffer_location, arrow_footer_bounds, first_arrow_block as shared_first_arrow_block,
+    rewrite_parquet_footer, trusted_parquet_metadata,
+};
 use arrow::ipc::reader::FileReader;
 use marklab::{
     preflight_patch_embedding_table_arrow_bytes, preflight_patch_embedding_table_parquet_bytes,
@@ -16,12 +23,7 @@ use marklab::{
     ContentDigest, EmbeddingColumnarBudgets, MultiscaleColumnarError, SpatialArrowFailure,
     SpatialParquetFailure,
 };
-use parquet::{
-    file::metadata::{ParquetMetaData, ParquetMetaDataReader},
-    format::{ColumnOrder, CompressionCodec, Encoding, FileMetaData, Statistics, TypeDefinedOrder},
-    schema::types,
-    thrift::{TCompactOutputProtocol, TSerializable},
-};
+use parquet::format::{CompressionCodec, Encoding, Statistics};
 
 use support::{matrix_fixture, LARGE};
 
@@ -71,41 +73,13 @@ fn expected_metadata(encoding: &str, values: MetadataValues<'_>) -> BTreeMap<Str
     ])
 }
 
-fn arrow_footer_bounds(bytes: &[u8]) -> (usize, usize) {
-    let length_offset = bytes.len() - 10;
-    let length = usize::try_from(i32::from_le_bytes(
-        bytes[length_offset..length_offset + 4]
-            .try_into()
-            .expect("footer length"),
-    ))
-    .expect("positive footer length");
-    (length_offset - length, length)
-}
-
 fn first_arrow_block(bytes: &[u8]) -> (usize, usize) {
-    let (footer_start, footer_length) = arrow_footer_bounds(bytes);
-    let footer = arrow::ipc::root_as_footer(&bytes[footer_start..footer_start + footer_length])
-        .expect("Arrow footer");
-    let block = footer.recordBatches().expect("record batches").get(0);
-    (
-        usize::try_from(block.offset()).expect("block offset"),
-        usize::try_from(block.metaDataLength()).expect("metadata length"),
-    )
+    let (offset, metadata, _) = shared_first_arrow_block(bytes);
+    (offset, metadata)
 }
 
 fn arrow_buffer_range(bytes: &[u8], index: usize) -> std::ops::Range<usize> {
-    let (offset, metadata) = first_arrow_block(bytes);
-    let message =
-        arrow::ipc::root_as_message(&bytes[offset + 8..offset + metadata]).expect("record message");
-    let buffer = message
-        .header_as_record_batch()
-        .expect("record batch")
-        .buffers()
-        .expect("buffers")
-        .get(index);
-    let start = offset + metadata + usize::try_from(buffer.offset()).expect("buffer offset");
-    let end = start + usize::try_from(buffer.length()).expect("buffer length");
-    start..end
+    arrow_buffer_location(bytes, index).1
 }
 
 fn replace_all_same_length(bytes: &mut [u8], from: &[u8], to: &[u8]) -> usize {
@@ -119,65 +93,6 @@ fn replace_all_same_length(bytes: &mut [u8], from: &[u8], to: &[u8]) -> usize {
         bytes[*offset..*offset + to.len()].copy_from_slice(to);
     }
     offsets.len()
-}
-
-fn trusted_parquet_metadata(bytes: &[u8]) -> ParquetMetaData {
-    let mut file = tempfile::tempfile().expect("temporary Parquet file");
-    file.write_all(bytes).expect("trusted Parquet bytes");
-    ParquetMetaDataReader::new()
-        .parse_and_finish(&file)
-        .expect("trusted Parquet metadata")
-}
-
-fn raw_parquet_metadata(metadata: &ParquetMetaData) -> FileMetaData {
-    let file = metadata.file_metadata();
-    let columns = file.schema_descr().num_columns();
-    FileMetaData {
-        version: file.version(),
-        schema: types::to_thrift(file.schema()).expect("Thrift schema"),
-        num_rows: file.num_rows(),
-        row_groups: metadata
-            .row_groups()
-            .iter()
-            .map(|group| group.to_thrift())
-            .collect(),
-        key_value_metadata: file.key_value_metadata().cloned(),
-        created_by: file.created_by().map(str::to_owned),
-        column_orders: Some(
-            (0..columns)
-                .map(|_| ColumnOrder::TYPEORDER(TypeDefinedOrder {}))
-                .collect(),
-        ),
-        encryption_algorithm: None,
-        footer_signing_key_metadata: None,
-    }
-}
-
-fn rewrite_parquet_footer(bytes: &[u8], mutate: impl FnOnce(&mut FileMetaData)) -> Vec<u8> {
-    let mut raw = raw_parquet_metadata(&trusted_parquet_metadata(bytes));
-    mutate(&mut raw);
-    let mut footer = Vec::new();
-    {
-        let mut protocol = TCompactOutputProtocol::new(&mut footer);
-        raw.write_to_out_protocol(&mut protocol)
-            .expect("rewrite footer");
-    }
-    let original_footer_start = bytes.len()
-        - 8
-        - u32::from_le_bytes(
-            bytes[bytes.len() - 8..bytes.len() - 4]
-                .try_into()
-                .expect("footer length"),
-        ) as usize;
-    let mut output = bytes[..original_footer_start].to_vec();
-    output.extend_from_slice(&footer);
-    output.extend_from_slice(
-        &u32::try_from(footer.len())
-            .expect("footer length")
-            .to_le_bytes(),
-    );
-    output.extend_from_slice(b"PAR1");
-    output
 }
 
 fn read_varint(bytes: &[u8], cursor: &mut usize) -> u64 {

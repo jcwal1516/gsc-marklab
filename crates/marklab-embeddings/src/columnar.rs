@@ -50,6 +50,9 @@ pub use arrow::{
     write_patch_embedding_table_arrow, write_region_embedding_table_arrow,
     write_slide_embedding_table_arrow, MultiscaleMatrixArrowPreflight,
 };
+pub(crate) use error::{
+    enforce_decoded_budget, enforce_file_budget, enforce_retained_budget, enforce_row_group_budget,
+};
 pub use error::{ArrowIpcFailure, EmbeddingColumnarError, ParquetFailure};
 pub use multiscale::{
     MultiscaleColumnarError, SpatialArrowFailure, SpatialColumnarWriteSummary,

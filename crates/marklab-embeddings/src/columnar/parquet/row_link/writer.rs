@@ -9,6 +9,7 @@ use parquet::arrow::arrow_writer::{ArrowWriter, ArrowWriterOptions};
 use crate::CellEmbeddingRowLink;
 
 use super::super::super::{
+    enforce_decoded_budget, enforce_retained_budget, enforce_row_group_budget,
     EmbeddingColumnarBudgets, EmbeddingColumnarError, RowLinkColumnarWriteSummary,
 };
 use super::{
@@ -234,43 +235,4 @@ pub(super) fn estimate_decoded_bytes(
     identifiers
         .checked_add(u64::try_from(fixed).map_err(|_| EmbeddingColumnarError::SizeOverflow)?)
         .ok_or(EmbeddingColumnarError::SizeOverflow)
-}
-
-fn enforce_decoded_budget(
-    required: u64,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_decoded_bytes() {
-        return Err(EmbeddingColumnarError::DecodedByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_decoded_bytes(),
-        });
-    }
-    Ok(())
-}
-
-fn enforce_row_group_budget(
-    required: usize,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_row_group_bytes() {
-        return Err(EmbeddingColumnarError::RowGroupByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_row_group_bytes(),
-        });
-    }
-    Ok(())
-}
-
-fn enforce_retained_budget(
-    required: usize,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_retained_bytes() {
-        return Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_retained_bytes(),
-        });
-    }
-    Ok(())
 }

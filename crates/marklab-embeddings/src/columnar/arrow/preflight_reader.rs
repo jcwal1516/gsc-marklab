@@ -12,8 +12,8 @@ use marklab_project::ContentDigest;
 use crate::ExpectedCellSet;
 
 use super::super::{
-    ArrowIpcFailure, CellEmbeddingTablePhysicalBindings, EmbeddingColumnarBudgets,
-    EmbeddingColumnarError,
+    enforce_file_budget, ArrowIpcFailure, CellEmbeddingTablePhysicalBindings,
+    EmbeddingColumnarBudgets, EmbeddingColumnarError,
 };
 use super::{
     preflight::{validate_record_batch_message, CellEmbeddingArrowPreflight},
@@ -37,12 +37,7 @@ pub(super) fn preflight_cell_embedding_table_arrow_reader<R: Read + Seek + ?Size
     let encoded_byte_len = reader
         .seek(SeekFrom::End(0))
         .map_err(|_| arrow_failure(ArrowIpcFailure::ArtifactRead))?;
-    if encoded_byte_len > budgets.maximum_file_bytes() {
-        return Err(EmbeddingColumnarError::FileByteBudgetExceeded {
-            observed: encoded_byte_len,
-            maximum: budgets.maximum_file_bytes(),
-        });
-    }
+    enforce_file_budget(encoded_byte_len, budgets)?;
     let file_len =
         usize::try_from(encoded_byte_len).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
     let (footer_start, footer_length, footer_bytes) = read_footer(reader, file_len, budgets)?;

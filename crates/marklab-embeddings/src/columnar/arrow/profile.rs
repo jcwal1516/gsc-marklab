@@ -4,10 +4,10 @@ use arrow::datatypes::{DataType, Field, Schema};
 use arrow_ipc::{Endianness, Precision, Type};
 use flatbuffers::VerifierOptions;
 
-use super::super::{
-    ArrowIpcFailure, CellEmbeddingTablePhysicalBindings, EmbeddingColumnarBudgets,
-    EmbeddingColumnarError,
+pub(super) use super::super::{
+    enforce_decoded_budget, enforce_retained_budget, enforce_row_group_budget,
 };
+use super::super::{ArrowIpcFailure, CellEmbeddingTablePhysicalBindings, EmbeddingColumnarError};
 
 pub(super) const ARROW_MAGIC: &[u8; 6] = b"ARROW1";
 pub(super) const CONTINUATION_MARKER: &[u8; 4] = &[0xff; 4];
@@ -235,45 +235,6 @@ pub(super) fn component_bytes(
     rows.checked_mul(u64::from(dimension))
         .and_then(|value| value.checked_mul(size_of::<f32>() as u64))
         .ok_or(EmbeddingColumnarError::SizeOverflow)
-}
-
-pub(super) fn enforce_decoded_budget(
-    required: u64,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_decoded_bytes() {
-        return Err(EmbeddingColumnarError::DecodedByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_decoded_bytes(),
-        });
-    }
-    Ok(())
-}
-
-pub(super) fn enforce_retained_budget(
-    required: usize,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_retained_bytes() {
-        return Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_retained_bytes(),
-        });
-    }
-    Ok(())
-}
-
-pub(super) fn enforce_row_group_budget(
-    required: usize,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_row_group_bytes() {
-        return Err(EmbeddingColumnarError::RowGroupByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_row_group_bytes(),
-        });
-    }
-    Ok(())
 }
 
 pub(super) fn nonnegative_usize(

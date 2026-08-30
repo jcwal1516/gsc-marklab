@@ -8,14 +8,18 @@ use marklab_project::ContentDigest;
 
 use crate::{CellPatchAssignmentMode, CellPatchLink};
 
+use super::super::physical::{
+    align, checked_range, nonnegative_i32, nonnegative_i64, read_exact_at, read_footer,
+    read_vec_at, validity_bytes,
+};
 use super::profile::{
     arrow_failure, expected_schema, validate_flatbuffer_schema, CellPatchArrowProfile,
 };
 use crate::columnar::{
     arrow::profile::{
         footer_verifier_options, message_verifier_options, schema_message_verifier_options,
-        ALIGNMENT, ARROW_MAGIC, CONTINUATION_MARKER, EOS_BYTES, HEADER_BYTES, MAXIMUM_FOOTER_BYTES,
-        MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS, TRAILER_BYTES,
+        ALIGNMENT, CONTINUATION_MARKER, EOS_BYTES, HEADER_BYTES, MAXIMUM_MESSAGE_BYTES,
+        RECORD_BATCH_ROWS,
     },
     multiscale::{
         assignment_decoded_bytes, edge_decoded_bytes, enforce_decoded_budget, enforce_file_budget,
@@ -746,158 +750,6 @@ fn validate_record_batch_features(
         return Err(arrow_failure(SpatialArrowFailure::ForbiddenFeature));
     }
     Ok(())
-}
-
-fn read_footer<R: Read + Seek + ?Sized>(
-    reader: &mut R,
-    file_len: usize,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(usize, usize, Vec<u8>), MultiscaleColumnarError> {
-    if file_len < HEADER_BYTES + EOS_BYTES + TRAILER_BYTES {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidMagic));
-    }
-    let mut header = [0_u8; HEADER_BYTES];
-    read_exact_at(
-        reader,
-        file_len,
-        0,
-        &mut header,
-        SpatialArrowFailure::InvalidMagic,
-    )?;
-    let trailer_start = file_len
-        .checked_sub(TRAILER_BYTES)
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidFooterLength))?;
-    let mut trailer = [0_u8; TRAILER_BYTES];
-    read_exact_at(
-        reader,
-        file_len,
-        trailer_start,
-        &mut trailer,
-        SpatialArrowFailure::InvalidFooterLength,
-    )?;
-    if header.get(..ARROW_MAGIC.len()) != Some(ARROW_MAGIC)
-        || header[ARROW_MAGIC.len()..].iter().any(|byte| *byte != 0)
-        || trailer.get(4..) != Some(ARROW_MAGIC)
-    {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidMagic));
-    }
-    let signed = i32::from_le_bytes(
-        trailer[..4]
-            .try_into()
-            .map_err(|_| arrow_failure(SpatialArrowFailure::InvalidFooterLength))?,
-    );
-    if signed <= 0 {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidFooterLength));
-    }
-    let footer_len = usize::try_from(signed)
-        .map_err(|_| arrow_failure(SpatialArrowFailure::InvalidFooterLength))?;
-    if footer_len > MAXIMUM_FOOTER_BYTES || footer_len > trailer_start {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidFooterLength));
-    }
-    let footer_start = trailer_start
-        .checked_sub(footer_len)
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidFooterLength))?;
-    if footer_start < HEADER_BYTES + EOS_BYTES {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidFooterLength));
-    }
-    let mut eos = [0_u8; EOS_BYTES];
-    read_exact_at(
-        reader,
-        file_len,
-        footer_start - EOS_BYTES,
-        &mut eos,
-        SpatialArrowFailure::InvalidFooterLength,
-    )?;
-    if &eos[..4] != CONTINUATION_MARKER || eos[4..] != [0; 4] {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidFooterLength));
-    }
-    let retained = footer_len
-        .checked_mul(2)
-        .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-    enforce_retained_budget(retained, budgets)?;
-    let footer = read_vec_at(
-        reader,
-        file_len,
-        footer_start,
-        footer_len,
-        SpatialArrowFailure::InvalidFooter,
-    )?;
-    Ok((footer_start, footer_len, footer))
-}
-
-fn read_exact_at<R: Read + Seek + ?Sized>(
-    reader: &mut R,
-    file_len: usize,
-    offset: usize,
-    buffer: &mut [u8],
-    range_failure: SpatialArrowFailure,
-) -> Result<(), MultiscaleColumnarError> {
-    if offset
-        .checked_add(buffer.len())
-        .is_none_or(|end| end > file_len)
-    {
-        return Err(arrow_failure(range_failure));
-    }
-    reader
-        .seek(SeekFrom::Start(
-            u64::try_from(offset).map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
-        ))
-        .and_then(|_| reader.read_exact(buffer))
-        .map_err(|_| arrow_failure(SpatialArrowFailure::ArtifactRead))
-}
-
-fn read_vec_at<R: Read + Seek + ?Sized>(
-    reader: &mut R,
-    file_len: usize,
-    offset: usize,
-    length: usize,
-    range_failure: SpatialArrowFailure,
-) -> Result<Vec<u8>, MultiscaleColumnarError> {
-    let mut bytes = Vec::new();
-    bytes
-        .try_reserve_exact(length)
-        .map_err(|_| MultiscaleColumnarError::AllocationFailed { requested: length })?;
-    bytes.resize(length, 0);
-    read_exact_at(reader, file_len, offset, &mut bytes, range_failure)?;
-    Ok(bytes)
-}
-
-fn checked_range(
-    start: usize,
-    rows: usize,
-) -> Result<std::ops::Range<usize>, MultiscaleColumnarError> {
-    Ok(start
-        ..start
-            .checked_add(rows)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?)
-}
-
-fn nonnegative_i32(
-    value: i32,
-    failure: SpatialArrowFailure,
-) -> Result<usize, MultiscaleColumnarError> {
-    usize::try_from(value).map_err(|_| arrow_failure(failure))
-}
-
-fn nonnegative_i64(
-    value: i64,
-    failure: SpatialArrowFailure,
-) -> Result<usize, MultiscaleColumnarError> {
-    usize::try_from(value).map_err(|_| arrow_failure(failure))
-}
-
-fn validity_bytes(rows: usize) -> Result<usize, MultiscaleColumnarError> {
-    rows.checked_add(7)
-        .map(|value| value / 8)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)
-}
-
-fn align(value: usize) -> Result<usize, MultiscaleColumnarError> {
-    value
-        .checked_add(ALIGNMENT - 1)
-        .map(|sum| sum / ALIGNMENT * ALIGNMENT)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)
 }
 
 #[cfg(test)]

@@ -18,8 +18,9 @@ use crate::ExpectedCellSet;
 
 use super::{
     super::{
-        CellEmbeddingTablePhysicalBindings, EmbeddingColumnarBudgets, EmbeddingColumnarError,
-        ParquetFailure,
+        enforce_decoded_budget, enforce_file_budget, enforce_retained_budget,
+        enforce_row_group_budget, CellEmbeddingTablePhysicalBindings, EmbeddingColumnarBudgets,
+        EmbeddingColumnarError, ParquetFailure,
     },
     compact::{is_canonical_compact, BoundedCompactProtocol, CompactLimits},
     profile::{
@@ -82,12 +83,7 @@ pub fn preflight_cell_embedding_table_parquet_bytes(
 ) -> Result<CellEmbeddingParquetPreflight, EmbeddingColumnarError> {
     let encoded_byte_len =
         u64::try_from(bytes.len()).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
-    if encoded_byte_len > budgets.maximum_file_bytes() {
-        return Err(EmbeddingColumnarError::FileByteBudgetExceeded {
-            observed: encoded_byte_len,
-            maximum: budgets.maximum_file_bytes(),
-        });
-    }
+    enforce_file_budget(encoded_byte_len, budgets)?;
     preflight_cell_embedding_table_parquet_reader(
         &mut Cursor::new(bytes),
         encoded_byte_len,
@@ -1140,45 +1136,6 @@ fn validate_metadata(
     }
     if total_bytes > MAXIMUM_APPLICATION_METADATA_BYTES {
         return Err(parquet_failure(ParquetFailure::InvalidMetadata));
-    }
-    Ok(())
-}
-
-fn enforce_retained_budget(
-    required: usize,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_retained_bytes() {
-        return Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_retained_bytes(),
-        });
-    }
-    Ok(())
-}
-
-fn enforce_row_group_budget(
-    required: usize,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_row_group_bytes() {
-        return Err(EmbeddingColumnarError::RowGroupByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_row_group_bytes(),
-        });
-    }
-    Ok(())
-}
-
-fn enforce_decoded_budget(
-    required: u64,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_decoded_bytes() {
-        return Err(EmbeddingColumnarError::DecodedByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_decoded_bytes(),
-        });
     }
     Ok(())
 }

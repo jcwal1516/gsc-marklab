@@ -12,7 +12,10 @@ use parquet::{
 
 use crate::{CellEmbeddingRowLink, ExpectedCellSet};
 
-use super::super::super::{EmbeddingColumnarBudgets, EmbeddingColumnarError, ParquetFailure};
+use super::super::super::{
+    enforce_decoded_budget, enforce_retained_budget, enforce_row_group_budget,
+    EmbeddingColumnarBudgets, EmbeddingColumnarError, ParquetFailure,
+};
 use super::{
     super::{
         compact::{is_canonical_compact, BoundedCompactProtocol, CompactLimits},
@@ -830,45 +833,6 @@ fn page_limits() -> CompactLimits {
         maximum_string_bytes: MAXIMUM_PAGE_HEADER_BYTES,
         maximum_total_string_bytes: MAXIMUM_PAGE_HEADER_BYTES,
     }
-}
-
-fn enforce_retained_budget(
-    required: usize,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_retained_bytes() {
-        return Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_retained_bytes(),
-        });
-    }
-    Ok(())
-}
-
-fn enforce_row_group_budget(
-    required: usize,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_row_group_bytes() {
-        return Err(EmbeddingColumnarError::RowGroupByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_row_group_bytes(),
-        });
-    }
-    Ok(())
-}
-
-fn enforce_decoded_budget(
-    required: u64,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_decoded_bytes() {
-        return Err(EmbeddingColumnarError::DecodedByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_decoded_bytes(),
-        });
-    }
-    Ok(())
 }
 
 fn parquet_failure(reason: ParquetFailure) -> EmbeddingColumnarError {

@@ -25,7 +25,10 @@ use super::{
     },
     profile::{row_link_schema, CONTENT_KIND, ENCODING_VERSION, SCHEMA_ID},
 };
-use crate::columnar::{EmbeddingColumnarBudgets, EmbeddingColumnarError, ParquetFailure};
+use crate::columnar::{
+    enforce_retained_budget, enforce_row_group_budget, EmbeddingColumnarBudgets,
+    EmbeddingColumnarError, ParquetFailure,
+};
 
 /// Fully decode and validate borrowed canonical row-link Parquet bytes.
 pub fn validate_cell_embedding_row_link_parquet_bytes(
@@ -347,32 +350,6 @@ fn estimate_group_peak(group: &RowGroupMetaData) -> Result<usize, EmbeddingColum
         .and_then(|value| value.checked_add(arrow_output.checked_mul(2)?))
         .and_then(|value| value.checked_add(rows.checked_mul(4)?))
         .ok_or(EmbeddingColumnarError::SizeOverflow)
-}
-
-fn enforce_retained_budget(
-    required: usize,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_retained_bytes() {
-        return Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_retained_bytes(),
-        });
-    }
-    Ok(())
-}
-
-fn enforce_row_group_budget(
-    required: usize,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_row_group_bytes() {
-        return Err(EmbeddingColumnarError::RowGroupByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_row_group_bytes(),
-        });
-    }
-    Ok(())
 }
 
 fn parquet_failure(reason: ParquetFailure) -> EmbeddingColumnarError {

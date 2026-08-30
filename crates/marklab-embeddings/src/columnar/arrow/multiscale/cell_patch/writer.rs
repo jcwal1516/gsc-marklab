@@ -1,22 +1,17 @@
 use std::{io::Write, sync::Arc};
 
+use crate::{CellPatchAssignmentMode, CellPatchLink};
 use arrow::{
     array::{ArrayRef, StringBuilder, UInt64Array, UInt64Builder},
     buffer::{BooleanBuffer, NullBuffer},
     datatypes::Schema,
     record_batch::RecordBatch,
 };
-use arrow_ipc::{
-    writer::{FileWriter, IpcWriteOptions},
-    MetadataVersion,
-};
 
-use crate::{CellPatchAssignmentMode, CellPatchLink};
-
+use super::super::physical::write_record_batches;
 use super::profile::{assignment_schema, edge_schema};
-use crate::columnar::arrow::{
-    profile::{ALIGNMENT, MAXIMUM_FOOTER_BYTES, MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS},
-    writer::DigestingWriter,
+use crate::columnar::arrow::profile::{
+    ALIGNMENT, MAXIMUM_FOOTER_BYTES, MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS,
 };
 use crate::columnar::{
     multiscale::{
@@ -71,44 +66,16 @@ fn write_arrow<F>(
     schema: &Schema,
     row_count: usize,
     budgets: EmbeddingColumnarBudgets,
-    mut build_batch: F,
+    build_batch: F,
 ) -> Result<SpatialColumnarWriteSummary, MultiscaleColumnarError>
 where
     F: FnMut(&Schema, usize, usize) -> Result<RecordBatch, MultiscaleColumnarError>,
 {
-    let options = IpcWriteOptions::try_new(ALIGNMENT, false, MetadataVersion::V5)
-        .map_err(|_| MultiscaleColumnarError::ArrowWriter)?;
-    let mut sink = DigestingWriter::new(output, budgets.maximum_file_bytes());
-    let write_result = (|| {
-        let mut writer = FileWriter::try_new_with_options(&mut sink, schema, options)
-            .map_err(|_| MultiscaleColumnarError::ArrowWriter)?;
-        let mut start = 0_usize;
-        while start < row_count {
-            let end = start
-                .checked_add(RECORD_BATCH_ROWS)
-                .map(|value| value.min(row_count))
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-            writer
-                .write(&build_batch(schema, start, end)?)
-                .map_err(|_| MultiscaleColumnarError::ArrowWriter)?;
-            start = end;
-        }
-        writer
-            .finish()
-            .map_err(|_| MultiscaleColumnarError::ArrowWriter)
-    })();
-    if let Some(observed) = sink.budget_exceeded() {
-        return Err(MultiscaleColumnarError::FileByteBudgetExceeded {
-            observed,
-            maximum: budgets.maximum_file_bytes(),
-        });
-    }
-    write_result?;
-    let (digest, encoded_len) = sink.finish();
+    let encoded = write_record_batches(output, schema, row_count, budgets, build_batch)?;
     Ok(SpatialColumnarWriteSummary::new(
-        digest,
-        encoded_len,
-        u64::try_from(row_count).map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+        encoded.content_digest,
+        encoded.encoded_byte_len,
+        encoded.row_count,
     ))
 }
 

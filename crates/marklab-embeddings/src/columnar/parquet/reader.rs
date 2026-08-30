@@ -28,8 +28,8 @@ use crate::{
 
 use super::{
     super::{
-        CellEmbeddingTablePhysicalBindings, EmbeddingColumnarBudgets, EmbeddingColumnarError,
-        ParquetFailure,
+        enforce_retained_budget, enforce_row_group_budget, CellEmbeddingTablePhysicalBindings,
+        EmbeddingColumnarBudgets, EmbeddingColumnarError, ParquetFailure,
     },
     preflight::{
         declared_table_logical_digest_parquet_reader, prepare_cell_embedding_table_parquet_reader,
@@ -806,32 +806,6 @@ fn map_table_construction_error(error: EmbeddingError) -> EmbeddingColumnarError
         }
         _ => parquet_failure(ParquetFailure::InvalidComponent),
     }
-}
-
-fn enforce_retained_budget(
-    required: usize,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_retained_bytes() {
-        return Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_retained_bytes(),
-        });
-    }
-    Ok(())
-}
-
-fn enforce_row_group_budget(
-    required: usize,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
-    if required > budgets.maximum_row_group_bytes() {
-        return Err(EmbeddingColumnarError::RowGroupByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_row_group_bytes(),
-        });
-    }
-    Ok(())
 }
 
 fn parquet_failure(reason: ParquetFailure) -> EmbeddingColumnarError {

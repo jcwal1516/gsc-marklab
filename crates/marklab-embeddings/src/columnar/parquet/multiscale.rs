@@ -1,6 +1,7 @@
 mod cell_patch;
 mod matrix;
 mod patch_region;
+mod physical;
 mod preflight;
 mod profile;
 mod publication;

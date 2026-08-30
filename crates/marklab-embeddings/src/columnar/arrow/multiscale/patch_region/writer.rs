@@ -1,21 +1,16 @@
 use std::{io::Write, sync::Arc};
 
+use crate::PatchRegionLink;
 use arrow::{
     array::{ArrayRef, StringBuilder, UInt64Builder},
     datatypes::Schema,
     record_batch::RecordBatch,
 };
-use arrow_ipc::{
-    writer::{FileWriter, IpcWriteOptions},
-    MetadataVersion,
-};
 
-use crate::PatchRegionLink;
-
+use super::super::physical::write_record_batches;
 use super::profile::schema;
-use crate::columnar::arrow::{
-    profile::{ALIGNMENT, MAXIMUM_FOOTER_BYTES, MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS},
-    writer::DigestingWriter,
+use crate::columnar::arrow::profile::{
+    ALIGNMENT, MAXIMUM_FOOTER_BYTES, MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS,
 };
 use crate::columnar::{
     multiscale::{
@@ -37,39 +32,14 @@ pub fn write_patch_region_link_arrow(
     let estimates = estimates(link)?;
     enforce_estimates(row_count, estimates, budgets)?;
     let schema = schema(link)?;
-    let options = IpcWriteOptions::try_new(ALIGNMENT, false, MetadataVersion::V5)
-        .map_err(|_| MultiscaleColumnarError::ArrowWriter)?;
-    let mut sink = DigestingWriter::new(output, budgets.maximum_file_bytes());
-    let result = (|| {
-        let mut writer = FileWriter::try_new_with_options(&mut sink, &schema, options)
-            .map_err(|_| MultiscaleColumnarError::ArrowWriter)?;
-        let mut start = 0_usize;
-        while start < row_count {
-            let end = start
-                .checked_add(RECORD_BATCH_ROWS)
-                .map(|value| value.min(row_count))
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-            writer
-                .write(&build_batch(&schema, link, start, end)?)
-                .map_err(|_| MultiscaleColumnarError::ArrowWriter)?;
-            start = end;
-        }
-        writer
-            .finish()
-            .map_err(|_| MultiscaleColumnarError::ArrowWriter)
-    })();
-    if let Some(observed) = sink.budget_exceeded() {
-        return Err(MultiscaleColumnarError::FileByteBudgetExceeded {
-            observed,
-            maximum: budgets.maximum_file_bytes(),
-        });
-    }
-    result?;
-    let (digest, encoded_len) = sink.finish();
+    let encoded =
+        write_record_batches(output, &schema, row_count, budgets, |schema, start, end| {
+            build_batch(schema, link, start, end)
+        })?;
     Ok(SpatialColumnarWriteSummary::new(
-        digest,
-        encoded_len,
-        u64::try_from(row_count).map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+        encoded.content_digest,
+        encoded.encoded_byte_len,
+        encoded.row_count,
     ))
 }
 
