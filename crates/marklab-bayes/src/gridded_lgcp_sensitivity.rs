@@ -1,3 +1,5 @@
+use crate::validation::all_finite as finite;
+
 use std::collections::BTreeSet;
 
 use serde::Serialize;
@@ -243,8 +245,4 @@ where
         .sum::<f64>()
         / baseline.len() as f64)
         .sqrt()
-}
-
-fn finite(values: &[f64]) -> bool {
-    values.iter().all(|value| value.is_finite())
 }

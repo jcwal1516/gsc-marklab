@@ -1,3 +1,5 @@
+use crate::validation::is_lower_hex_sha256 as is_sha;
+
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 use thiserror::Error;
@@ -156,9 +158,4 @@ pub fn replicated_hierarchical_lgcp(
         patterns_per_patient: per,
         patterns: s.patterns,
     })
-}
-fn is_sha(v: &str) -> bool {
-    v.len() == 64
-        && v.bytes()
-            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
 }

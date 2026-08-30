@@ -3,6 +3,8 @@ use std::collections::{BTreeSet, HashSet};
 use serde::Serialize;
 use thiserror::Error;
 
+use crate::{linalg, matern_covariance::matern32_1d};
+
 #[derive(Clone, Debug, Serialize)]
 pub struct NngpObservation {
     pub coordinate_id: String,
@@ -105,14 +107,14 @@ pub fn build_nngp(mut spec: NngpSpec) -> Result<NngpPlan, NngpError> {
         let mut covariance = vec![0.0; count * count];
         let mut cross = vec![0.0; count];
         for row in 0..count {
-            cross[row] = matern32(
+            cross[row] = matern32_1d(
                 spec.observations[index].x_um,
                 spec.observations[neighbors[row]].x_um,
                 spec.amplitude,
                 spec.length_scale_um,
             );
             for column in 0..count {
-                covariance[row * count + column] = matern32(
+                covariance[row * count + column] = matern32_1d(
                     spec.observations[neighbors[row]].x_um,
                     spec.observations[neighbors[column]].x_um,
                     spec.amplitude,
@@ -121,8 +123,10 @@ pub fn build_nngp(mut spec: NngpSpec) -> Result<NngpPlan, NngpError> {
             }
             covariance[row * count + row] += spec.jitter;
         }
-        let lower = cholesky(&covariance, count)?;
-        let solved = solve_symmetric(&lower, count, &cross);
+        let lower = linalg::cholesky(&covariance, count)
+            .ok_or_else(|| NngpError::Numerical("covariance is not positive definite".into()))?;
+        let mut solved = linalg::solve_lower(&lower, count, &cross);
+        linalg::solve_upper_from_lower_transpose_in_place(&lower, count, &mut solved);
         let conditional = marginal_variance
             - cross
                 .iter()
@@ -191,7 +195,7 @@ pub fn full_gp_log_density(plan: &NngpPlan) -> Result<f64, NngpError> {
         .collect::<Vec<_>>();
     for row in 0..dimension {
         for column in 0..dimension {
-            covariance[row * dimension + column] = matern32(
+            covariance[row * dimension + column] = matern32_1d(
                 plan.observations[row].x_um,
                 plan.observations[column].x_um,
                 plan.amplitude,
@@ -200,8 +204,9 @@ pub fn full_gp_log_density(plan: &NngpPlan) -> Result<f64, NngpError> {
         }
         covariance[row * dimension + row] += plan.jitter;
     }
-    let lower = cholesky(&covariance, dimension)?;
-    let whitened = solve_lower(&lower, dimension, &centered);
+    let lower = linalg::cholesky(&covariance, dimension)
+        .ok_or_else(|| NngpError::Numerical("covariance is not positive definite".into()))?;
+    let whitened = linalg::solve_lower(&lower, dimension, &centered);
     let quadratic = whitened.iter().map(|value| value * value).sum::<f64>();
     let log_determinant = 2.0
         * (0..dimension)
@@ -215,59 +220,6 @@ pub fn full_gp_log_density(plan: &NngpPlan) -> Result<f64, NngpError> {
         ));
     }
     Ok(result)
-}
-
-fn matern32(left: f64, right: f64, amplitude: f64, length_scale: f64) -> f64 {
-    let scaled = 3.0_f64.sqrt() * (left - right).abs() / length_scale;
-    amplitude * amplitude * (1.0 + scaled) * (-scaled).exp()
-}
-
-fn cholesky(matrix: &[f64], dimension: usize) -> Result<Vec<f64>, NngpError> {
-    let mut lower = vec![0.0; matrix.len()];
-    for row in 0..dimension {
-        for column in 0..=row {
-            let mut value = matrix[row * dimension + column];
-            for inner in 0..column {
-                value -= lower[row * dimension + inner] * lower[column * dimension + inner];
-            }
-            if row == column {
-                if !value.is_finite() || value <= 0.0 {
-                    return Err(NngpError::Numerical(
-                        "covariance is not positive definite".into(),
-                    ));
-                }
-                lower[row * dimension + column] = value.sqrt();
-            } else {
-                lower[row * dimension + column] = value / lower[column * dimension + column];
-            }
-        }
-    }
-    Ok(lower)
-}
-
-fn solve_lower(lower: &[f64], dimension: usize, rhs: &[f64]) -> Vec<f64> {
-    let mut solution = vec![0.0; dimension];
-    for row in 0..dimension {
-        let mut value = rhs[row];
-        for column in 0..row {
-            value -= lower[row * dimension + column] * solution[column];
-        }
-        solution[row] = value / lower[row * dimension + row];
-    }
-    solution
-}
-
-fn solve_symmetric(lower: &[f64], dimension: usize, rhs: &[f64]) -> Vec<f64> {
-    let intermediate = solve_lower(lower, dimension, rhs);
-    let mut solution = vec![0.0; dimension];
-    for row in (0..dimension).rev() {
-        let mut value = intermediate[row];
-        for column in row + 1..dimension {
-            value -= lower[column * dimension + row] * solution[column];
-        }
-        solution[row] = value / lower[row * dimension + row];
-    }
-    solution
 }
 
 #[cfg(test)]

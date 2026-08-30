@@ -1,4 +1,4 @@
-use crate::BayesError;
+use crate::{linalg, BayesError};
 
 use super::DistanceToResourceSpec;
 
@@ -28,7 +28,9 @@ pub(super) fn posterior(
             }
         }
     }
-    let cholesky = cholesky(&precision, dimension)?;
+    let cholesky = linalg::cholesky(&precision, dimension).ok_or_else(|| {
+        BayesError::InvalidSpec("distance posterior precision is not positive definite".into())
+    })?;
     let mean = solve_cholesky(&cholesky, &right, dimension);
     let mut covariance = vec![0.0; dimension * dimension];
     for column in 0..dimension {
@@ -42,37 +44,8 @@ pub(super) fn posterior(
     Ok((mean, covariance))
 }
 
-fn cholesky(matrix: &[f64], dimension: usize) -> Result<Vec<f64>, BayesError> {
-    let mut lower = vec![0.0; matrix.len()];
-    for row in 0..dimension {
-        for column in 0..=row {
-            let mut value = matrix[row * dimension + column];
-            for index in 0..column {
-                value -= lower[row * dimension + index] * lower[column * dimension + index];
-            }
-            if row == column {
-                if !value.is_finite() || value <= 0.0 {
-                    return Err(BayesError::InvalidSpec(
-                        "distance posterior precision is not positive definite".into(),
-                    ));
-                }
-                lower[row * dimension + column] = value.sqrt();
-            } else {
-                lower[row * dimension + column] = value / lower[column * dimension + column];
-            }
-        }
-    }
-    Ok(lower)
-}
-
 fn solve_cholesky(lower: &[f64], right: &[f64], dimension: usize) -> Vec<f64> {
-    let mut intermediate = vec![0.0; dimension];
-    for row in 0..dimension {
-        let prior = (0..row)
-            .map(|column| lower[row * dimension + column] * intermediate[column])
-            .sum::<f64>();
-        intermediate[row] = (right[row] - prior) / lower[row * dimension + row];
-    }
+    let intermediate = linalg::solve_lower_dot(lower, dimension, right);
     let mut result = vec![0.0; dimension];
     for row in (0..dimension).rev() {
         let prior = (row + 1..dimension)

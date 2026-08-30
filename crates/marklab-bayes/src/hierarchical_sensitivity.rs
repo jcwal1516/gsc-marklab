@@ -1,3 +1,5 @@
+use crate::validation::all_finite as finite;
+
 use std::collections::BTreeSet;
 
 use serde::Serialize;
@@ -175,8 +177,4 @@ impl HierarchicalPriorSensitivityResult {
             },
         })
     }
-}
-
-fn finite(values: &[f64]) -> bool {
-    values.iter().all(|value| value.is_finite())
 }

@@ -3,6 +3,8 @@ use std::collections::{BTreeSet, HashSet};
 use serde::Serialize;
 use thiserror::Error;
 
+use crate::{linalg, matern_covariance::matern32_1d};
+
 #[derive(Clone, Debug, Serialize)]
 pub struct FieldCoordinate1D {
     pub id: String,
@@ -76,7 +78,7 @@ pub fn low_rank_predictive_process(
     let mut kmm = vec![0.0; dimension * dimension];
     for row in 0..dimension {
         for column in 0..dimension {
-            kmm[row * dimension + column] = matern32(
+            kmm[row * dimension + column] = matern32_1d(
                 spec.knots[row].x_um,
                 spec.knots[column].x_um,
                 spec.amplitude,
@@ -85,7 +87,8 @@ pub fn low_rank_predictive_process(
         }
         kmm[row * dimension + row] += spec.jitter;
     }
-    let kmm_cholesky = cholesky(&kmm, dimension)?;
+    let kmm_cholesky = linalg::cholesky(&kmm, dimension)
+        .ok_or_else(|| PredictiveProcessError::Numerical("Kmm is not positive definite".into()))?;
     let mut knm = Vec::with_capacity(spec.coordinates.len() * dimension);
     let mut low_rank_diagonal = Vec::with_capacity(spec.coordinates.len());
     let mut residual_variances = Vec::with_capacity(spec.coordinates.len());
@@ -95,7 +98,7 @@ pub fn low_rank_predictive_process(
             .knots
             .iter()
             .map(|knot| {
-                matern32(
+                matern32_1d(
                     coordinate.x_um,
                     knot.x_um,
                     spec.amplitude,
@@ -103,7 +106,7 @@ pub fn low_rank_predictive_process(
                 )
             })
             .collect::<Vec<_>>();
-        let solved = solve_lower(&kmm_cholesky, dimension, &row);
+        let solved = linalg::solve_lower(&kmm_cholesky, dimension, &row);
         let low_rank = solved.iter().map(|value| value * value).sum::<f64>();
         let residual = exact_variance - low_rank;
         let tolerance = 1e-10 * exact_variance.max(1.0);
@@ -151,46 +154,6 @@ fn validate_and_sort(
         }
     }
     Ok(())
-}
-
-fn matern32(left: f64, right: f64, amplitude: f64, length_scale: f64) -> f64 {
-    let scaled = 3.0_f64.sqrt() * (left - right).abs() / length_scale;
-    amplitude * amplitude * (1.0 + scaled) * (-scaled).exp()
-}
-
-fn cholesky(matrix: &[f64], dimension: usize) -> Result<Vec<f64>, PredictiveProcessError> {
-    let mut lower = vec![0.0; matrix.len()];
-    for row in 0..dimension {
-        for column in 0..=row {
-            let mut value = matrix[row * dimension + column];
-            for inner in 0..column {
-                value -= lower[row * dimension + inner] * lower[column * dimension + inner];
-            }
-            if row == column {
-                if !value.is_finite() || value <= 0.0 {
-                    return Err(PredictiveProcessError::Numerical(
-                        "Kmm is not positive definite".into(),
-                    ));
-                }
-                lower[row * dimension + column] = value.sqrt();
-            } else {
-                lower[row * dimension + column] = value / lower[column * dimension + column];
-            }
-        }
-    }
-    Ok(lower)
-}
-
-fn solve_lower(lower: &[f64], dimension: usize, rhs: &[f64]) -> Vec<f64> {
-    let mut solution = vec![0.0; dimension];
-    for row in 0..dimension {
-        let mut value = rhs[row];
-        for column in 0..row {
-            value -= lower[row * dimension + column] * solution[column];
-        }
-        solution[row] = value / lower[row * dimension + row];
-    }
-    solution
 }
 
 #[cfg(test)]

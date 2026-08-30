@@ -1,3 +1,5 @@
+use crate::validation::all_finite;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{model::PYMC_VERSION, BayesError, NormalMeanWorkerRequest};
@@ -214,10 +216,6 @@ impl WorkerResult {
             request_sha256: self.request_sha256,
         }
     }
-}
-
-fn all_finite(values: &[f64]) -> bool {
-    values.iter().all(|value| value.is_finite())
 }
 
 #[derive(Clone, Debug, Serialize)]

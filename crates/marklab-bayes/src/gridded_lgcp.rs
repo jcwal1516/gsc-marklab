@@ -2,7 +2,7 @@ use serde::Serialize;
 use thiserror::Error;
 
 use crate::{
-    inhomogeneous_poisson::validate_and_canonicalize, InhomogeneousPoissonEvent,
+    inhomogeneous_poisson::validate_and_canonicalize, linalg, InhomogeneousPoissonEvent,
     InhomogeneousPoissonSpec, MidpointQuadratureValue, RectangularWindow,
 };
 
@@ -165,7 +165,9 @@ pub fn build_gridded_lgcp(spec: GriddedLgcpSpec) -> Result<GriddedLgcpModel, Gri
             covariance[row * dimension + column] = value;
         }
     }
-    let field_cholesky = cholesky(&covariance, dimension)?;
+    let field_cholesky = linalg::cholesky(&covariance, dimension).ok_or_else(|| {
+        GriddedLgcpError::Numerical("LGCP field covariance is not positive definite".into())
+    })?;
     Ok(GriddedLgcpModel {
         model: GriddedLgcpModelIr {
             family: "gridded_log_gaussian_cox_process",
@@ -198,29 +200,6 @@ pub fn build_gridded_lgcp(spec: GriddedLgcpSpec) -> Result<GriddedLgcpModel, Gri
         dense_covariance_elements,
         dense_factorization_work_units,
     })
-}
-
-fn cholesky(matrix: &[f64], dimension: usize) -> Result<Vec<f64>, GriddedLgcpError> {
-    let mut lower = vec![0.0; matrix.len()];
-    for row in 0..dimension {
-        for column in 0..=row {
-            let mut value = matrix[row * dimension + column];
-            for inner in 0..column {
-                value -= lower[row * dimension + inner] * lower[column * dimension + inner];
-            }
-            if row == column {
-                if !value.is_finite() || value <= 0.0 {
-                    return Err(GriddedLgcpError::Numerical(
-                        "LGCP field covariance is not positive definite".into(),
-                    ));
-                }
-                lower[row * dimension + column] = value.sqrt();
-            } else {
-                lower[row * dimension + column] = value / lower[column * dimension + column];
-            }
-        }
-    }
-    Ok(lower)
 }
 
 #[cfg(test)]

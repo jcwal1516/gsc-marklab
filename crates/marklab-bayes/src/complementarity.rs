@@ -1,3 +1,5 @@
+use crate::validation::all_finite as finite;
+
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
@@ -415,10 +417,6 @@ pub fn expected_model_features(
             append(&[&names.cell, &names.patch, &names.neighbor, &names.measured]),
         ),
     ]
-}
-
-fn finite(values: &[f64]) -> bool {
-    values.iter().all(|value| value.is_finite())
 }
 
 fn approximately_equal(left: f64, right: f64) -> bool {

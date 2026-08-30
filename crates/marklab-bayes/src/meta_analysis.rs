@@ -1,3 +1,5 @@
+use crate::validation::all_finite as finite;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -421,10 +423,6 @@ fn validate_scalar(summary: &MetaScalarSummary) -> Result<(), BayesError> {
         ));
     }
     Ok(())
-}
-
-fn finite(values: &[f64]) -> bool {
-    values.iter().all(|value| value.is_finite())
 }
 
 #[derive(Debug, Serialize)]

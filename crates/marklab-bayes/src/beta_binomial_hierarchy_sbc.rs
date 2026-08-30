@@ -1,3 +1,5 @@
+use crate::validation::is_lower_hex_sha256 as is_sha256;
+
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
@@ -132,13 +134,6 @@ impl NumpyroBetaBinomialSbcWorkerRequest {
             },
         })
     }
-}
-
-fn is_sha256(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 #[derive(Debug, Deserialize, Serialize)]

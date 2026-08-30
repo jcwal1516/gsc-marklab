@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::{DiagonalPolicy, NormalizationPolicy, SymmetryPolicy, ValidatedSpatialWeights};
+use crate::{linalg, DiagonalPolicy, NormalizationPolicy, SymmetryPolicy, ValidatedSpatialWeights};
 
 #[derive(Clone, Debug)]
 pub struct IcarPlan {
@@ -52,12 +52,20 @@ pub fn build_icar_plan(weights: &ValidatedSpatialWeights) -> Result<IcarPlan, Ic
     let basis = component_helmert_basis(dimension, &components);
     let laplacian = laplacian(weights, dimension);
     let projected = project(&laplacian, dimension, &basis, constrained_dimension);
-    let lower = cholesky(&projected, constrained_dimension)?;
+    let lower = linalg::cholesky(&projected, constrained_dimension).ok_or_else(|| {
+        IcarPlanError::Numerical(
+            "ICAR Laplacian is not positive definite on its constrained subspace".into(),
+        )
+    })?;
     let mut transform = vec![0.0; dimension * constrained_dimension];
     for column in 0..constrained_dimension {
         let mut coordinates = vec![0.0; constrained_dimension];
         coordinates[column] = 1.0;
-        solve_upper_from_lower_transpose(&lower, constrained_dimension, &mut coordinates);
+        linalg::solve_upper_from_lower_transpose_in_place(
+            &lower,
+            constrained_dimension,
+            &mut coordinates,
+        );
         for row in 0..dimension {
             transform[row * constrained_dimension + column] = (0..constrained_dimension)
                 .map(|inner| basis[row * constrained_dimension + inner] * coordinates[inner])
@@ -170,39 +178,6 @@ fn project(
         }
     }
     projected
-}
-
-fn cholesky(matrix: &[f64], dimension: usize) -> Result<Vec<f64>, IcarPlanError> {
-    let mut lower = vec![0.0; matrix.len()];
-    for row in 0..dimension {
-        for column in 0..=row {
-            let mut value = matrix[row * dimension + column];
-            for inner in 0..column {
-                value -= lower[row * dimension + inner] * lower[column * dimension + inner];
-            }
-            if row == column {
-                if !value.is_finite() || value <= 0.0 {
-                    return Err(IcarPlanError::Numerical(
-                        "ICAR Laplacian is not positive definite on its constrained subspace"
-                            .into(),
-                    ));
-                }
-                lower[row * dimension + column] = value.sqrt();
-            } else {
-                lower[row * dimension + column] = value / lower[column * dimension + column];
-            }
-        }
-    }
-    Ok(lower)
-}
-
-fn solve_upper_from_lower_transpose(lower: &[f64], dimension: usize, right: &mut [f64]) {
-    for row in (0..dimension).rev() {
-        for column in row + 1..dimension {
-            right[row] -= lower[column * dimension + row] * right[column];
-        }
-        right[row] /= lower[row * dimension + row];
-    }
 }
 
 #[cfg(test)]

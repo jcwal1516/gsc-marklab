@@ -55,7 +55,9 @@ mod inla;
 mod joint_mark;
 mod laplace;
 mod late_fusion;
+mod linalg;
 mod matern_cluster;
+mod matern_covariance;
 mod meta_analysis;
 mod mixture_of_experts;
 mod model;
@@ -91,6 +93,7 @@ mod student_t_hierarchy_sensitivity;
 mod thomas;
 mod thomas_minimum_contrast;
 mod transport;
+mod validation;
 mod variational_gp;
 mod weights;
 

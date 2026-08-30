@@ -1,3 +1,5 @@
+use crate::linalg;
+
 use serde::Serialize;
 use std::collections::HashSet;
 use thiserror::Error;
@@ -248,7 +250,7 @@ pub fn mahalanobis_ood_score(
             .zip(&mean)
             .map(|(value, center)| value - center)
             .collect::<Vec<_>>();
-        solve_lower(&lower, dimension, &centered)
+        linalg::solve_lower_dot(&lower, dimension, &centered)
             .iter()
             .map(|value| value * value)
             .sum::<f64>()
@@ -322,17 +324,6 @@ fn cholesky(matrix: &[f64], dimension: usize) -> Result<Vec<f64>, PredictionSafe
         }
     }
     Ok(lower)
-}
-
-fn solve_lower(lower: &[f64], dimension: usize, right: &[f64]) -> Vec<f64> {
-    let mut solution = vec![0.0; dimension];
-    for row in 0..dimension {
-        let prior = (0..row)
-            .map(|column| lower[row * dimension + column] * solution[column])
-            .sum::<f64>();
-        solution[row] = (right[row] - prior) / lower[row * dimension + row];
-    }
-    solution
 }
 
 #[cfg(test)]

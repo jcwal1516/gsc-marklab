@@ -1,3 +1,5 @@
+use crate::validation::is_lower_hex_sha256 as sha;
+
 use serde::Serialize;
 use std::collections::HashSet;
 use thiserror::Error;
@@ -297,9 +299,4 @@ fn dist(a: &[f64], b: &[f64]) -> f64 {
         .map(|(x, y)| (x - y).powi(2))
         .sum::<f64>()
         .sqrt()
-}
-fn sha(v: &str) -> bool {
-    v.len() == 64
-        && v.bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }

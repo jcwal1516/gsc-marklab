@@ -1,3 +1,5 @@
+use crate::validation::all_finite as finite;
+
 use std::collections::{BTreeSet, HashSet};
 
 use serde::{Deserialize, Serialize};
@@ -440,10 +442,6 @@ impl VariationalGpWorkerResult {
             request_sha256: self.request_sha256,
         }
     }
-}
-
-fn finite(values: &[f64]) -> bool {
-    values.iter().all(|value| value.is_finite())
 }
 
 #[derive(Debug, Serialize)]

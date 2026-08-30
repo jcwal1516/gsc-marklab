@@ -1,3 +1,6 @@
+use crate::validation::all_finite as finite;
+use crate::validation::is_lower_hex_sha256 as sha256;
+
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
@@ -401,23 +404,12 @@ impl PsisLooResult {
     }
 }
 
-fn finite(values: &[f64]) -> bool {
-    values.iter().all(|value| value.is_finite())
-}
-
 fn approximately_equal(left: f64, right: f64) -> bool {
     (left - right).abs() <= 1e-10 * left.abs().max(right.abs()).max(1.0)
 }
 
 fn exact_name(value: &str) -> bool {
     !value.is_empty() && value.len() <= 128 && value.trim() == value
-}
-
-pub(crate) fn sha256(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 #[derive(Debug, Deserialize, Serialize)]

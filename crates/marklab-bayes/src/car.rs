@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use thiserror::Error;
 
-use crate::{DiagonalPolicy, NormalizationPolicy, SymmetryPolicy, ValidatedSpatialWeights};
+use crate::{linalg, DiagonalPolicy, NormalizationPolicy, SymmetryPolicy, ValidatedSpatialWeights};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CarMode {
@@ -144,7 +144,7 @@ fn proper_density(
             };
         }
     }
-    let lower = cholesky(&precision, dimension).map_err(|_| {
+    let lower = linalg::cholesky(&precision, dimension).ok_or_else(|| {
         CarDensityError::InvalidInput(
             "rho is outside the interval yielding positive-definite proper CAR precision".into(),
         )
@@ -208,7 +208,11 @@ fn intrinsic_density(
                     precision[component[row] * dimension + component[column]];
             }
         }
-        let lower = cholesky(&reduced, reduced_dimension)?;
+        let lower = linalg::cholesky(&reduced, reduced_dimension).ok_or_else(|| {
+            CarDensityError::Numerical(
+                "precision is not positive definite on the required subspace".into(),
+            )
+        })?;
         let log_nonzero_determinant = (component.len() as f64).ln()
             + 2.0
                 * (0..reduced_dimension)
@@ -253,29 +257,6 @@ fn normalized_density(precision: &[f64], lower: &[f64], field: &[f64], dimension
     0.5 * log_determinant
         - 0.5 * quadratic
         - 0.5 * dimension as f64 * (2.0 * std::f64::consts::PI).ln()
-}
-
-fn cholesky(matrix: &[f64], dimension: usize) -> Result<Vec<f64>, CarDensityError> {
-    let mut lower = vec![0.0; matrix.len()];
-    for row in 0..dimension {
-        for column in 0..=row {
-            let mut value = matrix[row * dimension + column];
-            for inner in 0..column {
-                value -= lower[row * dimension + inner] * lower[column * dimension + inner];
-            }
-            if row == column {
-                if !value.is_finite() || value <= 0.0 {
-                    return Err(CarDensityError::Numerical(
-                        "precision is not positive definite on the required subspace".into(),
-                    ));
-                }
-                lower[row * dimension + column] = value.sqrt();
-            } else {
-                lower[row * dimension + column] = value / lower[column * dimension + column];
-            }
-        }
-    }
-    Ok(lower)
 }
 
 #[cfg(test)]

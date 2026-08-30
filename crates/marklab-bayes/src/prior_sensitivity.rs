@@ -1,3 +1,5 @@
+use crate::validation::all_finite as finite;
+
 use std::f64::consts::PI;
 
 use serde::{Deserialize, Serialize};
@@ -373,10 +375,6 @@ fn exact_summary(
         conclusion_changed: false,
         material_mean_shift: false,
     }
-}
-
-fn finite(values: &[f64]) -> bool {
-    values.iter().all(|value| value.is_finite())
 }
 
 fn approximately_equal(left: f64, right: f64) -> bool {

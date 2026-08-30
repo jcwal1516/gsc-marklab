@@ -1,3 +1,5 @@
+use crate::validation::is_lower_hex_sha256 as is_sha256;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
@@ -226,13 +228,6 @@ impl BetaBinomialGroupGenderRegressionWorkerRequest {
             diagnostic_policy: DiagnosticPolicy::default(),
         })
     }
-}
-
-fn is_sha256(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 #[derive(Debug, Deserialize, Serialize)]

@@ -1,3 +1,5 @@
+use crate::validation::all_finite as finite;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -371,10 +373,6 @@ impl NormalMeanSbcWorkerResult {
             request_sha256: self.request_sha256,
         }
     }
-}
-
-fn finite(values: &[f64]) -> bool {
-    values.iter().all(|value| value.is_finite())
 }
 
 fn approximately_equal(left: f64, right: f64) -> bool {

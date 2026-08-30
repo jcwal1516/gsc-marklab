@@ -1,3 +1,6 @@
+use crate::validation::all_finite as finite;
+use crate::validation::is_lower_hex_sha256 as is_sha256;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -52,13 +55,6 @@ impl NumpyroHierarchyWorkerRequest {
             source_request,
         })
     }
-}
-
-fn is_sha256(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 #[derive(Debug, Deserialize)]
@@ -232,10 +228,6 @@ impl NumpyroHierarchyWorkerResult {
         }
         Ok(())
     }
-}
-
-fn finite(values: &[f64]) -> bool {
-    values.iter().all(|value| value.is_finite())
 }
 
 #[derive(Clone, Copy, Debug)]

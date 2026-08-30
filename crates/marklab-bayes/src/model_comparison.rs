@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::{psis_loo::sha256, BayesError, PsisLooResult};
+use crate::{validation::is_lower_hex_sha256 as sha256, BayesError, PsisLooResult};
 
 pub struct PsisLooComparisonInput {
     pub path: String,

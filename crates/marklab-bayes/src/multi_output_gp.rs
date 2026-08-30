@@ -1,3 +1,5 @@
+use crate::validation::all_finite as finite;
+
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
@@ -484,10 +486,6 @@ fn validate_scalar(value: &MultiOutputScalarSummary) -> Result<(), BayesError> {
         ));
     }
     Ok(())
-}
-
-fn finite(values: &[f64]) -> bool {
-    values.iter().all(|value| value.is_finite())
 }
 
 #[derive(Debug, Serialize)]

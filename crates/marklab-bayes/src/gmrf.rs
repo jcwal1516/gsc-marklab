@@ -2,6 +2,8 @@ use std::collections::BTreeSet;
 
 use thiserror::Error;
 
+use crate::linalg;
+
 #[derive(Clone, Debug)]
 pub struct GmrfConstraint {
     pub name: String,
@@ -41,7 +43,7 @@ pub fn gmrf_log_density(spec: GmrfSpec) -> Result<GmrfDensityResult, GmrfDensity
     let null_basis = null_space_basis(spec.dimension, &row_basis, spec.constraint_tolerance)?;
     let constrained_dimension = null_basis.len();
     let projected = projected_precision(&spec.precision, spec.dimension, &null_basis);
-    let lower = cholesky(&projected, constrained_dimension).map_err(|_| {
+    let lower = linalg::cholesky(&projected, constrained_dimension).ok_or_else(|| {
         GmrfDensityError::InvalidInput(
             "precision is not positive definite on the constrained subspace".into(),
         )
@@ -250,29 +252,6 @@ fn scale(vector: &mut [f64], scale: f64) {
     for value in vector {
         *value *= scale;
     }
-}
-
-fn cholesky(matrix: &[f64], dimension: usize) -> Result<Vec<f64>, GmrfDensityError> {
-    let mut lower = vec![0.0; matrix.len()];
-    for row in 0..dimension {
-        for column in 0..=row {
-            let mut value = matrix[row * dimension + column];
-            for inner in 0..column {
-                value -= lower[row * dimension + inner] * lower[column * dimension + inner];
-            }
-            if row == column {
-                if !value.is_finite() || value <= 0.0 {
-                    return Err(GmrfDensityError::Numerical(
-                        "projected precision is not positive definite".into(),
-                    ));
-                }
-                lower[row * dimension + column] = value.sqrt();
-            } else {
-                lower[row * dimension + column] = value / lower[column * dimension + column];
-            }
-        }
-    }
-    Ok(lower)
 }
 
 #[cfg(test)]

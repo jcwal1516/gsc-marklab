@@ -1,3 +1,5 @@
+use crate::validation::all_finite as finite;
+
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
@@ -278,10 +280,6 @@ fn sigmoid(value: f64) -> f64 {
         let exponential = value.exp();
         exponential / (1.0 + exponential)
     }
-}
-
-fn finite(values: &[f64]) -> bool {
-    values.iter().all(|value| value.is_finite())
 }
 
 fn approximately_equal(left: f64, right: f64) -> bool {
