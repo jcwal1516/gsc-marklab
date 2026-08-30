@@ -4368,3 +4368,26 @@ vascular transport.
 - Final direct diff, whitespace, and status checks follow. No bandwidth/floor/pair/scale/subset
   search, broad workspace/Nextest loader loop, benchmark, fuzzing, packaging, dependency, push,
   publication, deployment, or history rewrite command runs.
+
+## Durable typed scalar-semivariogram checkpoint 177 — 2026-08-29
+
+- Red-first `cargo +1.96.0 test --locked --package marklab --test global_moran_typed_workflow
+  typed_frame_mark_and_compartment_design_drive_global_moran_inference` fails only because
+  `ScalarVariogramAnalysisNode` is absent, then passes after the cache-bound node, exact-float wire
+  document, structural decoder, memory preflight, reopened hit, and seed invalidation are added.
+- The first CLI assertion expects ordinary JSON numbers and fails after both miss/hit processes
+  succeed because the repository exact-float codec intentionally stores IEEE-754 bit objects. The
+  test is corrected to decode those exact bits; production is unchanged. Final `cargo +1.96.0 test
+  --locked --package marklab --features cli` over `global_moran_typed_workflow`, the new scalar CLI,
+  and affected categorical/inhomogeneous categorical CLI targets passes 5/5.
+- `cargo +1.96.0 clippy --locked --package marklab --features cli --lib --bin marklab --test
+  global_moran_typed_workflow --test scalar_variogram_project_cli -- -D warnings`, package
+  no-default compilation, strict CLI package docs, and `cargo +1.96.0 fmt --all --check` pass.
+- Read-only inspection confirms the v54 frozen header is exactly
+  `cell_id,x_um,y_um,mark,case_id,timepoint,protein,valid_tumor,valid_ihc,slide_id,histologic_compartment`.
+  Checkpoint 154 established that upstream CellViT JSON exposes `contour`, but no admitted
+  contour-unit/scale-to-`nucleus_area_um2` provenance artifact exists. No real result is run or
+  fabricated.
+- Final direct diff, whitespace, and status checks follow. No broad workspace/Nextest loader,
+  external backend, benchmark, fuzzing, packaging, dependency, push, publication, deployment, or
+  history rewrite command runs.

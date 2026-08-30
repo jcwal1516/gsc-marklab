@@ -2,15 +2,17 @@
 
 use approx::assert_abs_diff_eq;
 use marklab::{
-    global_geary_permutation, global_moran_permutation, scalar_semivariogram,
-    scalar_semivariogram_permutation, BinaryMarkDeclaration, DeclaredScalarPatternInput,
-    GlobalGearyAlternative, GlobalGearyDesign, GlobalGearyLimits, GlobalMoranAlternative,
-    GlobalMoranDesign, GlobalMoranError, GlobalMoranLimits, GlobalMoranWeightPolicy,
-    HistologicCompartmentMarkDeclaration, MarkTable, MeasurementStatus, MissingnessPolicy,
+    execute_algorithm_with_store, global_geary_permutation, global_moran_permutation,
+    scalar_semivariogram, scalar_semivariogram_permutation, ArtifactRef, ArtifactSchema,
+    BinaryMarkDeclaration, CacheStatus, DeclaredScalarPatternInput, DurableProject,
+    DurableProjectLimits, GlobalGearyAlternative, GlobalGearyDesign, GlobalGearyLimits,
+    GlobalMoranAlternative, GlobalMoranDesign, GlobalMoranError, GlobalMoranLimits,
+    GlobalMoranWeightPolicy, HistologicCompartmentMarkDeclaration, LocalScheduler, MarkTable,
+    MeasurementStatus, MissingnessPolicy, NativeRuntimeProvenance, NodeId,
     NucleusAreaUm2MarkDeclaration, ObservationWindow2D, ObservationWindowError,
     ObservationWindowLimits, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
-    ScalarVariogramBin, ScalarVariogramInferenceDesign, ScalarVariogramInferenceLimits,
-    ScalarVariogramLimits,
+    ScalarVariogramAnalysisNode, ScalarVariogramBin, ScalarVariogramInferenceDesign,
+    ScalarVariogramInferenceLimits, ScalarVariogramLimits, SchedulerLimits, WorkflowGraph,
 };
 
 #[path = "support/declared_scalar.rs"]
@@ -373,6 +375,122 @@ fn typed_frame_mark_and_compartment_design_drive_global_moran_inference() {
     )
     .expect("deterministic variogram replay");
     assert_eq!(variogram_replay, variogram_inference);
+
+    let variogram_mark_id = ScalarMarkId::new("nucleus_area_um2").expect("area mark ID");
+    let variogram_design =
+        ScalarVariogramInferenceDesign::histologic_compartment_random_labeling(31, 20260826, 0.25)
+            .expect("variogram inference design");
+    let variogram_limits =
+        ScalarVariogramInferenceLimits::new(4, 6, 6 * 31).expect("inference limits");
+    assert!(ScalarVariogramAnalysisNode::new(
+        &mut fixture.project,
+        NodeId::new("scalar-variogram-too-small").expect("node ID"),
+        &input,
+        &window,
+        &variogram_mark_id,
+        &lag_bins,
+        &variogram_design,
+        variogram_limits,
+        1,
+    )
+    .is_err());
+    let node = ScalarVariogramAnalysisNode::new(
+        &mut fixture.project,
+        NodeId::new("scalar-variogram").expect("node ID"),
+        &input,
+        &window,
+        &variogram_mark_id,
+        &lag_bins,
+        &variogram_design,
+        variogram_limits,
+        1 << 20,
+    )
+    .expect("variogram node");
+    let graph = WorkflowGraph::new([node.spec().clone()]).expect("graph");
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: 1 << 20,
+    })
+    .expect("scheduler");
+    let durable_limits = DurableProjectLimits::new(64 * 1024, 1 << 20, 64, 64 * 1024, 1 << 20)
+        .expect("durable limits");
+    let project_path = tempfile::tempdir().expect("durable root");
+    let mut durable = DurableProject::open_or_create(project_path.path(), durable_limits)
+        .expect("durable project");
+    let runtime = || {
+        NativeRuntimeProvenance::new(
+            "0.0.0-test",
+            None,
+            None,
+            "rustc 1.96.0-test",
+            vec!["test".into()],
+            ArtifactRef::from_bytes(
+                "application/vnd.marklab.executable",
+                b"scalar-variogram-test",
+            )
+            .expect("executable"),
+        )
+        .expect("runtime")
+    };
+    let schema = || ArtifactSchema::new("marklab.scalar_variogram_inference", 1).expect("schema");
+    let miss = execute_algorithm_with_store(
+        &mut durable,
+        &mut fixture.project,
+        &graph,
+        &node,
+        &scheduler,
+        schema(),
+        runtime(),
+        &fixture.store,
+    )
+    .expect("variogram miss");
+    assert_eq!(miss.cache_status, CacheStatus::Miss);
+    assert_eq!(miss.output, variogram_inference);
+    drop(durable);
+    let mut durable = DurableProject::open_or_create(project_path.path(), durable_limits)
+        .expect("reopened durable project");
+    let hit = execute_algorithm_with_store(
+        &mut durable,
+        &mut fixture.project,
+        &graph,
+        &node,
+        &scheduler,
+        schema(),
+        runtime(),
+        &fixture.store,
+    )
+    .expect("variogram hit");
+    assert_eq!(hit.cache_status, CacheStatus::Hit);
+    assert_eq!(hit.output, variogram_inference);
+    assert_eq!(durable.execution_count(), 1);
+    let changed_design =
+        ScalarVariogramInferenceDesign::histologic_compartment_random_labeling(31, 20260827, 0.25)
+            .expect("changed variogram design");
+    let changed_node = ScalarVariogramAnalysisNode::new(
+        &mut fixture.project,
+        NodeId::new("scalar-variogram").expect("node ID"),
+        &input,
+        &window,
+        &variogram_mark_id,
+        &lag_bins,
+        &changed_design,
+        variogram_limits,
+        1 << 20,
+    )
+    .expect("changed variogram node");
+    let changed_graph = WorkflowGraph::new([changed_node.spec().clone()]).expect("changed graph");
+    let changed = execute_algorithm_with_store(
+        &mut durable,
+        &mut fixture.project,
+        &changed_graph,
+        &changed_node,
+        &scheduler,
+        schema(),
+        runtime(),
+        &fixture.store,
+    )
+    .expect("changed variogram run");
+    assert_eq!(changed.cache_status, CacheStatus::Miss);
+    assert_eq!(durable.execution_count(), 2);
     assert!(matches!(
         scalar_semivariogram_permutation(
             &input,

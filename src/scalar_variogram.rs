@@ -178,6 +178,14 @@ impl ScalarVariogramInferenceLimits {
             maximum_permutation_pair_evaluations,
         })
     }
+
+    pub(crate) fn observed(self) -> ScalarVariogramLimits {
+        self.observed
+    }
+
+    pub(crate) fn maximum_permutation_pair_evaluations(self) -> usize {
+        self.maximum_permutation_pair_evaluations
+    }
 }
 
 /// One observed scalar semivariance lag row.
@@ -643,7 +651,7 @@ fn find_bin(distance: f64, bins: &[ScalarVariogramBin]) -> Option<usize> {
     })
 }
 
-fn pair_plan_digest(
+pub(crate) fn pair_plan_digest(
     input: &DeclaredScalarPatternInput<'_>,
     window: &ObservationWindow2D,
     mark_id: &ScalarMarkId,

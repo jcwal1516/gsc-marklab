@@ -78,6 +78,7 @@ mod qc;
 mod registration;
 mod scalar_mark;
 mod scalar_variogram;
+mod scalar_variogram_workflow;
 mod soft_class_composition;
 mod soft_class_composition_workflow;
 mod soft_multiscale_neighborhood;
@@ -516,6 +517,7 @@ pub use scalar_variogram::{
     ScalarVariogramInferenceDesign, ScalarVariogramInferenceLimits, ScalarVariogramInferenceResult,
     ScalarVariogramLimits, ScalarVariogramResult, ScalarVariogramRow,
 };
+pub use scalar_variogram_workflow::ScalarVariogramAnalysisNode;
 pub use soft_class_composition::{
     soft_class_composition, SoftClassCompositionClass, SoftClassCompositionError,
     SoftClassCompositionLimits, SoftClassCompositionResult,

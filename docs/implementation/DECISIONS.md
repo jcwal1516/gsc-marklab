@@ -3122,3 +3122,20 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   and retained-memory ceilings are cache-bound. This is not random labeling, a joint normalized
   multitype fit, automatic bandwidth selection, a correction registry, or evidence that an
   inadmissible real intensity pilot should be tuned.
+
+## DEC-0360 — Promote the existing scalar semivariogram through a durable typed node
+
+- Date: 2026-08-29
+- Status: accepted for SIG-01F/NUL-01D/FND-04/FND-06/PLAT-01/WF-01/WS-12/WS-23/WS-31/WS-32
+- Decision: expose the existing continuous-mark scalar semivariogram and its optional exact
+  histologic-compartment whole-value random-labeling ERL family through one cache-addressed node and
+  `marklab project scalar-variogram`. Reuse the typed MarkTable, exact framed window, pair-plan
+  digest, inference design, scheduler, store, ledger, recovery, and native runtime owners. Add one
+  opt-in nucleus-area column to the existing categorical source adapter only for this command;
+  leave every existing categorical caller's column set and identity unchanged. Persist a strict
+  version-one exact-float document without changing result-format 0.3.
+- Consequences: lag edges, mark identity/status, conditioning, permutation count, seed, alpha,
+  point/pair/permutation-work limits, and conservative retained-memory ceiling are cache-bound.
+  Replayed outputs are structurally revalidated from exact input/window/config identities without
+  recomputing the variogram. This does not derive nucleus area from CellViT contours, add directional
+  bins, select lags, introduce a general scalar importer, or turn cells into patient replicates.

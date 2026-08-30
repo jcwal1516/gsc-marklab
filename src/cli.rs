@@ -88,6 +88,8 @@ mod piecewise_compartment_spatial;
 mod prepost;
 #[path = "cli/profile.rs"]
 mod profile;
+#[path = "cli/scalar_variogram.rs"]
+mod scalar_variogram;
 #[path = "cli/simulate.rs"]
 mod simulate;
 #[cfg(feature = "wsi")]
@@ -902,6 +904,32 @@ enum ProjectCommands {
         #[arg(long)]
         max_null_draws: usize,
     },
+    ScalarVariogram {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        cells: PathBuf,
+        #[arg(long)]
+        mask: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long, value_delimiter = ',')]
+        lag_edges_um: Vec<f64>,
+        #[arg(long)]
+        condition_by_histologic_compartment: bool,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        max_pair_visits: usize,
+        #[arg(long)]
+        max_permutation_pair_evaluations: usize,
+    },
     Classical {
         #[arg(long)]
         project: PathBuf,
@@ -1638,6 +1666,33 @@ pub fn run_cli() -> Result<()> {
                     maximum_null_draws: max_null_draws,
                 },
             ),
+            ProjectCommands::ScalarVariogram {
+                project,
+                cells,
+                mask,
+                out,
+                lag_edges_um,
+                condition_by_histologic_compartment,
+                permutations,
+                seed,
+                alpha,
+                memory_budget_mib,
+                max_pair_visits,
+                max_permutation_pair_evaluations,
+            } => scalar_variogram::run_project(scalar_variogram::Request {
+                project,
+                cells,
+                mask,
+                out,
+                lag_edges_um,
+                condition_by_histologic_compartment,
+                permutations,
+                seed,
+                alpha,
+                memory_budget_mib,
+                maximum_pair_visits: max_pair_visits,
+                maximum_permutation_pair_evaluations: max_permutation_pair_evaluations,
+            }),
             ProjectCommands::Classical {
                 project,
                 cells,

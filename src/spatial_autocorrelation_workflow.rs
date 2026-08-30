@@ -380,7 +380,7 @@ fn verify_moran_artifact(
         .map_err(NodeError::input)
 }
 
-fn window_artifact(window: &ObservationWindow2D) -> Result<ArtifactRef, NodeError> {
+pub(crate) fn window_artifact(window: &ObservationWindow2D) -> Result<ArtifactRef, NodeError> {
     let descriptor = window.descriptor();
     let frame = descriptor
         .coordinate_frame_id

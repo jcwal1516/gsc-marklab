@@ -10,10 +10,10 @@ use crate::{
     CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace,
     CoordinateUnit, DurableProject, DurableProjectLimits, HierarchyId, HierarchyNode,
     HistologicCompartmentMarkDeclaration, LocalArtifactStore, MarkTable, MarklabError,
-    MarklabProject, MeasurementStatus, MissingnessPolicy, ObservationWindow2D,
-    ObservationWindowLimits, PatientId, Pattern, PatternLoader, ReplicationRole, Result,
-    ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit, SlideId, SpatialAxis,
-    StoreId, TumorMask,
+    MarklabProject, MeasurementStatus, MissingnessPolicy, NucleusAreaUm2MarkDeclaration,
+    ObservationWindow2D, ObservationWindowLimits, PatientId, Pattern, PatternLoader,
+    ReplicationRole, Result, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
+    SlideId, SpatialAxis, StoreId, TumorMask,
 };
 
 use super::classical::{read_bounded_utf8, source_artifact};
@@ -48,6 +48,19 @@ pub(super) struct PreparedCategoricalMarkProject {
 }
 
 pub(super) fn prepare(request: PrepareRequest<'_>) -> Result<PreparedCategoricalMarkProject> {
+    prepare_with_nucleus_area(request, false)
+}
+
+pub(super) fn prepare_nucleus_area(
+    request: PrepareRequest<'_>,
+) -> Result<PreparedCategoricalMarkProject> {
+    prepare_with_nucleus_area(request, true)
+}
+
+fn prepare_with_nucleus_area(
+    request: PrepareRequest<'_>,
+    include_nucleus_area: bool,
+) -> Result<PreparedCategoricalMarkProject> {
     let cells_before = source_artifact(request.cells, SOURCE_CELLS_KIND)?;
     let window_before = source_artifact(request.mask, SOURCE_WINDOW_KIND)?;
     let memory_bytes = request
@@ -188,38 +201,74 @@ pub(super) fn prepare(request: PrepareRequest<'_>) -> Result<PreparedCategorical
         ]),
         &source_identity,
     )?;
+    let mut columns = vec![
+        ScalarMarkColumn::binary(
+            BinaryMarkDeclaration::independent(
+                ScalarMarkId::new("binary_mark")
+                    .map_err(|error| MarklabError::Validation(error.to_string()))?,
+                "Imported binary mark",
+                MeasurementStatus::ImportedPrediction,
+                binary_provenance,
+            )
+            .map_err(|error| MarklabError::Validation(error.to_string()))?,
+            ScalarMarkModality::Histology,
+            ScalarMarkUnit::Unitless,
+            MissingnessPolicy::NotPermitted,
+            pattern.mark.clone(),
+        )
+        .map_err(|error| MarklabError::Validation(error.to_string()))?,
+        ScalarMarkColumn::histologic_compartment(
+            HistologicCompartmentMarkDeclaration::new(
+                levels,
+                MeasurementStatus::MorphologyPrediction,
+                categorical_provenance,
+            )
+            .map_err(|error| MarklabError::Validation(error.to_string()))?,
+            ScalarMarkModality::Histology,
+            ScalarMarkUnit::Categorical,
+            MissingnessPolicy::NotPermitted,
+            codes,
+        )
+        .map_err(|error| MarklabError::Validation(error.to_string()))?,
+    ];
+    if include_nucleus_area {
+        let area_values = pattern.nucleus_area_um2.clone().ok_or_else(|| {
+            MarklabError::Validation(
+                "scalar variogram workflow requires finite nucleus_area_um2 rows".into(),
+            )
+        })?;
+        let area_provenance = publish_record(
+            &mut project,
+            &store,
+            "scalar-variogram-nucleus-area-input",
+            BTreeMap::from([
+                ("mark_id".into(), "nucleus_area_um2".into()),
+                ("mark_label".into(), "Nucleus area".into()),
+                ("measurement_status".into(), "morphology_prediction".into()),
+                ("modality".into(), "morphology".into()),
+                ("unit".into(), "square_micrometer".into()),
+                ("value_kind".into(), "continuous".into()),
+            ]),
+            &source_identity,
+        )?;
+        columns.push(
+            ScalarMarkColumn::continuous(
+                NucleusAreaUm2MarkDeclaration::new(
+                    MeasurementStatus::MorphologyPrediction,
+                    area_provenance,
+                )
+                .map_err(|error| MarklabError::Validation(error.to_string()))?,
+                ScalarMarkModality::Morphology,
+                ScalarMarkUnit::SquareMicrometer,
+                MissingnessPolicy::NotPermitted,
+                area_values,
+            )
+            .map_err(|error| MarklabError::Validation(error.to_string()))?,
+        );
+    }
     let table = MarkTable::new(
         cell_ids.clone(),
-        vec![
-            ScalarMarkColumn::binary(
-                BinaryMarkDeclaration::independent(
-                    ScalarMarkId::new("binary_mark")
-                        .map_err(|error| MarklabError::Validation(error.to_string()))?,
-                    "Imported binary mark",
-                    MeasurementStatus::ImportedPrediction,
-                    binary_provenance,
-                )
-                .map_err(|error| MarklabError::Validation(error.to_string()))?,
-                ScalarMarkModality::Histology,
-                ScalarMarkUnit::Unitless,
-                MissingnessPolicy::NotPermitted,
-                pattern.mark.clone(),
-            )
-            .map_err(|error| MarklabError::Validation(error.to_string()))?,
-            ScalarMarkColumn::histologic_compartment(
-                HistologicCompartmentMarkDeclaration::new(
-                    levels,
-                    MeasurementStatus::MorphologyPrediction,
-                    categorical_provenance,
-                )
-                .map_err(|error| MarklabError::Validation(error.to_string()))?,
-                ScalarMarkModality::Histology,
-                ScalarMarkUnit::Categorical,
-                MissingnessPolicy::NotPermitted,
-                codes,
-            )
-            .map_err(|error| MarklabError::Validation(error.to_string()))?,
-        ],
+        columns,
         pattern.len(),
         cell_ids.iter().map(|id| id.as_str().len()).sum(),
     )

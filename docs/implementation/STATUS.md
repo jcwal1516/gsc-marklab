@@ -3619,3 +3619,28 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   no-default compilation, strict affected docs, formatting, and whitespace checks pass. The first
   no-default attempt correctly exposes a CLI-only encoder annotation and passes after the encoder
   remains available to the feature-independent durable node. No broad workspace/Nextest loop runs.
+
+## Durable typed scalar-semivariogram checkpoint 177 — 2026-08-29
+
+- Added `ScalarVariogramAnalysisNode` and `marklab project scalar-variogram` around the existing
+  observed scalar semivariogram and exact histologic-compartment whole-value random-labeling ERL
+  family. The statistic, lag-bin semantics, null, and direct result types are unchanged. A strict
+  version-one exact-float document binds the continuous mark/status, declared input, physical
+  frame/window, lag bins, pair-plan digest, conditioning, permutations, seed, alpha, and work limits;
+  result-format 0.3 is untouched.
+- The node performs a conservative retained-memory preflight before registering inputs. Hits decode
+  and validate typed input/window/config/result invariants without recomputing pairs or null curves.
+  The existing categorical adapter gains an opt-in morphology-predicted `nucleus_area_um2` column
+  only for this command; default categorical pair/cross-g column order, provenance, and bytes remain
+  unchanged.
+- The four-point hand curve remains 19/3, 24.5, and 32 across its three bins. The focused test now
+  proves a too-small memory failure, durable miss, reopened hit, exact output equality, one ledger
+  execution, and seed invalidation. A fresh CLI process produces a miss followed by a backend-
+  disabled byte-identical hit and one ledger row.
+- Real CRC execution is unavailable without fabricating a derived mark: the frozen v54 typed cells
+  header contains coordinates, hard class, and compartment but no `nucleus_area_um2`. The admitted
+  upstream CellViT JSON has pixel-space contours; no repository-owned contour-to-physical-area
+  scale/provenance contract currently promotes those contours as this continuous mark.
+- Five affected Moran/Geary/variogram and categorical CLI tests pass. Warning-denied affected
+  Clippy, package no-default compilation, strict affected docs, and formatting pass. No broad
+  workspace/Nextest loop, backend, benchmark, fuzzing, packaging, dependency, or publication run.

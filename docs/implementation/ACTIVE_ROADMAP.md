@@ -1705,3 +1705,13 @@ fails before output because a declared type intensity is approximately 1.10e-32 
 micrometre against the fixed 1e-12 floor; the failure is retained without tuning. Production next
 must come from a different immediate caller or an independently justified calibrated intensity
 design, not a floor/bandwidth/scale/subset search or a generalized multitype registry.
+
+## Checkpoint 177 durable typed scalar semivariogram
+
+The existing scalar-semivariogram/stratified-ERL mathematics now runs through a strict durable node
+and `marklab project scalar-variogram`, with exact mark/frame/window/bin/pair-plan identity,
+retained-memory preflight, fresh-process disabled replay, and unchanged categorical caller bytes.
+The frozen CRC categorical CSV has no nucleus-area column; upstream contours are not silently
+converted into a physical area mark without a separate scale/provenance contract, so no real scalar
+result is claimed. Production next should advance another already-admitted continuous/vector caller
+or the explicit contour-to-area provenance boundary, not fabricate a mark or general importer.
