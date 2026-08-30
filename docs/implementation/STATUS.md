@@ -3500,3 +3500,18 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - Nine focused isotropic K/L/g direct and durable tests plus the fresh-process g CLI test pass.
   Warning-denied affected Clippy, root no-default compilation, strict docs, affected formatting,
   and whitespace checks pass. No workspace-wide/Nextest loop or unrelated broad gate runs.
+
+## Corrected point-process stabilization checkpoint 171 — 2026-08-29
+
+- Stabilized the four related post-checkpoint-166 workflows: exact polygon translation and
+  visible-arc isotropic homogeneous K/L plus their compact-support g callers. Retrospective direct
+  review finds the correction identities separate, shared code limited to the two proven geometry
+  work budgets, and no result-format 0.3, standard-border, project, scheduler, store, or transaction
+  change requiring cleanup.
+- `cargo +1.96.0 fmt --all --check`, warning-denied workspace all-target/all-feature Clippy,
+  workspace no-default compilation, all-feature workspace doctests, and strict warning-denied
+  all-feature workspace docs pass once without findings.
+- The documented macOS Nextest/full-integration discovery loop is not retried. Focused direct,
+  durable, CLI, exact geometry, real-capacity, and backend-disabled replay evidence remains in
+  checkpoints 167--170. No benchmark, fuzzing, packaging, dependency, publication, deployment,
+  push, or history rewrite runs.

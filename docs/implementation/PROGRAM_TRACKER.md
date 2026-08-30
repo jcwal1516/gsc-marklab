@@ -433,3 +433,12 @@ one-specimen p=0.10 diagnostic. PP-06D remains gated on explicit periodic-design
 implemented. Production next applies the now-validated translation geometry to the existing
 homogeneous PP-03A pair-correlation caller before considering isotropic g; no correction registry
 or automatic selection surface is introduced.
+
+## Corrected point-process stabilization checkpoint 171
+
+The four-workflow translation/isotropic K/L/g sequence passes workspace formatting,
+warning-denied all-target/all-feature Clippy, no-default compilation, all-feature doctests, and
+strict docs without a finding. The macOS Nextest/full-integration loader loop remains excluded.
+PP-01's native correction ladder is complete, while PP-03/PP-03A and WS-30 remain active for
+pinned external agreement, broader multitype callers, and calibration rather than new correction
+infrastructure.

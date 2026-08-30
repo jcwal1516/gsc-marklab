@@ -4252,3 +4252,17 @@ vascular transport.
   maximum four intersection angles, 72,336 estimated bytes, and 65,365 CSR draws. Its g and p-value
   are retained without biological interpretation. No broad workspace/loader, feature matrix,
   benchmark, fuzzing, packaging, dependency, publication, deployment, or push command runs.
+
+## Corrected point-process stabilization checkpoint 171 — 2026-08-29
+
+- `cargo +1.96.0 fmt --all --check` passes.
+- `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings` passes in
+  1 minute 18 seconds without a finding.
+- `cargo +1.96.0 check --locked --workspace --no-default-features` passes.
+- `cargo +1.96.0 test --locked --workspace --doc --all-features` passes for all 17 workspace
+  packages; the workspace currently declares zero doctest cases.
+- `RUSTDOCFLAGS=-Dwarnings cargo +1.96.0 doc --locked --workspace --all-features --no-deps` passes
+  for all 17 workspace packages.
+- The known-stalling macOS Nextest/full-integration loader loop is excluded rather than retried.
+  Checkpoints 167--170 retain the exact focused behavior, CLI, durable replay, and real-capacity
+  evidence invalidated by none of these read-only gates.

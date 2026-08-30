@@ -1646,3 +1646,12 @@ biological evidence. The homogeneous border/translation/isotropic K/L/g correcti
 implemented; pinned external agreement remains blocked on the absent repository-owned spatstat
 environment. Production next should advance another immediate WS-30 caller rather than a
 correction registry or automatic selector.
+
+## Checkpoint 171 corrected point-process stabilization
+
+The translation/isotropic K/L/g sequence passes one workspace non-loader stabilization with no
+finding. Formatting, warning-denied all-target/all-feature Clippy, no-default compilation,
+all-feature doctests, and strict docs are current; the documented macOS loader loop is not retried.
+The correction ladder now has exact native behavior and durable capacity evidence. Pinned spatstat
+agreement remains a named environment blocker, so the next production outcome should come from a
+different immediate scientific caller rather than more correction infrastructure.
