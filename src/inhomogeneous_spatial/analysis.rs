@@ -1,6 +1,9 @@
 use crate::{
     classical::{window_summary, SpatialGeometryPlan2D},
-    common::seeds::{derive_seed, SeedEndpoint},
+    common::{
+        finite::canonical_zero,
+        seeds::{derive_seed, SeedEndpoint},
+    },
     permutation::envelopes::GlobalEnvelope,
     ObservationWindow2D, Pattern,
 };
@@ -204,21 +207,6 @@ impl Counters {
             });
         }
         Ok(())
-    }
-}
-
-pub(super) fn compensated_add(sum: &mut f64, correction: &mut f64, value: f64) {
-    let corrected = value - *correction;
-    let next = *sum + corrected;
-    *correction = (next - *sum) - corrected;
-    *sum = next;
-}
-
-pub(super) fn canonical_zero(value: f64) -> f64 {
-    if value == 0.0 {
-        0.0
-    } else {
-        value
     }
 }
 

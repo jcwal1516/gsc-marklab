@@ -1,7 +1,11 @@
-use crate::{classical::SpatialGeometryPlan2D, ClassicalSpatialLimits};
+use crate::{
+    classical::SpatialGeometryPlan2D,
+    common::{finite::canonical_zero, summation::kahan_add},
+    ClassicalSpatialLimits,
+};
 
 use super::{
-    analysis::{canonical_zero, compensated_add, dependency, Counters},
+    analysis::{dependency, Counters},
     types::{
         InhomogeneousSpatialConfig, InhomogeneousSpatialError, InhomogeneousSpatialPoint,
         InhomogeneousSpatialPointStatus,
@@ -41,7 +45,7 @@ pub(super) fn evaluate_curve(
     let starting_visits = counters.pair_visits;
     for source in 0..intensities.len() {
         let inverse_source = 1.0 / intensities[source];
-        compensated_add(
+        kahan_add(
             &mut center_inverse_sum,
             &mut center_inverse_correction,
             inverse_source,
@@ -50,7 +54,7 @@ pub(super) fn evaluate_curve(
         eligible_ends[end] = eligible_ends[end]
             .checked_add(1)
             .ok_or(InhomogeneousSpatialError::SizeOverflow)?;
-        compensated_add(
+        kahan_add(
             &mut center_inverse_ends[end],
             &mut center_inverse_end_corrections[end],
             inverse_source,
@@ -94,12 +98,12 @@ pub(super) fn evaluate_curve(
                     ));
                     return;
                 }
-                compensated_add(
+                kahan_add(
                     &mut weight_starts[start],
                     &mut weight_start_corrections[start],
                     weight,
                 );
-                compensated_add(
+                kahan_add(
                     &mut weight_ends[end],
                     &mut weight_end_corrections[end],
                     weight,
@@ -127,7 +131,7 @@ pub(super) fn evaluate_curve(
         eligible_centers = eligible_centers
             .checked_sub(eligible_ends[index])
             .ok_or(InhomogeneousSpatialError::SizeOverflow)?;
-        compensated_add(
+        kahan_add(
             &mut center_inverse_sum,
             &mut center_inverse_correction,
             -(center_inverse_ends[index] + center_inverse_end_corrections[index]),
@@ -136,12 +140,12 @@ pub(super) fn evaluate_curve(
             .checked_sub(pair_ends[index])
             .and_then(|value| value.checked_add(pair_starts[index]))
             .ok_or(InhomogeneousSpatialError::SizeOverflow)?;
-        compensated_add(
+        kahan_add(
             &mut active_weight,
             &mut active_weight_correction,
             -(weight_ends[index] + weight_end_corrections[index]),
         );
-        compensated_add(
+        kahan_add(
             &mut active_weight,
             &mut active_weight_correction,
             weight_starts[index] + weight_start_corrections[index],

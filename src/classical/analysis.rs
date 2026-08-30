@@ -2,6 +2,8 @@ use std::collections::BTreeSet;
 
 use marklab_workflow::ContentDigest;
 
+use crate::common::finite::canonical_zero;
+
 use crate::{
     common::seeds::{derive_seed, splitmix64, SeedEndpoint},
     data::Pattern,
@@ -383,14 +385,6 @@ fn canonical_bits(value: f64) -> u64 {
         0.0_f64.to_bits()
     } else {
         value.to_bits()
-    }
-}
-
-fn canonical_zero(value: f64) -> f64 {
-    if value == 0.0 {
-        0.0
-    } else {
-        value
     }
 }
 

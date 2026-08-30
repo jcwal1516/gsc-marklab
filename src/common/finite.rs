@@ -8,6 +8,16 @@ use serde::{
     Serialize, Serializer,
 };
 
+/// Normalize either signed floating-point zero to canonical positive zero.
+#[inline]
+pub(crate) fn canonical_zero(value: f64) -> f64 {
+    if value == 0.0 {
+        0.0
+    } else {
+        value
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FiniteValidationError(String);
 
@@ -324,6 +334,14 @@ mod tests {
     use serde::Serialize;
 
     use super::*;
+
+    #[test]
+    fn canonical_zero_changes_only_negative_zero() {
+        assert_eq!(canonical_zero(-0.0).to_bits(), 0.0_f64.to_bits());
+        assert_eq!(canonical_zero(0.0).to_bits(), 0.0_f64.to_bits());
+        assert_eq!(canonical_zero(-3.5).to_bits(), (-3.5_f64).to_bits());
+        assert!(canonical_zero(f64::NAN).is_nan());
+    }
 
     #[derive(Serialize)]
     struct NestedResult {

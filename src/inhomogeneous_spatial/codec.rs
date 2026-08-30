@@ -1,5 +1,7 @@
 use std::io;
 
+use crate::common::summation::kahan_add;
+
 use crate::{ObservationWindow2D, Pattern};
 
 use super::{
@@ -112,7 +114,7 @@ fn validate_fixed_grid(
             {
                 return Err(invalid("fixed intensity grid row is inconsistent"));
             }
-            compensated_add(&mut total, &mut correction, point.cell_mass);
+            kahan_add(&mut total, &mut correction, point.cell_mass);
             retained = retained
                 .checked_add(1)
                 .ok_or_else(|| invalid("fixed intensity grid size overflow"))?;
@@ -128,13 +130,6 @@ fn validate_fixed_grid(
         return Err(invalid("fixed intensity grid total is inconsistent"));
     }
     Ok(())
-}
-
-fn compensated_add(sum: &mut f64, correction: &mut f64, value: f64) {
-    let corrected = value - *correction;
-    let next = *sum + corrected;
-    *correction = (next - *sum) - corrected;
-    *sum = next;
 }
 
 pub(super) fn invalid(message: &'static str) -> io::Error {

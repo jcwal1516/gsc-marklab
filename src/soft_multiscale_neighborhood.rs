@@ -2,6 +2,8 @@ use marklab_workflow::ContentDigest;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::common::summation::kahan_add;
+
 use crate::{
     classical::SpatialGeometryPlan2D, compartment_interface::analysis::measurement_status_name,
     ClassicalSpatialLimits, DeclaredScalarPatternInput, ObservationWindow2D, ScalarMarkId,
@@ -374,8 +376,8 @@ fn evaluate_scale(
                 let start = neighbor.index * classes;
                 for class in 0..classes {
                     let value = f64::from(values[start + class]);
-                    compensated_add(&mut sums[class], &mut corrections[class], value);
-                    compensated_add(&mut mass[class], &mut mass_correction[class], value);
+                    kahan_add(&mut sums[class], &mut corrections[class], value);
+                    kahan_add(&mut mass[class], &mut mass_correction[class], value);
                 }
             }
             Some(
@@ -457,13 +459,6 @@ pub(crate) fn configuration_digest(
             .to_vec(),
     ]);
     Ok(ContentDigest::from_framed(fields.iter().map(Vec::as_slice)))
-}
-
-fn compensated_add(sum: &mut f64, correction: &mut f64, value: f64) {
-    let corrected = value - *correction;
-    let next = *sum + corrected;
-    *correction = (next - *sum) - corrected;
-    *sum = next;
 }
 
 fn geometry(error: impl std::fmt::Display) -> SoftMultiscaleNeighborhoodError {

@@ -1,11 +1,12 @@
 use crate::{
     classical::{window_summary, SpatialGeometryPlan2D},
+    common::finite::canonical_zero,
     permutation::envelopes::GlobalEnvelope,
     BinaryCompartmentPartition2D, ClassicalSpatialLimits, PairCorrelationKernel, Pattern,
 };
 
 use super::{
-    analysis::{canonical_zero, dependency, Counters},
+    analysis::{dependency, Counters},
     compartment_analysis::{
         fit_piecewise_intensity, into_piecewise_intensity_summary, sample_piecewise_null_pattern,
     },

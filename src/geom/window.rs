@@ -11,6 +11,8 @@ use marklab_workflow::{ContentDigest, ContentDigestWriter};
 use rstar::RTree;
 use thiserror::Error;
 
+use crate::common::finite::canonical_zero;
+
 mod compartment;
 mod topology;
 pub use compartment::{
@@ -826,12 +828,4 @@ fn write_digest_part(
         .write_all(&(bytes.len() as u128).to_be_bytes())
         .and_then(|()| writer.write_all(bytes))
         .map_err(|_| ObservationWindowError::SizeOverflow)
-}
-
-fn canonical_zero(value: f64) -> f64 {
-    if value == 0.0 {
-        0.0
-    } else {
-        value
-    }
 }

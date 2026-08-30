@@ -1,6 +1,8 @@
 use marklab_data::MeasurementStatus;
 use marklab_workflow::ContentDigest;
 
+use crate::common::{finite::canonical_zero, summation::kahan_add};
+
 use crate::{BinaryCompartmentPartition2D, DeclaredScalarPatternInput, ScalarMarkId};
 
 use super::types::*;
@@ -33,7 +35,7 @@ impl SummaryAccumulator {
             .ok_or(CompartmentInterfaceError::SizeOverflow)?;
         self.minimum = self.minimum.min(distance);
         self.maximum = self.maximum.max(distance);
-        compensated_add(&mut self.absolute_sum, &mut self.correction, distance.abs());
+        kahan_add(&mut self.absolute_sum, &mut self.correction, distance.abs());
         Ok(())
     }
 
@@ -229,21 +231,6 @@ pub(crate) fn retained_bytes(
         .and_then(|value| value.checked_add(compartment_text))
         .and_then(|value| value.checked_add(2 * std::mem::size_of::<CompartmentInterfaceSummary>()))
         .ok_or(CompartmentInterfaceError::SizeOverflow)
-}
-
-fn compensated_add(sum: &mut f64, correction: &mut f64, value: f64) {
-    let corrected = value - *correction;
-    let next = *sum + corrected;
-    *correction = (next - *sum) - corrected;
-    *sum = next;
-}
-
-fn canonical_zero(value: f64) -> f64 {
-    if value == 0.0 {
-        0.0
-    } else {
-        value
-    }
 }
 
 pub(crate) fn measurement_status_name(status: MeasurementStatus) -> &'static str {

@@ -1,5 +1,7 @@
 use marklab_workflow::ContentDigest;
 
+use crate::common::finite::canonical_zero;
+
 use crate::{
     classical::{
         sample_conditional_csr, window_summary, ClassicalInferenceSummary, ClassicalNullDesign,
@@ -422,13 +424,5 @@ pub(crate) fn isotropic_pair_correlation_configuration_digest(
 fn invalid_pattern(error: impl std::fmt::Display) -> IsotropicSpatialError {
     IsotropicSpatialError::InvalidPattern {
         reason: error.to_string(),
-    }
-}
-
-fn canonical_zero(value: f64) -> f64 {
-    if value == 0.0 {
-        0.0
-    } else {
-        value
     }
 }

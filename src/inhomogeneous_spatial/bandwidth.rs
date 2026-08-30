@@ -1,9 +1,11 @@
 use marklab_workflow::ContentDigest;
 
+use crate::common::summation::kahan_add;
+
 use crate::{ObservationWindow2D, Pattern};
 
 use super::{
-    analysis::{compensated_add, Counters},
+    analysis::Counters,
     analyze_inhomogeneous_spatial_pattern,
     bandwidth_types::{
         GaussianBandwidthCandidateScore, GaussianBandwidthSelectionConfig,
@@ -59,7 +61,7 @@ pub fn analyze_selected_inhomogeneous_spatial_pattern(
         let mut log_sum = 0.0;
         let mut correction = 0.0;
         for intensity in fitted.observed_intensities {
-            compensated_add(&mut log_sum, &mut correction, intensity.ln());
+            kahan_add(&mut log_sum, &mut correction, intensity.ln());
         }
         let score = (log_sum + correction) / pattern.len() as f64;
         if !score.is_finite() {

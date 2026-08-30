@@ -1,9 +1,12 @@
 use std::collections::HashSet;
 
 use super::{
-    compensated_sum, inference_design::compile_blocked_population_independence,
+    compensated_sum,
+    inference_design::{
+        compile_blocked_population_independence, validate_permutation_count,
+        validate_two_group_labels,
+    },
     CohortInferenceError, InferenceDesign, PatientExchangeabilityBlock, MAXIMUM_PATIENTS,
-    MAXIMUM_PERMUTATIONS,
 };
 
 const FUNCTIONAL_PERMUTATION_NAMESPACE: u64 = 0x6675_6e63_5f70_6572;
@@ -202,27 +205,8 @@ fn execute_functional(
 }
 
 fn validate_spec(spec: &FunctionalPermutationSpec) -> Result<(), CohortInferenceError> {
-    if spec.group_a.trim().is_empty() || spec.group_b.trim().is_empty() {
-        return Err(CohortInferenceError::InvalidInput(
-            "group labels must be non-empty".into(),
-        ));
-    }
-    if spec.group_a.trim() != spec.group_a || spec.group_b.trim() != spec.group_b {
-        return Err(CohortInferenceError::InvalidInput(
-            "group labels may not have surrounding whitespace".into(),
-        ));
-    }
-    if spec.group_a == spec.group_b {
-        return Err(CohortInferenceError::InvalidInput(
-            "group labels must be distinct".into(),
-        ));
-    }
-    if spec.permutations == 0 || spec.permutations > MAXIMUM_PERMUTATIONS {
-        return Err(CohortInferenceError::InvalidInput(format!(
-            "permutations must be between 1 and {MAXIMUM_PERMUTATIONS}"
-        )));
-    }
-    Ok(())
+    validate_two_group_labels(&spec.group_a, &spec.group_b)?;
+    validate_permutation_count(spec.permutations)
 }
 
 fn validate_curves(

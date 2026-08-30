@@ -1,9 +1,12 @@
 use std::collections::BTreeMap;
 
 use super::{
-    inference_design::align_patient_blocks, numeric::stable_mean, CohortInferenceError,
-    InferenceAlternative, InferenceDesign, PatientExchangeabilityBlock, PermutationAlternative,
-    MAXIMUM_PATIENTS, MAXIMUM_PATIENT_PERMUTATION_EVALUATIONS, MAXIMUM_PERMUTATIONS,
+    inference_design::{
+        align_patient_blocks, validate_permutation_count, validate_two_group_labels,
+    },
+    numeric::stable_mean,
+    CohortInferenceError, InferenceAlternative, InferenceDesign, PatientExchangeabilityBlock,
+    PermutationAlternative, MAXIMUM_PATIENTS, MAXIMUM_PATIENT_PERMUTATION_EVALUATIONS,
 };
 
 const COVARIATE_FREEDMAN_LANE_NAMESPACE: u64 = 0x636f_765f_666c_706d;
@@ -228,27 +231,8 @@ fn execute_covariate_freedman_lane(
 }
 
 pub(crate) fn validate_spec(spec: &CovariatePermutationSpec) -> Result<(), CohortInferenceError> {
-    if spec.group_a.trim().is_empty() || spec.group_b.trim().is_empty() {
-        return Err(CohortInferenceError::InvalidInput(
-            "group labels must be non-empty".into(),
-        ));
-    }
-    if spec.group_a.trim() != spec.group_a || spec.group_b.trim() != spec.group_b {
-        return Err(CohortInferenceError::InvalidInput(
-            "group labels may not have surrounding whitespace".into(),
-        ));
-    }
-    if spec.group_a == spec.group_b {
-        return Err(CohortInferenceError::InvalidInput(
-            "group labels must be distinct".into(),
-        ));
-    }
-    if spec.permutations == 0 || spec.permutations > MAXIMUM_PERMUTATIONS {
-        return Err(CohortInferenceError::InvalidInput(format!(
-            "permutations must be between 1 and {MAXIMUM_PERMUTATIONS}"
-        )));
-    }
-    Ok(())
+    validate_two_group_labels(&spec.group_a, &spec.group_b)?;
+    validate_permutation_count(spec.permutations)
 }
 
 #[derive(Clone)]

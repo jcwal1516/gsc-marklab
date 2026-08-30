@@ -1,6 +1,8 @@
 use marklab_data::MeasurementStatus;
 use marklab_workflow::ContentDigest;
 
+use crate::common::{finite::canonical_zero, summation::kahan_add};
+
 use crate::{
     classical::{window_summary, SpatialGeometryPlan2D},
     common::seeds::{derive_seed, SeedEndpoint},
@@ -11,7 +13,7 @@ use crate::{
 };
 
 use super::{
-    analysis::{canonical_zero, compensated_add, Counters},
+    analysis::Counters,
     categorical_cross_g_types::*,
     identity::{
         configuration_digest as intensity_configuration_digest, into_intensity_summary,
@@ -313,7 +315,7 @@ fn evaluate(
             centers[index] = centers[index]
                 .checked_add(1)
                 .ok_or(InhomogeneousCategoricalCrossPairCorrelationError::SizeOverflow)?;
-            compensated_add(
+            kahan_add(
                 &mut center_sums[index],
                 &mut center_corrections[index],
                 inverse_source,
@@ -363,7 +365,7 @@ fn evaluate(
                             return;
                         }
                     };
-                    compensated_add(
+                    kahan_add(
                         &mut kernel_sums[index],
                         &mut kernel_corrections[index],
                         weight,

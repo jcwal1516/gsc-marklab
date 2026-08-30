@@ -1,12 +1,15 @@
 use crate::{
     classical::{sample_conditional_csr, window_summary, SpatialGeometryPlan2D},
-    common::seeds::{derive_seed, SeedEndpoint},
+    common::{
+        finite::canonical_zero,
+        seeds::{derive_seed, SeedEndpoint},
+    },
     permutation::envelopes::GlobalEnvelope,
     BinaryCompartmentPartition2D, ClassicalSpatialError, ClassicalSpatialLimits, Pattern,
 };
 
 use super::{
-    analysis::{canonical_zero, dependency, Counters},
+    analysis::{dependency, Counters},
     compartment_identity::{
         piecewise_configuration_digest, piecewise_intensity_digest, retained_bytes,
     },

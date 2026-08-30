@@ -5,6 +5,8 @@ use marklab_data::MeasurementStatus;
 use marklab_workflow::ContentDigest;
 use serde::{Deserialize, Serialize};
 
+use crate::common::finite::canonical_zero;
+
 use crate::{
     classical::window_summary,
     mark_pair_plan::{build_mark_pair_plan, erl_workspace_bytes, MarkPairPlan},
@@ -478,12 +480,4 @@ fn dependency(error: impl std::fmt::Display) -> CategoricalCrossPairCorrelationE
 
 fn translation_dependency(error: TranslationSpatialError) -> CategoricalCrossPairCorrelationError {
     dependency(error)
-}
-
-fn canonical_zero(value: f64) -> f64 {
-    if value == 0.0 {
-        0.0
-    } else {
-        value
-    }
 }

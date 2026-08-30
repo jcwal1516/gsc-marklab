@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::common::{finite::canonical_zero, summation::kahan_add};
+
 use crate::BinaryCompartmentPartition2D;
 
 /// Exact vector-polygon fragmentation summary for one compartment role.
@@ -85,7 +87,7 @@ fn summarize(
     let mut correction = 0.0;
     for area in component_areas {
         let probability = area / total_area;
-        compensated_add(
+        kahan_add(
             &mut entropy,
             &mut correction,
             -probability * probability.ln(),
@@ -108,20 +110,5 @@ fn summarize(
         component_area_entropy_nats: entropy,
         normalized_component_area_entropy: canonical_zero(normalized),
         perimeter_area_ratio_per_um: perimeter / total_area,
-    }
-}
-
-fn compensated_add(sum: &mut f64, correction: &mut f64, value: f64) {
-    let corrected = value - *correction;
-    let next = *sum + corrected;
-    *correction = (next - *sum) - corrected;
-    *sum = next;
-}
-
-fn canonical_zero(value: f64) -> f64 {
-    if value == 0.0 {
-        0.0
-    } else {
-        value
     }
 }

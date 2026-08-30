@@ -2,6 +2,8 @@ use marklab_workflow::ContentDigest;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::common::summation::kahan_add;
+
 use crate::{
     classical::SpatialGeometryPlan2D, compartment_interface::analysis::measurement_status_name,
     ClassicalSpatialLimits, DeclaredScalarPatternInput, ObservationWindow2D, ScalarMarkId,
@@ -229,8 +231,8 @@ pub fn soft_neighborhood_composition(
                 let start = neighbor.index * classes;
                 for class in 0..classes {
                     let value = f64::from(values[start + class]);
-                    compensated_add(&mut sums[class], &mut corrections[class], value);
-                    compensated_add(&mut total_mass[class], &mut total_correction[class], value);
+                    kahan_add(&mut sums[class], &mut corrections[class], value);
+                    kahan_add(&mut total_mass[class], &mut total_correction[class], value);
                 }
             }
             Some(
@@ -308,13 +310,6 @@ pub(crate) fn configuration_digest(
         &(config.limits.maximum_pair_visits as u128).to_be_bytes(),
         &(config.limits.maximum_retained_bytes as u128).to_be_bytes(),
     ]))
-}
-
-fn compensated_add(sum: &mut f64, correction: &mut f64, value: f64) {
-    let corrected = value - *correction;
-    let next = *sum + corrected;
-    *correction = (next - *sum) - corrected;
-    *sum = next;
 }
 
 fn geometry(error: impl std::fmt::Display) -> SoftNeighborhoodCompositionError {

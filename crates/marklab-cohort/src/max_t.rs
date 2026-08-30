@@ -1,9 +1,12 @@
 use std::collections::HashSet;
 
 use super::{
-    inference_design::compile_blocked_population_independence, welch_contrast,
-    CohortInferenceError, InferenceAlternative, InferenceDesign, PatientExchangeabilityBlock,
-    MAXIMUM_PATIENTS, MAXIMUM_PERMUTATIONS,
+    inference_design::{
+        compile_blocked_population_independence, validate_permutation_count,
+        validate_two_group_labels,
+    },
+    welch_contrast, CohortInferenceError, InferenceAlternative, InferenceDesign,
+    PatientExchangeabilityBlock, MAXIMUM_PATIENTS,
 };
 
 const MAX_T_NAMESPACE: u64 = 0x6d61_785f_745f_7065;
@@ -519,26 +522,8 @@ pub(crate) fn accumulate_step_down_exceedances(
 }
 
 fn validate_spec(spec: &MaxTPermutationSpec) -> Result<(), CohortInferenceError> {
-    if spec.group_a.trim().is_empty() || spec.group_b.trim().is_empty() {
-        return Err(CohortInferenceError::InvalidInput(
-            "group labels must be non-empty".into(),
-        ));
-    }
-    if spec.group_a.trim() != spec.group_a || spec.group_b.trim() != spec.group_b {
-        return Err(CohortInferenceError::InvalidInput(
-            "group labels may not have surrounding whitespace".into(),
-        ));
-    }
-    if spec.group_a == spec.group_b {
-        return Err(CohortInferenceError::InvalidInput(
-            "group labels must be distinct".into(),
-        ));
-    }
-    if spec.permutations == 0 || spec.permutations > MAXIMUM_PERMUTATIONS {
-        return Err(CohortInferenceError::InvalidInput(format!(
-            "permutations must be between 1 and {MAXIMUM_PERMUTATIONS}"
-        )));
-    }
+    validate_two_group_labels(&spec.group_a, &spec.group_b)?;
+    validate_permutation_count(spec.permutations)?;
     if !(spec.alpha.is_finite() && spec.alpha > 0.0 && spec.alpha < 1.0) {
         return Err(CohortInferenceError::InvalidInput(
             "Max-T alpha must be finite and strictly between zero and one".into(),

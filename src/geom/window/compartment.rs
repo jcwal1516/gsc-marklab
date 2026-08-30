@@ -5,6 +5,8 @@ use marklab_workflow::ContentDigest;
 use rstar::RTree;
 use thiserror::Error;
 
+use crate::common::finite::canonical_zero;
+
 use super::{topology::BoundarySegment, ObservationWindow2D};
 
 /// Fixed work ceiling for validating one exact binary compartment partition.
@@ -396,14 +398,6 @@ fn validate_compartment_id(value: &str) -> Result<(), CompartmentPartitionError>
         return Err(CompartmentPartitionError::InvalidCompartmentId);
     }
     Ok(())
-}
-
-fn canonical_zero(value: f64) -> f64 {
-    if value == 0.0 {
-        0.0
-    } else {
-        value
-    }
 }
 
 fn not_exact(reason: &'static str) -> CompartmentPartitionError {

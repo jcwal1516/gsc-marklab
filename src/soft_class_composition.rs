@@ -2,6 +2,8 @@ use marklab_workflow::ContentDigest;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::common::summation::kahan_add;
+
 use crate::{
     compartment_interface::analysis::measurement_status_name, DeclaredScalarPatternInput,
     ScalarMarkId,
@@ -142,13 +144,13 @@ pub fn soft_class_composition(
         for (class, value) in row.iter().copied().enumerate() {
             let value = f64::from(value);
             row_sum += value;
-            compensated_add(&mut sums[class], &mut corrections[class], value);
+            kahan_add(&mut sums[class], &mut corrections[class], value);
             if value > 0.0 {
                 entropy -= value * value.ln();
             }
         }
         maximum_row_sum_absolute_error = maximum_row_sum_absolute_error.max((row_sum - 1.0).abs());
-        compensated_add(&mut row_entropy_sum, &mut row_entropy_correction, entropy);
+        kahan_add(&mut row_entropy_sum, &mut row_entropy_correction, entropy);
     }
     let means = sums
         .into_iter()
@@ -189,13 +191,6 @@ fn entropy(values: &[f64]) -> f64 {
         .filter(|value| **value > 0.0)
         .map(|value| -*value * value.ln())
         .sum()
-}
-
-fn compensated_add(sum: &mut f64, correction: &mut f64, value: f64) {
-    let corrected = value - *correction;
-    let next = *sum + corrected;
-    *correction = (next - *sum) - corrected;
-    *sum = next;
 }
 
 pub(crate) fn configuration_digest(

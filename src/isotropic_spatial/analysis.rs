@@ -1,5 +1,7 @@
 use marklab_workflow::ContentDigest;
 
+use crate::common::finite::canonical_zero;
+
 use crate::{
     classical::{
         sample_conditional_csr, window_summary, ClassicalInferenceSummary, ClassicalNullDesign,
@@ -423,12 +425,4 @@ fn cumulative_finite(values: &mut [f64]) -> Result<(), IsotropicSpatialError> {
         }
     }
     Ok(())
-}
-
-fn canonical_zero(value: f64) -> f64 {
-    if value == 0.0 {
-        0.0
-    } else {
-        value
-    }
 }

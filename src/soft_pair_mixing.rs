@@ -2,6 +2,8 @@ use marklab_workflow::ContentDigest;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::common::{finite::canonical_zero, summation::kahan_add};
+
 use crate::{
     classical::SpatialGeometryPlan2D, compartment_interface::analysis::measurement_status_name,
     ClassicalSpatialLimits, DeclaredScalarPatternInput, ObservationWindow2D, ScalarMarkId,
@@ -233,7 +235,7 @@ pub fn soft_pair_mixing(
             for source_class in 0..classes {
                 for target_class in 0..classes {
                     let index = source_class * classes + target_class;
-                    compensated_add(
+                    kahan_add(
                         &mut observed[index],
                         &mut observed_correction[index],
                         f64::from(values[source_start + source_class])
@@ -353,21 +355,6 @@ pub(crate) fn configuration_digest(
         &(config.limits.maximum_probability_products as u128).to_be_bytes(),
         &(config.limits.maximum_retained_bytes as u128).to_be_bytes(),
     ]))
-}
-
-fn compensated_add(sum: &mut f64, correction: &mut f64, value: f64) {
-    let corrected = value - *correction;
-    let next = *sum + corrected;
-    *correction = (next - *sum) - corrected;
-    *sum = next;
-}
-
-fn canonical_zero(value: f64) -> f64 {
-    if value == 0.0 {
-        0.0
-    } else {
-        value
-    }
 }
 
 fn geometry(error: impl std::fmt::Display) -> SoftPairMixingError {

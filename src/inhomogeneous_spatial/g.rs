@@ -1,5 +1,7 @@
 use marklab_workflow::ContentDigest;
 
+use crate::common::{finite::canonical_zero, summation::kahan_add};
+
 use crate::{
     classical::{window_summary, SpatialGeometryPlan2D},
     common::seeds::{derive_seed, SeedEndpoint},
@@ -9,7 +11,7 @@ use crate::{
 };
 
 use super::{
-    analysis::{canonical_zero, compensated_add, dependency, Counters},
+    analysis::{dependency, Counters},
     g_types::{
         InhomogeneousPairCorrelationConfig, InhomogeneousPairCorrelationPoint,
         InhomogeneousPairCorrelationResult,
@@ -192,7 +194,7 @@ pub(super) fn evaluate_g(
             centers[index] = centers[index]
                 .checked_add(1)
                 .ok_or(InhomogeneousSpatialError::SizeOverflow)?;
-            compensated_add(
+            kahan_add(
                 &mut center_inverse_sums[index],
                 &mut center_corrections[index],
                 inverse_source,
@@ -235,7 +237,7 @@ pub(super) fn evaluate_g(
                             return;
                         }
                     };
-                    compensated_add(
+                    kahan_add(
                         &mut kernel_sums[index],
                         &mut kernel_corrections[index],
                         weight,

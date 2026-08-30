@@ -17,6 +17,7 @@ mod categorical_neighborhood_mixing;
 mod categorical_neighborhood_mixing_workflow;
 mod categorical_pair;
 mod categorical_pair_workflow;
+mod cell_embedding_cross_covariance;
 mod cell_embedding_mark;
 mod cell_embedding_mark_workflow;
 mod cell_embedding_nucleus_area;

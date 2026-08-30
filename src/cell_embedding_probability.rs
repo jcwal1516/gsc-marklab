@@ -1,4 +1,4 @@
-use std::{io::Write, mem::size_of};
+use std::io::Write;
 
 use marklab_embeddings::{
     CellEmbeddingArtifact, CellEmbeddingTable, EmbeddingQcSummary, EmbeddingStatus,
@@ -7,6 +7,11 @@ use marklab_workflow::{ArtifactId, ContentDigest, ContentDigestWriter};
 use thiserror::Error;
 
 use crate::{
+    cell_embedding_cross_covariance::{
+        energy as scalar_embedding_cross_covariance_energy,
+        requirements as scalar_embedding_cross_covariance_requirements,
+        ScalarEmbeddingCrossCovarianceError,
+    },
     BinaryMarkDeclaration, DeclaredScalarIdentity, DeclaredScalarPatternInput,
     ProbabilityMarkDeclaration,
 };
@@ -175,6 +180,22 @@ pub enum DeclaredProbabilityCellEmbeddingCrossCovarianceError {
     },
 }
 
+impl From<ScalarEmbeddingCrossCovarianceError>
+    for DeclaredProbabilityCellEmbeddingCrossCovarianceError
+{
+    fn from(error: ScalarEmbeddingCrossCovarianceError) -> Self {
+        match error {
+            ScalarEmbeddingCrossCovarianceError::RowUnavailable { row } => {
+                Self::CellIdBindingMismatch { row }
+            }
+            ScalarEmbeddingCrossCovarianceError::SizeOverflow => Self::SizeOverflow,
+            ScalarEmbeddingCrossCovarianceError::AllocationFailed { requested } => {
+                Self::AllocationFailed { requested }
+            }
+        }
+    }
+}
+
 /// Measure population cross-covariance energy for a declared probability and cell embeddings.
 ///
 /// The probability modality is required, the materialized table is bound to its existing verified
@@ -309,34 +330,21 @@ pub fn declared_probability_cell_embedding_cross_covariance_energy(
     let (probability_values_logical_digest, _) = probability_digest.finish();
 
     let dimension = embedding_qc_summary.dimension();
-    let dimension_u64 = u64::from(dimension);
-    let component_operations = present_probability_count
-        .checked_mul(dimension_u64)
-        .and_then(|value| value.checked_mul(2))
-        .and_then(|value| {
-            dimension_u64
-                .checked_mul(2)
-                .and_then(|tail| value.checked_add(tail))
-        })
-        .ok_or(DeclaredProbabilityCellEmbeddingCrossCovarianceError::SizeOverflow)?;
-    if component_operations > maximum_component_operations {
+    let covariance_requirements =
+        scalar_embedding_cross_covariance_requirements(present_probability_count, dimension)
+            .map_err(DeclaredProbabilityCellEmbeddingCrossCovarianceError::from)?;
+    if covariance_requirements.component_operations > maximum_component_operations {
         return Err(
             DeclaredProbabilityCellEmbeddingCrossCovarianceError::ComponentOperationBudgetExceeded {
-                required: component_operations,
+                required: covariance_requirements.component_operations,
                 maximum: maximum_component_operations,
             },
         );
     }
-    let dimension_usize = usize::try_from(dimension)
-        .map_err(|_| DeclaredProbabilityCellEmbeddingCrossCovarianceError::SizeOverflow)?;
-    let working_bytes = dimension_usize
-        .checked_mul(size_of::<f64>())
-        .and_then(|value| value.checked_mul(2))
-        .ok_or(DeclaredProbabilityCellEmbeddingCrossCovarianceError::SizeOverflow)?;
-    if working_bytes > maximum_working_bytes {
+    if covariance_requirements.working_bytes > maximum_working_bytes {
         return Err(
             DeclaredProbabilityCellEmbeddingCrossCovarianceError::WorkingByteBudgetExceeded {
-                required: working_bytes,
+                required: covariance_requirements.working_bytes,
                 maximum: maximum_working_bytes,
             },
         );
@@ -360,49 +368,16 @@ pub fn declared_probability_cell_embedding_cross_covariance_energy(
 
     let cross_covariance_energy =
         if status == DeclaredProbabilityCellEmbeddingCrossCovarianceStatus::Available {
-            let denominator = present_probability_count as f64;
-            let probability_mean = present_probability_mean.expect("available mean must exist");
-            let mut embedding_means = zeroed_accumulator(dimension_usize, working_bytes)?;
-            let mut covariance_sums = zeroed_accumulator(dimension_usize, working_bytes)?;
-            for row_index in 0..row_count {
-                let embedding_row = table.row(row_index).map_err(|_| {
-                    DeclaredProbabilityCellEmbeddingCrossCovarianceError::CellIdBindingMismatch {
-                        row: row_index,
-                    }
-                })?;
-                let Some(vector) = embedding_row.vector() else {
-                    continue;
-                };
-                for (sum, &component) in embedding_means.iter_mut().zip(vector) {
-                    *sum += f64::from(component);
-                }
-            }
-            for mean in &mut embedding_means {
-                *mean /= denominator;
-            }
-            for (row_index, &probability) in probabilities.iter().enumerate() {
-                let embedding_row = table.row(row_index).map_err(|_| {
-                    DeclaredProbabilityCellEmbeddingCrossCovarianceError::CellIdBindingMismatch {
-                        row: row_index,
-                    }
-                })?;
-                let Some(vector) = embedding_row.vector() else {
-                    continue;
-                };
-                let centered_probability = f64::from(probability) - probability_mean;
-                for ((sum, &component), &embedding_mean) in
-                    covariance_sums.iter_mut().zip(vector).zip(&embedding_means)
-                {
-                    *sum += centered_probability * (f64::from(component) - embedding_mean);
-                }
-            }
-            let mut energy = 0.0_f64;
-            for covariance_sum in covariance_sums {
-                let covariance = covariance_sum / denominator;
-                energy += covariance * covariance;
-            }
-            let energy = energy / f64::from(dimension);
-            Some(if energy == 0.0 { 0.0 } else { energy })
+            Some(
+                scalar_embedding_cross_covariance_energy(
+                    table,
+                    probabilities,
+                    present_probability_count,
+                    present_probability_mean.expect("available mean must exist"),
+                    covariance_requirements,
+                )
+                .map_err(DeclaredProbabilityCellEmbeddingCrossCovarianceError::from)?,
+            )
         } else {
             None
         };
@@ -433,16 +408,4 @@ fn write_probability_part(
         .write_all(&(bytes.len() as u128).to_be_bytes())
         .and_then(|()| writer.write_all(bytes))
         .map_err(|_| DeclaredProbabilityCellEmbeddingCrossCovarianceError::SizeOverflow)
-}
-
-fn zeroed_accumulator(
-    dimension: usize,
-    requested: usize,
-) -> Result<Vec<f64>, DeclaredProbabilityCellEmbeddingCrossCovarianceError> {
-    let mut values = Vec::new();
-    values.try_reserve_exact(dimension).map_err(|_| {
-        DeclaredProbabilityCellEmbeddingCrossCovarianceError::AllocationFailed { requested }
-    })?;
-    values.resize(dimension, 0.0);
-    Ok(values)
 }

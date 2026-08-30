@@ -1,4 +1,4 @@
-use std::{io::Write, mem::size_of};
+use std::io::Write;
 
 use marklab_embeddings::{
     CellEmbeddingArtifact, CellEmbeddingTable, EmbeddingQcSummary, EmbeddingStatus,
@@ -6,10 +6,17 @@ use marklab_embeddings::{
 use marklab_workflow::{ArtifactId, ContentDigest, ContentDigestWriter, MarklabProject};
 use thiserror::Error;
 
-use crate::scalar_mark::{
-    validate_nucleus_area_um2_provenance, BinaryMarkDeclaration, DeclaredScalarIdentity,
-    DeclaredScalarInputError, DeclaredScalarPatternInput, NucleusAreaUm2MarkDeclaration,
-    ProbabilityMarkDeclaration,
+use crate::{
+    cell_embedding_cross_covariance::{
+        energy as scalar_embedding_cross_covariance_energy,
+        requirements as scalar_embedding_cross_covariance_requirements,
+        ScalarEmbeddingCrossCovarianceError,
+    },
+    scalar_mark::{
+        validate_nucleus_area_um2_provenance, BinaryMarkDeclaration, DeclaredScalarIdentity,
+        DeclaredScalarInputError, DeclaredScalarPatternInput, NucleusAreaUm2MarkDeclaration,
+        ProbabilityMarkDeclaration,
+    },
 };
 
 const NUCLEUS_AREA_VALUES_DIGEST_DOMAIN: &[u8] =
@@ -201,6 +208,22 @@ pub enum DeclaredNucleusAreaCellEmbeddingCrossCovarianceError {
     },
 }
 
+impl From<ScalarEmbeddingCrossCovarianceError>
+    for DeclaredNucleusAreaCellEmbeddingCrossCovarianceError
+{
+    fn from(error: ScalarEmbeddingCrossCovarianceError) -> Self {
+        match error {
+            ScalarEmbeddingCrossCovarianceError::RowUnavailable { row } => {
+                Self::CellIdBindingMismatch { row }
+            }
+            ScalarEmbeddingCrossCovarianceError::SizeOverflow => Self::SizeOverflow,
+            ScalarEmbeddingCrossCovarianceError::AllocationFailed { requested } => {
+                Self::AllocationFailed { requested }
+            }
+        }
+    }
+}
+
 /// Measure population cross-covariance energy for declared nucleus area and cell embeddings.
 ///
 /// The target project and exact fixed nucleus-area provenance are revalidated before the dense
@@ -359,22 +382,21 @@ pub fn declared_nucleus_area_cell_embedding_cross_covariance_energy(
     let (nucleus_area_values_logical_digest, _) = values_digest.finish();
 
     let dimension = embedding_qc_summary.dimension();
-    let component_operations = required_component_operations(present_area_count, dimension)?;
-    if component_operations > maximum_component_operations {
+    let covariance_requirements =
+        scalar_embedding_cross_covariance_requirements(present_area_count, dimension)
+            .map_err(DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::from)?;
+    if covariance_requirements.component_operations > maximum_component_operations {
         return Err(
             DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::ComponentOperationBudgetExceeded {
-                required: component_operations,
+                required: covariance_requirements.component_operations,
                 maximum: maximum_component_operations,
             },
         );
     }
-    let dimension_usize = usize::try_from(dimension)
-        .map_err(|_| DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::SizeOverflow)?;
-    let working_bytes = required_working_bytes(dimension_usize)?;
-    if working_bytes > maximum_working_bytes {
+    if covariance_requirements.working_bytes > maximum_working_bytes {
         return Err(
             DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::WorkingByteBudgetExceeded {
-                required: working_bytes,
+                required: covariance_requirements.working_bytes,
                 maximum: maximum_working_bytes,
             },
         );
@@ -398,49 +420,16 @@ pub fn declared_nucleus_area_cell_embedding_cross_covariance_energy(
 
     let cross_covariance_energy =
         if status == DeclaredNucleusAreaCellEmbeddingCrossCovarianceStatus::Available {
-            let denominator = present_area_count as f64;
-            let area_mean = present_nucleus_area_mean_um2.expect("available mean must exist");
-            let mut embedding_means = zeroed_accumulator(dimension_usize, working_bytes)?;
-            let mut covariance_sums = zeroed_accumulator(dimension_usize, working_bytes)?;
-            for row_index in 0..row_count {
-                let embedding_row = table.row(row_index).map_err(|_| {
-                    DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::CellIdBindingMismatch {
-                        row: row_index,
-                    }
-                })?;
-                let Some(vector) = embedding_row.vector() else {
-                    continue;
-                };
-                for (sum, &component) in embedding_means.iter_mut().zip(vector) {
-                    *sum += f64::from(component);
-                }
-            }
-            for mean in &mut embedding_means {
-                *mean /= denominator;
-            }
-            for (row_index, &area) in nucleus_areas.iter().enumerate() {
-                let embedding_row = table.row(row_index).map_err(|_| {
-                    DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::CellIdBindingMismatch {
-                        row: row_index,
-                    }
-                })?;
-                let Some(vector) = embedding_row.vector() else {
-                    continue;
-                };
-                let centered_area = f64::from(area) - area_mean;
-                for ((sum, &component), &embedding_mean) in
-                    covariance_sums.iter_mut().zip(vector).zip(&embedding_means)
-                {
-                    *sum += centered_area * (f64::from(component) - embedding_mean);
-                }
-            }
-            let mut energy = 0.0_f64;
-            for covariance_sum in covariance_sums {
-                let covariance = covariance_sum / denominator;
-                energy += covariance * covariance;
-            }
-            let energy = energy / f64::from(dimension);
-            Some(if energy == 0.0 { 0.0 } else { energy })
+            Some(
+                scalar_embedding_cross_covariance_energy(
+                    table,
+                    nucleus_areas,
+                    present_area_count,
+                    present_nucleus_area_mean_um2.expect("available mean must exist"),
+                    covariance_requirements,
+                )
+                .map_err(DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::from)?,
+            )
         } else {
             None
         };
@@ -464,31 +453,6 @@ pub fn declared_nucleus_area_cell_embedding_cross_covariance_energy(
     })
 }
 
-fn required_component_operations(
-    present_rows: u64,
-    dimension: u32,
-) -> Result<u64, DeclaredNucleusAreaCellEmbeddingCrossCovarianceError> {
-    let dimension = u64::from(dimension);
-    present_rows
-        .checked_mul(dimension)
-        .and_then(|value| value.checked_mul(2))
-        .and_then(|value| {
-            dimension
-                .checked_mul(2)
-                .and_then(|tail| value.checked_add(tail))
-        })
-        .ok_or(DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::SizeOverflow)
-}
-
-fn required_working_bytes(
-    dimension: usize,
-) -> Result<usize, DeclaredNucleusAreaCellEmbeddingCrossCovarianceError> {
-    dimension
-        .checked_mul(size_of::<f64>())
-        .and_then(|value| value.checked_mul(2))
-        .ok_or(DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::SizeOverflow)
-}
-
 fn write_digest_part(
     writer: &mut ContentDigestWriter,
     bytes: &[u8],
@@ -499,18 +463,6 @@ fn write_digest_part(
         .map_err(|_| DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::SizeOverflow)
 }
 
-fn zeroed_accumulator(
-    dimension: usize,
-    requested: usize,
-) -> Result<Vec<f64>, DeclaredNucleusAreaCellEmbeddingCrossCovarianceError> {
-    let mut values = Vec::new();
-    values.try_reserve_exact(dimension).map_err(|_| {
-        DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::AllocationFailed { requested }
-    })?;
-    values.resize(dimension, 0.0);
-    Ok(values)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -518,20 +470,19 @@ mod tests {
     #[test]
     fn checked_resource_helpers_expose_overflow_and_allocation_failures() {
         assert!(matches!(
-            required_component_operations(u64::MAX, u32::MAX),
-            Err(DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::SizeOverflow)
+            scalar_embedding_cross_covariance_requirements(u64::MAX, u32::MAX)
+                .map_err(DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::from),
+            Err(DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::SizeOverflow),
         ));
         assert!(matches!(
-            required_working_bytes(usize::MAX),
-            Err(DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::SizeOverflow)
-        ));
-        assert!(matches!(
-            zeroed_accumulator(usize::MAX, usize::MAX),
-            Err(
-                DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::AllocationFailed {
-                    requested: usize::MAX
+            DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::from(
+                ScalarEmbeddingCrossCovarianceError::AllocationFailed {
+                    requested: usize::MAX,
                 }
-            )
+            ),
+            DeclaredNucleusAreaCellEmbeddingCrossCovarianceError::AllocationFailed {
+                requested: usize::MAX
+            }
         ));
     }
 }

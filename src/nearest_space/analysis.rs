@@ -1,5 +1,7 @@
 use marklab_workflow::ContentDigest;
 
+use crate::common::finite::canonical_zero;
+
 use crate::{
     classical::{sample_conditional_csr, window_summary, SpatialGeometryPlan2D},
     common::seeds::{derive_seed, SeedEndpoint},
@@ -597,13 +599,5 @@ fn map_csr_error(error: crate::ClassicalSpatialError) -> NearestSpaceError {
 fn geometry_error(error: impl std::fmt::Display) -> NearestSpaceError {
     NearestSpaceError::Geometry {
         reason: error.to_string(),
-    }
-}
-
-fn canonical_zero(value: f64) -> f64 {
-    if value == 0.0 {
-        0.0
-    } else {
-        value
     }
 }

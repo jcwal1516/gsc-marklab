@@ -1,9 +1,11 @@
 use std::collections::BTreeSet;
 
+use crate::common::{finite::canonical_zero, summation::kahan_add};
+
 use crate::{ObservationWindow2D, Pattern};
 
 use super::{
-    analysis::{canonical_zero, compensated_add, Counters},
+    analysis::Counters,
     types::{
         InhomogeneousIntensityGridPoint, InhomogeneousIntensityPoint, InhomogeneousSpatialConfig,
         InhomogeneousSpatialError,
@@ -193,7 +195,7 @@ pub(super) fn boundary_mass(
     let mut correction = 0.0;
     for probe in &grid.probes {
         counters.charge_intensity(config)?;
-        compensated_add(
+        kahan_add(
             &mut sum,
             &mut correction,
             gaussian_kernel(location, (probe.x_um, probe.y_um), config.bandwidth_um)
@@ -225,7 +227,7 @@ pub(super) fn kernel_sum(
             continue;
         }
         counters.charge_intensity(config)?;
-        compensated_add(
+        kahan_add(
             &mut sum,
             &mut correction,
             gaussian_kernel(location, (x[row], y[row]), config.bandwidth_um),
@@ -272,7 +274,7 @@ pub(super) fn fixed_probe_cdf(
             counters,
         )? / boundary_mass(location, grid, config, counters)?;
         let mass = intensity * grid.cell_area_um2;
-        compensated_add(&mut total, &mut correction, mass);
+        kahan_add(&mut total, &mut correction, mass);
         cdf.push(total + correction);
         fixed_grid.push(InhomogeneousIntensityGridPoint {
             probe_index,

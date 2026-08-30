@@ -4,6 +4,8 @@ use marklab_cohort::{InferenceAlternative, InferenceDesign};
 use marklab_workflow::ContentDigest;
 use serde::{Deserialize, Serialize};
 
+use crate::common::finite::canonical_zero;
+
 use crate::{
     classical::window_summary,
     isotropic_spatial::edge::IsotropicArcBudget,
@@ -472,11 +474,4 @@ fn dependency(error: impl std::fmt::Display) -> CategoricalCrossPairCorrelationE
 }
 fn isotropic_dependency(error: IsotropicSpatialError) -> CategoricalCrossPairCorrelationError {
     dependency(error)
-}
-fn canonical_zero(value: f64) -> f64 {
-    if value == 0.0 {
-        0.0
-    } else {
-        value
-    }
 }

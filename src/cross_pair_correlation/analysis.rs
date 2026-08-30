@@ -2,6 +2,8 @@ use marklab_cohort::{InferenceAlternative, InferenceDesign};
 use marklab_data::MeasurementStatus;
 use marklab_workflow::ContentDigest;
 
+use crate::common::finite::canonical_zero;
+
 use crate::{
     classical::window_summary,
     mark_pair_plan::{build_mark_pair_plan, erl_workspace_bytes},
@@ -404,12 +406,4 @@ pub(super) fn resolve(
 
 fn dependency(error: impl std::fmt::Display) -> CategoricalCrossPairCorrelationError {
     CategoricalCrossPairCorrelationError::Dependency(error.to_string())
-}
-
-fn canonical_zero(value: f64) -> f64 {
-    if value == 0.0 {
-        0.0
-    } else {
-        value
-    }
 }
