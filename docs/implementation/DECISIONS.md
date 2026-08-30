@@ -3252,3 +3252,19 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   3.55 MiB. The earlier 32-landmark approximation and both failed larger-output attempts remain
   retained; the mixed stability result, no-promotion policy, patient unit, and result-format 0.3 do
   not change.
+
+## DEC-0368 — Durably execute the existing embedding cross-covariance matrix
+
+- Date: 2026-08-30
+- Status: accepted for EMB-01/SIG-01H/WF-01/WS-12/WS-32
+- Decision: add one native `marklab project embedding-cross-covariance-by-distance` caller around
+  IC-0083. Reuse its parser, exact matrix statistic, physical bins, direct output, scheduler,
+  artifact store, ledger, recovery, native runtime identity, and existing exact-float durable
+  codec. Cache-bind caller ceilings for points, dimensions, unordered pairs, matrix operations,
+  retained memory, and inline output. Do not add a statistic, embedding registry, plugin, or new
+  public result format.
+- Consequences: valid matrix outputs survive scheduler normalization bit-exactly and publish with
+  unchanged direct-CLI bytes. The admitted deterministic six-patient test view fits the fixed work
+  bound and durably replays without execution; the full 3,000-row table remains rejected rather
+  than weakening the 250-million-operation ceiling. This result is descriptive capacity evidence,
+  not patient inference, and does not authorize cell-pair pseudoreplication or biological claims.

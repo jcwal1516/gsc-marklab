@@ -51,6 +51,7 @@ fn main() -> marklab::Result<()> {
                             subcommand.to_str(),
                             Some(
                                 "vector-semivariogram"
+                                    | "embedding-cross-covariance-by-distance"
                                     | "projected-embedding-variograms"
                                     | "marked-prepost"
                                     | "sparse-radius-heat"

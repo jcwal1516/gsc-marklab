@@ -537,3 +537,14 @@ remains complete. The lower-tail topology instability is retained and no promoti
 This advances TOP-01, WF-01, WS-12, and WS-62 for the real dense caller but does not complete their
 broader catalogs. Under the resumed full-program mandate, the next immediate workflow is durable
 embedding cross-covariance by distance through its existing direct CLI and analytic oracle.
+
+## Durable embedding cross-covariance checkpoint 186
+
+The existing IC-0083 full-matrix embedding cross-covariance now executes through a bounded typed
+project node with exact native/source/bin/configuration identity and backend-disabled durable
+replay. Its analytic matrix/rotation oracle and direct bytes remain unchanged. A deterministic
+600-row held-out view of the admitted projected CellViT artifact completes within 46,003,200 matrix
+operations; the full 3,000-row table remains correctly outside the fixed work ceiling. This
+advances EMB-01, SIG-01H, WF-01, WS-12, and WS-32 only for the concrete caller and makes no
+patient-population claim. The next immediate workflow is durable IC-0085 kernel mark correlation;
+IC-0084 remains data-blocked on matched cross-modal correspondence.

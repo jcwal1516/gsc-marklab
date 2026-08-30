@@ -54,6 +54,8 @@ use super::{
 
 #[path = "project/projected_embedding_variograms.rs"]
 mod projected_embedding_variograms;
+#[path = "project/embedding_cross_covariance.rs"]
+mod embedding_cross_covariance;
 #[path = "project/region_retrieval.rs"]
 mod region_retrieval;
 #[path = "project/vector_semivariogram.rs"]
@@ -1016,6 +1018,26 @@ enum ProjectCommand {
         #[arg(long)]
         memory_budget_mib: usize,
     },
+    EmbeddingCrossCovarianceByDistance {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        bins: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        maximum_points: usize,
+        #[arg(long)]
+        maximum_dimension: usize,
+        #[arg(long)]
+        maximum_pair_visits: u64,
+        #[arg(long)]
+        maximum_matrix_elements: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+    },
     RegionRetrieval {
         #[arg(long)]
         project: PathBuf,
@@ -1497,6 +1519,30 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             maximum_points,
             maximum_dimension,
             maximum_pair_visits,
+            memory_budget_mib,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::EmbeddingCrossCovarianceByDistance {
+                    project,
+                    input,
+                    bins,
+                    out,
+                    maximum_points,
+                    maximum_dimension,
+                    maximum_pair_visits,
+                    maximum_matrix_elements,
+                    memory_budget_mib,
+                },
+        } => embedding_cross_covariance::run(
+            project,
+            input,
+            bins,
+            out,
+            maximum_points,
+            maximum_dimension,
+            maximum_pair_visits,
+            maximum_matrix_elements,
             memory_budget_mib,
         ),
         ProjectTopLevel::Project {

@@ -4611,3 +4611,29 @@ vascular transport.
   `cargo +1.96.0 check --locked --package marklab --no-default-features`, affected Rustfmt, and
   focused `git diff --check` pass. The checkpoint-182 broad non-loader evidence remains current;
   the documented workspace/Nextest loader loop is not rerun.
+
+## Durable embedding cross-covariance checkpoint 186 — 2026-08-30
+
+- The behavior test is added before production. Its first red cannot reach the missing command
+  because the concurrently edited user-owned Arrow refactor temporarily fails compilation; no
+  unrelated file is changed. After that shared compile surface clears, the focused project test
+  passes point-, dimension-, and matrix-work one-short failures before project creation, direct
+  byte parity, miss, fresh backend-disabled hit, exact input/config/runtime ledger identity, and one
+  execution row.
+- Default JSON float normalization initially shifts several matrix values by one ULP. The final
+  implementation removes the temporary bespoke number scanner and reuses the repository's existing
+  exact-float durable codec. `cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_embedding_cross_covariance_cli --test embedding_cross_covariance_project_cli` passes 1/1
+  in both targets; the project target passes again after its Clippy-only iterator cleanup.
+- The admitted full source hashes to
+  `3fe55c5b1e0e57395f64957956d527009c01440d1a4da828c973c790312377a2`; its deterministic test view
+  hashes to `927795dd3bb1a091a189e8ab7463a01c7d828015b3de7691d86e41013e448db1`.
+  Direct execution takes 0.06 seconds at 30,130,176-byte RSS. Durable miss/hit take 6.21/6.39
+  seconds at 28,114,944/25,526,272 bytes, remain byte-identical at SHA-256
+  `8a3960be892f2423cfa4c295235105c973bec11d0007d881f233ecddb8edab8a`, and keep one ledger row.
+- `cargo +1.96.0 clippy --locked --package marklab --features cli --bin marklab --test
+  bayes_embedding_cross_covariance_cli --test embedding_cross_covariance_project_cli -- -D
+  warnings` passes after one local `needless_range_loop` finding is fixed.
+  `cargo +1.96.0 check --locked --package marklab --no-default-features`, affected Rustfmt, and
+  focused whitespace checks pass. Remote `shasum -a 256 -c SHA256SUMS` passes for the complete v64
+  bundle. The workspace/Nextest loader loop and broad gates are not run.

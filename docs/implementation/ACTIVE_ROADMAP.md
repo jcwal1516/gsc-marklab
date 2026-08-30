@@ -1809,3 +1809,14 @@ completes 64 misses and 64 backend-disabled byte-identical hits with one ledger 
 graph proof likewise completes 80 misses and hits. Mixed lower-tail topology stability remains
 descriptive and unpromoted. Production next advances the existing embedding cross-covariance by
 distance CLI through the same durable project path, without a plugin or statistic registry.
+
+## Checkpoint 186 durable embedding cross-covariance by distance
+
+IC-0083 now has a strict native `marklab project embedding-cross-covariance-by-distance` path over
+the existing matrix statistic and direct CLI. Exact source, physical-bin, limit, native-runtime,
+and executable identities are cache-bound; the typed matrix result uses the existing exact-float
+durable codec while preserving ordinary direct-CLI output bytes. The admitted 600-row held-out
+CellViT view completes a miss and backend-disabled byte-identical hit with one ledger row. This is
+descriptive split-level capacity evidence, not patient inference. Production next advances the
+existing training-fit kernel mark-correlation workflow through the same project engine, using its
+already audited 30-patient real caller rather than a generic embedding registry.

@@ -3863,3 +3863,36 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   reports zero mismatches. Six Python tests, both Rust integration targets, affected warning-denied
   Clippy, package no-default compilation, affected formatting, and whitespace checks pass. No broad
   workspace/Nextest loop runs.
+
+## Durable embedding cross-covariance checkpoint 186 — 2026-08-30
+
+- Added `marklab project embedding-cross-covariance-by-distance` around the existing IC-0083
+  globally centred, symmetrized distance-bin matrix statistic. The caller binds exact input/bin,
+  point/dimension/pair/matrix-work/memory, native runtime, executable, scheduler, implementation,
+  and result-schema identities before using the existing project ledger, scheduler, artifact store,
+  recovery, and transaction path. One-short point, dimension, and matrix-work limits fail before
+  project creation or output publication.
+- The durable artifact uses Marklab's existing exact-float codec so scheduler normalization retains
+  every matrix bit while the user-facing ordinary JSON remains byte-identical to the direct CLI.
+  Its strict decoder checks all identities, finite global means, exact bins and closure, matrix
+  dimensions/symmetry, typed empty states, pair accounting, and trace/Frobenius consistency. No
+  result-format, statistic, dependency, plugin, or generalized embedding framework changes.
+- The full admitted 3,000-row/16-component source would require 1,151,616,000 matrix operations and
+  is rejected by the fixed 250-million ceiling. The pre-existing held-out test split supplies a
+  deterministic 600-row/six-patient view requiring 179,700 pair visits, 46,003,200 matrix
+  operations, and 1,024 stored elements. No pair within the fixed 200-micrometre bins crosses a
+  patient or permutation stratum.
+- The real miss completes in 6.21 seconds at 28,114,944-byte maximum RSS. A fresh process with
+  external execution disabled returns a hit in 6.39 seconds at 25,526,272 bytes; direct, miss, and
+  hit all hash to `8a3960be892f2423cfa4c295235105c973bec11d0007d881f233ecddb8edab8a`,
+  and the ledger remains one row. This is descriptive split-level capacity evidence: cells/pairs
+  are not patient replicates and no population, molecular, recurrence, causal, clinical, or
+  significance claim is made.
+- The remote bundle is
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v64-durable-cross-covariance-final`.
+  Its run manifest and checksum file hash to
+  `0f7535245c1cb10ee7c7407f57b5c267baeb033df95c119784407ed0f1a154c5` and
+  `d5010254e058da0f250d8ab3def0de6769a8f41c2ea9a11bed104102809ee5e1`; complete remote rehash
+  passes. Both focused integration tests, warning-denied affected Clippy, package no-default
+  compilation, affected formatting, and whitespace checks pass. No broad workspace/Nextest loop
+  runs.
