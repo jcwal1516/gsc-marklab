@@ -3190,3 +3190,18 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   backend-disabled replay without duplicating the patient M4 science, artifact store, scheduler, or
   direct estimator. This does not add projection, directionality, automatic bins/weights, a vector
   plugin framework, new embedding mathematics, or patient inference from a one-slide capacity run.
+
+## DEC-0364 — Durably replay the sealed patient M4 inputs without changing their science
+
+- Date: 2026-08-29
+- Status: accepted for EMB-VARIO-01/SIG-01F/PLAT-01/WF-01/WS-12/WS-24/WS-31/WS-32
+- Decision: run each sealed patient M4 raw-vector input through the checkpoint-180 project command
+  with its exact input/bin hashes, 32-cell/1,280-dimension/pair/memory bounds, six processes, and
+  explicit timeout. Require byte-identical current-runtime miss/hit replay and one ledger per
+  patient. Compare older frozen references with identical structure and nonfloat values plus at
+  most one ULP for finite floats; reject two ULPs. Permit interrupted outer-manifest recovery only
+  when every completed result, reference, and one-row project ledger revalidates without execution.
+- Consequences: all 169 patient-unit M4 curves gain durable replay without rerunning or replacing
+  the sealed patient stability, held-out, site-aware, or cohort science. Observed one-ULP runtime
+  drift is explicit provenance, not a threshold relaxation or biological difference. This does not
+  add new bins, embeddings, selection, statistical tests, or a generic batch runner.

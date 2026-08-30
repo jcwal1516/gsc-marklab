@@ -1748,3 +1748,13 @@ physical bins and one ledger execution; its descriptive curve is capacity eviden
 slide is not a population. Production next may reuse this exact durable command for the already
 owned patient M4 inputs, without changing the sealed patient science or adding another embedding
 statistic. Do not generalize an embedding plugin surface.
+
+## Checkpoint 181 durable patient M4 raw-vector replay
+
+All 169 admitted patient M4 inputs now execute as separate durable vector-semivariogram projects
+and replay backend-disabled with byte-identical current-runtime results and one ledger each. Frozen
+reference comparison has no structural drift; 27 values across 25 patients differ by exactly one
+ULP and are retained explicitly. The sealed M4 patient science is unchanged. Four related visible
+workflows have now completed since checkpoint 177, so production pauses for one non-loader major
+stabilization checkpoint before the next dependency-ordered caller; do not rerun patient science or
+the documented macOS Nextest/full-integration loop.

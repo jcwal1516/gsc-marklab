@@ -4488,3 +4488,27 @@ vascular transport.
 - Final affected-file diff, whitespace, and status checks follow. No broad workspace/Nextest loop,
   benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history rewrite
   command runs.
+
+## Durable patient M4 raw-vector checkpoint 181 — 2026-08-29
+
+- Red-first `env PYTHONDONTWRITEBYTECODE=1 target/pymc-venv/bin/python -m unittest
+  tests.python.test_tcga_crc_m4_durable` fails because the patient executor is absent. The final
+  command over that test plus `test_tcga_crc_m4_raw_spatial_input` passes 3/3; in-memory source
+  compilation and `git diff --check` pass. The oracle covers four misses, interrupted-manifest
+  resume without execution, four backend-disabled hits, byte replay, one-row ledgers, frozen
+  compatibility, one-ULP acceptance, and two-ULP rejection.
+- The fixed six-process real miss pass completes all 169 project ledgers/results in 251.61 seconds
+  at 26,558,464-byte parent maximum RSS, then truthfully fails before its manifest because one
+  frozen-reference byte comparison differs. A complete independent comparison reports zero
+  structural differences, 27 finite semivariance differences across 25 patients, and maximum drift
+  exactly one ULP. No statistic, input, bin, subset, or threshold is changed.
+- The updated compatibility boundary resumes all 169 completed misses without statistic execution
+  in 1.11 seconds at 20,414,464 bytes. A fresh process with backend execution disabled then returns
+  169/169 hits in 235.29 seconds at 24,264,704 bytes. All current-runtime miss/hit bytes match,
+  every frozen result is structurally/one-ULP compatible, and every ledger remains one row.
+- The 1,196-file bundle at
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v62-patient-durable-raw-vector-final`
+  rehashes with zero errors; run-manifest SHA-256 is
+  `28e3a37dceebeed20f42519935f43fd770cdbb8a2a205a82dc5f8716ff5ac762`. The existing patient M4
+  science is not rerun or reinterpreted. No broad workspace/Nextest loop, benchmark, fuzzing,
+  packaging, dependency, push, publication, deployment, or history rewrite command runs.

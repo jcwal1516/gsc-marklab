@@ -3738,3 +3738,28 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   package no-default compilation without warnings, affected-file formatting, source/direct/replay
   comparisons, and whitespace checks pass. No broad workspace/Nextest loop, benchmark, fuzzing,
   packaging, dependency, push, publication, deployment, or history rewrite runs.
+
+## Durable patient M4 raw-vector checkpoint 181 — 2026-08-29
+
+- Added `marklab_tcga_crc_m4_durable.py` as the immediate patient caller for the checkpoint-180
+  project command. It validates the sealed admission, patient/input identities and hashes, fixed
+  physical bins, 32-cell/1,280-dimension per-patient bounds, exact unordered-pair ceilings, frozen
+  references, six-process ceiling, per-process timeout, replay bytes, and one-row ledgers.
+- The first 169-project miss pass completes every durable project in 251.61 seconds but refuses to
+  seal because byte comparison finds a current-runtime semivariance difference. Exact inspection
+  finds zero structural differences and only 27 values across 25 patients at exactly one IEEE-754
+  ULP. The compatibility boundary therefore requires identical structure/nonfloat values and at
+  most one finite-float ULP; two ULPs fail. Completed misses resume cross-process without statistic
+  execution in 1.11 seconds and publish the truthful execution manifest.
+- A fresh backend-disabled pass returns 169/169 hits in 235.29 seconds at 24,264,704-byte parent
+  maximum RSS. Every hit is byte-identical to its current-runtime miss, compatible with its frozen
+  reference, and backed by one ledger execution. The existing sealed M4 patient stability,
+  held-out, site-aware, and cohort conclusions are unchanged.
+- The 1,196-file bundle is
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v62-patient-durable-raw-vector-final`;
+  run-manifest SHA-256 is `28e3a37dceebeed20f42519935f43fd770cdbb8a2a205a82dc5f8716ff5ac762`
+  and complete rehash reports zero errors. Three focused patient-input/durable tests, source
+  compilation, resume/replay/reference checks, and whitespace checks pass. No Rust source changes
+  follow checkpoint 180, so its affected Rust gates remain current. No broad workspace/Nextest
+  loop, benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history
+  rewrite runs.

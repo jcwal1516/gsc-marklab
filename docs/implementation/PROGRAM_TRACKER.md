@@ -196,7 +196,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | SIG-01C | blocked with named prerequisite | Requires SIG-01A, multiplicity ownership, and cohort-valid exploratory-map policy. |
 | SIG-01D | blocked with named prerequisite | Requires typed paired variables, direction semantics, weights, and multiplicity. |
 | SIG-01E | data-dependent with named missing data | Missing a prespecified pathology hotspot use case and replicated endpoint data. |
-| SIG-01F | active | Bounded scalar and raw-vector variograms have exact provenance/frame/bin/pair-plan identity and hard work ceilings. The nucleus-area block runs durably across eight patients/16 nested slides but fails its positive-increment fusion gate. The complete-vector owner now also has strict durable source/runtime/limit identity, direct byte parity, and real 512-by-1,280 replay. Existing raw-vector TCGA patient/field stability and held-out null evidence remain; durable patient M4 execution, scalar edge/directionality, direct same-schema external agreement, and stable promotion remain. |
+| SIG-01F | active | Bounded scalar and raw-vector variograms have exact provenance/frame/bin/pair-plan identity and hard work ceilings. The nucleus-area block runs durably across eight patients/16 nested slides but fails fusion. The complete-vector owner has strict durable identity, direct parity, and 169-patient M4 miss/resume/backend-disabled replay with explicit one-ULP frozen-runtime compatibility. Existing M4 stability/held-out null science remains; scalar edge/directionality, direct same-schema external agreement, and stable promotion remain. |
 | SIG-01G | data-dependent with named missing data | Missing co-located or correspondence-qualified bivariate observations. |
 | SIG-01H | blocked with named prerequisite | Synthetic distance and graph vector/covariance, leakage-safe projected/kernel, and complete-vector null workflows are runnable; stable promotion requires shared geometry/graph provenance/scale plus canonical vector-input calibration. |
 | SPC-01A | gated pending explicit user decision | The master plan rejects Bartlett branding/default use absent a prespecified endpoint and demonstrated advantage. |
@@ -490,3 +490,12 @@ The real 512-cell by 1,280-dimension input completes and replays backend-disable
 row. This advances WF-01/WS-12 for the admitted vector caller but is one-slide capacity evidence;
 the existing sealed M4 patient inference remains the population result. SIG-01F stays active for
 durable patient M4 execution and independently justified correction/external-calibration gaps.
+
+## Durable patient M4 raw-vector checkpoint 181
+
+All 169 admitted patient M4 inputs now use the durable vector project path with six bounded
+processes, cross-process completion recovery, fresh backend-disabled hits, current-runtime byte
+identity, frozen-reference structural identity, and one ledger each. Twenty-seven values differ
+from the older runtime by exactly one ULP; no other field differs. This completes durable patient
+M4 execution without changing its sealed null/stability/held-out findings. SIG-01F remains active
+only for the independently named correction, external-agreement, and promotion gaps.
