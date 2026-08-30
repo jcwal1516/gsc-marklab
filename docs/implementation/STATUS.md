@@ -3709,3 +3709,32 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   checkpoint 177's affected Rust gates remain current. No broad workspace/Nextest loader loop,
   benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history rewrite
   runs.
+
+## Durable raw-vector semivariogram checkpoint 180 — 2026-08-29
+
+- Added `VectorSemivariogramProjectNode` and `marklab project vector-semivariogram` around the
+  existing complete-vector weighted squared-Euclidean semivariogram. The direct mathematical owner
+  and `marklab bayes vector-semivariogram` remain unchanged. Exact raw input, physical bins,
+  optional pair weights, native binary/runtime, adapter revision, point/dimension/pair ceilings,
+  memory budget, execution policy, and result schema now own the durable cache identity.
+- The strict typed version-one result decoder validates source hashes, object/dimension/feature/bin
+  identities, exact pair count, weight mode, finite nonnegative weights/semivariances, eligibility,
+  and final-bin closure without recomputing the curve. Sources are hashed before and after bounded
+  parsing; raw plus parsed retained-memory admission occurs before the durable project opens.
+- The independent weighted hand/rotation oracle remains 2 and 8/3. The new behavior test first
+  fails on the absent project command, then proves a one-short point ceiling publishes no output or
+  project, miss, fresh backend-disabled hit, byte equality, one ledger row, and exact parity with
+  the existing direct CLI.
+- The admitted real 512-cell by 1,280-dimension CellViT input runs at 130,816 unordered pairs and a
+  64-MiB ceiling. The identity-final miss completes in 11.88 seconds at 39,436,288-byte maximum
+  RSS; the hit takes 6.95 seconds at 36,044,800 bytes. Both and the direct CLI hash to
+  `399580c6c8dcc8cacd87191090bd779ac80f2a2c89d1cbf9b0571a80ebf13155`, with one ledger row.
+  Semivariances are 4428.87, 5181.00, 5885.69, and 6326.83 over 0--25, 25--50, 50--100, and
+  100--200 micrometres. This is one-slide capacity evidence, not patient inference.
+- The 15-file bundle is
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v61-durable-raw-vector-variogram-final`;
+  its run manifest hashes to `d9690cb0f716dac2b2032f614c5808d805bff16264d29813cee631046ad7df6f`
+  and complete rehash has zero errors. Both focused CLI tests, warning-denied affected Clippy,
+  package no-default compilation without warnings, affected-file formatting, source/direct/replay
+  comparisons, and whitespace checks pass. No broad workspace/Nextest loop, benchmark, fuzzing,
+  packaging, dependency, push, publication, deployment, or history rewrite runs.

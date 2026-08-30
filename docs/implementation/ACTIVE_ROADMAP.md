@@ -1738,3 +1738,13 @@ with interval [-0.375, 0.375]; all adjusted endpoint p-values are 0.099. The pre
 increment gate therefore excludes it from fusion without tuning. SIG-01F remains active only for
 independently justified correction/external calibration or a different admitted continuous/vector
 caller; do not add scalar variants merely to rescue this null/nonincremental result.
+
+## Checkpoint 180 durable raw-vector semivariogram
+
+The admitted complete-vector CellViT semivariogram now has a strict `marklab project` path with
+exact source/bin/optional-weight/runtime/limit identity, bounded retained memory, direct-CLI byte
+parity, and fresh-process backend-disabled replay. The fixed real 512-by-1,280 input completes four
+physical bins and one ledger execution; its descriptive curve is capacity evidence because one
+slide is not a population. Production next may reuse this exact durable command for the already
+owned patient M4 inputs, without changing the sealed patient science or adding another embedding
+statistic. Do not generalize an embedding plugin surface.

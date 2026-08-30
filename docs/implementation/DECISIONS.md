@@ -3174,3 +3174,19 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   backend-disabled without another execution. A stable but nonincremental result is retained and
   excluded from fusion. This does not add automatic lag/mark/null selection, retune the observed
   result, impute site identity, claim external validation, or generalize a fingerprint registry.
+
+## DEC-0363 — Promote the existing complete-vector semivariogram through one durable node
+
+- Date: 2026-08-29
+- Status: accepted for EMB-VARIO-01/SIG-01F/MRK-02D/PLAT-01/WF-01/WS-12/WS-24/WS-31/WS-32
+- Decision: add `marklab project vector-semivariogram` around the existing
+  `vector_semivariogram` mathematical owner and preserve exact byte parity with
+  `marklab bayes vector-semivariogram`. Bind the raw point/embedding CSV, physical bin CSV,
+  optional pair-weight CSV, exact native executable/runtime, adapter revision, maximum points,
+  embedding dimension, unordered pair visits, retained-memory budget, execution policy, and typed
+  result schema into the durable identity. Hash sources before and after bounded parsing and
+  validate cached typed output without recomputing pair statistics.
+- Consequences: the admitted raw CellViT vector caller gains project ledger/recovery and
+  backend-disabled replay without duplicating the patient M4 science, artifact store, scheduler, or
+  direct estimator. This does not add projection, directionality, automatic bins/weights, a vector
+  plugin framework, new embedding mathematics, or patient inference from a one-slide capacity run.

@@ -54,6 +54,8 @@ use super::{
 
 #[path = "project/region_retrieval.rs"]
 mod region_retrieval;
+#[path = "project/vector_semivariogram.rs"]
+mod vector_semivariogram;
 
 const MAXIMUM_EXECUTABLE_BYTES: u64 = 1024 * 1024 * 1024;
 const MAXIMUM_INPUT_BYTES: u64 = 16 * 1024 * 1024;
@@ -971,6 +973,26 @@ struct ReplicatedConditionalMultitypeMarkProjectArgs {
 
 #[derive(Debug, Subcommand)]
 enum ProjectCommand {
+    VectorSemivariogram {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        bins: PathBuf,
+        #[arg(long)]
+        weights: Option<PathBuf>,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        maximum_points: usize,
+        #[arg(long)]
+        maximum_dimension: usize,
+        #[arg(long)]
+        maximum_pair_visits: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+    },
     RegionRetrieval {
         #[arg(long)]
         project: PathBuf,
@@ -1406,6 +1428,30 @@ enum ProjectCommand {
 
 pub(super) fn run_cli() -> Result<(), BayesCliError> {
     match ProjectCli::parse_from(std::env::args_os()).command {
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::VectorSemivariogram {
+                    project,
+                    input,
+                    bins,
+                    weights,
+                    out,
+                    maximum_points,
+                    maximum_dimension,
+                    maximum_pair_visits,
+                    memory_budget_mib,
+                },
+        } => vector_semivariogram::run(
+            project,
+            input,
+            bins,
+            weights,
+            out,
+            maximum_points,
+            maximum_dimension,
+            maximum_pair_visits,
+            memory_budget_mib,
+        ),
         ProjectTopLevel::Project {
             command:
                 ProjectCommand::RegionRetrieval {

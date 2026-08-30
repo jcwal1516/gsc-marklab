@@ -4458,3 +4458,33 @@ vascular transport.
   checkpoint 177's warning-denied Clippy/no-default/docs evidence remains current. No broad
   workspace/Nextest loader loop, benchmark, fuzzing, packaging, dependency, push, publication,
   deployment, or history rewrite command runs.
+
+## Durable raw-vector semivariogram checkpoint 180 — 2026-08-29
+
+- Red-first `cargo +1.96.0 test --locked --package marklab --features cli --test
+  vector_semivariogram_project_cli -- --nocapture` fails on the absent project subcommand. The final
+  focused command over that target and `bayes_vector_semivariogram_cli` passes 2/2. The project test
+  covers a one-short point ceiling before project/output creation, weighted analytic/rotation
+  parity, miss, fresh backend-disabled hit, byte equality, direct-CLI byte equality, and one ledger
+  row.
+- The first warning-denied affected Clippy command passes. Direct review then removes duplicated CSV
+  parsing by moving the node to the existing Bayes project owner and sharing its exact point/bin/
+  weight adapter. Final `cargo +1.96.0 clippy --locked --package marklab --features cli --bin
+  marklab --test vector_semivariogram_project_cli --test bayes_vector_semivariogram_cli -- -D
+  warnings` passes. `cargo +1.96.0 check --locked --package marklab --no-default-features` passes
+  without warnings after the CLI-only node leaves the feature-independent library. Affected files
+  are formatted directly with Rustfmt.
+- The real command uses the sealed input SHA-256
+  `8251eed30fe93fa92ba134ff5f2158aed245f656f7a1b653cb95acefd625a966`, bin SHA-256
+  `a362cc4aacb19b88ef5bc9c1aac698c0d70d7087e58964cce57f9e05aa162c60`, 512 points, 1,280
+  dimensions, 130,816 pairs, and 64 MiB. The identity-final miss takes 11.88 seconds at
+  39,436,288-byte maximum RSS; the backend-disabled hit takes 6.95 seconds at 36,044,800 bytes.
+  `cmp` passes, the ledger has one row, and the direct Bayes CLI is byte-identical.
+- Result SHA-256 is `399580c6c8dcc8cacd87191090bd779ac80f2a2c89d1cbf9b0571a80ebf13155`.
+  Four inference-eligible bin counts are 492/1248/3173/6373 and semivariances are
+  4428.8739/5180.9983/5885.6865/6326.8301. This is one-slide capacity evidence and not patient
+  inference. The 15-file remote bundle rehashes with zero errors; run-manifest SHA-256 is
+  `d9690cb0f716dac2b2032f614c5808d805bff16264d29813cee631046ad7df6f`.
+- Final affected-file diff, whitespace, and status checks follow. No broad workspace/Nextest loop,
+  benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history rewrite
+  command runs.

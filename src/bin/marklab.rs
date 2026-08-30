@@ -50,7 +50,8 @@ fn main() -> marklab::Result<()> {
                         matches!(
                             subcommand.to_str(),
                             Some(
-                                "marked-prepost"
+                                "vector-semivariogram"
+                                    | "marked-prepost"
                                     | "sparse-radius-heat"
                                     | "sparse-radius-basis"
                                     | "sparse-radius-fourier-energy"

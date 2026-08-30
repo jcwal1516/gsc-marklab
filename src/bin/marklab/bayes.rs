@@ -315,7 +315,7 @@ mod embedding_factor;
 #[path = "bayes/embedding_kernel.rs"]
 mod embedding_kernel;
 #[path = "bayes/embedding_spatial.rs"]
-mod embedding_spatial;
+pub(crate) mod embedding_spatial;
 #[path = "bayes/fused_gromov.rs"]
 pub(super) mod fused_gromov;
 #[path = "bayes/geyer.rs"]

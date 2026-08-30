@@ -208,7 +208,9 @@ fn read_projected_points(
     Ok((points, feature_names))
 }
 
-fn read_points(bytes: &[u8]) -> Result<(Vec<EmbeddingSpatialPoint>, Vec<String>), BayesCliError> {
+pub(crate) fn read_points(
+    bytes: &[u8],
+) -> Result<(Vec<EmbeddingSpatialPoint>, Vec<String>), BayesCliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
@@ -258,7 +260,7 @@ struct BinRow {
     upper_um: f64,
 }
 
-pub(super) fn read_bins(bytes: &[u8]) -> Result<Vec<EmbeddingDistanceBin>, BayesCliError> {
+pub(crate) fn read_bins(bytes: &[u8]) -> Result<Vec<EmbeddingDistanceBin>, BayesCliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
@@ -290,7 +292,7 @@ struct WeightRow {
     weight: f64,
 }
 
-fn read_weights(bytes: &[u8]) -> Result<Vec<EmbeddingPairWeight>, BayesCliError> {
+pub(crate) fn read_weights(bytes: &[u8]) -> Result<Vec<EmbeddingPairWeight>, BayesCliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)

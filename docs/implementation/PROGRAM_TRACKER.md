@@ -196,7 +196,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | SIG-01C | blocked with named prerequisite | Requires SIG-01A, multiplicity ownership, and cohort-valid exploratory-map policy. |
 | SIG-01D | blocked with named prerequisite | Requires typed paired variables, direction semantics, weights, and multiplicity. |
 | SIG-01E | data-dependent with named missing data | Missing a prespecified pathology hotspot use case and replicated endpoint data. |
-| SIG-01F | active | Bounded scalar and raw-vector variograms have exact provenance/frame/bin/pair-plan identity and hard work ceilings. The admitted contour/base-MPP nucleus-area block now runs durably across eight patients/16 nested slides with high slide-rank stability, held-out evaluation, exact patient permutation, bootstrap, and Max-T. Its 0.0 balanced-accuracy increment fails fusion without tuning. Raw-vector TCGA 25–100 micrometre patient/field stability and held-out null evidence remain; scalar edge correction/directionality, direct same-schema external agreement, and stable promotion remain. |
+| SIG-01F | active | Bounded scalar and raw-vector variograms have exact provenance/frame/bin/pair-plan identity and hard work ceilings. The nucleus-area block runs durably across eight patients/16 nested slides but fails its positive-increment fusion gate. The complete-vector owner now also has strict durable source/runtime/limit identity, direct byte parity, and real 512-by-1,280 replay. Existing raw-vector TCGA patient/field stability and held-out null evidence remain; durable patient M4 execution, scalar edge/directionality, direct same-schema external agreement, and stable promotion remain. |
 | SIG-01G | data-dependent with named missing data | Missing co-located or correspondence-qualified bivariate observations. |
 | SIG-01H | blocked with named prerequisite | Synthetic distance and graph vector/covariance, leakage-safe projected/kernel, and complete-vector null workflows are runnable; stable promotion requires shared geometry/graph provenance/scale plus canonical vector-input calibration. |
 | SPC-01A | gated pending explicit user decision | The master plan rejects Bartlett branding/default use absent a prespecified endpoint and demonstrated advantage. |
@@ -481,3 +481,12 @@ Median nested-slide stability is 0.881, but the M0/M3 balanced-accuracy incremen
 adjusted endpoint p-values are 0.099. The block is not fused. This completes scalar patient
 replication for the admitted caller without completing broader edge/directional/external-calibration
 coverage or changing SIG-01F/NUL-01D active status.
+
+## Durable raw-vector semivariogram checkpoint 180
+
+The existing complete-vector semivariogram now executes as a cache-addressed project node with
+strict source/bin/weight/native-runtime/limit identity and exact direct-CLI result compatibility.
+The real 512-cell by 1,280-dimension input completes and replays backend-disabled with one ledger
+row. This advances WF-01/WS-12 for the admitted vector caller but is one-slide capacity evidence;
+the existing sealed M4 patient inference remains the population result. SIG-01F stays active for
+durable patient M4 execution and independently justified correction/external-calibration gaps.
