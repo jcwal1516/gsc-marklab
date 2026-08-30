@@ -3139,3 +3139,21 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   Replayed outputs are structurally revalidated from exact input/window/config identities without
   recomputing the variogram. This does not derive nucleus area from CellViT contours, add directional
   bins, select lags, introduce a general scalar importer, or turn cells into patient replicates.
+
+## DEC-0361 — Derive physical nucleus area only for the immediate CellViT scalar caller
+
+- Date: 2026-08-29
+- Status: accepted for SIG-01F/NUL-01D/FND-04/FND-06/WF-01/WS-12/WS-23/WS-31/WS-32
+- Decision: add a separately named `prepare-scalar-variogram` command to the existing frozen CRC
+  categorical worker. Bind every selected CellId to its exact source payload row, require the
+  existing coordinate/type/window correspondence, and derive `nucleus_area_um2` as the absolute
+  shoelace area of the source-pixel CellViT predicted contour multiplied by recorded `base_mpp`
+  squared. Record payload hashes, per-slide MPP, units, derivation, patient/slide nesting, and the
+  existing frozen-mark digest in a version-one scalar input design. Limit each contour to 3--4096
+  finite vertices and reject non-finite or non-positive area.
+- Consequences: the scalar path supplies the exact physical continuous mark required by
+  `marklab project scalar-variogram`; the default categorical preparation and all existing caller
+  identities remain byte-identical. CellViT contours and compartments retain
+  morphology-prediction status. This is not a general scalar importer, contour repair library,
+  pathologist annotation, new result format, patient-level inference, automatic lag selection, or
+  authority to tune an observed null result.

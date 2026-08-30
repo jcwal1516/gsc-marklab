@@ -166,15 +166,50 @@ def _window_covers(window: Any, x_um: float, y_um: float) -> bool:
         return bool(window.covers(Point(x_um, y_um)))
 
 
-def prepare(
+def _contour_area_um2(cell: dict[str, Any], base_mpp: float) -> float:
+    """Return the CellViT contour shoelace area in square micrometers."""
+    contour = cell.get("contour")
+    if (
+        not isinstance(contour, list)
+        or not 3 <= len(contour) <= 4096
+        or not math.isfinite(base_mpp)
+        or base_mpp <= 0.0
+    ):
+        raise CategoricalPairPatientError("CellViT contour or base MPP is invalid")
+    points: list[tuple[float, float]] = []
+    for point in contour:
+        if not isinstance(point, (list, tuple)) or len(point) != 2:
+            raise CategoricalPairPatientError("CellViT contour point is invalid")
+        try:
+            x = float(point[0])
+            y = float(point[1])
+        except (TypeError, ValueError) as error:
+            raise CategoricalPairPatientError("CellViT contour point is invalid") from error
+        if not math.isfinite(x) or not math.isfinite(y):
+            raise CategoricalPairPatientError("CellViT contour point is non-finite")
+        points.append((x, y))
+    cross_products: list[float] = []
+    for index, (x, y) in enumerate(points):
+        next_x, next_y = points[(index + 1) % len(points)]
+        cross_product = x * next_y - next_x * y
+        if not math.isfinite(cross_product):
+            raise CategoricalPairPatientError("CellViT contour area overflows")
+        cross_products.append(cross_product)
+    area_um2 = abs(math.fsum(cross_products)) * 0.5 * base_mpp * base_mpp
+    if not math.isfinite(area_um2) or area_um2 <= 0.0:
+        raise CategoricalPairPatientError("CellViT contour area is not finite and positive")
+    return area_um2
+
+
+def _prepare(
     marks_path: Path,
     inference_root: Path,
     output: Path,
     *,
     adapter=None,
     expected_cells_per_pattern: int = 512,
+    include_nucleus_area: bool,
 ) -> list[dict[str, Any]]:
-    """Bind frozen marks to raw CellViT rows and their exact patch-union windows."""
     marks_path = marks_path.resolve()
     inference_root = inference_root.resolve()
     output = output.resolve()
@@ -296,44 +331,66 @@ def prepare(
                     "frozen mark coordinate, type, or exact-window correspondence differs"
                 )
             patient, _ = pattern_identity[pattern]
-            typed_rows.append(
-                {
-                    "cell_id": point_id,
-                    "x_um": format(x_um, ".17g"),
-                    "y_um": format(y_um, ".17g"),
-                    "mark": int(source_type == "Neoplastic"),
-                    "case_id": patient,
-                    "timepoint": "baseline",
-                    "protein": "cellvit_hard_neoplastic_indicator_unused_by_categorical_pair",
-                    "valid_tumor": "true",
-                    "valid_ihc": "true",
-                    "slide_id": pattern,
-                    "histologic_compartment": source_type,
-                }
-            )
+            typed_row = {
+                "cell_id": point_id,
+                "x_um": format(x_um, ".17g"),
+                "y_um": format(y_um, ".17g"),
+                "mark": int(source_type == "Neoplastic"),
+                "case_id": patient,
+                "timepoint": "baseline",
+                "protein": "cellvit_hard_neoplastic_indicator_unused_by_categorical_pair",
+                "valid_tumor": "true",
+                "valid_ihc": "true",
+                "slide_id": pattern,
+                "histologic_compartment": source_type,
+            }
+            if include_nucleus_area:
+                typed_row["nucleus_area_um2"] = format(
+                    _contour_area_um2(cell, base_mpp), ".17g"
+                )
+            typed_rows.append(typed_row)
         pattern_root = staging / "patterns" / pattern
         cells_path = pattern_root / "cells.csv"
         window_path = pattern_root / "window.geojson"
         _write_csv(cells_path, list(typed_rows[0]), typed_rows)
         _write_json(window_path, geometry)
         patient, group = pattern_identity[pattern]
-        manifest.append(
-            {
-                "pattern_id": pattern,
-                "patient_id": patient,
-                "group": group,
-                "cell_count": len(typed_rows),
-                "cells": cells_path.relative_to(staging).as_posix(),
-                "window": window_path.relative_to(staging).as_posix(),
-                "source_payload_sha256": _sha256(payload_path),
-                "prepared_cells_sha256": _sha256(cells_path),
-                "prepared_window_sha256": _sha256(window_path),
-            }
-        )
+        manifest_row = {
+            "pattern_id": pattern,
+            "patient_id": patient,
+            "group": group,
+            "cell_count": len(typed_rows),
+            "cells": cells_path.relative_to(staging).as_posix(),
+            "window": window_path.relative_to(staging).as_posix(),
+            "source_payload_sha256": _sha256(payload_path),
+            "prepared_cells_sha256": _sha256(cells_path),
+            "prepared_window_sha256": _sha256(window_path),
+        }
+        if include_nucleus_area:
+            manifest_row["base_mpp"] = format(base_mpp, ".17g")
+        manifest.append(manifest_row)
     _write_csv(staging / "manifest.csv", list(manifest[0]), manifest)
-    _write_json(
-        staging / "design.json",
-        {
+    if include_nucleus_area:
+        design = {
+            "schema_name": "marklab_crc_scalar_variogram_input_design",
+            "schema_version": "1.0",
+            "population_unit": "patient",
+            "pattern_unit": "slide_nested_within_patient",
+            "patient_count": len(patient_patterns),
+            "pattern_count": len(manifest),
+            "cells_per_pattern": expected_cells_per_pattern,
+            "mark": "nucleus_area_um2",
+            "mark_unit": "square_micrometer",
+            "mark_source": "cellvit_predicted_nucleus_contour",
+            "mark_derivation": "absolute_shoelace_contour_area_pixels_squared_times_base_mpp_squared",
+            "contour_coordinate_unit": "source_pixel",
+            "base_mpp_unit": "micrometer_per_source_pixel",
+            "selection_uses_molecular_label": False,
+            "source_marks_sha256": source_digest,
+            "finite_result_policy": "reject_non_finite_or_non_positive_contour_area",
+        }
+    else:
+        design = {
             "schema_name": "marklab_crc_categorical_pair_patient_design",
             "schema_version": "1.0",
             "population_unit": "patient",
@@ -353,10 +410,51 @@ def prepare(
             "selection_uses_molecular_label": False,
             "source_marks_sha256": source_digest,
             "finite_result_policy": "reject_non_finite_input_or_output_and_retain_structurally_unavailable_endpoints",
-        },
+        }
+    _write_json(
+        staging / "design.json",
+        design,
     )
     os.rename(staging, output)
     return manifest
+
+
+def prepare(
+    marks_path: Path,
+    inference_root: Path,
+    output: Path,
+    *,
+    adapter=None,
+    expected_cells_per_pattern: int = 512,
+) -> list[dict[str, Any]]:
+    """Bind frozen marks to raw CellViT rows and exact patch-union windows."""
+    return _prepare(
+        marks_path,
+        inference_root,
+        output,
+        adapter=adapter,
+        expected_cells_per_pattern=expected_cells_per_pattern,
+        include_nucleus_area=False,
+    )
+
+
+def prepare_scalar_variogram(
+    marks_path: Path,
+    inference_root: Path,
+    output: Path,
+    *,
+    adapter=None,
+    expected_cells_per_pattern: int = 512,
+) -> list[dict[str, Any]]:
+    """Prepare CellViT contour area as a physical scalar mark for variograms."""
+    return _prepare(
+        marks_path,
+        inference_root,
+        output,
+        adapter=adapter,
+        expected_cells_per_pattern=expected_cells_per_pattern,
+        include_nucleus_area=True,
+    )
 
 
 def execute(
@@ -1073,6 +1171,10 @@ def parse_args() -> argparse.Namespace:
     prepare_parser.add_argument("--marks", required=True, type=Path)
     prepare_parser.add_argument("--inference-root", required=True, type=Path)
     prepare_parser.add_argument("--out", required=True, type=Path)
+    scalar_prepare_parser = commands.add_parser("prepare-scalar-variogram")
+    scalar_prepare_parser.add_argument("--marks", required=True, type=Path)
+    scalar_prepare_parser.add_argument("--inference-root", required=True, type=Path)
+    scalar_prepare_parser.add_argument("--out", required=True, type=Path)
     execute_parser = commands.add_parser("execute")
     execute_parser.add_argument("--prepared", required=True, type=Path)
     execute_parser.add_argument("--marklab", required=True, type=Path)
@@ -1104,6 +1206,10 @@ def main() -> None:
     arguments = parse_args()
     if arguments.command == "prepare":
         prepare(arguments.marks, arguments.inference_root, arguments.out)
+    elif arguments.command == "prepare-scalar-variogram":
+        prepare_scalar_variogram(
+            arguments.marks, arguments.inference_root, arguments.out
+        )
     elif arguments.command == "execute":
         execute(
             arguments.prepared,

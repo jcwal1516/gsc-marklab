@@ -211,7 +211,18 @@ class CrcCategoricalPairPatientTest(unittest.TestCase):
                         type_id = cell_index % len(type_names) + 1
                         x = float(5 + cell_index * 5)
                         y = float(10 + slide_index * 10)
-                        cells.append({"centroid": [x, y], "type": type_id})
+                        cells.append(
+                            {
+                                "centroid": [x, y],
+                                "contour": [
+                                    [x - 1.0, y - 1.0],
+                                    [x + 1.0, y - 1.0],
+                                    [x + 1.0, y + 1.0],
+                                    [x - 1.0, y + 1.0],
+                                ],
+                                "type": type_id,
+                            }
+                        )
                         rows.append(
                             {
                                 "pattern_id": pattern,
@@ -260,6 +271,40 @@ class CrcCategoricalPairPatientTest(unittest.TestCase):
                 prepared,
                 adapter=FakeAdapter(),
                 expected_cells_per_pattern=8,
+            )
+            default_cells = prepared / manifest[0]["cells"]
+            with default_cells.open(newline="", encoding="utf-8") as source:
+                self.assertNotIn("nucleus_area_um2", next(csv.reader(source)))
+
+            scalar_prepared = root / "scalar_prepared"
+            scalar_manifest = module.prepare_scalar_variogram(
+                marks_path,
+                inference,
+                scalar_prepared,
+                adapter=FakeAdapter(),
+                expected_cells_per_pattern=8,
+            )
+            with (scalar_prepared / scalar_manifest[0]["cells"]).open(
+                newline="", encoding="utf-8"
+            ) as source:
+                scalar_rows = list(csv.DictReader(source))
+            scalar_design = json.loads(
+                (scalar_prepared / "design.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual({row["nucleus_area_um2"] for row in scalar_rows}, {"4"})
+            self.assertEqual(
+                scalar_design["schema_name"],
+                "marklab_crc_scalar_variogram_input_design",
+            )
+            self.assertEqual(scalar_design["mark"], "nucleus_area_um2")
+            self.assertEqual(scalar_design["mark_unit"], "square_micrometer")
+            self.assertEqual(
+                scalar_design["mark_derivation"],
+                "absolute_shoelace_contour_area_pixels_squared_times_base_mpp_squared",
+            )
+            self.assertEqual(
+                {row["base_mpp"] for row in scalar_manifest},
+                {"1"},
             )
             module.execute(prepared, fake, executed, 2, 30, replay=False)
             replay = module.execute(prepared, fake, executed, 2, 30, replay=True)
@@ -380,6 +425,25 @@ class CrcCategoricalPairPatientTest(unittest.TestCase):
                     corrected_summary["promotion_status"],
                     "nonincremental_not_promoted",
                 )
+
+    def test_contour_area_rejects_malformed_or_degenerate_cellvit_geometry(self):
+        module = load_module()
+        self.assertEqual(
+            module._contour_area_um2(
+                {"contour": [[0.0, 0.0], [2.0, 0.0], [2.0, 2.0], [0.0, 2.0]]},
+                0.5,
+            ),
+            1.0,
+        )
+        for contour in (
+            None,
+            [[0.0, 0.0], [1.0, 1.0]],
+            [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]],
+            [[0.0, 0.0], [math.nan, 1.0], [1.0, 0.0]],
+        ):
+            with self.subTest(contour=contour):
+                with self.assertRaises(module.CategoricalPairPatientError):
+                    module._contour_area_um2({"contour": contour}, 1.0)
 
 
 if __name__ == "__main__":

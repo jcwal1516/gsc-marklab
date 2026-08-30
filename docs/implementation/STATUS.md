@@ -3644,3 +3644,34 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - Five affected Moran/Geary/variogram and categorical CLI tests pass. Warning-denied affected
   Clippy, package no-default compilation, strict affected docs, and formatting pass. No broad
   workspace/Nextest loop, backend, benchmark, fuzzing, packaging, dependency, or publication run.
+
+## Real CellViT contour-area scalar variogram checkpoint 178 — 2026-08-29
+
+- Added a separate `prepare-scalar-variogram` path to the existing frozen CRC categorical worker.
+  It verifies each selected CellViT source row, computes the absolute shoelace area of its admitted
+  pixel-space predicted contour, multiplies by the recorded `base_mpp` squared, and writes the
+  morphology-predicted `nucleus_area_um2` mark with exact source-payload, scale, unit, derivation,
+  patient, slide, cell, and window provenance. Contours are limited to 3--4096 finite vertices and
+  derived areas must be finite and positive.
+- The default categorical `prepare` path remains separate and unchanged. A fresh real preparation
+  over all eight patients, 16 slides, and 512 cells per slide is byte-identical to the sealed v54
+  preparation tree. The scalar preparation admits all 16 frozen slides; the first fixed pattern has
+  areas 2.3456--94.2629 square micrometres at 0.2501 micrometres per source pixel.
+- The prespecified first slide runs `marklab project scalar-variogram` at 0/25/50/100-micrometre
+  lag edges with histologic-compartment conditioning, 19 whole-value permutations, seed 20260829,
+  130,816 pair visits, and a 64-MiB ceiling. Semivariances are 162.4852, 167.4144, and 166.4334
+  square-micrometre-squared; all are inside the simultaneous envelopes and global p is 1.0. This
+  null-compatible one-specimen result is retained as capacity evidence, not patient inference.
+- The miss completes in 11.13 seconds at 22,757,376-byte maximum RSS. A fresh process with external
+  backend execution disabled returns a byte-identical hit in 6.07 seconds; the result SHA-256 is
+  `bd2dc7a02be8bba4e82d0558a2146736cf578c5ce9dec44f7e6d7a0ce16cbcc7` and the ledger has one row.
+  The 90-file bundle is
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v58-scalar-variogram-work`; its run manifest
+  hashes to `c42f0284a8dd5e0f9bbefb097acc07976ce09665e11c636a6b16ffc5c0b59585`, and an independent
+  complete rehash reports zero errors.
+- The two-test Python workflow suite, worker/test byte compilation, current CLI binary build,
+  focused whitespace checks, remote compatibility comparison, result comparison, ledger check, and
+  bundle rehash pass. No Rust production source changed after checkpoint 177, so affected Rust
+  Clippy/no-default/docs are unchanged and not repeated. No broad workspace/Nextest loader loop,
+  tuning, benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history
+  rewrite runs.

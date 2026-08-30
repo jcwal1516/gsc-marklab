@@ -1715,3 +1715,15 @@ The frozen CRC categorical CSV has no nucleus-area column; upstream contours are
 converted into a physical area mark without a separate scale/provenance contract, so no real scalar
 result is claimed. Production next should advance another already-admitted continuous/vector caller
 or the explicit contour-to-area provenance boundary, not fabricate a mark or general importer.
+
+## Checkpoint 178 real CellViT contour-area scalar variogram
+
+The explicit contour-to-area boundary is complete for the immediate scalar caller. A separate
+preparation command binds each frozen CellId to its exact CellViT payload, derives physical nucleus
+area by finite bounded shoelace geometry and recorded base MPP, and leaves the default categorical
+preparation byte-identical. The fixed first 512-cell slide completes the compartment-conditioned
+0/25/50/100-micrometre variogram and fresh-process backend-disabled replay with one ledger row. Its
+global p=1.0 result is null-compatible one-specimen capacity evidence and is not promoted as a
+patient or biological finding. Production next must use an already-admitted patient-level
+continuous/vector caller; do not generalize this command into a scalar importer or tune the null,
+lags, mark, threshold, subset, or scale from this result.

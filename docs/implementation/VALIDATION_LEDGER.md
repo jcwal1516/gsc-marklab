@@ -4391,3 +4391,36 @@ vascular transport.
 - Final direct diff, whitespace, and status checks follow. No broad workspace/Nextest loader,
   external backend, benchmark, fuzzing, packaging, dependency, push, publication, deployment, or
   history rewrite command runs.
+
+## Real CellViT contour-area scalar variogram checkpoint 178 — 2026-08-29
+
+- Red-first `env PYTHONDONTWRITEBYTECODE=1 target/pymc-venv/bin/python -m unittest
+  tests.python.test_crc_categorical_pair_patient.CrcCategoricalPairPatientTest.test_contour_area_rejects_malformed_or_degenerate_cellvit_geometry`
+  fails because `_contour_area_um2` is absent. It passes after adding bounded finite shoelace
+  geometry. The full two-test categorical patient module passes in 6.73 seconds and `py_compile`
+  passes for the worker and test.
+- `cargo +1.96.0 build --locked --features cli --bin marklab` passes in 24.42 seconds; binary
+  SHA-256 is `3a0783ce9520d00e8be5e6ea4c1f9cd94548a45ff2cff7def91b1087cd9185be` locally and remotely.
+  The pinned CellViT Python environment first confirms a 25-vertex real contour, base MPP 0.2501,
+  and finite 9.91418-square-micrometre first-row area.
+- `prepare-scalar-variogram` reads the hash-frozen marks and admitted CellViT inference root in
+  1.90 seconds at 146,735,104-byte maximum RSS. It writes 16 patterns of 512 finite positive areas;
+  the first pattern spans 2.34563--94.2629 square micrometres. A separate default `prepare` followed
+  by `diff -qr` against the sealed v54 tree passes with no differences.
+- The fixed real `marklab project scalar-variogram` command uses pattern
+  `0aef1fe8-ca61-4113-81d0-d82ee7`, lag edges 0/25/50/100 micrometres, compartment conditioning,
+  19 permutations, seed 20260829, alpha 0.05, 64 MiB, 130,816 pair visits, and 2,485,504 maximum
+  permutation pair evaluations. The miss takes 11.13 seconds at 22,757,376-byte maximum RSS; the
+  backend-disabled hit takes 6.07 seconds. `cmp` passes, result SHA-256 is
+  `bd2dc7a02be8bba4e82d0558a2146736cf578c5ce9dec44f7e6d7a0ce16cbcc7`, and `wc -l` reports one
+  project execution.
+- An exact-bit decoder reports semivariances 162.4852, 167.4144, and 166.4334, all inside the
+  simultaneous envelopes, with three eligible bins and global p=1.0. The null-compatible outcome
+  is retained without lag, threshold, subset, null, or model tuning and is not patient evidence.
+  The sealed 90-file remote bundle rehashes with zero errors; run-manifest SHA-256 is
+  `c42f0284a8dd5e0f9bbefb097acc07976ce09665e11c636a6b16ffc5c0b59585`.
+- `git diff --check` passes for the focused production/test files. Final affected-file diff,
+  whitespace, and status checks follow. No Rust source changed after checkpoint 177, so its
+  warning-denied Clippy, no-default, strict docs, and formatting evidence remains current and is
+  not repeated. No broad workspace/Nextest loop, benchmark, fuzzing, packaging, dependency, push,
+  publication, deployment, or history rewrite command runs.
