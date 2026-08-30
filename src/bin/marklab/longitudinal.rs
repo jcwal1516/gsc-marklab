@@ -95,19 +95,7 @@ pub(crate) fn into_marklab_error(error: LongitudinalCliError) -> marklab::Markla
 }
 
 fn run_linear(input_path: PathBuf, output_path: PathBuf) -> Result<(), LongitudinalCliError> {
-    let metadata = fs::metadata(&input_path).map_err(|source| LongitudinalCliError::Io {
-        path: input_path.clone(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(LongitudinalCliError::Input(
-            "input must be a regular file within 16 MiB".into(),
-        ));
-    }
-    let bytes = fs::read(&input_path).map_err(|source| LongitudinalCliError::Io {
-        path: input_path,
-        source,
-    })?;
+    let bytes = read_input(input_path)?;
     let spec: LinearGaussianStateSpaceSpec = serde_json::from_slice(&bytes)?;
     let result = kalman_filter_and_smooth(spec)
         .map_err(|error| LongitudinalCliError::Input(error.to_string()))?;
@@ -115,19 +103,7 @@ fn run_linear(input_path: PathBuf, output_path: PathBuf) -> Result<(), Longitudi
 }
 
 fn run_nonlinear(input_path: PathBuf, output_path: PathBuf) -> Result<(), LongitudinalCliError> {
-    let metadata = fs::metadata(&input_path).map_err(|source| LongitudinalCliError::Io {
-        path: input_path.clone(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(LongitudinalCliError::Input(
-            "input must be a regular file within 16 MiB".into(),
-        ));
-    }
-    let bytes = fs::read(&input_path).map_err(|source| LongitudinalCliError::Io {
-        path: input_path,
-        source,
-    })?;
+    let bytes = read_input(input_path)?;
     let spec: ScalarNonlinearFilterSpec = serde_json::from_slice(&bytes)?;
     let result = nonlinear_gaussian_filter(spec)
         .map_err(|error| LongitudinalCliError::Input(error.to_string()))?;
@@ -135,19 +111,7 @@ fn run_nonlinear(input_path: PathBuf, output_path: PathBuf) -> Result<(), Longit
 }
 
 fn run_particle(input_path: PathBuf, output_path: PathBuf) -> Result<(), LongitudinalCliError> {
-    let metadata = fs::metadata(&input_path).map_err(|source| LongitudinalCliError::Io {
-        path: input_path.clone(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(LongitudinalCliError::Input(
-            "input must be a regular file within 16 MiB".into(),
-        ));
-    }
-    let bytes = fs::read(&input_path).map_err(|source| LongitudinalCliError::Io {
-        path: input_path,
-        source,
-    })?;
+    let bytes = read_input(input_path)?;
     let spec: ScalarParticleSmootherSpec = serde_json::from_slice(&bytes)?;
     let result = particle_filter_and_smooth(spec)
         .map_err(|error| LongitudinalCliError::Input(error.to_string()))?;
@@ -158,6 +122,14 @@ fn run_phylogenetic_association(
     input_path: PathBuf,
     output_path: PathBuf,
 ) -> Result<(), LongitudinalCliError> {
+    let bytes = read_input(input_path)?;
+    let spec: PhylogeneticSpatialAssociationSpec = serde_json::from_slice(&bytes)?;
+    let result = phylogenetic_spatial_association(spec)
+        .map_err(|error| LongitudinalCliError::Input(error.to_string()))?;
+    publish_json(&output_path, &result)
+}
+
+fn read_input(input_path: PathBuf) -> Result<Vec<u8>, LongitudinalCliError> {
     let metadata = fs::metadata(&input_path).map_err(|source| LongitudinalCliError::Io {
         path: input_path.clone(),
         source,
@@ -167,14 +139,10 @@ fn run_phylogenetic_association(
             "input must be a regular file within 16 MiB".into(),
         ));
     }
-    let bytes = fs::read(&input_path).map_err(|source| LongitudinalCliError::Io {
+    fs::read(&input_path).map_err(|source| LongitudinalCliError::Io {
         path: input_path,
         source,
-    })?;
-    let spec: PhylogeneticSpatialAssociationSpec = serde_json::from_slice(&bytes)?;
-    let result = phylogenetic_spatial_association(spec)
-        .map_err(|error| LongitudinalCliError::Input(error.to_string()))?;
-    publish_json(&output_path, &result)
+    })
 }
 
 fn publish_json(path: &Path, result: &impl Serialize) -> Result<(), LongitudinalCliError> {

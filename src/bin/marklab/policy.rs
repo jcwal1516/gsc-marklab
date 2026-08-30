@@ -152,19 +152,7 @@ fn read_bounded(path: &Path) -> Result<Vec<u8>, PolicyCliError> {
 }
 
 fn run_validation_ladder(input: PathBuf, out: PathBuf) -> Result<(), PolicyCliError> {
-    let metadata = fs::metadata(&input).map_err(|source| PolicyCliError::Io {
-        path: input.clone(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(PolicyCliError::Input(
-            "input must be a regular file within 16 MiB".into(),
-        ));
-    }
-    let bytes = fs::read(&input).map_err(|source| PolicyCliError::Io {
-        path: input,
-        source,
-    })?;
+    let bytes = read_bounded(&input)?;
     let spec: ValidationLadderSpec = serde_json::from_slice(&bytes)?;
     let result = evaluate_validation_ladder(spec)
         .map_err(|error| PolicyCliError::Input(error.to_string()))?;
@@ -172,19 +160,7 @@ fn run_validation_ladder(input: PathBuf, out: PathBuf) -> Result<(), PolicyCliEr
 }
 
 fn run_mode(input: PathBuf, out: PathBuf) -> Result<(), PolicyCliError> {
-    let metadata = fs::metadata(&input).map_err(|source| PolicyCliError::Io {
-        path: input.clone(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(PolicyCliError::Input(
-            "input must be a regular file within 16 MiB".into(),
-        ));
-    }
-    let bytes = fs::read(&input).map_err(|source| PolicyCliError::Io {
-        path: input,
-        source,
-    })?;
+    let bytes = read_bounded(&input)?;
     let spec: ExecutionModeSelectionSpec = serde_json::from_slice(&bytes)?;
     let result =
         select_execution_mode(spec).map_err(|error| PolicyCliError::Input(error.to_string()))?;
@@ -196,19 +172,7 @@ pub(crate) fn into_marklab_error(error: PolicyCliError) -> marklab::MarklabError
 }
 
 fn run(input: PathBuf, out: PathBuf) -> Result<(), PolicyCliError> {
-    let metadata = fs::metadata(&input).map_err(|source| PolicyCliError::Io {
-        path: input.clone(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(PolicyCliError::Input(
-            "input must be a regular file within 16 MiB".into(),
-        ));
-    }
-    let bytes = fs::read(&input).map_err(|source| PolicyCliError::Io {
-        path: input,
-        source,
-    })?;
+    let bytes = read_bounded(&input)?;
     let spec: ResultMaturitySpec = serde_json::from_slice(&bytes)?;
     let result = determine_result_maturity(spec)
         .map_err(|error| PolicyCliError::Input(error.to_string()))?;

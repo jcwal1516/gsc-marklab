@@ -111,19 +111,7 @@ pub(crate) fn run_cli() -> Result<(), CausalCliError> {
 }
 
 fn run_rosenbaum(input: PathBuf, out: PathBuf) -> Result<(), CausalCliError> {
-    let metadata = fs::metadata(&input).map_err(|source| CausalCliError::Io {
-        path: input.clone(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(CausalCliError::Input(
-            "input must be a regular file within 16 MiB".into(),
-        ));
-    }
-    let bytes = fs::read(&input).map_err(|source| CausalCliError::Io {
-        path: input,
-        source,
-    })?;
+    let bytes = read_input(input)?;
     let spec: RosenbaumSignSensitivitySpec = serde_json::from_slice(&bytes)?;
     let result = rosenbaum_sign_sensitivity(spec)
         .map_err(|error| CausalCliError::Input(error.to_string()))?;
@@ -131,19 +119,7 @@ fn run_rosenbaum(input: PathBuf, out: PathBuf) -> Result<(), CausalCliError> {
 }
 
 fn run_manski_bounds(input: PathBuf, out: PathBuf) -> Result<(), CausalCliError> {
-    let metadata = fs::metadata(&input).map_err(|source| CausalCliError::Io {
-        path: input.clone(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(CausalCliError::Input(
-            "input must be a regular file within 16 MiB".into(),
-        ));
-    }
-    let bytes = fs::read(&input).map_err(|source| CausalCliError::Io {
-        path: input,
-        source,
-    })?;
+    let bytes = read_input(input)?;
     let spec: ManskiBoundedOutcomeSpec = serde_json::from_slice(&bytes)?;
     let result = manski_bounded_outcome_ate(spec)
         .map_err(|error| CausalCliError::Input(error.to_string()))?;
@@ -151,19 +127,7 @@ fn run_manski_bounds(input: PathBuf, out: PathBuf) -> Result<(), CausalCliError>
 }
 
 fn run_bias_sensitivity(input: PathBuf, out: PathBuf) -> Result<(), CausalCliError> {
-    let metadata = fs::metadata(&input).map_err(|source| CausalCliError::Io {
-        path: input.clone(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(CausalCliError::Input(
-            "input must be a regular file within 16 MiB".into(),
-        ));
-    }
-    let bytes = fs::read(&input).map_err(|source| CausalCliError::Io {
-        path: input,
-        source,
-    })?;
+    let bytes = read_input(input)?;
     let spec: BiasSensitivitySpec = serde_json::from_slice(&bytes)?;
     let result = binary_confounder_bias_sensitivity(spec)
         .map_err(|error| CausalCliError::Input(error.to_string()))?;
@@ -171,19 +135,7 @@ fn run_bias_sensitivity(input: PathBuf, out: PathBuf) -> Result<(), CausalCliErr
 }
 
 fn run_gaussian_eig(input: PathBuf, out: PathBuf) -> Result<(), CausalCliError> {
-    let metadata = fs::metadata(&input).map_err(|source| CausalCliError::Io {
-        path: input.clone(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(CausalCliError::Input(
-            "input must be a regular file within 16 MiB".into(),
-        ));
-    }
-    let bytes = fs::read(&input).map_err(|source| CausalCliError::Io {
-        path: input,
-        source,
-    })?;
+    let bytes = read_input(input)?;
     let spec: GaussianEigSpec = serde_json::from_slice(&bytes)?;
     let result = estimate_gaussian_expected_information_gain(spec)
         .map_err(|error| CausalCliError::Input(error.to_string()))?;
@@ -191,19 +143,7 @@ fn run_gaussian_eig(input: PathBuf, out: PathBuf) -> Result<(), CausalCliError> 
 }
 
 fn run_exposure_mapping(input: PathBuf, out: PathBuf) -> Result<(), CausalCliError> {
-    let metadata = fs::metadata(&input).map_err(|source| CausalCliError::Io {
-        path: input.clone(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(CausalCliError::Input(
-            "input must be a regular file within 16 MiB".into(),
-        ));
-    }
-    let bytes = fs::read(&input).map_err(|source| CausalCliError::Io {
-        path: input,
-        source,
-    })?;
+    let bytes = read_input(input)?;
     let spec: ExposureMappingSpec = serde_json::from_slice(&bytes)?;
     let result = compute_spatial_exposure_mapping(spec)
         .map_err(|error| CausalCliError::Input(error.to_string()))?;
@@ -215,6 +155,14 @@ pub(crate) fn into_marklab_error(error: CausalCliError) -> marklab::MarklabError
 }
 
 fn run(input: PathBuf, out: PathBuf) -> Result<(), CausalCliError> {
+    let bytes = read_input(input)?;
+    let spec: RandomizedInterferenceSpec = serde_json::from_slice(&bytes)?;
+    let result = randomized_binary_interference(spec)
+        .map_err(|error| CausalCliError::Input(error.to_string()))?;
+    publish_json(&out, &result)
+}
+
+fn read_input(input: PathBuf) -> Result<Vec<u8>, CausalCliError> {
     let metadata = fs::metadata(&input).map_err(|source| CausalCliError::Io {
         path: input.clone(),
         source,
@@ -224,14 +172,10 @@ fn run(input: PathBuf, out: PathBuf) -> Result<(), CausalCliError> {
             "input must be a regular file within 16 MiB".into(),
         ));
     }
-    let bytes = fs::read(&input).map_err(|source| CausalCliError::Io {
+    fs::read(&input).map_err(|source| CausalCliError::Io {
         path: input,
         source,
-    })?;
-    let spec: RandomizedInterferenceSpec = serde_json::from_slice(&bytes)?;
-    let result = randomized_binary_interference(spec)
-        .map_err(|error| CausalCliError::Input(error.to_string()))?;
-    publish_json(&out, &result)
+    })
 }
 
 fn publish_json(path: &Path, result: &impl Serialize) -> Result<(), CausalCliError> {

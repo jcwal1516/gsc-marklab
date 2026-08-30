@@ -134,19 +134,7 @@ pub(crate) fn into_marklab_error(error: Spatial3dCliError) -> marklab::MarklabEr
 }
 
 fn run(input: PathBuf, out: PathBuf) -> Result<(), Spatial3dCliError> {
-    let metadata = fs::metadata(&input).map_err(|source| Spatial3dCliError::Io {
-        path: input.clone(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(Spatial3dCliError::Input(
-            "input must be a regular file within 16 MiB".into(),
-        ));
-    }
-    let bytes = fs::read(&input).map_err(|source| Spatial3dCliError::Io {
-        path: input,
-        source,
-    })?;
+    let bytes = read_input(input)?;
     let spec: HomogeneousK3dSpec = serde_json::from_slice(&bytes)?;
     let result =
         homogeneous_k3d(spec).map_err(|error| Spatial3dCliError::Input(error.to_string()))?;
