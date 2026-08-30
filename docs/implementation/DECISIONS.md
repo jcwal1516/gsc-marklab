@@ -3157,3 +3157,20 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   morphology-prediction status. This is not a general scalar importer, contour repair library,
   pathologist annotation, new result format, patient-level inference, automatic lag selection, or
   authority to tune an observed null result.
+
+## DEC-0362 — Reduce real scalar variograms only at the patient population unit
+
+- Date: 2026-08-29
+- Status: accepted for SIG-01F/NUL-01D/CMP-01F/FND-04/FND-06/WF-01/WS-12/WS-23/WS-31/WS-32
+- Decision: run the existing durable scalar-variogram command once per frozen nested slide at the
+  already declared 0/25/50/100-micrometre lag edges, with histologic-compartment whole-value
+  random labeling, 19 permutations, seed 20260829, and exact work/memory/time ceilings. Reduce both
+  slides within each patient before population analysis. Reuse the existing fold-internal M0/M3
+  held-out model, complete-patient bootstrap and exact label permutation, and patient step-down
+  Max-T family. Require median nested-slide rank stability at least 0.60 and strictly positive
+  held-out balanced-accuracy increment before any fusion candidate status.
+- Consequences: slide curves remain diagnostics rather than population replicates, exact-float
+  results are decoded and identity-checked at the Rust/Python boundary, and all 16 projects replay
+  backend-disabled without another execution. A stable but nonincremental result is retained and
+  excluded from fusion. This does not add automatic lag/mark/null selection, retune the observed
+  result, impute site identity, claim external validation, or generalize a fingerprint registry.

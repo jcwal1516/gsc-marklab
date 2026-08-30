@@ -56,10 +56,64 @@ import json
 import math
 import os
 from pathlib import Path
+import struct
 import sys
 
 args = sys.argv[1:]
-if args[:2] in (
+if args[:2] == ["project", "scalar-variogram"]:
+    def value(name):
+        return args[args.index(name) + 1]
+    def exact(value):
+        return {"__marklab_f64_bits": struct.unpack(">Q", struct.pack(">d", value))[0]}
+    project = Path(value("--project"))
+    output = Path(value("--out"))
+    stored = project / "stored.json"
+    if os.environ.get("MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION") == "1":
+        if not stored.is_file():
+            raise SystemExit("backend-disabled replay missed")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(stored.read_bytes())
+        print("project scalar-variogram cache_status=hit", file=sys.stderr)
+        raise SystemExit(0)
+    pattern = project.parts[-1]
+    offset = (sum(map(ord, pattern)) % 7) / 10.0
+    curve = []
+    for index, (lower, upper) in enumerate(((0.0, 25.0), (25.0, 50.0), (50.0, 100.0))):
+        semivariance = 4.0 + index + offset
+        curve.append({
+            "observed": {
+                "lower_um": exact(lower),
+                "upper_um": exact(upper),
+                "upper_inclusive": index == 2,
+                "pair_count": 10 + index,
+                "semivariance": exact(semivariance),
+            },
+            "lower_global_envelope": exact(semivariance - 1.0),
+            "upper_global_envelope": exact(semivariance + 1.0),
+        })
+    document = {
+        "format": "marklab.scalar-semivariogram-inference/1",
+        "point_count": 8,
+        "mark_id": "nucleus_area_um2",
+        "measurement_status": "morphology_prediction",
+        "conditioning": "histologic_compartment",
+        "conditioning_mark_id": "histologic_compartment",
+        "conditioning_measurement_status": "morphology_prediction",
+        "permutations_requested": 19,
+        "permutations_completed": 19,
+        "seed": 20260829,
+        "eligible_bin_count": 3,
+        "p_global": exact(1.0),
+        "curve": curve,
+    }
+    encoded = (json.dumps(document, sort_keys=True) + "\n").encode()
+    project.mkdir(parents=True, exist_ok=True)
+    stored.write_bytes(encoded)
+    (project / "executions.jsonl").write_text("{}\n", encoding="utf-8")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_bytes(encoded)
+    print("project scalar-variogram cache_status=miss", file=sys.stderr)
+elif args[:2] in (
     ["project", "categorical-pair"],
     ["project", "categorical-cross-pair-correlation"],
     ["project", "translation-categorical-cross-pair-correlation"],
@@ -306,6 +360,43 @@ class CrcCategoricalPairPatientTest(unittest.TestCase):
                 {row["base_mpp"] for row in scalar_manifest},
                 {"1"},
             )
+            scalar_execution = root / "scalar_execution"
+            module.execute_scalar_variogram_patient(
+                scalar_prepared,
+                fake,
+                scalar_execution,
+                2,
+                30,
+                replay=False,
+            )
+            scalar_replay = module.execute_scalar_variogram_patient(
+                scalar_prepared,
+                fake,
+                scalar_execution,
+                2,
+                30,
+                replay=True,
+            )
+            scalar_summary = module.summarize_scalar_variogram_patient(
+                scalar_prepared,
+                scalar_execution,
+                baseline,
+                fake,
+                root / "scalar_summary",
+                20260829,
+            )
+            self.assertEqual(scalar_replay["cache_status_counts"], {"hit": 16})
+            self.assertTrue(scalar_replay["all_replay_bytes_equal"])
+            self.assertEqual(
+                scalar_summary["schema_name"],
+                "marklab_crc_scalar_variogram_patient_summary",
+            )
+            self.assertEqual(scalar_summary["admitted_endpoint_count"], 3)
+            self.assertTrue(scalar_summary["leakage_checks"]["patient_held_out"])
+            self.assertIn(
+                "balanced_accuracy_increment",
+                scalar_summary["incremental_information"],
+            )
             module.execute(prepared, fake, executed, 2, 30, replay=False)
             replay = module.execute(prepared, fake, executed, 2, 30, replay=True)
             summary = module.summarize(
@@ -444,6 +535,16 @@ class CrcCategoricalPairPatientTest(unittest.TestCase):
             with self.subTest(contour=contour):
                 with self.assertRaises(module.CategoricalPairPatientError):
                     module._contour_area_um2({"contour": contour}, 1.0)
+        self.assertEqual(
+            module._decode_exact_float_json(
+                {"value": {"__marklab_f64_bits": 4607182418800017408}}
+            ),
+            {"value": 1.0},
+        )
+        for bits in (True, -1, 1 << 64, 9218868437227405312):
+            with self.subTest(bits=bits):
+                with self.assertRaises(module.CategoricalPairPatientError):
+                    module._decode_exact_float_json({"__marklab_f64_bits": bits})
 
 
 if __name__ == "__main__":

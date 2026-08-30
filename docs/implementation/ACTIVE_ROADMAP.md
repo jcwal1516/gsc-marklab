@@ -1727,3 +1727,14 @@ global p=1.0 result is null-compatible one-specimen capacity evidence and is not
 patient or biological finding. Production next must use an already-admitted patient-level
 continuous/vector caller; do not generalize this command into a scalar importer or tune the null,
 lags, mark, threshold, subset, or scale from this result.
+
+## Checkpoint 179 patient CellViT scalar variogram
+
+The contour-area scalar block now runs over the complete frozen eight-patient/16-slide subset with
+bounded parallel durable misses, fresh backend-disabled hits, slide-within-patient stability,
+fold-internal held-out evaluation, exact whole-patient label permutation, patient bootstrap, and
+step-down Max-T. Stability is high, but adding the block to M0/M3 changes balanced accuracy by 0.0
+with interval [-0.375, 0.375]; all adjusted endpoint p-values are 0.099. The prespecified positive
+increment gate therefore excludes it from fusion without tuning. SIG-01F remains active only for
+independently justified correction/external calibration or a different admitted continuous/vector
+caller; do not add scalar variants merely to rescue this null/nonincremental result.

@@ -4424,3 +4424,37 @@ vascular transport.
   warning-denied Clippy, no-default, strict docs, and formatting evidence remains current and is
   not repeated. No broad workspace/Nextest loop, benchmark, fuzzing, packaging, dependency, push,
   publication, deployment, or history rewrite command runs.
+
+## Patient CellViT scalar-variogram checkpoint 179 — 2026-08-29
+
+- Red-first `env PYTHONDONTWRITEBYTECODE=1 target/pymc-venv/bin/python -m unittest
+  tests.python.test_crc_categorical_pair_patient.CrcCategoricalPairPatientTest.test_patient_workflow_prepares_executes_replays_and_summarizes`
+  fails only because `execute_scalar_variogram_patient` is absent. It passes after adding the
+  bounded executor, strict exact-float boundary decoder, patient summary, and two user-facing scalar
+  subcommands. The final full two-test module passes in 7.99 seconds; in-memory source compilation
+  and focused `git diff --check` pass.
+- The fake integration produces 16 misses followed by 16 backend-disabled hits with byte equality
+  and one-row ledgers, decodes exact IEEE-754 bit objects, admits three fixed lag endpoints, nests
+  slides inside eight patients, fits transformations inside each held-out fold, runs all 70 whole-
+  patient group assignments, and validates patient Max-T. Invalid bit ranges and non-finite exact
+  values fail explicitly.
+- On the Mac mini, six processes complete all 16 real misses in 28.09 seconds at 22,790,144-byte
+  parent maximum RSS. A fresh backend-disabled process completes all 16 hits in 24.76 seconds at
+  24,100,864 bytes. Execution/replay manifests report 16 misses/16 hits, all result bytes equal, and
+  all ledgers at one execution; an independent count finds 16 total ledger rows.
+- The real summary completes in 0.95 seconds at 39,043,072-byte maximum RSS. Nested-slide stability
+  median/minimum/q10 is 0.881/0.810/0.810. Scalar-only held-out balanced accuracy/retrieval is
+  0.75/0.75 with exact patient p=0.143. Baseline M0/M3 is 0.625/0.375; augmented is 0.625/0.5, so
+  balanced-accuracy increment is 0.0 with patient-bootstrap interval [-0.375, 0.375]. All three
+  step-down adjusted p-values are 0.099. Thirteen of 16 slide curves are wholly inside the
+  19-permutation envelopes; minimum discrete global p is 0.05. No lower-level diagnostic is treated
+  as an independent population replicate.
+- The stable block fails its prespecified positive-increment gate and is not fused. No result-driven
+  tuning occurs. The 199-file bundle at
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v59-patient-scalar-variogram-work` rehashes
+  with zero errors; run-manifest SHA-256 is
+  `ef5b8120251dfd4db34a365d573695fec3181e5f707e6edaebf9615a46dea5a4`.
+- Final affected-file diff, whitespace, and status checks follow. No Rust source changed, so
+  checkpoint 177's warning-denied Clippy/no-default/docs evidence remains current. No broad
+  workspace/Nextest loader loop, benchmark, fuzzing, packaging, dependency, push, publication,
+  deployment, or history rewrite command runs.

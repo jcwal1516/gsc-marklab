@@ -3675,3 +3675,37 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   Clippy/no-default/docs are unchanged and not repeated. No broad workspace/Nextest loader loop,
   tuning, benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history
   rewrite runs.
+
+## Patient CellViT scalar-variogram checkpoint 179 — 2026-08-29
+
+- Extended the immediate scalar caller across the frozen eight-patient/16-slide design through
+  `execute-scalar-variogram` and `summarize-scalar-variogram`. Six bounded processes run one strict
+  durable `marklab project scalar-variogram` per slide at fixed 0/25/50/100-micrometre lag edges,
+  with 19 histologic-compartment whole-value permutations, seed 20260829, exact pair/permutation
+  work, 64-MiB memory, and 120-second per-process ceilings. The patient summary decodes exact-float
+  results, nests both slides inside each patient, fits preprocessing inside held-out folds, permutes
+  complete patient labels, bootstraps complete patients, and applies step-down Max-T across all
+  three admitted endpoints.
+- The 16 misses complete in 28.09 seconds at 22,790,144-byte parent maximum RSS. A fresh
+  backend-disabled pass completes 16 byte-identical hits in 24.76 seconds at 24,100,864 bytes;
+  every project ledger remains one row. The production oracle covers exact-float decoding, all 16
+  misses/hits, replay bytes, nested patient reduction, held-out inference, whole-patient nulls, and
+  Max-T while preserving all categorical pair/cross-g behavior.
+- Nested-slide patient-rank stability has median 0.881, minimum 0.810, and q10 0.810. Scalar-only
+  leave-one-patient-out balanced accuracy is 0.75 with exact whole-patient p=0.143. M0/M3 balanced
+  accuracy is 0.625; adding the scalar block remains 0.625, an increment of 0.0 with whole-patient
+  interval [-0.375, 0.375], while retrieval changes from 0.375 to 0.5. Every patient endpoint has
+  step-down adjusted p=0.099. Thirteen of 16 within-slide curves are wholly inside their discrete
+  envelopes; minimum global p is 0.05. Slides are diagnostics, not independent population units.
+- The prespecified positive-increment gate fails, so the stable scalar block is not promoted or
+  fused. No endpoint, lag, threshold, subset, null, or model is tuned. Acquisition-site leakage
+  evaluation remains unavailable because the admitted CPTAC manifest has no site identity.
+- The 199-file remote bundle is
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v59-patient-scalar-variogram-work`;
+  its run-manifest SHA-256 is
+  `ef5b8120251dfd4db34a365d573695fec3181e5f707e6edaebf9615a46dea5a4`, and complete rehash reports
+  zero errors. The two-test Python workflow suite, source compilation, focused whitespace, real
+  miss/hit/ledger comparison, summary checks, and bundle rehash pass. No Rust source changed, so
+  checkpoint 177's affected Rust gates remain current. No broad workspace/Nextest loader loop,
+  benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history rewrite
+  runs.

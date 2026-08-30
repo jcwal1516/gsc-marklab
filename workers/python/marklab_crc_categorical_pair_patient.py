@@ -12,6 +12,7 @@ import json
 import math
 import os
 from pathlib import Path
+import struct
 import subprocess
 from typing import Any
 
@@ -40,6 +41,10 @@ CROSS_G_ANALYSES = (
     ISOTROPIC_CROSS_G_ANALYSIS,
 )
 CROSS_G_BANDWIDTH_UM = 10.0
+SCALAR_VARIOGRAM_LAG_EDGES_UM = (0.0, 25.0, 50.0, 100.0)
+SCALAR_VARIOGRAM_PERMUTATIONS = 19
+SCALAR_VARIOGRAM_SEED = 20260829
+SCALAR_VARIOGRAM_STABILITY_THRESHOLD = 0.60
 
 
 class CategoricalPairPatientError(ValueError):
@@ -117,6 +122,26 @@ def _read_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise CategoricalPairPatientError(f"JSON root must be an object: {path}")
     return value
+
+
+def _decode_exact_float_json(value: Any) -> Any:
+    if isinstance(value, dict):
+        if set(value) == {"__marklab_f64_bits"}:
+            bits = value["__marklab_f64_bits"]
+            if not isinstance(bits, int) or isinstance(bits, bool) or not 0 <= bits < 1 << 64:
+                raise CategoricalPairPatientError("exact-float bit representation is invalid")
+            decoded = struct.unpack(">d", struct.pack(">Q", bits))[0]
+            if not math.isfinite(decoded):
+                raise CategoricalPairPatientError("exact-float value is non-finite")
+            return decoded
+        return {key: _decode_exact_float_json(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_decode_exact_float_json(item) for item in value]
+    return value
+
+
+def _read_exact_json(path: Path) -> dict[str, Any]:
+    return _decode_exact_float_json(_read_json(path))
 
 
 def _window_segment_count(path: Path) -> int:
@@ -455,6 +480,179 @@ def prepare_scalar_variogram(
         expected_cells_per_pattern=expected_cells_per_pattern,
         include_nucleus_area=True,
     )
+
+
+def execute_scalar_variogram_patient(
+    prepared: Path,
+    marklab: Path,
+    output: Path,
+    maximum_processes: int,
+    timeout_seconds: int,
+    *,
+    replay: bool,
+) -> dict[str, Any]:
+    """Run one durable scalar variogram per nested slide, or replay exact hits."""
+    prepared = prepared.resolve()
+    marklab = marklab.resolve()
+    output = output.resolve()
+    if not marklab.is_file() or not os.access(marklab, os.X_OK):
+        raise CategoricalPairPatientError(f"marklab executable is unavailable: {marklab}")
+    if (
+        not 1 <= maximum_processes <= MAXIMUM_PROCESSES
+        or not 1 <= timeout_seconds <= MAXIMUM_TIMEOUT_SECONDS
+    ):
+        raise CategoricalPairPatientError("process or timeout bound is invalid")
+    if replay:
+        if not output.is_dir():
+            raise CategoricalPairPatientError("replay requires a completed execution directory")
+    elif output.exists() or output.is_symlink():
+        raise CategoricalPairPatientError(f"execution output already exists: {output}")
+    else:
+        output.mkdir(parents=True)
+    design = _read_json(prepared / "design.json")
+    manifest = _read_csv(prepared / "manifest.csv")
+    if (
+        design.get("schema_name") != "marklab_crc_scalar_variogram_input_design"
+        or design.get("population_unit") != "patient"
+        or design.get("pattern_count") != len(manifest)
+        or design.get("mark") != "nucleus_area_um2"
+        or design.get("mark_unit") != "square_micrometer"
+    ):
+        raise CategoricalPairPatientError("prepared scalar-variogram design differs")
+    jobs = []
+    for row in manifest:
+        pattern = row["pattern_id"]
+        if Path(pattern).name != pattern:
+            raise CategoricalPairPatientError("pattern identity is not a path-safe basename")
+        cells = (prepared / row["cells"]).resolve()
+        window = (prepared / row["window"]).resolve()
+        try:
+            cells.relative_to(prepared)
+            window.relative_to(prepared)
+        except ValueError as error:
+            raise CategoricalPairPatientError("prepared scalar input escapes its root") from error
+        if _sha256(cells) != row["prepared_cells_sha256"] or _sha256(window) != row[
+            "prepared_window_sha256"
+        ]:
+            raise CategoricalPairPatientError("prepared scalar input digest differs")
+        point_count = int(row["cell_count"])
+        maximum_pairs = point_count * (point_count - 1) // 2
+        project = output / "projects" / pattern
+        result_root = "replay" if replay else "results"
+        result = output / result_root / f"{pattern}.json"
+        baseline = output / "results" / f"{pattern}.json"
+        jobs.append(
+            (pattern, cells, window, project, result, baseline, maximum_pairs)
+        )
+    if len(jobs) != len(manifest) or not 1 <= len(jobs) <= 64:
+        raise CategoricalPairPatientError("scalar-variogram job count differs or exceeds 64")
+
+    def run(job):
+        pattern, cells, window, project, result, baseline, maximum_pairs = job
+        result.parent.mkdir(parents=True, exist_ok=True)
+        environment = os.environ.copy()
+        if replay:
+            environment["MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION"] = "1"
+        command = [
+            str(marklab),
+            "project",
+            "scalar-variogram",
+            "--project",
+            str(project),
+            "--cells",
+            str(cells),
+            "--mask",
+            str(window),
+            "--out",
+            str(result),
+            "--lag-edges-um",
+            ",".join(format(value, ".17g") for value in SCALAR_VARIOGRAM_LAG_EDGES_UM),
+            "--condition-by-histologic-compartment",
+            "--permutations",
+            str(SCALAR_VARIOGRAM_PERMUTATIONS),
+            "--seed",
+            str(SCALAR_VARIOGRAM_SEED),
+            "--alpha",
+            str(ALPHA),
+            "--memory-budget-mib",
+            str(MEMORY_BUDGET_MIB),
+            "--max-pair-visits",
+            str(maximum_pairs),
+            "--max-permutation-pair-evaluations",
+            str(maximum_pairs * SCALAR_VARIOGRAM_PERMUTATIONS),
+        ]
+        try:
+            completed = subprocess.run(
+                command,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds,
+                env=environment,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise CategoricalPairPatientError(
+                f"{pattern} scalar variogram exceeded {timeout_seconds} seconds"
+            ) from error
+        expected = "hit" if replay else "miss"
+        if completed.returncode != 0 or f"cache_status={expected}" not in completed.stderr:
+            raise CategoricalPairPatientError(
+                f"{pattern} scalar variogram failed or did not report {expected}: "
+                f"{completed.stderr.strip()}"
+            )
+        bytes_equal = True
+        if replay:
+            bytes_equal = baseline.is_file() and baseline.read_bytes() == result.read_bytes()
+            if not bytes_equal:
+                raise CategoricalPairPatientError(f"{pattern} scalar replay bytes differ")
+        ledger = project / "executions.jsonl"
+        ledger_count = (
+            sum(bool(line.strip()) for line in ledger.read_text(encoding="utf-8").splitlines())
+            if ledger.is_file()
+            else 0
+        )
+        if ledger_count != 1:
+            raise CategoricalPairPatientError(
+                f"{pattern} scalar ledger must contain one execution"
+            )
+        return {
+            "pattern_id": pattern,
+            "cache_status": expected,
+            "result": result.relative_to(output).as_posix(),
+            "result_sha256": _sha256(result),
+            "replay_bytes_equal": bytes_equal,
+            "ledger_execution_count": ledger_count,
+        }
+
+    records = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=maximum_processes) as executor:
+        futures = [executor.submit(run, job) for job in jobs]
+        for future in concurrent.futures.as_completed(futures):
+            records.append(future.result())
+    records.sort(key=lambda row: row["pattern_id"])
+    statuses = {
+        status: sum(row["cache_status"] == status for row in records)
+        for status in sorted({row["cache_status"] for row in records})
+    }
+    result = {
+        "schema_name": "marklab_crc_scalar_variogram_patient_execution",
+        "schema_version": "1.0",
+        "population_unit": "patient",
+        "pattern_unit": "slide_nested_within_patient",
+        "replay": replay,
+        "job_count": len(records),
+        "maximum_processes": maximum_processes,
+        "timeout_seconds_per_process": timeout_seconds,
+        "cache_status_counts": statuses,
+        "all_replay_bytes_equal": all(row["replay_bytes_equal"] for row in records),
+        "all_ledgers_one_execution": all(
+            row["ledger_execution_count"] == 1 for row in records
+        ),
+        "binary_sha256": _sha256(marklab),
+        "records": records,
+    }
+    _write_json(output / ("replay_manifest.json" if replay else "execution_manifest.json"), result)
+    return result
 
 
 def execute(
@@ -843,6 +1041,368 @@ def _cross_g_result_features(
     return features, unavailable
 
 
+def _scalar_variogram_result_features(
+    document: dict[str, Any], expected_points: int
+) -> tuple[dict[str, float], dict[str, Any]]:
+    if (
+        document.get("format") != "marklab.scalar-semivariogram-inference/1"
+        or document.get("point_count") != expected_points
+        or document.get("mark_id") != "nucleus_area_um2"
+        or document.get("measurement_status") != "morphology_prediction"
+        or document.get("conditioning") != "histologic_compartment"
+        or document.get("conditioning_mark_id") != "histologic_compartment"
+        or document.get("conditioning_measurement_status")
+        != "morphology_prediction"
+        or document.get("permutations_requested") != SCALAR_VARIOGRAM_PERMUTATIONS
+        or document.get("permutations_completed") != SCALAR_VARIOGRAM_PERMUTATIONS
+        or document.get("seed") != SCALAR_VARIOGRAM_SEED
+        or document.get("eligible_bin_count") != len(SCALAR_VARIOGRAM_LAG_EDGES_UM) - 1
+    ):
+        raise CategoricalPairPatientError("typed scalar-variogram result identity differs")
+    curve = document.get("curve")
+    if not isinstance(curve, list) or len(curve) != len(SCALAR_VARIOGRAM_LAG_EDGES_UM) - 1:
+        raise CategoricalPairPatientError("scalar-variogram curve shape differs")
+    features = {}
+    for index, row in enumerate(curve):
+        observed = row.get("observed") if isinstance(row, dict) else None
+        lower = SCALAR_VARIOGRAM_LAG_EDGES_UM[index]
+        upper = SCALAR_VARIOGRAM_LAG_EDGES_UM[index + 1]
+        if (
+            not isinstance(observed, dict)
+            or observed.get("lower_um") != lower
+            or observed.get("upper_um") != upper
+            or observed.get("upper_inclusive") is not (index == len(curve) - 1)
+            or not isinstance(observed.get("pair_count"), int)
+            or observed["pair_count"] <= 0
+        ):
+            raise CategoricalPairPatientError("scalar-variogram lag-bin identity differs")
+        semivariance = observed.get("semivariance")
+        lower_envelope = row.get("lower_global_envelope")
+        upper_envelope = row.get("upper_global_envelope")
+        if (
+            not isinstance(semivariance, (int, float))
+            or isinstance(semivariance, bool)
+            or not math.isfinite(semivariance)
+            or semivariance < 0.0
+            or not isinstance(lower_envelope, (int, float))
+            or not isinstance(upper_envelope, (int, float))
+            or not math.isfinite(lower_envelope)
+            or not math.isfinite(upper_envelope)
+            or lower_envelope > upper_envelope
+        ):
+            raise CategoricalPairPatientError("scalar-variogram curve value differs")
+        features[f"nucleus_area_semivariance.r{lower:g}_{upper:g}um"] = float(
+            semivariance
+        )
+    p_global = document.get("p_global")
+    if (
+        not isinstance(p_global, (int, float))
+        or isinstance(p_global, bool)
+        or not math.isfinite(p_global)
+        or not 0.0 <= p_global <= 1.0
+    ):
+        raise CategoricalPairPatientError("scalar-variogram global p-value differs")
+    return features, {
+        "p_global": float(p_global),
+        "inside_global_envelope": all(
+            row["lower_global_envelope"]
+            <= row["observed"]["semivariance"]
+            <= row["upper_global_envelope"]
+            for row in curve
+        ),
+    }
+
+
+def summarize_scalar_variogram_patient(
+    prepared: Path,
+    execution: Path,
+    baseline_path: Path,
+    marklab: Path,
+    output: Path,
+    seed: int,
+) -> dict[str, Any]:
+    """Reduce scalar curves inside patients and test incremental patient information."""
+    prepared = prepared.resolve()
+    execution = execution.resolve()
+    baseline_path = baseline_path.resolve()
+    marklab = marklab.resolve()
+    output = output.resolve()
+    if output.exists() or output.is_symlink():
+        raise CategoricalPairPatientError(f"output already exists: {output}")
+    execution_manifest = _read_json(execution / "execution_manifest.json")
+    replay_manifest = _read_json(execution / "replay_manifest.json")
+    if (
+        execution_manifest.get("schema_name")
+        != "marklab_crc_scalar_variogram_patient_execution"
+        or replay_manifest.get("schema_name")
+        != "marklab_crc_scalar_variogram_patient_execution"
+        or execution_manifest.get("cache_status_counts") != {"miss": 16}
+        or replay_manifest.get("cache_status_counts") != {"hit": 16}
+        or replay_manifest.get("all_replay_bytes_equal") is not True
+        or replay_manifest.get("all_ledgers_one_execution") is not True
+    ):
+        raise CategoricalPairPatientError("scalar-variogram durable miss/hit proof differs")
+    design = _read_json(prepared / "design.json")
+    manifest = _read_csv(prepared / "manifest.csv")
+    if (
+        design.get("schema_name") != "marklab_crc_scalar_variogram_input_design"
+        or design.get("mark") != "nucleus_area_um2"
+        or design.get("mark_unit") != "square_micrometer"
+    ):
+        raise CategoricalPairPatientError("scalar-variogram preparation identity differs")
+    labels: dict[str, str] = {}
+    pattern_counts: dict[str, int] = {}
+    for row in manifest:
+        patient = row["patient_id"]
+        group = row["group"]
+        if labels.setdefault(patient, group) != group:
+            raise CategoricalPairPatientError("patient molecular group is inconsistent")
+        pattern_counts[patient] = pattern_counts.get(patient, 0) + 1
+    if len(labels) != 8 or set(pattern_counts.values()) != {2}:
+        raise CategoricalPairPatientError("summary requires eight patients and two slides each")
+    baseline_labels, baseline = _baseline_features(baseline_path)
+    if baseline_labels != labels:
+        raise CategoricalPairPatientError("baseline and scalar patient identities differ")
+
+    specimen_features = {}
+    null_rows = []
+    result_paths = []
+    for row in manifest:
+        pattern = row["pattern_id"]
+        path = execution / "results" / f"{pattern}.json"
+        features, null = _scalar_variogram_result_features(
+            _read_exact_json(path), int(row["cell_count"])
+        )
+        specimen_features[pattern] = features
+        null_rows.append({"pattern_id": pattern, "patient_id": row["patient_id"], **null})
+        result_paths.append(path)
+    admitted = sorted(set.intersection(*(set(row) for row in specimen_features.values())))
+    if len(admitted) != len(SCALAR_VARIOGRAM_LAG_EDGES_UM) - 1:
+        raise CategoricalPairPatientError("scalar-variogram endpoints are incomplete")
+    summary_owner = _load_summary_owner()
+    lane = summary_owner.load_lane_module()
+    patient_features = summary_owner.patient_means(specimen_features, manifest)
+    constant = {
+        endpoint
+        for endpoint in admitted
+        if len({patient_features[patient][endpoint] for patient in patient_features}) == 1
+    }
+    admitted = [endpoint for endpoint in admitted if endpoint not in constant]
+    if not admitted:
+        raise CategoricalPairPatientError("no estimable patient scalar endpoint remains")
+    specimen_features = {
+        pattern: {endpoint: values[endpoint] for endpoint in admitted}
+        for pattern, values in specimen_features.items()
+    }
+    patient_features = summary_owner.patient_means(specimen_features, manifest)
+    nested_slide_stability = lane.feature_stability(
+        patient_features,
+        summary_owner.leave_one_specimen_alternatives(specimen_features, manifest),
+    )
+    scalar_block = {
+        patient: [values[endpoint] for endpoint in admitted]
+        for patient, values in patient_features.items()
+    }
+    model_blocks = {
+        "m0_m3_nonspatial": {"baseline": baseline},
+        "scalar_variogram_only": {"scalar_variogram": scalar_block},
+        "m0_m3_scalar_variogram": {
+            "baseline": baseline,
+            "scalar_variogram": scalar_block,
+        },
+    }
+    models = {}
+    for index, (name, blocks) in enumerate(model_blocks.items()):
+        result = lane.heldout_model(labels, blocks, PCA_COMPONENTS)
+        result["uncertainty"] = summary_owner.model_uncertainty(result, seed + index)
+        result["whole_patient_permutation"] = summary_owner.exact_label_permutation(
+            labels, blocks, lane
+        )
+        models[name] = result
+    increment = summary_owner.incremental_summary(
+        models["m0_m3_nonspatial"],
+        models["m0_m3_scalar_variogram"],
+        seed + 100,
+        lane,
+    )
+
+    staging = output.with_name(f".{output.name}.{os.getpid()}.tmp")
+    if staging.exists() or staging.is_symlink():
+        raise CategoricalPairPatientError(f"staging path already exists: {staging}")
+    staging.mkdir(parents=True)
+    max_t_rows = [
+        {
+            "patient_id": patient,
+            "group": labels[patient],
+            "endpoint": endpoint,
+            "value": patient_features[patient][endpoint],
+        }
+        for patient in sorted(labels)
+        for endpoint in admitted
+    ]
+    max_t_input = staging / "patient_endpoints.csv"
+    max_t_output = staging / "population_max_t.json"
+    _write_csv(max_t_input, list(max_t_rows[0]), max_t_rows)
+    completed = subprocess.run(
+        [
+            str(marklab),
+            "cohort",
+            "max-t",
+            "--input",
+            str(max_t_input),
+            "--group-a",
+            "MSI",
+            "--group-b",
+            "MSS",
+            "--permutations",
+            str(POPULATION_PERMUTATIONS),
+            "--seed",
+            str(seed),
+            "--alpha",
+            str(ALPHA),
+            "--step-down",
+            "--out",
+            str(max_t_output),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise CategoricalPairPatientError(
+            f"patient scalar Max-T failed: {completed.stderr.strip()}"
+        )
+    max_t = _read_json(max_t_output)
+    if (
+        max_t.get("format") != "marklab.cohort_max_t"
+        or max_t.get("design", {}).get("randomization_unit") != "patient"
+        or max_t.get("design", {}).get("correction") != "step_down_max_t"
+        or max_t.get("permutations", {}).get("completed") != POPULATION_PERMUTATIONS
+        or len(max_t.get("endpoints", [])) != len(admitted)
+    ):
+        raise CategoricalPairPatientError("patient scalar Max-T identity differs")
+
+    specimen_rows = [
+        {
+            "cohort": "CPTAC_COAD_CellViT",
+            "patient_id": row["patient_id"],
+            "specimen_id": row["pattern_id"],
+            "feature": endpoint,
+            "value": specimen_features[row["pattern_id"]][endpoint],
+        }
+        for row in manifest
+        for endpoint in admitted
+    ]
+    patient_rows = [
+        {
+            "cohort": "CPTAC_COAD_CellViT",
+            "patient_id": patient,
+            "group": labels[patient],
+            "feature": endpoint,
+            "value": patient_features[patient][endpoint],
+        }
+        for patient in sorted(labels)
+        for endpoint in admitted
+    ]
+    heldout_rows = [
+        {"model": name, **row}
+        for name, result in models.items()
+        for row in result["predictions"]
+    ]
+    _write_csv(staging / "specimen_fingerprints.csv", list(specimen_rows[0]), specimen_rows)
+    _write_csv(staging / "patient_fingerprints.csv", list(patient_rows[0]), patient_rows)
+    _write_csv(staging / "heldout_predictions.csv", list(heldout_rows[0]), heldout_rows)
+    _write_csv(staging / "within_slide_null_diagnostics.csv", list(null_rows[0]), null_rows)
+    _write_json(
+        staging / "unavailable_endpoints.json",
+        {
+            "endpoints": [
+                {
+                    "pattern_id": "all_patients",
+                    "endpoint": endpoint,
+                    "reason": "zero_between_patient_variance",
+                }
+                for endpoint in sorted(constant)
+            ]
+        },
+    )
+    source_digest = hashlib.sha256()
+    for path in sorted(result_paths + [prepared / "design.json", baseline_path]):
+        source_digest.update(_sha256(path).encode("ascii"))
+        source_digest.update(b"\n")
+    stable = nested_slide_stability["median"] >= SCALAR_VARIOGRAM_STABILITY_THRESHOLD
+    incremental = increment["balanced_accuracy_increment"] > 0.0
+    summary = {
+        "schema_name": "marklab_crc_scalar_variogram_patient_summary",
+        "schema_version": "1.0",
+        "population_unit": "patient",
+        "pattern_unit": "slide_nested_within_patient",
+        "patient_count": len(labels),
+        "pattern_count": len(manifest),
+        "declared_endpoint_count": len(SCALAR_VARIOGRAM_LAG_EDGES_UM) - 1,
+        "admitted_endpoint_count": len(admitted),
+        "nested_slide_stability": nested_slide_stability,
+        "stability_threshold_median_rank_spearman": SCALAR_VARIOGRAM_STABILITY_THRESHOLD,
+        "models": models,
+        "incremental_information": increment,
+        "population_max_t": max_t,
+        "within_slide_null_diagnostics": {
+            "pattern_count": len(null_rows),
+            "all_inside_global_envelope_count": sum(
+                row["inside_global_envelope"] for row in null_rows
+            ),
+            "minimum_global_p": min(row["p_global"] for row in null_rows),
+        },
+        "promotion_status": (
+            "stable_positive_increment_candidate_not_automatically_promoted"
+            if stable and incremental
+            else "failed_prespecified_stability_or_increment_not_promoted"
+        ),
+        "fusion_status": (
+            "not_added_pending_prespecified_scientific_bundle_review"
+            if stable and incremental
+            else "not_added_without_stability_and_positive_increment"
+        ),
+        "durable_replay": {
+            "miss_count": execution_manifest["job_count"],
+            "backend_disabled_hit_count": replay_manifest["job_count"],
+            "all_result_bytes_equal": True,
+            "all_ledgers_one_execution": True,
+        },
+        "leakage_checks": {
+            "patient_held_out": True,
+            "preprocessing_inside_each_training_fold": True,
+            "slides_nested_inside_patients": True,
+            "site_held_out": "unavailable_exact_blocker_no_acquisition_site_field_in_admitted_CPTAC_manifest",
+        },
+        "interpretation_policy": "null_confounded_and_unstable_results_retained_without_endpoint_scale_subset_or_threshold_optimization",
+        "claim_limitations": [
+            "eight-patient resource-feasible exploratory subset",
+            "two slides per patient are nested diagnostics and never population replicates",
+            "CellViT contours and compartments are morphology-model predictions",
+            "no clinical, causal, prospective, equivalence, or transportability claim",
+        ],
+        "source_result_sha256": source_digest.hexdigest(),
+    }
+    _write_json(staging / "summary.json", summary)
+    artifacts = sorted(path for path in staging.rglob("*") if path.is_file())
+    _write_json(
+        staging / "manifest.json",
+        {
+            "schema_name": "marklab_crc_scalar_variogram_patient_bundle",
+            "schema_version": "1.0",
+            "population_unit": "patient",
+            "source_result_sha256": summary["source_result_sha256"],
+            "artifact_sha256": {
+                path.relative_to(staging).as_posix(): _sha256(path) for path in artifacts
+            },
+            "result_format_compatibility": "0.3_preserved",
+        },
+    )
+    os.rename(staging, output)
+    return summary
+
+
 def summarize(
     prepared: Path,
     execution: Path,
@@ -1175,6 +1735,22 @@ def parse_args() -> argparse.Namespace:
     scalar_prepare_parser.add_argument("--marks", required=True, type=Path)
     scalar_prepare_parser.add_argument("--inference-root", required=True, type=Path)
     scalar_prepare_parser.add_argument("--out", required=True, type=Path)
+    scalar_execute_parser = commands.add_parser("execute-scalar-variogram")
+    scalar_execute_parser.add_argument("--prepared", required=True, type=Path)
+    scalar_execute_parser.add_argument("--marklab", required=True, type=Path)
+    scalar_execute_parser.add_argument("--out", required=True, type=Path)
+    scalar_execute_parser.add_argument(
+        "--maximum-processes", type=int, default=MAXIMUM_PROCESSES
+    )
+    scalar_execute_parser.add_argument("--timeout-seconds", type=int, default=300)
+    scalar_execute_parser.add_argument("--replay", action="store_true")
+    scalar_summary_parser = commands.add_parser("summarize-scalar-variogram")
+    scalar_summary_parser.add_argument("--prepared", required=True, type=Path)
+    scalar_summary_parser.add_argument("--execution", required=True, type=Path)
+    scalar_summary_parser.add_argument("--baseline", required=True, type=Path)
+    scalar_summary_parser.add_argument("--marklab", required=True, type=Path)
+    scalar_summary_parser.add_argument("--out", required=True, type=Path)
+    scalar_summary_parser.add_argument("--seed", type=int, default=20260829)
     execute_parser = commands.add_parser("execute")
     execute_parser.add_argument("--prepared", required=True, type=Path)
     execute_parser.add_argument("--marklab", required=True, type=Path)
@@ -1209,6 +1785,24 @@ def main() -> None:
     elif arguments.command == "prepare-scalar-variogram":
         prepare_scalar_variogram(
             arguments.marks, arguments.inference_root, arguments.out
+        )
+    elif arguments.command == "execute-scalar-variogram":
+        execute_scalar_variogram_patient(
+            arguments.prepared,
+            arguments.marklab,
+            arguments.out,
+            arguments.maximum_processes,
+            arguments.timeout_seconds,
+            replay=arguments.replay,
+        )
+    elif arguments.command == "summarize-scalar-variogram":
+        summarize_scalar_variogram_patient(
+            arguments.prepared,
+            arguments.execution,
+            arguments.baseline,
+            arguments.marklab,
+            arguments.out,
+            arguments.seed,
         )
     elif arguments.command == "execute":
         execute(

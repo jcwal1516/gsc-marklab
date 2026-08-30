@@ -166,7 +166,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | NUL-01A | complete | Conditional homogeneous CSR fixes the exact validated window and observed point count, resamples the whole location pattern with deterministic namespaced streams, and exposes exact simulation/draw-budget evidence. |
 | NUL-01B | active | Exact scalar, complete-vector, categorical, dense-probability, and continuous whole-row random labeling are runnable; connection, correlation, and weighted-K workflows reuse fixed geometry with explicit ERL families. Broader typed mark/strata calibration and stable promotion remain. |
 | NUL-01C | active | One bounded two-type location-process independence null samples source and target patterns independently from separate fixed fitted intensity grids while conditioning on both counts; broader component simulators, calibration, and population designs remain. |
-| NUL-01D | active | Exact typed histologic-compartment conditioning now drives durable scalar-semivariogram whole-value random labeling with explicit strata, degeneracy, work bounds, and ERL. A real 512-cell contour-area caller is null-compatible at its fixed three-bin family and replays durably; broader conditioned location/mark families and patient calibration remain. |
+| NUL-01D | active | Exact typed histologic-compartment conditioning drives durable scalar-semivariogram whole-value random labeling with explicit strata, degeneracy, work bounds, and ERL. Sixteen real slide patterns across eight patients replay durably; 13/16 remain wholly inside their fixed three-bin envelopes, while patient Max-T is null-compatible. Broader conditioned location/mark families and external calibration remain. |
 | NUL-01E | blocked with named prerequisite | Requires exact overlap-aware windows and a justified stationarity contract. |
 | PATH-01 | blocked with named prerequisite | Requires WS-22/GEO-01 compartments, boundaries, and object geometry. |
 | PERT-01 | active | IC-0193 provides a bounded randomized synthetic perturbation/control specialization with research-only mediation; real designed perturbations with dose/time and spatial readouts remain missing. |
@@ -196,7 +196,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | SIG-01C | blocked with named prerequisite | Requires SIG-01A, multiplicity ownership, and cohort-valid exploratory-map policy. |
 | SIG-01D | blocked with named prerequisite | Requires typed paired variables, direction semantics, weights, and multiplicity. |
 | SIG-01E | data-dependent with named missing data | Missing a prespecified pathology hotspot use case and replicated endpoint data. |
-| SIG-01F | active | Bounded scalar and raw-vector variograms have exact provenance/frame/bin/pair-plan identity and hard work ceilings. Scalar inference has a strict durable node/CLI, optional typed-compartment whole-value null, ERL, retained-memory admission, and fresh-process replay. The admitted CellViT contour/base-MPP boundary now supplies physical nucleus area without changing categorical bytes; one fixed 512-cell CRC slide is null-compatible. Raw-vector TCGA 25–100 micrometre patient/field stability and held-out null evidence remain; scalar patient replication, edge correction, directionality, direct same-schema external agreement, and stable promotion remain. |
+| SIG-01F | active | Bounded scalar and raw-vector variograms have exact provenance/frame/bin/pair-plan identity and hard work ceilings. The admitted contour/base-MPP nucleus-area block now runs durably across eight patients/16 nested slides with high slide-rank stability, held-out evaluation, exact patient permutation, bootstrap, and Max-T. Its 0.0 balanced-accuracy increment fails fusion without tuning. Raw-vector TCGA 25–100 micrometre patient/field stability and held-out null evidence remain; scalar edge correction/directionality, direct same-schema external agreement, and stable promotion remain. |
 | SIG-01G | data-dependent with named missing data | Missing co-located or correspondence-qualified bivariate observations. |
 | SIG-01H | blocked with named prerequisite | Synthetic distance and graph vector/covariance, leakage-safe projected/kernel, and complete-vector null workflows are runnable; stable promotion requires shared geometry/graph provenance/scale plus canonical vector-input calibration. |
 | SPC-01A | gated pending explicit user decision | The master plan rejects Bartlett branding/default use absent a prespecified endpoint and demonstrated advantage. |
@@ -471,3 +471,13 @@ histologic-compartment whole-value null, and backend-disabled replay with one le
 global p=1.0 result is retained as null-compatible one-specimen capacity evidence. SIG-01F and
 NUL-01D remain active for patient replication and independently justified correction/calibration;
 no generic importer, new method family, or patient-level claim is added.
+
+## Patient CellViT scalar-variogram checkpoint 179
+
+SIG-01F now has a patient-unit real scalar lane over the frozen eight-patient/16-slide subset.
+Every slide completes and replays the same three-bin compartment-conditioned null; slides reduce
+inside patients before held-out classification, exact patient permutation, bootstrap, and Max-T.
+Median nested-slide stability is 0.881, but the M0/M3 balanced-accuracy increment is 0.0 and all
+adjusted endpoint p-values are 0.099. The block is not fused. This completes scalar patient
+replication for the admitted caller without completing broader edge/directional/external-calibration
+coverage or changing SIG-01F/NUL-01D active status.
