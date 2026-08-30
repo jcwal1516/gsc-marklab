@@ -52,6 +52,8 @@ use super::{
     },
 };
 
+#[path = "project/projected_embedding_variograms.rs"]
+mod projected_embedding_variograms;
 #[path = "project/region_retrieval.rs"]
 mod region_retrieval;
 #[path = "project/vector_semivariogram.rs"]
@@ -973,6 +975,26 @@ struct ReplicatedConditionalMultitypeMarkProjectArgs {
 
 #[derive(Debug, Subcommand)]
 enum ProjectCommand {
+    ProjectedEmbeddingVariograms {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        bins: PathBuf,
+        #[arg(long)]
+        components: u32,
+        #[arg(long)]
+        permutations: u32,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        maximum_pair_visits: u64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
     VectorSemivariogram {
         #[arg(long)]
         project: PathBuf,
@@ -1428,6 +1450,30 @@ enum ProjectCommand {
 
 pub(super) fn run_cli() -> Result<(), BayesCliError> {
     match ProjectCli::parse_from(std::env::args_os()).command {
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::ProjectedEmbeddingVariograms {
+                    project,
+                    input,
+                    bins,
+                    components,
+                    permutations,
+                    seed,
+                    maximum_pair_visits,
+                    timeout_seconds,
+                    out,
+                },
+        } => projected_embedding_variograms::run(
+            project,
+            input,
+            bins,
+            components,
+            permutations,
+            seed,
+            maximum_pair_visits,
+            timeout_seconds,
+            out,
+        ),
         ProjectTopLevel::Project {
             command:
                 ProjectCommand::VectorSemivariogram {

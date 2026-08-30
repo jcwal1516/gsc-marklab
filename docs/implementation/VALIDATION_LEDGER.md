@@ -4524,3 +4524,29 @@ vascular transport.
 - The documented macOS Nextest/full-integration loader loop is not retried. No feature matrix,
   benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or history
   rewrite runs. Final diff, whitespace, and status checks follow.
+
+## Durable projected embedding-variogram checkpoint 183 — 2026-08-29
+
+- Red-first `cargo +1.96.0 test --locked --package marklab --features cli --test
+  durable_scipy_projected_embedding_variograms` fails because the project subcommand is absent. The
+  final command over that target and `bayes_projected_embedding_variograms_cli` passes 2/2. It
+  proves exact direct/durable output parity, miss, fresh-process backend-disabled hit, and one
+  execution-ledger row while retaining the existing training-only PCA and Max-T oracle.
+- Direct Rustfmt checks pass for every affected Rust file. Warning-denied affected Clippy passes for
+  `marklab-bayes` all targets and the `marklab` binary/two integration targets. Package no-default
+  checks pass for `marklab-bayes` and `marklab`.
+- The admitted 3,000-row/16-dimensional projected CellViT source has SHA-256
+  `3fe55c5b1e0e57395f64957956d527009c01440d1a4da828c973c790312377a2`; its physical-bin source
+  hashes to `a362cc4aacb19b88ef5bc9c1aac698c0d70d7087e58964cce57f9e05aa162c60`.
+  The bounded miss takes 10.01 seconds at 63,881,216-byte maximum RSS. The fresh backend-disabled
+  hit takes 6.17 seconds at 29,474,816 bytes; `cmp` and the one-ledger-row check pass. Direct, miss,
+  and hit result SHA-256 is
+  `d75d753ce9b94306a293f8e72b9add1316e8ac6eea06a4fe6c11aaaaa83ace00`.
+- Frozen/current comparison finds exact PCA-artifact, bin, and curve equality; only current exact
+  lock/input/request identities differ. The 18-file remote bundle rehashes without error; its run
+  manifest hashes to `f4104e6b37aa706e29a0232f6e695f35e0a050b5e9619ac01b1d93bd26cc666b`
+  and `SHA256SUMS` hashes to
+  `9a7183131a4646642c491886b98af00cdb77bdf047a3f889af4cc73bef768719`.
+- Checkpoint 182's broad non-loader stabilization remains current. The documented macOS Nextest/
+  full-integration loader loop, feature matrix, benchmark, fuzzing, packaging, dependency audit,
+  push, publication, deployment, and history rewrite are not run.

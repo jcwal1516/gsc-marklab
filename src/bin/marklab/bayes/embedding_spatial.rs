@@ -88,6 +88,39 @@ pub(super) fn run_projected_variograms(
     timeout_seconds: u64,
     out: PathBuf,
 ) -> Result<(), BayesCliError> {
+    let prepared = prepare_projected_variograms(
+        input,
+        bins,
+        components,
+        permutations,
+        seed,
+        maximum_pair_visits,
+        timeout_seconds,
+    )?;
+    let result = execute_projected_variograms(&prepared)?;
+    publish_json(&out, &result)
+}
+
+pub(crate) struct PreparedProjectedVariograms {
+    pub request: ProjectedEmbeddingVariogramWorkerRequest,
+    pub input_path: PathBuf,
+    pub input_sha256: String,
+    pub bins_path: PathBuf,
+    pub bins_sha256: String,
+    pub request_sha256: String,
+    pub timeout_seconds: u64,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_projected_variograms(
+    input: PathBuf,
+    bins: PathBuf,
+    components: u32,
+    permutations: u32,
+    seed: u64,
+    maximum_pair_visits: u64,
+    timeout_seconds: u64,
+) -> Result<PreparedProjectedVariograms, BayesCliError> {
     let input_bytes = read(&input)?;
     let bin_bytes = read(&bins)?;
     let (points, feature_names) = read_projected_points(&input_bytes)?;
@@ -118,23 +151,40 @@ pub(super) fn run_projected_variograms(
         sha256_hex(&lock_bytes),
         sha256_hex(&worker_bytes),
     )?;
-    let identity = ProjectedEmbeddingInputIdentity {
-        input_path: input.display().to_string(),
+    let request_sha256 = sha256_hex(&serde_json::to_vec(&request)?);
+    Ok(PreparedProjectedVariograms {
+        request,
+        input_path: input,
         input_sha256: sha256_hex(&input_bytes),
-        bins_path: bins.display().to_string(),
+        bins_path: bins,
         bins_sha256: sha256_hex(&bin_bytes),
-    };
-    let request_bytes = serde_json::to_vec(&request)?;
-    let request_sha256 = sha256_hex(&request_bytes);
+        request_sha256,
+        timeout_seconds,
+    })
+}
+
+pub(crate) fn execute_projected_variograms(
+    prepared: &PreparedProjectedVariograms,
+) -> Result<marklab_bayes::ProjectedEmbeddingVariogramResult, BayesCliError> {
+    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let request_bytes = serde_json::to_vec(&prepared.request)?;
     let result_bytes = run_worker(
         repository,
         "marklab_scipy_projected_variograms_worker.py",
         &request_bytes,
-        timeout_seconds,
+        prepared.timeout_seconds,
     )?;
     let result: ProjectedEmbeddingVariogramWorkerResult = serde_json::from_slice(&result_bytes)?;
-    result.validate(&request, &request_sha256)?;
-    publish_json(&out, &result.into_result(request, identity))
+    result.validate(&prepared.request, &prepared.request_sha256)?;
+    Ok(result.into_result(
+        prepared.request.clone(),
+        ProjectedEmbeddingInputIdentity {
+            input_path: prepared.input_path.display().to_string(),
+            input_sha256: prepared.input_sha256.clone(),
+            bins_path: prepared.bins_path.display().to_string(),
+            bins_sha256: prepared.bins_sha256.clone(),
+        },
+    ))
 }
 
 pub(super) fn read(path: &PathBuf) -> Result<Vec<u8>, BayesCliError> {
@@ -153,7 +203,7 @@ pub(super) fn read(path: &PathBuf) -> Result<Vec<u8>, BayesCliError> {
     })
 }
 
-fn read_projected_points(
+pub(crate) fn read_projected_points(
     bytes: &[u8],
 ) -> Result<(Vec<ProjectedEmbeddingPoint>, Vec<String>), BayesCliError> {
     let mut reader = csv::ReaderBuilder::new()

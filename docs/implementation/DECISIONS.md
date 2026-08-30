@@ -3205,3 +3205,17 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   the sealed patient stability, held-out, site-aware, or cohort science. Observed one-ULP runtime
   drift is explicit provenance, not a threshold relaxation or biological difference. This does not
   add new bins, embeddings, selection, statistical tests, or a generic batch runner.
+
+## DEC-0365 — Durably execute the existing projected CellViT variogram caller
+
+- Date: 2026-08-29
+- Status: accepted for EMB-01/EMB-PROJ-VARIO-01/SIG-01H/PLAT-01/WF-01/WS-12/WS-24/WS-31/WS-32
+- Decision: add `marklab project projected-embedding-variograms` around the existing pinned SciPy
+  workflow. Share its exact CSV/bin parser, training-only PCA request, worker execution, and typed
+  result normalization with the direct CLI. Bind input, bins, Python lock, worker, backend version,
+  request, execution controls, timeout, work ceiling, and native runtime into the durable identity;
+  decode and strictly validate typed cached bytes without starting the worker.
+- Consequences: the admitted projected CellViT caller gains direct-result parity, project recovery,
+  one-ledger execution, and fresh backend-disabled replay. Its frozen PCA/bin/curve result remains
+  unchanged. This does not add a backend registry, projection selector, new statistic, new result
+  format, patient inference, or authority to retune a null or unstable result.

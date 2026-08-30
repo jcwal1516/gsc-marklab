@@ -3777,3 +3777,26 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   real-data miss/hit, reference-compatibility, remote rehash, and patient-unit evidence remains at
   checkpoints 178--181. No feature matrix, benchmark, fuzzing, packaging, dependency, push,
   publication, deployment, or history rewrite runs.
+
+## Durable projected embedding-variogram checkpoint 183 — 2026-08-29
+
+- Added `marklab project projected-embedding-variograms` around the existing pinned SciPy 1.18.1
+  workflow. The durable node reuses the direct parser, training-only PCA, within-stratum complete-
+  vector null, component-by-scale Max-T result codec, scheduler, store, ledger, and recovery path.
+  Exact input/bin/lock/worker, Python/SciPy, request, controls, timeout, work, and runtime identities
+  participate in the cache key; a typed hit is validated without starting Python.
+- The direct and durable behavior tests pass. A fresh process with backend execution disabled
+  returns a byte-identical hit with one ledger row. The admitted 3,000-row/16-dimensional projected
+  CellViT input runs four components, 20 permutations, seed 20260826, and at most 2,000,000 pair
+  visits. Miss, hit, and direct outputs all hash to
+  `d75d753ce9b94306a293f8e72b9add1316e8ac6eea06a4fe6c11aaaaa83ace00`.
+- The current result is structurally and numerically identical to the frozen result for the PCA
+  artifact, bins, and curves; only the exact current lock/input/request identities differ. The
+  18-file bundle at
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v63-durable-projected-variograms-final`
+  rehashes without error; run-manifest SHA-256 is
+  `f4104e6b37aa706e29a0232f6e695f35e0a050b5e9619ac01b1d93bd26cc666b`.
+- Affected formatting, both focused integration tests, warning-denied affected Clippy, package
+  no-default compilation, and whitespace checks pass. Checkpoint 182 remains the latest broad
+  non-loader stabilization and is not repeated. This closes the interrupted durability increment;
+  subsequent work is restricted by the SCIENCE-CRC-FINAL-01 override.

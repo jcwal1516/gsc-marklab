@@ -4,6 +4,17 @@ Last updated: 2026-08-26
 
 Authority: this file is the bounded dependency-ordered execution view derived from `PROGRAM_TRACKER.md` and the immutable `MASTER_PLAN.md`. It does not replace the master plan. Non-goals apply only to this increment; every excluded future capability remains represented in `PROGRAM_TRACKER.md`.
 
+## SCIENCE-CRC-FINAL-01 override — 2026-08-29
+
+The explicit CRC scientific-completion goal supersedes the full-program implementation mandate
+below. After coherently closing the already interrupted durable projected-variogram checkpoint,
+production work is restricted to missing connections required by the admitted CRC patient
+analysis, final canonical bundle, interpretation, and backend-disabled replay. General project,
+plugin, method-catalog, Bayesian-family, simulation/SBI, UI/server/client, packaging, release, and
+broad-hardening work is deferred. Completed M0--M7, graph/topology, stability, held-out/null,
+external-comparison, Bayesian, bundle, and replay evidence must be reused rather than rerun unless a
+concrete result-critical defect is found.
+
 ## Full-program mandate override — 2026-08-24
 
 The explicit full-program implementation mandate pauses and supersedes the PLAT-DUR-01 outcome below. Its files and inherited hunks remain preserved and are not active targets. The point-process stream now includes exact rectangular IPP/LGCP, cluster/Strauss/Geyer workflows, multitype/categorical/continuous/embedding model constructors, replicated hierarchical LGCP construction, and simultaneous count/translation-K PPC diagnostics. SPDE, latent-parent, exchange, and replicated-cluster inference retain exact named prerequisites. The next independent pseudocode stream begins with vector semivariograms for spatial embeddings, followed by projected embedding variograms. This override remains in force until terminal completion or a changed mandate.

@@ -507,3 +507,12 @@ workspace no-default compilation, all-feature doctests, and strict docs without 
 documented loader loop is not retried. SIG-01F/NUL-01D and WF-01/WS-12 evidence is current through
 real patient durable replay; active status remains only for independently named statistical and
 external-validation gaps.
+
+## Durable projected embedding-variogram checkpoint 183
+
+The existing leakage-safe projected CellViT workflow now runs through the durable project engine
+with exact SciPy/Python/lock/worker/input/bin/configuration identity, bounded process execution,
+typed replay validation, direct-result parity, and a fresh backend-disabled hit backed by one
+ledger row. Its admitted real result is unchanged from the frozen PCA/bin/curve evidence. This
+advances EMB-01, SIG-01H, WF-01, and WS-12 only for this concrete caller; it does not promote the
+block, generalize backend infrastructure, or change the existing null/unstable CRC conclusions.

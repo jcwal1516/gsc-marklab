@@ -15,7 +15,7 @@ pub struct EmbeddingSpatialPoint {
     pub embedding: Vec<f64>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EmbeddingDistanceBin {
     pub bin_id: String,
     pub lower_um: f64,
