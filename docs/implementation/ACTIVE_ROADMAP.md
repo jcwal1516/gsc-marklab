@@ -1620,3 +1620,16 @@ advances the existing PP-03A homogeneous pair-correlation caller with translatio
 the already validated polygon-overlap owner; only after that concrete result is green may an
 isotropic-g caller reuse the visible-arc owner. Keep correction identities separate and do not add
 automatic correction selection or a general registry.
+
+## Checkpoint 169 translation-corrected homogeneous pair correlation
+
+PP-03A now has an exact polygon translation-corrected Epanechnikov g workflow in a separate strict
+result family. One overlap is evaluated per compact-support unordered displacement and reused for
+both ordered weights and every represented radius; conditional CSR, ERL, source/config/runtime
+identity, bounded work, and durable replay remain explicit. Rectangle arithmetic and the existing
+static GEOS holed/disconnected fixture agree, while empty support and exact one-short ceilings fail
+cleanly. A frozen 512-cell CPTAC capacity run completes in 7.16 seconds at 23,379,968-byte maximum
+RSS and replays backend-disabled byte-identically with one ledger row; its g and p-value are not a
+patient or biological result. Production next may apply the already validated visible-arc owner to
+one separately named isotropic homogeneous g caller. Do not add correction selection, a registry,
+or an automatic combined result.

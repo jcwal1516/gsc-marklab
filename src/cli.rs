@@ -91,6 +91,8 @@ mod simulate;
 mod slide;
 #[path = "cli/smoke.rs"]
 mod smoke;
+#[path = "cli/translation_pair_correlation.rs"]
+mod translation_pair_correlation;
 #[path = "cli/translation_spatial.rs"]
 mod translation_spatial;
 use serde::Deserialize;
@@ -517,6 +519,38 @@ enum ProjectCommands {
         out: PathBuf,
         #[arg(long, value_delimiter = ',')]
         radii_um: Vec<f64>,
+        #[arg(long)]
+        simulations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        max_pair_visits: usize,
+        #[arg(long)]
+        max_overlap_evaluations: usize,
+        #[arg(long)]
+        max_overlap_candidate_work: usize,
+        #[arg(long)]
+        max_overlap_output_vertices: usize,
+        #[arg(long)]
+        max_csr_draws: usize,
+    },
+    TranslationPairCorrelation {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        cells: PathBuf,
+        #[arg(long)]
+        mask: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long, value_delimiter = ',')]
+        radii_um: Vec<f64>,
+        #[arg(long)]
+        bandwidth_um: f64,
         #[arg(long)]
         simulations: usize,
         #[arg(long)]
@@ -1059,6 +1093,39 @@ pub fn run_cli() -> Result<()> {
                 mask,
                 out,
                 radii_um,
+                simulations,
+                seed,
+                alpha,
+                memory_budget_mib,
+                maximum_pair_visits: max_pair_visits,
+                maximum_overlap_evaluations: max_overlap_evaluations,
+                maximum_overlap_candidate_work: max_overlap_candidate_work,
+                maximum_overlap_output_vertices: max_overlap_output_vertices,
+                maximum_csr_draws: max_csr_draws,
+            }),
+            ProjectCommands::TranslationPairCorrelation {
+                project,
+                cells,
+                mask,
+                out,
+                radii_um,
+                bandwidth_um,
+                simulations,
+                seed,
+                alpha,
+                memory_budget_mib,
+                max_pair_visits,
+                max_overlap_evaluations,
+                max_overlap_candidate_work,
+                max_overlap_output_vertices,
+                max_csr_draws,
+            } => translation_pair_correlation::run_project(translation_pair_correlation::Request {
+                project,
+                cells,
+                mask,
+                out,
+                radii_um,
+                bandwidth_um,
                 simulations,
                 seed,
                 alpha,

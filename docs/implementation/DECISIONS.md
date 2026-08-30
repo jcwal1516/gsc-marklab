@@ -3019,3 +3019,23 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   must agree before durable promotion. Border, translation, and result-format 0.3 outputs remain
   unchanged. This does not add a general correction registry, curved-window format, rasterized arc
   approximation, automatic correction selection, or inhomogeneous isotropic family.
+
+## DEC-0354 — Apply exact polygon translation overlap to homogeneous pair correlation
+
+- Date: 2026-08-29
+- Status: accepted for PP-03/PP-03A/PP-06B/FND-02/FND-03/PLAT-01/WF-01/WS-12/WS-22/WS-30
+- Decision: add a separately named exact translation-corrected homogeneous pair-correlation
+  workflow. Use the existing explicit Epanechnikov bandwidth and, for each unordered displacement
+  that lies in at least one strict compact-support interval, evaluate the existing exact polygon
+  overlap once. Each represented radius receives both ordered `area(W)/overlap` factors multiplied
+  by its kernel weight, followed by `area(W)/(2*pi*r*n*(n-1))` normalization. Reuse the existing
+  conditional-CSR/ERL, project, scheduler, store, ledger, recovery, raw-source, parsed-window, and
+  runtime owners under distinct config/result/seed identities. Share only the exact overlap work
+  budget now required by translation K/L and g; do not add a correction registry, automatic
+  selector, generic estimator, or new geometry format.
+- Consequences: rectangle arithmetic and the static GEOS 3.14.1 holed/disconnected polygon fixture
+  agree on overlap and normalized g. Empty compact support remains typed unavailable, all pair,
+  overlap, conservative Boolean, output, draw, and memory work is bounded, and fresh processes
+  prove byte-identical miss/hit replay while backend execution is disabled on the hit. Existing
+  standard-border and translation K/L bytes remain unchanged. The frozen 512-cell capacity run is
+  retained only as one-specimen execution evidence, not spatial interaction or patient evidence.

@@ -12,7 +12,10 @@ use crate::{
     permutation::envelopes::GlobalEnvelope,
 };
 
-use super::types::*;
+use super::{
+    edge::{preflight_overlap_complexity, TranslationOverlapBudget},
+    types::*,
+};
 
 /// Compute exact homogeneous translation-corrected K/L with conditional-CSR inference.
 pub fn analyze_translation_spatial_pattern(
@@ -96,7 +99,7 @@ pub fn analyze_translation_spatial_pattern(
         });
     }
 
-    let mut budget = TranslationWorkBudget::new(config.limits, window)?;
+    let mut budget = TranslationOverlapBudget::new(config.limits, window)?;
     let observed = translation_curve(
         &pattern.x_um,
         &pattern.y_um,
@@ -198,7 +201,7 @@ fn translation_curve(
     y: &[f64],
     window: &ObservationWindow2D,
     radii_um: &[f64],
-    budget: &mut TranslationWorkBudget,
+    budget: &mut TranslationOverlapBudget,
 ) -> Result<TranslationCurveWork, TranslationSpatialError> {
     let mut pair_starts = vec![0_usize; radii_um.len()];
     let mut overlap_starts = vec![0_usize; radii_um.len()];
@@ -307,89 +310,6 @@ fn unavailable_curve(radii_um: &[f64]) -> Vec<TranslationKlPoint> {
         .collect()
 }
 
-struct TranslationWorkBudget {
-    limits: TranslationSpatialLimits,
-    candidate_work_per_overlap: usize,
-    pair_visits: usize,
-    overlap_evaluations: usize,
-    overlap_candidate_work: usize,
-    maximum_output_vertices: usize,
-}
-
-impl TranslationWorkBudget {
-    fn new(
-        limits: TranslationSpatialLimits,
-        window: &ObservationWindow2D,
-    ) -> Result<Self, TranslationSpatialError> {
-        let segments = window.translation_segment_count();
-        let candidate_work_per_overlap = segments
-            .checked_mul(segments)
-            .ok_or(TranslationSpatialError::SizeOverflow)?;
-        Ok(Self {
-            limits,
-            candidate_work_per_overlap,
-            pair_visits: 0,
-            overlap_evaluations: 0,
-            overlap_candidate_work: 0,
-            maximum_output_vertices: 0,
-        })
-    }
-
-    fn charge_pair(&mut self) -> Result<(), TranslationSpatialError> {
-        self.pair_visits = self
-            .pair_visits
-            .checked_add(1)
-            .ok_or(TranslationSpatialError::SizeOverflow)?;
-        if self.pair_visits > self.limits.maximum_pair_visits {
-            return Err(TranslationSpatialError::PairVisitLimitExceeded {
-                observed: self.pair_visits,
-                maximum: self.limits.maximum_pair_visits,
-            });
-        }
-        Ok(())
-    }
-
-    fn overlap(
-        &mut self,
-        window: &ObservationWindow2D,
-        displacement_x: f64,
-        displacement_y: f64,
-        left: usize,
-        right: usize,
-    ) -> Result<f64, TranslationSpatialError> {
-        self.overlap_evaluations = self
-            .overlap_evaluations
-            .checked_add(1)
-            .ok_or(TranslationSpatialError::SizeOverflow)?;
-        if self.overlap_evaluations > self.limits.maximum_overlap_evaluations {
-            return Err(TranslationSpatialError::OverlapEvaluationLimitExceeded {
-                observed: self.overlap_evaluations,
-                maximum: self.limits.maximum_overlap_evaluations,
-            });
-        }
-        self.overlap_candidate_work = self
-            .overlap_candidate_work
-            .checked_add(self.candidate_work_per_overlap)
-            .ok_or(TranslationSpatialError::SizeOverflow)?;
-        if self.overlap_candidate_work > self.limits.maximum_overlap_candidate_work {
-            return Err(TranslationSpatialError::OverlapCandidateWorkLimitExceeded {
-                required: self.overlap_candidate_work,
-                maximum: self.limits.maximum_overlap_candidate_work,
-            });
-        }
-        let overlap = window.translation_overlap_area_um2(
-            displacement_x,
-            displacement_y,
-            self.limits.maximum_overlap_output_vertices,
-        )?;
-        self.maximum_output_vertices = self.maximum_output_vertices.max(overlap.output_vertices);
-        if overlap.area_um2 <= 0.0 {
-            return Err(TranslationSpatialError::NonPositiveOverlap { left, right });
-        }
-        Ok(overlap.area_um2)
-    }
-}
-
 fn validate_pattern_shape(pattern: &Pattern) -> Result<(), TranslationSpatialError> {
     if pattern.x_um.len() != pattern.len()
         || pattern.y_um.len() != pattern.len()
@@ -398,26 +318,6 @@ fn validate_pattern_shape(pattern: &Pattern) -> Result<(), TranslationSpatialErr
     {
         return Err(TranslationSpatialError::InvalidPattern {
             reason: "coordinate and validity arrays must match complete rows".into(),
-        });
-    }
-    Ok(())
-}
-
-fn preflight_overlap_complexity(
-    window: &ObservationWindow2D,
-    limits: TranslationSpatialLimits,
-) -> Result<(), TranslationSpatialError> {
-    let segments = window.translation_segment_count();
-    let maximum_output = segments
-        .checked_mul(segments)
-        .and_then(|value| value.checked_add(segments.checked_mul(2)?))
-        .ok_or(TranslationSpatialError::SizeOverflow)?;
-    if maximum_output > limits.maximum_overlap_output_vertices {
-        return Err(TranslationSpatialError::InvalidConfig {
-            reason: format!(
-                "translation Boolean output bound {maximum_output} exceeds maximum {}",
-                limits.maximum_overlap_output_vertices
-            ),
         });
     }
     Ok(())

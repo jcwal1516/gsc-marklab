@@ -5,42 +5,43 @@ use marklab_workflow::{
 use serde::Serialize;
 
 use crate::{
-    geom::window::ObservationWindow2D,
-    translation_spatial::{
-        analyze_translation_spatial_pattern, TranslationSpatialConfig, TranslationSpatialLimits,
-        TranslationSpatialResult, TranslationSpatialResultDocument,
+    translation_pair_correlation::{
+        analyze_translation_pair_correlation, translation_pair_correlation_configuration_digest,
+        TranslationPairCorrelationConfig, TranslationPairCorrelationResult,
+        TranslationPairCorrelationResultDocument,
     },
+    translation_spatial_workflow::window_artifact,
     workflow::pattern_artifact,
-    Pattern,
+    PairCorrelationKernel, Pattern,
 };
 
-const NODE_KIND: &str = "translation_spatial_analysis";
-const WINDOW_KIND: &str = "application/vnd.marklab.observation-window-2d+json;version=1";
-const CONFIG_KIND: &str = "application/vnd.marklab.translation-spatial-config+json;version=1";
-const RESULT_KIND: &str = "application/vnd.marklab.translation-spatial-result+json;version=1";
-const EXECUTION_POLICY: &[u8] =
-    b"serial;exact-polygon-translation-overlap;whole-pattern-conditional-csr;erl";
-const ADAPTER_REVISION: &str = "translation-spatial-analysis-node-v1";
+const NODE_KIND: &str = "translation_pair_correlation_analysis";
+const CONFIG_KIND: &str =
+    "application/vnd.marklab.translation-pair-correlation-config+json;version=1";
+const RESULT_KIND: &str =
+    "application/vnd.marklab.translation-pair-correlation-result+json;version=1";
+const EXECUTION_POLICY: &[u8] = b"serial;exact-polygon-translation-overlap;epanechnikov;explicit-bandwidth;whole-pattern-conditional-csr;erl";
+const ADAPTER_REVISION: &str = "translation-pair-correlation-analysis-node-v1";
 
-/// Cache-addressed exact translation-corrected homogeneous K/L node.
-pub struct TranslationSpatialAnalysisNode<'a> {
+/// Cache-addressed exact translation-corrected homogeneous pair-correlation node.
+pub struct TranslationPairCorrelationAnalysisNode<'a> {
     spec: NodeSpec,
     pattern: &'a Pattern,
-    window: &'a ObservationWindow2D,
-    config: &'a TranslationSpatialConfig,
+    window: &'a crate::ObservationWindow2D,
+    config: &'a TranslationPairCorrelationConfig,
     inputs: Vec<ArtifactRef>,
     configuration_digest: ContentDigest,
     implementation_identity: String,
 }
 
-impl<'a> TranslationSpatialAnalysisNode<'a> {
-    /// Catalog exact pattern, window, and configuration identities.
+impl<'a> TranslationPairCorrelationAnalysisNode<'a> {
+    /// Catalog exact pattern, window, bandwidth, null, and resource identities.
     pub fn new(
         project: &mut MarklabProject,
         id: NodeId,
         pattern: &'a Pattern,
-        window: &'a ObservationWindow2D,
-        config: &'a TranslationSpatialConfig,
+        window: &'a crate::ObservationWindow2D,
+        config: &'a TranslationPairCorrelationConfig,
     ) -> Result<Self, NodeError> {
         Self::new_with_implementation_identity(
             project,
@@ -60,8 +61,8 @@ impl<'a> TranslationSpatialAnalysisNode<'a> {
         project: &mut MarklabProject,
         id: NodeId,
         pattern: &'a Pattern,
-        window: &'a ObservationWindow2D,
-        config: &'a TranslationSpatialConfig,
+        window: &'a crate::ObservationWindow2D,
+        config: &'a TranslationPairCorrelationConfig,
         implementation_identity: String,
         source_artifacts: Vec<ArtifactRef>,
     ) -> Result<Self, NodeError> {
@@ -93,8 +94,8 @@ impl<'a> TranslationSpatialAnalysisNode<'a> {
     }
 }
 
-impl WorkflowNode for TranslationSpatialAnalysisNode<'_> {
-    type Output = TranslationSpatialResult;
+impl WorkflowNode for TranslationPairCorrelationAnalysisNode<'_> {
+    type Output = TranslationPairCorrelationResult;
 
     fn spec(&self) -> &NodeSpec {
         &self.spec
@@ -128,12 +129,12 @@ impl WorkflowNode for TranslationSpatialAnalysisNode<'_> {
     }
 
     fn execute(&self) -> Result<Self::Output, NodeError> {
-        analyze_translation_spatial_pattern(self.pattern, self.window, self.config)
+        analyze_translation_pair_correlation(self.pattern, self.window, self.config)
             .map_err(NodeError::execution)
     }
 
     fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
-        TranslationSpatialResultDocument::new(output.clone())
+        TranslationPairCorrelationResultDocument::new(output.clone())
             .and_then(|document| document.to_json_pretty())
             .map(String::into_bytes)
             .map(Vec::into_boxed_slice)
@@ -142,8 +143,8 @@ impl WorkflowNode for TranslationSpatialAnalysisNode<'_> {
 
     fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
         let text = std::str::from_utf8(bytes).map_err(NodeError::decode)?;
-        TranslationSpatialResultDocument::from_json(text)
-            .map(TranslationSpatialResultDocument::into_analysis)
+        TranslationPairCorrelationResultDocument::from_json(text)
+            .map(TranslationPairCorrelationResultDocument::into_analysis)
             .map_err(NodeError::decode)
     }
 
@@ -153,51 +154,27 @@ impl WorkflowNode for TranslationSpatialAnalysisNode<'_> {
 }
 
 #[derive(Serialize)]
-struct WindowArtifact {
-    kind: &'static str,
-    logical_digest: String,
-    area_um2: f64,
-    perimeter_um: f64,
-    bounds_um: [f64; 4],
-    component_count: usize,
-    hole_count: usize,
-    ring_count: usize,
-    vertex_count: usize,
-}
-
-pub(crate) fn window_artifact(window: &ObservationWindow2D) -> Result<ArtifactRef, NodeError> {
-    let descriptor = window.descriptor();
-    let encoded = serde_json::to_vec(&WindowArtifact {
-        kind: "marklab.observation_window_2d",
-        logical_digest: descriptor.logical_digest.to_string(),
-        area_um2: descriptor.area_um2,
-        perimeter_um: descriptor.perimeter_um,
-        bounds_um: descriptor.bounds_um,
-        component_count: descriptor.component_count,
-        hole_count: descriptor.hole_count,
-        ring_count: descriptor.ring_count,
-        vertex_count: descriptor.vertex_count,
-    })
-    .map_err(NodeError::input)?;
-    ArtifactRef::from_bytes(WINDOW_KIND, &encoded).map_err(NodeError::input)
-}
-
-#[derive(Serialize)]
 struct ConfigArtifact<'a> {
     radii_um: &'a [f64],
+    bandwidth_um: f64,
+    kernel: PairCorrelationKernel,
     simulations: usize,
     seed: u64,
     alpha: f64,
-    limits: TranslationSpatialLimits,
+    limits: crate::TranslationSpatialLimits,
+    logical_digest: String,
 }
 
-fn config_artifact(config: &TranslationSpatialConfig) -> Result<ArtifactRef, NodeError> {
+fn config_artifact(config: &TranslationPairCorrelationConfig) -> Result<ArtifactRef, NodeError> {
     let encoded = serde_json::to_vec(&ConfigArtifact {
         radii_um: config.radii_um(),
+        bandwidth_um: config.bandwidth_um(),
+        kernel: PairCorrelationKernel::Epanechnikov,
         simulations: config.simulations(),
         seed: config.seed(),
         alpha: config.alpha(),
         limits: config.limits(),
+        logical_digest: translation_pair_correlation_configuration_digest(config).to_string(),
     })
     .map_err(NodeError::input)?;
     ArtifactRef::from_bytes(CONFIG_KIND, &encoded).map_err(NodeError::input)

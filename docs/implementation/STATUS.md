@@ -3449,3 +3449,31 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   Clippy and root no-default compilation pass. Strict docs first reject one accidental `[0,1]`
   intra-doc link and pass after the literal is backticked. Affected formatting, whitespace, diff,
   and status checks pass; no broad workspace/loader loop runs.
+
+## Translation-corrected homogeneous pair correlation checkpoint 169 — 2026-08-29
+
+- Added `analyze_translation_pair_correlation`, a strict standalone version-one document, durable
+  node, and `marklab project translation-pair-correlation`. Every unordered displacement in at
+  least one strict Epanechnikov support interval evaluates the existing exact polygon overlap once;
+  represented radii receive both ordered kernel-weighted `area(W)/overlap` factors and
+  `area(W)/(2*pi*r*n*(n-1))` normalization. Conditional CSR and ERL use a distinct seed namespace.
+- Translation K/L and g now share only exact overlap work accounting and preflight through
+  `translation_spatial::edge`; window geometry, scheduler, store, ledger, recovery, source/runtime
+  identities, and output transactions remain existing owners. Standard-border g, translation K/L,
+  isotropic K/L, and result-format 0.3 bytes are unchanged. No correction registry or automatic
+  selection surface is introduced.
+- A two-point rectangle gives overlap 90, weighted kernel sum `10/3`, and g `250/(3*pi)`. The static
+  GEOS 3.14.1 holed/disconnected multipolygon fixture independently gives overlap 61.8125 and agrees
+  with the complete normalized formula. Strict compact-support endpoints are unavailable rather
+  than zero; exact 20/19 pair, 20/19 overlap, 320/319 conservative Boolean work, preflight output,
+  one-byte-short memory, strict corruption, and cache-limit invalidation are covered.
+- The bounded real run reuses checkpoint 157's hash-verified frozen 512-cell/12-component CPTAC
+  input at radius 20, the already recorded 10-micrometre pair bandwidth, 19 simulations, and seed
+  20260829. The miss takes 7.16 seconds at 23,379,968-byte maximum RSS; a fresh backend-disabled
+  hit takes 5.80 seconds at 21,626,880 bytes. Both outputs hash to
+  `8bc1bfbf211e6b474fe723534fd1f6d4b1eaffbf2d81984e4af691114cce7126`, `cmp` passes, and the ledger
+  has one row. Observed g is 2.109894 with p=0.10; this is one-specimen capacity evidence only.
+- Fourteen focused direct/durable standard-border and translation K/L/g tests pass, followed by the
+  fresh-process translation-g CLI test and both seed namespace tests. Warning-denied affected
+  Clippy, root no-default compilation, strict affected docs, affected formatting, and whitespace
+  checks pass. No workspace-wide/Nextest loader loop or unrelated broad gate runs.

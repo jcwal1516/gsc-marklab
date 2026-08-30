@@ -4195,3 +4195,39 @@ vascular transport.
   `98961c7825ae78f3805b3f643494607a83f0600edaf0582266b4cdc8cf6c0ceb`.
 - Affected formatting, whitespace, direct diff, and status checks pass. No workspace-wide gate,
   loader loop, full feature matrix, publication, deployment, or push runs.
+
+## Translation-corrected homogeneous pair correlation checkpoint 169 — 2026-08-29
+
+- Red-first direct: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  translation_pair_correlation_typed_workflow` fails only on absent estimator/config exports. The
+  implemented rectangle oracle passes at overlap 90, weighted kernel sum `10/3`, and g
+  `250/(3*pi)`. The static GEOS 3.14.1 holed/disconnected overlap fixture agrees at 61.8125 after
+  its test ceiling is set to the independently required Boolean-output bound. Compact-support
+  emptiness and exact/one-short pair, overlap, candidate-work, output, and memory boundaries pass.
+- Red-first durable: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  translation_pair_correlation_project_workflow` fails only on absent node/document exports. Its
+  first implementation exposes a one-ULP direct-to-canonical JSON difference already covered by
+  the stable document policy; the test retains exact canonical round-trip/strict corruption and a
+  bounded direct-value tolerance. Overlap-limit changes produce a distinct miss.
+- Red-first CLI: `cargo +1.96.0 test --locked --package marklab --features cli --test
+  translation_pair_correlation_project_cli` fails with unrecognized subcommand, then passes a
+  fresh miss and backend-disabled byte-identical hit with one ledger row. The final non-CLI affected
+  command over translation g, translation K/L, and standard-border g passes 14/14; the final CLI
+  target passes 1/1, and `cargo +1.96.0 test --locked --package marklab --lib
+  common::seeds::tests` passes 2/2.
+- The frozen checkpoint-157 input hashes again match
+  `f2f1cc27d4ab2bfac2ecbc86bcc44ef3aac33180eb3051dc9586a8b2c581ec99` and
+  `9f56f9ddeecbc9adb6c81d624964b5b578bfa7116da2a34777b6b42769fa87ac`.
+  `/usr/bin/time -l target/debug/marklab project translation-pair-correlation ...` completes the
+  radius-20/bandwidth-10 miss in 7.16 seconds at 23,379,968-byte RSS. The fresh
+  `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1` hit takes 5.80 seconds at 21,626,880 bytes; `cmp`
+  passes, the ledger remains one row, and both outputs hash to
+  `8bc1bfbf211e6b474fe723534fd1f6d4b1eaffbf2d81984e4af691114cce7126`.
+- The real result records observed/total pair visits 130,816/2,616,320, observed/total overlap calls
+  812/7,717, 17,779,968 conservative segment-pair operations, maximum 60 output positions, 170,384
+  estimated retained bytes, and 64,298 CSR draws. Its g 2.109894 and p=0.10 are retained only as
+  one-specimen capacity evidence.
+- Warning-denied affected Clippy passes for the library, CLI binary, three new targets, and affected
+  translation K/L targets. Root no-default compilation and strict CLI package docs pass. Affected
+  rustfmt and whitespace/diff checks pass. No workspace-wide/Nextest loop, full feature matrix,
+  benchmark, fuzzing, packaging, dependency, publication, deployment, or push runs.
