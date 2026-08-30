@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
 use marklab_bayes::{
     low_rank_predictive_process, FieldCoordinate1D, PredictiveProcessError, PredictiveProcessSpec,
@@ -142,16 +142,11 @@ fn read_knots(path: &std::path::Path) -> Result<Vec<FieldCoordinate1D>, BayesCli
 }
 
 fn validate_file(path: &std::path::Path) -> Result<(), BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
-            "predictive-process input must be a regular file within the 16 MiB limit".into(),
-        ));
-    }
-    Ok(())
+    super::input_file::validate_regular_file(
+        path,
+        MAXIMUM_INPUT_BYTES,
+        "predictive-process input must be a regular file within the 16 MiB limit",
+    )
 }
 
 fn map_error(error: PredictiveProcessError) -> BayesCliError {

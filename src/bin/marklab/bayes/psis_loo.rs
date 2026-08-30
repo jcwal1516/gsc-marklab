@@ -77,15 +77,11 @@ pub(super) fn run(
 fn read_log_likelihood(
     path: &std::path::Path,
 ) -> Result<Vec<PointwiseLogLikelihoodDraw>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
-            "PSIS-LOO input must be a regular file within the 16 MiB limit".into(),
-        ));
-    }
+    super::input_file::validate_regular_file(
+        path,
+        MAXIMUM_INPUT_BYTES,
+        "PSIS-LOO input must be a regular file within the 16 MiB limit",
+    )?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader
         .headers()?

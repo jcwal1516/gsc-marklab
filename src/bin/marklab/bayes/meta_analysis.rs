@@ -77,15 +77,11 @@ pub(super) fn run(
 }
 
 fn read_sites(path: &std::path::Path) -> Result<Vec<SiteEstimate>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
-            "meta-analysis input must be a regular file within the 16 MiB limit".into(),
-        ));
-    }
+    super::input_file::validate_regular_file(
+        path,
+        MAXIMUM_INPUT_BYTES,
+        "meta-analysis input must be a regular file within the 16 MiB limit",
+    )?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader
         .headers()?

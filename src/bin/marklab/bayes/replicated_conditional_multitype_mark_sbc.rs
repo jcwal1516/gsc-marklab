@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, fs, path::PathBuf};
+use std::{collections::BTreeSet, path::PathBuf};
 
 use clap::{Parser, Subcommand};
 use marklab_bayes::{sha256_hex, BackendContract, FitState, NutsSamplingSpec, WorkerBackend};
@@ -578,17 +578,9 @@ fn string_array(value: &serde_json::Value, name: &str) -> Result<Vec<String>, Ba
 }
 
 fn read_bounded(path: &std::path::Path, maximum: u64) -> Result<Vec<u8>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > maximum {
-        return Err(BayesCliError::Input(
-            "replicated conditional-mark SBC adapter is absent or oversized".into(),
-        ));
-    }
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
+    super::input_file::read_regular_file(
+        path,
+        maximum,
+        "replicated conditional-mark SBC adapter is absent or oversized",
+    )
 }

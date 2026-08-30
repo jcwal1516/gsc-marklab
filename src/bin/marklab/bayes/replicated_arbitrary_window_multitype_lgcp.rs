@@ -1171,17 +1171,9 @@ fn is_digest(value: &str) -> bool {
 }
 
 fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > 8 * 1_048_576 {
-        return Err(BayesCliError::Input(
-            "replicated multitype LGCP backend source is absent or oversized".into(),
-        ));
-    }
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
+    super::input_file::read_regular_file(
+        path,
+        8 * 1_048_576,
+        "replicated multitype LGCP backend source is absent or oversized",
+    )
 }

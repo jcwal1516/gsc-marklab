@@ -74,15 +74,11 @@ pub(super) fn run(
 }
 
 fn reader(path: &std::path::Path) -> Result<csv::Reader<std::fs::File>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
-            "prior-sensitivity inputs must be regular files within the 16 MiB limit".into(),
-        ));
-    }
+    super::input_file::validate_regular_file(
+        path,
+        MAXIMUM_INPUT_BYTES,
+        "prior-sensitivity inputs must be regular files within the 16 MiB limit",
+    )?;
     Ok(csv::ReaderBuilder::new().from_path(path)?)
 }
 

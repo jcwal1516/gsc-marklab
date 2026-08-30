@@ -173,16 +173,11 @@ fn read_csv<T: serde::de::DeserializeOwned>(
 }
 
 fn validate_file(path: &Path, label: &str) -> Result<(), BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(format!(
-            "arbitrary-window IPP {label} must be a regular file within 16 MiB"
-        )));
-    }
-    Ok(())
+    super::input_file::validate_regular_file(
+        path,
+        MAXIMUM_INPUT_BYTES,
+        &format!("arbitrary-window IPP {label} must be a regular file within 16 MiB"),
+    )
 }
 
 fn map_error(error: ArbitraryWindowIppError) -> BayesCliError {

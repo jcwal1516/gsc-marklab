@@ -188,19 +188,11 @@ pub(crate) fn execute_projected_variograms(
 }
 
 pub(super) fn read(path: &PathBuf) -> Result<Vec<u8>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.clone(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
-            "embedding spatial inputs must be regular files within the 16 MiB limit".into(),
-        ));
-    }
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.clone(),
-        source,
-    })
+    super::input_file::read_regular_file(
+        path,
+        MAXIMUM_INPUT_BYTES,
+        "embedding spatial inputs must be regular files within the 16 MiB limit",
+    )
 }
 
 pub(crate) fn read_projected_points(

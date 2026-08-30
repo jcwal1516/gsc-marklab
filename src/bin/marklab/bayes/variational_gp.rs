@@ -155,14 +155,9 @@ fn read_predictions(path: &std::path::Path) -> Result<Vec<GpPredictionCoordinate
 }
 
 fn validate_file(path: &std::path::Path) -> Result<(), BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
-            "variational GP input must be a regular file within the 16 MiB limit".into(),
-        ));
-    }
-    Ok(())
+    super::input_file::validate_regular_file(
+        path,
+        MAXIMUM_INPUT_BYTES,
+        "variational GP input must be a regular file within the 16 MiB limit",
+    )
 }

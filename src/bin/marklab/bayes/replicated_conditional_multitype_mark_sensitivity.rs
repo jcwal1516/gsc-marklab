@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf, thread};
+use std::{path::PathBuf, thread};
 
 use clap::{Parser, Subcommand};
 use marklab_bayes::{
@@ -485,17 +485,5 @@ fn maximum_shift<'a>(
 }
 
 fn read_bounded(path: &std::path::Path, maximum: u64) -> Result<Vec<u8>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > maximum {
-        return Err(BayesCliError::Input(
-            "sensitivity input is absent or oversized".into(),
-        ));
-    }
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
+    super::input_file::read_regular_file(path, maximum, "sensitivity input is absent or oversized")
 }

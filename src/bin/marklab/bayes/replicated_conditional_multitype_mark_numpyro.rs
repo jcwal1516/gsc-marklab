@@ -1,5 +1,3 @@
-use std::fs;
-
 use marklab_bayes::{sha256_hex, BackendContract};
 
 use super::{replicated_conditional_multitype_mark::Prepared, run_worker, BayesCliError};
@@ -64,17 +62,9 @@ pub(crate) fn execute(
 }
 
 fn read_bounded(path: &std::path::Path, maximum: u64) -> Result<Vec<u8>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > maximum {
-        return Err(BayesCliError::Input(
-            "NumPyro adapter source is absent or oversized".into(),
-        ));
-    }
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
+    super::input_file::read_regular_file(
+        path,
+        maximum,
+        "NumPyro adapter source is absent or oversized",
+    )
 }

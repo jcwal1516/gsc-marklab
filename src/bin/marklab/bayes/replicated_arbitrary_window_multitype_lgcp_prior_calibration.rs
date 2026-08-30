@@ -500,17 +500,9 @@ fn validate_result(
 }
 
 fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
-    let metadata = std::fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_ADAPTER_BYTES {
-        return Err(BayesCliError::Input(
-            "replicated multitype LGCP prior-calibration adapter is absent or oversized".into(),
-        ));
-    }
-    std::fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
+    super::input_file::read_regular_file(
+        path,
+        MAXIMUM_ADAPTER_BYTES,
+        "replicated multitype LGCP prior-calibration adapter is absent or oversized",
+    )
 }

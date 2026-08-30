@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use marklab_bayes::{
@@ -518,17 +518,9 @@ fn compare(left: &FitView, right: &NumpyroResult, standardized: f64, tolerance: 
 }
 
 fn read_bounded(path: &std::path::Path, maximum: u64) -> Result<Vec<u8>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > maximum {
-        return Err(BayesCliError::Input(format!(
-            "agreement input is absent or exceeds {maximum} bytes"
-        )));
-    }
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
+    super::input_file::read_regular_file(
+        path,
+        maximum,
+        &format!("agreement input is absent or exceeds {maximum} bytes"),
+    )
 }

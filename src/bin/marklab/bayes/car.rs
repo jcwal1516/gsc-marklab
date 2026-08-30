@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
 use clap::ValueEnum;
 use marklab_bayes::{
@@ -185,16 +185,11 @@ fn read_field(path: &std::path::Path) -> Result<Vec<RegionFieldValue>, BayesCliE
 }
 
 fn validate_file(path: &std::path::Path) -> Result<(), BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
-            "CAR input must be a regular file within the 16 MiB limit".into(),
-        ));
-    }
-    Ok(())
+    super::input_file::validate_regular_file(
+        path,
+        MAXIMUM_INPUT_BYTES,
+        "CAR input must be a regular file within the 16 MiB limit",
+    )
 }
 
 fn map_error(error: CarDensityError) -> BayesCliError {

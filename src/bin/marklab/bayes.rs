@@ -360,6 +360,8 @@ mod inhomogeneous_poisson;
 mod inhomogeneous_poisson_fit;
 #[path = "bayes/inla.rs"]
 mod inla;
+#[path = "bayes/input_file.rs"]
+mod input_file;
 #[path = "bayes/joint_mark.rs"]
 mod joint_mark;
 #[path = "bayes/laplace.rs"]

@@ -629,17 +629,9 @@ fn diagnostics_pass(value: &NormalMeanDiagnostics, policy: &DiagnosticPolicy) ->
 }
 
 fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_RESULT_BYTES {
-        return Err(BayesCliError::Input(
-            "PyMC inferred multitype result is absent or oversized".into(),
-        ));
-    }
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
+    super::input_file::read_regular_file(
+        path,
+        MAXIMUM_RESULT_BYTES,
+        "PyMC inferred multitype result is absent or oversized",
+    )
 }

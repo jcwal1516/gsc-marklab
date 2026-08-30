@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fs, path::PathBuf};
+use std::{collections::BTreeMap, path::PathBuf};
 
 use clap::ValueEnum;
 use marklab_bayes::{
@@ -309,16 +309,11 @@ fn read_coefficients(
 }
 
 fn validate_file(path: &std::path::Path) -> Result<(), BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
-            "SAR input must be a regular file within the 16 MiB limit".into(),
-        ));
-    }
-    Ok(())
+    super::input_file::validate_regular_file(
+        path,
+        MAXIMUM_INPUT_BYTES,
+        "SAR input must be a regular file within the 16 MiB limit",
+    )
 }
 
 fn map_error(error: SarError) -> BayesCliError {

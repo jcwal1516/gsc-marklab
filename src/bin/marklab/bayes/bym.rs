@@ -259,14 +259,9 @@ fn read_data(path: &std::path::Path, region_ids: &[String]) -> Result<BymData, B
 }
 
 fn validate_file(path: &std::path::Path) -> Result<(), BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
-            "BYM input must be a regular file within the 16 MiB limit".into(),
-        ));
-    }
-    Ok(())
+    super::input_file::validate_regular_file(
+        path,
+        MAXIMUM_INPUT_BYTES,
+        "BYM input must be a regular file within the 16 MiB limit",
+    )
 }

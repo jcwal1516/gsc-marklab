@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use marklab_bayes::{sha256_hex, BackendContract, FitState, WorkerBackend};
@@ -498,17 +498,9 @@ fn validate_result(
 }
 
 fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_ADAPTER_BYTES {
-        return Err(BayesCliError::Input(
-            "inferred multitype calibration adapter is absent or oversized".into(),
-        ));
-    }
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
+    super::input_file::read_regular_file(
+        path,
+        MAXIMUM_ADAPTER_BYTES,
+        "inferred multitype calibration adapter is absent or oversized",
+    )
 }
