@@ -7,6 +7,7 @@ mod profile;
 mod publication;
 mod reader;
 mod writer;
+mod writer_resources;
 
 pub use cell_patch::{
     preflight_cell_patch_assignment_table_parquet_bytes,

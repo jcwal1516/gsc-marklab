@@ -8,6 +8,7 @@ use parquet::arrow::arrow_writer::{ArrowWriter, ArrowWriterOptions};
 
 use crate::{CellPatchAssignmentMode, CellPatchLink};
 
+use super::super::writer_resources::enforce_footer_bound;
 use super::profile::{assignment_schema, edge_schema, writer_properties, CellPatchParquetProfile};
 use crate::columnar::{
     multiscale::{
@@ -19,7 +20,6 @@ use crate::columnar::{
         profile::{MAXIMUM_FOOTER_BYTES, PUBLIC_BATCH_ROWS, ROW_GROUP_ROWS},
         writer::{
             estimate_metadata_retained_bytes_for_columns, ParquetDigestingWriter,
-            MAXIMUM_ENCODED_FOOTER_BASE_BYTES, MAXIMUM_ENCODED_FOOTER_BYTES_PER_ROW_GROUP,
             WRITER_FIXED_RETAINED_BYTES,
         },
     },
@@ -368,19 +368,4 @@ fn enforce_writer_estimates(
     enforce_decoded_budget(estimates.decoded_bytes, budgets)?;
     enforce_row_group_budget(estimates.row_group_bytes, budgets)?;
     enforce_retained_budget(estimates.retained_bytes, budgets)
-}
-
-fn enforce_footer_bound(row_count: usize) -> Result<(), MultiscaleColumnarError> {
-    let footer_bound = MAXIMUM_ENCODED_FOOTER_BASE_BYTES
-        .checked_add(
-            row_count
-                .div_ceil(ROW_GROUP_ROWS)
-                .checked_mul(MAXIMUM_ENCODED_FOOTER_BYTES_PER_ROW_GROUP)
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?,
-        )
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-    if footer_bound > MAXIMUM_FOOTER_BYTES {
-        return Err(MultiscaleColumnarError::ParquetWriter);
-    }
-    Ok(())
 }
