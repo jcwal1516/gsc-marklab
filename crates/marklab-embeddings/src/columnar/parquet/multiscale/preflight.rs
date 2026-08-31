@@ -4,8 +4,7 @@ use marklab_project::ContentDigest;
 use parquet::{
     file::metadata::{ParquetMetaData, ParquetMetaDataReader},
     format::{
-        ConvertedType, Encoding, FieldRepetitionType, FileMetaData, LogicalType, PageHeader,
-        PageType, SchemaElement, Type,
+        Encoding, FieldRepetitionType, FileMetaData, PageHeader, PageType, SchemaElement, Type,
     },
     thrift::TSerializable,
 };
@@ -755,8 +754,8 @@ fn decoded_chunk(
 #[cfg(test)]
 mod tests {
     use parquet::format::{
-        ColumnChunk, ColumnMetaData, CompressionCodec, DataPageHeaderV2, PageEncodingStats,
-        Statistics, StringType,
+        ColumnChunk, ColumnMetaData, CompressionCodec, ConvertedType, DataPageHeaderV2,
+        LogicalType, PageEncodingStats, Statistics, StringType,
     };
 
     use super::super::physical::validate_column_features;

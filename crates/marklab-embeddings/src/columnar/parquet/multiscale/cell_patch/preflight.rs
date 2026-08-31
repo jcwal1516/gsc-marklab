@@ -4,8 +4,7 @@ use marklab_project::ContentDigest;
 use parquet::{
     file::metadata::{ParquetMetaData, ParquetMetaDataReader},
     format::{
-        ConvertedType, Encoding, FieldRepetitionType, FileMetaData, LogicalType, PageHeader,
-        PageType, SchemaElement, Type,
+        Encoding, FieldRepetitionType, FileMetaData, PageHeader, PageType, SchemaElement, Type,
     },
     thrift::TSerializable,
 };
