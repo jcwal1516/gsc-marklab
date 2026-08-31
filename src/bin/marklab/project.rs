@@ -72,6 +72,8 @@ mod cohort_max_t;
 mod cohort_mmd;
 #[path = "project/cohort_multisite_covariate.rs"]
 mod cohort_multisite_covariate;
+#[path = "project/correlated_multitype_lgcp.rs"]
+mod correlated_multitype_lgcp;
 #[path = "project/embedding_cross_covariance.rs"]
 mod embedding_cross_covariance;
 #[path = "project/embedding_spatial_dependence_envelope.rs"]
@@ -1782,6 +1784,7 @@ enum ProjectCommand {
         Box<ReplicatedArbitraryWindowMultitypeLgcpInferredKernelProjectArgs>,
     ),
     ReplicatedArbitraryWindowMultitypeLgcpInferredKernelSbc(Box<multitype_lgcp_sbc::ProjectArgs>),
+    CorrelatedReplicatedArbitraryWindowMultitypeLgcp(Box<correlated_multitype_lgcp::ProjectArgs>),
     JointReplicatedLocationMark(Box<joint_location_mark::ProjectArgs>),
     ConditionalMultitypeMark(Box<ConditionalMultitypeMarkProjectArgs>),
     ReplicatedConditionalMultitypeMark(Box<ReplicatedConditionalMultitypeMarkProjectArgs>),
@@ -2970,6 +2973,9 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             command:
                 ProjectCommand::ReplicatedArbitraryWindowMultitypeLgcpInferredKernelSbc(arguments),
         } => multitype_lgcp_sbc::run(*arguments),
+        ProjectTopLevel::Project {
+            command: ProjectCommand::CorrelatedReplicatedArbitraryWindowMultitypeLgcp(arguments),
+        } => correlated_multitype_lgcp::run(*arguments),
         ProjectTopLevel::Project {
             command: ProjectCommand::JointReplicatedLocationMark(arguments),
         } => joint_location_mark::run(*arguments),

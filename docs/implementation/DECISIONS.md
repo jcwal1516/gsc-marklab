@@ -3624,3 +3624,23 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   set, overlap, interference, negative-control, and sensitivity identities. A future design caller
   must first supply the concrete action, feasible choices, budget, utility, outcome model,
   constraints, and outcome-blind evaluation split.
+
+## DEC-0388 — Estimate cross-type latent covariance through identified coregionalization
+
+- Date: 2026-08-31
+- Status: accepted for BAY-03/BAY-04/BAY-PP/BACK-01/WF-01/WS-12/WS-41/WS-43/WS-44
+- Decision: add one NumPyro specialization over the existing replicated exact-window multitype
+  LGCP request. Replace conditionally independent type fields with shared unit-variance Matérn
+  fields mixed by a lower-triangular LKJ Cholesky factor and positive type-specific field scales.
+  Retain the shared inferred physical length scale, exact quadrature Poisson likelihood,
+  patient/pattern hierarchy, within-pattern centering, typed count partition, diagnostics, and all
+  existing input bounds. Bind the LKJ concentration, field-scale prior, worker/lock/runtime, exact
+  source request, kernel work, coregionalization work, and output ceiling into direct and durable
+  identities. Report correlations as spatial latent covariance only; do not relabel them as Gibbs
+  interaction, attraction, communication, causality, or a shared biological mechanism.
+- Consequences: two through eight types can estimate a positive-definite cross-type correlation
+  matrix without confounding marginal field amplitude with correlation. A deterministic 3x3
+  Cholesky reconstruction and a replicated nine-node positive/negative recovery fixture protect
+  the parameterization; posterior count/variance checks protect the likelihood boundary. The
+  result remains diagnostic-only when sampler policy fails, and real promotion still requires
+  identifiable patient-held-out evidence and calibration rather than a nonzero posterior mean.

@@ -554,7 +554,7 @@ fn validate_result(result: &WorkerResult, prepared: &Prepared) -> Result<(), Bay
     Ok(())
 }
 
-fn predictive_valid(
+pub(crate) fn predictive_valid(
     rows: &[PatternTypePredictive],
     source: &serde_json::Value,
     draws: u64,
