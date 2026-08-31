@@ -4014,3 +4014,28 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - The focused direct/project integrations pass together. No workspace-wide/Nextest gate, broad
   feature matrix, benchmark, fuzzing, package, dependency, push, publication, deployment, or
   history rewrite runs.
+
+## Durable patient-first hierarchical-bootstrap checkpoint 192 — 2026-08-30
+
+- Added `marklab project cohort-hierarchical-bootstrap` around the existing typed
+  patient-then-nested-specimen nearest-rank percentile workflow. Exact input path/bytes,
+  replicate/seed/alpha, patient/specimen/draw/memory, native executable, scheduler,
+  implementation, and result-schema identities own replay. Patient, specimen, and worst-case draw
+  one-short cases fail before project creation; direct, miss, and disabled-hit bytes match with one
+  ledger row.
+- The real caller retains the already selected M2 coordinate-only relative-L endpoint at 50
+  micrometres for 627 specimens nested under 169 TCGA patients. With 999 deterministic replicates,
+  the observed specimen-row mean is 0.12502070998960083 and the 95% percentile interval is
+  [0.09433228205974918, 0.1593254062734362]. This is descriptive patient-first nested-sampling
+  evidence, not a group, causal, molecular, equivalence, or clinical result.
+- Direct/miss/hit results hash to
+  `e7e24fdd6c54824a00b1b63088a45a5c92745c0b9aeb9743f3806d8708a5a76e`. The sealed 13-file
+  bundle is
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v69-durable-hierarchical-bootstrap-final`;
+  run-manifest and checksum-manifest SHA-256 values are
+  `b5b8c8589b06106fd466aabba91e295accf7d750392f6af3f6672f22a8f911c7` and
+  `37b72249c42bb7075bada35cdb62cf1cd5487f66d64d4b7d26c98d73a54f3851`, and remote complete
+  rehash passes.
+- The focused direct/project integrations pass together. No workspace-wide/Nextest gate, broad
+  feature matrix, benchmark, fuzzing, package, dependency, push, publication, deployment, or
+  history rewrite runs.

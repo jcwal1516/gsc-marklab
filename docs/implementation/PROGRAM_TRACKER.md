@@ -592,3 +592,11 @@ stage ordinal is fixed nuisance adjustment, and the 50-micrometre coordinate-L r
 null-compatible. This closes the missing real adjusted whole-cluster caller for the available
 site-consistent COAD/READ design; broader calibration/multiplicity remain active, and mixed-within-
 site MSI/MSS labels are not misrepresented as a cluster-level assignment.
+
+## Durable patient-first hierarchical-bootstrap checkpoint 192
+
+COH-HBOOT-01, COH-01, FND-06, PLAT-01, WF-01, WS-12, WS-31, and WS-34 advance through one
+concrete durable hierarchical-bootstrap workflow and a real 627-specimen/169-patient TCGA replay.
+The 50-micrometre coordinate-L interval is descriptive nested-sampling evidence under the existing
+specimen-row mean estimand. No group, equivalence, causal, molecular, or clinical interpretation is
+added, and no generic resampling framework is counted as progress.

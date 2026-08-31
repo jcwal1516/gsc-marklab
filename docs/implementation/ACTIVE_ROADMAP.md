@@ -1871,3 +1871,13 @@ byte-identical with one ledger row and remain null-compatible. MSI/MSS is not su
 13 sites contain both labels. COH-01/FND-06 remain active for broader multiplicity/calibration and
 other real designs; production next returns to a real admitted caller rather than inventing the
 missing hierarchical family map or independent patch tensors.
+
+## Checkpoint 192 durable patient-first hierarchical bootstrap
+
+The existing patient-then-nested-specimen bootstrap now has a bounded typed project path and a real
+627-specimen/169-patient TCGA execution for the prespecified 50-micrometre M2 coordinate-L
+endpoint. Its direct result, miss, and disabled hit are byte-identical with one ledger row. The
+interval remains descriptive because the existing estimand is the specimen-row mean under
+patient-first resampling. COH-01/FND-06 durable patient-level design coverage advances without a
+generic resampling surface; production next selects another admitted real caller rather than
+retroactively defining an ordered endpoint family or fabricating patch tensors.

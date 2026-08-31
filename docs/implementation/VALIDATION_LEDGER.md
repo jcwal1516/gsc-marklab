@@ -4752,3 +4752,24 @@ vascular transport.
   `032e96ba49b874d6c561e3f11103fd46b8caeeec02a3ea5d68bd5b7114b514c7`.
 - No broad workspace/Nextest loop, full feature matrix, benchmark, fuzz, packaging, dependency,
   push, publication, deployment, or history-rewrite command runs.
+
+## Durable patient-first hierarchical-bootstrap checkpoint 192 — 2026-08-30
+
+- The first focused run fails for the expected missing project subcommand. After implementation,
+  `CARGO_INCREMENTAL=0 cargo +1.96.0 test --locked --package marklab --features cli --test
+  cohort_hierarchical_bootstrap_cli --test cohort_hierarchical_bootstrap_project_cli -- --nocapture`
+  passes 1/1 in both targets. The project target covers patient, specimen, and exact worst-case
+  nested-draw one-short limits before project creation, direct-byte parity, miss, fresh
+  backend-disabled hit, exact source/configuration/runtime/result identity, and one ledger row.
+- A bounded read-only Mac mini admission selects the existing
+  `m2_classical_coordinate/coordinate_l_relative_50um` rows from the sealed specimen fingerprint
+  table: 627 unique specimens under 169 patients, with one to four specimens per patient. The
+  999-replicate worst-case schedule is 675,324 nested draws.
+- The real direct command, durable miss, and
+  `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1` hit compare byte-identically at SHA-256
+  `e7e24fdd6c54824a00b1b63088a45a5c92745c0b9aeb9743f3806d8708a5a76e`; the ledger remains one
+  row. Remote `shasum -a 256 -c SHA256SUMS` passes all 13 files. Run-manifest and checksum-manifest
+  SHA-256 values are `b5b8c8589b06106fd466aabba91e295accf7d750392f6af3f6672f22a8f911c7` and
+  `37b72249c42bb7075bada35cdb62cf1cd5487f66d64d4b7d26c98d73a54f3851`.
+- No broad workspace/Nextest loop, full feature matrix, benchmark, fuzz, packaging, dependency,
+  push, publication, deployment, or history-rewrite command runs.

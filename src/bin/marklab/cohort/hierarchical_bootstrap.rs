@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use marklab_cohort::{
     bootstrap_equivalence, hierarchical_bootstrap, BootstrapEquivalenceResult,
@@ -71,10 +74,14 @@ pub(super) fn run_equivalence(
 
 fn read_records(path: &Path) -> Result<Vec<HierarchicalScalarRecord>, CohortError> {
     validate_input_file(path)?;
-    let mut reader = csv::ReaderBuilder::new()
-        .flexible(false)
-        .from_path(path)
-        .map_err(|error| CohortError::Input(error.to_string()))?;
+    let bytes = fs::read(path).map_err(|error| CohortError::Input(error.to_string()))?;
+    read_records_from_bytes(&bytes)
+}
+
+pub(crate) fn read_records_from_bytes(
+    bytes: &[u8],
+) -> Result<Vec<HierarchicalScalarRecord>, CohortError> {
+    let mut reader = csv::ReaderBuilder::new().flexible(false).from_reader(bytes);
     let headers = reader
         .headers()
         .map_err(|error| CohortError::Input(error.to_string()))?
@@ -97,26 +104,27 @@ fn read_records(path: &Path) -> Result<Vec<HierarchicalScalarRecord>, CohortErro
         .collect()
 }
 
-#[derive(Debug, Serialize)]
-struct HierarchicalBootstrapOutput {
-    format: &'static str,
-    version: u32,
-    input: PathBuf,
-    design: HierarchicalDesignOutput,
-    patients: usize,
-    specimens: usize,
-    observed_mean: f64,
-    interval: IntervalOutput,
-    replicates: ReplicateOutput,
-    seed: u64,
-    alpha: f64,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct HierarchicalBootstrapOutput {
+    pub(crate) format: String,
+    pub(crate) version: u32,
+    pub(crate) input: PathBuf,
+    pub(crate) design: HierarchicalDesignOutput,
+    pub(crate) patients: usize,
+    pub(crate) specimens: usize,
+    pub(crate) observed_mean: f64,
+    pub(crate) interval: IntervalOutput,
+    pub(crate) replicates: ReplicateOutput,
+    pub(crate) seed: u64,
+    pub(crate) alpha: f64,
 }
 
 impl HierarchicalBootstrapOutput {
-    fn from_result(input: PathBuf, result: HierarchicalBootstrapResult) -> Self {
+    pub(crate) fn from_result(input: PathBuf, result: HierarchicalBootstrapResult) -> Self {
         let design = hierarchical_design(&result.inference_design);
         Self {
-            format: "marklab.cohort_hierarchical_bootstrap",
+            format: "marklab.cohort_hierarchical_bootstrap".into(),
             version: 1,
             input,
             design,
@@ -139,27 +147,30 @@ impl HierarchicalBootstrapOutput {
     }
 }
 
-#[derive(Debug, Serialize)]
-struct HierarchicalDesignOutput {
-    levels: [&'static str; 2],
-    null_family: &'static str,
-    permutation_unit: &'static str,
-    statistic: &'static str,
-    interval_method: &'static str,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct HierarchicalDesignOutput {
+    pub(crate) levels: [String; 2],
+    pub(crate) null_family: String,
+    pub(crate) permutation_unit: String,
+    pub(crate) statistic: String,
+    pub(crate) interval_method: String,
 }
 
-#[derive(Debug, Serialize)]
-struct IntervalOutput {
-    lower: f64,
-    upper: f64,
-    level: f64,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct IntervalOutput {
+    pub(crate) lower: f64,
+    pub(crate) upper: f64,
+    pub(crate) level: f64,
 }
 
-#[derive(Debug, Serialize)]
-struct ReplicateOutput {
-    requested: usize,
-    attempted: usize,
-    completed: usize,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ReplicateOutput {
+    pub(crate) requested: usize,
+    pub(crate) attempted: usize,
+    pub(crate) completed: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -225,10 +236,10 @@ fn hierarchical_design(design: &InferenceDesign) -> HierarchicalDesignOutput {
         _ => unreachable!("hierarchical bootstrap returned another permutation unit"),
     };
     HierarchicalDesignOutput {
-        levels: ["patient", "specimen"],
-        null_family,
-        permutation_unit,
-        statistic: "specimen_row_mean",
-        interval_method: "nearest_rank_percentile",
+        levels: ["patient".into(), "specimen".into()],
+        null_family: null_family.into(),
+        permutation_unit: permutation_unit.into(),
+        statistic: "specimen_row_mean".into(),
+        interval_method: "nearest_rank_percentile".into(),
     }
 }

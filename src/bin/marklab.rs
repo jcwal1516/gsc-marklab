@@ -63,6 +63,7 @@ fn main() -> marklab::Result<()> {
                                     | "cohort-cluster-covariate-permutation"
                                     | "cohort-energy"
                                     | "cohort-hierarchical-max-t"
+                                    | "cohort-hierarchical-bootstrap"
                                     | "cohort-max-t"
                                     | "cohort-mmd"
                                     | "projected-embedding-variograms"

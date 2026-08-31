@@ -3351,3 +3351,19 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   second execution. Its 19-versus-3-site result is observational and null-compatible; cluster
   residual exchangeability remains an assumption. Molecular MSI labels remain invalid for this
   workflow because 13 sites contain both MSI and MSS patients.
+
+## DEC-0374 — Durably execute patient-first hierarchical bootstrap
+
+- Date: 2026-08-30
+- Status: accepted for COH-HBOOT-01/COH-01/FND-06/PLAT-01/WF-01/WS-12/WS-31/WS-34
+- Decision: add one native `marklab project cohort-hierarchical-bootstrap` caller around the
+  existing patient-then-nested-specimen nearest-rank percentile bootstrap. Reuse its exact CSV
+  schema, canonical identity ordering, deterministic seed schedule, direct output, scheduler,
+  artifact store, ledger, recovery, native runtime identity, and exact-float durable codec. Bind
+  exact input path/bytes, replicate/seed/alpha controls, patient/specimen/draw ceilings, and
+  retained-memory budget. Do not add a resampling registry or alter the existing specimen-row mean
+  estimand.
+- Consequences: the admitted 627-specimen/169-patient TCGA M2 coordinate-L table can replay a
+  patient-first interval without another execution. The result is descriptive nested-sampling
+  capacity evidence; it is not a group contrast, equivalence result, causal effect, molecular
+  association, or clinical finding.

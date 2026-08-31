@@ -33,7 +33,7 @@ mod fingerprint;
 #[path = "cohort/functional_equivalence.rs"]
 mod functional_equivalence;
 #[path = "cohort/hierarchical_bootstrap.rs"]
-mod hierarchical_bootstrap;
+pub(crate) mod hierarchical_bootstrap;
 #[path = "cohort/hierarchical_max_t.rs"]
 mod hierarchical_max_t;
 #[path = "cohort/input.rs"]

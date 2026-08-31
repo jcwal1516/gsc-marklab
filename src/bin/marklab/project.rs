@@ -58,6 +58,8 @@ mod cell_patch_complementarity;
 mod cohort_cluster_covariate;
 #[path = "project/cohort_energy.rs"]
 mod cohort_energy;
+#[path = "project/cohort_hierarchical_bootstrap.rs"]
+mod cohort_hierarchical_bootstrap;
 #[path = "project/cohort_hierarchical_max_t.rs"]
 mod cohort_hierarchical_max_t;
 #[path = "project/cohort_max_t.rs"]
@@ -1114,6 +1116,28 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    CohortHierarchicalBootstrap {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        replicates: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        maximum_patients: usize,
+        #[arg(long)]
+        maximum_specimens: usize,
+        #[arg(long)]
+        maximum_bootstrap_draws: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
     CohortMaxT {
         #[arg(long)]
         project: PathBuf,
@@ -1942,6 +1966,32 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             maximum_endpoints,
             maximum_cells,
             maximum_permutation_endpoint_evaluations,
+            memory_budget_mib,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::CohortHierarchicalBootstrap {
+                    project,
+                    input,
+                    replicates,
+                    seed,
+                    alpha,
+                    maximum_patients,
+                    maximum_specimens,
+                    maximum_bootstrap_draws,
+                    memory_budget_mib,
+                    out,
+                },
+        } => cohort_hierarchical_bootstrap::run(
+            project,
+            input,
+            replicates,
+            seed,
+            alpha,
+            maximum_patients,
+            maximum_specimens,
+            maximum_bootstrap_draws,
             memory_budget_mib,
             out,
         ),
