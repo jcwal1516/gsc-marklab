@@ -6,7 +6,7 @@ use std::{
 use arrow::{datatypes::Schema, record_batch::RecordBatch};
 use arrow_ipc::{
     writer::{FileWriter, IpcWriteOptions},
-    MetadataVersion,
+    MetadataVersion, Type,
 };
 use marklab_project::ContentDigest;
 
@@ -42,6 +42,27 @@ pub(super) fn validate_record_batch_features(
             .is_some_and(|counts| !counts.is_empty())
     {
         return Err(arrow_failure(SpatialArrowFailure::ForbiddenFeature));
+    }
+    Ok(())
+}
+
+pub(super) fn validate_required_utf8_field(
+    field: arrow_ipc::Field<'_>,
+    name: &str,
+) -> Result<(), MultiscaleColumnarError> {
+    if field.name() != Some(name)
+        || field.nullable()
+        || field.dictionary().is_some()
+        || field
+            .custom_metadata()
+            .is_some_and(|metadata| !metadata.is_empty())
+        || field
+            .children()
+            .is_some_and(|children| !children.is_empty())
+        || field.type_type() != Type::Utf8
+        || field.type_as_utf_8().is_none()
+    {
+        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
     }
     Ok(())
 }

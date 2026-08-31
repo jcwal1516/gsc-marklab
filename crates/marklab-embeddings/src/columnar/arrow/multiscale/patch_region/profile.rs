@@ -12,6 +12,8 @@ use crate::{
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow_ipc::{Endianness, Type};
 
+use super::super::physical::validate_required_utf8_field;
+
 pub(super) const METADATA_LIMIT: usize = 64 * 1024;
 pub(super) const FIELD_COUNT: usize = 5;
 pub(super) const BUFFER_COUNT: usize = 13;
@@ -51,9 +53,9 @@ pub(super) fn validate_flatbuffer_schema(
     if fields.len() != FIELD_COUNT {
         return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
     }
-    validate_utf8(fields.get(0), "patch_id")?;
-    validate_utf8(fields.get(1), "region_id")?;
-    validate_utf8(fields.get(2), "relation")?;
+    validate_required_utf8_field(fields.get(0), "patch_id")?;
+    validate_required_utf8_field(fields.get(1), "region_id")?;
+    validate_required_utf8_field(fields.get(2), "relation")?;
     validate_u64(fields.get(3), "overlap_numerator")?;
     validate_u64(fields.get(4), "overlap_denominator")?;
     validate_metadata(schema.custom_metadata(), link)?;
@@ -98,24 +100,6 @@ fn validate_metadata(
         return Err(arrow_failure(
             SpatialArrowFailure::InvalidApplicationMetadata,
         ));
-    }
-    Ok(())
-}
-
-fn validate_utf8(field: arrow_ipc::Field<'_>, name: &str) -> Result<(), MultiscaleColumnarError> {
-    if field.name() != Some(name)
-        || field.nullable()
-        || field.dictionary().is_some()
-        || field
-            .custom_metadata()
-            .is_some_and(|metadata| !metadata.is_empty())
-        || field
-            .children()
-            .is_some_and(|children| !children.is_empty())
-        || field.type_type() != Type::Utf8
-        || field.type_as_utf_8().is_none()
-    {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
     }
     Ok(())
 }

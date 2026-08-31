@@ -7,6 +7,7 @@ use super::super::super::multiscale::{
     validate_footprint_domain, validate_overlap_domain, MultiscaleColumnarError,
     SpatialArrowFailure,
 };
+use super::physical::validate_required_utf8_field;
 use crate::multiscale::physical::{
     encoding_version, schema_id, SpatialArtifactRole, SpatialPhysicalEncoding,
 };
@@ -138,13 +139,13 @@ fn validate_schema_shape(
     }
     match profile {
         SpatialArrowProfile::Footprint => {
-            validate_utf8_field(fields.get(0), "patch_id")?;
+            validate_required_utf8_field(fields.get(0), "patch_id")?;
             validate_i64_field(fields.get(1), "origin_x_px")?;
             validate_i64_field(fields.get(2), "origin_y_px")
         }
         SpatialArrowProfile::Overlap => {
-            validate_utf8_field(fields.get(0), "left_patch_id")?;
-            validate_utf8_field(fields.get(1), "right_patch_id")
+            validate_required_utf8_field(fields.get(0), "left_patch_id")?;
+            validate_required_utf8_field(fields.get(1), "right_patch_id")
         }
     }
 }
@@ -262,27 +263,6 @@ fn validate_metadata(
         return Err(arrow_failure(
             SpatialArrowFailure::InvalidApplicationMetadata,
         ));
-    }
-    Ok(())
-}
-
-fn validate_utf8_field(
-    field: arrow_ipc::Field<'_>,
-    name: &str,
-) -> Result<(), MultiscaleColumnarError> {
-    if field.name() != Some(name)
-        || field.nullable()
-        || field.dictionary().is_some()
-        || field
-            .custom_metadata()
-            .is_some_and(|metadata| !metadata.is_empty())
-        || field
-            .children()
-            .is_some_and(|children| !children.is_empty())
-        || field.type_type() != Type::Utf8
-        || field.type_as_utf_8().is_none()
-    {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
     }
     Ok(())
 }

@@ -3,6 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow_ipc::{Endianness, Precision, Type};
 
+use super::super::physical::validate_required_utf8_field;
+
 use crate::{
     columnar::{
         multiscale::{
@@ -65,7 +67,7 @@ pub(super) fn validate_flatbuffer_schema(
     if fields.len() != COLUMN_COUNT {
         return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
     }
-    validate_utf8(fields.get(0), id_column(table.profile()))?;
+    validate_required_utf8_field(fields.get(0), id_column(table.profile()))?;
     let expected_dimension =
         i32::try_from(table.dimension()).map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
     let embedding = fields.get(1);
@@ -103,25 +105,7 @@ pub(super) fn validate_flatbuffer_schema(
     {
         return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
     }
-    validate_utf8(fields.get(2), "embedding_status")
-}
-
-fn validate_utf8(field: arrow_ipc::Field<'_>, name: &str) -> Result<(), MultiscaleColumnarError> {
-    if field.name() != Some(name)
-        || field.nullable()
-        || field.dictionary().is_some()
-        || field
-            .custom_metadata()
-            .is_some_and(|metadata| !metadata.is_empty())
-        || field
-            .children()
-            .is_some_and(|children| !children.is_empty())
-        || field.type_type() != Type::Utf8
-        || field.type_as_utf_8().is_none()
-    {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
-    }
-    Ok(())
+    validate_required_utf8_field(fields.get(2), "embedding_status")
 }
 
 fn validate_metadata(
