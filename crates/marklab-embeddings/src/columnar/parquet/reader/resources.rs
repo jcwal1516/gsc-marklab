@@ -1,7 +1,7 @@
 use parquet::file::metadata::RowGroupMetaData;
 
 use super::{super::preflight::PreparedCellEmbeddingParquet, record::parquet_failure};
-use crate::columnar::{estimate_materialized_table_bytes, EmbeddingColumnarError, ParquetFailure};
+use crate::columnar::{EmbeddingColumnarError, ParquetFailure};
 
 pub(super) fn validated_group_range(
     row_group: &RowGroupMetaData,

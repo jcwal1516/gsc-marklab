@@ -6,7 +6,6 @@ use marklab_project::{
 };
 use thiserror::Error;
 
-use super::managed::availability_failure;
 use crate::{
     columnar::{
         validate_patch_footprint_set_arrow_from_store,
@@ -21,6 +20,7 @@ use crate::{
         patch_region::{PatchRegionAssessment, PatchRegionLink},
         physical::{record_matches, SpatialArtifactRole},
     },
+    provenance::artifact_availability_failure as availability_failure,
     ArtifactAvailabilityFailure,
 };
 

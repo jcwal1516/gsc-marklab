@@ -20,15 +20,12 @@ use super::{
         profile::{embedding_schema, ROW_GROUP_ROWS},
     },
     record::{map_table_construction_error, parquet_failure, parse_embedding_status},
-    resources::{
-        estimate_group_peak, estimate_materialized_table_bytes, estimate_maximum_group_peak,
-        validated_group_range,
-    },
+    resources::{estimate_group_peak, estimate_maximum_group_peak, validated_group_range},
     window::RowGroupWindow,
 };
 use crate::columnar::{
-    enforce_retained_budget, enforce_row_group_budget, EmbeddingColumnarBudgets,
-    EmbeddingColumnarError, ParquetFailure,
+    enforce_retained_budget, enforce_row_group_budget, estimate_materialized_table_bytes,
+    EmbeddingColumnarBudgets, EmbeddingColumnarError, ParquetFailure,
 };
 
 #[allow(clippy::too_many_arguments)]
