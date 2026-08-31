@@ -71,6 +71,7 @@ fn main() -> marklab::Result<()> {
                                     | "marked-prepost"
                                     | "sparse-radius-heat"
                                     | "sparse-radius-basis"
+                                    | "graph-motif-triangle-summary"
                                     | "sparse-radius-fourier-energy"
                                     | "sparse-radius-heat-stability"
                                     | "sparse-radius-diffusion-wavelet"

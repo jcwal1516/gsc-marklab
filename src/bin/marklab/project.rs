@@ -74,6 +74,8 @@ mod embedding_cross_covariance;
 mod embedding_spatial_dependence_envelope;
 #[path = "project/graph_dirichlet_energy.rs"]
 mod graph_dirichlet_energy;
+#[path = "project/graph_motif_summary.rs"]
+mod graph_motif_summary;
 #[path = "project/graph_smoothness_permutation.rs"]
 mod graph_smoothness_permutation;
 #[path = "project/kernel_mark_correlation.rs"]
@@ -1478,6 +1480,14 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    GraphMotifTriangleSummary {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
     SparseRadiusFourierEnergy {
         #[arg(long)]
         project: PathBuf,
@@ -2414,6 +2424,14 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
                     out,
                 },
         } => run_sparse_radius_basis(project, input, out),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::GraphMotifTriangleSummary {
+                    project,
+                    input,
+                    out,
+                },
+        } => graph_motif_summary::run(project, input, out),
         ProjectTopLevel::Project {
             command:
                 ProjectCommand::SparseRadiusFourierEnergy {

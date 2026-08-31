@@ -13,9 +13,10 @@ use marklab_graph::{
     graph_sparse_radius_heat_stability_workflow, graph_sparse_radius_heat_workflow,
     graph_sparse_radius_scattering_workflow, graph_spectral_workflow, graph_spectrum_null_test,
     graph_wavelet_workflow, heterogeneous_graph_message_workflow, hypergraph_signal_workflow,
-    simplicial_hodge_workflow, typed_triangle_motif_workflow, validate_graph_mathematics_suite,
-    CellularComplexSpec, GraphChebyshevHeatSpec, GraphDiffusionWaveletSpec, GraphHeatSpec,
-    GraphScatteringSpec, GraphSparseRadiusBasisSpec, GraphSparseRadiusDiffusionWaveletSpec,
+    simplicial_hodge_workflow, typed_triangle_motif_summary_workflow,
+    typed_triangle_motif_workflow, validate_graph_mathematics_suite, CellularComplexSpec,
+    GraphChebyshevHeatSpec, GraphDiffusionWaveletSpec, GraphHeatSpec, GraphScatteringSpec,
+    GraphSparseRadiusBasisSpec, GraphSparseRadiusDiffusionWaveletSpec,
     GraphSparseRadiusFourierEnergySpec, GraphSparseRadiusHeatSpec,
     GraphSparseRadiusHeatStabilitySpec, GraphSparseRadiusScatteringSpec, GraphSpectralSpec,
     GraphSpectrumNullSpec, GraphWaveletSpec, HeterogeneousMessageSpec, HypergraphSignalSpec,
@@ -139,6 +140,12 @@ enum GraphCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    MotifTriangleSummary {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
     Hodge {
         #[arg(long)]
         input: PathBuf,
@@ -222,6 +229,9 @@ pub(crate) fn run_cli() -> Result<(), GraphCliError> {
             command: GraphCommand::MotifTriangle { input, out },
         } => run_motif(input, out),
         GraphTopLevel::Graph {
+            command: GraphCommand::MotifTriangleSummary { input, out },
+        } => run_motif_summary(input, out),
+        GraphTopLevel::Graph {
             command: GraphCommand::Hodge { input, out },
         } => run_hodge(input, out),
         GraphTopLevel::Graph {
@@ -259,6 +269,14 @@ fn run_motif(input: PathBuf, out: PathBuf) -> Result<(), GraphCliError> {
     let bytes = read_input(&input)?;
     let spec: TypedTriangleMotifSpec = serde_json::from_slice(&bytes)?;
     let result = typed_triangle_motif_workflow(spec)
+        .map_err(|error| GraphCliError::Input(error.to_string()))?;
+    publish_json(&out, &result)
+}
+
+fn run_motif_summary(input: PathBuf, out: PathBuf) -> Result<(), GraphCliError> {
+    let bytes = read_input(&input)?;
+    let spec: TypedTriangleMotifSpec = serde_json::from_slice(&bytes)?;
+    let result = typed_triangle_motif_summary_workflow(spec)
         .map_err(|error| GraphCliError::Input(error.to_string()))?;
     publish_json(&out, &result)
 }

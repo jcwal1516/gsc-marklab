@@ -53,8 +53,9 @@ pub use hypergraph::{
     HypergraphSignalResult, HypergraphSignalSpec, IncidenceEntry,
 };
 pub use motif::{
-    typed_triangle_motif_workflow, MotifEdgeInput, MotifNodeInput, TypedTriangleMotifResult,
-    TypedTriangleMotifSpec,
+    typed_triangle_motif_summary_workflow, typed_triangle_motif_workflow, MotifEdgeInput,
+    MotifNodeInput, TypedTriangleMotifResult, TypedTriangleMotifSpec,
+    TypedTriangleMotifSummaryResult,
 };
 pub use scattering::{
     graph_scattering_workflow, GraphScatteringFeature, GraphScatteringResult, GraphScatteringSpec,

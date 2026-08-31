@@ -3440,3 +3440,22 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   in-memory table. The reader rejects false logical bindings and charges encoded, decoded,
   intermediate-row, and final-table retention conservatively. Parquet materialization and analogous
   region/slide reconstruction remain deferred until an immediate caller requires them.
+
+## DEC-0379 — Scale the existing typed triangle motif for admitted CellViT graphs
+
+- Date: 2026-08-31
+- Status: accepted for GSP-02/HET-01/WS-61
+- Decision: preserve the existing typed undirected triangle, within-stratum label-permutation null,
+  deterministic seed, graph digest, and detailed version-one result. Replace exhaustive all-node
+  triple enumeration with canonical forward-neighbor wedge closure, so `maximum_triples` and
+  `triples_evaluated` measure the actual sparse candidate work. Add fixed hard wedge, triangle,
+  token, and detailed dense-adjacency bounds. Add a compact sibling summary that retains the exact
+  graph/statistic/null identities and counts while omitting duplicated nodes, edges, instances, and
+  dense motif adjacency; execute that compact result through the existing durable native project
+  engine. Do not add a graph registry, change the detailed result schema, or treat cells as patient
+  replicates.
+- Consequences: the admitted 2,000-cell, 24,755-edge, four-class CPTAC radius graph requires
+  194,608 forward-wedge checks rather than 1,331,334,000 possible node triples. Its compact result
+  is 835 bytes instead of 40,020,042 bytes and durably replays with one execution. The one-slide
+  Neoplastic/Inflammatory/Connective triangle result is descriptive and null-compatible; it is not
+  patient-level evidence and does not reverse the prior graph/topology fusion exclusion.
