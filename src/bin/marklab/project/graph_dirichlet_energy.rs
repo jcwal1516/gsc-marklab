@@ -387,9 +387,7 @@ fn preflight(
         resolved.push((pair.0, pair.1, edge.weight));
     }
     resolved.sort_by_key(|edge| (edge.0, edge.1));
-    if laplacian == GraphLaplacian::SymmetricNormalized
-        && neighbor_counts.iter().any(|count| *count == 0)
-    {
+    if laplacian == GraphLaplacian::SymmetricNormalized && neighbor_counts.contains(&0) {
         return Err(BayesCliError::Input(
             "symmetric-normalized Laplacian requires positive degree at every node".into(),
         ));
