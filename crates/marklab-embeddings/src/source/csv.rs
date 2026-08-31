@@ -3,8 +3,8 @@ use std::io::{Cursor, ErrorKind, SeekFrom, Write};
 use marklab_project::{ArtifactReadSeek, ContentDigest};
 
 use super::{
-    CellVitCsvField, CsvFailure, SourceBundleBudgets, SourceBundleError, SourceFileKind,
-    SourceIoFailure, SourceIoOperation,
+    enforce_retained, CellVitCsvField, CsvFailure, SourceBundleBudgets, SourceBundleError,
+    SourceFileKind, SourceIoFailure, SourceIoOperation,
 };
 
 const MAX_CSV_FILE_BYTES: u64 = 64 * 1024 * 1024;
@@ -671,19 +671,6 @@ fn field_count_error(record: u64) -> SourceBundleError {
     } else {
         csv_error(Some(record - 1), None, CsvFailure::WrongFieldCount)
     }
-}
-
-fn enforce_retained(
-    required: usize,
-    budgets: SourceBundleBudgets,
-) -> Result<(), SourceBundleError> {
-    if required > budgets.maximum_retained_bytes() {
-        return Err(SourceBundleError::RetainedByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_retained_bytes(),
-        });
-    }
-    Ok(())
 }
 
 fn csv_library_error(error: ::csv::Error) -> SourceBundleError {

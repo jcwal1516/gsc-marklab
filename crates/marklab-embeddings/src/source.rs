@@ -27,6 +27,19 @@ pub use reconciliation::{
     MissingPromotionField, SourceBundleReconciler, SourceBundleReconciliation,
 };
 
+fn enforce_retained(
+    required: usize,
+    budgets: SourceBundleBudgets,
+) -> Result<(), SourceBundleError> {
+    if required > budgets.maximum_retained_bytes() {
+        return Err(SourceBundleError::RetainedByteBudgetExceeded {
+            required,
+            maximum: budgets.maximum_retained_bytes(),
+        });
+    }
+    Ok(())
+}
+
 /// Explicit file, retained-memory, and decoded-value budgets for one source bundle.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SourceBundleBudgets {

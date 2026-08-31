@@ -6,8 +6,8 @@ use std::{
 use marklab_project::{ArtifactReadSeek, ContentDigest, ContentDigestWriter};
 
 use super::{
-    NpyFailure, SourceBundleBudgets, SourceBundleError, SourceFileKind, SourceIoFailure,
-    SourceIoOperation,
+    enforce_retained, NpyFailure, SourceBundleBudgets, SourceBundleError, SourceFileKind,
+    SourceIoFailure, SourceIoOperation,
 };
 
 const MAGIC: &[u8; 6] = b"\x93NUMPY";
@@ -357,19 +357,6 @@ fn read_layout(
         budgets,
     )?;
     Ok((layout, encoded_header))
-}
-
-fn enforce_retained(
-    required: usize,
-    budgets: SourceBundleBudgets,
-) -> Result<(), SourceBundleError> {
-    if required > budgets.maximum_retained_bytes() {
-        return Err(SourceBundleError::RetainedByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_retained_bytes(),
-        });
-    }
-    Ok(())
 }
 
 fn parse_layout_parts(

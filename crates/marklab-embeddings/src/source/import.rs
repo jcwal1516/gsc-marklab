@@ -14,6 +14,7 @@ use crate::{
 
 use super::{
     csv::{parse_reader as parse_csv_reader, ParsedCsv},
+    enforce_retained,
     npy::{
         reader_shape as npy_reader_shape, visit_reader as visit_npy_reader, NPY_STREAM_BUFFER_BYTES,
     },
@@ -623,19 +624,6 @@ fn peak_retained_bytes(
         .and_then(|value| value.checked_add(row_links))
         .and_then(|value| value.checked_add(identifier_bytes.checked_mul(2)?))
         .ok_or(SourceBundleError::SizeOverflow)
-}
-
-fn enforce_retained(
-    required: usize,
-    budgets: SourceBundleBudgets,
-) -> Result<(), SourceBundleError> {
-    if required > budgets.maximum_retained_bytes() {
-        return Err(SourceBundleError::RetainedByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_retained_bytes(),
-        });
-    }
-    Ok(())
 }
 
 fn import_error(reason: ImportFailure) -> SourceBundleError {
