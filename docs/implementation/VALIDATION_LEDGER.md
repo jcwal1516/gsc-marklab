@@ -4833,3 +4833,29 @@ vascular transport.
   Rustfmt, and diff whitespace checks pass. The documented workspace Nextest/full-loader loop and
   broad workspace gates are not run; no benchmark, fuzzing, packaging, dependency audit, push,
   publication, deployment, or history rewrite runs.
+
+## Patch interchange, scalable motifs, and durable spatial Bayes checkpoint 195 — 2026-08-31
+
+- Expected reds: the patch-overlap integration failed on absent patch materialization symbols; the
+  2,000-node motif failed because exhaustive `n choose 3` work was 1,331,334,000 above the 666-case
+  ceiling; compact graph and project tests failed on absent subcommands; the SVC project test failed
+  on its absent subcommand. All became green through their narrow production paths.
+- `cargo +1.96.0 test --locked --package marklab --features parquet --test
+  patch_overlap_embedding_dispersion`, `--test multiscale_embedding_tables`, and `--test
+  multiscale_matrix_columnar` pass 8/8, 12/12, and 10/10. `cargo +1.96.0 test --locked --package
+  marklab-embeddings --features parquet --lib` passes 55/55.
+- `cargo +1.96.0 test --locked --package marklab --features cli --test graph_motif_cli --test
+  durable_graph_motif_summary_project` passes 5/5 and 1/1; `cargo +1.96.0 test --locked --package
+  marklab-graph` passes 7/7 plus docs, and `graph_validation_suite_cli` passes 1/1. The real v71
+  compact direct/miss/hit files share SHA-256
+  `50813197ec7e28a320cc672b1db58df7662582c5ae634c409005a6915e2a56d8`; the ledger has one row.
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  durable_spatial_varying_coefficient_project` and `--test bayes_spatial_varying_coefficient_cli`
+  pass 1/1 each; `cargo +1.96.0 test --locked --package marklab-bayes --lib` passes 60/60. One
+  attempted direct-versus-independent-miss byte assertion failed because separate PyMC NUTS runs
+  differed; it was not relabeled as deterministic evidence. Miss/hit replay remains byte-identical
+  with one execution and a backend-disabled hit.
+- Warning-denied Clippy passes for `marklab-embeddings` with Parquet, `marklab-graph`,
+  `marklab-bayes`, and the affected `marklab` CLI binary. No-default checks pass cleanly for all
+  three libraries and the root package. Strict warning-denied affected docs, affected Rustfmt, and
+  `git diff --check` pass. No workspace-wide test/Clippy/Nextest loop runs.

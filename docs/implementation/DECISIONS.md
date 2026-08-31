@@ -3459,3 +3459,22 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   is 835 bytes instead of 40,020,042 bytes and durably replays with one execution. The one-slide
   Neoplastic/Inflammatory/Connective triangle result is descriptive and null-compatible; it is not
   patient-level evidence and does not reverse the prior graph/topology fusion exclusion.
+
+## DEC-0380 — Durably execute the existing pinned spatially varying coefficient family
+
+- Date: 2026-08-31
+- Status: accepted for BAY-01/BAY-03/BAY-REG-A/WF-01/WS-12/WS-40
+- Decision: add one `marklab project spatial-varying-coefficient` path around the existing exact
+  one-dimensional Matérn-3/2 Gaussian varying-coefficient model and pinned PyMC 6.3.0 worker. Bind
+  the exact CSV bytes and retained input path, predictor names, priors, known noise, jitter,
+  sampling/seed/timeout controls, Python lock, worker digest, backend identity, native executable,
+  implementation, and typed result schema through the existing scheduler, artifact store, ledger,
+  and recovery owners. Preserve the direct CLI, likelihood, sum-to-zero field constraint,
+  diagnostics, and output schema. Do not infer a distinct ROI, cohort, hurdle, anisotropic, or
+  multivariate field without corresponding admitted identities and design support.
+- Consequences: a validated spatially varying coefficient fit can replay byte-identically without
+  a second sampler execution. Independent PyMC runs are not claimed to be bitwise identical merely
+  because they share a seed; the direct long-run oracle proves model recovery, while durable
+  miss/hit proves exact retained-output replay. The current CRC bundle has no prespecified
+  field-level outcome/predictor caller or distinct ROI-within-slide identity, so no real CRC fit or
+  new scientific claim is fabricated at this checkpoint.

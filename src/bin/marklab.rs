@@ -72,6 +72,7 @@ fn main() -> marklab::Result<()> {
                                     | "sparse-radius-heat"
                                     | "sparse-radius-basis"
                                     | "graph-motif-triangle-summary"
+                                    | "spatial-varying-coefficient"
                                     | "sparse-radius-fourier-energy"
                                     | "sparse-radius-heat-stability"
                                     | "sparse-radius-diffusion-wavelet"

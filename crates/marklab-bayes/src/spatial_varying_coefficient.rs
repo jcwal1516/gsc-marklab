@@ -443,7 +443,7 @@ fn validate_scalar(summary: &SarScalarSummary, positive: bool) -> Result<(), Bay
     Ok(())
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct SpatialCoefficientInputIdentity {
     pub path: String,
     pub observations_sha256: String,

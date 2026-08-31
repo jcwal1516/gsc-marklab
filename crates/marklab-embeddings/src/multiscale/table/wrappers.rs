@@ -388,6 +388,7 @@ impl PatchEmbeddingTable {
         self.0.current_retained_bytes()
     }
 
+    #[cfg(feature = "parquet")]
     pub(crate) fn predicted_final_retained_bytes(
         expected: &ExpectedPatchSet,
         dimension: u32,

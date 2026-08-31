@@ -4093,3 +4093,28 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   frozen CSV header, but its bundle manifest lacks the model, environment/lock, license, and
   converter/provenance records required by the canonical promotion graph. That lane remains
   unavailable at this exact identity boundary; no graph was fabricated or weakened.
+
+## Patch interchange, scalable motifs, and durable spatial Bayes checkpoint 195 — 2026-08-31
+
+- Canonical patch-embedding Arrow artifacts can now be materialized through the existing store
+  integrity envelope from exact expected-patch, support, and provenance bindings. The reconstructed
+  typed table has the same logical digest and produces the identical patch-overlap dispersion as
+  the original in-memory table; a false support logical identity is rejected.
+- Typed triangle motifs now enumerate only canonical forward wedges, retain hard work/output/token
+  bounds, and expose a compact direct/durable summary without changing the detailed version-one
+  result. The admitted v71 CPTAC graph has 2,000 cells, 24,755 radius edges, and 194,608 wedge
+  checks. Its Neoplastic/Inflammatory/Connective result has 1,744 observed triangles, permutation
+  counts 5,950--8,825, and upper-tail `p=1.0`; this one-slide diagnostic is null-compatible and not
+  a patient replicate. Compact direct/miss/hit output is 835 bytes at SHA-256
+  `50813197ec7e28a320cc672b1db58df7662582c5ae634c409005a6915e2a56d8`, with one ledger row.
+- The existing pinned-PyMC 6.3.0 one-dimensional Matérn spatially varying coefficient family now
+  runs through `marklab project` with exact source/path, predictor, prior, sampling, lock, worker,
+  backend, runtime, and result identity. The focused short run is honestly nonconverged but replays
+  byte-identically without a second sampler execution; the existing long direct oracle remains
+  complete. Independent sampler runs are not claimed bitwise identical.
+- The sealed CRC inputs still lack distinct ROI-within-slide identities and a prespecified
+  field-level SVC outcome/predictor design; all admitted M7 rows are 217 slides under 105 patients.
+  No ROI/cohort/hurdle/anisotropic family or real CRC posterior is invented. Focused integrations,
+  55 embedding, 7 graph, and 60 Bayesian library tests, affected warning-denied Clippy, clean
+  no-default checks, strict affected docs, formatting, and whitespace checks pass. No workspace
+  Nextest/full-loader loop or other broad gate runs.

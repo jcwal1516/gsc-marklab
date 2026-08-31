@@ -1904,6 +1904,22 @@ input-blocked, not partially inferred.
 Embedding interchange work must now use an actual source graph rather than add another format. The
 existing bounded Arrow/Parquet stack already covers cell, patch, region, and slide matrices. Promote
 one admitted Schürch NPY/CSV bundle only when its exact model, environment/lock, license, converter,
-and provenance records are located; otherwise retain that named blocker and wait for the genuine
-H-Optimus patch tensor/link caller. Do not create a generic registry, lossy CSV codec, or synthetic
-provenance graph.
+  and provenance records are located; otherwise retain that named blocker and wait for the genuine
+  H-Optimus patch tensor/link caller. Do not create a generic registry, lossy CSV codec, or synthetic
+  provenance graph.
+
+## Checkpoint 195 patch interchange, scalable motifs, and durable spatial Bayes
+
+Canonical patch Arrow artifacts now materialize into the existing overlap-dispersion caller with
+exact logical identity. The existing typed motif runs on the admitted 2,000-cell graph by sparse
+forward-wedge work and has an 835-byte durable summary; its one-slide result is null-compatible and
+does not alter the prior graph/topology fusion exclusion. The existing pinned Matérn varying-
+coefficient family now has exact durable miss/hit replay, while independent PyMC fits are correctly
+not promised bitwise identity.
+
+Production next requires an admitted scientific caller before expanding the Bayesian or graph
+catalog. Distinct ROI-within-slide variance remains blocked by absent ROI identities; cohort and
+hurdle effects are unsupported by the one-cohort, no-boundary-count M7 input; shared anisotropy is
+invalid across unregistered slide axes. Continue with genuine H-Optimus patch provenance/link
+admission or another exact-window spatial caller only when its inputs expose a concrete missing
+connection. Do not add speculative likelihoods, graph transforms, or interchange registries.

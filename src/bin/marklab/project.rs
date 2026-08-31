@@ -88,6 +88,8 @@ mod multiscale_embedding_kernel;
 mod projected_embedding_variograms;
 #[path = "project/region_retrieval.rs"]
 mod region_retrieval;
+#[path = "project/spatial_varying_coefficient.rs"]
+mod spatial_varying_coefficient;
 #[path = "project/vector_semivariogram.rs"]
 mod vector_semivariogram;
 
@@ -1488,6 +1490,44 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    SpatialVaryingCoefficient {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        global_predictor_name: String,
+        #[arg(long)]
+        spatial_predictor_name: String,
+        #[arg(long, allow_hyphen_values = true)]
+        intercept_prior_mean: f64,
+        #[arg(long)]
+        intercept_prior_sd: f64,
+        #[arg(long)]
+        coefficient_prior_sd: f64,
+        #[arg(long)]
+        amplitude_prior_sd: f64,
+        #[arg(long)]
+        length_scale_prior_sd_um: f64,
+        #[arg(long)]
+        known_noise_sd: f64,
+        #[arg(long)]
+        jitter: f64,
+        #[arg(long)]
+        chains: u32,
+        #[arg(long)]
+        tune: u32,
+        #[arg(long)]
+        draws: u32,
+        #[arg(long)]
+        target_accept: f64,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
     SparseRadiusFourierEnergy {
         #[arg(long)]
         project: PathBuf,
@@ -2432,6 +2472,50 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
                     out,
                 },
         } => graph_motif_summary::run(project, input, out),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::SpatialVaryingCoefficient {
+                    project,
+                    input,
+                    global_predictor_name,
+                    spatial_predictor_name,
+                    intercept_prior_mean,
+                    intercept_prior_sd,
+                    coefficient_prior_sd,
+                    amplitude_prior_sd,
+                    length_scale_prior_sd_um,
+                    known_noise_sd,
+                    jitter,
+                    chains,
+                    tune,
+                    draws,
+                    target_accept,
+                    seed,
+                    timeout_seconds,
+                    out,
+                },
+        } => spatial_varying_coefficient::run(
+            project,
+            input,
+            global_predictor_name,
+            spatial_predictor_name,
+            intercept_prior_mean,
+            intercept_prior_sd,
+            coefficient_prior_sd,
+            amplitude_prior_sd,
+            length_scale_prior_sd_um,
+            known_noise_sd,
+            jitter,
+            NutsSamplingSpec {
+                chains,
+                tune_per_chain: tune,
+                draws_per_chain: draws,
+                target_accept,
+                seed,
+            },
+            timeout_seconds,
+            out,
+        ),
         ProjectTopLevel::Project {
             command:
                 ProjectCommand::SparseRadiusFourierEnergy {

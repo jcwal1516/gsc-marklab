@@ -468,7 +468,7 @@ mod smc;
 #[path = "bayes/smc_abc.rs"]
 mod smc_abc;
 #[path = "bayes/spatial_varying_coefficient.rs"]
-mod spatial_varying_coefficient;
+pub(crate) mod spatial_varying_coefficient;
 #[path = "bayes/strauss.rs"]
 mod strauss;
 #[path = "bayes/strauss_gibbs.rs"]
