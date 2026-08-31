@@ -74,6 +74,7 @@ mod prediction_safety;
 mod predictive_process;
 mod predictive_stacking;
 mod prior_sensitivity;
+mod probability_transform;
 mod psis_loo;
 mod replicated;
 mod result;

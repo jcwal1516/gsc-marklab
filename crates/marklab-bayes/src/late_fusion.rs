@@ -2,7 +2,10 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{BackendContract, BayesError, WorkerBackend};
+use crate::{
+    probability_transform::{clipped_logit, sigmoid},
+    BackendContract, BayesError, WorkerBackend,
+};
 
 const SCIPY_VERSION: &str = "1.18.1";
 
@@ -242,7 +245,7 @@ impl LateFusionWorkerResult {
                         .sum::<f64>(),
             );
             let calibrated =
-                sigmoid(self.calibrator.intercept + self.calibrator.slope * logit(raw));
+                sigmoid(self.calibrator.intercept + self.calibrator.slope * clipped_logit(raw));
             if prediction.patient_id != patient.patient_id
                 || prediction.label != patient.label
                 || prediction.availability
@@ -274,20 +277,6 @@ fn fusion_features(probabilities: &[Option<f64>]) -> Vec<f64> {
         .iter()
         .flat_map(|value| [value.unwrap_or(0.5), f64::from(value.is_some())])
         .collect()
-}
-
-fn sigmoid(value: f64) -> f64 {
-    if value >= 0.0 {
-        1.0 / (1.0 + (-value).exp())
-    } else {
-        let exponential = value.exp();
-        exponential / (1.0 + exponential)
-    }
-}
-
-fn logit(probability: f64) -> f64 {
-    let clipped = probability.clamp(1e-12, 1.0 - 1e-12);
-    (clipped / (1.0 - clipped)).ln()
 }
 
 fn approximately_equal(left: f64, right: f64) -> bool {

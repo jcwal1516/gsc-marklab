@@ -2,7 +2,10 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{BackendContract, BayesError, WorkerBackend};
+use crate::{
+    probability_transform::{clipped_logit, sigmoid},
+    BackendContract, BayesError, WorkerBackend,
+};
 
 const SCIPY_VERSION: &str = "1.18.1";
 
@@ -309,7 +312,7 @@ impl MixtureOfExpertsWorkerResult {
                 .map(|(weight, probability)| weight * probability.unwrap_or(0.0))
                 .sum::<f64>();
             let probability =
-                sigmoid(self.calibrator.intercept + self.calibrator.slope * logit(raw));
+                sigmoid(self.calibrator.intercept + self.calibrator.slope * clipped_logit(raw));
             let ood = ood_score(&self.model, &patient.context);
             let expected_availability = patient
                 .expert_probabilities
@@ -430,20 +433,6 @@ fn ood_score(model: &MixtureGateModel, context: &[f64]) -> f64 {
         .map(|((value, mean), sd)| ((value - mean) / sd).powi(2))
         .sum::<f64>()
         .sqrt()
-}
-
-fn sigmoid(value: f64) -> f64 {
-    if value >= 0.0 {
-        1.0 / (1.0 + (-value).exp())
-    } else {
-        let exponential = value.exp();
-        exponential / (1.0 + exponential)
-    }
-}
-
-fn logit(probability: f64) -> f64 {
-    let clipped = probability.clamp(1e-12, 1.0 - 1e-12);
-    (clipped / (1.0 - clipped)).ln()
 }
 
 fn approximately_equal(left: f64, right: f64) -> bool {

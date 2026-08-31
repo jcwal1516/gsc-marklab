@@ -1,4 +1,4 @@
-use crate::validation::all_finite as finite;
+use crate::{probability_transform::sigmoid, validation::all_finite as finite};
 
 use std::collections::HashSet;
 
@@ -271,15 +271,6 @@ fn validate_bins(
         ));
     }
     Ok(())
-}
-
-fn sigmoid(value: f64) -> f64 {
-    if value >= 0.0 {
-        1.0 / (1.0 + (-value).exp())
-    } else {
-        let exponential = value.exp();
-        exponential / (1.0 + exponential)
-    }
 }
 
 fn approximately_equal(left: f64, right: f64) -> bool {
