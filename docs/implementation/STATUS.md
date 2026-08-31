@@ -4158,3 +4158,22 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - Six spatial3d package tests plus docs, four focused CLI integrations, affected warning-denied
   Clippy, no-default compilation, formatting, and whitespace checks pass. No broad workspace
   Nextest/full-loader loop or unrelated gate runs.
+
+## Paired registered longitudinal K-change checkpoint 198 — 2026-08-31
+
+- Added one paired registered-volume workflow over the existing exact serial voxel K path. It
+  requires the same patient/lesion/site, distinct specimen and timepoint identities, ordered biopsy
+  days, a bounded treatment/exposure interval, cross-time registration and deformation-posterior
+  identities, aligned deformation-only K-change draws, a negative-control curve, and an independent
+  change curve. Radii, correction, and anisotropic metric must match exactly.
+- Results retain both full timepoint analyses and report observed K change, deformation-only and
+  registration-adjusted 95% intervals, negative-control compatibility, independent-direction
+  agreement, and their prespecified conjunction. The positive oracle changes from K 0 to K 3 under
+  symmetric ±0.25 registration draws; the null oracle retains zero change and is not promoted.
+- Direct and durable CLI paths pass; a fresh process proves miss then backend-disabled hit, exact
+  output bytes, and one ledger row. The parent registered-serial direct and durable paths also pass
+  after the preparation refactor. Affected warning-denied CLI Clippy, formatting, and whitespace
+  checks pass.
+- This remains synthetic correctness evidence. No real registered longitudinal cohort, deformation
+  estimator, probabilistic cell correspondence, causal treatment effect, or same-cell claim is
+  added. No broad workspace Nextest/full-loader loop or unrelated gate runs.

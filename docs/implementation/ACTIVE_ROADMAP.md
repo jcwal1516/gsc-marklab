@@ -1952,3 +1952,18 @@ supplies section-level posterior draws or a conservative uncertainty design. Dis
 currently stop with that exact blocker; they are never treated as exact. Real longitudinal change
 still requires paired timepoints, deformation-only controls, and an independent biological
 measurement. Do not add mesh formats or another registration framework without an admitted source.
+
+## Checkpoint 198 paired registered longitudinal K change
+
+Two deterministic registered serial volumes can now be compared as one patient/lesion unit while
+retaining distinct specimen and timepoint identity, biopsy timing, anatomical site, bounded
+treatment/exposure interval, cross-time registration identity, and deformation-posterior identity.
+The workflow reports observed and registration-adjusted K change, a deformation-only interval,
+negative-control compatibility, independent-measurement direction agreement, and a prespecified
+conjunction. Positive and null analytic oracles both remain truthful, and project replay avoids a
+second analysis.
+
+Production next requires an admitted paired registered cohort before any biological claim. Add
+section-level transform draws or probabilistic cell correspondence only for a caller that supplies
+their provenance and validation landmarks. The current result does not infer deformation, causal
+treatment response, cell trajectories, or same-cell identity from registered proximity.

@@ -52,6 +52,12 @@ enum Spatial3dCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    RegisteredLongitudinalVoxelKChange {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
     InhomogeneousK {
         #[arg(long)]
         input: PathBuf,
@@ -98,6 +104,9 @@ pub(crate) fn run_cli() -> Result<(), Spatial3dCliError> {
             command: Spatial3dCommand::RegisteredSerialVoxelK { input, out },
         } => run_registered_serial(input, out),
         Spatial3dTopLevel::Spatial3d {
+            command: Spatial3dCommand::RegisteredLongitudinalVoxelKChange { input, out },
+        } => run_registered_longitudinal(input, out),
+        Spatial3dTopLevel::Spatial3d {
             command: Spatial3dCommand::InhomogeneousK { input, out },
         } => run_inhomogeneous(input, out),
         Spatial3dTopLevel::Spatial3d {
@@ -122,6 +131,15 @@ fn run_registered_serial(input: PathBuf, out: PathBuf) -> Result<(), Spatial3dCl
     let prepared = spatial3d_registered::prepare(&bytes)
         .map_err(|error| Spatial3dCliError::Input(error.to_string()))?;
     let result = spatial3d_registered::execute(&prepared)
+        .map_err(|error| Spatial3dCliError::Input(error.to_string()))?;
+    publish_json(&out, &result)
+}
+
+fn run_registered_longitudinal(input: PathBuf, out: PathBuf) -> Result<(), Spatial3dCliError> {
+    let bytes = read_input(input)?;
+    let prepared = spatial3d_registered::longitudinal::prepare(&bytes)
+        .map_err(|error| Spatial3dCliError::Input(error.to_string()))?;
+    let result = spatial3d_registered::longitudinal::execute(&prepared)
         .map_err(|error| Spatial3dCliError::Input(error.to_string()))?;
     publish_json(&out, &result)
 }

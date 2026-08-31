@@ -100,6 +100,8 @@ mod smc_abc;
 mod spatial3d_k;
 #[path = "project/spatial3d_registered.rs"]
 mod spatial3d_registered;
+#[path = "project/spatial3d_registered_longitudinal.rs"]
+mod spatial3d_registered_longitudinal;
 #[path = "project/spatial3d_voxel_k.rs"]
 mod spatial3d_voxel_k;
 #[path = "project/spatial_varying_coefficient.rs"]
@@ -1699,6 +1701,14 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    Spatial3dRegisteredLongitudinalVoxelKChange {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
     SparseRadiusFourierEnergy {
         #[arg(long)]
         project: PathBuf,
@@ -2739,6 +2749,14 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
                     out,
                 },
         } => spatial3d_registered::run(project, input, out),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::Spatial3dRegisteredLongitudinalVoxelKChange {
+                    project,
+                    input,
+                    out,
+                },
+        } => spatial3d_registered_longitudinal::run(project, input, out),
         ProjectTopLevel::Project {
             command:
                 ProjectCommand::SparseRadiusFourierEnergy {

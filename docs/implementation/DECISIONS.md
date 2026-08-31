@@ -3539,3 +3539,24 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   K/L, and this result does not distinguish biological change from deformation; the existing
   controlled deformation/change workflow remains separate until a transform-draw-aware immediate
   caller is implemented. Real evidence still requires an admitted registered serial cohort.
+
+## DEC-0384 — Compare paired registered volumes only with explicit longitudinal and deformation controls
+
+- Date: 2026-08-31
+- Status: accepted for DIM-01/WF-01/WS-81
+- Decision: add one paired registered-volume K-change specialization over two existing exact
+  registered-serial voxel K requests. Require the same patient, lesion, anatomical site, distinct
+  specimen/timepoint identities, ordered biopsy times, a bounded treatment/exposure interval,
+  cross-time registration identity, deformation-posterior identity, prespecified deformation-only
+  K-change draws, a negative-control K-change curve, and an independent-change curve. Compare only
+  identical radii, edge correction, and anisotropic metric. Report the observed K difference,
+  deformation-only and registration-adjusted 95% intervals, negative-control compatibility,
+  independent-direction agreement, and their prespecified conjunction. Keep deformation draws as
+  uncertainty samples rather than biological replicates and retain hard draw, work, and memory
+  ceilings.
+- Consequences: paired biopsies gain a direct and durable longitudinal diagnostic that can retain a
+  positive, null, or registration-explainable result without equating registered proximity with
+  same-cell correspondence or making a causal treatment claim. The workflow consumes supplied
+  registration-sensitivity draws; it does not estimate deformation, treatment effects, or cell
+  trajectories. Real biological evidence still requires an admitted paired registered cohort with
+  provenance-complete deformation controls and independent measurements.

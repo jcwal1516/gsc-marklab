@@ -82,6 +82,7 @@ fn main() -> marklab::Result<()> {
                                     | "spatial3d-k-function"
                                     | "spatial3d-voxel-k-function"
                                     | "spatial3d-registered-serial-voxel-k"
+                                    | "spatial3d-registered-longitudinal-voxel-k-change"
                                     | "sparse-radius-fourier-energy"
                                     | "sparse-radius-heat-stability"
                                     | "sparse-radius-diffusion-wavelet"

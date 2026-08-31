@@ -12,6 +12,9 @@ use marklab_spatial3d::{
 use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
 
+#[path = "spatial3d_registered/longitudinal.rs"]
+pub(crate) mod longitudinal;
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum SectionStatusInput {
@@ -211,6 +214,12 @@ pub(crate) fn prepare(
     bytes: &[u8],
 ) -> Result<PreparedRegisteredSerialVoxelK, RegisteredSerialVoxelKError> {
     let spec: RegisteredSerialVoxelKSpec = serde_json::from_slice(bytes)?;
+    prepare_spec(spec)
+}
+
+fn prepare_spec(
+    spec: RegisteredSerialVoxelKSpec,
+) -> Result<PreparedRegisteredSerialVoxelK, RegisteredSerialVoxelKError> {
     let patient = PatientId::new(&spec.patient_id).map_err(invalid)?;
     let specimen = SpecimenId::new(&spec.specimen_id).map_err(invalid)?;
     let timepoint = TimepointId::new(&spec.timepoint_id).map_err(invalid)?;

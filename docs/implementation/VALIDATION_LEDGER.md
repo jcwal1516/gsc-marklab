@@ -4897,3 +4897,20 @@ vascular transport.
   no-default check, workspace formatting check, and `git diff --check` pass.
 - No real serial/longitudinal evidence, workspace Nextest/full-loader loop, benchmark, fuzzing,
   packaging, dependency audit, push, publication, deployment, or history rewrite runs.
+
+## Paired registered longitudinal K-change checkpoint 198 — 2026-08-31
+
+- Expected red: `cargo +1.96.0 test --locked --features cli --test
+  spatial3d_registered_longitudinal_k_cli` failed because
+  `registered-longitudinal-voxel-k-change` was absent. After the direct implementation, the test
+  passes its K 0→3, symmetric registration interval, retained identity, truthful null, and patient
+  mismatch cases. The durable test first failed because the project subcommand was absent, then
+  passes miss/hit replay with backend execution disabled on the second process and one ledger row.
+- Final focused command over `spatial3d_registered_serial_voxel_k_cli`,
+  `durable_spatial3d_registered_serial_project`, `spatial3d_registered_longitudinal_k_cli`, and
+  `durable_spatial3d_registered_longitudinal_project` passes 1/1 in every target. This also checks
+  that refactoring serial preparation did not change its direct or durable boundary.
+- `cargo +1.96.0 clippy --locked --package marklab --features cli --bin marklab -- -D warnings`,
+  `cargo +1.96.0 fmt --all --check`, and `git diff --check` pass. No broad workspace test/Nextest
+  loader loop, benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or
+  history rewrite runs.
