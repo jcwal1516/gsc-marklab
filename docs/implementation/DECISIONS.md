@@ -3367,3 +3367,20 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   patient-first interval without another execution. The result is descriptive nested-sampling
   capacity evidence; it is not a group contrast, equivalence result, causal effect, molecular
   association, or clinical finding.
+
+## DEC-0375 — Durably execute adjusted multisite patient contrasts
+
+- Date: 2026-08-30
+- Status: accepted for COH-01/FND-06/PLAT-01/WF-01/WS-12/WS-31/WS-34
+- Decision: add one native `marklab project cohort-multisite-covariate-contrast` caller around the
+  existing within-site fixed-nuisance OLS and fixed/REML pooling workflow. Reuse its exact CSV
+  schema, deterministic site ordering, patient unit, direct output, heterogeneity and leave-one-
+  site-out results, scheduler, artifact store, ledger, recovery, native runtime identity, and
+  exact-float durable codec. Cache-bind exact input path/bytes, groups, model, alpha,
+  patient/site/covariate/cell-work/OLS-work limits, and retained-memory budget. Do not add a formula
+  language, meta-analysis registry, or generic cohort runner.
+- Consequences: nine design-complete TCGA tissue-source sites and 126 patients can support a
+  stage-adjusted within-site MSI-minus-MSS analysis with random-effects REML pooling and exact
+  durable replay. Sites lacking two patients per group, varying nuisance support, full rank, or
+  positive residual degrees of freedom remain excluded by named design rules. The result is
+  observational and null-compatible, not causal or clinical evidence.

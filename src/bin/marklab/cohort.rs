@@ -39,7 +39,7 @@ mod hierarchical_max_t;
 #[path = "cohort/input.rs"]
 mod input;
 #[path = "cohort/multisite.rs"]
-mod multisite;
+pub(crate) mod multisite;
 #[path = "cohort/noninferiority.rs"]
 mod noninferiority;
 #[path = "cohort/output.rs"]
@@ -460,8 +460,8 @@ enum CliEnergyMetric {
     Euclidean,
 }
 
-#[derive(Clone, Copy, Debug, ValueEnum)]
-enum CliMultisiteModel {
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, ValueEnum)]
+pub(crate) enum CliMultisiteModel {
     FixedEffect,
     RandomEffectsReml,
 }

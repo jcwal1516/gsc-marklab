@@ -4039,3 +4039,31 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - The focused direct/project integrations pass together. No workspace-wide/Nextest gate, broad
   feature matrix, benchmark, fuzzing, package, dependency, push, publication, deployment, or
   history rewrite runs.
+
+## Durable adjusted multisite and non-loader stabilization checkpoint 193 — 2026-08-30
+
+- Added `marklab project cohort-multisite-covariate-contrast` around the existing patient-unit,
+  within-site fixed-nuisance OLS and fixed/REML pooling workflow. Exact source/path, groups, model,
+  alpha, patient/site/covariate/cell-work/OLS-work/memory, native executable, scheduler,
+  implementation, and result-schema identities own replay. Five one-short limits fail before
+  project creation; direct, miss, and disabled-hit bytes match with one ledger row.
+- The real TCGA caller admits 126 patients across nine tissue-source sites with at least two MSI and
+  two MSS patients, varying stage, full-rank intercept-plus-stage-plus-group designs, and positive
+  residual degrees of freedom. The stage-adjusted random-effects REML MSI-minus-MSS effect for the
+  existing 50-micrometre M2 coordinate-L endpoint is -0.010404190594993534 (SE
+  0.06627998333104117), with 95% CI [-0.14031057081974932, 0.11950218962976225], prediction
+  interval [-0.25027919798195153, 0.22947081679196443], tau-squared 0.010585653379058362, and Q
+  11.791406035753479. This is null-compatible observational evidence.
+- Direct/miss/hit results hash to
+  `195b24f804ccb21ac57d45cb66e8e528a507d51b7f2aed7a3c968d16a6cd6a71`. The sealed 13-file
+  bundle is
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v70-durable-adjusted-multisite-final`;
+  run-manifest and checksum-manifest SHA-256 values are
+  `83d25b7b6a09b734ebffe0ddd3ba02883008a56fc11fe8b4dc07018ef1489fca` and
+  `439548fc790045dd0efafd2e8280ff61e72c1552f0920c1e8aa9940eada4442c`, and remote complete
+  rehash passes.
+- The six checkpoint-191--193 direct/project integrations pass together. Workspace formatting,
+  warning-denied all-target/all-feature Clippy, workspace no-default compilation, all-feature
+  workspace doctests, and strict warning-denied all-feature workspace docs pass once. The
+  documented macOS Nextest/full-integration loader loop is not run. No benchmark, fuzzing,
+  packaging, dependency, push, publication, deployment, or history rewrite runs.

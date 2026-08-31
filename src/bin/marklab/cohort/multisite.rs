@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{collections::BTreeMap, fs, path::PathBuf};
 
 use marklab_cohort::{
     multisite_covariate_patient_contrast, multisite_patient_contrast, multisite_spatial_inference,
@@ -42,37 +42,40 @@ struct CovariateCsvRow {
     value: f64,
 }
 
-#[derive(Debug, Serialize)]
-struct Output {
-    format: &'static str,
-    version: u32,
-    model: &'static str,
-    site_count: usize,
-    total_patient_count: usize,
-    pooled_effect: f64,
-    pooled_standard_error: f64,
-    confidence_interval: [f64; 2],
-    prediction_interval: Option<[f64; 2]>,
-    heterogeneity: Heterogeneity,
-    leave_one_site_out: Vec<Sensitivity>,
-    alpha: f64,
-    claim_status: &'static str,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Output {
+    pub(crate) format: String,
+    pub(crate) version: u32,
+    pub(crate) model: String,
+    pub(crate) site_count: usize,
+    pub(crate) total_patient_count: usize,
+    pub(crate) pooled_effect: f64,
+    pub(crate) pooled_standard_error: f64,
+    pub(crate) confidence_interval: [f64; 2],
+    pub(crate) prediction_interval: Option<[f64; 2]>,
+    pub(crate) heterogeneity: Heterogeneity,
+    pub(crate) leave_one_site_out: Vec<Sensitivity>,
+    pub(crate) alpha: f64,
+    pub(crate) claim_status: String,
 }
 
-#[derive(Debug, Serialize)]
-struct Heterogeneity {
-    tau_squared: f64,
-    q: f64,
-    degrees_of_freedom: usize,
-    p_value: f64,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Heterogeneity {
+    pub(crate) tau_squared: f64,
+    pub(crate) q: f64,
+    pub(crate) degrees_of_freedom: usize,
+    pub(crate) p_value: f64,
 }
 
-#[derive(Debug, Serialize)]
-struct Sensitivity {
-    omitted_site_id: String,
-    pooled_effect: f64,
-    pooled_standard_error: f64,
-    tau_squared: f64,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Sensitivity {
+    pub(crate) omitted_site_id: String,
+    pub(crate) pooled_effect: f64,
+    pub(crate) pooled_standard_error: f64,
+    pub(crate) tau_squared: f64,
 }
 
 pub(super) fn run(
@@ -137,11 +140,11 @@ pub(super) fn run_covariate_contrast(
 impl From<MultisiteInferenceResult> for Output {
     fn from(result: MultisiteInferenceResult) -> Self {
         Self {
-            format: "marklab.cohort_multisite_inference",
+            format: "marklab.cohort_multisite_inference".into(),
             version: 1,
             model: match result.model {
-                MultisiteEffectModel::FixedEffect => "fixed_effect",
-                MultisiteEffectModel::RandomEffectsReml => "random_effects_reml",
+                MultisiteEffectModel::FixedEffect => "fixed_effect".into(),
+                MultisiteEffectModel::RandomEffectsReml => "random_effects_reml".into(),
             },
             site_count: result.site_count,
             total_patient_count: result.total_patient_count,
@@ -166,7 +169,7 @@ impl From<MultisiteInferenceResult> for Output {
                 })
                 .collect(),
             alpha: result.alpha,
-            claim_status: "experimental_site_summary_meta_analysis",
+            claim_status: "experimental_site_summary_meta_analysis".into(),
         }
     }
 }
@@ -243,10 +246,14 @@ fn read_covariate_records(
         path,
         "multisite covariate input must be a regular file within 16 MiB",
     )?;
-    let mut reader = csv::ReaderBuilder::new()
-        .flexible(false)
-        .from_path(path)
-        .map_err(|error| CohortError::Input(error.to_string()))?;
+    let bytes = fs::read(path).map_err(|error| CohortError::Input(error.to_string()))?;
+    read_covariate_records_from_bytes(&bytes)
+}
+
+pub(crate) fn read_covariate_records_from_bytes(
+    bytes: &[u8],
+) -> Result<Vec<MultisiteCovariatePatientRecord>, CohortError> {
+    let mut reader = csv::ReaderBuilder::new().flexible(false).from_reader(bytes);
     if !reader
         .headers()
         .map_err(|error| CohortError::Input(error.to_string()))?
@@ -324,10 +331,11 @@ struct PatientContrastDesign {
     standard_error: &'static str,
 }
 
-#[derive(Debug, Serialize)]
-struct PatientGroupLabels {
-    group_a: String,
-    group_b: String,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PatientGroupLabels {
+    pub(crate) group_a: String,
+    pub(crate) group_b: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -374,54 +382,58 @@ impl PatientContrastOutput {
     }
 }
 
-#[derive(Debug, Serialize)]
-struct CovariateContrastOutput {
-    format: &'static str,
-    version: u32,
-    input: PathBuf,
-    design: CovariateContrastDesign,
-    groups: PatientGroupLabels,
-    covariates: CovariateNames,
-    sites: Vec<CovariateSiteOutput>,
-    pooled: Output,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CovariateContrastOutput {
+    pub(crate) format: String,
+    pub(crate) version: u32,
+    pub(crate) input: PathBuf,
+    pub(crate) design: CovariateContrastDesign,
+    pub(crate) groups: PatientGroupLabels,
+    pub(crate) covariates: CovariateNames,
+    pub(crate) sites: Vec<CovariateSiteOutput>,
+    pub(crate) pooled: Output,
 }
 
-#[derive(Debug, Serialize)]
-struct CovariateContrastDesign {
-    population_unit: &'static str,
-    site_effect: &'static str,
-    standard_error: &'static str,
-    nuisance_transform: &'static str,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CovariateContrastDesign {
+    pub(crate) population_unit: String,
+    pub(crate) site_effect: String,
+    pub(crate) standard_error: String,
+    pub(crate) nuisance_transform: String,
 }
 
-#[derive(Debug, Serialize)]
-struct CovariateNames {
-    names: Vec<String>,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CovariateNames {
+    pub(crate) names: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
-struct CovariateSiteOutput {
-    site_id: String,
-    group_a_patients: usize,
-    group_b_patients: usize,
-    effect: f64,
-    standard_error: f64,
-    residual_degrees_of_freedom: usize,
-    covariate_centers: Vec<f64>,
-    covariate_scales: Vec<f64>,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CovariateSiteOutput {
+    pub(crate) site_id: String,
+    pub(crate) group_a_patients: usize,
+    pub(crate) group_b_patients: usize,
+    pub(crate) effect: f64,
+    pub(crate) standard_error: f64,
+    pub(crate) residual_degrees_of_freedom: usize,
+    pub(crate) covariate_centers: Vec<f64>,
+    pub(crate) covariate_scales: Vec<f64>,
 }
 
 impl CovariateContrastOutput {
-    fn from_result(input: PathBuf, result: MultisiteCovariateContrastResult) -> Self {
+    pub(crate) fn from_result(input: PathBuf, result: MultisiteCovariateContrastResult) -> Self {
         Self {
-            format: "marklab.cohort_multisite_covariate_contrast",
+            format: "marklab.cohort_multisite_covariate_contrast".into(),
             version: 1,
             input,
             design: CovariateContrastDesign {
-                population_unit: "patient",
-                site_effect: "adjusted_group_a_indicator",
-                standard_error: "within_site_ols",
-                nuisance_transform: "within_site_center_and_max_absolute_deviation_scale",
+                population_unit: "patient".into(),
+                site_effect: "adjusted_group_a_indicator".into(),
+                standard_error: "within_site_ols".into(),
+                nuisance_transform: "within_site_center_and_max_absolute_deviation_scale".into(),
             },
             groups: PatientGroupLabels {
                 group_a: result.group_a,

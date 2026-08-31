@@ -600,3 +600,12 @@ concrete durable hierarchical-bootstrap workflow and a real 627-specimen/169-pat
 The 50-micrometre coordinate-L interval is descriptive nested-sampling evidence under the existing
 specimen-row mean estimand. No group, equivalence, causal, molecular, or clinical interpretation is
 added, and no generic resampling framework is counted as progress.
+
+## Durable adjusted multisite checkpoint 193
+
+COH-01, FND-06, PLAT-01, WF-01, WS-12, WS-31, and WS-34 advance through one concrete durable
+adjusted multisite workflow and a real 126-patient/nine-site TCGA MSI/MSS replay. Stage-adjusted
+random-effects pooling is null-compatible, preserves patient as the population unit, and retains
+heterogeneity, prediction, and leave-one-site-out uncertainty. Sites failing prespecified group-
+count/rank/df support remain explicitly excluded. The checkpoint-191--193 cohort durability family
+passes one non-loader workspace stabilization; broader multiplicity/calibration remain active.

@@ -4773,3 +4773,30 @@ vascular transport.
   `37b72249c42bb7075bada35cdb62cf1cd5487f66d64d4b7d26c98d73a54f3851`.
 - No broad workspace/Nextest loop, full feature matrix, benchmark, fuzz, packaging, dependency,
   push, publication, deployment, or history-rewrite command runs.
+
+## Durable adjusted multisite and non-loader stabilization checkpoint 193 — 2026-08-30
+
+- The first focused run fails for the expected missing project subcommand. After implementation,
+  `CARGO_INCREMENTAL=0 cargo +1.96.0 test --locked --package marklab --features cli --test
+  cohort_multisite_covariate_cli --test cohort_multisite_covariate_project_cli -- --nocapture`
+  passes 1/1 in both targets. The project target covers patient, site, covariate,
+  patient-covariate-cell, and exact OLS-work one-short limits before project creation, direct-byte
+  parity, miss, fresh backend-disabled hit, exact source/configuration/runtime/result identity, and
+  one ledger row.
+- Bounded read-only design admission retains nine sites and 126 patients with at least two MSI and
+  two MSS patients per site, varying stage, full rank, and positive residual degrees of freedom.
+  Thirteen other sites retain exact group-count, nuisance-support, or df blockers. No outcome value
+  is used to select sites.
+- The real direct, miss, and disabled hit compare byte-identically at SHA-256
+  `195b24f804ccb21ac57d45cb66e8e528a507d51b7f2aed7a3c968d16a6cd6a71`; the ledger remains one
+  row. Remote `shasum -a 256 -c SHA256SUMS` passes all 13 files. Run-manifest and checksum-manifest
+  SHA-256 values are `83d25b7b6a09b734ebffe0ddd3ba02883008a56fc11fe8b4dc07018ef1489fca` and
+  `439548fc790045dd0efafd2e8280ff61e72c1552f0920c1e8aa9940eada4442c`.
+- `CARGO_INCREMENTAL=0 cargo +1.96.0 test --locked --package marklab --features cli` over the six
+  checkpoint-191--193 direct/project integration targets passes 1/1 in every target. The following
+  checkpoint commands pass: `cargo +1.96.0 fmt --all --check`; affected and workspace
+  warning-denied Clippy; package and workspace no-default compilation; all-feature workspace
+  doctests; and strict warning-denied all-feature workspace docs. The documented macOS
+  Nextest/full-integration loader loop is not run.
+- No benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history-rewrite
+  command runs.

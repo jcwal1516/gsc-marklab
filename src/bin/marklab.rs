@@ -66,6 +66,7 @@ fn main() -> marklab::Result<()> {
                                     | "cohort-hierarchical-bootstrap"
                                     | "cohort-max-t"
                                     | "cohort-mmd"
+                                    | "cohort-multisite-covariate-contrast"
                                     | "projected-embedding-variograms"
                                     | "marked-prepost"
                                     | "sparse-radius-heat"

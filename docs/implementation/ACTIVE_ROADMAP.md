@@ -1881,3 +1881,13 @@ interval remains descriptive because the existing estimand is the specimen-row m
 patient-first resampling. COH-01/FND-06 durable patient-level design coverage advances without a
 generic resampling surface; production next selects another admitted real caller rather than
 retroactively defining an ordered endpoint family or fabricating patch tensors.
+
+## Checkpoint 193 durable adjusted multisite and stabilization
+
+The existing stage-adjusted multisite patient contrast now has a bounded typed project path and a
+real 126-patient/nine-site TCGA MSI/MSS REML execution for the prespecified 50-micrometre M2
+coordinate-L endpoint. Direct, miss, and disabled hit are byte-identical with one ledger row; the
+pooled confidence and prediction intervals span zero. Checkpoints 191--193 pass one non-loader
+workspace stabilization. COH-01/FND-06 remain active for broader calibration/multiplicity and other
+admitted designs. Production next selects another provenance-complete real patient caller; do not
+weaken site admission, invent ordered families, or infer missing patch tensors.

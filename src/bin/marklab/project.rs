@@ -66,6 +66,8 @@ mod cohort_hierarchical_max_t;
 mod cohort_max_t;
 #[path = "project/cohort_mmd.rs"]
 mod cohort_mmd;
+#[path = "project/cohort_multisite_covariate.rs"]
+mod cohort_multisite_covariate;
 #[path = "project/embedding_cross_covariance.rs"]
 mod embedding_cross_covariance;
 #[path = "project/embedding_spatial_dependence_envelope.rs"]
@@ -1200,6 +1202,34 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    CohortMultisiteCovariateContrast {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        group_a: String,
+        #[arg(long)]
+        group_b: String,
+        #[arg(long, value_enum)]
+        model: super::cohort::CliMultisiteModel,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        maximum_patients: usize,
+        #[arg(long)]
+        maximum_sites: usize,
+        #[arg(long)]
+        maximum_covariates: usize,
+        #[arg(long)]
+        maximum_patient_covariate_cells: u64,
+        #[arg(long)]
+        maximum_ols_work: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
     ProjectedEmbeddingVariograms {
         #[arg(long)]
         project: PathBuf,
@@ -2062,6 +2092,38 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             maximum_features,
             maximum_kernel_elements,
             maximum_mmd_evaluations,
+            memory_budget_mib,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::CohortMultisiteCovariateContrast {
+                    project,
+                    input,
+                    group_a,
+                    group_b,
+                    model,
+                    alpha,
+                    maximum_patients,
+                    maximum_sites,
+                    maximum_covariates,
+                    maximum_patient_covariate_cells,
+                    maximum_ols_work,
+                    memory_budget_mib,
+                    out,
+                },
+        } => cohort_multisite_covariate::run(
+            project,
+            input,
+            group_a,
+            group_b,
+            model,
+            alpha,
+            maximum_patients,
+            maximum_sites,
+            maximum_covariates,
+            maximum_patient_covariate_cells,
+            maximum_ols_work,
             memory_budget_mib,
             out,
         ),
@@ -8263,7 +8325,7 @@ fn copy_bounded(
 fn compiled_features() -> Vec<String> {
     let candidates = [
         (cfg!(feature = "allocator-mimalloc"), "allocator-mimalloc"),
-        (cfg!(feature = "cli"), "cli"),
+        (true, "cli"),
         (cfg!(feature = "csv"), "csv"),
         (cfg!(feature = "dhat-heap"), "dhat-heap"),
         (cfg!(feature = "parallel"), "parallel"),
