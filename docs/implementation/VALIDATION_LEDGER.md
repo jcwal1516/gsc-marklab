@@ -4877,3 +4877,23 @@ vascular transport.
   Affected-file Rustfmt and `git diff --check` pass. No workspace-wide Nextest/full-integration
   loader loop, benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or
   history rewrite runs.
+
+## General voxel-window and registered-serial 3-D checkpoint 197 — 2026-08-31
+
+- Expected reds: `cargo +1.96.0 test --locked --features cli --test
+  spatial3d_voxel_window_k_cli` and the two durable/registered targets failed on absent
+  subcommands. Final serial focused execution over `spatial3d_voxel_window_k_cli`,
+  `durable_spatial3d_voxel_window_k_project`, `spatial3d_registered_serial_voxel_k_cli`, and
+  `durable_spatial3d_registered_serial_project` passes 1/1 in each target.
+- The exact L-window oracle retains three voxels, volume 3, surface 14, translation overlap 1, K 9,
+  and nine overlap checks. The 3x3x3 shell retains 26 voxels, one cavity, and 60 exposed faces. The
+  registered three-plane oracle embeds points at `[0.5,0.5,0.5]` and `[1.5,0.5,2.5]`, retains the
+  empty middle plane, and reports K 2. Both durable callers prove miss, fresh backend-disabled hit,
+  equal replay bytes, and one ledger row.
+- The first package run exposed a faulty one-short test radius that excluded the only pair; after
+  correcting the oracle radius to the intended inclusive endpoint, `cargo +1.96.0 test --locked
+  --package marklab-spatial3d` passes 6/6 plus docs. Warning-denied all-target/all-feature
+  `marklab-spatial3d` Clippy and warning-denied affected root CLI Clippy pass. The package
+  no-default check, workspace formatting check, and `git diff --check` pass.
+- No real serial/longitudinal evidence, workspace Nextest/full-loader loop, benchmark, fuzzing,
+  packaging, dependency audit, push, publication, deployment, or history rewrite runs.

@@ -4139,3 +4139,22 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   warning-denied Clippy, affected no-default compilation, affected-file Rustfmt, and diff
   whitespace checks pass. The documented workspace Nextest/full-loader loop and unrelated broad
   gates are not run.
+
+## General voxel-window and registered-serial 3-D checkpoint 197 — 2026-08-31
+
+- Added exact physical finite voxel-union 3-D windows with occupied volume, exposed-face surface,
+  six-connected components, enclosed cavities, canonical logical identity, half-open membership,
+  exposed-face border distance, and exact box-intersection translation overlap. None, border, and
+  translation K/L retain hard grid, pair, pair-radius, boundary-face, overlap, and memory ceilings.
+- Added a deterministic registered-serial path over the canonical coordinate registry. Exact
+  patient/specimen/timepoint/site/volume/section identities, consecutive order, section thickness,
+  physical Z, affine placements, points, and explicit missing planes are retained. The synthetic
+  three-plane oracle embeds two observed cells around one missing plane and preserves two
+  disconnected occupied voxels; distorted sections fail with the exact transform-draw blocker.
+- Both workflows run directly and through `marklab project`; fresh processes prove miss then
+  backend-disabled hit with one ledger execution. This does not claim real 3-D or longitudinal
+  evidence. Transform-posterior propagation into K/L, watertight mesh/tetrahedral windows, and an
+  admitted registered cohort remain open.
+- Six spatial3d package tests plus docs, four focused CLI integrations, affected warning-denied
+  Clippy, no-default compilation, formatting, and whitespace checks pass. No broad workspace
+  Nextest/full-loader loop or unrelated gate runs.

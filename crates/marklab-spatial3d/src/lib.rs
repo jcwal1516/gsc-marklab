@@ -7,6 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
 
 mod graph;
+mod voxel_window;
 mod weighted;
 
 pub use graph::{
@@ -14,6 +15,10 @@ pub use graph::{
     SparseGraphOperator3D, SpatialGraph3dResult, SpatialGraph3dSpec,
 };
 
+pub use voxel_window::{
+    voxel_window_k3d, VoxelWindow3dInput, VoxelWindow3dSummary, VoxelWindowK3dCurvePoint,
+    VoxelWindowK3dResult, VoxelWindowK3dSpec,
+};
 pub use weighted::{
     directed_cross_k3d, inhomogeneous_k3d, CrossK3dCurvePoint, DirectedCrossK3dResult,
     DirectedCrossK3dSpec, InhomogeneousK3dResult, InhomogeneousK3dSpec, NormalizedWeightedPoint3D,

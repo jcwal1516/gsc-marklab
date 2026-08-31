@@ -38,6 +38,8 @@ mod registration;
 mod spatial3d;
 #[path = "marklab/spatial3d_model.rs"]
 mod spatial3d_model;
+#[path = "marklab/spatial3d_registered.rs"]
+mod spatial3d_registered;
 #[path = "marklab/topology.rs"]
 mod topology;
 
@@ -78,6 +80,8 @@ fn main() -> marklab::Result<()> {
                                     | "smc-abc-growth-front"
                                     | "spatial-varying-coefficient"
                                     | "spatial3d-k-function"
+                                    | "spatial3d-voxel-k-function"
+                                    | "spatial3d-registered-serial-voxel-k"
                                     | "sparse-radius-fourier-energy"
                                     | "sparse-radius-heat-stability"
                                     | "sparse-radius-diffusion-wavelet"

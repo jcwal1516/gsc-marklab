@@ -98,6 +98,10 @@ mod region_retrieval;
 mod smc_abc;
 #[path = "project/spatial3d_k.rs"]
 mod spatial3d_k;
+#[path = "project/spatial3d_registered.rs"]
+mod spatial3d_registered;
+#[path = "project/spatial3d_voxel_k.rs"]
+mod spatial3d_voxel_k;
 #[path = "project/spatial_varying_coefficient.rs"]
 mod spatial_varying_coefficient;
 #[path = "project/vector_semivariogram.rs"]
@@ -1679,6 +1683,22 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    Spatial3dVoxelKFunction {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    Spatial3dRegisteredSerialVoxelK {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
     SparseRadiusFourierEnergy {
         #[arg(long)]
         project: PathBuf,
@@ -2703,6 +2723,22 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
                     out,
                 },
         } => spatial3d_k::run(project, input, out),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::Spatial3dVoxelKFunction {
+                    project,
+                    input,
+                    out,
+                },
+        } => spatial3d_voxel_k::run(project, input, out),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::Spatial3dRegisteredSerialVoxelK {
+                    project,
+                    input,
+                    out,
+                },
+        } => spatial3d_registered::run(project, input, out),
         ProjectTopLevel::Project {
             command:
                 ProjectCommand::SparseRadiusFourierEnergy {

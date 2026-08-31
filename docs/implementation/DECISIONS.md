@@ -3500,3 +3500,42 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   interference remains randomized-design mechanics; and Gaussian EIG remains scalar analytic
   design utility. Real treatment identification, registered 3-D/longitudinal specimens, and
   prospective design outcomes remain exact promotion blockers.
+
+## DEC-0382 — Represent general 3-D tissue windows as bounded physical voxel unions
+
+- Date: 2026-08-31
+- Status: accepted for DIM-01/PP-01/WF-01/WS-80
+- Decision: add one exact finite voxel-union observation-window specialization for physical 3-D
+  point-process K/L. Require a declared physical origin, anisotropic voxel size, finite grid
+  dimensions, unique occupied voxel indices, and caller ceilings for grid cells, retained pairs,
+  point-to-boundary-face checks, voxel-overlap checks, and memory. Treat occupied voxels as a
+  nonoverlapping half-open union; compute exact volume, exposed-face surface area, six-connected
+  tissue components, enclosed six-connected complement cavities, point membership, exposed-face
+  border distance, and translation overlap by box intersection. Retain a canonical logical digest
+  and normalized physical geometry. Do not approximate a mesh, silently fill holes, use a cuboid
+  bounding box as tissue, or create a general geometry registry.
+- Consequences: disconnected, concave, and cavity-bearing segmented tissue volumes can support
+  bounded none, border, and translation-corrected homogeneous 3-D K/L with analytic voxel oracles.
+  Resolution remains the declared segmentation resolution, isotropic surface-fraction correction
+  remains absent, and real biological claims still require registered serial/volumetric specimens
+  with complete section, transform, uncertainty, and provenance identity.
+
+## DEC-0383 — Connect deterministic registered serial sections to exact voxel-window K/L
+
+- Date: 2026-08-31
+- Status: accepted for DIM-01/WF-01/WS-80/WS-81
+- Decision: add one registered-serial-volume specialization that requires exact patient,
+  specimen, timepoint, anatomical-site, volume-frame, section, source-frame, ordinal, physical-Z,
+  thickness, affine-placement, point, and voxel-window identities. Build the existing canonical
+  `SerialSectionSeries` and `CoordinateRegistry`, embed every observed section point into the
+  declared physical volume, preserve missing sections as empty aligned Z planes, and consume the
+  resulting points through the exact voxel-union K/L workflow and durable project engine. Require
+  section thickness/Z alignment with the window grid and agreement between missing/observed state
+  and plane occupancy. Reject distorted sections with a named transform-draw requirement rather
+  than using their nominal placement as exact.
+- Consequences: deterministic registered serial specimens with explicit gaps now have a complete
+  direct and durable 3-D statistical path without duplicating coordinate, registration, window,
+  scheduler, artifact, or ledger owners. Registration-posterior draws are not yet propagated into
+  K/L, and this result does not distinguish biological change from deformation; the existing
+  controlled deformation/change workflow remains separate until a transform-draw-aware immediate
+  caller is implemented. Real evidence still requires an admitted registered serial cohort.

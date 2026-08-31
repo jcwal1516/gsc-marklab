@@ -1938,3 +1938,17 @@ specimens carrying section/time/deformation identity; causal only with genuine t
 temporality, positivity, confounder, and interference-design support; prospective design only with
 an authorized decision candidate and utility. Otherwise retain those exact blockers and advance a
 different admitted scientific caller rather than adding catalog breadth.
+
+## Checkpoint 197 general voxel windows and deterministic registered serial volumes
+
+Exact finite voxel unions now replace cuboid bounding boxes for one bounded homogeneous 3-D K/L
+path, preserving disconnected tissue, cavities, exposed surface, and exact translation overlap.
+Canonical deterministic affine section placements embed observed cells into that volume; explicit
+missing planes remain empty, patient/specimen/timepoint/site identity is retained, and both direct
+and durable paths replay exactly.
+
+Production next is transform-draw propagation into this statistic only when a registered caller
+supplies section-level posterior draws or a conservative uncertainty design. Distorted sections
+currently stop with that exact blocker; they are never treated as exact. Real longitudinal change
+still requires paired timepoints, deformation-only controls, and an independent biological
+measurement. Do not add mesh formats or another registration framework without an admitted source.

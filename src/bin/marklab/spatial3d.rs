@@ -6,12 +6,14 @@ use std::{
 use clap::{Parser, Subcommand};
 use marklab_spatial3d::{
     build_spatial_graph3d, directed_cross_k3d, homogeneous_k3d, inhomogeneous_k3d,
-    DirectedCrossK3dSpec, HomogeneousK3dSpec, InhomogeneousK3dSpec, SpatialGraph3dSpec,
+    voxel_window_k3d, DirectedCrossK3dSpec, HomogeneousK3dSpec, InhomogeneousK3dSpec,
+    SpatialGraph3dSpec, VoxelWindowK3dSpec,
 };
 use serde::Serialize;
 use thiserror::Error;
 
 use super::exclusive_json_output::{publish_pretty_json, ExclusiveJsonOutputError};
+use super::spatial3d_registered;
 
 const MAXIMUM_INPUT_BYTES: u64 = 16 * 1024 * 1024;
 
@@ -33,6 +35,18 @@ enum Spatial3dTopLevel {
 #[derive(Debug, Subcommand)]
 enum Spatial3dCommand {
     KFunction {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    VoxelKFunction {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    RegisteredSerialVoxelK {
         #[arg(long)]
         input: PathBuf,
         #[arg(long)]
@@ -78,6 +92,12 @@ pub(crate) fn run_cli() -> Result<(), Spatial3dCliError> {
             command: Spatial3dCommand::KFunction { input, out },
         } => run(input, out),
         Spatial3dTopLevel::Spatial3d {
+            command: Spatial3dCommand::VoxelKFunction { input, out },
+        } => run_voxel(input, out),
+        Spatial3dTopLevel::Spatial3d {
+            command: Spatial3dCommand::RegisteredSerialVoxelK { input, out },
+        } => run_registered_serial(input, out),
+        Spatial3dTopLevel::Spatial3d {
             command: Spatial3dCommand::InhomogeneousK { input, out },
         } => run_inhomogeneous(input, out),
         Spatial3dTopLevel::Spatial3d {
@@ -87,6 +107,23 @@ pub(crate) fn run_cli() -> Result<(), Spatial3dCliError> {
             command: Spatial3dCommand::SpatialGraph { input, out },
         } => run_graph(input, out),
     }
+}
+
+fn run_voxel(input: PathBuf, out: PathBuf) -> Result<(), Spatial3dCliError> {
+    let bytes = read_input(input)?;
+    let spec: VoxelWindowK3dSpec = serde_json::from_slice(&bytes)?;
+    let result =
+        voxel_window_k3d(spec).map_err(|error| Spatial3dCliError::Input(error.to_string()))?;
+    publish_json(&out, &result)
+}
+
+fn run_registered_serial(input: PathBuf, out: PathBuf) -> Result<(), Spatial3dCliError> {
+    let bytes = read_input(input)?;
+    let prepared = spatial3d_registered::prepare(&bytes)
+        .map_err(|error| Spatial3dCliError::Input(error.to_string()))?;
+    let result = spatial3d_registered::execute(&prepared)
+        .map_err(|error| Spatial3dCliError::Input(error.to_string()))?;
+    publish_json(&out, &result)
 }
 
 fn run_inhomogeneous(input: PathBuf, out: PathBuf) -> Result<(), Spatial3dCliError> {
