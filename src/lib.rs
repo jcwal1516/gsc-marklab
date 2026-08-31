@@ -57,6 +57,7 @@ mod isotropic_pair_correlation;
 mod isotropic_pair_correlation_workflow;
 mod isotropic_spatial;
 mod isotropic_spatial_workflow;
+mod local_multivariate_moran;
 mod mark_pair_plan;
 mod mark_weighted_k;
 mod mark_weighted_k_workflow;
@@ -267,6 +268,11 @@ pub use isotropic_spatial::{
     ISOTROPIC_SPATIAL_FORMAT_VERSION,
 };
 pub use isotropic_spatial_workflow::IsotropicSpatialAnalysisNode;
+pub use local_multivariate_moran::{
+    local_multivariate_moran_permutation, LocalMultivariateMoranError,
+    LocalMultivariateMoranLimits, LocalMultivariateMoranLocation, LocalMultivariateMoranPoint,
+    LocalMultivariateMoranResult,
+};
 pub use mark_weighted_k::{
     continuous_mark_weighted_k, MarkWeightedKComponentInference, MarkWeightedKConfig,
     MarkWeightedKError, MarkWeightedKGeometrySummary, MarkWeightedKInferenceSummary,

@@ -20,6 +20,8 @@ mod cohort;
 mod exclusive_json_output;
 #[path = "marklab/graph.rs"]
 mod graph;
+#[path = "marklab/local_multivariate.rs"]
+mod local_multivariate;
 #[path = "marklab/longitudinal.rs"]
 mod longitudinal;
 #[path = "marklab/multimodal_model.rs"]
@@ -61,6 +63,7 @@ fn main() -> marklab::Result<()> {
                                     | "graph-dirichlet-energy"
                                     | "graph-smoothness-permutation-test"
                                     | "local-embedding-roughness"
+                                    | "local-multivariate-moran"
                                     | "longitudinal-kalman-smooth"
                                     | "multiscale-embedding-kernel"
                                     | "cohort-cluster-covariate-permutation"

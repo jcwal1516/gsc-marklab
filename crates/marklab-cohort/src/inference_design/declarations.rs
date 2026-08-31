@@ -79,6 +79,8 @@ pub enum InferenceNullFamily {
 pub enum InferencePermutationUnit {
     /// One complete scalar mark; coordinates and scalar components never split.
     CompleteScalarMark,
+    /// One complete multivariate mark row; feature components never split.
+    CompleteMultivariateMark,
     /// One whole patient group label.
     PatientLabel,
     /// One complete condition-B-minus-condition-A patient difference.

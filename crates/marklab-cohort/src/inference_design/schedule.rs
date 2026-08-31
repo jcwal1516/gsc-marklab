@@ -55,6 +55,35 @@ impl InferenceDesign {
         )
     }
 
+    /// Declare whole multivariate-row random labeling within dense exact strata.
+    ///
+    /// The complete feature vector moves as one unit. The resulting design owns
+    /// a single-step maximum-statistic family over the caller's prespecified
+    /// local endpoints.
+    pub fn stratified_multivariate_random_labeling_max_t(
+        strata: &[u32],
+        permutations: usize,
+        seed: u64,
+    ) -> Result<Self, InferenceDesignError> {
+        let mut by_stratum = BTreeMap::<u32, Vec<usize>>::new();
+        for (index, stratum) in strata.iter().copied().enumerate() {
+            by_stratum.entry(stratum).or_default().push(index);
+        }
+        let mut design = Self::build(
+            InferenceAnalysisLevel::Cell,
+            InferenceNullFamily::StratifiedRandomLabeling,
+            InferencePermutationUnit::CompleteMultivariateMark,
+            by_stratum.into_values().collect(),
+            strata.len(),
+            permutations,
+            seed,
+            STRATIFIED_RANDOM_LABELING_NAMESPACE ^ 0x6d75_6c74_6976_6172,
+            InferenceAlternative::TwoSided,
+        )?;
+        design.multiplicity = InferenceMultiplicity::CompleteEndpointFamilyMaxT;
+        Ok(design)
+    }
+
     /// Declare whole-patient label permutation with all blocks present or all absent.
     pub fn patient_label_permutation(
         blocks: &[Option<String>],

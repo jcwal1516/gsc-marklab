@@ -3667,3 +3667,22 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   unit; averaging conditional log scores over draws is explicitly rejected. A shared factor is
   statistical association, not communication or causality. Nonconverged fits remain diagnostic,
   and real promotion requires a provenance-complete paired projected-embedding caller.
+
+## DEC-0390 — Move complete multivariate rows under one local maximum-statistic null
+
+- Date: 2026-08-31
+- Status: accepted for FND-04/FND-06/SIG-01A/EMB-01/WF-01/WS-12/WS-23/WS-31
+- Decision: admit one local multivariate Moran workflow over a single exact-window point pattern.
+  Standardize each prespecified feature globally, form row-standardized fixed-radius neighbourhoods,
+  and report the local feature-averaged dot product between each focal vector and its neighbour
+  mean. Under the null, move each complete feature vector atomically within its exact declared
+  stratum. Control the prespecified family of all reported locations with a single-step maximum
+  absolute statistic while retaining the corresponding marginal randomization p-value. Bind the
+  exact point/window sources, radius, seed, permutations, and point/dimension/edge/work/memory
+  ceilings into durable execution.
+- Consequences: local multivariate embedding structure has a concrete fitted statistic and
+  familywise randomization inference rather than only global or scalar summaries. The output is a
+  within-specimen field diagnostic; cells are not patient replicates, adjusted local evidence is
+  not a cohort effect, and a later patient analysis must reduce the field before population
+  inference. Complete rows never split across feature dimensions, and isolated, degenerate,
+  nonfinite, out-of-window, or over-limit inputs fail explicitly.

@@ -35,6 +35,30 @@ enum NumericsCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    LocalMultivariateMoran {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        window: PathBuf,
+        #[arg(long)]
+        radius_um: f64,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        maximum_points: usize,
+        #[arg(long)]
+        maximum_dimension: usize,
+        #[arg(long)]
+        maximum_directed_edges: usize,
+        #[arg(long)]
+        maximum_permutation_edge_evaluations: usize,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
 }
 
 #[derive(Debug, Error)]
@@ -56,6 +80,34 @@ pub(crate) fn run_cli() -> Result<(), NumericsCliError> {
         NumericsTopLevel::Numerics {
             command: NumericsCommand::StablePrimitives { input, out },
         } => run(input, out),
+        NumericsTopLevel::Numerics {
+            command:
+                NumericsCommand::LocalMultivariateMoran {
+                    input,
+                    window,
+                    radius_um,
+                    permutations,
+                    seed,
+                    maximum_points,
+                    maximum_dimension,
+                    maximum_directed_edges,
+                    maximum_permutation_edge_evaluations,
+                    memory_budget_mib,
+                    out,
+                },
+        } => super::local_multivariate::run_direct(
+            input,
+            window,
+            radius_um,
+            permutations,
+            seed,
+            maximum_points,
+            maximum_dimension,
+            maximum_directed_edges,
+            maximum_permutation_edge_evaluations,
+            memory_budget_mib,
+            out,
+        ),
     }
 }
 

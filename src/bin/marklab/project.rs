@@ -92,6 +92,8 @@ mod joint_location_mark;
 mod kernel_mark_correlation;
 #[path = "project/local_embedding_roughness.rs"]
 mod local_embedding_roughness;
+#[path = "project/local_multivariate_moran.rs"]
+mod local_multivariate_moran;
 #[path = "project/longitudinal_kalman.rs"]
 mod longitudinal_kalman;
 #[path = "project/multiscale_embedding_kernel.rs"]
@@ -1422,6 +1424,32 @@ enum ProjectCommand {
         #[arg(long)]
         memory_budget_mib: usize,
     },
+    LocalMultivariateMoran {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        window: PathBuf,
+        #[arg(long)]
+        radius_um: f64,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        maximum_points: usize,
+        #[arg(long)]
+        maximum_dimension: usize,
+        #[arg(long)]
+        maximum_directed_edges: usize,
+        #[arg(long)]
+        maximum_permutation_edge_evaluations: usize,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
     EmbeddingCrossCovarianceByDistance {
         #[arg(long)]
         project: PathBuf,
@@ -2434,6 +2462,36 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             maximum_dimension,
             maximum_pair_visits,
             memory_budget_mib,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::LocalMultivariateMoran {
+                    project,
+                    input,
+                    window,
+                    radius_um,
+                    permutations,
+                    seed,
+                    maximum_points,
+                    maximum_dimension,
+                    maximum_directed_edges,
+                    maximum_permutation_edge_evaluations,
+                    memory_budget_mib,
+                    out,
+                },
+        } => local_multivariate_moran::run(
+            project,
+            input,
+            window,
+            radius_um,
+            permutations,
+            seed,
+            maximum_points,
+            maximum_dimension,
+            maximum_directed_edges,
+            maximum_permutation_edge_evaluations,
+            memory_budget_mib,
+            out,
         ),
         ProjectTopLevel::Project {
             command:
