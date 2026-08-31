@@ -46,6 +46,21 @@ pub(super) fn validate_record_batch_features(
     Ok(())
 }
 
+pub(super) fn validate_footer_features(
+    footer: arrow_ipc::Footer<'_>,
+) -> Result<(), MultiscaleColumnarError> {
+    if footer
+        .custom_metadata()
+        .is_some_and(|metadata| !metadata.is_empty())
+        || footer
+            .dictionaries()
+            .is_some_and(|dictionaries| !dictionaries.is_empty())
+    {
+        return Err(arrow_failure(SpatialArrowFailure::ForbiddenFeature));
+    }
+    Ok(())
+}
+
 pub(super) fn validate_required_utf8_field(
     field: arrow_ipc::Field<'_>,
     name: &str,

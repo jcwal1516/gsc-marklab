@@ -10,7 +10,8 @@ use crate::{CellPatchAssignmentMode, CellPatchLink};
 
 use super::super::physical::{
     align, checked_range, nonnegative_i32, nonnegative_i64, read_exact_at, read_footer,
-    read_record_batch_block, read_vec_at, validate_record_batch_features, validity_bytes,
+    read_record_batch_block, read_vec_at, validate_footer_features, validate_record_batch_features,
+    validity_bytes,
 };
 use super::profile::{
     arrow_failure, expected_schema, validate_flatbuffer_schema, CellPatchArrowProfile,
@@ -700,19 +701,6 @@ fn decoded_bytes(
             .checked_add(u64::try_from(bytes?).map_err(|_| MultiscaleColumnarError::SizeOverflow)?)
             .ok_or(MultiscaleColumnarError::SizeOverflow)
     })
-}
-
-fn validate_footer_features(footer: arrow_ipc::Footer<'_>) -> Result<(), MultiscaleColumnarError> {
-    if footer
-        .custom_metadata()
-        .is_some_and(|metadata| !metadata.is_empty())
-        || footer
-            .dictionaries()
-            .is_some_and(|dictionaries| !dictionaries.is_empty())
-    {
-        return Err(arrow_failure(SpatialArrowFailure::ForbiddenFeature));
-    }
-    Ok(())
 }
 
 #[cfg(test)]
