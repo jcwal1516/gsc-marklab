@@ -519,3 +519,5 @@ pub(super) use normal_mean::{execute_normal_mean, prepare_normal_mean, PreparedN
 pub(super) use worker_process::{publish_json, run_worker};
 
 use normal_mean::{observations_digest, read_observations, run_normal_mean};
+
+const MAXIMUM_INPUT_BYTES: u64 = 16 * 1024 * 1024;

@@ -52,6 +52,16 @@ use super::{
     },
 };
 
+#[path = "project/cell_patch_complementarity.rs"]
+mod cell_patch_complementarity;
+#[path = "project/cohort_energy.rs"]
+mod cohort_energy;
+#[path = "project/cohort_hierarchical_max_t.rs"]
+mod cohort_hierarchical_max_t;
+#[path = "project/cohort_max_t.rs"]
+mod cohort_max_t;
+#[path = "project/cohort_mmd.rs"]
+mod cohort_mmd;
 #[path = "project/embedding_cross_covariance.rs"]
 mod embedding_cross_covariance;
 #[path = "project/embedding_spatial_dependence_envelope.rs"]
@@ -64,6 +74,8 @@ mod graph_smoothness_permutation;
 mod kernel_mark_correlation;
 #[path = "project/local_embedding_roughness.rs"]
 mod local_embedding_roughness;
+#[path = "project/multiscale_embedding_kernel.rs"]
+mod multiscale_embedding_kernel;
 #[path = "project/projected_embedding_variograms.rs"]
 mod projected_embedding_variograms;
 #[path = "project/region_retrieval.rs"]
@@ -988,6 +1000,150 @@ struct ReplicatedConditionalMultitypeMarkProjectArgs {
 
 #[derive(Debug, Subcommand)]
 enum ProjectCommand {
+    TestCellPatchComplementarity {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        outer_folds: u32,
+        #[arg(long)]
+        inner_folds: u32,
+        #[arg(long)]
+        ridge_alphas: String,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    CohortEnergy {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        group_a: String,
+        #[arg(long)]
+        group_b: String,
+        #[arg(long)]
+        metric: String,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        maximum_patients: usize,
+        #[arg(long)]
+        maximum_features: usize,
+        #[arg(long)]
+        maximum_distance_elements: u64,
+        #[arg(long)]
+        maximum_energy_evaluations: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    CohortHierarchicalMaxT {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        group_a: String,
+        #[arg(long)]
+        group_b: String,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        step_down: bool,
+        #[arg(long)]
+        maximum_patients: usize,
+        #[arg(long)]
+        maximum_families: usize,
+        #[arg(long)]
+        maximum_endpoints: usize,
+        #[arg(long)]
+        maximum_cells: u64,
+        #[arg(long)]
+        maximum_permutation_endpoint_evaluations: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    CohortMaxT {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        group_a: String,
+        #[arg(long)]
+        group_b: String,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        step_down: bool,
+        #[arg(long)]
+        maximum_patients: usize,
+        #[arg(long)]
+        maximum_endpoints: usize,
+        #[arg(long)]
+        maximum_patient_endpoint_cells: u64,
+        #[arg(long)]
+        maximum_permutation_endpoint_evaluations: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    CohortMmd {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        group_a: String,
+        #[arg(long)]
+        group_b: String,
+        #[arg(long)]
+        kernel: String,
+        #[arg(long)]
+        bandwidth: Option<f64>,
+        #[arg(long)]
+        estimator: String,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        maximum_patients: usize,
+        #[arg(long)]
+        maximum_features: usize,
+        #[arg(long)]
+        maximum_kernel_elements: u64,
+        #[arg(long)]
+        maximum_mmd_evaluations: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
     ProjectedEmbeddingVariograms {
         #[arg(long)]
         project: PathBuf,
@@ -1163,6 +1319,32 @@ enum ProjectCommand {
         maximum_dimension: usize,
         #[arg(long)]
         maximum_component_edge_visits: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    MultiscaleEmbeddingKernel {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        weights: PathBuf,
+        #[arg(long)]
+        sample_a: String,
+        #[arg(long)]
+        sample_b: String,
+        #[arg(long)]
+        base_kernel: String,
+        #[arg(long)]
+        kernel_scale: Option<f64>,
+        #[arg(long)]
+        maximum_summaries: usize,
+        #[arg(long)]
+        maximum_dimension: usize,
+        #[arg(long)]
+        maximum_component_scale_visits: u64,
         #[arg(long)]
         memory_budget_mib: usize,
         #[arg(long)]
@@ -1605,6 +1787,170 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
     match ProjectCli::parse_from(std::env::args_os()).command {
         ProjectTopLevel::Project {
             command:
+                ProjectCommand::TestCellPatchComplementarity {
+                    project,
+                    input,
+                    outer_folds,
+                    inner_folds,
+                    ridge_alphas,
+                    permutations,
+                    seed,
+                    timeout_seconds,
+                    memory_budget_mib,
+                    out,
+                },
+        } => cell_patch_complementarity::run(
+            project,
+            input,
+            outer_folds,
+            inner_folds,
+            ridge_alphas,
+            permutations,
+            seed,
+            timeout_seconds,
+            memory_budget_mib,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::CohortEnergy {
+                    project,
+                    input,
+                    group_a,
+                    group_b,
+                    metric,
+                    permutations,
+                    seed,
+                    maximum_patients,
+                    maximum_features,
+                    maximum_distance_elements,
+                    maximum_energy_evaluations,
+                    memory_budget_mib,
+                    out,
+                },
+        } => cohort_energy::run(
+            project,
+            input,
+            group_a,
+            group_b,
+            metric,
+            permutations,
+            seed,
+            maximum_patients,
+            maximum_features,
+            maximum_distance_elements,
+            maximum_energy_evaluations,
+            memory_budget_mib,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::CohortHierarchicalMaxT {
+                    project,
+                    input,
+                    group_a,
+                    group_b,
+                    permutations,
+                    seed,
+                    alpha,
+                    step_down,
+                    maximum_patients,
+                    maximum_families,
+                    maximum_endpoints,
+                    maximum_cells,
+                    maximum_permutation_endpoint_evaluations,
+                    memory_budget_mib,
+                    out,
+                },
+        } => cohort_hierarchical_max_t::run(
+            project,
+            input,
+            group_a,
+            group_b,
+            permutations,
+            seed,
+            alpha,
+            step_down,
+            maximum_patients,
+            maximum_families,
+            maximum_endpoints,
+            maximum_cells,
+            maximum_permutation_endpoint_evaluations,
+            memory_budget_mib,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::CohortMaxT {
+                    project,
+                    input,
+                    group_a,
+                    group_b,
+                    permutations,
+                    seed,
+                    alpha,
+                    step_down,
+                    maximum_patients,
+                    maximum_endpoints,
+                    maximum_patient_endpoint_cells,
+                    maximum_permutation_endpoint_evaluations,
+                    memory_budget_mib,
+                    out,
+                },
+        } => cohort_max_t::run(
+            project,
+            input,
+            group_a,
+            group_b,
+            permutations,
+            seed,
+            alpha,
+            step_down,
+            maximum_patients,
+            maximum_endpoints,
+            maximum_patient_endpoint_cells,
+            maximum_permutation_endpoint_evaluations,
+            memory_budget_mib,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::CohortMmd {
+                    project,
+                    input,
+                    group_a,
+                    group_b,
+                    kernel,
+                    bandwidth,
+                    estimator,
+                    permutations,
+                    seed,
+                    maximum_patients,
+                    maximum_features,
+                    maximum_kernel_elements,
+                    maximum_mmd_evaluations,
+                    memory_budget_mib,
+                    out,
+                },
+        } => cohort_mmd::run(
+            project,
+            input,
+            group_a,
+            group_b,
+            kernel,
+            bandwidth,
+            estimator,
+            permutations,
+            seed,
+            maximum_patients,
+            maximum_features,
+            maximum_kernel_elements,
+            maximum_mmd_evaluations,
+            memory_budget_mib,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
                 ProjectCommand::ProjectedEmbeddingVariograms {
                     project,
                     input,
@@ -1812,6 +2158,36 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             maximum_edges,
             maximum_dimension,
             maximum_component_edge_visits,
+            memory_budget_mib,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::MultiscaleEmbeddingKernel {
+                    project,
+                    input,
+                    weights,
+                    sample_a,
+                    sample_b,
+                    base_kernel,
+                    kernel_scale,
+                    maximum_summaries,
+                    maximum_dimension,
+                    maximum_component_scale_visits,
+                    memory_budget_mib,
+                    out,
+                },
+        } => multiscale_embedding_kernel::run(
+            project,
+            input,
+            weights,
+            sample_a,
+            sample_b,
+            base_kernel,
+            kernel_scale,
+            maximum_summaries,
+            maximum_dimension,
+            maximum_component_scale_visits,
             memory_budget_mib,
             out,
         ),

@@ -4675,3 +4675,57 @@ vascular transport.
   snapshot is moved to Trash after its exact executable is sealed in the bundle. No broad
   workspace/Nextest loop, benchmark, fuzzing, packaging, dependency, push, publication,
   deployment, or history-rewrite command runs.
+
+## Durable embedding spatial-envelope checkpoint 188 — 2026-08-30
+
+- The direct regression first fails under the corrected within-stratum work ceiling because the old
+  implementation planned all 28 cross-stratum pairs. The final analytic test retains exactly 12
+  within-stratum pairs and expected bin counts `2/6/4`; the focused core tests pass.
+- `CARGO_INCREMENTAL=0 cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_embedding_spatial_dependence_envelope_cli --test
+  embedding_spatial_dependence_envelope_project_cli -- --nocapture` passes 1/1 in both targets.
+  Clean-snapshot affected Clippy and root no-default compilation also pass.
+- The real ROI-stratified input hashes to
+  `b033b1534e885310df631c86d2cda07d02c8399e5b2261f166c761feaff8b3ef`; 13,378 pairs and 280,938
+  visits fit the declared limits. Direct/miss/hit hash to
+  `04654b89e7b02f11e636cfea3561297d2be8d70c8371c2b86e90261a2723cd59`, replay is backend-disabled,
+  and the ledger remains one row. Remote v66 rehash passes.
+
+## Durable graph-signal checkpoint 189 — 2026-08-30
+
+- The exact focused targets `graph_dirichlet_energy_project_cli`,
+  `graph_smoothness_permutation_project_cli`, and `local_embedding_roughness_project_cli` each pass
+  1/1 with direct-byte parity, pre-project resource/semantic failures, miss, disabled hit, exact
+  source/config/runtime ledger identity, and one execution row. A typed smoothness-review finding
+  adds exact core-equivalent graph-digest validation before the passing run.
+- The admitted input hashes are
+  `623052bc5b38e24b1b8b29c079e9a5a2aac995fa159b600080ea1ca0da5cb27b` for 960 stratified nodes,
+  `5f68b86f7fe1dc155dc147388124dc8812f86ac04439f605c2c0ce25f316962a` for ordinary nodes, and
+  `9fc86df648fc17060ae96521dbf76475d34f4880f680dee7135229c9bc17ff49` for 2,729 edges. All three
+  direct/miss/hit comparisons and one-row ledger checks pass.
+
+## Durable patch-summary and patient-inference checkpoint 190 — 2026-08-30
+
+- The first combined focused attempt is exact and unsuccessful: compilation stops at 34 unresolved
+  imports after the concurrent Bayesian CLI split omitted the shared `MAXIMUM_INPUT_BYTES` owner.
+  Restoring the prior 16-MiB constant resolves that refactor regression without changing limits.
+- The successful command is `CARGO_INCREMENTAL=0 cargo +1.96.0 test --locked --package marklab
+  --features cli --test multiscale_embedding_kernel_project_cli --test
+  cell_patch_complementarity_project_cli --test cohort_mmd_project_cli --test
+  cohort_energy_project_cli --test cohort_max_t_project_cli --test
+  cohort_hierarchical_max_t_project_cli -- --nocapture`. All six targets pass 1/1. The command emits
+  only unrelated unused-import warnings in concurrently edited embedding/root files; no
+  warning-denied or clean-build claim is made.
+- Five real misses are launched in parallel with bounded per-command controls, followed by five
+  parallel `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1` hits. Every direct/miss/hit SHA matches
+  and every project ledger contains one row. The complementarity result differs from its older
+  frozen bytes only in the exact current lock/request hashes; all models and comparisons are
+  unchanged.
+- Local `rustfmt +1.96.0 --edition 2021` over the affected files and focused `git diff --check`
+  pass. `ssh mini` complete `shasum -a 256 -c SHA256SUMS` passes all 91 v67 entries. Run-manifest,
+  results-summary, and checksum SHA-256 are
+  `30afac24097f54348f97237df33af6a0092acfafac3f7d752a5ee078e3afbd6f`,
+  `37f71fe60cd2573caf2eb24beff803b980a34bc07e0ab0496c90df4340676f78`, and
+  `f6db914260d75b206517568113968ac7f19046a68d844a016b4cb26198a79c0a`.
+- No broad workspace/Nextest loop, full feature matrix, Clippy, no-default, docs, benchmark, fuzz,
+  package, dependency, push, publish, deploy, or history-rewrite command runs.

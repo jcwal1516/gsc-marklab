@@ -560,3 +560,26 @@ unchanged. The complete admitted 3,000-row/30-patient/16-component caller fits t
 advances EMB-01, SIG-01H, PLAT-01, WF-01, WS-12, and WS-32 for the concrete caller only; it makes no
 patient-population, recurrence, molecular, or significance claim. The next immediate workflow is
 durable IC-0086 embedding spatial-dependence envelope; IC-0084 remains data-blocked.
+
+## Durable embedding-envelope checkpoint 188
+
+IC-0086, EMB-GLOBAL-ENV-01, PLAT-01, WF-01, WS-12, and WS-32 advance for one corrected concrete
+caller. Pair construction now shares the declared permutation-stratum boundary with donor
+shuffling, and the 960-cell/39-ROI result durably replays without execution. Broader EMB-01 and
+patient-population inference remain active; IC-0084 remains blocked on matched cross-modal rows.
+
+## Durable graph-signal checkpoint 189
+
+IC-0087, IC-0088, and IC-0089 now have exact native project execution in addition to their existing
+direct APIs and analytic oracles. This advances EMB-GRAPH-ENERGY-01, EMB-GRAPH-PERM-01,
+EMB-LOCAL-ROUGH-01, PLAT-01, WF-01, and WS-12 for the admitted 960-cell graph. It does not change
+the failed patient-level graph fusion gate or promote cells/edges as population replicates.
+
+## Durable patch-summary and patient-inference checkpoint 190
+
+EMB-MULTISCALE-KERNEL-01, EMB-COMPLEMENT-01, COH-MMD-01, COH-ENERGY-01, COH-01, PLAT-01,
+WF-01, WS-12, WS-34, and WS-51 advance through six concrete project commands and five admitted
+real miss/hit replays. Existing patient-level null results are retained. Ordered hierarchical
+Max-T is production-complete but lacks a prespecified real family assignment; genuine independent
+H-Optimus tensors and exact links remain unavailable inputs. No generic cohort/project framework is
+counted as progress.

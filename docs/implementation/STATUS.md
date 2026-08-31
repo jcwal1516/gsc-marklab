@@ -3932,3 +3932,59 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   it stops on the concurrent refactor's existing `clippy::ptr_arg` finding at
   `src/bin/marklab/bayes/embedding_spatial.rs:190`; that user-owned file is not changed. No broad
   workspace/Nextest loop runs.
+
+## Durable embedding spatial-envelope checkpoint 188 — 2026-08-30
+
+- Corrected IC-0086 so both the observed curve and complete-vector random-label null use only
+  unordered pairs inside each declared permutation stratum. The prior all-row pair plan could mix
+  specimens despite stratified donor shuffling; an exact two-stratum oracle now fixes the expected
+  pair/work counts.
+- Added `marklab project embedding-spatial-dependence-envelope` with exact input/bin/configuration,
+  native runtime/executable, semantic graph, work, retained-memory, and typed-result identity. The
+  direct and project integrations pass together; a fresh backend-disabled hit is byte-identical and
+  leaves one ledger row.
+- The admitted 960-cell/30-patient/39-ROI input has 13,378 within-ROI pairs. Direct, miss, and hit
+  hash to `04654b89e7b02f11e636cfea3561297d2be8d70c8371c2b86e90261a2723cd59`.
+  The sealed v66 run manifest hashes to
+  `3edf71a1e4afb7a5144e17956643b195fcc25d77e38c1d030591e5213db19546`.
+  Its `1/21` result is pooled conditional capacity evidence, not patient-population significance.
+
+## Durable graph-signal checkpoint 189 — 2026-08-30
+
+- Added separate project commands for existing graph Dirichlet energy, stratified graph-smoothness
+  permutation, and local embedding roughness. Each admits exact node/edge semantics and resource
+  limits before project creation, binds exact graph/source/config/native-runtime identities, and
+  validates typed cached output without adding a graph runner or registry.
+- All three focused project targets pass 1/1. The real 960-cell/39-ROI/2,729-edge caller completes
+  direct-byte-identical misses and backend-disabled hits with one ledger each. Dirichlet energy is
+  `3.2489033417571664`; smoothness is `1/21`; local roughness retains 57 islands. These remain
+  descriptive or within-ROI diagnostics and are not promoted into the sealed patient fingerprint.
+
+## Durable patch-summary and patient-inference checkpoint 190 — 2026-08-30
+
+- Added bounded project commands for the existing multiscale embedding kernel, pinned-SciPy
+  cell-patch complementarity, patient MMD, energy distance, complete-family Max-T, and ordered
+  hierarchical Max-T. They preserve direct result bytes, patient/block/fold/family/null semantics,
+  exact source and serialized-path identity, SciPy 1.18.1/Python 3.12 lock/worker identity where
+  applicable, native runtime identity, and explicit work/output/memory ceilings.
+- One combined focused command runs all six new integration targets; all pass 1/1. It initially
+  exposed the concurrent CLI refactor's omitted shared 16-MiB input constant; restoring that exact
+  pre-existing bound closes 34 unresolved imports without changing any adapter limit. The run emits
+  only unrelated in-progress refactor warnings and no warning-denied claim is made.
+- Five admitted real callers run in parallel and replay disabled byte-identically with one ledger
+  each. Multiscale, complementarity, MMD, energy, and Max-T result SHA-256 values are respectively
+  `b4feb099d5240be7f94187dc1d6517f0d06a46bf369febfdb4b58ba3e8766713`,
+  `ea801ca7330d7534f8fd067aab18c8f3ed624b932726d6dc5869fbd339f5b69f`,
+  `eee927ecf7477f6e7c4886bb836bcced1e53f6c09fcafb2d59acb2a17d41f184`,
+  `2d621a46c4a644f5aa8eaea7e705d1cb820317bea55dccdd5c34dd220a622089`,
+  and `a505c0828af896815ab4885e062e0f7d936507cc41e2d2bc8fe2fd77c659aa42`.
+- The canonical 91-entry bundle is
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v67-durable-graph-patch-patient-final`.
+  Run-manifest and checksum SHA-256 are
+  `30afac24097f54348f97237df33af6a0092acfafac3f7d752a5ee078e3afbd6f` and
+  `f6db914260d75b206517568113968ac7f19046a68d844a016b4cb26198a79c0a`; remote complete rehash
+  passes. The real results remain null-compatible. Hierarchical Max-T lacks a prespecified real
+  family map, and independent H-Optimus tensors/links remain exact unavailable lanes.
+- No workspace-wide/Nextest gate, all-feature matrix, Clippy, no-default check, docs build,
+  benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or history
+  rewrite runs at this sprint checkpoint.

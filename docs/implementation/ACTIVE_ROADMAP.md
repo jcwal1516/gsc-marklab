@@ -1832,3 +1832,31 @@ miss and fresh backend-disabled hit with one ledger row. Its consistent short-ra
 descriptive split-level capacity evidence, not patient-population inference. Production next
 advances the existing IC-0086 complete-vector spatial-dependence envelope through the same bounded
 durable path; IC-0084 remains blocked on matched cross-modal correspondence.
+
+## Checkpoint 188 durable embedding spatial-dependence envelope
+
+IC-0086 now constructs observed and random-label pair plans only within exact declared strata and
+runs through a strict native project node. The admitted 960-cell/39-ROI caller completes 13,378
+within-ROI pairs and byte-identical miss/disabled-hit replay; its `1/21` result remains pooled
+conditional evidence. Production next advances the already implemented IC-0087--IC-0089 graph
+signal callers on that same admitted graph, without a graph runner or registry.
+
+## Checkpoint 189 durable graph-signal workflows
+
+Graph Dirichlet energy, stratified smoothness permutation, and local embedding roughness now have
+separate bounded project paths with exact graph/source/config/runtime identity and typed replay.
+The real 960-cell/2,729-edge graph completes all three misses and disabled hits with one ledger
+each; smoothness remains within-ROI and local roughness remains descriptive. Production next makes
+the existing real patch-summary and patient-distribution callers durable, while retaining genuine
+independent H-Optimus tensors as an unavailable input rather than relabeling aggregates.
+
+## Checkpoint 190 durable patch-summary and patient inference
+
+The existing multiscale kernel, pinned-SciPy complementarity, patient MMD, energy, complete-family
+Max-T, and ordered hierarchical Max-T workflows now have bounded typed project paths. Five admitted
+real callers replay byte-identically without second execution; their scientific conclusions remain
+null-compatible. Hierarchical Max-T lacks a prespecified real family map, and independent H-Optimus
+tensors/links remain unavailable. The next dependency-ordered production candidate is the existing
+covariate-adjusted whole-cluster inference caller, but only if a provenance-complete real cluster
+table is admitted; otherwise record that exact blocker and move to the next real caller. Do not add
+a generic cohort runner, plugin framework, or arbitrary task surface.
