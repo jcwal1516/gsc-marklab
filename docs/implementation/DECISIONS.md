@@ -3580,3 +3580,25 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   invent a cross-type covariance parameter; the current model's type fields remain conditionally
   independent, and cross-type enrichment is explicitly a predictive summary rather than a latent
   dependence estimate. A correlated joint caller requires a separate admitted model.
+
+## DEC-0386 — Fit one normalized patient-replicated location–mark factorization with fixed pattern holdout
+
+- Date: 2026-08-31
+- Status: accepted for BAY-PP/WF-01/WS-43/WS-44
+- Decision: add one NumPyro joint model for the existing provenance-paired replicated multitype
+  location table and replicated conditional-mark table. Require identical patient, pattern, group,
+  and type identities and exactly two patterns per patient. Select the lexicographically first
+  pattern for training and the second for evaluation before fitting. Factor the marked
+  point-process likelihood into exact-window quadrature Poisson total-location intensity and a
+  conditional categorical mark likelihood on a fixed physical-radius graph. Couple them only
+  through an explicitly identified patient ecology random effect and mark loadings. Separately
+  refit location-only and conditional-mark baselines on the same training patterns, and compare
+  their summed held-out log predictive density with the joint fit. Retain held-out count,
+  reference-mark proportion, and cross-type enrichment posterior-predictive checks and hard row,
+  neighbor, draw-observation, memory, output, tree-depth, and timeout bounds.
+- Consequences: the admitted eight-patient/sixteen-slide CPTAC CellViT caller gains a normalized
+  joint fit with patient-preserving held-out comparison and durable replay. The shared effect is a
+  statistical coupling, never evidence of communication or a biological latent mechanism. The
+  first real result is explicitly nonconverged, has zero-tail held-out predictive failures, and a
+  joint-minus-baselines interval spanning zero; it remains diagnostic-only rather than being tuned
+  or promoted.

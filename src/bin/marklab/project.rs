@@ -82,6 +82,8 @@ mod graph_dirichlet_energy;
 mod graph_motif_summary;
 #[path = "project/graph_smoothness_permutation.rs"]
 mod graph_smoothness_permutation;
+#[path = "project/joint_location_mark.rs"]
+mod joint_location_mark;
 #[path = "project/kernel_mark_correlation.rs"]
 mod kernel_mark_correlation;
 #[path = "project/local_embedding_roughness.rs"]
@@ -1780,6 +1782,7 @@ enum ProjectCommand {
         Box<ReplicatedArbitraryWindowMultitypeLgcpInferredKernelProjectArgs>,
     ),
     ReplicatedArbitraryWindowMultitypeLgcpInferredKernelSbc(Box<multitype_lgcp_sbc::ProjectArgs>),
+    JointReplicatedLocationMark(Box<joint_location_mark::ProjectArgs>),
     ConditionalMultitypeMark(Box<ConditionalMultitypeMarkProjectArgs>),
     ReplicatedConditionalMultitypeMark(Box<ReplicatedConditionalMultitypeMarkProjectArgs>),
     NormalMean {
@@ -2967,6 +2970,9 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             command:
                 ProjectCommand::ReplicatedArbitraryWindowMultitypeLgcpInferredKernelSbc(arguments),
         } => multitype_lgcp_sbc::run(*arguments),
+        ProjectTopLevel::Project {
+            command: ProjectCommand::JointReplicatedLocationMark(arguments),
+        } => joint_location_mark::run(*arguments),
         ProjectTopLevel::Project {
             command: ProjectCommand::ConditionalMultitypeMark(arguments),
         } => run_conditional_multitype_mark(*arguments),
