@@ -7,6 +7,7 @@ use marklab_workflow::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::measurement_status_wire::parse as parse_measurement_status;
 use crate::{
     geom::window::ObservationWindow2D,
     global_moran_permutation,
@@ -594,13 +595,7 @@ fn status_name(status: MeasurementStatus) -> &'static str {
 }
 
 fn parse_status(value: &str) -> io::Result<MeasurementStatus> {
-    match value {
-        "measured" => Ok(MeasurementStatus::Measured),
-        "imported_prediction" => Ok(MeasurementStatus::ImportedPrediction),
-        "morphology_prediction" => Ok(MeasurementStatus::MorphologyPrediction),
-        "derived_summary" => Ok(MeasurementStatus::DerivedSummary),
-        _ => Err(invalid_data("invalid measurement status")),
-    }
+    parse_measurement_status(value).ok_or_else(|| invalid_data("invalid measurement status"))
 }
 
 fn weight_name(policy: GlobalMoranWeightPolicy) -> &'static str {

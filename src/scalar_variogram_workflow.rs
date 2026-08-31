@@ -7,6 +7,7 @@ use marklab_workflow::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::measurement_status_wire::parse as parse_measurement_status;
 use crate::{
     scalar_mark::{DeclaredScalarPatternInput, ScalarMarkId},
     scalar_variogram::pair_plan_digest,
@@ -573,13 +574,8 @@ fn status_name(status: MeasurementStatus) -> &'static str {
 }
 
 fn parse_status(value: &str) -> io::Result<MeasurementStatus> {
-    match value {
-        "measured" => Ok(MeasurementStatus::Measured),
-        "imported_prediction" => Ok(MeasurementStatus::ImportedPrediction),
-        "morphology_prediction" => Ok(MeasurementStatus::MorphologyPrediction),
-        "derived_summary" => Ok(MeasurementStatus::DerivedSummary),
-        _ => Err(invalid("invalid scalar variogram measurement status")),
-    }
+    parse_measurement_status(value)
+        .ok_or_else(|| invalid("invalid scalar variogram measurement status"))
 }
 
 fn conditioning_name(conditioning: ScalarVariogramConditioning) -> &'static str {

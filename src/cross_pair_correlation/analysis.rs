@@ -3,6 +3,7 @@ use marklab_data::MeasurementStatus;
 use marklab_workflow::ContentDigest;
 
 use crate::common::finite::canonical_zero;
+pub(super) use crate::measurement_status_wire::name as measurement_status_name;
 
 use crate::{
     classical::window_summary,
@@ -398,4 +399,3 @@ pub(super) fn resolve(
 fn dependency(error: impl std::fmt::Display) -> CategoricalCrossPairCorrelationError {
     CategoricalCrossPairCorrelationError::Dependency(error.to_string())
 }
-pub(super) use crate::measurement_status_wire::name as measurement_status_name;

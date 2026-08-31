@@ -2,6 +2,7 @@ use marklab_data::MeasurementStatus;
 use marklab_workflow::ContentDigest;
 
 use crate::common::{finite::canonical_zero, summation::kahan_add};
+pub(crate) use crate::measurement_status_wire::name as measurement_status_name;
 
 use crate::{BinaryCompartmentPartition2D, DeclaredScalarPatternInput, ScalarMarkId};
 
@@ -252,4 +253,3 @@ pub(crate) fn configuration_digest(
         &(limits.maximum_retained_bytes as u128).to_be_bytes(),
     ]))
 }
-pub(crate) use crate::measurement_status_wire::name as measurement_status_name;

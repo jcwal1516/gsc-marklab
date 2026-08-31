@@ -2,6 +2,7 @@ use marklab_data::MeasurementStatus;
 use marklab_workflow::ContentDigest;
 
 use crate::common::{finite::canonical_zero, summation::kahan_add};
+use crate::measurement_status_wire::name as measurement_status_name;
 
 use crate::{
     classical::{window_summary, SpatialGeometryPlan2D},
@@ -523,4 +524,3 @@ pub(crate) fn configuration_digest(
 fn dependency(error: impl std::fmt::Display) -> InhomogeneousCategoricalCrossPairCorrelationError {
     InhomogeneousCategoricalCrossPairCorrelationError::Dependency(error.to_string())
 }
-use crate::measurement_status_wire::name as measurement_status_name;

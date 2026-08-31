@@ -7,6 +7,7 @@ use marklab_workflow::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::measurement_status_wire::{name as status_name, parse as parse_measurement_status};
 use crate::observation_window_artifact::frame_bound_window_artifact as window_artifact;
 use crate::{
     continuous_mark_correlation::mark_statistics, mark_weighted_k::configuration_digest,
@@ -656,13 +657,7 @@ fn validate_component(
 }
 
 fn parse_status(value: &str) -> io::Result<MeasurementStatus> {
-    match value {
-        "measured" => Ok(MeasurementStatus::Measured),
-        "imported_prediction" => Ok(MeasurementStatus::ImportedPrediction),
-        "morphology_prediction" => Ok(MeasurementStatus::MorphologyPrediction),
-        "derived_summary" => Ok(MeasurementStatus::DerivedSummary),
-        _ => Err(invalid("invalid measurement status")),
-    }
+    parse_measurement_status(value).ok_or_else(|| invalid("invalid measurement status"))
 }
 
 fn positive_finite(value: f64) -> bool {
@@ -683,4 +678,3 @@ fn same(left: f64, right: f64) -> bool {
 fn invalid(message: impl Into<String>) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, message.into())
 }
-use crate::measurement_status_wire::name as status_name;

@@ -6,6 +6,7 @@ use marklab_workflow::ContentDigest;
 use serde::{Deserialize, Serialize};
 
 use crate::common::finite::canonical_zero;
+use crate::measurement_status_wire::name as measurement_status_name;
 
 use crate::{
     classical::window_summary,
@@ -472,4 +473,3 @@ fn dependency(error: impl std::fmt::Display) -> CategoricalCrossPairCorrelationE
 fn translation_dependency(error: TranslationSpatialError) -> CategoricalCrossPairCorrelationError {
     dependency(error)
 }
-use crate::measurement_status_wire::name as measurement_status_name;
