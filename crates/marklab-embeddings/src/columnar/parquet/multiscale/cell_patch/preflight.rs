@@ -17,8 +17,8 @@ use crate::{CellPatchAssignmentMode, CellPatchLink};
 
 pub(super) use super::super::physical::parquet_failure;
 use super::super::physical::{
-    absolute_slice, page_limits, read_exact_at, validate_footer_length, validate_plain_strings,
-    validate_plain_u64, validate_row_group_tree,
+    absolute_slice, page_limits, read_exact_at, read_level_varint, validate_footer_length,
+    validate_plain_strings, validate_plain_u64, validate_row_group_tree,
 };
 use super::profile::CellPatchParquetProfile;
 use crate::columnar::{
@@ -582,34 +582,6 @@ fn validate_optional_levels(
         return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
     }
     Ok(())
-}
-
-fn read_level_varint(bytes: &[u8]) -> Result<(usize, usize), MultiscaleColumnarError> {
-    let mut value = 0_u32;
-    for index in 0..5_usize {
-        let byte = *bytes
-            .get(index)
-            .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?;
-        let payload = u32::from(byte & 0x7f);
-        if index == 4 && payload > 0x0f {
-            return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
-        }
-        value |= payload
-            .checked_shl(
-                u32::try_from(index * 7).map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
-            )
-            .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?;
-        if byte & 0x80 == 0 {
-            if index != 0 && payload == 0 {
-                return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
-            }
-            return Ok((
-                usize::try_from(value).map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
-                index + 1,
-            ));
-        }
-    }
-    Err(parquet_failure(SpatialParquetFailure::InvalidPage))
 }
 
 fn validate_schema(
