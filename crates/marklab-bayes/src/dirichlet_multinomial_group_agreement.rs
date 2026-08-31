@@ -291,23 +291,14 @@ fn compare_parameter(
     minimum_tolerance: f64,
     policy: DirichletMultinomialGroupAgreementPolicy,
 ) -> BetaBinomialParameterAgreement {
-    let absolute_difference = (pymc.mean - numpyro.mean).abs();
-    let combined_mcse = (pymc.sd / pymc_result.diagnostics.ess_bulk.sqrt())
-        .hypot(numpyro.sd / numpyro_result.diagnostics.ess_bulk.sqrt());
-    let standardized_difference = standardized_mcse_difference(absolute_difference, combined_mcse);
-    let tolerance = minimum_tolerance.max(policy.maximum_standardized_difference * combined_mcse);
-    let intervals_overlap = pymc.interval_lower <= numpyro.interval_upper
-        && numpyro.interval_lower <= pymc.interval_upper;
-    BetaBinomialParameterAgreement {
-        pymc_mean: pymc.mean,
-        numpyro_mean: numpyro.mean,
-        absolute_difference,
-        combined_mcse,
-        standardized_difference,
-        tolerance,
-        intervals_overlap,
-        passes: intervals_overlap && absolute_difference <= tolerance,
-    }
+    compare_beta_binomial_parameter(
+        pymc,
+        pymc_result.diagnostics.ess_bulk,
+        numpyro,
+        numpyro_result.diagnostics.ess_bulk,
+        policy.maximum_standardized_difference,
+        minimum_tolerance,
+    )
 }
 
 fn summarize(
@@ -323,4 +314,4 @@ fn summarize(
         posterior_predictive: result.posterior_predictive,
     }
 }
-use crate::agreement_metric::standardized_mcse_difference;
+use crate::agreement_metric::{compare_beta_binomial_parameter, standardized_mcse_difference};

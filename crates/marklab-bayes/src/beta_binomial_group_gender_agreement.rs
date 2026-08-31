@@ -359,23 +359,14 @@ fn compare_parameter(
     minimum_tolerance: f64,
     policy: BetaBinomialGroupGenderAgreementPolicy,
 ) -> BetaBinomialParameterAgreement {
-    let absolute_difference = (left.mean - right.mean).abs();
-    let combined_mcse = (left.sd / left_result.diagnostics.ess_bulk.sqrt())
-        .hypot(right.sd / right_result.diagnostics.ess_bulk.sqrt());
-    let standardized_difference = standardized_mcse_difference(absolute_difference, combined_mcse);
-    let tolerance = minimum_tolerance.max(policy.maximum_standardized_difference * combined_mcse);
-    let intervals_overlap =
-        left.interval_lower <= right.interval_upper && right.interval_lower <= left.interval_upper;
-    BetaBinomialParameterAgreement {
-        pymc_mean: left.mean,
-        numpyro_mean: right.mean,
-        absolute_difference,
-        combined_mcse,
-        standardized_difference,
-        tolerance,
-        intervals_overlap,
-        passes: intervals_overlap && absolute_difference <= tolerance,
-    }
+    compare_beta_binomial_parameter(
+        left,
+        left_result.diagnostics.ess_bulk,
+        right,
+        right_result.diagnostics.ess_bulk,
+        policy.maximum_standardized_difference,
+        minimum_tolerance,
+    )
 }
 
 fn compare_patients(
@@ -426,4 +417,4 @@ fn compare_patients(
         passes,
     })
 }
-use crate::agreement_metric::standardized_mcse_difference;
+use crate::agreement_metric::{compare_beta_binomial_parameter, standardized_mcse_difference};
