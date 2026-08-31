@@ -1,13 +1,15 @@
 use std::str::FromStr;
 
 use marklab::{
-    patch_overlap_embedding_dispersion, ArtifactId, ContentDigest, EmbeddingStatus,
+    patch_overlap_embedding_dispersion, publish_patch_embedding_table_arrow,
+    read_patch_embedding_table_arrow_from_store, ArtifactId, ContentDigest,
+    EmbeddingColumnarBudgets, EmbeddingStatus, ExpectedPatchSet, LocalArtifactStore,
     MeasurementStatus, MultiscaleArtifactBinding, MultiscaleDirectPatchInputArtifacts,
     MultiscaleDirectPatchModelProvenance, MultiscaleEmbeddingDerivationContract,
     MultiscaleEmbeddingExecutionProvenance, MultiscaleEmbeddingProvenance,
     MultiscaleEmbeddingProvenanceVariant, MultiscaleEmbeddingSupport, PatchEmbeddingRow,
-    PatchEmbeddingTable, PatchOverlapEmbeddingDispersionError,
-    PatchOverlapEmbeddingDispersionStatus, PatchOverlapGraph, SlideId,
+    PatchEmbeddingTable, PatchEmbeddingTableReadBindings, PatchOverlapEmbeddingDispersionError,
+    PatchOverlapEmbeddingDispersionStatus, PatchOverlapGraph, SlideId, StoreId,
 };
 
 #[allow(dead_code)]
@@ -34,6 +36,7 @@ enum Drift {
 }
 
 struct FlowFixture {
+    expected: ExpectedPatchSet,
     table: PatchEmbeddingTable,
     support: MultiscaleEmbeddingSupport,
     provenance: MultiscaleEmbeddingProvenance,
@@ -218,12 +221,108 @@ fn build(rows: [RowValue; 4], drift: Drift) -> FlowFixture {
     .expect("patch table");
 
     FlowFixture {
+        expected: spatial.expected,
         table,
         support,
         provenance,
         overlap: spatial.overlap,
         overlap_artifact_id,
     }
+}
+
+#[test]
+fn canonical_arrow_patch_table_materializes_into_the_dispersion_caller() {
+    let fixture = build(default_rows(), Drift::None);
+    let direct = compute(
+        &fixture,
+        MeasurementStatus::MorphologyPrediction,
+        EXACT_COMPONENT_OPERATIONS,
+    )
+    .expect("direct dispersion");
+    let root = tempfile::tempdir().expect("store root");
+    let store = LocalArtifactStore::open(
+        root.path(),
+        StoreId::new("patch-materialization").expect("store ID"),
+    )
+    .expect("artifact store");
+    let budgets = EmbeddingColumnarBudgets::new(BUDGET as u64, BUDGET, BUDGET, BUDGET as u64);
+    let record = publish_patch_embedding_table_arrow(&store, &fixture.table, budgets)
+        .expect("published Arrow table")
+        .into_record();
+    let bindings = PatchEmbeddingTableReadBindings::new(
+        MultiscaleArtifactBinding::new(
+            fixture.table.expected_entities_artifact_id(),
+            fixture.expected.logical_digest(),
+        ),
+        MultiscaleArtifactBinding::new(
+            fixture.table.support_artifact_id(),
+            fixture.support.logical_digest(),
+        ),
+        MultiscaleArtifactBinding::new(
+            fixture.table.provenance_artifact_id(),
+            fixture.provenance.logical_digest(),
+        ),
+    )
+    .expect("read bindings");
+    let decoded = read_patch_embedding_table_arrow_from_store(
+        &store,
+        &record,
+        &fixture.expected,
+        bindings,
+        budgets,
+    )
+    .expect("materialized Arrow table");
+    let materialized = patch_overlap_embedding_dispersion(
+        &decoded,
+        &fixture.support,
+        &fixture.overlap,
+        &fixture.provenance,
+        MeasurementStatus::MorphologyPrediction,
+        EXACT_COMPONENT_OPERATIONS,
+    )
+    .expect("materialized dispersion");
+
+    assert_eq!(decoded.logical_digest(), fixture.table.logical_digest());
+    assert_eq!(materialized, direct);
+}
+
+#[test]
+fn canonical_arrow_patch_materialization_rejects_a_false_support_identity() {
+    let fixture = build(default_rows(), Drift::None);
+    let root = tempfile::tempdir().expect("store root");
+    let store = LocalArtifactStore::open(
+        root.path(),
+        StoreId::new("patch-binding-rejection").expect("store ID"),
+    )
+    .expect("artifact store");
+    let budgets = EmbeddingColumnarBudgets::new(BUDGET as u64, BUDGET, BUDGET, BUDGET as u64);
+    let record = publish_patch_embedding_table_arrow(&store, &fixture.table, budgets)
+        .expect("published Arrow table")
+        .into_record();
+    let bindings = PatchEmbeddingTableReadBindings::new(
+        MultiscaleArtifactBinding::new(
+            fixture.table.expected_entities_artifact_id(),
+            fixture.expected.logical_digest(),
+        ),
+        MultiscaleArtifactBinding::new(
+            fixture.table.support_artifact_id(),
+            ContentDigest::from_bytes(b"false-support-logical-identity"),
+        ),
+        MultiscaleArtifactBinding::new(
+            fixture.table.provenance_artifact_id(),
+            fixture.provenance.logical_digest(),
+        ),
+    )
+    .expect("distinct artifact bindings");
+
+    assert!(read_patch_embedding_table_arrow_from_store(
+        &store,
+        &record,
+        &fixture.expected,
+        bindings,
+        budgets,
+    )
+    .is_err());
 }
 
 fn compute(

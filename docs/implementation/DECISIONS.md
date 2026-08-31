@@ -3423,3 +3423,20 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   simplex. Existing numeric values and hard labels remain unchanged, while future adapter outputs
   use the corrected `cellvit_winning_type_pixel_support` identity. Genuine posterior uncertainty
   still requires native logits or complete class probabilities.
+
+## DEC-0378 — Materialize canonical patch embeddings for immediate spatial callers
+
+- Date: 2026-08-31
+- Status: accepted for FND-05/EMB-04C/WS-25
+- Decision: add one bounded Arrow materializer for the existing canonical patch-embedding table.
+  Require caller-supplied exact expected-patch, support, and provenance artifact/logical bindings;
+  validate the managed artifact inside the existing store integrity envelope; reconstruct typed
+  patch rows in canonical expected order; and then reuse the existing raw Arrow profile verifier
+  and table logical digest before returning the table. Expose this narrow path to the existing
+  patch-overlap dispersion caller without adding a generic embedding codec or replacing current
+  publication, validation, artifact, provenance, or resource owners.
+- Consequences: canonical patch matrices, including future admitted H-Optimus tensors, can cross a
+  process/artifact boundary and enter a spatial statistic without retaining the producing process's
+  in-memory table. The reader rejects false logical bindings and charges encoded, decoded,
+  intermediate-row, and final-table retention conservatively. Parquet materialization and analogous
+  region/slide reconstruction remain deferred until an immediate caller requires them.

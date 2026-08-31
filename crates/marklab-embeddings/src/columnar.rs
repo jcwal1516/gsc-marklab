@@ -44,6 +44,7 @@ pub use arrow::{
     preflight_patch_embedding_table_arrow_bytes, preflight_region_embedding_table_arrow_bytes,
     preflight_slide_embedding_table_arrow_bytes, publish_patch_embedding_table_arrow,
     publish_region_embedding_table_arrow, publish_slide_embedding_table_arrow,
+    read_patch_embedding_table_arrow_bytes, read_patch_embedding_table_arrow_from_store,
     validate_patch_embedding_table_arrow_bytes, validate_patch_embedding_table_arrow_from_store,
     validate_region_embedding_table_arrow_bytes, validate_region_embedding_table_arrow_from_store,
     validate_slide_embedding_table_arrow_bytes, validate_slide_embedding_table_arrow_from_store,
@@ -115,6 +116,8 @@ pub use parquet::{
 
 use marklab_project::{ArtifactId, ContentDigest};
 
+use crate::MultiscaleArtifactBinding;
+
 /// Caller-provided physical file, retained, row-group, and decoded-byte maxima.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct EmbeddingColumnarBudgets {
@@ -158,6 +161,50 @@ impl EmbeddingColumnarBudgets {
     /// Maximum decoded value bytes for one operation.
     pub fn maximum_decoded_bytes(self) -> u64 {
         self.maximum_decoded_bytes
+    }
+}
+
+/// Exact logical bindings required to reconstruct a canonical patch-embedding table.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PatchEmbeddingTableReadBindings {
+    expected_entities: MultiscaleArtifactBinding,
+    support: MultiscaleArtifactBinding,
+    provenance: MultiscaleArtifactBinding,
+}
+
+impl PatchEmbeddingTableReadBindings {
+    /// Bind distinct expected-patch, support, and provenance artifacts to their logical identities.
+    pub fn new(
+        expected_entities: MultiscaleArtifactBinding,
+        support: MultiscaleArtifactBinding,
+        provenance: MultiscaleArtifactBinding,
+    ) -> Result<Self, MultiscaleColumnarError> {
+        if expected_entities.artifact_id() == support.artifact_id()
+            || expected_entities.artifact_id() == provenance.artifact_id()
+            || support.artifact_id() == provenance.artifact_id()
+        {
+            return Err(MultiscaleColumnarError::ArtifactBindingMismatch);
+        }
+        Ok(Self {
+            expected_entities,
+            support,
+            provenance,
+        })
+    }
+
+    /// Expected-patch artifact identity and logical digest.
+    pub fn expected_entities(self) -> MultiscaleArtifactBinding {
+        self.expected_entities
+    }
+
+    /// Embedding-support artifact identity and logical digest.
+    pub fn support(self) -> MultiscaleArtifactBinding {
+        self.support
+    }
+
+    /// Embedding-provenance artifact identity and logical digest.
+    pub fn provenance(self) -> MultiscaleArtifactBinding {
+        self.provenance
     }
 }
 

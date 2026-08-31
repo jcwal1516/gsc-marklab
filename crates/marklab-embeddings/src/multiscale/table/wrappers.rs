@@ -387,6 +387,13 @@ impl PatchEmbeddingTable {
     pub(in crate::multiscale) fn retained_bytes(&self) -> Result<usize, MultiscaleEmbeddingError> {
         self.0.current_retained_bytes()
     }
+
+    pub(crate) fn predicted_final_retained_bytes(
+        expected: &ExpectedPatchSet,
+        dimension: u32,
+    ) -> Result<usize, MultiscaleEmbeddingError> {
+        super::predicted_final_retained_bytes(dimension, expected.owning_slide_id(), expected.ids())
+    }
 }
 
 impl RegionEmbeddingTable {

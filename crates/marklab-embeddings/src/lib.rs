@@ -88,10 +88,10 @@ pub use columnar::{
     CellPatchEdgeArrowPreflight, CellPatchEdgeParquetPreflight, ColumnarWriteSummary,
     EmbeddingColumnarBudgets, EmbeddingColumnarError, EmbeddingColumnarPublicationError,
     MultiscaleColumnarError, MultiscaleColumnarPublicationError, ParquetFailure,
-    PatchFootprintArrowPreflight, PatchFootprintParquetPreflight, PatchOverlapArrowPreflight,
-    PatchOverlapParquetPreflight, PatchRegionArrowPreflight, PatchRegionParquetPreflight,
-    RowLinkColumnarWriteSummary, SpatialArrowFailure, SpatialColumnarWriteSummary,
-    SpatialParquetFailure,
+    PatchEmbeddingTableReadBindings, PatchFootprintArrowPreflight, PatchFootprintParquetPreflight,
+    PatchOverlapArrowPreflight, PatchOverlapParquetPreflight, PatchRegionArrowPreflight,
+    PatchRegionParquetPreflight, RowLinkColumnarWriteSummary, SpatialArrowFailure,
+    SpatialColumnarWriteSummary, SpatialParquetFailure,
 };
 #[cfg(feature = "parquet")]
 pub use columnar::{
@@ -101,6 +101,7 @@ pub use columnar::{
     publish_patch_embedding_table_arrow, publish_patch_embedding_table_parquet,
     publish_region_embedding_table_arrow, publish_region_embedding_table_parquet,
     publish_slide_embedding_table_arrow, publish_slide_embedding_table_parquet,
+    read_patch_embedding_table_arrow_bytes, read_patch_embedding_table_arrow_from_store,
     validate_patch_embedding_table_arrow_bytes, validate_patch_embedding_table_arrow_from_store,
     validate_patch_embedding_table_parquet_bytes,
     validate_patch_embedding_table_parquet_from_store, validate_region_embedding_table_arrow_bytes,

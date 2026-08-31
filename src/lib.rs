@@ -410,12 +410,12 @@ pub use marklab_embeddings::{
     CellPatchEdgeArrowPreflight, CellPatchEdgeParquetPreflight, CellPatchInputArtifactGraphError,
     CellPatchInputArtifactRole, ColumnarWriteSummary, EmbeddingColumnarBudgets,
     EmbeddingColumnarError, EmbeddingColumnarPublicationError, MultiscaleColumnarError,
-    MultiscaleColumnarPublicationError, ParquetFailure, PatchFootprintArrowPreflight,
-    PatchFootprintParquetPreflight, PatchOverlapArrowPreflight, PatchOverlapParquetPreflight,
-    PatchRegionArrowPreflight, PatchRegionInputArtifactGraphError, PatchRegionInputArtifactRole,
-    PatchRegionParquetPreflight, RowLinkColumnarWriteSummary, SpatialArrowFailure,
-    SpatialColumnarWriteSummary, SpatialParquetFailure, VerifiedCellPatchInputArtifactGraph,
-    VerifiedPatchRegionInputArtifactGraph,
+    MultiscaleColumnarPublicationError, ParquetFailure, PatchEmbeddingTableReadBindings,
+    PatchFootprintArrowPreflight, PatchFootprintParquetPreflight, PatchOverlapArrowPreflight,
+    PatchOverlapParquetPreflight, PatchRegionArrowPreflight, PatchRegionInputArtifactGraphError,
+    PatchRegionInputArtifactRole, PatchRegionParquetPreflight, RowLinkColumnarWriteSummary,
+    SpatialArrowFailure, SpatialColumnarWriteSummary, SpatialParquetFailure,
+    VerifiedCellPatchInputArtifactGraph, VerifiedPatchRegionInputArtifactGraph,
 };
 #[cfg(feature = "parquet")]
 pub use marklab_embeddings::{
@@ -425,6 +425,7 @@ pub use marklab_embeddings::{
     publish_patch_embedding_table_arrow, publish_patch_embedding_table_parquet,
     publish_region_embedding_table_arrow, publish_region_embedding_table_parquet,
     publish_slide_embedding_table_arrow, publish_slide_embedding_table_parquet,
+    read_patch_embedding_table_arrow_bytes, read_patch_embedding_table_arrow_from_store,
     validate_patch_embedding_table_arrow_bytes, validate_patch_embedding_table_arrow_from_store,
     validate_patch_embedding_table_parquet_bytes,
     validate_patch_embedding_table_parquet_from_store, validate_region_embedding_table_arrow_bytes,
