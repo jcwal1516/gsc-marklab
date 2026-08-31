@@ -7,7 +7,7 @@ use serde::Serialize;
 use thiserror::Error;
 
 use crate::{
-    embedding_spatial::{FiniteNeumaierError, FiniteNeumaierSum},
+    embedding_spatial::{find_bin, FiniteNeumaierError, FiniteNeumaierSum},
     EmbeddingDistanceBin,
 };
 
@@ -319,13 +319,6 @@ fn validate_bins(bins: &mut [EmbeddingDistanceBin]) -> Result<(), EmbeddingEnvel
         bin.upper_inclusive = index == final_bin;
     }
     Ok(())
-}
-
-fn find_bin(distance: f64, bins: &[EmbeddingDistanceBin]) -> Option<usize> {
-    bins.iter().position(|bin| {
-        distance >= bin.lower_um
-            && (distance < bin.upper_um || (bin.upper_inclusive && distance <= bin.upper_um))
-    })
 }
 
 fn curve(

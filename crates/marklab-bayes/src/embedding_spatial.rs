@@ -254,7 +254,7 @@ fn build_weight_map(
     Ok(map)
 }
 
-fn find_bin(distance: f64, bins: &[EmbeddingDistanceBin]) -> Option<usize> {
+pub(crate) fn find_bin(distance: f64, bins: &[EmbeddingDistanceBin]) -> Option<usize> {
     bins.iter().position(|bin| {
         distance >= bin.lower_um
             && (distance < bin.upper_um || (bin.upper_inclusive && distance <= bin.upper_um))
