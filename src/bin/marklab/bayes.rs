@@ -159,6 +159,10 @@ pub(super) fn run_joint_replicated_location_mark_cli() -> Result<(), BayesCliErr
     joint_replicated_location_mark::run_cli()
 }
 
+pub(super) fn run_joint_replicated_location_embedding_cli() -> Result<(), BayesCliError> {
+    joint_replicated_location_embedding::run_cli()
+}
+
 pub(super) fn run_replicated_arbitrary_window_multitype_lgcp_prior_calibration_cli(
 ) -> Result<(), BayesCliError> {
     replicated_arbitrary_window_multitype_lgcp_prior_calibration::run_cli()
@@ -433,6 +437,8 @@ pub(super) use replicated_arbitrary_window_lgcp_inferred_kernel::{
 };
 #[path = "bayes/correlated_replicated_arbitrary_window_multitype_lgcp.rs"]
 pub(crate) mod correlated_replicated_arbitrary_window_multitype_lgcp;
+#[path = "bayes/joint_replicated_location_embedding.rs"]
+pub(crate) mod joint_replicated_location_embedding;
 #[path = "bayes/joint_replicated_location_mark.rs"]
 pub(crate) mod joint_replicated_location_mark;
 #[path = "bayes/replicated_arbitrary_window_lgcp_sbc.rs"]

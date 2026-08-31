@@ -3644,3 +3644,26 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   the parameterization; posterior count/variance checks protect the likelihood boundary. The
   result remains diagnostic-only when sampler policy fails, and real promotion still requires
   identifiable patient-held-out evidence and calibration rather than a nonzero posterior mean.
+
+## DEC-0389 — Fit projected embeddings conditionally on observed exact-window location fields
+
+- Date: 2026-08-31
+- Status: accepted for BAY-03/BAY-04/BAY-PP/BACK-01/EMB-01/WF-01/WS-12/WS-41/WS-43/WS-50
+- Decision: fit one patient-replicated NumPyro model over a provenance-matched exact-window
+  location table and a fold-frozen projected cell-embedding table. Retain exactly two patterns per
+  patient: first-pattern embeddings train and second-pattern embeddings evaluate, while locations
+  from both patterns remain observed so the estimand is conditional prediction of held-out marks
+  from location structure. Represent unit-variance Matérn factors at exact quadrature nodes, map
+  cells to the nearest node within their pattern as an explicit piecewise-constant approximation,
+  share patient factors between location intensity and embeddings, and identify rotations through
+  lower-triangular first-factor loading rows with positive diagonal. Compare posterior-mixture
+  patient log predictive density against a separately fitted nonspatial patient embedding model.
+  Bind the external projection digest and all row, dimension, factor, nearest-node, kernel, draw,
+  memory, output, backend, and timeout controls. Do not fit raw 1,280-dimensional embeddings or
+  learn projection/normalization on evaluation patterns.
+- Consequences: one through sixteen bounded spatial factors can now be fitted rather than merely
+  described by the existing model IR, and exact durable replay avoids two further backend fits.
+  Posterior predictive density uses log-mean-exp over posterior draws and aggregates at the patient
+  unit; averaging conditional log scores over draws is explicitly rejected. A shared factor is
+  statistical association, not communication or causality. Nonconverged fits remain diagnostic,
+  and real promotion requires a provenance-complete paired projected-embedding caller.

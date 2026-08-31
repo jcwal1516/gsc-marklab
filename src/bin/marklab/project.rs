@@ -84,6 +84,8 @@ mod graph_dirichlet_energy;
 mod graph_motif_summary;
 #[path = "project/graph_smoothness_permutation.rs"]
 mod graph_smoothness_permutation;
+#[path = "project/joint_location_embedding.rs"]
+mod joint_location_embedding;
 #[path = "project/joint_location_mark.rs"]
 mod joint_location_mark;
 #[path = "project/kernel_mark_correlation.rs"]
@@ -1785,6 +1787,7 @@ enum ProjectCommand {
     ),
     ReplicatedArbitraryWindowMultitypeLgcpInferredKernelSbc(Box<multitype_lgcp_sbc::ProjectArgs>),
     CorrelatedReplicatedArbitraryWindowMultitypeLgcp(Box<correlated_multitype_lgcp::ProjectArgs>),
+    JointReplicatedLocationEmbedding(Box<joint_location_embedding::ProjectArgs>),
     JointReplicatedLocationMark(Box<joint_location_mark::ProjectArgs>),
     ConditionalMultitypeMark(Box<ConditionalMultitypeMarkProjectArgs>),
     ReplicatedConditionalMultitypeMark(Box<ReplicatedConditionalMultitypeMarkProjectArgs>),
@@ -2976,6 +2979,9 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
         ProjectTopLevel::Project {
             command: ProjectCommand::CorrelatedReplicatedArbitraryWindowMultitypeLgcp(arguments),
         } => correlated_multitype_lgcp::run(*arguments),
+        ProjectTopLevel::Project {
+            command: ProjectCommand::JointReplicatedLocationEmbedding(arguments),
+        } => joint_location_embedding::run(*arguments),
         ProjectTopLevel::Project {
             command: ProjectCommand::JointReplicatedLocationMark(arguments),
         } => joint_location_mark::run(*arguments),
