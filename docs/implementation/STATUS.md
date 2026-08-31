@@ -4177,3 +4177,49 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - This remains synthetic correctness evidence. No real registered longitudinal cohort, deformation
   estimator, probabilistic cell correspondence, causal treatment effect, or same-cell claim is
   added. No broad workspace Nextest/full-loader loop or unrelated gate runs.
+
+## Frontier point-process and admission checkpoint 199 — 2026-08-31
+
+- Added direct and durable NumPyro execution for bounded simulation-based calibration of the
+  existing replicated arbitrary-window multitype inferred-kernel LGCP. Five fixed positive, null,
+  weak-identification, boundary, and misspecified scenarios simulate and refit the exact
+  quadrature counting measure. Rank/coverage summaries retain intensity, group contrast,
+  patient/pattern hierarchy scales, field amplitude/length, and one identified latent node;
+  posterior prediction retains count, mark-proportion, cross-type-enrichment, and clustering
+  checks. Scenario-specific seeds and simulation, iteration, PPC, event, memory, output, and
+  timeout ceilings are part of the durable identity. The model still has conditionally independent
+  type fields; no unestimated cross-type covariance is invented.
+- Added one normalized joint patient-replicated location/conditional-mark model over the existing
+  provenance-paired tables. The lexicographically first of two patterns per patient trains and the
+  second evaluates. Exact-window Poisson total-location intensity and a fixed-radius conditional
+  categorical mark graph share only an identified patient ecology effect; independently refitted
+  location-only and mark-only baselines use the same holdout. The direct and project paths retain
+  typed inputs/results, backend/environment/worker/configuration identity, patient as the
+  population unit, resource ceilings, predictive diagnostics, and backend-disabled durable replay.
+- The real authorized CPTAC caller contains eight patients, sixteen patterns, 666 quadrature rows,
+  and 8,192 mark rows. Two fresh project processes return byte-identical SHA-256
+  `8a475670cbb4e8fd856f106dcbc1169e6eae0d9fe874bebacb12eb40b58989fd` with one ledger
+  execution. The fit is truthfully `nonconverged`: maximum R-hat is 1.074975, minimum bulk ESS is
+  33.084, and 59 maximum-tree-depth hits remain. Joint minus separate-baseline held-out log
+  predictive density is 2.94 with SD 201.63 and interval [-404.77, 377.62]; all three predictive
+  tail probabilities are zero. It is diagnostic-only, null/uncertain, and was not retuned or
+  promoted. The shared effect does not establish communication, causality, or a biological latent
+  mechanism.
+- A bounded read-only audit of the sealed CRC outcome bundle finds no identified real causal
+  caller. TCGA/CPTAC contain no admitted treatment exposure. Schürch has postoperative therapy for
+  7 patients, no therapy for 13, and missing status for 15, but no treatment time. Stanford has 33
+  treated, 12 none, and 7 unknown, but no treatment time and no event/censor indicator for
+  `DaysSurvival`. No lane jointly supplies an exposure definition/time, follow-up origin and
+  censoring, measured adjustment set, interference design, negative control, sensitivity inputs,
+  and positivity support. CAU-01/WS-82 therefore remain unavailable for real evidence rather than
+  fabricating a treatment effect.
+- The same sealed artifacts declare no authorized ROI/stain/landmark/field/replicate/sequencing
+  decision candidate, feasible set, budget, utility/loss, outcome model, operational constraints,
+  or outcome-blind historical evaluation split. ACT-01/WS-84 therefore remain unavailable for a
+  real prospective outcome; the existing Gaussian EIG and synthetic allocation laboratories are
+  not relabeled as operational benefit.
+- The four focused direct/project integrations pass serially 4/4, Python worker bytecode
+  compilation passes, and affected warning-denied CLI Clippy passes. One preceding Cargo command
+  selected two nonexistent descriptive target names and exited before running tests; the corrected
+  canonical target command passed. Workspace formatting and final diff whitespace checks pass. No
+  workspace Nextest/full-loader loop or unrelated broad gate runs.

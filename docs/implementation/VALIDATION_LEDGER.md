@@ -4914,3 +4914,45 @@ vascular transport.
   `cargo +1.96.0 fmt --all --check`, and `git diff --check` pass. No broad workspace test/Nextest
   loader loop, benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or
   history rewrite runs.
+
+## Frontier point-process and admission checkpoint 199 — 2026-08-31
+
+- Expected reds were retained in the focused integration history: the multitype SBC direct and
+  project targets initially failed on absent subcommands, and the joint direct/project targets
+  initially failed on absent execution paths. Final serial execution of
+  `CARGO_INCREMENTAL=0 cargo +1.96.0 test --locked --package marklab --features cli --test
+  bayes_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc_cli --test
+  durable_numpyro_multitype_lgcp_sbc_project --test bayes_joint_replicated_location_mark_fit_cli
+  --test durable_numpyro_joint_location_mark_project -- --test-threads=1` passes 4/4. Both durable
+  tests start fresh processes, disable backend execution on the hit, compare exact output bytes,
+  and retain one ledger row.
+- An earlier final-check invocation named nonexistent targets
+  `durable_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc_project` and
+  `durable_joint_replicated_location_mark_project`; Cargo exited 101 before running tests and
+  printed the canonical target list. The corrected command above is the executed evidence.
+- `python3 -m py_compile
+  workers/python/marklab_numpyro_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc_worker.py
+  workers/python/marklab_numpyro_joint_replicated_location_mark_worker.py` passes. Final
+  `CARGO_INCREMENTAL=0 cargo +1.96.0 clippy --locked --package marklab --features cli --bin marklab
+  -- -D warnings` passes.
+- The real joint caller uses source SHA-256
+  `c862ce9790274f1f099f040716de864b5185cc3084004ccef7693376a95f791f` for 666 location/
+  quadrature rows and `ebecd5a5bf47261bdaeb965255b5b5bfd3f74f6bebf01ca5c5e8447856a7e9c6`
+  for 8,192 conditional-mark rows. Two fresh project processes at seed 20260831 return identical
+  result SHA-256 `8a475670cbb4e8fd856f106dcbc1169e6eae0d9fe874bebacb12eb40b58989fd`;
+  the second has backend execution disabled and the ledger retains one row. Diagnostics are
+  retained as nonconverged and the held-out joint increment interval spans zero.
+- Read-only `ssh -o BatchMode=yes mini` inspection of
+  `/Volumes/1TB/marklab/runs/crc-spatial-phenotype-outcome-01-v3` records hashes
+  `dd9f71f8e7eae874ffaa42c3292aed2cb43ecf09d073b4f625793271329246cf` for the patient
+  lane manifest, `3f8c2b7bdca87eaf59184b1f826db10651fa18adac2ad47a885f57203eb60153`
+  for event counts, `d94255a84abb596da2d6cb54f0400a75cb3bb137b6154f690be40426287acdbe`
+  for blockers, and `3d4cd6f835059d8d0d89b3166a6760bbbb6368b829f553bd53cc503155c9fa50`
+  for the outcome-blind analysis design. Aggregate-only inspection finds Schürch postoperative
+  therapy 7/13/15 yes/no/missing and Stanford treatment 33/12/7 treated/none/unknown, with no
+  treatment-time field in either. TCGA/CPTAC expose no admitted treatment field. No inspected
+  artifact supplies the complete causal-identification contract or a prospective candidate,
+  budget, utility, outcome model, constraints, and held-out decision evaluation.
+- `cargo +1.96.0 fmt --all --check` and `git diff --check` pass after checkpoint documentation.
+  No workspace-wide Nextest/test/Clippy loop, benchmark, fuzzing, packaging, dependency audit,
+  push, publication, deployment, or history rewrite runs.

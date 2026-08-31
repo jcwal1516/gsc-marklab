@@ -1967,3 +1967,22 @@ Production next requires an admitted paired registered cohort before any biologi
 section-level transform draws or probabilistic cell correspondence only for a caller that supplies
 their provenance and validation landmarks. The current result does not infer deformation, causal
 treatment response, cell trajectories, or same-cell identity from registered proximity.
+
+## Checkpoint 199 frontier point-process calibration and joint marks
+
+The existing exact-window replicated multitype inferred-kernel LGCP now has one bounded,
+five-scenario NumPyro rank-calibration and posterior-predictive workflow with direct and durable
+execution. One immediate eight-patient CPTAC caller also has a normalized patient-replicated joint
+location/conditional-mark fit against separately refitted location-only and mark-only baselines on
+a fixed pattern holdout. Its durable output replays without a second backend, but the real fit is
+nonconverged, its predictive checks fail, and its joint increment spans zero; retain it as a
+diagnostic null/uncertain result rather than tuning it into significance.
+
+FRONTIER-STATS-FINAL-01 has no further currently implementable real-data lane. The sealed CRC audit
+finds only untimed, incomplete treatment flags in Schürch and Stanford, no admitted exposure in
+TCGA/CPTAC, and no cohort that establishes the requested temporality, follow-up/censoring,
+adjustment, interference, negative-control, sensitivity, and positivity contract. It also finds no
+authorized prospective action, candidate set, budget, utility, outcome model, constraints, or
+outcome-blind evaluation split. Resume CAU-01/WS-82 only when a target-trial-quality caller is
+admitted, and ACT-01/WS-84 only when a concrete operational decision and utility are supplied. Do
+not add a generic causal/design framework while those inputs are absent.

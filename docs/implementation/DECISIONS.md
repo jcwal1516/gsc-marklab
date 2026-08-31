@@ -3602,3 +3602,25 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   first real result is explicitly nonconverged, has zero-tail held-out predictive failures, and a
   joint-minus-baselines interval spanning zero; it remains diagnostic-only rather than being tuned
   or promoted.
+
+## DEC-0387 — Stop causal and prospective CRC promotion at the admitted identity boundary
+
+- Date: 2026-08-31
+- Status: accepted for ACT-01/CAU-01/WS-82/WS-84
+- Decision: do not create a real CRC causal or prospective-design workflow from the currently
+  authorized artifacts. TCGA and CPTAC expose no admitted treatment/exposure. Schürch exposes a
+  partly observed binary postoperative-therapy flag but no treatment time, regimen, follow-up
+  origin tied to treatment, interference definition, negative control, or prespecified adjustment
+  and sensitivity design. Stanford exposes only treated/none/unknown, no treatment time, and no
+  event/censor indicator for `DaysSurvival`. The existing retrospective endpoints therefore do not
+  establish temporality, a target trial, or positivity for a declared estimand. The same sealed
+  artifacts contain no authorized ROI/stain/landmark/field/replicate/sequencing decision candidate,
+  candidate set, budget, utility or loss, outcome model, operational constraints, or historical
+  pseudo-prospective split. Preserve the existing synthetic causal/design correctness laboratories
+  but do not relabel them as real evidence or add a generic admission/design framework.
+- Consequences: CAU-01/WS-82 and ACT-01/WS-84 become data-dependent with named missing data rather
+  than accumulating unsupported production surface. A future causal caller must first supply an
+  exposure definition and time, eligible patient population, follow-up/censoring origin, adjustment
+  set, overlap, interference, negative-control, and sensitivity identities. A future design caller
+  must first supply the concrete action, feasible choices, budget, utility, outcome model,
+  constraints, and outcome-blind evaluation split.
