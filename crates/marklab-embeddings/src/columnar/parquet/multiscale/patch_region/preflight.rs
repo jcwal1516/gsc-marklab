@@ -10,7 +10,7 @@ use parquet::{
     thrift::TSerializable,
 };
 
-use crate::columnar::parquet::schema::is_required_utf8 as is_utf8;
+use crate::columnar::parquet::schema::{is_flat_group as is_group, is_required_utf8 as is_utf8};
 use crate::PatchRegionLink;
 
 pub(super) use super::super::physical::parquet_failure;
@@ -419,19 +419,6 @@ fn validate_schema(schema: &[SchemaElement]) -> Result<(), MultiscaleColumnarErr
         return Err(parquet_failure(SpatialParquetFailure::InvalidSchema));
     }
     Ok(())
-}
-
-fn is_group(element: &SchemaElement, name: &str, children: i32) -> bool {
-    element.type_.is_none()
-        && element.type_length.is_none()
-        && element.repetition_type.is_none()
-        && element.name == name
-        && element.num_children == Some(children)
-        && element.converted_type.is_none()
-        && element.scale.is_none()
-        && element.precision.is_none()
-        && element.field_id.is_none()
-        && element.logical_type.is_none()
 }
 
 fn is_u64(element: &SchemaElement, name: &str) -> bool {
