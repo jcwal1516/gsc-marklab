@@ -27,6 +27,19 @@ pub(super) struct EncodedArrow {
     pub(super) row_count: u64,
 }
 
+pub(super) fn validate_record_batch_features(
+    batch: arrow_ipc::RecordBatch<'_>,
+) -> Result<(), MultiscaleColumnarError> {
+    if batch.compression().is_some()
+        || batch
+            .variadicBufferCounts()
+            .is_some_and(|counts| !counts.is_empty())
+    {
+        return Err(arrow_failure(SpatialArrowFailure::ForbiddenFeature));
+    }
+    Ok(())
+}
+
 pub(super) fn write_record_batches<F>(
     output: &mut dyn Write,
     schema: &Schema,

@@ -22,7 +22,7 @@ use crate::{
     SlideEmbeddingTable,
 };
 
-use super::super::physical::read_record_batch_block;
+use super::super::physical::{read_record_batch_block, validate_record_batch_features};
 use super::profile::{
     arrow_failure, entity_kind, schema, validate_flatbuffer_schema, BUFFER_COUNT, NODE_COUNT,
 };
@@ -412,19 +412,6 @@ fn validate_record_batch(
     *decoded_total = decoded_total
         .checked_add(decoded)
         .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-    Ok(())
-}
-
-fn validate_record_batch_features(
-    batch: arrow_ipc::RecordBatch<'_>,
-) -> Result<(), MultiscaleColumnarError> {
-    if batch.compression().is_some()
-        || batch
-            .variadicBufferCounts()
-            .is_some_and(|counts| !counts.is_empty())
-    {
-        return Err(arrow_failure(SpatialArrowFailure::ForbiddenFeature));
-    }
     Ok(())
 }
 

@@ -10,7 +10,7 @@ use crate::{ExpectedPatchSet, PatchEmbeddingContext, PatchFootprintSet, PatchOve
 
 use super::physical::{
     align, checked_range, nonnegative_i32, nonnegative_i64, read_exact_at, read_footer,
-    read_record_batch_block, read_vec_at, validity_bytes,
+    read_record_batch_block, read_vec_at, validate_record_batch_features, validity_bytes,
 };
 use super::{
     super::profile::{
@@ -720,19 +720,6 @@ fn validate_footer_features(footer: arrow_ipc::Footer<'_>) -> Result<(), Multisc
         || footer
             .dictionaries()
             .is_some_and(|dictionaries| !dictionaries.is_empty())
-    {
-        return Err(arrow_failure(SpatialArrowFailure::ForbiddenFeature));
-    }
-    Ok(())
-}
-
-fn validate_record_batch_features(
-    batch: arrow_ipc::RecordBatch<'_>,
-) -> Result<(), MultiscaleColumnarError> {
-    if batch.compression().is_some()
-        || batch
-            .variadicBufferCounts()
-            .is_some_and(|counts| !counts.is_empty())
     {
         return Err(arrow_failure(SpatialArrowFailure::ForbiddenFeature));
     }

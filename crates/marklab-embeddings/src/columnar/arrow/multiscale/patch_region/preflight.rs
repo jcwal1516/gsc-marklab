@@ -10,7 +10,7 @@ use crate::PatchRegionLink;
 
 use super::super::physical::{
     align, checked_range, nonnegative_i32, nonnegative_i64, read_exact_at, read_footer,
-    read_record_batch_block, read_vec_at, validity_bytes,
+    read_record_batch_block, read_vec_at, validate_record_batch_features, validity_bytes,
 };
 use super::profile::{
     arrow_failure, schema, validate_flatbuffer_schema, BUFFER_COUNT, FIELD_COUNT,
@@ -530,19 +530,6 @@ fn read_i32(bytes: &[u8], at: usize) -> Result<i32, MultiscaleColumnarError> {
             .try_into()
             .map_err(|_| arrow_failure(SpatialArrowFailure::InvalidBuffers))?,
     ))
-}
-
-fn validate_record_batch_features(
-    batch: arrow_ipc::RecordBatch<'_>,
-) -> Result<(), MultiscaleColumnarError> {
-    if batch.compression().is_some()
-        || batch
-            .variadicBufferCounts()
-            .is_some_and(|counts| !counts.is_empty())
-    {
-        return Err(arrow_failure(SpatialArrowFailure::ForbiddenFeature));
-    }
-    Ok(())
 }
 
 fn aggregate_decoded(link: &PatchRegionLink) -> Result<u64, MultiscaleColumnarError> {
