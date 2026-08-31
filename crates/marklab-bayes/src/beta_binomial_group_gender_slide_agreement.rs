@@ -298,7 +298,14 @@ impl BetaBinomialGroupGenderSlideAgreementResult {
         ] {
             parameters.insert(
                 name.into(),
-                compare_parameter(left, &pymc, right, &numpyro, tolerance, policy),
+                compare_beta_binomial_parameter(
+                    left,
+                    pymc.diagnostics.ess_bulk,
+                    right,
+                    numpyro.diagnostics.ess_bulk,
+                    policy.maximum_standardized_difference,
+                    tolerance,
+                ),
             );
         }
         let patient_probabilities = compare_patients(
@@ -372,24 +379,6 @@ fn summarize(
         diagnostics: result.diagnostics,
         posterior_predictive: result.posterior_predictive,
     }
-}
-
-fn compare_parameter(
-    left: &SarScalarSummary,
-    left_result: &BetaBinomialGroupGenderSlideHierarchyWorkerResult,
-    right: &SarScalarSummary,
-    right_result: &BetaBinomialGroupGenderSlideHierarchyWorkerResult,
-    minimum_tolerance: f64,
-    policy: BetaBinomialGroupGenderSlideAgreementPolicy,
-) -> BetaBinomialParameterAgreement {
-    compare_beta_binomial_parameter(
-        left,
-        left_result.diagnostics.ess_bulk,
-        right,
-        right_result.diagnostics.ess_bulk,
-        policy.maximum_standardized_difference,
-        minimum_tolerance,
-    )
 }
 
 fn compare_patients(
