@@ -188,6 +188,73 @@ pub(super) fn read_vec_at<R: Read + Seek + ?Sized>(
     Ok(bytes)
 }
 
+pub(super) struct EncodedRecordBatchBlock {
+    bytes: Vec<u8>,
+    metadata_len: usize,
+    pub(super) end: usize,
+    pub(super) retained_preflight_bytes: usize,
+}
+
+impl EncodedRecordBatchBlock {
+    pub(super) fn message_and_body(&self) -> (&[u8], &[u8]) {
+        self.bytes.split_at(self.metadata_len)
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn read_record_batch_block<R: Read + Seek + ?Sized>(
+    reader: &mut R,
+    file_len: usize,
+    footer_start: usize,
+    footer_len: usize,
+    expected_offset: usize,
+    offset: i64,
+    metadata_len: i32,
+    body_len: i64,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<EncodedRecordBatchBlock, MultiscaleColumnarError> {
+    let offset = nonnegative_i64(offset, SpatialArrowFailure::InvalidBlock)?;
+    let metadata_len = nonnegative_i32(metadata_len, SpatialArrowFailure::InvalidBlock)?;
+    let body_len = nonnegative_i64(body_len, SpatialArrowFailure::InvalidBlock)?;
+    if offset != expected_offset
+        || offset % ALIGNMENT != 0
+        || !(8..=MAXIMUM_MESSAGE_BYTES).contains(&metadata_len)
+        || metadata_len % ALIGNMENT != 0
+        || body_len % ALIGNMENT != 0
+    {
+        return Err(arrow_failure(SpatialArrowFailure::InvalidBlock));
+    }
+    let block_len = metadata_len
+        .checked_add(body_len)
+        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+    crate::columnar::multiscale::enforce_row_group_budget(block_len, budgets)?;
+    let retained_preflight_bytes = footer_len
+        .checked_mul(2)
+        .and_then(|value| value.checked_add(block_len))
+        .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
+        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+    enforce_retained_budget(retained_preflight_bytes, budgets)?;
+    let end = offset
+        .checked_add(block_len)
+        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+    if end > footer_start.saturating_sub(EOS_BYTES) {
+        return Err(arrow_failure(SpatialArrowFailure::InvalidBlock));
+    }
+    let bytes = read_vec_at(
+        reader,
+        file_len,
+        offset,
+        block_len,
+        SpatialArrowFailure::InvalidBlock,
+    )?;
+    Ok(EncodedRecordBatchBlock {
+        bytes,
+        metadata_len,
+        end,
+        retained_preflight_bytes,
+    })
+}
+
 pub(super) fn checked_range(
     start: usize,
     rows: usize,

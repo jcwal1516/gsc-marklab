@@ -10,7 +10,7 @@ use crate::PatchRegionLink;
 
 use super::super::physical::{
     align, checked_range, nonnegative_i32, nonnegative_i64, read_exact_at, read_footer,
-    read_vec_at, validity_bytes,
+    read_record_batch_block, read_vec_at, validity_bytes,
 };
 use super::profile::{
     arrow_failure, schema, validate_flatbuffer_schema, BUFFER_COUNT, FIELD_COUNT,
@@ -23,7 +23,7 @@ use crate::columnar::{
     },
     multiscale::{
         enforce_decoded_budget, enforce_file_budget, enforce_retained_budget,
-        enforce_row_group_budget, patch_region_decoded_bytes, validate_patch_region_domain,
+        patch_region_decoded_bytes, validate_patch_region_domain,
     },
     EmbeddingColumnarBudgets, MultiscaleColumnarError, SpatialArrowFailure,
 };
@@ -135,43 +135,19 @@ pub(super) fn preflight_reader<R: Read + Seek + ?Sized>(
     let mut next_offset = schema_end;
     let mut aggregate_rows = 0_usize;
     for (batch_index, block) in blocks.iter().enumerate() {
-        let offset = nonnegative_i64(block.offset(), SpatialArrowFailure::InvalidBlock)?;
-        let metadata_len =
-            nonnegative_i32(block.metaDataLength(), SpatialArrowFailure::InvalidBlock)?;
-        let body_len = nonnegative_i64(block.bodyLength(), SpatialArrowFailure::InvalidBlock)?;
-        if offset != next_offset
-            || offset % ALIGNMENT != 0
-            || !(8..=MAXIMUM_MESSAGE_BYTES).contains(&metadata_len)
-            || metadata_len % ALIGNMENT != 0
-            || body_len % ALIGNMENT != 0
-        {
-            return Err(arrow_failure(SpatialArrowFailure::InvalidBlock));
-        }
-        let block_len = metadata_len
-            .checked_add(body_len)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-        enforce_row_group_budget(block_len, budgets)?;
-        let peak = footer_len
-            .checked_mul(2)
-            .and_then(|value| value.checked_add(block_len))
-            .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-        retained = retained.max(peak);
-        enforce_retained_budget(retained, budgets)?;
-        let block_end = offset
-            .checked_add(block_len)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-        if block_end > footer_start.saturating_sub(EOS_BYTES) {
-            return Err(arrow_failure(SpatialArrowFailure::InvalidBlock));
-        }
-        let physical = read_vec_at(
+        let physical = read_record_batch_block(
             reader,
             file_len,
-            offset,
-            block_len,
-            SpatialArrowFailure::InvalidBlock,
+            footer_start,
+            footer_len,
+            next_offset,
+            block.offset(),
+            block.metaDataLength(),
+            block.bodyLength(),
+            budgets,
         )?;
-        let (message, body) = physical.split_at(metadata_len);
+        retained = retained.max(physical.retained_preflight_bytes);
+        let (message, body) = physical.message_and_body();
         let start = batch_index
             .checked_mul(RECORD_BATCH_ROWS)
             .ok_or(MultiscaleColumnarError::SizeOverflow)?;
@@ -185,7 +161,7 @@ pub(super) fn preflight_reader<R: Read + Seek + ?Sized>(
         aggregate_rows = aggregate_rows
             .checked_add(rows)
             .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-        next_offset = block_end;
+        next_offset = physical.end;
     }
     if next_offset != footer_start.saturating_sub(EOS_BYTES) || aggregate_rows != row_count {
         return Err(arrow_failure(SpatialArrowFailure::InvalidRowCount));
