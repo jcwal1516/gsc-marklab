@@ -8,16 +8,13 @@ use arrow::{
     record_batch::RecordBatch,
 };
 
-use super::super::physical::write_record_batches;
+use super::super::physical::{enforce_writer_budgets, write_record_batches};
 use super::profile::{assignment_schema, edge_schema};
 use crate::columnar::arrow::profile::{
     ALIGNMENT, MAXIMUM_FOOTER_BYTES, MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS,
 };
 use crate::columnar::{
-    multiscale::{
-        assignment_decoded_bytes, edge_decoded_bytes, enforce_decoded_budget,
-        enforce_retained_budget, enforce_row_group_budget, validate_cell_patch_domain,
-    },
+    multiscale::{assignment_decoded_bytes, edge_decoded_bytes, validate_cell_patch_domain},
     EmbeddingColumnarBudgets, MultiscaleColumnarError, SpatialColumnarWriteSummary,
 };
 
@@ -30,7 +27,12 @@ pub fn write_cell_patch_assignment_table_arrow(
     validate_cell_patch_domain(link)?;
     enforce_footer_bound(link.assignment_count())?;
     let estimates = assignment_estimates(link)?;
-    enforce_writer_estimates(link.assignment_count(), estimates, budgets)?;
+    enforce_writer_budgets(
+        link.assignment_count(),
+        estimates.decoded_bytes,
+        estimates.maximum_batch_bytes,
+        budgets,
+    )?;
     let schema = assignment_schema(link)?;
     write_arrow(
         output,
@@ -50,7 +52,12 @@ pub fn write_cell_patch_edge_table_arrow(
     validate_cell_patch_domain(link)?;
     enforce_footer_bound(link.edge_count())?;
     let estimates = edge_estimates(link)?;
-    enforce_writer_estimates(link.edge_count(), estimates, budgets)?;
+    enforce_writer_budgets(
+        link.edge_count(),
+        estimates.decoded_bytes,
+        estimates.maximum_batch_bytes,
+        budgets,
+    )?;
     let schema = edge_schema(link)?;
     write_arrow(
         output,
@@ -237,35 +244,6 @@ fn estimate_chunks(
         decoded_bytes: decoded,
         maximum_batch_bytes: maximum,
     })
-}
-
-fn enforce_writer_estimates(
-    row_count: usize,
-    estimates: WriterEstimates,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<(), MultiscaleColumnarError> {
-    enforce_decoded_budget(estimates.decoded_bytes, budgets)?;
-    enforce_row_group_budget(estimates.maximum_batch_bytes, budgets)?;
-    let record_blocks = row_count
-        .div_ceil(RECORD_BATCH_ROWS)
-        .checked_mul(size_of::<arrow_ipc::Block>())
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-    let block_capacity = record_blocks
-        .checked_mul(2)
-        .and_then(|value| value.checked_add(size_of::<Vec<arrow_ipc::Block>>()))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-    let batch_peak = estimates
-        .maximum_batch_bytes
-        .checked_mul(2)
-        .and_then(|value| value.checked_add(block_capacity))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-    let footer_peak = record_blocks
-        .checked_add(MAXIMUM_MESSAGE_BYTES)
-        .and_then(|value| value.checked_mul(2))
-        .and_then(|value| value.checked_add(block_capacity))
-        .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-    enforce_retained_budget(batch_peak.max(footer_peak), budgets)
 }
 
 fn enforce_footer_bound(row_count: usize) -> Result<(), MultiscaleColumnarError> {

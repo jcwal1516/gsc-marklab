@@ -1,4 +1,7 @@
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::{
+    io::{Read, Seek, SeekFrom, Write},
+    mem::size_of,
+};
 
 use arrow::{datatypes::Schema, record_batch::RecordBatch};
 use arrow_ipc::{
@@ -15,7 +18,10 @@ use crate::columnar::{
         },
         writer::DigestingWriter,
     },
-    multiscale::{enforce_retained_budget, SpatialArrowFailure},
+    multiscale::{
+        enforce_decoded_budget, enforce_retained_budget, enforce_row_group_budget,
+        SpatialArrowFailure,
+    },
     EmbeddingColumnarBudgets, MultiscaleColumnarError,
 };
 
@@ -84,6 +90,35 @@ where
         encoded_byte_len,
         row_count: u64::try_from(row_count).map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
     })
+}
+
+pub(super) fn enforce_writer_budgets(
+    row_count: usize,
+    decoded_bytes: u64,
+    maximum_batch_bytes: usize,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<(), MultiscaleColumnarError> {
+    enforce_decoded_budget(decoded_bytes, budgets)?;
+    enforce_row_group_budget(maximum_batch_bytes, budgets)?;
+    let record_blocks = row_count
+        .div_ceil(RECORD_BATCH_ROWS)
+        .checked_mul(size_of::<arrow_ipc::Block>())
+        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+    let block_capacity = record_blocks
+        .checked_mul(2)
+        .and_then(|value| value.checked_add(size_of::<Vec<arrow_ipc::Block>>()))
+        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+    let batch_peak = maximum_batch_bytes
+        .checked_mul(2)
+        .and_then(|value| value.checked_add(block_capacity))
+        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+    let footer_peak = record_blocks
+        .checked_add(MAXIMUM_MESSAGE_BYTES)
+        .and_then(|value| value.checked_mul(2))
+        .and_then(|value| value.checked_add(block_capacity))
+        .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
+        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+    enforce_retained_budget(batch_peak.max(footer_peak), budgets)
 }
 
 pub(super) fn read_footer<R: Read + Seek + ?Sized>(

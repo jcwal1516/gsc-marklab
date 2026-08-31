@@ -17,13 +17,11 @@ use super::{
         profile::{ALIGNMENT, MAXIMUM_FOOTER_BYTES, MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS},
         writer::DigestingWriter,
     },
+    physical::enforce_writer_budgets,
     profile::{footprint_schema, overlap_schema},
 };
 use crate::columnar::{
-    multiscale::{
-        enforce_decoded_budget, enforce_retained_budget, enforce_row_group_budget,
-        validate_footprint_domain, validate_overlap_domain,
-    },
+    multiscale::{validate_footprint_domain, validate_overlap_domain},
     EmbeddingColumnarBudgets, MultiscaleColumnarError, SpatialColumnarWriteSummary,
 };
 
@@ -276,28 +274,12 @@ fn enforce_writer_estimates(
     estimates: WriterEstimates,
     budgets: EmbeddingColumnarBudgets,
 ) -> Result<(), MultiscaleColumnarError> {
-    enforce_decoded_budget(estimates.decoded_bytes, budgets)?;
-    enforce_row_group_budget(estimates.maximum_batch_bytes, budgets)?;
-    let record_blocks = row_count
-        .div_ceil(RECORD_BATCH_ROWS)
-        .checked_mul(size_of::<arrow_ipc::Block>())
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-    let block_capacity = record_blocks
-        .checked_mul(2)
-        .and_then(|value| value.checked_add(size_of::<Vec<arrow_ipc::Block>>()))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-    let batch_peak = estimates
-        .maximum_batch_bytes
-        .checked_mul(2)
-        .and_then(|value| value.checked_add(block_capacity))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-    let footer_peak = record_blocks
-        .checked_add(MAXIMUM_MESSAGE_BYTES)
-        .and_then(|value| value.checked_mul(2))
-        .and_then(|value| value.checked_add(block_capacity))
-        .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-    enforce_retained_budget(batch_peak.max(footer_peak), budgets)
+    enforce_writer_budgets(
+        row_count,
+        estimates.decoded_bytes,
+        estimates.maximum_batch_bytes,
+        budgets,
+    )
 }
 
 fn estimated_footer_bytes(row_count: usize) -> Result<usize, MultiscaleColumnarError> {
