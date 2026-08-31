@@ -90,6 +90,8 @@ mod local_embedding_roughness;
 mod longitudinal_kalman;
 #[path = "project/multiscale_embedding_kernel.rs"]
 mod multiscale_embedding_kernel;
+#[path = "project/multitype_lgcp_sbc.rs"]
+mod multitype_lgcp_sbc;
 #[path = "project/projected_embedding_variograms.rs"]
 mod projected_embedding_variograms;
 #[path = "project/region_retrieval.rs"]
@@ -1777,6 +1779,7 @@ enum ProjectCommand {
     ReplicatedArbitraryWindowMultitypeLgcpInferredKernel(
         Box<ReplicatedArbitraryWindowMultitypeLgcpInferredKernelProjectArgs>,
     ),
+    ReplicatedArbitraryWindowMultitypeLgcpInferredKernelSbc(Box<multitype_lgcp_sbc::ProjectArgs>),
     ConditionalMultitypeMark(Box<ConditionalMultitypeMarkProjectArgs>),
     ReplicatedConditionalMultitypeMark(Box<ReplicatedConditionalMultitypeMarkProjectArgs>),
     NormalMean {
@@ -2960,6 +2963,10 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
         ProjectTopLevel::Project {
             command: ProjectCommand::ReplicatedArbitraryWindowMultitypeLgcpInferredKernel(arguments),
         } => run_replicated_arbitrary_window_multitype_lgcp_inferred_kernel(*arguments),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::ReplicatedArbitraryWindowMultitypeLgcpInferredKernelSbc(arguments),
+        } => multitype_lgcp_sbc::run(*arguments),
         ProjectTopLevel::Project {
             command: ProjectCommand::ConditionalMultitypeMark(arguments),
         } => run_conditional_multitype_mark(*arguments),

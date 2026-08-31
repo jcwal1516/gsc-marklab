@@ -99,6 +99,7 @@ fn main() -> marklab::Result<()> {
                                     | "replicated-arbitrary-window-lgcp-inferred-kernel"
                                     | "replicated-arbitrary-window-multitype-lgcp"
                                     | "replicated-arbitrary-window-multitype-lgcp-inferred-kernel"
+                                    | "replicated-arbitrary-window-multitype-lgcp-inferred-kernel-sbc"
                                     | "conditional-multitype-mark"
                                     | "replicated-conditional-multitype-mark"
                                     | "region-retrieval"
@@ -483,6 +484,20 @@ fn main() -> marklab::Result<()> {
                     }) =>
         {
             bayes::run_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_prior_calibration_cli()
+                .map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand == std::ffi::OsStr::new(
+                            "replicated-arbitrary-window-multitype-lgcp-inferred-kernel-sbc",
+                        )
+                    }) =>
+        {
+            bayes::run_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc_cli()
                 .map_err(bayes::into_marklab_error)
         }
         Some(command)

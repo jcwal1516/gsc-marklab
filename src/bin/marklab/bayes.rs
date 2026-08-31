@@ -145,6 +145,11 @@ pub(super) fn run_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_pri
     replicated_arbitrary_window_multitype_lgcp_inferred_kernel_prior_calibration::run_cli()
 }
 
+pub(super) fn run_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc_cli(
+) -> Result<(), BayesCliError> {
+    replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc::run_cli()
+}
+
 pub(super) fn run_replicated_arbitrary_window_multitype_lgcp_prior_calibration_cli(
 ) -> Result<(), BayesCliError> {
     replicated_arbitrary_window_multitype_lgcp_prior_calibration::run_cli()
@@ -431,6 +436,8 @@ mod replicated_arbitrary_window_multitype_lgcp_inferred_kernel;
 mod replicated_arbitrary_window_multitype_lgcp_inferred_kernel_agreement;
 #[path = "bayes/replicated_arbitrary_window_multitype_lgcp_inferred_kernel_prior_calibration.rs"]
 mod replicated_arbitrary_window_multitype_lgcp_inferred_kernel_prior_calibration;
+#[path = "bayes/replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc.rs"]
+pub(crate) mod replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc;
 pub(super) use replicated_arbitrary_window_multitype_lgcp_inferred_kernel::{
     execute as execute_replicated_arbitrary_window_multitype_lgcp_inferred_kernel,
     prepare as prepare_replicated_arbitrary_window_multitype_lgcp_inferred_kernel,

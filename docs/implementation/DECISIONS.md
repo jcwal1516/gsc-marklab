@@ -3560,3 +3560,23 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   registration-sensitivity draws; it does not estimate deformation, treatment effects, or cell
   trajectories. Real biological evidence still requires an admitted paired registered cohort with
   provenance-complete deformation controls and independent measurements.
+
+## DEC-0385 — Calibrate the existing replicated multitype LGCP at its quadrature counting-measure boundary
+
+- Date: 2026-08-31
+- Status: accepted for BAY-02/BAY-PP/WF-01/WS-43/WS-44
+- Decision: add one scenario-stratified NumPyro SBC workflow over the existing replicated
+  arbitrary-window multitype inferred-kernel LGCP. Simulate and refit the same complete
+  quadrature-resolved counting measure retained by that model, with fixed positive, null,
+  weak-identification, boundary, and gamma-Poisson misspecification scenarios. Retain ranks and
+  90% coverage for type-A intensity, the A-minus-B group contrast, patient and pattern hierarchy
+  scales, shared field amplitude and physical length scale, and one identified latent node. Add
+  posterior-predictive total-count, type-proportion, node-level cross-type enrichment, and node
+  clustering diagnostics. Require deterministic purpose/scenario seeds and hard simulation,
+  iteration, PPC, event, memory, output, and timeout bounds; retain every scenario failure.
+- Consequences: posterior calibration and stress behavior become directly runnable and durably
+  replayable without a second backend execution. This does not claim continuous-event simulation:
+  the existing fitted likelihood is a quadrature counting-measure approximation. It also does not
+  invent a cross-type covariance parameter; the current model's type fields remain conditionally
+  independent, and cross-type enrichment is explicitly a predictive summary rather than a latent
+  dependence estimate. A correlated joint caller requires a separate admitted model.
