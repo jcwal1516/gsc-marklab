@@ -5,6 +5,7 @@ use crate::{canonical_token::valid_token, EmbeddingError};
 mod validation;
 mod wire;
 
+pub(crate) use validation::artifact_availability_failure;
 pub use validation::{
     ArtifactAvailabilityFailure, CellEmbeddingArtifactRole, EmbeddingArtifactGraphError,
     VerifiedCellEmbeddingArtifactGraph,

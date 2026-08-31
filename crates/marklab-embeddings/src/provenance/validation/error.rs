@@ -1,6 +1,6 @@
 use std::fmt;
 
-use marklab_project::{ArtifactId, ContentDigest};
+use marklab_project::{ArtifactId, ArtifactStoreError, ContentDigest};
 use thiserror::Error;
 
 /// Closed artifact role vocabulary for embedding promotion validation.
@@ -72,6 +72,30 @@ pub enum ArtifactAvailabilityFailure {
     StoreAccess,
     /// A store invariant or unsupported operation failed.
     StoreInvariant,
+}
+
+pub(crate) fn artifact_availability_failure(
+    error: &ArtifactStoreError,
+) -> ArtifactAvailabilityFailure {
+    match error {
+        ArtifactStoreError::LocatorNotFound { .. } | ArtifactStoreError::WrongStore { .. } => {
+            ArtifactAvailabilityFailure::LocatorMissing
+        }
+        ArtifactStoreError::MissingObject { .. } => ArtifactAvailabilityFailure::ObjectMissing,
+        ArtifactStoreError::ContentIntegrity { .. }
+        | ArtifactStoreError::ImmutableConflict { .. } => ArtifactAvailabilityFailure::Integrity,
+        ArtifactStoreError::SymlinkBoundary { .. }
+        | ArtifactStoreError::UnsupportedFileType { .. } => {
+            ArtifactAvailabilityFailure::UnsupportedFileType
+        }
+        ArtifactStoreError::Root { .. } | ArtifactStoreError::Io { .. } => {
+            ArtifactAvailabilityFailure::StoreAccess
+        }
+        ArtifactStoreError::InvalidRecord(_)
+        | ArtifactStoreError::WriteCallback { .. }
+        | ArtifactStoreError::PublishedButCleanupFailed { .. }
+        | ArtifactStoreError::StagingNameExhausted => ArtifactAvailabilityFailure::StoreInvariant,
+    }
 }
 
 /// Exact graph, schema, payload-binding, or availability validation failure.

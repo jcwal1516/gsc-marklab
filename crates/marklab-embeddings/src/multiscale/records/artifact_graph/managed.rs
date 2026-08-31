@@ -1,14 +1,16 @@
 use std::convert::Infallible;
 
 use marklab_project::{
-    ArtifactCatalog, ArtifactId, ArtifactReadSeek, ArtifactRecord, ArtifactStoreError,
-    LocalArtifactStore, VerifiedReaderError,
+    ArtifactCatalog, ArtifactId, ArtifactReadSeek, ArtifactRecord, LocalArtifactStore,
+    VerifiedReaderError,
 };
 
 use super::{
     record::required_record, MultiscaleEmbeddingArtifactGraphError, MultiscaleEmbeddingArtifactRole,
 };
-use crate::{multiscale::json::CanonicalJsonReaderError, ArtifactAvailabilityFailure};
+use crate::{
+    multiscale::json::CanonicalJsonReaderError, provenance::artifact_availability_failure,
+};
 
 pub(super) fn require_canonical_payload_for<F>(
     store: &LocalArtifactStore,
@@ -44,7 +46,7 @@ fn canonical_reader_error(
     match error {
         VerifiedReaderError::Store(error) => MultiscaleEmbeddingArtifactGraphError::Unavailable {
             role,
-            reason: availability_failure(&error),
+            reason: artifact_availability_failure(&error),
         },
         VerifiedReaderError::Callback(CanonicalJsonReaderError::Mismatch) => {
             MultiscaleEmbeddingArtifactGraphError::PayloadIdentityMismatch { role }
@@ -69,7 +71,7 @@ pub(super) fn require_available(
             VerifiedReaderError::Store(error) => {
                 MultiscaleEmbeddingArtifactGraphError::Unavailable {
                     role,
-                    reason: availability_failure(&error),
+                    reason: artifact_availability_failure(&error),
                 }
             }
             VerifiedReaderError::Callback(error) => match error {},
@@ -83,28 +85,6 @@ pub(super) fn require_available_for(
     id: ArtifactId,
 ) -> Result<(), MultiscaleEmbeddingArtifactGraphError> {
     require_available(store, required_record(catalog, role, id)?, role)
-}
-
-pub(super) fn availability_failure(error: &ArtifactStoreError) -> ArtifactAvailabilityFailure {
-    match error {
-        ArtifactStoreError::LocatorNotFound { .. } | ArtifactStoreError::WrongStore { .. } => {
-            ArtifactAvailabilityFailure::LocatorMissing
-        }
-        ArtifactStoreError::MissingObject { .. } => ArtifactAvailabilityFailure::ObjectMissing,
-        ArtifactStoreError::ContentIntegrity { .. }
-        | ArtifactStoreError::ImmutableConflict { .. } => ArtifactAvailabilityFailure::Integrity,
-        ArtifactStoreError::SymlinkBoundary { .. }
-        | ArtifactStoreError::UnsupportedFileType { .. } => {
-            ArtifactAvailabilityFailure::UnsupportedFileType
-        }
-        ArtifactStoreError::Root { .. } | ArtifactStoreError::Io { .. } => {
-            ArtifactAvailabilityFailure::StoreAccess
-        }
-        ArtifactStoreError::InvalidRecord(_)
-        | ArtifactStoreError::WriteCallback { .. }
-        | ArtifactStoreError::PublishedButCleanupFailed { .. }
-        | ArtifactStoreError::StagingNameExhausted => ArtifactAvailabilityFailure::StoreInvariant,
-    }
 }
 
 #[cfg(test)]

@@ -1,8 +1,8 @@
 use std::convert::Infallible;
 
 use marklab_project::{
-    ArtifactCatalog, ArtifactId, ArtifactRecord, ArtifactStoreError, LocalArtifactStore,
-    TableColumnType, TableFormat, TableScalarType, VerifiedReaderError,
+    ArtifactCatalog, ArtifactId, ArtifactRecord, LocalArtifactStore, TableColumnType, TableFormat,
+    TableScalarType, VerifiedReaderError,
 };
 
 use super::CellEmbeddingProvenance;
@@ -12,6 +12,7 @@ mod error;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use error::artifact_availability_failure;
 pub use error::{
     ArtifactAvailabilityFailure, CellEmbeddingArtifactRole, EmbeddingArtifactGraphError,
     VerifiedCellEmbeddingArtifactGraph,
@@ -53,7 +54,7 @@ impl CellEmbeddingProvenance {
                 .map_err(|error| match error {
                     VerifiedReaderError::Store(error) => EmbeddingArtifactGraphError::Unavailable {
                         role,
-                        reason: availability_failure(&error),
+                        reason: artifact_availability_failure(&error),
                     },
                     VerifiedReaderError::Callback(error) => match error {},
                 })?;
@@ -435,26 +436,4 @@ fn require_row_link_manifest(
         return Err(EmbeddingArtifactGraphError::RowLinkManifestMismatch);
     }
     Ok(())
-}
-
-fn availability_failure(error: &ArtifactStoreError) -> ArtifactAvailabilityFailure {
-    match error {
-        ArtifactStoreError::LocatorNotFound { .. } | ArtifactStoreError::WrongStore { .. } => {
-            ArtifactAvailabilityFailure::LocatorMissing
-        }
-        ArtifactStoreError::MissingObject { .. } => ArtifactAvailabilityFailure::ObjectMissing,
-        ArtifactStoreError::ContentIntegrity { .. }
-        | ArtifactStoreError::ImmutableConflict { .. } => ArtifactAvailabilityFailure::Integrity,
-        ArtifactStoreError::SymlinkBoundary { .. }
-        | ArtifactStoreError::UnsupportedFileType { .. } => {
-            ArtifactAvailabilityFailure::UnsupportedFileType
-        }
-        ArtifactStoreError::Root { .. } | ArtifactStoreError::Io { .. } => {
-            ArtifactAvailabilityFailure::StoreAccess
-        }
-        ArtifactStoreError::InvalidRecord(_)
-        | ArtifactStoreError::WriteCallback { .. }
-        | ArtifactStoreError::PublishedButCleanupFailed { .. }
-        | ArtifactStoreError::StagingNameExhausted => ArtifactAvailabilityFailure::StoreInvariant,
-    }
 }
