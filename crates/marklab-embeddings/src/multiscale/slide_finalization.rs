@@ -4,10 +4,11 @@ use marklab_data::SlideId;
 use marklab_project::{ArtifactId, ContentDigest};
 
 use super::{
-    allocation::try_vec_capacity, EmbeddingEntityKind, EmbeddingFinalizationBudgets,
-    ExpectedSlideSet, MultiscaleEmbeddingError, MultiscaleEmbeddingQcSummary, PatchEmbeddingTable,
-    RegionEmbeddingTable, SlideEmbeddingRow, SlideEmbeddingTable,
-    VerifiedDerivedSlideEmbeddingArtifactGraph,
+    allocation::{try_vec_capacity, try_vec_with_zeros},
+    finalization::require_working,
+    EmbeddingEntityKind, EmbeddingFinalizationBudgets, ExpectedSlideSet, MultiscaleEmbeddingError,
+    MultiscaleEmbeddingQcSummary, PatchEmbeddingTable, RegionEmbeddingTable, SlideEmbeddingRow,
+    SlideEmbeddingTable, VerifiedDerivedSlideEmbeddingArtifactGraph,
 };
 use crate::digest::canonical_positive_zero;
 
@@ -328,27 +329,6 @@ fn require_exact_bindings(
         || source.dimension() != graph.output_dimension
     {
         return Err(MultiscaleEmbeddingError::DerivedEmbeddingFinalizationBindingMismatch);
-    }
-    Ok(())
-}
-
-fn try_vec_with_zeros<T: Clone + Default>(
-    count: usize,
-) -> Result<Vec<T>, MultiscaleEmbeddingError> {
-    let mut values = try_vec_capacity(count)?;
-    values.resize(count, T::default());
-    Ok(values)
-}
-
-fn require_working(
-    required: usize,
-    budgets: EmbeddingFinalizationBudgets,
-) -> Result<(), MultiscaleEmbeddingError> {
-    if required > budgets.maximum_working_bytes() {
-        return Err(MultiscaleEmbeddingError::WorkingByteBudgetExceeded {
-            required,
-            maximum: budgets.maximum_working_bytes(),
-        });
     }
     Ok(())
 }

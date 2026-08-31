@@ -3,9 +3,10 @@ use std::mem::size_of;
 use marklab_data::PatchId;
 
 use super::{
-    allocation::try_vec_capacity, error::MultiscaleEmbeddingError, ExpectedRegionSet,
-    PatchEmbeddingTable, PatchRegionDeclaration, PatchRegionLink, RegionEmbeddingRow,
-    RegionEmbeddingTable, VerifiedDerivedRegionEmbeddingArtifactGraph,
+    allocation::{try_vec_capacity, try_vec_with_zeros},
+    error::MultiscaleEmbeddingError,
+    ExpectedRegionSet, PatchEmbeddingTable, PatchRegionDeclaration, PatchRegionLink,
+    RegionEmbeddingRow, RegionEmbeddingTable, VerifiedDerivedRegionEmbeddingArtifactGraph,
 };
 use crate::{digest::canonical_positive_zero, EmbeddingStatus};
 
@@ -377,15 +378,7 @@ fn declared_fraction_to_f64(relation: &PatchRegionDeclaration) -> f64 {
     (relation.numerator() as f64) / (relation.denominator() as f64)
 }
 
-fn try_vec_with_zeros<T: Clone + Default>(
-    count: usize,
-) -> Result<Vec<T>, MultiscaleEmbeddingError> {
-    let mut values = try_vec_capacity(count)?;
-    values.resize(count, T::default());
-    Ok(values)
-}
-
-fn require_working(
+pub(super) fn require_working(
     required: usize,
     budgets: EmbeddingFinalizationBudgets,
 ) -> Result<(), MultiscaleEmbeddingError> {
