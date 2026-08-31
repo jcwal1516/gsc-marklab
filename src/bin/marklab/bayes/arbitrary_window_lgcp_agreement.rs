@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     arbitrary_window_lgcp_fit::{self, FitResult, InputIdentity, PreparedArbitraryWindowLgcpFit},
+    posterior_validation::scalar_valid,
     publish_json, run_worker, BayesCliError,
 };
 
@@ -522,20 +523,6 @@ fn standardized(difference: f64, combined_mcse: f64) -> f64 {
 
 fn overlap(left: &SarScalarSummary, right: &SarScalarSummary) -> bool {
     left.interval_lower <= right.interval_upper && right.interval_lower <= left.interval_upper
-}
-
-fn scalar_valid(value: &SarScalarSummary, positive: bool) -> bool {
-    [
-        value.mean,
-        value.sd,
-        value.interval_lower,
-        value.interval_upper,
-    ]
-    .into_iter()
-    .all(f64::is_finite)
-        && value.sd >= 0.0
-        && value.interval_lower <= value.interval_upper
-        && (!positive || (value.mean > 0.0 && value.interval_lower >= 0.0))
 }
 
 fn backend_matches(result: &WorkerBackend, request: &BackendContract) -> bool {

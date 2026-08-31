@@ -377,6 +377,8 @@ mod partial_fused_gromov;
 mod point_process_ppc;
 #[path = "bayes/posterior_predictive_lab.rs"]
 mod posterior_predictive_lab;
+#[path = "bayes/posterior_validation.rs"]
+mod posterior_validation;
 #[path = "bayes/prediction_calibration.rs"]
 mod prediction_calibration;
 #[path = "bayes/prediction_safety.rs"]

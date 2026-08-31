@@ -7,6 +7,7 @@ use marklab_bayes::{
 };
 use serde::{Deserialize, Serialize};
 
+pub(crate) use super::posterior_validation::summary_valid;
 use super::{
     publish_json,
     replicated_arbitrary_window_lgcp_fit::{
@@ -586,19 +587,6 @@ pub(crate) fn compare_vector<'a>(
 
 fn overlap(left: &SarScalarSummary, right: &SarScalarSummary) -> bool {
     left.interval_lower <= right.interval_upper && right.interval_lower <= left.interval_upper
-}
-
-pub(crate) fn summary_valid(summary: &SarScalarSummary) -> bool {
-    [
-        summary.mean,
-        summary.sd,
-        summary.interval_lower,
-        summary.interval_upper,
-    ]
-    .into_iter()
-    .all(f64::is_finite)
-        && summary.sd >= 0.0
-        && summary.interval_lower <= summary.interval_upper
 }
 
 pub(crate) fn backend_matches(result: &WorkerBackend, expected: &BackendContract) -> bool {

@@ -7,6 +7,7 @@ use marklab_bayes::{
 };
 use serde::{Deserialize, Serialize};
 
+pub(crate) use super::posterior_validation::summary_valid;
 use super::{publish_json, run_worker, BayesCliError};
 
 const PYMC_VERSION: &str = "6.3.0";
@@ -1148,19 +1149,6 @@ fn predictive_valid(
             && (0.0..=1.0).contains(&row.total_count_two_sided_tail_probability)
             && (0.0..=1.0).contains(&row.node_variance_two_sided_tail_probability)
     })
-}
-
-pub(crate) fn summary_valid(summary: &SarScalarSummary) -> bool {
-    [
-        summary.mean,
-        summary.sd,
-        summary.interval_lower,
-        summary.interval_upper,
-    ]
-    .into_iter()
-    .all(f64::is_finite)
-        && summary.sd >= 0.0
-        && summary.interval_lower <= summary.interval_upper
 }
 
 fn is_digest(value: &str) -> bool {

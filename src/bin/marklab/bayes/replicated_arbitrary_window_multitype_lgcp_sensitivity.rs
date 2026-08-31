@@ -8,6 +8,7 @@ use marklab_bayes::{
 use serde::{Deserialize, Serialize};
 
 use super::{
+    posterior_validation::diagnostics_pass,
     publish_json,
     replicated_arbitrary_window_lgcp_agreement::{backend_matches, summary_valid},
     replicated_arbitrary_window_multitype_lgcp::{
@@ -585,19 +586,6 @@ fn maximum_shift<'a>(
             (baseline.mean - scenario.mean).abs() / baseline.sd.max(f64::MIN_POSITIVE)
         })
         .fold(0.0_f64, f64::max)
-}
-
-fn diagnostics_pass(value: &NormalMeanDiagnostics, policy: &DiagnosticPolicy) -> bool {
-    value.prior_predictive_finite
-        && value.posterior_finite
-        && value.constraints_valid
-        && value.identifiability_checks_passed
-        && value.r_hat <= policy.maximum_r_hat
-        && value.ess_bulk >= policy.minimum_bulk_ess
-        && value.ess_tail >= policy.minimum_tail_ess
-        && value.minimum_ebfmi >= policy.minimum_ebfmi
-        && value.divergences <= policy.maximum_divergences
-        && value.max_tree_depth_hits <= policy.maximum_tree_depth_hits
 }
 
 fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {

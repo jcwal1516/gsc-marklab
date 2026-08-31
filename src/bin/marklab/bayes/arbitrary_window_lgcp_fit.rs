@@ -11,7 +11,8 @@ use marklab_bayes::{
 use serde::{Deserialize, Serialize};
 
 use super::{
-    arbitrary_window_ipp, arbitrary_window_ipp_membership, publish_json, run_worker, BayesCliError,
+    arbitrary_window_ipp, arbitrary_window_ipp_membership, posterior_validation::scalar_valid,
+    publish_json, run_worker, BayesCliError,
 };
 
 const PYMC_VERSION: &str = "6.3.0";
@@ -835,20 +836,6 @@ fn read(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
         path: path.to_owned(),
         source,
     })
-}
-
-fn scalar_valid(value: &SarScalarSummary, positive: bool) -> bool {
-    [
-        value.mean,
-        value.sd,
-        value.interval_lower,
-        value.interval_upper,
-    ]
-    .into_iter()
-    .all(f64::is_finite)
-        && value.sd >= 0.0
-        && value.interval_lower <= value.interval_upper
-        && (!positive || (value.mean > 0.0 && value.interval_lower >= 0.0))
 }
 
 fn equal(left: f64, right: f64) -> bool {
