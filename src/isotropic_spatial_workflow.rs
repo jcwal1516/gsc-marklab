@@ -4,6 +4,7 @@ use marklab_workflow::{
 };
 use serde::Serialize;
 
+pub(crate) use crate::observation_window_artifact::full_window_artifact as window_artifact;
 use crate::{
     geom::window::ObservationWindow2D,
     isotropic_spatial::{
@@ -15,7 +16,6 @@ use crate::{
 };
 
 const NODE_KIND: &str = "isotropic_spatial_analysis";
-const WINDOW_KIND: &str = "application/vnd.marklab.observation-window-2d+json;version=1";
 const CONFIG_KIND: &str = "application/vnd.marklab.isotropic-spatial-config+json;version=1";
 const RESULT_KIND: &str = "application/vnd.marklab.isotropic-spatial-result+json;version=1";
 const EXECUTION_POLICY: &[u8] =
@@ -150,36 +150,6 @@ impl WorkflowNode for IsotropicSpatialAnalysisNode<'_> {
     fn output_kind(&self) -> &'static str {
         RESULT_KIND
     }
-}
-
-#[derive(Serialize)]
-struct WindowArtifact {
-    kind: &'static str,
-    logical_digest: String,
-    area_um2: f64,
-    perimeter_um: f64,
-    bounds_um: [f64; 4],
-    component_count: usize,
-    hole_count: usize,
-    ring_count: usize,
-    vertex_count: usize,
-}
-
-pub(crate) fn window_artifact(window: &ObservationWindow2D) -> Result<ArtifactRef, NodeError> {
-    let descriptor = window.descriptor();
-    let encoded = serde_json::to_vec(&WindowArtifact {
-        kind: "marklab.observation_window_2d",
-        logical_digest: descriptor.logical_digest.to_string(),
-        area_um2: descriptor.area_um2,
-        perimeter_um: descriptor.perimeter_um,
-        bounds_um: descriptor.bounds_um,
-        component_count: descriptor.component_count,
-        hole_count: descriptor.hole_count,
-        ring_count: descriptor.ring_count,
-        vertex_count: descriptor.vertex_count,
-    })
-    .map_err(NodeError::input)?;
-    ArtifactRef::from_bytes(WINDOW_KIND, &encoded).map_err(NodeError::input)
 }
 
 #[derive(Serialize)]

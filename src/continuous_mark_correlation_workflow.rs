@@ -7,6 +7,7 @@ use marklab_workflow::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::observation_window_artifact::frame_bound_window_artifact as window_artifact;
 use crate::{
     continuous_mark_correlation::{configuration_digest, mark_statistics},
     workflow::pattern_artifact,
@@ -18,7 +19,6 @@ use crate::{
 };
 
 const NODE_KIND: &str = "continuous_mark_correlation";
-const WINDOW_KIND: &str = "application/vnd.marklab.observation-window-ref;version=1";
 const CONFIG_KIND: &str =
     "application/vnd.marklab.continuous-mark-correlation-config+json;version=1";
 const RESULT_KIND: &str =
@@ -184,24 +184,6 @@ impl WorkflowNode for ContinuousMarkCorrelationAnalysisNode<'_> {
     fn output_kind(&self) -> &'static str {
         RESULT_KIND
     }
-}
-
-#[derive(Serialize)]
-struct WindowArtifact<'a> {
-    logical_digest: String,
-    coordinate_frame_id: &'a str,
-}
-
-fn window_artifact(window: &ObservationWindow2D) -> Result<ArtifactRef, NodeError> {
-    let frame = window
-        .coordinate_frame_id()
-        .ok_or_else(|| NodeError::input(invalid("observation window is not frame-bound")))?;
-    let encoded = serde_json::to_vec(&WindowArtifact {
-        logical_digest: window.descriptor().logical_digest.to_string(),
-        coordinate_frame_id: frame.as_str(),
-    })
-    .map_err(NodeError::input)?;
-    ArtifactRef::from_bytes(WINDOW_KIND, &encoded).map_err(NodeError::input)
 }
 
 #[derive(Serialize)]

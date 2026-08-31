@@ -6,6 +6,7 @@ use marklab_workflow::{
 };
 use serde::Serialize;
 
+use crate::observation_window_artifact::frame_bound_window_artifact as window_artifact;
 use crate::{
     compartment_interface::analysis::measurement_status_name,
     soft_multiscale_neighborhood::configuration_digest, workflow::pattern_artifact,
@@ -14,7 +15,6 @@ use crate::{
 };
 
 const NODE_KIND: &str = "soft_multiscale_neighborhood_composition";
-const WINDOW_KIND: &str = "application/vnd.marklab.observation-window-ref;version=1";
 const CONFIG_KIND: &str =
     "application/vnd.marklab.soft-multiscale-neighborhood-config+json;version=1";
 const RESULT_KIND: &str = "application/vnd.marklab.soft-multiscale-neighborhood+json;version=1";
@@ -144,24 +144,6 @@ impl WorkflowNode for SoftMultiscaleNeighborhoodAnalysisNode<'_> {
     fn output_kind(&self) -> &'static str {
         RESULT_KIND
     }
-}
-
-#[derive(Serialize)]
-struct WindowArtifact<'a> {
-    logical_digest: String,
-    coordinate_frame_id: &'a str,
-}
-
-fn window_artifact(window: &ObservationWindow2D) -> Result<ArtifactRef, NodeError> {
-    let frame = window
-        .coordinate_frame_id()
-        .ok_or_else(|| NodeError::input(invalid("observation window is not frame-bound")))?;
-    let bytes = serde_json::to_vec(&WindowArtifact {
-        logical_digest: window.descriptor().logical_digest.to_string(),
-        coordinate_frame_id: frame.as_str(),
-    })
-    .map_err(NodeError::input)?;
-    ArtifactRef::from_bytes(WINDOW_KIND, &bytes).map_err(NodeError::input)
 }
 
 #[derive(Serialize)]

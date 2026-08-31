@@ -64,6 +64,7 @@ mod multiscale_residual;
 mod nearest_space;
 mod nearest_space_workflow;
 mod neighborhood;
+mod observation_window_artifact;
 mod ordinal_composition;
 mod ordinal_composition_workflow;
 mod output;

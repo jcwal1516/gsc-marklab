@@ -7,6 +7,7 @@ use marklab_workflow::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::observation_window_artifact::frame_bound_window_artifact as window_artifact;
 use crate::{
     probability_pair::configuration_digest, workflow::pattern_artifact, ClassicalWindowSummary,
     DeclaredScalarPatternInput, ObservationWindow2D, ProbabilityPairComponentInference,
@@ -16,7 +17,6 @@ use crate::{
 };
 
 const NODE_KIND: &str = "probability_mark_connection";
-const WINDOW_KIND: &str = "application/vnd.marklab.observation-window-ref;version=1";
 const CONFIG_KIND: &str = "application/vnd.marklab.probability-pair-config+json;version=1";
 const RESULT_KIND: &str = "application/vnd.marklab.probability-pair-result+json;version=1";
 const EXECUTION_POLICY: &[u8] = b"serial;exact-rstar;retained-directed-pairs;standard-border;expected-positive-positive;complete-probability-row-random-labeling;erl";
@@ -195,24 +195,6 @@ impl WorkflowNode for ProbabilityPairAnalysisNode<'_> {
     fn output_kind(&self) -> &'static str {
         RESULT_KIND
     }
-}
-
-#[derive(Serialize)]
-struct WindowArtifact<'a> {
-    logical_digest: String,
-    coordinate_frame_id: &'a str,
-}
-
-fn window_artifact(window: &ObservationWindow2D) -> Result<ArtifactRef, NodeError> {
-    let frame = window
-        .coordinate_frame_id()
-        .ok_or_else(|| NodeError::input(invalid("observation window is not frame-bound")))?;
-    let encoded = serde_json::to_vec(&WindowArtifact {
-        logical_digest: window.descriptor().logical_digest.to_string(),
-        coordinate_frame_id: frame.as_str(),
-    })
-    .map_err(NodeError::input)?;
-    ArtifactRef::from_bytes(WINDOW_KIND, &encoded).map_err(NodeError::input)
 }
 
 #[derive(Serialize)]
