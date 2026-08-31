@@ -2,6 +2,9 @@ mod arrow;
 mod error;
 mod multiscale;
 mod parquet;
+mod resources;
+
+pub(crate) use resources::estimate_materialized_table_bytes;
 
 pub use arrow::{
     preflight_cell_embedding_row_link_arrow_bytes, preflight_cell_embedding_table_arrow_bytes,

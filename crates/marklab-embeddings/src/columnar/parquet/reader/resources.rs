@@ -1,9 +1,7 @@
 use parquet::file::metadata::RowGroupMetaData;
 
-use crate::{EmbeddingStatus, ExpectedCellSet};
-
 use super::{super::preflight::PreparedCellEmbeddingParquet, record::parquet_failure};
-use crate::columnar::{EmbeddingColumnarError, ParquetFailure};
+use crate::columnar::{estimate_materialized_table_bytes, EmbeddingColumnarError, ParquetFailure};
 
 pub(super) fn validated_group_range(
     row_group: &RowGroupMetaData,
@@ -74,31 +72,5 @@ pub(super) fn estimate_group_peak(
         .checked_mul(2)
         .and_then(|value| value.checked_add(arrow_output.checked_mul(2)?))
         .and_then(|value| value.checked_add(components.checked_mul(4)?))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)
-}
-
-pub(super) fn estimate_materialized_table_bytes(
-    expected: &ExpectedCellSet,
-    dimension: u32,
-) -> Result<usize, EmbeddingColumnarError> {
-    let component_bytes = expected
-        .cells()
-        .len()
-        .checked_mul(usize::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?)
-        .and_then(|value| value.checked_mul(size_of::<f32>()))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
-    let row_bytes = expected
-        .cells()
-        .len()
-        .checked_mul(size_of::<marklab_data::CellId>() + size_of::<EmbeddingStatus>())
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
-    let identifier_bytes = expected.cells().iter().try_fold(0_usize, |total, cell| {
-        total
-            .checked_add(cell.as_str().len())
-            .ok_or(EmbeddingColumnarError::SizeOverflow)
-    })?;
-    component_bytes
-        .checked_add(row_bytes)
-        .and_then(|value| value.checked_add(identifier_bytes))
         .ok_or(EmbeddingColumnarError::SizeOverflow)
 }
