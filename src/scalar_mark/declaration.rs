@@ -1,4 +1,6 @@
 use marklab_data::MeasurementStatus;
+
+pub(super) use crate::measurement_status_wire::name as measurement_status_name;
 use marklab_workflow::ArtifactId;
 
 use super::DeclaredScalarInputError;
@@ -590,13 +592,4 @@ fn validate_per_cell_status(status: MeasurementStatus) -> Result<(), DeclaredSca
         return Err(DeclaredScalarInputError::UnsupportedPerCellMeasurementStatus);
     }
     Ok(())
-}
-
-pub(super) fn measurement_status_name(status: MeasurementStatus) -> &'static str {
-    match status {
-        MeasurementStatus::Measured => "measured",
-        MeasurementStatus::ImportedPrediction => "imported_prediction",
-        MeasurementStatus::MorphologyPrediction => "morphology_prediction",
-        MeasurementStatus::DerivedSummary => "derived_summary",
-    }
 }

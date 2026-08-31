@@ -633,15 +633,6 @@ fn validate_component(
     }
 }
 
-fn status_name(value: MeasurementStatus) -> &'static str {
-    match value {
-        MeasurementStatus::Measured => "measured",
-        MeasurementStatus::ImportedPrediction => "imported_prediction",
-        MeasurementStatus::MorphologyPrediction => "morphology_prediction",
-        MeasurementStatus::DerivedSummary => "derived_summary",
-    }
-}
-
 fn parse_status(value: &str) -> io::Result<MeasurementStatus> {
     match value {
         "measured" => Ok(MeasurementStatus::Measured),
@@ -666,3 +657,4 @@ fn same(left: f64, right: f64) -> bool {
 fn invalid(message: impl Into<String>) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, message.into())
 }
+use crate::measurement_status_wire::name as status_name;

@@ -465,15 +465,6 @@ fn resolve(levels: &[String], name: &str) -> Result<u32, CategoricalCrossPairCor
         .ok_or_else(|| CategoricalCrossPairCorrelationError::MissingLevel(name.into()))
 }
 
-fn measurement_status_name(status: MeasurementStatus) -> &'static str {
-    match status {
-        MeasurementStatus::Measured => "measured",
-        MeasurementStatus::ImportedPrediction => "imported_prediction",
-        MeasurementStatus::MorphologyPrediction => "morphology_prediction",
-        MeasurementStatus::DerivedSummary => "derived_summary",
-    }
-}
-
 fn dependency(error: impl std::fmt::Display) -> CategoricalCrossPairCorrelationError {
     CategoricalCrossPairCorrelationError::Dependency(error.to_string())
 }
@@ -481,3 +472,4 @@ fn dependency(error: impl std::fmt::Display) -> CategoricalCrossPairCorrelationE
 fn translation_dependency(error: TranslationSpatialError) -> CategoricalCrossPairCorrelationError {
     dependency(error)
 }
+use crate::measurement_status_wire::name as measurement_status_name;

@@ -59,6 +59,7 @@ mod mark_pair_plan;
 mod mark_weighted_k;
 mod mark_weighted_k_workflow;
 mod marked_prepost_dag;
+mod measurement_status_wire;
 mod multimodal;
 mod multiscale_residual;
 mod nearest_space;

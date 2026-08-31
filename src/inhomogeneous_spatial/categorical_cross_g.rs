@@ -520,15 +520,7 @@ pub(crate) fn configuration_digest(
     ])
 }
 
-fn measurement_status_name(status: MeasurementStatus) -> &'static str {
-    match status {
-        MeasurementStatus::Measured => "measured",
-        MeasurementStatus::ImportedPrediction => "imported_prediction",
-        MeasurementStatus::MorphologyPrediction => "morphology_prediction",
-        MeasurementStatus::DerivedSummary => "derived_summary",
-    }
-}
-
 fn dependency(error: impl std::fmt::Display) -> InhomogeneousCategoricalCrossPairCorrelationError {
     InhomogeneousCategoricalCrossPairCorrelationError::Dependency(error.to_string())
 }
+use crate::measurement_status_wire::name as measurement_status_name;

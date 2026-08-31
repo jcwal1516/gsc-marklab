@@ -233,15 +233,6 @@ pub(crate) fn retained_bytes(
         .ok_or(CompartmentInterfaceError::SizeOverflow)
 }
 
-pub(crate) fn measurement_status_name(status: MeasurementStatus) -> &'static str {
-    match status {
-        MeasurementStatus::Measured => "measured",
-        MeasurementStatus::ImportedPrediction => "imported_prediction",
-        MeasurementStatus::MorphologyPrediction => "morphology_prediction",
-        MeasurementStatus::DerivedSummary => "derived_summary",
-    }
-}
-
 pub(crate) fn configuration_digest(
     input: &DeclaredScalarPatternInput<'_>,
     partition: &BinaryCompartmentPartition2D,
@@ -261,3 +252,4 @@ pub(crate) fn configuration_digest(
         &(limits.maximum_retained_bytes as u128).to_be_bytes(),
     ]))
 }
+pub(crate) use crate::measurement_status_wire::name as measurement_status_name;

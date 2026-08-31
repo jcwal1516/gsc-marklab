@@ -384,15 +384,6 @@ fn zeroed_vec<T: Default + Clone>(
     Ok(values)
 }
 
-pub(super) fn measurement_status_name(status: MeasurementStatus) -> &'static str {
-    match status {
-        MeasurementStatus::Measured => "measured",
-        MeasurementStatus::ImportedPrediction => "imported_prediction",
-        MeasurementStatus::MorphologyPrediction => "morphology_prediction",
-        MeasurementStatus::DerivedSummary => "derived_summary",
-    }
-}
-
 pub(super) fn resolve(
     levels: &[String],
     requested: &str,
@@ -407,3 +398,4 @@ pub(super) fn resolve(
 fn dependency(error: impl std::fmt::Display) -> CategoricalCrossPairCorrelationError {
     CategoricalCrossPairCorrelationError::Dependency(error.to_string())
 }
+pub(super) use crate::measurement_status_wire::name as measurement_status_name;
