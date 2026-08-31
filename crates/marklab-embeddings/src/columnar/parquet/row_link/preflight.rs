@@ -10,7 +10,9 @@ use parquet::{
     thrift::TSerializable,
 };
 
-use crate::columnar::parquet::schema::{is_flat_group as is_group, is_required_utf8 as is_utf8};
+use crate::columnar::parquet::schema::{
+    is_flat_group as is_group, is_required_utf8 as is_utf8, is_unsigned_u64 as is_u64,
+};
 use crate::{CellEmbeddingRowLink, ExpectedCellSet};
 
 use super::super::super::{

@@ -10,7 +10,9 @@ use parquet::{
     thrift::TSerializable,
 };
 
-use crate::columnar::parquet::schema::{is_flat_group as is_group, is_required_utf8 as is_utf8};
+use crate::columnar::parquet::schema::{
+    is_flat_group as is_group, is_required_utf8 as is_utf8, is_unsigned_u64 as is_u64,
+};
 use crate::{CellPatchAssignmentMode, CellPatchLink};
 
 pub(super) use super::super::physical::parquet_failure;
@@ -646,23 +648,6 @@ fn validate_schema(
         return Err(parquet_failure(SpatialParquetFailure::InvalidSchema));
     }
     Ok(())
-}
-
-fn is_u64(element: &SchemaElement, name: &str, repetition: FieldRepetitionType) -> bool {
-    element.type_ == Some(Type::INT64)
-        && element.type_length.is_none()
-        && element.repetition_type == Some(repetition)
-        && element.name == name
-        && element.num_children.is_none()
-        && element.converted_type == Some(ConvertedType::UINT_64)
-        && element.scale.is_none()
-        && element.precision.is_none()
-        && element.field_id.is_none()
-        && matches!(
-            element.logical_type,
-            Some(LogicalType::INTEGER(ref integer))
-                if integer.bit_width == 64 && !integer.is_signed
-        )
 }
 
 fn validate_metadata(
