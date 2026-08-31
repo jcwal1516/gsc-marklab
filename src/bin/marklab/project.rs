@@ -56,8 +56,14 @@ use super::{
 mod embedding_cross_covariance;
 #[path = "project/embedding_spatial_dependence_envelope.rs"]
 mod embedding_spatial_dependence_envelope;
+#[path = "project/graph_dirichlet_energy.rs"]
+mod graph_dirichlet_energy;
+#[path = "project/graph_smoothness_permutation.rs"]
+mod graph_smoothness_permutation;
 #[path = "project/kernel_mark_correlation.rs"]
 mod kernel_mark_correlation;
+#[path = "project/local_embedding_roughness.rs"]
+mod local_embedding_roughness;
 #[path = "project/projected_embedding_variograms.rs"]
 mod projected_embedding_variograms;
 #[path = "project/region_retrieval.rs"]
@@ -1090,6 +1096,78 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    GraphDirichletEnergy {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        nodes: PathBuf,
+        #[arg(long)]
+        edges: PathBuf,
+        #[arg(long)]
+        laplacian: String,
+        #[arg(long)]
+        normalization: String,
+        #[arg(long)]
+        maximum_nodes: usize,
+        #[arg(long)]
+        maximum_edges: usize,
+        #[arg(long)]
+        maximum_dimension: usize,
+        #[arg(long)]
+        maximum_component_edge_visits: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    GraphSmoothnessPermutationTest {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        nodes: PathBuf,
+        #[arg(long)]
+        edges: PathBuf,
+        #[arg(long)]
+        laplacian: String,
+        #[arg(long)]
+        permutations: u32,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        maximum_nodes: usize,
+        #[arg(long)]
+        maximum_edges: usize,
+        #[arg(long)]
+        maximum_dimension: usize,
+        #[arg(long)]
+        maximum_component_edge_visits: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    LocalEmbeddingRoughness {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        nodes: PathBuf,
+        #[arg(long)]
+        edges: PathBuf,
+        #[arg(long)]
+        epsilon: f64,
+        #[arg(long)]
+        maximum_nodes: usize,
+        #[arg(long)]
+        maximum_edges: usize,
+        #[arg(long)]
+        maximum_dimension: usize,
+        #[arg(long)]
+        maximum_component_edge_visits: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
     RegionRetrieval {
         #[arg(long)]
         project: PathBuf,
@@ -1650,6 +1728,90 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             maximum_points,
             maximum_dimension,
             maximum_pair_visits,
+            memory_budget_mib,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::GraphDirichletEnergy {
+                    project,
+                    nodes,
+                    edges,
+                    laplacian,
+                    normalization,
+                    maximum_nodes,
+                    maximum_edges,
+                    maximum_dimension,
+                    maximum_component_edge_visits,
+                    memory_budget_mib,
+                    out,
+                },
+        } => graph_dirichlet_energy::run(
+            project,
+            nodes,
+            edges,
+            laplacian,
+            normalization,
+            maximum_nodes,
+            maximum_edges,
+            maximum_dimension,
+            maximum_component_edge_visits,
+            memory_budget_mib,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::GraphSmoothnessPermutationTest {
+                    project,
+                    nodes,
+                    edges,
+                    laplacian,
+                    permutations,
+                    seed,
+                    maximum_nodes,
+                    maximum_edges,
+                    maximum_dimension,
+                    maximum_component_edge_visits,
+                    memory_budget_mib,
+                    out,
+                },
+        } => graph_smoothness_permutation::run(
+            project,
+            nodes,
+            edges,
+            laplacian,
+            permutations,
+            seed,
+            maximum_nodes,
+            maximum_edges,
+            maximum_dimension,
+            maximum_component_edge_visits,
+            memory_budget_mib,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::LocalEmbeddingRoughness {
+                    project,
+                    nodes,
+                    edges,
+                    epsilon,
+                    maximum_nodes,
+                    maximum_edges,
+                    maximum_dimension,
+                    maximum_component_edge_visits,
+                    memory_budget_mib,
+                    out,
+                },
+        } => local_embedding_roughness::run(
+            project,
+            nodes,
+            edges,
+            epsilon,
+            maximum_nodes,
+            maximum_edges,
+            maximum_dimension,
+            maximum_component_edge_visits,
             memory_budget_mib,
             out,
         ),
