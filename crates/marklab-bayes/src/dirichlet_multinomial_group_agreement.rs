@@ -314,4 +314,4 @@ fn summarize(
         posterior_predictive: result.posterior_predictive,
     }
 }
-use crate::agreement_metric::{compare_beta_binomial_parameter, standardized_mcse_difference};
+use crate::agreement_metric::compare_beta_binomial_parameter;

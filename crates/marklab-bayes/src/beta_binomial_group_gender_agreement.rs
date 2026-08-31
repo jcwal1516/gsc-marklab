@@ -11,7 +11,7 @@ use crate::{
     BetaBinomialGroupGenderRegressionModelIr, BetaBinomialGroupGenderRegressionPosterior,
     BetaBinomialGroupGenderRegressionWorkerRequest, BetaBinomialGroupGenderRegressionWorkerResult,
     BetaBinomialParameterAgreement, BetaBinomialPatientAgreement, FitState, NormalMeanDiagnostics,
-    SamplingSummary, SarScalarSummary, WorkerBackend,
+    SamplingSummary, WorkerBackend,
 };
 
 const REQUEST_FORMAT: &str = "marklab.numpyro_beta_binomial_group_gender_worker_request";

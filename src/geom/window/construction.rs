@@ -12,7 +12,8 @@ use crate::common::finite::canonical_zero;
 
 use super::{
     topology::{self, Point, Polygon, TopologySummary},
-    ObservationWindow2D, ObservationWindowError, ObservationWindowLimits,
+    ObservationWindow2D, ObservationWindowDescriptor, ObservationWindowError,
+    ObservationWindowLimits,
 };
 
 const DIGEST_DOMAIN: &[u8] = b"marklab-observation-window-2d-v1";

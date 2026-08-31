@@ -1,4 +1,3 @@
-use marklab_data::MeasurementStatus;
 use marklab_workflow::ContentDigest;
 
 use crate::common::{finite::canonical_zero, summation::kahan_add};
