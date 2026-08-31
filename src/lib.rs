@@ -95,6 +95,8 @@ mod spatial_autocorrelation_workflow;
 mod spectra;
 #[cfg(feature = "cli")]
 mod synthetic_smoke;
+mod top1_pair_mixing_bounds;
+mod top1_pair_mixing_bounds_workflow;
 mod translation_pair_correlation;
 mod translation_pair_correlation_workflow;
 mod translation_spatial;
@@ -552,6 +554,11 @@ pub use spatial_autocorrelation::{
 pub use spatial_autocorrelation_workflow::{
     GlobalMoranAnalysisNode, GlobalMoranPrePostNode, GlobalMoranPrePostResult,
 };
+pub use top1_pair_mixing_bounds::{
+    top1_pair_mixing_bounds, Top1PairMixingBoundCell, Top1PairMixingBoundsConfig,
+    Top1PairMixingBoundsError, Top1PairMixingBoundsLimits, Top1PairMixingBoundsResult,
+};
+pub use top1_pair_mixing_bounds_workflow::Top1PairMixingBoundsAnalysisNode;
 pub use translation_pair_correlation::{
     analyze_translation_pair_correlation, TranslationPairCorrelationConfig,
     TranslationPairCorrelationConfigurationSummary, TranslationPairCorrelationGeometrySummary,

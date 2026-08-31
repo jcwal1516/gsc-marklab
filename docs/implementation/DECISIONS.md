@@ -3384,3 +3384,24 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   durable replay. Sites lacking two patients per group, varying nuisance support, full rank, or
   positive residual degrees of freedom remain excluded by named design rules. The result is
   observational and null-compatible, not causal or clinical evidence.
+
+## DEC-0376 — Bound multiclass mixing from top-1 prediction confidence
+
+- Date: 2026-08-30
+- Status: accepted for FND-04/MRK-02C/GEO-01D/WS-23/WS-30
+- Decision: add one descriptive physical-radius workflow that consumes the existing row-aligned
+  categorical winner and scalar winning-class probability columns plus the declared native source
+  class count. For each cell and retained class, derive the exact marginal probability interval
+  implied by a complete native simplex whose declared winner has the recorded probability and no
+  other native class exceeds it. This retains valid bounds when a bounded specimen omits one or
+  more native classes. Sum per-edge product minima and maxima into conservative coordinatewise
+  source-target pair-mass bounds. Preserve the categorical and probability MarkTable identities
+  independently; never invent, normalize, threshold, or sample missing class probabilities, and do
+  not describe the bounds as a fitted simplex or joint confidence region.
+- Consequences: sources with genuine top-1 posterior probability can carry honest multiclass
+  uncertainty into geometry without a full vector. Bounds may be deliberately wide and matrix
+  cells are not jointly attainable in general. The admitted CellViT `type_prob` is instead a
+  winning-type pixel-support fraction after background handling and includes values below the
+  five-class top-1 minimum, so it is rejected rather than relabeled as posterior confidence. Full
+  expected pair mixing remains owned by the existing complete-simplex workflow when genuine class
+  vectors are admitted.
