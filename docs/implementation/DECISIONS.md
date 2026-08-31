@@ -3286,3 +3286,50 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   Invalid semantic inputs and under-budget radial jobs create neither a project nor an output. This
   does not add a kernel selector, learned kernel, plugin, result format, automatic bandwidth/scale
   choice, patient-population inference, or authority to treat cell pairs as patient replicates.
+
+## DEC-0370 — Restrict the embedding envelope null to declared permutation strata
+
+- Date: 2026-08-30
+- Status: accepted for EMB-GLOBAL-ENV-01/EMB-01/SIG-01H/PLAT-01/WF-01/WS-12/WS-32
+- Decision: construct IC-0086 distance-pair plans only within each declared permutation stratum,
+  matching the complete-vector random-label null, and add `marklab project
+  embedding-spatial-dependence-envelope` around that corrected existing statistic. Bind exact
+  input/bin bytes, curve, permutation/alpha/seed controls, point/dimension/pair/memory ceilings,
+  native executable/runtime, and typed result identity. Admit all semantic and retained-memory
+  requirements before durable state exists.
+- Consequences: cross-specimen coordinate pairs no longer enter either the observed curve or null
+  work count. The admitted 960-cell/39-ROI caller executes 13,378 within-ROI pairs and replays
+  backend-disabled byte-identically. Its `1/21` result is conditional pooled capacity evidence, not
+  patient-population inference. No envelope registry, scale selection, or result-format change is
+  introduced.
+
+## DEC-0371 — Durably execute the three existing graph-signal callers
+
+- Date: 2026-08-30
+- Status: accepted for EMB-GRAPH-ENERGY-01/EMB-GRAPH-PERM-01/EMB-LOCAL-ROUGH-01/PLAT-01/WF-01/WS-12
+- Decision: add separate native project commands for graph Dirichlet energy, stratified graph
+  smoothness permutation, and local embedding roughness. Reuse the exact graph mathematics,
+  direct result documents, scheduler, store, ledger, recovery, native runtime, and exact-float
+  codec. Each command independently binds raw node/edge bytes, graph semantics, configuration,
+  caller resource ceilings, and expected graph digest; do not add a graph plugin or runner.
+- Consequences: the admitted 960-cell/39-ROI/2,729-edge graph completes three direct-byte-identical
+  misses and disabled hits with one ledger each. The smoothness `1/21` result remains a pooled
+  within-ROI diagnostic, and local roughness remains descriptive with 57 islands. Neither is
+  promoted as patient-level recurrence or hotspot inference.
+
+## DEC-0372 — Durably execute admitted patch-summary and patient-distribution workflows
+
+- Date: 2026-08-30
+- Status: accepted for EMB-COMPLEMENT-01/EMB-MULTISCALE-KERNEL-01/COH-MMD-01/COH-ENERGY-01/COH-01/PLAT-01/WF-01/WS-12/WS-34/WS-51
+- Decision: add bounded project commands around the existing multiscale embedding kernel, pinned
+  SciPy cell-patch complementarity, patient MMD, patient energy distance, complete-family Max-T,
+  and ordered hierarchical Max-T callers. Preserve exact direct output bytes and existing blocked,
+  patient-unit, fold, correction, family-order, null, and seed semantics. Bind exact source and
+  serialized-path identity where the public result retains a path, exact Python lock/worker/backend
+  identity for complementarity, all configuration controls, native runtime/executable identity,
+  and caller work/memory ceilings. Keep six concrete nodes; do not create a generic cohort runner.
+- Consequences: the five workflows with admitted real inputs complete byte-identical misses and
+  disabled hits with one ledger each. Existing patch, fused-fingerprint, and four-endpoint results
+  remain null-compatible. Real hierarchical Max-T remains unavailable because no prespecified
+  family mapping exists; independent H-Optimus tensors remain unavailable until exact tensors and
+  cell-patch links are admitted. No synthetic result is promoted as real evidence.
