@@ -54,6 +54,8 @@ mod piecewise_compartment_spatial;
 mod prepost;
 #[path = "cli/profile.rs"]
 mod profile;
+#[path = "cli/project_output.rs"]
+mod project_output;
 #[path = "cli/scalar_variogram.rs"]
 mod scalar_variogram;
 #[path = "cli/simulate.rs"]

@@ -1,14 +1,9 @@
-use std::{
-    collections::BTreeMap,
-    fs::{self, OpenOptions},
-    io::Write,
-    path::Path,
-};
+use std::{collections::BTreeMap, fs, path::Path};
 
 use crate::{
-    ArtifactDraft, ArtifactId, ArtifactRef, ArtifactSchema, BinaryMarkDeclaration, CacheStatus,
-    CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace,
-    CoordinateUnit, DurableProject, DurableProjectLimits, HierarchyId, HierarchyNode,
+    ArtifactDraft, ArtifactId, ArtifactRef, ArtifactSchema, BinaryMarkDeclaration, CohortHierarchy,
+    CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit,
+    DurableProject, DurableProjectLimits, HierarchyId, HierarchyNode,
     HistologicCompartmentMarkDeclaration, LocalArtifactStore, MarkTable, MarklabError,
     MarklabProject, MeasurementStatus, MissingnessPolicy, NucleusAreaUm2MarkDeclaration,
     ObservationWindow2D, ObservationWindowLimits, PatientId, Pattern, PatternLoader,
@@ -17,6 +12,7 @@ use crate::{
 };
 
 use super::classical::{read_bounded_utf8, source_artifact};
+pub(super) use super::project_output::write_output;
 
 const SOURCE_CELLS_KIND: &str = "application/vnd.marklab.source.categorical-cell-table;version=1";
 const SOURCE_WINDOW_KIND: &str = "application/vnd.marklab.source.observation-window;version=1";
@@ -292,31 +288,6 @@ fn prepare_with_nucleus_area(
         frame_id,
         memory_bytes,
     })
-}
-
-pub(super) fn write_output(
-    path: &Path,
-    encoded: &[u8],
-    cache_status: CacheStatus,
-    command: &str,
-) -> Result<()> {
-    let mut output = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-        .map_err(|source| MarklabError::io(path, source))?;
-    output
-        .write_all(encoded)
-        .map_err(|source| MarklabError::io(path, source))?;
-    output
-        .sync_all()
-        .map_err(|source| MarklabError::io(path, source))?;
-    let cache = match cache_status {
-        CacheStatus::Hit => "hit",
-        CacheStatus::Miss => "miss",
-    };
-    eprintln!("project {command} cache_status={cache}");
-    Ok(())
 }
 
 fn hierarchy(

@@ -1,16 +1,13 @@
-use std::{
-    fs::{self, OpenOptions},
-    io::Write,
-    path::Path,
-};
+use std::{fs, path::Path};
 
 use crate::{
-    CacheStatus, DurableProject, DurableProjectLimits, LocalArtifactStore, MarklabError,
-    MarklabProject, ObservationWindow2D, ObservationWindowLimits, Pattern, PatternLoader, Result,
-    StoreId, TumorMask,
+    DurableProject, DurableProjectLimits, LocalArtifactStore, MarklabError, MarklabProject,
+    ObservationWindow2D, ObservationWindowLimits, Pattern, PatternLoader, Result, StoreId,
+    TumorMask,
 };
 
 use super::classical::{read_bounded_utf8, source_artifact};
+pub(super) use super::project_output::write_output;
 
 const SOURCE_CELLS_KIND: &str = "application/vnd.marklab.source.point-table;version=1";
 const SOURCE_WINDOW_KIND: &str = "application/vnd.marklab.source.observation-window;version=1";
@@ -91,29 +88,4 @@ pub(super) fn prepare(request: PrepareRequest<'_>) -> Result<PreparedInhomogeneo
         window,
         memory_bytes,
     })
-}
-
-pub(super) fn write_output(
-    path: &Path,
-    encoded: &[u8],
-    cache_status: CacheStatus,
-    command: &str,
-) -> Result<()> {
-    let mut output = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-        .map_err(|source| MarklabError::io(path, source))?;
-    output
-        .write_all(encoded)
-        .map_err(|source| MarklabError::io(path, source))?;
-    output
-        .sync_all()
-        .map_err(|source| MarklabError::io(path, source))?;
-    let cache = match cache_status {
-        CacheStatus::Hit => "hit",
-        CacheStatus::Miss => "miss",
-    };
-    eprintln!("project {command} cache_status={cache}");
-    Ok(())
 }

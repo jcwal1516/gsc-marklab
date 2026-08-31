@@ -1,21 +1,21 @@
 use std::{
-    fs::{self, OpenOptions},
-    io::Write,
+    fs,
     path::{Path, PathBuf},
 };
 
 use crate::{
     execute_algorithm_with_store, inhomogeneous_spatial::encode_piecewise_compartment_result,
-    ArtifactSchema, BinaryCompartmentPartition2D, CacheStatus, CompartmentPartitionLimits,
-    CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit,
-    DurableProject, DurableProjectLimits, LocalArtifactStore, LocalScheduler, MarklabError,
-    MarklabProject, NodeId, ObservationWindow2D, ObservationWindowLimits, Pattern, PatternLoader,
+    ArtifactSchema, BinaryCompartmentPartition2D, CompartmentPartitionLimits, CoordinateFrame,
+    CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit, DurableProject,
+    DurableProjectLimits, LocalArtifactStore, LocalScheduler, MarklabError, MarklabProject, NodeId,
+    ObservationWindow2D, ObservationWindowLimits, Pattern, PatternLoader,
     PiecewiseCompartmentSpatialAnalysisNode, PiecewiseCompartmentSpatialConfig,
     PiecewiseCompartmentSpatialLimits, Result, SchedulerLimits, SpatialAxis, StoreId, TumorMask,
     WorkflowGraph,
 };
 
 use super::classical::{native_runtime_provenance, read_bounded_utf8, source_artifact};
+pub(super) use super::project_output::write_output;
 
 const SOURCE_CELLS_KIND: &str = "application/vnd.marklab.source.point-table;version=1";
 const SOURCE_OBSERVATION_KIND: &str = "application/vnd.marklab.source.observation-window;version=1";
@@ -230,31 +230,6 @@ pub(super) fn prepare(request: PrepareRequest<'_>) -> Result<PreparedPiecewiseCo
         partition,
         memory_bytes,
     })
-}
-
-pub(super) fn write_output(
-    path: &Path,
-    encoded: &[u8],
-    cache_status: CacheStatus,
-    command: &str,
-) -> Result<()> {
-    let mut output = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-        .map_err(|source| MarklabError::io(path, source))?;
-    output
-        .write_all(encoded)
-        .map_err(|source| MarklabError::io(path, source))?;
-    output
-        .sync_all()
-        .map_err(|source| MarklabError::io(path, source))?;
-    let cache = match cache_status {
-        CacheStatus::Hit => "hit",
-        CacheStatus::Miss => "miss",
-    };
-    eprintln!("project {command} cache_status={cache}");
-    Ok(())
 }
 
 fn source_identities(request: &PrepareRequest<'_>) -> Result<[crate::ArtifactRef; 4]> {
