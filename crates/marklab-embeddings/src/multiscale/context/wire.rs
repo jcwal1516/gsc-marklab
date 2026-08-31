@@ -1,7 +1,4 @@
-use marklab_data::{
-    CohortHierarchy, CoordinateFrameId, CoordinateRegistry, ImageCoordinateConvention, SlideId,
-    TransformId,
-};
+use marklab_data::{CohortHierarchy, CoordinateFrameId, CoordinateRegistry, SlideId, TransformId};
 use serde::{Deserialize, Serialize};
 
 use crate::{

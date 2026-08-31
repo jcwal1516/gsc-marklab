@@ -16,15 +16,16 @@ use super::{
 mod support;
 mod table_artifact;
 
-#[cfg(feature = "parquet")]
-#[allow(unused_imports)]
-pub(in crate::multiscale) use support::{
-    slide_lineage_digest, VerifiedPatchEmbeddingSupportBindings,
-    VerifiedRegionEmbeddingSupportBindings, VerifiedSlideEmbeddingSupportBindings,
-};
+pub(in crate::multiscale) use support::slide_lineage_digest;
 pub use support::{
     VerifiedPatchEmbeddingSupportArtifact, VerifiedRegionEmbeddingSupportArtifact,
     VerifiedSlideEmbeddingSupportArtifact,
+};
+#[cfg(feature = "parquet")]
+#[allow(unused_imports)]
+pub(in crate::multiscale) use support::{
+    VerifiedPatchEmbeddingSupportBindings, VerifiedRegionEmbeddingSupportBindings,
+    VerifiedSlideEmbeddingSupportBindings,
 };
 pub use table_artifact::{
     VerifiedPatchEmbeddingTableArtifact, VerifiedRegionEmbeddingTableArtifact,

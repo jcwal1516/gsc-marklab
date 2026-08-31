@@ -10,6 +10,7 @@ use super::{
 };
 use crate::{
     multiscale::json::CanonicalJsonReaderError, provenance::artifact_availability_failure,
+    ArtifactAvailabilityFailure,
 };
 
 pub(super) fn require_canonical_payload_for<F>(
