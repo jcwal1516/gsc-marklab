@@ -52,12 +52,14 @@ use super::{
     },
 };
 
-#[path = "project/projected_embedding_variograms.rs"]
-mod projected_embedding_variograms;
 #[path = "project/embedding_cross_covariance.rs"]
 mod embedding_cross_covariance;
+#[path = "project/embedding_spatial_dependence_envelope.rs"]
+mod embedding_spatial_dependence_envelope;
 #[path = "project/kernel_mark_correlation.rs"]
 mod kernel_mark_correlation;
+#[path = "project/projected_embedding_variograms.rs"]
+mod projected_embedding_variograms;
 #[path = "project/region_retrieval.rs"]
 mod region_retrieval;
 #[path = "project/vector_semivariogram.rs"]
@@ -1062,6 +1064,32 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    EmbeddingSpatialDependenceEnvelope {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        bins: PathBuf,
+        #[arg(long)]
+        curve: String,
+        #[arg(long)]
+        permutations: u32,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        maximum_points: usize,
+        #[arg(long)]
+        maximum_dimension: usize,
+        #[arg(long)]
+        maximum_pair_visits: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
     RegionRetrieval {
         #[arg(long)]
         project: PathBuf,
@@ -1589,6 +1617,36 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             bins,
             kernel,
             global_reference_tolerance,
+            maximum_points,
+            maximum_dimension,
+            maximum_pair_visits,
+            memory_budget_mib,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::EmbeddingSpatialDependenceEnvelope {
+                    project,
+                    input,
+                    bins,
+                    curve,
+                    permutations,
+                    alpha,
+                    seed,
+                    maximum_points,
+                    maximum_dimension,
+                    maximum_pair_visits,
+                    memory_budget_mib,
+                    out,
+                },
+        } => embedding_spatial_dependence_envelope::run(
+            project,
+            input,
+            bins,
+            curve,
+            permutations,
+            alpha,
+            seed,
             maximum_points,
             maximum_dimension,
             maximum_pair_visits,

@@ -116,7 +116,24 @@ pub fn test_embedding_spatial_dependence(
     validate(&mut spec)?;
     spec.rows
         .sort_by(|left, right| left.object_id.cmp(&right.object_id));
-    let pair_count = spec.rows.len() as u64 * (spec.rows.len() as u64 - 1) / 2;
+    let mut groups = BTreeMap::<String, Vec<usize>>::new();
+    for (index, row) in spec.rows.iter().enumerate() {
+        groups
+            .entry(row.permutation_stratum.clone())
+            .or_default()
+            .push(index);
+    }
+    let pair_count = groups.values().try_fold(0_u64, |total, indices| {
+        let count = u64::try_from(indices.len())
+            .map_err(|_| EmbeddingEnvelopeError::Invalid("pair count exceeds u64".into()))?;
+        let pairs = count
+            .checked_mul(count.saturating_sub(1))
+            .and_then(|value| value.checked_div(2))
+            .ok_or_else(|| EmbeddingEnvelopeError::Invalid("pair count overflowed".into()))?;
+        total
+            .checked_add(pairs)
+            .ok_or_else(|| EmbeddingEnvelopeError::Invalid("pair count overflowed".into()))
+    })?;
     let pair_visits = pair_count
         .checked_mul(u64::from(spec.permutations) + 1)
         .ok_or_else(|| EmbeddingEnvelopeError::Invalid("pair work overflowed".into()))?;
@@ -129,33 +146,30 @@ pub fn test_embedding_spatial_dependence(
             "{pair_visits} observed/permuted pair visits exceed the declared or fixed resource bound"
         )));
     }
-    let mut pairs = Vec::with_capacity(pair_count as usize);
+    let pair_capacity = usize::try_from(pair_count)
+        .map_err(|_| EmbeddingEnvelopeError::Invalid("pair count exceeds usize".into()))?;
+    let mut pairs = Vec::with_capacity(pair_capacity);
     let mut bin_counts = vec![0_u64; spec.bins.len()];
-    for left in 0..spec.rows.len() {
-        for right in (left + 1)..spec.rows.len() {
-            let distance = (spec.rows[left].x_um - spec.rows[right].x_um)
-                .hypot(spec.rows[left].y_um - spec.rows[right].y_um);
-            if !distance.is_finite() {
-                return Err(EmbeddingEnvelopeError::Numeric(
-                    "a spatial pair distance is non-finite".into(),
-                ));
+    for indices in groups.values() {
+        for (position, &left) in indices.iter().enumerate() {
+            for &right in &indices[(position + 1)..] {
+                let distance = (spec.rows[left].x_um - spec.rows[right].x_um)
+                    .hypot(spec.rows[left].y_um - spec.rows[right].y_um);
+                if !distance.is_finite() {
+                    return Err(EmbeddingEnvelopeError::Numeric(
+                        "a spatial pair distance is non-finite".into(),
+                    ));
+                }
+                let bin = find_bin(distance, &spec.bins);
+                if let Some(bin) = bin {
+                    bin_counts[bin] += 1;
+                }
+                pairs.push(PairPlan { left, right, bin });
             }
-            let bin = find_bin(distance, &spec.bins);
-            if let Some(bin) = bin {
-                bin_counts[bin] += 1;
-            }
-            pairs.push(PairPlan { left, right, bin });
         }
     }
     let identity = (0..spec.rows.len()).collect::<Vec<_>>();
     let observed = curve(&spec, &pairs, &identity, &bin_counts)?;
-    let mut groups = BTreeMap::<String, Vec<usize>>::new();
-    for (index, row) in spec.rows.iter().enumerate() {
-        groups
-            .entry(row.permutation_stratum.clone())
-            .or_default()
-            .push(index);
-    }
     let mut rng = ChaCha20Rng::seed_from_u64(spec.seed);
     let mut null = Vec::with_capacity(spec.permutations as usize);
     for _ in 0..spec.permutations {
@@ -375,7 +389,11 @@ fn erl_envelope(
 
 #[cfg(test)]
 mod tests {
-    use super::erl_envelope;
+    use super::{
+        erl_envelope, test_embedding_spatial_dependence, EmbeddingEnvelopeRow,
+        EmbeddingSpatialCurveFunction, EmbeddingSpatialDependenceSpec,
+    };
+    use crate::EmbeddingDistanceBin;
 
     #[test]
     fn identical_curves_match_the_canonical_erl_tie_oracle() {
@@ -386,5 +404,65 @@ mod tests {
         assert_eq!(envelope.upper, observed);
         assert_eq!(envelope.p_global, 1.0);
         assert_eq!(envelope.erl_depth, 0.625);
+    }
+
+    #[test]
+    fn spatial_pairs_remain_inside_the_declared_permutation_stratum() {
+        let mut rows = Vec::new();
+        for (stratum, offset) in [("s1", 0.0), ("s2", 10.0)] {
+            for (index, (x, value)) in [(0.0, 0.0), (1.0, 0.1), (3.0, 3.0), (6.0, 3.1)]
+                .into_iter()
+                .enumerate()
+            {
+                rows.push(EmbeddingEnvelopeRow {
+                    object_id: format!("{stratum}-{index}"),
+                    permutation_stratum: stratum.into(),
+                    x_um: offset + x,
+                    y_um: 0.0,
+                    embedding: vec![value, value],
+                });
+            }
+        }
+        let result = test_embedding_spatial_dependence(EmbeddingSpatialDependenceSpec {
+            rows,
+            feature_names: vec!["embedding_0".into(), "embedding_1".into()],
+            bins: vec![
+                EmbeddingDistanceBin {
+                    bin_id: "near".into(),
+                    lower_um: 0.0,
+                    upper_um: 2.0,
+                    upper_inclusive: false,
+                },
+                EmbeddingDistanceBin {
+                    bin_id: "mid".into(),
+                    lower_um: 2.0,
+                    upper_um: 5.0,
+                    upper_inclusive: false,
+                },
+                EmbeddingDistanceBin {
+                    bin_id: "far".into(),
+                    lower_um: 5.0,
+                    upper_um: 17.0,
+                    upper_inclusive: false,
+                },
+            ],
+            curve_function: EmbeddingSpatialCurveFunction::VectorSemivariogram,
+            permutations: 39,
+            alpha: 0.05,
+            seed: 991,
+            maximum_pair_visits: 480,
+        })
+        .expect("within-stratum envelope");
+
+        assert_eq!(result.pair_visits, 480);
+        let counts = result
+            .curve
+            .iter()
+            .map(|row| row.pair_count)
+            .collect::<Vec<_>>();
+        assert_eq!(counts, [2, 6, 4]);
+        for (row, expected) in result.curve.iter().zip([0.01, 17.42 / 3.0, 18.61 / 2.0]) {
+            assert!((row.observed.expect("eligible bin") - expected).abs() < 1e-12);
+        }
     }
 }

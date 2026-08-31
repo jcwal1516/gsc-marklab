@@ -40,7 +40,7 @@ fn embedding_spatial_envelope_is_complete_vector_erl_and_seed_deterministic() {
                 "--seed",
                 "991",
                 "--maximum-pair-visits",
-                "1120",
+                "480",
                 "--out",
                 out.to_str().unwrap(),
             ])
@@ -61,10 +61,19 @@ fn embedding_spatial_envelope_is_complete_vector_erl_and_seed_deterministic() {
         "complete_embedding_rows_within_declared_strata"
     );
     assert_eq!(result["permutations"], 39);
-    assert_eq!(result["pair_visits"], 1120);
+    assert_eq!(result["pair_visits"], 480);
     assert_eq!(result["curve"][0]["pair_count"], 2);
-    assert_eq!(result["curve"][1]["pair_count"], 7);
-    assert_eq!(result["curve"][2]["pair_count"], 19);
+    assert_eq!(result["curve"][1]["pair_count"], 6);
+    assert_eq!(result["curve"][2]["pair_count"], 4);
+    for (row, expected) in
+        result["curve"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .zip([0.01, 5.806_666_666_666_667, 9.305])
+    {
+        assert!((row["observed"].as_f64().unwrap() - expected).abs() < 1e-12);
+    }
     let p = result["p_global"].as_f64().unwrap();
     assert!((0.025..=1.0).contains(&p));
     assert!((p * 40.0 - (p * 40.0).round()).abs() < 1e-12);
