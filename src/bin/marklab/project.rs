@@ -52,6 +52,8 @@ use super::{
     },
 };
 
+#[path = "project/adaptive_window_spde.rs"]
+mod adaptive_window_spde;
 #[path = "project/arbitrary_window_ipp_spatial_ppc.rs"]
 mod arbitrary_window_ipp_spatial_ppc;
 #[path = "project/causal_workflows.rs"]
@@ -1801,6 +1803,14 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    AdaptiveWindowSpde {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
     ArbitraryWindowIppLikelihood(Box<ArbitraryWindowIppProjectArgs>),
     FitArbitraryWindowIpp(Box<ArbitraryWindowIppFitProjectArgs>),
     ArbitraryWindowIppSpatialPpc(Box<ArbitraryWindowIppSpatialPpcProjectArgs>),
@@ -3040,6 +3050,14 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
         ProjectTopLevel::Project {
             command: ProjectCommand::JointReplicatedLocationEmbedding(arguments),
         } => joint_location_embedding::run(*arguments),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::AdaptiveWindowSpde {
+                    project,
+                    input,
+                    out,
+                },
+        } => adaptive_window_spde::run(project, input, out),
         ProjectTopLevel::Project {
             command: ProjectCommand::JointReplicatedLocationMark(arguments),
         } => joint_location_mark::run(*arguments),

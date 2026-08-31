@@ -256,6 +256,326 @@ def sparse_triplets(matrix, tolerance=1e-14):
     return {"rows":rows.tolist(),"columns":columns.tolist(),"values":matrix[rows,columns].tolist(),"shape":list(matrix.shape)}
 
 
+def signed_ring_area(ring):
+    return 0.5 * sum(
+        ring[index][0] * ring[index + 1][1] - ring[index + 1][0] * ring[index][1]
+        for index in range(len(ring) - 1)
+    )
+
+
+def parse_polygonal_window(value):
+    if value.get("type") != "MultiPolygon" or not isinstance(value.get("coordinates"), list):
+        raise ContractError("adaptive SPDE window must be a GeoJSON MultiPolygon")
+    polygons = []
+    boundary_segments = []
+    total_area = 0.0
+    vertex_count = 0
+    for polygon_value in value["coordinates"]:
+        if not isinstance(polygon_value, list) or not polygon_value:
+            raise ContractError("adaptive SPDE polygon requires an exterior ring")
+        rings = []
+        for ring_value in polygon_value:
+            ring = np.asarray(ring_value, dtype=float)
+            if ring.ndim != 2 or ring.shape[1] != 2 or len(ring) < 4 or not np.isfinite(ring).all() or not np.array_equal(ring[0], ring[-1]):
+                raise ContractError("adaptive SPDE rings must be finite, closed, and have at least four positions")
+            area = abs(float(signed_ring_area(ring)))
+            if area <= 0.0:
+                raise ContractError("adaptive SPDE ring has zero area")
+            rings.append(ring)
+            vertex_count += len(ring)
+            boundary_segments.extend((ring[index], ring[index + 1]) for index in range(len(ring) - 1))
+        polygon_area = abs(float(signed_ring_area(rings[0]))) - sum(abs(float(signed_ring_area(ring))) for ring in rings[1:])
+        if polygon_area <= 0.0:
+            raise ContractError("adaptive SPDE polygon holes consume its exterior")
+        total_area += polygon_area
+        polygons.append(rings)
+    if not polygons or vertex_count > 100000:
+        raise ContractError("adaptive SPDE window component/vertex bound violated")
+    all_points = np.vstack([ring for polygon in polygons for ring in polygon])
+    bounds = [float(all_points[:, 0].min()), float(all_points[:, 0].max()), float(all_points[:, 1].min()), float(all_points[:, 1].max())]
+    if not bounds[0] < bounds[1] or not bounds[2] < bounds[3] or not math.isfinite(total_area):
+        raise ContractError("adaptive SPDE window bounds or area are invalid")
+    return {
+        "polygons": polygons,
+        "segments": boundary_segments,
+        "exact_area": total_area,
+        "bounds": bounds,
+        "component_count": len(polygons),
+        "hole_count": sum(len(polygon) - 1 for polygon in polygons),
+        "ring_count": sum(len(polygon) for polygon in polygons),
+        "vertex_count": vertex_count,
+    }
+
+
+def point_on_segment(point, first, second, tolerance=1e-10):
+    delta = second - first
+    relative = point - first
+    cross = delta[0] * relative[1] - delta[1] * relative[0]
+    scale = max(1.0, float(np.linalg.norm(delta)))
+    if abs(float(cross)) > tolerance * scale:
+        return False
+    dot = float(relative @ delta)
+    return -tolerance <= dot <= float(delta @ delta) + tolerance
+
+
+def point_in_ring(point, ring):
+    inside = False
+    x, y = map(float, point)
+    for first, second in zip(ring[:-1], ring[1:]):
+        if point_on_segment(np.asarray(point), first, second):
+            return True, True
+        y_crosses = (first[1] > y) != (second[1] > y)
+        if y_crosses:
+            crossing_x = first[0] + (y - first[1]) * (second[0] - first[0]) / (second[1] - first[1])
+            if crossing_x > x:
+                inside = not inside
+    return inside, False
+
+
+def window_contains(window, point):
+    for polygon in window["polygons"]:
+        exterior, exterior_boundary = point_in_ring(point, polygon[0])
+        if not exterior:
+            continue
+        if exterior_boundary:
+            return True
+        excluded = False
+        for hole in polygon[1:]:
+            in_hole, hole_boundary = point_in_ring(point, hole)
+            if hole_boundary:
+                return True
+            if in_hole:
+                excluded = True
+                break
+        if not excluded:
+            return True
+    return False
+
+
+def resampled_boundary_points(window, spacing):
+    points = []
+    for first, second in window["segments"]:
+        length = float(np.linalg.norm(second - first))
+        divisions = max(1, int(math.ceil(length / spacing)))
+        for index in range(divisions):
+            points.append(first + (index / divisions) * (second - first))
+    return points
+
+
+def segment_within_window(window, first, second):
+    def orientation(a, b, c):
+        return float((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]))
+    for boundary_first, boundary_second in window["segments"]:
+        first_side = orientation(first, second, boundary_first)
+        second_side = orientation(first, second, boundary_second)
+        boundary_first_side = orientation(boundary_first, boundary_second, first)
+        boundary_second_side = orientation(boundary_first, boundary_second, second)
+        tolerance = 1e-12 * max(1.0, float(np.linalg.norm(second - first)), float(np.linalg.norm(boundary_second - boundary_first)))
+        if first_side * second_side < -(tolerance ** 2) and boundary_first_side * boundary_second_side < -(tolerance ** 2):
+            return False
+    return all(window_contains(window, first + fraction * (second - first)) for fraction in np.linspace(0.0, 1.0, 17))
+
+
+def build_adaptive_window_mesh(window, base_resolution, refinement_level, observation_coordinates, kappa, tau, maximum_vertices, maximum_triangles, maximum_boundary_checks, memory_budget_bytes):
+    x0, x1, y0, y1 = window["bounds"]
+    xs = np.linspace(x0, x1, base_resolution)
+    ys = np.linspace(y0, y1, base_resolution)
+    base_spacing = min((x1 - x0) / (base_resolution - 1), (y1 - y0) / (base_resolution - 1))
+    boundary_spacing = base_spacing / (2 ** refinement_level)
+    boundary_point_count = sum(max(1, int(math.ceil(float(np.linalg.norm(second - first)) / boundary_spacing))) for first, second in window["segments"])
+    if boundary_point_count > 4 * maximum_vertices:
+        raise ContractError("adaptive SPDE boundary refinement exceeds the bounded candidate budget")
+    candidates = [[x, y] for y in ys for x in xs if window_contains(window, np.asarray([x, y]))]
+    candidates.extend(resampled_boundary_points(window, boundary_spacing))
+    candidates.extend(observation_coordinates.tolist())
+    canonical = sorted({(float(point[0]), float(point[1])) for point in candidates})
+    vertices = np.asarray(canonical, dtype=float)
+    if len(vertices) < 3 or len(vertices) > maximum_vertices:
+        raise ContractError("adaptive SPDE vertex bound violated")
+    triangulation = Delaunay(vertices)
+    boundary_checks = len(triangulation.simplices) * 3 * len(window["segments"])
+    if boundary_checks > maximum_boundary_checks:
+        raise ContractError("adaptive SPDE boundary-segment/triangle work bound exceeded")
+    retained = []
+    for simplex in triangulation.simplices:
+        triangle = tuple(sorted(map(int, simplex)))
+        coordinates = vertices[list(triangle)]
+        centroid = coordinates.mean(axis=0)
+        if not window_contains(window, centroid):
+            continue
+        if all(segment_within_window(window, coordinates[index], coordinates[(index + 1) % 3]) for index in range(3)):
+            retained.append(triangle)
+    triangles = np.asarray(sorted(set(retained)), dtype=int)
+    if len(triangles) == 0 or len(triangles) > maximum_triangles:
+        raise ContractError("adaptive SPDE triangle bound violated")
+    used = sorted(set(map(int, triangles.ravel())))
+    remap = {old: new for new, old in enumerate(used)}
+    vertices = vertices[used]
+    triangles = np.asarray([[remap[int(index)] for index in triangle] for triangle in triangles], dtype=int)
+    vertex_count = len(vertices)
+    dense_bytes = 10 * vertex_count * vertex_count * 8
+    if dense_bytes > memory_budget_bytes:
+        raise ContractError("adaptive SPDE dense finite-element memory budget exceeded")
+    mass = np.zeros((vertex_count, vertex_count))
+    stiffness = np.zeros_like(mass)
+    areas = []
+    for triangle in triangles:
+        coordinates = vertices[triangle]
+        signed_double_area = float(np.cross(coordinates[1] - coordinates[0], coordinates[2] - coordinates[0]))
+        area = abs(signed_double_area) / 2.0
+        if area <= 1e-14:
+            raise ContractError("adaptive SPDE produced a degenerate triangle")
+        areas.append(area)
+        local_mass = area / 12.0 * np.asarray([[2, 1, 1], [1, 2, 1], [1, 1, 2]], float)
+        denominator = signed_double_area
+        b = np.asarray([coordinates[1, 1] - coordinates[2, 1], coordinates[2, 1] - coordinates[0, 1], coordinates[0, 1] - coordinates[1, 1]]) / denominator
+        c = np.asarray([coordinates[2, 0] - coordinates[1, 0], coordinates[0, 0] - coordinates[2, 0], coordinates[1, 0] - coordinates[0, 0]]) / denominator
+        local_stiffness = area * (np.outer(b, b) + np.outer(c, c))
+        for local_i, global_i in enumerate(triangle):
+            for local_j, global_j in enumerate(triangle):
+                mass[global_i, global_j] += local_mass[local_i, local_j]
+                stiffness[global_i, global_j] += local_stiffness[local_i, local_j]
+    lumped = mass.sum(axis=1)
+    if np.any(lumped <= 0.0):
+        raise ContractError("adaptive SPDE mesh contains an unused or zero-mass vertex")
+    precision = tau ** 2 * (kappa ** 4 * mass + 2.0 * kappa ** 2 * stiffness + stiffness @ np.diag(1.0 / lumped) @ stiffness)
+    precision = (precision + precision.T) / 2.0
+    adjacency = [set() for _ in range(vertex_count)]
+    for triangle in triangles:
+        for left, right in ((0, 1), (1, 2), (2, 0)):
+            adjacency[int(triangle[left])].add(int(triangle[right]))
+            adjacency[int(triangle[right])].add(int(triangle[left]))
+    components = 0
+    remaining = set(range(vertex_count))
+    while remaining:
+        components += 1
+        stack = [remaining.pop()]
+        while stack:
+            current = stack.pop()
+            for neighbor in adjacency[current]:
+                if neighbor in remaining:
+                    remaining.remove(neighbor)
+                    stack.append(neighbor)
+    return {"vertices": vertices, "triangles": triangles, "mass": mass, "stiffness": stiffness, "precision": precision, "triangle_areas": np.asarray(areas), "mesh_area": float(sum(areas)), "connected_components": components, "boundary_spacing": boundary_spacing}
+
+
+def adaptive_projection(mesh, locations, maximum_visits):
+    locations = np.asarray(locations, dtype=float)
+    matrix = np.zeros((len(locations), len(mesh["vertices"])))
+    visits = 0
+    for row, point in enumerate(locations):
+        found = False
+        for triangle in mesh["triangles"]:
+            visits += 1
+            if visits > maximum_visits:
+                raise ContractError("adaptive SPDE projection triangle-visit bound exceeded")
+            coordinates = mesh["vertices"][triangle]
+            denominator = ((coordinates[1, 1] - coordinates[2, 1]) * (coordinates[0, 0] - coordinates[2, 0]) + (coordinates[2, 0] - coordinates[1, 0]) * (coordinates[0, 1] - coordinates[2, 1]))
+            if abs(float(denominator)) <= 1e-14:
+                continue
+            first = ((coordinates[1, 1] - coordinates[2, 1]) * (point[0] - coordinates[2, 0]) + (coordinates[2, 0] - coordinates[1, 0]) * (point[1] - coordinates[2, 1])) / denominator
+            second = ((coordinates[2, 1] - coordinates[0, 1]) * (point[0] - coordinates[2, 0]) + (coordinates[0, 0] - coordinates[2, 0]) * (point[1] - coordinates[2, 1])) / denominator
+            barycentric = np.asarray([first, second, 1.0 - first - second])
+            if barycentric.min() >= -1e-10 and barycentric.max() <= 1.0 + 1e-10:
+                matrix[row, triangle] = np.clip(barycentric, 0.0, 1.0)
+                matrix[row] /= matrix[row].sum()
+                found = True
+                break
+        if not found:
+            raise ContractError("adaptive SPDE observation is not covered by the retained mesh")
+    return matrix, visits
+
+
+def fit_adaptive_spatial_factor(mesh, observations, noise_sd, maximum_iterations, maximum_projection_visits):
+    coordinates = np.asarray([row["coordinates"] for row in observations], dtype=float)
+    values = np.asarray([row["values"] for row in observations], dtype=float)
+    design, projection_visits = adaptive_projection(mesh, coordinates, maximum_projection_visits)
+    means = values.mean(axis=0)
+    centered = values - means
+    initial_field = np.linalg.solve(design.T @ design + noise_sd ** 2 * mesh["precision"] + np.eye(len(mesh["vertices"])) * 1e-8, design.T @ centered[:, 0])
+    initial_loadings = np.linalg.lstsq((design @ initial_field)[:, None], centered, rcond=None)[0].ravel()
+    initial = np.concatenate([initial_field, initial_loadings])
+    vertex_count = len(initial_field)
+    precision = mesh["precision"]
+    def objective(parameter):
+        field = parameter[:vertex_count]
+        loadings = parameter[vertex_count:]
+        projected = design @ field
+        residual = centered - projected[:, None] * loadings[None, :]
+        value = 0.5 * np.sum(residual ** 2) / noise_sd ** 2 + 0.5 * field @ precision @ field + 0.5 * loadings @ loadings
+        gradient_field = precision @ field - design.T @ (residual @ loadings) / noise_sd ** 2
+        gradient_loadings = loadings - projected @ residual / noise_sd ** 2
+        return float(value), np.concatenate([gradient_field, gradient_loadings])
+    fit = minimize(objective, initial, jac=True, method="L-BFGS-B", options={"maxiter": maximum_iterations, "ftol": 1e-12, "gtol": 1e-7})
+    if not fit.success and np.linalg.norm(fit.jac, ord=np.inf) > 2e-4:
+        raise ContractError(f"adaptive SPDE factor optimization failed: {fit.message}")
+    field = fit.x[:vertex_count]
+    loadings = fit.x[vertex_count:]
+    projected = design @ field
+    if loadings[0] < 0:
+        field = -field
+        loadings = -loadings
+        projected = -projected
+    reconstruction = means + projected[:, None] * loadings[None, :]
+    correlation = float(np.corrcoef(projected, coordinates[:, 0])[0, 1])
+    return {"means": means, "field": field, "projected": projected, "loadings": loadings, "rmse": float(np.sqrt(np.mean((reconstruction - values) ** 2))), "x_correlation": correlation, "objective": float(fit.fun), "gradient_max": float(np.linalg.norm(fit.jac, ord=np.inf)), "iterations": int(fit.nit), "projection": design, "projection_visits": projection_visits}
+
+
+def adaptive_window_spde(spec):
+    window = parse_polygonal_window(spec["window"])
+    frame = spec["window_frame"]
+    base_resolution = int(spec["base_resolution"])
+    refinement_levels = int(spec["boundary_refinement_levels"])
+    maximum_relative_area_error = float(spec["maximum_relative_area_error"])
+    kappa = float(spec["kappa"])
+    tau = float(spec["tau"])
+    noise_sd = float(spec["factor_noise_sd"])
+    maximum_iterations = int(spec["maximum_iterations"])
+    maximum_vertices = int(spec["maximum_vertices"])
+    maximum_triangles = int(spec["maximum_triangles"])
+    maximum_boundary_checks = int(spec["maximum_boundary_segment_triangle_checks"])
+    maximum_projection_visits = int(spec["maximum_projection_triangle_visits"])
+    memory_budget_bytes = int(spec["memory_budget_mib"]) * 1024 * 1024
+    maximum_result_bytes = int(spec["maximum_result_bytes"])
+    if not isinstance(frame, str) or not frame or spec["alpha"] != 2 or spec["factor_count"] != 1 or not 4 <= base_resolution <= 32 or not 0 <= refinement_levels <= 4 or not all(math.isfinite(value) for value in (maximum_relative_area_error, kappa, tau, noise_sd)) or not 0.0 < maximum_relative_area_error <= 0.25 or min(kappa, tau, noise_sd) <= 0.0 or not 10 <= maximum_iterations <= 10000 or not 16 <= maximum_vertices <= 1024 or not 16 <= maximum_triangles <= 4096 or not 1 <= maximum_boundary_checks <= 100000000 or maximum_projection_visits <= 0 or not 8 <= int(spec["memory_budget_mib"]) <= 4096 or not 1024 <= maximum_result_bytes <= 16 * 1024 * 1024:
+        raise ContractError("adaptive arbitrary-window SPDE controls violate their bounds")
+    observations = spec["factor_observations"]
+    coordinates = np.asarray([row["coordinates"] for row in observations], dtype=float)
+    values = np.asarray([row["values"] for row in observations], dtype=float)
+    identities = [row["region_id"] for row in observations]
+    if coordinates.ndim != 2 or coordinates.shape[1] != 2 or not 8 <= len(coordinates) <= 512 or values.ndim != 2 or values.shape[0] != len(coordinates) or not 2 <= values.shape[1] <= 16 or not np.isfinite(coordinates).all() or not np.isfinite(values).all() or len(set(identities)) != len(identities) or any(not isinstance(identity, str) or not identity for identity in identities) or any(not window_contains(window, point) for point in coordinates):
+        raise ContractError("adaptive SPDE requires unique finite in-window multivariate observations")
+    sensitivity = []
+    meshes = []
+    for level in range(refinement_levels + 1):
+        mesh = build_adaptive_window_mesh(window, base_resolution, level, coordinates, kappa, tau, maximum_vertices, maximum_triangles, maximum_boundary_checks, memory_budget_bytes)
+        relative_area_error = abs(mesh["mesh_area"] - window["exact_area"]) / window["exact_area"]
+        sensitivity.append({"boundary_refinement_level": level, "boundary_spacing": mesh["boundary_spacing"], "vertex_count": len(mesh["vertices"]), "triangle_count": len(mesh["triangles"]), "mesh_area": mesh["mesh_area"], "relative_area_error": relative_area_error})
+        meshes.append(mesh)
+    mesh = meshes[-1]
+    relative_area_error = sensitivity[-1]["relative_area_error"]
+    if relative_area_error > maximum_relative_area_error:
+        raise ContractError(f"adaptive SPDE mesh relative area error {relative_area_error} exceeds tolerance {maximum_relative_area_error}")
+    factor = fit_adaptive_spatial_factor(mesh, observations, noise_sd, maximum_iterations, maximum_projection_visits)
+    eigenvalues = np.linalg.eigvalsh(mesh["precision"])
+    projection_error = float(np.max(np.abs(factor["projection"].sum(axis=1) - 1.0)))
+    result = {
+        "format": "marklab.adaptive_window_spde",
+        "version": 1,
+        "window": {"frame": frame, "exact_area": window["exact_area"], "bounds": window["bounds"], "component_count": window["component_count"], "hole_count": window["hole_count"], "ring_count": window["ring_count"], "vertex_count": window["vertex_count"], "geometry_policy": "exact_polygon_membership_with_reported_piecewise_linear_mesh_area_error"},
+        "mesh": {"basis": "piecewise_linear_triangular", "boundary_condition": "natural_neumann_with_positive_kappa", "alpha": 2, "kappa": kappa, "tau": tau, "base_resolution": base_resolution, "boundary_refinement_levels": refinement_levels, "vertices": mesh["vertices"].tolist(), "triangles": mesh["triangles"].tolist(), "vertex_count": len(mesh["vertices"]), "triangle_count": len(mesh["triangles"]), "connected_components": mesh["connected_components"], "mesh_area": mesh["mesh_area"], "relative_area_error": relative_area_error, "constant_mass_integral": float(mesh["mass"].sum()), "mass_matrix": sparse_triplets(mesh["mass"]), "stiffness_matrix": sparse_triplets(mesh["stiffness"]), "precision_matrix": sparse_triplets(mesh["precision"]), "minimum_precision_eigenvalue": float(eigenvalues[0]), "maximum_precision_eigenvalue": float(eigenvalues[-1]), "maximum_projection_row_sum_error": projection_error},
+        "spatial_factor": {"inference": "fixed_hyperparameter_penalized_map", "factor_count": 1, "region_ids": identities, "feature_count": values.shape[1], "feature_means": factor["means"].tolist(), "mesh_field_weights": factor["field"].tolist(), "projected_region_factor": factor["projected"].tolist(), "loadings": factor["loadings"].tolist(), "reconstruction_rmse": factor["rmse"], "factor_x_correlation": factor["x_correlation"], "objective": factor["objective"], "gradient_maximum": factor["gradient_max"], "iterations": factor["iterations"], "projection": sparse_triplets(factor["projection"]), "projection_triangle_visits": factor["projection_visits"]},
+        "mesh_sensitivity": sensitivity,
+        "limits": {"maximum_vertices": maximum_vertices, "maximum_triangles": maximum_triangles, "maximum_boundary_segment_triangle_checks": maximum_boundary_checks, "maximum_projection_triangle_visits": maximum_projection_visits, "memory_budget_mib": int(spec["memory_budget_mib"]), "maximum_result_bytes": maximum_result_bytes, "maximum_iterations": maximum_iterations},
+        "assumptions": ["polygonal_window_coordinates_are_physical", "piecewise_linear_finite_elements", "fixed_kappa_tau_and_one_factor", "observation_locations_not_population_replicates"],
+        "limitations": ["boundary_conforming_quality_reported_by_mesh_area_error", "fixed_spde_hyperparameters", "dense_bounded_penalized_map", "within_specimen_spatial_field_diagnostic"],
+        "claim_status": "fitted_arbitrary_window_spde_diagnostic",
+    }
+    if len(json.dumps(result, allow_nan=False, separators=(",", ":"), sort_keys=True).encode()) > maximum_result_bytes:
+        raise ContractError("adaptive SPDE result exceeds maximum_result_bytes")
+    return result
+
+
 def spde_suite(spec):
     window=spec["window"]; bounds=window["bounds"]
     resolutions=[int(value) for value in spec["mesh_resolutions"]]
@@ -296,7 +616,13 @@ def main():
     if request["mode"] == "hmc_normal": result = hmc_normal(request["spec"])
     elif request["mode"] == "advanced_cluster": result = advanced_cluster(request["spec"])
     elif request["mode"] == "spde_suite": result = spde_suite(request["spec"])
+    elif request["mode"] == "adaptive_window_spde": result = adaptive_window_spde(request["spec"])
     else: raise ContractError("unknown advanced Bayesian mode")
+    if request["mode"] == "adaptive_window_spde":
+        if abs(result["window"]["exact_area"] - float(request["canonical_window_area"])) > 1e-10 * max(1.0, float(request["canonical_window_area"])):
+            raise ContractError("Rust and SciPy adaptive SPDE window areas disagree")
+        result["window"]["exact_area"] = float(request["canonical_window_area"])
+        result["window"]["canonical_sha256"] = request["canonical_window_sha256"]
     result["backend"] = request["backend"]
     result["request_sha256"] = hashlib.sha256(request_bytes).hexdigest()
     json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True); sys.stdout.write("\n")

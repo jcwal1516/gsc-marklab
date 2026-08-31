@@ -95,6 +95,7 @@ fn main() -> marklab::Result<()> {
                                     | "witness-persistence-stability"
                                     | "witness-persistence-bottleneck-stability"
                                     | "arbitrary-window-ipp-likelihood"
+                                    | "adaptive-window-spde"
                                     | "fit-arbitrary-window-ipp"
                                     | "arbitrary-window-ipp-spatial-ppc"
                                     | "arbitrary-window-lgcp"
@@ -228,7 +229,12 @@ fn main() -> marklab::Result<()> {
                     .is_some_and(|subcommand| {
                         matches!(
                             subcommand.to_str(),
-                            Some("hmc-normal" | "advanced-cluster" | "spde-suite")
+                            Some(
+                                "hmc-normal"
+                                    | "advanced-cluster"
+                                    | "spde-suite"
+                                    | "adaptive-window-spde"
+                            )
                         )
                     }) =>
         {

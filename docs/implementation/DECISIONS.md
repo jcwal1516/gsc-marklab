@@ -3686,3 +3686,25 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   not a cohort effect, and a later patient analysis must reduce the field before population
   inference. Complete rows never split across feature dimensions, and isolated, degenerate,
   nonfinite, out-of-window, or over-limit inputs fail explicitly.
+
+## DEC-0391 — Admit boundary-adaptive finite elements with measured window approximation error
+
+- Date: 2026-08-31
+- Status: accepted for BAY-04/BAY-05/BACK-01/EMB-01/WF-01/WS-12/WS-43
+- Decision: extend the pinned NumPy/SciPy advanced-Bayes worker for one immediate projected-embedding
+  field caller over the repository's canonical bounded `MultiPolygon` observation window. Validate
+  topology and canonical area/digest in Rust, add deterministic boundary-refined points to a bounded
+  background grid, retain Delaunay elements only when their edges remain in the admitted polygonal
+  domain, and report the retained mesh area error at every refinement level. Assemble piecewise-
+  linear finite-element mass and stiffness matrices and the fixed-hyperparameter alpha-two SPDE
+  precision; project complete multivariate region observations barycentrically and fit one
+  identified penalized-MAP factor. Bind the strict input, lock, worker, executable, geometry,
+  configuration, process timeout, and vertex/triangle/boundary-check/projection/memory/output limits
+  into durable execution.
+- Consequences: holes and disconnected tissue components now have a fitted SPDE path instead of
+  being replaced by a rectangular bounding box. The piecewise-linear mesh remains a discretization,
+  so its measured area error and refinement sensitivity are mandatory and the workflow rejects a
+  requested tolerance it cannot meet. Fixed kappa/tau and a single factor remain explicit
+  limitations; region rows are repeated spatial observations, not population replicates, and the
+  fitted field does not imply communication or causality. This does not create a general mesh,
+  solver, plugin, or nonstationary-field framework.
