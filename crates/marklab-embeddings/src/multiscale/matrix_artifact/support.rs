@@ -229,7 +229,7 @@ pub struct VerifiedSlideEmbeddingSupportArtifact {
     artifact_id: ArtifactId,
     logical_digest: ContentDigest,
     owning_slide_binding_digest: ContentDigest,
-    source_entity_kind: super::EmbeddingEntityKind,
+    source_entity_kind: super::super::EmbeddingEntityKind,
     source_support_artifact_id: ArtifactId,
     source_support_logical_digest: ContentDigest,
     source_table_artifact_id: ArtifactId,
