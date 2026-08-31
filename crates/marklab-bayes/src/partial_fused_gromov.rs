@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
+use crate::fused_gromov::{approximately_equal, same_plan};
 use crate::{BackendContract, BayesError, FgwPlanEntry, FgwSupport, FitState, WorkerBackend};
 
 const POT_VERSION: &str = "0.9.7.post1";
@@ -479,26 +480,10 @@ fn structural_objective(
     objective
 }
 
-fn same_plan(left: &[FgwPlanEntry], right: &[FgwPlanEntry]) -> bool {
-    left.len() == right.len()
-        && left.iter().zip(right).all(|(left, right)| {
-            left.source_id == right.source_id
-                && left.target_id == right.target_id
-                && approximately_equal(left.mass, right.mass)
-                && approximately_equal(left.feature_cost, right.feature_cost)
-        })
-}
-
 fn same_values(left: &[f64], right: &[f64]) -> bool {
     left.len() == right.len()
         && left
             .iter()
             .zip(right)
             .all(|(left, right)| approximately_equal(*left, *right))
-}
-
-fn approximately_equal(left: f64, right: f64) -> bool {
-    left.is_finite()
-        && right.is_finite()
-        && (left - right).abs() <= 1e-8 * (1.0 + left.abs().max(right.abs()))
 }

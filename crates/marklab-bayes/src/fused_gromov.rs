@@ -402,7 +402,7 @@ fn structural_objective(
     objective
 }
 
-fn same_plan(left: &[FgwPlanEntry], right: &[FgwPlanEntry]) -> bool {
+pub(crate) fn same_plan(left: &[FgwPlanEntry], right: &[FgwPlanEntry]) -> bool {
     left.len() == right.len()
         && left.iter().zip(right).all(|(left, right)| {
             left.source_id == right.source_id
@@ -412,7 +412,7 @@ fn same_plan(left: &[FgwPlanEntry], right: &[FgwPlanEntry]) -> bool {
         })
 }
 
-fn approximately_equal(left: f64, right: f64) -> bool {
+pub(crate) fn approximately_equal(left: f64, right: f64) -> bool {
     left.is_finite()
         && right.is_finite()
         && (left - right).abs() <= 1e-8 * (1.0 + left.abs().max(right.abs()))
