@@ -15,6 +15,8 @@ pub(in crate::multiscale) const MAX_RAW_SMALL_JSON_STRING_BYTES: usize = 6 * 255
 const MAX_JSON_DEPTH: usize = 8;
 const MAX_OBJECT_FIELDS: usize = 256;
 
+pub(super) use crate::canonical_token::valid_token;
+
 pub(super) fn validate_source_row_count(count: usize) -> Result<(), MultiscaleEmbeddingError> {
     if count > MAX_SOURCE_ROWS {
         return Err(MultiscaleEmbeddingError::RowCountExceeded {
@@ -23,16 +25,6 @@ pub(super) fn validate_source_row_count(count: usize) -> Result<(), MultiscaleEm
         });
     }
     Ok(())
-}
-
-pub(super) fn valid_token(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 128
-        && value.bytes().enumerate().all(|(index, byte)| match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' => true,
-            b'.' | b'_' | b':' | b'+' | b'-' => index != 0,
-            _ => false,
-        })
 }
 
 pub(super) fn valid_source_key(value: &str) -> bool {

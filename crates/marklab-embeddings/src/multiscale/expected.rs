@@ -12,6 +12,8 @@ use super::{
 use marklab_data::{CohortHierarchy, HierarchyKind, PatchId, RegionId, SlideId};
 use marklab_project::ContentDigest;
 
+use crate::canonical_token::valid_token;
+
 mod wire;
 use wire::{
     parse_expected, parse_preflight, preflight_json_string_lengths, ExpectedWireRef, IdSlice,
@@ -260,16 +262,6 @@ fn expected_digest<I: EntitySpec>(
         digest.text(id.as_str());
     }
     Ok(digest.finish())
-}
-
-fn valid_token(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 128
-        && value.bytes().enumerate().all(|(index, byte)| match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' => true,
-            b'.' | b'_' | b':' | b'+' | b'-' => index != 0,
-            _ => false,
-        })
 }
 
 macro_rules! define_expected_set {

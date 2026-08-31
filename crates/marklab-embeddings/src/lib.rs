@@ -3,6 +3,7 @@
 //! Canonical typed embedding values and bounded artifact encodings.
 
 mod artifact;
+mod canonical_token;
 #[cfg(feature = "parquet")]
 mod columnar;
 mod context;

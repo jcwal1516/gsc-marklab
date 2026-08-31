@@ -4,7 +4,9 @@ use std::io::{self, Read};
 use marklab_data::CellId;
 use marklab_project::ContentDigest;
 
-use crate::{digest::FramedDigest, EmbeddingError};
+use crate::{
+    canonical_token::valid_token as valid_selection_rule, digest::FramedDigest, EmbeddingError,
+};
 
 const MAGIC: &[u8; 8] = b"ML-ECS\0\x01";
 const DIGEST_DOMAIN: &[u8] = b"marklab-cell-embedding-expected-cells-v1";
@@ -274,16 +276,6 @@ impl<'a> BinaryInput<'a> {
     pub(crate) fn text(&mut self, length: usize) -> Result<&'a str, EmbeddingError> {
         std::str::from_utf8(self.take(length)?).map_err(|_| EmbeddingError::InvalidBinaryEncoding)
     }
-}
-
-fn valid_selection_rule(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 128
-        && value.bytes().enumerate().all(|(index, byte)| match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' => true,
-            b'.' | b'_' | b':' | b'+' | b'-' => index != 0,
-            _ => false,
-        })
 }
 
 fn digest(selection_rule: &str, count: u64, cells: &[CellId]) -> ContentDigest {
