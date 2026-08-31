@@ -4223,3 +4223,36 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   selected two nonexistent descriptive target names and exited before running tests; the corrected
   canonical target command passed. Workspace formatting and final diff whitespace checks pass. No
   workspace Nextest/full-loader loop or unrelated broad gate runs.
+
+## Frontier fitted-field and local-multivariate checkpoint 200 — 2026-08-31
+
+- Added four concrete mathematical workflows. A replicated arbitrary-window multitype LGCP now
+  estimates an LKJ-Cholesky cross-type correlation with positive marginal field scales. A separate
+  patient-replicated model jointly fits exact-window total-location intensity and fold-frozen
+  projected embeddings, with identified loadings and posterior-mixture patient held-out scoring
+  against a nonspatial patient baseline. Both run directly and durably through the pinned NumPyro
+  environment and replay with backend execution disabled.
+- Added native local multivariate Moran inference over complete feature rows. Global feature
+  standardization and fixed physical-radius row-standardized weights are prespecified; complete
+  vectors move only within declared strata, and one maximum-absolute randomization family controls
+  every reported location. The four-point/two-feature oracle is exactly `[1,0,0,1]`; direct and
+  project paths pass, and a fresh process returns a byte-identical hit with one ledger row. This is
+  a within-specimen field diagnostic, not cell-level population inference.
+- Replaced the rectangular-only SPDE boundary for one immediate projected-embedding field caller.
+  Rust validates the canonical polygon/multipolygon topology, area, and digest; the pinned SciPy
+  worker builds deterministic boundary-refined meshes, reports discretization-area error, assembles
+  piecewise-linear mass/stiffness and alpha-two precision matrices, performs bounded barycentric
+  projection, and fits one fixed-hyperparameter spatial factor. A holed-square oracle preserves the
+  hole and constant-mass integral; a disconnected-window oracle produces two components with no
+  cross-component precision entries. Direct and durable paths pass, and the disabled-backend hit
+  proves replay without a second worker.
+- Focused direct/project integrations, three prior advanced-Bayes regressions, Python bytecode
+  compilation, 27/27 cohort-library tests, and 296/296 root-library tests pass; 21 explicit manual
+  performance/calibration tests remain ignored. Root/cohort no-default checks, strict affected docs,
+  warning-denied affected CLI Clippy, formatting, and whitespace checks pass. The documented macOS
+  Nextest/full-integration loader loop is not run.
+- These are mathematical correctness and durable-execution milestones, not new real biological
+  findings. Real promotion of the joint embedding and adaptive SPDE fits still requires a
+  provenance-complete projected-embedding table paired to the same admitted exact window and
+  region/cell coordinate identity; no causal, communication, significance, or patient-population
+  claim is inferred from the synthetic planted or FEM oracles.

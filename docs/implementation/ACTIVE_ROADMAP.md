@@ -1,8 +1,21 @@
 # Marklab active roadmap
 
-Last updated: 2026-08-30
+Last updated: 2026-08-31
 
 Authority: this file is the bounded dependency-ordered execution view derived from `PROGRAM_TRACKER.md` and the immutable `MASTER_PLAN.md`. It does not replace the master plan. Non-goals apply only to this increment; every excluded future capability remains represented in `PROGRAM_TRACKER.md`.
+
+## Frontier fitted-field follow-through — checkpoint 200
+
+The four immediate mathematical gaps selected after checkpoint 199 now have concrete direct and
+durable production paths: correlated multitype latent fields, fitted joint location–embedding
+factors, local multivariate randomization/Max-T inference, and boundary-adaptive SPDEs over holed or
+disconnected exact windows. The next production action is a bounded read-only admission of the
+current authorized CellViT projected-embedding/window artifacts into the local multivariate and
+adaptive-SPDE schemas. Run only lanes with exact shared coordinate, projection, and window identity;
+otherwise retain the exact correspondence blocker and advance to the next caller-backed method.
+Do not generalize the mesh, solver, model registry, or plugin surface. Anisotropic/nonstationary
+fields, additional fitted factors, and broader local spatial families remain caller-dependent and
+must not be promoted from synthetic correctness evidence alone.
 
 ## Full-program resumption override — 2026-08-30
 

@@ -4956,3 +4956,31 @@ vascular transport.
 - `cargo +1.96.0 fmt --all --check` and `git diff --check` pass after checkpoint documentation.
   No workspace-wide Nextest/test/Clippy loop, benchmark, fuzzing, packaging, dependency audit,
   push, publication, deployment, or history rewrite runs.
+
+## Frontier fitted-field and local-multivariate checkpoint 200 — 2026-08-31
+
+- Expected reds: the local-multivariate direct target failed on the absent numerics subcommand;
+  the adaptive-SPDE direct target failed on the absent Bayes subcommand. The correlated-LGCP and
+  joint location–embedding integrations likewise began from their absent direct/project paths.
+- Focused direct/durable targets pass for
+  `bayes_correlated_replicated_arbitrary_window_multitype_lgcp_cli`,
+  `durable_numpyro_correlated_multitype_lgcp_project`,
+  `bayes_joint_replicated_location_embedding_fit_cli`,
+  `durable_numpyro_joint_location_embedding_project`, `local_multivariate_moran_cli`,
+  `durable_local_multivariate_moran_project`, `bayes_adaptive_window_spde_cli`, and
+  `durable_adaptive_window_spde_project`. Durable backend callers replay with
+  `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1`; each ledger remains one execution.
+- `bayes_adaptive_window_spde_cli` passes both the holed-window FEM oracle and disconnected
+  block-precision oracle. `bayes_hmc_normal_cli`, `bayes_advanced_cluster_cli`, and
+  `bayes_spde_suite_cli` pass after the shared advanced-worker preparation refactor. Python
+  bytecode compilation passes for `marklab_scipy_advanced_bayes_worker.py`.
+- `cargo +1.96.0 test --locked --package marklab-cohort --lib` passes 27/27.
+  `cargo +1.96.0 test --locked --package marklab --lib` passes 296/296 with 21 explicit manual
+  tests ignored. Root doctests pass 0/0. Root and cohort `--no-default-features` checks pass.
+- `RUSTDOCFLAGS='-D warnings' cargo +1.96.0 doc --locked --package marklab --package
+  marklab-cohort --no-deps`, affected warning-denied CLI Clippy, `cargo +1.96.0 fmt --all --check`,
+  and `git diff --check` pass. Rust commands use the isolated target
+  `/tmp/marklab-cargo-target.flnLTt` because a concurrent user process was changing the checkout's
+  `target` directory. The documented macOS Nextest/full-integration loader loop is not run; no
+  benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or history
+  rewrite runs.

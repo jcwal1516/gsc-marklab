@@ -609,3 +609,15 @@ random-effects pooling is null-compatible, preserves patient as the population u
 heterogeneity, prediction, and leave-one-site-out uncertainty. Sites failing prespecified group-
 count/rank/df support remain explicitly excluded. The checkpoint-191--193 cohort durability family
 passes one non-loader workspace stabilization; broader multiplicity/calibration remain active.
+
+## Frontier fitted-field and local-multivariate checkpoint 200
+
+BAY-03, BAY-04, BAY-05, BAY-PP, EMB-01, FND-04, FND-06, SIG-01A, BACK-01, PLAT-01,
+WF-01, WS-12, WS-23, WS-31, WS-41, WS-43, WS-44, and WS-50 advance through four concrete
+direct/durable workflows: correlated replicated multitype latent fields, fitted joint
+location–embedding factors, local multivariate Moran/Max-T inference, and boundary-adaptive
+arbitrary-window SPDE factors. Each has a mathematical oracle, explicit statistical unit/null or
+likelihood, finite-result and resource policy, exact configuration/runtime/backend identity, and
+cross-process replay. This closes the selected implementable mathematical gaps for their bounded
+callers, not the broader anisotropic/nonstationary, arbitrary-factor, or patient-population
+catalogs. Real promotion remains conditional on exact projected-embedding/window correspondence.
