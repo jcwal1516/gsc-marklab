@@ -1891,3 +1891,19 @@ pooled confidence and prediction intervals span zero. Checkpoints 191--193 pass 
 workspace stabilization. COH-01/FND-06 remain active for broader calibration/multiplicity and other
 admitted designs. Production next selects another provenance-complete real patient caller; do not
 weaken site admission, invent ordered families, or infer missing patch tensors.
+
+## Checkpoint 194 CellViT uncertainty semantics and durable support mixing
+
+Genuine top-1 posterior inputs now have bounded coordinatewise multiclass pair envelopes with exact
+durable replay. The admitted CellViT `type_prob` is not such an input: frozen-source inspection and
+the observed below-1/5 value establish it as winner-type pixel support. The corrected real adapter
+and MarkTable identity now feed a threshold-free support-weighted hard-pair sensitivity workflow;
+the 2,000-cell CPTAC caller replays miss-to-hit with one execution. Full-simplex uncertainty remains
+input-blocked, not partially inferred.
+
+Embedding interchange work must now use an actual source graph rather than add another format. The
+existing bounded Arrow/Parquet stack already covers cell, patch, region, and slide matrices. Promote
+one admitted Schürch NPY/CSV bundle only when its exact model, environment/lock, license, converter,
+and provenance records are located; otherwise retain that named blocker and wait for the genuine
+H-Optimus patch tensor/link caller. Do not create a generic registry, lossy CSV codec, or synthetic
+provenance graph.

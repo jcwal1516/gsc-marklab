@@ -4800,3 +4800,36 @@ vascular transport.
   Nextest/full-integration loader loop is not run.
 - No benchmark, fuzzing, packaging, dependency, push, publication, deployment, or history-rewrite
   command runs.
+
+## CellViT uncertainty semantics and durable support mixing checkpoint 194 — 2026-08-31
+
+- Expected synthetic red: `CARGO_INCREMENTAL=0 cargo +1.96.0 test --locked --package marklab
+  --features cli --test categorical_support_mixing_workflow -- --nocapture` failed on the absent
+  support-mixing API/node. The final exact target passes 1/1 with analytic 1.625 support mass over
+  six directed visits, exact class-pair cells, a one-short pair ceiling, miss/hit byte equality,
+  and one durable execution. The earlier top-1 target passes 1/1 with analytic interval products,
+  a one-short product ceiling, and the same replay properties.
+- Real admission first failed truthfully at row 449 below the retained four-class minimum and then
+  at row 462 (`0.00395256915 < 0.2`) after binding the native five-class count. Frozen source
+  inspection at `cellvit/inference/postprocessing.py` showed `type_prob` is selected-type pixel
+  count divided by nucleus-instance pixels after background handling. The Mac-mini ignored test
+  now passes by requiring exact rejection, not by filtering or relaxing the probability contract.
+- Expected adapter red: the focused Python regression failed because
+  `WINNING_TYPE_PIXEL_SUPPORT_MARK` did not exist. The final focused test and complete adapter suite
+  pass 1/1 and 11/11; Python bytecode compilation passes. The first real adapter attempt failed with
+  `ModuleNotFoundError: cellvit`; after moving only its failed hidden `.part` directory to Trash,
+  the documented frozen source was placed on `PYTHONPATH`. The pinned rerun completed 366 slides,
+  178 patients, and 1,542,389 cells in 107.27 seconds with 667,467,776-byte maximum RSS.
+- On the corrected v71 input, the support workflow's two fresh processes pass miss then hit in
+  2.89 seconds, retain one execution, and return identical result SHA-256
+  `513c96af7cea718b156704d520bcec22fc55a6250441db3d41e360599049bd62`. The result contains 2,000
+  points, 49,510 directed visits, support mass 44,887.23086408087, retention
+  0.9066295872365354, graph digest
+  `c2f2d5ce64be6b186a253a0cb4a55a933c6e5a2a0e0416506e190d4333d136dd`, and configuration digest
+  `ee986162afe7a855c693979eaff641a41de51e320f005d2b7dd32b70571f1198`.
+- The five affected Rust integration targets pass with three real parents intentionally ignored
+  locally; the two relevant ignored real tests pass separately on the Mac mini. Affected
+  warning-denied Clippy, package no-default compilation, strict affected docs, affected-file
+  Rustfmt, and diff whitespace checks pass. The documented workspace Nextest/full-loader loop and
+  broad workspace gates are not run; no benchmark, fuzzing, packaging, dependency audit, push,
+  publication, deployment, or history rewrite runs.

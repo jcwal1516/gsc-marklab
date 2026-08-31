@@ -37,7 +37,7 @@ fn admitted_cellvit_pixel_support_is_not_accepted_as_top1_probability() {
     .expect("config");
     let categorical = ScalarMarkId::new("histologic_compartment").expect("categorical mark ID");
     let confidence =
-        ScalarMarkId::new("cellvit_winning_class_confidence").expect("confidence mark ID");
+        ScalarMarkId::new("cellvit_winning_type_pixel_support").expect("support mark ID");
 
     assert!(matches!(
         top1_pair_mixing_bounds(
@@ -51,7 +51,7 @@ fn admitted_cellvit_pixel_support_is_not_accepted_as_top1_probability() {
             row: 462,
             probability,
             minimum,
-        }) if probability.to_bits() == f64::from(0.00395256915_f32).to_bits()
+        }) if probability.to_bits() == f64::from(0.003_952_569_3_f32).to_bits()
             && minimum.to_bits() == 0.2_f64.to_bits()
     ));
 }

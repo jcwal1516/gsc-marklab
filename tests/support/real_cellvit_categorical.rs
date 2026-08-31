@@ -96,16 +96,16 @@ pub(crate) fn real_fixture(cells_path: &Path, window_path: &Path) -> RealCategor
     let probability_provenance = publish_record(
         &mut project,
         &store,
-        b"real-cellvit-winning-class-confidence",
+        b"real-cellvit-winning-type-pixel-support",
         MARK_SCHEMA,
         Vec::new(),
         probability_metadata(
-            "cellvit_winning_class_confidence",
+            "cellvit_winning_type_pixel_support",
             MeasurementStatus::MorphologyPrediction,
         ),
     );
     let probability_declaration = ProbabilityMarkDeclaration::new(
-        ScalarMarkId::new("cellvit_winning_class_confidence").expect("probability mark ID"),
+        ScalarMarkId::new("cellvit_winning_type_pixel_support").expect("probability mark ID"),
         MeasurementStatus::MorphologyPrediction,
         probability_provenance,
     )
@@ -113,11 +113,11 @@ pub(crate) fn real_fixture(cells_path: &Path, window_path: &Path) -> RealCategor
     let threshold_provenance = publish_record(
         &mut project,
         &store,
-        b"real-cellvit-high-confidence-threshold",
+        b"real-cellvit-high-pixel-support-threshold",
         THRESHOLD_SCHEMA,
         vec![probability_provenance],
         threshold_metadata(
-            "cellvit_high_confidence",
+            "cellvit_high_type_pixel_support",
             probability_declaration.mark_id().as_str(),
             "greater_than_or_equal",
             0.75,
@@ -126,12 +126,12 @@ pub(crate) fn real_fixture(cells_path: &Path, window_path: &Path) -> RealCategor
     let binary_provenance = publish_record(
         &mut project,
         &store,
-        b"real-cellvit-high-confidence-binary",
+        b"real-cellvit-high-pixel-support-binary",
         MARK_SCHEMA,
         vec![probability_provenance, threshold_provenance],
         binary_metadata(
-            "cellvit_high_confidence",
-            "CellViT high-confidence predicted class",
+            "cellvit_high_type_pixel_support",
+            "CellViT high winner-type pixel support",
             MeasurementStatus::MorphologyPrediction,
             "thresholded",
         ),
@@ -151,8 +151,8 @@ pub(crate) fn real_fixture(cells_path: &Path, window_path: &Path) -> RealCategor
         vec![
             ScalarMarkColumn::binary(
                 BinaryMarkDeclaration::thresholded(
-                    ScalarMarkId::new("cellvit_high_confidence").expect("binary mark ID"),
-                    "CellViT high-confidence predicted class",
+                    ScalarMarkId::new("cellvit_high_type_pixel_support").expect("binary mark ID"),
+                    "CellViT high winner-type pixel support",
                     MeasurementStatus::MorphologyPrediction,
                     binary_provenance,
                     probability_declaration.mark_id().clone(),

@@ -17,6 +17,8 @@ mod categorical_neighborhood_mixing;
 mod categorical_neighborhood_mixing_workflow;
 mod categorical_pair;
 mod categorical_pair_workflow;
+mod categorical_support_mixing;
+mod categorical_support_mixing_workflow;
 mod cell_embedding_cross_covariance;
 mod cell_embedding_mark;
 mod cell_embedding_mark_workflow;
@@ -131,6 +133,11 @@ pub use categorical_pair::{
     CategoricalPairLimits, CategoricalPairPoint, CategoricalPairPointStatus, CategoricalPairResult,
 };
 pub use categorical_pair_workflow::CategoricalPairAnalysisNode;
+pub use categorical_support_mixing::{
+    categorical_support_mixing, CategoricalSupportMixingCell, CategoricalSupportMixingConfig,
+    CategoricalSupportMixingError, CategoricalSupportMixingLimits, CategoricalSupportMixingResult,
+};
+pub use categorical_support_mixing_workflow::CategoricalSupportMixingAnalysisNode;
 pub use cell_embedding_mark::{
     declared_binary_cell_embedding_centroid_discrepancy,
     DeclaredBinaryCellEmbeddingCentroidDiscrepancy,

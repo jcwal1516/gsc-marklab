@@ -26,7 +26,8 @@ MAXIMUM_REPLICATED_CONDITIONAL_CELLS = 512
 MAXIMUM_RAW_VECTOR_CELLS = 512
 PROJECTED_PATIENTS = 30
 PROJECTED_CELLS_PER_PATIENT = 100
-HIGH_CONFIDENCE_THRESHOLD = 0.75
+WINNING_TYPE_PIXEL_SUPPORT_MARK = "cellvit_winning_type_pixel_support"
+WINNING_TYPE_PIXEL_SUPPORT_THRESHOLD = 0.75
 
 
 class AdapterError(ValueError):
@@ -1268,18 +1269,18 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
         if not shapely_window.covers(Point(x_um, y_um)):
             raise AdapterError("representative point escapes the exact selected-patch union")
         probability = float(cell["type_prob"])
-        probability_text, high_confidence = canonical_f32_probability(
-            probability, HIGH_CONFIDENCE_THRESHOLD
+        probability_text, high_pixel_support = canonical_f32_probability(
+            probability, WINNING_TYPE_PIXEL_SUPPORT_THRESHOLD
         )
         coordinate_rows.append(
             {
                 "cell_id": source_cell_id(representative_id, row),
                 "x_um": format(x_um, ".17g"),
                 "y_um": format(y_um, ".17g"),
-                "mark": high_confidence,
+                "mark": high_pixel_support,
                 "case_id": representative_case["case_id"],
                 "timepoint": "baseline",
-                "protein": "cellvit_predicted_class_confidence",
+                "protein": WINNING_TYPE_PIXEL_SUPPORT_MARK,
                 "valid_tumor": "true",
                 "valid_ihc": "true",
                 "slide_id": representative_id,
@@ -1646,6 +1647,10 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
     )
 
     scalar_config = f'''[analysis]\nmark_label = "cellvit_high_predicted_class_confidence"\nuse_probabilistic_marks = true\nanalyze_components = "pooled"\n\n[validation]\nn_min = 200\nn_marked_min = 25\nn_unmarked_min = 25\np_min = 0.01\np_max = 0.99\narea_min_um2 = 100000.0\nk_shell_min = 5\nlargest_interpretable_scale_fraction = 0.33\nvalid_mask_fraction_min = 0.5\n\n[spectrum]\nk_shells = 32\nlow_k_shells = 3\nfit_low_k_alpha = true\nanisotropy_low_k_shells = 5\n\n[periodogram]\nenabled = false\n\n[multiscale_residual]\nenabled = false\nterritory_detection = false\nmin_territory_z = 2.5\n\n[permutation]\nb = 99\nseed = {SEED}\nstratified = false\nstrata_fields = []\n\n[inference]\nfamily_wise_alpha = 0.05\n\n[performance]\nthreads = 1\nmemory_budget_mib = 1024\nk_chunk_modes = 64\nstrict_repro = true\nsave_intermediates = false\n\n[output]\nwrite_parquet_curves = false\nwrite_geojson_territories = false\nwrite_figures = false\nwrite_run_manifest = true\n'''
+    scalar_config = scalar_config.replace(
+        "cellvit_high_predicted_class_confidence",
+        "cellvit_high_winning_type_pixel_support",
+    )
     (inputs / "scalar_analysis.toml").write_text(scalar_config, encoding="utf-8")
 
     metadata_hashes = {
@@ -1724,7 +1729,7 @@ def prepare(arguments: argparse.Namespace) -> dict[str, Any]:
                 "projected_patients": PROJECTED_PATIENTS,
                 "projected_cells_per_patient": PROJECTED_CELLS_PER_PATIENT,
                 "projected_split_patients": {"train": 18, "validation": 6, "test": 6},
-                "high_confidence_threshold": HIGH_CONFIDENCE_THRESHOLD,
+                "winning_type_pixel_support_threshold": WINNING_TYPE_PIXEL_SUPPORT_THRESHOLD,
             },
             "beta_binomial_count_definition": {
                 "aggregation_unit": "patient_across_all_admitted_slides",

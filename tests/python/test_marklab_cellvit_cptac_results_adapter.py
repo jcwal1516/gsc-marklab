@@ -34,6 +34,14 @@ class CellvitCptacResultsAdapterTest(unittest.TestCase):
             imported = struct.unpack("!f", struct.pack("!f", float(encoded)))[0]
             self.assertEqual(marked, int(imported >= 0.75))
 
+    def test_cellvit_type_probability_is_named_as_pixel_support_not_class_posterior(self):
+        self.assertEqual(
+            self.module.WINNING_TYPE_PIXEL_SUPPORT_MARK,
+            "cellvit_winning_type_pixel_support",
+        )
+        self.assertEqual(self.module.WINNING_TYPE_PIXEL_SUPPORT_THRESHOLD, 0.75)
+        self.assertNotIn("confidence", self.module.WINNING_TYPE_PIXEL_SUPPORT_MARK)
+
     def test_multiclass_group_counts_retain_zero_classes_per_patient(self):
         rows = self.module.dirichlet_multinomial_group_rows(
             {

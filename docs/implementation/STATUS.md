@@ -4067,3 +4067,29 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   workspace doctests, and strict warning-denied all-feature workspace docs pass once. The
   documented macOS Nextest/full-integration loader loop is not run. No benchmark, fuzzing,
   packaging, dependency, push, publication, deployment, or history rewrite runs.
+
+## CellViT uncertainty semantics and durable support mixing checkpoint 194 — 2026-08-31
+
+- Added exact physical-radius conservative pair bounds for sources that genuinely expose one
+  top-1 class posterior plus the native class count. The typed result retains coordinatewise lower
+  and upper pair mass, exact mark/status/window/graph/configuration identities, hard work/memory
+  ceilings, and durable miss/hit replay. The admitted CellViT source is deliberately rejected:
+  row 462 has `type_prob=0.00395256915`, below the five-class top-1 minimum 0.2.
+- Frozen CellViT postprocessor inspection establishes the actual semantic: `type_prob` is the
+  fraction of pixels inside a nucleus instance assigned the selected non-background type. The
+  adapter and real MarkTable fixture now identify it as `cellvit_winning_type_pixel_support`.
+  A threshold-free multiclass sensitivity workflow retains the hard directed matrix and weights
+  every fixed-label pair by source-times-target pixel support; it never changes labels or claims a
+  class posterior.
+- The corrected pinned adapter revalidates 366 slides, 178 patients, and 1,542,389 cells into
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v71-support-semantics-inputs`. Coordinate
+  and window SHA-256 values are `83e60b742fe33ac504a89e8c57e824611cfe5a6c8bbbdfd50f2056c6b82b32dc`
+  and `9ba8102b98f5e4f42dc4c19d9fd341b0acb6d6ecf671997ce709187312c61fb4`.
+  On 49,510 directed 50-micrometre visits, support-weighted mass is 44,887.23086408087 and
+  retention is 0.9066295872365354. Fresh processes report miss then hit, identical result SHA-256
+  `513c96af7cea718b156704d520bcec22fc55a6250441db3d41e360599049bd62`, and one execution.
+- Cell/patch/region/slide Arrow and Parquet read/write/publish/scan/verify paths already exist and
+  were not duplicated. One inspected Schürch bundle has a 1,074-by-1,280 float32 NPY and matching
+  frozen CSV header, but its bundle manifest lacks the model, environment/lock, license, and
+  converter/provenance records required by the canonical promotion graph. That lane remains
+  unavailable at this exact identity boundary; no graph was fabricated or weakened.

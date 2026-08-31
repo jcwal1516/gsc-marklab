@@ -3405,3 +3405,21 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   five-class top-1 minimum, so it is rejected rather than relabeled as posterior confidence. Full
   expected pair mixing remains owned by the existing complete-simplex workflow when genuine class
   vectors are admitted.
+
+## DEC-0377 — Treat CellViT `type_prob` as winner-type pixel support
+
+- Date: 2026-08-31
+- Status: accepted for FND-04/MRK-02C/GEO-01D/WF-01/WS-23/WS-30
+- Decision: preserve the existing hard multiclass partition and exact physical-radius graph, but
+  identify CellViT `type_prob` according to its frozen postprocessor: the fraction of pixels inside
+  one nucleus instance assigned the selected non-background type. Add one threshold-free
+  sensitivity workflow whose directed class-pair weight is the product of the source and target
+  pixel-support fractions. Retain hard pair counts, support-weighted mass, per-cell-pair retention,
+  exact mark/provenance identities, and bounded durable replay. Never interpret the support weight
+  as a calibrated cell-class posterior, relabel it as confidence, change the hard label, or use its
+  threshold as a scientific selection rule.
+- Consequences: the admitted 2,000-cell CPTAC specimen can quantify how strongly its hard
+  multiclass geometry persists under continuous source support without fabricating a probability
+  simplex. Existing numeric values and hard labels remain unchanged, while future adapter outputs
+  use the corrected `cellvit_winning_type_pixel_support` identity. Genuine posterior uncertainty
+  still requires native logits or complete class probabilities.
