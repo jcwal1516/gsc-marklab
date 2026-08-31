@@ -1,4 +1,7 @@
-use crate::validation::is_lower_hex_sha256 as is_sha256;
+use crate::validation::{
+    is_lower_hex_sha256 as is_sha256, validate_scalar_summary as validate_supported_summary,
+    SummarySupport,
+};
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -430,41 +433,12 @@ impl BetaBinomialGroupGenderRegressionWorkerResult {
     }
 }
 
-#[derive(Clone, Copy)]
-enum SummarySupport {
-    Real,
-    Unit,
-    Difference,
-    Positive,
-}
-
 fn validate_summary(summary: &SarScalarSummary, support: SummarySupport) -> Result<(), BayesError> {
-    if ![
-        summary.mean,
-        summary.sd,
-        summary.interval_lower,
-        summary.interval_upper,
-    ]
-    .iter()
-    .all(|value| value.is_finite())
-        || summary.sd <= 0.0
-        || summary.interval_lower > summary.interval_upper
-        || matches!(support, SummarySupport::Unit)
-            && (!(0.0..=1.0).contains(&summary.mean)
-                || !(0.0..=1.0).contains(&summary.interval_lower)
-                || !(0.0..=1.0).contains(&summary.interval_upper))
-        || matches!(support, SummarySupport::Difference)
-            && (!(-1.0..=1.0).contains(&summary.mean)
-                || !(-1.0..=1.0).contains(&summary.interval_lower)
-                || !(-1.0..=1.0).contains(&summary.interval_upper))
-        || matches!(support, SummarySupport::Positive)
-            && (summary.mean <= 0.0 || summary.interval_lower < 0.0)
-    {
-        return Err(BayesError::WorkerContract(
-            "beta-binomial group/gender posterior summary is invalid".into(),
-        ));
-    }
-    Ok(())
+    validate_supported_summary(
+        summary,
+        support,
+        "beta-binomial group/gender posterior summary is invalid",
+    )
 }
 
 fn validate_predictive(
