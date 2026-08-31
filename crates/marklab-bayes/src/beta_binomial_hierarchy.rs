@@ -1,4 +1,4 @@
-use crate::validation::is_lower_hex_sha256 as is_sha256;
+use crate::validation::{diagnostics_satisfy_policy, is_lower_hex_sha256 as is_sha256};
 
 use std::collections::BTreeSet;
 
@@ -309,7 +309,8 @@ impl BetaBinomialHierarchyWorkerResult {
                 "beta-binomial posterior-predictive summary is invalid".into(),
             ));
         }
-        let diagnostics_pass = diagnostic_pass(&self.diagnostics, &request.diagnostic_policy);
+        let diagnostics_pass =
+            diagnostics_satisfy_policy(&self.diagnostics, &request.diagnostic_policy);
         if (self.fit_state == FitState::Complete) != diagnostics_pass {
             return Err(BayesError::WorkerContract(
                 "beta-binomial fit state disagrees with diagnostics".into(),
@@ -368,19 +369,6 @@ fn validate_summary(summary: &SarScalarSummary, unit_interval: bool) -> Result<(
         ));
     }
     Ok(())
-}
-
-fn diagnostic_pass(diagnostics: &NormalMeanDiagnostics, policy: &DiagnosticPolicy) -> bool {
-    diagnostics.prior_predictive_finite
-        && diagnostics.posterior_finite
-        && diagnostics.constraints_valid
-        && diagnostics.identifiability_checks_passed
-        && diagnostics.r_hat <= policy.maximum_r_hat
-        && diagnostics.ess_bulk >= policy.minimum_bulk_ess
-        && diagnostics.ess_tail >= policy.minimum_tail_ess
-        && diagnostics.minimum_ebfmi >= policy.minimum_ebfmi
-        && diagnostics.divergences <= policy.maximum_divergences
-        && diagnostics.max_tree_depth_hits <= policy.maximum_tree_depth_hits
 }
 
 #[derive(Clone, Debug, Serialize)]

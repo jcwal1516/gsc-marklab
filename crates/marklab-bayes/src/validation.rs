@@ -1,4 +1,4 @@
-use crate::{BayesError, SarScalarSummary};
+use crate::{BayesError, DiagnosticPolicy, NormalMeanDiagnostics, SarScalarSummary};
 
 #[derive(Clone, Copy)]
 pub(crate) enum SummarySupport {
@@ -17,6 +17,22 @@ pub(crate) fn is_lower_hex_sha256(value: &str) -> bool {
 
 pub(crate) fn all_finite(values: &[f64]) -> bool {
     values.iter().all(|value| value.is_finite())
+}
+
+pub(crate) fn diagnostics_satisfy_policy(
+    diagnostics: &NormalMeanDiagnostics,
+    policy: &DiagnosticPolicy,
+) -> bool {
+    diagnostics.prior_predictive_finite
+        && diagnostics.posterior_finite
+        && diagnostics.constraints_valid
+        && diagnostics.identifiability_checks_passed
+        && diagnostics.r_hat <= policy.maximum_r_hat
+        && diagnostics.ess_bulk >= policy.minimum_bulk_ess
+        && diagnostics.ess_tail >= policy.minimum_tail_ess
+        && diagnostics.minimum_ebfmi >= policy.minimum_ebfmi
+        && diagnostics.divergences <= policy.maximum_divergences
+        && diagnostics.max_tree_depth_hits <= policy.maximum_tree_depth_hits
 }
 
 pub(crate) fn validate_scalar_summary(

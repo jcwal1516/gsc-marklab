@@ -1,6 +1,6 @@
 use crate::validation::{
-    is_lower_hex_sha256 as is_sha256, validate_scalar_summary as validate_supported_summary,
-    SummarySupport,
+    diagnostics_satisfy_policy, is_lower_hex_sha256 as is_sha256,
+    validate_scalar_summary as validate_supported_summary, SummarySupport,
 };
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -508,7 +508,7 @@ impl BetaBinomialGroupGenderSlideHierarchyWorkerResult {
                 "slide hierarchy posterior predictive summary is invalid".into(),
             ));
         }
-        let complete = diagnostic_pass(&self.diagnostics, &request.diagnostic_policy);
+        let complete = diagnostics_satisfy_policy(&self.diagnostics, &request.diagnostic_policy);
         if (self.fit_state == FitState::Complete) != complete {
             return Err(BayesError::WorkerContract(
                 "slide hierarchy fit state disagrees with diagnostics".into(),
@@ -552,19 +552,6 @@ fn validate_summary(summary: &SarScalarSummary, support: SummarySupport) -> Resu
         support,
         "slide hierarchy posterior summary is invalid",
     )
-}
-
-fn diagnostic_pass(diagnostics: &NormalMeanDiagnostics, policy: &DiagnosticPolicy) -> bool {
-    diagnostics.prior_predictive_finite
-        && diagnostics.posterior_finite
-        && diagnostics.constraints_valid
-        && diagnostics.identifiability_checks_passed
-        && diagnostics.r_hat <= policy.maximum_r_hat
-        && diagnostics.ess_bulk >= policy.minimum_bulk_ess
-        && diagnostics.ess_tail >= policy.minimum_tail_ess
-        && diagnostics.minimum_ebfmi >= policy.minimum_ebfmi
-        && diagnostics.divergences <= policy.maximum_divergences
-        && diagnostics.max_tree_depth_hits <= policy.maximum_tree_depth_hits
 }
 
 #[derive(Clone, Debug, Serialize)]
