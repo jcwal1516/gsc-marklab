@@ -384,13 +384,7 @@ fn compare(
 ) -> ParameterAgreement {
     let absolute_difference = (pymc.mean - numpyro.mean).abs();
     let combined_mcse = pymc_mcse.hypot(numpyro_mcse);
-    let standardized_difference = if combined_mcse > 0.0 {
-        absolute_difference / combined_mcse
-    } else if absolute_difference == 0.0 {
-        0.0
-    } else {
-        f64::INFINITY
-    };
+    let standardized_difference = standardized_mcse_difference(absolute_difference, combined_mcse);
     let tolerance = policy
         .minimum_absolute_tolerance
         .max(policy.maximum_standardized_difference * combined_mcse);
@@ -407,3 +401,4 @@ fn compare(
         passes: intervals_overlap && absolute_difference <= tolerance,
     }
 }
+use crate::agreement_metric::standardized_mcse_difference;

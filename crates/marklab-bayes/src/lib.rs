@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod agreement_metric;
 mod anisotropic_gp3d;
 mod berman_turner;
 mod beta_binomial_group_gender_agreement;

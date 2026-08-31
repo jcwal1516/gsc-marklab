@@ -294,13 +294,7 @@ fn compare_parameter(
     let absolute_difference = (pymc.mean - numpyro.mean).abs();
     let combined_mcse = (pymc.sd / pymc_result.diagnostics.ess_bulk.sqrt())
         .hypot(numpyro.sd / numpyro_result.diagnostics.ess_bulk.sqrt());
-    let standardized_difference = if combined_mcse > 0.0 {
-        absolute_difference / combined_mcse
-    } else if absolute_difference == 0.0 {
-        0.0
-    } else {
-        f64::INFINITY
-    };
+    let standardized_difference = standardized_mcse_difference(absolute_difference, combined_mcse);
     let tolerance = minimum_tolerance.max(policy.maximum_standardized_difference * combined_mcse);
     let intervals_overlap = pymc.interval_lower <= numpyro.interval_upper
         && numpyro.interval_lower <= pymc.interval_upper;
@@ -329,3 +323,4 @@ fn summarize(
         posterior_predictive: result.posterior_predictive,
     }
 }
+use crate::agreement_metric::standardized_mcse_difference;

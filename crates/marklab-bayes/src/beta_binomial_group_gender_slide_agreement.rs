@@ -385,13 +385,7 @@ fn compare_parameter(
     let absolute_difference = (left.mean - right.mean).abs();
     let combined_mcse = (left.sd / left_result.diagnostics.ess_bulk.sqrt())
         .hypot(right.sd / right_result.diagnostics.ess_bulk.sqrt());
-    let standardized_difference = if combined_mcse > 0.0 {
-        absolute_difference / combined_mcse
-    } else if absolute_difference == 0.0 {
-        0.0
-    } else {
-        f64::INFINITY
-    };
+    let standardized_difference = standardized_mcse_difference(absolute_difference, combined_mcse);
     let tolerance = minimum_tolerance.max(policy.maximum_standardized_difference * combined_mcse);
     let intervals_overlap =
         left.interval_lower <= right.interval_upper && right.interval_lower <= left.interval_upper;
@@ -436,13 +430,7 @@ fn compare_patients(
         let difference = (left_summary.mean - right_summary.mean).abs();
         let mcse = (left_summary.sd / left.diagnostics.ess_bulk.sqrt())
             .hypot(right_summary.sd / right.diagnostics.ess_bulk.sqrt());
-        let standardized = if mcse > 0.0 {
-            difference / mcse
-        } else if difference == 0.0 {
-            0.0
-        } else {
-            f64::INFINITY
-        };
+        let standardized = standardized_mcse_difference(difference, mcse);
         let tolerance = minimum_tolerance.max(policy.maximum_standardized_difference * mcse);
         let overlap = left_summary.interval_lower <= right_summary.interval_upper
             && right_summary.interval_lower <= left_summary.interval_upper;
@@ -461,3 +449,4 @@ fn compare_patients(
         passes,
     })
 }
+use crate::agreement_metric::standardized_mcse_difference;

@@ -374,12 +374,4 @@ fn compare_patients(
     }
 }
 
-fn standardized(difference: f64, mcse: f64) -> f64 {
-    if mcse > 0.0 {
-        difference / mcse
-    } else if difference == 0.0 {
-        0.0
-    } else {
-        f64::INFINITY
-    }
-}
+use crate::agreement_metric::standardized_mcse_difference as standardized;
