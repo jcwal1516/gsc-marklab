@@ -4,7 +4,8 @@ use std::{
 };
 
 use crate::{
-    execute_algorithm_with_store, inhomogeneous_spatial::encode_piecewise_compartment_result,
+    execute_algorithm_with_store,
+    inhomogeneous_spatial::compartment_workflow::encode_piecewise_compartment_result,
     ArtifactSchema, BinaryCompartmentPartition2D, CompartmentPartitionLimits, CoordinateFrame,
     CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit, DurableProject,
     DurableProjectLimits, LocalArtifactStore, LocalScheduler, MarklabError, MarklabProject, NodeId,

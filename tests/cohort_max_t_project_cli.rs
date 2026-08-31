@@ -5,6 +5,9 @@ use std::{fs, path::Path};
 use assert_cmd::Command;
 use marklab_workflow::{ContentDigest, NodeId, NodeSpec};
 
+#[path = "support/runtime_features.rs"]
+mod runtime_features;
+
 fn fixture(directory: &Path) -> std::path::PathBuf {
     let input = directory.join("endpoints.csv");
     let mut rows = String::from("patient_id,group,endpoint,value,block\n");
@@ -258,7 +261,7 @@ fn blocked_step_down_max_t_is_bounded_then_replays_exact_direct_bytes() {
     assert_eq!(identity["runtime"]["backend"], "native");
     assert_eq!(
         identity["runtime"]["features"],
-        serde_json::json!(["cli", "csv", "parallel", "parquet"])
+        runtime_features::expected_runtime_features()
     );
     let executable = fs::read(&binary).expect("stable executable");
     assert_eq!(

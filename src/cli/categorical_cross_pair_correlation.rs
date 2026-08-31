@@ -1,9 +1,12 @@
 use std::path::PathBuf;
 
 use crate::{
-    cross_pair_correlation, execute_algorithm_with_store, ArtifactSchema,
-    CategoricalCrossPairCorrelationAnalysisNode, CategoricalCrossPairCorrelationConfig,
-    CategoricalPairLimits, DeclaredScalarPatternInput,
+    cross_pair_correlation::{
+        isotropic_workflow::encode_result as encode_isotropic_result,
+        translation_workflow::encode_result as encode_translation_result, workflow::encode_result,
+    },
+    execute_algorithm_with_store, ArtifactSchema, CategoricalCrossPairCorrelationAnalysisNode,
+    CategoricalCrossPairCorrelationConfig, CategoricalPairLimits, DeclaredScalarPatternInput,
     IsotropicCategoricalCrossPairCorrelationAnalysisNode,
     IsotropicCategoricalCrossPairCorrelationConfig, IsotropicSpatialLimits, LocalScheduler,
     MarklabError, NodeId, Result, SchedulerLimits,
@@ -109,9 +112,8 @@ pub(super) fn run_project(request: Request) -> Result<()> {
         &prepared.store,
     )
     .map_err(|error| MarklabError::Compute(error.to_string()))?;
-    let encoded =
-        cross_pair_correlation::encode_result(&run.output, &input, &prepared.window, &config)
-            .map_err(|error| MarklabError::Compute(error.to_string()))?;
+    let encoded = encode_result(&run.output, &input, &prepared.window, &config)
+        .map_err(|error| MarklabError::Compute(error.to_string()))?;
     write_output(
         &request.out,
         &encoded,
@@ -195,7 +197,7 @@ pub(super) fn run_translation_project(request: TranslationRequest) -> Result<()>
         &prepared.store,
     )
     .map_err(|error| MarklabError::Compute(error.to_string()))?;
-    let encoded = cross_pair_correlation::encode_translation_result(&run.output, &config)
+    let encoded = encode_translation_result(&run.output, &config)
         .map_err(|error| MarklabError::Compute(error.to_string()))?;
     write_output(
         &request.base.out,
@@ -280,7 +282,7 @@ pub(super) fn run_isotropic_project(request: IsotropicRequest) -> Result<()> {
         &prepared.store,
     )
     .map_err(|error| MarklabError::Compute(error.to_string()))?;
-    let encoded = cross_pair_correlation::encode_isotropic_result(&run.output, &config)
+    let encoded = encode_isotropic_result(&run.output, &config)
         .map_err(|error| MarklabError::Compute(error.to_string()))?;
     write_output(
         &request.base.out,

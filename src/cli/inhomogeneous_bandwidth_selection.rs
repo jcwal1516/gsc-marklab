@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
 use crate::{
-    execute_algorithm_with_store, inhomogeneous_spatial::encode_selected_spatial_result,
-    ArtifactSchema, GaussianBandwidthSelectedSpatialAnalysisNode, GaussianBandwidthSelectionConfig,
+    execute_algorithm_with_store,
+    inhomogeneous_spatial::bandwidth_workflow::encode_selected_spatial_result, ArtifactSchema,
+    GaussianBandwidthSelectedSpatialAnalysisNode, GaussianBandwidthSelectionConfig,
     GaussianBandwidthSelectionLimits, InhomogeneousSpatialLimits, LocalScheduler, MarklabError,
     NodeId, Result, SchedulerLimits, WorkflowGraph,
 };

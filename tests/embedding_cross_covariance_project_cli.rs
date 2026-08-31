@@ -5,6 +5,9 @@ use std::{fs, path::Path};
 use assert_cmd::Command;
 use marklab_workflow::ContentDigest;
 
+#[path = "support/runtime_features.rs"]
+mod runtime_features;
+
 const POINTS: &str = "object_id,x_um,y_um,embedding_0,embedding_1,embedding_2\n\
 a,0,0,0,0,1\n\
 b,1,0,2,0,1\n\
@@ -176,7 +179,7 @@ fn embedding_cross_covariance_is_bounded_then_replays_the_direct_typed_result() 
     assert_eq!(identity["runtime"]["backend"], "native");
     assert_eq!(
         identity["runtime"]["features"],
-        serde_json::json!(["cli", "csv", "parallel", "parquet"])
+        runtime_features::expected_runtime_features()
     );
     let executable = fs::read(env!("CARGO_BIN_EXE_marklab")).expect("marklab executable");
     assert_eq!(

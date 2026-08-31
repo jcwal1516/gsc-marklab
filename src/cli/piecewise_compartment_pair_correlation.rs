@@ -2,10 +2,11 @@ use std::path::PathBuf;
 
 use crate::{
     execute_algorithm_with_store,
-    inhomogeneous_spatial::encode_piecewise_compartment_pair_correlation_result, ArtifactSchema,
-    LocalScheduler, MarklabError, NodeId, PiecewiseCompartmentPairCorrelationAnalysisNode,
-    PiecewiseCompartmentPairCorrelationConfig, PiecewiseCompartmentSpatialConfig,
-    PiecewiseCompartmentSpatialLimits, Result, SchedulerLimits, WorkflowGraph,
+    inhomogeneous_spatial::compartment_g_workflow::encode_piecewise_compartment_pair_correlation_result,
+    ArtifactSchema, LocalScheduler, MarklabError, NodeId,
+    PiecewiseCompartmentPairCorrelationAnalysisNode, PiecewiseCompartmentPairCorrelationConfig,
+    PiecewiseCompartmentSpatialConfig, PiecewiseCompartmentSpatialLimits, Result, SchedulerLimits,
+    WorkflowGraph,
 };
 
 use super::{

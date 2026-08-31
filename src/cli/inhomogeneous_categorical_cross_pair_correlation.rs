@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
 use crate::{
-    execute_algorithm_with_store, inhomogeneous_spatial::encode_categorical_cross_g_result,
+    execute_algorithm_with_store,
+    inhomogeneous_spatial::categorical_cross_g_workflow::encode_result as encode_categorical_cross_g_result,
     ArtifactSchema, DeclaredScalarPatternInput,
     InhomogeneousCategoricalCrossPairCorrelationAnalysisNode,
     InhomogeneousCategoricalCrossPairCorrelationConfig, InhomogeneousSpatialConfig,
