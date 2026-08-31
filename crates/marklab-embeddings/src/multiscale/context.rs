@@ -18,7 +18,8 @@ use super::{
 };
 
 mod wire;
-use wire::{convention_name, WireContext};
+use crate::context::image_coordinate_convention_name as convention_name;
+use wire::WireContext;
 
 const CONTEXT_FORMAT: &str = "marklab.patch_embedding_context";
 const CONTEXT_VERSION: u32 = 1;

@@ -4,7 +4,10 @@ use marklab_data::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{PatchBoundaryPolicy, PositiveRational};
+use crate::{
+    context::image_coordinate_convention_name as convention_name, PatchBoundaryPolicy,
+    PositiveRational,
+};
 
 use super::{EffectiveReceptiveField, PatchEmbeddingContext, CONTEXT_FORMAT, CONTEXT_VERSION};
 use crate::multiscale::error::MultiscaleEmbeddingError;
@@ -220,13 +223,6 @@ impl WireBoundaryPolicy {
             Self::Reflect => PatchBoundaryPolicy::Reflect,
             Self::ConstantRgb { rgb } => PatchBoundaryPolicy::ConstantRgb(rgb),
         }
-    }
-}
-
-pub(super) fn convention_name(value: ImageCoordinateConvention) -> &'static str {
-    match value {
-        ImageCoordinateConvention::PixelCenterAtInteger => "pixel_center_at_integer",
-        ImageCoordinateConvention::PixelCornerAtInteger => "pixel_corner_at_integer",
     }
 }
 

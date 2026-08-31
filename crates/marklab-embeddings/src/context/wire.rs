@@ -1,7 +1,10 @@
 use marklab_data::{CoordinateFrameId, CoordinateRegistry, ImageCoordinateConvention, TransformId};
 use serde::{Deserialize, Serialize};
 
-use super::{EmbeddingSpatialContext, PatchBoundaryPolicy, PositiveRational};
+use super::{
+    image_coordinate_convention_name as convention_name, EmbeddingSpatialContext,
+    PatchBoundaryPolicy, PositiveRational,
+};
 use crate::EmbeddingError;
 
 const CONTEXT_FORMAT: &str = "marklab.cell_embedding_spatial_context";
@@ -219,13 +222,6 @@ impl WireBoundary {
             Self::Reflect => PatchBoundaryPolicy::Reflect,
             Self::ConstantRgb { value } => PatchBoundaryPolicy::ConstantRgb(value),
         }
-    }
-}
-
-fn convention_name(value: ImageCoordinateConvention) -> &'static str {
-    match value {
-        ImageCoordinateConvention::PixelCenterAtInteger => "pixel_center_at_integer",
-        ImageCoordinateConvention::PixelCornerAtInteger => "pixel_corner_at_integer",
     }
 }
 

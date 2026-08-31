@@ -7,6 +7,13 @@ use crate::{rational::greatest_common_divisor, EmbeddingError};
 
 mod wire;
 
+pub(crate) fn image_coordinate_convention_name(value: ImageCoordinateConvention) -> &'static str {
+    match value {
+        ImageCoordinateConvention::PixelCenterAtInteger => "pixel_center_at_integer",
+        ImageCoordinateConvention::PixelCornerAtInteger => "pixel_corner_at_integer",
+    }
+}
+
 /// Reduced positive rational used for exact micrometres-per-pixel declarations.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PositiveRational {
