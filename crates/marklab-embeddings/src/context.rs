@@ -3,7 +3,7 @@ use marklab_data::{
     ImageCoordinateConvention, SpatialAxis, TransformId,
 };
 
-use crate::EmbeddingError;
+use crate::{rational::greatest_common_divisor, EmbeddingError};
 
 mod wire;
 
@@ -17,7 +17,10 @@ pub struct PositiveRational {
 impl PositiveRational {
     /// Require positive, nonzero, already reduced numerator and denominator.
     pub fn new(numerator: u64, denominator: u64) -> Result<Self, EmbeddingError> {
-        if numerator == 0 || denominator == 0 || gcd(numerator, denominator) != 1 {
+        if numerator == 0
+            || denominator == 0
+            || greatest_common_divisor(numerator, denominator) != 1
+        {
             return Err(EmbeddingError::InvalidPositiveRational);
         }
         Ok(Self {
@@ -175,13 +178,4 @@ impl EmbeddingSpatialContext {
     pub fn boundary_policy(&self) -> PatchBoundaryPolicy {
         self.boundary_policy
     }
-}
-
-fn gcd(mut left: u64, mut right: u64) -> u64 {
-    while right != 0 {
-        let remainder = left % right;
-        left = right;
-        right = remainder;
-    }
-    left
 }

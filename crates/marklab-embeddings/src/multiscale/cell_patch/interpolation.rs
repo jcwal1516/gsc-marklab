@@ -5,7 +5,10 @@ use super::{
         DeclaredCellPatchAssignment,
     },
 };
-use crate::multiscale::{error::MultiscaleEmbeddingError, expected::ExpectedPatchSet};
+use crate::{
+    multiscale::{error::MultiscaleEmbeddingError, expected::ExpectedPatchSet},
+    rational::greatest_common_divisor,
+};
 
 pub(super) struct InterpolationPass {
     pub(super) edge_count: usize,
@@ -118,19 +121,10 @@ fn validate_group(
         sum = sum
             .checked_add(contributor.numerator)
             .ok_or(MultiscaleEmbeddingError::InvalidCellPatchContributors { row })?;
-        divisor = gcd(divisor, contributor.numerator);
+        divisor = greatest_common_divisor(divisor, contributor.numerator);
     }
     if sum != denominator || divisor != 1 {
         return Err(MultiscaleEmbeddingError::InvalidCellPatchContributors { row });
     }
     Ok(())
-}
-
-fn gcd(mut left: u64, mut right: u64) -> u64 {
-    while right != 0 {
-        let remainder = left % right;
-        left = right;
-        right = remainder;
-    }
-    left
 }

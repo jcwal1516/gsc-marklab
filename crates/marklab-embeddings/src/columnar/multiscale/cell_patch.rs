@@ -4,6 +4,7 @@ use crate::{
     multiscale::physical::{
         encoding_version, schema_id, SpatialArtifactRole, SpatialPhysicalEncoding,
     },
+    rational::greatest_common_divisor,
     CellPatchAssignmentMode, CellPatchAssignmentStatus, CellPatchLink,
 };
 
@@ -170,21 +171,12 @@ fn validate_interpolation_group(
         numerator_sum = numerator_sum
             .checked_add(weight.numerator())
             .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-        group_gcd = gcd(group_gcd, weight.numerator());
+        group_gcd = greatest_common_divisor(group_gcd, weight.numerator());
     }
     if numerator_sum != denominator || group_gcd != 1 {
         return binding_mismatch();
     }
     Ok(())
-}
-
-fn gcd(mut left: u64, mut right: u64) -> u64 {
-    while right != 0 {
-        let remainder = left % right;
-        left = right;
-        right = remainder;
-    }
-    left
 }
 
 pub(crate) fn assignment_decoded_bytes(

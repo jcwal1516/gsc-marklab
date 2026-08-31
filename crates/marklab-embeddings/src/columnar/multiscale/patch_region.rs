@@ -6,6 +6,7 @@ use crate::{
     multiscale::physical::{
         encoding_version, schema_id, SpatialArtifactRole, SpatialPhysicalEncoding,
     },
+    rational::greatest_common_divisor,
     PatchRegionDeclaration, PatchRegionLink, PatchRegionRelation,
 };
 
@@ -89,7 +90,7 @@ pub(crate) fn validate_patch_region_domain(
                 PatchRegionRelation::PartialOverlap => {
                     row.numerator() == 0
                         || row.numerator() >= row.denominator()
-                        || gcd(row.numerator(), row.denominator()) != 1
+                        || greatest_common_divisor(row.numerator(), row.denominator()) != 1
                 }
             })
     {
@@ -129,13 +130,4 @@ pub(crate) fn patch_region_decoded_bytes(
         .and_then(|value| value.checked_add(text))
         .and_then(|value| value.checked_add(values))
         .ok_or(MultiscaleColumnarError::SizeOverflow)
-}
-
-fn gcd(mut left: u64, mut right: u64) -> u64 {
-    while right != 0 {
-        let remainder = left % right;
-        left = right;
-        right = remainder;
-    }
-    left
 }

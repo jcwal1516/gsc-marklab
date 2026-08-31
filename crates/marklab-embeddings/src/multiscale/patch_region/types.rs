@@ -3,7 +3,7 @@ use std::fmt;
 use marklab_data::{PatchId, RegionId};
 use marklab_project::{ArtifactId, ContentDigest};
 
-use crate::multiscale::error::MultiscaleEmbeddingError;
+use crate::{multiscale::error::MultiscaleEmbeddingError, rational::greatest_common_divisor};
 
 /// Closed producer-declared nonzero patch-region relation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -64,7 +64,7 @@ impl PatchRegionDeclaration {
         if numerator == 0
             || denominator == 0
             || numerator >= denominator
-            || gcd(numerator, denominator) != 1
+            || greatest_common_divisor(numerator, denominator) != 1
         {
             return Err(MultiscaleEmbeddingError::InvalidPatchRegionFraction);
         }
@@ -163,16 +163,7 @@ pub(super) fn valid_relation(row: &PatchRegionDeclaration) -> bool {
         PatchRegionRelation::PartialOverlap => {
             row.numerator > 0
                 && row.numerator < row.denominator
-                && gcd(row.numerator, row.denominator) == 1
+                && greatest_common_divisor(row.numerator, row.denominator) == 1
         }
     }
-}
-
-fn gcd(mut left: u64, mut right: u64) -> u64 {
-    while right != 0 {
-        let remainder = left % right;
-        left = right;
-        right = remainder;
-    }
-    left
 }

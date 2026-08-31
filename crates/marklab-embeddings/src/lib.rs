@@ -12,6 +12,7 @@ mod expected;
 mod identity_map;
 mod multiscale;
 mod provenance;
+mod rational;
 mod row_link;
 mod source;
 mod table;
