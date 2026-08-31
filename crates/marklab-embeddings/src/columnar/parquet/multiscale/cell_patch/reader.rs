@@ -19,6 +19,7 @@ use crate::{
 };
 
 use super::{
+    super::physical::validated_stock_group_range,
     preflight::{
         parquet_failure, prepare_reader, CellPatchAssignmentParquetPreflight,
         CellPatchEdgeParquetPreflight, CommonParquetPreflight,
@@ -241,7 +242,7 @@ fn decode_parquet<R: Read + Seek + ?Sized>(
     for (group_index, group) in metadata.row_groups().iter().enumerate() {
         let rows = usize::try_from(group.num_rows())
             .map_err(|_| parquet_failure(SpatialParquetFailure::StockDecode))?;
-        let (start, length) = validated_group_range(group, profile.column_count())?;
+        let (start, length) = validated_stock_group_range(group, profile.column_count())?;
         let peak = estimate_group_peak(group, profile, link, global_row)?;
         enforce_row_group_budget(peak, budgets)?;
         let mut bytes = Vec::new();
@@ -419,41 +420,13 @@ fn validate_edge_batch(
     Ok(())
 }
 
-fn validated_group_range(
-    group: &RowGroupMetaData,
-    columns: usize,
-) -> Result<(u64, usize), MultiscaleColumnarError> {
-    if group.num_columns() != columns {
-        return Err(parquet_failure(SpatialParquetFailure::StockDecode));
-    }
-    let start = u64::try_from(group.column(0).data_page_offset())
-        .map_err(|_| parquet_failure(SpatialParquetFailure::StockDecode))?;
-    let mut next = start;
-    for column in group.columns() {
-        let offset = u64::try_from(column.data_page_offset())
-            .map_err(|_| parquet_failure(SpatialParquetFailure::StockDecode))?;
-        let length = u64::try_from(column.compressed_size())
-            .map_err(|_| parquet_failure(SpatialParquetFailure::StockDecode))?;
-        if offset != next || length == 0 {
-            return Err(parquet_failure(SpatialParquetFailure::StockDecode));
-        }
-        next = next
-            .checked_add(length)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-    }
-    Ok((
-        start,
-        usize::try_from(next - start).map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
-    ))
-}
-
 fn estimate_group_peak(
     group: &RowGroupMetaData,
     profile: CellPatchParquetProfile,
     link: &CellPatchLink,
     group_start: usize,
 ) -> Result<usize, MultiscaleColumnarError> {
-    let (_, encoded) = validated_group_range(group, profile.column_count())?;
+    let (_, encoded) = validated_stock_group_range(group, profile.column_count())?;
     let rows = usize::try_from(group.num_rows())
         .map_err(|_| parquet_failure(SpatialParquetFailure::StockDecode))?;
     let group_end = group_start

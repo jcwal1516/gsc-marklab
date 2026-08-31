@@ -1,6 +1,7 @@
 use std::io::{Read, Seek, SeekFrom};
 use std::mem::size_of;
 
+use parquet::file::metadata::RowGroupMetaData;
 use parquet::format::{
     ColumnChunk, ColumnMetaData, ColumnOrder, CompressionCodec, Encoding, FileMetaData, PageType,
 };
@@ -59,6 +60,34 @@ pub(super) fn validate_column_features(
         return Err(parquet_failure(SpatialParquetFailure::ForbiddenFeature));
     }
     Ok(())
+}
+
+pub(super) fn validated_stock_group_range(
+    group: &RowGroupMetaData,
+    expected_columns: usize,
+) -> Result<(u64, usize), MultiscaleColumnarError> {
+    if group.num_columns() != expected_columns {
+        return Err(parquet_failure(SpatialParquetFailure::StockDecode));
+    }
+    let start = u64::try_from(group.column(0).data_page_offset())
+        .map_err(|_| parquet_failure(SpatialParquetFailure::StockDecode))?;
+    let mut next = start;
+    for column in group.columns() {
+        let offset = u64::try_from(column.data_page_offset())
+            .map_err(|_| parquet_failure(SpatialParquetFailure::StockDecode))?;
+        let length = u64::try_from(column.compressed_size())
+            .map_err(|_| parquet_failure(SpatialParquetFailure::StockDecode))?;
+        if offset != next || length == 0 {
+            return Err(parquet_failure(SpatialParquetFailure::StockDecode));
+        }
+        next = next
+            .checked_add(length)
+            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+    }
+    Ok((
+        start,
+        usize::try_from(next - start).map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+    ))
 }
 
 /// Validates the physical row-group tree shared by every canonical C-05
