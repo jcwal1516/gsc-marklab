@@ -10,6 +10,7 @@ use parquet::{
     thrift::TSerializable,
 };
 
+use crate::columnar::parquet::schema::is_required_utf8 as is_utf8;
 use crate::{ExpectedPatchSet, PatchEmbeddingContext, PatchFootprintSet, PatchOverlapGraph};
 
 pub(super) use super::physical::parquet_failure;
@@ -632,19 +633,6 @@ fn is_group(element: &SchemaElement, name: &str, children: i32) -> bool {
         && element.precision.is_none()
         && element.field_id.is_none()
         && element.logical_type.is_none()
-}
-
-fn is_utf8(element: &SchemaElement, name: &str) -> bool {
-    element.type_ == Some(Type::BYTE_ARRAY)
-        && element.type_length.is_none()
-        && element.repetition_type == Some(FieldRepetitionType::REQUIRED)
-        && element.name == name
-        && element.num_children.is_none()
-        && element.converted_type == Some(ConvertedType::UTF8)
-        && element.scale.is_none()
-        && element.precision.is_none()
-        && element.field_id.is_none()
-        && matches!(element.logical_type, Some(LogicalType::STRING(_)))
 }
 
 fn is_i64(element: &SchemaElement, name: &str) -> bool {

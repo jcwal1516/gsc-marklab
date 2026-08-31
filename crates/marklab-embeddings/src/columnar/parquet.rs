@@ -5,6 +5,7 @@ mod profile;
 mod publication;
 mod reader;
 mod row_link;
+mod schema;
 mod writer;
 
 pub use multiscale::*;
