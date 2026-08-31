@@ -4729,3 +4729,26 @@ vascular transport.
   `f6db914260d75b206517568113968ac7f19046a68d844a016b4cb26198a79c0a`.
 - No broad workspace/Nextest loop, full feature matrix, Clippy, no-default, docs, benchmark, fuzz,
   package, dependency, push, publish, deploy, or history-rewrite command runs.
+
+## Durable adjusted whole-cluster checkpoint 191 — 2026-08-30
+
+- The first behavior run fails for the expected missing project subcommand. After implementation,
+  `CARGO_INCREMENTAL=0 cargo +1.96.0 test --locked --package marklab --features cli --test
+  cohort_cluster_covariate_cli --test cohort_cluster_covariate_project_cli -- --nocapture` passes
+  1/1 in both targets. The project test covers patient, cluster, covariate, patient-covariate-cell,
+  and exact OLS-work one-short limits before project creation, direct-byte parity, miss, fresh
+  backend-disabled hit, exact cache/runtime/input/result identities, and one ledger row.
+- A bounded read-only Mac mini admission audit joins the existing TCGA M2 fingerprint table to the
+  admitted patient manifest. It retains 167 patients, 22 explicit tissue-source sites, the
+  prespecified 50-micrometre relative-L endpoint, and stage ordinal. All sites have one exact
+  COAD/READ project label (19/3); 13 sites have mixed MSI/MSS labels, so MSI/MSS is explicitly not
+  used as a cluster assignment.
+- The real direct command, durable miss, and
+  `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1` hit complete and compare byte-identically at
+  SHA-256 `ca528e2d2d8a1db33cf6ef8b431ab1e9575a7bc50922c015378a5d31a65e5892`; the ledger contains
+  one row. Remote `shasum -a 256 -c SHA256SUMS` passes all 13 declared files. Run-manifest and
+  checksum-manifest SHA-256 values are
+  `937ca6bb65f54fb9f46fc3b21bba483ea75a3b8fc09c4ce8f390cbb04885a467` and
+  `032e96ba49b874d6c561e3f11103fd46b8caeeec02a3ea5d68bd5b7114b514c7`.
+- No broad workspace/Nextest loop, full feature matrix, benchmark, fuzz, packaging, dependency,
+  push, publication, deployment, or history-rewrite command runs.

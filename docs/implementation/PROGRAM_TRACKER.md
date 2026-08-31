@@ -583,3 +583,12 @@ real miss/hit replays. Existing patient-level null results are retained. Ordered
 Max-T is production-complete but lacks a prespecified real family assignment; genuine independent
 H-Optimus tensors and exact links remain unavailable inputs. No generic cohort/project framework is
 counted as progress.
+
+## Durable adjusted whole-cluster checkpoint 191
+
+COH-01, FND-06, PLAT-01, WF-01, WS-12, WS-31, and WS-34 advance through one concrete durable
+cluster-covariate workflow and a real 167-patient/22-site TCGA replay. Site is the population unit,
+stage ordinal is fixed nuisance adjustment, and the 50-micrometre coordinate-L result is
+null-compatible. This closes the missing real adjusted whole-cluster caller for the available
+site-consistent COAD/READ design; broader calibration/multiplicity remain active, and mixed-within-
+site MSI/MSS labels are not misrepresented as a cluster-level assignment.

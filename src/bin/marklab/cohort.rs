@@ -13,13 +13,13 @@ use marklab_cohort::{
     MmdKernel, MmdPermutationSpec, PairedMaxTPermutationSpec, PairedPatientPermutationSpec,
     PatientPermutationSpec, PermutationAlternative,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[path = "cohort/cluster.rs"]
 mod cluster;
 #[path = "cohort/cluster_covariate.rs"]
-mod cluster_covariate;
+pub(crate) mod cluster_covariate;
 #[path = "cohort/covariate.rs"]
 mod covariate;
 #[path = "cohort/covariate_matrix.rs"]
@@ -427,9 +427,9 @@ enum CohortCommand {
     },
 }
 
-#[derive(Clone, Copy, Debug, Serialize, ValueEnum)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, ValueEnum)]
 #[serde(rename_all = "kebab-case")]
-enum CliAlternative {
+pub(crate) enum CliAlternative {
     Less,
     Greater,
     TwoSided,

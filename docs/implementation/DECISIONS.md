@@ -3333,3 +3333,21 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   remain null-compatible. Real hierarchical Max-T remains unavailable because no prespecified
   family mapping exists; independent H-Optimus tensors remain unavailable until exact tensors and
   cell-patch links are admitted. No synthetic result is promoted as real evidence.
+
+## DEC-0373 — Durably execute covariate-adjusted whole-cluster inference
+
+- Date: 2026-08-30
+- Status: accepted for COH-01/FND-06/PLAT-01/WF-01/WS-12/WS-31/WS-34
+- Decision: add one native `marklab project cohort-cluster-covariate-permutation` caller around the
+  existing equal-weight cluster-summary Freedman–Lane workflow. Reuse its exact CSV schema,
+  statistic, null, alternative, seed stream, direct output, scheduler, artifact store, ledger,
+  recovery, native runtime identity, and exact-float durable codec. Cache-bind the exact input path
+  and bytes plus group, permutation, seed, alternative, patient, cluster, nuisance-column,
+  patient-by-covariate, OLS-work, and retained-memory controls. Do not add a formula language,
+  cohort runner, cluster inference registry, or new result format.
+- Consequences: a provenance-complete TCGA caller can treat tissue-source site as the independent
+  cluster because COAD/READ project identity is constant within every admitted site, adjust the
+  prespecified 50-micrometre M2 coordinate-L endpoint for stage ordinal, and replay without a
+  second execution. Its 19-versus-3-site result is observational and null-compatible; cluster
+  residual exchangeability remains an assumption. Molecular MSI labels remain invalid for this
+  workflow because 13 sites contain both MSI and MSS patients.

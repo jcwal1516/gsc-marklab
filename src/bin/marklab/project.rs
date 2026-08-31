@@ -54,6 +54,8 @@ use super::{
 
 #[path = "project/cell_patch_complementarity.rs"]
 mod cell_patch_complementarity;
+#[path = "project/cohort_cluster_covariate.rs"]
+mod cohort_cluster_covariate;
 #[path = "project/cohort_energy.rs"]
 mod cohort_energy;
 #[path = "project/cohort_hierarchical_max_t.rs"]
@@ -1050,6 +1052,36 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    CohortClusterCovariatePermutation {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        group_a: String,
+        #[arg(long)]
+        group_b: String,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long, value_enum)]
+        alternative: super::cohort::CliAlternative,
+        #[arg(long)]
+        maximum_patients: usize,
+        #[arg(long)]
+        maximum_clusters: usize,
+        #[arg(long)]
+        maximum_covariates: usize,
+        #[arg(long)]
+        maximum_patient_covariate_cells: u64,
+        #[arg(long)]
+        maximum_ols_work: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
     CohortHierarchicalMaxT {
         #[arg(long)]
         project: PathBuf,
@@ -1840,6 +1872,40 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             maximum_features,
             maximum_distance_elements,
             maximum_energy_evaluations,
+            memory_budget_mib,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::CohortClusterCovariatePermutation {
+                    project,
+                    input,
+                    group_a,
+                    group_b,
+                    permutations,
+                    seed,
+                    alternative,
+                    maximum_patients,
+                    maximum_clusters,
+                    maximum_covariates,
+                    maximum_patient_covariate_cells,
+                    maximum_ols_work,
+                    memory_budget_mib,
+                    out,
+                },
+        } => cohort_cluster_covariate::run(
+            project,
+            input,
+            group_a,
+            group_b,
+            permutations,
+            seed,
+            alternative,
+            maximum_patients,
+            maximum_clusters,
+            maximum_covariates,
+            maximum_patient_covariate_cells,
+            maximum_ols_work,
             memory_budget_mib,
             out,
         ),

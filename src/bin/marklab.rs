@@ -60,6 +60,7 @@ fn main() -> marklab::Result<()> {
                                     | "graph-smoothness-permutation-test"
                                     | "local-embedding-roughness"
                                     | "multiscale-embedding-kernel"
+                                    | "cohort-cluster-covariate-permutation"
                                     | "cohort-energy"
                                     | "cohort-hierarchical-max-t"
                                     | "cohort-max-t"

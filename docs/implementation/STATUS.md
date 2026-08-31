@@ -3988,3 +3988,29 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - No workspace-wide/Nextest gate, all-feature matrix, Clippy, no-default check, docs build,
   benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or history
   rewrite runs at this sprint checkpoint.
+
+## Durable adjusted whole-cluster checkpoint 191 — 2026-08-30
+
+- Added `marklab project cohort-cluster-covariate-permutation` around the existing typed
+  equal-weight cluster-summary Freedman–Lane workflow. Exact input/path, group, alternative,
+  permutation/seed, patient/cluster/covariate/cell-work/OLS-work/memory controls, native executable,
+  scheduler, result-schema, and implementation identities own the durable cache key. Five
+  one-short resource cases fail before project creation; direct, miss, and disabled-hit bytes match
+  with one ledger row.
+- The admitted TCGA caller contains 167 patients across 22 explicit tissue-source sites. COAD/READ
+  project identity is constant within all sites (19/3), stage ordinal is the nuisance covariate,
+  and the outcome is the already selected M2 relative-L endpoint at 50 micrometres. The adjusted
+  COAD-minus-READ effect is 0.14124092013604375 (SE 0.11094896415426271), studentized statistic
+  1.2730260369052504, and two-sided 999-permutation p-value 0.168. This is null-compatible
+  observational evidence, not a causal, molecular-class, or clinical claim.
+- Direct/miss/hit results hash to
+  `ca528e2d2d8a1db33cf6ef8b431ab1e9575a7bc50922c015378a5d31a65e5892`. The sealed 13-file
+  bundle is
+  `/Volumes/1TB/marklab/runs/results-cellvit-categorical-v68-durable-adjusted-cluster-final`;
+  run-manifest and checksum-manifest SHA-256 values are
+  `937ca6bb65f54fb9f46fc3b21bba483ea75a3b8fc09c4ce8f390cbb04885a467` and
+  `032e96ba49b874d6c561e3f11103fd46b8caeeec02a3ea5d68bd5b7114b514c7`, and remote complete
+  rehash passes.
+- The focused direct/project integrations pass together. No workspace-wide/Nextest gate, broad
+  feature matrix, benchmark, fuzzing, package, dependency, push, publication, deployment, or
+  history rewrite runs.

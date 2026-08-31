@@ -1860,3 +1860,14 @@ tensors/links remain unavailable. The next dependency-ordered production candida
 covariate-adjusted whole-cluster inference caller, but only if a provenance-complete real cluster
 table is admitted; otherwise record that exact blocker and move to the next real caller. Do not add
 a generic cohort runner, plugin framework, or arbitrary task surface.
+
+## Checkpoint 191 durable covariate-adjusted whole-cluster inference
+
+The existing adjusted whole-cluster caller now has a bounded typed project path and a real
+provenance-complete TCGA execution. Tissue-source site is the declared independent cluster for the
+site-consistent COAD/READ project comparison; stage ordinal adjusts the prespecified 50-micrometre
+M2 coordinate-L endpoint. The 167-patient/22-site direct result, miss, and disabled hit are
+byte-identical with one ledger row and remain null-compatible. MSI/MSS is not substituted because
+13 sites contain both labels. COH-01/FND-06 remain active for broader multiplicity/calibration and
+other real designs; production next returns to a real admitted caller rather than inventing the
+missing hierarchical family map or independent patch tensors.

@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{collections::BTreeMap, fs, path::PathBuf};
 
 use marklab_cohort::{
     cluster_covariate_matrix_freedman_lane, ClusterCovariatePatientRecord,
@@ -22,63 +22,69 @@ struct CsvRow {
     value: f64,
 }
 
-#[derive(Debug, Serialize)]
-struct Output {
-    format: &'static str,
-    version: u32,
-    design: Design,
-    patients: usize,
-    clusters: ClusterCounts,
-    groups: Groups,
-    covariates: Covariates,
-    effect_group_a_minus_group_b: f64,
-    target_standard_error: f64,
-    studentized_statistic: f64,
-    p_value: f64,
-    permutations: Permutations,
-    claim_status: &'static str,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Output {
+    pub(crate) format: String,
+    pub(crate) version: u32,
+    pub(crate) design: Design,
+    pub(crate) patients: usize,
+    pub(crate) clusters: ClusterCounts,
+    pub(crate) groups: Groups,
+    pub(crate) covariates: Covariates,
+    pub(crate) effect_group_a_minus_group_b: f64,
+    pub(crate) target_standard_error: f64,
+    pub(crate) studentized_statistic: f64,
+    pub(crate) p_value: f64,
+    pub(crate) permutations: Permutations,
+    pub(crate) claim_status: String,
 }
 
-#[derive(Debug, Serialize)]
-struct Design {
-    analysis_level: &'static str,
-    null_family: &'static str,
-    permutation_unit: &'static str,
-    cluster_summary: &'static str,
-    nuisance_columns: usize,
-    reduced_model_columns: usize,
-    full_model_columns: usize,
-    residual_degrees_of_freedom: usize,
-    exchangeability_assumption: &'static str,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Design {
+    pub(crate) analysis_level: String,
+    pub(crate) null_family: String,
+    pub(crate) permutation_unit: String,
+    pub(crate) cluster_summary: String,
+    pub(crate) nuisance_columns: usize,
+    pub(crate) reduced_model_columns: usize,
+    pub(crate) full_model_columns: usize,
+    pub(crate) residual_degrees_of_freedom: usize,
+    pub(crate) exchangeability_assumption: String,
 }
 
-#[derive(Debug, Serialize)]
-struct ClusterCounts {
-    total: usize,
-    group_a: usize,
-    group_b: usize,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ClusterCounts {
+    pub(crate) total: usize,
+    pub(crate) group_a: usize,
+    pub(crate) group_b: usize,
 }
 
-#[derive(Debug, Serialize)]
-struct Groups {
-    group_a: String,
-    group_b: String,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Groups {
+    pub(crate) group_a: String,
+    pub(crate) group_b: String,
 }
 
-#[derive(Debug, Serialize)]
-struct Covariates {
-    names: Vec<String>,
-    centers: Vec<f64>,
-    scales: Vec<f64>,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Covariates {
+    pub(crate) names: Vec<String>,
+    pub(crate) centers: Vec<f64>,
+    pub(crate) scales: Vec<f64>,
 }
 
-#[derive(Debug, Serialize)]
-struct Permutations {
-    requested: usize,
-    attempted: usize,
-    completed: usize,
-    seed: u64,
-    alternative: CliAlternative,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Permutations {
+    pub(crate) requested: usize,
+    pub(crate) attempted: usize,
+    pub(crate) completed: usize,
+    pub(crate) seed: u64,
+    pub(crate) alternative: CliAlternative,
 }
 
 pub(super) struct RunArgs {
@@ -107,7 +113,10 @@ pub(super) fn run(args: RunArgs) -> Result<(), CohortError> {
 }
 
 impl Output {
-    fn from_result(result: ClusterCovariatePermutationResult, alternative: CliAlternative) -> Self {
+    pub(crate) fn from_result(
+        result: ClusterCovariatePermutationResult,
+        alternative: CliAlternative,
+    ) -> Self {
         match result.inference_design.analysis_level() {
             InferenceAnalysisLevel::Cluster => {}
             _ => unreachable!("cluster covariate inference returned another analysis level"),
@@ -121,19 +130,19 @@ impl Output {
             _ => unreachable!("cluster covariate inference returned another permutation unit"),
         }
         Self {
-            format: "marklab.cohort_cluster_covariate_permutation",
+            format: "marklab.cohort_cluster_covariate_permutation".into(),
             version: 1,
             design: Design {
-                analysis_level: "cluster",
-                null_family: "cluster_covariate_residual_permutation",
-                permutation_unit: "complete_cluster_residual",
-                cluster_summary: "equal_weight_patient_mean",
+                analysis_level: "cluster".into(),
+                null_family: "cluster_covariate_residual_permutation".into(),
+                permutation_unit: "complete_cluster_residual".into(),
+                cluster_summary: "equal_weight_patient_mean".into(),
                 nuisance_columns: result.covariate_names.len(),
                 reduced_model_columns: result.reduced_model_columns,
                 full_model_columns: result.full_model_columns,
                 residual_degrees_of_freedom: result.residual_degrees_of_freedom,
                 exchangeability_assumption:
-                    "reduced-model residuals are exchangeable across independent clusters conditional on the fixed cluster-level nuisance matrix",
+                    "reduced-model residuals are exchangeable across independent clusters conditional on the fixed cluster-level nuisance matrix".into(),
             },
             patients: result.patient_count,
             clusters: ClusterCounts {
@@ -161,7 +170,7 @@ impl Output {
                 seed: result.seed,
                 alternative,
             },
-            claim_status: "experimental_cluster_residual_exchangeability_required",
+            claim_status: "experimental_cluster_residual_exchangeability_required".into(),
         }
     }
 }
@@ -171,10 +180,14 @@ fn read_records(path: &std::path::Path) -> Result<Vec<ClusterCovariatePatientRec
         path,
         "cluster-covariate input must be a regular file within 16 MiB",
     )?;
-    let mut reader = csv::ReaderBuilder::new()
-        .flexible(false)
-        .from_path(path)
-        .map_err(|error| CohortError::Input(error.to_string()))?;
+    let bytes = fs::read(path).map_err(|error| CohortError::Input(error.to_string()))?;
+    read_records_from_bytes(&bytes)
+}
+
+pub(crate) fn read_records_from_bytes(
+    bytes: &[u8],
+) -> Result<Vec<ClusterCovariatePatientRecord>, CohortError> {
+    let mut reader = csv::ReaderBuilder::new().flexible(false).from_reader(bytes);
     if !reader
         .headers()
         .map_err(|error| CohortError::Input(error.to_string()))?
