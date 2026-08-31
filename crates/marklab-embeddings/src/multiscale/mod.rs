@@ -1,3 +1,4 @@
+mod allocation;
 mod artifact;
 mod cell_patch;
 mod cell_patch_context;

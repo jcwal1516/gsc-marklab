@@ -4,9 +4,10 @@ use marklab_data::SlideId;
 use marklab_project::{ArtifactId, ContentDigest};
 
 use super::{
-    EmbeddingEntityKind, EmbeddingFinalizationBudgets, ExpectedSlideSet, MultiscaleEmbeddingError,
-    MultiscaleEmbeddingQcSummary, PatchEmbeddingTable, RegionEmbeddingTable, SlideEmbeddingRow,
-    SlideEmbeddingTable, VerifiedDerivedSlideEmbeddingArtifactGraph,
+    allocation::try_vec_capacity, EmbeddingEntityKind, EmbeddingFinalizationBudgets,
+    ExpectedSlideSet, MultiscaleEmbeddingError, MultiscaleEmbeddingQcSummary, PatchEmbeddingTable,
+    RegionEmbeddingTable, SlideEmbeddingRow, SlideEmbeddingTable,
+    VerifiedDerivedSlideEmbeddingArtifactGraph,
 };
 use crate::digest::canonical_positive_zero;
 
@@ -329,17 +330,6 @@ fn require_exact_bindings(
         return Err(MultiscaleEmbeddingError::DerivedEmbeddingFinalizationBindingMismatch);
     }
     Ok(())
-}
-
-fn try_vec_capacity<T>(capacity: usize) -> Result<Vec<T>, MultiscaleEmbeddingError> {
-    let requested = capacity
-        .checked_mul(size_of::<T>())
-        .ok_or(MultiscaleEmbeddingError::SizeOverflow)?;
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(capacity)
-        .map_err(|_| MultiscaleEmbeddingError::AllocationFailed { requested })?;
-    Ok(values)
 }
 
 fn try_vec_with_zeros<T: Clone + Default>(

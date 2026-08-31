@@ -9,19 +9,10 @@ use super::{
 };
 use crate::multiscale::error::MultiscaleEmbeddingError;
 
+pub(super) use crate::multiscale::allocation::try_vec_capacity;
+
 pub(super) const MAX_ASSIGNMENTS: usize = 100_000_000;
 pub(super) const MAX_CELL_PATCH_EDGES: usize = 400_000_000;
-
-pub(super) fn try_vec_capacity<T>(capacity: usize) -> Result<Vec<T>, MultiscaleEmbeddingError> {
-    let requested = capacity
-        .checked_mul(size_of::<T>())
-        .ok_or(MultiscaleEmbeddingError::SizeOverflow)?;
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(capacity)
-        .map_err(|_| MultiscaleEmbeddingError::AllocationFailed { requested })?;
-    Ok(values)
-}
 
 pub(super) fn increment_edge_count(current: usize) -> Result<usize, MultiscaleEmbeddingError> {
     let observed = current

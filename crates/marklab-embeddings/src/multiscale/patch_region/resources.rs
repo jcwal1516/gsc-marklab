@@ -3,18 +3,9 @@ use std::mem::size_of;
 use super::{types::PatchRegionDeclaration, PatchRegionAssessment, PatchRegionLink};
 use crate::multiscale::error::MultiscaleEmbeddingError;
 
-pub(super) const MAX_PATCH_REGION_ROWS: usize = 400_000_000;
+pub(super) use crate::multiscale::allocation::try_vec_capacity;
 
-pub(super) fn try_vec_capacity<T>(capacity: usize) -> Result<Vec<T>, MultiscaleEmbeddingError> {
-    let requested = capacity
-        .checked_mul(size_of::<T>())
-        .ok_or(MultiscaleEmbeddingError::SizeOverflow)?;
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(capacity)
-        .map_err(|_| MultiscaleEmbeddingError::AllocationFailed { requested })?;
-    Ok(values)
-}
+pub(super) const MAX_PATCH_REGION_ROWS: usize = 400_000_000;
 
 pub(super) fn input_bytes(
     rows: &Vec<PatchRegionDeclaration>,

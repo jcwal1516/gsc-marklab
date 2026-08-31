@@ -4,8 +4,8 @@ use marklab_data::PatchId;
 use marklab_project::{ArtifactId, ContentDigest};
 
 use super::{
-    context::PatchEmbeddingContext, digest::LogicalDigest, error::MultiscaleEmbeddingError,
-    expected::ExpectedPatchSet, footprint::PatchFootprintSet,
+    allocation::try_vec_capacity, context::PatchEmbeddingContext, digest::LogicalDigest,
+    error::MultiscaleEmbeddingError, expected::ExpectedPatchSet, footprint::PatchFootprintSet,
 };
 
 const OVERLAP_DOMAIN: &[u8] = b"marklab-patch-overlap-graph-logical-v1";
@@ -392,17 +392,6 @@ fn union_minimum(parents: &mut [usize], left: usize, right: usize) {
         };
         parents[maximum] = minimum;
     }
-}
-
-fn try_vec_capacity<T>(capacity: usize) -> Result<Vec<T>, MultiscaleEmbeddingError> {
-    let requested = capacity
-        .checked_mul(size_of::<T>())
-        .ok_or(MultiscaleEmbeddingError::SizeOverflow)?;
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(capacity)
-        .map_err(|_| MultiscaleEmbeddingError::AllocationFailed { requested })?;
-    Ok(values)
 }
 
 fn clone_patch_ids(ids: &[PatchId]) -> Result<Box<[PatchId]>, MultiscaleEmbeddingError> {
