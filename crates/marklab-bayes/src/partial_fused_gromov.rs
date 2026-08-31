@@ -2,7 +2,9 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::fused_gromov::{approximately_equal, same_plan};
+use crate::fused_gromov::{
+    approximately_equal, same_plan, squared_feature_cost, structural_objective,
+};
 use crate::{BackendContract, BayesError, FgwPlanEntry, FgwSupport, FitState, WorkerBackend};
 
 const POT_VERSION: &str = "0.9.7.post1";
@@ -377,7 +379,14 @@ fn validate_fit(
     for unmatched in unmatched_source.iter().chain(&unmatched_target) {
         violation = violation.max((-unmatched).max(0.0));
     }
-    let structural_objective = structural_objective(&fit.plan, request);
+    let structural_objective = structural_objective(
+        &fit.plan,
+        request.source.len(),
+        request.target.len(),
+        &request.source_structure_row_major,
+        &request.target_structure_row_major,
+        request.structure_scale,
+    );
     let regularized_objective =
         alpha * feature_objective + (1.0 - alpha) * structural_objective - epsilon * entropy;
     if !same_values(&source_marginals, &fit.source_marginals)
@@ -443,41 +452,6 @@ fn expected_controls(
         }
     };
     Ok(controls)
-}
-
-fn squared_feature_cost(source: &[f64], target: &[f64], scale: f64) -> f64 {
-    source
-        .iter()
-        .zip(target)
-        .map(|(left, right)| ((left - right) / scale).powi(2))
-        .sum()
-}
-
-fn structural_objective(
-    plan: &[FgwPlanEntry],
-    request: &PartialFusedGromovWassersteinWorkerRequest,
-) -> f64 {
-    let rows = request.source.len();
-    let columns = request.target.len();
-    let mut objective = 0.0;
-    for source_left in 0..rows {
-        for target_left in 0..columns {
-            for source_right in 0..rows {
-                for target_right in 0..columns {
-                    let source_distance = request.source_structure_row_major
-                        [source_left * rows + source_right]
-                        / request.structure_scale;
-                    let target_distance = request.target_structure_row_major
-                        [target_left * columns + target_right]
-                        / request.structure_scale;
-                    objective += (source_distance - target_distance).powi(2)
-                        * plan[source_left * columns + target_left].mass
-                        * plan[source_right * columns + target_right].mass;
-                }
-            }
-        }
-    }
-    objective
 }
 
 fn same_values(left: &[f64], right: &[f64]) -> bool {

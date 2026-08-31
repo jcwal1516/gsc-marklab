@@ -329,7 +329,14 @@ fn validate_fit(
             }
         }
     }
-    let structural_objective = structural_objective(&fit.plan, request);
+    let structural_objective = structural_objective(
+        &fit.plan,
+        request.source.len(),
+        request.target.len(),
+        &request.source_structure_row_major,
+        &request.target_structure_row_major,
+        request.structure_scale,
+    );
     let regularized_objective = request.alpha * feature_objective
         + (1.0 - request.alpha) * structural_objective
         - request.epsilon * entropy;
@@ -367,7 +374,7 @@ fn validate_fit(
     Ok(())
 }
 
-fn squared_feature_cost(source: &[f64], target: &[f64], scale: f64) -> f64 {
+pub(crate) fn squared_feature_cost(source: &[f64], target: &[f64], scale: f64) -> f64 {
     source
         .iter()
         .zip(target)
@@ -375,23 +382,25 @@ fn squared_feature_cost(source: &[f64], target: &[f64], scale: f64) -> f64 {
         .sum()
 }
 
-fn structural_objective(
+pub(crate) fn structural_objective(
     plan: &[FgwPlanEntry],
-    request: &FusedGromovWassersteinWorkerRequest,
+    rows: usize,
+    columns: usize,
+    source_structure_row_major: &[f64],
+    target_structure_row_major: &[f64],
+    structure_scale: f64,
 ) -> f64 {
-    let rows = request.source.len();
-    let columns = request.target.len();
     let mut objective = 0.0;
     for source_left in 0..rows {
         for target_left in 0..columns {
             for source_right in 0..rows {
                 for target_right in 0..columns {
-                    let source_distance = request.source_structure_row_major
+                    let source_distance = source_structure_row_major
                         [source_left * rows + source_right]
-                        / request.structure_scale;
-                    let target_distance = request.target_structure_row_major
+                        / structure_scale;
+                    let target_distance = target_structure_row_major
                         [target_left * columns + target_right]
-                        / request.structure_scale;
+                        / structure_scale;
                     objective += (source_distance - target_distance).powi(2)
                         * plan[source_left * columns + target_left].mass
                         * plan[source_right * columns + target_right].mass;
