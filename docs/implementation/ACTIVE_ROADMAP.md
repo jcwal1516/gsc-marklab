@@ -17,6 +17,16 @@ Do not generalize the mesh, solver, model registry, or plugin surface. Anisotrop
 fields, additional fitted factors, and broader local spatial families remain caller-dependent and
 must not be promoted from synthetic correctness evidence alone.
 
+## Real fitted-field follow-through — checkpoint 201
+
+The exact representative CPTAC projected-CellViT source/window now completes both the local
+multivariate and adaptive-SPDE real lanes with durable replay. Those outputs remain single-slide
+diagnostics and do not satisfy patient-population promotion. The next caller-backed frontier is a
+patient-nested reduction of local-field summaries across provenance-complete slides, using existing
+patient inference rather than treating cells or local detections as replicates. Broader anisotropic
+or nonstationary SPDE families remain deferred until that reduction identifies a concrete residual
+scientific need; do not expand a general solver catalog first.
+
 ## Full-program resumption override — 2026-08-30
 
 Later explicit user direction resumes the full dependency-ordered Marklab master plan after the

@@ -21,6 +21,7 @@ pub(crate) struct PreparedLocalMultivariateMoran {
     pub points: Vec<LocalMultivariateMoranPoint>,
     pub feature_names: Vec<String>,
     pub window: ObservationWindow2D,
+    pub source_schema: &'static str,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -52,7 +53,15 @@ pub(crate) fn run_direct(
         maximum_permutation_edge_evaluations,
         memory_budget_bytes,
     )?;
+    let result = canonical_result_codec(result)?;
     publish_pretty_json(&out, &result, "local multivariate Moran").map_err(map_output_error)
+}
+
+fn canonical_result_codec(
+    result: LocalMultivariateMoranResult,
+) -> Result<LocalMultivariateMoranResult, NumericsCliError> {
+    let bytes = serde_json::to_vec(&result)?;
+    serde_json::from_slice(&bytes).map_err(NumericsCliError::Json)
 }
 
 pub(crate) fn prepare(
@@ -72,7 +81,7 @@ pub(crate) fn prepare(
             "local multivariate sources exceed the retained-memory budget".into(),
         ));
     }
-    let (points, feature_names) = parse_points(&input_bytes)?;
+    let (points, feature_names, source_schema) = parse_points(&input_bytes)?;
     let window_text = std::str::from_utf8(&window_bytes)
         .map_err(|_| NumericsCliError::Input("window GeoJSON must be UTF-8".into()))?;
     let window =
@@ -114,6 +123,7 @@ pub(crate) fn prepare(
         points,
         feature_names,
         window,
+        source_schema,
     })
 }
 
@@ -149,7 +159,7 @@ pub(crate) fn evaluate(
 
 fn parse_points(
     bytes: &[u8],
-) -> Result<(Vec<LocalMultivariateMoranPoint>, Vec<String>), NumericsCliError> {
+) -> Result<(Vec<LocalMultivariateMoranPoint>, Vec<String>, &'static str), NumericsCliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
@@ -158,23 +168,36 @@ fn parse_points(
         .headers()
         .map_err(|error| NumericsCliError::Input(error.to_string()))?
         .clone();
-    if headers.len() < 6
-        || headers.get(0) != Some("point_id")
-        || headers.get(1) != Some("permutation_stratum")
-        || headers.get(2) != Some("x_um")
-        || headers.get(3) != Some("y_um")
-    {
+    let generic = headers.len() >= 6
+        && headers.get(0) == Some("point_id")
+        && headers.get(1) == Some("permutation_stratum")
+        && headers.get(2) == Some("x_um")
+        && headers.get(3) == Some("y_um");
+    let cellvit = headers.len() >= 5
+        && headers.get(0) == Some("cell_id")
+        && headers.get(1) == Some("x_um")
+        && headers.get(2) == Some("y_um")
+        && headers
+            .iter()
+            .skip(3)
+            .all(|name| name.starts_with("cellvit_pc_"));
+    if !generic && !cellvit {
         return Err(NumericsCliError::Input(
-            "point CSV requires point_id,permutation_stratum,x_um,y_um and at least two feature columns"
-                .into(),
+            "point CSV requires either point_id,permutation_stratum,x_um,y_um plus features or canonical cell_id,x_um,y_um,cellvit_pc_* columns".into(),
         ));
     }
+    let (x_column, y_column, feature_start, source_schema) = if generic {
+        (2, 3, 4, "generic_complete_multivariate_mark_csv_v1")
+    } else {
+        (1, 2, 3, "canonical_single_slide_cellvit_projection_csv_v1")
+    };
     let feature_names = headers
         .iter()
-        .skip(4)
+        .skip(feature_start)
         .map(str::to_owned)
         .collect::<Vec<_>>();
     let mut points = Vec::new();
+    let mut cellvit_slide = None::<String>;
     for (row, record) in reader.records().enumerate() {
         let record = record.map_err(|error| NumericsCliError::Input(error.to_string()))?;
         let parse = |column: usize| {
@@ -186,18 +209,44 @@ fn parse_points(
                 ))
             })
         };
-        let values = (4..record.len())
+        let values = (feature_start..record.len())
             .map(parse)
             .collect::<Result<Vec<_>, _>>()?;
+        let permutation_stratum = if generic {
+            record[1].to_owned()
+        } else {
+            let (slide_id, cell_suffix) = record[0].split_once(':').ok_or_else(|| {
+                NumericsCliError::Input(format!(
+                    "canonical CellViT row {} cell_id does not contain slide:cell identity",
+                    row + 2
+                ))
+            })?;
+            if slide_id.is_empty() || cell_suffix.is_empty() {
+                return Err(NumericsCliError::Input(format!(
+                    "canonical CellViT row {} cell_id has an empty identity component",
+                    row + 2
+                )));
+            }
+            if cellvit_slide
+                .as_deref()
+                .is_some_and(|expected| expected != slide_id)
+            {
+                return Err(NumericsCliError::Input(
+                    "canonical CellViT local inference requires exactly one slide/window".into(),
+                ));
+            }
+            cellvit_slide.get_or_insert_with(|| slide_id.to_owned());
+            slide_id.to_owned()
+        };
         points.push(LocalMultivariateMoranPoint {
             point_id: record[0].to_owned(),
-            permutation_stratum: record[1].to_owned(),
-            x_um: parse(2)?,
-            y_um: parse(3)?,
+            permutation_stratum,
+            x_um: parse(x_column)?,
+            y_um: parse(y_column)?,
             values,
         });
     }
-    Ok((points, feature_names))
+    Ok((points, feature_names, source_schema))
 }
 
 fn read_bounded(

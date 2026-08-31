@@ -4984,3 +4984,29 @@ vascular transport.
   `target` directory. The documented macOS Nextest/full-integration loader loop is not run; no
   benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or history
   rewrite runs.
+
+## Real CellViT local-field and adaptive-SPDE checkpoint 201 — 2026-08-31
+
+- Expected canonical-interchange red: the direct local test rejected
+  `cell_id,x_um,y_um,cellvit_pc_*`. After implementation, `local_multivariate_moran_cli` passes 2/2.
+  A subsequently added 100-row decimal-valued direct/project regression failed on one-ULP JSON
+  drift, then passed after direct output used the durable typed codec.
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  local_multivariate_moran_cli --test durable_local_multivariate_moran_project --test
+  bayes_adaptive_window_spde_cli --test durable_adaptive_window_spde_project -- --test-threads=1`
+  passes 7/7. `python -m py_compile marklab_scipy_advanced_bayes_worker.py` and affected
+  warning-denied CLI Clippy pass.
+- The first real adaptive fit failed at the 1,000-iteration limit; a convergence-only 5,000-iteration
+  retry also failed from the original initialization. A block-coordinate exact-ridge warm start
+  followed by bounded L-BFGS preserves the model/data/selection/hyperparameters and passes both
+  synthetic window oracles before the real rerun. The real solver terminates by SciPy's
+  relative-objective criterion and reports its nonzero gradient rather than hiding it.
+- Real local direct/miss/backend-disabled-hit bytes share SHA-256
+  `6ddacfa402b5405d184a1c35612f7641029f37b74f6818fccff7874d5ef4724c` and one execution. Real
+  adaptive miss/backend-disabled-hit bytes share SHA-256
+  `e368a74a2b1c6f105f2f60ac44fe63633c88cdc9c200617b210c99238876c3b1` and one execution; direct
+  versus project comparison has zero nonnumeric differences and two numeric differences with
+  maximum absolute magnitude `6.617444900424222e-24`.
+- `cargo +1.96.0 fmt --all --check` and `git diff --check` pass. No workspace Nextest/full-loader
+  loop, benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or history
+  rewrite runs.

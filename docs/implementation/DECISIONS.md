@@ -3708,3 +3708,24 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   limitations; region rows are repeated spatial observations, not population replicates, and the
   fitted field does not imply communication or causality. This does not create a general mesh,
   solver, plugin, or nonstationary-field framework.
+
+## DEC-0392 — Consume canonical single-slide CellViT projections without coordinate reconstruction
+
+- Date: 2026-08-31
+- Status: accepted for EMB-01/FND-04/FND-06/BAY-04/BAY-05/WF-01/WS-12/WS-23/WS-43
+- Decision: admit the existing canonical per-slide projected CellViT CSV directly when its columns
+  are exactly `cell_id,x_um,y_um,cellvit_pc_*`. Derive the permutation stratum only from the
+  nonempty slide prefix of every `slide:cell` identity, require one common slide because one exact
+  observation window is supplied, preserve every coordinate and projected value, and bind this
+  source schema into the durable cache key. Canonicalize direct local-Moran output through the same
+  typed JSON codec used by durable replay. For the immediate real adaptive-SPDE evidence, select a
+  bounded 128-cell subset solely by domain-separated SHA-256 Cell-ID rank after exact-window
+  membership; use fixed physical hyperparameters and a block-coordinate ridge warm start before
+  the existing bounded L-BFGS MAP solve.
+- Consequences: the real representative CPTAC slide can run without decoding the deliberately
+  offset multi-slide variogram coordinates or fabricating an inverse transform. Direct/local
+  project output is byte-identical, while adaptive direct/project numeric payloads differ only in
+  two codec-round-trip values by at most `6.62e-24` and durable miss/hit bytes are identical. The
+  local and SPDE outputs remain one-slide diagnostics; selected cells are not population
+  replicates, and neither local familywise detections nor a fitted factor establish patient,
+  molecular, communication, causal, or clinical effects.

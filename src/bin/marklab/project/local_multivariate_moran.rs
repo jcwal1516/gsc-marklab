@@ -162,6 +162,7 @@ impl LocalMultivariateMoranProjectNode {
         }
         let configuration_digest = ContentDigest::from_framed([
             b"marklab-local-multivariate-moran-configuration-v1".as_slice(),
+            prepared.source_schema.as_bytes(),
             radius_um.to_bits().to_be_bytes().as_slice(),
             permutations.to_string().as_bytes(),
             seed.to_string().as_bytes(),
@@ -172,7 +173,8 @@ impl LocalMultivariateMoranProjectNode {
             memory_budget_mib.to_string().as_bytes(),
         ]);
         let execution_policy = format!(
-            "serial;complete-multivariate-rows-within-strata;row-standardized-radius-weights;single-step-max-abs;permutations={permutations};seed={seed};maximum_points={maximum_points};maximum_dimension={maximum_dimension};maximum_directed_edges={maximum_directed_edges};maximum_permutation_edge_evaluations={maximum_permutation_edge_evaluations};memory_budget_mib={memory_budget_mib}"
+            "serial;source_schema={};complete-multivariate-rows-within-strata;row-standardized-radius-weights;single-step-max-abs;permutations={permutations};seed={seed};maximum_points={maximum_points};maximum_dimension={maximum_dimension};maximum_directed_edges={maximum_directed_edges};maximum_permutation_edge_evaluations={maximum_permutation_edge_evaluations};memory_budget_mib={memory_budget_mib}",
+            prepared.source_schema
         )
         .into_bytes();
         Ok(Self {

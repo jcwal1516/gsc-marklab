@@ -621,3 +621,12 @@ likelihood, finite-result and resource policy, exact configuration/runtime/backe
 cross-process replay. This closes the selected implementable mathematical gaps for their bounded
 callers, not the broader anisotropic/nonstationary, arbitrary-factor, or patient-population
 catalogs. Real promotion remains conditional on exact projected-embedding/window correspondence.
+
+## Real CellViT local-field and adaptive-SPDE checkpoint 201
+
+EMB-01, FND-04, FND-06, BAY-04, BAY-05, PLAT-01, WF-01, WS-12, WS-23, and WS-43 advance from
+synthetic correctness into one provenance-complete real projected-CellViT slide. Canonical
+single-slide input interchange, direct/durable float-codec parity, local complete-row Max-T, and a
+boundary-adaptive fitted factor all execute and replay. This does not complete patient-population
+inference, anisotropic/nonstationary fields, or cross-cohort validation. The next dependency is a
+prespecified patient-nested reduction across exact slide/window identities, not more local methods.

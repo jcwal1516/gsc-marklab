@@ -4256,3 +4256,37 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   provenance-complete projected-embedding table paired to the same admitted exact window and
   region/cell coordinate identity; no causal, communication, significance, or patient-population
   claim is inferred from the synthetic planted or FEM oracles.
+
+## Real CellViT local-field and adaptive-SPDE checkpoint 201 — 2026-08-31
+
+- The canonical per-slide projected CellViT schema now feeds local multivariate inference directly.
+  It requires exact `cell_id,x_um,y_um,cellvit_pc_*` columns, derives one slide stratum from every
+  `slide:cell` identity, rejects mixed slides, preserves all source values, and binds the schema in
+  the cache identity. A 100-row decimal regression exposed and fixed one-ULP direct/project JSON
+  drift by publishing the direct result through the same typed durable codec.
+- Read-only Mac-mini admission uses projected source SHA-256
+  `efd2a3fa9855692ed8ebd1d54faabbea282b3a07f38973f3d578dae4bc8d2940` and exact-window SHA-256
+  `9ba8102b98f5e4f42dc4c19d9fd341b0acb6d6ecf671997ce709187312c61fb4` for slide
+  `ea6df59d-5240-4927-b19d-d44590`. All 2,318 rows and 16 projected components are finite and inside
+  the admitted 12-component patch-union window. At the already declared 200-micrometre scale, the
+  graph has 609,838 directed edges and 60,373,962 permutation-edge evaluations. The global
+  maximum-absolute randomization p-value is 0.01 and 455 local rows have adjusted p at most 0.05.
+  Direct/miss/hit files are byte-identical at SHA-256
+  `6ddacfa402b5405d184a1c35612f7641029f37b74f6818fccff7874d5ef4724c`; the ledger has one row.
+- The real adaptive-SPDE lane uses 128 exact-window cells selected solely by domain-separated
+  SHA-256 Cell-ID rank, 16 fixed projected components, kappa 0.01, tau 1, noise SD 0.1, and final
+  request SHA-256 `8ea3b8fd9a675dfad690b26a863076ae7afca93e585a0939d96e7f1899f97059`.
+  The 286-vertex/391-triangle mesh preserves all 12 components, has relative area error
+  0.0006782, positive minimum precision eigenvalue `1.4752e-5`, and exact projection row sums. The
+  fitted one-factor RMSE is 0.1237 and its x-correlation is only 0.180. The warmed solver terminates
+  under SciPy's relative-objective criterion after 4,452 iterations and retains maximum gradient
+  0.00613 as a numerical limitation.
+- Adaptive durable miss/hit files are byte-identical at SHA-256
+  `e368a74a2b1c6f105f2f60ac44fe63633c88cdc9c200617b210c99238876c3b1` with one ledger row and a
+  backend-disabled hit. Direct and project payloads have no nonnumeric differences and only two
+  float-codec differences, bounded by `6.62e-24`. These results are single-slide local-field
+  diagnostics, not patient/cohort inference or evidence of biological communication, molecular
+  recurrence, causality, or clinical utility.
+- The four focused local/adaptive CLI targets pass 7/7; Python bytecode compilation, affected
+  warning-denied CLI Clippy, formatting, and whitespace checks pass. No broad workspace loader
+  loop, benchmark, fuzzing, packaging, dependency audit, push, publication, or deployment runs.

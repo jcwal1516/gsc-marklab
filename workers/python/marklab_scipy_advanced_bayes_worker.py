@@ -494,23 +494,53 @@ def fit_adaptive_spatial_factor(mesh, observations, noise_sd, maximum_iterations
     centered = values - means
     initial_field = np.linalg.solve(design.T @ design + noise_sd ** 2 * mesh["precision"] + np.eye(len(mesh["vertices"])) * 1e-8, design.T @ centered[:, 0])
     initial_loadings = np.linalg.lstsq((design @ initial_field)[:, None], centered, rcond=None)[0].ravel()
-    initial = np.concatenate([initial_field, initial_loadings])
-    vertex_count = len(initial_field)
+    if not np.isfinite(initial_loadings).all() or float(initial_loadings @ initial_loadings) <= 1e-16:
+        initial_loadings = np.zeros(values.shape[1]); initial_loadings[0] = 1.0
+    field = initial_field
+    loadings = initial_loadings
     precision = mesh["precision"]
-    def objective(parameter):
-        field = parameter[:vertex_count]
-        loadings = parameter[vertex_count:]
+    gram = design.T @ design
+    converged = False
+    objective_value = math.inf
+    gradient_maximum = math.inf
+    block_iterations = min(50, max(1, maximum_iterations // 5))
+    for iteration in range(1, block_iterations + 1):
+        loading_norm = float(loadings @ loadings)
+        system = precision + (loading_norm / noise_sd ** 2) * gram + np.eye(len(field)) * 1e-10
+        right_hand_side = design.T @ (centered @ loadings) / noise_sd ** 2
+        field = np.linalg.solve(system, right_hand_side)
         projected = design @ field
+        denominator = 1.0 + float(projected @ projected) / noise_sd ** 2
+        loadings = (projected @ centered) / (noise_sd ** 2 * denominator)
         residual = centered - projected[:, None] * loadings[None, :]
-        value = 0.5 * np.sum(residual ** 2) / noise_sd ** 2 + 0.5 * field @ precision @ field + 0.5 * loadings @ loadings
+        objective_value = float(0.5 * np.sum(residual ** 2) / noise_sd ** 2 + 0.5 * field @ precision @ field + 0.5 * loadings @ loadings)
         gradient_field = precision @ field - design.T @ (residual @ loadings) / noise_sd ** 2
         gradient_loadings = loadings - projected @ residual / noise_sd ** 2
-        return float(value), np.concatenate([gradient_field, gradient_loadings])
-    fit = minimize(objective, initial, jac=True, method="L-BFGS-B", options={"maxiter": maximum_iterations, "ftol": 1e-12, "gtol": 1e-7})
-    if not fit.success and np.linalg.norm(fit.jac, ord=np.inf) > 2e-4:
-        raise ContractError(f"adaptive SPDE factor optimization failed: {fit.message}")
-    field = fit.x[:vertex_count]
-    loadings = fit.x[vertex_count:]
+        gradient_maximum = float(np.linalg.norm(np.concatenate([gradient_field, gradient_loadings]), ord=np.inf))
+        if not math.isfinite(objective_value) or not math.isfinite(gradient_maximum):
+            raise ContractError("adaptive SPDE block-coordinate solver produced a nonfinite state")
+        if gradient_maximum <= 2e-4:
+            converged = True
+            break
+    if not converged:
+        vertex_count = len(field)
+        def objective(parameter):
+            candidate_field = parameter[:vertex_count]
+            candidate_loadings = parameter[vertex_count:]
+            candidate_projected = design @ candidate_field
+            candidate_residual = centered - candidate_projected[:, None] * candidate_loadings[None, :]
+            value = 0.5 * np.sum(candidate_residual ** 2) / noise_sd ** 2 + 0.5 * candidate_field @ precision @ candidate_field + 0.5 * candidate_loadings @ candidate_loadings
+            gradient_field = precision @ candidate_field - design.T @ (candidate_residual @ candidate_loadings) / noise_sd ** 2
+            gradient_loadings = candidate_loadings - candidate_projected @ candidate_residual / noise_sd ** 2
+            return float(value), np.concatenate([gradient_field, gradient_loadings])
+        fit = minimize(objective, np.concatenate([field, loadings]), jac=True, method="L-BFGS-B", options={"maxiter": maximum_iterations - block_iterations, "ftol": 1e-12, "gtol": 1e-7})
+        field = fit.x[:vertex_count]
+        loadings = fit.x[vertex_count:]
+        objective_value = float(fit.fun)
+        gradient_maximum = float(np.linalg.norm(fit.jac, ord=np.inf))
+        iteration = block_iterations + int(fit.nit)
+        if not math.isfinite(objective_value) or not math.isfinite(gradient_maximum) or (not fit.success and gradient_maximum > 2e-4):
+            raise ContractError(f"adaptive SPDE warmed optimization failed after {iteration} iterations with gradient {gradient_maximum}: {fit.message}")
     projected = design @ field
     if loadings[0] < 0:
         field = -field
@@ -518,7 +548,7 @@ def fit_adaptive_spatial_factor(mesh, observations, noise_sd, maximum_iterations
         projected = -projected
     reconstruction = means + projected[:, None] * loadings[None, :]
     correlation = float(np.corrcoef(projected, coordinates[:, 0])[0, 1])
-    return {"means": means, "field": field, "projected": projected, "loadings": loadings, "rmse": float(np.sqrt(np.mean((reconstruction - values) ** 2))), "x_correlation": correlation, "objective": float(fit.fun), "gradient_max": float(np.linalg.norm(fit.jac, ord=np.inf)), "iterations": int(fit.nit), "projection": design, "projection_visits": projection_visits}
+    return {"means": means, "field": field, "projected": projected, "loadings": loadings, "rmse": float(np.sqrt(np.mean((reconstruction - values) ** 2))), "x_correlation": correlation, "objective": objective_value, "gradient_max": gradient_maximum, "iterations": iteration, "projection": design, "projection_visits": projection_visits}
 
 
 def adaptive_window_spde(spec):

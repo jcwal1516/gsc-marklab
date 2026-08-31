@@ -74,6 +74,12 @@ fn boundary_adaptive_spde_preserves_a_hole_and_matches_fem_integral_oracles() {
             .expect("factor correlation")
             > 0.8
     );
+    assert!(
+        result["spatial_factor"]["gradient_maximum"]
+            .as_f64()
+            .expect("gradient maximum")
+            <= 2e-4
+    );
     assert_eq!(
         result["claim_status"],
         "fitted_arbitrary_window_spde_diagnostic"
