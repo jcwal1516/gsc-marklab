@@ -10,11 +10,17 @@ use self::{
 };
 use super::topology::TopologyCliError;
 
+#[path = "registration/atlas.rs"]
 mod atlas;
+#[path = "registration/landmark_uncertainty.rs"]
 mod landmark_uncertainty;
+#[path = "registration/lddmm_landmarks.rs"]
 mod lddmm_landmarks;
+#[path = "registration/nonrigid.rs"]
 mod nonrigid;
+#[path = "registration/probabilistic_svf.rs"]
 mod probabilistic_svf;
+#[path = "registration/svf.rs"]
 mod svf;
 
 #[derive(Debug, Parser)]
