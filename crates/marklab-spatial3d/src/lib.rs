@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
 
 mod graph;
@@ -55,7 +55,7 @@ pub struct CuboidWindowInput {
     pub maximum: [f64; 3],
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum K3dCorrection {
     None,
@@ -76,7 +76,8 @@ pub struct HomogeneousK3dSpec {
     pub maximum_unordered_pairs: u64,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct NormalizedPoint3D {
     pub id: String,
     pub coordinates_um: [f64; 3],
@@ -94,7 +95,45 @@ pub struct CompiledCuboid3D {
     pub cavities: u32,
 }
 
-#[derive(Clone, Debug, Serialize)]
+impl<'de> Deserialize<'de> for CompiledCuboid3D {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct OwnedWindow {
+            representation: String,
+            minimum_um: [f64; 3],
+            maximum_um: [f64; 3],
+            side_lengths_um: [f64; 3],
+            volume_um3: f64,
+            surface_area_um2: f64,
+            components: u32,
+            cavities: u32,
+        }
+
+        let owned = OwnedWindow::deserialize(deserializer)?;
+        if owned.representation != "axis_aligned_cuboid" {
+            return Err(serde::de::Error::custom(
+                "unexpected compiled 3-D window representation",
+            ));
+        }
+        Ok(Self {
+            representation: "axis_aligned_cuboid",
+            minimum_um: owned.minimum_um,
+            maximum_um: owned.maximum_um,
+            side_lengths_um: owned.side_lengths_um,
+            volume_um3: owned.volume_um3,
+            surface_area_um2: owned.surface_area_um2,
+            components: owned.components,
+            cavities: owned.cavities,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct K3dCurvePoint {
     pub radius_um: f64,
     pub k_um3: f64,
@@ -119,6 +158,63 @@ pub struct HomogeneousK3dResult {
     pub unordered_pairs_visited: u64,
     pub pair_radius_evaluations: u64,
     pub claim_status: &'static str,
+}
+
+impl<'de> Deserialize<'de> for HomogeneousK3dResult {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct OwnedResult {
+            format: String,
+            version: u32,
+            dimension: u32,
+            coordinate_unit: String,
+            normalized_voxel_spacing_um: [f64; 3],
+            metric: String,
+            anisotropy_matrix: Option<[[f64; 3]; 3]>,
+            correction: K3dCorrection,
+            window: CompiledCuboid3D,
+            normalized_points: Vec<NormalizedPoint3D>,
+            curve: Vec<K3dCurvePoint>,
+            unordered_pairs_visited: u64,
+            pair_radius_evaluations: u64,
+            claim_status: String,
+        }
+
+        let owned = OwnedResult::deserialize(deserializer)?;
+        let metric = match owned.metric.as_str() {
+            "euclidean_physical_um" => "euclidean_physical_um",
+            "anisotropic_mahalanobis_physical_um" => "anisotropic_mahalanobis_physical_um",
+            _ => return Err(serde::de::Error::custom("unexpected 3-D metric identity")),
+        };
+        if owned.format != "marklab.homogeneous_k3d"
+            || owned.coordinate_unit != "micrometer"
+            || owned.claim_status != "homogeneous_cuboid_3d_descriptive_only"
+        {
+            return Err(serde::de::Error::custom(
+                "unexpected homogeneous 3-D result identity",
+            ));
+        }
+        Ok(Self {
+            format: "marklab.homogeneous_k3d",
+            version: owned.version,
+            dimension: owned.dimension,
+            coordinate_unit: "micrometer",
+            normalized_voxel_spacing_um: owned.normalized_voxel_spacing_um,
+            metric,
+            anisotropy_matrix: owned.anisotropy_matrix,
+            correction: owned.correction,
+            window: owned.window,
+            normalized_points: owned.normalized_points,
+            curve: owned.curve,
+            unordered_pairs_visited: owned.unordered_pairs_visited,
+            pair_radius_evaluations: owned.pair_radius_evaluations,
+            claim_status: "homogeneous_cuboid_3d_descriptive_only",
+        })
+    }
 }
 
 #[derive(Debug, Error)]

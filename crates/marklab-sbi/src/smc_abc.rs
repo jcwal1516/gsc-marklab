@@ -2,7 +2,7 @@ use marklab_simulation::{simulate_growth_front, GrowthFrontInitialPoint, GrowthF
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use rand_distr::StandardNormal;
-use serde::Serialize;
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::SbiError;
 
@@ -25,14 +25,16 @@ pub struct SmcAbcGrowthFrontSpec {
     pub seed: u64,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct SmcAbcParticle {
     pub growth_rate_per_time: f64,
     pub distance: f64,
     pub weight: f64,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct SmcAbcStage {
     pub stage: u32,
     pub epsilon: f64,
@@ -44,7 +46,8 @@ pub struct SmcAbcStage {
     pub weighted_growth_rate_sd: f64,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct SmcAbcPosterior {
     pub growth_rate_mean: f64,
     pub growth_rate_sd: f64,
@@ -64,6 +67,69 @@ pub struct SmcAbcGrowthFrontResult {
     pub maximum_total_declared_cell_steps: u64,
     pub random_seed_namespace: &'static str,
     pub claim_status: &'static str,
+}
+
+impl<'de> Deserialize<'de> for SmcAbcGrowthFrontResult {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct OwnedResult {
+            format: String,
+            version: u32,
+            simulator: String,
+            summary: String,
+            prior: String,
+            stages: Vec<SmcAbcStage>,
+            particles: Vec<SmcAbcParticle>,
+            posterior: SmcAbcPosterior,
+            total_simulations: u64,
+            maximum_total_declared_cell_steps: u64,
+            random_seed_namespace: String,
+            claim_status: String,
+        }
+
+        let owned = OwnedResult::deserialize(deserializer)?;
+        let expected = [
+            (&owned.format, "marklab.smc_abc_growth_front", "format"),
+            (&owned.simulator, "marklab.growth_front_v1", "simulator"),
+            (&owned.summary, "final_total_density_mass", "summary"),
+            (&owned.prior, "uniform_growth_rate", "prior"),
+            (
+                &owned.random_seed_namespace,
+                "smc_abc_growth_front_v1_chacha20",
+                "random_seed_namespace",
+            ),
+            (
+                &owned.claim_status,
+                "synthetic_smc_abc_specialization_not_biological_calibration",
+                "claim_status",
+            ),
+        ];
+        for (observed, value, field) in expected {
+            if observed != value {
+                return Err(serde::de::Error::custom(format!(
+                    "unexpected SMC-ABC {field}: {observed}"
+                )));
+            }
+        }
+        Ok(Self {
+            format: "marklab.smc_abc_growth_front",
+            version: owned.version,
+            simulator: "marklab.growth_front_v1",
+            summary: "final_total_density_mass",
+            prior: "uniform_growth_rate",
+            stages: owned.stages,
+            particles: owned.particles,
+            posterior: owned.posterior,
+            total_simulations: owned.total_simulations,
+            maximum_total_declared_cell_steps: owned.maximum_total_declared_cell_steps,
+            random_seed_namespace: "smc_abc_growth_front_v1_chacha20",
+            claim_status: "synthetic_smc_abc_specialization_not_biological_calibration",
+        })
+    }
 }
 
 pub fn smc_abc_growth_front(

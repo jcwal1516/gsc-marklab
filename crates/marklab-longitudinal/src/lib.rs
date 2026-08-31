@@ -21,7 +21,7 @@ pub use phylogenetic_association::{
 };
 
 use matrix::Matrix;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
 
 #[derive(Clone, Debug, Deserialize)]
@@ -40,7 +40,8 @@ pub struct LinearGaussianStateSpaceSpec {
     pub maximum_matrix_operations: u64,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct StateEstimate {
     pub time_index: usize,
     pub mean: Vec<f64>,
@@ -63,6 +64,58 @@ pub struct LinearGaussianStateSpaceResult {
     pub planned_matrix_operations_upper_bound: u64,
     pub maximum_matrix_operations: u64,
     pub claim_status: &'static str,
+}
+
+impl<'de> Deserialize<'de> for LinearGaussianStateSpaceResult {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct OwnedResult {
+            format: String,
+            version: u32,
+            algorithm: String,
+            state_dimension: usize,
+            time_steps: usize,
+            observed_components_per_step: Vec<usize>,
+            observed_updates: usize,
+            log_likelihood: f64,
+            predicted_states: Vec<StateEstimate>,
+            filtered_states: Vec<StateEstimate>,
+            smoothed_states: Vec<StateEstimate>,
+            planned_matrix_operations_upper_bound: u64,
+            maximum_matrix_operations: u64,
+            claim_status: String,
+        }
+
+        let owned = OwnedResult::deserialize(deserializer)?;
+        if owned.format != "marklab.linear_gaussian_state_space"
+            || owned.algorithm != "kalman_joseph_rts_cholesky"
+            || owned.claim_status != "linear_gaussian_model_only"
+        {
+            return Err(serde::de::Error::custom(
+                "unexpected linear-Gaussian state-space result identity",
+            ));
+        }
+        Ok(Self {
+            format: "marklab.linear_gaussian_state_space",
+            version: owned.version,
+            algorithm: "kalman_joseph_rts_cholesky",
+            state_dimension: owned.state_dimension,
+            time_steps: owned.time_steps,
+            observed_components_per_step: owned.observed_components_per_step,
+            observed_updates: owned.observed_updates,
+            log_likelihood: owned.log_likelihood,
+            predicted_states: owned.predicted_states,
+            filtered_states: owned.filtered_states,
+            smoothed_states: owned.smoothed_states,
+            planned_matrix_operations_upper_bound: owned.planned_matrix_operations_upper_bound,
+            maximum_matrix_operations: owned.maximum_matrix_operations,
+            claim_status: "linear_gaussian_model_only",
+        })
+    }
 }
 
 #[derive(Debug, Error)]

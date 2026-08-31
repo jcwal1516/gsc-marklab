@@ -3478,3 +3478,25 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   miss/hit proves exact retained-output replay. The current CRC bundle has no prespecified
   field-level outcome/predictor caller or distinct ROI-within-slide identity, so no real CRC fit or
   new scientific claim is fabricated at this checkpoint.
+
+## DEC-0381 — Durably execute six existing advanced scientific workflows
+
+- Date: 2026-08-31
+- Status: accepted for BAY-PP/DIM-01/CAU-01/WF-01/WS-12/WS-73/WS-80/WS-81/WS-82/WS-84
+- Decision: add concrete `marklab project` paths for the existing arbitrary-window IPP physical
+  spatial posterior-predictive check, growth-front SMC-ABC, linear-Gaussian Kalman/Joseph/RTS,
+  physical cuboid 3-D K/L, randomized binary interference, and scalar Gaussian expected
+  information gain workflows. Reuse each workflow's exact typed input, algorithm, result schema,
+  statistical unit, seed, finite policy, and work bounds. Add strict owned deserialization only to
+  the existing result types needed for verified durable restoration. Bind raw source artifacts,
+  complete controls, native runtime, implementation identity, and, for the PyMC PPC, the exact
+  Python lock and worker digest through the existing scheduler, artifact store, ledger, and
+  recovery owners. Do not add a generic native-task registry, broaden any model family, or infer
+  biological, longitudinal, 3-D, causal, or design validity from synthetic or analytic controls.
+- Consequences: all six workflows now prove fresh-process miss/hit replay with one ledger execution;
+  the PyMC PPC hit cannot start a second backend. Existing analytic and differential oracles remain
+  unchanged. The SMC-ABC result remains synthetic and not biologically calibrated; Kalman and 3-D
+  K remain bounded specializations without admitted serial/volumetric CRC cohorts; randomized
+  interference remains randomized-design mechanics; and Gaussian EIG remains scalar analytic
+  design utility. Real treatment identification, registered 3-D/longitudinal specimens, and
+  prospective design outcomes remain exact promotion blockers.

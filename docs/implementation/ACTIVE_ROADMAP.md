@@ -1923,3 +1923,18 @@ hurdle effects are unsupported by the one-cohort, no-boundary-count M7 input; sh
 invalid across unregistered slide axes. Continue with genuine H-Optimus patch provenance/link
 admission or another exact-window spatial caller only when its inputs expose a concrete missing
 connection. Do not add speculative likelihoods, graph transforms, or interchange registries.
+
+## Checkpoint 196 advanced workflow durability
+
+The existing exact-window IPP physical PPC, growth-front SMC-ABC, linear Kalman/RTS, physical
+cuboid 3-D K/L, randomized interference, and Gaussian EIG workflows now execute through the
+durable project engine with typed restoration and fresh-process miss/hit proof. This closes the
+absence of durable user-facing paths for these six exact specializations without broadening their
+models or creating a task/plugin registry.
+
+Production next remains caller-led. Resume SBI only with an admitted biological calibration
+question and observed summary; longitudinal/3-D only with registered repeated or volumetric
+specimens carrying section/time/deformation identity; causal only with genuine treatment,
+temporality, positivity, confounder, and interference-design support; prospective design only with
+an authorized decision candidate and utility. Otherwise retain those exact blockers and advance a
+different admitted scientific caller rather than adding catalog breadth.

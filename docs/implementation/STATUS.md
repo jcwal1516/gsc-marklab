@@ -4118,3 +4118,24 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   55 embedding, 7 graph, and 60 Bayesian library tests, affected warning-denied Clippy, clean
   no-default checks, strict affected docs, formatting, and whitespace checks pass. No workspace
   Nextest/full-loader loop or other broad gate runs.
+
+## Advanced workflow durability checkpoint 196 — 2026-08-31
+
+- Added six concrete typed project paths over existing production algorithms: exact-window PyMC
+  IPP physical spatial PPC, growth-front SMC-ABC, linear-Gaussian Kalman/Joseph/RTS, physical
+  cuboid 3-D K/L, randomized binary interference, and scalar Gaussian EIG. Each binds the exact
+  source, complete controls, implementation/native runtime, typed result codec, and existing
+  algorithm bounds through the current scheduler, artifact store, ledger, and recovery owners.
+- Fresh processes prove miss then hit with one ledger execution for every workflow. The PyMC PPC
+  hit succeeds with `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1`, proving no second worker start.
+  The direct physical PPC, logistic-growth recovery, scalar Kalman fractions, two-point 3-D
+  translation K, six-state exposure probability, and analytic `ln(2)/2` EIG oracles remain green.
+- No new scientific claim is made. SMC-ABC remains synthetic and uncalibrated biologically;
+  longitudinal and 3-D workflows lack registered repeated/volumetric CRC specimens; causal
+  interference lacks admitted treatment identification; Gaussian EIG lacks prospective outcomes.
+  These are production execution paths, not evidence that the broader BAY-PP, WS-73, DIM-01, or
+  CAU-01 families are complete.
+- The 12 named direct/project integrations, four affected library test/doc suites, affected
+  warning-denied Clippy, affected no-default compilation, affected-file Rustfmt, and diff
+  whitespace checks pass. The documented workspace Nextest/full-loader loop and unrelated broad
+  gates are not run.

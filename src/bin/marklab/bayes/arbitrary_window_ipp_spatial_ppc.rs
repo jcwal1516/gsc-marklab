@@ -80,13 +80,13 @@ struct Arguments {
     out: PathBuf,
 }
 
-#[derive(Debug, Serialize)]
-struct SpatialPpcRequest<'a> {
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct SpatialPpcRequest {
     format: &'static str,
     version: u32,
     backend: BackendContract,
-    source_request_sha256: &'a str,
-    source_request: &'a marklab_bayes::InhomogeneousPoissonFitWorkerRequest,
+    pub(super) source_request_sha256: String,
+    source_request: marklab_bayes::InhomogeneousPoissonFitWorkerRequest,
     input: SpatialPpcInputIdentity,
     observed_node_counts: Vec<u64>,
     node_weights_um2: Vec<f64>,
@@ -99,14 +99,14 @@ struct SpatialPpcRequest<'a> {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct SpatialPpcInputIdentity {
+pub(super) struct SpatialPpcInputIdentity {
     events_digest: String,
     event_membership_digest: String,
     quadrature_digest: String,
     window_logical_digest: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct SpatialPpcSummary {
     observed: f64,
@@ -115,7 +115,7 @@ struct SpatialPpcSummary {
     probability_replicated_at_least_observed: f64,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct SpatialPpcSummaries {
     node_density_variance: SpatialPpcSummary,
@@ -124,7 +124,7 @@ struct SpatialPpcSummaries {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct SpatialPpcResult {
+pub(crate) struct SpatialPpcResult {
     format: String,
     version: u32,
     backend: WorkerBackend,
@@ -151,61 +151,125 @@ struct SpatialPpcResult {
     claim_status: String,
 }
 
+pub(crate) struct SpatialPpcParameters {
+    pub events: PathBuf,
+    pub event_membership: PathBuf,
+    pub quadrature: PathBuf,
+    pub window: PathBuf,
+    pub intercept_prior_mean: f64,
+    pub intercept_prior_sd: f64,
+    pub coefficient_prior_mean: f64,
+    pub coefficient_prior_sd: f64,
+    pub sampling: NutsSamplingSpec,
+    pub prediction_seed: u64,
+    pub neighbor_radius_um: f64,
+    pub maximum_events: usize,
+    pub maximum_quadrature_nodes: usize,
+    pub maximum_neighbor_pairs: usize,
+    pub maximum_draw_node_work: u64,
+    pub timeout_seconds: u64,
+}
+
+pub(crate) struct PreparedSpatialPpc {
+    pub(super) source_fit: PreparedArbitraryWindowIppFit,
+    pub(super) request: SpatialPpcRequest,
+    pub(super) request_bytes: Vec<u8>,
+    pub(super) request_sha256: String,
+    timeout_seconds: u64,
+}
+
+impl PreparedSpatialPpc {
+    pub(crate) fn backend_contract(&self) -> &BackendContract {
+        &self.request.backend
+    }
+
+    pub(crate) fn request_bytes(&self) -> &[u8] {
+        &self.request_bytes
+    }
+}
+
 pub(super) fn run_cli() -> Result<(), BayesCliError> {
     let SpatialPpcTopLevel::Bayes { command } =
         SpatialPpcCli::parse_from(std::env::args_os()).command;
     let SpatialPpcCommand::ArbitraryWindowIppSpatialPpc(arguments) = command;
-    if !arguments.neighbor_radius_um.is_finite()
-        || arguments.neighbor_radius_um <= 0.0
-        || arguments.maximum_neighbor_pairs == 0
-        || arguments.maximum_neighbor_pairs > 1_000_000
-    {
-        return Err(BayesCliError::Input(
-            "spatial PPC neighbor radius or pair ceiling is invalid".into(),
-        ));
-    }
-    let membership_path = arguments.event_membership.clone();
-    let prepared = arbitrary_window_ipp_fit::prepare(
-        arguments.events,
-        arguments.quadrature,
-        arguments.window,
-        arguments.intercept_prior_mean,
-        arguments.intercept_prior_sd,
-        arguments.coefficient_prior_mean,
-        arguments.coefficient_prior_sd,
-        NutsSamplingSpec {
+    let output = arguments.out.clone();
+    let prepared = prepare(SpatialPpcParameters {
+        events: arguments.events,
+        event_membership: arguments.event_membership,
+        quadrature: arguments.quadrature,
+        window: arguments.window,
+        intercept_prior_mean: arguments.intercept_prior_mean,
+        intercept_prior_sd: arguments.intercept_prior_sd,
+        coefficient_prior_mean: arguments.coefficient_prior_mean,
+        coefficient_prior_sd: arguments.coefficient_prior_sd,
+        sampling: NutsSamplingSpec {
             chains: arguments.chains,
             tune_per_chain: arguments.tune,
             draws_per_chain: arguments.draws,
             target_accept: arguments.target_accept,
             seed: arguments.seed,
         },
-        arguments.maximum_events,
-        arguments.maximum_quadrature_nodes,
-        arguments.maximum_draw_node_work,
-        arguments.timeout_seconds,
+        prediction_seed: arguments.prediction_seed,
+        neighbor_radius_um: arguments.neighbor_radius_um,
+        maximum_events: arguments.maximum_events,
+        maximum_quadrature_nodes: arguments.maximum_quadrature_nodes,
+        maximum_neighbor_pairs: arguments.maximum_neighbor_pairs,
+        maximum_draw_node_work: arguments.maximum_draw_node_work,
+        timeout_seconds: arguments.timeout_seconds,
+    })?;
+    let result = execute(&prepared)?;
+    publish_json(&output, &result)
+}
+
+pub(crate) fn prepare(
+    parameters: SpatialPpcParameters,
+) -> Result<PreparedSpatialPpc, BayesCliError> {
+    if !parameters.neighbor_radius_um.is_finite()
+        || parameters.neighbor_radius_um <= 0.0
+        || parameters.maximum_neighbor_pairs == 0
+        || parameters.maximum_neighbor_pairs > 1_000_000
+    {
+        return Err(BayesCliError::Input(
+            "spatial PPC neighbor radius or pair ceiling is invalid".into(),
+        ));
+    }
+    let prepared = arbitrary_window_ipp_fit::prepare(
+        parameters.events,
+        parameters.quadrature,
+        parameters.window,
+        parameters.intercept_prior_mean,
+        parameters.intercept_prior_sd,
+        parameters.coefficient_prior_mean,
+        parameters.coefficient_prior_sd,
+        parameters.sampling,
+        parameters.maximum_events,
+        parameters.maximum_quadrature_nodes,
+        parameters.maximum_draw_node_work,
+        parameters.timeout_seconds,
     )?;
     let membership = arbitrary_window_ipp_membership::prepare(
-        &membership_path,
+        &parameters.event_membership,
         &prepared.input.spec.events,
         &prepared.input.spec.quadrature,
     )?;
     let neighbor_pairs = arbitrary_window_ipp_membership::physical_neighbor_pairs(
         &prepared.input.spec.quadrature,
-        arguments.neighbor_radius_um,
+        parameters.neighbor_radius_um,
     )?;
-    if neighbor_pairs.is_empty() || neighbor_pairs.len() > arguments.maximum_neighbor_pairs {
+    if neighbor_pairs.is_empty() || neighbor_pairs.len() > parameters.maximum_neighbor_pairs {
         return Err(BayesCliError::Input(format!(
             "spatial PPC physical neighbor pairs must be 1..={}: observed {}",
-            arguments.maximum_neighbor_pairs,
+            parameters.maximum_neighbor_pairs,
             neighbor_pairs.len()
         )));
     }
-    let posterior_draws = u64::from(arguments.chains)
-        .checked_mul(u64::from(arguments.draws))
+    let posterior_draws = u64::from(prepared.request.sampling.chains)
+        .checked_mul(u64::from(prepared.request.sampling.draws_per_chain))
         .ok_or_else(|| BayesCliError::Input("spatial PPC draw count overflows".into()))?;
     let maximum_predictive_work = posterior_draws
-        .checked_mul((arguments.maximum_quadrature_nodes + arguments.maximum_neighbor_pairs) as u64)
+        .checked_mul(
+            (parameters.maximum_quadrature_nodes + parameters.maximum_neighbor_pairs) as u64,
+        )
         .ok_or_else(|| BayesCliError::Input("spatial PPC work ceiling overflows".into()))?;
     if maximum_predictive_work > 100_000_000 {
         return Err(BayesCliError::Input(
@@ -240,8 +304,8 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             environment_lock_sha256: sha256_hex(&lock),
             worker_sha256: sha256_hex(&worker),
         },
-        source_request_sha256: &prepared.request_sha256,
-        source_request: &prepared.request,
+        source_request_sha256: prepared.request_sha256.clone(),
+        source_request: prepared.request.clone(),
         input: input.clone(),
         observed_node_counts: membership.observed_node_counts,
         node_weights_um2: prepared
@@ -252,34 +316,45 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             .map(|node| node.weight_um2)
             .collect(),
         neighbor_pairs,
-        neighbor_radius_um: arguments.neighbor_radius_um,
-        prediction_seed: arguments.prediction_seed,
+        neighbor_radius_um: parameters.neighbor_radius_um,
+        prediction_seed: parameters.prediction_seed,
         maximum_predictive_work,
-        maximum_neighbor_pairs: arguments.maximum_neighbor_pairs,
+        maximum_neighbor_pairs: parameters.maximum_neighbor_pairs,
     };
     let request_bytes = serde_json::to_vec(&request)?;
     let request_sha256 = sha256_hex(&request_bytes);
+    Ok(PreparedSpatialPpc {
+        source_fit: prepared,
+        request,
+        request_bytes,
+        request_sha256,
+        timeout_seconds: parameters.timeout_seconds,
+    })
+}
+
+pub(crate) fn execute(prepared: &PreparedSpatialPpc) -> Result<SpatialPpcResult, BayesCliError> {
+    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let bytes = run_worker(
         repository,
         "marklab_pymc_arbitrary_window_ipp_spatial_ppc_worker.py",
-        &request_bytes,
-        arguments.timeout_seconds,
+        &prepared.request_bytes,
+        prepared.timeout_seconds,
     )?;
     let result: SpatialPpcResult = serde_json::from_slice(&bytes)?;
-    validate(&result, &request, &request_sha256, &prepared)?;
-    publish_json(&arguments.out, &result)
+    validate(prepared, &result)?;
+    Ok(result)
 }
 
-fn validate(
+pub(crate) fn validate(
+    prepared: &PreparedSpatialPpc,
     result: &SpatialPpcResult,
-    request: &SpatialPpcRequest<'_>,
-    request_sha256: &str,
-    prepared: &PreparedArbitraryWindowIppFit,
 ) -> Result<(), BayesCliError> {
-    let draws = u64::from(prepared.request.sampling.chains)
-        * u64::from(prepared.request.sampling.draws_per_chain);
+    let request = &prepared.request;
+    let source_fit = &prepared.source_fit;
+    let draws = u64::from(source_fit.request.sampling.chains)
+        * u64::from(source_fit.request.sampling.draws_per_chain);
     let expected_work =
-        draws * (prepared.input.spec.quadrature.len() + request.neighbor_pairs.len()) as u64;
+        draws * (source_fit.input.spec.quadrature.len() + request.neighbor_pairs.len()) as u64;
     let summary_valid = |summary: &SpatialPpcSummary| {
         [
             summary.observed,
@@ -309,13 +384,14 @@ fn validate(
         && result.diagnostics.constraints_valid
         && result.diagnostics.identifiability_checks_passed
         && diagnostics_finite
-        && result.diagnostics.r_hat <= prepared.request.diagnostic_policy.maximum_r_hat
-        && result.diagnostics.ess_bulk >= prepared.request.diagnostic_policy.minimum_bulk_ess
-        && result.diagnostics.ess_tail >= prepared.request.diagnostic_policy.minimum_tail_ess
-        && result.diagnostics.minimum_ebfmi >= prepared.request.diagnostic_policy.minimum_ebfmi
-        && result.diagnostics.divergences <= prepared.request.diagnostic_policy.maximum_divergences
+        && result.diagnostics.r_hat <= source_fit.request.diagnostic_policy.maximum_r_hat
+        && result.diagnostics.ess_bulk >= source_fit.request.diagnostic_policy.minimum_bulk_ess
+        && result.diagnostics.ess_tail >= source_fit.request.diagnostic_policy.minimum_tail_ess
+        && result.diagnostics.minimum_ebfmi >= source_fit.request.diagnostic_policy.minimum_ebfmi
+        && result.diagnostics.divergences
+            <= source_fit.request.diagnostic_policy.maximum_divergences
         && result.diagnostics.max_tree_depth_hits
-            <= prepared.request.diagnostic_policy.maximum_tree_depth_hits;
+            <= source_fit.request.diagnostic_policy.maximum_tree_depth_hits;
     if result.format != "marklab.arbitrary_window_ipp_spatial_ppc"
         || result.version != 1
         || result.backend.name != request.backend.name
@@ -327,15 +403,15 @@ fn validate(
         || result.input.event_membership_digest != request.input.event_membership_digest
         || result.input.quadrature_digest != request.input.quadrature_digest
         || result.input.window_logical_digest != request.input.window_logical_digest
-        || result.request_sha256 != request_sha256
-        || result.source_request_sha256 != prepared.request_sha256
-        || result.sampling.chains != prepared.request.sampling.chains
-        || result.sampling.tune_per_chain != prepared.request.sampling.tune_per_chain
-        || result.sampling.draws_per_chain != prepared.request.sampling.draws_per_chain
+        || result.request_sha256 != prepared.request_sha256
+        || result.source_request_sha256 != source_fit.request_sha256
+        || result.sampling.chains != source_fit.request.sampling.chains
+        || result.sampling.tune_per_chain != source_fit.request.sampling.tune_per_chain
+        || result.sampling.draws_per_chain != source_fit.request.sampling.draws_per_chain
         || result.sampling.completed_draws != draws
         || (result.fit_state == FitState::Complete) != diagnostics_pass
-        || result.observed_event_count != prepared.input.spec.events.len()
-        || result.quadrature_node_count != prepared.input.spec.quadrature.len()
+        || result.observed_event_count != source_fit.input.spec.events.len()
+        || result.quadrature_node_count != source_fit.input.spec.quadrature.len()
         || !equal(result.neighbor_radius_um, request.neighbor_radius_um)
         || result.neighbor_pair_count != request.neighbor_pairs.len()
         || result.posterior_predictive_replicates != draws

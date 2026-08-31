@@ -52,6 +52,10 @@ use super::{
     },
 };
 
+#[path = "project/arbitrary_window_ipp_spatial_ppc.rs"]
+mod arbitrary_window_ipp_spatial_ppc;
+#[path = "project/causal_workflows.rs"]
+mod causal_workflows;
 #[path = "project/cell_patch_complementarity.rs"]
 mod cell_patch_complementarity;
 #[path = "project/cohort_cluster_covariate.rs"]
@@ -82,12 +86,18 @@ mod graph_smoothness_permutation;
 mod kernel_mark_correlation;
 #[path = "project/local_embedding_roughness.rs"]
 mod local_embedding_roughness;
+#[path = "project/longitudinal_kalman.rs"]
+mod longitudinal_kalman;
 #[path = "project/multiscale_embedding_kernel.rs"]
 mod multiscale_embedding_kernel;
 #[path = "project/projected_embedding_variograms.rs"]
 mod projected_embedding_variograms;
 #[path = "project/region_retrieval.rs"]
 mod region_retrieval;
+#[path = "project/smc_abc.rs"]
+mod smc_abc;
+#[path = "project/spatial3d_k.rs"]
+mod spatial3d_k;
 #[path = "project/spatial_varying_coefficient.rs"]
 mod spatial_varying_coefficient;
 #[path = "project/vector_semivariogram.rs"]
@@ -115,6 +125,7 @@ enum StaticBackendWorkflow {
     PymcStudentTHierarchy,
     PymcGriddedLgcp,
     PymcArbitraryWindowIpp,
+    PymcArbitraryWindowIppSpatialPpc,
     PymcArbitraryWindowLgcp,
     PymcReplicatedArbitraryWindowLgcp,
     PymcReplicatedArbitraryWindowLgcpInferredKernel,
@@ -310,6 +321,27 @@ impl StaticBackendWorkflow {
                 node_kind: "bayesian_point_process_fit",
                 implementation_identity: "marklab-project-pymc-arbitrary-window-ipp-fit-node-v1",
                 deterministic_controls: "seeded-nuts-weighted-exact-window-ipp-request",
+            },
+            Self::PymcArbitraryWindowIppSpatialPpc => StaticBackendDescriptor {
+                backend_id: "pymc",
+                backend_version: "6.3.0",
+                python_version: "3.12",
+                license: "Apache-2.0",
+                input_kinds: &[
+                    "application/vnd.marklab.source.arbitrary-window-ipp-events+csv;version=1",
+                    "application/vnd.marklab.source.arbitrary-window-ipp-membership+csv;version=1",
+                    "application/vnd.marklab.source.arbitrary-window-ipp-quadrature+csv;version=1",
+                    "application/vnd.marklab.source.observation-window+geojson;version=1",
+                ],
+                output_kind:
+                    "application/vnd.marklab.pymc-arbitrary-window-ipp-spatial-ppc+json;version=1",
+                result_schema_id: "marklab.pymc_arbitrary_window_ipp_spatial_ppc_result",
+                node_id: "pymc-arbitrary-window-ipp-spatial-ppc",
+                node_kind: "bayesian_point_process_spatial_posterior_predictive_check",
+                implementation_identity:
+                    "marklab-project-pymc-arbitrary-window-ipp-spatial-ppc-node-v1",
+                deterministic_controls:
+                    "seeded-nuts-and-posterior-predictive-exact-window-ipp-request",
             },
             Self::PymcArbitraryWindowLgcp => StaticBackendDescriptor {
                 backend_id: "pymc",
@@ -598,6 +630,54 @@ struct ArbitraryWindowIppFitProjectArgs {
     maximum_events: usize,
     #[arg(long)]
     maximum_quadrature_nodes: usize,
+    #[arg(long)]
+    maximum_draw_node_work: u64,
+    #[arg(long)]
+    timeout_seconds: u64,
+    #[arg(long)]
+    out: PathBuf,
+}
+
+#[derive(Debug, clap::Args)]
+struct ArbitraryWindowIppSpatialPpcProjectArgs {
+    #[arg(long)]
+    project: PathBuf,
+    #[arg(long)]
+    events: PathBuf,
+    #[arg(long)]
+    event_membership: PathBuf,
+    #[arg(long)]
+    quadrature: PathBuf,
+    #[arg(long)]
+    window: PathBuf,
+    #[arg(long, allow_hyphen_values = true)]
+    intercept_prior_mean: f64,
+    #[arg(long)]
+    intercept_prior_sd: f64,
+    #[arg(long, allow_hyphen_values = true)]
+    coefficient_prior_mean: f64,
+    #[arg(long)]
+    coefficient_prior_sd: f64,
+    #[arg(long)]
+    chains: u32,
+    #[arg(long)]
+    tune: u32,
+    #[arg(long)]
+    draws: u32,
+    #[arg(long)]
+    target_accept: f64,
+    #[arg(long)]
+    seed: u64,
+    #[arg(long)]
+    prediction_seed: u64,
+    #[arg(long)]
+    neighbor_radius_um: f64,
+    #[arg(long)]
+    maximum_events: usize,
+    #[arg(long)]
+    maximum_quadrature_nodes: usize,
+    #[arg(long)]
+    maximum_neighbor_pairs: usize,
     #[arg(long)]
     maximum_draw_node_work: u64,
     #[arg(long)]
@@ -953,6 +1033,44 @@ struct ConditionalMultitypeMarkProjectArgs {
 }
 
 #[derive(Debug, clap::Args)]
+struct SmcAbcGrowthFrontProjectArgs {
+    #[arg(long)]
+    project: PathBuf,
+    #[arg(long)]
+    input: PathBuf,
+    #[arg(long)]
+    diffusion_um2_per_time: f64,
+    #[arg(long)]
+    carrying_capacity: f64,
+    #[arg(long)]
+    final_time: f64,
+    #[arg(long)]
+    time_step: f64,
+    #[arg(long)]
+    front_threshold_fraction: f64,
+    #[arg(long)]
+    observed_final_mass: f64,
+    #[arg(long)]
+    mass_scale: f64,
+    #[arg(long)]
+    growth_rate_prior_min: f64,
+    #[arg(long)]
+    growth_rate_prior_max: f64,
+    #[arg(long, value_delimiter = ',')]
+    epsilon_schedule: Vec<f64>,
+    #[arg(long)]
+    particles: u32,
+    #[arg(long)]
+    maximum_proposals_per_stage: u32,
+    #[arg(long)]
+    maximum_cell_steps_per_proposal: u64,
+    #[arg(long)]
+    seed: u64,
+    #[arg(long)]
+    out: PathBuf,
+}
+
+#[derive(Debug, clap::Args)]
 struct ReplicatedConditionalMultitypeMarkProjectArgs {
     #[arg(long)]
     project: PathBuf,
@@ -1057,6 +1175,22 @@ enum ProjectCommand {
         maximum_energy_evaluations: u64,
         #[arg(long)]
         memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    CausalRandomizedInterference {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    GaussianEig {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
         #[arg(long)]
         out: PathBuf,
     },
@@ -1414,6 +1548,14 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    LongitudinalKalmanSmooth {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
     MultiscaleEmbeddingKernel {
         #[arg(long)]
         project: PathBuf,
@@ -1490,6 +1632,7 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    SmcAbcGrowthFront(Box<SmcAbcGrowthFrontProjectArgs>),
     SpatialVaryingCoefficient {
         #[arg(long)]
         project: PathBuf,
@@ -1525,6 +1668,14 @@ enum ProjectCommand {
         seed: u64,
         #[arg(long)]
         timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    Spatial3dKFunction {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
         #[arg(long)]
         out: PathBuf,
     },
@@ -1586,6 +1737,7 @@ enum ProjectCommand {
     },
     ArbitraryWindowIppLikelihood(Box<ArbitraryWindowIppProjectArgs>),
     FitArbitraryWindowIpp(Box<ArbitraryWindowIppFitProjectArgs>),
+    ArbitraryWindowIppSpatialPpc(Box<ArbitraryWindowIppSpatialPpcProjectArgs>),
     ArbitraryWindowLgcp(Box<ArbitraryWindowLgcpFitProjectArgs>),
     ReplicatedArbitraryWindowLgcp(Box<ReplicatedArbitraryWindowLgcpFitProjectArgs>),
     ReplicatedArbitraryWindowLgcpInferredKernel(
@@ -1979,6 +2131,22 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             memory_budget_mib,
             out,
         ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::CausalRandomizedInterference {
+                    project,
+                    input,
+                    out,
+                },
+        } => causal_workflows::run_randomized_interference(project, input, out),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::GaussianEig {
+                    project,
+                    input,
+                    out,
+                },
+        } => causal_workflows::run_gaussian_eig(project, input, out),
         ProjectTopLevel::Project {
             command:
                 ProjectCommand::CohortClusterCovariatePermutation {
@@ -2391,6 +2559,14 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
         ),
         ProjectTopLevel::Project {
             command:
+                ProjectCommand::LongitudinalKalmanSmooth {
+                    project,
+                    input,
+                    out,
+                },
+        } => longitudinal_kalman::run(project, input, out),
+        ProjectTopLevel::Project {
+            command:
                 ProjectCommand::MultiscaleEmbeddingKernel {
                     project,
                     input,
@@ -2473,6 +2649,9 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
                 },
         } => graph_motif_summary::run(project, input, out),
         ProjectTopLevel::Project {
+            command: ProjectCommand::SmcAbcGrowthFront(arguments),
+        } => smc_abc::run(*arguments),
+        ProjectTopLevel::Project {
             command:
                 ProjectCommand::SpatialVaryingCoefficient {
                     project,
@@ -2516,6 +2695,14 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             timeout_seconds,
             out,
         ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::Spatial3dKFunction {
+                    project,
+                    input,
+                    out,
+                },
+        } => spatial3d_k::run(project, input, out),
         ProjectTopLevel::Project {
             command:
                 ProjectCommand::SparseRadiusFourierEnergy {
@@ -2611,6 +2798,9 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             arguments.timeout_seconds,
             arguments.out,
         ),
+        ProjectTopLevel::Project {
+            command: ProjectCommand::ArbitraryWindowIppSpatialPpc(arguments),
+        } => arbitrary_window_ipp_spatial_ppc::run(*arguments),
         ProjectTopLevel::Project {
             command: ProjectCommand::ArbitraryWindowLgcp(arguments),
         } => run_arbitrary_window_lgcp(

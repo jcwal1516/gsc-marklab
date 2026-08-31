@@ -1,6 +1,6 @@
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::CausalError;
 
@@ -21,7 +21,8 @@ pub struct GaussianEigSpec {
     pub maximum_likelihood_evaluations: u64,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct GaussianEigOuterValue {
     pub outer_index: usize,
     pub theta: f64,
@@ -50,6 +51,66 @@ pub struct GaussianEigResult {
     pub likelihood_evaluations: u64,
     pub random_seed_namespace: &'static str,
     pub claim_status: &'static str,
+}
+
+impl<'de> Deserialize<'de> for GaussianEigResult {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Owned {
+            format: String,
+            version: u32,
+            candidate_id: String,
+            prior: String,
+            simulator: String,
+            likelihood: String,
+            outer_samples: usize,
+            inner_samples: usize,
+            outer_values: Vec<GaussianEigOuterValue>,
+            estimate: f64,
+            monte_carlo_se: f64,
+            analytic_eig: f64,
+            signed_bias_against_analytic: f64,
+            absolute_bias_against_analytic: f64,
+            likelihood_evaluations: u64,
+            random_seed_namespace: String,
+            claim_status: String,
+        }
+        let owned = Owned::deserialize(deserializer)?;
+        if owned.format != "marklab.gaussian_expected_information_gain"
+            || owned.prior != "scalar_normal"
+            || owned.simulator != "linear_gaussian_design"
+            || owned.likelihood != "known_noise_normal"
+            || owned.random_seed_namespace != "gaussian_eig_v1_chacha20_box_muller"
+            || owned.claim_status != "analytic_scalar_design_utility_only"
+        {
+            return Err(serde::de::Error::custom(
+                "unexpected Gaussian EIG result identity",
+            ));
+        }
+        Ok(Self {
+            format: "marklab.gaussian_expected_information_gain",
+            version: owned.version,
+            candidate_id: owned.candidate_id,
+            prior: "scalar_normal",
+            simulator: "linear_gaussian_design",
+            likelihood: "known_noise_normal",
+            outer_samples: owned.outer_samples,
+            inner_samples: owned.inner_samples,
+            outer_values: owned.outer_values,
+            estimate: owned.estimate,
+            monte_carlo_se: owned.monte_carlo_se,
+            analytic_eig: owned.analytic_eig,
+            signed_bias_against_analytic: owned.signed_bias_against_analytic,
+            absolute_bias_against_analytic: owned.absolute_bias_against_analytic,
+            likelihood_evaluations: owned.likelihood_evaluations,
+            random_seed_namespace: "gaussian_eig_v1_chacha20_box_muller",
+            claim_status: "analytic_scalar_design_utility_only",
+        })
+    }
 }
 
 pub fn estimate_gaussian_expected_information_gain(

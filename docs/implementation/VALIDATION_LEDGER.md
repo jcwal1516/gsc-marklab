@@ -4859,3 +4859,21 @@ vascular transport.
   `marklab-bayes`, and the affected `marklab` CLI binary. No-default checks pass cleanly for all
   three libraries and the root package. Strict warning-denied affected docs, affected Rustfmt, and
   `git diff --check` pass. No workspace-wide test/Clippy/Nextest loop runs.
+
+## Advanced workflow durability checkpoint 196 — 2026-08-31
+
+- Expected reds for all six new integrations failed on their absent project subcommands. After
+  implementation, the serial focused command over direct and durable IPP-PPC, SMC-ABC, Kalman,
+  3-D K, randomized-interference, and Gaussian-EIG targets passes 12/12. Every durable target
+  proves miss, fresh backend-disabled hit, identical replay bytes, and one ledger row; the PyMC
+  PPC result retains 50 events, two physical neighbor pairs, and observed node-density variance
+  1075 under the exact MultiPolygon fixture.
+- `cargo +1.96.0 test --locked --package marklab-sbi --package marklab-longitudinal --package
+  marklab-spatial3d --package marklab-causal` passes 0, 4, 4, and 3 unit tests respectively plus
+  all four doc suites. `cargo +1.96.0 clippy --locked` over the same four packages with all targets
+  and all features passes with `-D warnings`; the affected root CLI binary also passes
+  warning-denied Clippy with `--features cli`.
+- `cargo +1.96.0 check --locked` over the same four packages with `--no-default-features` passes.
+  Affected-file Rustfmt and `git diff --check` pass. No workspace-wide Nextest/full-integration
+  loader loop, benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or
+  history rewrite runs.

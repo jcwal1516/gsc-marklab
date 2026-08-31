@@ -190,6 +190,12 @@ pub(super) fn run_arbitrary_window_ipp_sbc_cli() -> Result<(), BayesCliError> {
 pub(super) fn run_arbitrary_window_ipp_spatial_ppc_cli() -> Result<(), BayesCliError> {
     arbitrary_window_ipp_spatial_ppc::run_cli()
 }
+pub(crate) use arbitrary_window_ipp_spatial_ppc::{
+    execute as execute_arbitrary_window_ipp_spatial_ppc,
+    prepare as prepare_arbitrary_window_ipp_spatial_ppc,
+    validate as validate_arbitrary_window_ipp_spatial_ppc, PreparedSpatialPpc,
+    SpatialPpcParameters, SpatialPpcResult,
+};
 #[path = "bayes/berman_turner.rs"]
 mod berman_turner;
 #[path = "bayes/conditional_multitype_mark.rs"]
