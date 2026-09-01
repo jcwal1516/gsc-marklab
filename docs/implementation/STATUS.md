@@ -4361,3 +4361,30 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   affected docs, affected-file Rustfmt, and whitespace checks pass. Local R 4.5.2 lacks
   `spatstat.explore` and the Mac mini lacks R, so pinned external agreement remains unavailable.
   No workspace Nextest/full-loader loop or unrelated broad gate runs.
+
+## Durable patient-level ordinal likelihood checkpoint 204 — 2026-08-31
+
+- Added one strict patient-level proportional-odds likelihood through pinned PyMC 6.3.0/Python
+  3.12. The typed contract requires unique complete patients, exactly two declared groups with at
+  least four patients each, two through eight prespecified fully represented ordered levels,
+  ordered cutpoints without a free intercept, finite positive prior scales, and explicit
+  patient/level/iteration/output/process ceilings. Direct and project commands publish the same
+  result contract; backend, environment lock, worker, request, source bytes, configuration, seed,
+  executable, and runtime participate in durable identity.
+- The invalid-level unit oracle and planted 24-patient direction oracle pass. A fresh durable
+  project executes PyMC once, replays byte-identically in a second process with backend execution
+  disabled, rejects a changed seed while the backend is disabled, and retains one ledger row.
+- The real admitted TCGA CRC caller contains 126 unique patients, 78 MSS and 48 MSI, with stage
+  codes 1--4 represented by 22/54/35/15 patients. The fit completes with maximum R-hat 1.00085,
+  minimum bulk/tail ESS 1955/2353, minimum E-BFMI 0.972, no divergences, and no tree-depth hits.
+  The MSI-minus-MSS common log-odds effect is -1.014 with 95% interval [-1.675,-0.361]. This is an
+  association only, not progression, treatment, causal, or clinical evidence.
+- The level-2 posterior-predictive tail probability is 0.00775, so the one-coefficient
+  proportional-odds model is retained as materially misspecified despite computational
+  convergence; no threshold, subset, prior, scale, or likelihood was retuned. Miss/hit result SHA
+  is `219d1a9a7a46cb6ddbbefa259eebc7d8fd165b582163f0589c7aa6c1f5c4948b`, and the sealed
+  `/Volumes/1TB/marklab/runs/results-cellvit-ordinal-stage-v75` `SHA256SUMS` digest is
+  `28984eb998cfaa0bd995677c333b90ba84f39f7970edb6a9ecabe62ed1a0765d`.
+- Focused unit/direct/durable tests, Python bytecode compilation, affected warning-denied Bayes and
+  root-CLI Clippy, Bayes no-default check, strict Bayes docs, affected-file Rustfmt, and diff
+  whitespace checks pass. No workspace Nextest/full-loader loop or unrelated broad gate runs.

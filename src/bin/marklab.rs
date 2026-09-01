@@ -117,6 +117,7 @@ fn main() -> marklab::Result<()> {
                                     | "beta-binomial-hierarchy"
                                     | "beta-binomial-group-regression"
                                     | "dirichlet-multinomial-group"
+                                    | "ordinal-group"
                                     | "beta-binomial-group-gender-regression"
                                     | "beta-binomial-group-gender-slide-hierarchy"
                                     | "student-t-hierarchy"
@@ -186,6 +187,17 @@ fn main() -> marklab::Result<()> {
                     }) =>
         {
             bayes::run_dirichlet_multinomial_group_cli().map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand == std::ffi::OsStr::new("ordinal-group")
+                    }) =>
+        {
+            bayes::run_ordinal_group_cli().map_err(bayes::into_marklab_error)
         }
         Some(command)
             if command == std::ffi::OsStr::new("bayes")

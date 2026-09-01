@@ -53,10 +53,12 @@ changing leave-one-out results. The real K/L caller completes with null-compatib
 real type-specific cross-g caller remains correctly unavailable at its fixed intensity floor.
 
 FND-06/INF-01C broader graphical/recycling multiplicity, PP-03/PP-05 pinned `spatstat` agreement,
-and additional multitype corrections remain active only for concrete callers. The next
-dependency-ordered implementable catalog candidate is one identified ordinal or hurdle Bayesian
-caller from admitted patient data; distinct ROI-within-slide, crossed/random-slope, cohort, and
-anisotropic/nonstationary field effects remain blocked or unjustified by the current inputs.
+and additional multitype corrections remain active only for concrete callers. The admitted
+126-patient TCGA stage outcome now has a durable ordinal PyMC likelihood, with its material
+proportional-odds posterior-predictive lack of fit retained rather than tuned away. The next
+dependency-ordered implementable catalog candidate is one identified hurdle caller; distinct
+ROI-within-slide, crossed/random-slope, cohort, and anisotropic/nonstationary field effects remain
+blocked or unjustified by the current inputs.
 
 ## Full-program resumption override — 2026-08-30
 

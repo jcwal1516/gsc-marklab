@@ -67,6 +67,7 @@ mod multi_output_gp;
 mod multiscale_kernel;
 mod multitype;
 mod nngp;
+mod ordinal_group;
 mod partial_fused_gromov;
 mod partial_transport;
 mod point_process_ppc;
@@ -380,6 +381,13 @@ pub use multitype::{
 pub use nngp::{
     build_nngp, full_gp_log_density, nngp_log_density, NngpError, NngpObservation, NngpPlan,
     NngpSpec,
+};
+pub use ordinal_group::{
+    ordinal_group_data_sha256, OrdinalCutpointPosterior, OrdinalGroupInputIdentity,
+    OrdinalGroupModelIr, OrdinalGroupPatientData, OrdinalGroupPosterior,
+    OrdinalGroupPosteriorPredictive, OrdinalGroupResourceLimits, OrdinalGroupResult,
+    OrdinalGroupSpec, OrdinalGroupWorkerRequest, OrdinalGroupWorkerResult, OrdinalLevelPosterior,
+    OrdinalLevelPredictive,
 };
 pub use partial_fused_gromov::{
     PartialFgwFit, PartialFgwResources, PartialFusedGromovWassersteinSpec,

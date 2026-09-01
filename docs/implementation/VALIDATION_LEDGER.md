@@ -5070,3 +5070,30 @@ vascular transport.
   No package is installed and external agreement remains an exact backend blocker. No workspace
   Nextest/full-loader loop, benchmark, fuzzing, packaging, dependency audit, push, publication,
   deployment, or history rewrite runs.
+
+## Durable patient-level ordinal likelihood checkpoint 204 — 2026-08-31
+
+- The direct behavior test first failed because `marklab bayes ordinal-group` was absent; the
+  durable behavior test then failed because `marklab project ordinal-group` was absent. After the
+  smallest complete production paths were added,
+  `CARGO_TARGET_DIR=/tmp/marklab-cargo-target.kt0CDK cargo +1.96.0 test --locked --package
+  marklab-bayes ordinal_group::tests::rejects_an_unobserved_ordered_level` passes 1/1, and the
+  serial direct/durable command with targets `bayes_ordinal_group_cli` and
+  `durable_pymc_ordinal_group_project` passes 2/2. The durable test proves miss/backend-disabled
+  hit byte equality, changed-seed invalidation, and one ledger execution.
+- `python3 -m py_compile workers/python/marklab_pymc_ordinal_group_worker.py` passes. Warning-denied
+  all-target `marklab-bayes` and CLI-binary `marklab` Clippy pass. The `marklab-bayes` no-default
+  check and warning-denied no-dependency docs pass. Affected-file Rustfmt and `git diff --check`
+  pass.
+- Read-only `ssh mini` admission confirms source SHA-256
+  `0aa41cd30277e8c7e99a3c78cd85a7be056ec14d3d45d5d7b979b0da08c27566`, 126 unique patient
+  rows, groups MSS/MSI 78/48, and stage counts 22/54/35/15. The real 4-chain 1,000-tune/
+  1,000-draw project miss completes and the backend-disabled second process is a byte-identical
+  hit. Result SHA-256 is `219d1a9a7a46cb6ddbbefa259eebc7d8fd165b582163f0589c7aa6c1f5c4948b`, one ledger row is
+  retained, and the sealed bundle checksum-file SHA-256 is
+  `28984eb998cfaa0bd995677c333b90ba84f39f7970edb6a9ecabe62ed1a0765d`.
+- The converged fit's common log-odds interval excludes zero, but level-2 posterior prediction has
+  tail probability 0.00775. Evidence is truthfully recorded as a materially misspecified ordinal
+  association summary; no significance-directed retuning or model substitution was performed.
+  No broad workspace gate, Nextest loader loop, benchmark, fuzzing, packaging, dependency audit,
+  push, publication, deployment, or history rewrite runs.

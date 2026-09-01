@@ -3803,3 +3803,23 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   null draw uses the one fixed persisted cross-fitted intensity artifact. This does not select a
   bandwidth from the spatial curve, pool unrelated specimen frames, supply pinned `spatstat`
   agreement, or turn one point pattern into patient-population evidence.
+
+## DEC-0397 — Fit one patient-level proportional-odds group association in pinned PyMC
+
+- Date: 2026-08-31
+- Status: accepted for BAY-03/COH-01/PLAT-01/WF-01/WS-12/WS-33
+- Decision: admit one complete patient table with exact patient, two-group, and ordered-outcome
+  identity. Require at least four patients per group, two through eight prespecified levels with
+  every level observed, and no duplicate patients. Fit one proportional-odds ordered-logistic
+  likelihood in the pinned PyMC environment. Let ordered cutpoints own the baseline location rather
+  than adding a nonidentified free intercept; assign finite positive Normal prior scales to the
+  cutpoints and one comparison-group log-odds coefficient. Persist group-specific posterior
+  category probabilities, expected outcome codes, patient-level posterior-predictive proportions,
+  complete NUTS diagnostics, exact source/runtime/backend identity, and bounded work, memory,
+  output, and process time through the existing direct and durable project owners.
+- Consequences: the admitted CRC stage table gains a typed ordinal likelihood without treating
+  cells, slides, or ROIs as patient replicates. A group coefficient describes an association under
+  the proportional-odds assumption; it is not evidence of progression, treatment effect,
+  causality, or clinical utility. Crossed effects, random slopes, partial proportional odds,
+  hurdle/zero-inflated likelihoods, agreement, prior sensitivity, and simulation calibration remain
+  separate caller-driven workflows rather than speculative additions to this command.

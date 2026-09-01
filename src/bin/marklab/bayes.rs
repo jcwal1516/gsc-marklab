@@ -538,6 +538,8 @@ mod cli_error;
 mod cli_schema;
 #[path = "bayes/normal_mean.rs"]
 mod normal_mean;
+#[path = "bayes/ordinal_group.rs"]
+mod ordinal_group;
 #[path = "bayes/worker_process.rs"]
 mod worker_process;
 
@@ -550,7 +552,14 @@ pub(super) use cli_schema::{
     run_dirichlet_multinomial_group_sbc_cli, run_dirichlet_multinomial_group_sensitivity_cli,
 };
 pub(super) use normal_mean::{execute_normal_mean, prepare_normal_mean, PreparedNormalMean};
+pub(super) use ordinal_group::{
+    execute as execute_ordinal_group, prepare as prepare_ordinal_group, PreparedOrdinalGroup,
+};
 pub(super) use worker_process::{publish_json, run_worker};
+
+pub(super) fn run_ordinal_group_cli() -> Result<(), BayesCliError> {
+    ordinal_group::run_cli()
+}
 
 use normal_mean::{observations_digest, read_observations, run_normal_mean};
 
