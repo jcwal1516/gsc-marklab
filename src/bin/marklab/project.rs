@@ -13,8 +13,9 @@ use marklab_bayes::{
     BetaBinomialGroupGenderSlideHierarchyWorkerResult, BetaBinomialGroupRegressionWorkerResult,
     BetaBinomialHierarchyWorkerResult, DirichletMultinomialGroupWorkerResult,
     FusedGromovWassersteinWorkerResult, GriddedLgcpFitWorkerResult, HierarchicalWorkerResult,
-    HurdleBetaBinomialGroupWorkerResult, NutsSamplingSpec, OrdinalGroupSiteHierarchyWorkerResult,
-    OrdinalGroupWorkerResult, StudentTHierarchyWorkerResult, WorkerResult,
+    HurdleBetaBinomialGroupWorkerResult, NonproportionalOrdinalGroupSiteWorkerResult,
+    NutsSamplingSpec, OrdinalGroupSiteHierarchyWorkerResult, OrdinalGroupWorkerResult,
+    StudentTHierarchyWorkerResult, WorkerResult,
 };
 use marklab_graph::{
     graph_sparse_radius_basis_workflow, graph_sparse_radius_diffusion_wavelet_workflow,
@@ -45,8 +46,9 @@ use super::{
         PreparedBetaBinomialGroupGenderRegression, PreparedBetaBinomialGroupGenderSlideHierarchy,
         PreparedBetaBinomialGroupRegression, PreparedBetaBinomialHierarchy,
         PreparedDirichletMultinomialGroup, PreparedGaussianHierarchy, PreparedGriddedLgcpFit,
-        PreparedHurdleBetaBinomialGroup, PreparedNormalMean, PreparedOrdinalGroup,
-        PreparedOrdinalGroupSiteHierarchy, PreparedStudentTHierarchy,
+        PreparedHurdleBetaBinomialGroup, PreparedNonproportionalOrdinalGroupSite,
+        PreparedNormalMean, PreparedOrdinalGroup, PreparedOrdinalGroupSiteHierarchy,
+        PreparedStudentTHierarchy,
     },
     topology::{
         self, PreparedWitnessPersistence, PreparedWitnessPersistenceBottleneckStability,
@@ -147,6 +149,7 @@ enum StaticBackendWorkflow {
     PymcOrdinalGroup,
     PymcHurdleBetaBinomialGroup,
     PymcOrdinalGroupSiteHierarchy,
+    PymcNonproportionalOrdinalGroupSite,
     PymcBetaBinomialGroupGenderRegression,
     PymcBetaBinomialGroupGenderSlideHierarchy,
     PymcStudentTHierarchy,
@@ -302,6 +305,15 @@ impl StaticBackendWorkflow {
                 node_id: "pymc-ordinal-group-site-hierarchy", node_kind: "bayesian_ordinal_site_hierarchy_fit",
                 implementation_identity: "marklab-project-pymc-ordinal-group-site-hierarchy-node-v1",
                 deterministic_controls: "seeded-nuts-ordinal-group-site-hierarchy-request",
+            },
+            Self::PymcNonproportionalOrdinalGroupSite => StaticBackendDescriptor {
+                backend_id:"pymc",backend_version:"6.3.0",python_version:"3.12",license:"Apache-2.0",
+                input_kinds:&["application/vnd.marklab.source.nonproportional-ordinal-patient-group-site-outcomes;version=1"],
+                output_kind:"application/vnd.marklab.pymc-nonproportional-ordinal-group-site-worker-result+json;version=1",
+                result_schema_id:"marklab.pymc_nonproportional_ordinal_group_site_worker_result",
+                node_id:"pymc-nonproportional-ordinal-group-site",node_kind:"bayesian_nonproportional_ordinal_site_fit",
+                implementation_identity:"marklab-project-pymc-nonproportional-ordinal-group-site-node-v1",
+                deterministic_controls:"seeded-nuts-nonproportional-ordinal-group-site-request",
             },
             Self::PymcBetaBinomialGroupGenderRegression => StaticBackendDescriptor {
                 backend_id: "pymc",
@@ -2165,6 +2177,36 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    NonproportionalOrdinalGroupSite {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        reference_group: String,
+        #[arg(long)]
+        comparison_group: String,
+        #[arg(long)]
+        ordered_levels: String,
+        #[arg(long)]
+        cutpoint_prior_sd: f64,
+        #[arg(long)]
+        site_intercept_sd_prior_sd: f64,
+        #[arg(long)]
+        chains: u32,
+        #[arg(long)]
+        tune: u32,
+        #[arg(long)]
+        draws: u32,
+        #[arg(long)]
+        target_accept: f64,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
     HurdleBetaBinomialGroup {
         #[arg(long)]
         project: PathBuf,
@@ -3563,6 +3605,42 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             group_effect_prior_sd,
             site_intercept_sd_prior_sd,
             site_group_slope_sd_prior_sd,
+            NutsSamplingSpec {
+                chains,
+                tune_per_chain: tune,
+                draws_per_chain: draws,
+                target_accept,
+                seed,
+            },
+            timeout_seconds,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::NonproportionalOrdinalGroupSite {
+                    project,
+                    input,
+                    reference_group,
+                    comparison_group,
+                    ordered_levels,
+                    cutpoint_prior_sd,
+                    site_intercept_sd_prior_sd,
+                    chains,
+                    tune,
+                    draws,
+                    target_accept,
+                    seed,
+                    timeout_seconds,
+                    out,
+                },
+        } => run_nonproportional_ordinal_group_site(
+            project,
+            input,
+            reference_group,
+            comparison_group,
+            ordered_levels.split(',').map(str::to_owned).collect(),
+            cutpoint_prior_sd,
+            site_intercept_sd_prior_sd,
             NutsSamplingSpec {
                 chains,
                 tune_per_chain: tune,
@@ -6163,6 +6241,83 @@ fn run_ordinal_group_site_hierarchy(
     };
     bayes::publish_json(&output_path, &run.output.into_result(request, identity))?;
     eprintln!("project ordinal-group-site-hierarchy cache_status={status}");
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_nonproportional_ordinal_group_site(
+    project_path: PathBuf,
+    input_path: PathBuf,
+    reference_group: String,
+    comparison_group: String,
+    ordered_levels: Vec<String>,
+    cutpoint_prior_sd: f64,
+    site_intercept_sd_prior_sd: f64,
+    sampling: NutsSamplingSpec,
+    timeout_seconds: u64,
+    output_path: PathBuf,
+) -> Result<(), BayesCliError> {
+    let backend = StaticBackendWorkflow::PymcNonproportionalOrdinalGroupSite.descriptor();
+    let before = source_artifact(&input_path, backend.input_kinds[0])?;
+    let prepared = bayes::prepare_nonproportional_ordinal_group_site(
+        input_path.clone(),
+        reference_group,
+        comparison_group,
+        ordered_levels,
+        cutpoint_prior_sd,
+        site_intercept_sd_prior_sd,
+        sampling,
+        timeout_seconds,
+    )?;
+    if before != source_artifact(&input_path, backend.input_kinds[0])? {
+        return Err(BayesCliError::Input(
+            "nonproportional ordinal input changed while preparing".into(),
+        ));
+    }
+    let runtime = native_runtime_provenance()?;
+    let limits = DurableProjectLimits::new(
+        PROJECT_CONTROL_BYTES,
+        PROJECT_LEDGER_BYTES,
+        PROJECT_LEDGER_RECORDS,
+        PROJECT_RECORD_BYTES,
+        MAXIMUM_RESULT_BYTES,
+    )
+    .map_err(|e| BayesCliError::Input(e.to_string()))?;
+    let mut durable = DurableProject::open_or_create(&project_path, limits)
+        .map_err(|e| BayesCliError::Backend(e.to_string()))?;
+    report_recovery(&durable);
+    let request = prepared.request.clone();
+    let identity = prepared.input_identity.clone();
+    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
+        .map_err(|e| BayesCliError::Input(e.to_string()))?;
+    project
+        .register_reference(before.clone())
+        .map_err(|e| BayesCliError::Input(e.to_string()))?;
+    let node =
+        NonproportionalOrdinalGroupSiteProjectNode::new(input_path, before, prepared, backend)?;
+    let graph = WorkflowGraph::new([node.spec().clone()])
+        .map_err(|e| BayesCliError::Input(e.to_string()))?;
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
+    })
+    .map_err(|e| BayesCliError::Input(e.to_string()))?;
+    let run = execute_algorithm(
+        &mut durable,
+        &mut project,
+        &graph,
+        &node,
+        &scheduler,
+        backend.result_schema()?,
+        runtime,
+    )
+    .map_err(|e| BayesCliError::Backend(e.to_string()))?;
+    let status = if run.cache_status == CacheStatus::Hit {
+        "hit"
+    } else {
+        "miss"
+    };
+    bayes::publish_json(&output_path, &run.output.into_result(request, identity))?;
+    eprintln!("project nonproportional-ordinal-group-site cache_status={status}");
     Ok(())
 }
 
@@ -8985,6 +9140,85 @@ impl WorkflowNode for OrdinalGroupSiteHierarchyProjectNode {
             .validate(&self.prepared.request, &self.prepared.request_sha256)
             .map_err(NodeError::decode)?;
         Ok(output)
+    }
+    fn output_kind(&self) -> &'static str {
+        self.backend.output_kind
+    }
+}
+
+struct NonproportionalOrdinalGroupSiteProjectNode {
+    spec: NodeSpec,
+    input_path: PathBuf,
+    input_artifacts: [ArtifactRef; 1],
+    prepared: PreparedNonproportionalOrdinalGroupSite,
+    backend: StaticBackendDescriptor,
+    execution_policy: Vec<u8>,
+}
+impl NonproportionalOrdinalGroupSiteProjectNode {
+    fn new(
+        input_path: PathBuf,
+        input: ArtifactRef,
+        prepared: PreparedNonproportionalOrdinalGroupSite,
+        backend: StaticBackendDescriptor,
+    ) -> Result<Self, BayesCliError> {
+        backend.validate_request_backend(&prepared.request.backend)?;
+        Ok(Self {
+            spec: NodeSpec::new(
+                NodeId::new(backend.node_id).map_err(|e| BayesCliError::Input(e.to_string()))?,
+                backend.node_kind,
+                1,
+                Vec::new(),
+            )
+            .map_err(|e| BayesCliError::Input(e.to_string()))?,
+            input_path,
+            input_artifacts: [input],
+            prepared,
+            backend,
+            execution_policy: backend.execution_policy(),
+        })
+    }
+}
+impl WorkflowNode for NonproportionalOrdinalGroupSiteProjectNode {
+    type Output = NonproportionalOrdinalGroupSiteWorkerResult;
+    fn spec(&self) -> &NodeSpec {
+        &self.spec
+    }
+    fn input_artifacts(&self) -> &[ArtifactRef] {
+        &self.input_artifacts
+    }
+    fn verify_input_content(&self) -> Result<(), NodeError> {
+        let x = source_artifact(&self.input_path, self.backend.input_kinds[0])
+            .map_err(NodeError::input)?;
+        if x != self.input_artifacts[0] {
+            return Err(NodeError::input(BayesCliError::Input(
+                "nonproportional ordinal input identity changed".into(),
+            )));
+        }
+        Ok(())
+    }
+    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
+        CacheKeyMaterial {
+            configuration_digest: self
+                .backend
+                .configuration_digest(&self.prepared.request.backend, &self.prepared.request_bytes),
+            execution_policy: &self.execution_policy,
+            implementation_identity: self.backend.implementation_identity,
+        }
+    }
+    fn execute(&self) -> Result<Self::Output, NodeError> {
+        bayes::execute_nonproportional_ordinal_group_site(&self.prepared)
+            .map_err(NodeError::execution)
+    }
+    fn encode_output(&self, o: &Self::Output) -> Result<Box<[u8]>, NodeError> {
+        serde_json::to_vec(o)
+            .map(Vec::into_boxed_slice)
+            .map_err(NodeError::encoding)
+    }
+    fn decode_output(&self, b: &[u8]) -> Result<Self::Output, NodeError> {
+        let o: Self::Output = serde_json::from_slice(b).map_err(NodeError::decode)?;
+        o.validate(&self.prepared.request, &self.prepared.request_sha256)
+            .map_err(NodeError::decode)?;
+        Ok(o)
     }
     fn output_kind(&self) -> &'static str {
         self.backend.output_kind

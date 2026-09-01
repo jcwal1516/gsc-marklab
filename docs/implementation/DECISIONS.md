@@ -3863,3 +3863,19 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   language, automatic effect selection, crossed effects, cohort variance, or ROI-within-slide
   variance; those require distinct identified immediate callers. Site adjustment does not turn the
   retrospective molecular association into progression, treatment, causal, or clinical evidence.
+
+## DEC-0400 — Preserve valid cumulative probabilities with group-specific ordered cutpoints
+
+- Date: 2026-08-31
+- Status: accepted for BAY-03/COH-01/PLAT-01/WF-01/WS-12/WS-33/WS-41
+- Decision: address the observed proportional-odds posterior-predictive failure with one bounded
+  non-proportional ordinal model for the same admitted patient/site caller. Fit separate ordered
+  cutpoint vectors for the reference and comparison groups plus sum-to-zero site intercepts. Define
+  each threshold-specific comparison effect as reference cutpoint minus comparison cutpoint. This
+  guarantees monotone cumulative probabilities in both groups, unlike unconstrained threshold
+  coefficients. Standardize reported category probabilities equally across sites and compare the
+  model with proportional baselines using category PPC and patient/site-held-out log score.
+- Consequences: threshold-specific molecular associations become estimable without invalid ordinal
+  distributions or significance-directed model selection. The model remains descriptive and does
+  not identify progression, treatment, causality, or clinical utility. It does not add arbitrary
+  formulas, automatic partial-proportional selection, cohort effects, or fabricated ROI identity.

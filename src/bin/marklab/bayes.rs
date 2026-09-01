@@ -538,6 +538,8 @@ mod weights;
 mod cli_error;
 #[path = "bayes/cli_schema.rs"]
 mod cli_schema;
+#[path = "bayes/nonproportional_ordinal_group_site.rs"]
+mod nonproportional_ordinal_group_site;
 #[path = "bayes/normal_mean.rs"]
 mod normal_mean;
 #[path = "bayes/ordinal_group.rs"]
@@ -559,6 +561,10 @@ pub(super) use hurdle_beta_binomial_group::{
     execute as execute_hurdle_beta_binomial_group, prepare as prepare_hurdle_beta_binomial_group,
     PreparedHurdleBetaBinomialGroup,
 };
+pub(super) use nonproportional_ordinal_group_site::{
+    execute as execute_nonproportional_ordinal_group_site,
+    prepare as prepare_nonproportional_ordinal_group_site, PreparedNonproportionalOrdinalGroupSite,
+};
 pub(super) use normal_mean::{execute_normal_mean, prepare_normal_mean, PreparedNormalMean};
 pub(super) use ordinal_group::{
     execute as execute_ordinal_group, prepare as prepare_ordinal_group, PreparedOrdinalGroup,
@@ -575,6 +581,9 @@ pub(super) fn run_ordinal_group_cli() -> Result<(), BayesCliError> {
 
 pub(super) fn run_ordinal_group_site_hierarchy_cli() -> Result<(), BayesCliError> {
     ordinal_group_site_hierarchy::run_cli()
+}
+pub(super) fn run_nonproportional_ordinal_group_site_cli() -> Result<(), BayesCliError> {
+    nonproportional_ordinal_group_site::run_cli()
 }
 
 pub(super) fn run_hurdle_beta_binomial_group_cli() -> Result<(), BayesCliError> {

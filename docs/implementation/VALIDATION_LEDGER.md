@@ -5139,3 +5139,14 @@ vascular transport.
   checksum-file SHA is `c348445c93d1a15f965df5be6e9de126bc9b97aebd07ee3bc82dc813028e5f19`.
 - The level-2 PPC tail remains 0.00367. The fit is recorded as computationally converged but
   misspecified; no significance-directed retuning or unsupported ROI/cohort/crossed effect occurs.
+
+## Valid non-proportional ordinal checkpoint 207 — 2026-08-31
+
+- Direct and durable tests first failed on absent commands. The confounded-site unit test passes
+  1/1 and final direct/durable targets pass 2/2; the durable target proves backend-disabled replay.
+- Worker compilation, affected warning-denied Bayes/root-CLI Clippy, Bayes no-default/docs,
+  affected Rustfmt, and `git diff --check` pass. No broad loader loop runs.
+- Real result/ledger/checksum SHA values are
+  `bc90ec2f52cc68028674fbffd6ea40e0c446f614b5910ef3ae7f53d915148a4e`,
+  `8cb8671e4a7a5da565f652cd2c0ebcd641953aee22e06b75a0bab1ee24916289`, and
+  `30ef33216abe776f9e037a4f27e535d3ab5c922ad0298f9c45579aff1be63a3b`.

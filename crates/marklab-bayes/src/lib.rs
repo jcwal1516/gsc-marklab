@@ -68,6 +68,7 @@ mod multi_output_gp;
 mod multiscale_kernel;
 mod multitype;
 mod nngp;
+mod nonproportional_ordinal_group_site;
 mod ordinal_group;
 mod ordinal_group_site_hierarchy;
 mod partial_fused_gromov;
@@ -391,6 +392,14 @@ pub use multitype::{
 pub use nngp::{
     build_nngp, full_gp_log_density, nngp_log_density, NngpError, NngpObservation, NngpPlan,
     NngpSpec,
+};
+pub use nonproportional_ordinal_group_site::{
+    nonproportional_ordinal_group_site_data_sha256, NonproportionalOrdinalGroupSiteInputIdentity,
+    NonproportionalOrdinalGroupSiteModelIr, NonproportionalOrdinalGroupSitePosterior,
+    NonproportionalOrdinalGroupSitePosteriorPredictive, NonproportionalOrdinalGroupSiteResources,
+    NonproportionalOrdinalGroupSiteResult, NonproportionalOrdinalGroupSiteSpec,
+    NonproportionalOrdinalGroupSiteWorkerRequest, NonproportionalOrdinalGroupSiteWorkerResult,
+    NonproportionalOrdinalSitePosterior, OrdinalThresholdGroupEffect,
 };
 pub use ordinal_group::{
     ordinal_group_data_sha256, OrdinalCutpointPosterior, OrdinalGroupInputIdentity,

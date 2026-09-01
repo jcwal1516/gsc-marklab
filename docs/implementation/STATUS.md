@@ -4436,3 +4436,19 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - Miss/hit SHA is `4b97efb61a6b14c0d0df1b59c1391e95019283694082cb2fae89379c7b8e71f5`; sealed v77
   checksum-file SHA is `c348445c93d1a15f965df5be6e9de126bc9b97aebd07ee3bc82dc813028e5f19`.
   ROI-within-slide, crossed, and cohort effects retain exact identity blockers.
+
+## Valid non-proportional ordinal checkpoint 207 — 2026-08-31
+
+- Added separate strictly ordered MSI/MSS cutpoint vectors with sum-zero site intercepts. Threshold
+  effects are reference-minus-comparison cutpoint differences, so both cumulative distributions
+  remain monotone by construction. Direct/durable commands retain exact typed and backend identity.
+- Unit/direct/durable oracles pass, including opposing threshold effects, site-confounding rejection,
+  changed-seed invalidation, and byte-identical backend-disabled replay. Affected Clippy,
+  no-default, docs, Python compilation, formatting, and whitespace checks pass.
+- On 126 TCGA patients, threshold effects after stages 1/2/3 are 0.136 [-0.784,1.117], -1.485
+  [-2.274,-0.688], and -3.125 [-5.613,-1.211]. Category PPC tails are 0.995/0.957/0.999/0.800,
+  resolving the proportional models' profile failure in-sample. Result SHA is
+  `bc90ec2f52cc68028674fbffd6ea40e0c446f614b5910ef3ae7f53d915148a4e`; sealed checksum SHA
+  is `30ef33216abe776f9e037a4f27e535d3ab5c922ad0298f9c45579aff1be63a3b`.
+- Site-held-out log-score comparison remains required before promotion; no causal or clinical claim
+  follows from the improved PPC.
