@@ -551,6 +551,345 @@ def fit_adaptive_spatial_factor(mesh, observations, noise_sd, maximum_iterations
     return {"means": means, "field": field, "projected": projected, "loadings": loadings, "rmse": float(np.sqrt(np.mean((reconstruction - values) ** 2))), "x_correlation": correlation, "objective": objective_value, "gradient_max": gradient_maximum, "iterations": iteration, "projection": design, "projection_visits": projection_visits}
 
 
+def anisotropy_tensor(ratio, major_axis_degrees):
+    ratio = float(ratio)
+    angle = float(major_axis_degrees)
+    if not math.isfinite(ratio) or not math.isfinite(angle) or not 1.0 <= ratio <= 16.0 or not -180.0 <= angle <= 180.0:
+        raise ContractError("nonstationary SPDE anisotropy parameters are invalid")
+    radians = math.radians(angle)
+    cosine = math.cos(radians)
+    sine = math.sin(radians)
+    rotation = np.asarray([[cosine, -sine], [sine, cosine]], dtype=float)
+    tensor = rotation @ np.diag([ratio, 1.0 / ratio]) @ rotation.T
+    tensor = (tensor + tensor.T) / 2.0
+    if np.linalg.eigvalsh(tensor)[0] <= 0.0 or abs(float(np.linalg.det(tensor)) - 1.0) > 1e-10:
+        raise ContractError("nonstationary SPDE anisotropy tensor is not positive definite")
+    return tensor
+
+
+def nonstationary_parameter_at(point, background, regions):
+    matched = [region for region in regions if float(np.linalg.norm(point - region["center"])) <= region["radius"] + 1e-12]
+    if len(matched) > 1:
+        raise ContractError("nonstationary SPDE parameter regions overlap")
+    return matched[0] if matched else background
+
+
+def build_nonstationary_adaptive_mesh(window, spec, observation_coordinates):
+    x0, x1, y0, y1 = window["bounds"]
+    base_resolution = int(spec["base_resolution"])
+    boundary_level = int(spec["boundary_refinement_levels"])
+    maximum_vertices = int(spec["maximum_vertices"])
+    maximum_triangles = int(spec["maximum_triangles"])
+    maximum_candidates = int(spec["maximum_candidate_points"])
+    maximum_boundary_checks = int(spec["maximum_boundary_segment_triangle_checks"])
+    memory_budget_bytes = int(spec["memory_budget_mib"]) * 1024 * 1024
+    base_spacing = min((x1 - x0) / (base_resolution - 1), (y1 - y0) / (base_resolution - 1))
+    boundary_spacing = base_spacing / (2 ** boundary_level)
+    xs = np.linspace(x0, x1, base_resolution)
+    ys = np.linspace(y0, y1, base_resolution)
+    candidates = [[x, y] for y in ys for x in xs if window_contains(window, np.asarray([x, y]))]
+    candidates.extend(resampled_boundary_points(window, boundary_spacing))
+    candidates.extend(observation_coordinates.tolist())
+    background_raw = spec["background"]
+    background = {
+        "region_id": "background",
+        "center": None,
+        "radius": None,
+        "kappa": float(background_raw["kappa"]),
+        "tau": float(background_raw["tau"]),
+        "anisotropy_ratio": float(background_raw["anisotropy_ratio"]),
+        "major_axis_degrees": float(background_raw["major_axis_degrees"]),
+        "interior_refinement_levels": 0,
+    }
+    regions = []
+    identities = set()
+    for raw in spec["parameter_regions"]:
+        identity = raw["region_id"]
+        center = np.asarray(raw["center"], dtype=float)
+        radius = float(raw["radius"])
+        level = int(raw["interior_refinement_levels"])
+        region = {
+            "region_id": identity,
+            "center": center,
+            "radius": radius,
+            "kappa": float(raw["kappa"]),
+            "tau": float(raw["tau"]),
+            "anisotropy_ratio": float(raw["anisotropy_ratio"]),
+            "major_axis_degrees": float(raw["major_axis_degrees"]),
+            "interior_refinement_levels": level,
+        }
+        if (
+            not isinstance(identity, str)
+            or not identity
+            or identity in identities
+            or center.shape != (2,)
+            or not np.isfinite(center).all()
+            or not math.isfinite(radius)
+            or radius <= 0.0
+            or not 1 <= level <= 4
+        ):
+            raise ContractError("nonstationary SPDE parameter region is invalid")
+        identities.add(identity)
+        regions.append(region)
+    if not 1 <= len(regions) <= 16:
+        raise ContractError("nonstationary SPDE requires one to sixteen parameter regions")
+    for left, first in enumerate(regions):
+        for second in regions[left + 1:]:
+            if float(np.linalg.norm(first["center"] - second["center"])) <= first["radius"] + second["radius"]:
+                raise ContractError("nonstationary SPDE parameter regions overlap")
+    for parameter in [background, *regions]:
+        if not all(math.isfinite(parameter[key]) and parameter[key] > 0.0 for key in ("kappa", "tau")):
+            raise ContractError("nonstationary SPDE kappa and tau must be finite and positive")
+        parameter["anisotropy_tensor"] = anisotropy_tensor(
+            parameter["anisotropy_ratio"], parameter["major_axis_degrees"]
+        )
+    for region in regions:
+        spacing = base_spacing / (2 ** region["interior_refinement_levels"])
+        count = int(math.ceil(2.0 * region["radius"] / spacing))
+        for row in range(count + 1):
+            y = region["center"][1] - region["radius"] + row * spacing
+            for column in range(count + 1):
+                x = region["center"][0] - region["radius"] + column * spacing
+                point = np.asarray([x, y])
+                if float(np.linalg.norm(point - region["center"])) <= region["radius"] + 1e-12 and window_contains(window, point):
+                    candidates.append([x, y])
+                if len(candidates) > maximum_candidates:
+                    raise ContractError("nonstationary SPDE adaptive candidate bound exceeded")
+    canonical = sorted({(float(point[0]), float(point[1])) for point in candidates})
+    if len(canonical) > maximum_candidates:
+        raise ContractError("nonstationary SPDE unique candidate bound exceeded")
+    vertices = np.asarray(canonical, dtype=float)
+    if len(vertices) < 3 or len(vertices) > maximum_vertices:
+        raise ContractError("nonstationary SPDE vertex bound violated")
+    triangulation = Delaunay(vertices)
+    boundary_checks = len(triangulation.simplices) * 3 * len(window["segments"])
+    if boundary_checks > maximum_boundary_checks:
+        raise ContractError("nonstationary SPDE boundary work bound exceeded")
+    retained = []
+    for simplex in triangulation.simplices:
+        triangle = tuple(sorted(map(int, simplex)))
+        coordinates = vertices[list(triangle)]
+        if not window_contains(window, coordinates.mean(axis=0)):
+            continue
+        if all(segment_within_window(window, coordinates[index], coordinates[(index + 1) % 3]) for index in range(3)):
+            retained.append(triangle)
+    triangles = np.asarray(sorted(set(retained)), dtype=int)
+    if len(triangles) == 0 or len(triangles) > maximum_triangles:
+        raise ContractError("nonstationary SPDE triangle bound violated")
+    used = sorted(set(map(int, triangles.ravel())))
+    remap = {old: new for new, old in enumerate(used)}
+    vertices = vertices[used]
+    triangles = np.asarray([[remap[int(index)] for index in triangle] for triangle in triangles], dtype=int)
+    vertex_count = len(vertices)
+    if 12 * vertex_count * vertex_count * 8 > memory_budget_bytes:
+        raise ContractError("nonstationary SPDE dense FEM memory budget exceeded")
+    vertex_parameters = [nonstationary_parameter_at(point, background, regions) for point in vertices]
+    mass = np.zeros((vertex_count, vertex_count))
+    stiffness = np.zeros_like(mass)
+    areas = []
+    triangle_regions = []
+    for triangle in triangles:
+        coordinates = vertices[triangle]
+        signed_double_area = float(np.cross(coordinates[1] - coordinates[0], coordinates[2] - coordinates[0]))
+        area = abs(signed_double_area) / 2.0
+        if area <= 1e-14:
+            raise ContractError("nonstationary SPDE produced a degenerate triangle")
+        areas.append(area)
+        triangle_regions.append(nonstationary_parameter_at(coordinates.mean(axis=0), background, regions)["region_id"])
+        local_mass = area / 12.0 * np.asarray([[2, 1, 1], [1, 2, 1], [1, 1, 2]], float)
+        denominator = signed_double_area
+        b = np.asarray([coordinates[1, 1] - coordinates[2, 1], coordinates[2, 1] - coordinates[0, 1], coordinates[0, 1] - coordinates[1, 1]]) / denominator
+        c = np.asarray([coordinates[2, 0] - coordinates[1, 0], coordinates[0, 0] - coordinates[2, 0], coordinates[1, 0] - coordinates[0, 0]]) / denominator
+        gradients = np.column_stack([b, c])
+        tensor = sum((vertex_parameters[int(index)]["anisotropy_tensor"] for index in triangle), np.zeros((2, 2))) / 3.0
+        local_stiffness = area * gradients @ tensor @ gradients.T
+        for local_i, global_i in enumerate(triangle):
+            for local_j, global_j in enumerate(triangle):
+                mass[global_i, global_j] += local_mass[local_i, local_j]
+                stiffness[global_i, global_j] += local_stiffness[local_i, local_j]
+    areas = np.asarray(areas)
+    lumped = mass.sum(axis=1)
+    if np.any(lumped <= 0.0):
+        raise ContractError("nonstationary SPDE mesh has zero mass")
+    kappas = np.asarray([parameter["kappa"] for parameter in vertex_parameters])
+    taus = np.asarray([parameter["tau"] for parameter in vertex_parameters])
+    operator = stiffness + np.diag(lumped * kappas ** 2)
+    weighted = operator @ np.diag(taus)
+    precision = weighted.T @ np.diag(1.0 / lumped) @ weighted
+    precision = (precision + precision.T) / 2.0
+    symmetry_error = float(np.max(np.abs(precision - precision.T)))
+    eigenvalues = np.linalg.eigvalsh(precision)
+    if eigenvalues[0] <= 0.0:
+        raise ContractError("nonstationary SPDE precision is not positive definite")
+    summaries = []
+    for parameter in [background, *regions]:
+        selected = areas[np.asarray(triangle_regions) == parameter["region_id"]]
+        if len(selected) == 0:
+            raise ContractError(f"nonstationary SPDE region {parameter['region_id']} has no retained triangles")
+        summaries.append({
+            "region_id": parameter["region_id"],
+            "kappa": parameter["kappa"],
+            "tau": parameter["tau"],
+            "anisotropy_ratio": parameter["anisotropy_ratio"],
+            "major_axis_degrees": parameter["major_axis_degrees"],
+            "anisotropy_tensor": parameter["anisotropy_tensor"].tolist(),
+            "interior_refinement_levels": parameter["interior_refinement_levels"],
+            "triangle_count": len(selected),
+            "median_triangle_area": float(np.median(selected)),
+        })
+    return {
+        "vertices": vertices,
+        "triangles": triangles,
+        "mass": mass,
+        "stiffness": stiffness,
+        "precision": precision,
+        "mesh_area": float(areas.sum()),
+        "boundary_spacing": boundary_spacing,
+        "minimum_precision_eigenvalue": float(eigenvalues[0]),
+        "maximum_precision_eigenvalue": float(eigenvalues[-1]),
+        "maximum_precision_symmetry_error": symmetry_error,
+        "summaries": summaries,
+        "background": summaries[0],
+        "regions": summaries[1:],
+        "boundary_checks": boundary_checks,
+    }
+
+
+def nonstationary_adaptive_window_spde(spec):
+    window = parse_polygonal_window(spec["window"])
+    frame = spec["window_frame"]
+    maximum_relative_area_error = float(spec["maximum_relative_area_error"])
+    noise_sd = float(spec["factor_noise_sd"])
+    maximum_iterations = int(spec["maximum_iterations"])
+    maximum_projection_visits = int(spec["maximum_projection_triangle_visits"])
+    maximum_result_bytes = int(spec["maximum_result_bytes"])
+    if (
+        not isinstance(frame, str)
+        or not frame
+        or spec["alpha"] != 2
+        or spec["factor_count"] != 1
+        or not 4 <= int(spec["base_resolution"]) <= 32
+        or not 0 <= int(spec["boundary_refinement_levels"]) <= 4
+        or not math.isfinite(maximum_relative_area_error)
+        or not 0.0 < maximum_relative_area_error <= 0.25
+        or not math.isfinite(noise_sd)
+        or noise_sd <= 0.0
+        or not 10 <= maximum_iterations <= 10000
+        or not 16 <= int(spec["maximum_vertices"]) <= 1024
+        or not 16 <= int(spec["maximum_triangles"]) <= 4096
+        or not 16 <= int(spec["maximum_candidate_points"]) <= 8192
+        or not 1 <= int(spec["maximum_boundary_segment_triangle_checks"]) <= 100000000
+        or not 1 <= maximum_projection_visits <= 100000000
+        or not 8 <= int(spec["memory_budget_mib"]) <= 4096
+        or not 1024 <= maximum_result_bytes <= 16 * 1024 * 1024
+    ):
+        raise ContractError("nonstationary adaptive SPDE controls violate their bounds")
+    observations = spec["factor_observations"]
+    coordinates = np.asarray([row["coordinates"] for row in observations], dtype=float)
+    values = np.asarray([row["values"] for row in observations], dtype=float)
+    identities = [row["region_id"] for row in observations]
+    if (
+        coordinates.ndim != 2
+        or coordinates.shape[1] != 2
+        or not 8 <= len(coordinates) <= 512
+        or values.ndim != 2
+        or values.shape[0] != len(coordinates)
+        or not 2 <= values.shape[1] <= 16
+        or not np.isfinite(coordinates).all()
+        or not np.isfinite(values).all()
+        or len(set(identities)) != len(identities)
+        or any(not isinstance(identity, str) or not identity for identity in identities)
+        or any(not window_contains(window, point) for point in coordinates)
+    ):
+        raise ContractError("nonstationary SPDE observations are invalid")
+    mesh = build_nonstationary_adaptive_mesh(window, spec, coordinates)
+    relative_area_error = abs(mesh["mesh_area"] - window["exact_area"]) / window["exact_area"]
+    if relative_area_error > maximum_relative_area_error:
+        raise ContractError(
+            f"nonstationary SPDE mesh relative area error {relative_area_error} exceeds {maximum_relative_area_error}"
+        )
+    factor = fit_adaptive_spatial_factor(
+        mesh, observations, noise_sd, maximum_iterations, maximum_projection_visits
+    )
+    projection_error = float(np.max(np.abs(factor["projection"].sum(axis=1) - 1.0)))
+    result = {
+        "format": "marklab.nonstationary_adaptive_window_spde",
+        "version": 1,
+        "statistical_unit": "within_specimen_field_diagnostic",
+        "window": {
+            "frame": frame,
+            "exact_area": window["exact_area"],
+            "bounds": window["bounds"],
+            "component_count": window["component_count"],
+            "hole_count": window["hole_count"],
+            "ring_count": window["ring_count"],
+            "vertex_count": window["vertex_count"],
+        },
+        "mesh": {
+            "operator": "mass_lumped_nonstationary_alpha_two_spde",
+            "basis": "piecewise_linear_triangular",
+            "boundary_condition": "natural_neumann_with_positive_local_kappa",
+            "alpha": 2,
+            "vertices": mesh["vertices"].tolist(),
+            "triangles": mesh["triangles"].tolist(),
+            "vertex_count": len(mesh["vertices"]),
+            "triangle_count": len(mesh["triangles"]),
+            "mesh_area": mesh["mesh_area"],
+            "relative_area_error": relative_area_error,
+            "mass_matrix": sparse_triplets(mesh["mass"]),
+            "anisotropic_stiffness_matrix": sparse_triplets(mesh["stiffness"]),
+            "precision_matrix": sparse_triplets(mesh["precision"]),
+            "minimum_precision_eigenvalue": mesh["minimum_precision_eigenvalue"],
+            "maximum_precision_eigenvalue": mesh["maximum_precision_eigenvalue"],
+            "maximum_precision_symmetry_error": mesh["maximum_precision_symmetry_error"],
+            "maximum_projection_row_sum_error": projection_error,
+        },
+        "background": mesh["background"],
+        "parameter_regions": mesh["regions"],
+        "spatial_factor": {
+            "inference": "fixed_local_hyperparameter_penalized_map",
+            "factor_count": 1,
+            "region_ids": identities,
+            "feature_count": values.shape[1],
+            "feature_means": factor["means"].tolist(),
+            "mesh_field_weights": factor["field"].tolist(),
+            "projected_region_factor": factor["projected"].tolist(),
+            "loadings": factor["loadings"].tolist(),
+            "reconstruction_rmse": factor["rmse"],
+            "objective": factor["objective"],
+            "gradient_maximum": factor["gradient_max"],
+            "iterations": factor["iterations"],
+            "projection": sparse_triplets(factor["projection"]),
+            "projection_triangle_visits": factor["projection_visits"],
+        },
+        "limits": {
+            "maximum_vertices": int(spec["maximum_vertices"]),
+            "maximum_triangles": int(spec["maximum_triangles"]),
+            "maximum_candidate_points": int(spec["maximum_candidate_points"]),
+            "maximum_boundary_segment_triangle_checks": int(spec["maximum_boundary_segment_triangle_checks"]),
+            "maximum_projection_triangle_visits": maximum_projection_visits,
+            "memory_budget_mib": int(spec["memory_budget_mib"]),
+            "maximum_result_bytes": maximum_result_bytes,
+            "maximum_iterations": maximum_iterations,
+        },
+        "assumptions": [
+            "piecewise_constant_declared_local_spde_parameters",
+            "nonoverlapping_circular_parameter_regions",
+            "piecewise_linear_finite_elements_with_mass_lumping",
+            "observation_locations_are_not_population_replicates",
+        ],
+        "limitations": [
+            "local_parameters_are_prespecified_not_estimated",
+            "within_specimen_spatial_field_diagnostic",
+            "dense_bounded_penalized_map",
+        ],
+        "claim_status": "fitted_nonstationary_anisotropic_adaptive_spde_diagnostic",
+    }
+    if len(json.dumps(result, allow_nan=False, separators=(",", ":"), sort_keys=True).encode()) > maximum_result_bytes:
+        raise ContractError("nonstationary SPDE result exceeds maximum_result_bytes")
+    return result
+
+
 def adaptive_window_spde(spec):
     window = parse_polygonal_window(spec["window"])
     frame = spec["window_frame"]
@@ -647,8 +986,9 @@ def main():
     elif request["mode"] == "advanced_cluster": result = advanced_cluster(request["spec"])
     elif request["mode"] == "spde_suite": result = spde_suite(request["spec"])
     elif request["mode"] == "adaptive_window_spde": result = adaptive_window_spde(request["spec"])
+    elif request["mode"] == "nonstationary_adaptive_window_spde": result = nonstationary_adaptive_window_spde(request["spec"])
     else: raise ContractError("unknown advanced Bayesian mode")
-    if request["mode"] == "adaptive_window_spde":
+    if request["mode"] in {"adaptive_window_spde", "nonstationary_adaptive_window_spde"}:
         if abs(result["window"]["exact_area"] - float(request["canonical_window_area"])) > 1e-10 * max(1.0, float(request["canonical_window_area"])):
             raise ContractError("Rust and SciPy adaptive SPDE window areas disagree")
         result["window"]["exact_area"] = float(request["canonical_window_area"])

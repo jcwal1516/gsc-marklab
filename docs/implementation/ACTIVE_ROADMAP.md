@@ -64,7 +64,10 @@ One fixed identified Gaussian hierarchy now owns distinct ROI-within-slide, cros
 patient/cohort random slopes, and cohort transport variance mathematically. Real execution remains
 blocked by absent distinct ROI-within-slide, crossed batch, and compatible multi-cohort outcome
 identities in the admitted tables;
-anisotropic/nonstationary field effects remain unjustified by the current real field results.
+One bounded exact-window specialization now owns prespecified local anisotropy, nonstationary κ/τ,
+and spatially varying interior SPDE resolution mathematically. Real promotion remains unjustified
+by the current failed patient-level field gates; resume only for an admitted caller with frozen
+local parameter/refinement provenance.
 
 ## Full-program resumption override — 2026-08-30
 

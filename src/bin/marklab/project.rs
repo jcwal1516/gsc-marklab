@@ -110,6 +110,8 @@ mod max_t_calibration;
 mod multiscale_embedding_kernel;
 #[path = "project/multitype_lgcp_sbc.rs"]
 mod multitype_lgcp_sbc;
+#[path = "project/nonstationary_adaptive_window_spde.rs"]
+mod nonstationary_adaptive_window_spde;
 #[path = "project/ordinal_site_heldout.rs"]
 mod ordinal_site_heldout;
 #[path = "project/patient_nested_fields.rs"]
@@ -1927,6 +1929,14 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    NonstationaryAdaptiveWindowSpde {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
     ArbitraryWindowIppLikelihood(Box<ArbitraryWindowIppProjectArgs>),
     FitArbitraryWindowIpp(Box<ArbitraryWindowIppFitProjectArgs>),
     ArbitraryWindowIppSpatialPpc(Box<ArbitraryWindowIppSpatialPpcProjectArgs>),
@@ -3386,6 +3396,14 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
                     out,
                 },
         } => adaptive_window_spde::run(project, input, out),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::NonstationaryAdaptiveWindowSpde {
+                    project,
+                    input,
+                    out,
+                },
+        } => nonstationary_adaptive_window_spde::run(project, input, out),
         ProjectTopLevel::Project {
             command: ProjectCommand::JointReplicatedLocationMark(arguments),
         } => joint_location_mark::run(*arguments),

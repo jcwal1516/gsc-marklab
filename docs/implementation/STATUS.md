@@ -4486,3 +4486,20 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - No admitted real table currently supplies all distinct ROI-within-slide, crossed batch, and
   compatible multi-cohort outcome identities. Those real estimates remain unavailable with that
   exact blocker; no biological transport or variance claim is fabricated.
+
+## Nonstationary anisotropic adaptive-SPDE checkpoint 210 — 2026-09-01
+
+- Added one exact-window α=2 FEM specialization with prespecified piecewise local κ/τ, rotated
+  determinant-one anisotropy tensors, and region-specific interior refinement. Exact polygon holes
+  and disconnected pieces remain owned by the existing window contract; circular parameter regions
+  must be nonoverlapping and refinement is bounded before triangulation.
+- The hand oracle recovers the 45-degree ratio-four tensor `[[2.125,1.875],[1.875,2.125]]`, proves
+  smaller median triangles inside the declared focus, positive symmetric precision, exact hole
+  retention, and a converged penalized factor. Direct and durable commands pass; the fresh process
+  restores exact typed bytes without a second SciPy execution and retains one ledger row.
+- Existing stationary boundary-adaptive tests remain green 3/3 after the shared pinned worker
+  change. Warning-denied affected root-CLI Clippy, Python compilation, affected Rustfmt, and
+  whitespace checks pass.
+- The admitted real CellViT local/adaptive field blocks previously failed their prespecified
+  incremental or group gates. This mathematical capability therefore remains synthetic-oracle
+  validated and caller-dependent; no real tissue anisotropy/nonstationarity claim is made.

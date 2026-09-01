@@ -5176,3 +5176,15 @@ vascular transport.
   The exact design-validation unit oracle passes 1/1; Python bytecode compilation passes.
 - Warning-denied affected Bayes all-target and root-CLI Clippy, affected Rustfmt, and
   `git diff --check` pass. No workspace loader loop or unrelated broad gate runs.
+
+## Nonstationary anisotropic adaptive-SPDE checkpoint 210 — 2026-09-01
+
+- The direct target first failed on the absent subcommand and now passes 1/1. The durable target
+  first failed on the absent project subcommand and now passes 1/1 with miss/backend-disabled hit
+  and one ledger row. Their combined final command passes 2/2.
+- The pre-existing boundary-adaptive direct/durable targets pass 3/3 after the shared worker change.
+  `python3 -m py_compile workers/python/marklab_scipy_advanced_bayes_worker.py`, affected Rustfmt,
+  warning-denied root-CLI Clippy, and `git diff --check` pass.
+- The direct oracle checks the exact rotated tensor, interior-versus-background triangle size,
+  positive precision eigenvalue, symmetry, exact hole, projection, and optimizer gradient. No broad
+  workspace loader loop, benchmark, packaging, or unrelated gate runs.

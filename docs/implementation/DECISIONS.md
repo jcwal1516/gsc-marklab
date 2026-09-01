@@ -3896,3 +3896,21 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   registry or arbitrary mixed-model surface. Current admitted CRC tables do not contain the required
   distinct ROI-within-slide, crossed batch, and compatible multi-cohort outcome identities, so no real
   variance estimate or transport claim is fabricated.
+
+## DEC-0402 — Add declared local anisotropy and interior adaptation to the exact-window SPDE
+
+- Date: 2026-09-01
+- Status: accepted for BAY-04/BAY-FIELD-A/PLAT-01/WF-01/WS-12/WS-43
+- Decision: retain the existing exact polygon/MultiPolygon window and pinned SciPy factor fit, but
+  add one separate bounded α=2 FEM specialization. The caller declares one background κ, τ,
+  anisotropy ratio, and major-axis angle plus one to sixteen nonoverlapping circular parameter
+  regions with their own values and interior refinement levels. Construct rotated determinant-one
+  SPD diffusion tensors, refine candidates only inside those regions and along the exact boundary,
+  and form the mass-lumped precision `T A' C^-1 A T`, where `A` combines local κ² mass with the
+  anisotropic stiffness operator. Preserve holes, disconnected pieces, finite results, positive
+  precision, exact identities, and hard candidate/vertex/triangle/work/memory/result/time bounds.
+- Consequences: Marklab gains a concrete nonstationary anisotropic arbitrary-window field and
+  genuinely spatially varying mesh resolution without a general mesh language or automatic
+  hyperparameter selection. Local parameters and refinement regions are prespecified, not learned;
+  the current real CellViT field blocks failed their promotion gates, so no real anisotropy or
+  nonstationarity claim is fabricated.
