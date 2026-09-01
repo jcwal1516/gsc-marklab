@@ -5188,3 +5188,13 @@ vascular transport.
 - The direct oracle checks the exact rotated tensor, interior-versus-background triangle size,
   positive precision eigenvalue, symmetry, exact hole, projection, and optimizer gradient. No broad
   workspace loader loop, benchmark, packaging, or unrelated gate runs.
+
+## Robust multitype inhomogeneous edge checkpoint 211 — 2026-09-01
+
+- The independent translation/isotropic arithmetic target passes 1/1. The direct/durable CLI target
+  passes 1/1 in 28.66 seconds with separate translation/isotropic miss/backend-disabled hits and one
+  ledger row each. Standard/cross-fitted/typed affected targets pass 6/6.
+- Affected Rustfmt, warning-denied root library and CLI Clippy, and `git diff --check` pass. The
+  attempted all-target root Clippy stops on the pre-existing unrelated unnecessary cast at
+  `tests/durable_numpyro_joint_location_mark_project.rs:129`; it is not changed or called equivalent
+  to the focused evidence. No broad loader loop runs.

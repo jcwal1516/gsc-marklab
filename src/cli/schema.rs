@@ -787,6 +787,8 @@ enum ProjectCommands {
         intensity_bandwidth_um: f64,
         #[arg(long)]
         cross_fit_folds: Option<usize>,
+        #[arg(long, value_enum, default_value_t = CliInhomogeneousCrossEdgeCorrection::StandardBorder)]
+        edge_correction: CliInhomogeneousCrossEdgeCorrection,
         #[arg(long)]
         pair_bandwidth_um: f64,
         #[arg(long)]
@@ -811,6 +813,18 @@ enum ProjectCommands {
         max_pair_visits: usize,
         #[arg(long)]
         max_null_draws: usize,
+        #[arg(long)]
+        max_overlap_evaluations: Option<usize>,
+        #[arg(long)]
+        max_overlap_candidate_work: Option<usize>,
+        #[arg(long)]
+        max_overlap_output_vertices: Option<usize>,
+        #[arg(long)]
+        max_visible_arc_evaluations: Option<usize>,
+        #[arg(long)]
+        max_arc_segment_tests: Option<usize>,
+        #[arg(long)]
+        max_arc_membership_queries: Option<usize>,
     },
     ScalarVariogram {
         #[arg(long)]
@@ -943,4 +957,11 @@ enum MultimodalCommands {
 pub(super) enum HeInputFormat {
     HeCsv,
     CellvitCsv,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub(super) enum CliInhomogeneousCrossEdgeCorrection {
+    StandardBorder,
+    Translation,
+    Isotropic,
 }

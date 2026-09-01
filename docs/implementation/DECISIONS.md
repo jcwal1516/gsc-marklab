@@ -3914,3 +3914,19 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   hyperparameter selection. Local parameters and refinement regions are prespecified, not learned;
   the current real CellViT field blocks failed their promotion gates, so no real anisotropy or
   nonstationarity claim is fabricated.
+
+## DEC-0403 — Combine type-specific inhomogeneous intensity with exact geometric edge correction
+
+- Date: 2026-09-01
+- Status: accepted for PP-03/PP-03B/PP-05/FND-03/FND-04/FND-06/PLAT-01/WF-01/WS-12/WS-30/WS-31
+- Decision: extend the existing directed categorical inhomogeneous cross-g caller with two explicit
+  opt-in edge policies while preserving standard-border bytes by default. Translation correction
+  divides each inverse-type-intensity kernel contribution by the exact polygon overlap for its
+  displacement. Isotropic correction divides by the exact source-centred visible-circle fraction
+  and normalizes by window area. Recompute geometry for every independently simulated fixed-grid
+  type pattern, retain the fixed type counts and prespecified Gaussian intensity artifact, and bind
+  correction-specific pair/overlap/arc/segment/query/output ceilings into durable identity.
+- Consequences: robust translation and isotropic multitype inhomogeneous cross-g now share the
+  existing typed CLI/project/null/intensity owners instead of duplicating them. Pinned external
+  `spatstat` agreement remains unavailable because local R 4.5.2 lacks `spatstat.explore` and the Mac
+  mini has no admitted R environment; no external-agreement claim is fabricated.

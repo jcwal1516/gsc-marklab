@@ -233,6 +233,7 @@ pub use inhomogeneous_spatial::{
     inhomogeneous_categorical_cross_pair_correlation, GaussianBandwidthCandidateScore,
     GaussianBandwidthSelectedSpatialAnalysisNode, GaussianBandwidthSelectionConfig,
     GaussianBandwidthSelectionLimits, GaussianBandwidthSelectionSummary,
+    InhomogeneousCategoricalCrossEdgeCorrection, InhomogeneousCategoricalCrossEdgeWork,
     InhomogeneousCategoricalCrossPairCorrelationAnalysisNode,
     InhomogeneousCategoricalCrossPairCorrelationConfig,
     InhomogeneousCategoricalCrossPairCorrelationError,

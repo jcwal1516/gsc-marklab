@@ -6,8 +6,10 @@ use crate::measurement_status_wire::name as measurement_status_name;
 use crate::{
     classical::{window_summary, SpatialGeometryPlan2D},
     common::seeds::{derive_seed, SeedEndpoint},
+    isotropic_spatial::edge::IsotropicArcBudget,
     pair_correlation::epanechnikov_weight,
     permutation::envelopes::GlobalEnvelope,
+    translation_spatial::edge::{preflight_overlap_complexity, TranslationOverlapBudget},
     DeclaredScalarPatternInput, ObservationWindow2D, PairCorrelationKernel,
     PairCorrelationPointStatus, Pattern, ScalarMarkId,
 };
@@ -28,6 +30,12 @@ struct Evaluation {
     values: Vec<f64>,
     eligible: Vec<bool>,
     pair_visits: usize,
+}
+
+enum EdgeBudget {
+    Standard,
+    Translation(TranslationOverlapBudget),
+    Isotropic(IsotropicArcBudget),
 }
 
 pub fn inhomogeneous_categorical_cross_pair_correlation(
@@ -102,6 +110,18 @@ pub fn inhomogeneous_categorical_cross_pair_correlation(
     let observed_plan =
         SpatialGeometryPlan2D::new(&pattern.x_um, &pattern.y_um, window, geometry_limits)
             .map_err(dependency)?;
+    let mut edge_budget = match config.edge_correction() {
+        InhomogeneousCategoricalCrossEdgeCorrection::StandardBorder => EdgeBudget::Standard,
+        InhomogeneousCategoricalCrossEdgeCorrection::Translation(limits) => {
+            preflight_overlap_complexity(window, limits).map_err(dependency)?;
+            EdgeBudget::Translation(
+                TranslationOverlapBudget::new(limits, window).map_err(dependency)?,
+            )
+        }
+        InhomogeneousCategoricalCrossEdgeCorrection::Isotropic(limits) => {
+            EdgeBudget::Isotropic(IsotropicArcBudget::new(limits, window))
+        }
+    };
     let mut source_intensities = filled_vec(pattern.len(), None)?;
     let mut target_intensities = filled_vec(pattern.len(), None)?;
     for (&row, &intensity) in source_rows.iter().zip(&source_fitted.observed_intensities) {
@@ -112,6 +132,9 @@ pub fn inhomogeneous_categorical_cross_pair_correlation(
     }
     let mut observed = evaluate(
         &observed_plan,
+        &pattern.x_um,
+        &pattern.y_um,
+        window,
         &source_rows,
         &target_intensities,
         &source_intensities,
@@ -119,6 +142,7 @@ pub fn inhomogeneous_categorical_cross_pair_correlation(
         config.pair_bandwidth_um(),
         base.limits().maximum_pair_visits,
         &mut counters,
+        &mut edge_budget,
     )?;
     let observed_pair_visits = observed.pair_visits;
     let mut simulations = Vec::new();
@@ -196,6 +220,9 @@ pub fn inhomogeneous_categorical_cross_pair_correlation(
         }
         let evaluated = evaluate(
             &plan,
+            &x,
+            &y,
+            window,
             &simulated_source_rows,
             &target_map,
             &source_map,
@@ -203,6 +230,7 @@ pub fn inhomogeneous_categorical_cross_pair_correlation(
             config.pair_bandwidth_um(),
             base.limits().maximum_pair_visits,
             &mut counters,
+            &mut edge_budget,
         )?;
         for (joint, current) in jointly_eligible.iter_mut().zip(evaluated.eligible) {
             *joint &= current;
@@ -236,6 +264,7 @@ pub fn inhomogeneous_categorical_cross_pair_correlation(
         };
     let source_intensity = into_intensity_summary(&source_pattern, window, base, source_fitted)?;
     let target_intensity = into_intensity_summary(&target_pattern, window, base, target_fitted)?;
+    let (edge_correction, edge_work) = edge_summary(&edge_budget);
     Ok(InhomogeneousCategoricalCrossPairCorrelationResult {
         mark_id: mark_id.as_str().into(),
         measurement_status: measurement_status_name(
@@ -257,9 +286,7 @@ pub fn inhomogeneous_categorical_cross_pair_correlation(
         kernel: PairCorrelationKernel::Epanechnikov,
         pair_bandwidth_um: config.pair_bandwidth_um(),
         intensity_bandwidth_um: base.bandwidth_um(),
-        edge_correction:
-            "standard_border_radius_plus_pair_bandwidth_type_specific_inverse_intensity_ratio"
-                .into(),
+        edge_correction,
         configuration_digest: configuration_digest(config).to_string(),
         observed_pair_visits,
         total_pair_visits: counters.pair_visits,
@@ -280,11 +307,69 @@ pub fn inhomogeneous_categorical_cross_pair_correlation(
             alpha: base.alpha(),
             null_draws: counters.null_draws,
         },
+        edge_work,
     })
 }
 
 #[allow(clippy::too_many_arguments)]
 fn evaluate(
+    plan: &SpatialGeometryPlan2D,
+    x_um: &[f64],
+    y_um: &[f64],
+    window: &ObservationWindow2D,
+    source_rows: &[usize],
+    target_intensities: &[Option<f64>],
+    source_intensities: &[Option<f64>],
+    radii: &[f64],
+    pair_bandwidth_um: f64,
+    maximum_pair_visits: usize,
+    counters: &mut Counters,
+    edge_budget: &mut EdgeBudget,
+) -> Result<Evaluation, InhomogeneousCategoricalCrossPairCorrelationError> {
+    match edge_budget {
+        EdgeBudget::Standard => evaluate_standard(
+            plan,
+            source_rows,
+            target_intensities,
+            source_intensities,
+            radii,
+            pair_bandwidth_um,
+            maximum_pair_visits,
+            counters,
+        ),
+        EdgeBudget::Translation(budget) => evaluate_translation(
+            plan,
+            x_um,
+            y_um,
+            window,
+            source_rows,
+            target_intensities,
+            source_intensities,
+            radii,
+            pair_bandwidth_um,
+            maximum_pair_visits,
+            counters,
+            budget,
+        ),
+        EdgeBudget::Isotropic(budget) => evaluate_isotropic(
+            plan,
+            x_um,
+            y_um,
+            window,
+            source_rows,
+            target_intensities,
+            source_intensities,
+            radii,
+            pair_bandwidth_um,
+            maximum_pair_visits,
+            counters,
+            budget,
+        ),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn evaluate_standard(
     plan: &SpatialGeometryPlan2D,
     source_rows: &[usize],
     target_intensities: &[Option<f64>],
@@ -423,6 +508,7 @@ fn evaluate(
             inference_eligible: false,
             lower_cross_g: None,
             upper_cross_g: None,
+            edge_measure_sum: None,
         });
     }
     Ok(Evaluation {
@@ -431,6 +517,247 @@ fn evaluate(
         eligible,
         pair_visits: counters.pair_visits - starting_visits,
     })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn evaluate_translation(
+    plan: &SpatialGeometryPlan2D,
+    x_um: &[f64],
+    y_um: &[f64],
+    window: &ObservationWindow2D,
+    source_rows: &[usize],
+    target_intensities: &[Option<f64>],
+    source_intensities: &[Option<f64>],
+    radii: &[f64],
+    pair_bandwidth_um: f64,
+    maximum_pair_visits: usize,
+    counters: &mut Counters,
+    budget: &mut TranslationOverlapBudget,
+) -> Result<Evaluation, InhomogeneousCategoricalCrossPairCorrelationError> {
+    evaluate_robust(
+        plan,
+        source_rows,
+        target_intensities,
+        source_intensities,
+        radii,
+        pair_bandwidth_um,
+        maximum_pair_visits,
+        counters,
+        1.0,
+        |source, target, _distance| {
+            budget.charge_pair().map_err(dependency)?;
+            budget
+                .overlap(
+                    window,
+                    x_um[target] - x_um[source],
+                    y_um[target] - y_um[source],
+                    source,
+                    target,
+                )
+                .map_err(dependency)
+        },
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn evaluate_isotropic(
+    plan: &SpatialGeometryPlan2D,
+    x_um: &[f64],
+    y_um: &[f64],
+    window: &ObservationWindow2D,
+    source_rows: &[usize],
+    target_intensities: &[Option<f64>],
+    source_intensities: &[Option<f64>],
+    radii: &[f64],
+    pair_bandwidth_um: f64,
+    maximum_pair_visits: usize,
+    counters: &mut Counters,
+    budget: &mut IsotropicArcBudget,
+) -> Result<Evaluation, InhomogeneousCategoricalCrossPairCorrelationError> {
+    evaluate_robust(
+        plan,
+        source_rows,
+        target_intensities,
+        source_intensities,
+        radii,
+        pair_bandwidth_um,
+        maximum_pair_visits,
+        counters,
+        window.area_um2(),
+        |source, target, distance| {
+            budget.charge_pair().map_err(dependency)?;
+            budget
+                .visible_fraction(window, x_um[source], y_um[source], distance, source, target)
+                .map_err(dependency)
+        },
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn evaluate_robust(
+    plan: &SpatialGeometryPlan2D,
+    source_rows: &[usize],
+    target_intensities: &[Option<f64>],
+    source_intensities: &[Option<f64>],
+    radii: &[f64],
+    pair_bandwidth_um: f64,
+    maximum_pair_visits: usize,
+    counters: &mut Counters,
+    normalization_area: f64,
+    mut edge_measure: impl FnMut(
+        usize,
+        usize,
+        f64,
+    ) -> Result<f64, InhomogeneousCategoricalCrossPairCorrelationError>,
+) -> Result<Evaluation, InhomogeneousCategoricalCrossPairCorrelationError> {
+    let mut pairs = filled_vec(radii.len(), 0usize)?;
+    let mut kernel_sums = filled_vec(radii.len(), 0.0)?;
+    let mut kernel_corrections = filled_vec(radii.len(), 0.0)?;
+    let mut edge_sums = filled_vec(radii.len(), 0.0)?;
+    let mut edge_corrections = filled_vec(radii.len(), 0.0)?;
+    let maximum_query = radii[radii.len() - 1] + pair_bandwidth_um;
+    let source_inverse_sum = source_rows.iter().try_fold(0.0, |sum, source| {
+        source_intensities[*source]
+            .map(|intensity| sum + 1.0 / intensity)
+            .ok_or_else(|| dependency("source intensity row is absent"))
+    })?;
+    let starting_visits = counters.pair_visits;
+    for &source in source_rows {
+        let source_intensity = source_intensities[source]
+            .ok_or_else(|| dependency("source intensity row is absent"))?;
+        let mut visitor_error = None;
+        plan.index()
+            .visit_within_radius(source, maximum_query, |neighbor| {
+                if visitor_error.is_some() {
+                    return;
+                }
+                let Some(target_intensity) = target_intensities[neighbor.index] else {
+                    return;
+                };
+                if let Err(error) = counters.charge_pair(maximum_pair_visits) {
+                    visitor_error = Some(error.into());
+                    return;
+                }
+                let measure = match edge_measure(source, neighbor.index, neighbor.distance_um) {
+                    Ok(value) if value.is_finite() && value > 0.0 => value,
+                    Ok(_) => {
+                        visitor_error = Some(dependency("edge measure is invalid"));
+                        return;
+                    }
+                    Err(error) => {
+                        visitor_error = Some(error);
+                        return;
+                    }
+                };
+                let lower = neighbor.distance_um - pair_bandwidth_um;
+                let upper = neighbor.distance_um + pair_bandwidth_um;
+                let start = radii.partition_point(|radius| *radius <= lower);
+                let end = radii.partition_point(|radius| *radius < upper);
+                for index in start..end {
+                    let kernel =
+                        epanechnikov_weight(radii[index], neighbor.distance_um, pair_bandwidth_um)
+                            .expect("partitioned positive kernel support");
+                    let weight = kernel / (source_intensity * target_intensity * measure);
+                    if !weight.is_finite() || weight <= 0.0 {
+                        visitor_error =
+                            Some(dependency("robust inhomogeneous pair weight is invalid"));
+                        return;
+                    }
+                    pairs[index] = match pairs[index].checked_add(1) {
+                        Some(value) => value,
+                        None => {
+                            visitor_error = Some(
+                                InhomogeneousCategoricalCrossPairCorrelationError::SizeOverflow,
+                            );
+                            return;
+                        }
+                    };
+                    kahan_add(
+                        &mut kernel_sums[index],
+                        &mut kernel_corrections[index],
+                        weight,
+                    );
+                    kahan_add(&mut edge_sums[index], &mut edge_corrections[index], measure);
+                }
+            })
+            .map_err(dependency)?;
+        if let Some(error) = visitor_error {
+            return Err(error);
+        }
+    }
+    let mut points = Vec::new();
+    let mut values = Vec::new();
+    let mut eligible = Vec::new();
+    for (index, radius_um) in radii.iter().copied().enumerate() {
+        let kernel_sum = kernel_sums[index] + kernel_corrections[index];
+        let available = pairs[index] > 0;
+        let cross_g = available
+            .then(|| kernel_sum / (std::f64::consts::TAU * radius_um * normalization_area))
+            .map(canonical_zero);
+        if cross_g.is_some_and(|value| !value.is_finite() || value < 0.0) {
+            return Err(dependency(
+                "robust inhomogeneous cross-g normalization is invalid",
+            ));
+        }
+        values.push(cross_g.unwrap_or(0.0));
+        eligible.push(available);
+        points.push(InhomogeneousCategoricalCrossPairCorrelationPoint {
+            radius_um,
+            status: if available {
+                PairCorrelationPointStatus::Available
+            } else {
+                PairCorrelationPointStatus::NoPairsInKernelSupport
+            },
+            eligible_source_centers: source_rows.len(),
+            directed_source_target_pairs_in_support: pairs[index],
+            inverse_intensity_kernel_sum: canonical_zero(kernel_sum),
+            eligible_source_inverse_intensity_sum: canonical_zero(source_inverse_sum),
+            cross_g,
+            theoretical_cross_g: 1.0,
+            inference_eligible: false,
+            lower_cross_g: None,
+            upper_cross_g: None,
+            edge_measure_sum: Some(canonical_zero(edge_sums[index] + edge_corrections[index])),
+        });
+    }
+    Ok(Evaluation {
+        points,
+        values,
+        eligible,
+        pair_visits: counters.pair_visits - starting_visits,
+    })
+}
+
+fn edge_summary(budget: &EdgeBudget) -> (String, Option<InhomogeneousCategoricalCrossEdgeWork>) {
+    match budget {
+        EdgeBudget::Standard => (
+            "standard_border_radius_plus_pair_bandwidth_type_specific_inverse_intensity_ratio"
+                .into(),
+            None,
+        ),
+        EdgeBudget::Translation(budget) => (
+            "translation_exact_polygon_type_specific_inverse_intensity".into(),
+            Some(InhomogeneousCategoricalCrossEdgeWork {
+                correction: "translation".into(),
+                pair_visits: budget.pair_visits,
+                geometry_evaluations: budget.overlap_evaluations,
+                geometry_candidate_work: budget.overlap_candidate_work,
+                geometry_membership_queries: 0,
+                maximum_geometry_output_size: budget.maximum_output_vertices,
+            }),
+        ),
+        EdgeBudget::Isotropic(budget) => (
+            "isotropic_visible_arc_type_specific_inverse_intensity".into(),
+            Some(InhomogeneousCategoricalCrossEdgeWork {
+                correction: "isotropic".into(),
+                pair_visits: budget.pair_visits,
+                geometry_evaluations: budget.visible_arc_evaluations,
+                geometry_candidate_work: budget.arc_segment_tests,
+                geometry_membership_queries: budget.arc_membership_queries,
+                maximum_geometry_output_size: budget.maximum_intersection_angles,
+            }),
+        ),
+    }
 }
 
 fn matching_rows(
@@ -520,13 +847,36 @@ pub(crate) fn configuration_digest(
 ) -> ContentDigest {
     let intensity = intensity_configuration_digest(config.intensity_config());
     let bandwidth = config.pair_bandwidth_um().to_bits().to_be_bytes();
-    ContentDigest::from_framed([
+    let base = ContentDigest::from_framed([
         b"marklab-inhomogeneous-categorical-cross-g-config-v1".as_slice(),
         intensity.as_bytes(),
         bandwidth.as_slice(),
         config.source_level().as_bytes(),
         config.target_level().as_bytes(),
-    ])
+    ]);
+    match config.edge_correction() {
+        InhomogeneousCategoricalCrossEdgeCorrection::StandardBorder => base,
+        InhomogeneousCategoricalCrossEdgeCorrection::Translation(limits) => {
+            ContentDigest::from_framed([
+                b"marklab-inhomogeneous-cross-g-translation-v1".as_slice(),
+                base.as_bytes(),
+                &(limits.maximum_pair_visits as u128).to_be_bytes(),
+                &(limits.maximum_overlap_evaluations as u128).to_be_bytes(),
+                &(limits.maximum_overlap_candidate_work as u128).to_be_bytes(),
+                &(limits.maximum_overlap_output_vertices as u128).to_be_bytes(),
+            ])
+        }
+        InhomogeneousCategoricalCrossEdgeCorrection::Isotropic(limits) => {
+            ContentDigest::from_framed([
+                b"marklab-inhomogeneous-cross-g-isotropic-v1".as_slice(),
+                base.as_bytes(),
+                &(limits.maximum_pair_visits as u128).to_be_bytes(),
+                &(limits.maximum_visible_arc_evaluations as u128).to_be_bytes(),
+                &(limits.maximum_arc_segment_tests as u128).to_be_bytes(),
+                &(limits.maximum_arc_membership_queries as u128).to_be_bytes(),
+            ])
+        }
+    }
 }
 
 fn dependency(error: impl std::fmt::Display) -> InhomogeneousCategoricalCrossPairCorrelationError {

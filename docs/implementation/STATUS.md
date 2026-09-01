@@ -4503,3 +4503,17 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - The admitted real CellViT local/adaptive field blocks previously failed their prespecified
   incremental or group gates. This mathematical capability therefore remains synthetic-oracle
   validated and caller-dependent; no real tissue anisotropy/nonstationarity claim is made.
+
+## Robust multitype inhomogeneous edge checkpoint 211 — 2026-09-01
+
+- The existing type-specific Gaussian intensity/fixed-grid null workflow now supports exact polygon
+  translation and exact visible-arc isotropic correction in addition to its byte-compatible standard
+  border default. Every observed and null pair carries the selected correction; correction work and
+  limits are typed, validated on replay, and included in configuration identity.
+- Independent square-window hand oracles recover translation normalization by overlap area 300 and
+  isotropic normalization by visible fractions one and window area 400. The combined user-facing
+  project target executes/replays both corrections with one ledger row each; focused standard and
+  cross-fitted regressions remain green.
+- Pinned external agreement is still unavailable: local R 4.5.2 lacks `spatstat.explore`, and the
+  Mac mini has no admitted R environment. This is an exact backend blocker, not native mathematical
+  incompleteness, and no `spatstat` agreement is claimed.

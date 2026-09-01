@@ -4,8 +4,16 @@ use thiserror::Error;
 use crate::{
     ClassicalWindowSummary, InhomogeneousIntensitySummary, InhomogeneousSpatialConfig,
     InhomogeneousSpatialError, InhomogeneousSpatialInference, InhomogeneousSpatialLimits,
-    PairCorrelationKernel, PairCorrelationPointStatus,
+    IsotropicSpatialLimits, PairCorrelationKernel, PairCorrelationPointStatus,
+    TranslationSpatialLimits,
 };
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum InhomogeneousCategoricalCrossEdgeCorrection {
+    StandardBorder,
+    Translation(TranslationSpatialLimits),
+    Isotropic(IsotropicSpatialLimits),
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct InhomogeneousCategoricalCrossPairCorrelationConfig {
@@ -13,6 +21,7 @@ pub struct InhomogeneousCategoricalCrossPairCorrelationConfig {
     pub(super) pair_bandwidth_um: f64,
     pub(super) source_level: String,
     pub(super) target_level: String,
+    pub(super) edge_correction: InhomogeneousCategoricalCrossEdgeCorrection,
 }
 
 impl InhomogeneousCategoricalCrossPairCorrelationConfig {
@@ -58,7 +67,36 @@ impl InhomogeneousCategoricalCrossPairCorrelationConfig {
             pair_bandwidth_um,
             source_level,
             target_level,
+            edge_correction: InhomogeneousCategoricalCrossEdgeCorrection::StandardBorder,
         })
+    }
+
+    pub fn with_translation_correction(
+        mut self,
+        limits: TranslationSpatialLimits,
+    ) -> Result<Self, InhomogeneousCategoricalCrossPairCorrelationError> {
+        validate_geometry_limits(
+            limits.maximum_points,
+            limits.maximum_radii,
+            limits.maximum_retained_bytes,
+            &self.intensity,
+        )?;
+        self.edge_correction = InhomogeneousCategoricalCrossEdgeCorrection::Translation(limits);
+        Ok(self)
+    }
+
+    pub fn with_isotropic_correction(
+        mut self,
+        limits: IsotropicSpatialLimits,
+    ) -> Result<Self, InhomogeneousCategoricalCrossPairCorrelationError> {
+        validate_geometry_limits(
+            limits.maximum_points,
+            limits.maximum_radii,
+            limits.maximum_retained_bytes,
+            &self.intensity,
+        )?;
+        self.edge_correction = InhomogeneousCategoricalCrossEdgeCorrection::Isotropic(limits);
+        Ok(self)
     }
 
     pub fn intensity_config(&self) -> &InhomogeneousSpatialConfig {
@@ -76,6 +114,30 @@ impl InhomogeneousCategoricalCrossPairCorrelationConfig {
     pub fn target_level(&self) -> &str {
         &self.target_level
     }
+
+    pub fn edge_correction(&self) -> InhomogeneousCategoricalCrossEdgeCorrection {
+        self.edge_correction
+    }
+}
+
+fn validate_geometry_limits(
+    maximum_points: usize,
+    maximum_radii: usize,
+    maximum_retained_bytes: usize,
+    intensity: &InhomogeneousSpatialConfig,
+) -> Result<(), InhomogeneousCategoricalCrossPairCorrelationError> {
+    if maximum_points < intensity.limits().maximum_points
+        || maximum_radii < intensity.radii_um().len()
+        || maximum_retained_bytes < intensity.limits().maximum_retained_bytes
+    {
+        return Err(
+            InhomogeneousCategoricalCrossPairCorrelationError::InvalidConfig(
+                "edge-correction ceilings must cover the intensity point/radius/memory design"
+                    .into(),
+            ),
+        );
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -92,6 +154,19 @@ pub struct InhomogeneousCategoricalCrossPairCorrelationPoint {
     pub inference_eligible: bool,
     pub lower_cross_g: Option<f64>,
     pub upper_cross_g: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edge_measure_sum: Option<f64>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct InhomogeneousCategoricalCrossEdgeWork {
+    pub correction: String,
+    pub pair_visits: usize,
+    pub geometry_evaluations: usize,
+    pub geometry_candidate_work: usize,
+    pub geometry_membership_queries: usize,
+    pub maximum_geometry_output_size: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -121,6 +196,8 @@ pub struct InhomogeneousCategoricalCrossPairCorrelationResult {
     pub limits: InhomogeneousSpatialLimits,
     pub curve: Vec<InhomogeneousCategoricalCrossPairCorrelationPoint>,
     pub inference: InhomogeneousSpatialInference,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edge_work: Option<InhomogeneousCategoricalCrossEdgeWork>,
 }
 
 #[derive(Debug, Error)]

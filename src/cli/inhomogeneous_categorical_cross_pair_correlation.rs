@@ -6,8 +6,8 @@ use crate::{
     ArtifactSchema, DeclaredScalarPatternInput,
     InhomogeneousCategoricalCrossPairCorrelationAnalysisNode,
     InhomogeneousCategoricalCrossPairCorrelationConfig, InhomogeneousSpatialConfig,
-    InhomogeneousSpatialLimits, LocalScheduler, MarklabError, NodeId, Result, SchedulerLimits,
-    WorkflowGraph,
+    InhomogeneousSpatialLimits, IsotropicSpatialLimits, LocalScheduler, MarklabError, NodeId,
+    Result, SchedulerLimits, TranslationSpatialLimits, WorkflowGraph,
 };
 
 use super::{
@@ -36,6 +36,21 @@ pub(super) struct Request {
     pub maximum_intensity_evaluations: usize,
     pub maximum_pair_visits: usize,
     pub maximum_null_draws: usize,
+    pub edge_correction: EdgeCorrectionRequest,
+}
+
+pub(super) enum EdgeCorrectionRequest {
+    StandardBorder,
+    Translation {
+        maximum_overlap_evaluations: usize,
+        maximum_overlap_candidate_work: usize,
+        maximum_overlap_output_vertices: usize,
+    },
+    Isotropic {
+        maximum_visible_arc_evaluations: usize,
+        maximum_arc_segment_tests: usize,
+        maximum_arc_membership_queries: usize,
+    },
 }
 
 pub(super) fn run_project(request: Request) -> Result<()> {
@@ -96,6 +111,48 @@ pub(super) fn run_project(request: Request) -> Result<()> {
         request.target_level,
     )
     .map_err(|error| MarklabError::Validation(error.to_string()))?;
+    let radius_count = config.intensity_config().radii_um().len();
+    let config = match request.edge_correction {
+        EdgeCorrectionRequest::StandardBorder => config,
+        EdgeCorrectionRequest::Translation {
+            maximum_overlap_evaluations,
+            maximum_overlap_candidate_work,
+            maximum_overlap_output_vertices,
+        } => config
+            .with_translation_correction(
+                TranslationSpatialLimits::new(
+                    prepared.pattern.len(),
+                    radius_count,
+                    request.maximum_pair_visits,
+                    maximum_overlap_evaluations,
+                    maximum_overlap_candidate_work,
+                    maximum_overlap_output_vertices,
+                    1,
+                    prepared.memory_bytes,
+                )
+                .map_err(|error| MarklabError::Validation(error.to_string()))?,
+            )
+            .map_err(|error| MarklabError::Validation(error.to_string()))?,
+        EdgeCorrectionRequest::Isotropic {
+            maximum_visible_arc_evaluations,
+            maximum_arc_segment_tests,
+            maximum_arc_membership_queries,
+        } => config
+            .with_isotropic_correction(
+                IsotropicSpatialLimits::new(
+                    prepared.pattern.len(),
+                    radius_count,
+                    request.maximum_pair_visits,
+                    maximum_visible_arc_evaluations,
+                    maximum_arc_segment_tests,
+                    maximum_arc_membership_queries,
+                    1,
+                    prepared.memory_bytes,
+                )
+                .map_err(|error| MarklabError::Validation(error.to_string()))?,
+            )
+            .map_err(|error| MarklabError::Validation(error.to_string()))?,
+    };
     let node = InhomogeneousCategoricalCrossPairCorrelationAnalysisNode::new(
         &mut prepared.project,
         NodeId::new("inhomogeneous-categorical-cross-pair-correlation")

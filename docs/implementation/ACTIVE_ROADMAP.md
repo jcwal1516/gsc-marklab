@@ -69,6 +69,11 @@ and spatially varying interior SPDE resolution mathematically. Real promotion re
 by the current failed patient-level field gates; resume only for an admitted caller with frozen
 local parameter/refinement provenance.
 
+Exact translation and isotropic edge corrections now combine with the existing type-specific
+inhomogeneous directed cross-g, fixed-grid type-count null, typed project execution, and replay.
+PP-03/PP-05 pinned `spatstat` agreement remains backend-blocked until an admitted R environment
+contains the exact package/version; do not substitute an unpinned global installation.
+
 ## Full-program resumption override — 2026-08-30
 
 Later explicit user direction resumes the full dependency-ordered Marklab master plan after the

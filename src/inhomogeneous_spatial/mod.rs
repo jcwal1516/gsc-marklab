@@ -31,6 +31,7 @@ pub use bandwidth_types::{
 pub use bandwidth_workflow::GaussianBandwidthSelectedSpatialAnalysisNode;
 pub use categorical_cross_g::inhomogeneous_categorical_cross_pair_correlation;
 pub use categorical_cross_g_types::{
+    InhomogeneousCategoricalCrossEdgeCorrection, InhomogeneousCategoricalCrossEdgeWork,
     InhomogeneousCategoricalCrossPairCorrelationConfig,
     InhomogeneousCategoricalCrossPairCorrelationError,
     InhomogeneousCategoricalCrossPairCorrelationPoint,

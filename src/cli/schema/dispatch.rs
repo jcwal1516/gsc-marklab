@@ -597,6 +597,7 @@ pub(super) fn run_cli() -> Result<()> {
                 radii_um,
                 intensity_bandwidth_um,
                 cross_fit_folds,
+                edge_correction,
                 pair_bandwidth_um,
                 grid_x,
                 grid_y,
@@ -609,30 +610,65 @@ pub(super) fn run_cli() -> Result<()> {
                 max_intensity_evaluations,
                 max_pair_visits,
                 max_null_draws,
-            } => inhomogeneous_categorical_cross_pair_correlation::run_project(
-                inhomogeneous_categorical_cross_pair_correlation::Request {
-                    project,
-                    cells,
-                    mask,
-                    out,
-                    source_level,
-                    target_level,
-                    radii_um,
-                    intensity_bandwidth_um,
-                    cross_fit_folds,
-                    pair_bandwidth_um,
-                    integration_grid: [grid_x, grid_y],
-                    simulations,
-                    seed,
-                    alpha,
-                    minimum_intensity_per_um2,
-                    memory_budget_mib,
-                    maximum_probes: max_probes,
-                    maximum_intensity_evaluations: max_intensity_evaluations,
-                    maximum_pair_visits: max_pair_visits,
-                    maximum_null_draws: max_null_draws,
-                },
-            ),
+                max_overlap_evaluations,
+                max_overlap_candidate_work,
+                max_overlap_output_vertices,
+                max_visible_arc_evaluations,
+                max_arc_segment_tests,
+                max_arc_membership_queries,
+            } => {
+                let required = |value: Option<usize>, name: &str| {
+                    value.ok_or_else(|| {
+                        crate::MarklabError::Validation(format!(
+                            "--{name} is required by the selected inhomogeneous edge correction"
+                        ))
+                    })
+                };
+                let edge_correction = match edge_correction {
+                    CliInhomogeneousCrossEdgeCorrection::StandardBorder => {
+                        inhomogeneous_categorical_cross_pair_correlation::EdgeCorrectionRequest::StandardBorder
+                    }
+                    CliInhomogeneousCrossEdgeCorrection::Translation => {
+                        inhomogeneous_categorical_cross_pair_correlation::EdgeCorrectionRequest::Translation {
+                            maximum_overlap_evaluations: required(max_overlap_evaluations, "max-overlap-evaluations")?,
+                            maximum_overlap_candidate_work: required(max_overlap_candidate_work, "max-overlap-candidate-work")?,
+                            maximum_overlap_output_vertices: required(max_overlap_output_vertices, "max-overlap-output-vertices")?,
+                        }
+                    }
+                    CliInhomogeneousCrossEdgeCorrection::Isotropic => {
+                        inhomogeneous_categorical_cross_pair_correlation::EdgeCorrectionRequest::Isotropic {
+                            maximum_visible_arc_evaluations: required(max_visible_arc_evaluations, "max-visible-arc-evaluations")?,
+                            maximum_arc_segment_tests: required(max_arc_segment_tests, "max-arc-segment-tests")?,
+                            maximum_arc_membership_queries: required(max_arc_membership_queries, "max-arc-membership-queries")?,
+                        }
+                    }
+                };
+                inhomogeneous_categorical_cross_pair_correlation::run_project(
+                    inhomogeneous_categorical_cross_pair_correlation::Request {
+                        project,
+                        cells,
+                        mask,
+                        out,
+                        source_level,
+                        target_level,
+                        radii_um,
+                        intensity_bandwidth_um,
+                        cross_fit_folds,
+                        pair_bandwidth_um,
+                        integration_grid: [grid_x, grid_y],
+                        simulations,
+                        seed,
+                        alpha,
+                        minimum_intensity_per_um2,
+                        memory_budget_mib,
+                        maximum_probes: max_probes,
+                        maximum_intensity_evaluations: max_intensity_evaluations,
+                        maximum_pair_visits: max_pair_visits,
+                        maximum_null_draws: max_null_draws,
+                        edge_correction,
+                    },
+                )
+            }
             ProjectCommands::ScalarVariogram {
                 project,
                 cells,

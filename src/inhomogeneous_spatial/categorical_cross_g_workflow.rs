@@ -15,6 +15,7 @@ use crate::{
 use super::{
     categorical_cross_g::{configuration_digest, inhomogeneous_categorical_cross_pair_correlation},
     codec::validate_intensity_summary,
+    InhomogeneousCategoricalCrossEdgeCorrection,
     InhomogeneousCategoricalCrossPairCorrelationConfig,
     InhomogeneousCategoricalCrossPairCorrelationPoint,
     InhomogeneousCategoricalCrossPairCorrelationResult, InhomogeneousSpatialInference,
@@ -69,6 +70,7 @@ impl<'a> InhomogeneousCategoricalCrossPairCorrelationAnalysisNode<'a> {
         } else {
             "inhomogeneous-categorical-cross-g-node-v1"
         };
+        let correction = edge_correction_name(config.edge_correction());
         Ok(Self {
             spec: NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?,
             input,
@@ -80,8 +82,10 @@ impl<'a> InhomogeneousCategoricalCrossPairCorrelationAnalysisNode<'a> {
                 "marklab/{};adapter={implementation_version}",
                 env!("CARGO_PKG_VERSION"),
             ),
-            execution_policy: if config.intensity_config().cross_fit_folds().is_some() {
-                format!("serial;typed-categorical-rows;gaussian-2d-{cross_fit};cell-centred-window-quadrature;epanechnikov;standard-border-radius-plus-pair-bandwidth-type-specific-inverse-intensity-ratio;independent-fixed-gridded-type-specific-inhomogeneous-binomial;erl").into_bytes()
+            execution_policy: if config.intensity_config().cross_fit_folds().is_some()
+                || correction != "standard_border"
+            {
+                format!("serial;typed-categorical-rows;gaussian-2d-{cross_fit};cell-centred-window-quadrature;epanechnikov;{correction}-type-specific-inverse-intensity;independent-fixed-gridded-type-specific-inhomogeneous-binomial;erl").into_bytes()
             } else {
                 POLICY.to_vec()
             },
@@ -179,6 +183,7 @@ struct ConfigArtifact<'a> {
     cross_fit_folds: Option<usize>,
     limits: InhomogeneousSpatialLimits,
     logical_digest: String,
+    edge_correction: &'static str,
 }
 
 fn config_artifact(
@@ -199,6 +204,7 @@ fn config_artifact(
         cross_fit_folds: intensity.cross_fit_folds(),
         limits: intensity.limits(),
         logical_digest: configuration_digest(config).to_string(),
+        edge_correction: edge_correction_name(config.edge_correction()),
     })
     .map_err(NodeError::input)?;
     ArtifactRef::from_bytes(CONFIG_KIND, &bytes).map_err(NodeError::input)
@@ -249,8 +255,7 @@ fn validate(
         || result.kernel != PairCorrelationKernel::Epanechnikov
         || result.pair_bandwidth_um.to_bits() != config.pair_bandwidth_um().to_bits()
         || result.intensity_bandwidth_um.to_bits() != intensity.bandwidth_um().to_bits()
-        || result.edge_correction
-            != "standard_border_radius_plus_pair_bandwidth_type_specific_inverse_intensity_ratio"
+        || result.edge_correction != expected_edge_correction(config.edge_correction())
         || result.configuration_digest != configuration_digest(config).to_string()
         || result.estimated_storage_bytes > intensity.limits().maximum_retained_bytes
         || result.observed_pair_visits > result.total_pair_visits
@@ -258,6 +263,7 @@ fn validate(
         || result.intensity_evaluations > intensity.limits().maximum_intensity_evaluations
         || result.limits != intensity.limits()
         || result.curve.len() != intensity.radii_um().len()
+        || !validate_edge_work(result, config.edge_correction())
         || result.inference.null_model
             != "independent_fixed_gridded_type_specific_inhomogeneous_binomial"
         || result.inference.randomization_unit
@@ -271,13 +277,19 @@ fn validate(
     }
     validate_intensity_summary(&result.source_intensity, &source_pattern, window, intensity)?;
     validate_intensity_summary(&result.target_intensity, &target_pattern, window, intensity)?;
-    validate_curve(&result.curve, &result.inference, intensity.radii_um())
+    validate_curve(
+        &result.curve,
+        &result.inference,
+        intensity.radii_um(),
+        config.edge_correction(),
+    )
 }
 
 fn validate_curve(
     curve: &[InhomogeneousCategoricalCrossPairCorrelationPoint],
     inference: &InhomogeneousSpatialInference,
     radii: &[f64],
+    correction: InhomogeneousCategoricalCrossEdgeCorrection,
 ) -> io::Result<()> {
     for (point, radius) in curve.iter().zip(radii) {
         let status_consistent = match point.status {
@@ -311,6 +323,18 @@ fn validate_curve(
             || point.theoretical_cross_g.to_bits() != 1.0_f64.to_bits()
             || point.lower_cross_g.is_some_and(|value| !value.is_finite())
             || point.upper_cross_g.is_some_and(|value| !value.is_finite())
+            || point
+                .edge_measure_sum
+                .is_some_and(|value| !value.is_finite() || value < 0.0)
+            || match correction {
+                InhomogeneousCategoricalCrossEdgeCorrection::StandardBorder => {
+                    point.edge_measure_sum.is_some()
+                }
+                InhomogeneousCategoricalCrossEdgeCorrection::Translation(_)
+                | InhomogeneousCategoricalCrossEdgeCorrection::Isotropic(_) => {
+                    point.edge_measure_sum.is_none()
+                }
+            }
             || point.lower_cross_g.is_some() != point.upper_cross_g.is_some()
             || point.inference_eligible
                 != (point.lower_cross_g.is_some() && point.upper_cross_g.is_some())
@@ -334,6 +358,55 @@ fn validate_curve(
         return Err(invalid("inference is inconsistent or non-finite"));
     }
     Ok(())
+}
+
+fn edge_correction_name(correction: InhomogeneousCategoricalCrossEdgeCorrection) -> &'static str {
+    match correction {
+        InhomogeneousCategoricalCrossEdgeCorrection::StandardBorder => "standard_border",
+        InhomogeneousCategoricalCrossEdgeCorrection::Translation(_) => "translation",
+        InhomogeneousCategoricalCrossEdgeCorrection::Isotropic(_) => "isotropic",
+    }
+}
+
+fn expected_edge_correction(
+    correction: InhomogeneousCategoricalCrossEdgeCorrection,
+) -> &'static str {
+    match correction {
+        InhomogeneousCategoricalCrossEdgeCorrection::StandardBorder => {
+            "standard_border_radius_plus_pair_bandwidth_type_specific_inverse_intensity_ratio"
+        }
+        InhomogeneousCategoricalCrossEdgeCorrection::Translation(_) => {
+            "translation_exact_polygon_type_specific_inverse_intensity"
+        }
+        InhomogeneousCategoricalCrossEdgeCorrection::Isotropic(_) => {
+            "isotropic_visible_arc_type_specific_inverse_intensity"
+        }
+    }
+}
+
+fn validate_edge_work(
+    result: &InhomogeneousCategoricalCrossPairCorrelationResult,
+    correction: InhomogeneousCategoricalCrossEdgeCorrection,
+) -> bool {
+    match (correction, result.edge_work.as_ref()) {
+        (InhomogeneousCategoricalCrossEdgeCorrection::StandardBorder, None) => true,
+        (InhomogeneousCategoricalCrossEdgeCorrection::Translation(limits), Some(work)) => {
+            work.correction == "translation"
+                && work.pair_visits <= limits.maximum_pair_visits
+                && work.geometry_evaluations <= limits.maximum_overlap_evaluations
+                && work.geometry_candidate_work <= limits.maximum_overlap_candidate_work
+                && work.geometry_membership_queries == 0
+                && work.maximum_geometry_output_size <= limits.maximum_overlap_output_vertices
+        }
+        (InhomogeneousCategoricalCrossEdgeCorrection::Isotropic(limits), Some(work)) => {
+            work.correction == "isotropic"
+                && work.pair_visits <= limits.maximum_pair_visits
+                && work.geometry_evaluations <= limits.maximum_visible_arc_evaluations
+                && work.geometry_candidate_work <= limits.maximum_arc_segment_tests
+                && work.geometry_membership_queries <= limits.maximum_arc_membership_queries
+        }
+        _ => false,
+    }
 }
 
 fn level_code(levels: &[String], requested: &str) -> io::Result<u32> {

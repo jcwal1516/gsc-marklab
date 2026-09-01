@@ -7,10 +7,10 @@ use marklab::{
     DurableProjectLimits, HistologicCompartmentMarkDeclaration,
     InhomogeneousCategoricalCrossPairCorrelationAnalysisNode,
     InhomogeneousCategoricalCrossPairCorrelationConfig, InhomogeneousSpatialConfig,
-    InhomogeneousSpatialLimits, LocalScheduler, MarkTable, MeasurementStatus, MissingnessPolicy,
-    NativeRuntimeProvenance, NodeId, ObservationWindow2D, ObservationWindowLimits,
-    PairCorrelationPointStatus, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
-    SchedulerLimits, WorkflowGraph,
+    InhomogeneousSpatialLimits, IsotropicSpatialLimits, LocalScheduler, MarkTable,
+    MeasurementStatus, MissingnessPolicy, NativeRuntimeProvenance, NodeId, ObservationWindow2D,
+    ObservationWindowLimits, PairCorrelationPointStatus, ScalarMarkColumn, ScalarMarkId,
+    ScalarMarkModality, ScalarMarkUnit, SchedulerLimits, TranslationSpatialLimits, WorkflowGraph,
 };
 
 #[path = "support/declared_scalar.rs"]
@@ -219,6 +219,104 @@ fn type_specific_leave_one_out_intensities_flow_into_directed_cross_g() {
         "independent_fixed_gridded_type_specific_inhomogeneous_binomial"
     );
     assert_eq!(result.inference.simulations_completed, 19);
+}
+
+#[test]
+fn translation_and_isotropic_corrections_match_independent_inhomogeneous_oracles() {
+    let (fixture, pattern, table, window) = input_fixture([0, 0, 1, 1]);
+    let input = DeclaredScalarPatternInput::from_mark_table(
+        &fixture.project,
+        &pattern,
+        &table,
+        fixture.slide_id.clone(),
+        fixture.frame_id.clone(),
+    )
+    .expect("declared input");
+    let source = [
+        gaussian_intensity_at_event((9.0, 10.0), (10.0, 10.0), 2.0),
+        gaussian_intensity_at_event((10.0, 10.0), (9.0, 10.0), 2.0),
+    ];
+    let target = [
+        gaussian_intensity_at_event((14.0, 10.0), (15.0, 10.0), 2.0),
+        gaussian_intensity_at_event((15.0, 10.0), (14.0, 10.0), 2.0),
+    ];
+    let inverse_intensity_kernel = 0.75 / (source[0] * target[0]) + 0.75 / (source[1] * target[1]);
+    let bytes = 1 << 20;
+    let translation = config_with_bytes(20260901, bytes)
+        .with_translation_correction(
+            TranslationSpatialLimits::new(
+                16,
+                16,
+                1_000_000,
+                1_000_000,
+                100_000_000,
+                10_000,
+                1,
+                bytes,
+            )
+            .expect("translation limits"),
+        )
+        .expect("translation configuration");
+    let translated =
+        inhomogeneous_categorical_cross_pair_correlation(&input, &window, &translation)
+            .expect("translation result");
+    assert_abs_diff_eq!(
+        translated.curve[0].cross_g.expect("translation g"),
+        inverse_intensity_kernel / 300.0 / (2.0 * std::f64::consts::PI * 5.0),
+        epsilon = 1e-12
+    );
+    assert_abs_diff_eq!(
+        translated.curve[0].edge_measure_sum.expect("overlap sum"),
+        600.0,
+        epsilon = 1e-12
+    );
+    assert_eq!(
+        translated
+            .edge_work
+            .as_ref()
+            .expect("translation work")
+            .correction,
+        "translation"
+    );
+
+    let isotropic = config_with_bytes(20260901, bytes)
+        .with_isotropic_correction(
+            IsotropicSpatialLimits::new(
+                16,
+                16,
+                1_000_000,
+                1_000_000,
+                100_000_000,
+                100_000_000,
+                1,
+                bytes,
+            )
+            .expect("isotropic limits"),
+        )
+        .expect("isotropic configuration");
+    let isotropic_result =
+        inhomogeneous_categorical_cross_pair_correlation(&input, &window, &isotropic)
+            .expect("isotropic result");
+    assert_abs_diff_eq!(
+        isotropic_result.curve[0].cross_g.expect("isotropic g"),
+        inverse_intensity_kernel / 400.0 / (2.0 * std::f64::consts::PI * 5.0),
+        epsilon = 1e-12
+    );
+    assert_abs_diff_eq!(
+        isotropic_result.curve[0]
+            .edge_measure_sum
+            .expect("fraction sum"),
+        2.0,
+        epsilon = 1e-12
+    );
+    assert_eq!(
+        isotropic_result
+            .edge_work
+            .as_ref()
+            .expect("isotropic work")
+            .correction,
+        "isotropic"
+    );
 }
 
 #[test]
