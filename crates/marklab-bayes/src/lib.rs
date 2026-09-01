@@ -34,6 +34,7 @@ mod embedding_factor;
 mod embedding_kernel;
 mod embedding_spatial;
 mod fused_gromov;
+mod gaussian_crossed_nested_hierarchy;
 mod geyer;
 mod gmrf;
 mod gp;
@@ -248,6 +249,14 @@ pub use dirichlet_multinomial_group_sensitivity::{
 pub use fused_gromov::{
     FgwInitializationResult, FgwPlanEntry, FgwResources, FgwSupport, FusedGromovWassersteinSpec,
     FusedGromovWassersteinWorkerRequest, FusedGromovWassersteinWorkerResult,
+};
+pub use gaussian_crossed_nested_hierarchy::{
+    GaussianCrossedNestedCounts, GaussianCrossedNestedHierarchyFit,
+    GaussianCrossedNestedHierarchyModelIr, GaussianCrossedNestedHierarchyResources,
+    GaussianCrossedNestedHierarchySpec, GaussianCrossedNestedHierarchyWorkerRequest,
+    GaussianCrossedNestedInputIdentity, GaussianCrossedNestedObservation,
+    GaussianCrossedNestedPosterior, GaussianCrossedNestedPpc, GaussianCrossedNestedWorkerResult,
+    GaussianVariancePartition,
 };
 pub use geyer::{geyer_saturation_statistic, GeyerPointSummary, GeyerSaturationResult};
 pub use gmrf::{gmrf_log_density, GmrfConstraint, GmrfDensityError, GmrfDensityResult, GmrfSpec};

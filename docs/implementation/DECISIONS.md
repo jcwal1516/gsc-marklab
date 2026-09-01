@@ -3879,3 +3879,20 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   distributions or significance-directed model selection. The model remains descriptive and does
   not identify progression, treatment, causality, or clinical utility. It does not add arbitrary
   formulas, automatic partial-proportional selection, cohort effects, or fabricated ROI identity.
+
+## DEC-0401 — Admit one identified crossed/nested Gaussian hierarchy
+
+- Date: 2026-09-01
+- Status: accepted for BAY-03/BAY-HIER-A/COH-01/PLAT-01/WF-01/WS-12/WS-33/WS-41
+- Decision: add one fixed scalar hierarchy, not a formula language: ROI within slide within patient,
+  batch crossed with patient, patients nested in cohorts, and exposure slopes varying by patient and
+  cohort. Require three cohorts with four patients each, two slides per patient, two ROIs per slide,
+  two observations per ROI, within-patient and within-cohort exposure variation, and a genuinely
+  crossed patient/batch graph. Use sum-zero effects, noncentered cohort terms, centered replicated
+  lower-level terms, separate cohort/patient/slide/ROI/batch/residual scales, strict PyMC diagnostics,
+  and exact source/backend/lock/worker/configuration/runtime identity through direct and durable paths.
+- Consequences: the requested nested ROI variance, crossed batch effect, random slopes beyond site,
+  and cohort transport heterogeneity share one identified immediate mathematical contract without a
+  registry or arbitrary mixed-model surface. Current admitted CRC tables do not contain the required
+  distinct ROI-within-slide, crossed batch, and compatible multi-cohort outcome identities, so no real
+  variance estimate or transport claim is fabricated.

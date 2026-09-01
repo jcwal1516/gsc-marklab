@@ -4469,3 +4469,20 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - Miss/hit result SHA is `b5508994b386ebf6ceb9c9ffdedf0e7aafa237cff28ca5139c8ff8f9b3ca930c`;
   ledger SHA is `bd7c45024ebf0a8c803ad2c9f9782170af510bc688f9f83f5f661ebc95d5ad34`;
   sealed v79 checksum-file SHA is `0bc6097c9c5cacdcabf4be97ac7a386b74a0e880b8944b76abbf3777e4213ce2`.
+
+## Crossed/nested Gaussian hierarchy checkpoint 209 — 2026-09-01
+
+- Added one fixed pinned-PyMC hierarchy with distinct cohort intercept/slope, patient
+  intercept/slope, slide, ROI, crossed batch, and residual variance components. Sum-zero transforms
+  retain an identified fixed intercept/slope; patients remain the statistical unit.
+- Admission requires replicated ROI-within-slide-within-patient identity, three supported cohorts,
+  within-patient/cohort exposure variation, and a genuinely crossed patient/batch graph. Confounded
+  or unreplicated designs stop before backend execution. Direct and durable project commands retain
+  the exact typed request/result and backend/environment/worker/runtime identity.
+- The planted 12-patient/24-slide/48-ROI/4-batch/3-cohort, 192-observation fit completes with zero
+  divergences and zero depth hits under the strict diagnostic policy. A second bounded project
+  fixture executes once, replays byte-identically with backend execution disabled, rejects a changed
+  seed, and retains one ledger row.
+- No admitted real table currently supplies all distinct ROI-within-slide, crossed batch, and
+  compatible multi-cohort outcome identities. Those real estimates remain unavailable with that
+  exact blocker; no biological transport or variance claim is fabricated.

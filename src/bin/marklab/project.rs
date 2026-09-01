@@ -84,6 +84,8 @@ mod correlated_multitype_lgcp;
 mod embedding_cross_covariance;
 #[path = "project/embedding_spatial_dependence_envelope.rs"]
 mod embedding_spatial_dependence_envelope;
+#[path = "project/gaussian_crossed_nested_hierarchy.rs"]
+mod gaussian_crossed_nested_hierarchy;
 #[path = "project/graph_dirichlet_energy.rs"]
 mod graph_dirichlet_energy;
 #[path = "project/graph_motif_summary.rs"]
@@ -1941,6 +1943,7 @@ enum ProjectCommand {
     CorrelatedReplicatedArbitraryWindowMultitypeLgcp(Box<correlated_multitype_lgcp::ProjectArgs>),
     JointReplicatedLocationEmbedding(Box<joint_location_embedding::ProjectArgs>),
     JointReplicatedLocationMark(Box<joint_location_mark::ProjectArgs>),
+    GaussianCrossedNestedHierarchy(Box<gaussian_crossed_nested_hierarchy::ProjectArgs>),
     ConditionalMultitypeMark(Box<ConditionalMultitypeMarkProjectArgs>),
     ReplicatedConditionalMultitypeMark(Box<ReplicatedConditionalMultitypeMarkProjectArgs>),
     NormalMean {
@@ -3372,6 +3375,9 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
         ProjectTopLevel::Project {
             command: ProjectCommand::JointReplicatedLocationEmbedding(arguments),
         } => joint_location_embedding::run(*arguments),
+        ProjectTopLevel::Project {
+            command: ProjectCommand::GaussianCrossedNestedHierarchy(arguments),
+        } => gaussian_crossed_nested_hierarchy::run(*arguments),
         ProjectTopLevel::Project {
             command:
                 ProjectCommand::AdaptiveWindowSpde {

@@ -538,6 +538,8 @@ mod weights;
 mod cli_error;
 #[path = "bayes/cli_schema.rs"]
 mod cli_schema;
+#[path = "bayes/gaussian_crossed_nested_hierarchy.rs"]
+pub(crate) mod gaussian_crossed_nested_hierarchy;
 #[path = "bayes/nonproportional_ordinal_group_site.rs"]
 mod nonproportional_ordinal_group_site;
 #[path = "bayes/normal_mean.rs"]
@@ -583,6 +585,10 @@ pub(super) use worker_process::{publish_json, run_worker};
 
 pub(super) fn run_ordinal_group_cli() -> Result<(), BayesCliError> {
     ordinal_group::run_cli()
+}
+
+pub(super) fn run_gaussian_crossed_nested_hierarchy_cli() -> Result<(), BayesCliError> {
+    gaussian_crossed_nested_hierarchy::run_cli()
 }
 
 pub(super) fn run_ordinal_group_site_hierarchy_cli() -> Result<(), BayesCliError> {

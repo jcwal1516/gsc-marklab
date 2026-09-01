@@ -5164,3 +5164,15 @@ vascular transport.
   `b5508994b386ebf6ceb9c9ffdedf0e7aafa237cff28ca5139c8ff8f9b3ca930c`,
   `bd7c45024ebf0a8c803ad2c9f9782170af510bc688f9f83f5f661ebc95d5ad34`, and
   `0bc6097c9c5cacdcabf4be97ac7a386b74a0e880b8944b76abbf3777e4213ce2`.
+
+## Crossed/nested Gaussian hierarchy checkpoint 209 — 2026-09-01
+
+- The direct behavior target first failed on the absent command. Its initial oracle correctly
+  exposed batch-confounded residual construction; after fixing the independent residual oracle and
+  using the identified hybrid parameterization, the strict planted fit passes 1/1 in 111.76 seconds.
+- `cargo +1.96.0 test --locked --package marklab --features cli --test
+  durable_gaussian_crossed_nested_hierarchy_project -- --test-threads=1` passes 1/1 in 31.15
+  seconds with a fresh miss, backend-disabled byte-identical hit, changed-seed refusal, and one row.
+  The exact design-validation unit oracle passes 1/1; Python bytecode compilation passes.
+- Warning-denied affected Bayes all-target and root-CLI Clippy, affected Rustfmt, and
+  `git diff --check` pass. No workspace loader loop or unrelated broad gate runs.

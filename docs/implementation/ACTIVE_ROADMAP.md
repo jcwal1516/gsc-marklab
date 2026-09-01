@@ -60,7 +60,10 @@ proportional-odds posterior-predictive lack of fit retained rather than tuned aw
 its presence and positive-abundance group effects are null/uncertain. The next dependency-ordered
 site-held-out comparison now favors the valid non-proportional likelihood by 0.05196 nats per
 patient overall, while mixed directions across three of nine sites retain a transport limitation.
-Distinct ROI-within-slide, crossed, and cohort identities remain exact data blockers;
+One fixed identified Gaussian hierarchy now owns distinct ROI-within-slide, crossed batch,
+patient/cohort random slopes, and cohort transport variance mathematically. Real execution remains
+blocked by absent distinct ROI-within-slide, crossed batch, and compatible multi-cohort outcome
+identities in the admitted tables;
 anisotropic/nonstationary field effects remain unjustified by the current real field results.
 
 ## Full-program resumption override — 2026-08-30

@@ -114,6 +114,7 @@ fn main() -> marklab::Result<()> {
                                     | "region-retrieval"
                                     | "normal-mean"
                                     | "hierarchical-normal"
+                                    | "gaussian-crossed-nested-hierarchy"
                                     | "beta-binomial-hierarchy"
                                     | "beta-binomial-group-regression"
                                     | "dirichlet-multinomial-group"
@@ -769,6 +770,19 @@ fn main() -> marklab::Result<()> {
                     }) =>
         {
             bayes::run_arbitrary_window_ipp_spatial_ppc_cli().map_err(bayes::into_marklab_error)
+        }
+        Some(command)
+            if command == std::ffi::OsStr::new("bayes")
+                && std::env::args_os()
+                    .nth(2)
+                    .as_deref()
+                    .is_some_and(|subcommand| {
+                        subcommand
+                            == std::ffi::OsStr::new("gaussian-crossed-nested-hierarchy")
+                    }) =>
+        {
+            bayes::run_gaussian_crossed_nested_hierarchy_cli()
+                .map_err(bayes::into_marklab_error)
         }
         Some(command) if command == std::ffi::OsStr::new("bayes") => {
             bayes::run_cli().map_err(bayes::into_marklab_error)
