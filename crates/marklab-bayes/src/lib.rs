@@ -71,6 +71,7 @@ mod nngp;
 mod nonproportional_ordinal_group_site;
 mod ordinal_group;
 mod ordinal_group_site_hierarchy;
+mod ordinal_heldout;
 mod partial_fused_gromov;
 mod partial_transport;
 mod point_process_ppc;
@@ -415,6 +416,10 @@ pub use ordinal_group_site_hierarchy::{
     OrdinalGroupSiteHierarchyResult, OrdinalGroupSiteHierarchySpec,
     OrdinalGroupSiteHierarchyWorkerRequest, OrdinalGroupSiteHierarchyWorkerResult,
     OrdinalGroupSitePatientData, OrdinalSitePosterior,
+};
+pub use ordinal_heldout::{
+    ordinal_site_heldout_comparison, OrdinalSiteFoldScore, OrdinalSiteHeldoutComparison,
+    OrdinalSiteHeldoutSpec,
 };
 pub use partial_fused_gromov::{
     PartialFgwFit, PartialFgwResources, PartialFusedGromovWassersteinSpec,

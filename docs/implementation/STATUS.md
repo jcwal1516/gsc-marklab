@@ -4452,3 +4452,20 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   is `30ef33216abe776f9e037a4f27e535d3ab5c922ad0298f9c45579aff1be63a3b`.
 - Site-held-out log-score comparison remains required before promotion; no causal or clinical claim
   follows from the improved PPC.
+
+## Site-held-out ordinal comparison checkpoint 208 — 2026-09-01
+
+- Added deterministic leave-one-entire-site-out patient scoring for the proportional and valid
+  non-proportional ordinal models. Every fold fits only its training sites, scores every patient in
+  the held-out site, and reports category log score under explicit smoothing, optimizer, row-work,
+  and memory ceilings. Direct and native durable project commands share the typed result.
+- Unit, direct, and durable behavior tests pass. The durable workflow executes once, restores the
+  same typed bytes in a fresh process, and retains one ledger row. Warning-denied affected Bayes and
+  root-CLI Clippy plus whitespace checks pass; no broad loader loop runs.
+- On 126 TCGA patients across nine sites, mean held-out log score is -1.28046 for proportional odds
+  and -1.22850 for non-proportional odds, an improvement of 0.05196 nats per patient. Six sites
+  improve and three worsen, so the result supports the non-proportional distribution overall but
+  does not establish universal site transportability.
+- Miss/hit result SHA is `b5508994b386ebf6ceb9c9ffdedf0e7aafa237cff28ca5139c8ff8f9b3ca930c`;
+  ledger SHA is `bd7c45024ebf0a8c803ad2c9f9782170af510bc688f9f83f5f661ebc95d5ad34`;
+  sealed v79 checksum-file SHA is `0bc6097c9c5cacdcabf4be97ac7a386b74a0e880b8944b76abbf3777e4213ce2`.

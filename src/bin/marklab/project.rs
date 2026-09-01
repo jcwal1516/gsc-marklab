@@ -108,6 +108,8 @@ mod max_t_calibration;
 mod multiscale_embedding_kernel;
 #[path = "project/multitype_lgcp_sbc.rs"]
 mod multitype_lgcp_sbc;
+#[path = "project/ordinal_site_heldout.rs"]
+mod ordinal_site_heldout;
 #[path = "project/patient_nested_fields.rs"]
 mod patient_nested_fields;
 #[path = "project/projected_embedding_variograms.rs"]
@@ -2207,6 +2209,26 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    OrdinalSiteHeldoutComparison {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        reference_group: String,
+        #[arg(long)]
+        comparison_group: String,
+        #[arg(long)]
+        ordered_levels: String,
+        #[arg(long)]
+        smoothing: f64,
+        #[arg(long)]
+        optimizer_tolerance: f64,
+        #[arg(long)]
+        maximum_optimizer_evaluations: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
     HurdleBetaBinomialGroup {
         #[arg(long)]
         project: PathBuf,
@@ -3649,6 +3671,30 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
                 seed,
             },
             timeout_seconds,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::OrdinalSiteHeldoutComparison {
+                    project,
+                    input,
+                    reference_group,
+                    comparison_group,
+                    ordered_levels,
+                    smoothing,
+                    optimizer_tolerance,
+                    maximum_optimizer_evaluations,
+                    out,
+                },
+        } => ordinal_site_heldout::run(
+            project,
+            input,
+            reference_group,
+            comparison_group,
+            ordered_levels.split(',').map(str::to_owned).collect(),
+            smoothing,
+            optimizer_tolerance,
+            maximum_optimizer_evaluations,
             out,
         ),
         ProjectTopLevel::Project {

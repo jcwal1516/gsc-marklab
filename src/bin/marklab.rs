@@ -120,6 +120,7 @@ fn main() -> marklab::Result<()> {
                                     | "ordinal-group"
                                     | "ordinal-group-site-hierarchy"
                                     | "nonproportional-ordinal-group-site"
+                                    | "ordinal-site-heldout-comparison"
                                     | "hurdle-beta-binomial-group"
                                     | "beta-binomial-group-gender-regression"
                                     | "beta-binomial-group-gender-slide-hierarchy"
@@ -213,6 +214,7 @@ fn main() -> marklab::Result<()> {
         {
             bayes::run_ordinal_group_site_hierarchy_cli().map_err(bayes::into_marklab_error)
         }
+        Some(command)if command==std::ffi::OsStr::new("bayes")&&std::env::args_os().nth(2).as_deref().is_some_and(|s|s==std::ffi::OsStr::new("ordinal-site-heldout-comparison"))=>{bayes::run_ordinal_site_heldout_cli().map_err(bayes::into_marklab_error)}
         Some(command) if command==std::ffi::OsStr::new("bayes")&&std::env::args_os().nth(2).as_deref().is_some_and(|s|s==std::ffi::OsStr::new("nonproportional-ordinal-group-site"))=>{bayes::run_nonproportional_ordinal_group_site_cli().map_err(bayes::into_marklab_error)}
         Some(command)
             if command == std::ffi::OsStr::new("bayes")

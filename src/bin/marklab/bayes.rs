@@ -546,6 +546,8 @@ mod normal_mean;
 mod ordinal_group;
 #[path = "bayes/ordinal_group_site_hierarchy.rs"]
 mod ordinal_group_site_hierarchy;
+#[path = "bayes/ordinal_site_heldout.rs"]
+mod ordinal_site_heldout;
 #[path = "bayes/worker_process.rs"]
 mod worker_process;
 
@@ -573,6 +575,10 @@ pub(super) use ordinal_group_site_hierarchy::{
     execute as execute_ordinal_group_site_hierarchy,
     prepare as prepare_ordinal_group_site_hierarchy, PreparedOrdinalGroupSiteHierarchy,
 };
+pub(super) use ordinal_site_heldout::{
+    execute as execute_ordinal_site_heldout, prepare as prepare_ordinal_site_heldout,
+    PreparedOrdinalSiteHeldout,
+};
 pub(super) use worker_process::{publish_json, run_worker};
 
 pub(super) fn run_ordinal_group_cli() -> Result<(), BayesCliError> {
@@ -581,6 +587,9 @@ pub(super) fn run_ordinal_group_cli() -> Result<(), BayesCliError> {
 
 pub(super) fn run_ordinal_group_site_hierarchy_cli() -> Result<(), BayesCliError> {
     ordinal_group_site_hierarchy::run_cli()
+}
+pub(super) fn run_ordinal_site_heldout_cli() -> Result<(), BayesCliError> {
+    ordinal_site_heldout::run_cli()
 }
 pub(super) fn run_nonproportional_ordinal_group_site_cli() -> Result<(), BayesCliError> {
     nonproportional_ordinal_group_site::run_cli()

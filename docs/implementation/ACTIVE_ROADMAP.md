@@ -58,10 +58,10 @@ and additional multitype corrections remain active only for concrete callers. Th
 proportional-odds posterior-predictive lack of fit retained rather than tuned away. The admitted
 105-patient CPTAC hard-Epithelial count now also has a durable exposure-aware hurdle likelihood;
 its presence and positive-abundance group effects are null/uncertain. The next dependency-ordered
-step is site-held-out predictive comparison because the valid non-proportional likelihood repaired
-the category PPC in-sample. Distinct ROI-within-slide,
-crossed, and cohort identities remain exact data blockers; anisotropic/nonstationary field effects
-remain unjustified by the current real field results.
+site-held-out comparison now favors the valid non-proportional likelihood by 0.05196 nats per
+patient overall, while mixed directions across three of nine sites retain a transport limitation.
+Distinct ROI-within-slide, crossed, and cohort identities remain exact data blockers;
+anisotropic/nonstationary field effects remain unjustified by the current real field results.
 
 ## Full-program resumption override — 2026-08-30
 

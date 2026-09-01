@@ -5150,3 +5150,17 @@ vascular transport.
   `bc90ec2f52cc68028674fbffd6ea40e0c446f614b5910ef3ae7f53d915148a4e`,
   `8cb8671e4a7a5da565f652cd2c0ebcd641953aee22e06b75a0bab1ee24916289`, and
   `30ef33216abe776f9e037a4f27e535d3ab5c922ad0298f9c45579aff1be63a3b`.
+
+## Site-held-out ordinal comparison checkpoint 208 — 2026-09-01
+
+- The direct behavior test first failed because `marklab bayes ordinal-site-heldout-comparison` was
+  absent; the durable test first failed because its project command was absent. The focused unit
+  oracle passes 1/1 and the serial direct/durable targets pass 2/2. The durable target proves typed
+  miss/hit restoration and a changed native configuration produces a distinct second execution.
+- `cargo +1.96.0 clippy --locked --package marklab-bayes --all-targets -- -D warnings` and
+  `cargo +1.96.0 clippy --locked --package marklab --features cli --bin marklab -- -D warnings`
+  pass with `CARGO_TARGET_DIR=/tmp/marklab-cargo-target.kt0CDK`; `git diff --check` passes.
+- Real result/ledger/sealed-checksum SHA values are
+  `b5508994b386ebf6ceb9c9ffdedf0e7aafa237cff28ca5139c8ff8f9b3ca930c`,
+  `bd7c45024ebf0a8c803ad2c9f9782170af510bc688f9f83f5f661ebc95d5ad34`, and
+  `0bc6097c9c5cacdcabf4be97ac7a386b74a0e880b8944b76abbf3777e4213ce2`.
