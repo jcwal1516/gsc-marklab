@@ -1,6 +1,6 @@
 # Marklab active roadmap
 
-Last updated: 2026-08-31
+Last updated: 2026-09-01
 
 Authority: this file is the bounded dependency-ordered execution view derived from `PROGRAM_TRACKER.md` and the immutable `MASTER_PLAN.md`. It does not replace the master plan. Non-goals apply only to this increment; every excluded future capability remains represented in `PROGRAM_TRACKER.md`.
 
@@ -12,6 +12,18 @@ not another margin method: a real claim requires a protocol-fixed endpoint, sign
 scientifically justified margin and rationale, and sufficient independent patients. Until such a
 caller is admitted, retain the exact data/design blocker and do not infer equivalence from a null
 test or invent clinical margins.
+
+## Mathematical-catalog admission closure — checkpoint 213
+
+The fitted joint location–embedding caller now supports either its legacy Gaussian residual or one
+prespecified finite-variance Student-t residual with like-for-like held-out comparison and durable
+replay. Real promotion stops at exact correspondence: the admitted LGCP and projected-embedding
+tables overlap on only two slides from one patient, while the broader 15-patient field manifest has
+no matching quadrature artifact. Biological SBI calibration likewise requires a declared biological
+simulator parameter/observable mapping and independent validation target, neither of which exists in
+the admitted CRC artifacts. Do not synthesize those identities, tune residual family/df from heldout
+scores, or add another generic likelihood/SBC framework. Resume only when a provenance-complete
+paired table or calibration question is admitted.
 
 ## Frontier fitted-field follow-through — checkpoint 200
 

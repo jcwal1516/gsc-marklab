@@ -5209,3 +5209,20 @@ vascular transport.
 - The direct analytical targets `cohort_equivalence_cli` and `cohort_noninferiority_cli` pass 2/2.
   Warning-denied root-CLI Clippy, affected-file Rustfmt, and `git diff --check` pass. No workspace
   Nextest/full-loader loop or unrelated broad gate runs.
+
+## Robust joint location–embedding and catalog-admission checkpoint 213 — 2026-09-01
+
+- The durable robust behavior target first failed on the absent
+  `--embedding-residual-family` argument. Final serial execution of
+  `bayes_joint_replicated_location_embedding_fit_cli`,
+  `durable_numpyro_joint_location_embedding_project`, and
+  `durable_numpyro_robust_joint_location_embedding_project` passes 4/4, including legacy Gaussian,
+  Student-t miss/backend-disabled hit, one ledger row, and three invalid-control failures before
+  backend execution.
+- `workers/python/.venv/bin/python tests/python/test_joint_location_embedding_student_t.py` passes
+  its closed-form density oracle; pinned-environment worker bytecode compilation passes.
+  Warning-denied root-CLI Clippy, workspace Rustfmt check, root no-default check, warning-denied root
+  docs, and `git diff --check` pass.
+- Read-only `ssh mini` pattern intersection and SHA-256 checks establish the exact real paired-table
+  blocker recorded in STATUS. No real fit, broad workspace/Nextest loader loop, benchmark, fuzzing,
+  packaging, dependency audit, push, publication, or deployment runs.

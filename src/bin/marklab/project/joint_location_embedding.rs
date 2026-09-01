@@ -6,7 +6,9 @@ use marklab_workflow::{
     NodeSpec, SchedulerLimits, WorkflowGraph, WorkflowNode,
 };
 
-use super::super::bayes::joint_replicated_location_embedding::{self, Args, Output, Prepared};
+use super::super::bayes::joint_replicated_location_embedding::{
+    self, Args, EmbeddingResidualFamily, Output, Prepared,
+};
 use super::{
     bayes, native_runtime_provenance, report_recovery, source_artifact, BayesCliError,
     MAXIMUM_RESULT_BYTES, PROJECT_CONTROL_BYTES, PROJECT_LEDGER_BYTES, PROJECT_LEDGER_RECORDS,
@@ -50,6 +52,10 @@ pub(super) struct ProjectArgs {
     embedding_loading_prior_sd: f64,
     #[arg(long)]
     embedding_noise_prior_scale: f64,
+    #[arg(long, value_enum, default_value_t)]
+    embedding_residual_family: EmbeddingResidualFamily,
+    #[arg(long)]
+    student_t_degrees_of_freedom: Option<f64>,
     #[arg(long)]
     field_length_scale_prior_scale_um: f64,
     #[arg(long)]
@@ -108,6 +114,8 @@ pub(super) fn run(arguments: ProjectArgs) -> Result<(), BayesCliError> {
         location_factor_loading_prior_sd: arguments.location_factor_loading_prior_sd,
         embedding_loading_prior_sd: arguments.embedding_loading_prior_sd,
         embedding_noise_prior_scale: arguments.embedding_noise_prior_scale,
+        embedding_residual_family: arguments.embedding_residual_family,
+        student_t_degrees_of_freedom: arguments.student_t_degrees_of_freedom,
         field_length_scale_prior_scale_um: arguments.field_length_scale_prior_scale_um,
         jitter: arguments.jitter,
         chains: arguments.chains,

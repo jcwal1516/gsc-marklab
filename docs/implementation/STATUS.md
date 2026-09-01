@@ -4529,3 +4529,28 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - These paths do not supply scientific or clinical margins. Real equivalence/noninferiority claims
   remain unavailable until an admitted caller provides protocol-fixed margins, rationale, endpoint,
   sign convention, and adequate independent patient observations.
+
+## Robust joint location–embedding and catalog-admission checkpoint 213 — 2026-09-01
+
+- Extended the existing fitted patient-replicated joint location–embedding model with one explicit
+  finite-variance Student-t residual option. The same fixed degrees of freedom are used by the
+  spatial joint fit, separately refitted nonspatial comparator, held-out posterior-mixture log
+  density, and posterior prediction. Gaussian remains the default; family and degrees of freedom
+  are prespecified and cache-bound, never selected from held-out performance.
+- A closed-form two-dimensional Student-t density oracle passes at `1e-15` absolute tolerance.
+  Invalid degrees of freedom at 2, nonfinite, or above 100 stop before backend execution. Legacy
+  Gaussian direct/durable behavior remains green, while a robust fresh process executes once and a
+  backend-disabled second process restores byte-identical output with one ledger row.
+- Read-only Mac-mini admission finds location-table SHA-256
+  `c862ce9790274f1f099f040716de864b5185cc3084004ccef7693376a95f791f` with 16 patterns and
+  projected-table SHA-256 `3fe55c5b1e0e57395f64957956d527009c01440d1a4da828c973c790312377a2`
+  with 65 slides. Only two patterns intersect, both belonging to one patient, so no real
+  patient/group joint fit is identified. The 15-patient/35-slide local-field manifest supplies
+  projected embeddings and windows but no matching exact location quadrature artifact. Real
+  promotion remains blocked rather than reconstructing correspondence or treating slides as
+  patients.
+- Existing multitype point-process SBC already supplies prior-rank and posterior-predictive
+  implementation calibration. Real biological SBI calibration remains unavailable because no
+  admitted CRC caller defines a biological simulator parameter/observable correspondence,
+  independent calibration target, or outcome-blind validation set. This is a data/model-validity
+  blocker, not another generic SBC implementation gap.

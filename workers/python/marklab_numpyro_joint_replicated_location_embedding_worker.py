@@ -86,13 +86,14 @@ def validate(request: dict[str, Any], lock_sha: str, worker_sha: str) -> dict[st
         "reference_group",
         "comparison_group",
         "embedding_projection_identity",
+        "embedding_residual",
         "priors",
         "sampling",
         "resources",
     }
     if not isinstance(request, dict) or set(request) != expected:
         raise ContractError("request fields differ")
-    if request["format"] != REQUEST_FORMAT or request["version"] != 1:
+    if request["format"] != REQUEST_FORMAT or request["version"] != 2:
         raise ContractError("request identity differs")
     if request["backend"] != {
         "name": "numpyro",
@@ -116,6 +117,26 @@ def validate(request: dict[str, Any], lock_sha: str, worker_sha: str) -> dict[st
         or any(character not in "0123456789abcdefABCDEF" for character in projection)
     ):
         raise ContractError("projection identity differs")
+    residual = request["embedding_residual"]
+    if not isinstance(residual, dict) or set(residual) != {
+        "family",
+        "student_t_degrees_of_freedom",
+    }:
+        raise ContractError("embedding residual contract differs")
+    family = residual["family"]
+    degrees_of_freedom = residual["student_t_degrees_of_freedom"]
+    if family == "gaussian":
+        if degrees_of_freedom is not None:
+            raise ContractError("Gaussian residual cannot declare Student-t degrees of freedom")
+    elif family == "student_t":
+        if (
+            not isinstance(degrees_of_freedom, (int, float))
+            or not math.isfinite(float(degrees_of_freedom))
+            or not 2.0 < float(degrees_of_freedom) <= 100.0
+        ):
+            raise ContractError("Student-t degrees of freedom must be in (2, 100]")
+    else:
+        raise ContractError("embedding residual family differs")
     location_fields, location_rows = parse_csv(location_text, "location")
     embedding_fields, embedding_rows = parse_csv(embedding_text, "embedding")
     if location_fields != LOCATION_FIELDS:
@@ -307,6 +328,10 @@ def validate(request: dict[str, Any], lock_sha: str, worker_sha: str) -> dict[st
         "target_accept": float(sampling["target_accept"]),
         "seed": int(sampling["seed"]),
         "depth": int(resources["maximum_tree_depth"]),
+        "embedding_residual_family": family,
+        "student_t_degrees_of_freedom": (
+            None if degrees_of_freedom is None else float(degrees_of_freedom)
+        ),
     }
 
 
@@ -390,6 +415,16 @@ def identified_loading(raw: jnp.ndarray, factors: int) -> jnp.ndarray:
     loading = jnp.where((rows < factors) & (columns > rows), 0.0, raw)
     diagonal = jnp.arange(factors)
     return loading.at[diagonal, diagonal].set(jnp.exp(raw[diagonal, diagonal]))
+
+
+def embedding_distribution(
+    config: dict[str, Any], mean: jnp.ndarray, scale: jnp.ndarray
+) -> dist.Distribution:
+    if config["embedding_residual_family"] == "gaussian":
+        return dist.Normal(mean, scale).to_event(1)
+    return dist.StudentT(
+        config["student_t_degrees_of_freedom"], mean, scale
+    ).to_event(1)
 
 
 def joint_model(config: dict[str, Any], data: dict[str, Any]) -> Callable[[], None]:
@@ -483,7 +518,7 @@ def joint_model(config: dict[str, Any], data: dict[str, Any]) -> Callable[[], No
         point_mean = embedding_mean[None, :] + point_factor @ loading.T
         numpyro.sample(
             "embedding_value",
-            dist.Normal(point_mean[etrain], noise).to_event(1),
+            embedding_distribution(config, point_mean[etrain], noise),
             obs=evalues[etrain],
         )
     return model
@@ -518,7 +553,9 @@ def nonspatial_model(config: dict[str, Any], data: dict[str, Any]) -> Callable[[
         )
         mean = intercept[None, :] + patient_sd[None, :] * patient_raw[epatient]
         numpyro.sample(
-            "embedding_value", dist.Normal(mean[etrain], noise).to_event(1), obs=evalues[etrain]
+            "embedding_value",
+            embedding_distribution(config, mean[etrain], noise),
+            obs=evalues[etrain],
         )
 
     return model
@@ -585,9 +622,27 @@ def summary(values: np.ndarray) -> dict[str, float]:
     }
 
 
-def normal_log_density(values: np.ndarray, mean: np.ndarray, scale: np.ndarray) -> np.ndarray:
+def embedding_log_density(
+    config: dict[str, Any], values: np.ndarray, mean: np.ndarray, scale: np.ndarray
+) -> np.ndarray:
     residual = (values[None, :, :] - mean) / scale[:, None, :]
-    return -0.5 * residual**2 - np.log(scale[:, None, :]) - 0.5 * math.log(2.0 * math.pi)
+    if config["embedding_residual_family"] == "gaussian":
+        return (
+            -0.5 * residual**2
+            - np.log(scale[:, None, :])
+            - 0.5 * math.log(2.0 * math.pi)
+        )
+    degrees = config["student_t_degrees_of_freedom"]
+    constant = (
+        math.lgamma((degrees + 1.0) / 2.0)
+        - math.lgamma(degrees / 2.0)
+        - 0.5 * math.log(degrees * math.pi)
+    )
+    return (
+        constant
+        - np.log(scale[:, None, :])
+        - 0.5 * (degrees + 1.0) * np.log1p(residual**2 / degrees)
+    )
 
 
 def log_mean_exp(values: np.ndarray, axis: int) -> np.ndarray:
@@ -623,14 +678,20 @@ def evaluate(
         "dnk,dfk->dnf", point_factor, joint["embedding_loading"]
     )
     joint_point_lpd = log_mean_exp(
-        normal_log_density(values, joint_mean, joint["embedding_noise"]), axis=0
+        embedding_log_density(
+            config, values, joint_mean, joint["embedding_noise"]
+        ),
+        axis=0,
     ).sum(axis=1)
     baseline_mean = baseline["embedding_intercept"][:, None, :] + (
         baseline["embedding_patient_sd"][:, None, :]
         * baseline["embedding_patient_raw"][:, patients, :]
     )
     baseline_point_lpd = log_mean_exp(
-        normal_log_density(values, baseline_mean, baseline["embedding_noise"]), axis=0
+        embedding_log_density(
+            config, values, baseline_mean, baseline["embedding_noise"]
+        ),
+        axis=0,
     ).sum(axis=1)
     patient_scores_joint = np.asarray(
         [joint_point_lpd[patients == patient].sum() for patient in range(len(config["patients"]))]
@@ -655,7 +716,15 @@ def evaluate(
     count_values = replicated_counts.sum(axis=1).astype(float)
     observed_count = float(data["node_count"].sum())
     observed_rmse_draws = np.sqrt(np.mean((values[None, :, :] - joint_mean) ** 2, axis=(1, 2)))
-    replicated_embeddings = rng.normal(joint_mean, joint["embedding_noise"][:, None, :])
+    if config["embedding_residual_family"] == "gaussian":
+        residual_draws = rng.normal(size=joint_mean.shape)
+    else:
+        residual_draws = rng.standard_t(
+            config["student_t_degrees_of_freedom"], size=joint_mean.shape
+        )
+    replicated_embeddings = (
+        joint_mean + residual_draws * joint["embedding_noise"][:, None, :]
+    )
     replicated_rmse = np.sqrt(
         np.mean((replicated_embeddings - joint_mean) ** 2, axis=(1, 2))
     )

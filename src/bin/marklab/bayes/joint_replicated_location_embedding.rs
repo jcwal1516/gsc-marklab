@@ -33,6 +33,26 @@ enum Command {
     FitJointReplicatedLocationEmbedding(Box<Args>),
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, clap::ValueEnum)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum EmbeddingResidualFamily {
+    #[default]
+    Gaussian,
+    StudentT,
+}
+
+impl EmbeddingResidualFamily {
+    fn likelihood_name(self, degrees_of_freedom: Option<f64>) -> String {
+        match self {
+            Self::Gaussian => "diagonal_gaussian_on_fold_frozen_projected_embeddings".into(),
+            Self::StudentT => format!(
+                "independent_student_t_on_fold_frozen_projected_embeddings_df_{}",
+                degrees_of_freedom.expect("validated Student-t degrees of freedom")
+            ),
+        }
+    }
+}
+
 #[derive(Clone, Debug, clap::Args)]
 pub(crate) struct Args {
     #[arg(long)]
@@ -59,6 +79,10 @@ pub(crate) struct Args {
     pub(crate) embedding_loading_prior_sd: f64,
     #[arg(long)]
     pub(crate) embedding_noise_prior_scale: f64,
+    #[arg(long, value_enum, default_value_t)]
+    pub(crate) embedding_residual_family: EmbeddingResidualFamily,
+    #[arg(long)]
+    pub(crate) student_t_degrees_of_freedom: Option<f64>,
     #[arg(long)]
     pub(crate) field_length_scale_prior_scale_um: f64,
     #[arg(long)]
@@ -163,9 +187,17 @@ struct WorkerRequest<'a> {
     reference_group: &'a str,
     comparison_group: &'a str,
     embedding_projection_identity: &'a str,
+    embedding_residual: EmbeddingResidual,
     priors: Priors,
     sampling: Sampling,
     resources: Resources,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+struct EmbeddingResidual {
+    family: EmbeddingResidualFamily,
+    student_t_degrees_of_freedom: Option<f64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -299,6 +331,7 @@ pub(crate) struct Prepared {
     location_sha256: String,
     embedding_sha256: String,
     embedding_projection_identity: String,
+    embedding_residual: EmbeddingResidual,
     sampling: Sampling,
     resources: Resources,
     timeout_seconds: u64,
@@ -431,10 +464,23 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         field_length_scale_um: args.field_length_scale_prior_scale_um,
         jitter: args.jitter,
     };
+    let embedding_residual = EmbeddingResidual {
+        family: args.embedding_residual_family,
+        student_t_degrees_of_freedom: args.student_t_degrees_of_freedom,
+    };
+    let valid_residual = match embedding_residual.family {
+        EmbeddingResidualFamily::Gaussian => {
+            embedding_residual.student_t_degrees_of_freedom.is_none()
+        }
+        EmbeddingResidualFamily::StudentT => embedding_residual
+            .student_t_degrees_of_freedom
+            .is_some_and(|value| value.is_finite() && value > 2.0 && value <= 100.0),
+    };
     if priors
         .values()
         .into_iter()
         .any(|value| !value.is_finite() || value <= 0.0)
+        || !valid_residual
         || !(2..=args.maximum_embedding_dimension).contains(&embedding_dimension)
         || !(1..=args.maximum_factor_count).contains(&args.factors)
         || args.factors >= embedding_dimension
@@ -494,7 +540,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
     let embedding_sha256 = sha256_hex(embedding_csv.as_bytes());
     let request = WorkerRequest {
         format: "marklab.numpyro_joint_replicated_location_embedding_request",
-        version: 1,
+        version: 2,
         backend: backend.clone(),
         jax_version: JAX_VERSION,
         location_csv: &location_csv,
@@ -504,6 +550,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         reference_group: &args.reference_group,
         comparison_group: &args.comparison_group,
         embedding_projection_identity: &args.embedding_projection_identity,
+        embedding_residual: embedding_residual.clone(),
         priors,
         sampling: sampling.clone(),
         resources: resources.clone(),
@@ -517,6 +564,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         location_sha256,
         embedding_sha256,
         embedding_projection_identity: args.embedding_projection_identity,
+        embedding_residual,
         sampling,
         resources,
         timeout_seconds: args.timeout_seconds,
@@ -558,7 +606,11 @@ pub(crate) fn execute(prepared: &Prepared) -> Result<Output, BayesCliError> {
         resources: prepared.resources.clone(),
         statistical_unit: "patient".into(),
         location_likelihood: "exact_window_quadrature_poisson_total_location_intensity".into(),
-        embedding_likelihood: "diagonal_gaussian_on_fold_frozen_projected_embeddings".into(),
+        embedding_likelihood: prepared.embedding_residual.family.likelihood_name(
+            prepared
+                .embedding_residual
+                .student_t_degrees_of_freedom,
+        ),
         factor_identifiability:
             "unit_matern_fields_lower_triangular_first_factor_rows_positive_diagonal_loadings"
                 .into(),
@@ -594,6 +646,11 @@ impl Output {
             || self.location_sha256 != prepared.location_sha256
             || self.embedding_sha256 != prepared.embedding_sha256
             || self.embedding_projection_identity != prepared.embedding_projection_identity
+            || self.embedding_likelihood
+                != prepared
+                    .embedding_residual
+                    .family
+                    .likelihood_name(prepared.embedding_residual.student_t_degrees_of_freedom)
             || self.sampling != prepared.sampling
             || self.resources != prepared.resources
             || self.statistical_unit != "patient"

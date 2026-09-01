@@ -3947,3 +3947,22 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   add formula/power machinery, or create a generic inference registry. Real claims remain blocked
   until a protocol supplies an endpoint, sign convention, scientific margin/rationale, and adequate
   independent patient observations.
+
+## DEC-0405 — Add one prespecified robust residual to the fitted joint embedding caller
+
+- Date: 2026-09-01
+- Status: accepted for BAY-03/BAY-04/BAY-PP/BACK-01/EMB-01/PLAT-01/WF-01/WS-12/WS-41/WS-43/WS-50
+- Decision: extend the existing patient-replicated joint exact-window location/projected-embedding
+  command, worker, and durable node with an opt-in independent Student-t embedding residual having
+  fixed degrees of freedom strictly above 2 and at most 100. Use the identical residual family and
+  degrees of freedom in the separately refitted nonspatial patient comparator, held-out
+  posterior-mixture density, and posterior prediction. Keep Gaussian as the default, bind the
+  residual contract into the version-two worker request and durable identity, and reject incompatible
+  or nonfinite controls before backend execution. Do not select the family or degrees of freedom from
+  held-out results.
+- Consequences: one immediate projected-embedding caller can represent finite-variance heavy tails
+  without a mixture registry, arbitrary likelihood language, or new project/backend owner. This
+  changes residual robustness, not the patient unit, factor interpretation, location likelihood,
+  projection freeze, or causal/communication claim ceiling. Real promotion remains blocked because
+  the admitted exact location and embedding tables overlap on only two slides from one patient; no
+  correspondence or patient replication is fabricated.
