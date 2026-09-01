@@ -17,7 +17,7 @@ const INPUT_KIND: &str = "application/vnd.marklab.source.adaptive-window-spde+js
 const LOCK_KIND: &str = "application/vnd.marklab.python-lock+text;version=1";
 const WORKER_KIND: &str = "application/vnd.marklab.python-worker+source;version=1";
 const OUTPUT_KIND: &str = "application/vnd.marklab.adaptive-window-spde+json;version=1";
-const IMPLEMENTATION_IDENTITY: &str = "marklab-project-adaptive-window-spde-node-v1";
+const IMPLEMENTATION_IDENTITY: &str = "marklab-project-adaptive-window-spde-node-v2";
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -290,7 +290,7 @@ impl WorkflowNode for AdaptiveWindowSpdeProjectNode {
         let result: AdaptiveWindowSpdeResult =
             serde_json::from_value(value).map_err(NodeError::decode)?;
         validate_scientific_result(&result).map_err(NodeError::execution)?;
-        Ok(result)
+        canonical_json_round_trip(result).map_err(NodeError::execution)
     }
 
     fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
@@ -311,6 +311,79 @@ impl WorkflowNode for AdaptiveWindowSpdeProjectNode {
     fn output_kind(&self) -> &'static str {
         OUTPUT_KIND
     }
+}
+
+fn canonical_json_round_trip<T>(value: T) -> Result<T, std::io::Error>
+where
+    T: serde::Serialize + serde::de::DeserializeOwned,
+{
+    let mut json = serde_json::to_value(value).map_err(std::io::Error::other)?;
+    stabilize_json_floats(&mut json)?;
+    let normalized: T = serde_json::from_value(json).map_err(std::io::Error::other)?;
+    let bytes = serde_json::to_vec(&normalized).map_err(std::io::Error::other)?;
+    let decoded: T = serde_json::from_slice(&bytes).map_err(std::io::Error::other)?;
+    if serde_json::to_vec(&decoded).map_err(std::io::Error::other)? == bytes {
+        return Ok(decoded);
+    }
+    Err(std::io::Error::new(
+        std::io::ErrorKind::InvalidData,
+        "adaptive SPDE result did not reach a stable JSON representation",
+    ))
+}
+
+fn stabilize_json_floats(value: &mut serde_json::Value) -> Result<(), std::io::Error> {
+    match value {
+        serde_json::Value::Array(values) => {
+            for value in values {
+                stabilize_json_floats(value)?;
+            }
+        }
+        serde_json::Value::Object(values) => {
+            for value in values.values_mut() {
+                stabilize_json_floats(value)?;
+            }
+        }
+        serde_json::Value::Number(number) if number.is_f64() => {
+            let original = number.as_f64().ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid JSON float")
+            })?;
+            let stable = nearest_stable_json_float(original).ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "adaptive SPDE float has no stable JSON representation within 64 ULPs",
+                )
+            })?;
+            *number = serde_json::Number::from_f64(stable).ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, "non-finite JSON float")
+            })?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn nearest_stable_json_float(value: f64) -> Option<f64> {
+    if !value.is_finite() {
+        return None;
+    }
+    let bits = value.to_bits();
+    for distance in 0..=64_u64 {
+        for candidate_bits in [bits.checked_sub(distance), bits.checked_add(distance)]
+            .into_iter()
+            .flatten()
+        {
+            let candidate = f64::from_bits(candidate_bits);
+            if !candidate.is_finite() {
+                continue;
+            }
+            let encoded = serde_json::to_string(&candidate).ok()?;
+            let decoded = serde_json::from_str::<f64>(&encoded).ok()?;
+            if decoded.to_bits() == candidate.to_bits() {
+                return Some(candidate);
+            }
+        }
+    }
+    None
 }
 
 fn validate_scientific_result(result: &AdaptiveWindowSpdeResult) -> Result<(), std::io::Error> {
@@ -340,4 +413,35 @@ fn validate_scientific_result(result: &AdaptiveWindowSpdeResult) -> Result<(), s
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Deserialize, Serialize)]
+    struct FloatProbe {
+        value: f64,
+    }
+
+    #[test]
+    fn adaptive_codec_stabilizes_a_real_spde_float() {
+        let first: FloatProbe =
+            serde_json::from_str(r#"{"value":1.093833881765206e-8}"#).expect("probe");
+        let first_bytes = serde_json::to_vec(&first).expect("first");
+        let second: FloatProbe = serde_json::from_slice(&first_bytes).expect("second");
+        let second_bytes = serde_json::to_vec(&second).expect("second bytes");
+        assert_ne!(
+            first_bytes, second_bytes,
+            "probe must exercise the regression"
+        );
+
+        let stable = super::canonical_json_round_trip(first).expect("stable codec");
+        let stable_bytes = serde_json::to_vec(&stable).expect("stable bytes");
+        let decoded: FloatProbe = serde_json::from_slice(&stable_bytes).expect("decoded");
+        assert_eq!(
+            serde_json::to_vec(&decoded).expect("decoded bytes"),
+            stable_bytes
+        );
+    }
 }

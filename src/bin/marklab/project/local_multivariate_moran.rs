@@ -255,11 +255,11 @@ impl LocalMultivariateMoranProjectNode {
                 .zip(&self.prepared.points)
                 .any(|(row, point)| {
                     row.point_id != point.point_id
-                        || row.x_um.to_bits() != point.x_um.to_bits()
-                        || row.y_um.to_bits() != point.y_um.to_bits()
+                        || !equal_within_one_ulp(row.x_um, point.x_um)
+                        || !equal_within_one_ulp(row.y_um, point.y_um)
                 })
             || !result.global_max_abs_statistic.is_finite()
-            || result.global_max_abs_statistic.to_bits() != maximum.to_bits()
+            || !equal_within_one_ulp(result.global_max_abs_statistic, maximum)
             || !result.global_max_abs_p_value.is_finite()
             || !(0.0..=1.0).contains(&result.global_max_abs_p_value)
             || !permutation_probability(result.global_max_abs_p_value, denominator)
@@ -290,6 +290,16 @@ fn is_sha256(value: &str) -> bool {
 fn permutation_probability(value: f64, denominator: f64) -> bool {
     let count = value * denominator;
     (count - count.round()).abs() <= 1e-9 && count >= 1.0 && count <= denominator
+}
+
+fn equal_within_one_ulp(left: f64, right: f64) -> bool {
+    if !left.is_finite()
+        || !right.is_finite()
+        || left.is_sign_negative() != right.is_sign_negative()
+    {
+        return left.to_bits() == right.to_bits();
+    }
+    left.to_bits().abs_diff(right.to_bits()) <= 1
 }
 
 impl WorkflowNode for LocalMultivariateMoranProjectNode {
@@ -323,7 +333,7 @@ impl WorkflowNode for LocalMultivariateMoranProjectNode {
     }
 
     fn execute(&self) -> Result<Self::Output, NodeError> {
-        local_multivariate::evaluate(
+        let result = local_multivariate::evaluate(
             &self.prepared,
             self.radius_um,
             self.permutations,
@@ -334,7 +344,8 @@ impl WorkflowNode for LocalMultivariateMoranProjectNode {
             self.maximum_permutation_edge_evaluations,
             self.memory_budget_bytes,
         )
-        .map_err(NodeError::execution)
+        .map_err(NodeError::execution)?;
+        local_multivariate::canonical_result_codec(result).map_err(NodeError::execution)
     }
 
     fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {

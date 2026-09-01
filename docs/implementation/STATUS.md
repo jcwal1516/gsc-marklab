@@ -4290,3 +4290,39 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - The four focused local/adaptive CLI targets pass 7/7; Python bytecode compilation, affected
   warning-denied CLI Clippy, formatting, and whitespace checks pass. No broad workspace loader
   loop, benchmark, fuzzing, packaging, dependency audit, push, publication, or deployment runs.
+
+## Patient-nested CellViT fields and adaptive-SPDE checkpoint 202 — 2026-08-31
+
+- Added one complete patient-nested field reducer with direct and durable CLI paths. Equal-weight
+  specimens remain inside patients, preprocessing is refit inside every leave-one-patient-out fold,
+  and whole-patient step-down Max-T owns the endpoint family. Incomplete specimen vectors,
+  nonfinite/degenerate inputs, and patient/specimen/endpoint/permutation-work/memory overruns fail
+  before inference.
+- The admitted CPTAC design contains 15 patients, 35 slides, and 16,525 retained projected-CellViT
+  cells after coordinate-only radius-isolate removal. All 35 baseline local-field projects and 140
+  prespecified cell-subsample, one-micrometre-jitter, and nearby-scale projects replay with backend
+  execution disabled and one ledger row. Patient median relative RMS change is 0.0084 for jitter,
+  0.0248/0.0586 at 180/220 micrometres, and 0.0601 under 80% cell subsampling.
+- The complete-case 14-patient incremental analysis refits standardization and PCA inside every
+  patient-held-out fold. Technical plus composition balanced accuracy is 0.864 with exact
+  whole-patient `p=0.0522`; adding raw nonspatial CellViT produces 0.394, and adding the local field
+  changes balanced accuracy and retrieval by exactly zero with bootstrap interval `[0,0]`. The
+  field is therefore not fused or promoted.
+- The arbitrary-window SPDE caller uses a uniform, label-blind 128-cell sample per slide and the
+  backend's fixed 10,000-iteration hard ceiling after the 5,000-iteration design proved
+  capacity-inadequate. All 35 fits converge and replay byte-identically. The three sign-invariant
+  patient endpoints have step-down adjusted `p=0.997` each and held-out balanced accuracy 0.0417;
+  this is retained as a null/negative result. Summary SHA-256 values are
+  `669d6f1d378b9f46695ea7ac8fb0f83ce121c7271e90c599a49db1ce4aa4f369`,
+  `9c9fdac9253bc2a7b4d10d360e751e508a926e0365e927eebada6f8dcdf400b8`,
+  `1bc9603c2648c3b520b7cd6bc28d7e99d0d66dacaa9c67dfce038e68c32b300d`, and
+  `7de3bda9664d763f71462846a5b452923865d3a142546b4ad7e7aee999198111`.
+- The Mac mini lacks the repository's pinned Python 3.12 environment and worker checkout. Exact
+  prepared requests were therefore executed in this checkout's pinned environment and the
+  verified 35-slide durable projects were sealed beside the source manifests on the 1 TB drive;
+  no backend identity check was weakened. The adaptive result codec now deterministically repairs
+  a real adjacent-float JSON oscillation and carries implementation identity v2.
+- Focused direct/durable integrations pass 11/11, the adaptive codec regression passes, the cohort
+  library passes 27/27, and the Python caller passes 8/8. Affected warning-denied Clippy,
+  no-default checks, strict cohort docs, affected-file Rustfmt, and diff whitespace checks pass.
+  The documented workspace Nextest/full-loader loop and unrelated broad gates are not run.

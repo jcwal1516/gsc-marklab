@@ -27,6 +27,23 @@ patient inference rather than treating cells or local detections as replicates. 
 or nonstationary SPDE families remain deferred until that reduction identifies a concrete residual
 scientific need; do not expand a general solver catalog first.
 
+## Patient-nested fitted-field follow-through — checkpoint 202
+
+The provenance-complete 15-patient/35-slide CPTAC caller now reduces local multivariate and
+boundary-adaptive SPDE endpoints at the patient unit, proves perturbation/nearby-scale stability,
+tests incremental information beyond technical covariates, composition, and nonspatial CellViT,
+and replays every slide plus both patient reductions without a second execution. Both field blocks
+are null-to-negative and fail the prespecified fusion gate; anisotropic or nonstationary expansion
+is therefore not justified by this caller and remains named caller-dependent work rather than an
+automatic next method.
+
+Dependency-ordered production now returns to the remaining implementable mathematical catalog.
+Prefer a concrete existing real caller for broader multiplicity/calibration or inhomogeneous
+cross-fitting/multitype correction. Retain pinned `spatstat`, ROI-within-slide variance,
+crossed/random-slope, ordinal/hurdle, real causal/prospective, registered 3-D/longitudinal, and
+biological SBI calibration as exact backend/data/design blockers unless new admitted inputs satisfy
+their recorded contracts. Do not add a generic method, backend, plugin, or registry surface.
+
 ## Full-program resumption override — 2026-08-30
 
 Later explicit user direction resumes the full dependency-ordered Marklab master plan after the

@@ -64,6 +64,7 @@ fn main() -> marklab::Result<()> {
                                     | "graph-smoothness-permutation-test"
                                     | "local-embedding-roughness"
                                     | "local-multivariate-moran"
+                                    | "patient-nested-fields"
                                     | "longitudinal-kalman-smooth"
                                     | "multiscale-embedding-kernel"
                                     | "cohort-cluster-covariate-permutation"

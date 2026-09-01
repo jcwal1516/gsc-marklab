@@ -57,11 +57,20 @@ pub(crate) fn run_direct(
     publish_pretty_json(&out, &result, "local multivariate Moran").map_err(map_output_error)
 }
 
-fn canonical_result_codec(
-    result: LocalMultivariateMoranResult,
+pub(crate) fn canonical_result_codec(
+    mut result: LocalMultivariateMoranResult,
 ) -> Result<LocalMultivariateMoranResult, NumericsCliError> {
-    let bytes = serde_json::to_vec(&result)?;
-    serde_json::from_slice(&bytes).map_err(NumericsCliError::Json)
+    for _ in 0..4 {
+        let bytes = serde_json::to_vec(&result)?;
+        let next = serde_json::from_slice(&bytes).map_err(NumericsCliError::Json)?;
+        if serde_json::to_vec(&next)? == bytes {
+            return Ok(next);
+        }
+        result = next;
+    }
+    Err(NumericsCliError::Input(
+        "local multivariate result did not reach a stable JSON representation".into(),
+    ))
 }
 
 pub(crate) fn prepare(

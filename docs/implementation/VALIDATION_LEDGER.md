@@ -5010,3 +5010,33 @@ vascular transport.
 - `cargo +1.96.0 fmt --all --check` and `git diff --check` pass. No workspace Nextest/full-loader
   loop, benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or history
   rewrite runs.
+
+## Patient-nested CellViT fields and adaptive-SPDE checkpoint 202 — 2026-08-31
+
+- Expected reds: the direct and durable patient tests failed on absent `patient-nested-fields`
+  subcommands; the real coordinate-jitter project exposed one-ULP local-result drift; the real
+  adaptive run exposed an endlessly alternating adjacent-float JSON representation. The focused
+  adaptive codec regression reproduces `1.093833881765206e-8` and passes after deterministic
+  nearest-stable finite normalization under implementation identity v2.
+- `CARGO_TARGET_DIR=/tmp/marklab-cargo-target.kt0CDK CARGO_INCREMENTAL=0 cargo +1.96.0 test
+  --locked --package marklab --features cli --test cohort_patient_nested_fields_cli --test
+  durable_patient_nested_fields_project --test local_multivariate_moran_cli --test
+  durable_local_multivariate_moran_project --test bayes_adaptive_window_spde_cli --test
+  durable_adaptive_window_spde_project -- --test-threads=1` passes 11/11. The focused binary codec
+  test passes; `cargo +1.96.0 test --locked --package marklab-cohort --lib` passes 27/27; and
+  `PYTHONDONTWRITEBYTECODE=1 target/pymc-venv/bin/python -m unittest
+  tests.python.test_cellvit_patient_local_fields` passes 8/8.
+- Warning-denied affected Clippy passes for `marklab-cohort --all-targets --all-features` and the
+  root `marklab` CLI binary. No-default checks pass for `marklab-cohort` and `marklab`; strict
+  warning-denied `marklab-cohort` docs pass. Affected-file Rustfmt and `git diff --check` pass.
+- On the 1 TB drive, 35 adaptive project miss/hit/result files independently rehash to their
+  execution manifest, compare byte-identically, and retain one ledger row each. Execution manifest
+  SHA-256 is `ff3cc843351e9063a53e13783c9f6c103f9667c8406f3d415bba89c4505a6d99`;
+  patient summary/result SHA-256 values are
+  `7de3bda9664d763f71462846a5b452923865d3a142546b4ad7e7aee999198111` and
+  `13c07c251f55487a50499e0bdf603c6d910a0225ade9b278118d5bd04e2ad912`.
+- The remote host's absent pinned Python 3.12 environment is retained as a deployment limitation;
+  exact prepared requests ran in the local pinned environment and their verified projects were
+  copied back without changing backend/lock/worker identities. No workspace Nextest/full-loader
+  loop, benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or history
+  rewrite runs.

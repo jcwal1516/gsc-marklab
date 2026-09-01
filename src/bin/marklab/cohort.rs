@@ -44,6 +44,8 @@ pub(crate) mod multisite;
 mod noninferiority;
 #[path = "cohort/output.rs"]
 mod output;
+#[path = "cohort/patient_nested_fields.rs"]
+pub(crate) mod patient_nested_fields;
 #[path = "cohort/publication.rs"]
 mod publication;
 #[path = "cohort/repeated.rs"]
@@ -425,6 +427,32 @@ enum CohortCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    PatientNestedFields {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        group_a: String,
+        #[arg(long)]
+        group_b: String,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        maximum_patients: usize,
+        #[arg(long)]
+        maximum_specimens: usize,
+        #[arg(long)]
+        maximum_endpoints: usize,
+        #[arg(long)]
+        maximum_permutation_endpoint_evaluations: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, ValueEnum)]
@@ -542,6 +570,36 @@ pub(super) fn into_marklab_error(error: CohortError) -> marklab::MarklabError {
 
 pub(super) fn run_cli() -> Result<(), CohortError> {
     match CohortCli::parse_from(std::env::args_os()).command {
+        CohortTopLevel::Cohort {
+            command:
+                CohortCommand::PatientNestedFields {
+                    input,
+                    group_a,
+                    group_b,
+                    permutations,
+                    seed,
+                    alpha,
+                    maximum_patients,
+                    maximum_specimens,
+                    maximum_endpoints,
+                    maximum_permutation_endpoint_evaluations,
+                    memory_budget_mib,
+                    out,
+                },
+        } => patient_nested_fields::run(patient_nested_fields::RunArgs {
+            input,
+            group_a,
+            group_b,
+            permutations,
+            seed,
+            alpha,
+            maximum_patients,
+            maximum_specimens,
+            maximum_endpoints,
+            maximum_permutation_endpoint_evaluations,
+            memory_budget_mib,
+            out,
+        }),
         CohortTopLevel::Cohort {
             command:
                 CohortCommand::Permutation {

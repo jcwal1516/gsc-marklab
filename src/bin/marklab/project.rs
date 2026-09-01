@@ -102,6 +102,8 @@ mod longitudinal_kalman;
 mod multiscale_embedding_kernel;
 #[path = "project/multitype_lgcp_sbc.rs"]
 mod multitype_lgcp_sbc;
+#[path = "project/patient_nested_fields.rs"]
+mod patient_nested_fields;
 #[path = "project/projected_embedding_variograms.rs"]
 mod projected_embedding_variograms;
 #[path = "project/region_retrieval.rs"]
@@ -1326,6 +1328,34 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    PatientNestedFields {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        group_a: String,
+        #[arg(long)]
+        group_b: String,
+        #[arg(long)]
+        permutations: usize,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        maximum_patients: usize,
+        #[arg(long)]
+        maximum_specimens: usize,
+        #[arg(long)]
+        maximum_endpoints: usize,
+        #[arg(long)]
+        maximum_permutation_endpoint_evaluations: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
     CohortMmd {
         #[arg(long)]
         project: PathBuf,
@@ -2320,6 +2350,38 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             maximum_patients,
             maximum_specimens,
             maximum_bootstrap_draws,
+            memory_budget_mib,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::PatientNestedFields {
+                    project,
+                    input,
+                    group_a,
+                    group_b,
+                    permutations,
+                    seed,
+                    alpha,
+                    maximum_patients,
+                    maximum_specimens,
+                    maximum_endpoints,
+                    maximum_permutation_endpoint_evaluations,
+                    memory_budget_mib,
+                    out,
+                },
+        } => patient_nested_fields::run(
+            project,
+            input,
+            group_a,
+            group_b,
+            permutations,
+            seed,
+            alpha,
+            maximum_patients,
+            maximum_specimens,
+            maximum_endpoints,
+            maximum_permutation_endpoint_evaluations,
             memory_budget_mib,
             out,
         ),

@@ -630,3 +630,14 @@ single-slide input interchange, direct/durable float-codec parity, local complet
 boundary-adaptive fitted factor all execute and replay. This does not complete patient-population
 inference, anisotropic/nonstationary fields, or cross-cohort validation. The next dependency is a
 prespecified patient-nested reduction across exact slide/window identities, not more local methods.
+
+## Patient-nested CellViT field checkpoint 202
+
+EMB-01, FND-04, FND-06, BAY-04, BAY-05, COH-01, PLAT-01, WF-01, WS-12, WS-23, WS-31,
+WS-34, and WS-43 advance through one concrete patient-nested production family. Fifteen patients
+and 35 slides complete local-field stability, leakage-safe incremental comparison, uniform-capacity
+adaptive-SPDE fitting, whole-patient Max-T, and backend-disabled durable replay. Both local and
+adaptive blocks fail their prespecified incremental or group/held-out gates and are not fused.
+Anisotropic/nonstationary fields remain caller-dependent; distinct ROI/cohort/crossed/hurdle
+hierarchies, pinned external point-process agreement, real causal/prospective designs, registered
+3-D/longitudinal cohorts, and biological SBI calibration retain their existing named blockers.

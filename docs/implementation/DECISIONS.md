@@ -3729,3 +3729,41 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   local and SPDE outputs remain one-slide diagnostics; selected cells are not population
   replicates, and neither local familywise detections nor a fitted factor establish patient,
   molecular, communication, causal, or clinical effects.
+
+## DEC-0393 — Reduce complete slide-field endpoints inside patients before population inference
+
+- Date: 2026-08-31
+- Status: accepted for EMB-01/FND-06/COH-01/PLAT-01/WF-01/WS-12/WS-31/WS-34
+- Decision: admit one complete long-form field-endpoint table with exact patient, specimen, group,
+  endpoint, and finite value identity. Require every specimen to carry the same prespecified
+  endpoint vector and every patient to carry at least two nested specimens. Average specimens with
+  equal weight only inside patients, compare each specimen with its patient mean by endpoint-rank
+  Spearman stability, fit a nearest-group-centroid classifier under leave-one-patient-out splits
+  with z-scoring recomputed inside every training fold, and test the complete patient endpoint
+  family by whole-patient step-down Max-T. Bind exact source bytes/path, groups, seed, alpha,
+  permutations, executable/runtime, and patient/specimen/endpoint/work/memory ceilings into the
+  existing durable transaction. Canonicalize the direct result through the durable JSON codec.
+- Consequences: local multivariate and fitted-field outputs can advance from isolated slide
+  diagnostics to an explicit patient-population boundary without treating cells, detections, or
+  slides as independent patients. The admitted CPTAC caller excludes radius-isolated cells using
+  coordinates alone before inference and records those exclusions. Stability across a small
+  endpoint vector and held-out molecular classification remain exploratory diagnostics; neither a
+  nonzero local statistic nor a group contrast establishes mechanism, causality, clinical utility,
+  incremental information beyond composition/nonspatial embeddings, or transportability.
+
+## DEC-0394 — Apply one uniform optimizer ceiling and a stable finite JSON boundary
+
+- Date: 2026-08-31
+- Status: accepted for BAY-04/BAY-05/EMB-01/PLAT-01/WF-01/WS-12/WS-43
+- Decision: after the fixed 5,000-iteration adaptive-SPDE design rejected 17 of 35 slides solely at
+  its iteration ceiling, rerun every admitted slide—not only failures—under the worker's existing
+  10,000-iteration hard maximum while preserving selection, observations, geometry, mesh,
+  hyperparameters, initialization, tolerance, and group blindness. At the durable result boundary,
+  replace only finite floats whose `serde_json` representation does not parse back to its own bit
+  pattern with the nearest deterministic stable finite value within 64 ULPs; fail if none exists,
+  and advance the project implementation identity.
+- Consequences: all 35 slides use one configuration and converge without outcome-dependent
+  selection. Every result remains a typed finite SPDE diagnostic and replays byte-identically. The
+  normalization addresses an observed adjacent-float serialization cycle rather than weakening
+  source, backend, request, scientific, or cache validation. The patient result is null/negative
+  and is not used to justify anisotropic/nonstationary expansion or fusion.

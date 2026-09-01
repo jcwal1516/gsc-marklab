@@ -20,6 +20,7 @@ mod max_t;
 mod mmd;
 mod multisite;
 mod multisite_covariate;
+mod nested_fields;
 mod noninferiority;
 mod numeric;
 mod paired;
@@ -100,6 +101,11 @@ pub use multisite::{
 pub use multisite_covariate::{
     multisite_covariate_patient_contrast, AdjustedSitePatientContrast,
     MultisiteCovariateContrastResult, MultisiteCovariatePatientRecord,
+};
+pub use nested_fields::{
+    execute_patient_nested_fields, patient_nested_field_inference, prepare_patient_nested_fields,
+    NestedFieldHeldoutPrediction, NestedFieldHeldoutResult, NestedFieldPatient, NestedFieldRecord,
+    NestedFieldResult, NestedFieldSpec, NestedSpecimenStability, PreparedNestedFields,
 };
 pub use noninferiority::{
     noninferiority_test, NoninferiorityDirection, NoninferiorityResult, NoninferioritySpec,
