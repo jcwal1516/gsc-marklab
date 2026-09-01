@@ -25,6 +25,18 @@ the admitted CRC artifacts. Do not synthesize those identities, tune residual fa
 scores, or add another generic likelihood/SBC framework. Resume only when a provenance-complete
 paired table or calibration question is admitted.
 
+## Real joint location–embedding follow-through — checkpoint 214
+
+The admitted CPTAC field lane now has a correspondence-complete balanced six-patient/twelve-slide
+table connecting exact windows, clipped quadrature, selected Cell IDs/coordinates, frozen projected
+embeddings, molecular group, and patient identity. The existing robust project fit executes once and
+replays without a backend, but is computationally nonconverged, fails embedding posterior prediction,
+and has a wide held-out spatial-increment interval spanning zero. Retain it as diagnostic-only. The
+next dependency is not another likelihood or significance-directed retuning: either improve sampling
+capacity under a separately declared computational design, or admit a larger whole-tissue projected
+cell table and an independently fixed calibration plan. Never treat the selected-cell process as
+whole-slide intensity or the shared factor as communication.
+
 ## Frontier fitted-field follow-through — checkpoint 200
 
 The four immediate mathematical gaps selected after checkpoint 199 now have concrete direct and

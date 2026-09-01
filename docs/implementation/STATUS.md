@@ -4554,3 +4554,31 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   admitted CRC caller defines a biological simulator parameter/observable correspondence,
   independent calibration target, or outcome-blind validation set. This is a data/model-validity
   blocker, not another generic SBC implementation gap.
+
+## Real patient-replicated joint location–embedding checkpoint 214 — 2026-09-01
+
+- Added one narrow real-data adapter over the already admitted 15-patient/35-slide CPTAC projected
+  CellViT field manifest. It selects three MSI and three MSS patients by fixed SHA-256 patient rank,
+  then two slides per patient by a separate fixed SHA-256 rank; no outcome, fit, effect, or held-out
+  score participates. Every retained Cell ID, coordinate, and 16-component projected vector remains
+  exact. The existing exact-window quadrature helper clips a 4x4 grid to each source MultiPolygon,
+  and selected-cell counts conserve exactly between location and embedding tables.
+- The sealed real table contains six patients, twelve slides, 5,446 projected cells, and 141
+  positive quadrature nodes. Every patient has exactly two slides; MSI/MSS patient counts are 3/3;
+  all point IDs are unique; pattern sets agree exactly; six patterns train and six evaluate. Input
+  SHA-256 values are `448aa64c59d8c460dfea71ab24124c4d653ca7136f7b97121490132caeb896aa`
+  for location and `4546740d42102e480b5f2be08b64ea3d76ebe7034bc99781aa18944a903ec322`
+  for embeddings. The full v80 bundle checksum-file SHA is
+  `1f9dd6645779be9b6db316a1166486e77687d7117a72f7edb7e15a01d7828591`.
+- The prespecified two-factor, Student-t-df-5 real project fit completes once and replays in a fresh
+  backend-disabled process with one ledger row. It is truthfully `nonconverged`: maximum R-hat is
+  2.816, minimum bulk/tail ESS 2.56/5.13, minimum E-BFMI 0.0295, with one divergence and 326
+  tree-depth hits. Count PPC is compatible (`0.81`), but embedding-RMSE PPC is `0.0`. Joint-minus-
+  nonspatial held-out patient log density is 62.45 with interval [-226.98, 420.34], so no spatial
+  improvement is established. Miss/hit SHA is
+  `6e2c702fb631270d453a89b6d7d017801fad210ecd856346be34a2181b460131`; ledger SHA is
+  `e56a8be3894f5ec77bf2416b500e66de629422a8c9e828020c3949953fe507fb`; result checksum-file
+  SHA is `d3c988e2658494798f36f2fb2794cb2da7abe94e147bdda2b52c9d5dbc1c2b54`.
+- The location process is the existing bounded, label-blind projected-cell selection, not whole-slide
+  cell intensity. The fit is diagnostic-only and is not retuned, fused, interpreted as biological
+  communication, or promoted as molecular discrimination.

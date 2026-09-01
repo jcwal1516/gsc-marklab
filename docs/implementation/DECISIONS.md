@@ -3966,3 +3966,23 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   projection freeze, or causal/communication claim ceiling. Real promotion remains blocked because
   the admitted exact location and embedding tables overlap on only two slides from one patient; no
   correspondence or patient replication is fabricated.
+
+## DEC-0406 — Materialize one exact patient-replicated joint CellViT table
+
+- Date: 2026-09-01
+- Status: accepted for BAY-PP/EMB-01/PLAT-01/WF-01/WS-12/WS-43/WS-50
+- Decision: consume the already admitted CPTAC projected-field manifest rather than joining the
+  independently selected legacy LGCP and projection tables. Select three repeated-slide patients
+  per molecular group by one fixed patient SHA-256 rank, then two slides per patient by a separate
+  rank. Preserve exact source Cell IDs, coordinate strings, 16 projected components, source-file
+  digests, and exact-window file digests. Reuse the existing exact-window clipped quadrature helper,
+  count the selected projected cells into the positive 4x4 nodes, and require exact selected-count,
+  pattern, patient, group, and train/heldout correspondence before writing the two existing joint
+  model schemas. Bind the projected-index digest as projection identity and seal source/output
+  provenance. Do not reconstruct absent cells or claim whole-slide intensity.
+- Consequences: a real six-patient/twelve-slide joint location–embedding request can execute through
+  the existing direct/project/backend/result owners without a new interchange format. Its first
+  prespecified robust fit is nonconverged, fails embedding PPC, and has an uncertain held-out spatial
+  increment, so it remains diagnostic and is not retuned or promoted. Balanced molecular-group
+  selection supports model diagnostics, not population prevalence, causality, communication, or
+  clinical discrimination.

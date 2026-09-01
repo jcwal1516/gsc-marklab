@@ -5226,3 +5226,22 @@ vascular transport.
 - Read-only `ssh mini` pattern intersection and SHA-256 checks establish the exact real paired-table
   blocker recorded in STATUS. No real fit, broad workspace/Nextest loader loop, benchmark, fuzzing,
   packaging, dependency audit, push, publication, or deployment runs.
+
+## Real patient-replicated joint location–embedding checkpoint 214 — 2026-09-01
+
+- `uv run --isolated --with shapely==2.0.7 python
+  tests/python/test_cellvit_joint_location_embedding_table.py` passes 3/3 after the behavior target
+  first failed on the absent adapter. It covers exact balanced correspondence/count conservation,
+  an outside-window failure, and the direct CLI. Python bytecode compilation and `git diff --check`
+  pass. The isolated test environment changes no repository lockfile or global environment.
+- On `ssh mini`, the adapter consumes the sealed checkpoint-202 `prepared-v2` manifest and writes
+  v80 inputs. Independent CSV inspection verifies six patients, 3/3 groups, twelve patterns,
+  exactly two patterns per patient, 5,446 unique embedding points, selected-count sum 5,446, 141
+  location rows, equal pattern sets, and six train/six heldout roles. The current adapter regenerates
+  all three material files byte-identically; both nested checksum files and the 12-file bundle seal
+  verify.
+- The existing project command executes the real two-factor Student-t-df-5 request once. Repeating
+  the exact command with `MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1` returns a byte-identical hit;
+  `cmp` passes and the ledger remains one row. Diagnostics and hashes are recorded in STATUS.
+- No model control, patient, slide, factor, residual family, degree of freedom, or spatial scale is
+  changed after seeing the result. No broad workspace/Nextest loader loop or unrelated gate runs.
