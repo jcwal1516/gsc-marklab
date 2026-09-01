@@ -4388,3 +4388,32 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - Focused unit/direct/durable tests, Python bytecode compilation, affected warning-denied Bayes and
   root-CLI Clippy, Bayes no-default check, strict Bayes docs, affected-file Rustfmt, and diff
   whitespace checks pass. No workspace Nextest/full-loader loop or unrelated broad gate runs.
+
+## Durable patient-level hurdle likelihood checkpoint 205 — 2026-08-31
+
+- Added one strict exposure-aware patient hurdle likelihood through pinned PyMC 6.3.0/Python 3.12.
+  A Bernoulli-logit component owns hard-class presence, and a zero-truncated beta-binomial owns
+  positive counts conditional on presence and total-cell exposure. Both groups must contain zeros
+  and positives; cells remain patient measurements. Separate component intercepts/group effects,
+  one shared concentration, typed results, complete diagnostics, exact backend/lock/worker/request/
+  source/runtime identity, and patient/trial/iteration/predictive/output/process ceilings are
+  retained through direct and durable commands.
+- The first real posterior-predictive implementation correctly stopped at its 1,000-attempt
+  rejection ceiling and produced no result or ledger row. It was replaced without changing the
+  likelihood or sampling controls by exact conditional beta-binomial CDF inversion: at most one
+  bounded quantile evaluation occurs per simulated present-patient draw, under a fixed five-million
+  work ceiling.
+- The real admitted CPTAC caller contains 105 patients, 81 MSS and 24 MSI, 886,751 total classified
+  cells, and hard-Epithelial zero/positive counts of 14/67 and 5/19. The fit completes with maximum
+  R-hat 1.00189, minimum bulk/tail ESS 1842/1367, minimum E-BFMI 0.859, no divergences, and no
+  tree-depth hits. Presence group log odds are -0.134 with interval [-1.215,0.985]; conditional
+  positive-abundance group log odds are -1.110 with interval [-3.828,0.475]. Both are retained as
+  null/uncertain and do not establish biological absence, mechanism, causality, or clinical value.
+- Real miss/hit result SHA is
+  `06afde770318494e35e2a21b9c07323f78092df97f2394b7f21cace9fc734b90`; the second process
+  disabled external execution and the ledger has one row. The sealed
+  `/Volumes/1TB/marklab/runs/results-cellvit-hurdle-epithelial-v76` checksum-file SHA is
+  `d5ca64e3b0881232af5c873dd9b36f83ebca826744bacdc4142b6d752d13a0a9`.
+- Focused unit/direct/durable tests, Python bytecode compilation, affected warning-denied Bayes and
+  root-CLI Clippy, Bayes no-default check, strict Bayes docs, affected-file Rustfmt, and diff
+  whitespace checks pass. No workspace Nextest/full-loader loop or unrelated broad gate runs.

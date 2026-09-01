@@ -5097,3 +5097,31 @@ vascular transport.
   association summary; no significance-directed retuning or model substitution was performed.
   No broad workspace gate, Nextest loader loop, benchmark, fuzzing, packaging, dependency audit,
   push, publication, deployment, or history rewrite runs.
+
+## Durable patient-level hurdle likelihood checkpoint 205 — 2026-08-31
+
+- The direct behavior test first failed because `marklab bayes hurdle-beta-binomial-group` was
+  absent; the durable behavior test then failed because its project command was absent. The final
+  `marklab-bayes` invalid-group-zero unit test passes 1/1, and the serial direct/durable integration
+  targets `bayes_hurdle_beta_binomial_group_cli` and
+  `durable_pymc_hurdle_beta_binomial_group_project` pass 2/2. The durable target proves
+  miss/backend-disabled hit byte equality, changed-seed invalidation, and one ledger execution.
+- The real first attempt failed explicitly at the declared 1,000 rejection-attempt ceiling during
+  positive-count posterior prediction. It published no result and added no ledger row. Exact
+  zero-truncated beta-binomial conditional CDF inversion replaced rejection sampling, retaining the
+  same fitted posterior and fixed scientific controls while bounding predictive work by five
+  million quantile evaluations. The real result used 341,894 evaluations and completed within the
+  declared 300-second process limit.
+- `python3 -m py_compile workers/python/marklab_pymc_hurdle_beta_binomial_group_worker.py` passes.
+  Warning-denied all-target `marklab-bayes` and CLI-binary `marklab` Clippy pass. Bayes no-default
+  check, warning-denied no-dependency docs, affected-file Rustfmt, and `git diff --check` pass.
+- Read-only/derived `ssh mini` admission preserves source SHA-256
+  `00f91c5a8084d3a1e9140beb9769dca2b74ecd4e08d9eef17c258f7504c5167e`, 105 patients,
+  19 zeros, 86 positives, and 886,751 total trials. The 4-chain 1,000-tune/1,000-draw real result
+  and backend-disabled hit hash to
+  `06afde770318494e35e2a21b9c07323f78092df97f2394b7f21cace9fc734b90`; one ledger row is
+  retained, and the sealed checksum-file SHA is
+  `d5ca64e3b0881232af5c873dd9b36f83ebca826744bacdc4142b6d752d13a0a9`.
+- Both molecular-group intervals span zero and are reported as null/uncertain. No broad workspace
+  gate, Nextest loader loop, benchmark, fuzzing, packaging, dependency audit, push, publication,
+  deployment, or history rewrite runs.

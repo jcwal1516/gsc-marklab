@@ -13,7 +13,8 @@ use marklab_bayes::{
     BetaBinomialGroupGenderSlideHierarchyWorkerResult, BetaBinomialGroupRegressionWorkerResult,
     BetaBinomialHierarchyWorkerResult, DirichletMultinomialGroupWorkerResult,
     FusedGromovWassersteinWorkerResult, GriddedLgcpFitWorkerResult, HierarchicalWorkerResult,
-    NutsSamplingSpec, OrdinalGroupWorkerResult, StudentTHierarchyWorkerResult, WorkerResult,
+    HurdleBetaBinomialGroupWorkerResult, NutsSamplingSpec, OrdinalGroupWorkerResult,
+    StudentTHierarchyWorkerResult, WorkerResult,
 };
 use marklab_graph::{
     graph_sparse_radius_basis_workflow, graph_sparse_radius_diffusion_wavelet_workflow,
@@ -44,7 +45,8 @@ use super::{
         PreparedBetaBinomialGroupGenderRegression, PreparedBetaBinomialGroupGenderSlideHierarchy,
         PreparedBetaBinomialGroupRegression, PreparedBetaBinomialHierarchy,
         PreparedDirichletMultinomialGroup, PreparedGaussianHierarchy, PreparedGriddedLgcpFit,
-        PreparedNormalMean, PreparedOrdinalGroup, PreparedStudentTHierarchy,
+        PreparedHurdleBetaBinomialGroup, PreparedNormalMean, PreparedOrdinalGroup,
+        PreparedStudentTHierarchy,
     },
     topology::{
         self, PreparedWitnessPersistence, PreparedWitnessPersistenceBottleneckStability,
@@ -143,6 +145,7 @@ enum StaticBackendWorkflow {
     PymcBetaBinomialGroupRegression,
     PymcDirichletMultinomialGroup,
     PymcOrdinalGroup,
+    PymcHurdleBetaBinomialGroup,
     PymcBetaBinomialGroupGenderRegression,
     PymcBetaBinomialGroupGenderSlideHierarchy,
     PymcStudentTHierarchy,
@@ -271,6 +274,23 @@ impl StaticBackendWorkflow {
                 node_kind: "bayesian_ordinal_group_regression_fit",
                 implementation_identity: "marklab-project-pymc-ordinal-group-node-v1",
                 deterministic_controls: "seeded-nuts-ordinal-group-request",
+            },
+            Self::PymcHurdleBetaBinomialGroup => StaticBackendDescriptor {
+                backend_id: "pymc",
+                backend_version: "6.3.0",
+                python_version: "3.12",
+                license: "Apache-2.0",
+                input_kinds: &[
+                    "application/vnd.marklab.source.hurdle-beta-binomial-patient-group-counts;version=1",
+                ],
+                output_kind:
+                    "application/vnd.marklab.pymc-hurdle-beta-binomial-group-worker-result+json;version=1",
+                result_schema_id: "marklab.pymc_hurdle_beta_binomial_group_worker_result",
+                node_id: "pymc-hurdle-beta-binomial-group",
+                node_kind: "bayesian_hurdle_count_group_regression_fit",
+                implementation_identity:
+                    "marklab-project-pymc-hurdle-beta-binomial-group-node-v1",
+                deterministic_controls: "seeded-nuts-hurdle-beta-binomial-group-request",
             },
             Self::PymcBetaBinomialGroupGenderRegression => StaticBackendDescriptor {
                 backend_id: "pymc",
@@ -2100,6 +2120,44 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    HurdleBetaBinomialGroup {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        reference_group: String,
+        #[arg(long)]
+        comparison_group: String,
+        #[arg(long, allow_hyphen_values = true)]
+        presence_intercept_prior_mean: f64,
+        #[arg(long)]
+        presence_intercept_prior_sd: f64,
+        #[arg(long)]
+        presence_group_effect_prior_sd: f64,
+        #[arg(long, allow_hyphen_values = true)]
+        abundance_intercept_prior_mean: f64,
+        #[arg(long)]
+        abundance_intercept_prior_sd: f64,
+        #[arg(long)]
+        abundance_group_effect_prior_sd: f64,
+        #[arg(long)]
+        concentration_prior_sd: f64,
+        #[arg(long)]
+        chains: u32,
+        #[arg(long)]
+        tune: u32,
+        #[arg(long)]
+        draws: u32,
+        #[arg(long)]
+        target_accept: f64,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
     BetaBinomialGroupGenderRegression {
         #[arg(long)]
         project: PathBuf,
@@ -3420,6 +3478,50 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             ordered_levels.split(',').map(str::to_owned).collect(),
             cutpoint_prior_sd,
             group_effect_prior_sd,
+            NutsSamplingSpec {
+                chains,
+                tune_per_chain: tune,
+                draws_per_chain: draws,
+                target_accept,
+                seed,
+            },
+            timeout_seconds,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::HurdleBetaBinomialGroup {
+                    project,
+                    input,
+                    reference_group,
+                    comparison_group,
+                    presence_intercept_prior_mean,
+                    presence_intercept_prior_sd,
+                    presence_group_effect_prior_sd,
+                    abundance_intercept_prior_mean,
+                    abundance_intercept_prior_sd,
+                    abundance_group_effect_prior_sd,
+                    concentration_prior_sd,
+                    chains,
+                    tune,
+                    draws,
+                    target_accept,
+                    seed,
+                    timeout_seconds,
+                    out,
+                },
+        } => run_hurdle_beta_binomial_group(
+            project,
+            input,
+            reference_group,
+            comparison_group,
+            presence_intercept_prior_mean,
+            presence_intercept_prior_sd,
+            presence_group_effect_prior_sd,
+            abundance_intercept_prior_mean,
+            abundance_intercept_prior_sd,
+            abundance_group_effect_prior_sd,
+            concentration_prior_sd,
             NutsSamplingSpec {
                 chains,
                 tune_per_chain: tune,
@@ -5896,6 +5998,92 @@ fn run_ordinal_group(
     let fit = run.output.into_result(request_for_output, input_identity);
     bayes::publish_json(&output_path, &fit)?;
     eprintln!("project ordinal-group cache_status={cache_status}");
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_hurdle_beta_binomial_group(
+    project_path: PathBuf,
+    input_path: PathBuf,
+    reference_group: String,
+    comparison_group: String,
+    presence_intercept_prior_mean: f64,
+    presence_intercept_prior_sd: f64,
+    presence_group_effect_prior_sd: f64,
+    abundance_intercept_prior_mean: f64,
+    abundance_intercept_prior_sd: f64,
+    abundance_group_effect_prior_sd: f64,
+    concentration_prior_sd: f64,
+    sampling: NutsSamplingSpec,
+    timeout_seconds: u64,
+    output_path: PathBuf,
+) -> Result<(), BayesCliError> {
+    let backend = StaticBackendWorkflow::PymcHurdleBetaBinomialGroup.descriptor();
+    let before = source_artifact(&input_path, backend.input_kinds[0])?;
+    let prepared = bayes::prepare_hurdle_beta_binomial_group(
+        input_path.clone(),
+        reference_group,
+        comparison_group,
+        presence_intercept_prior_mean,
+        presence_intercept_prior_sd,
+        presence_group_effect_prior_sd,
+        abundance_intercept_prior_mean,
+        abundance_intercept_prior_sd,
+        abundance_group_effect_prior_sd,
+        concentration_prior_sd,
+        sampling,
+        timeout_seconds,
+    )?;
+    let after = source_artifact(&input_path, backend.input_kinds[0])?;
+    if before != after {
+        return Err(BayesCliError::Input(
+            "hurdle-beta-binomial-group input changed while the durable request was prepared"
+                .into(),
+        ));
+    }
+    let runtime = native_runtime_provenance()?;
+    let limits = DurableProjectLimits::new(
+        PROJECT_CONTROL_BYTES,
+        PROJECT_LEDGER_BYTES,
+        PROJECT_LEDGER_RECORDS,
+        PROJECT_RECORD_BYTES,
+        MAXIMUM_RESULT_BYTES,
+    )
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let mut durable = DurableProject::open_or_create(&project_path, limits)
+        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    report_recovery(&durable);
+    let request_for_output = prepared.request.clone();
+    let input_identity = prepared.input_identity.clone();
+    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    project
+        .register_reference(before.clone())
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let node = HurdleBetaBinomialGroupProjectNode::new(input_path, before, prepared, backend)?;
+    let graph = WorkflowGraph::new([node.spec().clone()])
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
+    })
+    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let run = execute_algorithm(
+        &mut durable,
+        &mut project,
+        &graph,
+        &node,
+        &scheduler,
+        backend.result_schema()?,
+        runtime,
+    )
+    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+    let cache_status = match run.cache_status {
+        CacheStatus::Hit => "hit",
+        CacheStatus::Miss => "miss",
+    };
+    let fit = run.output.into_result(request_for_output, input_identity);
+    bayes::publish_json(&output_path, &fit)?;
+    eprintln!("project hurdle-beta-binomial-group cache_status={cache_status}");
     Ok(())
 }
 
@@ -8547,6 +8735,97 @@ impl WorkflowNode for OrdinalGroupProjectNode {
 
     fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
         let output: OrdinalGroupWorkerResult =
+            serde_json::from_slice(bytes).map_err(NodeError::decode)?;
+        output
+            .validate(&self.prepared.request, &self.prepared.request_sha256)
+            .map_err(NodeError::decode)?;
+        Ok(output)
+    }
+
+    fn output_kind(&self) -> &'static str {
+        self.backend.output_kind
+    }
+}
+
+struct HurdleBetaBinomialGroupProjectNode {
+    spec: NodeSpec,
+    input_path: PathBuf,
+    input_artifacts: [ArtifactRef; 1],
+    prepared: PreparedHurdleBetaBinomialGroup,
+    backend: StaticBackendDescriptor,
+    execution_policy: Vec<u8>,
+}
+
+impl HurdleBetaBinomialGroupProjectNode {
+    fn new(
+        input_path: PathBuf,
+        input: ArtifactRef,
+        prepared: PreparedHurdleBetaBinomialGroup,
+        backend: StaticBackendDescriptor,
+    ) -> Result<Self, BayesCliError> {
+        backend.validate_request_backend(&prepared.request.backend)?;
+        Ok(Self {
+            spec: NodeSpec::new(
+                NodeId::new(backend.node_id)
+                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
+                backend.node_kind,
+                1,
+                Vec::new(),
+            )
+            .map_err(|error| BayesCliError::Input(error.to_string()))?,
+            input_path,
+            input_artifacts: [input],
+            prepared,
+            backend,
+            execution_policy: backend.execution_policy(),
+        })
+    }
+}
+
+impl WorkflowNode for HurdleBetaBinomialGroupProjectNode {
+    type Output = HurdleBetaBinomialGroupWorkerResult;
+
+    fn spec(&self) -> &NodeSpec {
+        &self.spec
+    }
+
+    fn input_artifacts(&self) -> &[ArtifactRef] {
+        &self.input_artifacts
+    }
+
+    fn verify_input_content(&self) -> Result<(), NodeError> {
+        let observed = source_artifact(&self.input_path, self.backend.input_kinds[0])
+            .map_err(NodeError::input)?;
+        if observed != self.input_artifacts[0] {
+            return Err(NodeError::input(BayesCliError::Input(
+                "hurdle-beta-binomial-group input no longer matches its durable identity".into(),
+            )));
+        }
+        Ok(())
+    }
+
+    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
+        CacheKeyMaterial {
+            configuration_digest: self
+                .backend
+                .configuration_digest(&self.prepared.request.backend, &self.prepared.request_bytes),
+            execution_policy: &self.execution_policy,
+            implementation_identity: self.backend.implementation_identity,
+        }
+    }
+
+    fn execute(&self) -> Result<Self::Output, NodeError> {
+        bayes::execute_hurdle_beta_binomial_group(&self.prepared).map_err(NodeError::execution)
+    }
+
+    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
+        serde_json::to_vec(output)
+            .map(Vec::into_boxed_slice)
+            .map_err(NodeError::encoding)
+    }
+
+    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
+        let output: HurdleBetaBinomialGroupWorkerResult =
             serde_json::from_slice(bytes).map_err(NodeError::decode)?;
         output
             .validate(&self.prepared.request, &self.prepared.request_sha256)

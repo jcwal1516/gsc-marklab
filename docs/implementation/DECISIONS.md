@@ -3823,3 +3823,24 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   causality, or clinical utility. Crossed effects, random slopes, partial proportional odds,
   hurdle/zero-inflated likelihoods, agreement, prior sensitivity, and simulation calibration remain
   separate caller-driven workflows rather than speculative additions to this command.
+
+## DEC-0398 — Separate patient-level hard-class presence from positive abundance
+
+- Date: 2026-08-31
+- Status: accepted for BAY-03/COH-01/PLAT-01/WF-01/WS-12/WS-33/WS-41
+- Decision: admit one complete patient table containing a nonnegative hard-class count, its
+  strictly positive total-cell exposure, and exactly one of two declared molecular groups. Require
+  observed zeros and positive counts in both groups and at least four patients per group. Fit a
+  hurdle likelihood in pinned PyMC: a Bernoulli-logit component owns presence, while a
+  zero-truncated beta-binomial conditional on presence owns exposure-adjusted positive abundance.
+  Give the two components separate intercepts and comparison-group effects and assign one positive
+  shared concentration to the abundance component. Persist both group-specific presence and
+  positive-abundance probabilities, unconditional expected proportions, patient-level posterior
+  prediction, complete diagnostics, exact source/runtime/backend identity, and hard patient/trial/
+  iteration/output/process ceilings through the existing direct and durable project owners.
+- Consequences: the admitted CPTAC hard-Epithelial caller can distinguish class absence from its
+  conditional abundance without treating cells as population replicates or silently folding zeros
+  into one beta-binomial coefficient. The two-part association is descriptive and annotation-model
+  dependent; it does not establish biological absence, mechanism, progression, treatment effect,
+  causality, or clinical utility. This decision does not add a generic zero-inflation family,
+  formula language, arbitrary offsets, random effects, or automatic model selection.

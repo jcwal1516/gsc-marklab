@@ -49,6 +49,7 @@ mod hierarchical;
 mod hierarchical_agreement;
 mod hierarchical_sbc;
 mod hierarchical_sensitivity;
+mod hurdle_beta_binomial_group;
 mod icar;
 mod inhomogeneous_poisson;
 mod inhomogeneous_poisson_fit;
@@ -312,6 +313,14 @@ pub use hierarchical_sbc::{
 pub use hierarchical_sensitivity::{
     HierarchicalPriorScenario, HierarchicalPriorScenarioResult, HierarchicalPriorScenarioRun,
     HierarchicalPriorSensitivityResult,
+};
+pub use hurdle_beta_binomial_group::{
+    hurdle_beta_binomial_group_data_sha256, HurdleBetaBinomialGroupInputIdentity,
+    HurdleBetaBinomialGroupModelIr, HurdleBetaBinomialGroupPatientData,
+    HurdleBetaBinomialGroupPosterior, HurdleBetaBinomialGroupPosteriorPredictive,
+    HurdleBetaBinomialGroupResourceLimits, HurdleBetaBinomialGroupResult,
+    HurdleBetaBinomialGroupSpec, HurdleBetaBinomialGroupWorkerRequest,
+    HurdleBetaBinomialGroupWorkerResult,
 };
 pub use icar::{build_icar_plan, IcarPlan, IcarPlanError};
 pub use inhomogeneous_poisson::{

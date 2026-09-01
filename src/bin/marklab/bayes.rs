@@ -365,6 +365,8 @@ mod hierarchical_agreement;
 mod hierarchical_sbc;
 #[path = "bayes/hierarchical_sensitivity.rs"]
 mod hierarchical_sensitivity;
+#[path = "bayes/hurdle_beta_binomial_group.rs"]
+mod hurdle_beta_binomial_group;
 #[path = "bayes/inhomogeneous_poisson.rs"]
 mod inhomogeneous_poisson;
 #[path = "bayes/inhomogeneous_poisson_fit.rs"]
@@ -551,6 +553,10 @@ pub(super) use cli_schema::{
     run_dirichlet_multinomial_group_agreement_cli, run_dirichlet_multinomial_group_cli,
     run_dirichlet_multinomial_group_sbc_cli, run_dirichlet_multinomial_group_sensitivity_cli,
 };
+pub(super) use hurdle_beta_binomial_group::{
+    execute as execute_hurdle_beta_binomial_group, prepare as prepare_hurdle_beta_binomial_group,
+    PreparedHurdleBetaBinomialGroup,
+};
 pub(super) use normal_mean::{execute_normal_mean, prepare_normal_mean, PreparedNormalMean};
 pub(super) use ordinal_group::{
     execute as execute_ordinal_group, prepare as prepare_ordinal_group, PreparedOrdinalGroup,
@@ -559,6 +565,10 @@ pub(super) use worker_process::{publish_json, run_worker};
 
 pub(super) fn run_ordinal_group_cli() -> Result<(), BayesCliError> {
     ordinal_group::run_cli()
+}
+
+pub(super) fn run_hurdle_beta_binomial_group_cli() -> Result<(), BayesCliError> {
+    hurdle_beta_binomial_group::run_cli()
 }
 
 use normal_mean::{observations_digest, read_observations, run_normal_mean};

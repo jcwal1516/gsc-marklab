@@ -55,10 +55,11 @@ real type-specific cross-g caller remains correctly unavailable at its fixed int
 FND-06/INF-01C broader graphical/recycling multiplicity, PP-03/PP-05 pinned `spatstat` agreement,
 and additional multitype corrections remain active only for concrete callers. The admitted
 126-patient TCGA stage outcome now has a durable ordinal PyMC likelihood, with its material
-proportional-odds posterior-predictive lack of fit retained rather than tuned away. The next
-dependency-ordered implementable catalog candidate is one identified hurdle caller; distinct
-ROI-within-slide, crossed/random-slope, cohort, and anisotropic/nonstationary field effects remain
-blocked or unjustified by the current inputs.
+proportional-odds posterior-predictive lack of fit retained rather than tuned away. The admitted
+105-patient CPTAC hard-Epithelial count now also has a durable exposure-aware hurdle likelihood;
+its presence and positive-abundance group effects are null/uncertain. The next dependency-ordered
+step is a bounded audit of distinct ROI-within-slide, crossed/random-slope, and cohort identities;
+anisotropic/nonstationary field effects remain unjustified by the current real field results.
 
 ## Full-program resumption override — 2026-08-30
 
