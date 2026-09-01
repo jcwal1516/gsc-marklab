@@ -3930,3 +3930,20 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   existing typed CLI/project/null/intensity owners instead of duplicating them. Pinned external
   `spatstat` agreement remains unavailable because local R 4.5.2 lacks `spatstat.explore` and the Mac
   mini has no admitted R environment; no external-agreement claim is fabricated.
+
+## DEC-0404 — Durably execute declared patient-level margin inference
+
+- Date: 2026-09-01
+- Status: accepted for EQV-01/COH-01/PLAT-01/WF-01/WS-12/WS-31/WS-34
+- Decision: expose the existing patient-effect Student-t TOST equivalence and directional
+  noninferiority analyses through separate native durable project nodes. Reuse the canonical CSV
+  reader and inference functions; bind exact source bytes, margins, direction, alpha, rationale,
+  implementation, native runtime, and result schema into cache identity. Encode finite results with
+  the exact-float codec, and on replay validate typed identity, parameter agreement, probability and
+  interval/bound limits, and decision consistency without executing the statistic again.
+- Consequences: prespecified scalar patient endpoints can execute once and replay across processes
+  without duplicating the project ledger, artifact store, scheduler, or statistical owner. This
+  does not justify a margin, establish clinical relevance, infer equivalence from non-significance,
+  add formula/power machinery, or create a generic inference registry. Real claims remain blocked
+  until a protocol supplies an endpoint, sign convention, scientific margin/rationale, and adequate
+  independent patient observations.

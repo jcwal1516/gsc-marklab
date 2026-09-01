@@ -105,7 +105,7 @@ The ID column is the canonical coverage key. Each of the 233 master-plan require
 | EMB-PATCH | complete | Bounded synthetic patch/region/slide artifact and explicit-link contract closed by C-05. |
 | EMB-PRED-01 | active | Synthetic prediction controls now have one real 96-patient nested M0–M5 CellViT/patch/covariate run; neither the cell nor patch increment was supported, and transportability, calibration, site validation, and independent patch vectors remain missing. |
 | EMB-PRED-02 | data-dependent with named missing data | A synthetic calibrated patient-OOF late-fusion baseline with missingness/ablations is runnable; a real matched cohort and demonstrated baseline gap are still required before cross-attention work. |
-| EQV-01 | active | Patient-effect TOST equivalence and directional noninferiority with explicit rationale, Student-t interval/bound agreement, and R 4.5.2 oracles are runnable; unpaired/paired-from-raw, functional/bootstrap variants, power guidance, and real clinical validation remain. |
+| EQV-01 | active | Patient-effect TOST equivalence and directional noninferiority with explicit rationale, Student-t interval/bound agreement, R 4.5.2 oracles, and native durable project replay are runnable; unpaired/paired-from-raw, power guidance, and real clinically justified margins remain. |
 | EQV-01A | complete | Existing descriptive margin is characterized and retained strictly as descriptive. |
 | EQV-01B | data-dependent with named missing data | Missing prespecified equivalence margins and sufficient independent biological replicates. |
 | EQV-01C | data-dependent with named missing data | Missing directional noninferiority margin, clinical rationale, and sufficient biological replicates. |

@@ -4,6 +4,15 @@ Last updated: 2026-08-31
 
 Authority: this file is the bounded dependency-ordered execution view derived from `PROGRAM_TRACKER.md` and the immutable `MASTER_PLAN.md`. It does not replace the master plan. Non-goals apply only to this increment; every excluded future capability remains represented in `PROGRAM_TRACKER.md`.
 
+## Declared-margin inference follow-through — checkpoint 212
+
+Patient-level TOST equivalence and directional noninferiority now share their established direct
+mathematics with native durable project execution and exact replay validation. Production next is
+not another margin method: a real claim requires a protocol-fixed endpoint, sign convention,
+scientifically justified margin and rationale, and sufficient independent patients. Until such a
+caller is admitted, retain the exact data/design blocker and do not infer equivalence from a null
+test or invent clinical margins.
+
 ## Frontier fitted-field follow-through — checkpoint 200
 
 The four immediate mathematical gaps selected after checkpoint 199 now have concrete direct and

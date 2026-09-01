@@ -74,6 +74,8 @@ fn main() -> marklab::Result<()> {
                                     | "gaussian-eig"
                                     | "cohort-hierarchical-max-t"
                                     | "cohort-hierarchical-bootstrap"
+                                    | "cohort-equivalence"
+                                    | "cohort-noninferiority"
                                     | "cohort-max-t"
                                     | "cohort-mmd"
                                     | "cohort-multisite-covariate-contrast"

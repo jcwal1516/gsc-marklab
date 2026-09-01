@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use marklab::{
     ArbitraryWindowIppLikelihoodResult, MarkedPatternResult, MarkedPrePostNode, ResultDocument,
 };
@@ -72,6 +72,8 @@ mod cohort_energy;
 mod cohort_hierarchical_bootstrap;
 #[path = "project/cohort_hierarchical_max_t.rs"]
 mod cohort_hierarchical_max_t;
+#[path = "project/cohort_margin_inference.rs"]
+mod cohort_margin_inference;
 #[path = "project/cohort_max_t.rs"]
 mod cohort_max_t;
 #[path = "project/cohort_mmd.rs"]
@@ -1214,6 +1216,12 @@ struct ReplicatedConditionalMultitypeMarkProjectArgs {
     out: PathBuf,
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum ProjectNoninferiorityDirection {
+    HigherIsBetter,
+    LowerIsBetter,
+}
+
 #[derive(Debug, Subcommand)]
 enum ProjectCommand {
     TestCellPatchComplementarity {
@@ -1363,6 +1371,38 @@ enum ProjectCommand {
         maximum_bootstrap_draws: u64,
         #[arg(long)]
         memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    CohortEquivalence {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long, allow_hyphen_values = true)]
+        lower_margin: f64,
+        #[arg(long, allow_hyphen_values = true)]
+        upper_margin: f64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        margin_rationale: String,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    CohortNoninferiority {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long, value_enum)]
+        direction: ProjectNoninferiorityDirection,
+        #[arg(long)]
+        margin: f64,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        margin_rationale: String,
         #[arg(long)]
         out: PathBuf,
     },
@@ -2624,6 +2664,53 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             maximum_specimens,
             maximum_bootstrap_draws,
             memory_budget_mib,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::CohortEquivalence {
+                    project,
+                    input,
+                    lower_margin,
+                    upper_margin,
+                    alpha,
+                    margin_rationale,
+                    out,
+                },
+        } => cohort_margin_inference::run_equivalence(
+            project,
+            input,
+            lower_margin,
+            upper_margin,
+            alpha,
+            margin_rationale,
+            out,
+        ),
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::CohortNoninferiority {
+                    project,
+                    input,
+                    direction,
+                    margin,
+                    alpha,
+                    margin_rationale,
+                    out,
+                },
+        } => cohort_margin_inference::run_noninferiority(
+            project,
+            input,
+            match direction {
+                ProjectNoninferiorityDirection::HigherIsBetter => {
+                    marklab_cohort::NoninferiorityDirection::HigherIsBetter
+                }
+                ProjectNoninferiorityDirection::LowerIsBetter => {
+                    marklab_cohort::NoninferiorityDirection::LowerIsBetter
+                }
+            },
+            margin,
+            alpha,
+            margin_rationale,
             out,
         ),
         ProjectTopLevel::Project {

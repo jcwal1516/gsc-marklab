@@ -27,7 +27,7 @@ mod covariate_matrix;
 #[path = "cohort/effects.rs"]
 mod effects;
 #[path = "cohort/equivalence.rs"]
-mod equivalence;
+pub(crate) mod equivalence;
 #[path = "cohort/fingerprint.rs"]
 mod fingerprint;
 #[path = "cohort/functional_equivalence.rs"]
@@ -43,7 +43,7 @@ pub(crate) mod max_t_calibration;
 #[path = "cohort/multisite.rs"]
 pub(crate) mod multisite;
 #[path = "cohort/noninferiority.rs"]
-mod noninferiority;
+pub(crate) mod noninferiority;
 #[path = "cohort/output.rs"]
 mod output;
 #[path = "cohort/patient_nested_fields.rs"]

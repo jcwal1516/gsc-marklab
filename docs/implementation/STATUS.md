@@ -4517,3 +4517,15 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - Pinned external agreement is still unavailable: local R 4.5.2 lacks `spatstat.explore`, and the
   Mac mini has no admitted R environment. This is an exact backend blocker, not native mathematical
   incompleteness, and no `spatstat` agreement is claimed.
+
+## Durable declared-margin inference checkpoint 212 — 2026-09-01
+
+- Added native durable project paths for the existing patient-level Student-t TOST equivalence and
+  directional noninferiority analyses. Exact source bytes, declared margins, direction, alpha,
+  rationale, native runtime, implementation, and output schema participate in cache identity.
+- Direct analytical-oracle tests remain green. A fresh process executes each analysis once and a
+  second process restores exact typed bytes with one ledger row; replay validates identity, bounds,
+  decisions, and finite results without recomputing the statistic.
+- These paths do not supply scientific or clinical margins. Real equivalence/noninferiority claims
+  remain unavailable until an admitted caller provides protocol-fixed margins, rationale, endpoint,
+  sign convention, and adequate independent patient observations.

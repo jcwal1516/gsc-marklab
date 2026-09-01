@@ -3,8 +3,9 @@ use std::path::PathBuf;
 use clap::ValueEnum;
 use marklab_cohort::{
     noninferiority_test, NoninferiorityDirection, NoninferiorityResult, NoninferioritySpec,
+    PatientEffect,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::{effects::read_effects, publication::publish_json, CohortError};
 
@@ -31,22 +32,109 @@ pub(super) fn run(
     margin_rationale: String,
     out: PathBuf,
 ) -> Result<(), CohortError> {
-    let effects = read_effects(&input)?;
-    let result = noninferiority_test(
-        &effects,
-        &NoninferioritySpec {
-            direction: direction.into(),
+    let prepared = prepare(input, direction.into(), margin, alpha, margin_rationale)?;
+    publish_json(&out, &execute(&prepared)?)
+}
+
+pub(crate) struct PreparedNoninferiority {
+    pub(crate) input: PathBuf,
+    pub(crate) effects: Vec<PatientEffect>,
+    pub(crate) spec: NoninferioritySpec,
+}
+
+pub(crate) fn prepare(
+    input: PathBuf,
+    direction: NoninferiorityDirection,
+    margin: f64,
+    alpha: f64,
+    margin_rationale: String,
+) -> Result<PreparedNoninferiority, CohortError> {
+    Ok(PreparedNoninferiority {
+        effects: read_effects(&input)?,
+        input,
+        spec: NoninferioritySpec {
+            direction,
             margin,
             alpha,
             margin_rationale,
         },
-    )?;
-    publish_json(&out, &NoninferiorityOutput::from_result(input, result))
+    })
 }
 
-#[derive(Debug, Serialize)]
-struct NoninferiorityOutput {
-    format: &'static str,
+pub(crate) fn execute(
+    prepared: &PreparedNoninferiority,
+) -> Result<NoninferiorityOutput, CohortError> {
+    let result = noninferiority_test(&prepared.effects, &prepared.spec)?;
+    Ok(NoninferiorityOutput::from_result(
+        prepared.input.clone(),
+        result,
+    ))
+}
+
+pub(crate) fn validate_result(
+    prepared: &PreparedNoninferiority,
+    output: &NoninferiorityOutput,
+) -> Result<(), String> {
+    let expected_direction = match prepared.spec.direction {
+        NoninferiorityDirection::HigherIsBetter => OutputDirection::HigherIsBetter,
+        NoninferiorityDirection::LowerIsBetter => OutputDirection::LowerIsBetter,
+    };
+    let expected_boundary = match prepared.spec.direction {
+        NoninferiorityDirection::HigherIsBetter => -prepared.spec.margin,
+        NoninferiorityDirection::LowerIsBetter => prepared.spec.margin,
+    };
+    let finite = [
+        output.estimate,
+        output.standard_error,
+        output.degrees_of_freedom,
+        output.margin,
+        output.null_boundary,
+        output.alpha,
+        output.statistic,
+        output.p_value,
+        output.confidence_bound,
+    ]
+    .into_iter()
+    .all(f64::is_finite);
+    let bound_decision = match output.direction {
+        OutputDirection::HigherIsBetter => output.confidence_bound > output.null_boundary,
+        OutputDirection::LowerIsBetter => output.confidence_bound < output.null_boundary,
+    };
+    let decision = if output.noninferior {
+        "noninferior"
+    } else {
+        "not_demonstrated"
+    };
+    if output.format != "marklab.cohort_noninferiority"
+        || output.version != 1
+        || output.input != prepared.input
+        || output.design.analysis_unit != "patient"
+        || output.design.variance_method != "one_sample_student_t"
+        || output.patient_count != prepared.effects.len()
+        || output.direction != expected_direction
+        || output.margin != prepared.spec.margin
+        || output.null_boundary != expected_boundary
+        || output.alpha != prepared.spec.alpha
+        || output.margin_rationale != prepared.spec.margin_rationale
+        || !finite
+        || output.standard_error <= 0.0
+        || output.degrees_of_freedom <= 0.0
+        || !(0.0..=1.0).contains(&output.p_value)
+        || output.noninferior != (output.p_value < output.alpha)
+        || output.noninferior != bound_decision
+        || output.decision != decision
+    {
+        return Err(
+            "cached noninferiority result identity, bounds, or finite policy differs".into(),
+        );
+    }
+    Ok(())
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct NoninferiorityOutput {
+    format: String,
     version: u32,
     input: PathBuf,
     design: NoninferiorityDesignOutput,
@@ -63,18 +151,18 @@ struct NoninferiorityOutput {
     p_value: f64,
     confidence_bound: f64,
     noninferior: bool,
-    decision: &'static str,
+    decision: String,
 }
 
 impl NoninferiorityOutput {
     fn from_result(input: PathBuf, result: NoninferiorityResult) -> Self {
         Self {
-            format: "marklab.cohort_noninferiority",
+            format: "marklab.cohort_noninferiority".into(),
             version: 1,
             input,
             design: NoninferiorityDesignOutput {
-                analysis_unit: "patient",
-                variance_method: "one_sample_student_t",
+                analysis_unit: "patient".into(),
+                variance_method: "one_sample_student_t".into(),
             },
             patient_count: result.patient_count,
             estimate: result.estimate,
@@ -93,21 +181,22 @@ impl NoninferiorityOutput {
             confidence_bound: result.confidence_bound,
             noninferior: result.noninferior,
             decision: if result.noninferior {
-                "noninferior"
+                "noninferior".into()
             } else {
-                "not_demonstrated"
+                "not_demonstrated".into()
             },
         }
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 struct NoninferiorityDesignOutput {
-    analysis_unit: &'static str,
-    variance_method: &'static str,
+    analysis_unit: String,
+    variance_method: String,
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum OutputDirection {
     HigherIsBetter,

@@ -5198,3 +5198,14 @@ vascular transport.
   attempted all-target root Clippy stops on the pre-existing unrelated unnecessary cast at
   `tests/durable_numpyro_joint_location_mark_project.rs:129`; it is not changed or called equivalent
   to the focused evidence. No broad loader loop runs.
+
+## Durable declared-margin inference checkpoint 212 — 2026-09-01
+
+- The behavior target first failed because `marklab project cohort-equivalence` was absent. Final
+  `CARGO_TARGET_DIR=/tmp/marklab-cargo-target.kt0CDK cargo +1.96.0 test --locked --package marklab
+  --features cli --test durable_cohort_margin_inference_project -- --test-threads=1` passes 1/1,
+  proving separate equivalence and noninferiority misses, fresh-process hits, byte-identical output,
+  and one ledger row per project.
+- The direct analytical targets `cohort_equivalence_cli` and `cohort_noninferiority_cli` pass 2/2.
+  Warning-denied root-CLI Clippy, affected-file Rustfmt, and `git diff --check` pass. No workspace
+  Nextest/full-loader loop or unrelated broad gate runs.
