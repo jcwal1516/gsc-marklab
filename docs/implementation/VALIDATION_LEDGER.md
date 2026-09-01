@@ -5125,3 +5125,17 @@ vascular transport.
 - Both molecular-group intervals span zero and are reported as null/uncertain. No broad workspace
   gate, Nextest loader loop, benchmark, fuzzing, packaging, dependency audit, push, publication,
   deployment, or history rewrite runs.
+
+## Durable ordinal site-varying hierarchy checkpoint 206 — 2026-08-31
+
+- Expected reds were absent direct and project subcommands. The site-confounding unit test passes
+  1/1; serial direct/durable targets pass 2/2 with exact miss/backend-disabled hit and changed-seed
+  invalidation. `python3 -m py_compile` for the worker passes.
+- Warning-denied all-target Bayes and root CLI Clippy, Bayes no-default check, warning-denied Bayes
+  docs, affected-file Rustfmt, and `git diff --check` pass. No broad workspace loader loop runs.
+- Real source SHA is `0aa41cd30277e8c7e99a3c78cd85a7be056ec14d3d45d5d7b979b0da08c27566`;
+  result SHA is `4b97efb61a6b14c0d0df1b59c1391e95019283694082cb2fae89379c7b8e71f5`; the one-row
+  ledger SHA is `8ab5f1744fdbcee17b6ee21f7e103294cd844288a0ab34a8d0bacf91b3af0a29` and sealed
+  checksum-file SHA is `c348445c93d1a15f965df5be6e9de126bc9b97aebd07ee3bc82dc813028e5f19`.
+- The level-2 PPC tail remains 0.00367. The fit is recorded as computationally converged but
+  misspecified; no significance-directed retuning or unsupported ROI/cohort/crossed effect occurs.

@@ -542,6 +542,8 @@ mod cli_schema;
 mod normal_mean;
 #[path = "bayes/ordinal_group.rs"]
 mod ordinal_group;
+#[path = "bayes/ordinal_group_site_hierarchy.rs"]
+mod ordinal_group_site_hierarchy;
 #[path = "bayes/worker_process.rs"]
 mod worker_process;
 
@@ -561,10 +563,18 @@ pub(super) use normal_mean::{execute_normal_mean, prepare_normal_mean, PreparedN
 pub(super) use ordinal_group::{
     execute as execute_ordinal_group, prepare as prepare_ordinal_group, PreparedOrdinalGroup,
 };
+pub(super) use ordinal_group_site_hierarchy::{
+    execute as execute_ordinal_group_site_hierarchy,
+    prepare as prepare_ordinal_group_site_hierarchy, PreparedOrdinalGroupSiteHierarchy,
+};
 pub(super) use worker_process::{publish_json, run_worker};
 
 pub(super) fn run_ordinal_group_cli() -> Result<(), BayesCliError> {
     ordinal_group::run_cli()
+}
+
+pub(super) fn run_ordinal_group_site_hierarchy_cli() -> Result<(), BayesCliError> {
+    ordinal_group_site_hierarchy::run_cli()
 }
 
 pub(super) fn run_hurdle_beta_binomial_group_cli() -> Result<(), BayesCliError> {

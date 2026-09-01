@@ -69,6 +69,7 @@ mod multiscale_kernel;
 mod multitype;
 mod nngp;
 mod ordinal_group;
+mod ordinal_group_site_hierarchy;
 mod partial_fused_gromov;
 mod partial_transport;
 mod point_process_ppc;
@@ -397,6 +398,14 @@ pub use ordinal_group::{
     OrdinalGroupPosteriorPredictive, OrdinalGroupResourceLimits, OrdinalGroupResult,
     OrdinalGroupSpec, OrdinalGroupWorkerRequest, OrdinalGroupWorkerResult, OrdinalLevelPosterior,
     OrdinalLevelPredictive,
+};
+pub use ordinal_group_site_hierarchy::{
+    ordinal_group_site_data_sha256, OrdinalGroupSiteHierarchyInputIdentity,
+    OrdinalGroupSiteHierarchyModelIr, OrdinalGroupSiteHierarchyPosterior,
+    OrdinalGroupSiteHierarchyPosteriorPredictive, OrdinalGroupSiteHierarchyResourceLimits,
+    OrdinalGroupSiteHierarchyResult, OrdinalGroupSiteHierarchySpec,
+    OrdinalGroupSiteHierarchyWorkerRequest, OrdinalGroupSiteHierarchyWorkerResult,
+    OrdinalGroupSitePatientData, OrdinalSitePosterior,
 };
 pub use partial_fused_gromov::{
     PartialFgwFit, PartialFgwResources, PartialFusedGromovWassersteinSpec,

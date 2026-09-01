@@ -58,8 +58,10 @@ and additional multitype corrections remain active only for concrete callers. Th
 proportional-odds posterior-predictive lack of fit retained rather than tuned away. The admitted
 105-patient CPTAC hard-Epithelial count now also has a durable exposure-aware hurdle likelihood;
 its presence and positive-abundance group effects are null/uncertain. The next dependency-ordered
-step is a bounded audit of distinct ROI-within-slide, crossed/random-slope, and cohort identities;
-anisotropic/nonstationary field effects remain unjustified by the current real field results.
+step is a non-proportional ordinal likelihood because adding identified site intercepts and
+site-varying slopes did not repair the category-level PPC failure. Distinct ROI-within-slide,
+crossed, and cohort identities remain exact data blockers; anisotropic/nonstationary field effects
+remain unjustified by the current real field results.
 
 ## Full-program resumption override — 2026-08-30
 

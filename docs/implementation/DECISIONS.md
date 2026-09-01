@@ -3844,3 +3844,22 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   dependent; it does not establish biological absence, mechanism, progression, treatment effect,
   causality, or clinical utility. This decision does not add a generic zero-inflation family,
   formula language, arbitrary offsets, random effects, or automatic model selection.
+
+## DEC-0399 — Add identified site intercepts and site-varying slopes to the ordinal caller
+
+- Date: 2026-08-31
+- Status: accepted for BAY-03/COH-01/PLAT-01/WF-01/WS-12/WS-33/WS-41
+- Decision: extend the admitted patient-stage question through one separate pinned-PyMC
+  proportional-odds hierarchy only when at least eight exact sites each contain at least two
+  patients from both declared groups. Keep ordered cutpoints as the global baseline, add
+  sum-to-zero noncentered site intercepts, and add sum-to-zero noncentered site deviations from one
+  global comparison-group slope. Assign separate positive half-Normal scales to the site intercept
+  and site slope distributions. Persist both variance components, every site deviation,
+  site-marginal group category probabilities, patient-level posterior prediction, complete
+  diagnostics, exact source/runtime/backend identity, and hard patient/site/iteration/output/time
+  ceilings through direct and durable project owners.
+- Consequences: the nine-site TCGA stage caller can quantify site heterogeneity and molecular-group
+  slope variation because every site contains MSI and MSS patients. This does not create a formula
+  language, automatic effect selection, crossed effects, cohort variance, or ROI-within-slide
+  variance; those require distinct identified immediate callers. Site adjustment does not turn the
+  retrospective molecular association into progression, treatment, causal, or clinical evidence.

@@ -4417,3 +4417,22 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
 - Focused unit/direct/durable tests, Python bytecode compilation, affected warning-denied Bayes and
   root-CLI Clippy, Bayes no-default check, strict Bayes docs, affected-file Rustfmt, and diff
   whitespace checks pass. No workspace Nextest/full-loader loop or unrelated broad gate runs.
+
+## Durable ordinal site-varying hierarchy checkpoint 206 — 2026-08-31
+
+- Added a patient-level proportional-odds hierarchy with sum-zero noncentered site intercepts and
+  site deviations from one global molecular-group slope. Admission requires 8--64 exact sites and
+  at least two patients from both groups per site; source, site, level, backend, lock, worker,
+  configuration, seed, runtime, and resource identity are durable.
+- Unit, direct, and project oracles pass. The durable workflow executes once, replays byte-identical
+  with external backend execution disabled, rejects changed-seed execution, and retains one ledger
+  row. Python compilation, affected warning-denied Clippy, Bayes no-default/docs, Rustfmt, and
+  whitespace checks pass.
+- The real TCGA caller has 126 patients across nine sites, every site containing MSI and MSS. The
+  global log-odds effect is -1.027 with interval [-1.714,-0.343]; site-intercept SD is 0.277
+  [0.010,0.833], and site-slope SD is 0.342 [0.014,1.055]. Both variance components remain broadly
+  uncertain near zero. Level-2 PPC tail probability remains 0.00367, so site heterogeneity does not
+  repair the proportional-odds misspecification.
+- Miss/hit SHA is `4b97efb61a6b14c0d0df1b59c1391e95019283694082cb2fae89379c7b8e71f5`; sealed v77
+  checksum-file SHA is `c348445c93d1a15f965df5be6e9de126bc9b97aebd07ee3bc82dc813028e5f19`.
+  ROI-within-slide, crossed, and cohort effects retain exact identity blockers.
