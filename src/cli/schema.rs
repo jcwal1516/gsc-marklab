@@ -468,6 +468,8 @@ enum ProjectCommands {
         #[arg(long)]
         bandwidth_um: f64,
         #[arg(long)]
+        cross_fit_folds: Option<usize>,
+        #[arg(long)]
         grid_x: usize,
         #[arg(long)]
         grid_y: usize,
@@ -783,6 +785,8 @@ enum ProjectCommands {
         radii_um: Vec<f64>,
         #[arg(long)]
         intensity_bandwidth_um: f64,
+        #[arg(long)]
+        cross_fit_folds: Option<usize>,
         #[arg(long)]
         pair_bandwidth_um: f64,
         #[arg(long)]

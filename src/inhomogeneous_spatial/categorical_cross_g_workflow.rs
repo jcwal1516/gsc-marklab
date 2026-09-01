@@ -36,6 +36,7 @@ pub struct InhomogeneousCategoricalCrossPairCorrelationAnalysisNode<'a> {
     inputs: [ArtifactRef; 4],
     configuration_digest: ContentDigest,
     implementation_identity: String,
+    execution_policy: Vec<u8>,
 }
 
 impl<'a> InhomogeneousCategoricalCrossPairCorrelationAnalysisNode<'a> {
@@ -59,6 +60,15 @@ impl<'a> InhomogeneousCategoricalCrossPairCorrelationAnalysisNode<'a> {
                 .register_reference(artifact.clone())
                 .map_err(NodeError::input)?;
         }
+        let cross_fit = config.intensity_config().cross_fit_folds().map_or_else(
+            || "type-specific-leave-one-out".to_owned(),
+            |folds| format!("type-specific-balanced-cell-id-rank-{folds}-fold"),
+        );
+        let implementation_version = if config.intensity_config().cross_fit_folds().is_some() {
+            "inhomogeneous-categorical-cross-g-node-v2"
+        } else {
+            "inhomogeneous-categorical-cross-g-node-v1"
+        };
         Ok(Self {
             spec: NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?,
             input,
@@ -67,9 +77,14 @@ impl<'a> InhomogeneousCategoricalCrossPairCorrelationAnalysisNode<'a> {
             inputs,
             configuration_digest: config_ref.digest(),
             implementation_identity: format!(
-                "marklab/{};adapter=inhomogeneous-categorical-cross-g-node-v1",
-                env!("CARGO_PKG_VERSION")
+                "marklab/{};adapter={implementation_version}",
+                env!("CARGO_PKG_VERSION"),
             ),
+            execution_policy: if config.intensity_config().cross_fit_folds().is_some() {
+                format!("serial;typed-categorical-rows;gaussian-2d-{cross_fit};cell-centred-window-quadrature;epanechnikov;standard-border-radius-plus-pair-bandwidth-type-specific-inverse-intensity-ratio;independent-fixed-gridded-type-specific-inhomogeneous-binomial;erl").into_bytes()
+            } else {
+                POLICY.to_vec()
+            },
         })
     }
 
@@ -113,7 +128,7 @@ impl WorkflowNode for InhomogeneousCategoricalCrossPairCorrelationAnalysisNode<'
     fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
         CacheKeyMaterial {
             configuration_digest: self.configuration_digest,
-            execution_policy: POLICY,
+            execution_policy: &self.execution_policy,
             implementation_identity: &self.implementation_identity,
         }
     }
@@ -160,6 +175,8 @@ struct ConfigArtifact<'a> {
     seed: u64,
     alpha: f64,
     minimum_intensity_per_um2: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cross_fit_folds: Option<usize>,
     limits: InhomogeneousSpatialLimits,
     logical_digest: String,
 }
@@ -179,6 +196,7 @@ fn config_artifact(
         seed: intensity.seed(),
         alpha: intensity.alpha(),
         minimum_intensity_per_um2: intensity.minimum_intensity_per_um2(),
+        cross_fit_folds: intensity.cross_fit_folds(),
         limits: intensity.limits(),
         logical_digest: configuration_digest(config).to_string(),
     })
@@ -335,13 +353,22 @@ fn matching_rows(codes: &[u32], requested: u32) -> Vec<usize> {
 }
 
 fn subset_pattern(pattern: &Pattern, rows: &[usize]) -> io::Result<Pattern> {
-    Pattern::from_arrays(
+    let mut subset = Pattern::from_arrays(
         rows.iter().map(|row| pattern.x_um[*row]).collect(),
         rows.iter().map(|row| pattern.y_um[*row]).collect(),
         vec![0; rows.len()],
         pattern.meta.clone(),
     )
-    .map_err(invalid_owned)
+    .map_err(invalid_owned)?;
+    if let Some(ids) = pattern.cell_ids.as_deref() {
+        subset.cell_ids = Some(
+            rows.iter()
+                .map(|row| ids[*row].clone())
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        );
+    }
+    Ok(subset)
 }
 
 fn invalid(message: &'static str) -> io::Error {

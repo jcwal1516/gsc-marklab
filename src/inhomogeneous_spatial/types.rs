@@ -60,6 +60,7 @@ pub struct InhomogeneousSpatialConfig {
     pub(super) seed: u64,
     pub(super) alpha: f64,
     pub(super) minimum_intensity_per_um2: f64,
+    pub(super) cross_fit_folds: Option<usize>,
     pub(super) limits: InhomogeneousSpatialLimits,
 }
 
@@ -69,6 +70,57 @@ impl InhomogeneousSpatialConfig {
         radii_um: Vec<f64>,
         bandwidth_um: f64,
         integration_grid: [usize; 2],
+        simulations: usize,
+        seed: u64,
+        alpha: f64,
+        minimum_intensity_per_um2: f64,
+        limits: InhomogeneousSpatialLimits,
+    ) -> Result<Self, InhomogeneousSpatialError> {
+        Self::new_with_cross_fit(
+            radii_um,
+            bandwidth_um,
+            integration_grid,
+            None,
+            simulations,
+            seed,
+            alpha,
+            minimum_intensity_per_um2,
+            limits,
+        )
+    }
+
+    /// Construct a balanced stable-Cell-ID K-fold intensity design.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_cross_fitted(
+        radii_um: Vec<f64>,
+        bandwidth_um: f64,
+        integration_grid: [usize; 2],
+        cross_fit_folds: usize,
+        simulations: usize,
+        seed: u64,
+        alpha: f64,
+        minimum_intensity_per_um2: f64,
+        limits: InhomogeneousSpatialLimits,
+    ) -> Result<Self, InhomogeneousSpatialError> {
+        Self::new_with_cross_fit(
+            radii_um,
+            bandwidth_um,
+            integration_grid,
+            Some(cross_fit_folds),
+            simulations,
+            seed,
+            alpha,
+            minimum_intensity_per_um2,
+            limits,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn new_with_cross_fit(
+        radii_um: Vec<f64>,
+        bandwidth_um: f64,
+        integration_grid: [usize; 2],
+        cross_fit_folds: Option<usize>,
         simulations: usize,
         seed: u64,
         alpha: f64,
@@ -98,6 +150,7 @@ impl InhomogeneousSpatialConfig {
             || (simulations.saturating_add(1) as f64) * alpha < 1.0
             || !minimum_intensity_per_um2.is_finite()
             || minimum_intensity_per_um2 <= 0.0
+            || cross_fit_folds.is_some_and(|folds| folds < 2 || folds > limits.maximum_points / 2)
         {
             return Err(InhomogeneousSpatialError::InvalidConfig(
                 "radii, bandwidth, grid, inference, or intensity floor are invalid".into(),
@@ -111,6 +164,7 @@ impl InhomogeneousSpatialConfig {
             seed,
             alpha,
             minimum_intensity_per_um2,
+            cross_fit_folds,
             limits,
         })
     }
@@ -141,6 +195,11 @@ impl InhomogeneousSpatialConfig {
 
     pub fn minimum_intensity_per_um2(&self) -> f64 {
         self.minimum_intensity_per_um2
+    }
+
+    /// Balanced stable-Cell-ID fold count, or `None` for leave-one-out intensity.
+    pub fn cross_fit_folds(&self) -> Option<usize> {
+        self.cross_fit_folds
     }
 
     pub fn limits(&self) -> InhomogeneousSpatialLimits {

@@ -35,6 +35,13 @@ pub(super) struct FittedIntensity {
     pub(super) probe_cdf: Vec<f64>,
     pub(super) fixed_grid_total_mass: f64,
     pub(super) fixed_grid: Vec<InhomogeneousIntensityGridPoint>,
+    pub(super) cross_fit: Option<CrossFitPlan>,
+}
+
+#[derive(Clone)]
+pub(super) struct CrossFitPlan {
+    pub(super) assignments: Vec<usize>,
+    pub(super) fold_counts: Vec<usize>,
 }
 
 pub(super) struct FittedEventIntensity {
@@ -49,6 +56,7 @@ pub(super) fn fit_intensity(
     counters: &mut Counters,
 ) -> Result<FittedIntensity, InhomogeneousSpatialError> {
     let grid = build_grid(window, config)?;
+    let cross_fit = cross_fit_plan(pattern, config)?;
     let events = fit_event_intensity(pattern, &grid, config, counters)?;
     let (probe_cdf, fixed_grid_total_mass, fixed_grid) =
         fixed_probe_cdf(pattern, &grid, config, counters)?;
@@ -59,6 +67,7 @@ pub(super) fn fit_intensity(
         probe_cdf,
         fixed_grid_total_mass,
         fixed_grid,
+        cross_fit,
     })
 }
 
@@ -68,31 +77,53 @@ pub(super) fn fit_event_intensity(
     config: &InhomogeneousSpatialConfig,
     counters: &mut Counters,
 ) -> Result<FittedEventIntensity, InhomogeneousSpatialError> {
+    let cross_fit = cross_fit_plan(pattern, config)?;
     let mut point_values = Vec::new();
     let mut observed_intensities = Vec::new();
     point_values
         .try_reserve_exact(pattern.len())
         .and_then(|()| observed_intensities.try_reserve_exact(pattern.len()))
         .map_err(|_| InhomogeneousSpatialError::AllocationFailed)?;
-    let finite_scale = pattern.len() as f64 / (pattern.len() - 1) as f64;
     for row in 0..pattern.len() {
         let location = (pattern.x_um[row], pattern.y_um[row]);
         let correction = boundary_mass(location, grid, config, counters)?;
-        let raw = kernel_sum(
-            location,
-            &pattern.x_um,
-            &pattern.y_um,
-            Some(row),
-            config,
-            counters,
-        )?;
-        let intensity = finite_scale * raw / correction;
+        let (raw, scale, training_point_count) = if let Some(plan) = &cross_fit {
+            let fold = plan.assignments[row];
+            let training_point_count = pattern.len() - plan.fold_counts[fold];
+            (
+                kernel_sum_training_fold(
+                    location,
+                    &pattern.x_um,
+                    &pattern.y_um,
+                    plan,
+                    fold,
+                    config,
+                    counters,
+                )?,
+                pattern.len() as f64 / training_point_count as f64,
+                training_point_count,
+            )
+        } else {
+            (
+                kernel_sum(
+                    location,
+                    &pattern.x_um,
+                    &pattern.y_um,
+                    Some(row),
+                    config,
+                    counters,
+                )?,
+                pattern.len() as f64 / (pattern.len() - 1) as f64,
+                pattern.len() - 1,
+            )
+        };
+        let intensity = scale * raw / correction;
         validate_intensity(row, intensity, config.minimum_intensity_per_um2)?;
         point_values.push(InhomogeneousIntensityPoint {
             row,
             intensity_per_um2: canonical_zero(intensity),
             boundary_mass: correction,
-            training_point_count: pattern.len() - 1,
+            training_point_count,
         });
         observed_intensities.push(intensity);
     }
@@ -117,14 +148,26 @@ pub(super) fn evaluate_fixed_intensities(
     for row in 0..x.len() {
         let location = (x[row], y[row]);
         let correction = boundary_mass(location, &fitted.grid, config, counters)?;
-        let intensity = kernel_sum(
-            location,
-            &pattern.x_um,
-            &pattern.y_um,
-            None,
-            config,
-            counters,
-        )? / correction;
+        let raw = if let Some(plan) = &fitted.cross_fit {
+            cross_fitted_kernel_sum(
+                location,
+                &pattern.x_um,
+                &pattern.y_um,
+                plan,
+                config,
+                counters,
+            )?
+        } else {
+            kernel_sum(
+                location,
+                &pattern.x_um,
+                &pattern.y_um,
+                None,
+                config,
+                counters,
+            )?
+        };
+        let intensity = raw / correction;
         validate_intensity(row, intensity, config.minimum_intensity_per_um2)?;
         intensities.push(intensity);
     }
@@ -242,6 +285,116 @@ pub(super) fn kernel_sum(
     Ok(value)
 }
 
+fn kernel_sum_training_fold(
+    location: (f64, f64),
+    x: &[f64],
+    y: &[f64],
+    plan: &CrossFitPlan,
+    heldout_fold: usize,
+    config: &InhomogeneousSpatialConfig,
+    counters: &mut Counters,
+) -> Result<f64, InhomogeneousSpatialError> {
+    let mut sum = 0.0;
+    let mut correction = 0.0;
+    for row in 0..x.len() {
+        if plan.assignments[row] == heldout_fold {
+            continue;
+        }
+        counters.charge_intensity(config)?;
+        kahan_add(
+            &mut sum,
+            &mut correction,
+            gaussian_kernel(location, (x[row], y[row]), config.bandwidth_um),
+        );
+    }
+    let value = sum + correction;
+    if !value.is_finite() || value <= 0.0 {
+        return Err(InhomogeneousSpatialError::Dependency(
+            "cross-fitted kernel intensity sum is nonpositive or non-finite".into(),
+        ));
+    }
+    Ok(value)
+}
+
+fn cross_fitted_kernel_sum(
+    location: (f64, f64),
+    x: &[f64],
+    y: &[f64],
+    plan: &CrossFitPlan,
+    config: &InhomogeneousSpatialConfig,
+    counters: &mut Counters,
+) -> Result<f64, InhomogeneousSpatialError> {
+    let mut sum = 0.0;
+    let mut correction = 0.0;
+    for fold in 0..plan.fold_counts.len() {
+        let training = x.len() - plan.fold_counts[fold];
+        let raw = kernel_sum_training_fold(location, x, y, plan, fold, config, counters)?;
+        let heldout_weight = plan.fold_counts[fold] as f64 / x.len() as f64;
+        kahan_add(
+            &mut sum,
+            &mut correction,
+            heldout_weight * x.len() as f64 / training as f64 * raw,
+        );
+    }
+    let value = sum + correction;
+    if !value.is_finite() || value <= 0.0 {
+        return Err(InhomogeneousSpatialError::Dependency(
+            "cross-fitted fixed intensity is nonpositive or non-finite".into(),
+        ));
+    }
+    Ok(value)
+}
+
+pub(super) fn cross_fit_plan(
+    pattern: &Pattern,
+    config: &InhomogeneousSpatialConfig,
+) -> Result<Option<CrossFitPlan>, InhomogeneousSpatialError> {
+    let Some(folds) = config.cross_fit_folds else {
+        return Ok(None);
+    };
+    let ids = pattern.cell_ids.as_deref().ok_or_else(|| {
+        InhomogeneousSpatialError::Dependency(
+            "cross-fitted intensity requires complete canonical Cell IDs".into(),
+        )
+    })?;
+    if ids.len() != pattern.len() {
+        return Err(InhomogeneousSpatialError::Dependency(
+            "cross-fitted Cell IDs are not row aligned".into(),
+        ));
+    }
+    let mut unique = BTreeSet::new();
+    if ids
+        .iter()
+        .any(|id| id.trim().is_empty() || id.trim() != id || !unique.insert(id.as_str()))
+    {
+        return Err(InhomogeneousSpatialError::Dependency(
+            "cross-fitted Cell IDs must be exact nonempty and unique".into(),
+        ));
+    }
+    let mut order = (0..ids.len()).collect::<Vec<_>>();
+    order.sort_by(|left, right| ids[*left].cmp(&ids[*right]));
+    let mut assignments = vec![0usize; ids.len()];
+    let mut fold_counts = vec![0usize; folds];
+    for (rank, row) in order.into_iter().enumerate() {
+        let fold = rank % folds;
+        assignments[row] = fold;
+        fold_counts[fold] += 1;
+    }
+    if fold_counts.contains(&0)
+        || fold_counts
+            .iter()
+            .any(|count| pattern.len().saturating_sub(*count) < 2)
+    {
+        return Err(InhomogeneousSpatialError::Dependency(
+            "cross-fitted intensity requires at least two training points in every fold".into(),
+        ));
+    }
+    Ok(Some(CrossFitPlan {
+        assignments,
+        fold_counts,
+    }))
+}
+
 fn gaussian_kernel(left: (f64, f64), right: (f64, f64), bandwidth_um: f64) -> f64 {
     let dx = left.0 - right.0;
     let dy = left.1 - right.1;
@@ -256,6 +409,7 @@ pub(super) fn fixed_probe_cdf(
     config: &InhomogeneousSpatialConfig,
     counters: &mut Counters,
 ) -> Result<(Vec<f64>, f64, Vec<InhomogeneousIntensityGridPoint>), InhomogeneousSpatialError> {
+    let cross_fit = cross_fit_plan(pattern, config)?;
     let mut cdf = Vec::new();
     let mut fixed_grid = Vec::new();
     cdf.try_reserve_exact(grid.probes.len())
@@ -265,14 +419,26 @@ pub(super) fn fixed_probe_cdf(
     let mut correction = 0.0;
     for (probe_index, probe) in grid.probes.iter().enumerate() {
         let location = (probe.x_um, probe.y_um);
-        let intensity = kernel_sum(
-            location,
-            &pattern.x_um,
-            &pattern.y_um,
-            None,
-            config,
-            counters,
-        )? / boundary_mass(location, grid, config, counters)?;
+        let raw = if let Some(plan) = &cross_fit {
+            cross_fitted_kernel_sum(
+                location,
+                &pattern.x_um,
+                &pattern.y_um,
+                plan,
+                config,
+                counters,
+            )?
+        } else {
+            kernel_sum(
+                location,
+                &pattern.x_um,
+                &pattern.y_um,
+                None,
+                config,
+                counters,
+            )?
+        };
+        let intensity = raw / boundary_mass(location, grid, config, counters)?;
         let mass = intensity * grid.cell_area_um2;
         kahan_add(&mut total, &mut correction, mass);
         cdf.push(total + correction);

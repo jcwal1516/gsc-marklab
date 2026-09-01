@@ -463,7 +463,16 @@ fn subset_pattern(
     x.extend(rows.iter().map(|row| pattern.x_um[*row]));
     y.extend(rows.iter().map(|row| pattern.y_um[*row]));
     mark.resize(rows.len(), 0);
-    Pattern::from_arrays(x, y, mark, pattern.meta.clone()).map_err(dependency)
+    let mut subset = Pattern::from_arrays(x, y, mark, pattern.meta.clone()).map_err(dependency)?;
+    if let Some(ids) = pattern.cell_ids.as_deref() {
+        subset.cell_ids = Some(
+            rows.iter()
+                .map(|row| ids[*row].clone())
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        );
+    }
+    Ok(subset)
 }
 
 fn filled_vec<T: Clone>(

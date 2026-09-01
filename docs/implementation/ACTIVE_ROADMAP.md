@@ -44,6 +44,20 @@ crossed/random-slope, ordinal/hurdle, real causal/prospective, registered 3-D/lo
 biological SBI calibration as exact backend/data/design blockers unless new admitted inputs satisfy
 their recorded contracts. Do not add a generic method, backend, plugin, or registry surface.
 
+## Exact calibration and cross-fitted intensity follow-through — checkpoint 203
+
+Single-step, step-down, and ordered gatekeeping Max-T now have an exact exhaustive whole-patient
+global-null calibration command and durable replay. Gaussian exact-window K/L and directed
+type-specific cross-g now share one balanced stable-Cell-ID K-fold intensity policy without
+changing leave-one-out results. The real K/L caller completes with null-compatible evidence; the
+real type-specific cross-g caller remains correctly unavailable at its fixed intensity floor.
+
+FND-06/INF-01C broader graphical/recycling multiplicity, PP-03/PP-05 pinned `spatstat` agreement,
+and additional multitype corrections remain active only for concrete callers. The next
+dependency-ordered implementable catalog candidate is one identified ordinal or hurdle Bayesian
+caller from admitted patient data; distinct ROI-within-slide, crossed/random-slope, cohort, and
+anisotropic/nonstationary field effects remain blocked or unjustified by the current inputs.
+
 ## Full-program resumption override — 2026-08-30
 
 Later explicit user direction resumes the full dependency-ordered Marklab master plan after the

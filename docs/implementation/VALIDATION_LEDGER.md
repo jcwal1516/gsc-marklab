@@ -5040,3 +5040,33 @@ vascular transport.
   copied back without changing backend/lock/worker identities. No workspace Nextest/full-loader
   loop, benchmark, fuzzing, packaging, dependency audit, push, publication, deployment, or history
   rewrite runs.
+
+## Exact multiplicity calibration and cross-fitted intensity checkpoint 203 — 2026-08-31
+
+- Expected reds: the exact calibration CLI and project tests failed on absent
+  `max-t-calibration`; the stable-Cell-ID intensity test failed on absent `new_cross_fitted`; and
+  the directed cross-g CLI rejected absent `--cross-fit-folds`. The first calibration work model
+  undercounted triangular step-down/gatekeeping comparisons and was corrected before checkpointing
+  to 63,910 with an exact one-short failure.
+- `CARGO_TARGET_DIR=/tmp/marklab-cargo-target.kt0CDK CARGO_INCREMENTAL=0 cargo +1.96.0 test
+  --locked --package marklab --features cli --test cohort_max_t_calibration_cli --test
+  durable_max_t_calibration_project --test inhomogeneous_spatial_cross_fit --test
+  inhomogeneous_spatial_cross_fit_project_cli --test inhomogeneous_spatial_project_cli --test
+  inhomogeneous_spatial_project_workflow --test
+  inhomogeneous_categorical_cross_g_cross_fit_project_cli --test
+  inhomogeneous_categorical_cross_pair_correlation_project_cli -- --test-threads=1` passes 8/8.
+  The two `marklab-cohort` exact calibration unit tests pass.
+- Warning-denied Clippy passes for the root library, root CLI binary, and all-target/all-feature
+  `marklab-cohort`. Root and cohort no-default checks pass; strict warning-denied root/cohort docs
+  pass. Affected-file Rustfmt and `git diff --check` pass.
+- Read-only revalidation on the Mac mini confirms the 512-cell K/L miss/hit bytes and one-row
+  ledger. Result/bundle hashes are
+  `e8d55f38f6cdcdb0753b4d94df6626e53ade662dcda10aa65a7c636717b2741e` and
+  `158385bc79a9345e3d4c740f995f90bde5c7f6eca4bc1d78995a2bc729d68563`.
+  The directed cross-g project fails before commit with exact intensity
+  `1.3784497481671735e-32 < 1e-12`; its ledger has zero rows and its sealed blocker hashes to
+  `96e728c824c1c52bfbedba61f4e9bc8e3cdae6ba00b3ac2500048c1893012562`.
+- `Rscript` reports R 4.5.2 locally but `spatstat.explore` is missing; the Mac mini has no Rscript.
+  No package is installed and external agreement remains an exact backend blocker. No workspace
+  Nextest/full-loader loop, benchmark, fuzzing, packaging, dependency audit, push, publication,
+  deployment, or history rewrite runs.

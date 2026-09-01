@@ -3767,3 +3767,39 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   normalization addresses an observed adjacent-float serialization cycle rather than weakening
   source, backend, request, scientific, or cache validation. The patient result is null/negative
   and is not used to justify anisotropic/nonstationary expansion or fusion.
+
+## DEC-0395 — Calibrate Max-T families by exhaustive patient assignments
+
+- Date: 2026-08-31
+- Status: accepted for FND-06/COH-01/INF-01C/WS-31/WS-34
+- Decision: add one bounded calibration workflow over a fixed complete patient-by-endpoint table.
+  Enumerate every group assignment with the declared group-A size, independently recompute Welch
+  endpoint statistics, and treat each assignment in turn as the observed assignment. Evaluate
+  single-step Max-T, step-down Max-T, and ordered-family step-down gatekeeping against the complete
+  assignment distribution. Report exact global-null familywise rejection counts/rates and endpoint
+  rejection rates, with no Monte Carlo seed or asymptotic substitution. Require contiguous
+  prespecified nonempty family sizes that partition the endpoint vector, and bind exact source,
+  alpha, group size, limits, runtime, executable, and result identity into durable execution.
+- Consequences: the existing multiplicity corrections gain a user-visible exact finite-design
+  calibration oracle without a generic resampling framework. The workflow validates the declared
+  global random-assignment null; it is not power evidence, subset-null proof under arbitrary
+  dependence, a substitute for prespecified endpoint families, or a patient-level scientific
+  effect analysis.
+
+## DEC-0396 — Cross-fit Gaussian intensity by balanced stable Cell-ID folds
+
+- Date: 2026-08-31
+- Status: accepted for PP-02/PP-03/PP-05/FND-03/FND-06/WF-01/WS-12/WS-30/WS-31
+- Decision: extend the existing exact-window Gaussian inhomogeneous K/L workflow with one optional
+  bounded K-fold policy. Require complete unique canonical Cell IDs, sort them exactly, assign
+  balanced folds by sorted rank modulo the declared fold count, and evaluate every event only from
+  the complementary training folds. Scale each fold estimator by total/training count; form the
+  persisted fixed intensity grid as the heldout-fold-size-weighted mean of the same complementary
+  estimators. Reuse the current boundary quadrature, conditioned fixed-grid null, standard-border
+  inverse-intensity K/L, ERL, typed result, and durable project owner. Bind fold count, Cell IDs,
+  training counts, grid, source, configuration, work/memory limits, and runtime into identity.
+- Consequences: PP-05 gains genuine multi-row holdout cross-fitting without changing the existing
+  leave-one-out constructor or its bytes. Fold selection is label- and outcome-blind, and every
+  null draw uses the one fixed persisted cross-fitted intensity artifact. This does not select a
+  bandwidth from the spatial curve, pool unrelated specimen frames, supply pinned `spatstat`
+  agreement, or turn one point pattern into patient-population evidence.

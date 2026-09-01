@@ -38,6 +38,8 @@ pub(crate) mod hierarchical_bootstrap;
 mod hierarchical_max_t;
 #[path = "cohort/input.rs"]
 mod input;
+#[path = "cohort/max_t_calibration.rs"]
+pub(crate) mod max_t_calibration;
 #[path = "cohort/multisite.rs"]
 pub(crate) mod multisite;
 #[path = "cohort/noninferiority.rs"]
@@ -453,6 +455,24 @@ enum CohortCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    MaxTCalibration {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        group_a_count: usize,
+        #[arg(long, value_delimiter = ',')]
+        family_sizes: Vec<usize>,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        maximum_assignments: usize,
+        #[arg(long)]
+        maximum_assignment_endpoint_evaluations: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, ValueEnum)]
@@ -570,6 +590,28 @@ pub(super) fn into_marklab_error(error: CohortError) -> marklab::MarklabError {
 
 pub(super) fn run_cli() -> Result<(), CohortError> {
     match CohortCli::parse_from(std::env::args_os()).command {
+        CohortTopLevel::Cohort {
+            command:
+                CohortCommand::MaxTCalibration {
+                    input,
+                    group_a_count,
+                    family_sizes,
+                    alpha,
+                    maximum_assignments,
+                    maximum_assignment_endpoint_evaluations,
+                    memory_budget_mib,
+                    out,
+                },
+        } => max_t_calibration::run(max_t_calibration::RunArgs {
+            input,
+            group_a_count,
+            family_sizes,
+            alpha,
+            maximum_assignments,
+            maximum_assignment_endpoint_evaluations,
+            memory_budget_mib,
+            out,
+        }),
         CohortTopLevel::Cohort {
             command:
                 CohortCommand::PatientNestedFields {

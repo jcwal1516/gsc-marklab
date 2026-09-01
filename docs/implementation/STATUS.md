@@ -4326,3 +4326,38 @@ cargo +1.96.0 test --locked --all-features --test cellvit_embedding_artifact_gra
   library passes 27/27, and the Python caller passes 8/8. Affected warning-denied Clippy,
   no-default checks, strict cohort docs, affected-file Rustfmt, and diff whitespace checks pass.
   The documented workspace Nextest/full-loader loop and unrelated broad gates are not run.
+
+## Exact multiplicity calibration and cross-fitted intensity checkpoint 203 — 2026-08-31
+
+- Added an exhaustive whole-patient calibration workflow for complete endpoint families. Every
+  fixed-size group assignment is treated in turn as observed and as part of the exact null;
+  independently recomputed Welch statistics calibrate single-step, step-down, and contiguous
+  ordered-family step-down gatekeeping. The eight-row/three-endpoint oracle has 70 assignments and
+  exact global-null familywise rejection counts 6, 6, and 4 at alpha 0.1. Its exact 63,910
+  comparison ceiling and one-short failure include triangular step-down/gatekeeping work.
+- `marklab cohort max-t-calibration` and `marklab project max-t-calibration` retain the complete
+  patient table, family sizes, alpha, group size, assignment/work/memory limits, runtime, and result
+  identity. A fresh project process returns a byte-identical hit with one ledger row; this is
+  finite-design method calibration, not scientific effect or power evidence.
+- The existing exact-window Gaussian K/L owner now optionally cross-fits intensity by balanced
+  stable-Cell-ID rank folds. Event rows use only complementary folds, each fold estimator is scaled
+  by total/training count, and the fixed null grid is the heldout-size-weighted mean of the same
+  estimators. Fold count, Cell IDs, training counts, intensity/grid artifacts, configuration, and
+  work/memory are cache-bound; the prior leave-one-out constructor and bytes remain unchanged.
+- On the frozen 512-cell exact-window caller, five-fold training counts are 409/410 and 20,588,683
+  intensity evaluations complete in 12.68 seconds at 21,381,120-byte maximum RSS. Miss and disabled
+  hit hash to `e8d55f38f6cdcdb0753b4d94df6626e53ade662dcda10aa65a7c636717b2741e`
+  with one ledger row. L-minus-r is -18.630, +14.259, and +20.986 micrometres; global `p=0.10` is
+  diagnostic and unpromoted. Bundle `SHA256SUMS` hashes to
+  `158385bc79a9345e3d4c740f995f90bde5c7f6eca4bc1d78995a2bc729d68563`.
+- Type-specific cross-g reuses the identical fold contract independently inside each declared
+  role. Its real Neoplastic-to-Inflammatory caller still fails before publication: row-zero heldout
+  intensity `1.3784497481671735e-32` is below the prespecified `1e-12` floor. The ledger remains
+  empty; blocker and bundle hashes are
+  `96e728c824c1c52bfbedba61f4e9bc8e3cdae6ba00b3ac2500048c1893012562` and
+  `c5a9c8dd2e927bd1c58220418046ce5a647232757692d8cf2d1cc09e580bb8c5`.
+- Eight focused direct/durable integrations pass 8/8 and two exact calibration unit tests pass.
+  Warning-denied affected root-library/root-CLI/cohort Clippy, no-default root/cohort checks, strict
+  affected docs, affected-file Rustfmt, and whitespace checks pass. Local R 4.5.2 lacks
+  `spatstat.explore` and the Mac mini lacks R, so pinned external agreement remains unavailable.
+  No workspace Nextest/full-loader loop or unrelated broad gate runs.

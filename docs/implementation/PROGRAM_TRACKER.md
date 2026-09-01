@@ -641,3 +641,12 @@ adaptive blocks fail their prespecified incremental or group/held-out gates and 
 Anisotropic/nonstationary fields remain caller-dependent; distinct ROI/cohort/crossed/hurdle
 hierarchies, pinned external point-process agreement, real causal/prospective designs, registered
 3-D/longitudinal cohorts, and biological SBI calibration retain their existing named blockers.
+
+## Exact multiplicity calibration and cross-fitted intensity checkpoint 203
+
+FND-03, FND-06, COH-01, INF-01C, PP-02, PP-03, PP-03B, PP-05, PLAT-01, WF-01, WS-12,
+WS-30, WS-31, and WS-34 advance through three concrete workflows: exhaustive whole-patient Max-T
+calibration, stable-Cell-ID K-fold exact-window K/L, and the same type-specific cross-g correction.
+The real K/L caller durably completes with null-compatible evidence; the real directed multitype
+caller retains an exact below-floor intensity blocker and empty ledger. Pinned `spatstat` agreement
+remains backend-blocked, and no bandwidth, role, floor, subset, or scale is tuned from the result.

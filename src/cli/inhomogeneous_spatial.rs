@@ -18,6 +18,7 @@ pub(super) struct Request {
     pub out: PathBuf,
     pub radii_um: Vec<f64>,
     pub bandwidth_um: f64,
+    pub cross_fit_folds: Option<usize>,
     pub integration_grid: [usize; 2],
     pub simulations: usize,
     pub seed: u64,
@@ -57,16 +58,30 @@ pub(super) fn run_project(request: Request) -> Result<()> {
         memory_bytes,
     )
     .map_err(|error| MarklabError::Validation(error.to_string()))?;
-    let config = InhomogeneousSpatialConfig::new(
-        request.radii_um,
-        request.bandwidth_um,
-        request.integration_grid,
-        request.simulations,
-        request.seed,
-        request.alpha,
-        request.minimum_intensity_per_um2,
-        limits,
-    )
+    let config = if let Some(folds) = request.cross_fit_folds {
+        InhomogeneousSpatialConfig::new_cross_fitted(
+            request.radii_um,
+            request.bandwidth_um,
+            request.integration_grid,
+            folds,
+            request.simulations,
+            request.seed,
+            request.alpha,
+            request.minimum_intensity_per_um2,
+            limits,
+        )
+    } else {
+        InhomogeneousSpatialConfig::new(
+            request.radii_um,
+            request.bandwidth_um,
+            request.integration_grid,
+            request.simulations,
+            request.seed,
+            request.alpha,
+            request.minimum_intensity_per_um2,
+            limits,
+        )
+    }
     .map_err(|error| MarklabError::Validation(error.to_string()))?;
     let node = InhomogeneousSpatialAnalysisNode::new(
         &mut project,

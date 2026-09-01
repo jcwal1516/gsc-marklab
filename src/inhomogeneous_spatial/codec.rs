@@ -6,6 +6,7 @@ use crate::{ObservationWindow2D, Pattern};
 
 use super::{
     identity::{fixed_grid_digest, intensity_result_digest},
+    intensity::cross_fit_plan,
     types::{InhomogeneousIntensitySummary, InhomogeneousSpatialConfig},
 };
 
@@ -15,9 +16,15 @@ pub(super) fn validate_intensity_summary(
     window: &ObservationWindow2D,
     config: &InhomogeneousSpatialConfig,
 ) -> io::Result<()> {
+    let expected_cross_fit = config.cross_fit_folds().map_or_else(
+        || "leave_one_out_n_over_n_minus_one".to_owned(),
+        |folds| format!("balanced_cell_id_rank_{folds}_fold"),
+    );
+    let cross_fit =
+        cross_fit_plan(pattern, config).map_err(|_| invalid("cross-fit identity is invalid"))?;
     if summary.estimator != "gaussian_kernel"
         || summary.kernel != "isotropic_gaussian_2d"
-        || summary.cross_fit != "leave_one_out_n_over_n_minus_one"
+        || summary.cross_fit != expected_cross_fit
         || summary.boundary_correction != "deterministic_cell_center_quadrature"
         || summary.bandwidth_um.to_bits() != config.bandwidth_um().to_bits()
         || summary.integration_grid != config.integration_grid()
@@ -42,8 +49,11 @@ pub(super) fn validate_intensity_summary(
     let mut minimum = f64::INFINITY;
     let mut maximum = f64::NEG_INFINITY;
     for (row, point) in summary.point_values.iter().enumerate() {
+        let expected_training_count = cross_fit.as_ref().map_or(pattern.len() - 1, |plan| {
+            pattern.len() - plan.fold_counts[plan.assignments[row]]
+        });
         if point.row != row
-            || point.training_point_count != pattern.len() - 1
+            || point.training_point_count != expected_training_count
             || !point.intensity_per_um2.is_finite()
             || point.intensity_per_um2 < config.minimum_intensity_per_um2()
             || !point.boundary_mass.is_finite()

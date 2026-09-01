@@ -98,6 +98,8 @@ mod local_embedding_roughness;
 mod local_multivariate_moran;
 #[path = "project/longitudinal_kalman.rs"]
 mod longitudinal_kalman;
+#[path = "project/max_t_calibration.rs"]
+mod max_t_calibration;
 #[path = "project/multiscale_embedding_kernel.rs"]
 mod multiscale_embedding_kernel;
 #[path = "project/multitype_lgcp_sbc.rs"]
@@ -1356,6 +1358,26 @@ enum ProjectCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    MaxTCalibration {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        group_a_count: usize,
+        #[arg(long, value_delimiter = ',')]
+        family_sizes: Vec<usize>,
+        #[arg(long)]
+        alpha: f64,
+        #[arg(long)]
+        maximum_assignments: usize,
+        #[arg(long)]
+        maximum_assignment_endpoint_evaluations: u64,
+        #[arg(long)]
+        memory_budget_mib: usize,
+        #[arg(long)]
+        out: PathBuf,
+    },
     CohortMmd {
         #[arg(long)]
         project: PathBuf,
@@ -2183,6 +2205,30 @@ enum ProjectCommand {
 
 pub(super) fn run_cli() -> Result<(), BayesCliError> {
     match ProjectCli::parse_from(std::env::args_os()).command {
+        ProjectTopLevel::Project {
+            command:
+                ProjectCommand::MaxTCalibration {
+                    project,
+                    input,
+                    group_a_count,
+                    family_sizes,
+                    alpha,
+                    maximum_assignments,
+                    maximum_assignment_endpoint_evaluations,
+                    memory_budget_mib,
+                    out,
+                },
+        } => max_t_calibration::run(
+            project,
+            input,
+            group_a_count,
+            family_sizes,
+            alpha,
+            maximum_assignments,
+            maximum_assignment_endpoint_evaluations,
+            memory_budget_mib,
+            out,
+        ),
         ProjectTopLevel::Project {
             command:
                 ProjectCommand::TestCellPatchComplementarity {

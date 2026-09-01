@@ -31,6 +31,7 @@ pub struct InhomogeneousSpatialAnalysisNode<'a> {
     inputs: [ArtifactRef; 3],
     configuration_digest: ContentDigest,
     implementation_identity: String,
+    execution_policy: Vec<u8>,
 }
 
 impl<'a> InhomogeneousSpatialAnalysisNode<'a> {
@@ -50,6 +51,15 @@ impl<'a> InhomogeneousSpatialAnalysisNode<'a> {
                 .register_reference(artifact.clone())
                 .map_err(NodeError::input)?;
         }
+        let cross_fit = config.cross_fit_folds().map_or_else(
+            || "leave-one-out-n-over-n-minus-one".to_owned(),
+            |folds| format!("balanced-cell-id-rank-{folds}-fold"),
+        );
+        let implementation_version = if config.cross_fit_folds().is_some() {
+            "inhomogeneous-spatial-node-v2"
+        } else {
+            "inhomogeneous-spatial-node-v1"
+        };
         Ok(Self {
             spec: NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?,
             pattern,
@@ -58,9 +68,14 @@ impl<'a> InhomogeneousSpatialAnalysisNode<'a> {
             inputs,
             configuration_digest: config_ref.digest(),
             implementation_identity: format!(
-                "marklab/{};adapter=inhomogeneous-spatial-node-v1",
-                env!("CARGO_PKG_VERSION")
+                "marklab/{};adapter={implementation_version}",
+                env!("CARGO_PKG_VERSION"),
             ),
+            execution_policy: if config.cross_fit_folds().is_some() {
+                format!("serial;gaussian-2d;{cross_fit};cell-centred-window-quadrature;standard-border-inverse-intensity-ratio;fixed-gridded-inhomogeneous-binomial;erl").into_bytes()
+            } else {
+                POLICY.to_vec()
+            },
         })
     }
 
@@ -97,7 +112,7 @@ impl WorkflowNode for InhomogeneousSpatialAnalysisNode<'_> {
     fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
         CacheKeyMaterial {
             configuration_digest: self.configuration_digest,
-            execution_policy: POLICY,
+            execution_policy: &self.execution_policy,
             implementation_identity: &self.implementation_identity,
         }
     }
@@ -159,6 +174,8 @@ struct ConfigArtifact<'a> {
     seed: u64,
     alpha: f64,
     minimum_intensity_per_um2: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cross_fit_folds: Option<usize>,
     limits: InhomogeneousSpatialLimits,
     logical_digest: String,
 }
@@ -172,6 +189,7 @@ fn config_artifact(config: &InhomogeneousSpatialConfig) -> Result<ArtifactRef, N
         seed: config.seed(),
         alpha: config.alpha(),
         minimum_intensity_per_um2: config.minimum_intensity_per_um2(),
+        cross_fit_folds: config.cross_fit_folds(),
         limits: config.limits(),
         logical_digest: configuration_digest(config).to_string(),
     })

@@ -24,6 +24,7 @@ pub(super) struct Request {
     pub target_level: String,
     pub radii_um: Vec<f64>,
     pub intensity_bandwidth_um: f64,
+    pub cross_fit_folds: Option<usize>,
     pub pair_bandwidth_um: f64,
     pub integration_grid: [usize; 2],
     pub simulations: usize,
@@ -63,16 +64,30 @@ pub(super) fn run_project(request: Request) -> Result<()> {
         prepared.memory_bytes,
     )
     .map_err(|error| MarklabError::Validation(error.to_string()))?;
-    let intensity = InhomogeneousSpatialConfig::new(
-        request.radii_um,
-        request.intensity_bandwidth_um,
-        request.integration_grid,
-        request.simulations,
-        request.seed,
-        request.alpha,
-        request.minimum_intensity_per_um2,
-        limits,
-    )
+    let intensity = if let Some(folds) = request.cross_fit_folds {
+        InhomogeneousSpatialConfig::new_cross_fitted(
+            request.radii_um,
+            request.intensity_bandwidth_um,
+            request.integration_grid,
+            folds,
+            request.simulations,
+            request.seed,
+            request.alpha,
+            request.minimum_intensity_per_um2,
+            limits,
+        )
+    } else {
+        InhomogeneousSpatialConfig::new(
+            request.radii_um,
+            request.intensity_bandwidth_um,
+            request.integration_grid,
+            request.simulations,
+            request.seed,
+            request.alpha,
+            request.minimum_intensity_per_um2,
+            limits,
+        )
+    }
     .map_err(|error| MarklabError::Validation(error.to_string()))?;
     let config = InhomogeneousCategoricalCrossPairCorrelationConfig::new(
         intensity,

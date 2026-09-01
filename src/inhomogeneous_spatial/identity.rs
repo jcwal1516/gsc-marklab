@@ -29,7 +29,10 @@ pub(super) fn into_intensity_summary(
     Ok(InhomogeneousIntensitySummary {
         estimator: "gaussian_kernel".into(),
         kernel: "isotropic_gaussian_2d".into(),
-        cross_fit: "leave_one_out_n_over_n_minus_one".into(),
+        cross_fit: config.cross_fit_folds.map_or_else(
+            || "leave_one_out_n_over_n_minus_one".into(),
+            |folds| format!("balanced_cell_id_rank_{folds}_fold"),
+        ),
         boundary_correction: "deterministic_cell_center_quadrature".into(),
         bandwidth_um: config.bandwidth_um,
         integration_grid: config.integration_grid,
@@ -109,6 +112,15 @@ pub(super) fn retained_bytes(
         .and_then(|value| value.checked_add(radius_work))
         .and_then(|value| value.checked_add(unique_work))
         .and_then(|value| value.checked_add(erl))
+        .and_then(|value| {
+            config.cross_fit_folds.map_or(Some(value), |folds| {
+                value.checked_add(
+                    points
+                        .checked_add(folds)?
+                        .checked_mul(std::mem::size_of::<usize>())?,
+                )
+            })
+        })
         .ok_or(InhomogeneousSpatialError::SizeOverflow)
 }
 
@@ -149,6 +161,10 @@ pub(crate) fn configuration_digest(config: &InhomogeneousSpatialConfig) -> Conte
             .to_be_bytes()
             .to_vec(),
     ]);
+    if let Some(folds) = config.cross_fit_folds {
+        fields.push(b"balanced-cell-id-rank-cross-fit".to_vec());
+        fields.push((folds as u128).to_be_bytes().to_vec());
+    }
     ContentDigest::from_framed(fields.iter().map(Vec::as_slice))
 }
 
@@ -160,14 +176,26 @@ pub(crate) fn intensity_result_digest(
     fixed_grid: &[InhomogeneousIntensityGridPoint],
 ) -> ContentDigest {
     let mut fields = vec![
-        b"marklab-leave-one-out-gaussian-intensity-v1".to_vec(),
+        if config.cross_fit_folds.is_some() {
+            b"marklab-cross-fitted-gaussian-intensity-v1".to_vec()
+        } else {
+            b"marklab-leave-one-out-gaussian-intensity-v1".to_vec()
+        },
         window.descriptor().logical_digest.as_bytes().to_vec(),
         config.bandwidth_um.to_bits().to_be_bytes().to_vec(),
         (config.integration_grid[0] as u128).to_be_bytes().to_vec(),
         (config.integration_grid[1] as u128).to_be_bytes().to_vec(),
         (fixed_grid.len() as u128).to_be_bytes().to_vec(),
     ];
+    if let Some(folds) = config.cross_fit_folds {
+        fields.push((folds as u128).to_be_bytes().to_vec());
+    }
     for (row, point) in points.iter().enumerate() {
+        if config.cross_fit_folds.is_some() {
+            if let Some(ids) = pattern.cell_ids.as_deref() {
+                fields.push(ids[row].as_bytes().to_vec());
+            }
+        }
         fields.push(pattern.x_um[row].to_bits().to_be_bytes().to_vec());
         fields.push(pattern.y_um[row].to_bits().to_be_bytes().to_vec());
         fields.push(point.intensity_per_um2.to_bits().to_be_bytes().to_vec());
@@ -187,13 +215,20 @@ pub(crate) fn fixed_grid_digest(
     fixed_grid: &[InhomogeneousIntensityGridPoint],
 ) -> ContentDigest {
     let mut fields = vec![
-        b"marklab-fixed-gaussian-intensity-grid-v1".to_vec(),
+        if config.cross_fit_folds.is_some() {
+            b"marklab-cross-fitted-gaussian-intensity-grid-v1".to_vec()
+        } else {
+            b"marklab-fixed-gaussian-intensity-grid-v1".to_vec()
+        },
         window.descriptor().logical_digest.as_bytes().to_vec(),
         config.bandwidth_um.to_bits().to_be_bytes().to_vec(),
         (config.integration_grid[0] as u128).to_be_bytes().to_vec(),
         (config.integration_grid[1] as u128).to_be_bytes().to_vec(),
         (fixed_grid.len() as u128).to_be_bytes().to_vec(),
     ];
+    if let Some(folds) = config.cross_fit_folds {
+        fields.push((folds as u128).to_be_bytes().to_vec());
+    }
     for point in fixed_grid {
         fields.push((point.probe_index as u128).to_be_bytes().to_vec());
         fields.push(point.x_um.to_bits().to_be_bytes().to_vec());

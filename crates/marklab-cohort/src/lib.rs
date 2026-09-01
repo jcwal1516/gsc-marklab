@@ -17,6 +17,7 @@ mod functional_equivalence;
 mod hierarchical_bootstrap;
 mod inference_design;
 mod max_t;
+mod max_t_calibration;
 mod mmd;
 mod multisite;
 mod multisite_covariate;
@@ -88,6 +89,10 @@ pub use max_t::{
     max_t_multiple_endpoint_step_down_permutation, HierarchicalMaxTEndpointResult,
     HierarchicalMaxTFamilyResult, HierarchicalMaxTResult, MaxTCorrection, MaxTEndpointResult,
     MaxTPermutationResult, MaxTPermutationSpec, OrderedEndpointFamily, PatientEndpointVector,
+};
+pub use max_t_calibration::{
+    exact_max_t_calibration, MaxTCalibrationMethodResult, MaxTCalibrationRecord,
+    MaxTCalibrationResult, MaxTCalibrationSpec, MaxTCalibrationWork,
 };
 pub use mmd::{
     patient_level_blocked_mmd, patient_level_mmd, BlockedMmdPermutationResult, Fingerprint,
