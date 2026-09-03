@@ -3986,3 +3986,25 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   increment, so it remains diagnostic and is not retuned or promoted. Balanced molecular-group
   selection supports model diagnostics, not population prevalence, causality, communication, or
   clinical discrimination.
+
+## DEC-0407 — Analyze CRC spatial phenotypes only at the patient population unit
+
+- Date: 2026-08-28
+- Status: accepted for CRC-SPATIAL-PHENOTYPE-OUTCOME-01/COH-01/FND-06/WS-34
+- Decision: admit one bounded retrospective CRC result adapter over the existing hash-sealed TCGA,
+  CPTAC, Schürch, and Stanford–Intermountain artifacts. Construct all spatial phenotypes without
+  outcomes; retain fields, slides, cores, ROIs, cells, and graph edges only as repeated measurements;
+  summarize repeated-unit reproducibility with patient-first bootstrap; compare MSI or recurrence by
+  whole-patient label permutation; and fit Cox models only where a genuine patient event indicator
+  and follow-up/censoring time are both present. Exclude exact nonpositive follow-up times from Cox
+  risk sets with an explicit count while retaining those patients in cohort/event accounting. TCGA
+  PFI is primary, OS is secondary, Schürch OS/DFS are small-cohort validation endpoints, and Stanford
+  `DaysSurvival` is forbidden as a survival endpoint because its censoring indicator is absent. Use
+  Breslow ties, complete patient rows, fixed adjustment for age/sex/stage/location/MSI where
+  supported, and BH correction within each cohort-endpoint phenotype family.
+- Consequences: the four prespecified questions—within-tumor heterogeneity, tumor–tumor dependence,
+  tumor–immune/stroma ecology, and reproducibility/outcome association—gain one provenance-sealed
+  patient-level analysis path without treating lower-level observations as population replicates.
+  The result remains retrospective and exploratory; it does not claim genetic clones, causal
+  treatment effects, clinical utility, direct CODEX/CellViT feature correspondence, independent
+  patch tensors, or fabricated survival, recurrence, MMR, BRAF, CIMP, CMS, or Lynch variables.
