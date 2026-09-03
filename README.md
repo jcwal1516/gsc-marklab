@@ -1,17 +1,48 @@
 # Marklab
 
-`marklab` is a Rust library and CLI for section-level spatial analysis of marked
-cell patterns in pathology. It reports organization, dispersion, anisotropy,
-multiscale residual diagnostics, and descriptive pre/post differences relative to
-fixed-position random labeling. The current multimodal workflow has first-class
-MMR-IHC inputs, but the core marked-pattern analysis is not tied to one marker.
+[![CI](https://github.com/jcwal1516/gsc-marklab/actions/workflows/ci.yml/badge.svg)](https://github.com/jcwal1516/gsc-marklab/actions/workflows/ci.yml)
+[![Release](https://github.com/jcwal1516/gsc-marklab/actions/workflows/release.yml/badge.svg)](https://github.com/jcwal1516/gsc-marklab/actions/workflows/release.yml)
+[![Calibration](https://github.com/jcwal1516/gsc-marklab/actions/workflows/calibration.yml/badge.svg)](https://github.com/jcwal1516/gsc-marklab/actions/workflows/calibration.yml)
+[![Rust 1.96](https://img.shields.io/badge/rust-1.96.0-b7410e.svg)](rust-toolchain.toml)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
-It does not prove clonality, track the same cells between sections, infer MMR
-gain or loss, perform segmentation, or determine molecular MMR status.
+**Section-level spatial statistics for marked cell patterns in pathology.**
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/marklab-overview-dark.svg">
+    <img src="docs/assets/marklab-overview-light.svg" width="100%"
+         alt="marklab analyze output on a synthetic marked pattern: a tissue window with marked and unmarked cells and 123 detected residual territories; scale-energy bands falling outside their permutation envelopes at p_global 0.001; and the whitened spectrum with a low-k excess of 2.61.">
+  </picture>
+</p>
+
+<p align="center">
+  <sub><code>marklab analyze</code> on a <a href="docs/assets/make_synthetic_input.py">synthetic</a> pattern
+  (6,460 cells, 999 permutations, shipped <a href="examples/config.toml">examples/config.toml</a>).
+  Every plotted value is read from the run's <code>result.json</code>. Not patient data.</sub>
+</p>
+
+Marklab is a Rust library and CLI that reports organization, dispersion, anisotropy,
+multiscale residual diagnostics, and descriptive pre/post differences relative to
+fixed-position random labeling. The multimodal workflow has first-class MMR-IHC
+inputs, but the core marked-pattern analysis is not tied to one marker.
+
+## Scope
+
+| Marklab does | Marklab does not |
+| --- | --- |
+| Quantify organization, dispersion, and anisotropy of marked patterns | Prove clonality |
+| Report multiscale residual diagnostics as typed, named heuristics | Track the same cells between sections |
+| Compare pre/post sections descriptively | Infer MMR gain or loss |
+| Run permutation inference against fixed-position random labeling | Perform segmentation |
+| Read WSI metadata and extract bounded RGBA regions | Determine molecular MMR status |
+
+Every reported endpoint is typed as available or unavailable with a reason. Degenerate
+inputs produce typed results rather than silent fallbacks.
 
 ## Requirements
 
-- Rust 1.96
+- Rust 1.96 (pinned in [`rust-toolchain.toml`](rust-toolchain.toml))
 - The committed lockfile for official CLI and release-archive builds
 - Optional `wsi` feature for slide inspection and bounded RGBA region extraction
 
@@ -22,11 +53,13 @@ cargo +1.96.0 build --locked --features wsi
 cargo +1.96.0 test --all-features
 ```
 
-The default feature set includes the CLI, parallel execution, CSV, and Parquet.
-WSI is intentionally default-off for library users. Official release binaries
-enable it with `--features wsi --locked`.
+The default feature set is `cli`, `parallel`, `csv`, and `parquet`. WSI is intentionally
+default-off for library users; official release binaries enable it with
+`--features wsi --locked`.
 
-## Analyze a marked pattern
+## Quick start
+
+Analyze a marked pattern:
 
 ```bash
 marklab analyze \
@@ -36,51 +69,74 @@ marklab analyze \
   --out out/case_001_post
 ```
 
-## Run the classical spatial-pathology workflow
+Run the classical spatial-pathology workflow (homogeneous Ripley K/L with border
+correction and deterministic CSR):
 
 ```bash
 marklab classical \
-  --cells cells.parquet \
-  --mask tumor_mask.geojson \
-  --out out/case_001_classical \
-  --r-max-um 100 \
-  --r-steps 50 \
-  --simulations 999 \
-  --seed 123456789 \
-  --alpha 0.05 \
-  --memory-budget-mib 512 \
-  --max-pair-visits 100000000 \
-  --max-csr-draws 10000000
+  --cells cells.parquet --mask tumor_mask.geojson --out out/case_001_classical \
+  --r-max-um 100 --r-steps 50 --simulations 999 --seed 123456789 --alpha 0.05 \
+  --memory-budget-mib 512 --max-pair-visits 100000000 --max-csr-draws 10000000
 ```
 
-This command estimates homogeneous Ripley K and L for the retained unmarked
-point pattern in the supplied exact 2-D MultiPolygon window. It uses the
-standard border correction and deterministic homogeneous CSR conditional on
-the observed point count; the randomization unit is the whole location
-pattern. The atomic output directory contains `result.json`,
-`run_manifest.json`, and `report.md`. The result belongs to the separate strict
-`marklab.classical_spatial` version-one family and does not change result format
-0.3.
+Inspect a slide and extract a region (requires `--features wsi`):
 
-Zero retained points and singletons produce a typed `insufficient_points`
-result. Malformed topology, outside or duplicate retained coordinates, invalid
-radii/null settings, and exhausted memory, pair-visit, or CSR-draw limits fail
-without committing an output directory. Full input, estimator, availability,
-and interpretation details are in the
-[classical spatial workflow reference](docs/classical-spatial-workflow.md).
+```bash
+marklab inspect-slide slide.svs --output metadata.json
+marklab extract-region slide.svs \
+  --scene 0 --series 0 --level 0 --z 0 --c 0 --t 0 \
+  --x 0 --y 0 --width 1024 --height 1024 --output region.png
+```
 
-The supported Rust entry point is:
+From Rust:
 
 ```rust
-use marklab::{AnalysisConfig, AnalysisEngine, Pattern};
+use marklab::{AnalysisConfig, AnalysisEngine, MarkedPatternResult, Pattern};
 
-# fn run(pattern: Pattern) -> marklab::Result<()> {
-let engine = AnalysisEngine::new(AnalysisConfig::default())?;
-let result = engine.analyze_pattern(&pattern)?;
-# let _ = result;
-# Ok(())
-# }
+fn run(pattern: &Pattern) -> marklab::Result<MarkedPatternResult> {
+    let engine = AnalysisEngine::new(AnalysisConfig::default())?;
+    engine.analyze_pattern(pattern)
+}
 ```
+
+## Command surface
+
+| Family | Commands |
+| --- | --- |
+| Core analysis | `analyze`, `batch`, `prepost`, `classical`, `nearest-space` |
+| Multimodal | `multimodal` (registration, factor models, cross-interaction) |
+| Cohort and population | `cohort` |
+| Bayesian | `bayes`, `project` (hierarchical models, SBC, sensitivity) |
+| Causal and longitudinal | `causal`, `longitudinal` |
+| Geometry and structure | `spatial3d`, `topology`, `graph`, `registration` |
+| Simulation | `simulate`, `neural` |
+| Operations | `smoke`, `policy`, `numerics`, `profile-plan` |
+| WSI | `inspect-slide`, `extract-region` |
+
+Run `marklab <family> --help` for the subcommands and required flags of each family.
+
+## Workspace
+
+| Crate | Purpose |
+| --- | --- |
+| [`marklab-core`](crates/marklab-core) | Typed identities and foundational contracts |
+| [`marklab-data`](crates/marklab-data) | Typed cohort hierarchy and data contracts |
+| [`marklab-numerics`](crates/marklab-numerics) | Stable bounded numerical primitives |
+| [`marklab-project`](crates/marklab-project) | Content identity and minimal project state |
+| [`marklab-workflow`](crates/marklab-workflow) | Typed local workflow graph and scheduler |
+| [`marklab-embeddings`](crates/marklab-embeddings) | Canonical embedding artifacts and bounded import |
+| [`marklab-cohort`](crates/marklab-cohort) | Cohort-valid population inference |
+| [`marklab-bayes`](crates/marklab-bayes) | Typed Bayesian model and fit contracts |
+| [`marklab-sbi`](crates/marklab-sbi) | Bounded simulation-based inference workflows |
+| [`marklab-simulation`](crates/marklab-simulation) | Mechanistic tissue simulation contracts and solvers |
+| [`marklab-causal`](crates/marklab-causal) | Bounded causal-design research workflows |
+| [`marklab-longitudinal`](crates/marklab-longitudinal) | Bounded longitudinal state-space workflows |
+| [`marklab-spatial3d`](crates/marklab-spatial3d) | Dimension-aware bounded 3-D spatial statistics |
+| [`marklab-graph`](crates/marklab-graph) | Canonical bounded graph mathematics |
+| [`marklab-topology`](crates/marklab-topology) | Pinned-backend topology workflows |
+| [`marklab-policy`](crates/marklab-policy) | Machine-readable execution and maturity policies |
+
+## Results
 
 Result documents use format 0.3:
 
@@ -95,89 +151,35 @@ Result documents use format 0.3:
 }
 ```
 
-`ResultDocument::from_json` converts supported 0.2 marked-pattern documents to
-0.3 in memory. It rejects 0.2 multimodal documents, populated legacy
-multimodal placeholders inside marked results, and populated legacy curve tests
-because those states cannot be converted without guessing. The exact
-compatibility boundary is documented in
-[the 0.3 format reference](docs/result-format-0.3.md).
+Run directories are committed transactionally: artifacts are written to a temporary
+sibling on the same filesystem and only then promoted, so a failed write never appears
+as a successful output directory. `ResultDocument::from_json` converts supported 0.2
+marked-pattern documents to 0.3 in memory and rejects states that cannot be converted
+without guessing. Both pre/post commands accept either a `result.json` file or its
+containing directory.
 
-Both pre/post commands accept either a `result.json` file or its containing
-result directory. Their `prepost.json` output is itself a format 0.3 result
-document with a distinct marked or multimodal comparison kind.
+The [`marklab.classical_spatial`](docs/classical-spatial-workflow.md) family is
+versioned separately from format 0.3 and does not affect it.
 
-For configured stratified marked analyses, format 0.3 also persists the
-unstratified sensitivity inference alongside the stratified primary inference
-in `spectrum_null_sensitivity`, including a typed confounding conclusion and
-typed unavailable states for degenerate strata.
+## Documentation
 
-Run directories are committed transactionally from a temporary sibling on the
-same filesystem. Failed writes are cleaned up and never appear as a successful
-final directory. An existing empty directory may be replaced; a non-empty or
-symbolic-link target is rejected rather than overwritten.
+| Document | Contents |
+| --- | --- |
+| [SPEC.md](SPEC.md) | Implemented configuration, inference, result, and WSI contracts |
+| [docs/result-format-0.3.md](docs/result-format-0.3.md) | Result schema, availability rules, endpoint definitions, 0.2 compatibility boundary |
+| [docs/public-api.md](docs/public-api.md) | Supported crate-root Rust surface |
+| [docs/classical-spatial-workflow.md](docs/classical-spatial-workflow.md) | Ripley K/L inputs, estimator, window, and interpretation boundary |
+| [docs/validation-methodology.md](docs/validation-methodology.md) | Smoke suites, scheduled random-label calibration, and acceptance rules |
+| [docs/dependency_advisories.md](docs/dependency_advisories.md) | Reviewed dependency exceptions |
 
-For multimodal serial-section analysis, `registration.transform = "rigid"`
-fits a two-dimensional rotation and translation without scale or reflection.
-Use `"affine"` only when scale or shear is part of the intended registration
-model.
+Endpoint methodology — the multiscale residual heuristic, the Hann-tapered raster
+periodogram, window length scales, cross-interaction envelopes, and the rigid/affine
+registration models — is specified in [SPEC.md](SPEC.md) and
+[docs/result-format-0.3.md](docs/result-format-0.3.md). None of these are wavelet,
+Difference-of-Gaussians, or Bartlett estimators, and the documents name what each one
+actually computes.
 
-Multimodal cross-interaction curves build one indexed physical pair/bin plan
-per run and reuse it across configured label pairs and permutations. Empty
-geometric bins are typed unavailable; reported global bounds and `p_global`
-use extreme-rank-length global-envelope inference. The configured multimodal
-memory budget is enforced before and during output-sensitive graph and
-neighborhood-plan construction rather than reported only after completion.
+## License
 
-The multiscale residual diagnostic is a documented heuristic, not a wavelet or
-Difference-of-Gaussians transform. It combines local neighbor-difference energy,
-variance of 2x2 block means, and a residual share, then evaluates the resulting
-three-point scale-energy curve under label permutations.
-
-The optional raster spectral cross-check is a single Hann-tapered 2-D
-periodogram, not a Bartlett averaged-periodogram estimator. It averages mode
-power within physical radial-frequency shells before summarizing the requested
-lowest shells.
-
-The reported `analysis_effective_length_um` is the tumor mask's
-equivalent-area diameter. Component analyses and mask-less programmatic inputs
-use the cell-coordinate bounding-box diagonal. Every endpoint derives its
-maximum interpretable scale from that named length through the same configured
-fraction.
-
-`marklab smoke` runs deterministic production-pipeline smoke checks. Marked
-scenarios invoke `AnalysisEngine`; multimodal scenarios construct H&E/IHC
-cells and landmarks, invoke `MultimodalEngine`, and use the production pre/post
-comparison service where applicable. `smoke.json` reports attempted,
-completed, and failed replicates, failure reasons, Wilson intervals, the seed,
-configuration, and engine version. The quick suite is not formal calibration;
-the scheduled random-label calibration and its acceptance rule are documented
-in [docs/validation-methodology.md](docs/validation-methodology.md).
-
-The supported crate-root Rust surface and result availability rules are listed
-in [docs/public-api.md](docs/public-api.md).
-
-## WSI commands
-
-```bash
-marklab inspect-slide slide.svs
-marklab inspect-slide slide.svs --output metadata.json
-marklab extract-region slide.svs \
-  --scene 0 --series 0 --level 0 --z 0 --c 0 --t 0 \
-  --x 0 --y 0 --width 1024 --height 1024 \
-  --output region.png
-```
-
-Coordinates are unsigned, level-relative pixels. Extraction rejects invalid
-indices, zero dimensions, overflow, out-of-bounds regions, unsupported non-U8
-sample types, and requests above 16,777,216 pixels before decode. Output is
-straight interleaved RGBA8. Existing PNGs require `--force` to overwrite.
-
-## Contracts and non-goals
-
-See [SPEC.md](SPEC.md) for the implemented configuration, inference, result,
-and WSI contracts. Result changes are tracked in
-[the 0.3 format reference](docs/result-format-0.3.md). Reviewed dependency
-exceptions are recorded in
-[docs/dependency_advisories.md](docs/dependency_advisories.md).
-
-Licensed under MIT or Apache-2.0.
+Licensed under either of [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE) at your
+option.
