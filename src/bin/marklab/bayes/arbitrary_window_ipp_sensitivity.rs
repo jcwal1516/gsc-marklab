@@ -255,3 +255,7 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
 fn standardized(summary: &SarScalarSummary, baseline: f64, baseline_sd: f64) -> f64 {
     (summary.mean - baseline).abs() / baseline_sd.max(f64::EPSILON)
 }
+
+pub(super) fn cli_route() -> crate::command_tree::Route {
+    crate::command_tree::Route::new::<SensitivityCli>(|| run_cli().map_err(super::into_marklab_error))
+}

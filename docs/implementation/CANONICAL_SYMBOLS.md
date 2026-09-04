@@ -1,5 +1,10 @@
 # Canonical symbols and ownership
 
+ARCH-INTEGRATION-01 current ownership: `src/bin/marklab/command_tree.rs` owns composed command
+discovery, validation, and execution routing; each existing CLI schema/adapter owns its typed
+arguments and handler. `src/cli.rs::cli_command` is the hidden CLI-feature bridge consumed only by
+the executable. Numerical, result, project, and backend owners are unchanged at this outcome.
+
 Rows are characterization records at the implementation base. `Active task = none` means read-only during WS-A. A-03 verifies exact callers and tests before WS-B.
 
 | Canonical owner/symbol | Location | Contract | Principal callers | Tests/evidence | Active task |

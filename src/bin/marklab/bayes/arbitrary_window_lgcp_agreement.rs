@@ -539,3 +539,7 @@ fn read(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
         source,
     })
 }
+
+pub(super) fn cli_route() -> crate::command_tree::Route {
+    crate::command_tree::Route::new::<AgreementCli>(|| run_cli().map_err(super::into_marklab_error))
+}

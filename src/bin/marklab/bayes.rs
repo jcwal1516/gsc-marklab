@@ -44,170 +44,43 @@ pub(super) use arbitrary_window_lgcp_fit::{
     FitResult as ArbitraryWindowLgcpFitResult, PreparedArbitraryWindowLgcpFit,
 };
 
-pub(super) fn run_arbitrary_window_ipp_cli() -> Result<(), BayesCliError> {
-    arbitrary_window_ipp::run_cli()
-}
 
-pub(super) fn run_arbitrary_window_lgcp_fit_cli() -> Result<(), BayesCliError> {
-    arbitrary_window_lgcp_fit::run_cli()
-}
 
-pub(super) fn run_arbitrary_window_lgcp_agreement_cli() -> Result<(), BayesCliError> {
-    arbitrary_window_lgcp_agreement::run_cli()
-}
 
-pub(super) fn run_arbitrary_window_lgcp_quadrature_sensitivity_cli() -> Result<(), BayesCliError> {
-    arbitrary_window_lgcp_quadrature_sensitivity::run_cli()
-}
 
-pub(super) fn run_arbitrary_window_lgcp_sbc_cli() -> Result<(), BayesCliError> {
-    arbitrary_window_lgcp_sbc::run_cli()
-}
 
-pub(super) fn run_replicated_arbitrary_window_lgcp_fit_cli() -> Result<(), BayesCliError> {
-    replicated_arbitrary_window_lgcp_fit::run_cli()
-}
 
-pub(super) fn run_replicated_arbitrary_window_lgcp_inferred_kernel_cli() -> Result<(), BayesCliError>
-{
-    replicated_arbitrary_window_lgcp_inferred_kernel::run_cli()
-}
 
-pub(super) fn run_replicated_arbitrary_window_lgcp_inferred_kernel_agreement_cli(
-) -> Result<(), BayesCliError> {
-    replicated_arbitrary_window_lgcp_inferred_kernel_agreement::run_cli()
-}
 
-pub(super) fn run_replicated_arbitrary_window_lgcp_inferred_kernel_sbc_cli(
-) -> Result<(), BayesCliError> {
-    replicated_arbitrary_window_lgcp_inferred_kernel_sbc::run_cli()
-}
 
-pub(super) fn run_conditional_multitype_mark_cli() -> Result<(), BayesCliError> {
-    conditional_multitype_mark::run_cli()
-}
 
-pub(super) fn run_conditional_multitype_mark_agreement_cli() -> Result<(), BayesCliError> {
-    conditional_multitype_mark_agreement::run_cli()
-}
 
-pub(super) fn run_conditional_multitype_mark_sensitivity_cli() -> Result<(), BayesCliError> {
-    conditional_multitype_mark_sensitivity::run_cli()
-}
 
-pub(super) fn run_conditional_multitype_mark_sbc_cli() -> Result<(), BayesCliError> {
-    conditional_multitype_mark_sbc::run_cli()
-}
 
-pub(super) fn run_replicated_conditional_multitype_mark_cli() -> Result<(), BayesCliError> {
-    replicated_conditional_multitype_mark::run_cli()
-}
 
-pub(super) fn run_replicated_conditional_multitype_mark_agreement_cli() -> Result<(), BayesCliError>
-{
-    replicated_conditional_multitype_mark_agreement::run_cli()
-}
 
-pub(super) fn run_replicated_conditional_multitype_mark_sensitivity_cli(
-) -> Result<(), BayesCliError> {
-    replicated_conditional_multitype_mark_sensitivity::run_cli()
-}
 
-pub(super) fn run_replicated_conditional_multitype_mark_sbc_cli() -> Result<(), BayesCliError> {
-    replicated_conditional_multitype_mark_sbc::run_cli()
-}
 
-pub(super) fn run_replicated_arbitrary_window_lgcp_agreement_cli() -> Result<(), BayesCliError> {
-    replicated_arbitrary_window_lgcp_agreement::run_cli()
-}
 
-pub(super) fn run_replicated_arbitrary_window_multitype_lgcp_cli() -> Result<(), BayesCliError> {
-    replicated_arbitrary_window_multitype_lgcp::run_cli()
-}
 
-pub(super) fn run_replicated_arbitrary_window_multitype_lgcp_agreement_cli(
-) -> Result<(), BayesCliError> {
-    replicated_arbitrary_window_multitype_lgcp_agreement::run_cli()
-}
 
-pub(super) fn run_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_cli(
-) -> Result<(), BayesCliError> {
-    replicated_arbitrary_window_multitype_lgcp_inferred_kernel::run_cli()
-}
 
-pub(super) fn run_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_agreement_cli(
-) -> Result<(), BayesCliError> {
-    replicated_arbitrary_window_multitype_lgcp_inferred_kernel_agreement::run_cli()
-}
 
-pub(super) fn run_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_prior_calibration_cli(
-) -> Result<(), BayesCliError> {
-    replicated_arbitrary_window_multitype_lgcp_inferred_kernel_prior_calibration::run_cli()
-}
 
-pub(super) fn run_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc_cli(
-) -> Result<(), BayesCliError> {
-    replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc::run_cli()
-}
 
-pub(super) fn run_correlated_replicated_arbitrary_window_multitype_lgcp_cli(
-) -> Result<(), BayesCliError> {
-    correlated_replicated_arbitrary_window_multitype_lgcp::run_cli()
-}
 
-pub(super) fn run_joint_replicated_location_mark_cli() -> Result<(), BayesCliError> {
-    joint_replicated_location_mark::run_cli()
-}
 
-pub(super) fn run_joint_replicated_location_embedding_cli() -> Result<(), BayesCliError> {
-    joint_replicated_location_embedding::run_cli()
-}
 
-pub(super) fn run_replicated_arbitrary_window_multitype_lgcp_prior_calibration_cli(
-) -> Result<(), BayesCliError> {
-    replicated_arbitrary_window_multitype_lgcp_prior_calibration::run_cli()
-}
 
-pub(super) fn run_replicated_arbitrary_window_multitype_lgcp_sensitivity_cli(
-) -> Result<(), BayesCliError> {
-    replicated_arbitrary_window_multitype_lgcp_sensitivity::run_cli()
-}
 
-pub(super) fn run_replicated_arbitrary_window_lgcp_sensitivity_cli() -> Result<(), BayesCliError> {
-    replicated_arbitrary_window_lgcp_sensitivity::run_cli()
-}
 
-pub(super) fn run_replicated_arbitrary_window_lgcp_sbc_cli() -> Result<(), BayesCliError> {
-    replicated_arbitrary_window_lgcp_sbc::run_cli()
-}
 
-pub(super) fn run_arbitrary_window_lgcp_sensitivity_cli() -> Result<(), BayesCliError> {
-    arbitrary_window_lgcp_sensitivity::run_cli()
-}
 
-pub(super) fn run_arbitrary_window_ipp_fit_cli() -> Result<(), BayesCliError> {
-    arbitrary_window_ipp_fit::run_cli()
-}
 
-pub(super) fn run_arbitrary_window_ipp_agreement_cli() -> Result<(), BayesCliError> {
-    arbitrary_window_ipp_agreement::run_cli()
-}
 
-pub(super) fn run_arbitrary_window_ipp_sensitivity_cli() -> Result<(), BayesCliError> {
-    arbitrary_window_ipp_sensitivity::run_cli()
-}
 
-pub(super) fn run_arbitrary_window_ipp_quadrature_sensitivity_cli() -> Result<(), BayesCliError> {
-    arbitrary_window_ipp_quadrature_sensitivity::run_cli()
-}
 
-pub(super) fn run_arbitrary_window_ipp_sbc_cli() -> Result<(), BayesCliError> {
-    arbitrary_window_ipp_sbc::run_cli()
-}
 
-pub(super) fn run_arbitrary_window_ipp_spatial_ppc_cli() -> Result<(), BayesCliError> {
-    arbitrary_window_ipp_spatial_ppc::run_cli()
-}
 pub(crate) use arbitrary_window_ipp_spatial_ppc::{
     execute as execute_arbitrary_window_ipp_spatial_ppc,
     prepare as prepare_arbitrary_window_ipp_spatial_ppc,
@@ -554,13 +427,6 @@ mod ordinal_site_heldout;
 mod worker_process;
 
 pub(super) use cli_error::{into_marklab_error, BayesCliError};
-pub(super) use cli_schema::{
-    run_beta_binomial_group_gender_slide_hierarchy_agreement_cli,
-    run_beta_binomial_group_gender_slide_hierarchy_sbc_cli,
-    run_beta_binomial_group_gender_slide_hierarchy_sensitivity_cli, run_cli,
-    run_dirichlet_multinomial_group_agreement_cli, run_dirichlet_multinomial_group_cli,
-    run_dirichlet_multinomial_group_sbc_cli, run_dirichlet_multinomial_group_sensitivity_cli,
-};
 pub(super) use hurdle_beta_binomial_group::{
     execute as execute_hurdle_beta_binomial_group, prepare as prepare_hurdle_beta_binomial_group,
     PreparedHurdleBetaBinomialGroup,
@@ -583,28 +449,61 @@ pub(super) use ordinal_site_heldout::{
 };
 pub(super) use worker_process::{publish_json, run_worker};
 
-pub(super) fn run_ordinal_group_cli() -> Result<(), BayesCliError> {
-    ordinal_group::run_cli()
-}
 
-pub(super) fn run_gaussian_crossed_nested_hierarchy_cli() -> Result<(), BayesCliError> {
-    gaussian_crossed_nested_hierarchy::run_cli()
-}
 
-pub(super) fn run_ordinal_group_site_hierarchy_cli() -> Result<(), BayesCliError> {
-    ordinal_group_site_hierarchy::run_cli()
-}
-pub(super) fn run_ordinal_site_heldout_cli() -> Result<(), BayesCliError> {
-    ordinal_site_heldout::run_cli()
-}
-pub(super) fn run_nonproportional_ordinal_group_site_cli() -> Result<(), BayesCliError> {
-    nonproportional_ordinal_group_site::run_cli()
-}
 
-pub(super) fn run_hurdle_beta_binomial_group_cli() -> Result<(), BayesCliError> {
-    hurdle_beta_binomial_group::run_cli()
-}
 
 use normal_mean::{observations_digest, read_observations, run_normal_mean};
 
 const MAXIMUM_INPUT_BYTES: u64 = 16 * 1024 * 1024;
+
+pub(crate) fn cli_routes() -> Vec<crate::command_tree::Route> {
+    let mut routes = cli_schema::cli_routes();
+    routes.extend([
+        ordinal_group::cli_route(),
+        ordinal_group_site_hierarchy::cli_route(),
+        ordinal_site_heldout::cli_route(),
+        nonproportional_ordinal_group_site::cli_route(),
+        hurdle_beta_binomial_group::cli_route(),
+        arbitrary_window_ipp::cli_route(),
+        arbitrary_window_lgcp_fit::cli_route(),
+        arbitrary_window_lgcp_agreement::cli_route(),
+        arbitrary_window_lgcp_quadrature_sensitivity::cli_route(),
+        arbitrary_window_lgcp_sbc::cli_route(),
+        replicated_arbitrary_window_lgcp_fit::cli_route(),
+        replicated_arbitrary_window_lgcp_inferred_kernel::cli_route(),
+        replicated_arbitrary_window_lgcp_inferred_kernel_agreement::cli_route(),
+        replicated_arbitrary_window_lgcp_inferred_kernel_sbc::cli_route(),
+        conditional_multitype_mark::cli_route(),
+        conditional_multitype_mark_agreement::cli_route(),
+        conditional_multitype_mark_sensitivity::cli_route(),
+        conditional_multitype_mark_sbc::cli_route(),
+        replicated_conditional_multitype_mark::cli_route(),
+        replicated_conditional_multitype_mark_agreement::cli_route(),
+        replicated_conditional_multitype_mark_sensitivity::cli_route(),
+        replicated_conditional_multitype_mark_sbc::cli_route(),
+        replicated_arbitrary_window_multitype_lgcp::cli_route(),
+        replicated_arbitrary_window_multitype_lgcp_agreement::cli_route(),
+        replicated_arbitrary_window_multitype_lgcp_inferred_kernel_prior_calibration::cli_route(),
+        replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc::cli_route(),
+        joint_replicated_location_mark::cli_route(),
+        correlated_replicated_arbitrary_window_multitype_lgcp::cli_route(),
+        joint_replicated_location_embedding::cli_route(),
+        replicated_arbitrary_window_multitype_lgcp_inferred_kernel_agreement::cli_route(),
+        replicated_arbitrary_window_multitype_lgcp_inferred_kernel::cli_route(),
+        replicated_arbitrary_window_multitype_lgcp_prior_calibration::cli_route(),
+        replicated_arbitrary_window_multitype_lgcp_sensitivity::cli_route(),
+        replicated_arbitrary_window_lgcp_agreement::cli_route(),
+        replicated_arbitrary_window_lgcp_sensitivity::cli_route(),
+        replicated_arbitrary_window_lgcp_sbc::cli_route(),
+        arbitrary_window_lgcp_sensitivity::cli_route(),
+        arbitrary_window_ipp_fit::cli_route(),
+        arbitrary_window_ipp_agreement::cli_route(),
+        arbitrary_window_ipp_sensitivity::cli_route(),
+        arbitrary_window_ipp_quadrature_sensitivity::cli_route(),
+        arbitrary_window_ipp_sbc::cli_route(),
+        arbitrary_window_ipp_spatial_ppc::cli_route(),
+        gaussian_crossed_nested_hierarchy::cli_route(),
+    ]);
+    routes
+}

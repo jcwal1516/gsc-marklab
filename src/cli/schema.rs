@@ -7,6 +7,10 @@ pub(super) fn run_cli() -> Result<()> {
     dispatch::run_cli()
 }
 
+pub(super) fn command() -> clap::Command {
+    <Cli as clap::CommandFactory>::command()
+}
+
 #[derive(Debug, Parser)]
 #[command(
     name = "marklab",

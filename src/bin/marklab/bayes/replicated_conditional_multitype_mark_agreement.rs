@@ -524,3 +524,7 @@ fn read_bounded(path: &std::path::Path, maximum: u64) -> Result<Vec<u8>, BayesCl
         &format!("agreement input is absent or exceeds {maximum} bytes"),
     )
 }
+
+pub(super) fn cli_route() -> crate::command_tree::Route {
+    crate::command_tree::Route::new::<Cli>(|| run_cli().map_err(super::into_marklab_error))
+}

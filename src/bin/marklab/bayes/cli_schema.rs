@@ -460,6 +460,27 @@ enum DirichletMultinomialGroupSbcCommand {
 
 #[derive(Debug, Subcommand)]
 enum BayesCommand {
+    #[command(flatten)]
+    Hierarchy(HierarchyCommands),
+    #[command(flatten)]
+    Fields(FieldsCommands),
+    #[command(flatten)]
+    SimulationInference(SimulationInferenceCommands),
+    #[command(flatten)]
+    Inference(InferenceCommands),
+    #[command(flatten)]
+    PointProcesses(PointProcessesCommands),
+    #[command(flatten)]
+    Embeddings(EmbeddingsCommands),
+    #[command(flatten)]
+    Prediction(PredictionCommands),
+    #[command(flatten)]
+    Transport(TransportCommands),
+}
+
+// Flattened families preserve command paths while bounding generated parser stack frames.
+#[derive(Debug, Subcommand)]
+enum HierarchyCommands {
     NormalMean {
         #[arg(long)]
         input: PathBuf,
@@ -1240,6 +1261,10 @@ enum BayesCommand {
         #[arg(long)]
         out: PathBuf,
     },
+}
+
+#[derive(Debug, Subcommand)]
+enum FieldsCommands {
     GpRegression {
         #[arg(long)]
         input: PathBuf,
@@ -1272,7 +1297,6 @@ enum BayesCommand {
         #[arg(long)]
         out: PathBuf,
     },
-    #[command(name = "anisotropic-gp-3d")]
     AnisotropicGp3d {
         #[arg(long)]
         input: PathBuf,
@@ -1635,6 +1659,10 @@ enum BayesCommand {
         #[arg(long)]
         out: PathBuf,
     },
+}
+
+#[derive(Debug, Subcommand)]
+enum SimulationInferenceCommands {
     RejectionAbcGrowthFront {
         #[arg(long)]
         input: PathBuf,
@@ -1817,6 +1845,10 @@ enum BayesCommand {
         #[arg(long)]
         out: PathBuf,
     },
+}
+
+#[derive(Debug, Subcommand)]
+enum InferenceCommands {
     NormalMeanSmc {
         #[arg(long)]
         input: PathBuf,
@@ -1959,6 +1991,10 @@ enum BayesCommand {
         #[arg(long)]
         out: PathBuf,
     },
+}
+
+#[derive(Debug, Subcommand)]
+enum PointProcessesCommands {
     InhomogeneousPoissonLikelihood {
         #[arg(long)]
         events: PathBuf,
@@ -2713,6 +2749,10 @@ enum BayesCommand {
         #[arg(long)]
         out: PathBuf,
     },
+}
+
+#[derive(Debug, Subcommand)]
+enum EmbeddingsCommands {
     VectorSemivariogram {
         #[arg(long)]
         input: PathBuf,
@@ -2901,6 +2941,10 @@ enum BayesCommand {
         #[arg(long)]
         out: PathBuf,
     },
+}
+
+#[derive(Debug, Subcommand)]
+enum PredictionCommands {
     ApplyAbstention {
         #[arg(long)]
         input: PathBuf,
@@ -2977,6 +3021,10 @@ enum BayesCommand {
         #[arg(long)]
         out: PathBuf,
     },
+}
+
+#[derive(Debug, Subcommand)]
+enum TransportCommands {
     SinkhornOt {
         #[arg(long)]
         source: PathBuf,
@@ -3089,4 +3137,18 @@ enum BayesCommand {
         #[arg(long)]
         out: PathBuf,
     },
+}
+
+
+pub(super) fn cli_routes() -> Vec<crate::command_tree::Route> {
+    vec![
+        crate::command_tree::Route::new::<BetaBinomialGroupGenderSlideHierarchySbcCli>(|| run_beta_binomial_group_gender_slide_hierarchy_sbc_cli().map_err(into_marklab_error)),
+        crate::command_tree::Route::new::<BetaBinomialGroupGenderSlideHierarchySensitivityCli>(|| run_beta_binomial_group_gender_slide_hierarchy_sensitivity_cli().map_err(into_marklab_error)),
+        crate::command_tree::Route::new::<BetaBinomialGroupGenderSlideHierarchyAgreementCli>(|| run_beta_binomial_group_gender_slide_hierarchy_agreement_cli().map_err(into_marklab_error)),
+        crate::command_tree::Route::new::<DirichletMultinomialGroupCli>(|| run_dirichlet_multinomial_group_cli().map_err(into_marklab_error)),
+        crate::command_tree::Route::new::<DirichletMultinomialGroupAgreementCli>(|| run_dirichlet_multinomial_group_agreement_cli().map_err(into_marklab_error)),
+        crate::command_tree::Route::new::<DirichletMultinomialGroupSensitivityCli>(|| run_dirichlet_multinomial_group_sensitivity_cli().map_err(into_marklab_error)),
+        crate::command_tree::Route::new::<DirichletMultinomialGroupSbcCli>(|| run_dirichlet_multinomial_group_sbc_cli().map_err(into_marklab_error)),
+        crate::command_tree::Route::new::<BayesCli>(|| run_cli().map_err(into_marklab_error)),
+    ]
 }

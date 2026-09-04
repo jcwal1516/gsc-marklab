@@ -190,3 +190,7 @@ fn publish_json(path: &Path, result: &impl Serialize) -> Result<(), CausalCliErr
         ExclusiveJsonOutputError::Json(error) => CausalCliError::Json(error),
     })
 }
+
+pub(crate) fn cli_route() -> crate::command_tree::Route {
+    crate::command_tree::Route::new::<CausalCli>(|| run_cli().map_err(into_marklab_error))
+}

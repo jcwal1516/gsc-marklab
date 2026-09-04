@@ -584,3 +584,7 @@ fn read_bounded(path: &std::path::Path, maximum: u64) -> Result<Vec<u8>, BayesCl
         "replicated conditional-mark SBC adapter is absent or oversized",
     )
 }
+
+pub(super) fn cli_route() -> crate::command_tree::Route {
+    crate::command_tree::Route::new::<Cli>(|| run_cli().map_err(super::into_marklab_error))
+}

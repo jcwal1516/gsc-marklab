@@ -593,3 +593,7 @@ fn validate_point_process(spec: &NeuralPointProcessSpec) -> Result<(), TopologyC
 pub(crate) fn into_marklab_error(error: TopologyCliError) -> marklab::MarklabError {
     marklab::MarklabError::Validation(error.to_string())
 }
+
+pub(crate) fn cli_route() -> crate::command_tree::Route {
+    crate::command_tree::Route::new::<NeuralCli>(|| run_cli().map_err(into_marklab_error))
+}

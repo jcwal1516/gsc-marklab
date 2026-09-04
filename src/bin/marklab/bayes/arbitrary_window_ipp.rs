@@ -186,3 +186,7 @@ fn map_error(error: ArbitraryWindowIppError) -> BayesCliError {
         ArbitraryWindowIppError::Numerical(message) => BayesCliError::Backend(message),
     }
 }
+
+pub(super) fn cli_route() -> crate::command_tree::Route {
+    crate::command_tree::Route::new::<ArbitraryWindowIppCli>(|| run_cli().map_err(super::into_marklab_error))
+}

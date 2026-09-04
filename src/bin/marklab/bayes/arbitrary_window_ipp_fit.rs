@@ -524,3 +524,7 @@ fn scalar_valid(value: &SarScalarSummary, positive: bool) -> bool {
 fn equal(left: f64, right: f64) -> bool {
     (left - right).abs() <= 1e-12 * left.abs().max(right.abs()).max(1.0)
 }
+
+pub(super) fn cli_route() -> crate::command_tree::Route {
+    crate::command_tree::Route::new::<FitCli>(|| run_cli().map_err(super::into_marklab_error))
+}

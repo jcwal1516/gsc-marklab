@@ -506,3 +506,7 @@ fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
         "replicated multitype LGCP prior-calibration adapter is absent or oversized",
     )
 }
+
+pub(super) fn cli_route() -> crate::command_tree::Route {
+    crate::command_tree::Route::new::<Cli>(|| run_cli().map_err(super::into_marklab_error))
+}

@@ -208,3 +208,7 @@ fn publish_json(path: &Path, result: &impl Serialize) -> Result<(), Spatial3dCli
         ExclusiveJsonOutputError::Json(error) => Spatial3dCliError::Json(error),
     })
 }
+
+pub(crate) fn cli_route() -> crate::command_tree::Route {
+    crate::command_tree::Route::new::<Spatial3dCli>(|| run_cli().map_err(into_marklab_error))
+}

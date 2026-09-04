@@ -147,3 +147,7 @@ fn publish_json(path: &Path, result: &impl Serialize) -> Result<(), NumericsCliE
         ExclusiveJsonOutputError::Json(error) => NumericsCliError::Json(error),
     })
 }
+
+pub(crate) fn cli_route() -> crate::command_tree::Route {
+    crate::command_tree::Route::new::<NumericsCli>(|| run_cli().map_err(into_marklab_error))
+}

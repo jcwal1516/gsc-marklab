@@ -327,3 +327,7 @@ fn rms_difference(left: impl Iterator<Item = f64>, right: impl Iterator<Item = f
         .collect::<Vec<_>>();
     (differences.iter().sum::<f64>() / differences.len() as f64).sqrt()
 }
+
+pub(super) fn cli_route() -> crate::command_tree::Route {
+    crate::command_tree::Route::new::<SensitivityCli>(|| run_cli().map_err(super::into_marklab_error))
+}

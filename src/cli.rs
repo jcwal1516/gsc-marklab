@@ -80,3 +80,8 @@ use schema::HeInputFormat;
 pub fn run_cli() -> Result<()> {
     schema::run_cli()
 }
+
+/// Build the compatibility command schema for composition by the executable.
+pub fn cli_command() -> clap::Command {
+    schema::command()
+}

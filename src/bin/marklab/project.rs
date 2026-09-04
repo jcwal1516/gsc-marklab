@@ -10120,3 +10120,7 @@ mod tests {
         assert!(descriptor.validate_request_backend(&wrong_backend).is_err());
     }
 }
+
+pub(crate) fn cli_route() -> crate::command_tree::Route {
+    crate::command_tree::Route::new::<ProjectCli>(|| run_cli().map_err(bayes::into_marklab_error))
+}

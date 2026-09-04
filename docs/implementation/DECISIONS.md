@@ -4008,3 +4008,19 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   The result remains retrospective and exploratory; it does not claim genetic clones, causal
   treatment effects, clinical utility, direct CODEX/CellViT feature correspondence, independent
   patch tensors, or fabricated survival, recurrence, MMR, BRAF, CIMP, CMS, or Lynch variables.
+
+## DEC-0408 — Compose the existing CLI schemas into one discoverable command tree
+
+- Date: 2026-09-04
+- Status: accepted for ARCH-INTEGRATION-01/PLAT-01/WS-90/WS-92
+- Decision: derive command discovery and routing from the already-owned Clap schemas. Compose
+  disjoint method leaves under their common families, retain typed decoding/execution handlers,
+  and remove the binary's separately maintained command-name routing lists. Expose only the
+  feature-gated, documentation-hidden legacy command builder needed immediately by the binary.
+- Consequences: root, family, nested, and help-subcommand discovery describe the same supported
+  methods. Existing arguments, feature boundaries, scientific formulas, result formats, and
+  dependency versions remain unchanged. This is CLI composition, not a scientific plugin registry
+  or a new public stable analysis API.
+- The old 99-variant Bayesian parser overflows its generated debug-build augmentation stack when
+  the full catalog is composed. Flatten eight scientific families within the existing schema;
+  this preserves every argument declaration and command path while bounding generated frames.

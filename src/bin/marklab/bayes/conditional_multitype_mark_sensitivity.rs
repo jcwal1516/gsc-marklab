@@ -288,3 +288,7 @@ fn run(args: Args) -> Result<(), BayesCliError> {
         },
     )
 }
+
+pub(super) fn cli_route() -> crate::command_tree::Route {
+    crate::command_tree::Route::new::<Cli>(|| run_cli().map_err(super::into_marklab_error))
+}

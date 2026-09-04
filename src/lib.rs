@@ -110,7 +110,7 @@ mod wsi;
 
 #[cfg(feature = "cli")]
 #[doc(hidden)]
-pub use cli::run_cli;
+pub use cli::{cli_command, run_cli};
 
 pub use api::{AnalysisEngine, DeclaredMarkedAnalysisRun, MarkedAnalysisRun};
 pub use arbitrary_window_ipp::{

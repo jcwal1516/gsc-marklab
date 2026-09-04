@@ -191,3 +191,7 @@ fn publish_json(path: &Path, result: &impl Serialize) -> Result<(), PolicyCliErr
         ExclusiveJsonOutputError::Json(error) => PolicyCliError::Json(error),
     })
 }
+
+pub(crate) fn cli_route() -> crate::command_tree::Route {
+    crate::command_tree::Route::new::<PolicyCli>(|| run_cli().map_err(into_marklab_error))
+}

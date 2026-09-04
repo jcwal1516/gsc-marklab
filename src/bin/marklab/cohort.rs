@@ -1137,3 +1137,7 @@ pub(super) fn run_cli() -> Result<(), CohortError> {
         } => multisite::run_covariate_contrast(input, group_a, group_b, model, alpha, out),
     }
 }
+
+pub(crate) fn cli_route() -> crate::command_tree::Route {
+    crate::command_tree::Route::new::<CohortCli>(|| run_cli().map_err(into_marklab_error))
+}
