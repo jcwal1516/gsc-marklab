@@ -28,22 +28,15 @@ pub(crate) fn run_worker(
                 .into(),
         ));
     }
-    let interpreter = repository.join("target/pymc-venv/bin/python");
+    let interpreter = marklab::python_backend_interpreter(repository)?;
     let worker = repository.join("workers/python").join(worker_file_name);
-    if !interpreter.is_file() {
-        return Err(BayesCliError::Backend(format!(
-            "pinned Python environment is missing at {}; run `UV_PROJECT_ENVIRONMENT={}/target/pymc-venv uv sync --locked --python /usr/local/bin/python3.12 --no-python-downloads` from workers/python",
-            interpreter.display(),
-            repository.display()
-        )));
-    }
     if !worker.is_file() {
         return Err(BayesCliError::Backend(format!(
             "static worker is missing at {}",
             worker.display()
         )));
     }
-    let cache = repository.join("target/pymc-cache");
+    let cache = marklab::python_backend_cache(repository)?;
     fs::create_dir_all(&cache).map_err(|source| BayesCliError::Io {
         path: cache.clone(),
         source,

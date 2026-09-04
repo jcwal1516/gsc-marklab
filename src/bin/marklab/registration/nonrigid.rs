@@ -26,7 +26,7 @@ pub(super) fn run_nonrigid(input: PathBuf, out: PathBuf) -> Result<(), TopologyC
     let bytes = read_input(&input)?;
     let spec: NonrigidSpec = serde_json::from_slice(&bytes)?;
     validate_nonrigid(&spec)?;
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_simpleitk_nonrigid_worker.py");
     let lock = read_required(&lock_path)?;

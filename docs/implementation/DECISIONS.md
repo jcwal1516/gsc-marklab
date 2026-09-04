@@ -4024,3 +4024,22 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - The old 99-variant Bayesian parser overflows its generated debug-build augmentation stack when
   the full catalog is composed. Flatten eight scientific families within the existing schema;
   this preserves every argument declaration and command path while bounding generated frames.
+
+## DEC-0409 — Resolve installed Python assets separately from execution and replay
+
+- Date: 2026-09-04
+- Status: accepted for ARCH-INTEGRATION-01/BACK-01/PLAT-01/WS-13/WS-92
+- Decision: add one shared runtime path owner used by all current Python CLI adapters. Resolve
+  assets from an explicit absolute `MARKLAB_RUNTIME_ROOT`, otherwise a bundle beside the executable,
+  otherwise the build checkout only when executing inside that checkout's target directory.
+  Explicit invalid overrides fail without fallback. Resolve the interpreter lazily at execution
+  from absolute `MARKLAB_PYTHON` or the existing platform-specific development environment;
+  `MARKLAB_BACKEND_CACHE` selects an optional absolute writable cache location. Asset admission
+  remains independent of interpreter availability so verified durable replay needs no live backend.
+- Expose the three concrete path functions and typed runtime error through the root library for
+  immediate binary callers. Add `backend doctor` for path/Python/direct-package admission, package
+  the existing static workers and lock with release binaries, and document installation with the
+  existing lock. Preserve worker-specific version, digest, schema, bounds, isolation, and diagnostics.
+- No scientific result schema, package dependency, new backend, remote execution, or automatic
+  package installation is introduced. Real fits and relocated replay supply integration evidence;
+  cross-platform support remains limited to the configurations actually exercised.

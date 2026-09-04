@@ -377,7 +377,7 @@ pub(crate) fn execute(
     prepared: &PreparedReplicatedArbitraryWindowLgcpFit,
 ) -> Result<ResultDocument, BayesCliError> {
     let request = &prepared.request;
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let bytes = run_worker(
         repository,
         "marklab_pymc_replicated_arbitrary_window_lgcp_worker.py",
@@ -704,7 +704,7 @@ fn prepare_request(arguments: Arguments) -> Result<WorkerRequest, BayesCliError>
             }
         }
     }
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let directory = repository.join("workers/python");
     let lock_path = directory.join("uv.lock");
     let worker_path = directory.join("marklab_pymc_replicated_arbitrary_window_lgcp_worker.py");

@@ -21,7 +21,7 @@ fn help_lists_every_public_command_family() {
         "analyze", "classical", "nearest-space", "project", "batch", "prepost",
         "profile-plan", "simulate", "multimodal", "smoke", "cohort", "bayes",
         "longitudinal", "spatial3d", "causal", "numerics", "policy", "graph",
-        "topology", "registration", "neural",
+        "topology", "registration", "neural", "backend",
     ] {
         assert!(
             output.lines().any(|line| line.split_whitespace().next() == Some(family)),

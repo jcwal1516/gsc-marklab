@@ -286,7 +286,7 @@ fn execute_numpyro(
     pymc: &FitResult,
     timeout_seconds: u64,
 ) -> Result<NumpyroResult, BayesCliError> {
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let directory = repository.join("workers/python");
     let lock = read(&directory.join("uv.lock"))?;
     let worker = read(&directory.join("marklab_numpyro_arbitrary_window_lgcp_worker.py"))?;

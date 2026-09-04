@@ -290,7 +290,7 @@ fn run(arguments: Arguments) -> Result<(), BayesCliError> {
         maximum_output_bytes: 2 * 1_048_576,
         timeout_seconds: arguments.timeout_seconds,
     };
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let directory = repository.join("workers/python");
     let lock = read(&directory.join("uv.lock"))?;
     let worker =

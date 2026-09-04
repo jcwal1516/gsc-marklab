@@ -71,7 +71,7 @@ pub(super) fn run_atlas(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliE
     spec.perturbations
         .sort_by(|left, right| left.perturbation_id.cmp(&right.perturbation_id));
     validate_atlas(&spec)?;
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_scipy_atlas_worker.py");
     let lock = read_required(&lock_path)?;

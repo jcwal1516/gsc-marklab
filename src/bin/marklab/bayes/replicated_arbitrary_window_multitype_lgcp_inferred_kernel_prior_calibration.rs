@@ -340,7 +340,7 @@ fn run(args: Args) -> Result<(), BayesCliError> {
         maximum_working_bytes: args.maximum_working_bytes,
         timeout_seconds: args.timeout_seconds,
     };
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let workers = repository.join("workers/python");
     let worker_name = "marklab_numpy_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_prior_calibration_worker.py";
     let backend = BackendContract {

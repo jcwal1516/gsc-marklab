@@ -172,7 +172,7 @@ pub(crate) fn prepare(
             },
         )
         .collect::<Result<Vec<_>, _>>()?;
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let worker_directory = repository.join("workers/python");
     let lock_bytes =
         fs::read(worker_directory.join("uv.lock")).map_err(|source| BayesCliError::Io {
@@ -232,7 +232,7 @@ pub(crate) fn execute(
     prepared: &PreparedOrdinalGroupSiteHierarchy,
 ) -> Result<OrdinalGroupSiteHierarchyWorkerResult, BayesCliError> {
     let result_bytes = run_worker(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")),
+        &marklab::python_backend_assets_root()?,
         "marklab_pymc_ordinal_group_site_hierarchy_worker.py",
         &prepared.request_bytes,
         prepared.timeout_seconds,

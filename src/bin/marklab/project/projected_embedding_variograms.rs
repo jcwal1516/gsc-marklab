@@ -34,7 +34,7 @@ pub(super) fn run(
     timeout_seconds: u64,
     output_path: PathBuf,
 ) -> Result<(), BayesCliError> {
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock = repository.join("workers/python/uv.lock");
     let worker = repository.join("workers/python/marklab_scipy_projected_variograms_worker.py");
     let paths = [input.clone(), bins.clone(), lock, worker];

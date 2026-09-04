@@ -209,7 +209,7 @@ fn run_validate_advanced(
             "advanced 3-D validation timeout must be between 1 and 3600 seconds".into(),
         ));
     }
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_advanced3d_validation_worker.py");
     let lock = read_required(&lock_path)?;
@@ -252,7 +252,7 @@ fn run_clone_models(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError
     spec.clone_locations
         .sort_by(|left, right| left.clone_id.cmp(&right.clone_id));
     validate_clone_models(&spec)?;
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_scipy_clone_models_worker.py");
     let lock = read_required(&lock_path)?;
@@ -395,7 +395,7 @@ fn run_deformation_biology(input: PathBuf, out: PathBuf) -> Result<(), TopologyC
     spec.points
         .sort_by(|left, right| left.point_id.cmp(&right.point_id));
     validate_deformation_biology(&spec)?;
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_scipy_deformation_biology_worker.py");
     let lock = read_required(&lock_path)?;
@@ -505,7 +505,7 @@ fn run_alpha_complex(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliErro
     spec.points
         .sort_by(|left, right| left.point_id.cmp(&right.point_id));
     validate_alpha_complex(&spec)?;
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_gudhi_alpha3d_worker.py");
     let lock = read_required(&lock_path)?;
@@ -583,7 +583,7 @@ fn run_serial_stack(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError
     spec.sections
         .sort_by(|left, right| left.z_um.total_cmp(&right.z_um));
     validate_serial_stack(&spec)?;
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_scipy_serial_stack_worker.py");
     let lock = read_required(&lock_path)?;

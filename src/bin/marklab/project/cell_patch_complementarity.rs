@@ -51,7 +51,7 @@ pub(super) fn run(
             "memory budget must be positive".into(),
         ));
     }
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let paths = SourcePaths {
         input: input_path,
         lock: repository.join("workers/python/uv.lock"),

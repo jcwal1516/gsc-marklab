@@ -409,7 +409,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         maximum_output_bytes: 4 * 1_048_576,
         timeout_seconds: args.timeout_seconds,
     };
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let directory = repository.join("workers/python");
     let backend = BackendContract {
         name: "numpyro",
@@ -448,7 +448,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
 
 pub(crate) fn execute(prepared: &Prepared) -> Result<Output, BayesCliError> {
     let bytes = run_worker(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")),
+        &marklab::python_backend_assets_root()?,
         "marklab_numpyro_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc_worker.py",
         &prepared.request_bytes,
         prepared.timeout_seconds,

@@ -22,13 +22,7 @@ pub(crate) fn run_worker(
                 .into(),
         ));
     }
-    let interpreter = repository.join("target/pymc-venv/bin/python");
-    if !interpreter.is_file() {
-        return Err(TopologyCliError::Backend(format!(
-            "pinned Python environment is missing at {}",
-            interpreter.display()
-        )));
-    }
+    let interpreter = marklab::python_backend_interpreter(repository)?;
     let mut child = Command::new(&interpreter)
         .arg("-I")
         .arg(worker)

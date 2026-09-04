@@ -39,3 +39,30 @@ or new backend installation implied by implementation authorization.
   arbitrary_window_ipp_cli --test marked_prepost_dag_workflow`: 24/24 passed (17/2/1/4).
 - `git diff --check` passed. Formatter, Clippy, feature matrices, full workspace, backend fits,
   packaging, and performance gates are reserved for the related stabilization checkpoint.
+
+## Runtime delivery outcome
+
+- Writable scope: shared `src/python_backend.rs` location owner; existing binary asset/runner
+  adapters; `backend doctor`; its static worker; release archive configuration; focused runtime
+  integration tests and installation documentation. DEC-0409 records the concrete public bridge.
+- Explicit missing/relative runtime-root tests and the doctor test failed red before production
+  changes. Admission must not silently fall back or require an interpreter on durable replay.
+- The relocated-bundle test copies the real executable, exact lock/project metadata, and normal
+  worker to a path containing spaces. It executes a real bounded fit using the existing environment,
+  then replays byte-identically with a nonexistent interpreter and execution disabled, retaining
+  exactly one ledger row. Existing worker validation remains authoritative.
+- `cargo +1.96.0 test --locked --package marklab --test python_backend_runtime --test
+  cli_discovery`: 9/9 passed after the initial 3/3 runtime red.
+- `cargo +1.96.0 test --locked --package marklab --test bayes_normal_mean_cli --test
+  topology_raster_morphology_cli --test durable_pymc_project`: 4/4 passed, including the original
+  conjugate oracle, truthful nonconvergence, topology oracle, and exact durable replay.
+- A local Unix archive smoke packaged the actual debug executable with 156 worker/control assets,
+  extracted it to a new directory, and ran `backend doctor` successfully without an asset override.
+  The final archive excludes environments and caches. This verifies archive layout, not a release
+  optimization build or the Windows archive/runtime.
+- Existing uv 0.7.17 dry-run command: `env UV_PROJECT_ENVIRONMENT=/Users/user/Bench/gsc-marklab/target/pymc-venv
+  uv sync --project workers/python --locked --dry-run --python
+  /Users/user/Bench/gsc-marklab/target/pymc-venv/bin/python`; passed with an up-to-date lock and no
+  proposed changes. Ruby Psych parsed the release workflow; `git diff --check` passed.
+- Python YAML parsing was attempted but `yaml` is not installed; Ruby Psych checked syntax instead.
+  `actionlint` is unavailable locally, and hosted CI/cross-platform execution are not claimed.

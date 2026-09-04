@@ -301,7 +301,7 @@ fn execute_numpyro(
     maximum_tree_depth: u32,
     timeout_seconds: u64,
 ) -> Result<NumpyroResult, BayesCliError> {
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let directory = repository.join("workers/python");
     let lock = read(&directory.join("uv.lock"))?;
     let worker =
@@ -338,7 +338,7 @@ fn validate_numpyro(
     maximum_tree_depth: u32,
     pymc: &ResultDocument,
 ) -> Result<(), BayesCliError> {
-    let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("workers/python");
+    let directory = marklab::python_backend_assets_root()?.join("workers/python");
     let lock = read(&directory.join("uv.lock"))?;
     let worker =
         read(&directory.join("marklab_numpyro_replicated_arbitrary_window_lgcp_worker.py"))?;

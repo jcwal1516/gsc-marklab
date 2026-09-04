@@ -296,7 +296,7 @@ fn prepare_arguments(
         maximum_tree_depth: arguments.maximum_tree_depth,
         timeout_seconds: arguments.timeout_seconds,
     };
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let directory = repository.join("workers/python");
     let lock = read(&directory.join("uv.lock"))?;
     let worker = read(
@@ -391,7 +391,7 @@ pub(crate) fn prepare(
 pub(crate) fn execute(
     prepared: &PreparedReplicatedArbitraryWindowLgcpInferredKernel,
 ) -> Result<ResultDocument, BayesCliError> {
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let bytes = run_worker(
         repository,
         "marklab_pymc_replicated_arbitrary_window_lgcp_inferred_kernel_worker.py",

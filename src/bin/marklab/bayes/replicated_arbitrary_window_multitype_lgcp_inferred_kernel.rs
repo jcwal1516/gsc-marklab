@@ -357,7 +357,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         maximum_tree_depth: args.maximum_tree_depth,
         timeout_seconds: args.timeout_seconds,
     };
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let directory = repository.join("workers/python");
     let backend = BackendContract {
         name: "pymc",
@@ -394,7 +394,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
 
 pub(crate) fn execute(prepared: &Prepared) -> Result<Output, BayesCliError> {
     let bytes = run_worker(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")),
+        &marklab::python_backend_assets_root()?,
         "marklab_pymc_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_worker.py",
         &prepared.request_bytes,
         prepared.timeout_seconds,

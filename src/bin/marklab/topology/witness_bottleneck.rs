@@ -57,7 +57,7 @@ pub(crate) fn prepare_witness_persistence_bottleneck_stability(
     let spec: WitnessPersistenceBottleneckStabilitySpec = serde_json::from_slice(&bytes)?;
     validate_witness_bottleneck_controls(&spec)?;
     let stability = prepare_witness_persistence_stability_spec(spec.stability.clone())?;
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock = read_required(&repository.join("workers/python/uv.lock"))?;
     let worker_path = repository.join("workers/python/marklab_gudhi_witness_bottleneck_worker.py");
     let worker = read_required(&worker_path)?;
@@ -113,7 +113,7 @@ pub(crate) fn execute_witness_persistence_bottleneck_stability(
         "maximum_interval_budget": prepared.spec.maximum_bottleneck_interval_budget,
     });
     let request_bytes = serde_json::to_vec(&request)?;
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let response = run_worker(
         &repository,
         &prepared.worker_path,

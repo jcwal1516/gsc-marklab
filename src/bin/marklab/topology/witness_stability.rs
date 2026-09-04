@@ -28,7 +28,7 @@ pub(super) fn prepare_witness_persistence_stability_spec(
     spec: WitnessPersistenceStabilitySpec,
 ) -> Result<PreparedWitnessPersistenceStability, TopologyCliError> {
     validate_witness_stability_controls(&spec)?;
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock = read_required(&repository.join("workers/python/uv.lock"))?;
     let worker_path = repository.join("workers/python/marklab_gudhi_witness_persistence_worker.py");
     let worker = read_required(&worker_path)?;

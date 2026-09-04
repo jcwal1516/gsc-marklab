@@ -12,7 +12,7 @@ pub(super) struct WorkerAssets {
 }
 
 pub(super) fn load(worker_name: &str) -> Result<WorkerAssets, TopologyCliError> {
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python").join(worker_name);
     let lock = read_required(&lock_path)?;

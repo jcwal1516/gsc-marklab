@@ -52,7 +52,7 @@ pub(crate) fn prepare_normal_mean(
     timeout_seconds: u64,
 ) -> Result<PreparedNormalMean, BayesCliError> {
     let observations = read_observations(&input_path)?;
-    let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let worker_directory = repository.join("workers/python");
     let lock_path = worker_directory.join("uv.lock");
     let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
@@ -94,7 +94,7 @@ pub(crate) fn prepare_normal_mean(
 pub(crate) fn execute_normal_mean(
     prepared: &PreparedNormalMean,
 ) -> Result<WorkerResult, BayesCliError> {
-    let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let result_bytes = run_worker(
         repository,
         "marklab_pymc_worker.py",

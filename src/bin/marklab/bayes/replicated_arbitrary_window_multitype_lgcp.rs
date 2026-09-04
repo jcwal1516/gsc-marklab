@@ -361,7 +361,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
 }
 
 pub(crate) fn execute_prepared(prepared: &Prepared) -> Result<Output, BayesCliError> {
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let bytes = run_worker(
         repository,
         "marklab_pymc_replicated_arbitrary_window_multitype_lgcp_worker.py",
@@ -786,7 +786,7 @@ fn prepare_request(args: Args) -> Result<WorkerRequest, BayesCliError> {
         .checked_mul(u64::from(args.draws))
         .and_then(|value| value.checked_mul(node_type_counts.len() as u64))
         .ok_or_else(|| BayesCliError::Input("multitype draw work overflows".into()))?;
-    let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("workers/python");
+    let directory = marklab::python_backend_assets_root()?.join("workers/python");
     let worker_name = "marklab_pymc_replicated_arbitrary_window_multitype_lgcp_worker.py";
     Ok(WorkerRequest {
         format: "marklab.pymc_replicated_arbitrary_window_multitype_lgcp_request",

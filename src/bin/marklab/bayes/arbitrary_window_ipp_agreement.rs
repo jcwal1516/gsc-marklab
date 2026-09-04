@@ -173,7 +173,7 @@ fn execute_numpyro(
     prepared: &PreparedArbitraryWindowIppFit,
     timeout_seconds: u64,
 ) -> Result<NumpyroResult, BayesCliError> {
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path =
         repository.join("workers/python/marklab_numpyro_arbitrary_window_ipp_worker.py");

@@ -50,7 +50,7 @@ pub(super) fn run(
         points.push(row?);
     }
     let point_count = points.len() as u32;
-    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repo = &marklab::python_backend_assets_root()?;
     let dir = repo.join("workers/python");
     let lock = fs::read(dir.join("uv.lock")).map_err(|source| BayesCliError::Io {
         path: dir.join("uv.lock"),

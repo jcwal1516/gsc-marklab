@@ -5,6 +5,12 @@ discovery, validation, and execution routing; each existing CLI schema/adapter o
 arguments and handler. `src/cli.rs::cli_command` is the hidden CLI-feature bridge consumed only by
 the executable. Numerical, result, project, and backend owners are unchanged at this outcome.
 
+ARCH-INTEGRATION-01 runtime ownership: `src/python_backend.rs` owns explicit/bundled/development
+asset selection and lazy interpreter/cache paths. Existing Bayesian and topology runners consume
+those paths and retain process/schema/digest admission. `src/bin/marklab/backend.rs` and
+`workers/python/marklab_backend_doctor.py` own read-only installation diagnosis; release workflows
+own packaging the unchanged worker assets with the binary.
+
 Rows are characterization records at the implementation base. `Active task = none` means read-only during WS-A. A-03 verifies exact callers and tests before WS-B.
 
 | Canonical owner/symbol | Location | Contract | Principal callers | Tests/evidence | Active task |

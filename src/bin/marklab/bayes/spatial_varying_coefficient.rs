@@ -140,7 +140,7 @@ pub(crate) fn prepare(
 ) -> Result<Prepared, BayesCliError> {
     let observations =
         read_observations(&input_path, &global_predictor_name, &spatial_predictor_name)?;
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let worker_directory = repository.join("workers/python");
     let lock_path = worker_directory.join("uv.lock");
     let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
@@ -188,7 +188,7 @@ pub(crate) fn prepare(
 pub(crate) fn execute(
     prepared: &Prepared,
 ) -> Result<marklab_bayes::SpatialVaryingCoefficientFit, BayesCliError> {
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let result_bytes = run_worker(
         repository,
         "marklab_pymc_spatial_varying_coefficient_worker.py",

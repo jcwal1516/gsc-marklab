@@ -380,7 +380,7 @@ fn prepare_arguments(
             neighbor_pairs.len()
         )));
     }
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let worker_directory = repository.join("workers/python");
     let lock_path = worker_directory.join("uv.lock");
     let source_worker_path = worker_directory.join("marklab_pymc_gridded_lgcp_worker.py");
@@ -468,7 +468,7 @@ fn prepare_arguments(
 pub(crate) fn execute(
     prepared: &PreparedArbitraryWindowLgcpFit,
 ) -> Result<FitResult, BayesCliError> {
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let bytes = run_worker(
         repository,
         "marklab_pymc_arbitrary_window_lgcp_worker.py",

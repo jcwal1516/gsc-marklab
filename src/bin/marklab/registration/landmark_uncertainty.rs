@@ -53,7 +53,7 @@ pub(super) fn run_landmark_uncertainty(
     spec.target_cells
         .sort_by(|left, right| left.cell_id.cmp(&right.cell_id));
     validate_landmark_uncertainty(&spec)?;
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path =
         repository.join("workers/python/marklab_scipy_landmark_uncertainty_worker.py");

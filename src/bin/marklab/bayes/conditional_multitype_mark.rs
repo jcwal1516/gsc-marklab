@@ -488,7 +488,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
 }
 
 pub(crate) fn execute_prepared(prepared: &Prepared) -> Result<Output, BayesCliError> {
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let worker_bytes = run_worker(
         repository,
         "marklab_pymc_conditional_multitype_mark_worker.py",
@@ -554,7 +554,7 @@ pub(crate) fn execute_prepared(prepared: &Prepared) -> Result<Output, BayesCliEr
 }
 
 pub(crate) fn backend_contract() -> Result<BackendContract, BayesCliError> {
-    let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("workers/python");
+    let directory = marklab::python_backend_assets_root()?.join("workers/python");
     Ok(BackendContract {
         name: "pymc",
         version: PYMC_VERSION,

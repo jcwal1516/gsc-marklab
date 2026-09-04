@@ -214,7 +214,7 @@ pub(crate) fn prepare(
             "advanced Bayesian timeout must be between 1 and 3600 seconds".into(),
         ));
     }
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let worker_path = repository.join("workers/python/marklab_scipy_advanced_bayes_worker.py");
     let lock = read_required(&repository.join("workers/python/uv.lock"))?;
     let worker = read_required(&worker_path)?;

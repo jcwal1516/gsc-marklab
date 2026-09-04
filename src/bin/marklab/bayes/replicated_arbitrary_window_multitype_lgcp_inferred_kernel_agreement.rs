@@ -364,7 +364,7 @@ fn execute_numpyro(
     depth: u32,
     timeout: u64,
 ) -> Result<(serde_json::Value, BackendContract, String), BayesCliError> {
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let workers = repository.join("workers/python");
     let worker_name =
         "marklab_numpyro_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_worker.py";

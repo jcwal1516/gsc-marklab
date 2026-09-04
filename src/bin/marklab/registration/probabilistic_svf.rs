@@ -26,7 +26,7 @@ pub(super) fn run_probabilistic_svf(input: PathBuf, out: PathBuf) -> Result<(), 
     let bytes = read_input(&input)?;
     let spec: ProbabilisticSvfSpec = serde_json::from_slice(&bytes)?;
     validate_probabilistic_svf(&spec)?;
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_jax_probabilistic_svf_worker.py");
     let lock = read_required(&lock_path)?;

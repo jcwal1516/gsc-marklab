@@ -115,6 +115,10 @@ fn run(pattern: &Pattern) -> marklab::Result<MarkedPatternResult> {
 
 Run `marklab <family> --help` for the subcommands and required flags of each family.
 
+Root and family help include the complete composed command catalog. Python-backed methods use
+separately installed, locked environments; run `marklab backend doctor` to inspect admission and
+see [Python backend installation](docs/python-backends.md) for extracted binaries and checkouts.
+
 ## Workspace
 
 | Crate | Purpose |

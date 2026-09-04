@@ -128,7 +128,7 @@ pub(crate) fn prepare_projected_variograms(
     let bin_bytes = read(&bins)?;
     let (points, feature_names) = read_projected_points(&input_bytes)?;
     let bins_value = read_bins(&bin_bytes)?;
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let worker_directory = repository.join("workers/python");
     let lock_path = worker_directory.join("uv.lock");
     let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
@@ -169,7 +169,7 @@ pub(crate) fn prepare_projected_variograms(
 pub(crate) fn execute_projected_variograms(
     prepared: &PreparedProjectedVariograms,
 ) -> Result<marklab_bayes::ProjectedEmbeddingVariogramResult, BayesCliError> {
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let request_bytes = serde_json::to_vec(&prepared.request)?;
     let result_bytes = run_worker(
         repository,

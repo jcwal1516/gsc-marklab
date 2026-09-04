@@ -526,7 +526,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         timeout_seconds: args.timeout_seconds,
         maximum_output_bytes: 4 * 1024 * 1024,
     };
-    let workers = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("workers/python");
+    let workers = marklab::python_backend_assets_root()?.join("workers/python");
     let backend = BackendContract {
         name: "numpyro",
         version: NUMPYRO_VERSION,
@@ -573,7 +573,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
 
 pub(crate) fn execute(prepared: &Prepared) -> Result<Output, BayesCliError> {
     let bytes = run_worker(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")),
+        &marklab::python_backend_assets_root()?,
         "marklab_numpyro_joint_replicated_location_embedding_worker.py",
         &prepared.request_bytes,
         prepared.timeout_seconds,

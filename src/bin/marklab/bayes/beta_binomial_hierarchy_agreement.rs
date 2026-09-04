@@ -31,7 +31,7 @@ pub(super) fn run(
         timeout_seconds,
     )?;
     let pymc = beta_binomial_hierarchy::execute(&prepared)?;
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let worker_directory = repository.join("workers/python");
     let lock_path = worker_directory.join("uv.lock");
     let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {

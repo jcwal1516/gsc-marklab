@@ -8,6 +8,8 @@ static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 #[path = "marklab/bayes.rs"]
 mod bayes;
+#[path = "marklab/backend.rs"]
+mod backend;
 #[path = "marklab/bayes_advanced.rs"]
 mod bayes_advanced;
 #[path = "marklab/causal.rs"]

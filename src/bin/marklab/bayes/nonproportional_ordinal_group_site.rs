@@ -149,7 +149,7 @@ pub(crate) fn prepare(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = &marklab::python_backend_assets_root()?;
     let directory = root.join("workers/python");
     let lock_path = directory.join("uv.lock");
     let lock = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
@@ -207,7 +207,7 @@ pub(crate) fn execute(
     prepared: &PreparedNonproportionalOrdinalGroupSite,
 ) -> Result<NonproportionalOrdinalGroupSiteWorkerResult, BayesCliError> {
     let bytes = run_worker(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")),
+        &marklab::python_backend_assets_root()?,
         "marklab_pymc_nonproportional_ordinal_group_site_worker.py",
         &prepared.request_bytes,
         prepared.timeout_seconds,

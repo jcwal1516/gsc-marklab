@@ -127,6 +127,12 @@ pub(crate) enum TopologyCliError {
     Json(#[from] serde_json::Error),
 }
 
+impl From<marklab::PythonBackendRuntimeError> for TopologyCliError {
+    fn from(error: marklab::PythonBackendRuntimeError) -> Self {
+        Self::Backend(error.to_string())
+    }
+}
+
 pub(crate) fn run_cli() -> Result<(), TopologyCliError> {
     match TopologyCli::parse().command {
         TopologyTopLevel::Topology {

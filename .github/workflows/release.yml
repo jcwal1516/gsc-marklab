@@ -46,25 +46,30 @@ jobs:
         run: |
           mkdir -p dist
           cp README.md LICENSE-MIT LICENSE-APACHE dist/
-          tar -czf dist/marklab-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release marklab -C "$GITHUB_WORKSPACE/dist" README.md LICENSE-MIT LICENSE-APACHE
+          tar -czf dist/marklab-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release marklab -C "$GITHUB_WORKSPACE" README.md LICENSE-MIT LICENSE-APACHE workers/python/*.py workers/python/pyproject.toml workers/python/uv.lock docs/python-backends.md
           sha256sum dist/marklab-${{ matrix.target }}.tar.gz > dist/marklab-${{ matrix.target }}.tar.gz.sha256
           sha256sum --check dist/marklab-${{ matrix.target }}.tar.gz.sha256
           tar -tzf dist/marklab-${{ matrix.target }}.tar.gz | grep -E '(^|/)README.md$'
           tar -tzf dist/marklab-${{ matrix.target }}.tar.gz | grep -E '(^|/)LICENSE-MIT$'
           tar -tzf dist/marklab-${{ matrix.target }}.tar.gz | grep -E '(^|/)LICENSE-APACHE$'
+          tar -tzf dist/marklab-${{ matrix.target }}.tar.gz | grep -E '^workers/python/uv.lock$'
+          tar -tzf dist/marklab-${{ matrix.target }}.tar.gz | grep -E '^workers/python/marklab_backend_doctor.py$'
       - name: Package Windows binary
         if: matrix.archive == 'zip'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist
           Copy-Item README.md,LICENSE-MIT,LICENSE-APACHE -Destination dist
-          Compress-Archive -Path target/${{ matrix.target }}/release/marklab.exe,dist/README.md,dist/LICENSE-MIT,dist/LICENSE-APACHE -DestinationPath dist/marklab-${{ matrix.target }}.zip
+          New-Item -ItemType Directory -Force -Path dist/workers/python,dist/docs
+          Copy-Item workers/python/*.py,workers/python/pyproject.toml,workers/python/uv.lock -Destination dist/workers/python
+          Copy-Item docs/python-backends.md -Destination dist/docs
+          Compress-Archive -Path target/${{ matrix.target }}/release/marklab.exe,dist/README.md,dist/LICENSE-MIT,dist/LICENSE-APACHE,dist/workers,dist/docs -DestinationPath dist/marklab-${{ matrix.target }}.zip
           (Get-FileHash dist/marklab-${{ matrix.target }}.zip -Algorithm SHA256).Hash.ToLower() + "  marklab-${{ matrix.target }}.zip" | Out-File -Encoding ascii dist/marklab-${{ matrix.target }}.zip.sha256
           $archive = Get-FileHash dist/marklab-${{ matrix.target }}.zip -Algorithm SHA256
           $expected = (Get-Content dist/marklab-${{ matrix.target }}.zip.sha256).Split()[0]
           if ($archive.Hash.ToLower() -ne $expected) { throw "archive checksum mismatch" }
           Expand-Archive dist/marklab-${{ matrix.target }}.zip -DestinationPath archive-smoke
-          foreach ($name in @("marklab.exe", "README.md", "LICENSE-MIT", "LICENSE-APACHE")) {
+          foreach ($name in @("marklab.exe", "README.md", "LICENSE-MIT", "LICENSE-APACHE", "workers/python/uv.lock", "workers/python/marklab_backend_doctor.py", "docs/python-backends.md")) {
             if (-not (Test-Path archive-smoke/$name)) { throw "$name missing from archive" }
           }
       - uses: actions/upload-artifact@v4

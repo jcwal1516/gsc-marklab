@@ -23,6 +23,12 @@ pub(crate) enum BayesCliError {
     Json(#[from] serde_json::Error),
 }
 
+impl From<marklab::PythonBackendRuntimeError> for BayesCliError {
+    fn from(error: marklab::PythonBackendRuntimeError) -> Self {
+        Self::Backend(error.to_string())
+    }
+}
+
 pub(crate) fn into_marklab_error(error: BayesCliError) -> marklab::MarklabError {
     match error {
         BayesCliError::Input(message) => marklab::MarklabError::Validation(message),

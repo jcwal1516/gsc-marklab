@@ -316,7 +316,7 @@ fn run(args: Args) -> Result<(), BayesCliError> {
         maximum_working_bytes: args.maximum_working_bytes,
         timeout_seconds: args.timeout_seconds,
     };
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let workers = repository.join("workers/python");
     let backend = BackendContract {
         name: "numpy",

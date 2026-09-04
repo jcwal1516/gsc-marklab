@@ -22,7 +22,7 @@ pub(crate) fn execute(
             "NumPyro replicated multitype LGCP depth is invalid".into(),
         ));
     }
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let workers = repository.join("workers/python");
     let worker_name = "marklab_numpyro_replicated_arbitrary_window_multitype_lgcp_worker.py";
     let backend = BackendContract {

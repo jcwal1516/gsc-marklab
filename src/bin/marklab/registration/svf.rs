@@ -24,7 +24,7 @@ pub(super) fn run_svf(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliErr
     let bytes = read_input(&input)?;
     let spec: SvfSpec = serde_json::from_slice(&bytes)?;
     validate_svf(&spec)?;
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_jax_svf_registration_worker.py");
     let lock = read_required(&lock_path)?;

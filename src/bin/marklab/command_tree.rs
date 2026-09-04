@@ -24,6 +24,7 @@ pub(crate) fn run() -> marklab::Result<()> {
     let mut handlers = BTreeMap::new();
     register_leaves(&command, &mut Vec::new(), marklab::run_cli, &mut handlers)?;
     let routes = [
+        super::backend::cli_route(),
         super::project::cli_route(),
         super::cohort::cli_route(),
         super::bayes_advanced::cli_route(),

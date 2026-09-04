@@ -80,6 +80,7 @@ mod permutation;
 mod prepost;
 mod probability_pair;
 mod probability_pair_workflow;
+mod python_backend;
 mod qc;
 mod registration;
 mod scalar_mark;
@@ -113,6 +114,10 @@ mod wsi;
 pub use cli::{cli_command, run_cli};
 
 pub use api::{AnalysisEngine, DeclaredMarkedAnalysisRun, MarkedAnalysisRun};
+pub use python_backend::{
+    python_backend_assets_root, python_backend_cache, python_backend_interpreter,
+    PythonBackendRuntimeError,
+};
 pub use arbitrary_window_ipp::{
     arbitrary_window_ipp_log_likelihood, ArbitraryWindowIppError, ArbitraryWindowIppEvent,
     ArbitraryWindowIppLikelihoodResult, ArbitraryWindowIppLimits, ArbitraryWindowIppQuadratureNode,

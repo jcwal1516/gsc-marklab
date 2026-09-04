@@ -226,7 +226,7 @@ fn run_validate_generative(
                 .into(),
         ));
     }
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_generative_validation_worker.py");
     let lock = read_required(&lock_path)?;
@@ -269,7 +269,7 @@ fn run_neural_sbi(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> 
     let bytes = read_input(&input)?;
     let spec: NeuralSbiSpec = serde_json::from_slice(&bytes)?;
     validate_neural_sbi(&spec)?;
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_sbi_neural_estimators_worker.py");
     let lock = read_required(&lock_path)?;
@@ -356,7 +356,7 @@ fn run_point_set_generators(input: PathBuf, out: PathBuf) -> Result<(), Topology
     spec.patterns
         .sort_by(|left, right| left.pattern_id.cmp(&right.pattern_id));
     validate_point_set_generators(&spec)?;
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path =
         repository.join("workers/python/marklab_scipy_point_set_generators_worker.py");
@@ -473,7 +473,7 @@ fn run_point_process(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliErro
     spec.patterns
         .sort_by(|left, right| left.pattern_id.cmp(&right.pattern_id));
     validate_point_process(&spec)?;
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_jax_neural_point_process_worker.py");
     let lock = read_required(&lock_path)?;

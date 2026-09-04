@@ -238,7 +238,7 @@ pub(crate) fn prepare(
             "arbitrary-window draw-node work exceeds maximum: {draw_node_work} > {maximum_draw_node_work}"
         )));
     }
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path =
         repository.join("workers/python/marklab_pymc_inhomogeneous_poisson_worker.py");
@@ -313,7 +313,7 @@ pub(crate) fn prepare(
 pub(crate) fn execute(
     prepared: &PreparedArbitraryWindowIppFit,
 ) -> Result<ArbitraryWindowIppFitResult, BayesCliError> {
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let bytes = run_worker(
         repository,
         "marklab_pymc_inhomogeneous_poisson_worker.py",

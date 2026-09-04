@@ -17,7 +17,7 @@ pub(crate) fn prepare_witness_persistence(
 ) -> Result<PreparedWitnessPersistence, TopologyCliError> {
     let bytes = read_input(input)?;
     let spec: WitnessPersistenceSpec = serde_json::from_slice(&bytes)?;
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_gudhi_witness_persistence_worker.py");
     let lock = read_required(&lock_path)?;
@@ -37,7 +37,7 @@ pub(crate) fn prepare_witness_persistence(
 pub(crate) fn execute_witness_persistence(
     prepared: &PreparedWitnessPersistence,
 ) -> Result<WitnessPersistenceResult, TopologyCliError> {
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_gudhi_witness_persistence_worker.py");
     if sha256_hex(&read_required(&lock_path)?) != prepared.request.backend.environment_lock_sha256

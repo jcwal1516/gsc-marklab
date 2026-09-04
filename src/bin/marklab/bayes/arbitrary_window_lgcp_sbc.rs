@@ -187,7 +187,7 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
         arguments.maximum_neighbor_pairs,
         arguments.timeout_seconds,
     )?;
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let directory = repository.join("workers/python");
     let lock = read(&directory.join("uv.lock"))?;
     let worker = read(&directory.join("marklab_numpyro_arbitrary_window_lgcp_sbc_worker.py"))?;

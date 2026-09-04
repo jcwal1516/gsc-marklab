@@ -22,7 +22,7 @@ pub(crate) fn execute(
             "NumPyro replicated conditional-mark depth is invalid".into(),
         ));
     }
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let directory = repository.join("workers/python");
     let backend = BackendContract {
         name: "numpyro",

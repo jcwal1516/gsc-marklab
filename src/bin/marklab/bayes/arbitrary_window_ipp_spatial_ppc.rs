@@ -282,7 +282,7 @@ pub(crate) fn prepare(
         quadrature_digest: prepared.input_identity.quadrature_digest.clone(),
         window_logical_digest: prepared.input_identity.window_logical_digest.clone(),
     };
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path =
         repository.join("workers/python/marklab_pymc_arbitrary_window_ipp_spatial_ppc_worker.py");
@@ -333,7 +333,7 @@ pub(crate) fn prepare(
 }
 
 pub(crate) fn execute(prepared: &PreparedSpatialPpc) -> Result<SpatialPpcResult, BayesCliError> {
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let bytes = run_worker(
         repository,
         "marklab_pymc_arbitrary_window_ipp_spatial_ppc_worker.py",

@@ -101,7 +101,7 @@ fn run_model(mode: &str, input: PathBuf, out: PathBuf) -> Result<(), TopologyCli
             "causal model timeout must be between 1 and 3600 seconds".into(),
         ));
     }
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let worker_path = repository.join("workers/python/marklab_scipy_causal_active_worker.py");
     let request = serde_json::json!({
         "format":"marklab.scipy_causal_active_request", "version":1, "mode":mode,
@@ -117,7 +117,7 @@ fn run_validation(seed: u64, timeout_seconds: u64, out: PathBuf) -> Result<(), T
             "causal validation timeout must be between 1 and 3600 seconds".into(),
         ));
     }
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let worker_path = repository.join("workers/python/marklab_scipy_causal_active_worker.py");
     let request = serde_json::json!({
         "format":"marklab.scipy_causal_active_request", "version":1, "mode":"validation",

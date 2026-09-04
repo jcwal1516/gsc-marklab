@@ -100,7 +100,7 @@ pub(crate) fn prepare(
         .map_err(|error| {
             BayesCliError::Input(format!("invalid beta-binomial group patient CSV: {error}"))
         })?;
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let worker_directory = repository.join("workers/python");
     let lock_path = worker_directory.join("uv.lock");
     let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
@@ -156,7 +156,7 @@ pub(crate) fn prepare(
 pub(crate) fn execute(
     prepared: &PreparedBetaBinomialGroupRegression,
 ) -> Result<BetaBinomialGroupRegressionWorkerResult, BayesCliError> {
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository = &marklab::python_backend_assets_root()?;
     let result_bytes = run_worker(
         repository,
         "marklab_pymc_beta_binomial_group_regression_worker.py",

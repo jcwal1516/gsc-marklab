@@ -8,7 +8,7 @@ use marklab_topology::{
 use super::{publish_json, read_input, read_required, run_worker, TopologyCliError};
 
 pub(super) fn run_validation(out: PathBuf) -> Result<(), TopologyCliError> {
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_topology_validation_worker.py");
     let lock = read_required(&lock_path)?;
@@ -112,7 +112,7 @@ pub(super) fn run_stability(input: PathBuf, out: PathBuf) -> Result<(), Topology
             "topology stability candidate pixels must be unique".into(),
         ));
     }
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_topology_stability_worker.py");
     let lock = read_required(&lock_path)?;
@@ -223,7 +223,7 @@ pub(super) fn run_compare_persistence(
             "persistence comparison requires exact nonempty groups A and B".into(),
         ));
     }
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path =
         repository.join("workers/python/marklab_gudhi_persistence_comparison_worker.py");
@@ -307,7 +307,7 @@ pub(super) fn run_raster_morphology(input: PathBuf, out: PathBuf) -> Result<(), 
             "raster morphology dimensions, conventions, radii, or timeout are invalid".into(),
         ));
     }
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_skimage_raster_morphology_worker.py");
     let lock = read_required(&lock_path)?;
@@ -352,7 +352,7 @@ pub(super) fn run_raster_morphology(input: PathBuf, out: PathBuf) -> Result<(), 
 pub(super) fn run_alpha_persistence(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
     let bytes = read_input(&input)?;
     let spec: AlphaPersistenceSpec = serde_json::from_slice(&bytes)?;
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repository = marklab::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_gudhi_alpha_persistence_worker.py");
     let lock = read_required(&lock_path)?;
