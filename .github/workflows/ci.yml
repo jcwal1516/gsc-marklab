@@ -22,10 +22,43 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
       - run: cargo clippy --locked --workspace --all-targets --no-default-features --features cli -- -D warnings
-      - run: cargo nextest run --locked --workspace --all-features
+      - name: Native library tests
+        run: cargo nextest run --locked --workspace --all-features --lib
       - run: cargo test --locked --workspace --doc --all-features
       - run: cargo check --locked --workspace --no-default-features
       - run: cargo test --locked --package marklab --features wsi,cli --test wsi_integration
+
+  backend-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      UV_PROJECT_ENVIRONMENT: ${{ github.workspace }}/target/pymc-venv
+      MARKLAB_RUNTIME_ROOT: ${{ github.workspace }}
+      MARKLAB_PYTHON: ${{ github.workspace }}/target/pymc-venv/bin/python
+      MARKLAB_BACKEND_CACHE: ${{ github.workspace }}/target/pymc-cache
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.96.0
+      - uses: taiki-e/install-action@nextest
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.7.17"
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: workers/python/uv.lock
+      - name: Install the committed backend environment
+        run: uv sync --project workers/python --locked --python 3.12
+      - name: Build and admit the scientific runtime
+        run: |
+          cargo build --locked --package marklab --all-features --bin marklab
+          target/debug/marklab backend doctor
+      - name: Required workspace and real-backend integration tests
+        run: cargo nextest run --locked --workspace --all-features --test-threads 2
+      - name: Python scientific and adapter regression tests
+        run: |
+          "$MARKLAB_PYTHON" -m unittest discover -s tests/python -p 'test_*.py'
+          "$MARKLAB_PYTHON" -m unittest discover -s workers/python -p 'test_*.py'
 
   feature-matrix:
     runs-on: ubuntu-latest

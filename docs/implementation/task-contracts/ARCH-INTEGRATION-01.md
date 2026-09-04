@@ -66,3 +66,24 @@ or new backend installation implied by implementation authorization.
   proposed changes. Ruby Psych parsed the release workflow; `git diff --check` passed.
 - Python YAML parsing was attempted but `yaml` is not installed; Ruby Psych checked syntax instead.
   `actionlint` is unavailable locally, and hosted CI/cross-platform execution are not claimed.
+
+## Backend CI outcome
+
+The native job retains compilation, lint, documentation, feature, and WSI checks and runs native
+library tests. The required backend job provisions the exact Python environment, checks admission,
+runs the unfiltered workspace suite with bounded test concurrency, and executes Python regressions.
+CI configuration is verified by existing workflow contracts, YAML parsing, the local locked uv dry
+run, and direct execution of its Python test commands. A hosted green run requires a later authorized
+push; no external run is started here. This declarative change adds no scientific behavior requiring
+a separate numerical red test.
+
+- Enabling the existing Python suite exposed three `ModuleNotFoundError: shapely` errors out of
+  75 tests. DEC-0411 admits Shapely 2.1.2, already required by production adapters. uv regenerated
+  the lock; comparison of all package name/version pairs confirmed no existing version changed.
+  Synchronizing the existing project environment installed only Shapely.
+- The three exact failed geometry tests then passed. Full commands
+  `env PYTHONDONTWRITEBYTECODE=1 target/pymc-venv/bin/python -m unittest discover -s tests/python
+  -p 'test_*.py'` and the same command with `-s workers/python` passed 75/75 and 1/1 respectively.
+- `cargo +1.96.0 test --locked --package marklab --test workflow_contract` passed 7/7.
+  Ruby Psych verified CI YAML and environment-install ordering before the complete nextest command;
+  `git diff --check` passed. Hosted execution and Linux dependency-install capacity remain unverified.

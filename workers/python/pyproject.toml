@@ -11,6 +11,7 @@ dependencies = [
     "pymc==6.3.0",
     "sbi==0.26.1",
     "scikit-image==0.26.0",
+    "shapely==2.1.2",
     "simpleitk==2.5.5",
 ]
 

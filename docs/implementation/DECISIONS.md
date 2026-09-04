@@ -4043,3 +4043,41 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
 - No scientific result schema, package dependency, new backend, remote execution, or automatic
   package installation is introduced. Real fits and relocated replay supply integration evidence;
   cross-platform support remains limited to the configurations actually exercised.
+
+## DEC-0410 — Provision a required backend integration lane in CI
+
+- Date: 2026-09-04
+- Status: accepted for ARCH-INTEGRATION-01/BACK-01/WS-13/WS-93
+- Decision: retain native compilation/lint/feature/WSI gates and run native library tests there.
+  Add a required separate job that installs Python 3.12 and synchronizes the committed worker lock
+  with the locally verified uv 0.7.17, admits the runtime through `backend doctor`, executes the
+  complete all-feature workspace suite with two concurrent tests, and runs both standalone Python
+  regression locations. Pin setup-uv to its reviewed v9.0.0 commit.
+- Consequences: backend tests remain required and unfiltered in their provisioned lane. No test is
+  ignored or replaced by a weaker assertion. Native library tests also run in the complete lane;
+  this modest duplication avoids a fragile hand-maintained backend test list. Hosted Linux
+  environment capacity, job duration, and exact package/platform compatibility require actual CI
+  execution; this local change does not claim a hosted green run or GPU support.
+
+## DEC-0411 — Declare the geometry dependency already used by production adapters
+
+- Date: 2026-09-04
+- Status: accepted for ARCH-INTEGRATION-01/BACK-01/FND-02/WS-25/WS-93
+- Evidence: the newly executed complete Python regression suite has 72 passes and three import
+  errors because the joint CellViT table adapter requires Shapely, absent from the committed
+  environment. The CPTAC and patient-field adapters also consume it directly.
+- Decision: pin Shapely 2.1.2 in the existing Python project and regenerate its lock with uv,
+  preserving existing package versions. Synchronize the existing project environment, then rerun
+  the failed geometry tests and the complete Python suite. This admits an existing production
+  dependency rather than changing geometry formulas or adding a new analysis backend.
+- Costs and alternatives: Shapely is BSD-3-Clause; its GEOS dependency is LGPL-2.1 and distributed
+  wheels include native code. Its documented Python >=3.10, NumPy >=1.21, and GEOS >=3.9 requirements
+  fit the current Python 3.12 environment. Wheel size/import/native-memory costs apply to the Python
+  environment, not the Rust binary; support on each target requires wheel/runtime admission. Keep
+  upstream version and wheel digests locked rather than reimplementing robust polygon overlay.
+  Release archives distribute the worker sources and lock, not installed third-party wheels.
+- Sources: [versioned release notes](https://shapely.readthedocs.io/en/2.1.2/release/2.x.html),
+  [project license](https://github.com/shapely/shapely/blob/main/LICENSE.txt), and
+  [GEOS license context](https://shapely.readthedocs.io/en/stable/index.html).
+- Changing the environment-lock digest intentionally invalidates affected scientific cache keys.
+  Existing stored artifacts are preserved; new runs retain the new environment identity.

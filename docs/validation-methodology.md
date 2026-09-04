@@ -87,6 +87,12 @@ regressions; they are not nominal error-rate claims.
 
 ## Scheduled calibration
 
+Pull-request CI has separate native and backend integration jobs. The backend job provisions
+Python 3.12 from the committed worker lock, runs `marklab backend doctor`, executes the complete
+all-feature workspace suite with two concurrent tests, and runs the standalone tests in both
+`tests/python` and `workers/python`. Backend tests are required in that lane, not skipped when an
+environment is missing. Synthetic calibration and real-data promotion retain their separate scope.
+
 The weekly and manually dispatched `.github/workflows/calibration.yml` workflow
 runs 1,000 full production replicates per engine outside pull-request CI. The marked
 control uses fixed-count random marks at fixed positions. The multimodal control
