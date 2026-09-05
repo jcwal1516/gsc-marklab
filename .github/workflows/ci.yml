@@ -9,14 +9,14 @@ jobs:
   workflow-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: actionlint
         uses: raven-actions/actionlint@v2
 
   rust:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: dtolnay/rust-toolchain@1.96.0
       - uses: taiki-e/install-action@nextest
       - run: cargo fmt --check
@@ -29,7 +29,7 @@ jobs:
   dependency-policy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: dtolnay/rust-toolchain@1.96.0
       - uses: taiki-e/install-action@v2
         with:
@@ -42,17 +42,19 @@ jobs:
   fuzz-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: x86_64-unknown-linux-gnu
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-fuzz
-      - run: cargo +nightly fuzz check
+      - run: cargo +nightly fuzz check --target x86_64-unknown-linux-gnu
 
   benchmark:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: dtolnay/rust-toolchain@1.96.0
       - name: Small production-workload smoke benchmark
         run: /usr/bin/time -v -o benchmark-resources.txt env MARKLAB_BENCH_PROFILE=smoke cargo bench --locked --all-features -- --quick
@@ -67,7 +69,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: dtolnay/rust-toolchain@1.96.0
       - run: cargo test --locked --no-default-features --features dhat-heap --lib dhat_ -- --test-threads=1
 
@@ -75,7 +77,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: dtolnay/rust-toolchain@1.96.0
       - run: cargo run --release --locked --features wsi --bin marklab -- smoke --suite synthetic --replicates 10 --out smoke-ci
       - uses: actions/upload-artifact@v4
