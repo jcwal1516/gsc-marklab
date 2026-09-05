@@ -12,6 +12,16 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[3]
 BASELINE = "f784302"
 
+NATIVE_ADMISSIONS = {
+    "marklab_scipy_grouped_conformal_worker": "EMB-CONFORMAL-01 / RUST-MIGRATION-01",
+    "marklab_scipy_prediction_calibration_worker": "EMB-CALIBRATE-01 / RUST-MIGRATION-01 (two legacy cold failures retained)",
+    "marklab_scipy_late_fusion_worker": "EMB-LATE-FUSION-01 / RUST-MIGRATION-01 (three failed reference fits retained)",
+    "marklab_scipy_partial_transport_worker": "REG-PARTIAL-OT-01 / RUST-MIGRATION-01 (zero-capacity Python failure; analytic native oracle)",
+    "marklab_scipy_predictive_stacking_worker": "EMB-STACKING-01 / RUST-MIGRATION-01 (complete jackknife; nine frozen cases)",
+    "marklab_scipy_mixture_of_experts_worker": "EMB-MOE-01 / RUST-MIGRATION-01 (DEC-0423 demanding precision; constant-context failure retained)",
+    "marklab_scipy_pcca_em_worker": "MM-PCCA-01 / RUST-MIGRATION-01 (initial slowdown retained; exact sufficient-statistic optimization)",
+}
+
 
 def owner(name):
     if name == "marklab_scipy_partial_transport_worker": return "marklab-bayes (reviewed native transport owner)"
@@ -30,6 +40,13 @@ def owner(name):
 
 def main():
     revision=subprocess.check_output(["git","rev-parse",BASELINE],cwd=ROOT,text=True).strip()
+    target=ROOT/"docs/implementation/PYTHON_MIGRATION_INVENTORY.csv"
+    # The frozen revision fixes these bytes; reuse its already-recorded source identities.
+    previous_hashes = {}
+    if target.exists():
+        with target.open(newline="") as previous:
+            previous_hashes = {row["python_source"]: row["sha256"] for row in csv.DictReader(previous)
+                               if row["baseline_revision"] == revision}
     tracked=subprocess.check_output(["git","ls-tree","-r","--name-only",revision],cwd=ROOT,text=True).splitlines()
     source_paths=[p for p in tracked if p.endswith((".rs",".py",".md",".yml"))]
     # Read frozen Git blobs in one batch. Working-tree migrations must not erase their old callers.
@@ -58,8 +75,12 @@ def main():
         production=[p for p in matches if p.endswith((".rs",".py")) and not p.startswith(("tests/","docs/")) and "/tests/" not in p and not Path(p).name.startswith("test_")]
         tests=[p for p in matches if p.startswith("tests/") or "/tests/" in p or Path(p).name.startswith("test_")]
         contracts=[p for p in matches if p.startswith("docs/implementation/")]
-        writer.writerow([revision,path,hashlib.sha256(sources[path].encode()).hexdigest(),";".join(sorted(imports)),";".join(production),";".join(tests),";".join(contracts),owner(stem),"native: bounded parity and synthetic performance gates passed" if stem in ("marklab_scipy_grouped_conformal_worker", "marklab_scipy_prediction_calibration_worker", "marklab_scipy_late_fusion_worker", "marklab_scipy_partial_transport_worker") else "pending", "EMB-CONFORMAL-01 / RUST-MIGRATION-01" if "grouped_conformal" in stem else "EMB-CALIBRATE-01 / RUST-MIGRATION-01 (two legacy cold failures retained)" if stem=="marklab_scipy_prediction_calibration_worker" else "EMB-LATE-FUSION-01 / RUST-MIGRATION-01 (three failed reference fits retained)" if stem=="marklab_scipy_late_fusion_worker" else "REG-PARTIAL-OT-01 / RUST-MIGRATION-01 (zero-capacity Python failure; analytic native oracle)" if stem=="marklab_scipy_partial_transport_worker" else "existing caller fixtures; not yet individually admitted"])
-    target=ROOT/"docs/implementation/PYTHON_MIGRATION_INVENTORY.csv"
+        digest = previous_hashes.get(path)
+        if digest is None:
+            digest = hashlib.sha256(sources[path].encode()).hexdigest()
+        status = "native: bounded parity and synthetic performance gates passed" if stem in NATIVE_ADMISSIONS else "pending"
+        admission = NATIVE_ADMISSIONS.get(stem, "existing caller fixtures; not yet individually admitted")
+        writer.writerow([revision,path,digest,";".join(sorted(imports)),";".join(production),";".join(tests),";".join(contracts),owner(stem),status,admission])
     target.write_text(output.getvalue())
     print(f"{len(paths)} Python sources inventoried; unmatched/dynamic callers require review before porting")
 

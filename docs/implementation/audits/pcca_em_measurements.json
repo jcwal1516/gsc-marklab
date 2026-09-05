@@ -1,0 +1,1102 @@
+{
+  "cases": {
+    "demanding": {
+      "cold": {
+        "median_paired_speedup": 4.906350095314158,
+        "paired_bootstrap_95pct": [
+          4.620865699595747,
+          5.049857056310371
+        ],
+        "parity": true,
+        "promotable": true,
+        "python_median_ns": 367460020.5,
+        "rust_median_ns": 72679583.5,
+        "samples_ns": [
+          {
+            "python": 385570333,
+            "rust": 90044792
+          },
+          {
+            "python": 390684084,
+            "rust": 87309417
+          },
+          {
+            "python": 380885166,
+            "rust": 71490292
+          },
+          {
+            "python": 341954333,
+            "rust": 71733292
+          },
+          {
+            "python": 361053417,
+            "rust": 72874417
+          },
+          {
+            "python": 345302625,
+            "rust": 71075666
+          },
+          {
+            "python": 343510458,
+            "rust": 72218625
+          },
+          {
+            "python": 367853291,
+            "rust": 72661500
+          },
+          {
+            "python": 369345041,
+            "rust": 73324167
+          },
+          {
+            "python": 367066750,
+            "rust": 72697667
+          }
+        ]
+      },
+      "dx": 16,
+      "dy": 16,
+      "latent": 4,
+      "rows": 2000,
+      "rss_time_l": {
+        "python": "        0.36 real         0.29 user         0.04 sys\n            63684608  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                9546  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                6377  voluntary context switches\n                 125  involuntary context switches\n           363851313  instructions retired\n           114929064  cycles elapsed\n            24445360  peak memory footprint\n",
+        "rust": "        0.06 real         0.03 user         0.02 sys\n            32571392  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                4196  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                9443  voluntary context switches\n                  76  involuntary context switches\n           301487936  instructions retired\n           103791434  cycles elapsed\n            18596272  peak memory footprint\n"
+      },
+      "warm": {
+        "median_paired_speedup": 16.00434190391249,
+        "paired_bootstrap_95pct": [
+          15.56408717396685,
+          16.68673810127403
+        ],
+        "parity": true,
+        "promotable": true,
+        "python_median_ns": 181981583.0,
+        "rust_median_ns": 11317354.0,
+        "samples_ns": [
+          {
+            "python": 172231875,
+            "rust": 11499458
+          },
+          {
+            "python": 181016333,
+            "rust": 11469083
+          },
+          {
+            "python": 183097208,
+            "rust": 11263000
+          },
+          {
+            "python": 177842792,
+            "rust": 11090416
+          },
+          {
+            "python": 175767667,
+            "rust": 11454250
+          },
+          {
+            "python": 186521916,
+            "rust": 11371708
+          },
+          {
+            "python": 179678542,
+            "rust": 11248916
+          },
+          {
+            "python": 231964834,
+            "rust": 11244708
+          },
+          {
+            "python": 182946833,
+            "rust": 11735459
+          },
+          {
+            "python": 190537375,
+            "rust": 11131500
+          }
+        ]
+      }
+    },
+    "representative": {
+      "cold": {
+        "median_paired_speedup": 6.43140365107645,
+        "paired_bootstrap_95pct": [
+          6.350149469648674,
+          6.462284126746715
+        ],
+        "parity": true,
+        "promotable": true,
+        "python_median_ns": 235391791.5,
+        "rust_median_ns": 36448375.5,
+        "samples_ns": [
+          {
+            "python": 228123500,
+            "rust": 36436792
+          },
+          {
+            "python": 235248542,
+            "rust": 35261541
+          },
+          {
+            "python": 238855875,
+            "rust": 37102209
+          },
+          {
+            "python": 236392625,
+            "rust": 36443084
+          },
+          {
+            "python": 235773958,
+            "rust": 37300292
+          },
+          {
+            "python": 232550000,
+            "rust": 36453667
+          },
+          {
+            "python": 238675292,
+            "rust": 37147750
+          },
+          {
+            "python": 231383791,
+            "rust": 36363792
+          },
+          {
+            "python": 232942750,
+            "rust": 36182791
+          },
+          {
+            "python": 235535041,
+            "rust": 36565667
+          }
+        ]
+      },
+      "dx": 8,
+      "dy": 6,
+      "latent": 2,
+      "rows": 256,
+      "rss_time_l": {
+        "python": "        0.23 real         0.17 user         0.04 sys\n            53444608  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                8355  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                 472  voluntary context switches\n                2815  involuntary context switches\n           188030678  instructions retired\n            60392400  cycles elapsed\n            15204784  peak memory footprint\n",
+        "rust": "        0.03 real         0.01 user         0.00 sys\n            26624000  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3591  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                 685  voluntary context switches\n                  43  involuntary context switches\n           176453270  instructions retired\n            54723639  cycles elapsed\n            14614936  peak memory footprint\n"
+      },
+      "warm": {
+        "median_paired_speedup": 41.818555961554374,
+        "paired_bootstrap_95pct": [
+          39.93438469253347,
+          45.5332372575009
+        ],
+        "parity": true,
+        "promotable": true,
+        "python_median_ns": 45981583.5,
+        "rust_median_ns": 1081062.5,
+        "samples_ns": [
+          {
+            "python": 49038291,
+            "rust": 1025750
+          },
+          {
+            "python": 47820208,
+            "rust": 1041459
+          },
+          {
+            "python": 46572833,
+            "rust": 1066709
+          },
+          {
+            "python": 45253458,
+            "rust": 1100083
+          },
+          {
+            "python": 44585958,
+            "rust": 1093084
+          },
+          {
+            "python": 45435000,
+            "rust": 1069041
+          },
+          {
+            "python": 43447458,
+            "rust": 1164042
+          },
+          {
+            "python": 46528167,
+            "rust": 1142000
+          },
+          {
+            "python": 45394333,
+            "rust": 1172000
+          },
+          {
+            "python": 47235042,
+            "rust": 1037375
+          }
+        ]
+      }
+    },
+    "small": {
+      "cold": {
+        "median_paired_speedup": 5.121198289259245,
+        "paired_bootstrap_95pct": [
+          4.934792935802416,
+          5.276366851875912
+        ],
+        "parity": true,
+        "promotable": true,
+        "python_median_ns": 172398500.0,
+        "rust_median_ns": 33562583.0,
+        "samples_ns": [
+          {
+            "python": 189800166,
+            "rust": 488488875
+          },
+          {
+            "python": 168140959,
+            "rust": 35335291
+          },
+          {
+            "python": 174688208,
+            "rust": 30607500
+          },
+          {
+            "python": 169217958,
+            "rust": 32693708
+          },
+          {
+            "python": 172593917,
+            "rust": 32710750
+          },
+          {
+            "python": 172203083,
+            "rust": 33751000
+          },
+          {
+            "python": 172934250,
+            "rust": 33834750
+          },
+          {
+            "python": 170668541,
+            "rust": 33374166
+          },
+          {
+            "python": 173235500,
+            "rust": 33778291
+          },
+          {
+            "python": 171723667,
+            "rust": 32540250
+          }
+        ]
+      },
+      "dx": 2,
+      "dy": 2,
+      "latent": 1,
+      "rows": 12,
+      "rss_time_l": {
+        "python": "        0.16 real         0.12 user         0.02 sys\n            51281920  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                8153  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                  33  voluntary context switches\n                 101  involuntary context switches\n           172838830  instructions retired\n            52121866  cycles elapsed\n            14057880  peak memory footprint\n",
+        "rust": "        0.03 real         0.01 user         0.00 sys\n            25346048  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3416  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                  40  voluntary context switches\n                  35  involuntary context switches\n           166971148  instructions retired\n            50276190  cycles elapsed\n            13894040  peak memory footprint\n"
+      },
+      "warm": {
+        "median_paired_speedup": 67.44702013480052,
+        "paired_bootstrap_95pct": [
+          51.263832287338005,
+          73.19151119911129
+        ],
+        "parity": true,
+        "promotable": true,
+        "python_median_ns": 9503916.5,
+        "rust_median_ns": 154937.5,
+        "samples_ns": [
+          {
+            "python": 10502875,
+            "rust": 307875
+          },
+          {
+            "python": 15914583,
+            "rust": 260167
+          },
+          {
+            "python": 12560083,
+            "rust": 167542
+          },
+          {
+            "python": 10702250,
+            "rust": 156500
+          },
+          {
+            "python": 9850208,
+            "rust": 135125
+          },
+          {
+            "python": 9157625,
+            "rust": 153375
+          },
+          {
+            "python": 8721000,
+            "rust": 131125
+          },
+          {
+            "python": 8724709,
+            "rust": 122167
+          },
+          {
+            "python": 8631541,
+            "rust": 208708
+          },
+          {
+            "python": 9126000,
+            "rust": 118416
+          }
+        ]
+      }
+    }
+  },
+  "identities": {
+    "lock": {
+      "path": "/Users/user/Bench/gsc-marklab/workers/python/uv.lock",
+      "sha256": "56030b038e8661823a1a52ae9dbfb6acc72cdeaace7a1ec5a798c78cd62aa768"
+    },
+    "native_binary": {
+      "path": "/Users/user/Bench/gsc-marklab/target/release/marklab",
+      "sha256": "ba50d85cb5dbb1b9dbff31c831ea73ee51cfd4c09668820f9bc93ce3d2f3edf8"
+    },
+    "reference_binary": {
+      "path": "/Users/user/Bench/gsc-marklab/target/native-migration/predictive-stacking/python-baseline-marklab",
+      "sha256": "569cb4f093fbb7136bab02c7966552c96c85d754e8027c6611b4c08a5552ceb8"
+    },
+    "warm_binary": {
+      "path": "/Users/user/Bench/gsc-marklab/target/release/examples/pcca_em_benchmark",
+      "sha256": "f61365871e116d507a4d082a97ad549bbd594fd1834a158a22ee5b5af84bbc0e"
+    },
+    "worker": {
+      "path": "/Users/user/Bench/gsc-marklab/workers/python/marklab_scipy_pcca_em_worker.py",
+      "sha256": "5f0c1c86a64af2f120d8c5621a6545b3d994ebdc9a13afe8728cfb10738d9781"
+    }
+  },
+  "platform": "macOS-26.5.2-arm64-arm-64bit",
+  "python": "3.12.9",
+  "repetitions": 10,
+  "thread_budget": 1,
+  "warm_boundary": "Python JSON worker and Rust JSON application; both include parse, full EM, every diagnostic and serialization",
+  "before_optimization": {
+    "cases": {
+      "demanding": {
+        "cold": {
+          "median_paired_speedup": 0.916975095611303,
+          "paired_bootstrap_95pct": [
+            0.8973691032381698,
+            0.9833331199588392
+          ],
+          "parity": true,
+          "promotable": false,
+          "python_median_ns": 339451604.0,
+          "rust_median_ns": 370313208.0,
+          "samples_ns": [
+            {
+              "python": 348446250,
+              "rust": 369631333
+            },
+            {
+              "python": 383427334,
+              "rust": 368756916
+            },
+            {
+              "python": 379891667,
+              "rust": 370995083
+            },
+            {
+              "python": 340584875,
+              "rust": 371754875
+            },
+            {
+              "python": 333114167,
+              "rust": 367626208
+            },
+            {
+              "python": 346759542,
+              "rust": 366655250
+            },
+            {
+              "python": 338318333,
+              "rust": 368620500
+            },
+            {
+              "python": 331608167,
+              "rust": 372568167
+            },
+            {
+              "python": 332057834,
+              "rust": 374877542
+            },
+            {
+              "python": 334760291,
+              "rust": 373046375
+            }
+          ]
+        },
+        "dx": 16,
+        "dy": 16,
+        "latent": 4,
+        "rows": 2000,
+        "rss_time_l": {
+          "python": "        0.33 real         0.27 user         0.04 sys\n            62341120  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                9410  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                6365  voluntary context switches\n                  42  involuntary context switches\n           360059465  instructions retired\n           111261811  cycles elapsed\n            23675288  peak memory footprint\n",
+          "rust": "        0.36 real         0.33 user         0.02 sys\n            34504704  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                4404  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                9451  voluntary context switches\n                 163  involuntary context switches\n           299330529  instructions retired\n           100854433  cycles elapsed\n            20005272  peak memory footprint\n"
+        },
+        "warm": {
+          "median_paired_speedup": 0.5063964742469252,
+          "paired_bootstrap_95pct": [
+            0.48850467801380015,
+            0.5401624923074497
+          ],
+          "parity": true,
+          "promotable": false,
+          "python_median_ns": 158243250.0,
+          "rust_median_ns": 310705458.5,
+          "samples_ns": [
+            {
+              "python": 155034917,
+              "rust": 311871417
+            },
+            {
+              "python": 152486208,
+              "rust": 309626416
+            },
+            {
+              "python": 164531958,
+              "rust": 311197292
+            },
+            {
+              "python": 151019084,
+              "rust": 309145625
+            },
+            {
+              "python": 149960000,
+              "rust": 312545542
+            },
+            {
+              "python": 166816917,
+              "rust": 309681583
+            },
+            {
+              "python": 177973333,
+              "rust": 309372750
+            },
+            {
+              "python": 152278917,
+              "rust": 313013667
+            },
+            {
+              "python": 175160167,
+              "rust": 310213625
+            },
+            {
+              "python": 161451583,
+              "rust": 313084042
+            }
+          ]
+        }
+      },
+      "representative": {
+        "cold": {
+          "median_paired_speedup": 5.725871218260686,
+          "paired_bootstrap_95pct": [
+            5.551809540714064,
+            5.853906211853842
+          ],
+          "parity": true,
+          "promotable": true,
+          "python_median_ns": 224949771.0,
+          "rust_median_ns": 38805479.0,
+          "samples_ns": [
+            {
+              "python": 222816583,
+              "rust": 38422292
+            },
+            {
+              "python": 225172167,
+              "rust": 37471375
+            },
+            {
+              "python": 223374709,
+              "rust": 38981042
+            },
+            {
+              "python": 224286042,
+              "rust": 39201250
+            },
+            {
+              "python": 227564584,
+              "rust": 41350750
+            },
+            {
+              "python": 225993708,
+              "rust": 38605625
+            },
+            {
+              "python": 228456041,
+              "rust": 41149834
+            },
+            {
+              "python": 226720291,
+              "rust": 38585042
+            },
+            {
+              "python": 224727375,
+              "rust": 39615042
+            },
+            {
+              "python": 199427959,
+              "rust": 38629916
+            }
+          ]
+        },
+        "dx": 8,
+        "dy": 6,
+        "latent": 2,
+        "rows": 256,
+        "rss_time_l": {
+          "python": "        0.22 real         0.16 user         0.03 sys\n            51642368  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                8218  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                 471  voluntary context switches\n                2319  involuntary context switches\n           186088757  instructions retired\n            53693369  cycles elapsed\n            14565760  peak memory footprint\n",
+          "rust": "        0.03 real         0.02 user         0.00 sys\n            26230784  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3536  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                 681  voluntary context switches\n                  28  involuntary context switches\n           175644382  instructions retired\n            51090740  cycles elapsed\n            14057880  peak memory footprint\n"
+        },
+        "warm": {
+          "median_paired_speedup": 6.810091929401148,
+          "paired_bootstrap_95pct": [
+            6.623140204673559,
+            7.053661195156568
+          ],
+          "parity": true,
+          "promotable": true,
+          "python_median_ns": 43981750.0,
+          "rust_median_ns": 6472708.0,
+          "samples_ns": [
+            {
+              "python": 46827166,
+              "rust": 6453458
+            },
+            {
+              "python": 46946459,
+              "rust": 6362916
+            },
+            {
+              "python": 43948125,
+              "rust": 6635542
+            },
+            {
+              "python": 44582917,
+              "rust": 6905084
+            },
+            {
+              "python": 43209500,
+              "rust": 6443125
+            },
+            {
+              "python": 44015375,
+              "rust": 6491958
+            },
+            {
+              "python": 42757541,
+              "rust": 6522667
+            },
+            {
+              "python": 45759791,
+              "rust": 6689833
+            },
+            {
+              "python": 43635209,
+              "rust": 6369000
+            },
+            {
+              "python": 43903250,
+              "rust": 6351791
+            }
+          ]
+        }
+      },
+      "small": {
+        "cold": {
+          "median_paired_speedup": 5.47897772959837,
+          "paired_bootstrap_95pct": [
+            5.442269573398954,
+            5.559056244556608
+          ],
+          "parity": true,
+          "promotable": true,
+          "python_median_ns": 166745458.0,
+          "rust_median_ns": 30086354.0,
+          "samples_ns": [
+            {
+              "python": 178536750,
+              "rust": 33770584
+            },
+            {
+              "python": 165437458,
+              "rust": 30095583
+            },
+            {
+              "python": 166685125,
+              "rust": 29684916
+            },
+            {
+              "python": 162786958,
+              "rust": 29835375
+            },
+            {
+              "python": 166805791,
+              "rust": 30650042
+            },
+            {
+              "python": 166235000,
+              "rust": 30208250
+            },
+            {
+              "python": 167164000,
+              "rust": 30077125
+            },
+            {
+              "python": 162891375,
+              "rust": 29987250
+            },
+            {
+              "python": 166829667,
+              "rust": 30549917
+            },
+            {
+              "python": 168449333,
+              "rust": 29652500
+            }
+          ]
+        },
+        "dx": 2,
+        "dy": 2,
+        "latent": 1,
+        "rows": 12,
+        "rss_time_l": {
+          "python": "        0.16 real         0.12 user         0.02 sys\n            49463296  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                8026  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                  35  voluntary context switches\n                  39  involuntary context switches\n           172794536  instructions retired\n            50936757  cycles elapsed\n            14025088  peak memory footprint\n",
+          "rust": "        0.02 real         0.01 user         0.00 sys\n            25870336  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3506  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                  38  voluntary context switches\n                  27  involuntary context switches\n           166882755  instructions retired\n            47482105  cycles elapsed\n            13910400  peak memory footprint\n"
+        },
+        "warm": {
+          "median_paired_speedup": 64.26714460106572,
+          "paired_bootstrap_95pct": [
+            56.586325665891344,
+            66.16567368656806
+          ],
+          "parity": true,
+          "promotable": true,
+          "python_median_ns": 9194500.0,
+          "rust_median_ns": 142562.0,
+          "samples_ns": [
+            {
+              "python": 9019541,
+              "rust": 360792
+            },
+            {
+              "python": 10662500,
+              "rust": 121709
+            },
+            {
+              "python": 10132208,
+              "rust": 184334
+            },
+            {
+              "python": 10777375,
+              "rust": 190459
+            },
+            {
+              "python": 10135916,
+              "rust": 150792
+            },
+            {
+              "python": 9369459,
+              "rust": 143791
+            },
+            {
+              "python": 8654959,
+              "rust": 133209
+            },
+            {
+              "python": 8703459,
+              "rust": 133666
+            },
+            {
+              "python": 8567583,
+              "rust": 134792
+            },
+            {
+              "python": 8583375,
+              "rust": 141333
+            }
+          ]
+        }
+      }
+    },
+    "identities": {
+      "lock": {
+        "path": "/Users/user/Bench/gsc-marklab/workers/python/uv.lock",
+        "sha256": "56030b038e8661823a1a52ae9dbfb6acc72cdeaace7a1ec5a798c78cd62aa768"
+      },
+      "native_binary": {
+        "path": "/Users/user/Bench/gsc-marklab/target/release/marklab",
+        "sha256": "509019a052b80989763656e97ed9b94d1502575fc191d53dbf0b26750365efa0"
+      },
+      "reference_binary": {
+        "path": "/Users/user/Bench/gsc-marklab/target/native-migration/predictive-stacking/python-baseline-marklab",
+        "sha256": "569cb4f093fbb7136bab02c7966552c96c85d754e8027c6611b4c08a5552ceb8"
+      },
+      "warm_binary": {
+        "path": "/Users/user/Bench/gsc-marklab/target/release/examples/pcca_em_benchmark",
+        "sha256": "92ad2c2d7a1aa9aed44236d055fb8f050e3fb398aafb0bb4061375d1cd56b99b"
+      },
+      "worker": {
+        "path": "/Users/user/Bench/gsc-marklab/workers/python/marklab_scipy_pcca_em_worker.py",
+        "sha256": "5f0c1c86a64af2f120d8c5621a6545b3d994ebdc9a13afe8728cfb10738d9781"
+      }
+    },
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "python": "3.12.9",
+    "repetitions": 10,
+    "thread_budget": 1,
+    "warm_boundary": "Python JSON worker and Rust JSON application; both include parse, full EM, every diagnostic and serialization"
+  },
+  "before_native_profile": {
+    "samples": 9262,
+    "exclusive": [
+      [
+        "marklab_bayes::pcca_em::native::fit_pcca_em",
+        7020
+      ],
+      [
+        "marklab_bayes::pcca_em::native::posterior_scores",
+        1745
+      ],
+      [
+        "marklab_bayes::pcca_em::matrix::solve_cholesky_into",
+        284
+      ],
+      [
+        "_platform_memmove",
+        35
+      ],
+      [
+        "sha2::sha256::compress256",
+        26
+      ],
+      [
+        "libsystem_malloc.dylib:unresolved",
+        24
+      ],
+      [
+        "serde_json::de::Deserializer<R>::parse_number",
+        21
+      ],
+      [
+        "mach_absolute_time",
+        21
+      ],
+      [
+        "<serde_json::read::SliceRead as serde_json::read::Read>::parse_str",
+        15
+      ],
+      [
+        "madvise",
+        13
+      ],
+      [
+        "<serde_json::de::SeqAccess<R> as serde_core::de::SeqAccess>::next_element_seed::has_next_element",
+        11
+      ],
+      [
+        "serde_json::de::Deserializer<R>::parse_integer",
+        7
+      ],
+      [
+        "serde_core::de::impls::<impl serde_core::de::Deserialize for f64>::deserialize",
+        4
+      ],
+      [
+        "marklab_bayes::pcca_em::matrix::one_sided_jacobi",
+        4
+      ],
+      [
+        "pcca_em_benchmark:unresolved",
+        3
+      ],
+      [
+        "<serde_json::de::MapAccess<R> as serde_core::de::MapAccess>::next_key_seed::has_next_key",
+        3
+      ],
+      [
+        "marklab_bayes::pcca_em::native::input_identity",
+        3
+      ],
+      [
+        "<f64 as zmij::private::Sealed>::write_to_zmij_buffer",
+        3
+      ],
+      [
+        "serde_core::de::impls::<impl serde_core::de::Deserialize for alloc::vec::Vec<T>>::deserialize",
+        3
+      ],
+      [
+        "<core::hash::sip::Hasher<S> as core::hash::Hasher>::write",
+        3
+      ],
+      [
+        "core::str::converts::from_utf8",
+        2
+      ],
+      [
+        "_platform_memset",
+        2
+      ],
+      [
+        "alloc::raw_vec::RawVecInner<A>::finish_grow",
+        2
+      ],
+      [
+        "marklab_bayes::pcca_em::native::standardize",
+        1
+      ],
+      [
+        "marklab_bayes::linalg::cholesky",
+        1
+      ],
+      [
+        "libsystem_m.dylib:unresolved",
+        1
+      ],
+      [
+        "__bzero",
+        1
+      ],
+      [
+        "mach_vm_reclaim_update_kernel_accounting_trap",
+        1
+      ],
+      [
+        "alloc::vec::in_place_collect::from_iter_in_place",
+        1
+      ],
+      [
+        "core::str::<impl str>::trim_matches",
+        1
+      ],
+      [
+        "marklab::pcca_em::fit_json",
+        1
+      ]
+    ]
+  },
+  "optimized_native_profile": {
+    "samples": 5427,
+    "exclusive": [
+      [
+        "marklab_bayes::pcca_em::native::fit_pcca_em",
+        1875
+      ],
+      [
+        "_platform_memmove",
+        497
+      ],
+      [
+        "sha2::sha256::compress256",
+        457
+      ],
+      [
+        "marklab_bayes::pcca_em::native::posterior_system",
+        387
+      ],
+      [
+        "libsystem_malloc.dylib:unresolved",
+        374
+      ],
+      [
+        "serde_json::de::Deserializer<R>::parse_number",
+        366
+      ],
+      [
+        "<serde_json::read::SliceRead as serde_json::read::Read>::parse_str",
+        235
+      ],
+      [
+        "mach_absolute_time",
+        177
+      ],
+      [
+        "<serde_json::de::SeqAccess<R> as serde_core::de::SeqAccess>::next_element_seed::has_next_element",
+        172
+      ],
+      [
+        "serde_core::de::impls::<impl serde_core::de::Deserialize for f64>::deserialize",
+        119
+      ],
+      [
+        "serde_json::de::Deserializer<R>::parse_integer",
+        107
+      ],
+      [
+        "marklab_bayes::pcca_em::native::posterior_scores",
+        84
+      ],
+      [
+        "<f64 as zmij::private::Sealed>::write_to_zmij_buffer",
+        71
+      ],
+      [
+        "__bzero",
+        55
+      ],
+      [
+        "pcca_em_benchmark:unresolved",
+        43
+      ],
+      [
+        "core::str::converts::from_utf8",
+        43
+      ],
+      [
+        "_platform_memset",
+        39
+      ],
+      [
+        "libsystem_m.dylib:unresolved",
+        35
+      ],
+      [
+        "serde_core::de::impls::<impl serde_core::de::Deserialize for alloc::vec::Vec<T>>::deserialize",
+        33
+      ],
+      [
+        "<&mut serde_json::ser::Serializer<W,F> as serde_core::ser::Serializer>::serialize_str",
+        30
+      ],
+      [
+        "marklab_bayes::pcca_em::matrix::inverse_spd",
+        25
+      ],
+      [
+        "serde_core::ser::impls::<impl serde_core::ser::Serialize for alloc::vec::Vec<T>>::serialize",
+        21
+      ],
+      [
+        "marklab_bayes::linalg::cholesky",
+        21
+      ],
+      [
+        "marklab_bayes::pcca_em::matrix::one_sided_jacobi",
+        20
+      ],
+      [
+        "<core::slice::iter::Iter<T> as core::iter::traits::iterator::Iterator>::any",
+        18
+      ],
+      [
+        "<serde_json::de::MapAccess<R> as serde_core::de::MapAccess>::next_key_seed::has_next_key",
+        16
+      ],
+      [
+        "marklab_bayes::pcca_em::native::input_identity",
+        15
+      ],
+      [
+        "<core::marker::PhantomData<T> as serde_core::de::DeserializeSeed>::deserialize",
+        10
+      ],
+      [
+        "<core::hash::sip::Hasher<S> as core::hash::Hasher>::write",
+        8
+      ],
+      [
+        "marklab_bayes::pcca_em::native::standardize",
+        8
+      ],
+      [
+        "<core::iter::adapters::GenericShunt<I,R> as core::iter::traits::iterator::Iterator>::next",
+        8
+      ],
+      [
+        "hashbrown::map::HashMap<K,V,S,A>::insert",
+        7
+      ],
+      [
+        "serde_core::de::impls::<impl serde_core::de::Deserialize for alloc::string::String>::deserialize",
+        6
+      ],
+      [
+        "alloc::raw_vec::RawVec<T,A>::grow_one",
+        6
+      ],
+      [
+        "core::hash::BuildHasher::hash_one",
+        5
+      ],
+      [
+        "madvise",
+        5
+      ],
+      [
+        "core::str::<impl str>::trim_matches",
+        5
+      ],
+      [
+        "alloc::raw_vec::RawVecInner<A>::finish_grow",
+        4
+      ],
+      [
+        "hashbrown::raw::RawTable<T,A>::reserve_rehash",
+        4
+      ],
+      [
+        "serde_json::de::Deserializer<R>::end_map",
+        4
+      ],
+      [
+        "alloc::vec::in_place_collect::from_iter_in_place",
+        3
+      ],
+      [
+        "_platform_memcmp",
+        2
+      ],
+      [
+        "read",
+        1
+      ],
+      [
+        "<serde_json::ser::Compound<W,F> as serde_core::ser::SerializeStruct>::serialize_field",
+        1
+      ],
+      [
+        "serde_core::ser::SerializeMap::serialize_entry",
+        1
+      ],
+      [
+        "marklab_bayes::pcca_em::native::hash_text",
+        1
+      ],
+      [
+        "core::ptr::drop_in_place<marklab_bayes::pcca_em::PccaEmModality>",
+        1
+      ],
+      [
+        "<std::sys::pal::unix::time::Timespec>::now",
+        1
+      ],
+      [
+        "write",
+        1
+      ]
+    ]
+  },
+  "python_profiles": {
+    "representative.python-profile.txt": "         139756 function calls (133760 primitive calls) in 0.071 seconds\n\n   Ordered by: cumulative time\n   List reduced from 155 to 30 due to restriction <30>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.000    0.000    0.071    0.071 /Users/user/Bench/gsc-marklab/tests/python/benchmark_pcca_em.py:199(python_run)\n        1    0.011    0.011    0.071    0.071 /Users/user/Bench/gsc-marklab/workers/python/marklab_scipy_pcca_em_worker.py:46(main)\n      500    0.003    0.000    0.033    0.000 /Users/user/Bench/gsc-marklab/workers/python/marklab_scipy_pcca_em_worker.py:17(log_likelihood)\n      500    0.000    0.000    0.018    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/linalg/_decomp_cholesky.py:222(cho_solve)\n      500    0.002    0.000    0.018    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/_lib/_util.py:1102(wrapper)\n      500    0.011    0.000    0.014    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/linalg/_decomp_cholesky.py:271(_cho_solve)\n     1503    0.002    0.000    0.012    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/linalg/_basic.py:984(inv)\n      503    0.003    0.000    0.009    0.000 /Users/user/Bench/gsc-marklab/workers/python/marklab_scipy_pcca_em_worker.py:32(posterior_scores)\n      500    0.000    0.000    0.007    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/linalg/_decomp_cholesky.py:125(cho_factor)\n     2004    0.001    0.000    0.007    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/_lib/_util.py:364(_asarray_validated)\n     3004    0.002    0.000    0.006    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:603(asarray_chkfinite)\n     6022    0.005    0.000    0.005    0.000 {method 'reduce' of 'numpy.ufunc' objects}\n      500    0.001    0.000    0.005    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/linalg/_decomp_cholesky.py:26(_cholesky)\n        1    0.001    0.001    0.004    0.004 /Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/json/__init__.py:120(dump)\n     1502    0.002    0.000    0.003    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/lib/_twodim_base_impl.py:258(diag)\n     3006    0.001    0.000    0.003    0.000 {method 'all' of 'numpy.ndarray' objects}\n     4912    0.000    0.000    0.003    0.000 /Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/json/encoder.py:414(_iterencode)\n     2004    0.001    0.000    0.003    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/linalg/lapack.py:1139(_normalize_lapack_dtype)\n9828/4912    0.001    0.000    0.003    0.000 /Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/json/encoder.py:334(_iterencode_dict)\n     3006    0.000    0.000    0.003    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/_core/_methods.py:64(_all)\n     2004    0.002    0.000    0.002    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/linalg/blas.py:289(find_best_blas_type)\n     1500    0.001    0.000    0.002    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/_core/fromnumeric.py:66(_wrapreduction)\n     1505    0.000    0.000    0.002    0.000 {method 'sum' of 'numpy.ndarray' objects}\n5816/4736    0.001    0.000    0.002    0.000 /Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/json/encoder.py:278(_iterencode_list)\n     1503    0.002    0.000    0.002    0.000 {built-in method scipy.linalg._batched_linalg._inv}\n     1505    0.000    0.000    0.002    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/_core/_methods.py:47(_sum)\n     1503    0.001    0.000    0.002    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/lib/_twodim_base_impl.py:176(eye)\n    13124    0.001    0.000    0.002    0.000 {built-in method builtins.isinstance}\n     1000    0.000    0.000    0.002    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/_core/fromnumeric.py:3011(max)\n      500    0.001    0.000    0.002    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/lib/_shape_base_impl.py:1199(tile)\n\n\n",
+    "small.python-profile.txt": "         46013 function calls (45359 primitive calls) in 0.018 seconds\n\n   Ordered by: cumulative time\n   List reduced from 164 to 30 due to restriction <30>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.000    0.000    0.018    0.018 /Users/user/Bench/gsc-marklab/tests/python/benchmark_pcca_em.py:199(python_run)\n        1    0.003    0.003    0.018    0.018 /Users/user/Bench/gsc-marklab/workers/python/marklab_scipy_pcca_em_worker.py:46(main)\n      200    0.001    0.000    0.007    0.000 /Users/user/Bench/gsc-marklab/workers/python/marklab_scipy_pcca_em_worker.py:17(log_likelihood)\n      603    0.001    0.000    0.004    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/linalg/_basic.py:984(inv)\n      200    0.000    0.000    0.003    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/linalg/_decomp_cholesky.py:222(cho_solve)\n      200    0.001    0.000    0.003    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/_lib/_util.py:1102(wrapper)\n      200    0.000    0.000    0.002    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/linalg/_decomp_cholesky.py:125(cho_factor)\n      804    0.000    0.000    0.002    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/_lib/_util.py:364(_asarray_validated)\n      203    0.001    0.000    0.002    0.000 /Users/user/Bench/gsc-marklab/workers/python/marklab_scipy_pcca_em_worker.py:32(posterior_scores)\n      200    0.000    0.000    0.002    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/linalg/_decomp_cholesky.py:26(_cholesky)\n      200    0.001    0.000    0.002    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/linalg/_decomp_cholesky.py:271(_cho_solve)\n     1204    0.001    0.000    0.002    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:603(asarray_chkfinite)\n     2421    0.002    0.000    0.002    0.000 {method 'reduce' of 'numpy.ufunc' objects}\n     1206    0.000    0.000    0.001    0.000 {method 'all' of 'numpy.ndarray' objects}\n      804    0.000    0.000    0.001    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/linalg/lapack.py:1139(_normalize_lapack_dtype)\n      601    0.000    0.000    0.001    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/lib/_twodim_base_impl.py:258(diag)\n     1206    0.000    0.000    0.001    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/_core/_methods.py:64(_all)\n      605    0.000    0.000    0.001    0.000 {method 'sum' of 'numpy.ndarray' objects}\n      805    0.001    0.000    0.001    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/linalg/blas.py:289(find_best_blas_type)\n      600    0.000    0.000    0.001    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/_core/fromnumeric.py:66(_wrapreduction)\n      605    0.000    0.000    0.001    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/_core/_methods.py:47(_sum)\n      200    0.001    0.000    0.001    0.000 {built-in method scipy.linalg._batched_linalg._cholesky}\n      603    0.000    0.000    0.001    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/lib/_twodim_base_impl.py:176(eye)\n        1    0.000    0.000    0.001    0.001 /Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/json/__init__.py:120(dump)\n      400    0.000    0.000    0.001    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/_core/fromnumeric.py:3011(max)\n     3491    0.000    0.000    0.001    0.000 {built-in method builtins.isinstance}\n      200    0.000    0.000    0.000    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/lib/_shape_base_impl.py:1199(tile)\n      611    0.000    0.000    0.000    0.000 /Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/json/encoder.py:414(_iterencode)\n      603    0.000    0.000    0.000    0.000 {built-in method scipy.linalg._batched_linalg._inv}\n      804    0.000    0.000    0.000    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/_lib/_sparse.py:10(issparse)\n\n\n"
+  },
+  "commands": [
+    "env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONDONTWRITEBYTECODE=1 target/pymc-venv/bin/python tests/python/benchmark_pcca_em.py --profile",
+    "env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONDONTWRITEBYTECODE=1 target/pymc-venv/bin/python tests/python/benchmark_pcca_em.py --benchmark --warm-binary target/release/examples/pcca_em_benchmark --reference-binary target/native-migration/predictive-stacking/python-baseline-marklab --native-binary target/release/marklab",
+    "samply record --save-only --unstable-presymbolicate --main-thread-only --output target/native-migration/pcca-em/demanding.optimized-profile.json.gz -- target/release/examples/pcca_em_benchmark 500 < target/native-migration/pcca-em/demanding.native-request.json"
+  ],
+  "limitations": [
+    "One host, synthetic workloads, float64, one computational thread. No real-data, parallel-scaling, cross-platform or durable-replay measurement.",
+    "RSS is a separate one-shot observation.",
+    "Initial profile preparation via importlib omitted the tests/python import path and failed before running; the dependent profile launch found no input. Corrected sys.path preparation and both completed profiles pass final-output oracle comparisons."
+  ]
+}

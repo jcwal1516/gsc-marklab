@@ -5402,3 +5402,103 @@ The generated inventory marks four native rows, leaving 150 pending. No fresh fu
 strict docs, phase/release matrix, packaging, audit, hosted CI, cross-platform run or final Python-free
 release is claimed at this ordinary milestone. Earlier three-workflow checkpoint evidence remains
 scoped to its snapshot. The next admitted migration is complete patient-grouped predictive stacking.
+
+## RUST-MIGRATION-01 stacking / MoE / pCCA integration checkpoint — 2026-09-05
+
+This is one integrated checkpoint after three complete workflows, not a sequence of per-edit gates.
+The implemented candidates remain pending full-workspace validation because compilation exhausted
+disk space. The user-edited AGENTS.md is preserved separately; no current-batch commit is claimed.
+
+- Stacking focused evidence: five domain tests cover nine frozen Python fits, all jackknife outputs,
+  exact simplex boundaries/order, admission and legacy reading; two internal numerical/deadline cases
+  and three CLI cases pass. The duplicate-model fixture exposed an equal-objective line-search error,
+  which was fixed before these passing results. Main reused the passing results at this checkpoint.
+- MoE agent evidence: five domain tests (four independent frozen workloads), three Python-disabled
+  CLI cases, the consumed bounded L-BFGS case and analytic-gradient/nonfinite-logit regressions pass.
+  The temporary wider dense-BFGS admission was removed before promotion; original BFGS tests remain.
+  DEC-0423 records the investigated demanding-reference precision limit. The retained demanding
+  `fit-audit.json` has stale native display-label metadata; this is disclosed in the audit/report.
+- pCCA agent evidence: after the complete sufficient-statistic optimization, one focused checkpoint
+  passes the existing SVD scale/pairing case and all four native pCCA oracle/boundary cases. Earlier
+  complete Python-disabled CLI evidence remains applicable; the full suite was intended to cover
+  integration again. Main did not repeat the agent's focused suite after small edits.
+
+| Check | Exact command / retained evidence | Result and scope |
+|---|---|---|
+| Optimized implementation | `env CARGO_BUILD_JOBS=2 cargo +1.96.0 build --locked --release --bin marklab --example pcca_em_benchmark` | Final sufficient-statistic candidate passes in 7m25s. The previous direct-SVD candidate passed in 6m59s but was rejected on demanding-workload performance. Earlier integrated build produced all seven development examples in 7m20s. |
+| Formatting | `cargo +1.96.0 fmt --all --check` | Pass on final production code. |
+| Workspace lint | `env CARGO_TARGET_DIR=target/native-migration/focused CARGO_BUILD_JOBS=2 cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings` | Pass, 1m04s. |
+| Minimal libraries | `env CARGO_TARGET_DIR=target/native-migration/focused CARGO_BUILD_JOBS=2 cargo +1.96.0 check --locked --workspace --no-default-features` | Pass, 9.18s. |
+| CSV application boundary | `env CARGO_TARGET_DIR=target/native-migration/focused CARGO_BUILD_JOBS=2 cargo +1.96.0 check --locked --workspace --all-targets --no-default-features --features csv` | Pass, 40.67s, with 14 existing test-instrumentation warnings documented by workspace policy. Not a warnings-clean claim for this feature combination. |
+| Strict documentation | `env CARGO_TARGET_DIR=target/native-migration/focused CARGO_BUILD_JOBS=2 RUSTDOCFLAGS=-Dwarnings cargo +1.96.0 doc --locked --no-deps --workspace --all-features` | Pass, 9.58s; 17 documented packages. |
+| Doctests | `env CARGO_TARGET_DIR=target/native-migration/focused CARGO_BUILD_JOBS=2 cargo +1.96.0 test --locked --workspace --doc --all-features` | Pass, 31.94s build; all 17 targets have zero runnable doctest cases. |
+| Full workspace checkpoint | `env CARGO_BUILD_JOBS=2 cargo +1.96.0 nextest run --locked --workspace --all-features --test-threads 2` | Exit 101 during test compilation: `incremental compilation: could not create session directory lock file: No space left on device (os error 28)`, including `graph_sparse_radius_scattering_cli`. No test-execution result. Log: `target/native-migration/integrated-batch/workspace-nextest.log`. Earlier 1744-test success remains scoped to the preceding three-workflow batch. |
+| Generated-cache recovery | `trash -v target/native-migration/focused/debug/incremental` | Exit 5, NSCocoaErrorDomain Code 640 / disk full; nothing moved or deleted. `df -h .` reports about 116 MiB available. Task-owned focused incremental cache is about 15 GiB; permanent removal needs an explicit exception to the user's Trash rule. |
+
+Scientific/performance acceptance uses the existing drivers under locked Python with
+`OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONDONTWRITEBYTECODE=1`:
+
+- `tests/python/benchmark_mixture_of_experts.py --warm target/release/examples/mixture_of_experts_benchmark --baseline target/native-migration/predictive-stacking/python-baseline-marklab --candidate target/release/marklab` passes all four ten-pair cold/warm comparisons. RSS is measured separately and outputs checked. The measured CLI is retained as `target/native-migration/pcca-em/before-optimization-marklab`; subsequent pCCA-only optimization does not relabel that measurement as a new MoE benchmark.
+- `tests/python/benchmark_pcca_em.py --profile`, then `--benchmark --warm-binary target/release/examples/pcca_em_benchmark --reference-binary target/native-migration/predictive-stacking/python-baseline-marklab --native-binary target/release/marklab` first retains a confirmed demanding slowdown, then passes all three cases after the substantive EM optimization. Every timed result is verified against the existing oracle.
+- Stacking's nine complete comparisons and existing profile remain attached to their retained candidate. The final immutable-digest reuse check composes the existing example protocols and verification functions on ten alternating native-before/after pairs for ten workloads across five families. No new Python fits are run. Direct science agrees; demanding calibration and maximum stacking timing intervals cross one and support no additional speedup claim.
+- Separate native profiles cover the complete MoE and pre/post pCCA demanding applications. Their final outputs pass the existing Python-oracle comparators. Raw samples, profiles, commands, failures and scoped identities are retained in `audits/predictive_stacking_measurements.json`, `audits/mixture_of_experts_measurements.json` and `audits/pcca_em_measurements.json`.
+
+No successful gate is repeated merely at this reporting boundary. No extra native-CI subset,
+phase/release matrix, package/audit/fuzz campaign, hosted CI, cross-platform execution, real-data
+admission, parallel scaling, durable replay or final Python-free release is claimed. The frozen
+inventory remains four promoted native rows with 150 pending, including these three candidates;
+all 233 master-plan tracker requirements and the immutable master plan remain in scope.
+
+### Authorized disk recovery and checkpoint resumption
+
+The user explicitly approved permanent removal of only
+`target/native-migration/focused/debug/incremental`, then authorized Cargo cleanup in Bench/frames
+repositories. The first Python here-document could not create its temporary file because the disk
+was full; an equivalent guarded `python3 -c` removal succeeded. Only that task-owned generated
+incremental cache was removed by the scoped deletion.
+
+`cargo +1.96.0 clean --manifest-path <repo>/Cargo.toml --target-dir <repo>/target` then passed in
+`burn`, `burn-onnx`, `frames/dicom-viewer`, `frames/j2k`, `frames/jxr`,
+`frames/wsi-annotation-interop`, `frames/wsi-dicom`, `frames/wsi-dicom-annotations` and
+`frames/wsi-rs`. Each target was checked as a real local directory with no tracked files before
+cleanup. No active Cargo/rustc processes were found. The active Marklab target, retained reference
+binaries, raw measurements and source changes were preserved. Cargo reported respectively
+26.7, 20.5, 16.1, 17.9, 10.1, 1.4, 11.9, 5.1 and 55.3 GiB removed; filesystem accounting showed
+about 145 GiB available afterward. The burn-onnx cleanup reported an existing non-root profile
+warning but exited successfully.
+
+The same full-workspace command is resumed, with output in
+`target/native-migration/integrated-batch/workspace-nextest-resumed.log`. Completed static gates
+and controlled comparisons are reused; a resumed full-suite success is not claimed until execution
+finishes.
+
+### Completed checkpoint with reused passing evidence
+
+After disk recovery, the full command compiled successfully in 3m07s. Executable discovery was
+unusually slow; a sample of a live test-discovery child showed macOS loader/startup frames before
+Rust test code. The first sampled PID had already exited; the next one was sampled successfully.
+No runtime or system controls were changed. The test phase stopped after 2868.771s at the existing
+workspace architecture assertion: `transport.rs` had introduced CLI-gated library definitions.
+1435 cases passed (13 slow), one failed, 342 were unrun, and 28 existing cases were skipped.
+
+DEC-0424 fixes the actual feature boundary: the complete CSV application and shared native process
+runtime compile under `csv`; CLI parsing/command registration retain their existing ownership.
+Names, signatures, math, serialized output and all-feature compiled definitions are preserved.
+The canonical architecture assertion was not changed. The library's affected CSV-only surface
+passes `env CARGO_TARGET_DIR=target/native-migration/focused CARGO_BUILD_JOBS=2 cargo +1.96.0 check
+--locked -p marklab --no-default-features --features csv` in 17.52s.
+
+The interrupted checkpoint was completed with these commands, not another unfiltered full run:
+
+- `env CARGO_BUILD_JOBS=2 cargo +1.96.0 nextest run --locked --workspace --all-features --test-threads 2 -E 'not package(=marklab) or binary(=workspace_contract) or binary(=wsi_integration)'` — 337/337 pass in 12.808s after 3m25s compilation; one existing ignored case. This includes the fixed assertion, the other previously unrun workspace contract, WSI integration, and scientific-library tests. Log: `target/native-migration/integrated-batch/workspace-nextest-remaining.log`.
+- The initial remaining selection omitted six previously unrun CLI-binary unit cases. `cargo +1.96.0 nextest list --locked -p marklab --all-features --bin marklab --message-format json` identified them; it did not execute tests. `env CARGO_BUILD_JOBS=2 cargo +1.96.0 nextest run --locked -p marklab --all-features --bin marklab --test-threads 2` passes all six in 0.040s. Log: `target/native-migration/integrated-batch/workspace-nextest-bin.log`.
+
+The three execution logs contain 1435 + 337 + 6 = 1778 unique passing case identities with no
+repeated passing case. The known architecture regression is green and the fail-fast remainder is
+complete. This is combined checkpoint coverage, not a claim that the unfiltered command exited
+successfully. The contained correction leaves all-feature behavior unchanged; earlier passing
+checks and performance evidence remain valid and scoped to their executed configurations/binaries.
+No new full-suite, benchmark, formatting, lint or documentation round was started for ledger or
+commit updates. The frozen inventory generator now reuses recorded source digests for its unchanged
+baseline and marks seven promoted rows; 147 remain pending. All master-plan scope and scientific
+data/calibration gaps remain. Return to complete workflow implementation under the updated cadence.

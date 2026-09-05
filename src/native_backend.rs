@@ -60,6 +60,33 @@ pub fn run_native_partial_transport(
     run_registered("native-partial-transport", request, timeout_seconds)
 }
 
+/// Execute all native stacking refits with bounded streams and a hard process deadline.
+#[doc(hidden)]
+pub fn run_native_predictive_stacking(
+    request: Vec<u8>,
+    timeout_seconds: u64,
+) -> Result<Vec<u8>, NativeBackendError> {
+    run_registered("native-predictive-stacking", request, timeout_seconds)
+}
+
+/// Execute native context-gated mixture fitting with bounded streams and a hard deadline.
+#[doc(hidden)]
+pub fn run_native_mixture_of_experts(
+    request: Vec<u8>,
+    timeout_seconds: u64,
+) -> Result<Vec<u8>, NativeBackendError> {
+    run_registered("native-mixture-of-experts", request, timeout_seconds)
+}
+
+/// Execute native paired Gaussian pCCA with bounded streams and a hard deadline.
+#[doc(hidden)]
+pub fn run_native_pcca_em(
+    request: Vec<u8>,
+    timeout_seconds: u64,
+) -> Result<Vec<u8>, NativeBackendError> {
+    run_registered("native-pcca-em", request, timeout_seconds)
+}
+
 fn run_registered(
     route: &str,
     request: Vec<u8>,

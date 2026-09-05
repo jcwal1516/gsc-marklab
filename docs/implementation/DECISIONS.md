@@ -4474,3 +4474,186 @@ Its parent validates the typed spec before the existing exact_float_json codec, 
 traits on PartialTransportSpec/TransportMass and an explicit borrowed validate method. The child
 returns ordinary native JSON. The parent attaches hashes computed from actual CSV bytes using raw
 JSON values, retaining exact output numbers without trusting child-supplied file identities.
+
+## DEC-0419 — Native patient-grouped predictive stacking
+
+Continue RUST-MIGRATION-01 / EMB-STACKING-01 / IC-0100 in the existing Bayes owner. Add typed native
+fit/result/provenance and shared admission, a root CSV/source-binding application, and a static native
+child route. Preserve 8..500 unique patient-held-out rows, 2..16 model columns in supplied order,
+canonical patient ordering, the declared jackknife work bound, 2000 optimizer iterations, 1e-12
+objective-change target, finite results, 16 MiB output and explicit cooperative/hard deadlines.
+Native version 2 truthfully records native execution; all existing scientific fields and legacy
+Python readers remain. Weights are predictive optimization weights, not model probabilities.
+
+A private stacking optimizer uses a BFGS quadratic model with a bounded active-set simplex solve
+and safeguarded objective line search. It starts every full/leave-one-patient fit uniformly and
+allows exact boundary weights. This is not a softmax reparameterization or a warm-start jackknife.
+Reuse existing Bayes Cholesky/triangular solves. The optimizer is private to this immediate density
+caller; do not introduce a general constrained-optimization framework. Prepare one contiguous
+row-scaled density matrix, reuse it by skipping the held-out row in each exact refit, and retain
+all patient mixture outputs and per-model minimum/maximum over every refit. There is no new
+production dependency or unsafe code. Original objective/gradient clipping is preserved during
+optimization; reported mixtures exclude exactly zero weights, as the reference does.
+
+Freeze nine reference workloads before implementation: symmetric, boundary, 60x3, 200x8, 500x16,
+identical models, duplicated models, large common log offsets and near-duplicate models. Compare
+all weights, every patient mixture, objective and all jackknife extrema with method-specific
+1e-6 absolute/relative tolerances and exact identities/order/counts. Investigate ill-conditioned
+weight disagreements rather than treating matching objective alone as weight parity. Python source,
+lockfile and full reference computations remain unchanged.
+
+## DEC-0420 — Delegated native context-gated mixture of experts
+
+The user explicitly authorizes a three-agent migration batch. The MoE agent owns the complete
+EMB-MOE-01 / IC-0101 numerical and CSV workflow in existing Bayes mixture_of_experts plus its own
+root application, CLI adapter, fixtures/tests and benchmark tooling. Preserve gate-train-only
+standardization, OOF provenance, availability zeros, L2/entropy objective, separate Platt fitting,
+calibration-derived OOD threshold and every test output/metric. Native typed fitting/provenance,
+shared admission and a static child route may be added; retain legacy readers and result-format
+0.3. No dependency or shared optimizer changes are authorized without a further recorded rationale.
+Scientific parity, all diagnostics/resources and credible paired complete-workflow speedup remain
+promotion gates. Main owns crate/module exports, shared runtime/command registration, manifests,
+CI, decision/status ledgers, commits, integration and promotion. Benchmark/profiler CPU windows are
+centrally reserved; no agent runs performance measurements against competing engineering workloads.
+
+## DEC-0421 — Delegated native paired Gaussian pCCA EM
+
+The second independent agent owns MM-PCCA-01 / IC-0165, preserving complete paired measured
+patient-level Gaussian views, train-only standardization, diagonal-noise EM, all latent/likelihood
+and held-out cross-view outputs, deterministic seed behavior and existing claims/bounds. The
+probabilistic model and inference belong to a focused Bayes pcca_em module using existing linear
+algebra where applicable; the root application owns JSON admission/source binding and the paired
+CLI adapter composes it. It must preserve the neighboring Bayesian-NUTS pCCA path unchanged.
+Native typed fitting/results/provenance and a static child route may be added; do not modify Python
+reference sources or dependencies/locks. Resolve nonunique factor comparisons through scientifically
+appropriate reconstruction/subspace invariants, retaining every identified scalar and held-out
+output. Main owns all shared exports/runtime/manifests/ledgers and final integration/promotion.
+
+### DEC-0420 immediate numerical caller extension
+
+MoE's admitted gate has up to 8 experts × (1 intercept + 16 contexts + 8 availability indicators)
+= 200 parameters and permits 2000 optimizer iterations. Extend only `marklab-numerics::minimize_bfgs`
+admission from 129/1000 to 200/2000 for that immediate caller. Preserve the algorithm, strong-Wolfe
+line search, gradient acceptance, finite/error/deadline behavior and every existing caller's own
+smaller iteration/input limits. The 200-dimensional dense inverse Hessian uses 40000 f64 elements;
+no dependency, unsafe code or unbounded dimension is introduced. Test the new admitted fit and
+reject one-over bounds before invoking the objective. This does not make native BFGS equivalent to
+the reference gate's L-BFGS-B relative-objective stopping or establish nonconvex optimizer parity.
+
+
+## DEC-0422 — Reuse required native implementation identities
+
+The updated SHA discipline applies to the in-flight native batch. Existing native result envelopes
+and semantic request bindings consume the implementation identity to distinguish executable science
+from the legacy Python identity and bind a result to its actual implementation/input. Preserve these
+fields and their hash inputs. Compute each immutable implementation digest once per process with
+standard-library LazyLock, then reuse it across fits; retain per-input binding at actual input
+boundaries. No new digest field, source-tree scan, dependency or hash-only test is added.
+
+Existing oracle/native transport cases verify scientific behavior and result binding. Prior Python/
+Rust paired measurements remain scoped to their measured binaries; compare the final native build
+against those retained native candidates to check this contained reuse change, without rerunning
+unchanged expensive Python fits solely because of a reporting or commit boundary. Keep direct
+scientific comparisons and raw timing samples; digests alone never establish parity.
+
+
+## DEC-0423 — Preserve the MoE limited-memory optimizer contract
+
+The representative frozen MoE case distinguishes dense BFGS from the reference L-BFGS-B trajectory:
+dense BFGS reaches a lower objective but changes test gates/probabilities materially. It is not
+promoted. An independent SciPy L-BFGS-B run with the verified analytic gradient reproduces the
+frozen finite-difference solution within the declared parameter tolerance and the same relative-
+objective stop. A bounded limited-memory owner is therefore an immediate production requirement.
+`native_moe` alone may implement a new numerics `lbfgs.rs` and its focused numerical tests as part of
+the complete workflow; main retains all shared exports/manifests and existing BFGS ownership. Assess
+an appropriate pure-Rust dependency before recreating a complex line search; adding a dependency
+still requires its concrete maintenance/license/MSRV/portability/runtime rationale. Preserve the
+200-dimensional / 2000-iteration / history-10 / 50-line-search-evaluation bounds, gtol 1e-7 and relative
+ftol 1e-12, and caller deadlines. Native analytic gradients do not by themselves establish trajectory
+or output parity; all frozen scientific comparisons remain binding.
+
+### DEC-0423 implementation and differential precision
+
+Use the focused dependency-free limited-memory implementation with the existing bounded Wolfe
+bracketing strategy and direct error propagation. The inspected alternatives were `liblbfgs` 0.1.0
+(older narrow release with license metadata inconsistency and different stopping convention),
+`liblbfgs-compliant-rs` 0.1.6 (explicit maturity caveat and callback/error mismatch), `basin` 1.5.1
+(a broader solver framework/dependency surface), and `lbfgs` 0.3.0 (curvature-history storage only,
+leaving the needed solver/line search). Primary package/API sources are
+https://docs.rs/crate/liblbfgs/0.1.0 , https://docs.rs/crate/liblbfgs-compliant-rs/0.1.6 ,
+https://docs.rs/crate/basin/1.5.1 , https://docs.rs/basin/1.5.1/basin/solver/lbfgs/ and
+https://docs.rs/crate/lbfgs/0.3.0 . Published package/build metadata are not local measurements.
+No new dependency, license or MSRV surface is introduced. The primitive exposes the immediate
+caller's bounded history, iteration, line-search, gradient and relative-objective controls.
+
+Retain the initial demanding-case strict differential failure. For 3000 rows, the frozen numerical-
+gradient SciPy fit stops at relative ftol with analytic max|g| 2.15e-5; independent analytic-gradient
+SciPy differs by up to 6.12e-5 in coefficients. Native L-BFGS has an objective lower by 1.54e-9,
+max|g| 1.22e-5, maximum gate difference 2.83e-5 and calibrated-probability difference 3.81e-6. Central
+finite differences verify the analytic gradient to <=2.5e-8. This is evidence that the original
+2e-5 parameter / 2e-6 downstream comparison is tighter than this reference's finite-stop precision.
+For this demanding comparison admit 1e-4 coefficients/gates and 1e-5 probabilities/fitted scalar
+summaries, retaining the original stricter checks on the other cases and on standardization/OOD
+geometry. Identity, order, counts, availability and OOD decisions remain exact. Float64 work,
+optimizer stopping/diagnostics, resource limits and scientific claim limits do not change. This
+recorded precision decision is not permission to relax other failures or promote without timings.
+
+
+The temporary dense-BFGS admission extension recorded under DEC-0420 is superseded before promotion:
+MoE now consumes the limited-memory owner, so dense BFGS retains its original 129-parameter / 1000-
+iteration limits. Remove only the new test for that abandoned extension; all pre-existing BFGS
+behavior tests remain. The actual 200-parameter / 2000-iteration acceptance/rejection coverage belongs
+to the consumed L-BFGS primitive. No speculative wider dense-BFGS surface is retained.
+
+
+### DEC-0421 final numerical review
+
+The initial Gram-matrix eigensolve was scale-dependent and squared the cross-covariance condition
+number. An admitted weak full-rank direction could round to zero and acquire independently chosen
+left/right signs, changing pCCA's fixed-scale paired-loading initialization. Replace it with a
+max-entry-scaled bounded one-sided Jacobi SVD directly on the cross matrix, using transposition for
+rectangular orientation and pairing each left vector with its rotated right vector. Use relative
+rank/convergence thresholds and explicit nonconvergence errors. The existing regression table now
+covers overall scales 1e-8/1e-16 and the full-rank [[1,1],[0,-1e-10]] pairing; existing complete EM
+oracles still pass. No dependency or generic decomposition framework is introduced.
+
+### DEC-0421 measured EM performance blocker
+
+The first complete demanding pCCA comparison passes scientific parity but fails promotion: median
+warm Python/native times are 158.24/310.71 ms (paired speedup 0.5064, 95% interval 0.4885–0.5402),
+and cold times are 339.45/370.31 ms (0.9170, interval 0.8974–0.9833). Retain that candidate and all
+raw samples. A 9262-sample native profile attributes 7020 exclusive samples to EM fitting, 1745 to
+posterior score calculation and 284 to triangular solving. The pCCA owner may reuse the fixed
+training second-moment matrix throughout exact Gaussian EM and likelihood evaluation, replacing
+repeated observation scans with equivalent bounded matrix contractions. Preserve all final patient
+scores, the full likelihood trace, convergence and finite/resource policies; direct frozen-oracle
+comparisons and a new complete performance comparison remain required before promotion. No new
+public primitive, dependency or alternative statistical objective is authorized by this optimization.
+
+The complete sufficient-statistic optimization passes the existing pCCA SVD regression and all
+four domain tests in one focused checkpoint. Controlled optimized comparisons now pass all three
+frozen workloads, including the full original likelihood traces and identified outputs. Demanding
+warm Python/native medians are 181.98/11.32 ms, with paired speedup 16.00 (95% interval 15.56–16.69);
+cold medians are 367.46/72.68 ms, speedup 4.91 (4.62–5.05). These are new paired observations, not
+ratios between timings collected in different runs. Retain the original slowdown in
+`audits/pcca_em_measurements.json`. No slower-replacement exception is needed for these workloads.
+
+## DEC-0424 — Keep the transport application independent of CLI compilation
+
+The integrated checkpoint reproduces a workspace ownership violation: `transport.rs` conditionally
+compiled its native application function and runtime error variant behind `cli`. The canonical
+allowlist is unchanged. Compile the shared native process runtime and its existing hidden exports
+with the existing `csv` feature, which already owns the complete transport application; remove the
+two CLI gates inside that application. CLI argument parsing and hidden worker command registration
+remain CLI-owned. Existing names, signatures, error paths, scientific algorithms, serialization,
+stream limits and deadlines are preserved. The hidden runtime helpers retain their documented
+precondition that the current executable registers the corresponding worker command; library
+clients normally use direct typed fits. CSV-only clients can now compile the complete application
+surface without enabling CLI parsing. No new feature, dependency or worker backend is added.
+
+With all features enabled, these items were already present: their compiled definitions and
+scientific behavior are unchanged. Reuse the 1435 passing tests from the interrupted checkpoint,
+check the failed architecture contract and newly exposed CSV-only surface, and execute the 342
+tests that fail-fast never reached. Report the combined coverage truthfully, not as a fresh
+unfiltered full-suite pass. Do not repeat completed Python comparisons or expensive passing gates
+for this conditional-compilation correction or subsequent documentation/commit work.

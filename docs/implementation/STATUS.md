@@ -4,6 +4,40 @@ Last updated: 2026-09-05
 
 ## Current outcome — RUST-MIGRATION-01
 
+The stacking / mixture-of-experts / paired pCCA batch is complete. Seven of the 154 frozen Python
+source rows are now promoted native workflows; 147 remain pending. Their library applications,
+scientific owners and bounded runtime paths are integrated without changing result-format 0.3.
+
+The checkpoint has passing evidence for all 1778 selected tests, with no passing case repeated:
+1435 passed before an architecture assertion stopped the full run; after correcting the transport
+application's CLI feature dependency, 337 remaining/failed cases and six previously unrun CLI-binary
+cases pass. This is combined checkpoint coverage, not a claim that the interrupted unfiltered command
+passed. The original disk-exhaustion failure, authorized cache cleanup, architecture failure and
+exact resumption commands remain in the validation ledger. The correction changes CSV-only API
+availability while preserving all-feature definitions, scientific computation and serialization.
+The existing assertion was not relaxed. The affected CSV-only library compilation also passes.
+
+Formatting, all-target/all-feature workspace Clippy, no-default compilation, strict documentation,
+all 17 doctest targets (zero runnable cases) and the CSV-only all-target compilation passed before
+that contained feature correction; still-valid results are reused. The CSV-only all-target gate
+retains 14 existing instrumentation warnings. No extra native-CI subset, benchmark rerun or broad
+gate was triggered by reporting or committing. User-edited AGENTS.md remains separate.
+
+Stacking passes nine frozen references including every jackknife refit. Retained paired comparisons
+show 33.83–136.18x warm and 8.21–118.08x cold speedups. Native-before/after digest-reuse comparisons
+preserve science; the largest stacking/calibration timing intervals cross one and establish no
+additional speedup. MoE passes four independent cases at 154.81–2832.63x warm and 8.82–437.53x cold,
+with the demanding precision decision and constant-context reference failure retained. pCCA's
+initial demanding slowdown was fixed through exact training-statistic reuse: all three cases pass
+at 16.00–67.45x warm and 4.91–6.43x cold. These are bounded synthetic, single-host, one-thread
+observations; real-data, parallel-scaling, durable-replay and final Python-free release claims remain
+open. See `../native-migration-measurements.md` for boundaries and raw evidence.
+
+Next: complete graph-spatial matrix and three-mode CP/Tucker workflows, preserving their different
+uncertainty contracts, followed by bounded preparation/reporting/interchange. Work in complete
+workflow batches; run focused checks after implementation, with the next full checkpoint only after
+another three to five integrated workflows or a real phase/release boundary.
+
 The user-authorized migration is now the active workstream (DEC-0415). All 154 production worker,
 adapter and client Python sources at baseline `f784302` remain in scope. The generated
 `PYTHON_MIGRATION_INVENTORY.csv` freezes source identities and literal caller/contract matches;

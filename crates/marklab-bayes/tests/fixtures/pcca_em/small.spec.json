@@ -1,0 +1,177 @@
+{
+  "convergence_tolerance": 1e-09,
+  "design": {
+    "coordinate_frame": null,
+    "entity_level": "patient",
+    "missingness_assumption": "complete_paired_rows",
+    "modality_x": {
+      "feature_names": [
+        "x1",
+        "x2"
+      ],
+      "id": "morphology",
+      "likelihood": "gaussian",
+      "measurement_status": "measured"
+    },
+    "modality_y": {
+      "feature_names": [
+        "y1",
+        "y2"
+      ],
+      "id": "ihc",
+      "likelihood": "gaussian",
+      "measurement_status": "measured"
+    }
+  },
+  "latent_dimensions": 1,
+  "maximum_iterations": 200,
+  "noise_floor": 1e-06,
+  "regularization": 1e-06,
+  "rows": [
+    {
+      "entity_id": "p00",
+      "split": "train",
+      "x": [
+        -5.42,
+        -2.83
+      ],
+      "y": [
+        -11.08,
+        5.58
+      ]
+    },
+    {
+      "entity_id": "p01",
+      "split": "train",
+      "x": [
+        -4.58,
+        -2.17
+      ],
+      "y": [
+        -8.92,
+        4.42
+      ]
+    },
+    {
+      "entity_id": "p02",
+      "split": "train",
+      "x": [
+        -3.42,
+        -1.83
+      ],
+      "y": [
+        -7.08,
+        3.58
+      ]
+    },
+    {
+      "entity_id": "p03",
+      "split": "train",
+      "x": [
+        -2.58,
+        -1.17
+      ],
+      "y": [
+        -4.92,
+        2.42
+      ]
+    },
+    {
+      "entity_id": "p04",
+      "split": "train",
+      "x": [
+        -1.42,
+        -0.83
+      ],
+      "y": [
+        -3.08,
+        1.58
+      ]
+    },
+    {
+      "entity_id": "p05",
+      "split": "train",
+      "x": [
+        -0.58,
+        -0.16999999999999998
+      ],
+      "y": [
+        -0.92,
+        0.42
+      ]
+    },
+    {
+      "entity_id": "p06",
+      "split": "train",
+      "x": [
+        0.58,
+        0.16999999999999998
+      ],
+      "y": [
+        0.92,
+        -0.42
+      ]
+    },
+    {
+      "entity_id": "p07",
+      "split": "train",
+      "x": [
+        1.42,
+        0.83
+      ],
+      "y": [
+        3.08,
+        -1.58
+      ]
+    },
+    {
+      "entity_id": "p08",
+      "split": "test",
+      "x": [
+        2.58,
+        1.17
+      ],
+      "y": [
+        4.92,
+        -2.42
+      ]
+    },
+    {
+      "entity_id": "p09",
+      "split": "test",
+      "x": [
+        3.42,
+        1.83
+      ],
+      "y": [
+        7.08,
+        -3.58
+      ]
+    },
+    {
+      "entity_id": "p10",
+      "split": "test",
+      "x": [
+        4.58,
+        2.17
+      ],
+      "y": [
+        8.92,
+        -4.42
+      ]
+    },
+    {
+      "entity_id": "p11",
+      "split": "test",
+      "x": [
+        5.42,
+        2.83
+      ],
+      "y": [
+        11.08,
+        -5.58
+      ]
+    }
+  ],
+  "timeout_seconds": 30
+}

@@ -55,15 +55,19 @@ pub fn fit_partial_transport(
     spec.validate()?;
     check_plan_identity_budget(&spec)?;
     let deadline = start + Duration::from_secs(spec.timeout_seconds);
-    let implementation_sha256 = crate::sha256_hex(
-        concat!(
-            include_str!("native.rs"),
-            include_str!("solver.rs"),
-            include_str!("../partial_transport.rs"),
-            include_str!("../transport.rs")
+    // The required executable identity is immutable within this process.
+    static IMPLEMENTATION_SHA256: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+        crate::sha256_hex(
+            concat!(
+                include_str!("native.rs"),
+                include_str!("solver.rs"),
+                include_str!("../partial_transport.rs"),
+                include_str!("../transport.rs")
+            )
+            .as_bytes(),
         )
-        .as_bytes(),
-    );
+    });
+    let implementation_sha256 = IMPLEMENTATION_SHA256.clone();
     let request_sha256 = input_identity(&implementation_sha256, &spec);
     let solved = solver::solve(&spec, deadline)?;
     let rows = spec.source.len();

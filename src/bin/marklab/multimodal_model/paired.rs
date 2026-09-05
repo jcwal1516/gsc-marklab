@@ -3,9 +3,7 @@ use std::{collections::HashSet, path::PathBuf};
 use marklab_topology::sha256_hex;
 
 use super::super::topology::{publish_json, read_input, run_worker, TopologyCliError};
-use super::schema::{
-    BayesianPccaSpec, PairedMultimodalDesign, PairedMultimodalRow, ProbabilisticCcaSpec,
-};
+use super::schema::{BayesianPccaSpec, PairedMultimodalDesign, PairedMultimodalRow};
 use super::worker_assets;
 
 pub(super) fn run_bayesian_pcca(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
@@ -79,114 +77,13 @@ pub(super) fn run_bayesian_pcca(input: PathBuf, out: PathBuf) -> Result<(), Topo
 
 pub(super) fn run_pcca(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
     let bytes = read_input(&input)?;
-    let mut spec: ProbabilisticCcaSpec = serde_json::from_slice(&bytes)?;
-    spec.rows
-        .sort_by(|left, right| left.entity_id.cmp(&right.entity_id));
-    validate_pcca(&spec)?;
-    let assets = worker_assets::load("marklab_scipy_pcca_em_worker.py")?;
-    let request = serde_json::json!({
-        "format": "marklab.scipy_pcca_em_request",
-        "version": 1,
-        "backend": {
-            "name": "numpy_scipy",
-            "version": "numpy-2.4.6+scipy-1.18.1",
-            "python_version": "3.12",
-            "license": "BSD-3-Clause",
-            "environment_lock_sha256": assets.lock_sha256,
-            "worker_sha256": assets.worker_sha256
-        },
-        "design": spec.design,
-        "rows": spec.rows,
-        "latent_dimensions": spec.latent_dimensions,
-        "regularization": spec.regularization,
-        "noise_floor": spec.noise_floor,
-        "maximum_iterations": spec.maximum_iterations,
-        "convergence_tolerance": spec.convergence_tolerance
-    });
-    let request_bytes = serde_json::to_vec(&request)?;
-    let response = run_worker(
-        &assets.repository,
-        &assets.worker_path,
-        &request_bytes,
-        spec.timeout_seconds,
-    )?;
-    let result: serde_json::Value = serde_json::from_slice(&response)?;
-    if result["format"] != "marklab.probabilistic_cca"
-        || result["backend"] != request["backend"]
-        || result["request_sha256"] != sha256_hex(&request_bytes)
-        || result["design"]["validation_status"] != "passed"
-        || result["claim_status"] != "experimental_synthetic_paired_gaussian_pcca"
-    {
-        return Err(TopologyCliError::Backend(
-            "probabilistic CCA result identity mismatch".into(),
-        ));
-    }
+    let (request, timeout_seconds) = marklab::pcca_em::native_request(bytes)
+        .map_err(|error| TopologyCliError::Input(error.to_string()))?;
+    let response = marklab::run_native_pcca_em(request, timeout_seconds)
+        .map_err(|error| TopologyCliError::Backend(error.to_string()))?;
+    // RawValue validates syntax while preserving the native serializer's exact f64 decimals.
+    let result: &serde_json::value::RawValue = serde_json::from_slice(&response)?;
     publish_json(&out, &result)
-}
-
-fn validate_pcca(spec: &ProbabilisticCcaSpec) -> Result<(), TopologyCliError> {
-    let dx = spec.design.modality_x.feature_names.len();
-    let dy = spec.design.modality_y.feature_names.len();
-    let valid_design = spec.design.entity_level == "patient"
-        && spec.design.modality_x.id != spec.design.modality_y.id
-        && spec.design.modality_x.measurement_status == "measured"
-        && spec.design.modality_y.measurement_status == "measured"
-        && spec.design.modality_x.likelihood == "gaussian"
-        && spec.design.modality_y.likelihood == "gaussian"
-        && spec.design.missingness_assumption == "complete_paired_rows"
-        && spec
-            .design
-            .coordinate_frame
-            .as_ref()
-            .is_none_or(|frame| !frame.trim().is_empty());
-    let mut entity_ids = HashSet::new();
-    let train_count = spec.rows.iter().filter(|row| row.split == "train").count();
-    let test_count = spec.rows.iter().filter(|row| row.split == "test").count();
-    if !valid_design
-        || !(1..=32).contains(&dx)
-        || !(1..=32).contains(&dy)
-        || spec.rows.len() < 9
-        || spec.rows.len() > 10_000
-        || train_count < 8
-        || test_count == 0
-        || !(1..=dx.min(dy)).contains(&spec.latent_dimensions)
-        || !spec.regularization.is_finite()
-        || spec.regularization < 0.0
-        || !spec.noise_floor.is_finite()
-        || spec.noise_floor <= 0.0
-        || !(2..=10_000).contains(&spec.maximum_iterations)
-        || !spec.convergence_tolerance.is_finite()
-        || spec.convergence_tolerance <= 0.0
-        || !(1..=3_600).contains(&spec.timeout_seconds)
-        || spec.rows.iter().any(|row| {
-            row.entity_id.trim().is_empty()
-                || row.entity_id.trim() != row.entity_id
-                || !entity_ids.insert(row.entity_id.as_str())
-                || !matches!(row.split.as_str(), "train" | "test")
-                || row.x.len() != dx
-                || row.y.len() != dy
-                || row.x.iter().chain(&row.y).any(|value| !value.is_finite())
-        })
-    {
-        return Err(TopologyCliError::Input(
-            "pCCA requires valid paired measured patient Gaussian modalities, train/test rows, dimensions, and numerical controls"
-                .into(),
-        ));
-    }
-    for names in [
-        &spec.design.modality_x.feature_names,
-        &spec.design.modality_y.feature_names,
-    ] {
-        let mut unique = HashSet::new();
-        if names.iter().any(|name| {
-            name.trim().is_empty() || name.trim() != name || !unique.insert(name.as_str())
-        }) {
-            return Err(TopologyCliError::Input(
-                "pCCA feature names must be unique exact strings within each modality".into(),
-            ));
-        }
-    }
-    Ok(())
 }
 
 fn validate_common_design(

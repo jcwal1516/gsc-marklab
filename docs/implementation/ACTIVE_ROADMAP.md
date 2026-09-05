@@ -29,11 +29,21 @@ Entropic partial transport now passes seven independent oracle/performance cases
 zero-capacity verification, complete native CLI and resource/legacy checks (DEC-0418). Its failed
 zero-capacity Python reference remains recorded. The inventory now marks four native rows.
 
-1. Migrate patient-grouped predictive stacking (EMB-STACKING-01), including every leave-one-patient-out
-   refit and its sensitivity ranges, preserving simplex boundary solutions and claim limits.
-2. Continue deterministic factorization/spatial summaries, adapters/reports and bounded H5AD,
-   admitting each immediate caller and scientific contract. Analytically checkable Gaussian inference
-   precedes generalized/spatial Bayesian methods, topology/registration and neural/SBI workflows.
+The subsequent stacking, MoE and paired pCCA batch now passes scientific/performance gates and
+combined checkpoint coverage of all 1778 selected tests. Disk recovery and the transport feature
+boundary correction are retained in STATUS; no successful tests were repeated to finish the run.
+The inventory now marks seven promoted native rows, leaving 147 pending.
+
+1. Migrate graph-spatial matrix MAP/Laplace factorization (MM-SPATIAL-MATRIX-01 / IC-0170), preserving
+   observed-only preparation, graph precision, the limited-memory inverse-Hessian uncertainty,
+   aligned factors and every masked prediction under existing bounds. Exact Hessians cannot silently
+   replace the existing approximation.
+2. Migrate three-mode CP/Tucker workflows (MM-TENSOR-01 / IC-0171), preserving observed masks,
+   parameterization/alignment, training objective, Hessian-based uncertainty and held-out outputs.
+3. Continue admitted CRC/CellViT preparation, reporting and bounded H5AD/client workflows. Keep
+   ingestion, science, application composition and presentation separate. Analytically checkable
+   Gaussian inference precedes generalized/spatial Bayesian methods, topology/registration and
+   neural/SBI workflows.
 
 A confirmed slowdown blocks promotion pending an explicit tradeoff decision. Inconclusive timing
 is not a speedup. Failed Python references remain recorded failures and cannot establish parity.

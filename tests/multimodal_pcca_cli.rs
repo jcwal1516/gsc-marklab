@@ -24,7 +24,7 @@ fn paired_gaussian_pcca_recovers_the_shared_synthetic_direction_without_split_le
             })
         })
         .collect::<Vec<_>>();
-    let fixture = serde_json::json!({
+    let mut fixture = serde_json::json!({
         "design": {
             "entity_level": "patient",
             "modality_x": {"id":"morphology","measurement_status":"measured","likelihood":"gaussian","feature_names":["x1","x2"]},
@@ -40,7 +40,8 @@ fn paired_gaussian_pcca_recovers_the_shared_synthetic_direction_without_split_le
         "convergence_tolerance": 0.000000001,
         "timeout_seconds": 30
     });
-    fs::write(&input, serde_json::to_vec_pretty(&fixture).unwrap()).expect("fixture");
+    let input_bytes = serde_json::to_vec_pretty(&fixture).unwrap();
+    fs::write(&input, &input_bytes).expect("fixture");
     let output = directory.path().join("result.json");
 
     Command::cargo_bin("marklab")
@@ -53,12 +54,16 @@ fn paired_gaussian_pcca_recovers_the_shared_synthetic_direction_without_split_le
             "--out",
             output.to_str().unwrap(),
         ])
+        .env("MARKLAB_PYTHON", "/nonexistent/marklab-python")
+        .env("MARKLAB_RUNTIME_ROOT", "/nonexistent/marklab-runtime")
         .assert()
         .success();
 
     let result: serde_json::Value =
         serde_json::from_slice(&fs::read(output).unwrap()).expect("JSON");
     assert_eq!(result["format"], "marklab.probabilistic_cca");
+    assert_eq!(result["version"], 2);
+    assert_eq!(result["backend"]["name"], "marklab-rust");
     assert_eq!(result["design"]["validation_status"], "passed");
     assert_eq!(result["standardization"]["fit_split"], "train_only");
     assert_eq!(result["standardization"]["fit_row_count"], 8);
@@ -73,4 +78,23 @@ fn paired_gaussian_pcca_recovers_the_shared_synthetic_direction_without_split_le
         result["claim_status"],
         "experimental_synthetic_paired_gaussian_pcca"
     );
+
+    fixture["unexpected_control"] = serde_json::json!(true);
+    let malformed = directory.path().join("malformed.json");
+    let malformed_output = directory.path().join("malformed-out.json");
+    fs::write(&malformed, serde_json::to_vec(&fixture).unwrap()).unwrap();
+    Command::cargo_bin("marklab")
+        .expect("binary")
+        .args([
+            "multimodal",
+            "pcca",
+            "--input",
+            malformed.to_str().unwrap(),
+            "--out",
+            malformed_output.to_str().unwrap(),
+        ])
+        .env("MARKLAB_PYTHON", "/nonexistent/marklab-python")
+        .env("MARKLAB_RUNTIME_ROOT", "/nonexistent/marklab-runtime")
+        .assert()
+        .failure();
 }

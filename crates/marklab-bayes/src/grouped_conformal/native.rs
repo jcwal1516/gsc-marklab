@@ -56,19 +56,23 @@ pub fn fit_grouped_conformal(
     let start = Instant::now();
     let spec = spec.validated()?;
     let deadline = start + Duration::from_secs(spec.timeout_seconds);
-    let mut identity = Sha256::new();
-    identity.update(
-        concat!(
-            include_str!("native.rs"),
-            include_str!("logistic.rs"),
-            include_str!("../grouped_conformal.rs"),
-            include_str!("../linalg.rs"),
-            include_str!("../logistic_fit.rs")
-        )
-        .as_bytes(),
-    );
-    identity.update(marklab_numerics::BFGS_IMPLEMENTATION_SOURCE.as_bytes());
-    let implementation_sha256 = format!("{:x}", identity.finalize());
+    // The required executable identity is immutable within this process.
+    static IMPLEMENTATION_SHA256: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+        let mut identity = Sha256::new();
+        identity.update(
+            concat!(
+                include_str!("native.rs"),
+                include_str!("logistic.rs"),
+                include_str!("../grouped_conformal.rs"),
+                include_str!("../linalg.rs"),
+                include_str!("../logistic_fit.rs")
+            )
+            .as_bytes(),
+        );
+        identity.update(marklab_numerics::BFGS_IMPLEMENTATION_SOURCE.as_bytes());
+        format!("{:x}", identity.finalize())
+    });
+    let implementation_sha256 = IMPLEMENTATION_SHA256.clone();
     let request_sha256 = input_identity(&implementation_sha256, &spec);
     let model = logistic::fit(&spec, deadline)
         .map_err(|error| BayesError::InvalidSpec(error.to_string()))?;

@@ -2,7 +2,9 @@
 //! Stable bounded numerical primitives for Marklab.
 
 mod bfgs;
+mod lbfgs;
 pub use bfgs::minimize_bfgs;
+pub use lbfgs::{minimize_lbfgs, LBFGS_IMPLEMENTATION_SOURCE};
 
 /// Compile-embedded source of the bounded optimizer, for source-bound scientific provenance.
 /// This is opaque identity material, not a source-parsing or algorithm configuration interface.

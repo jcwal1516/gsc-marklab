@@ -191,3 +191,70 @@ ratios describe these particular converged optimization workloads, not a general
 retains every sample, interval, separate one-shot RSS observation, profile, source/input identity,
 command and failure. Profiling/builds/tests finished before paired timings. Durable replay, parallel
 scaling, real data and cross-platform capacity were not measured.
+
+## Patient-grouped predictive stacking
+
+All patient-held-out log densities, the complete simplex fit, every leave-one-patient refit and sensitivity range are retained. A single contiguous row-scaled density matrix is reused. Exact zero weights remain admitted; the native optimizer uses a bounded active-set simplex step rather than a softmax approximation.
+
+Ten alternating paired repetitions, float64, one computational thread on the same M4 Pro:
+
+| Workload | Cold Python / Rust ms | Cold paired speedup [95% interval] | Warm Python / Rust ms | Warm paired speedup [95% interval] |
+|---|---:|---:|---:|---:|
+| symmetric | 287.354 / 34.684 | 8.21x [7.98, 8.42] | 3.905 / 0.090 | 39.67x [37.37, 43.95] |
+| boundary | 314.979 / 35.125 | 9.00x [8.80, 9.12] | 8.901 / 0.150 | 60.47x [53.38, 62.74] |
+| representative | 314.933 / 34.830 | 9.01x [8.85, 9.14] | 12.254 / 0.209 | 58.93x [52.02, 61.36] |
+| demanding | 818.687 / 41.628 | 19.44x [19.39, 19.82] | 529.418 / 8.113 | 65.82x [64.64, 66.72] |
+| maximum | 34973.567 / 300.261 | 118.08x [116.29, 120.40] | 35817.964 / 263.803 | 136.18x [134.78, 137.14] |
+| identical | 265.078 / 30.694 | 8.65x [8.58, 8.85] | 6.533 / 0.146 | 44.26x [42.23, 47.59] |
+| duplicate_models | 265.742 / 31.119 | 8.58x [7.91, 8.63] | 3.559 / 0.108 | 33.83x [32.39, 35.09] |
+| offset | 267.246 / 31.173 | 8.50x [8.38, 8.66] | 3.506 / 0.098 | 37.59x [34.22, 39.69] |
+| near_duplicate | 294.813 / 32.249 | 9.09x [8.67, 9.56] | 16.789 / 0.283 | 58.91x [56.30, 60.42] |
+
+All nine frozen references pass direct mixture/objective/weight/refit comparisons at 1e-6 absolute/relative, with exact identities, order, count and boundary-weight checks. The maximum-workload native profile places 32.45% of exclusive samples in objective evaluation, 21.61% in fitting and 13.16% in triangular solves. These Python comparisons used the retained candidate before immutable implementation-digest reuse. A separate ten-pair native-before/after check preserves direct scientific parity for stacking and four earlier native workflows. The maximum stacking and demanding calibration timing intervals cross one; no additional speedup is claimed there. Smaller digest-bound applications improve by 2.03–3.06x. No expensive unchanged Python fits were repeated solely for this contained reuse change.
+
+[`predictive_stacking_measurements.json`](implementation/audits/predictive_stacking_measurements.json) retains raw samples, uncertainty, failures, profiles, input/binary identities and memory observations. Cold includes fresh CLI/child execution and atomic output on a warm filesystem. Warm includes complete application/worker computation and serialization, excluding process startup. Separate RSS observations are not memory uncertainty estimates. These synthetic results establish no real-data, cross-platform, parallel-scaling or durable-replay claim.
+
+## Context-gated mixture of experts
+
+Gate training, availability masks, disjoint Platt calibration, OOD geometry and every test prediction remain in the complete workflow. The native gate uses a verified analytic gradient and bounded limited-memory BFGS. The demanding Python profile spends 32.3 of 33.3 profiled seconds in numerical gradient estimation; this reference implementation explains the large workload-specific speedups.
+
+Ten alternating paired repetitions, float64, one computational thread on the same M4 Pro:
+
+| Workload | Cold Python / Rust ms | Cold paired speedup [95% interval] | Warm Python / Rust ms | Warm paired speedup [95% interval] |
+|---|---:|---:|---:|---:|
+| small | 291.197 / 33.836 | 8.82x [8.08, 9.09] | 11.599 / 0.078 | 154.81x [137.47, 161.70] |
+| representative | 1397.192 / 33.377 | 41.82x [41.28, 42.46] | 1124.277 / 0.698 | 1608.93x [1601.67, 1616.51] |
+| demanding | 22972.992 / 53.306 | 437.53x [263.00, 457.19] | 21982.776 / 7.834 | 2832.63x [2739.50, 2872.08] |
+| maximum_features | 1214.163 / 34.309 | 35.51x [34.81, 36.52] | 898.990 / 0.324 | 2805.53x [2727.80, 2848.05] |
+
+All four successful independent references pass. The demanding-case tolerances are 1e-4 for coefficients/gates and 1e-5 for probabilities/fitted scalar summaries, justified by the original finite-difference optimizer’s stopping precision and an independent analytic-gradient SciPy comparison (DEC-0423). Other cases retain 2e-5 fitted-parameter / 2e-6 downstream tolerances; identities, masks, counts and OOD decisions remain exact. The constant-context Python failure remains a failure and is not a timing comparison. A 3687-sample native profile places 21.26% in required input hashing, 18.20% in optimizer evaluation and 20.97% in unresolved system math. The demanding precision audit has a stale nested dense-BFGS display label; its owner recorded the fit after switching and rebuilding bounded L-BFGS. That label is not an algorithm identity.
+
+[`mixture_of_experts_measurements.json`](implementation/audits/mixture_of_experts_measurements.json) retains raw samples, uncertainty, failures, profiles, input/binary identities and memory observations. Cold includes fresh CLI/child execution and atomic output on a warm filesystem. Warm includes complete application/worker computation and serialization, excluding process startup. Separate RSS observations are not memory uncertainty estimates. These synthetic results establish no real-data, cross-platform, parallel-scaling or durable-replay claim.
+
+## Paired Gaussian pCCA EM
+
+The first native demanding candidate passed parity but failed promotion: warm Python/native times
+were 158.24/310.71 ms and the paired speedup interval was entirely below one. The profile placed
+75.79% of 9262 exclusive samples in fitting and 18.84% in posterior scores. This confirmed slowdown
+was retained, then corrected by computing the fixed training Gram statistic once and reusing it
+for exact Gaussian EM sufficient moments and the likelihood trace. All final patient scores and
+held-out cross-view predictions are still computed. SVD initialization acts directly on a scaled
+cross matrix, retaining weak paired singular directions without squaring its condition number.
+
+After that complete optimization, the same three frozen cases pass ten alternating paired
+comparisons with unchanged covariance/reconstruction, identified-output and full-trace tolerances:
+
+| Workload | Cold Python / Rust ms | Cold paired speedup [95% interval] | Warm Python / Rust ms | Warm paired speedup [95% interval] |
+|---|---:|---:|---:|---:|
+| small | 172.399 / 33.563 | 5.12x [4.93, 5.28] | 9.504 / 0.155 | 67.45x [51.26, 73.19] |
+| representative | 235.392 / 36.448 | 6.43x [6.35, 6.46] | 45.982 / 1.081 | 41.82x [39.93, 45.53] |
+| demanding | 367.460 / 72.680 | 4.91x [4.62, 5.05] | 181.982 / 11.317 | 16.00x [15.56, 16.69] |
+
+The optimized 5427-sample profile now attributes 34.55% exclusively to fitting, 9.16% to memory
+copies, 8.42% to required input hashing and 7.13% to the bounded posterior system. Profiling ran
+separately from all paired measurements; its complete output also passes the frozen oracle.
+[`pcca_em_measurements.json`](implementation/audits/pcca_em_measurements.json) retains both the failed
+performance candidate and accepted comparison, raw samples, uncertainty, memory observations,
+profiles and commands. The original Bayesian-NUTS pCCA worker is unchanged. Cold includes fresh
+CLI/child execution and atomic output; warm includes complete JSON admission, EM, diagnostics and
+serialization. There is no real-data, cross-platform, parallel-scaling or durable-replay claim.

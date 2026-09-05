@@ -17,7 +17,14 @@ with eight parity/warmed cases, six cold comparisons and two retained legacy-wra
 Late fusion (DEC-0417) completes a third native row with unchanged experimental claim limits;
 the three-workflow checkpoint passes 1744 tests at two-test concurrency. Entropic partial transport
 (DEC-0418) completes a fourth native row with seven independent oracle/performance cases, an analytical
-zero-capacity oracle, and 48 passing native CI cases. Patient-grouped predictive stacking is next.
+zero-capacity oracle, and 48 passing native CI cases. The subsequent stacking, mixture-of-experts
+and paired pCCA workflows now pass focused correctness, controlled performance gates and combined
+checkpoint coverage of all 1778 selected tests. The full run's disk and architecture failures remain
+recorded; correction and targeted completion reused 1435 passing cases rather than restarting them.
+pCCA's initial slowdown and successful exact sufficient-statistic optimization are both retained.
+Seven source rows are promoted native; 147 remain pending. Graph-spatial matrix and CP/Tucker
+factorization, then bounded preparation/interchange, are the next dependency-ordered outcomes.
+No parent scientific scope or external-data prerequisite closes from language migration.
 The frozen 154-source inventory is an admission starting point, not closed migration coverage.
 All 233 canonical rows and their scientific prerequisites remain. No biological data gap, existing
 nonconverged real fit, or independent calibration requirement is resolved by language parity.

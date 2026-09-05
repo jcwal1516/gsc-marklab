@@ -47,15 +47,19 @@ pub fn fit_prediction_calibration(
     let start = Instant::now();
     let spec = spec.validated()?;
     let deadline = start + Duration::from_secs(spec.timeout_seconds);
-    let implementation_sha256 = crate::sha256_hex(
-        concat!(
-            include_str!("native.rs"),
-            include_str!("logistic.rs"),
-            include_str!("../prediction_calibration.rs"),
-            include_str!("../probability_transform.rs")
+    // The required executable identity is immutable within this process.
+    static IMPLEMENTATION_SHA256: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+        crate::sha256_hex(
+            concat!(
+                include_str!("native.rs"),
+                include_str!("logistic.rs"),
+                include_str!("../prediction_calibration.rs"),
+                include_str!("../probability_transform.rs")
+            )
+            .as_bytes(),
         )
-        .as_bytes(),
-    );
+    });
+    let implementation_sha256 = IMPLEMENTATION_SHA256.clone();
     let request_sha256 = input_identity(&implementation_sha256, &spec);
     let train = spec.rows.iter().filter(|r| r.split == "training_oof");
     let positives = train.clone().filter(|r| r.label == 1).count() as f64;

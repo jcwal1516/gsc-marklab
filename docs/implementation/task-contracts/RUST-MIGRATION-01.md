@@ -1,6 +1,6 @@
 # RUST-MIGRATION-01 — Native execution with correctness and performance gates
 
-Status: active migration; native grouped-conformal, patient-OOF calibration and late-fusion milestones complete.
+Status: active migration; seven native workflows pass bounded scientific/performance gates. The latest checkpoint covers all 1778 selected tests through the interrupted full run and targeted completion; 147 frozen Python source rows remain pending.
 
 Authorized 2026-09-05: implement the user's Rust migration plan in the primary checkout.
 Parent coverage: MASTER_PLAN §§6.4–6.5, 6.8–6.12; BACK-01, PLAT-01, WF-01 and each

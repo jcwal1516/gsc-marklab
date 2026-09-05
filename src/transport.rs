@@ -22,7 +22,6 @@ pub enum TransportCsvError {
     Json(#[from] serde_json::Error),
     #[error("transport exact input: {0}")]
     Wire(#[from] std::io::Error),
-    #[cfg(feature = "cli")]
     #[error(transparent)]
     Runtime(#[from] crate::NativeBackendError),
 }
@@ -188,7 +187,6 @@ pub fn execute_partial_native_request(bytes: Vec<u8>) -> Result<Vec<u8>, Transpo
 }
 
 /// Complete source-bound partial transport through the registered killable native child.
-#[cfg(feature = "cli")]
 #[doc(hidden)]
 pub fn run_partial_csv(
     source: &[u8],

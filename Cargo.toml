@@ -122,6 +122,20 @@ path = "examples/grouped_conformal_application_benchmark.rs"
 required-features = ["csv"]
 
 [[example]]
+name = "mixture_of_experts_benchmark"
+path = "examples/mixture_of_experts_benchmark.rs"
+required-features = ["csv"]
+
+[[example]]
+name = "pcca_em_benchmark"
+path = "examples/pcca_em_benchmark.rs"
+
+[[example]]
+name = "predictive_stacking_benchmark"
+path = "examples/predictive_stacking_benchmark.rs"
+required-features = ["csv"]
+
+[[example]]
 name = "partial_transport_benchmark"
 path = "examples/partial_transport_benchmark.rs"
 required-features = ["csv"]

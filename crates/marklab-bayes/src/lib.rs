@@ -76,6 +76,7 @@ mod ordinal_group_site_hierarchy;
 mod ordinal_heldout;
 mod partial_fused_gromov;
 mod partial_transport;
+mod pcca_em;
 mod point_process_ppc;
 mod prediction_calibration;
 mod prediction_safety;
@@ -381,9 +382,10 @@ pub use meta_analysis::{
     MetaAnalysisWorkerResult, SiteEstimate,
 };
 pub use mixture_of_experts::{
-    MixtureCalibrator, MixtureGateModel, MixtureMetrics, MixtureOfExpertsPatient,
-    MixtureOfExpertsResources, MixtureOfExpertsSpec, MixtureOfExpertsWorkerRequest,
-    MixtureOfExpertsWorkerResult, MixturePrediction,
+    fit_mixture_of_experts, MixtureCalibrator, MixtureGateModel, MixtureMetrics,
+    MixtureOfExpertsFit, MixtureOfExpertsPatient, MixtureOfExpertsResources, MixtureOfExpertsSpec,
+    MixtureOfExpertsWorkerRequest, MixtureOfExpertsWorkerResult, MixturePrediction,
+    NativeMixtureOfExpertsBackend,
 };
 pub use model_comparison::{
     compare_psis_loo_models, BayesianModelComparisonResult, ComparedModel, PairwiseElpdDifference,
@@ -442,6 +444,9 @@ pub use partial_transport::{
     PartialTransportOptimizer, PartialTransportPlanEntry, PartialTransportResources,
     PartialTransportSpec, PartialTransportWorkerRequest, PartialTransportWorkerResult,
 };
+pub use pcca_em::{
+    fit_pcca_em, NativePccaBackend, PccaEmDesign, PccaEmFit, PccaEmModality, PccaEmRow, PccaEmSpec,
+};
 pub use point_process_ppc::{
     posterior_predictive_point_process_diagnostics, PointProcessPpcCurveRow, PointProcessPpcError,
     PointProcessPpcResult, PointProcessPpcSpec, PpcPoint, PpcReplicatedPoint,
@@ -462,6 +467,7 @@ pub use predictive_process::{
     PredictiveProcessSpec,
 };
 pub use predictive_stacking::{
+    fit_predictive_stacking, NativeStackingBackend, PredictiveStackingFit,
     PredictiveStackingPatient, PredictiveStackingResources, PredictiveStackingSpec,
     PredictiveStackingWorkerRequest, PredictiveStackingWorkerResult, StackingPatientDensity,
     StackingWeight, StackingWeightSensitivity,
