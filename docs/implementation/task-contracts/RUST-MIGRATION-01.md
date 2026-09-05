@@ -1,6 +1,6 @@
 # RUST-MIGRATION-01 — Native execution with correctness and performance gates
 
-Status: active migration; native grouped-conformal and patient-OOF calibration milestones complete.
+Status: active migration; native grouped-conformal, patient-OOF calibration and late-fusion milestones complete.
 
 Authorized 2026-09-05: implement the user's Rust migration plan in the primary checkout.
 Parent coverage: MASTER_PLAN §§6.4–6.5, 6.8–6.12; BACK-01, PLAT-01, WF-01 and each
@@ -164,3 +164,37 @@ It does not repeat the prior 47-minute workspace suite or claim hosted CI, paral
 admission, durable replay or final native release. Evidence: `audits/prediction_calibration_measurements.json`.
 Next production flow: late fusion, preserving its distinct score transformation, initialization,
 BFGS gradient criterion, missingness representation and ablation estimand.
+
+## Late fusion and three-workflow stabilization — 2026-09-05
+
+DEC-0417 completes native late fusion through separate CSV, scientific and killable execution owners.
+Private logistic likelihood/BFGS/Newton arithmetic is shared with conformal; standardization remains
+conformal-only, and standalone calibration's relative-objective strategy remains separate. Fusion
+keeps original probability/availability features, both disjoint fitting boundaries, strict 1e-8
+gradient acceptance and 1000 total iterations per fit. Constant calibration logits use the exact
+smoothed-target solution along the initial [0,1] parameter direction, retaining its nullspace and
+checking the original gradient; no ridge is added. The missing-column and constant cases failed
+before their respective recovery corrections and pass afterward.
+
+Eight domain and three CLI cases pass, including three independent frozen oracles, label/feature
+leakage, deterministic ordering, analytical null/constant behavior, missing-column ablation, full
+3000x16 work, legacy reading, exact transport, admission and publication. All 38 native CI cases
+pass without a usable Python backend. Ten paired comparisons give 6.77–11.34x warmed and
+7.98–8.36x cold speedups on the three converged references. Three SciPy failures remain recorded;
+Python evaluation at fixed native parameters gives gradients <=6.10e-9 and matching downstream
+outputs, not independent optimizer parity. The initial benchmark harness's missing Path import
+is retained as a harness failure; corrected comparisons return failure unless parity and speedup
+are established on each independently converged case.
+
+The shared-solver conformal recheck passes all reference cases and timing gates: cold 7.06–8.36x,
+new actual-CSV-service warm 2.38–6.31x. This expanded warm boundary is not directly compared with
+the earlier typed-spec absolute timings. Raw samples, RSS, profiles, identities, commands and
+failures are in `audits/late_fusion_measurements.json`.
+
+Major checkpoint: formatting, all-feature workspace Clippy, no-default workspace check, strict docs,
+17 doc-test targets (zero runnable cases), and 1744/1744 workspace tests pass. Full Nextest used the
+established two-test concurrency, took 2763.465 s, and retained 12 slow/28 existing skipped tests.
+The prior default-concurrency timeout remains historical evidence, not a current passing command.
+All 233 tracker rows, master-plan bytes, Python workers/lock and Cargo lock remain unchanged. Final
+native release, hosted/cross-platform and phase-specific package/audit/fuzz/feature matrices remain
+open. Next: entropic partial transport, then patient-grouped predictive stacking.

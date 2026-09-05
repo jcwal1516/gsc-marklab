@@ -42,6 +42,15 @@ pub fn run_native_prediction_calibration(
     run_registered("native-prediction-calibration", request, timeout_seconds)
 }
 
+/// Execute native late fusion with bounded streams and a hard process deadline.
+#[doc(hidden)]
+pub fn run_native_late_fusion(
+    request: Vec<u8>,
+    timeout_seconds: u64,
+) -> Result<Vec<u8>, NativeBackendError> {
+    run_registered("native-late-fusion", request, timeout_seconds)
+}
+
 fn run_registered(
     route: &str,
     request: Vec<u8>,

@@ -15,6 +15,13 @@ Calibration continuation (DEC-0416): `/root` owns `prediction_calibration` in ma
 and CLI adapters, and their focused fixtures/tests. These are separate scientific and I/O owners;
 calibration does not depend on grouped-conformal preprocessing or its result types.
 
+Late-fusion continuation (DEC-0417): `/root` owns `late_fusion` in marklab-bayes (shared admission,
+native fit, calibration, scenarios and fixed-model ablations), `src/late_fusion.rs` (CSV/source
+binding/transport), existing CLI/runtime adapters and focused tests. The private Bayes `logistic_fit`
+module now owns the exact likelihood and BFGS/Newton strategy consumed by conformal and fusion.
+Conformal still owns standardization; standalone prediction calibration retains its separate
+Newton/relative-objective regression contract. No cross-family preprocessing is shared.
+
 ARCH-INTEGRATION-01 multiplex ownership: `src/scalar_mark/table/assay.rs` owns nullable assay
 declarations and values within the existing MarkTable; legacy Pattern projection remains in
 `table/validation.rs`. `src/spatial_autocorrelation` owns radius Moran/Geary arithmetic and panel

@@ -21,15 +21,19 @@ Its complete measurement/validation scope and limits are recorded in STATUS and 
 Patient-OOF calibration now also has a native application, eight frozen parity cases and paired
 performance evidence (DEC-0416), retaining two legacy decimal-score cold failures.
 
-1. Migrate late fusion. Keep its admission, score transform,
-   initialization, optimizer criterion, leakage and reporting contract with its scientific owner.
-   Share logistic arithmetic only where the two current callers actually share semantics.
-2. Continue deterministic workflows, adapters/reports and bounded H5AD interchange, completing each
-   inventory row's ownership/oracle/workload admission. The frozen inventory remains a starting map;
-   unmatched or dynamic callers require review and are not silently removed.
-3. Advance analytically checkable Gaussian inference before generalized/spatial Bayesian methods,
-   topology/registration and neural/SBI workflows. Every family needs its own oracle, diagnostics,
-   work ceilings and representative performance evidence before production promotion.
+Late fusion now also executes natively with three independent oracle/performance cases and three
+retained failed-reference audits. The three-workflow checkpoint passes all 1744 workspace tests
+at two-test concurrency; the source inventory now marks three native rows, not full capability closure.
+
+1. Migrate constrained entropic partial transport (REG-PARTIAL-OT-01). Preserve the epsilon entropy
+   term, exact transported-mass equality, capacity inequalities, dense plan/identity ordering,
+   unmatched mass, optimizer disclosure, feasibility and resource limits. Reuse the existing
+   transport owners without replacing this objective with unregularized flow or balanced Sinkhorn.
+2. Migrate patient-grouped predictive stacking (EMB-STACKING-01), including every leave-one-patient-out
+   refit and its sensitivity ranges, preserving simplex boundary solutions and claim limits.
+3. Continue deterministic factorization/spatial summaries, adapters/reports and bounded H5AD,
+   admitting each immediate caller and scientific contract. Analytically checkable Gaussian inference
+   precedes generalized/spatial Bayesian methods, topology/registration and neural/SBI workflows.
 
 A confirmed slowdown blocks promotion pending an explicit tradeoff decision. Inconclusive timing
 is not a speedup. Failed Python references remain recorded failures and cannot establish parity.

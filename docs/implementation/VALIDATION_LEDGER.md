@@ -5354,3 +5354,28 @@ No full workspace, no-default, strict-doc, package, fuzz, audit, feature-matrix 
 gate was rerun for this ordinary milestone. Prior major-checkpoint evidence is not relabeled current.
 The raw decimal-score legacy validation failures, missing hosted/actionlint environment, synthetic
 workload limits and absence of durable calibration replay remain explicit.
+
+## RUST-MIGRATION-01 late fusion and three-workflow stabilization — 2026-09-05
+
+DEC-0417 completes late fusion and extracts its exact shared logistic arithmetic without sharing
+preprocessing or weakening convergence. The source snapshot remains in the primary checkout.
+
+| Evidence | Executed command | Result / limits |
+|---|---|---|
+| Domain red/green | `cargo +1.96.0 test --locked -p marklab-bayes --test native_late_fusion --test native_grouped_conformal` | Missing API/Deserialize red; initial fusion 4/4 + conformal 9/9 pass. Missing-column regression fails on Platt Wolfe exhaustion, then passes with bounded same-start Newton recovery. Constant-calibration regression fails on the singular Hessian, then passes with analytic nullspace-preserving solution and original-gradient check. |
+| Final scientific scope | `cargo +1.96.0 test --locked -p marklab-bayes --test native_late_fusion --test native_grouped_conformal --test native_prediction_calibration` | Fusion 8/8, conformal 9/9, calibration 5/5 pass. Three independent fusion references, analytic/adversarial/resource/leakage/order/legacy cases, all ablations and all eight calibration oracle cases remain covered. |
+| CLI red/green | `cargo +1.96.0 test --locked --test bayes_late_fusion_cli`; final `--test bayes_late_fusion_cli --test bayes_grouped_conformal_cli --test bayes_prediction_calibration_cli` | Expected missing-Python failure before routing; final 3 fusion + 6 conformal + 3 calibration cases pass. Exact penalty/source transport, missing OOF declarations, row/column budgets and real no-overwrite errors covered. |
+| Native CI | `env CARGO_TARGET_DIR=target/native-migration/focused CARGO_BUILD_JOBS=2 MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1 MARKLAB_PYTHON=/nonexistent/marklab-python MARKLAB_RUNTIME_ROOT=/nonexistent/marklab-runtime cargo +1.96.0 nextest run --locked --workspace --all-features --test bayes_grouped_conformal_cli --test native_grouped_conformal --test bfgs --test bayes_prediction_calibration_cli --test native_prediction_calibration --test bayes_late_fusion_cli --test native_late_fusion` | 38/38 pass, zero skipped, 6.077 s. The existing CI contract failed before adding the two fusion targets and passes after. |
+| Formatting | `cargo +1.96.0 fmt --all --check` | Pass. |
+| Workspace lint | `env CARGO_TARGET_DIR=target/native-migration/focused CARGO_BUILD_JOBS=2 cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings` | Pass, 1m27s. Later added conformal application example also passes targeted `cargo ... clippy --locked -p marklab --example grouped_conformal_application_benchmark -- -D warnings` in the same artifact directory. |
+| No-default | `env CARGO_TARGET_DIR=target/native-migration/focused CARGO_BUILD_JOBS=2 cargo +1.96.0 check --locked --workspace --no-default-features` | Pass, 17.19 s. |
+| Strict docs | `env CARGO_TARGET_DIR=target/native-migration/focused CARGO_BUILD_JOBS=2 RUSTDOCFLAGS=-Dwarnings cargo +1.96.0 doc --locked --no-deps --workspace --all-features` | Pass, 26.36 s. |
+| Doc tests | `env CARGO_TARGET_DIR=target/native-migration/focused CARGO_BUILD_JOBS=2 cargo +1.96.0 test --locked --workspace --doc --all-features` | All 17 targets pass; zero runnable doc-test cases, not new example coverage. |
+| Full workspace | `env CARGO_BUILD_JOBS=2 cargo +1.96.0 nextest run --locked --workspace --all-features --test-threads 2` | 1744/1744 pass in 2763.465 s after 3m11s compilation; 12 slow, 28 existing skips. No disabled assertion or timeout relaxation. Uses established CI concurrency; prior default-concurrency timeout is not relabeled passing. |
+| Scientific/performance oracles | `tests/python/benchmark_late_fusion.py --prepare`, `--audit-failures ...`, `--warm ... --baseline ... --candidate ...`, under locked Python/one thread | Three successful independent references clear cold/warm parity and paired speedup gates. Three failed references remain failed; fixed-parameter Python gradients <=6.10e-9 and all downstream outputs agree. Initial harness Path-name error retained; corrected harness rejects failed/inconclusive comparisons. |
+| Shared-solver performance | `tests/python/benchmark_grouped_conformal.py --output target/native-migration/late-fusion/conformal-regression --native-application-warm ...`; same output with `--baseline ... --candidate ...` | All three converged references clear cold and expanded CSV-service warm gates. Eleven old Python optimizer failures remain. Full command/sample/identity/profile/RSS evidence in `audits/late_fusion_measurements.json`. |
+
+No new dependency or unsafe code was introduced. Python workers/lock, Cargo lock, master-plan bytes
+and every tracker table row remain unchanged. The 154-row frozen inventory now marks three native
+rows with explicit limitations. No hosted CI, new phase/release matrix, package/audit/fuzz run,
+real-data admission, parallel scaling, durable replay or final Python-free release is claimed.

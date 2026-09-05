@@ -150,6 +150,7 @@ fn ci_workflow_runs_locked_rust_wsi_and_benchmark_gates() {
     assert!(native_job.contains("cargo nextest run --locked --workspace --all-features --test bayes_grouped_conformal_cli --test native_grouped_conformal --test bfgs"));
     assert!(native_job
         .contains("--test bayes_prediction_calibration_cli --test native_prediction_calibration"));
+    assert!(native_job.contains("--test bayes_late_fusion_cli --test native_late_fusion"));
     assert!(native_job.contains("MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION: \"1\""));
     assert!(native_job.contains("MARKLAB_PYTHON: /nonexistent/marklab-python"));
     assert!(native_job.contains("MARKLAB_RUNTIME_ROOT: /nonexistent/marklab-runtime"));

@@ -119,3 +119,38 @@ observations are separate one-shot maxima, not a concurrent process-tree sum. Th
 binary is retained at `target/native-migration/calibration/candidate-release-marklab`; commands,
 identities, profiles and limitations are in the audit. There is no durable calibration interface to
 replay, and these synthetic measurements establish no real pathology or cross-platform capacity.
+
+## Calibrated late fusion and shared-solver recheck
+
+Late fusion preserves unstandardized probability/availability features, meta-only fitting, separate
+Platt calibration, observed missingness scenarios and every fixed-model ablation. Python's large
+balanced-null profile makes 19000 feature-array conversions and 18000 raw-probability calls. Native
+execution uses borrowed modality slices and accumulates ablations in the patient loop. No ablation
+or diagnostic was removed. The large native profile contains 5454 samples; SHA-256 compression
+accounts for 45.78% exclusive samples and CSV record reading 9.85%.
+
+Ten alternating paired repetitions, one computational thread per implementation:
+
+| Workload | Cold Python / Rust ms | Cold paired speedup [95% interval] | Warm Python / Rust ms | Warm paired speedup [95% interval] |
+|---|---:|---:|---:|---:|
+| 30 patients, 2 modalities | 277.443 / 33.851 | 7.98x [7.74, 8.24] | 1.336 / 0.114 | 11.34x [10.21, 14.30] |
+| 300 patients, 4 modalities | 273.879 / 33.486 | 8.27x [7.95, 8.40] | 3.429 / 0.512 | 6.77x [5.88, 7.56] |
+| 3000 patients, 16 modalities, balanced null | 337.999 / 40.367 | 8.36x [8.14, 8.53] | 54.280 / 5.478 | 9.93x [9.81, 10.21] |
+
+The demanding non-null, missing-column and constant-calibration cases fail unchanged SciPy fitting.
+Native recovery produces finite fits whose original Python gradients are <=6.10e-9, with downstream
+agreement at fixed native parameters. Those checks are not independent optimizer parity or speedup
+evidence. The constant case preserves the initial coefficient nullspace through an exact solution;
+it does not identify a unique slope. The initial benchmark Path-import failure is retained separately.
+
+Extracting the shared likelihood leaves grouped-conformal science unchanged. Its recheck gives cold
+speedups of 8.36x / 8.08x / 7.06x on small / 300x8 / large balanced-null fixtures. The new actual
+CSV/control-service warm speedups are 6.31x / 4.48x / 2.38x. That larger warm boundary includes
+application parsing/source binding and is not directly compared with the earlier typed-spec timings.
+All intervals exceed one; all old failed Python references remain recorded.
+
+[`late_fusion_measurements.json`](implementation/audits/late_fusion_measurements.json) retains the
+commands, inputs, source/binary/lock hashes, raw samples, separate RSS observations, profiles, failed
+attempts and conformal recheck. The same single-host/synthetic/cold-filesystem limits above apply.
+The three-workflow stabilization passes 1744 workspace tests at two-test concurrency (28 existing
+skips) and all 38 native CI cases with Python execution disabled; final native release remains open.

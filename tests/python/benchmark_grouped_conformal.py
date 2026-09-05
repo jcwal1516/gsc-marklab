@@ -112,13 +112,17 @@ def verify(reference, native):
         compare(reference[key],native[key],key)
 
 
-def compare_warm(directory, binary):
+def compare_warm(directory, binary, application=False):
     spec=importlib.util.spec_from_file_location("conformal_reference",WORKER)
     worker=importlib.util.module_from_spec(spec); spec.loader.exec_module(worker)
-    report={"platform":platform.platform(),"python":platform.python_version(),"threads":1,"native_binary_sha256":hashlib.sha256(binary.read_bytes()).hexdigest(),"workloads":{}}
+    report={"platform":platform.platform(),"python":platform.python_version(),"threads":1,"native_binary_sha256":hashlib.sha256(binary.read_bytes()).hexdigest(),"native_boundary":"csv_control_application" if application else "typed_spec_service","workloads":{}}
     for request in sorted(directory.glob("*.request.json")):
         name=request.name.removesuffix(".request.json")
         raw=request.read_bytes(); spec_raw=(directory/f"{name}.spec.json").read_bytes()
+        if application:
+            import struct
+            controls=json.loads(spec_raw)
+            spec_raw=json.dumps(dict(csv=(directory/f"{name}.csv").read_text(),alpha_bits=int.from_bytes(struct.pack("<d",controls["alpha"]),"little"),l2_penalty_bits=int.from_bytes(struct.pack("<d",controls["l2_penalty"]),"little"),timeout_seconds=controls["timeout_seconds"]),separators=(",",":")).encode()
         samples=[]; failures=[]
         # Warm the imported Python service before measured repetitions.
         try: worker.run(raw)
@@ -255,6 +259,7 @@ if __name__ == "__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--output",type=Path,default=ROOT/"target/native-migration/conformal")
     parser.add_argument("--native-warm",type=Path)
+    parser.add_argument("--native-application-warm",type=Path)
     parser.add_argument("--baseline",type=Path)
     parser.add_argument("--candidate",type=Path)
     parser.add_argument("--audit-failures",type=Path,help="Native example binary for fixed-parameter reference evaluation")
@@ -266,6 +271,8 @@ if __name__ == "__main__":
         compare_cold(args.output,args.baseline.resolve(),args.candidate.resolve())
     elif args.audit_failures:
         audit_reference_failures(args.output,args.audit_failures.resolve())
+    elif args.native_application_warm:
+        compare_warm(args.output,args.native_application_warm.resolve(),application=True)
     elif args.native_warm:
         compare_warm(args.output,args.native_warm.resolve())
     else:

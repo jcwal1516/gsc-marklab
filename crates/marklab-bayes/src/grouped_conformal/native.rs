@@ -62,7 +62,8 @@ pub fn fit_grouped_conformal(
             include_str!("native.rs"),
             include_str!("logistic.rs"),
             include_str!("../grouped_conformal.rs"),
-            include_str!("../linalg.rs")
+            include_str!("../linalg.rs"),
+            include_str!("../logistic_fit.rs")
         )
         .as_bytes(),
     );

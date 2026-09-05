@@ -46,8 +46,27 @@ Scoped Bayesian/root Clippy and the expanded native CI selection pass; final foc
 checks are recorded in the validation ledger. The earlier full-workspace gate is not represented
 as a fresh calibration checkpoint. Python workers/locks, result-format 0.3 and all parent claims remain.
 
-Next: late fusion under its existing contract. Real multiplex study admission follows the migration;
-its missing biological design, assay metadata and independent calibration are still required.
+Late fusion is now native as well (DEC-0417), including meta-only fitting, disjoint Platt calibration,
+observed missingness scenarios and every fixed-model modality ablation. It shares only the exact
+logistic likelihood/optimizer with conformal; preprocessing and standalone calibration remain separate.
+Three independently converged references pass ten-pair timing gates: 6.77–11.34x warm and
+7.98–8.36x cold speedups. Three other SciPy failures remain recorded; fixed-native-parameter Python
+objective/gradient and downstream checks pass but do not establish independent optimizer parity.
+The conformal shared-solver recheck passes at 7.06–8.36x cold and 2.38–6.31x warm, with the latter
+now measuring the larger actual CSV/control application boundary. See `audits/late_fusion_measurements.json`.
+
+The three-workflow stabilization checkpoint passes all 1744 workspace tests at the established
+`--test-threads 2` concurrency (2763.465 s; 12 slow, 28 existing skips). The current native CI selection
+passes 38/38 with Python execution disabled. Workspace all-feature Clippy, no-default checking,
+strict docs, all seventeen doc-test targets (zero runnable cases), formatting and the added conformal
+application-example lint pass. The default-concurrency command that timed out at the prior checkpoint
+was not rerun; this result explicitly uses two-test concurrency. No full phase/release matrix,
+new packaging/audit/fuzz gate, hosted CI or final Python-free release is claimed.
+
+Next: entropic partial transport, then patient-grouped predictive stacking and the remaining
+deterministic/adaptor workflows. The remaining 151 frozen Python inventory rows still require
+individual admission. Real multiplex study admission follows the migration; its biological design,
+assay metadata and independent calibration gaps remain.
 The previous architecture checkpoint remains recorded below with its original limitations.
 
 ## Previous outcome — ARCH-INTEGRATION-01

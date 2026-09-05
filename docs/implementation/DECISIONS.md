@@ -4373,3 +4373,65 @@ replacing them, a declared 1000/10000-patient panel with the same labels/splits 
 to eighths. This isolates the legacy transport limit and permits complete-workflow comparisons
 when that baseline succeeds. No choice uses measured Rust timing and no failed comparison proves
 speedup. The original Python sources, optimizer settings and result checks remain unchanged.
+
+## DEC-0417 — Native calibrated late fusion and shared logistic likelihood
+
+RUST-MIGRATION-01 continues with EMB-LATE-FUSION-01 / IC-0099. The Bayes late_fusion owner adds
+typed native fitting/result/provenance APIs and shared admission; its native module owns split
+composition, separate calibration, missingness scenarios and fixed-model ablations. The root CSV
+application and closed native child route own input interpretation and killable execution. Native
+version 2 records Rust/source identity, retaining the original scientific fields and legacy readers.
+No dependency, unsafe code, result-format 0.3 change or Python-source edit is authorized by this step.
+
+The existing conformal positive-L2 logistic arithmetic has a second immediate scientific caller:
+late-fusion meta-training on probability/availability columns. Extract that exact likelihood,
+gradient and bounded BFGS/Newton recovery into a private Bayes logistic_fit module. Conformal
+standardization stays with conformal; late fusion never standardizes. Preserve source hashing of
+all contributing implementation files and rerun both workflows' scientific tests after extraction.
+Do not couple standalone calibration's relative-objective termination to late fusion: fusion's
+separate Platt fit uses clipped calibration probabilities, smoothed targets, start [0,1], BFGS,
+maximum 1000 iterations and gradient 1e-8. An unidentifiable constant predictor retains its starting
+nullspace rather than inventing an identified slope.
+
+Preserve 30..100000 patients, 2..16 modalities, each split minimum ten/both labels, positive L2,
+1..3600 seconds, 16 MiB output, exact OOF declarations and at least one present modality per patient.
+Missing features are (0.5,0), observed ones (p,1); ablations use the same replacement without refit.
+Compare identifiable model/calibrator coefficients within 1e-6 absolute/relative, probabilities and
+Brier summaries within 2e-7; exact IDs, labels, modality/feature ordering, availability, scenario
+names/counts and claim status remain required. Retain every declared reference failure. Profile and
+measure full scientific work, including all ablations, before promotion; no slowdown waiver is assumed.
+
+The missing-column regression exposed a native Platt strong-Wolfe exhaustion after the meta-model
+fit recovered. Extend the already consumed private logistic solver to accept the caller's concrete
+initial vector: up to 500 BFGS iterations, then up to 500 exact-Hessian Newton recovery iterations
+from that same start, retaining the strict 1e-8 gradient criterion and total 1000 ceiling. Conformal
+and meta-training still start at zero; fusion calibration still starts at [0,1]. No relative-objective
+stopping, ridge, softened gradient threshold or altered targets are introduced. Both scientific
+families must remain green. This recovery is numerical strategy, not independent Python fit evidence.
+
+An admitted constant-calibration-score regression also fails BFGS recovery because the unpenalized
+2x2 Hessian is singular. For exactly constant clipped logits, use the analytic mean-smoothed-target
+log odds, moving from [0,1] only along [1,x]. This preserves the initial nullspace, adds no ridge,
+and identifies the predictive linear combination without claiming unique coefficients. Re-evaluate
+the original objective/gradient and require <=1e-8 before returning. This exact special case retains
+the regression's scientific objective and avoids rejecting admitted constant inputs.
+
+The root development-only late_fusion_benchmark example requires the existing CSV feature and
+executes the actual private transport, retaining raw f64 output. Its comparison harness includes
+both fits, every prediction/missingness group and every ablation, plus separate full-CLI timings.
+The existing native CI selection expands to this workflow; no new runtime backend registry or
+benchmark-only production control is added.
+
+For the three failed reference fits, a fresh development import substitutes only that module's
+minimize callback with fixed native coefficients, evaluating the unchanged Python objective and
+gradient at both fitting stages. Require the original 1e-8 gradient bound and compare all downstream
+fields at the declared tolerances. Record this as fixed-parameter consistency, never independent
+optimizer parity or successful head-to-head performance. Python files and global SciPy functions
+are not edited or patched.
+
+The shared-solver recheck uses an additional CSV-feature-required development conformal application
+example, preserving the original typed example for its existing independent tools. The new
+--native-application-warm harness path measures the actual CSV/control service, as calibration and
+fusion do, avoiding development JSON numeric input rounding. Cold comparison remains the unchanged
+complete-CLI boundary. Report this expanded warm boundary explicitly rather than comparing its
+absolute timings directly to the earlier typed-spec warm measurement.

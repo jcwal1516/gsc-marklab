@@ -26,6 +26,9 @@ enum BackendCommand {
     /// Private native patient-OOF calibration application.
     #[command(hide = true)]
     NativePredictionCalibration,
+    /// Private native calibrated late-fusion application.
+    #[command(hide = true)]
+    NativeLateFusion,
 }
 
 pub(crate) fn cli_route() -> super::command_tree::Route {
@@ -40,6 +43,10 @@ fn run() -> Result<(), super::bayes::BayesCliError> {
         BackendCommand::Doctor => doctor(),
         BackendCommand::NativeGroupedConformal => native(|input| {
             marklab::grouped_conformal::execute_native_request(input)
+                .map_err(|e| super::bayes::BayesCliError::Input(e.to_string()))
+        }),
+        BackendCommand::NativeLateFusion => native(|input| {
+            marklab::late_fusion::execute_native_request(input)
                 .map_err(|e| super::bayes::BayesCliError::Input(e.to_string()))
         }),
         BackendCommand::NativePredictionCalibration => native(|input| {

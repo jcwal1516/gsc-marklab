@@ -643,6 +643,8 @@ Status: characterization freeze for WS-A. Exact field/symbol inventory is active
 
 - `marklab bayes late-fusion` requires every base modality probability to declare patient-level OOF origin, fits probability-plus-availability logistic fusion on `meta_train`, fits Platt calibration on a separate calibration split, and evaluates test patients. It reports Brier, observed missing-modality scenarios, and per-modality ablation; these are not causal contributions.
 
+- RUST-MIGRATION-01 / DEC-0417 adds native version-2 fitting and a bounded CSV/child application. Meta-fitting remains unstandardized, calibration uses its separate split and score transform, and all missingness/ablation outputs retain their definitions. The shared private logistic likelihood preserves strict gradient termination, with bounded Newton recovery and an exact constant-calibration solution preserving the initial nullspace. Legacy worker readers and experimental claim status remain.
+
 ## IC-0100 — Patient-grouped predictive stacking
 
 - `marklab bayes predictive-stacking` consumes 8–500 unique patient-held-out rows and 2–16 finite `model_*` grouped log predictive densities. Pinned SciPy 1.18.1 maximizes mixture log density under nonnegative sum-one weights and exactly refits after leaving out each patient. Rust verifies weights, every mixture log density, and the objective; weights are predictive optimization values, not posterior model probabilities.

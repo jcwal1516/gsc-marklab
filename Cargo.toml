@@ -117,6 +117,16 @@ dicom-core = "0.9.1"
 dicom-object = "0.9.1"
 
 [[example]]
+name = "grouped_conformal_application_benchmark"
+path = "examples/grouped_conformal_application_benchmark.rs"
+required-features = ["csv"]
+
+[[example]]
+name = "late_fusion_benchmark"
+path = "examples/late_fusion_benchmark.rs"
+required-features = ["csv"]
+
+[[example]]
 name = "prediction_calibration_benchmark"
 path = "examples/prediction_calibration_benchmark.rs"
 required-features = ["csv"]

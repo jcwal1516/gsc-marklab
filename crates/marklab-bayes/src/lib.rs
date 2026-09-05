@@ -59,6 +59,7 @@ mod joint_mark;
 mod laplace;
 mod late_fusion;
 mod linalg;
+mod logistic_fit;
 mod matern_cluster;
 mod matern_covariance;
 mod meta_analysis;
@@ -366,9 +367,10 @@ pub use laplace::{
     PoissonLaplaceWorkerRequest, PoissonLaplaceWorkerResult,
 };
 pub use late_fusion::{
-    LateFusionCalibrator, LateFusionMetric, LateFusionModel, LateFusionPatient,
-    LateFusionPrediction, LateFusionResources, LateFusionSpec, LateFusionWorkerRequest,
-    LateFusionWorkerResult, MissingScenario, ModalityAblation,
+    fit_late_fusion, LateFusionCalibrator, LateFusionFit, LateFusionMetric, LateFusionModel,
+    LateFusionPatient, LateFusionPrediction, LateFusionResources, LateFusionSpec,
+    LateFusionWorkerRequest, LateFusionWorkerResult, MissingScenario, ModalityAblation,
+    NativeFusionBackend,
 };
 pub use matern_cluster::{
     simulate_matern_cluster_process, MaternClusterBoundary, MaternClusterProcessError,

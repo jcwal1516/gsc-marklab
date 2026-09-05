@@ -59,6 +59,8 @@ mod isotropic_pair_correlation;
 mod isotropic_pair_correlation_workflow;
 mod isotropic_spatial;
 mod isotropic_spatial_workflow;
+#[cfg(feature = "csv")]
+pub mod late_fusion;
 mod local_multivariate_moran;
 mod mark_pair_plan;
 mod mark_weighted_k;
@@ -91,7 +93,8 @@ mod python_backend;
 #[cfg(feature = "cli")]
 #[doc(hidden)]
 pub use native_backend::{
-    run_native_grouped_conformal, run_native_prediction_calibration, NativeBackendError,
+    run_native_grouped_conformal, run_native_late_fusion, run_native_prediction_calibration,
+    NativeBackendError,
 };
 mod qc;
 mod registration;
