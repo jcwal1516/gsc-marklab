@@ -4,6 +4,146 @@ use std::fs;
 
 use assert_cmd::Command;
 
+fn native_request() -> Vec<u8> {
+    let spec: marklab_bayes::GroupedConformalSpec = serde_json::from_str(
+        &fs::read_to_string(
+            "crates/marklab-bayes/tests/fixtures/grouped_conformal/small.spec.json",
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let mut csv = "patient_id,split,site,subgroup,label,feature_1,feature_2\n".to_owned();
+    for p in &spec.patients {
+        csv.push_str(&format!(
+            "{},{},{},{},{},{},{}\n",
+            p.patient_id, p.split, p.site, p.subgroup, p.label, p.features[0], p.features[1]
+        ));
+    }
+    serde_json::to_vec(&serde_json::json!({"csv":csv,"alpha_bits":spec.alpha.to_bits(),"l2_penalty_bits":spec.l2_penalty.to_bits(),"timeout_seconds":spec.timeout_seconds})).unwrap()
+}
+
+#[test]
+fn csv_admission_stops_at_the_row_budget_before_decoding_an_extra_feature() {
+    let mut csv = String::from("patient_id,split,site,subgroup,label,feature_1,feature_2\n");
+    for i in 0..100_000 {
+        csv.push_str(&format!("p{i},train,s,g,{},1,2\n", i % 2));
+    }
+    csv.push_str("extra,train,s,g,1,invalid,2\n");
+    let error = marklab::grouped_conformal::fit_csv(csv.as_bytes(), 0.2, 0.1, 30).unwrap_err();
+    assert!(error.to_string().contains("100000"), "{error}");
+}
+
+#[test]
+fn native_worker_executes_without_python_assets_or_interpreter() {
+    let output = Command::cargo_bin("marklab")
+        .unwrap()
+        .args(["backend", "native-grouped-conformal"])
+        .env("MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION", "1")
+        .env("MARKLAB_PYTHON", "/nonexistent/python")
+        .env("MARKLAB_RUNTIME_ROOT", "/nonexistent/runtime")
+        .write_stdin(native_request())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let result: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(result["backend"]["name"], "marklab-rust");
+    assert_eq!(result["version"], 2);
+    assert_eq!(result["predictions"].as_array().unwrap().len(), 8);
+}
+
+#[test]
+fn native_transport_preserves_exact_csv_and_control_identity() {
+    let mut request: serde_json::Value = serde_json::from_slice(&native_request()).unwrap();
+    let alpha = f64::from_bits(0.2_f64.to_bits() + 1);
+    let penalty = f64::from_bits(0.1_f64.to_bits() + 1);
+    request["alpha_bits"] = alpha.to_bits().into();
+    request["l2_penalty_bits"] = penalty.to_bits().into();
+    let csv = request["csv"].as_str().unwrap();
+    let expected = serde_json::to_vec(
+        &marklab::grouped_conformal::fit_csv(csv.as_bytes(), alpha, penalty, 120).unwrap(),
+    )
+    .unwrap();
+    let output = Command::cargo_bin("marklab")
+        .unwrap()
+        .args(["backend", "native-grouped-conformal"])
+        .write_stdin(serde_json::to_vec(&request).unwrap())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(output, expected);
+}
+
+#[test]
+fn native_transport_rejects_nonfinite_controls_and_unknown_fields() {
+    let mut request: serde_json::Value = serde_json::from_slice(&native_request()).unwrap();
+    request["alpha_bits"] = f64::NAN.to_bits().into();
+    Command::cargo_bin("marklab")
+        .unwrap()
+        .args(["backend", "native-grouped-conformal"])
+        .write_stdin(serde_json::to_vec(&request).unwrap())
+        .assert()
+        .failure()
+        .stdout("");
+    request["alpha_bits"] = 0.2_f64.to_bits().into();
+    request["unexpected"] = true.into();
+    Command::cargo_bin("marklab")
+        .unwrap()
+        .args(["backend", "native-grouped-conformal"])
+        .write_stdin(serde_json::to_vec(&request).unwrap())
+        .assert()
+        .failure()
+        .stdout("");
+}
+
+#[test]
+fn relocated_native_cli_runs_without_assets_and_preserves_existing_output() {
+    let directory = tempfile::tempdir().unwrap();
+    let bundle = directory.path().join("native bundle with spaces");
+    fs::create_dir(&bundle).unwrap();
+    let executable = bundle.join(format!("marklab{}", std::env::consts::EXE_SUFFIX));
+    fs::copy(env!("CARGO_BIN_EXE_marklab"), &executable).unwrap();
+    let request: serde_json::Value = serde_json::from_slice(&native_request()).unwrap();
+    let input = bundle.join("input with spaces.csv");
+    fs::write(&input, request["csv"].as_str().unwrap()).unwrap();
+    let output = bundle.join("result.json");
+    let run = || {
+        let mut command = Command::new(&executable);
+        command
+            .current_dir(&bundle)
+            .env("MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION", "1")
+            .env("MARKLAB_PYTHON", "/nonexistent/python")
+            .env("MARKLAB_RUNTIME_ROOT", "/nonexistent/runtime")
+            .args([
+                "bayes",
+                "grouped-conformal",
+                "--alpha",
+                "0.2",
+                "--l2-penalty",
+                "0.1",
+                "--timeout-seconds",
+                "30",
+                "--input",
+            ])
+            .arg(&input)
+            .arg("--out")
+            .arg(&output);
+        command
+    };
+    run().assert().success();
+    let original = fs::read(&output).unwrap();
+    let expected =
+        marklab::grouped_conformal::fit_csv(&fs::read(&input).unwrap(), 0.2, 0.1, 30).unwrap();
+    let mut expected = serde_json::to_vec(&expected).unwrap();
+    expected.push(b'\n');
+    assert_eq!(original, expected);
+    run().assert().failure();
+    assert_eq!(fs::read(&output).unwrap(), original);
+}
+
 #[test]
 fn grouped_conformal_fits_train_calibrates_then_scores_test() {
     let directory = tempfile::tempdir().expect("tempdir");
@@ -52,6 +192,9 @@ fn grouped_conformal_fits_train_calibrates_then_scores_test() {
 
     Command::cargo_bin("marklab")
         .expect("binary")
+        .env("MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION", "1")
+        .env("MARKLAB_PYTHON", "/nonexistent/python")
+        .env("MARKLAB_RUNTIME_ROOT", "/nonexistent/runtime")
         .args([
             "bayes",
             "grouped-conformal",
@@ -72,7 +215,9 @@ fn grouped_conformal_fits_train_calibrates_then_scores_test() {
     let result: serde_json::Value =
         serde_json::from_slice(&fs::read(output).expect("result")).expect("JSON");
     assert_eq!(result["format"], "marklab.grouped_conformal_prediction");
-    assert_eq!(result["backend"]["version"], "1.18.1");
+    assert_eq!(result["backend"]["name"], "marklab-rust");
+    assert_eq!(result["backend"]["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(result["version"], 2);
     assert_eq!(result["fit_split"], "train");
     assert_eq!(result["quantile_split"], "calibration");
     assert_eq!(result["prediction_split"], "test");

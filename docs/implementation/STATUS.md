@@ -1,8 +1,44 @@
 # Implementation status
 
-Last updated: 2026-09-04
+Last updated: 2026-09-05
 
-## Current outcome — ARCH-INTEGRATION-01
+## Current outcome — RUST-MIGRATION-01
+
+The user-authorized migration is now the active workstream (DEC-0415). All 154 production worker,
+adapter and client Python sources at baseline `f784302` remain in scope. The generated
+`PYTHON_MIGRATION_INVENTORY.csv` freezes source identities and literal caller/contract matches;
+proposed ownership and unmatched/dynamic callers still require individual review. It is not a
+completed capability-by-capability migration or a reachability proof.
+
+The first native candidate implements the complete grouped-conformal CSV workflow through a
+library application, Bayesian scientific owner, bounded numerical optimizer and killable native
+child. It preserves training/calibration/test separation, corrected rank, inclusive sets, coverage,
+resource bounds, the claim ceiling and legacy Python readers. Native envelope version 2 truthfully
+identifies Rust execution; result-format 0.3 is unchanged. Python sources and locks remain frozen.
+The grouped-conformal milestone is complete. The corrected native candidate passes nine domain
+integration tests, three internal gradient/hash/overflow oracles and six CLI tests. The new native
+CI command passes all nineteen selected numerical/domain/CLI cases with Python execution disabled.
+On three independently converged Python fixtures, ten paired repetitions show 7.29–8.26x cold and
+4.45–7.59x warm median speedups. All eleven other reference cases retain their SciPy precision-loss
+failures; fixed-native-parameter Python gradient/downstream checks pass but are not independent fits
+or speedup comparisons. See `../native-migration-measurements.md` and its raw audit record.
+
+The default-concurrency workspace run stopped at one unchanged hierarchy's 180-second backend
+timeout (457 passed; 1266 not run). The unchanged test passed in isolation in 117.78 s. The full
+CI-concurrency rerun passed 1724/1724 in 2849.705 s, with 12 slow tests and 28 existing skips.
+That suite used the snapshot before the final contained standardization-order correction; its
+new failing regression was fixed, and current domain/CLI tests plus all-feature workspace Clippy
+pass afterward. A fresh unfiltered 1725-test run is not claimed. Formatting, earlier CLI-only
+Clippy/no-default/CSV-only/strict-doc/doc-test gates and scoped offline package checks are recorded
+in the task contract. `actionlint .github/workflows/ci.yml` could not run because actionlint is not
+installed; Ruby Psych syntax checks, the CI contract and the exact native test command pass locally.
+Hosted CI, cross-platform execution, final native release and all other Python migrations remain open.
+
+Next: patient-OOF probability calibration and fusion under their existing contracts. Real multiplex study admission follows the migration;
+its missing biological design, assay metadata and independent calibration are still required.
+The previous architecture checkpoint remains recorded below with its original limitations.
+
+## Previous outcome — ARCH-INTEGRATION-01
 
 User-authorized architecture integration has delivered the bounded workflow below. Earlier local milestones:
 

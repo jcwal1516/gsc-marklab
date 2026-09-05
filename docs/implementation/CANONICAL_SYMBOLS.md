@@ -1,5 +1,14 @@
 # Canonical symbols and ownership
 
+RUST-MIGRATION-01 ownership: `/root` is the sole writer. `GroupedConformalSpec::validated`
+remains the shared admission owner; `grouped_conformal/native.rs` owns the native scientific flow,
+its private logistic module owns likelihood/standardization/Newton recovery, and
+`marklab-numerics::minimize_bfgs` owns only the consumed bounded optimizer. The root
+`grouped_conformal` CSV application owns interpretation and exact private transport; `native_backend`
+owns kill/reap/stream bounds. The existing CLI and backend command tree only adapt those services.
+Legacy Python request/result readers remain in their original canonical module. Promotion evidence
+is recorded in `task-contracts/RUST-MIGRATION-01.md`; unrelated Python methods retain their owners.
+
 ARCH-INTEGRATION-01 multiplex ownership: `src/scalar_mark/table/assay.rs` owns nullable assay
 declarations and values within the existing MarkTable; legacy Pattern projection remains in
 `table/validation.rs`. `src/spatial_autocorrelation` owns radius Moran/Geary arithmetic and panel

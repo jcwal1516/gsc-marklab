@@ -20,6 +20,9 @@ enum BackendTopLevel {
 enum BackendCommand {
     /// Verify asset paths, Python 3.12, and the locked direct backend packages.
     Doctor,
+    /// Private typed native execution boundary for the grouped-conformal application.
+    #[command(hide = true)]
+    NativeGroupedConformal,
 }
 
 pub(crate) fn cli_route() -> super::command_tree::Route {
@@ -29,9 +32,38 @@ pub(crate) fn cli_route() -> super::command_tree::Route {
 }
 
 fn run() -> Result<(), super::bayes::BayesCliError> {
-    let BackendTopLevel::Backend {
-        command: BackendCommand::Doctor,
-    } = BackendCli::parse().command;
+    let BackendTopLevel::Backend { command } = BackendCli::parse().command;
+    match command {
+        BackendCommand::Doctor => doctor(),
+        BackendCommand::NativeGroupedConformal => native_conformal(),
+    }
+}
+
+fn native_conformal() -> Result<(), super::bayes::BayesCliError> {
+    use super::bayes::BayesCliError;
+    use std::io::{Read, Write};
+    // The ordinary CSV is bounded to 16 MiB; JSON escaping plus row keys may expand it.
+    const INPUT_LIMIT: u64 = 128 * 1024 * 1024;
+    let mut input = Vec::new();
+    std::io::stdin()
+        .take(INPUT_LIMIT + 1)
+        .read_to_end(&mut input)
+        .map_err(|error| BayesCliError::Input(format!("native request read failed: {error}")))?;
+    if input.len() as u64 > INPUT_LIMIT {
+        return Err(BayesCliError::Input(
+            "native request exceeds 128 MiB".into(),
+        ));
+    }
+    let bytes = marklab::grouped_conformal::execute_native_request(input)
+        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    std::io::stdout()
+        .lock()
+        .write_all(&bytes)
+        .map_err(|error| BayesCliError::Input(format!("native result write failed: {error}")))?;
+    Ok(())
+}
+
+fn doctor() -> Result<(), super::bayes::BayesCliError> {
     let root = marklab::python_backend_assets_root()?;
     let interpreter = marklab::python_backend_interpreter(&root)?;
     let result = super::bayes::run_worker(&root, "marklab_backend_doctor.py", b"{}", 30)?;

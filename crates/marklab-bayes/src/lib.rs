@@ -302,9 +302,10 @@ pub use gridded_lgcp_spatial_ppc::{
     GriddedLgcpSpatialPpcSummary,
 };
 pub use grouped_conformal::{
-    CoverageRow, GroupedConformalModel, GroupedConformalPatient, GroupedConformalPrediction,
-    GroupedConformalResources, GroupedConformalSpec, GroupedConformalWorkerRequest,
-    GroupedConformalWorkerResult, GroupedCoverage,
+    fit_grouped_conformal, CoverageRow, GroupedConformalFit, GroupedConformalModel,
+    GroupedConformalPatient, GroupedConformalPrediction, GroupedConformalResources,
+    GroupedConformalSpec, GroupedConformalWorkerRequest, GroupedConformalWorkerResult,
+    GroupedCoverage, NativeConformalBackend,
 };
 pub use hierarchical::{
     GaussianHierarchyFit, GaussianHierarchyInputIdentity, GaussianHierarchySpec,

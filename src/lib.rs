@@ -50,6 +50,8 @@ mod errors;
 #[doc(hidden)]
 pub mod exact_float_json;
 mod geom;
+#[cfg(feature = "csv")]
+pub mod grouped_conformal;
 mod inference;
 mod inhomogeneous_spatial;
 mod io;
@@ -66,6 +68,8 @@ mod measurement_status_wire;
 mod multimodal;
 mod multiplex_study;
 mod multiscale_residual;
+#[cfg(feature = "cli")]
+mod native_backend;
 mod nearest_space;
 mod nearest_space_workflow;
 mod neighborhood;
@@ -82,6 +86,9 @@ mod prepost;
 mod probability_pair;
 mod probability_pair_workflow;
 mod python_backend;
+#[cfg(feature = "cli")]
+#[doc(hidden)]
+pub use native_backend::{run_native_grouped_conformal, NativeBackendError};
 mod qc;
 mod registration;
 mod scalar_mark;

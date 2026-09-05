@@ -4236,3 +4236,94 @@ override and all Python test directories. This is an intended test-contract upda
 standard-library client, not removal of required CI coverage. Production code and CI jobs are
 unchanged by this correction. Record the original complete-run failure and focused green honestly;
 no new unfiltered full-suite pass may be inferred from a focused rerun.
+
+## DEC-0415 — Rust migration and native grouped-conformal execution
+
+Date: 2026-09-05. User explicitly authorizes RUST-MIGRATION-01 and requires review before
+promoting a measured slower replacement. This appends to the master plan's integrated-backend
+strategy; it does not rewrite that charter or relax any scientific claim gate.
+
+The first production caller is the existing grouped-conformal CLI. Introduce a library-owned
+native fit entry point with typed admitted inputs, contiguous training storage, reusable optimizer
+buffers, and an explicit deadline. Keep model-specific logistic arithmetic in marklab-bayes and
+only the immediately consumed bounded BFGS optimizer in marklab-numerics. No dependency is added.
+Retain legacy Python worker request/result APIs and their version-1 readers. Native output uses
+version 2 of the grouped-conformal envelope with Rust package/version and implementation source
+SHA-256 provenance; it never claims Python execution. Result-format 0.3 remains unchanged.
+
+The existing one-binary command tree gains a hidden, schema-registered grouped-conformal worker
+route. It calls the same Rust library and allows the parent to enforce a hard process timeout and
+bounded result streams. Scientific kernels perform no subprocess/file/environment discovery.
+The ordinary command switches only after parity and performance gates pass. The Python worker
+and lock remain frozen reference assets; unrelated production Python callers remain operational.
+Native request identity binds sorted semantic inputs, controls and implementation identity.
+No durable conformal cache currently exists, so this milestone does not invent one.
+
+### Numerical recovery in the first native fit
+
+A prespecified five-seed replication panel retained all dispositions after the initial large
+reference failures. Only seed 2 at 300x8 joined the original fixture as a converged reference;
+all original and other panel precision-loss failures remain evidence, not omitted benchmarks.
+That admitted reference exposed native strong-Wolfe stagnation in a failing regression test.
+Use at most 500 BFGS iterations, followed only on numerical failure by at most 500 exact-Hessian
+Newton iterations. Both optimize the same unnormalized convex logistic objective with the same
+unpenalized intercept, positive L2 penalty and 1e-8 infinity-gradient criterion. Newton uses the
+existing Cholesky owner, Armijo damping, and finite/positive-definite checks; a converged gradient
+can establish stationarity when objective differences round away. No approximation, tolerance
+relaxation, dependency, or additional public solver is introduced. Source identity includes the
+consumed linear algebra. The recovery's O(n*d²) cost must be included in performance evidence.
+
+### Preserve precision at the native process boundary
+
+The 300-patient fixture exposed a one-ULP discrepancy in the default serde_json parser when a
+Python coverage fraction was read back. Counts and prediction sets agree; floating oracle values
+use the prespecified tolerance rather than incorrectly requiring JSON-number bit equality.
+Avoid this conversion entirely for production transport: the native request carries the original
+bounded CSV as text and the two f64 controls as u64 bits. The child uses the existing CSV parser
+and the native typed fit; its output includes the source-byte identity. Enable serde_json's
+`raw_value` feature in the root package solely so the parent can validate and publish that JSON
+through the existing transaction owner without reparsing/reserializing scientific floats.
+This adds no package or lockfile dependency, does not change global float parsing, and introduces
+no generic data format. The private schema-registered worker is the immediate producer/consumer.
+
+### Package-owned provenance and fixtures
+
+The scoped locked/offline package verification reproduced a missing-file failure for the native
+fit's include of a sibling numerical crate source. Export one opaque compile-embedded
+`BFGS_IMPLEMENTATION_SOURCE` constant from its numerical owner, consumed only for the native fit's
+source fingerprint. This avoids a crypto dependency or a generic provenance registry in numerics.
+The source bytes are not an API for parsing implementation details. Keep frozen scientific fixtures
+inside the Bayesian package; workspace-only CLI tests/benchmarks read that canonical fixture set.
+No duplicate oracle copies or sibling-source includes remain in production package code.
+
+### Profile-driven removal of redundant matrix serialization
+
+A 1000-repeat, 3000x32 balanced-null samply profile collected 10304 samples: SHA-256 compression
+was 36.53% exclusive and memmove 22.02%. The native implementation serialized the complete typed
+request to an allocated JSON buffer solely to hash it. Replace that with a domain-specific streamed
+semantic identity, with prefix `marklab.grouped-conformal.spec.v1` plus NUL; UTF-8 strings have
+u64 little-endian byte lengths, dimensions/timeout are u64 little-endian, labels are u8, and every
+f64 contributes its exact little-endian bits. Encode implementation, feature names, alpha, penalty,
+timeout, patient count, then sorted patient identity/split/site/subgroup/label/features, in that order.
+This is a private hash encoding with an immediate fit caller, not a new persisted physical format.
+It preserves signed zero and prevents ambiguous string concatenation. A literal independent Python
+`struct.pack` vector fixes digest `26eb390703914d0ecbad7c2059da56ab782c6c88b1c81e696b2b5194d3e61111`.
+Existing Python request hashes are unchanged. Native version-2 identities intentionally change;
+no native cache or release has yet been promoted. Rerun parity/performance after the change.
+
+### Finite prediction order and native CI admission
+
+The final review reproduced a concrete overflow in the existing grouped-conformal probability
+validator, newly consumed by native prediction. With means [0,0], SD [100,100], coefficients [2,-2]
+and finite features [1e308,1e308], multiplying raw features first produces infinity minus infinity.
+The Python workflow standardizes first and returns probability 0.5. Keep that exact operation order
+in the shared grouped-conformal helper. Its regression failed before the correction and passes
+afterward; legacy response validation and all native cases remain green. This is a finite-arithmetic
+correction, not a new estimand, clipping rule, precision relaxation or dependency. Native source
+identities change and corrected release benchmarks are rerun; earlier raw measurements remain.
+
+The existing Rust CI job now runs the numerical, native-domain and complete native CLI targets
+with external execution disabled and nonexistent Python/runtime paths, before any backend
+installation. No new workflow job, backend registry or environment dependency is introduced. Its
+CI contract is red/green and the exact test selection passes 19/19 locally. Hosted/actionlint
+validation remains explicitly unverified. The other production workers remain installed and tested.

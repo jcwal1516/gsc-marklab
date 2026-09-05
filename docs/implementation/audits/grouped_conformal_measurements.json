@@ -1,0 +1,1864 @@
+{
+  "date": "2026-09-05",
+  "baseline_revision": "f784302",
+  "hardware": {
+    "cpu": "Apple M4 Pro",
+    "memory_bytes": 51539607552,
+    "os": "macOS 26.5.2 (25F84)"
+  },
+  "reference": {
+    "worker_sha256": "f1b895383faee4d59d4c6dc91e9d08fbfddedfb412bbe7aa3139cf273a9a4b41",
+    "lock_sha256": "56030b038e8661823a1a52ae9dbfb6acc72cdeaace7a1ec5a798c78cd62aa768"
+  },
+  "cold": {
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "threads": 1,
+    "baseline_sha256": "c3f742787094ca68b5fcc5d14ce7963a44ae55a683879f2e5a0a60e470d6785b",
+    "candidate_sha256": "63e49232e2fbbe2b563dd13c26136ffb61bd791ba7cb746fb8f3e8eff85be529",
+    "workloads": {
+      "small": {
+        "samples_ns": [
+          {
+            "python": 306015709,
+            "rust": 511406125
+          },
+          {
+            "rust": 36567667,
+            "python": 282675708
+          },
+          {
+            "python": 273306375,
+            "rust": 34807334
+          },
+          {
+            "rust": 34572041,
+            "python": 279951500
+          },
+          {
+            "python": 280540916,
+            "rust": 33612959
+          },
+          {
+            "rust": 33662958,
+            "python": 267450375
+          },
+          {
+            "python": 284330000,
+            "rust": 34291958
+          },
+          {
+            "rust": 32789917,
+            "python": 279872833
+          },
+          {
+            "python": 285148791,
+            "rust": 34325917
+          },
+          {
+            "rust": 33863208,
+            "python": 273967500
+          }
+        ],
+        "memory": [
+          {
+            "implementation": "python",
+            "os_resource_report": "        0.28 real         0.21 user         0.03 sys\n            72318976  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n               12190  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   7  voluntary context switches\n                 148  involuntary context switches\n           174672442  instructions retired\n            52577563  cycles elapsed\n            14172568  peak memory footprint\n"
+          },
+          {
+            "implementation": "rust",
+            "os_resource_report": "        0.03 real         0.01 user         0.00 sys\n            25853952  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3442  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   7  voluntary context switches\n                  41  involuntary context switches\n           168452942  instructions retired\n            50712196  cycles elapsed\n            14500272  peak memory footprint\n"
+          }
+        ],
+        "python_median_ns": 280246208.0,
+        "rust_median_ns": 34308937.5,
+        "median_paired_speedup": 8.09402249500319,
+        "paired_bootstrap_95pct": [
+          7.837577366042796,
+          8.318830705050832
+        ],
+        "parity": true,
+        "promotable": true
+      },
+      "representative_seed_2": {
+        "samples_ns": [
+          {
+            "python": 269812042,
+            "rust": 33536292
+          },
+          {
+            "rust": 32435625,
+            "python": 273109791
+          },
+          {
+            "python": 274693291,
+            "rust": 33666916
+          },
+          {
+            "rust": 33379000,
+            "python": 273614583
+          },
+          {
+            "python": 266323500,
+            "rust": 32578875
+          },
+          {
+            "rust": 32451000,
+            "python": 273297541
+          },
+          {
+            "python": 275146958,
+            "rust": 32644917
+          },
+          {
+            "rust": 33370792,
+            "python": 277093334
+          },
+          {
+            "python": 274790959,
+            "rust": 33472041
+          },
+          {
+            "rust": 32538667,
+            "python": 272768667
+          }
+        ],
+        "memory": [
+          {
+            "implementation": "python",
+            "os_resource_report": "        0.26 real         0.21 user         0.03 sys\n            73269248  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n               12292  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   9  voluntary context switches\n                 128  involuntary context switches\n           183849110  instructions retired\n            56961227  cycles elapsed\n            14582192  peak memory footprint\n"
+          },
+          {
+            "implementation": "rust",
+            "os_resource_report": "        0.03 real         0.01 user         0.00 sys\n            25952256  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3507  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   7  voluntary context switches\n                  45  involuntary context switches\n           169408403  instructions retired\n            51492883  cycles elapsed\n            14008728  peak memory footprint\n"
+          }
+        ],
+        "python_median_ns": 273456062.0,
+        "rust_median_ns": 33007854.5,
+        "median_paired_speedup": 8.256517893905105,
+        "paired_bootstrap_95pct": [
+          8.174729790393314,
+          8.420056373200763
+        ],
+        "parity": true,
+        "promotable": true
+      },
+      "demanding_balanced_null": {
+        "samples_ns": [
+          {
+            "python": 325629833,
+            "rust": 43660417
+          },
+          {
+            "rust": 45649209,
+            "python": 316632583
+          },
+          {
+            "python": 315316666,
+            "rust": 43638375
+          },
+          {
+            "rust": 43459666,
+            "python": 319905541
+          },
+          {
+            "python": 313206625,
+            "rust": 43567542
+          },
+          {
+            "rust": 42754041,
+            "python": 320578208
+          },
+          {
+            "python": 314239459,
+            "rust": 44333666
+          },
+          {
+            "rust": 42659167,
+            "python": 320972625
+          },
+          {
+            "python": 321301667,
+            "rust": 45977833
+          },
+          {
+            "rust": 43653708,
+            "python": 328094875
+          }
+        ],
+        "memory": [
+          {
+            "implementation": "python",
+            "os_resource_report": "        0.32 real         0.24 user         0.04 sys\n            83083264  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n               13375  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                  88  voluntary context switches\n                 154  involuntary context switches\n           416254148  instructions retired\n           116342268  cycles elapsed\n            22118856  peak memory footprint\n"
+          },
+          {
+            "implementation": "rust",
+            "os_resource_report": "        0.04 real         0.02 user         0.00 sys\n            32505856  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                4121  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                  72  voluntary context switches\n                  46  involuntary context switches\n           186366627  instructions retired\n            55561353  cycles elapsed\n            17564104  peak memory footprint\n"
+          }
+        ],
+        "python_median_ns": 320241874.5,
+        "rust_median_ns": 43646041.5,
+        "median_paired_speedup": 7.293324735264073,
+        "paired_bootstrap_95pct": [
+          7.088054910685708,
+          7.498196673385798
+        ],
+        "parity": true,
+        "promotable": true
+      }
+    }
+  },
+  "warm": {
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "python": "3.12.9",
+    "threads": 1,
+    "native_binary_sha256": "df6b9fc2048c1abaa09da2766507d0be67486c413f666986c07f0853e4c343e3",
+    "workloads": {
+      "demanding": {
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "promotable": false
+      },
+      "demanding_balanced_null": {
+        "samples_ns": [
+          {
+            "python": 21812125,
+            "rust": 7843042
+          },
+          {
+            "rust": 5764417,
+            "python": 23925792
+          },
+          {
+            "python": 28413417,
+            "rust": 5236250
+          },
+          {
+            "rust": 5118833,
+            "python": 23080125
+          },
+          {
+            "python": 21657708,
+            "rust": 5118250
+          },
+          {
+            "rust": 5115917,
+            "python": 23348875
+          },
+          {
+            "python": 22033750,
+            "rust": 5065166
+          },
+          {
+            "rust": 5026750,
+            "python": 22856750
+          },
+          {
+            "python": 22762583,
+            "rust": 5087250
+          },
+          {
+            "rust": 5171083,
+            "python": 22841542
+          }
+        ],
+        "python_median_ns": 22849146.0,
+        "rust_median_ns": 5118541.5,
+        "median_paired_speedup": 4.445802797265506,
+        "paired_bootstrap_95pct": [
+          4.231467396082645,
+          4.547023424677973
+        ],
+        "parity": true,
+        "promotable": true
+      },
+      "demanding_seed_1": {
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "promotable": false
+      },
+      "demanding_seed_2": {
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "promotable": false
+      },
+      "demanding_seed_3": {
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "promotable": false
+      },
+      "demanding_seed_4": {
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "promotable": false
+      },
+      "demanding_seed_5": {
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "promotable": false
+      },
+      "representative": {
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "promotable": false
+      },
+      "representative_seed_1": {
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "promotable": false
+      },
+      "representative_seed_2": {
+        "samples_ns": [
+          {
+            "python": 2939000,
+            "rust": 638416
+          },
+          {
+            "rust": 623584,
+            "python": 3399500
+          },
+          {
+            "python": 2775708,
+            "rust": 622166
+          },
+          {
+            "rust": 554125,
+            "python": 3548958
+          },
+          {
+            "python": 2836584,
+            "rust": 595458
+          },
+          {
+            "rust": 604125,
+            "python": 3522917
+          },
+          {
+            "python": 2912625,
+            "rust": 730583
+          },
+          {
+            "rust": 608875,
+            "python": 3527000
+          },
+          {
+            "python": 2945709,
+            "rust": 597709
+          },
+          {
+            "rust": 572041,
+            "python": 3807541
+          }
+        ],
+        "python_median_ns": 3172604.5,
+        "rust_median_ns": 606500.0,
+        "median_paired_speedup": 5.189942026132,
+        "paired_bootstrap_95pct": [
+          4.603581363875592,
+          6.098633333368838
+        ],
+        "parity": true,
+        "promotable": true
+      },
+      "representative_seed_3": {
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "promotable": false
+      },
+      "representative_seed_4": {
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "promotable": false
+      },
+      "representative_seed_5": {
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "promotable": false
+      },
+      "small": {
+        "samples_ns": [
+          {
+            "python": 654959,
+            "rust": 95750
+          },
+          {
+            "rust": 108500,
+            "python": 1046083
+          },
+          {
+            "python": 612750,
+            "rust": 108875
+          },
+          {
+            "rust": 93041,
+            "python": 1069333
+          },
+          {
+            "python": 616666,
+            "rust": 92375
+          },
+          {
+            "rust": 100708,
+            "python": 986792
+          },
+          {
+            "python": 618083,
+            "rust": 99709
+          },
+          {
+            "rust": 97250,
+            "python": 942625
+          },
+          {
+            "python": 614125,
+            "rust": 112459
+          },
+          {
+            "rust": 112666,
+            "python": 938667
+          }
+        ],
+        "python_median_ns": 796813.0,
+        "rust_median_ns": 100208.5,
+        "median_paired_speedup": 7.585858037845544,
+        "paired_bootstrap_95pct": [
+          6.151847213396948,
+          9.719932132300546
+        ],
+        "parity": true,
+        "promotable": true
+      }
+    }
+  },
+  "native_profile_before_streaming_hash": {
+    "samples": 10304,
+    "exclusive_top": [
+      [
+        "sha2::sha256::compress256",
+        3764,
+        36.53
+      ],
+      [
+        "_platform_memmove",
+        2269,
+        22.02
+      ],
+      [
+        "serde_json::de::Deserializer<R>::parse_decimal",
+        972,
+        9.43
+      ],
+      [
+        "<core::marker::PhantomData<T> as serde_core::de::DeserializeSeed>::deserialize",
+        546,
+        5.3
+      ],
+      [
+        "<f64 as zmij::private::Sealed>::write_to_zmij_buffer",
+        502,
+        4.87
+      ],
+      [
+        "serde_json::de::Deserializer<R>::parse_integer",
+        239,
+        2.32
+      ],
+      [
+        "<serde_json::de::SeqAccess<R> as serde_core::de::SeqAccess>::next_element_seed::has_next_element",
+        201,
+        1.95
+      ],
+      [
+        "<&mut serde_json::ser::Serializer<W,F> as serde_core::ser::Serializer>::serialize_str",
+        172,
+        1.67
+      ],
+      [
+        "core::str::converts::from_utf8",
+        127,
+        1.23
+      ],
+      [
+        "mach_absolute_time",
+        126,
+        1.22
+      ],
+      [
+        "_platform_memset",
+        120,
+        1.16
+      ],
+      [
+        "<serde_json::read::SliceRead as serde_json::read::Read>::parse_str",
+        101,
+        0.98
+      ],
+      [
+        "serde_core::ser::impls::<impl serde_core::ser::Serialize for alloc::vec::Vec<T>>::serialize",
+        99,
+        0.96
+      ],
+      [
+        "marklab_bayes::grouped_conformal::native::fit_grouped_conformal",
+        78,
+        0.76
+      ],
+      [
+        "<serde_json::de::MapAccess<R> as serde_core::de::MapAccess>::next_key_seed::has_next_key",
+        43,
+        0.42
+      ],
+      [
+        "grouped_conformal_benchmark:0x5c548",
+        38,
+        0.37
+      ],
+      [
+        "grouped_conformal_benchmark:0x5c560",
+        32,
+        0.31
+      ],
+      [
+        "<serde_json::ser::Compound<W,F> as serde_core::ser::SerializeStruct>::serialize_field",
+        32,
+        0.31
+      ],
+      [
+        "core::hash::BuildHasher::hash_one",
+        31,
+        0.3
+      ],
+      [
+        "grouped_conformal_benchmark:0x5c554",
+        30,
+        0.29
+      ]
+    ],
+    "inclusive_top": [
+      [
+        "std::sys::backtrace::__rust_begin_short_backtrace",
+        10304,
+        100.0
+      ],
+      [
+        "std::rt::lang_start_internal",
+        10304,
+        100.0
+      ],
+      [
+        "main",
+        10304,
+        100.0
+      ],
+      [
+        "std::rt::lang_start::{{closure}}",
+        10304,
+        100.0
+      ],
+      [
+        "start",
+        10304,
+        100.0
+      ],
+      [
+        "grouped_conformal_benchmark::main",
+        10304,
+        100.0
+      ],
+      [
+        "marklab_bayes::grouped_conformal::native::fit_grouped_conformal",
+        7379,
+        71.61
+      ],
+      [
+        "marklab_bayes::model::sha256_hex",
+        3767,
+        36.56
+      ],
+      [
+        "sha2::sha256::compress256",
+        3764,
+        36.53
+      ],
+      [
+        "serde_core::ser::impls::<impl serde_core::ser::Serialize for alloc::vec::Vec<T>>::serialize",
+        2898,
+        28.12
+      ],
+      [
+        "<core::marker::PhantomData<T> as serde_core::de::DeserializeSeed>::deserialize",
+        2835,
+        27.51
+      ],
+      [
+        "_platform_memmove",
+        2269,
+        22.02
+      ],
+      [
+        "<f64 as zmij::private::Sealed>::write_to_zmij_buffer",
+        1324,
+        12.85
+      ],
+      [
+        "serde_json::de::Deserializer<R>::parse_integer",
+        1211,
+        11.75
+      ],
+      [
+        "serde_json::de::Deserializer<R>::parse_decimal",
+        972,
+        9.43
+      ],
+      [
+        "alloc::raw_vec::RawVecInner<A>::finish_grow",
+        516,
+        5.01
+      ],
+      [
+        "alloc::raw_vec::RawVec<T,A>::grow_one",
+        483,
+        4.69
+      ],
+      [
+        "libsystem_malloc.dylib:0x3ae8f",
+        413,
+        4.01
+      ],
+      [
+        "libsystem_malloc.dylib:0x3a673",
+        392,
+        3.8
+      ],
+      [
+        "<&mut serde_json::ser::Serializer<W,F> as serde_core::ser::Serializer>::serialize_str",
+        263,
+        2.55
+      ]
+    ]
+  },
+  "fixtures": {
+    "demanding": {
+      "request_sha256": "8a1d35c56f643a8deaa45e0d595580a14f54fa4d85f44323b3b147971e07b58c",
+      "spec_sha256": "9df1445672804338824312f0bcde2cf91262312f1900b8e5fc7be3fde0e44168",
+      "csv_sha256": "15f82d5b175d86464b94321711b54a350a913fb5b7947a4d6749f2467f2310aa",
+      "reference_failure": "ValueError: logistic optimizer failed: Desired error not necessarily achieved due to precision loss."
+    },
+    "demanding_balanced_null": {
+      "request_sha256": "2bb663dbd1993acf67b22484437fdb115a21e2af66cd8e49e5e88df9247f66a3",
+      "spec_sha256": "f627c53f4d456436ef0e618538c3c8aba9f4c66683d3ca1a841d1cded1e79eb7",
+      "csv_sha256": "3682fd845049304ff502be1776f35a2e589d7c626f7a1c24702acbd27d197b33",
+      "oracle_sha256": "8612c5c8ef33f8c3a956170263a3368ddf59650b556dbc200d18b24e5ade39fd"
+    },
+    "demanding_seed_1": {
+      "request_sha256": "ef48de4b60ebcf94600c619cdd12bd69a9fc508ee0253005c33cfbbcfa29facc",
+      "spec_sha256": "61ed5d2ce3a92cbadf1b92718b58b4b1aa2e91ade0dbba84bd318f546e163f66",
+      "csv_sha256": "2f4288fc0931c4468518ea31641933b8b8a5aae1ee1633491da8450e548a8ac0",
+      "reference_failure": "ValueError: logistic optimizer failed: Desired error not necessarily achieved due to precision loss."
+    },
+    "demanding_seed_2": {
+      "request_sha256": "00d2494d6a97c2b945994f39f201d8a5c5ee038b88251f67196ac88d79e4d1b0",
+      "spec_sha256": "15d46a53468c39d144a5c2c2a645531f99b29874e0bb5516b13965b9f25066f8",
+      "csv_sha256": "c0883a87c96ee3622cfd733d671c25b7c6757353a57d0a7985443ae3bd67a000",
+      "reference_failure": "ValueError: logistic optimizer failed: Desired error not necessarily achieved due to precision loss."
+    },
+    "demanding_seed_3": {
+      "request_sha256": "cd3d32a8c9038684d9b8f0277a81860b320bdcf582da7ab6b96fae06f80c0b50",
+      "spec_sha256": "849a9eb370714c48c804ebc21a3c2613272bffc1625dfb225225f9da143da38f",
+      "csv_sha256": "f4913457be4fa078032d9dc22e0b863724ddf30abc6ccddf78daea60b493e27c",
+      "reference_failure": "ValueError: logistic optimizer failed: Desired error not necessarily achieved due to precision loss."
+    },
+    "demanding_seed_4": {
+      "request_sha256": "a2c75daea1284a1e51186ec7bef5b33ef201b47c4cf7a6588cc1b16e4817136e",
+      "spec_sha256": "3851dd9ecd7b55e7d0dec9b3d86b0b5c40ed486e4cee5a8f6c0f6fa783660915",
+      "csv_sha256": "b7c83a2d005b9675cfb32aaa255043abc8573c4df7d32ac475dcac551cd414c1",
+      "reference_failure": "ValueError: logistic optimizer failed: Desired error not necessarily achieved due to precision loss."
+    },
+    "demanding_seed_5": {
+      "request_sha256": "a89a4bb04c5bfab6c5247ce438f7ee8efc96836242582333ff0a4c898f48a795",
+      "spec_sha256": "3fe65ef1a98a3c964f0a61982c54644a78ca8f6f5a155612dbf84322e997fc47",
+      "csv_sha256": "af0ab987a296b26c9531ab90cba42b646abcdd3fceef9f0334ac4f78e1a64b23",
+      "reference_failure": "ValueError: logistic optimizer failed: Desired error not necessarily achieved due to precision loss."
+    },
+    "representative": {
+      "request_sha256": "15595f704152102899f17a7ac020e845ffdacaacbecded1cc7a2ec5ecac35401",
+      "spec_sha256": "4e89173824a7818dcc1afcc3b8f6d8ad790bda8f3d8db6aca380b3b3fc47796c",
+      "csv_sha256": "90f1f7670c453dcd73abe74cca677970ede33669e304c1e82b040cdc2581427c",
+      "reference_failure": "ValueError: logistic optimizer failed: Desired error not necessarily achieved due to precision loss."
+    },
+    "representative_seed_1": {
+      "request_sha256": "b090ea498c92d177a9f2ee490a2ca728ccbced6a9971100f60727ffc88f5f4e3",
+      "spec_sha256": "69678d888349e9a51772befeff3dc05eb3407bc3a5724237b96c367953573394",
+      "csv_sha256": "181f410ab7e47a05edf472b57fe31b0676c26478814aa879cc5c48102cc2182e",
+      "reference_failure": "ValueError: logistic optimizer failed: Desired error not necessarily achieved due to precision loss."
+    },
+    "representative_seed_2": {
+      "request_sha256": "f0c019b9c8297990531c0bf6f68456a079f0c95dda4e8ab924e154e005a505b3",
+      "spec_sha256": "29b5c88afa7080565dbc8f3c839c6e39d0020a5c48d80c4ec435e00778d7183f",
+      "csv_sha256": "506472f381e3ad30f92be62c8c3c9f5715b425ef3dbc0e3d0faef131503ae21d",
+      "oracle_sha256": "97fa9ec736e7ce893f9a08d7fd6f7e27aaf0081b40649b2d921a286ac9bb35c8"
+    },
+    "representative_seed_3": {
+      "request_sha256": "5c62f78cbbf29ad3cced0ae24674084acc490a3f9b149545f793b089830a8fb7",
+      "spec_sha256": "ae754eb76f0c8ef1a6f13394ac8ecb63f88841bcef93658c54c96056c1376aeb",
+      "csv_sha256": "79122cd9f9b2672fd5f06ce8e275c89ccd71727bf5dc486ad104e453809691b1",
+      "reference_failure": "ValueError: logistic optimizer failed: Desired error not necessarily achieved due to precision loss."
+    },
+    "representative_seed_4": {
+      "request_sha256": "16b9ab06611b47479437c3f32bf9ac4df075be5c56f98769eade542b155ceec5",
+      "spec_sha256": "59c2f751aa9b2c813ca97cb2c797c1644c58c4770314695cc709fe5a4fc44506",
+      "csv_sha256": "3f4ed8f49d8ee21dea3e4ad7f04ce1fdbbd1f6b59a393cac4b71c253eaf28ed5",
+      "reference_failure": "ValueError: logistic optimizer failed: Desired error not necessarily achieved due to precision loss."
+    },
+    "representative_seed_5": {
+      "request_sha256": "f41c6a7b2d3aa0831a9aeb0effb5c27bc7098f08a2514ecfe09873eaf970c9c7",
+      "spec_sha256": "95812153803bf7a177b2ed67e2f6318a5b42b48cca1e8661c930f25fd6f42f9e",
+      "csv_sha256": "48d28f6f6e45510d8a22148989888982ee89359897f35df7c20a4b6f6b50cf78",
+      "reference_failure": "ValueError: logistic optimizer failed: Desired error not necessarily achieved due to precision loss."
+    },
+    "small": {
+      "request_sha256": "a8671b2b68a90dbab9d1331fd78e9c77a3162b34f138ed9fc7644d49ba487062",
+      "spec_sha256": "13af672cdbe0d3f77e6c988fb21349a6e258c34e81dfd76187296d0333a6b73a",
+      "csv_sha256": "8f27013e8c7c6b462e8b3b9781ca44de4fc77bb4fe7167efa3f3ec5cab31bdf1",
+      "oracle_sha256": "176af035d42296fba783731137938293d2a67f713cfb66eb5a6a255940cc88a7"
+    }
+  },
+  "limitations": [
+    "Synthetic single-host, single-thread observations, not real-data or cross-platform capacity evidence.",
+    "Cold means a fresh process with warm OS filesystem caches, not a cache-evicted machine.",
+    "Warm native timing includes spec parsing, fit and serialization; the Python timing includes request parsing, validation, fit and serialization.",
+    "Darwin maximum RSS is the OS-reported maximum, not a sum over simultaneously live processes. Memory has one separate observation per implementation/workload.",
+    "No parallel scaling claim; no conformal durable replay interface exists.",
+    "Eleven noisy panel workloads fail the unchanged SciPy precision-loss policy; those cannot establish independent optimizer parity or speedup. Fixed-parameter gradient/downstream checks are recorded separately. The large successful balanced-null case has zero logistic coefficients and does not exercise iterative-fitting scale.",
+    "This is a working-tree candidate binary, not a release binary or a completed migration."
+  ],
+  "native_backend": {
+    "name": "marklab-rust",
+    "version": "0.1.0",
+    "implementation_sha256": "813aa36530bf0dbf4310747a24b9d1df458313abce3cb8f7947ac967b8f7a789"
+  },
+  "rust_toolchain": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+  "cargo_lock_sha256": "860793f67be837b92ae844fb9dd4f9d7ff5461a69d5bb605577458d16ddaee18",
+  "commands": {
+    "prepare": "env PYTHONDONTWRITEBYTECODE=1 target/pymc-venv/bin/python tests/python/benchmark_grouped_conformal.py",
+    "build_cli": "cargo +1.96.0 build --locked --release --bin marklab",
+    "build_warm": "env CARGO_TARGET_DIR=target/native-migration/focused cargo +1.96.0 build --locked -p marklab-bayes --release --example grouped_conformal_benchmark",
+    "warm": "env PYTHONDONTWRITEBYTECODE=1 target/pymc-venv/bin/python tests/python/benchmark_grouped_conformal.py --native-warm target/native-migration/focused/release/examples/grouped_conformal_benchmark",
+    "cold": "env PYTHONDONTWRITEBYTECODE=1 target/pymc-venv/bin/python tests/python/benchmark_grouped_conformal.py --baseline target/native-migration/baseline/marklab --candidate target/release/marklab",
+    "profile": "samply record --save-only --unstable-presymbolicate --output target/native-migration/conformal/native-profile.json.gz target/native-migration/focused/release/examples/grouped_conformal_benchmark 1000 < target/native-migration/conformal/demanding_balanced_null.spec.json > target/native-migration/conformal/native-profile-output.json",
+    "failed_reference_audit": "env PYTHONDONTWRITEBYTECODE=1 target/pymc-venv/bin/python tests/python/benchmark_grouped_conformal.py --audit-failures target/native-migration/focused/release/examples/grouped_conformal_benchmark"
+  },
+  "benchmark_harness_sha256": "13429f4b3bca2800e207c9e794971f4b235b0bfaca818309a5da304899f29a5c",
+  "fixed_parameter_audit": {
+    "kind": "fixed-native-parameter Python objective/gradient and downstream re-evaluation; NOT an independent Python optimizer fit",
+    "gradient_infinity_limit": 1.1e-08,
+    "gradient_limit_rationale": "native 1e-8 stationarity criterion plus 1e-9 absolute floating-reduction allowance, fixed before this audit",
+    "native_binary_sha256": "df6b9fc2048c1abaa09da2766507d0be67486c413f666986c07f0853e4c343e3",
+    "workloads": {
+      "demanding": {
+        "objective": 362.60818183932304,
+        "gradient": [
+          2.4023005806839137e-12,
+          -9.93510829161437e-12,
+          -5.997424779025096e-13,
+          3.728281572357162e-12,
+          3.0552955998519593e-12,
+          -5.1122287826610435e-12,
+          -3.862506668672605e-12,
+          3.0287317792643265e-12,
+          4.541865147866808e-12,
+          -8.676843965549352e-13,
+          -6.081228402787797e-12,
+          -2.0715928972236952e-12,
+          4.732075842284189e-12,
+          2.649852559599708e-12,
+          -5.161157091981838e-12,
+          -2.104524887691639e-12,
+          1.6617054954259913e-12,
+          2.853236310412788e-12,
+          -2.1079925999201166e-12,
+          -5.113386276900389e-12,
+          3.7851492773466333e-13,
+          3.1548444412443644e-12,
+          1.3447350871720332e-12,
+          -2.4536414566789233e-12,
+          -3.864464304115245e-12,
+          5.477390676439375e-12,
+          9.173217740965356e-13,
+          -4.658905206067487e-12,
+          -2.4318463909267507e-12,
+          2.1588633658531364e-12,
+          3.1436242498017464e-12,
+          -2.2216204570435494e-12,
+          -3.7121278273488656e-12
+        ],
+        "gradient_infinity": 9.93510829161437e-12,
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "fixed_parameter_downstream_parity": true,
+        "independent_python_optimizer_parity": false
+      },
+      "demanding_seed_1": {
+        "objective": 377.2863929472837,
+        "gradient": [
+          -5.684341886080802e-14,
+          -1.3855583347321954e-12,
+          5.061194519040413e-13,
+          -9.225120667366582e-13,
+          -4.1744559198253484e-13,
+          5.503097977310745e-13,
+          -4.556337945826883e-13,
+          1.9033385978417527e-13,
+          5.690135862490564e-13,
+          2.018801792402769e-13,
+          -1.5688839116734243e-14,
+          1.0412851136898382e-13,
+          -6.377190442385938e-13,
+          1.7767037840954458e-14,
+          -1.2070205945846624e-14,
+          -1.512965100425312e-13,
+          2.1302751229690386e-13,
+          -2.699650399062836e-13,
+          -8.338468804325316e-14,
+          3.2919500458916673e-13,
+          -2.2379667563576788e-13,
+          1.4073204407383244e-13,
+          1.675048988403205e-14,
+          -1.8233331511297024e-13,
+          9.586775817638227e-14,
+          2.234898464209545e-14,
+          -2.0174140136219876e-13,
+          2.4456998926059015e-13,
+          -2.220446049250313e-16,
+          -2.1146279172157278e-13,
+          3.721536967482564e-13,
+          -5.1980988957645025e-14,
+          -5.395683899678261e-14
+        ],
+        "gradient_infinity": 1.3855583347321954e-12,
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "fixed_parameter_downstream_parity": true,
+        "independent_python_optimizer_parity": false
+      },
+      "demanding_seed_2": {
+        "objective": 383.137674425227,
+        "gradient": [
+          -1.4654943925052066e-14,
+          -1.6975310046518644e-13,
+          3.799304620910604e-14,
+          1.9859114352982488e-14,
+          -6.06109129899779e-14,
+          1.637578961322106e-14,
+          2.9032332093947844e-14,
+          -4.2639069358640924e-14,
+          -3.7594710330934866e-14,
+          2.52285171919997e-14,
+          3.748390486890685e-14,
+          3.5247846308372743e-14,
+          1.7106108196607295e-14,
+          7.222629612446685e-15,
+          -3.214095656289828e-14,
+          5.5049714786647996e-14,
+          3.491304467750922e-14,
+          -5.308600781184225e-14,
+          6.089226345373788e-14,
+          9.80639180969689e-15,
+          -8.106883220282413e-14,
+          6.7394007041698956e-15,
+          7.965156312295107e-14,
+          -3.7066703872934426e-15,
+          -1.903772278710747e-14,
+          1.0436638532562714e-14,
+          -1.4863110742169283e-14,
+          1.0099560077136971e-14,
+          4.5708174658404266e-14,
+          6.4254157550180935e-15,
+          -4.414480933578879e-14,
+          -3.4399566528620085e-15,
+          2.5849548196399397e-14
+        ],
+        "gradient_infinity": 1.6975310046518644e-13,
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "fixed_parameter_downstream_parity": true,
+        "independent_python_optimizer_parity": false
+      },
+      "demanding_seed_3": {
+        "objective": 355.4101732397219,
+        "gradient": [
+          1.4210854715202004e-14,
+          -1.34789956973691e-11,
+          -2.6690455401379154e-14,
+          5.905470557010517e-12,
+          -3.5729579017651503e-12,
+          -1.2837689244982187e-11,
+          3.1525997090664504e-12,
+          9.516977483858824e-12,
+          -3.5213498783548403e-12,
+          -6.6385126562540364e-12,
+          6.102163913057623e-12,
+          5.967914530613516e-12,
+          -6.869359248096174e-12,
+          -5.505894351554019e-12,
+          4.586360805025613e-12,
+          4.431559286199871e-12,
+          -5.6619708921346046e-12,
+          -6.026949772586221e-13,
+          5.707791878029056e-12,
+          5.961784885211152e-12,
+          -4.9784967814936465e-12,
+          1.2584165480500342e-12,
+          4.2804995659118106e-12,
+          -3.0142988799441994e-12,
+          -4.7005511462361316e-12,
+          -4.532291209002892e-12,
+          2.375122667985785e-12,
+          -1.572952705586328e-12,
+          -2.3118122000065355e-12,
+          1.9940108592075845e-12,
+          3.595335834605251e-13,
+          -2.875922563245689e-13,
+          -1.748198807938195e-12
+        ],
+        "gradient_infinity": 1.34789956973691e-11,
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "fixed_parameter_downstream_parity": true,
+        "independent_python_optimizer_parity": false
+      },
+      "demanding_seed_4": {
+        "objective": 366.9031000424148,
+        "gradient": [
+          -1.2523315717771766e-13,
+          -9.480194407274212e-13,
+          3.0498173431148246e-13,
+          5.272171588188712e-14,
+          -5.546743619966321e-13,
+          -1.0090192570366696e-13,
+          7.983301519853825e-13,
+          -3.8212488728817107e-13,
+          -3.5060507014988973e-13,
+          8.449976829361106e-13,
+          -2.213507155346406e-14,
+          -6.892222252988245e-13,
+          5.619584658722587e-13,
+          3.718900187799079e-14,
+          -6.413654329850971e-13,
+          2.9466012962942045e-14,
+          6.213154990497571e-13,
+          -2.550884850571755e-13,
+          -3.715777685542321e-14,
+          8.433687775921683e-13,
+          -1.7646994976416863e-13,
+          -2.9765252762548045e-13,
+          4.4039945301665995e-13,
+          2.631228568361621e-14,
+          -3.205352649970905e-13,
+          5.711533676566738e-14,
+          4.598509073527879e-13,
+          -2.7215382725209736e-13,
+          1.1215854633928046e-14,
+          4.5274894944213884e-13,
+          -1.916755599726261e-14,
+          -4.458863833711746e-13,
+          3.729586084411096e-13
+        ],
+        "gradient_infinity": 9.480194407274212e-13,
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "fixed_parameter_downstream_parity": true,
+        "independent_python_optimizer_parity": false
+      },
+      "demanding_seed_5": {
+        "objective": 369.67262643997157,
+        "gradient": [
+          1.6859846851957627e-11,
+          -4.319891666604292e-11,
+          -1.9895292011073984e-12,
+          5.878818265525609e-12,
+          1.3976011320471216e-11,
+          -1.0595101185284506e-11,
+          -1.0316688475731084e-11,
+          3.177687279976027e-12,
+          1.8043278676715957e-11,
+          3.296473337355277e-12,
+          -1.8870233500778433e-11,
+          -3.2714247977239097e-12,
+          8.62986331701121e-12,
+          1.8852209723863034e-11,
+          -1.58222220048021e-11,
+          -8.913092486295682e-12,
+          -6.6489036498751375e-12,
+          3.3563533896607822e-12,
+          1.2616158118206044e-12,
+          -1.2510997446368854e-11,
+          -5.636213284282432e-12,
+          2.166300992756387e-12,
+          7.678295499413679e-12,
+          -3.1696407651327085e-12,
+          8.720853900134884e-13,
+          -6.700162993866776e-12,
+          4.743649917315906e-12,
+          9.055645122657552e-12,
+          -1.2677359162438506e-12,
+          5.9708141209036114e-12,
+          -8.649712890385075e-12,
+          -6.959953446905587e-13,
+          -4.3202108557238716e-11
+        ],
+        "gradient_infinity": 4.3202108557238716e-11,
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "fixed_parameter_downstream_parity": true,
+        "independent_python_optimizer_parity": false
+      },
+      "representative": {
+        "objective": 34.34774742880647,
+        "gradient": [
+          -1.0897838187418074e-10,
+          -2.2519062170545112e-09,
+          -6.676173208014502e-10,
+          1.5772613354281262e-09,
+          7.403412848050461e-10,
+          -1.276813165612678e-09,
+          -1.2521934322773376e-09,
+          7.199931813944849e-10,
+          1.5526304547597292e-09
+        ],
+        "gradient_infinity": 2.2519062170545112e-09,
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "fixed_parameter_downstream_parity": true,
+        "independent_python_optimizer_parity": false
+      },
+      "representative_seed_1": {
+        "objective": 38.54506471445879,
+        "gradient": [
+          -1.273541827551128e-10,
+          -1.2213240974112693e-09,
+          4.602713349344256e-11,
+          6.635471894167466e-10,
+          -3.6724688914913095e-10,
+          -7.396544349225209e-10,
+          2.0971276104564396e-10,
+          3.7230784774577863e-10,
+          -1.0397489813573912e-10
+        ],
+        "gradient_infinity": 1.2213240974112693e-09,
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "fixed_parameter_downstream_parity": true,
+        "independent_python_optimizer_parity": false
+      },
+      "representative_seed_3": {
+        "objective": 36.68481440965498,
+        "gradient": [
+          -1.0598788513505042e-10,
+          -7.592941497769345e-09,
+          -1.9167806647457653e-09,
+          2.2512228053939154e-09,
+          1.420827053233431e-09,
+          -5.096916826097253e-09,
+          -2.6169593991820506e-09,
+          -1.227167673034657e-10,
+          1.3864777798078265e-09
+        ],
+        "gradient_infinity": 7.592941497769345e-09,
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "fixed_parameter_downstream_parity": true,
+        "independent_python_optimizer_parity": false
+      },
+      "representative_seed_4": {
+        "objective": 34.616587391414235,
+        "gradient": [
+          -3.3696201384714186e-09,
+          -7.625462483673573e-10,
+          2.6194225816178474e-09,
+          -3.028958542317106e-09,
+          3.1712902859304393e-09,
+          -5.8414761383053515e-09,
+          -6.156918516686538e-10,
+          -5.721897906874052e-09,
+          1.2831227746978868e-10
+        ],
+        "gradient_infinity": 5.8414761383053515e-09,
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "fixed_parameter_downstream_parity": true,
+        "independent_python_optimizer_parity": false
+      },
+      "representative_seed_5": {
+        "objective": 26.9631491429193,
+        "gradient": [
+          -2.375442065272182e-09,
+          1.7037315447332446e-09,
+          -2.279963856599565e-10,
+          3.7273699196593846e-09,
+          -1.4381107971139784e-09,
+          2.330653225968149e-09,
+          -2.3979426361231404e-09,
+          -2.1962857921220547e-10,
+          1.7037315447332446e-09
+        ],
+        "gradient_infinity": 3.7273699196593846e-09,
+        "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+        "fixed_parameter_downstream_parity": true,
+        "independent_python_optimizer_parity": false
+      }
+    }
+  },
+  "measured_candidate_retained_at": "target/native-migration/conformal/candidate-release-marklab",
+  "criterion_smoke": {
+    "command": "env MARKLAB_BENCH_PROFILE=smoke cargo +1.96.0 bench --locked --package marklab --bench grouped_conformal -- --quick",
+    "exit_code": 0,
+    "limitation": "Executability/correctness smoke in the existing bench profile, concurrent with the two-thread workspace suite; its timings are not the release speedup evidence. This smoke predates the final operation-order correction; corrected release comparisons and affected tests were rerun."
+  },
+  "before_standardization_correction": {
+    "native_backend": {
+      "name": "marklab-rust",
+      "version": "0.1.0",
+      "implementation_sha256": "f2118214b8b4f1724d366dd2145a130460af5d3e1b13fda5023dddc8d4238b5d"
+    },
+    "cold": {
+      "platform": "macOS-26.5.2-arm64-arm-64bit",
+      "threads": 1,
+      "baseline_sha256": "c3f742787094ca68b5fcc5d14ce7963a44ae55a683879f2e5a0a60e470d6785b",
+      "candidate_sha256": "e34f597b0a375805ec0c969ff3663189545ea724426bf69b1e4c4650d693940c",
+      "workloads": {
+        "small": {
+          "samples_ns": [
+            {
+              "python": 320355667,
+              "rust": 579072333
+            },
+            {
+              "rust": 33346334,
+              "python": 309794000
+            },
+            {
+              "python": 304716416,
+              "rust": 36614708
+            },
+            {
+              "rust": 35684667,
+              "python": 312735459
+            },
+            {
+              "python": 305942625,
+              "rust": 36600875
+            },
+            {
+              "rust": 34777041,
+              "python": 301721917
+            },
+            {
+              "python": 303396834,
+              "rust": 36862916
+            },
+            {
+              "rust": 35730208,
+              "python": 309779458
+            },
+            {
+              "python": 312403750,
+              "rust": 35944125
+            },
+            {
+              "rust": 34709791,
+              "python": 314717875
+            }
+          ],
+          "memory": [
+            {
+              "implementation": "python",
+              "os_resource_report": "        0.30 real         0.23 user         0.04 sys\n            74268672  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n               12285  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                  27  voluntary context switches\n                 274  involuntary context switches\n           175598352  instructions retired\n            51237701  cycles elapsed\n            14041496  peak memory footprint\n"
+            },
+            {
+              "implementation": "rust",
+              "os_resource_report": "        0.03 real         0.01 user         0.00 sys\n            25395200  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3419  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                  18  voluntary context switches\n                  43  involuntary context switches\n           169897500  instructions retired\n            49871993  cycles elapsed\n            14025112  peak memory footprint\n"
+            }
+          ],
+          "python_median_ns": 309786729.0,
+          "rust_median_ns": 35837166.5,
+          "median_paired_speedup": 8.67292671144096,
+          "paired_bootstrap_95pct": [
+            8.322240778214045,
+            8.879246340488475
+          ],
+          "parity": true,
+          "promotable": true
+        },
+        "representative_seed_2": {
+          "samples_ns": [
+            {
+              "python": 312189917,
+              "rust": 39140750
+            },
+            {
+              "rust": 37695917,
+              "python": 312006042
+            },
+            {
+              "python": 306418416,
+              "rust": 39328125
+            },
+            {
+              "rust": 38413000,
+              "python": 337743708
+            },
+            {
+              "python": 315720834,
+              "rust": 39055250
+            },
+            {
+              "rust": 36591083,
+              "python": 308684625
+            },
+            {
+              "python": 317342041,
+              "rust": 36466125
+            },
+            {
+              "rust": 36482917,
+              "python": 313569417
+            },
+            {
+              "python": 318894750,
+              "rust": 39374792
+            },
+            {
+              "rust": 40572417,
+              "python": 345313292
+            }
+          ],
+          "memory": [
+            {
+              "implementation": "python",
+              "os_resource_report": "        0.30 real         0.23 user         0.04 sys\n            75005952  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n               12422  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                 345  voluntary context switches\n                 121  involuntary context switches\n           186898954  instructions retired\n            56722609  cycles elapsed\n            14713240  peak memory footprint\n"
+            },
+            {
+              "implementation": "rust",
+              "os_resource_report": "        0.03 real         0.02 user         0.00 sys\n            24985600  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3382  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                 260  voluntary context switches\n                  39  involuntary context switches\n           172122511  instructions retired\n            52564734  cycles elapsed\n            12927384  peak memory footprint\n"
+            }
+          ],
+          "python_median_ns": 314645125.5,
+          "rust_median_ns": 38734125.0,
+          "median_paired_speedup": 8.356490101100395,
+          "paired_bootstrap_95pct": [
+            8.037520626070137,
+            8.6067073886053
+          ],
+          "parity": true,
+          "promotable": true
+        },
+        "demanding_balanced_null": {
+          "samples_ns": [
+            {
+              "python": 371413667,
+              "rust": 66999250
+            },
+            {
+              "rust": 66501208,
+              "python": 373640917
+            },
+            {
+              "python": 381188250,
+              "rust": 66933250
+            },
+            {
+              "rust": 66404542,
+              "python": 380410042
+            },
+            {
+              "python": 380462542,
+              "rust": 69303042
+            },
+            {
+              "rust": 66761375,
+              "python": 374216791
+            },
+            {
+              "python": 374942667,
+              "rust": 67788459
+            },
+            {
+              "rust": 68029875,
+              "python": 375457042
+            },
+            {
+              "python": 372365417,
+              "rust": 66530958
+            },
+            {
+              "rust": 66420875,
+              "python": 372369083
+            }
+          ],
+          "memory": [
+            {
+              "implementation": "python",
+              "os_resource_report": "        0.36 real         0.27 user         0.06 sys\n            85049344  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n               13413  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                8823  voluntary context switches\n                 249  involuntary context switches\n           462384651  instructions retired\n           147982047  cycles elapsed\n            20890056  peak memory footprint\n"
+            },
+            {
+              "implementation": "rust",
+              "os_resource_report": "        0.06 real         0.03 user         0.02 sys\n            31309824  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                4055  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                8012  voluntary context switches\n                  74  involuntary context switches\n           229744789  instructions retired\n            85436360  cycles elapsed\n            17646000  peak memory footprint\n"
+            }
+          ],
+          "python_median_ns": 374579729.0,
+          "rust_median_ns": 66847312.5,
+          "median_paired_speedup": 5.601081636000928,
+          "paired_bootstrap_95pct": [
+            5.53106933733366,
+            5.650628145255028
+          ],
+          "parity": true,
+          "promotable": true
+        }
+      }
+    },
+    "warm": {
+      "platform": "macOS-26.5.2-arm64-arm-64bit",
+      "python": "3.12.9",
+      "threads": 1,
+      "native_binary_sha256": "b953c1b7309aca7538c2e53004caa49d1d4dded38e78a30e3d1fc774d3ff3ccd",
+      "workloads": {
+        "demanding": {
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "promotable": false
+        },
+        "demanding_balanced_null": {
+          "samples_ns": [
+            {
+              "python": 22591958,
+              "rust": 5420875
+            },
+            {
+              "rust": 5182292,
+              "python": 23635458
+            },
+            {
+              "python": 30354041,
+              "rust": 5163750
+            },
+            {
+              "rust": 5237500,
+              "python": 23383334
+            },
+            {
+              "python": 22672375,
+              "rust": 5179750
+            },
+            {
+              "rust": 5216834,
+              "python": 24386625
+            },
+            {
+              "python": 22454959,
+              "rust": 5241000
+            },
+            {
+              "rust": 5227542,
+              "python": 23371708
+            },
+            {
+              "python": 22953208,
+              "rust": 5312500
+            },
+            {
+              "rust": 5243583,
+              "python": 23675334
+            }
+          ],
+          "python_median_ns": 23377521.0,
+          "rust_median_ns": 5232521.0,
+          "median_paired_speedup": 4.467738712511631,
+          "paired_bootstrap_95pct": [
+            4.32060385882353,
+            4.59485431440173
+          ],
+          "parity": true,
+          "promotable": true
+        },
+        "demanding_seed_1": {
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "promotable": false
+        },
+        "demanding_seed_2": {
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "promotable": false
+        },
+        "demanding_seed_3": {
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "promotable": false
+        },
+        "demanding_seed_4": {
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "promotable": false
+        },
+        "demanding_seed_5": {
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "promotable": false
+        },
+        "representative": {
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "promotable": false
+        },
+        "representative_seed_1": {
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "promotable": false
+        },
+        "representative_seed_2": {
+          "samples_ns": [
+            {
+              "python": 2962541,
+              "rust": 685500
+            },
+            {
+              "rust": 1148542,
+              "python": 3327792
+            },
+            {
+              "python": 2788792,
+              "rust": 634500
+            },
+            {
+              "rust": 625625,
+              "python": 3589375
+            },
+            {
+              "python": 3137375,
+              "rust": 630500
+            },
+            {
+              "rust": 630334,
+              "python": 3847792
+            },
+            {
+              "python": 2908625,
+              "rust": 635041
+            },
+            {
+              "rust": 624000,
+              "python": 3455041
+            },
+            {
+              "python": 2850458,
+              "rust": 627875
+            },
+            {
+              "rust": 630084,
+              "python": 3567708
+            }
+          ],
+          "python_median_ns": 3232583.5,
+          "rust_median_ns": 630417.0,
+          "median_paired_speedup": 4.778113591418148,
+          "paired_bootstrap_95pct": [
+            4.39525925925926,
+            5.662273601615023
+          ],
+          "parity": true,
+          "promotable": true
+        },
+        "representative_seed_3": {
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "promotable": false
+        },
+        "representative_seed_4": {
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "promotable": false
+        },
+        "representative_seed_5": {
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "promotable": false
+        },
+        "small": {
+          "samples_ns": [
+            {
+              "python": 628667,
+              "rust": 105125
+            },
+            {
+              "rust": 105792,
+              "python": 1083166
+            },
+            {
+              "python": 664375,
+              "rust": 104250
+            },
+            {
+              "rust": 107792,
+              "python": 1062125
+            },
+            {
+              "python": 819417,
+              "rust": 105083
+            },
+            {
+              "rust": 107625,
+              "python": 1180458
+            },
+            {
+              "python": 678125,
+              "rust": 107125
+            },
+            {
+              "rust": 105792,
+              "python": 1115458
+            },
+            {
+              "python": 727083,
+              "rust": 105958
+            },
+            {
+              "rust": 102625,
+              "python": 1060875
+            }
+          ],
+          "python_median_ns": 940146.0,
+          "rust_median_ns": 105792.0,
+          "median_paired_speedup": 8.825637618631866,
+          "paired_bootstrap_95pct": [
+            6.372901678657074,
+            10.391258318209317
+          ],
+          "parity": true,
+          "promotable": true
+        }
+      }
+    },
+    "fixed_parameter_audit": {
+      "kind": "fixed-native-parameter Python objective/gradient and downstream re-evaluation; NOT an independent Python optimizer fit",
+      "gradient_infinity_limit": 1.1e-08,
+      "gradient_limit_rationale": "native 1e-8 stationarity criterion plus 1e-9 absolute floating-reduction allowance, fixed before this audit",
+      "native_binary_sha256": "b953c1b7309aca7538c2e53004caa49d1d4dded38e78a30e3d1fc774d3ff3ccd",
+      "workloads": {
+        "demanding": {
+          "objective": 362.60818183932304,
+          "gradient": [
+            2.4023005806839137e-12,
+            -9.93510829161437e-12,
+            -5.997424779025096e-13,
+            3.728281572357162e-12,
+            3.0552955998519593e-12,
+            -5.1122287826610435e-12,
+            -3.862506668672605e-12,
+            3.0287317792643265e-12,
+            4.541865147866808e-12,
+            -8.676843965549352e-13,
+            -6.081228402787797e-12,
+            -2.0715928972236952e-12,
+            4.732075842284189e-12,
+            2.649852559599708e-12,
+            -5.161157091981838e-12,
+            -2.104524887691639e-12,
+            1.6617054954259913e-12,
+            2.853236310412788e-12,
+            -2.1079925999201166e-12,
+            -5.113386276900389e-12,
+            3.7851492773466333e-13,
+            3.1548444412443644e-12,
+            1.3447350871720332e-12,
+            -2.4536414566789233e-12,
+            -3.864464304115245e-12,
+            5.477390676439375e-12,
+            9.173217740965356e-13,
+            -4.658905206067487e-12,
+            -2.4318463909267507e-12,
+            2.1588633658531364e-12,
+            3.1436242498017464e-12,
+            -2.2216204570435494e-12,
+            -3.7121278273488656e-12
+          ],
+          "gradient_infinity": 9.93510829161437e-12,
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "fixed_parameter_downstream_parity": true,
+          "independent_python_optimizer_parity": false
+        },
+        "demanding_seed_1": {
+          "objective": 377.2863929472837,
+          "gradient": [
+            -5.684341886080802e-14,
+            -1.3855583347321954e-12,
+            5.061194519040413e-13,
+            -9.225120667366582e-13,
+            -4.1744559198253484e-13,
+            5.503097977310745e-13,
+            -4.556337945826883e-13,
+            1.9033385978417527e-13,
+            5.690135862490564e-13,
+            2.018801792402769e-13,
+            -1.5688839116734243e-14,
+            1.0412851136898382e-13,
+            -6.377190442385938e-13,
+            1.7767037840954458e-14,
+            -1.2070205945846624e-14,
+            -1.512965100425312e-13,
+            2.1302751229690386e-13,
+            -2.699650399062836e-13,
+            -8.338468804325316e-14,
+            3.2919500458916673e-13,
+            -2.2379667563576788e-13,
+            1.4073204407383244e-13,
+            1.675048988403205e-14,
+            -1.8233331511297024e-13,
+            9.586775817638227e-14,
+            2.234898464209545e-14,
+            -2.0174140136219876e-13,
+            2.4456998926059015e-13,
+            -2.220446049250313e-16,
+            -2.1146279172157278e-13,
+            3.721536967482564e-13,
+            -5.1980988957645025e-14,
+            -5.395683899678261e-14
+          ],
+          "gradient_infinity": 1.3855583347321954e-12,
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "fixed_parameter_downstream_parity": true,
+          "independent_python_optimizer_parity": false
+        },
+        "demanding_seed_2": {
+          "objective": 383.137674425227,
+          "gradient": [
+            -1.4654943925052066e-14,
+            -1.6975310046518644e-13,
+            3.799304620910604e-14,
+            1.9859114352982488e-14,
+            -6.06109129899779e-14,
+            1.637578961322106e-14,
+            2.9032332093947844e-14,
+            -4.2639069358640924e-14,
+            -3.7594710330934866e-14,
+            2.52285171919997e-14,
+            3.748390486890685e-14,
+            3.5247846308372743e-14,
+            1.7106108196607295e-14,
+            7.222629612446685e-15,
+            -3.214095656289828e-14,
+            5.5049714786647996e-14,
+            3.491304467750922e-14,
+            -5.308600781184225e-14,
+            6.089226345373788e-14,
+            9.80639180969689e-15,
+            -8.106883220282413e-14,
+            6.7394007041698956e-15,
+            7.965156312295107e-14,
+            -3.7066703872934426e-15,
+            -1.903772278710747e-14,
+            1.0436638532562714e-14,
+            -1.4863110742169283e-14,
+            1.0099560077136971e-14,
+            4.5708174658404266e-14,
+            6.4254157550180935e-15,
+            -4.414480933578879e-14,
+            -3.4399566528620085e-15,
+            2.5849548196399397e-14
+          ],
+          "gradient_infinity": 1.6975310046518644e-13,
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "fixed_parameter_downstream_parity": true,
+          "independent_python_optimizer_parity": false
+        },
+        "demanding_seed_3": {
+          "objective": 355.4101732397219,
+          "gradient": [
+            1.4210854715202004e-14,
+            -1.34789956973691e-11,
+            -2.6690455401379154e-14,
+            5.905470557010517e-12,
+            -3.5729579017651503e-12,
+            -1.2837689244982187e-11,
+            3.1525997090664504e-12,
+            9.516977483858824e-12,
+            -3.5213498783548403e-12,
+            -6.6385126562540364e-12,
+            6.102163913057623e-12,
+            5.967914530613516e-12,
+            -6.869359248096174e-12,
+            -5.505894351554019e-12,
+            4.586360805025613e-12,
+            4.431559286199871e-12,
+            -5.6619708921346046e-12,
+            -6.026949772586221e-13,
+            5.707791878029056e-12,
+            5.961784885211152e-12,
+            -4.9784967814936465e-12,
+            1.2584165480500342e-12,
+            4.2804995659118106e-12,
+            -3.0142988799441994e-12,
+            -4.7005511462361316e-12,
+            -4.532291209002892e-12,
+            2.375122667985785e-12,
+            -1.572952705586328e-12,
+            -2.3118122000065355e-12,
+            1.9940108592075845e-12,
+            3.595335834605251e-13,
+            -2.875922563245689e-13,
+            -1.748198807938195e-12
+          ],
+          "gradient_infinity": 1.34789956973691e-11,
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "fixed_parameter_downstream_parity": true,
+          "independent_python_optimizer_parity": false
+        },
+        "demanding_seed_4": {
+          "objective": 366.9031000424148,
+          "gradient": [
+            -1.2523315717771766e-13,
+            -9.480194407274212e-13,
+            3.0498173431148246e-13,
+            5.272171588188712e-14,
+            -5.546743619966321e-13,
+            -1.0090192570366696e-13,
+            7.983301519853825e-13,
+            -3.8212488728817107e-13,
+            -3.5060507014988973e-13,
+            8.449976829361106e-13,
+            -2.213507155346406e-14,
+            -6.892222252988245e-13,
+            5.619584658722587e-13,
+            3.718900187799079e-14,
+            -6.413654329850971e-13,
+            2.9466012962942045e-14,
+            6.213154990497571e-13,
+            -2.550884850571755e-13,
+            -3.715777685542321e-14,
+            8.433687775921683e-13,
+            -1.7646994976416863e-13,
+            -2.9765252762548045e-13,
+            4.4039945301665995e-13,
+            2.631228568361621e-14,
+            -3.205352649970905e-13,
+            5.711533676566738e-14,
+            4.598509073527879e-13,
+            -2.7215382725209736e-13,
+            1.1215854633928046e-14,
+            4.5274894944213884e-13,
+            -1.916755599726261e-14,
+            -4.458863833711746e-13,
+            3.729586084411096e-13
+          ],
+          "gradient_infinity": 9.480194407274212e-13,
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "fixed_parameter_downstream_parity": true,
+          "independent_python_optimizer_parity": false
+        },
+        "demanding_seed_5": {
+          "objective": 369.67262643997157,
+          "gradient": [
+            1.6859846851957627e-11,
+            -4.319891666604292e-11,
+            -1.9895292011073984e-12,
+            5.878818265525609e-12,
+            1.3976011320471216e-11,
+            -1.0595101185284506e-11,
+            -1.0316688475731084e-11,
+            3.177687279976027e-12,
+            1.8043278676715957e-11,
+            3.296473337355277e-12,
+            -1.8870233500778433e-11,
+            -3.2714247977239097e-12,
+            8.62986331701121e-12,
+            1.8852209723863034e-11,
+            -1.58222220048021e-11,
+            -8.913092486295682e-12,
+            -6.6489036498751375e-12,
+            3.3563533896607822e-12,
+            1.2616158118206044e-12,
+            -1.2510997446368854e-11,
+            -5.636213284282432e-12,
+            2.166300992756387e-12,
+            7.678295499413679e-12,
+            -3.1696407651327085e-12,
+            8.720853900134884e-13,
+            -6.700162993866776e-12,
+            4.743649917315906e-12,
+            9.055645122657552e-12,
+            -1.2677359162438506e-12,
+            5.9708141209036114e-12,
+            -8.649712890385075e-12,
+            -6.959953446905587e-13,
+            -4.3202108557238716e-11
+          ],
+          "gradient_infinity": 4.3202108557238716e-11,
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "fixed_parameter_downstream_parity": true,
+          "independent_python_optimizer_parity": false
+        },
+        "representative": {
+          "objective": 34.34774742880647,
+          "gradient": [
+            -1.0897838187418074e-10,
+            -2.2519062170545112e-09,
+            -6.676173208014502e-10,
+            1.5772613354281262e-09,
+            7.403412848050461e-10,
+            -1.276813165612678e-09,
+            -1.2521934322773376e-09,
+            7.199931813944849e-10,
+            1.5526304547597292e-09
+          ],
+          "gradient_infinity": 2.2519062170545112e-09,
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "fixed_parameter_downstream_parity": true,
+          "independent_python_optimizer_parity": false
+        },
+        "representative_seed_1": {
+          "objective": 38.54506471445879,
+          "gradient": [
+            -1.273541827551128e-10,
+            -1.2213240974112693e-09,
+            4.602713349344256e-11,
+            6.635471894167466e-10,
+            -3.6724688914913095e-10,
+            -7.396544349225209e-10,
+            2.0971276104564396e-10,
+            3.7230784774577863e-10,
+            -1.0397489813573912e-10
+          ],
+          "gradient_infinity": 1.2213240974112693e-09,
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "fixed_parameter_downstream_parity": true,
+          "independent_python_optimizer_parity": false
+        },
+        "representative_seed_3": {
+          "objective": 36.68481440965498,
+          "gradient": [
+            -1.0598788513505042e-10,
+            -7.592941497769345e-09,
+            -1.9167806647457653e-09,
+            2.2512228053939154e-09,
+            1.420827053233431e-09,
+            -5.096916826097253e-09,
+            -2.6169593991820506e-09,
+            -1.227167673034657e-10,
+            1.3864777798078265e-09
+          ],
+          "gradient_infinity": 7.592941497769345e-09,
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "fixed_parameter_downstream_parity": true,
+          "independent_python_optimizer_parity": false
+        },
+        "representative_seed_4": {
+          "objective": 34.616587391414235,
+          "gradient": [
+            -3.3696201384714186e-09,
+            -7.625462483673573e-10,
+            2.6194225816178474e-09,
+            -3.028958542317106e-09,
+            3.1712902859304393e-09,
+            -5.8414761383053515e-09,
+            -6.156918516686538e-10,
+            -5.721897906874052e-09,
+            1.2831227746978868e-10
+          ],
+          "gradient_infinity": 5.8414761383053515e-09,
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "fixed_parameter_downstream_parity": true,
+          "independent_python_optimizer_parity": false
+        },
+        "representative_seed_5": {
+          "objective": 26.9631491429193,
+          "gradient": [
+            -2.375442065272182e-09,
+            1.7037315447332446e-09,
+            -2.279963856599565e-10,
+            3.7273699196593846e-09,
+            -1.4381107971139784e-09,
+            2.330653225968149e-09,
+            -2.3979426361231404e-09,
+            -2.1962857921220547e-10,
+            1.7037315447332446e-09
+          ],
+          "gradient_infinity": 3.7273699196593846e-09,
+          "reference_failure": "logistic optimizer failed: Desired error not necessarily achieved due to precision loss.",
+          "fixed_parameter_downstream_parity": true,
+          "independent_python_optimizer_parity": false
+        }
+      }
+    },
+    "kind": "Earlier candidate; raw measurements retained, not final-candidate promotion evidence",
+    "binary_retained_at": "target/native-migration/conformal/candidate-before-standardization"
+  },
+  "last_numerical_correction": "Standardize prediction features before multiplying by coefficients, matching the Python design and avoiding spurious overflow. Hand regression: means [0,0], SD [100,100], coefficients [2,-2], features [1e308,1e308] give probability 0.5."
+}

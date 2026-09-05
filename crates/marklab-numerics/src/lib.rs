@@ -1,6 +1,13 @@
 #![forbid(unsafe_code)]
 //! Stable bounded numerical primitives for Marklab.
 
+mod bfgs;
+pub use bfgs::minimize_bfgs;
+
+/// Compile-embedded source of the bounded optimizer, for source-bound scientific provenance.
+/// This is opaque identity material, not a source-parsing or algorithm configuration interface.
+pub const BFGS_IMPLEMENTATION_SOURCE: &str = include_str!("bfgs.rs");
+
 use std::cmp::Ordering;
 
 use serde::{Deserialize, Serialize};

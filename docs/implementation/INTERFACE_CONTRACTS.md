@@ -635,6 +635,7 @@ Status: characterization freeze for WS-A. Exact field/symbol inventory is active
 ## IC-0098 — Patient-level split-conformal classification
 
 - `marklab bayes grouped-conformal` fits training-only standardization and positive-L2 logistic prediction, freezes corrected-rank `1-p(true label)` on separate calibration patients, and returns test binary sets plus overall/site/subgroup coverage. Alpha below the finite calibration resolution is rejected. Marginal exchangeability does not guarantee conditional or shifted-domain coverage.
+- RUST-MIGRATION-01 / DEC-0415 adds `marklab_bayes::fit_grouped_conformal` and the root CSV application. The native version-2 envelope preserves those scientific fields while recording Rust package/source and distinct semantic request identities. Legacy Python version-1 request/response readers remain available. The schema-registered native child preserves hard deadlines and bounded streams; no Python runtime is required for this candidate workflow.
 
 ## IC-0099 — Calibrated patient-level late fusion
 

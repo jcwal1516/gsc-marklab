@@ -1,10 +1,20 @@
 # Marklab program tracker
 
-Last updated: 2026-09-04
+Last updated: 2026-09-05
 
 Authority: MASTER_PLAN.md remains the immutable, authoritative total program scope. This tracker is a derived execution control. A conflict is resolved in favor of the master plan, and no tracker state removes, weakens, permanently defers, or declares a master-plan item unnecessary.
 
 Master-plan identity: SHA-256 1cdb619edc39d1d3d8c72bdf15930de3a928bf4b90651a05dc481c1238e5f064.
+
+## Active execution amendment — 2026-09-05
+
+RUST-MIGRATION-01 / DEC-0415 now precedes real multiplex study admission by explicit user direction.
+The completed native grouped-conformal milestone advances the concrete implementation of §§6.4–6.5
+and 6.8–6.12, BACK-01, PLAT-01 and WF-01. Its bounded parity/performance and checkpoint evidence,
+including the timeout, successful rerun and final focused correction, are recorded in STATUS.
+The frozen 154-source inventory is an admission starting point, not closed migration coverage.
+All 233 canonical rows and their scientific prerequisites remain. No biological data gap, existing
+nonconverged real fit, or independent calibration requirement is resolved by language parity.
 
 ## State contract
 
