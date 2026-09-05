@@ -33,7 +33,7 @@ jobs:
             target: x86_64-pc-windows-msvc
             archive: zip
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Build declared target with WSI support
         uses: houseabsolute/actions-rust-cross@v1
         with:

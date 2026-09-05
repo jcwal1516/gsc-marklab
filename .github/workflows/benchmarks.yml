@@ -9,7 +9,7 @@ jobs:
   production-workloads:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: dtolnay/rust-toolchain@1.96.0
       - name: Full declared workloads
         run: /usr/bin/time -v -o benchmark-resources.txt env MARKLAB_BENCH_PROFILE=full cargo bench --locked --all-features
