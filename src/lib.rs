@@ -50,8 +50,6 @@ mod errors;
 #[doc(hidden)]
 pub mod exact_float_json;
 mod geom;
-#[cfg(feature = "csv")]
-pub mod grouped_conformal;
 mod inference;
 mod inhomogeneous_spatial;
 mod io;
@@ -59,21 +57,15 @@ mod isotropic_pair_correlation;
 mod isotropic_pair_correlation_workflow;
 mod isotropic_spatial;
 mod isotropic_spatial_workflow;
-#[cfg(feature = "csv")]
-pub mod late_fusion;
 mod local_multivariate_moran;
 mod mark_pair_plan;
 mod mark_weighted_k;
 mod mark_weighted_k_workflow;
 mod marked_prepost_dag;
 mod measurement_status_wire;
-#[cfg(feature = "csv")]
-pub mod mixture_of_experts;
 mod multimodal;
 mod multiplex_study;
 mod multiscale_residual;
-#[cfg(feature = "csv")]
-mod native_backend;
 mod nearest_space;
 mod nearest_space_workflow;
 mod neighborhood;
@@ -83,27 +75,13 @@ mod ordinal_composition_workflow;
 mod output;
 mod pair_correlation;
 mod pair_correlation_workflow;
-pub mod pcca_em;
 mod perf;
 mod periodogram;
 mod permutation;
-#[cfg(feature = "csv")]
-pub mod prediction_calibration;
-#[cfg(feature = "csv")]
-pub mod predictive_stacking;
 mod prepost;
 mod probability_pair;
 mod probability_pair_workflow;
 mod python_backend;
-#[cfg(feature = "csv")]
-pub mod transport;
-#[cfg(feature = "csv")]
-#[doc(hidden)]
-pub use native_backend::{
-    run_native_grouped_conformal, run_native_late_fusion, run_native_mixture_of_experts,
-    run_native_partial_transport, run_native_pcca_em, run_native_prediction_calibration,
-    run_native_predictive_stacking, NativeBackendError,
-};
 mod qc;
 mod registration;
 mod scalar_mark;

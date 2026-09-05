@@ -1,46 +1,5 @@
 # Canonical symbols and ownership
 
-RUST-MIGRATION-01 shared runtime/export/ledger ownership: `/root` is the sole writer.
-MoE and paired pCCA implementation were delegated under DEC-0420–0421 and are now handed back to `/root` for integration; see the completed exclusive scopes below. `GroupedConformalSpec::validated`
-remains the shared admission owner; `grouped_conformal/native.rs` owns the native scientific flow,
-its private logistic module owns likelihood/standardization/Newton recovery, and
-`marklab-numerics::minimize_bfgs` owns only the consumed bounded optimizer. The root
-`grouped_conformal` CSV application owns interpretation and exact private transport; `native_backend`
-owns kill/reap/stream bounds. The existing CLI and backend command tree only adapt those services.
-Legacy Python request/result readers remain in their original canonical module. Promotion evidence
-is recorded in `task-contracts/RUST-MIGRATION-01.md`; unrelated Python methods retain their owners.
-
-Calibration continuation (DEC-0416): `/root` owns `prediction_calibration` in marklab-bayes
-(shared admission, typed fit, private one/two-parameter likelihood and held-out diagnostics),
-`src/prediction_calibration.rs` (CSV/source binding/private transport), the existing native process
-and CLI adapters, and their focused fixtures/tests. These are separate scientific and I/O owners;
-calibration does not depend on grouped-conformal preprocessing or its result types.
-
-Late-fusion continuation (DEC-0417): `/root` owns `late_fusion` in marklab-bayes (shared admission,
-native fit, calibration, scenarios and fixed-model ablations), `src/late_fusion.rs` (CSV/source
-binding/transport), existing CLI/runtime adapters and focused tests. The private Bayes `logistic_fit`
-module now owns the exact likelihood and BFGS/Newton strategy consumed by conformal and fusion.
-Conformal still owns standardization; standalone prediction calibration retains its separate
-Newton/relative-objective regression contract. No cross-family preprocessing is shared.
-
-Partial-transport continuation (DEC-0418): `/root` owns the existing Bayes partial_transport
-admission and native dual solver, `src/transport.rs` and `transport/csv.rs` for the four actual
-transport CSV callers, native runtime/CLI adapters and focused fixtures/tests. The exact_float_json
-codec remains the private typed-input owner; legacy partial result readers remain unchanged.
-
-Predictive-stacking continuation (DEC-0419): `/root` owns existing Bayes `predictive_stacking`
-admission, native fitting and private simplex optimizer; the root CSV application, native runtime/
-CLI adapters, and its focused fixtures/tests. Bayes `linalg` remains the existing Cholesky owner.
-
-Completed delegated batch ownership (handed back to `/root`): `native_moe` edited the Bayes `mixture_of_experts` module/tree,
-root `mixture_of_experts` application, its existing CLI file and its specifically named tests,
-fixtures and benchmark tools. `native_pcca` edited new Bayes/root `pcca_em` modules, the existing
-multimodal `paired.rs` CLI adapter and its named tests/fixtures/benchmark tools, preserving the NUTS
-neighbor. `/root` alone edits every lib.rs, Cargo manifest/lock, shared schema/linalg/numerical owner,
-backend runtime/command registration, CI and all ledgers. Agents send proposed shared changes to
-main. Only main reserves performance windows and approves promotion; broad checks run once for the
-integrated batch, with failed findings corrected rather than hidden.
-
 ARCH-INTEGRATION-01 multiplex ownership: `src/scalar_mark/table/assay.rs` owns nullable assay
 declarations and values within the existing MarkTable; legacy Pattern projection remains in
 `table/validation.rs`. `src/spatial_autocorrelation` owns radius Moran/Geary arithmetic and panel
@@ -182,10 +141,10 @@ Existing canonical scientific/config/parser/result/output symbols remain owned b
 | `PredictionCalibrationWorkerRequest`; strict calibrated prediction validation | `crates/marklab-bayes/src/prediction_calibration.rs`; static SciPy worker | IC-0097 patient-OOF-only Platt fitting and held-out calibration diagnostics | `marklab bayes calibrate-predictions` | flipped-test-label leakage oracle and independent probability/Brier/bin replay | EMB-CALIBRATE-01 complete |
 | `GroupedConformalWorkerRequest`; corrected nonconformity quantile/set validation | `crates/marklab-bayes/src/grouped_conformal.rs`; static SciPy worker | IC-0098 disjoint train/calibration/test patient sets, corrected rank, coverage strata | `marklab bayes grouped-conformal` | 30-patient noisy binary workflow and independent quantile/set/coverage replay | EMB-CONFORMAL-01 complete |
 | `LateFusionWorkerRequest`; calibrated OOF modality fusion | `crates/marklab-bayes/src/late_fusion.rs`; static SciPy worker | IC-0099 declared OOF base probabilities, disjoint meta/calibration/test, missingness and ablations | `marklab bayes late-fusion` | 30-patient two-modality complete/single-missing workflow and independent probability/Brier replay | EMB-LATE-FUSION-01 complete |
-| `PredictiveStackingWorkerRequest`; simplex grouped predictive optimization | `crates/marklab-bayes/src/predictive_stacking{,/native,/optimizer}.rs`; root CSV application; retained SciPy oracle | IC-0100 patient-held-out densities, simplex weights, exact leave-one-patient sensitivity | `marklab bayes predictive-stacking` | symmetric `0.5/0.5` oracle and independent mixture/objective replay | EMB-STACKING-01 complete |
-| `MixtureOfExpertsWorkerRequest`; context/availability gate | Bayes `mixture_of_experts` admission/native/gate; numerics bounded L-BFGS; root CSV application; retained SciPy oracle | IC-0101 declared OOF experts, anti-shortcut/anti-collapse gate, disjoint calibration/context OOD | `marklab bayes mixture-of-experts-fusion` | context-switching experts, exact availability masks, independent gate/calibration/OOD replay | EMB-MOE-01 complete |
+| `PredictiveStackingWorkerRequest`; simplex grouped predictive optimization | `crates/marklab-bayes/src/predictive_stacking.rs`; static SciPy worker | IC-0100 patient-held-out densities, simplex weights, exact leave-one-patient sensitivity | `marklab bayes predictive-stacking` | symmetric `0.5/0.5` oracle and independent mixture/objective replay | EMB-STACKING-01 complete |
+| `MixtureOfExpertsWorkerRequest`; context/availability gate | `crates/marklab-bayes/src/mixture_of_experts.rs`; static SciPy worker | IC-0101 declared OOF experts, anti-shortcut/anti-collapse gate, disjoint calibration/context OOD | `marklab bayes mixture-of-experts-fusion` | context-switching experts, exact availability masks, independent gate/calibration/OOD replay | EMB-MOE-01 complete |
 | `sinkhorn_ot`; `unbalanced_sinkhorn` | `crates/marklab-bayes/src/transport.rs` | IC-0102 equal-total log-domain dual transport; IC-0103 KL-relaxed marginal transport | `marklab bayes sinkhorn-ot`; `marklab bayes unbalanced-sinkhorn` | symmetric two-cell closed form; one-cell `16^(1/3)` fixed point | REG-SINKHORN-01 and REG-UNBAL-OT-01 complete |
-| `fit_partial_transport`; legacy `PartialTransportWorkerRequest`/result replay | `crates/marklab-bayes/src/partial_transport.rs`, `partial_transport/{native,solver}.rs`; root `transport` CSV application | IC-0104 fixed transported mass and row/column capacity inequalities | `marklab bayes partial-ot` | seven frozen SLSQP comparisons; analytical one-cell/uniform/zero-capacity; ordering, exact transport, bounded identity expansion | REG-PARTIAL-OT-01 native complete under DEC-0418 |
+| `PartialTransportWorkerRequest`; strict feasibility/objective replay | `crates/marklab-bayes/src/partial_transport.rs`; static SciPy worker | IC-0104 fixed transported mass and row/column capacity inequalities | `marklab bayes partial-ot` | forced one-cell mass/cost/unmatched oracle | REG-PARTIAL-OT-01 complete |
 | `entropic_soft_assignment` | `crates/marklab-bayes/src/transport.rs` | IC-0105 explicit dustbin states and epsilon sensitivity | `marklab bayes entropic-soft-assignment` | high-real-cost one-cell unmatched oracle | REG-SOFT-ASSIGN-01 complete |
 | `FusedGromovWassersteinWorkerRequest`; strict plan/objective replay | `crates/marklab-bayes/src/fused_gromov.rs`; static POT worker | IC-0106 scaled feature/structure FGW with three initializations | `marklab bayes fused-gromov-wasserstein`; `marklab project fused-gromov-wasserstein` | reversed-feature two-point isometry; cross-process durable miss/hit/no-second-worker regression | REG-FGW-01 complete; BACK-DUR-01 durable caller complete |
 | `PartialFusedGromovWassersteinWorkerRequest`; fixed-mass sensitivity/replay | `crates/marklab-bayes/src/partial_fused_gromov.rs`; static POT partial-Wasserstein worker | IC-0107 fixed-mass FGW with alpha/mass/epsilon/initialization sensitivity | `marklab bayes partial-fused-gromov-wasserstein` | forced half-mass and reversed-feature gradient regressions | REG-PARTIAL-FGW-01 fixed-mass complete; KL-unbalanced backend-blocked |
@@ -493,7 +452,7 @@ Existing canonical scientific/config/parser/result/output symbols remain owned b
 | GUDHI bottleneck plus exact patient-label enumeration owner | `workers/python/marklab_gudhi_persistence_comparison_worker.py` | IC-0162 whole-diagram distance energy/null | `marklab topology compare-persistence` | four-patient distance 1.5, energy 3, p 1/3 | TOP-COMPARE-01 complete |
 | combined topology perturbation worker | `workers/python/marklab_topology_stability_worker.py` | IC-0163 declared toggles and five recomputed sensitivity measures | `marklab topology stability` | one toggle, Euler 0 shift, Minkowski error 1, radius shift 1 | TOP-STABILITY-01 complete |
 | topology exact-fixture validation owner | `workers/python/marklab_topology_validation_worker.py` | IC-0164 nine passed controls plus explicit scale gap | `marklab topology validate` | exact ledger; sparse scaling not verified | TOP-VALIDATE-01 complete |
-| Native paired pCCA EM/design owner | Bayes `pcca_em` admission/native/matrix; root JSON application; existing paired CLI; retained SciPy oracle | IC-0165 paired measured patient views, train-only standardization, diagonal-noise EM | `marklab multimodal pcca` | correlation >0.99, held-out RMSE <0.25 | MM-PCCA-01 complete |
+| SciPy paired pCCA EM/design owner | `workers/python/marklab_scipy_pcca_em_worker.py`; `src/bin/marklab/multimodal_model.rs` | IC-0165 paired measured patient views, train-only standardization, diagonal-noise EM | `marklab multimodal pcca` | correlation >0.99, held-out RMSE <0.25 | MM-PCCA-01 complete |
 | CCA-Zoo Bayesian pCCA owner | `workers/python/marklab_ccazoo_bayesian_pcca_worker.py` | IC-0166 pinned NUTS, diagnostics and draw sign alignment | `marklab multimodal bayesian-pcca` | zero divergences, correlation/prediction recovery | BAY-PCCA-01 complete |
 | mofapy2 multiview/missing owner | `workers/python/marklab_mofapy2_multiview_worker.py` | IC-0167 training-observed VI, factor activity/alignment, conditional masked targets | `marklab multimodal mofa` | shared factor and eight held-out predictions | MM-MOFA-01 complete |
 | mofapy2 one-view matrix owner | `workers/python/marklab_mofapy2_matrix_factor_worker.py`; `src/bin/marklab/multimodal_model.rs` | IC-0168 observed-only Gaussian VI, aligned moments/activity, masked predictions | `marklab multimodal matrix-factor` | rank-one matrix, four held-out entries, ELBO improvement | MM-MATRIX-01 complete |

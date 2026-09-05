@@ -31,12 +31,3 @@ and modality-ablation diagnostics.
 A 30-patient two-modality fixture yields ten calibrated test predictions, complete and each
 single-missing scenario, two modality ablations, and Brier below the uninformative `0.25` reference.
 This is synthetic leakage-bound evidence, not real multimodal utility or transportability.
-
-## Native execution amendment — 2026-09-05
-
-DEC-0417 / RUST-MIGRATION-01 supplies the native version-2 workflow and truthful source identity.
-The scientific fields, OOF/split requirements and experimental claim ceiling above remain. The
-bounded shared optimizer and constant-logit solution preserve the objective and strict gradient
-criterion. Three independent oracles/performance comparisons and three retained reference failures
-are documented in `audits/late_fusion_measurements.json`; fixed-parameter checks on the failures
-are not independent Python fits. The native CI and three-workflow stabilization checks pass.

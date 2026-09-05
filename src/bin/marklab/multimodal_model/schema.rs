@@ -30,6 +30,19 @@ pub(super) struct PairedMultimodalRow {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub(super) struct ProbabilisticCcaSpec {
+    pub(super) design: PairedMultimodalDesign,
+    pub(super) rows: Vec<PairedMultimodalRow>,
+    pub(super) latent_dimensions: usize,
+    pub(super) regularization: f64,
+    pub(super) noise_floor: f64,
+    pub(super) maximum_iterations: usize,
+    pub(super) convergence_tolerance: f64,
+    pub(super) timeout_seconds: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(super) struct BayesianPccaSpec {
     pub(super) design: PairedMultimodalDesign,
     pub(super) rows: Vec<PairedMultimodalRow>,

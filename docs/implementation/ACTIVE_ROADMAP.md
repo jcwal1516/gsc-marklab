@@ -1,54 +1,11 @@
 # Marklab active roadmap
 
-Last updated: 2026-09-05
+Last updated: 2026-09-04
 
 Authority: this is the bounded execution view of `PROGRAM_TRACKER.md` and the immutable
 `MASTER_PLAN.md`. The earlier 2,091-line operational view is preserved verbatim in
 `ROADMAP_HISTORY.md` under the 2026-09-04 snapshot. Its scientific failures, data gaps and
 promotion gates remain binding. All 233 tracker requirements retain their own status.
-
-## Active workstream — Rust migration with correctness and performance gates
-
-User-authorized contract: `task-contracts/RUST-MIGRATION-01.md`; decision DEC-0415. Migrate all
-production Python numerical workflows, adapters, reports and client operations to existing Rust
-owners. Python remains for independent oracles and benchmarks. Preserve existing WSI/codec
-ownership, result-format 0.3, scientific contracts, bounded resources and claim limits.
-
-The first grouped-conformal workflow now executes natively, with separate scientific and execution
-owners, frozen-reference parity, gradient/edge checks, paired final-build timings and native CI.
-Its complete measurement/validation scope and limits are recorded in STATUS and the task contract.
-
-Patient-OOF calibration now also has a native application, eight frozen parity cases and paired
-performance evidence (DEC-0416), retaining two legacy decimal-score cold failures.
-
-Late fusion now also executes natively with three independent oracle/performance cases and three
-retained failed-reference audits. The three-workflow checkpoint passes all 1744 workspace tests
-at two-test concurrency; the source inventory now marks three native rows, not full capability closure.
-
-Entropic partial transport now passes seven independent oracle/performance cases, analytical
-zero-capacity verification, complete native CLI and resource/legacy checks (DEC-0418). Its failed
-zero-capacity Python reference remains recorded. The inventory now marks four native rows.
-
-The subsequent stacking, MoE and paired pCCA batch now passes scientific/performance gates and
-combined checkpoint coverage of all 1778 selected tests. Disk recovery and the transport feature
-boundary correction are retained in STATUS; no successful tests were repeated to finish the run.
-The inventory now marks seven promoted native rows, leaving 147 pending.
-
-1. Migrate graph-spatial matrix MAP/Laplace factorization (MM-SPATIAL-MATRIX-01 / IC-0170), preserving
-   observed-only preparation, graph precision, the limited-memory inverse-Hessian uncertainty,
-   aligned factors and every masked prediction under existing bounds. Exact Hessians cannot silently
-   replace the existing approximation.
-2. Migrate three-mode CP/Tucker workflows (MM-TENSOR-01 / IC-0171), preserving observed masks,
-   parameterization/alignment, training objective, Hessian-based uncertainty and held-out outputs.
-3. Continue admitted CRC/CellViT preparation, reporting and bounded H5AD/client workflows. Keep
-   ingestion, science, application composition and presentation separate. Analytically checkable
-   Gaussian inference precedes generalized/spatial Bayesian methods, topology/registration and
-   neural/SBI workflows.
-
-A confirmed slowdown blocks promotion pending an explicit tradeoff decision. Inconclusive timing
-is not a speedup. Failed Python references remain recorded failures and cannot establish parity.
-No production capability or Python startup asset is removed to make the inventory appear complete.
-No master-plan parent scope closes from the first native workflow.
 
 ## Delivered bounded architecture outcome
 
@@ -69,7 +26,7 @@ canonical numerical owners), 6.9–6.10 (shared service/CLI/Python and versioned
 PLAT-01, BACK-01, WF-01, WS-12, WS-13, WS-23, WS-25 and WS-92 remain active; none of those broad
 parent scopes is declared complete. Existing result-format 0.3 and the master plan are unchanged.
 
-## Retained scientific prerequisite: admit one real multiplex pathology study after migration
+## 1. Admit one real multiplex pathology study — next prerequisite
 
 Freeze the biological question, independent patient/group identities, selected assay endpoints,
 acquisition/processing provenance, physical coordinates and exact tissue windows. Exercise the
@@ -79,7 +36,7 @@ comparison. Required data and assay declarations are not present in this archite
 synthetic examples and old CellViT pilots are not substitute multiplex assay evidence.
 Coverage: DATA-01, FND-04, WS-23, WS-25; dependent outcome: a traceable real study input/report.
 
-## Establish the study's independent scientific calibration after design admission
+## 2. Establish the study's independent scientific calibration — after design admission
 
 Prespecify the admitted estimands, independent reference versions/oracles, null/alternative
 simulations, patient exchangeability and finite-permutation failure policy. Verify Moran/Geary
@@ -90,7 +47,7 @@ not complete independent calibration or authorize biological/clinical claims.
 Coverage: WF-01 and the affected statistical/validation requirements; dependent outcome: a
 reproducible evidence record with an explicit claim ceiling for the admitted study.
 
-## Measure the admitted study's scale after its input profile is frozen
+## 3. Measure and address the admitted study's actual scale — after its input profile is frozen
 
 Use representative irregular tissue geometry, panel width, missingness, neighbour density, slide
 counts and inference work. Measure complete workflow time/RSS and identify the dominant cost.
@@ -107,6 +64,6 @@ The latest real joint location–embedding pilot remains nonconverged, fails emb
 prediction and is diagnostic-only. Exact correspondence, independent patients, frozen calibration
 plans and scientifically justified margins remain requirements for their respective workflows.
 No clinical margin, missing geometry, phenotype, external validation or independent patient identity
-may be manufactured to advance the roadmap. Arbitrary workflow
+may be manufactured to advance the roadmap. Broader library migrations, arbitrary workflow
 construction, SpatialData/OME-NGFF, R/zero-copy clients and universal result descriptors remain
 caller-dependent work rather than prerequisites invented for the completed multiplex profile.

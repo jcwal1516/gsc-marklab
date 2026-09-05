@@ -4,16 +4,10 @@ use std::fs;
 
 use assert_cmd::Command;
 
-fn command() -> Command {
-    let mut command = Command::cargo_bin("marklab").expect("binary");
-    command
-        .env("MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION", "1")
-        .env("MARKLAB_PYTHON", "/nonexistent/marklab-python")
-        .env("MARKLAB_RUNTIME_ROOT", "/nonexistent/marklab-runtime");
-    command
-}
-
-fn fixture() -> String {
+#[test]
+fn mixture_gate_learns_context_and_masks_unavailable_experts() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let input = directory.path().join("experts.csv");
     let mut fixture =
         "patient_id,split,expert_prediction_source,label,context_signal,expert_a,expert_b\n"
             .to_owned();
@@ -48,18 +42,11 @@ fn fixture() -> String {
             "p{index:02},{split},patient_level_out_of_fold,{label},{context},{a},{b}\n"
         ));
     }
-    fixture
-}
-
-#[test]
-fn mixture_gate_learns_context_and_masks_unavailable_experts() {
-    let directory = tempfile::tempdir().expect("tempdir");
-    let input = directory.path().join("experts.csv");
-    let fixture = fixture();
-    fs::write(&input, &fixture).expect("fixture");
+    fs::write(&input, fixture).expect("fixture");
     let output = directory.path().join("result.json");
 
-    command()
+    Command::cargo_bin("marklab")
+        .expect("binary")
         .args([
             "bayes",
             "mixture-of-experts-fusion",
@@ -82,12 +69,6 @@ fn mixture_gate_learns_context_and_masks_unavailable_experts() {
     let result: serde_json::Value =
         serde_json::from_slice(&fs::read(output).expect("result")).expect("JSON");
     assert_eq!(result["format"], "marklab.mixture_of_experts_fusion");
-    assert_eq!(result["version"], 2);
-    assert_eq!(result["backend"]["name"], "marklab-rust");
-    assert_eq!(
-        result["input_sha256"],
-        marklab_bayes::sha256_hex(fixture.as_bytes())
-    );
     assert_eq!(
         result["expert_prediction_source"],
         "patient_level_out_of_fold"
@@ -126,118 +107,4 @@ fn mixture_gate_learns_context_and_masks_unavailable_experts() {
     assert_eq!(missing_b["gating_weights"], serde_json::json!([1.0, 0.0]));
     assert!(result["ood_threshold"].as_f64().unwrap().is_finite());
     assert!(result["metrics"]["brier_score"].as_f64().unwrap() < 0.25);
-}
-
-#[test]
-fn mixture_gate_rejects_bad_controls_and_preserves_existing_output() {
-    let directory = tempfile::tempdir().expect("tempdir");
-    let input = directory.path().join("experts.csv");
-    fs::write(&input, fixture()).expect("fixture");
-    let output = directory.path().join("result.json");
-    fs::write(&output, b"sentinel").expect("sentinel");
-    command()
-        .args([
-            "bayes",
-            "mixture-of-experts-fusion",
-            "--input",
-            input.to_str().unwrap(),
-            "--l2-penalty",
-            "0",
-            "--entropy-regularization",
-            "0.01",
-            "--ood-validation-quantile",
-            "0.9",
-            "--timeout-seconds",
-            "30",
-            "--out",
-            output.to_str().unwrap(),
-        ])
-        .assert()
-        .failure();
-    assert_eq!(fs::read(&output).unwrap(), b"sentinel");
-
-    fs::write(
-        &input,
-        fixture().replace("context_signal", "context_site_signal"),
-    )
-    .unwrap();
-    command()
-        .args([
-            "bayes",
-            "mixture-of-experts-fusion",
-            "--input",
-            input.to_str().unwrap(),
-            "--l2-penalty",
-            "0.1",
-            "--entropy-regularization",
-            "0.01",
-            "--ood-validation-quantile",
-            "0.9",
-            "--timeout-seconds",
-            "30",
-            "--out",
-            output.to_str().unwrap(),
-        ])
-        .assert()
-        .failure();
-    assert_eq!(fs::read(&output).unwrap(), b"sentinel");
-}
-
-#[test]
-fn mixture_gate_rejects_row_and_byte_budget_exhaustion() {
-    let directory = tempfile::tempdir().expect("tempdir");
-    let input = directory.path().join("experts.csv");
-    let output = directory.path().join("result.json");
-    let header =
-        "patient_id,split,expert_prediction_source,label,context_signal,expert_a,expert_b\n";
-    let mut rows = String::from(header);
-    for index in 0..10_001 {
-        rows.push_str(&format!(
-            "p{index},gate_train,patient_level_out_of_fold,{},0.1,0.2,0.8\n",
-            index % 2
-        ));
-    }
-    fs::write(&input, rows).unwrap();
-    command()
-        .args([
-            "bayes",
-            "mixture-of-experts-fusion",
-            "--input",
-            input.to_str().unwrap(),
-            "--l2-penalty",
-            "0.1",
-            "--entropy-regularization",
-            "0.01",
-            "--ood-validation-quantile",
-            "0.9",
-            "--timeout-seconds",
-            "30",
-            "--out",
-            output.to_str().unwrap(),
-        ])
-        .assert()
-        .failure();
-
-    let mut oversized = Vec::from(header.as_bytes());
-    oversized.resize(16 * 1024 * 1024 + 1, b'x');
-    fs::write(&input, oversized).unwrap();
-    command()
-        .args([
-            "bayes",
-            "mixture-of-experts-fusion",
-            "--input",
-            input.to_str().unwrap(),
-            "--l2-penalty",
-            "0.1",
-            "--entropy-regularization",
-            "0.01",
-            "--ood-validation-quantile",
-            "0.9",
-            "--timeout-seconds",
-            "30",
-            "--out",
-            output.to_str().unwrap(),
-        ])
-        .assert()
-        .failure();
 }

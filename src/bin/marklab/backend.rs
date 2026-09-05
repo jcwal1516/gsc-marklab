@@ -20,27 +20,6 @@ enum BackendTopLevel {
 enum BackendCommand {
     /// Verify asset paths, Python 3.12, and the locked direct backend packages.
     Doctor,
-    /// Private typed native execution boundary for the grouped-conformal application.
-    #[command(hide = true)]
-    NativeGroupedConformal,
-    /// Private native patient-OOF calibration application.
-    #[command(hide = true)]
-    NativePredictionCalibration,
-    /// Private native calibrated late-fusion application.
-    #[command(hide = true)]
-    NativeLateFusion,
-    /// Private native constrained partial-transport application.
-    #[command(hide = true)]
-    NativePartialTransport,
-    /// Private native patient-held-out predictive stacking application.
-    #[command(hide = true)]
-    NativePredictiveStacking,
-    /// Private native context-gated mixture application.
-    #[command(hide = true)]
-    NativeMixtureOfExperts,
-    /// Private native paired Gaussian pCCA application.
-    #[command(hide = true)]
-    NativePccaEm,
 }
 
 pub(crate) fn cli_route() -> super::command_tree::Route {
@@ -50,66 +29,9 @@ pub(crate) fn cli_route() -> super::command_tree::Route {
 }
 
 fn run() -> Result<(), super::bayes::BayesCliError> {
-    let BackendTopLevel::Backend { command } = BackendCli::parse().command;
-    match command {
-        BackendCommand::Doctor => doctor(),
-        BackendCommand::NativeMixtureOfExperts => native(|input| {
-            marklab::mixture_of_experts::execute_native_request(input)
-                .map_err(|e| super::bayes::BayesCliError::Input(e.to_string()))
-        }),
-        BackendCommand::NativePccaEm => native(|input| {
-            marklab::pcca_em::execute_native_request(input)
-                .map_err(|e| super::bayes::BayesCliError::Input(e.to_string()))
-        }),
-        BackendCommand::NativePredictiveStacking => native(|input| {
-            marklab::predictive_stacking::execute_native_request(input)
-                .map_err(|e| super::bayes::BayesCliError::Input(e.to_string()))
-        }),
-        BackendCommand::NativePartialTransport => native(|input| {
-            marklab::transport::execute_partial_native_request(input)
-                .map_err(|e| super::bayes::BayesCliError::Input(e.to_string()))
-        }),
-        BackendCommand::NativeGroupedConformal => native(|input| {
-            marklab::grouped_conformal::execute_native_request(input)
-                .map_err(|e| super::bayes::BayesCliError::Input(e.to_string()))
-        }),
-        BackendCommand::NativeLateFusion => native(|input| {
-            marklab::late_fusion::execute_native_request(input)
-                .map_err(|e| super::bayes::BayesCliError::Input(e.to_string()))
-        }),
-        BackendCommand::NativePredictionCalibration => native(|input| {
-            marklab::prediction_calibration::execute_native_request(input)
-                .map_err(|e| super::bayes::BayesCliError::Input(e.to_string()))
-        }),
-    }
-}
-
-fn native(
-    execute: impl FnOnce(Vec<u8>) -> Result<Vec<u8>, super::bayes::BayesCliError>,
-) -> Result<(), super::bayes::BayesCliError> {
-    use super::bayes::BayesCliError;
-    use std::io::{Read, Write};
-    // The ordinary CSV is bounded to 16 MiB; JSON escaping plus row keys may expand it.
-    const INPUT_LIMIT: u64 = 128 * 1024 * 1024;
-    let mut input = Vec::new();
-    std::io::stdin()
-        .take(INPUT_LIMIT + 1)
-        .read_to_end(&mut input)
-        .map_err(|error| BayesCliError::Input(format!("native request read failed: {error}")))?;
-    if input.len() as u64 > INPUT_LIMIT {
-        return Err(BayesCliError::Input(
-            "native request exceeds 128 MiB".into(),
-        ));
-    }
-    let bytes = execute(input)?;
-    std::io::stdout()
-        .lock()
-        .write_all(&bytes)
-        .map_err(|error| BayesCliError::Input(format!("native result write failed: {error}")))?;
-    Ok(())
-}
-
-fn doctor() -> Result<(), super::bayes::BayesCliError> {
+    let BackendTopLevel::Backend {
+        command: BackendCommand::Doctor,
+    } = BackendCli::parse().command;
     let root = marklab::python_backend_assets_root()?;
     let interpreter = marklab::python_backend_interpreter(&root)?;
     let result = super::bayes::run_worker(&root, "marklab_backend_doctor.py", b"{}", 30)?;

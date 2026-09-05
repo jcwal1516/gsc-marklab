@@ -4,14 +4,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{BackendContract, BayesError, TransportMass, WorkerBackend};
 
-mod native;
-pub use native::{fit_partial_transport, NativePartialTransportBackend, PartialTransportFit};
-
 const SCIPY_VERSION: &str = "1.18.1";
 const FEASIBILITY_TOLERANCE: f64 = 1e-8;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub struct PartialTransportSpec {
     pub source: Vec<TransportMass>,
     pub target: Vec<TransportMass>,
@@ -19,45 +15,6 @@ pub struct PartialTransportSpec {
     pub transported_mass: f64,
     pub epsilon: f64,
     pub timeout_seconds: u64,
-}
-
-impl PartialTransportSpec {
-    /// Check dimensions, finite nonnegative capacities/costs, identities, mass and controls.
-    /// Returns an admission error without changing support order or values.
-    pub fn validate(&self) -> Result<(), BayesError> {
-        if !((1..=64).contains(&self.source.len())
-            && (1..=64).contains(&self.target.len())
-            && self.costs_row_major.len() == self.source.len() * self.target.len()
-            && self.transported_mass.is_finite()
-            && self.transported_mass > 0.0
-            && self.epsilon.is_finite()
-            && self.epsilon > 0.0
-            && (1..=3_600).contains(&self.timeout_seconds))
-        {
-            return Err(BayesError::InvalidSpec(
-                "partial transport dimensions or controls are invalid".into(),
-            ));
-        }
-        validate_support(&self.source, "source")?;
-        validate_support(&self.target, "target")?;
-        if self
-            .costs_row_major
-            .iter()
-            .any(|cost| !cost.is_finite() || *cost < 0.0)
-        {
-            return Err(BayesError::InvalidSpec(
-                "partial transport costs must be finite and nonnegative".into(),
-            ));
-        }
-        let source_total = self.source.iter().map(|row| row.mass).sum::<f64>();
-        let target_total = self.target.iter().map(|row| row.mass).sum::<f64>();
-        if self.transported_mass > source_total.min(target_total) {
-            return Err(BayesError::InvalidSpec(
-                "partial transported mass exceeds available mass".into(),
-            ));
-        }
-        Ok(())
-    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -89,7 +46,37 @@ impl PartialTransportWorkerRequest {
         environment_lock_sha256: String,
         worker_sha256: String,
     ) -> Result<Self, BayesError> {
-        spec.validate()?;
+        if !((1..=64).contains(&spec.source.len())
+            && (1..=64).contains(&spec.target.len())
+            && spec.costs_row_major.len() == spec.source.len() * spec.target.len()
+            && spec.transported_mass.is_finite()
+            && spec.transported_mass > 0.0
+            && spec.epsilon.is_finite()
+            && spec.epsilon > 0.0
+            && (1..=3_600).contains(&spec.timeout_seconds))
+        {
+            return Err(BayesError::InvalidSpec(
+                "partial transport dimensions or controls are invalid".into(),
+            ));
+        }
+        validate_support(&spec.source, "source")?;
+        validate_support(&spec.target, "target")?;
+        if spec
+            .costs_row_major
+            .iter()
+            .any(|cost| !cost.is_finite() || *cost < 0.0)
+        {
+            return Err(BayesError::InvalidSpec(
+                "partial transport costs must be finite and nonnegative".into(),
+            ));
+        }
+        let source_total = spec.source.iter().map(|row| row.mass).sum::<f64>();
+        let target_total = spec.target.iter().map(|row| row.mass).sum::<f64>();
+        if spec.transported_mass > source_total.min(target_total) {
+            return Err(BayesError::InvalidSpec(
+                "partial transported mass exceeds available mass".into(),
+            ));
+        }
         Ok(Self {
             format: "marklab.scipy_partial_transport_request",
             version: 1,

@@ -1,10 +1,9 @@
 use std::collections::HashSet;
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use thiserror::Error;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, Serialize)]
 pub struct TransportMass {
     pub id: String,
     pub mass: f64,
@@ -763,7 +762,7 @@ fn marginal_residual(
     source_maximum.max(target_maximum)
 }
 
-pub(crate) fn log_sum_exp(values: impl Iterator<Item = f64>) -> f64 {
+fn log_sum_exp(values: impl Iterator<Item = f64>) -> f64 {
     let values = values.collect::<Vec<_>>();
     let maximum = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     maximum

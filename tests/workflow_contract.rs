@@ -15,7 +15,6 @@ fn criterion_benchmarks_cover_required_spec_workloads() {
         "cohort_hierarchy",
         "cell_embeddings",
         "patch_embeddings",
-        "grouped_conformal",
     ] {
         assert!(
             manifest.contains(&format!("name = \"{target}\"")),
@@ -33,7 +32,6 @@ fn criterion_benchmarks_cover_required_spec_workloads() {
         "bench_cohort_hierarchy_1m_cells_10k_specimens",
         "bench_cell_embeddings",
         "bench_patch_embeddings",
-        "bench_grouped_conformal",
     ] {
         assert!(
             bench_sources.contains(workload),
@@ -140,22 +138,6 @@ fn ci_workflow_runs_locked_rust_wsi_and_benchmark_gates() {
     // The removed root Python package stays absent; DEC-0414 adds a thin client with its own
     // required, separately provisioned test environment rather than a second scientific engine.
     assert!(!workflow.contains("-s python/tests"));
-    let native_job = workflow
-        .split_once("  rust:\n")
-        .expect("native Rust job")
-        .1
-        .split_once("\n  backend-integration:")
-        .expect("separate backend job")
-        .0;
-    assert!(native_job.contains("cargo nextest run --locked --workspace --all-features --test bayes_grouped_conformal_cli --test native_grouped_conformal --test bfgs"));
-    assert!(native_job
-        .contains("--test bayes_prediction_calibration_cli --test native_prediction_calibration"));
-    assert!(native_job.contains("--test bayes_late_fusion_cli --test native_late_fusion"));
-    assert!(native_job.contains("--test bayes_partial_ot_cli --test native_partial_transport"));
-    assert!(native_job.contains("MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION: \"1\""));
-    assert!(native_job.contains("MARKLAB_PYTHON: /nonexistent/marklab-python"));
-    assert!(native_job.contains("MARKLAB_RUNTIME_ROOT: /nonexistent/marklab-runtime"));
-    assert!(!native_job.contains("uv sync"));
     let backend_job = workflow
         .split_once("  backend-integration:\n")
         .expect("required backend job")

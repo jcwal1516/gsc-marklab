@@ -66,7 +66,7 @@ dhat-heap = ["dep:dhat"]
 [dependencies]
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["raw_value"] }
+serde_json = "1"
 serde_path_to_error = "0.1"
 toml = "0.8"
 clap = { version = "4", features = ["derive"], optional = true }
@@ -117,40 +117,6 @@ dicom-core = "0.9.1"
 dicom-object = "0.9.1"
 
 [[example]]
-name = "grouped_conformal_application_benchmark"
-path = "examples/grouped_conformal_application_benchmark.rs"
-required-features = ["csv"]
-
-[[example]]
-name = "mixture_of_experts_benchmark"
-path = "examples/mixture_of_experts_benchmark.rs"
-required-features = ["csv"]
-
-[[example]]
-name = "pcca_em_benchmark"
-path = "examples/pcca_em_benchmark.rs"
-
-[[example]]
-name = "predictive_stacking_benchmark"
-path = "examples/predictive_stacking_benchmark.rs"
-required-features = ["csv"]
-
-[[example]]
-name = "partial_transport_benchmark"
-path = "examples/partial_transport_benchmark.rs"
-required-features = ["csv"]
-
-[[example]]
-name = "late_fusion_benchmark"
-path = "examples/late_fusion_benchmark.rs"
-required-features = ["csv"]
-
-[[example]]
-name = "prediction_calibration_benchmark"
-path = "examples/prediction_calibration_benchmark.rs"
-required-features = ["csv"]
-
-[[example]]
 name = "generate_dicom_wsi_fixture"
 path = "tests/fixtures/wsi/generate_dicom_wsi_fixture.rs"
 required-features = ["wsi"]
@@ -193,10 +159,6 @@ required-features = ["csv", "parquet"]
 name = "patch_embeddings"
 harness = false
 required-features = ["parquet"]
-
-[[bench]]
-name = "grouped_conformal"
-harness = false
 
 [profile.release]
 opt-level = 3

@@ -7,13 +7,9 @@ use crate::{
     BackendContract, BayesError, WorkerBackend,
 };
 
-mod native;
-pub use native::{fit_late_fusion, LateFusionFit, NativeFusionBackend};
-
 const SCIPY_VERSION: &str = "1.18.1";
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, Serialize)]
 pub struct LateFusionPatient {
     pub patient_id: String,
     pub split: String,
@@ -22,74 +18,12 @@ pub struct LateFusionPatient {
     pub modality_probabilities: Vec<Option<f64>>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub struct LateFusionSpec {
     pub patients: Vec<LateFusionPatient>,
     pub modalities: Vec<String>,
     pub l2_penalty: f64,
     pub timeout_seconds: u64,
-}
-
-impl LateFusionSpec {
-    pub(crate) fn validated(mut self) -> Result<Self, BayesError> {
-        if !((30..=100_000).contains(&self.patients.len())
-            && (2..=16).contains(&self.modalities.len())
-            && self.l2_penalty.is_finite()
-            && self.l2_penalty > 0.0
-            && (1..=3_600).contains(&self.timeout_seconds))
-        {
-            return Err(BayesError::InvalidSpec(
-                "late-fusion dimensions or controls are invalid".into(),
-            ));
-        }
-        let mut modalities = HashSet::new();
-        if self
-            .modalities
-            .iter()
-            .any(|name| !name.starts_with("modality_") || !modalities.insert(name.as_str()))
-        {
-            return Err(BayesError::InvalidSpec(
-                "late-fusion modality names are invalid".into(),
-            ));
-        }
-        self.patients
-            .sort_by(|left, right| left.patient_id.cmp(&right.patient_id));
-        let mut ids = HashSet::new();
-        for patient in &self.patients {
-            if patient.patient_id.is_empty()
-                || !ids.insert(patient.patient_id.as_str())
-                || !matches!(
-                    patient.split.as_str(),
-                    "meta_train" | "calibration" | "test"
-                )
-                || patient.base_prediction_source != "patient_level_out_of_fold"
-                || patient.label > 1
-                || patient.modality_probabilities.len() != self.modalities.len()
-                || patient.modality_probabilities.iter().all(Option::is_none)
-                || patient
-                    .modality_probabilities
-                    .iter()
-                    .flatten()
-                    .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
-            {
-                return Err(BayesError::InvalidSpec(
-                    "late-fusion patient row is invalid".into(),
-                ));
-            }
-        }
-        for split in ["meta_train", "calibration", "test"] {
-            let rows = self.patients.iter().filter(|row| row.split == split);
-            let count = rows.clone().count();
-            let positives = rows.filter(|row| row.label == 1).count();
-            if count < 10 || positives == 0 || positives == count {
-                return Err(BayesError::InvalidSpec(format!(
-                    "late-fusion split {split} requires ten patients and both labels"
-                )));
-            }
-        }
-        Ok(self)
-    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -114,11 +48,65 @@ pub struct LateFusionResources {
 
 impl LateFusionWorkerRequest {
     pub fn new(
-        spec: LateFusionSpec,
+        mut spec: LateFusionSpec,
         environment_lock_sha256: String,
         worker_sha256: String,
     ) -> Result<Self, BayesError> {
-        let spec = spec.validated()?;
+        if !((30..=100_000).contains(&spec.patients.len())
+            && (2..=16).contains(&spec.modalities.len())
+            && spec.l2_penalty.is_finite()
+            && spec.l2_penalty > 0.0
+            && (1..=3_600).contains(&spec.timeout_seconds))
+        {
+            return Err(BayesError::InvalidSpec(
+                "late-fusion dimensions or controls are invalid".into(),
+            ));
+        }
+        let mut modalities = HashSet::new();
+        if spec
+            .modalities
+            .iter()
+            .any(|name| !name.starts_with("modality_") || !modalities.insert(name.as_str()))
+        {
+            return Err(BayesError::InvalidSpec(
+                "late-fusion modality names are invalid".into(),
+            ));
+        }
+        spec.patients
+            .sort_by(|left, right| left.patient_id.cmp(&right.patient_id));
+        let mut ids = HashSet::new();
+        for patient in &spec.patients {
+            if patient.patient_id.is_empty()
+                || !ids.insert(patient.patient_id.as_str())
+                || !matches!(
+                    patient.split.as_str(),
+                    "meta_train" | "calibration" | "test"
+                )
+                || patient.base_prediction_source != "patient_level_out_of_fold"
+                || patient.label > 1
+                || patient.modality_probabilities.len() != spec.modalities.len()
+                || patient.modality_probabilities.iter().all(Option::is_none)
+                || patient
+                    .modality_probabilities
+                    .iter()
+                    .flatten()
+                    .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
+            {
+                return Err(BayesError::InvalidSpec(
+                    "late-fusion patient row is invalid".into(),
+                ));
+            }
+        }
+        for split in ["meta_train", "calibration", "test"] {
+            let rows = spec.patients.iter().filter(|row| row.split == split);
+            let count = rows.clone().count();
+            let positives = rows.filter(|row| row.label == 1).count();
+            if count < 10 || positives == 0 || positives == count {
+                return Err(BayesError::InvalidSpec(format!(
+                    "late-fusion split {split} requires ten patients and both labels"
+                )));
+            }
+        }
         Ok(Self {
             format: "marklab.scipy_late_fusion_request",
             version: 1,

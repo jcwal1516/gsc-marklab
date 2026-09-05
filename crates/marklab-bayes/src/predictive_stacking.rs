@@ -4,11 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{BackendContract, BayesError, WorkerBackend};
 
-mod native;
-pub use native::{fit_predictive_stacking, NativeStackingBackend, PredictiveStackingFit};
-
 const SCIPY_VERSION: &str = "1.18.1";
-const MAXIMUM_VISITS: u64 = 25_000_000;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct PredictiveStackingPatient {
@@ -43,18 +39,22 @@ pub struct PredictiveStackingResources {
     pub timeout_seconds: u64,
 }
 
-impl PredictiveStackingSpec {
-    pub(crate) fn validated(mut self) -> Result<Self, BayesError> {
-        if !((8..=500).contains(&self.patients.len())
-            && (2..=16).contains(&self.model_names.len())
-            && (1..=3_600).contains(&self.timeout_seconds))
+impl PredictiveStackingWorkerRequest {
+    pub fn new(
+        mut spec: PredictiveStackingSpec,
+        environment_lock_sha256: String,
+        worker_sha256: String,
+    ) -> Result<Self, BayesError> {
+        if !((8..=500).contains(&spec.patients.len())
+            && (2..=16).contains(&spec.model_names.len())
+            && (1..=3_600).contains(&spec.timeout_seconds))
         {
             return Err(BayesError::InvalidSpec(
                 "predictive-stacking dimensions or timeout are invalid".into(),
             ));
         }
         let mut models = HashSet::new();
-        if self
+        if spec
             .model_names
             .iter()
             .any(|name| !name.starts_with("model_") || !models.insert(name.as_str()))
@@ -63,14 +63,14 @@ impl PredictiveStackingSpec {
                 "predictive-stacking model names are invalid".into(),
             ));
         }
-        self.patients
+        spec.patients
             .sort_by(|left, right| left.patient_id.cmp(&right.patient_id));
         let mut patients = HashSet::new();
-        for patient in &self.patients {
+        for patient in &spec.patients {
             if patient.patient_id.is_empty()
                 || !patients.insert(patient.patient_id.as_str())
                 || patient.held_out_unit != "patient"
-                || patient.log_predictive_densities.len() != self.model_names.len()
+                || patient.log_predictive_densities.len() != spec.model_names.len()
                 || patient
                     .log_predictive_densities
                     .iter()
@@ -82,23 +82,13 @@ impl PredictiveStackingSpec {
             }
         }
         let visits =
-            self.patients.len() as u64 * self.patients.len() as u64 * self.model_names.len() as u64;
+            spec.patients.len() as u64 * spec.patients.len() as u64 * spec.model_names.len() as u64;
+        const MAXIMUM_VISITS: u64 = 25_000_000;
         if visits > MAXIMUM_VISITS {
             return Err(BayesError::InvalidSpec(
                 "predictive-stacking jackknife work exceeds its bound".into(),
             ));
         }
-        Ok(self)
-    }
-}
-
-impl PredictiveStackingWorkerRequest {
-    pub fn new(
-        spec: PredictiveStackingSpec,
-        environment_lock_sha256: String,
-        worker_sha256: String,
-    ) -> Result<Self, BayesError> {
-        let spec = spec.validated()?;
         Ok(Self {
             format: "marklab.scipy_predictive_stacking_request",
             version: 1,

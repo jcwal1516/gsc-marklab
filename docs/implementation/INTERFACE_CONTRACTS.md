@@ -632,18 +632,13 @@ Status: characterization freeze for WS-A. Exact field/symbol inventory is active
 
 - `marklab bayes calibrate-predictions` requires unique patient-level `training_oof` and `test` scores with both labels. Pinned SciPy 1.18.1 fits class-count-smoothed Platt logistic parameters only on OOF rows, applies them frozen to test, and reports Brier, ECE, calibration-in-the-large/slope, and reliability bins with Wilson intervals. Rust replays probabilities, Brier, ECE, and bins.
 
-- RUST-MIGRATION-01 / DEC-0416 adds the native version-2 calibration fit and bounded CSV application. Raw training_oof scores, smoothing, all held-out diagnostics, identity/order/resource limits and legacy Python readers remain. A killable native child owns deadlines; neither the scientific library nor CSV interpreter discovers runtime assets.
-
 ## IC-0098 — Patient-level split-conformal classification
 
 - `marklab bayes grouped-conformal` fits training-only standardization and positive-L2 logistic prediction, freezes corrected-rank `1-p(true label)` on separate calibration patients, and returns test binary sets plus overall/site/subgroup coverage. Alpha below the finite calibration resolution is rejected. Marginal exchangeability does not guarantee conditional or shifted-domain coverage.
-- RUST-MIGRATION-01 / DEC-0415 adds `marklab_bayes::fit_grouped_conformal` and the root CSV application. The native version-2 envelope preserves those scientific fields while recording Rust package/source and distinct semantic request identities. Legacy Python version-1 request/response readers remain available. The schema-registered native child preserves hard deadlines and bounded streams; no Python runtime is required for this candidate workflow.
 
 ## IC-0099 — Calibrated patient-level late fusion
 
 - `marklab bayes late-fusion` requires every base modality probability to declare patient-level OOF origin, fits probability-plus-availability logistic fusion on `meta_train`, fits Platt calibration on a separate calibration split, and evaluates test patients. It reports Brier, observed missing-modality scenarios, and per-modality ablation; these are not causal contributions.
-
-- RUST-MIGRATION-01 / DEC-0417 adds native version-2 fitting and a bounded CSV/child application. Meta-fitting remains unstandardized, calibration uses its separate split and score transform, and all missingness/ablation outputs retain their definitions. The shared private logistic likelihood preserves strict gradient termination, with bounded Newton recovery and an exact constant-calibration solution preserving the initial nullspace. Legacy worker readers and experimental claim status remain.
 
 ## IC-0100 — Patient-grouped predictive stacking
 
@@ -663,7 +658,7 @@ Status: characterization freeze for WS-A. Exact field/symbol inventory is active
 
 ## IC-0104 — Fixed-mass entropic partial transport
 
-- `marklab bayes partial-ot` consumes bounded capacities, complete costs, positive epsilon, and fixed transported mass no larger than either total. DEC-0418 replaces production SLSQP with native log-domain dual coordinate maximization, preserving nonnegative plan, row/column capacity, total equality at `1e-8`, and the entropic objective. Success also requires a `1e-12` relative/absolute primal-dual residual within 2000 sweeps and the deadline. Native version 2 retains complete plan/order, unmatched mass, cost, entropy and objective with truthful source provenance; frozen SciPy 1.18.1 remains an independent reference and legacy version-1 readers remain. Unmatched mass is not automatically novel biology.
+- `marklab bayes partial-ot` consumes bounded capacities, complete costs, positive epsilon, and fixed transported mass no larger than either total. Pinned SciPy 1.18.1 SLSQP enforces nonnegative plan, row/column capacity, and total equality at `1e-8`; Rust replays the complete plan, feasibility, unmatched mass, cost, entropy, and objective. Unmatched mass is not automatically novel biology.
 
 ## IC-0105 — Dustbin entropic soft assignment
 

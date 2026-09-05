@@ -7,9 +7,6 @@ use crate::{
     BackendContract, BayesError, WorkerBackend,
 };
 
-mod native;
-pub use native::{fit_mixture_of_experts, MixtureOfExpertsFit, NativeMixtureOfExpertsBackend};
-
 const SCIPY_VERSION: &str = "1.18.1";
 
 #[derive(Clone, Debug, Serialize)]
@@ -58,11 +55,69 @@ pub struct MixtureOfExpertsResources {
 
 impl MixtureOfExpertsWorkerRequest {
     pub fn new(
-        spec: MixtureOfExpertsSpec,
+        mut spec: MixtureOfExpertsSpec,
         environment_lock_sha256: String,
         worker_sha256: String,
     ) -> Result<Self, BayesError> {
-        let spec = spec.validated()?;
+        if !((30..=10_000).contains(&spec.patients.len())
+            && (1..=16).contains(&spec.context_names.len())
+            && (2..=8).contains(&spec.expert_names.len())
+            && spec.l2_penalty.is_finite()
+            && spec.l2_penalty > 0.0
+            && spec.entropy_regularization.is_finite()
+            && spec.entropy_regularization > 0.0
+            && spec.entropy_regularization <= 1.0
+            && 0.0 < spec.ood_validation_quantile
+            && spec.ood_validation_quantile < 1.0
+            && (1..=3_600).contains(&spec.timeout_seconds))
+        {
+            return Err(BayesError::InvalidSpec(
+                "mixture-of-experts dimensions or controls are invalid".into(),
+            ));
+        }
+        validate_names(&spec.context_names, "context_", true)?;
+        validate_names(&spec.expert_names, "expert_", false)?;
+        spec.patients
+            .sort_by(|left, right| left.patient_id.cmp(&right.patient_id));
+        let mut ids = HashSet::new();
+        for patient in &spec.patients {
+            if patient.patient_id.is_empty()
+                || !ids.insert(patient.patient_id.as_str())
+                || !matches!(
+                    patient.split.as_str(),
+                    "gate_train" | "calibration" | "test"
+                )
+                || patient.expert_prediction_source != "patient_level_out_of_fold"
+                || patient.label > 1
+                || patient.context.len() != spec.context_names.len()
+                || patient.context.iter().any(|value| !value.is_finite())
+                || patient.expert_probabilities.len() != spec.expert_names.len()
+                || patient.expert_probabilities.iter().all(Option::is_none)
+                || patient
+                    .expert_probabilities
+                    .iter()
+                    .flatten()
+                    .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
+            {
+                return Err(BayesError::InvalidSpec(
+                    "mixture-of-experts patient row is invalid".into(),
+                ));
+            }
+        }
+        let counts = ["gate_train", "calibration", "test"].map(|split| {
+            let rows = spec.patients.iter().filter(|row| row.split == split);
+            let count = rows.clone().count();
+            let positives = rows.filter(|row| row.label == 1).count();
+            (count, positives)
+        });
+        if counts
+            .iter()
+            .any(|(count, positives)| *count < 8 || *positives == 0 || *positives == *count)
+        {
+            return Err(BayesError::InvalidSpec(
+                "every mixture-of-experts split requires eight patients and both labels".into(),
+            ));
+        }
         Ok(Self {
             format: "marklab.scipy_mixture_of_experts_request",
             version: 1,
@@ -87,71 +142,6 @@ impl MixtureOfExpertsWorkerRequest {
                 timeout_seconds: spec.timeout_seconds,
             },
         })
-    }
-}
-
-impl MixtureOfExpertsSpec {
-    pub(crate) fn validated(mut self) -> Result<Self, BayesError> {
-        if !((30..=10_000).contains(&self.patients.len())
-            && (1..=16).contains(&self.context_names.len())
-            && (2..=8).contains(&self.expert_names.len())
-            && self.l2_penalty.is_finite()
-            && self.l2_penalty > 0.0
-            && self.entropy_regularization.is_finite()
-            && self.entropy_regularization > 0.0
-            && self.entropy_regularization <= 1.0
-            && 0.0 < self.ood_validation_quantile
-            && self.ood_validation_quantile < 1.0
-            && (1..=3_600).contains(&self.timeout_seconds))
-        {
-            return Err(BayesError::InvalidSpec(
-                "mixture-of-experts dimensions or controls are invalid".into(),
-            ));
-        }
-        validate_names(&self.context_names, "context_", true)?;
-        validate_names(&self.expert_names, "expert_", false)?;
-        self.patients
-            .sort_by(|left, right| left.patient_id.cmp(&right.patient_id));
-        let mut ids = HashSet::new();
-        for patient in &self.patients {
-            if patient.patient_id.is_empty()
-                || !ids.insert(patient.patient_id.as_str())
-                || !matches!(
-                    patient.split.as_str(),
-                    "gate_train" | "calibration" | "test"
-                )
-                || patient.expert_prediction_source != "patient_level_out_of_fold"
-                || patient.label > 1
-                || patient.context.len() != self.context_names.len()
-                || patient.context.iter().any(|value| !value.is_finite())
-                || patient.expert_probabilities.len() != self.expert_names.len()
-                || patient.expert_probabilities.iter().all(Option::is_none)
-                || patient
-                    .expert_probabilities
-                    .iter()
-                    .flatten()
-                    .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
-            {
-                return Err(BayesError::InvalidSpec(
-                    "mixture-of-experts patient row is invalid".into(),
-                ));
-            }
-        }
-        let counts = ["gate_train", "calibration", "test"].map(|split| {
-            let rows = self.patients.iter().filter(|row| row.split == split);
-            let count = rows.clone().count();
-            let positives = rows.filter(|row| row.label == 1).count();
-            (count, positives)
-        });
-        if counts
-            .iter()
-            .any(|(count, positives)| *count < 8 || *positives == 0 || *positives == *count)
-        {
-            return Err(BayesError::InvalidSpec(
-                "every mixture-of-experts split requires eight patients and both labels".into(),
-            ));
-        }
-        Ok(self)
     }
 }
 

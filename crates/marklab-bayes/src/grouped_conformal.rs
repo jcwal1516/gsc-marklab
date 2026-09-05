@@ -4,13 +4,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{BackendContract, BayesError, WorkerBackend};
 
-mod native;
-pub use native::{fit_grouped_conformal, GroupedConformalFit, NativeConformalBackend};
-
 const SCIPY_VERSION: &str = "1.18.1";
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, Serialize)]
 pub struct GroupedConformalPatient {
     pub patient_id: String,
     pub split: String,
@@ -20,8 +16,7 @@ pub struct GroupedConformalPatient {
     pub features: Vec<f64>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub struct GroupedConformalSpec {
     pub patients: Vec<GroupedConformalPatient>,
     pub feature_names: Vec<String>,
@@ -50,9 +45,12 @@ pub struct GroupedConformalResources {
     pub timeout_seconds: u64,
 }
 
-impl GroupedConformalSpec {
-    pub(crate) fn validated(self) -> Result<Self, BayesError> {
-        let mut spec = self;
+impl GroupedConformalWorkerRequest {
+    pub fn new(
+        mut spec: GroupedConformalSpec,
+        environment_lock_sha256: String,
+        worker_sha256: String,
+    ) -> Result<Self, BayesError> {
         if !((30..=100_000).contains(&spec.patients.len())
             && (2..=128).contains(&spec.feature_names.len())
             && 0.0 < spec.alpha
@@ -121,17 +119,6 @@ impl GroupedConformalSpec {
                 "grouped conformal training requires both labels".into(),
             ));
         }
-        Ok(spec)
-    }
-}
-
-impl GroupedConformalWorkerRequest {
-    pub fn new(
-        spec: GroupedConformalSpec,
-        environment_lock_sha256: String,
-        worker_sha256: String,
-    ) -> Result<Self, BayesError> {
-        let spec = spec.validated()?;
         Ok(Self {
             format: "marklab.scipy_grouped_conformal_request",
             version: 1,
@@ -355,9 +342,7 @@ fn probability(model: &GroupedConformalModel, features: &[f64]) -> f64 {
             .iter()
             .zip(features.iter().zip(&model.training_mean))
             .zip(&model.training_population_sd)
-            // Match the fitted design: standardize before multiplication. Reordering this can
-            // overflow a raw-feature product even when both standardized products are finite.
-            .map(|((coefficient, (value, mean)), sd)| coefficient * ((value - mean) / sd))
+            .map(|((coefficient, (value, mean)), sd)| coefficient * (value - mean) / sd)
             .sum::<f64>();
     if linear >= 0.0 {
         1.0 / (1.0 + (-linear).exp())

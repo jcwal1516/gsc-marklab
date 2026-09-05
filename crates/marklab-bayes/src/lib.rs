@@ -59,7 +59,6 @@ mod joint_mark;
 mod laplace;
 mod late_fusion;
 mod linalg;
-mod logistic_fit;
 mod matern_cluster;
 mod matern_covariance;
 mod meta_analysis;
@@ -76,7 +75,6 @@ mod ordinal_group_site_hierarchy;
 mod ordinal_heldout;
 mod partial_fused_gromov;
 mod partial_transport;
-mod pcca_em;
 mod point_process_ppc;
 mod prediction_calibration;
 mod prediction_safety;
@@ -304,10 +302,9 @@ pub use gridded_lgcp_spatial_ppc::{
     GriddedLgcpSpatialPpcSummary,
 };
 pub use grouped_conformal::{
-    fit_grouped_conformal, CoverageRow, GroupedConformalFit, GroupedConformalModel,
-    GroupedConformalPatient, GroupedConformalPrediction, GroupedConformalResources,
-    GroupedConformalSpec, GroupedConformalWorkerRequest, GroupedConformalWorkerResult,
-    GroupedCoverage, NativeConformalBackend,
+    CoverageRow, GroupedConformalModel, GroupedConformalPatient, GroupedConformalPrediction,
+    GroupedConformalResources, GroupedConformalSpec, GroupedConformalWorkerRequest,
+    GroupedConformalWorkerResult, GroupedCoverage,
 };
 pub use hierarchical::{
     GaussianHierarchyFit, GaussianHierarchyInputIdentity, GaussianHierarchySpec,
@@ -368,10 +365,9 @@ pub use laplace::{
     PoissonLaplaceWorkerRequest, PoissonLaplaceWorkerResult,
 };
 pub use late_fusion::{
-    fit_late_fusion, LateFusionCalibrator, LateFusionFit, LateFusionMetric, LateFusionModel,
-    LateFusionPatient, LateFusionPrediction, LateFusionResources, LateFusionSpec,
-    LateFusionWorkerRequest, LateFusionWorkerResult, MissingScenario, ModalityAblation,
-    NativeFusionBackend,
+    LateFusionCalibrator, LateFusionMetric, LateFusionModel, LateFusionPatient,
+    LateFusionPrediction, LateFusionResources, LateFusionSpec, LateFusionWorkerRequest,
+    LateFusionWorkerResult, MissingScenario, ModalityAblation,
 };
 pub use matern_cluster::{
     simulate_matern_cluster_process, MaternClusterBoundary, MaternClusterProcessError,
@@ -382,10 +378,9 @@ pub use meta_analysis::{
     MetaAnalysisWorkerResult, SiteEstimate,
 };
 pub use mixture_of_experts::{
-    fit_mixture_of_experts, MixtureCalibrator, MixtureGateModel, MixtureMetrics,
-    MixtureOfExpertsFit, MixtureOfExpertsPatient, MixtureOfExpertsResources, MixtureOfExpertsSpec,
-    MixtureOfExpertsWorkerRequest, MixtureOfExpertsWorkerResult, MixturePrediction,
-    NativeMixtureOfExpertsBackend,
+    MixtureCalibrator, MixtureGateModel, MixtureMetrics, MixtureOfExpertsPatient,
+    MixtureOfExpertsResources, MixtureOfExpertsSpec, MixtureOfExpertsWorkerRequest,
+    MixtureOfExpertsWorkerResult, MixturePrediction,
 };
 pub use model_comparison::{
     compare_psis_loo_models, BayesianModelComparisonResult, ComparedModel, PairwiseElpdDifference,
@@ -440,22 +435,17 @@ pub use partial_fused_gromov::{
     PartialFusedGromovWassersteinWorkerRequest, PartialFusedGromovWassersteinWorkerResult,
 };
 pub use partial_transport::{
-    fit_partial_transport, NativePartialTransportBackend, PartialTransportFit,
     PartialTransportOptimizer, PartialTransportPlanEntry, PartialTransportResources,
     PartialTransportSpec, PartialTransportWorkerRequest, PartialTransportWorkerResult,
-};
-pub use pcca_em::{
-    fit_pcca_em, NativePccaBackend, PccaEmDesign, PccaEmFit, PccaEmModality, PccaEmRow, PccaEmSpec,
 };
 pub use point_process_ppc::{
     posterior_predictive_point_process_diagnostics, PointProcessPpcCurveRow, PointProcessPpcError,
     PointProcessPpcResult, PointProcessPpcSpec, PpcPoint, PpcReplicatedPoint,
 };
 pub use prediction_calibration::{
-    fit_prediction_calibration, CalibratedPrediction, NativeCalibrationBackend, PlattCalibrator,
-    PredictionCalibrationFit, PredictionCalibrationMetrics, PredictionCalibrationResources,
-    PredictionCalibrationRow, PredictionCalibrationSpec, PredictionCalibrationWorkerRequest,
-    PredictionCalibrationWorkerResult, ReliabilityBin,
+    CalibratedPrediction, PlattCalibrator, PredictionCalibrationMetrics,
+    PredictionCalibrationResources, PredictionCalibrationRow, PredictionCalibrationSpec,
+    PredictionCalibrationWorkerRequest, PredictionCalibrationWorkerResult, ReliabilityBin,
 };
 pub use prediction_safety::{
     apply_abstention, mahalanobis_ood_score, AbstentionDecision, AbstentionPolicy,
@@ -467,7 +457,6 @@ pub use predictive_process::{
     PredictiveProcessSpec,
 };
 pub use predictive_stacking::{
-    fit_predictive_stacking, NativeStackingBackend, PredictiveStackingFit,
     PredictiveStackingPatient, PredictiveStackingResources, PredictiveStackingSpec,
     PredictiveStackingWorkerRequest, PredictiveStackingWorkerResult, StackingPatientDensity,
     StackingWeight, StackingWeightSensitivity,
