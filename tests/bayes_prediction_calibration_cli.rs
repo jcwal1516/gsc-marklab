@@ -32,6 +32,9 @@ p08,training_oof,2,1\n";
     let run = |input: &std::path::Path, output: &std::path::Path| {
         Command::cargo_bin("marklab")
             .expect("binary")
+            .env("MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION", "1")
+            .env("MARKLAB_PYTHON", "/nonexistent/marklab-python")
+            .env("MARKLAB_RUNTIME_ROOT", "/nonexistent/marklab-runtime")
             .args([
                 "bayes",
                 "calibrate-predictions",
@@ -55,8 +58,9 @@ p08,training_oof,2,1\n";
     let second_result = run(&second, &directory.path().join("second.json"));
 
     assert_eq!(first_result["format"], "marklab.prediction_calibration");
-    assert_eq!(first_result["backend"]["name"], "scipy");
-    assert_eq!(first_result["backend"]["version"], "1.18.1");
+    assert_eq!(first_result["backend"]["name"], "marklab-rust");
+    assert_eq!(first_result["version"], 2);
+    assert!(first_result["backend"].get("python_version").is_none());
     assert_eq!(first_result["fit_split"], "training_oof");
     assert_eq!(first_result["evaluation_split"], "test");
     assert_eq!(first_result["calibrator"], second_result["calibrator"]);
@@ -97,5 +101,98 @@ p08,training_oof,2,1\n";
             .map(|bin| bin["count"].as_u64().unwrap())
             .sum::<u64>(),
         8
+    );
+}
+
+#[test]
+fn native_calibration_transport_and_atomic_publication_preserve_contract() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("input.csv");
+    let output = directory.path().join("result.json");
+    let spec: serde_json::Value = serde_json::from_str(include_str!(
+        "../crates/marklab-bayes/tests/fixtures/prediction_calibration/small.spec.json"
+    ))
+    .unwrap();
+    let mut csv = "patient_id,split,score,label\n".to_owned();
+    for row in spec["rows"].as_array().unwrap() {
+        let score = if row["patient_id"] == "p000008" {
+            "0.36382339104022965".to_owned()
+        } else {
+            row["score"].to_string()
+        };
+        csv.push_str(&format!(
+            "{},{},{},{}\n",
+            row["patient_id"].as_str().unwrap(),
+            row["split"].as_str().unwrap(),
+            score,
+            row["label"]
+        ));
+    }
+    fs::write(&input, &csv).unwrap();
+    let request = serde_json::json!({"csv":csv,"bins":4,"timeout_seconds":30});
+    let response = Command::cargo_bin("marklab")
+        .unwrap()
+        .args(["backend", "native-prediction-calibration"])
+        .write_stdin(serde_json::to_vec(&request).unwrap())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert!(std::str::from_utf8(&response)
+        .unwrap()
+        .contains("\"score\":0.36382339104022965"));
+    let native: serde_json::Value = serde_json::from_slice(&response).unwrap();
+    assert_eq!(
+        native["input_sha256"],
+        marklab_bayes::sha256_hex(csv.as_bytes())
+    );
+    fs::write(&output, "existing result").unwrap();
+    Command::cargo_bin("marklab")
+        .unwrap()
+        .args([
+            "bayes",
+            "calibrate-predictions",
+            "--method",
+            "platt-logistic",
+            "--input",
+        ])
+        .arg(&input)
+        .args(["--bins", "4", "--timeout-seconds", "30"])
+        .arg("--out")
+        .arg(&output)
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("output already exists"));
+    assert_eq!(fs::read_to_string(&output).unwrap(), "existing result");
+    for bad in [
+        serde_json::json!({"csv":csv,"bins":21,"timeout_seconds":30}),
+        serde_json::json!({"csv":csv,"bins":4,"timeout_seconds":30,"extra":true}),
+    ] {
+        Command::cargo_bin("marklab")
+            .unwrap()
+            .args(["backend", "native-prediction-calibration"])
+            .write_stdin(serde_json::to_vec(&bad).unwrap())
+            .assert()
+            .failure();
+    }
+}
+
+#[test]
+fn calibration_csv_stops_at_resource_limits_before_decoding_extra_values() {
+    let mut csv = "patient_id,split,score,label\n".to_owned();
+    csv.push_str(&"p,training_oof,0,0\n".repeat(100000));
+    csv.push_str("extra,test,not-a-score,1\n");
+    assert!(
+        marklab::prediction_calibration::fit_csv(csv.as_bytes(), 4, 30)
+            .unwrap_err()
+            .to_string()
+            .contains("100000")
+    );
+    assert!(
+        marklab::prediction_calibration::fit_csv(&vec![b'0'; 16 * 1024 * 1024 + 1], 4, 30)
+            .unwrap_err()
+            .to_string()
+            .contains("16 MiB")
     );
 }

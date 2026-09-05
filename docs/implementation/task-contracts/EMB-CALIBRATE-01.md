@@ -31,3 +31,11 @@ An eight-patient noisy monotone OOF fixture yields strictly increasing held-out 
 every test label leaves calibrator parameters and all probabilities exactly unchanged, proving the fit
 boundary; Brier and reliability counts are independently recomputed. This is synthetic calibration
 evidence, not transportability or clinical utility.
+
+## Native execution amendment — 2026-09-05
+
+DEC-0416 / RUST-MIGRATION-01 replaces the production Python startup with a bounded native child and
+library-owned CSV/scientific flow. Version 2 carries truthful native metadata; legacy worker readers
+remain. All scientific fields and claim limits above retain their semantics. Eight oracle cases and
+paired performance evidence, including two failed legacy cold comparisons, are recorded in the
+migration contract and `audits/prediction_calibration_measurements.json`.

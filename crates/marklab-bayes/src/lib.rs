@@ -444,9 +444,10 @@ pub use point_process_ppc::{
     PointProcessPpcResult, PointProcessPpcSpec, PpcPoint, PpcReplicatedPoint,
 };
 pub use prediction_calibration::{
-    CalibratedPrediction, PlattCalibrator, PredictionCalibrationMetrics,
-    PredictionCalibrationResources, PredictionCalibrationRow, PredictionCalibrationSpec,
-    PredictionCalibrationWorkerRequest, PredictionCalibrationWorkerResult, ReliabilityBin,
+    fit_prediction_calibration, CalibratedPrediction, NativeCalibrationBackend, PlattCalibrator,
+    PredictionCalibrationFit, PredictionCalibrationMetrics, PredictionCalibrationResources,
+    PredictionCalibrationRow, PredictionCalibrationSpec, PredictionCalibrationWorkerRequest,
+    PredictionCalibrationWorkerResult, ReliabilityBin,
 };
 pub use prediction_safety::{
     apply_abstention, mahalanobis_ood_score, AbstentionDecision, AbstentionPolicy,

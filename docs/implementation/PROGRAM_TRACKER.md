@@ -12,6 +12,8 @@ RUST-MIGRATION-01 / DEC-0415 now precedes real multiplex study admission by expl
 The completed native grouped-conformal milestone advances the concrete implementation of §§6.4–6.5
 and 6.8–6.12, BACK-01, PLAT-01 and WF-01. Its bounded parity/performance and checkpoint evidence,
 including the timeout, successful rerun and final focused correction, are recorded in STATUS.
+The subsequent patient-OOF calibration milestone (DEC-0416) advances the same concrete coverage,
+with eight parity/warmed cases, six cold comparisons and two retained legacy-wrapper cold failures.
 The frozen 154-source inventory is an admission starting point, not closed migration coverage.
 All 233 canonical rows and their scientific prerequisites remain. No biological data gap, existing
 nonconverged real fit, or independent calibration requirement is resolved by language parity.

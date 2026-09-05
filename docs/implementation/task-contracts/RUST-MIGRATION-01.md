@@ -1,6 +1,6 @@
 # RUST-MIGRATION-01 — Native execution with correctness and performance gates
 
-Status: active migration; first native grouped-conformal milestone complete.
+Status: active migration; native grouped-conformal and patient-OOF calibration milestones complete.
 
 Authorized 2026-09-05: implement the user's Rust migration plan in the primary checkout.
 Parent coverage: MASTER_PLAN §§6.4–6.5, 6.8–6.12; BACK-01, PLAT-01, WF-01 and each
@@ -139,3 +139,28 @@ a bounded file-backed stdin read regenerated all 154 unique sources and retained
 conformal CLI caller. No remote data or services were accessed, and no publication has
 been made. The coherent native milestone is authorized for a local commit; other production Python
 capabilities are still pending.
+
+## Patient-OOF calibration continuation — 2026-09-05
+
+DEC-0416 completes the bounded native CSV-to-calibration-to-report workflow with separate scientific,
+application and process owners. Frozen SciPy parity includes 16/1000/10000 patients, constant scores,
+complete separation, saturated finite test scores and two declared eighth-score panels. Smoothed
+raw-score Platt fitting and both diagnostic regressions retain their objectives, starts, 1000-step
+ceiling and 1e-10 gradient / 1e-14 relative-objective criteria using an exact-Hessian Newton solver.
+The finite-difference gradient/Hessian and expired-deadline units pass. Analytical nonidentifiability,
+leakage, ordering, legacy readers, exact-score transport and resource/publication boundaries are tested.
+
+Ten alternating paired repetitions yield 2.66–14.64x warm speedups on all eight cases and 7.39–8.24x
+cold speedups on six successful pairs of complete workflows; every corresponding bootstrap lower
+bound exceeds one. The original 1000/10000-patient decimal cases fail unchanged legacy CLI result
+validation, while their frozen worker and native application pass. Retain those two failures without
+cold speedup claims. The eighth-score panel changes neither labels/splits nor the required work and
+was declared to isolate that legacy transport limitation. The initial harness omitted --method;
+those failed attempts and their valid warm samples remain separately recorded. A development-only
+typed-spec JSON driver changed raw score bits and was replaced by actual native CSV transport.
+
+The ordinary milestone uses focused tests, scoped Clippy, formatting and explicit performance gates.
+It does not repeat the prior 47-minute workspace suite or claim hosted CI, parallel scaling, real-data
+admission, durable replay or final native release. Evidence: `audits/prediction_calibration_measurements.json`.
+Next production flow: late fusion, preserving its distinct score transformation, initialization,
+BFGS gradient criterion, missingness representation and ablation estimand.

@@ -632,6 +632,8 @@ Status: characterization freeze for WS-A. Exact field/symbol inventory is active
 
 - `marklab bayes calibrate-predictions` requires unique patient-level `training_oof` and `test` scores with both labels. Pinned SciPy 1.18.1 fits class-count-smoothed Platt logistic parameters only on OOF rows, applies them frozen to test, and reports Brier, ECE, calibration-in-the-large/slope, and reliability bins with Wilson intervals. Rust replays probabilities, Brier, ECE, and bins.
 
+- RUST-MIGRATION-01 / DEC-0416 adds the native version-2 calibration fit and bounded CSV application. Raw training_oof scores, smoothing, all held-out diagnostics, identity/order/resource limits and legacy Python readers remain. A killable native child owns deadlines; neither the scientific library nor CSV interpreter discovers runtime assets.
+
 ## IC-0098 — Patient-level split-conformal classification
 
 - `marklab bayes grouped-conformal` fits training-only standardization and positive-L2 logistic prediction, freezes corrected-rank `1-p(true label)` on separate calibration patients, and returns test binary sets plus overall/site/subgroup coverage. Alpha below the finite calibration resolution is rejected. Marginal exchangeability does not guarantee conditional or shifted-domain coverage.

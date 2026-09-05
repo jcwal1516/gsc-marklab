@@ -1,4 +1,4 @@
-# Native grouped-conformal migration measurements
+# Native migration measurements
 
 Measured 2026-09-05 on an Apple M4 Pro, 48 GiB RAM, macOS 26.5.2. The native candidate performs
 the existing training-only logistic fit, disjoint conformal calibration, prediction sets and grouped
@@ -83,3 +83,39 @@ additional release speedup claim. Corrected release comparisons and affected tes
 measured release candidate is retained at `target/native-migration/conformal/candidate-release-marklab`.
 The inventory, contracts and decision ledger determine promotion;
 this report alone is not a migration completion or release certificate.
+
+## Patient-OOF probability calibration
+
+The second native workflow preserves raw-score Platt fitting on training OOF rows, all held-out
+predictions, Brier/ECE/reliability/Wilson output, and both diagnostic regressions. Its one/two-parameter
+Newton fits combine objective, gradient and Hessian work over contiguous columns. Calibration and
+conformal preprocessing remain separate. Exact original CSV transport avoids intermediate float
+round trips, and native output carries its own source identity. Python sources/lock remain unchanged.
+
+Ten alternating paired repetitions on the same M4 Pro and one CPU thread give:
+
+| Workload | Cold Python / Rust ms | Cold paired speedup [95% interval] | Warm Python / Rust ms | Warm paired speedup [95% interval] |
+|---|---:|---:|---:|---:|
+| 16 patients | 276.033 / 33.735 | 8.22x [8.02, 8.40] | 0.697 / 0.063 | 11.17x [7.47, 14.94] |
+| 1000, original decimal scores | legacy validation fails | unavailable | 2.217 / 0.555 | 3.74x [3.36, 4.61] |
+| 10000, original decimal scores | legacy validation fails | unavailable | 14.454 / 5.441 | 2.67x [2.60, 2.70] |
+| 1000, scores rounded to eighths | 266.442 / 33.730 | 7.90x [7.83, 7.97] | 1.975 / 0.496 | 3.71x [3.55, 4.56] |
+| 10000, scores rounded to eighths | 307.253 / 41.203 | 7.39x [7.25, 7.63] | 13.073 / 4.923 | 2.66x [2.59, 2.68] |
+
+Constant, completely separated and saturated-score cases also pass parity and both timing gates;
+all eight warmed cases and six successful cold cases retain raw samples in
+[`prediction_calibration_measurements.json`](implementation/audits/prediction_calibration_measurements.json).
+The two original decimal-score cases succeed in the unchanged Python worker and native application,
+but the old CLI rejects returned predictions. They do not establish a complete-workflow speedup.
+The added eighth-score panel preserves labels and splits and isolates the legacy transport limitation;
+it does not replace those failures. The initial cold harness omitted required --method and is retained
+as a harness failure. Its correction changes neither implementation nor numerical tolerances.
+
+Cold measurements cover fresh complete CLI processes with a warm filesystem. Warm measurements
+cover the actual Python request service and native CSV/control service, including every regression
+and serialization. Profiling the native service collected 5577 samples: SHA-256 compression accounts
+for 23.11% exclusive samples and memmove 11.39%; no SIMD or parallel claim follows. OS memory
+observations are separate one-shot maxima, not a concurrent process-tree sum. The corrected native
+binary is retained at `target/native-migration/calibration/candidate-release-marklab`; commands,
+identities, profiles and limitations are in the audit. There is no durable calibration interface to
+replay, and these synthetic measurements establish no real pathology or cross-platform capacity.

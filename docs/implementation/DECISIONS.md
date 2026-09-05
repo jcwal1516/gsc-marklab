@@ -4327,3 +4327,49 @@ with external execution disabled and nonexistent Python/runtime paths, before an
 installation. No new workflow job, backend registry or environment dependency is introduced. Its
 CI contract is red/green and the exact test selection passes 19/19 locally. Hosted/actionlint
 validation remains explicitly unverified. The other production workers remain installed and tested.
+
+## DEC-0416 — Native patient-OOF probability calibration
+
+RUST-MIGRATION-01 continues in place. `prediction_calibration` in marklab-bayes owns shared
+admission and a new typed `fit_prediction_calibration` / `PredictionCalibrationFit` API; its
+private native and logistic modules own the three distinct regressions and held-out diagnostics.
+The root CSV application owns bounded decoding/source binding. The existing native runtime owns
+killable child execution through a second closed command route. The CLI remains presentation.
+No dependency is added. Native result version 2 records native source identity; legacy Python
+request/result readers and result-format 0.3 remain unchanged. `NativeCalibrationBackend` is a
+narrow provenance record rather than a dependency on the conformal model's result type.
+
+Preserve raw OOF scores, class-count smoothing, unpenalized Platt fitting, intercept-only offset
+and jointly fitted diagnostic regressions with ridge 1e-8, exact bin membership and Wilson bounds.
+Use bounded exact-Hessian damped Newton for these one/two-parameter convex objectives; this changes
+the optimizer, not the objective. Retain the reference starts and maximum 1000 iterations; require
+finite arithmetic and the reference 1e-10 gradient or 1e-14 relative objective convergence policy.
+Constant-score nonidentifiability requires predictive invariants rather than arbitrary coefficient
+agreement. No diagnostic may be omitted to improve speed. Cooperative library deadlines and
+hard child deadlines remain separate. Compare calibrated probabilities/Brier/ECE within 2e-7,
+identifiable fit and diagnostic coefficients within 1e-6 absolute/relative, bin bounds/counts/IDs
+exactly, Wilson intervals within 1e-12. Retain failures and do not promote before performance gates.
+
+The frozen saturated-score reference accepts finite held-out scores whose fitted linear product
+overflows: expit(+/-infinity) yields finite 1/0, followed by the existing diagnostic clipping. A
+red/green native regression preserves this behavior by checking the probability rather than
+rejecting that intermediate product. Nonfinite fitted parameters/objectives remain errors. An
+analytical unbalanced constant-score case also checks the smoothed probability and preservation
+of the starting coefficient nullspace; arbitrary coefficient equality is not an identifiability claim.
+
+The development-only calibration timing example lives in the root application package, with the
+existing CSV feature required. It executes the actual private CSV/control transport and emits raw
+native output. An initial typed-spec example's extra serde JSON conversion changed some raw scores
+by one ULP; it is replaced before performance promotion. This avoids changing production JSON
+features or timing a different input. Exact score bits and reliability boundaries supplement the
+prespecified coefficient/probability tolerances. The benchmark compares actual service boundaries:
+Python request-to-result versus native CSV-transport-to-result, and complete CLI separately.
+
+The original 1000/10000-patient decimal-score cases remain mandatory parity/warmed workloads.
+The unchanged legacy CLI rejects their returned predictions, while its frozen Python worker fits
+successfully. A development JSON round-trip already reproduced one-ULP raw-score differences;
+the legacy validator requires exact raw-score bits. Retain those cold failures. Add, without
+replacing them, a declared 1000/10000-patient panel with the same labels/splits and scores rounded
+to eighths. This isolates the legacy transport limit and permits complete-workflow comparisons
+when that baseline succeeds. No choice uses measured Rust timing and no failed comparison proves
+speedup. The original Python sources, optimizer settings and result checks remain unchanged.

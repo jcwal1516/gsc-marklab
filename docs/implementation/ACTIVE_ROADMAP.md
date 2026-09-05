@@ -18,7 +18,10 @@ The first grouped-conformal workflow now executes natively, with separate scient
 owners, frozen-reference parity, gradient/edge checks, paired final-build timings and native CI.
 Its complete measurement/validation scope and limits are recorded in STATUS and the task contract.
 
-1. Migrate patient-OOF probability calibration and late fusion. Keep each admission, score transform,
+Patient-OOF calibration now also has a native application, eight frozen parity cases and paired
+performance evidence (DEC-0416), retaining two legacy decimal-score cold failures.
+
+1. Migrate late fusion. Keep its admission, score transform,
    initialization, optimizer criterion, leakage and reporting contract with its scientific owner.
    Share logistic arithmetic only where the two current callers actually share semantics.
 2. Continue deterministic workflows, adapters/reports and bounded H5AD interchange, completing each

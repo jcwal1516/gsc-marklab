@@ -24,12 +24,12 @@ jobs:
       - run: cargo clippy --locked --workspace --all-targets --no-default-features --features cli -- -D warnings
       - name: Native library tests
         run: cargo nextest run --locked --workspace --all-features --lib
-      - name: Native grouped-conformal workflow without a Python runtime
+      - name: Native prediction workflows without a Python runtime
         env:
           MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION: "1"
           MARKLAB_PYTHON: /nonexistent/marklab-python
           MARKLAB_RUNTIME_ROOT: /nonexistent/marklab-runtime
-        run: cargo nextest run --locked --workspace --all-features --test bayes_grouped_conformal_cli --test native_grouped_conformal --test bfgs
+        run: cargo nextest run --locked --workspace --all-features --test bayes_grouped_conformal_cli --test native_grouped_conformal --test bfgs --test bayes_prediction_calibration_cli --test native_prediction_calibration
       - run: cargo test --locked --workspace --doc --all-features
       - run: cargo check --locked --workspace --no-default-features
       - run: cargo test --locked --package marklab --features wsi,cli --test wsi_integration

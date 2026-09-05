@@ -9,6 +9,12 @@ owns kill/reap/stream bounds. The existing CLI and backend command tree only ada
 Legacy Python request/result readers remain in their original canonical module. Promotion evidence
 is recorded in `task-contracts/RUST-MIGRATION-01.md`; unrelated Python methods retain their owners.
 
+Calibration continuation (DEC-0416): `/root` owns `prediction_calibration` in marklab-bayes
+(shared admission, typed fit, private one/two-parameter likelihood and held-out diagnostics),
+`src/prediction_calibration.rs` (CSV/source binding/private transport), the existing native process
+and CLI adapters, and their focused fixtures/tests. These are separate scientific and I/O owners;
+calibration does not depend on grouped-conformal preprocessing or its result types.
+
 ARCH-INTEGRATION-01 multiplex ownership: `src/scalar_mark/table/assay.rs` owns nullable assay
 declarations and values within the existing MarkTable; legacy Pattern projection remains in
 `table/validation.rs`. `src/spatial_autocorrelation` owns radius Moran/Geary arithmetic and panel

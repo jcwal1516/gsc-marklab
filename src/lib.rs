@@ -82,13 +82,17 @@ mod pair_correlation_workflow;
 mod perf;
 mod periodogram;
 mod permutation;
+#[cfg(feature = "csv")]
+pub mod prediction_calibration;
 mod prepost;
 mod probability_pair;
 mod probability_pair_workflow;
 mod python_backend;
 #[cfg(feature = "cli")]
 #[doc(hidden)]
-pub use native_backend::{run_native_grouped_conformal, NativeBackendError};
+pub use native_backend::{
+    run_native_grouped_conformal, run_native_prediction_calibration, NativeBackendError,
+};
 mod qc;
 mod registration;
 mod scalar_mark;

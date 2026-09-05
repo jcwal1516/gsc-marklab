@@ -30,6 +30,23 @@ pub fn run_native_grouped_conformal(
     request: Vec<u8>,
     timeout_seconds: u64,
 ) -> Result<Vec<u8>, NativeBackendError> {
+    run_registered("native-grouped-conformal", request, timeout_seconds)
+}
+
+/// Execute native calibration with the same bounded streams and hard deadline as conformal.
+#[doc(hidden)]
+pub fn run_native_prediction_calibration(
+    request: Vec<u8>,
+    timeout_seconds: u64,
+) -> Result<Vec<u8>, NativeBackendError> {
+    run_registered("native-prediction-calibration", request, timeout_seconds)
+}
+
+fn run_registered(
+    route: &str,
+    request: Vec<u8>,
+    timeout_seconds: u64,
+) -> Result<Vec<u8>, NativeBackendError> {
     if !(1..=3600).contains(&timeout_seconds) {
         return Err(NativeBackendError::Failed(
             "timeout outside 1..=3600 seconds".into(),
@@ -37,9 +54,7 @@ pub fn run_native_grouped_conformal(
     }
     let binary: PathBuf = std::env::current_exe()?;
     let mut command = Command::new(binary);
-    command
-        .args(["backend", "native-grouped-conformal"])
-        .env_clear();
+    command.args(["backend", route]).env_clear();
     run(command, request, Duration::from_secs(timeout_seconds))
 }
 

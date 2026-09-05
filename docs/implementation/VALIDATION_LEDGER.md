@@ -5329,3 +5329,28 @@ No global dependency, fuzz, RSS-scale, release-matrix, hosted CI or cross-platfo
 Darwin resource observations are OS maximum RSS, not a concurrent process-tree sum. No durable
 conformal interface existed to replay. This checkpoint does not establish real pathology capacity,
 biological calibration, all-language migration completion or a final Python-free release.
+
+## RUST-MIGRATION-01 patient-OOF calibration milestone — 2026-09-05
+
+DEC-0416 advances the complete native calibration application. Existing numerical/model/resource
+contracts and result-format 0.3 remain; this is an ordinary cohesive milestone, not a fresh workspace
+or release checkpoint. Frozen Python workers/locks are unchanged. Active data gaps and all 233
+master-plan tracker rows remain unchanged.
+
+| Evidence | Executed command | Result / limit |
+|---|---|---|
+| Domain red/green | `cargo +1.96.0 test --locked -p marklab-bayes --test native_prediction_calibration` | Missing native API/Deserialize red; initial 3/3 pass. Later exact saturation regression fails on nonfinite intermediate prediction, then passes after preserving finite expit saturation. |
+| Numerical derivatives/deadline | `cargo +1.96.0 test --locked -p marklab-bayes --test native_prediction_calibration --lib prediction_calibration` | Two internal gradient/Hessian/deadline tests pass; integration filter selected zero tests and is not counted. Separate integration commands cover them. |
+| CLI red/green | `cargo +1.96.0 test --locked --test bayes_prediction_calibration_cli` | Fails with unavailable Python before native routing. Green after CSV/application/child integration; the initial RawValue Sized compile error was corrected by borrowing the reference. |
+| Expanded native CI | `env CARGO_TARGET_DIR=target/native-migration/focused CARGO_BUILD_JOBS=2 MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1 MARKLAB_PYTHON=/nonexistent/marklab-python MARKLAB_RUNTIME_ROOT=/nonexistent/marklab-runtime cargo +1.96.0 nextest run --locked --workspace --all-features --test bayes_grouped_conformal_cli --test native_grouped_conformal --test bfgs --test bayes_prediction_calibration_cli --test native_prediction_calibration` | 26/26 pass. Later added/tightened calibration checks are covered in the final focused command below; no hosted CI claim. |
+| CI contract | `env CARGO_TARGET_DIR=target/native-migration/focused cargo +1.96.0 test --locked --test workflow_contract ci_` | Expected red before adding the calibration targets to the existing job, then 1/1 pass. |
+| Publication test repair | focused all-feature Nextest `--test bayes_prediction_calibration_cli native_calibration_transport_and_atomic_publication_preserve_contract` | Stronger stderr assertion exposed omitted required CLI arguments in the test. Corrected all controls and now verifies the actual `output already exists` error and unchanged bytes; passes. No passing assertion was weakened. |
+| Final domain/application checks | `env CARGO_TARGET_DIR=target/native-migration/focused CARGO_BUILD_JOBS=2 MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1 MARKLAB_PYTHON=/nonexistent/marklab-python MARKLAB_RUNTIME_ROOT=/nonexistent/marklab-runtime cargo +1.96.0 nextest run --locked -p marklab -p marklab-bayes --all-features --test bayes_prediction_calibration_cli --test native_prediction_calibration` | 8/8 pass, zero skips: five domain tests spanning eight frozen cases and three CLI/admission tests. Exact score bytes, constant-score nullspace, leakage/order, legacy reader, malformed controls, CSV/row ceilings and publication covered. |
+| Scoped Bayesian Clippy | `env CARGO_TARGET_DIR=target/native-migration/focused cargo +1.96.0 clippy --locked -p marklab-bayes --all-targets -- -D warnings` | Pass. |
+| Scoped root Clippy | `env CARGO_TARGET_DIR=target/native-migration/focused CARGO_BUILD_JOBS=2 cargo +1.96.0 clippy --locked -p marklab --lib --bin marklab --test bayes_prediction_calibration_cli --test workflow_contract -- -D warnings` | Pass. Final example/test lint also passes: `env CARGO_TARGET_DIR=target/native-migration/focused CARGO_BUILD_JOBS=2 cargo +1.96.0 clippy --locked -p marklab --example prediction_calibration_benchmark --test bayes_prediction_calibration_cli --test workflow_contract -- -D warnings`; `cargo +1.96.0 fmt --all --check` passes. |
+| Reference/performance | `tests/python/benchmark_prediction_calibration.py --prepare` and `--warm ... --baseline ... --candidate ...` under locked Python with OMP/OPENBLAS/MKL threads 1 | Eight frozen worker fits and warm parity comparisons pass; six cold comparisons pass and two legacy-wrapper failures retained. All successful paired bootstrap lower bounds exceed one. Raw failed harness attempt, samples/RSS/profile/identities/commands in `audits/prediction_calibration_measurements.json`. |
+
+No full workspace, no-default, strict-doc, package, fuzz, audit, feature-matrix or final native-release
+gate was rerun for this ordinary milestone. Prior major-checkpoint evidence is not relabeled current.
+The raw decimal-score legacy validation failures, missing hosted/actionlint environment, synthetic
+workload limits and absence of durable calibration replay remain explicit.

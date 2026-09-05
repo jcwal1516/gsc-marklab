@@ -23,6 +23,9 @@ enum BackendCommand {
     /// Private typed native execution boundary for the grouped-conformal application.
     #[command(hide = true)]
     NativeGroupedConformal,
+    /// Private native patient-OOF calibration application.
+    #[command(hide = true)]
+    NativePredictionCalibration,
 }
 
 pub(crate) fn cli_route() -> super::command_tree::Route {
@@ -35,11 +38,20 @@ fn run() -> Result<(), super::bayes::BayesCliError> {
     let BackendTopLevel::Backend { command } = BackendCli::parse().command;
     match command {
         BackendCommand::Doctor => doctor(),
-        BackendCommand::NativeGroupedConformal => native_conformal(),
+        BackendCommand::NativeGroupedConformal => native(|input| {
+            marklab::grouped_conformal::execute_native_request(input)
+                .map_err(|e| super::bayes::BayesCliError::Input(e.to_string()))
+        }),
+        BackendCommand::NativePredictionCalibration => native(|input| {
+            marklab::prediction_calibration::execute_native_request(input)
+                .map_err(|e| super::bayes::BayesCliError::Input(e.to_string()))
+        }),
     }
 }
 
-fn native_conformal() -> Result<(), super::bayes::BayesCliError> {
+fn native(
+    execute: impl FnOnce(Vec<u8>) -> Result<Vec<u8>, super::bayes::BayesCliError>,
+) -> Result<(), super::bayes::BayesCliError> {
     use super::bayes::BayesCliError;
     use std::io::{Read, Write};
     // The ordinary CSV is bounded to 16 MiB; JSON escaping plus row keys may expand it.
@@ -54,8 +66,7 @@ fn native_conformal() -> Result<(), super::bayes::BayesCliError> {
             "native request exceeds 128 MiB".into(),
         ));
     }
-    let bytes = marklab::grouped_conformal::execute_native_request(input)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let bytes = execute(input)?;
     std::io::stdout()
         .lock()
         .write_all(&bytes)

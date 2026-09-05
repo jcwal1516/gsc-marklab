@@ -23,7 +23,7 @@ On three independently converged Python fixtures, ten paired repetitions show 7.
 failures; fixed-native-parameter Python gradient/downstream checks pass but are not independent fits
 or speedup comparisons. See `../native-migration-measurements.md` and its raw audit record.
 
-The default-concurrency workspace run stopped at one unchanged hierarchy's 180-second backend
+At the preceding grouped-conformal major checkpoint, the default-concurrency workspace run stopped at one unchanged hierarchy's 180-second backend
 timeout (457 passed; 1266 not run). The unchanged test passed in isolation in 117.78 s. The full
 CI-concurrency rerun passed 1724/1724 in 2849.705 s, with 12 slow tests and 28 existing skips.
 That suite used the snapshot before the final contained standardization-order correction; its
@@ -32,9 +32,21 @@ pass afterward. A fresh unfiltered 1725-test run is not claimed. Formatting, ear
 Clippy/no-default/CSV-only/strict-doc/doc-test gates and scoped offline package checks are recorded
 in the task contract. `actionlint .github/workflows/ci.yml` could not run because actionlint is not
 installed; Ruby Psych syntax checks, the CI contract and the exact native test command pass locally.
-Hosted CI, cross-platform execution, final native release and all other Python migrations remain open.
+Hosted CI, cross-platform execution, final native release and the remaining Python migrations remain open.
 
-Next: patient-OOF probability calibration and fusion under their existing contracts. Real multiplex study admission follows the migration;
+The native patient-OOF calibration milestone (DEC-0416) now adds the complete CSV/application/child
+workflow, all three regressions, held-out metrics and truthful native provenance. Eight frozen Python
+cases pass differential checks; analytical constant scores, leakage, ordering, finite saturation,
+malformed/resource limits, exact-score transport and legacy reading are covered. Ten alternating
+paired repetitions show 2.66–14.64x warmed speedups on all eight cases and 7.39–8.24x cold speedups
+on six successful complete comparisons. The unchanged legacy CLI rejects the two original large
+decimal-score cases; they retain warmed parity/timings but no cold speedup claim. Raw samples,
+RSS, profiles, identities and harness corrections are in `audits/prediction_calibration_measurements.json`.
+Scoped Bayesian/root Clippy and the expanded native CI selection pass; final focused calibration
+checks are recorded in the validation ledger. The earlier full-workspace gate is not represented
+as a fresh calibration checkpoint. Python workers/locks, result-format 0.3 and all parent claims remain.
+
+Next: late fusion under its existing contract. Real multiplex study admission follows the migration;
 its missing biological design, assay metadata and independent calibration are still required.
 The previous architecture checkpoint remains recorded below with its original limitations.
 

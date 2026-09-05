@@ -6,9 +6,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::{BackendContract, BayesError, WorkerBackend};
 
+mod native;
+pub use native::{fit_prediction_calibration, NativeCalibrationBackend, PredictionCalibrationFit};
+
 const SCIPY_VERSION: &str = "1.18.1";
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PredictionCalibrationRow {
     pub patient_id: String,
     pub split: String,
@@ -16,11 +20,51 @@ pub struct PredictionCalibrationRow {
     pub label: u8,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PredictionCalibrationSpec {
     pub rows: Vec<PredictionCalibrationRow>,
     pub bins: u32,
     pub timeout_seconds: u64,
+}
+
+impl PredictionCalibrationSpec {
+    pub(crate) fn validated(mut self) -> Result<Self, BayesError> {
+        if !(16..=100_000).contains(&self.rows.len())
+            || !(2..=20).contains(&self.bins)
+            || !(1..=3_600).contains(&self.timeout_seconds)
+        {
+            return Err(BayesError::InvalidSpec(
+                "calibration row, bin, or timeout limits are invalid".into(),
+            ));
+        }
+        self.rows
+            .sort_by(|left, right| left.patient_id.cmp(&right.patient_id));
+        let mut ids = HashSet::with_capacity(self.rows.len());
+        for row in &self.rows {
+            if row.patient_id.trim().is_empty()
+                || !ids.insert(row.patient_id.as_str())
+                || !matches!(row.split.as_str(), "training_oof" | "test")
+                || !row.score.is_finite()
+                || row.label > 1
+            {
+                return Err(BayesError::InvalidSpec(
+                    "calibration patient identity, split, score, or label is invalid".into(),
+                ));
+            }
+        }
+        for split in ["training_oof", "test"] {
+            let rows = self.rows.iter().filter(|row| row.split == split);
+            let count = rows.clone().count();
+            let positives = rows.filter(|row| row.label == 1).count();
+            if count < 8 || positives == 0 || positives == count {
+                return Err(BayesError::InvalidSpec(format!(
+                    "calibration split {split} requires at least eight patients and both labels"
+                )));
+            }
+        }
+        Ok(self)
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -44,43 +88,11 @@ pub struct PredictionCalibrationWorkerRequest {
 
 impl PredictionCalibrationWorkerRequest {
     pub fn new(
-        mut spec: PredictionCalibrationSpec,
+        spec: PredictionCalibrationSpec,
         environment_lock_sha256: String,
         worker_sha256: String,
     ) -> Result<Self, BayesError> {
-        if !(16..=100_000).contains(&spec.rows.len())
-            || !(2..=20).contains(&spec.bins)
-            || !(1..=3_600).contains(&spec.timeout_seconds)
-        {
-            return Err(BayesError::InvalidSpec(
-                "calibration row, bin, or timeout limits are invalid".into(),
-            ));
-        }
-        spec.rows
-            .sort_by(|left, right| left.patient_id.cmp(&right.patient_id));
-        let mut ids = HashSet::with_capacity(spec.rows.len());
-        for row in &spec.rows {
-            if row.patient_id.trim().is_empty()
-                || !ids.insert(row.patient_id.as_str())
-                || !matches!(row.split.as_str(), "training_oof" | "test")
-                || !row.score.is_finite()
-                || row.label > 1
-            {
-                return Err(BayesError::InvalidSpec(
-                    "calibration patient identity, split, score, or label is invalid".into(),
-                ));
-            }
-        }
-        for split in ["training_oof", "test"] {
-            let rows = spec.rows.iter().filter(|row| row.split == split);
-            let count = rows.clone().count();
-            let positives = rows.filter(|row| row.label == 1).count();
-            if count < 8 || positives == 0 || positives == count {
-                return Err(BayesError::InvalidSpec(format!(
-                    "calibration split {split} requires at least eight patients and both labels"
-                )));
-            }
-        }
+        let spec = spec.validated()?;
         Ok(Self {
             format: "marklab.scipy_prediction_calibration_request",
             version: 1,
