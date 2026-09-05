@@ -29,6 +29,9 @@ enum BackendCommand {
     /// Private native calibrated late-fusion application.
     #[command(hide = true)]
     NativeLateFusion,
+    /// Private native constrained partial-transport application.
+    #[command(hide = true)]
+    NativePartialTransport,
 }
 
 pub(crate) fn cli_route() -> super::command_tree::Route {
@@ -41,6 +44,10 @@ fn run() -> Result<(), super::bayes::BayesCliError> {
     let BackendTopLevel::Backend { command } = BackendCli::parse().command;
     match command {
         BackendCommand::Doctor => doctor(),
+        BackendCommand::NativePartialTransport => native(|input| {
+            marklab::transport::execute_partial_native_request(input)
+                .map_err(|e| super::bayes::BayesCliError::Input(e.to_string()))
+        }),
         BackendCommand::NativeGroupedConformal => native(|input| {
             marklab::grouped_conformal::execute_native_request(input)
                 .map_err(|e| super::bayes::BayesCliError::Input(e.to_string()))

@@ -29,7 +29,7 @@ jobs:
           MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION: "1"
           MARKLAB_PYTHON: /nonexistent/marklab-python
           MARKLAB_RUNTIME_ROOT: /nonexistent/marklab-runtime
-        run: cargo nextest run --locked --workspace --all-features --test bayes_grouped_conformal_cli --test native_grouped_conformal --test bfgs --test bayes_prediction_calibration_cli --test native_prediction_calibration --test bayes_late_fusion_cli --test native_late_fusion
+        run: cargo nextest run --locked --workspace --all-features --test bayes_grouped_conformal_cli --test native_grouped_conformal --test bfgs --test bayes_prediction_calibration_cli --test native_prediction_calibration --test bayes_late_fusion_cli --test native_late_fusion --test bayes_partial_ot_cli --test native_partial_transport
       - run: cargo test --locked --workspace --doc --all-features
       - run: cargo check --locked --workspace --no-default-features
       - run: cargo test --locked --package marklab --features wsi,cli --test wsi_integration

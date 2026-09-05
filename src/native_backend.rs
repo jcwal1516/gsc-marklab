@@ -51,6 +51,15 @@ pub fn run_native_late_fusion(
     run_registered("native-late-fusion", request, timeout_seconds)
 }
 
+/// Execute native fixed-mass entropic transport with bounded streams and a hard deadline.
+#[doc(hidden)]
+pub fn run_native_partial_transport(
+    request: Vec<u8>,
+    timeout_seconds: u64,
+) -> Result<Vec<u8>, NativeBackendError> {
+    run_registered("native-partial-transport", request, timeout_seconds)
+}
+
 fn run_registered(
     route: &str,
     request: Vec<u8>,

@@ -154,3 +154,40 @@ commands, inputs, source/binary/lock hashes, raw samples, separate RSS observati
 attempts and conformal recheck. The same single-host/synthetic/cold-filesystem limits above apply.
 The three-workflow stabilization passes 1744 workspace tests at two-test concurrency (28 existing
 skips) and all 38 native CI cases with Python execution disabled; final native release remains open.
+
+## Fixed-mass entropic partial transport
+
+The native dual-coordinate solver retains epsilon entropy, fixed total mass, capacity inequalities,
+all dense plan entries and unmatched/objective summaries. It stops only when feasibility and a
+primal-dual residual pass. This specializes the same convex objective and avoids the reference's
+dense SLSQP subproblem. Python's 8x8 profile spends 8 of 13 ms inside compiled SLSQP; the native
+16x16 application profile has 1592 samples, with SHA-256 compression at 31.66% exclusive, memmove
+10.36% and CSV reader preparation 8.48%. Some system-math addresses remain unresolved. No speculative
+SIMD or parallel implementation was added.
+
+Ten alternating paired repetitions on the same M4 Pro, one computational thread:
+
+| Workload | Cold Python / Rust ms | Cold paired speedup [95% interval] | Warm Python / Rust ms | Warm paired speedup [95% interval] |
+|---|---:|---:|---:|---:|
+| forced | 284.176 / 34.529 | 8.13x [7.83, 8.41] | 0.489 / 0.124 | 3.76x [2.16, 5.85] |
+| inactive | 282.451 / 34.614 | 8.29x [7.89, 8.57] | 0.704 / 0.121 | 5.65x [3.87, 7.72] |
+| binding | 277.677 / 33.782 | 8.22x [8.12, 8.37] | 2.068 / 0.148 | 13.94x [11.97, 16.16] |
+| balanced | 288.801 / 34.231 | 8.40x [8.31, 8.61] | 1.111 / 0.135 | 7.73x [6.01, 10.02] |
+| representative | 294.554 / 34.180 | 8.65x [7.18, 8.84] | 11.621 / 0.182 | 63.60x [60.84, 66.21] |
+| demanding | 10509.570 / 34.914 | 300.83x [298.36, 305.88] | 10181.037 / 0.332 | 30616.08x [30245.37, 32329.19] |
+| maximum_null | 3583.711 / 42.915 | 83.75x [81.63, 84.62] | 3287.172 / 2.327 | 1407.79x [1386.20, 1429.07] |
+
+All seven independent successful references pass complete plan/marginal/objective comparisons at
+1e-6 absolute/relative, exact input identities/costs/order/counts, and native feasibility <=1e-8.
+The zero-capacity Python fit fails with a positive directional derivative; it is retained as a
+failure, while an independent analytical Gibbs formula verifies the native zero-support solution.
+There is no head-to-head timing or independent fitted-Python parity claim for that failure.
+
+Cold includes actual three-file admission, fresh CLI/child execution and atomic output on a warm
+filesystem. Warm compares the original Python JSON worker and native CSV/source-binding application,
+including complete science and serialization; file reads and process startup are excluded. Large
+ratios describe these particular converged optimization workloads, not a general Rust speed ratio.
+[`partial_transport_measurements.json`](implementation/audits/partial_transport_measurements.json)
+retains every sample, interval, separate one-shot RSS observation, profile, source/input identity,
+command and failure. Profiling/builds/tests finished before paired timings. Durable replay, parallel
+scaling, real data and cross-platform capacity were not measured.

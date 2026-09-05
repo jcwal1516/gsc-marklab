@@ -5379,3 +5379,26 @@ No new dependency or unsafe code was introduced. Python workers/lock, Cargo lock
 and every tracker table row remain unchanged. The 154-row frozen inventory now marks three native
 rows with explicit limitations. No hosted CI, new phase/release matrix, package/audit/fuzz run,
 real-data admission, parallel scaling, durable replay or final Python-free release is claimed.
+
+## RUST-MIGRATION-01 entropic partial transport — 2026-09-05
+
+DEC-0418 completes the fourth native workflow, with separate scientific, CSV/source-binding,
+process and publication owners. The three already-native neighboring transport kernels keep their
+arithmetic; their existing shared CSV parser moves into the root application library.
+
+| Evidence | Executed command | Result / limits |
+|---|---|---|
+| Scientific red/green | `cargo +1.96.0 test --locked -p marklab-bayes --test native_partial_transport` | Expected missing-API red followed by 4/4 initial green; final seven domain tests pass in native CI. Dense-identity regression first reached the late serialized-size error, then passes with a pre-allocation expansion bound. A stale validation-method compile reference was corrected before testing. |
+| Partial and neighboring CLI | `cargo +1.96.0 test --locked --test bayes_partial_ot_cli --test bayes_sinkhorn_ot_cli --test bayes_unbalanced_sinkhorn_cli --test bayes_entropic_soft_assignment_cli` | Expected missing-Python partial CLI red before routing. Final 3 partial + 3 neighboring tests pass, including exact decimal/control/file binding, malformed protocol/input, resource limits and real no-overwrite behavior. |
+| Deadline / analytical edge | `cargo +1.96.0 test --locked -p marklab-bayes partial_transport`; later `cargo +1.96.0 test --locked -p marklab-bayes --test native_partial_transport zero_capacities` | Expired-deadline unit and matching admission test pass; other filtered cases are not counted. Stronger independent zero-capacity Gibbs check passes after the CI run. |
+| Native CI | `env CARGO_TARGET_DIR=target/native-migration/focused CARGO_BUILD_JOBS=2 MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION=1 MARKLAB_PYTHON=/nonexistent/marklab-python MARKLAB_RUNTIME_ROOT=/nonexistent/marklab-runtime cargo +1.96.0 nextest run --locked --workspace --all-features --test bayes_grouped_conformal_cli --test native_grouped_conformal --test bfgs --test bayes_prediction_calibration_cli --test native_prediction_calibration --test bayes_late_fusion_cli --test native_late_fusion --test bayes_partial_ot_cli --test native_partial_transport` | 48/48 pass, zero skips, 6.852 seconds. |
+| CI contract | `cargo +1.96.0 test --locked --test workflow_contract ci_workflow_runs_locked_rust_wsi_and_benchmark_gates` | Expected assertion red before adding partial targets, then 1/1 passes. Initial `native` filter selected zero cases and is not coverage. |
+| Formatting / lint | `cargo +1.96.0 fmt --all --check`; `env CARGO_TARGET_DIR=target/native-migration/focused CARGO_BUILD_JOBS=2 cargo +1.96.0 clippy --locked -p marklab -p marklab-bayes --all-targets --all-features -- -D warnings` | Pass after formatting the last two test additions; scoped Clippy passes in 1m08s. |
+| Library feature boundary | `env CARGO_TARGET_DIR=target/native-migration/focused CARGO_BUILD_JOBS=2 cargo +1.96.0 check --locked -p marklab --no-default-features --features csv` | Pass, 12.41 seconds. |
+| Release / measurements | `env CARGO_BUILD_JOBS=2 cargo +1.96.0 build --locked --release --bin marklab --example partial_transport_benchmark`; `tests/python/benchmark_partial_transport.py --prepare`, then `--warm ... --baseline ... --candidate ...` under locked Python/one thread | Release build passes in 7m12s. All seven successful independent references pass ten alternating paired cold/warm comparisons, every complete plan/summary check and speedup intervals. The one unchanged zero-capacity SLSQP failure remains recorded; its native solution has analytical evidence only. Exact commands, samples, profiles, identities and separate RSS observations are in `audits/partial_transport_measurements.json`. |
+
+No production Python source/lock, Cargo lock, master-plan byte or tracker requirement row changed.
+The generated inventory marks four native rows, leaving 150 pending. No fresh full-workspace suite,
+strict docs, phase/release matrix, packaging, audit, hosted CI, cross-platform run or final Python-free
+release is claimed at this ordinary milestone. Earlier three-workflow checkpoint evidence remains
+scoped to its snapshot. The next admitted migration is complete patient-grouped predictive stacking.

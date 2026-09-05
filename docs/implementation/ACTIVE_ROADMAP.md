@@ -25,13 +25,13 @@ Late fusion now also executes natively with three independent oracle/performance
 retained failed-reference audits. The three-workflow checkpoint passes all 1744 workspace tests
 at two-test concurrency; the source inventory now marks three native rows, not full capability closure.
 
-1. Migrate constrained entropic partial transport (REG-PARTIAL-OT-01). Preserve the epsilon entropy
-   term, exact transported-mass equality, capacity inequalities, dense plan/identity ordering,
-   unmatched mass, optimizer disclosure, feasibility and resource limits. Reuse the existing
-   transport owners without replacing this objective with unregularized flow or balanced Sinkhorn.
-2. Migrate patient-grouped predictive stacking (EMB-STACKING-01), including every leave-one-patient-out
+Entropic partial transport now passes seven independent oracle/performance cases, analytical
+zero-capacity verification, complete native CLI and resource/legacy checks (DEC-0418). Its failed
+zero-capacity Python reference remains recorded. The inventory now marks four native rows.
+
+1. Migrate patient-grouped predictive stacking (EMB-STACKING-01), including every leave-one-patient-out
    refit and its sensitivity ranges, preserving simplex boundary solutions and claim limits.
-3. Continue deterministic factorization/spatial summaries, adapters/reports and bounded H5AD,
+2. Continue deterministic factorization/spatial summaries, adapters/reports and bounded H5AD,
    admitting each immediate caller and scientific contract. Analytically checkable Gaussian inference
    precedes generalized/spatial Bayesian methods, topology/registration and neural/SBI workflows.
 

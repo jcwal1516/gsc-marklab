@@ -663,7 +663,7 @@ Status: characterization freeze for WS-A. Exact field/symbol inventory is active
 
 ## IC-0104 — Fixed-mass entropic partial transport
 
-- `marklab bayes partial-ot` consumes bounded capacities, complete costs, positive epsilon, and fixed transported mass no larger than either total. Pinned SciPy 1.18.1 SLSQP enforces nonnegative plan, row/column capacity, and total equality at `1e-8`; Rust replays the complete plan, feasibility, unmatched mass, cost, entropy, and objective. Unmatched mass is not automatically novel biology.
+- `marklab bayes partial-ot` consumes bounded capacities, complete costs, positive epsilon, and fixed transported mass no larger than either total. DEC-0418 replaces production SLSQP with native log-domain dual coordinate maximization, preserving nonnegative plan, row/column capacity, total equality at `1e-8`, and the entropic objective. Success also requires a `1e-12` relative/absolute primal-dual residual within 2000 sweeps and the deadline. Native version 2 retains complete plan/order, unmatched mass, cost, entropy and objective with truthful source provenance; frozen SciPy 1.18.1 remains an independent reference and legacy version-1 readers remain. Unmatched mass is not automatically novel biology.
 
 ## IC-0105 — Dustbin entropic soft assignment
 

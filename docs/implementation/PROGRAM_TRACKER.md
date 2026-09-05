@@ -16,7 +16,8 @@ The subsequent patient-OOF calibration milestone (DEC-0416) advances the same co
 with eight parity/warmed cases, six cold comparisons and two retained legacy-wrapper cold failures.
 Late fusion (DEC-0417) completes a third native row with unchanged experimental claim limits;
 the three-workflow checkpoint passes 1744 tests at two-test concurrency. Entropic partial transport
-and patient-grouped predictive stacking are the next dependency-ordered concrete outcomes.
+(DEC-0418) completes a fourth native row with seven independent oracle/performance cases, an analytical
+zero-capacity oracle, and 48 passing native CI cases. Patient-grouped predictive stacking is next.
 The frozen 154-source inventory is an admission starting point, not closed migration coverage.
 All 233 canonical rows and their scientific prerequisites remain. No biological data gap, existing
 nonconverged real fit, or independent calibration requirement is resolved by language parity.

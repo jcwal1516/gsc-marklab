@@ -69,6 +69,21 @@ individual admission. Real multiplex study admission follows the migration; its 
 assay metadata and independent calibration gaps remain.
 The previous architecture checkpoint remains recorded below with its original limitations.
 
+Entropic partial transport is now native (DEC-0418). The scientific solver preserves the strict
+convex objective, capacities, fixed mass, dense support ordering and output fields; the root library
+owns shared CSV admission for all four existing transport commands, and the runtime owns deadlines.
+Seven independent references pass complete-plan parity and ten paired cold/warm speedup gates.
+The 8x8, 16x16 and 64x64 uniform cold speedups are 8.65x, 300.83x and 83.75x; warmed speedups
+are 63.60x, 30616.08x and 1407.79x. These are workload/algorithm-specific gains, not a general
+language ratio. The zero-capacity SciPy failure is retained; a separate analytical Gibbs oracle
+verifies the native plan, without a speedup claim. Seven domain and three partial CLI tests,
+three neighboring transport CLIs, cooperative deadline, CI contract, formatting and scoped
+all-feature Clippy pass. All 48 native CI tests pass without Python execution. The previous 1744-test
+checkpoint remains the last broad suite; no fresh broad/release/cross-platform gate is claimed.
+Raw samples, profiles, memory observations and source identities are in
+`audits/partial_transport_measurements.json`. Four inventory rows are now native; the next workflow
+is patient-grouped predictive stacking. All 233 parent requirements and Python sources remain.
+
 ## Previous outcome — ARCH-INTEGRATION-01
 
 User-authorized architecture integration has delivered the bounded workflow below. Earlier local milestones:

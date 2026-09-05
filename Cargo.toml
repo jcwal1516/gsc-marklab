@@ -122,6 +122,11 @@ path = "examples/grouped_conformal_application_benchmark.rs"
 required-features = ["csv"]
 
 [[example]]
+name = "partial_transport_benchmark"
+path = "examples/partial_transport_benchmark.rs"
+required-features = ["csv"]
+
+[[example]]
 name = "late_fusion_benchmark"
 path = "examples/late_fusion_benchmark.rs"
 required-features = ["csv"]

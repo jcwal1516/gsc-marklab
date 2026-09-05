@@ -1,0 +1,1 @@
+{"source":[{"id":"s000","mass":0.25},{"id":"s001","mass":1.0},{"id":"s002","mass":2.0}],"target":[{"id":"t000","mass":0.5},{"id":"t001","mass":1.0},{"id":"t002","mass":2.0}],"costs_row_major":[0.0,0.25,1.0,0.25,0.0,0.75,1.0,0.75,0.0],"transported_mass":2.0,"epsilon":0.3,"timeout_seconds":120}

@@ -22,6 +22,11 @@ module now owns the exact likelihood and BFGS/Newton strategy consumed by confor
 Conformal still owns standardization; standalone prediction calibration retains its separate
 Newton/relative-objective regression contract. No cross-family preprocessing is shared.
 
+Partial-transport continuation (DEC-0418): `/root` owns the existing Bayes partial_transport
+admission and native dual solver, `src/transport.rs` and `transport/csv.rs` for the four actual
+transport CSV callers, native runtime/CLI adapters and focused fixtures/tests. The exact_float_json
+codec remains the private typed-input owner; legacy partial result readers remain unchanged.
+
 ARCH-INTEGRATION-01 multiplex ownership: `src/scalar_mark/table/assay.rs` owns nullable assay
 declarations and values within the existing MarkTable; legacy Pattern projection remains in
 `table/validation.rs`. `src/spatial_autocorrelation` owns radius Moran/Geary arithmetic and panel
@@ -166,7 +171,7 @@ Existing canonical scientific/config/parser/result/output symbols remain owned b
 | `PredictiveStackingWorkerRequest`; simplex grouped predictive optimization | `crates/marklab-bayes/src/predictive_stacking.rs`; static SciPy worker | IC-0100 patient-held-out densities, simplex weights, exact leave-one-patient sensitivity | `marklab bayes predictive-stacking` | symmetric `0.5/0.5` oracle and independent mixture/objective replay | EMB-STACKING-01 complete |
 | `MixtureOfExpertsWorkerRequest`; context/availability gate | `crates/marklab-bayes/src/mixture_of_experts.rs`; static SciPy worker | IC-0101 declared OOF experts, anti-shortcut/anti-collapse gate, disjoint calibration/context OOD | `marklab bayes mixture-of-experts-fusion` | context-switching experts, exact availability masks, independent gate/calibration/OOD replay | EMB-MOE-01 complete |
 | `sinkhorn_ot`; `unbalanced_sinkhorn` | `crates/marklab-bayes/src/transport.rs` | IC-0102 equal-total log-domain dual transport; IC-0103 KL-relaxed marginal transport | `marklab bayes sinkhorn-ot`; `marklab bayes unbalanced-sinkhorn` | symmetric two-cell closed form; one-cell `16^(1/3)` fixed point | REG-SINKHORN-01 and REG-UNBAL-OT-01 complete |
-| `PartialTransportWorkerRequest`; strict feasibility/objective replay | `crates/marklab-bayes/src/partial_transport.rs`; static SciPy worker | IC-0104 fixed transported mass and row/column capacity inequalities | `marklab bayes partial-ot` | forced one-cell mass/cost/unmatched oracle | REG-PARTIAL-OT-01 complete |
+| `fit_partial_transport`; legacy `PartialTransportWorkerRequest`/result replay | `crates/marklab-bayes/src/partial_transport.rs`, `partial_transport/{native,solver}.rs`; root `transport` CSV application | IC-0104 fixed transported mass and row/column capacity inequalities | `marklab bayes partial-ot` | seven frozen SLSQP comparisons; analytical one-cell/uniform/zero-capacity; ordering, exact transport, bounded identity expansion | REG-PARTIAL-OT-01 native complete under DEC-0418 |
 | `entropic_soft_assignment` | `crates/marklab-bayes/src/transport.rs` | IC-0105 explicit dustbin states and epsilon sensitivity | `marklab bayes entropic-soft-assignment` | high-real-cost one-cell unmatched oracle | REG-SOFT-ASSIGN-01 complete |
 | `FusedGromovWassersteinWorkerRequest`; strict plan/objective replay | `crates/marklab-bayes/src/fused_gromov.rs`; static POT worker | IC-0106 scaled feature/structure FGW with three initializations | `marklab bayes fused-gromov-wasserstein`; `marklab project fused-gromov-wasserstein` | reversed-feature two-point isometry; cross-process durable miss/hit/no-second-worker regression | REG-FGW-01 complete; BACK-DUR-01 durable caller complete |
 | `PartialFusedGromovWassersteinWorkerRequest`; fixed-mass sensitivity/replay | `crates/marklab-bayes/src/partial_fused_gromov.rs`; static POT partial-Wasserstein worker | IC-0107 fixed-mass FGW with alpha/mass/epsilon/initialization sensitivity | `marklab bayes partial-fused-gromov-wasserstein` | forced half-mass and reversed-feature gradient regressions | REG-PARTIAL-FGW-01 fixed-mass complete; KL-unbalanced backend-blocked |

@@ -198,3 +198,26 @@ The prior default-concurrency timeout remains historical evidence, not a current
 All 233 tracker rows, master-plan bytes, Python workers/lock and Cargo lock remain unchanged. Final
 native release, hosted/cross-platform and phase-specific package/audit/fuzz/feature matrices remain
 open. Next: entropic partial transport, then patient-grouped predictive stacking.
+
+## Fourth native milestone — constrained entropic partial transport
+
+DEC-0418 completes REG-PARTIAL-OT-01 in the original Bayes owner. A bounded log-domain dual solver
+preserves the same entropic convex objective, fixed mass, capacity inequalities, dense plan/order and
+all scientific summaries. Native version 2 discloses the algorithm and source identity; legacy
+version-1 Python readers remain. The existing exact-float input codec serves the private child;
+actual file hashes are bound in the application using raw native JSON to preserve output numbers.
+The shared CSV parser now serves all four existing transport applications from the root library.
+
+Seven converged independent references pass complete plan/objective parity and ten paired cold/warm
+performance gates. The zero-capacity Python fit remains failed; a separate analytical Gibbs oracle
+checks the native solution. The 8x8, 16x16 and 64x64 uniform cases have cold speedups 8.65x, 300.83x
+and 83.75x; warmed speedups 63.60x, 30616.08x and 1407.79x. The ratios describe these optimization
+workloads and do not imply a language-wide gain. Every raw sample, confidence interval, memory/profile
+observation and source identity is retained in `audits/partial_transport_measurements.json`.
+
+Seven scientific integration cases, three partial CLI cases, three neighboring CLI cases, the
+cooperative deadline, CI contract, formatting, scoped all-feature Clippy and CSV-without-CLI build
+pass. All 48 native CI tests pass with Python disabled. Dense identity expansion is bounded before
+plan allocation. No new dependency, changed Python source/lock, altered master-plan row, fresh broad
+checkpoint or final native release is claimed. Four of 154 inventory rows are native. Continue with
+patient-grouped predictive stacking, preserving all leave-one-patient refits and simplex boundaries.

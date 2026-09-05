@@ -14,6 +14,7 @@ BASELINE = "f784302"
 
 
 def owner(name):
+    if name == "marklab_scipy_partial_transport_worker": return "marklab-bayes (reviewed native transport owner)"
     if any(x in name for x in ("gudhi", "topology", "skimage_raster")): return "marklab-topology"
     if any(x in name for x in ("registration", "simpleitk", "lddmm", "svf", "atlas", "serial_stack", "deformation", "landmark", "fgw", "fused_gromov", "partial_transport")): return "registration / marklab-spatial3d"
     if "point_set_generators" in name or "clone_models" in name: return "marklab-simulation"
@@ -57,7 +58,7 @@ def main():
         production=[p for p in matches if p.endswith((".rs",".py")) and not p.startswith(("tests/","docs/")) and "/tests/" not in p and not Path(p).name.startswith("test_")]
         tests=[p for p in matches if p.startswith("tests/") or "/tests/" in p or Path(p).name.startswith("test_")]
         contracts=[p for p in matches if p.startswith("docs/implementation/")]
-        writer.writerow([revision,path,hashlib.sha256(sources[path].encode()).hexdigest(),";".join(sorted(imports)),";".join(production),";".join(tests),";".join(contracts),owner(stem),"native: bounded parity and synthetic performance gates passed" if stem in ("marklab_scipy_grouped_conformal_worker", "marklab_scipy_prediction_calibration_worker", "marklab_scipy_late_fusion_worker") else "pending", "EMB-CONFORMAL-01 / RUST-MIGRATION-01" if "grouped_conformal" in stem else "EMB-CALIBRATE-01 / RUST-MIGRATION-01 (two legacy cold failures retained)" if stem=="marklab_scipy_prediction_calibration_worker" else "EMB-LATE-FUSION-01 / RUST-MIGRATION-01 (three failed reference fits retained)" if stem=="marklab_scipy_late_fusion_worker" else "existing caller fixtures; not yet individually admitted"])
+        writer.writerow([revision,path,hashlib.sha256(sources[path].encode()).hexdigest(),";".join(sorted(imports)),";".join(production),";".join(tests),";".join(contracts),owner(stem),"native: bounded parity and synthetic performance gates passed" if stem in ("marklab_scipy_grouped_conformal_worker", "marklab_scipy_prediction_calibration_worker", "marklab_scipy_late_fusion_worker", "marklab_scipy_partial_transport_worker") else "pending", "EMB-CONFORMAL-01 / RUST-MIGRATION-01" if "grouped_conformal" in stem else "EMB-CALIBRATE-01 / RUST-MIGRATION-01 (two legacy cold failures retained)" if stem=="marklab_scipy_prediction_calibration_worker" else "EMB-LATE-FUSION-01 / RUST-MIGRATION-01 (three failed reference fits retained)" if stem=="marklab_scipy_late_fusion_worker" else "REG-PARTIAL-OT-01 / RUST-MIGRATION-01 (zero-capacity Python failure; analytic native oracle)" if stem=="marklab_scipy_partial_transport_worker" else "existing caller fixtures; not yet individually admitted"])
     target=ROOT/"docs/implementation/PYTHON_MIGRATION_INVENTORY.csv"
     target.write_text(output.getvalue())
     print(f"{len(paths)} Python sources inventoried; unmatched/dynamic callers require review before porting")

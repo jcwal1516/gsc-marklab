@@ -438,6 +438,7 @@ pub use partial_fused_gromov::{
     PartialFusedGromovWassersteinWorkerRequest, PartialFusedGromovWassersteinWorkerResult,
 };
 pub use partial_transport::{
+    fit_partial_transport, NativePartialTransportBackend, PartialTransportFit,
     PartialTransportOptimizer, PartialTransportPlanEntry, PartialTransportResources,
     PartialTransportSpec, PartialTransportWorkerRequest, PartialTransportWorkerResult,
 };

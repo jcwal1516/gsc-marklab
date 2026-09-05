@@ -4435,3 +4435,42 @@ example, preserving the original typed example for its existing independent tool
 fusion do, avoiding development JSON numeric input rounding. Cold comparison remains the unchanged
 complete-CLI boundary. Report this expanded warm boundary explicitly rather than comparing its
 absolute timings directly to the earlier typed-spec warm measurement.
+
+## DEC-0418 — Native constrained entropic partial transport
+
+RUST-MIGRATION-01 continues with REG-PARTIAL-OT-01 / IC-0104 in the existing transport/Bayes owners.
+The scientific module adds typed native fitting/result/provenance and shared admission; the root
+transport CSV application owns identities, complete matrix construction and source binding. The
+CLI remains presentation and the existing closed native child runtime owns hard deadlines. Native
+version 2 retains the complete dense plan, marginals/unmatched mass, objective and feasibility fields;
+optimizer method/message truthfully describe the native algorithm. Legacy SLSQP readers remain.
+No dependency or unsafe code is added; no result-format 0.3 or Python-source change is made.
+
+Preserve min C:X + epsilon*sum X*(log X-1), X>=0, row sums<=source capacity, column sums<=target
+capacity and sum X=requested mass. This strictly convex entropic objective is not unregularized flow
+or balanced OT. Use log-domain dual coordinate maximization: row/column inequality multipliers are
+nonpositive, and a free global scale enforces total mass. Each coordinate maximization is exact;
+iterate within 2000 sweeps and the explicit deadline. Check the existing 1e-8 absolute feasibility
+bound and a 1e-12 relative/absolute primal-dual residual before success. Zero-capacity supports are
+excluded from scaling and restored as zero rows/columns. Preserve support and row-major plan order.
+Reuse the existing transport log-sum-exp helper; no general optimizer framework is introduced.
+
+The identity is a distinct native semantic hash plus exact source-file hashes at the application
+boundary. Keep 1..64 supports per side, 4096 plan variables, positive mass/epsilon, nonnegative finite
+capacities/costs and 16 MiB output. CSV is read at the existing 16 MiB/file limit. The private transport
+encodes typed IDs and exact f64 bits, avoiding repeated CSV identities and numeric JSON round trips.
+
+Freeze forced-one-cell, inactive-capacity, binding-capacity, zero-capacity, balanced, 8x8, 16x16 and
+64x64 uniform cases before native fitting. Compare complete plan masses/marginals/objectives within
+1e-6 absolute/relative across optimizers; retain exact IDs, ordering, counts and input costs. Native
+feasibility self-checks stay at 1e-8. Numerical failure and timeout remain failures, never clipped
+success. All required computations and every declared reference failure remain in the benchmark.
+
+The four existing transport CLI callers share one root CSV admission/source-binding owner, moving
+its existing complete-matrix parser out of the CLI. Public application fits retain each distinct
+scientific spec/result and existing controls. Source-bound results flatten the existing scientific
+output; no new scientific fields are introduced. Partial transport alone uses the killable child.
+Its parent validates the typed spec before the existing exact_float_json codec, requiring serde
+traits on PartialTransportSpec/TransportMass and an explicit borrowed validate method. The child
+returns ordinary native JSON. The parent attaches hashes computed from actual CSV bytes using raw
+JSON values, retaining exact output numbers without trusting child-supplied file identities.

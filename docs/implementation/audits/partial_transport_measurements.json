@@ -1,0 +1,1049 @@
+{
+  "platform": "macOS-26.5.2-arm64-arm-64bit",
+  "python": "3.12.9",
+  "threads": 1,
+  "warm_boundary": "Rust CSV admission/source binding/science/serialization; Python original JSON worker/serialization; input file reads and process startup excluded",
+  "workloads": {
+    "forced": {
+      "spec_sha256": "2f860b3610503f205bc2c2842d4715a1ec48265c4707556bb38fb5006af30997",
+      "request_sha256": "80719b914aa0217e634c9777f79e180cdcea58ffe84a7b2fa2700ab0de3bdd1d",
+      "native_backend": {
+        "name": "marklab-rust",
+        "version": "0.1.0",
+        "implementation_sha256": "d924fad97d8d19b6adc9c21ac658b35fc758acebb67647432a67dee0a9d7d8f8"
+      },
+      "native_request_sha256": "e43442a617f99290d7f8e7451d0be149c5997ec1e8eac8cad328cf1ae3bb010f",
+      "warm": {
+        "samples_ns": [
+          {
+            "python": 302500,
+            "rust": 117334
+          },
+          {
+            "rust": 114750,
+            "python": 703167
+          },
+          {
+            "python": 260041,
+            "rust": 140125
+          },
+          {
+            "rust": 124041,
+            "python": 790917
+          },
+          {
+            "python": 298084,
+            "rust": 137750
+          },
+          {
+            "rust": 116708,
+            "python": 683250
+          },
+          {
+            "python": 238583,
+            "rust": 117042
+          },
+          {
+            "rust": 133250,
+            "python": 625042
+          },
+          {
+            "python": 352500,
+            "rust": 123084
+          },
+          {
+            "rust": 172708,
+            "python": 805709
+          }
+        ],
+        "python_median_ns": 488771.0,
+        "rust_median_ns": 123562.5,
+        "median_paired_speedup": 3.7645247056048987,
+        "paired_bootstrap_95pct": [
+          2.1639491833030853,
+          5.854354457277993
+        ],
+        "parity": true,
+        "promotable": true
+      },
+      "cold": {
+        "samples_ns": [
+          {
+            "python": 807049917,
+            "rust": 492601959
+          },
+          {
+            "rust": 36835083,
+            "python": 283609875
+          },
+          {
+            "python": 295013625,
+            "rust": 34514458
+          },
+          {
+            "rust": 34926958,
+            "python": 276774708
+          },
+          {
+            "python": 290460875,
+            "rust": 34543125
+          },
+          {
+            "rust": 35180333,
+            "python": 284742291
+          },
+          {
+            "python": 267792750,
+            "rust": 33623125
+          },
+          {
+            "rust": 31914125,
+            "python": 262181875
+          },
+          {
+            "python": 273514167,
+            "rust": 33502583
+          },
+          {
+            "rust": 32919583,
+            "python": 286270833
+          }
+        ],
+        "python_median_ns": 284176083.0,
+        "rust_median_ns": 34528791.5,
+        "median_paired_speedup": 8.128882164040093,
+        "paired_bootstrap_95pct": [
+          7.831995321610221,
+          8.408644990862872
+        ],
+        "parity": true,
+        "promotable": true
+      },
+      "rss_time_l": {
+        "python": "        0.26 real         0.21 user         0.04 sys\n            73662464  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n               12247  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   7  voluntary context switches\n                 155  involuntary context switches\n           175593509  instructions retired\n            52492782  cycles elapsed\n            14025088  peak memory footprint\n",
+        "rust": "        0.03 real         0.01 user         0.00 sys\n            26034176  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3521  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   7  voluntary context switches\n                  37  involuntary context switches\n           170680180  instructions retired\n            51561988  cycles elapsed\n            14156184  peak memory footprint\n"
+      }
+    },
+    "inactive": {
+      "spec_sha256": "d680abf8ea310a9d2236a817ac09b1749d019bfb4f014157cb2bd7052776ca0d",
+      "request_sha256": "23630c7b845f578eb84732eeb77b79e620a0af3a39a35695970630364fcea518",
+      "native_backend": {
+        "name": "marklab-rust",
+        "version": "0.1.0",
+        "implementation_sha256": "d924fad97d8d19b6adc9c21ac658b35fc758acebb67647432a67dee0a9d7d8f8"
+      },
+      "native_request_sha256": "96ddb711542b0a37771fdcecb27b242c6f34567f084e32dd21ff4e9318d99b68",
+      "warm": {
+        "samples_ns": [
+          {
+            "python": 548167,
+            "rust": 149417
+          },
+          {
+            "rust": 138875,
+            "python": 1015375
+          },
+          {
+            "python": 500417,
+            "rust": 122292
+          },
+          {
+            "rust": 119500,
+            "python": 1224292
+          },
+          {
+            "python": 495167,
+            "rust": 118959
+          },
+          {
+            "rust": 121500,
+            "python": 987084
+          },
+          {
+            "python": 464458,
+            "rust": 120000
+          },
+          {
+            "rust": 116916,
+            "python": 902750
+          },
+          {
+            "python": 471750,
+            "rust": 137583
+          },
+          {
+            "rust": 120375,
+            "python": 858833
+          }
+        ],
+        "python_median_ns": 703500.0,
+        "rust_median_ns": 120937.5,
+        "median_paired_speedup": 5.648573632125773,
+        "paired_bootstrap_95pct": [
+          3.8704833333333335,
+          7.72135550309624
+        ],
+        "parity": true,
+        "promotable": true
+      },
+      "cold": {
+        "samples_ns": [
+          {
+            "python": 299913208,
+            "rust": 34605750
+          },
+          {
+            "rust": 34621459,
+            "python": 266693291
+          },
+          {
+            "python": 286772333,
+            "rust": 34669708
+          },
+          {
+            "rust": 34899459,
+            "python": 270954458
+          },
+          {
+            "python": 293775833,
+            "rust": 34709125
+          },
+          {
+            "rust": 33812583,
+            "python": 287268917
+          },
+          {
+            "python": 276665125,
+            "rust": 35062000
+          },
+          {
+            "rust": 33473042,
+            "python": 278130083
+          },
+          {
+            "python": 273584750,
+            "rust": 33741292
+          },
+          {
+            "rust": 33709208,
+            "python": 292816083
+          }
+        ],
+        "python_median_ns": 282451208.0,
+        "rust_median_ns": 34613604.5,
+        "median_paired_speedup": 8.290315077399875,
+        "paired_bootstrap_95pct": [
+          7.890739974901603,
+          8.56525406262384
+        ],
+        "parity": true,
+        "promotable": true
+      },
+      "rss_time_l": {
+        "python": "        0.27 real         0.21 user         0.04 sys\n            73809920  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n               12165  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   7  voluntary context switches\n                 140  involuntary context switches\n           174769753  instructions retired\n            52161823  cycles elapsed\n            12517760  peak memory footprint\n",
+        "rust": "        0.03 real         0.01 user         0.00 sys\n            26001408  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3521  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   7  voluntary context switches\n                  42  involuntary context switches\n           170702252  instructions retired\n            51092631  cycles elapsed\n            14090624  peak memory footprint\n"
+      }
+    },
+    "binding": {
+      "spec_sha256": "4e8647e4d4532ca97a849eca24adbbc7e13867f95607ae315928977fbde56081",
+      "request_sha256": "ce3d16adf21da2c482dae6df895c149114ac726041c71d05bf56106947103b0f",
+      "native_backend": {
+        "name": "marklab-rust",
+        "version": "0.1.0",
+        "implementation_sha256": "d924fad97d8d19b6adc9c21ac658b35fc758acebb67647432a67dee0a9d7d8f8"
+      },
+      "native_request_sha256": "d4832a1698065a4a8a004f686b2b1a92d38c27569481b8ec93ec5f219f660d4f",
+      "warm": {
+        "samples_ns": [
+          {
+            "python": 1845083,
+            "rust": 148166
+          },
+          {
+            "rust": 176209,
+            "python": 2503250
+          },
+          {
+            "python": 1727416,
+            "rust": 155292
+          },
+          {
+            "rust": 130625,
+            "python": 2102292
+          },
+          {
+            "python": 1875666,
+            "rust": 148208
+          },
+          {
+            "rust": 158542,
+            "python": 2168667
+          },
+          {
+            "python": 1698375,
+            "rust": 150375
+          },
+          {
+            "rust": 131959,
+            "python": 2223584
+          },
+          {
+            "python": 2033083,
+            "rust": 131500
+          },
+          {
+            "rust": 131458,
+            "python": 2273000
+          }
+        ],
+        "python_median_ns": 2067687.5,
+        "rust_median_ns": 148187.0,
+        "median_paired_speedup": 13.942479270078588,
+        "paired_bootstrap_95pct": [
+          11.974948481785926,
+          16.155637222985813
+        ],
+        "parity": true,
+        "promotable": true
+      },
+      "cold": {
+        "samples_ns": [
+          {
+            "python": 276740542,
+            "rust": 32800667
+          },
+          {
+            "rust": 33528000,
+            "python": 271355666
+          },
+          {
+            "python": 275618208,
+            "rust": 34976917
+          },
+          {
+            "rust": 32473833,
+            "python": 271751458
+          },
+          {
+            "python": 275649167,
+            "rust": 33684334
+          },
+          {
+            "rust": 32726875,
+            "python": 284340958
+          },
+          {
+            "python": 282446625,
+            "rust": 34794542
+          },
+          {
+            "rust": 33878958,
+            "python": 278613083
+          },
+          {
+            "python": 289516792,
+            "rust": 35259084
+          },
+          {
+            "rust": 34421917,
+            "python": 283009125
+          }
+        ],
+        "python_median_ns": 277676812.5,
+        "rust_median_ns": 33781646.0,
+        "median_paired_speedup": 8.216448738568701,
+        "paired_bootstrap_95pct": [
+          8.117555477522883,
+          8.368320980156547
+        ],
+        "parity": true,
+        "promotable": true
+      },
+      "rss_time_l": {
+        "python": "        0.30 real         0.22 user         0.04 sys\n            74432512  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n               12220  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   7  voluntary context switches\n                 168  involuntary context switches\n           174859007  instructions retired\n            53314566  cycles elapsed\n            12616088  peak memory footprint\n",
+        "rust": "        0.03 real         0.01 user         0.00 sys\n            26001408  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3528  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   7  voluntary context switches\n                  45  involuntary context switches\n           170558432  instructions retired\n            48918845  cycles elapsed\n            14107032  peak memory footprint\n"
+      }
+    },
+    "zero_capacity": {
+      "spec_sha256": "c6afba7e3c9255307f17c3957447f2418b2bd5edb48cd557782ecdfa05a6032f",
+      "request_sha256": "bb1b13065bc2ffcee0c9aa801399bd506181de0ea38920ce8d203611225ae710",
+      "reference_failure": {
+        "error": "Command '['/Users/user/Bench/gsc-marklab/target/pymc-venv/bin/python', '/Users/user/Bench/gsc-marklab/workers/python/marklab_scipy_partial_transport_worker.py']' returned non-zero exit status 2.",
+        "stderr": "partial transport worker failed: partial transport optimizer failed: Positive directional derivative for linesearch\n"
+      },
+      "promotable": false
+    },
+    "balanced": {
+      "spec_sha256": "53af196f7552c376bce11a8f354075de73d9f74f2f03c117b402a90f12c98bb2",
+      "request_sha256": "c4634d76603c4ad510538fdd8bac9d5492c5767d671a566f9d485b8b900b2484",
+      "native_backend": {
+        "name": "marklab-rust",
+        "version": "0.1.0",
+        "implementation_sha256": "d924fad97d8d19b6adc9c21ac658b35fc758acebb67647432a67dee0a9d7d8f8"
+      },
+      "native_request_sha256": "98ac82335e6a6121eae8d9af8ecf3dac0b41e5bef9ae0d81034e825cada2e804",
+      "warm": {
+        "samples_ns": [
+          {
+            "python": 911167,
+            "rust": 145583
+          },
+          {
+            "rust": 129292,
+            "python": 1344083
+          },
+          {
+            "python": 793625,
+            "rust": 134083
+          },
+          {
+            "rust": 131958,
+            "python": 1322292
+          },
+          {
+            "python": 868500,
+            "rust": 132292
+          },
+          {
+            "rust": 135708,
+            "python": 1276708
+          },
+          {
+            "python": 945583,
+            "rust": 157292
+          },
+          {
+            "rust": 150792,
+            "python": 1340084
+          },
+          {
+            "python": 813958,
+            "rust": 144042
+          },
+          {
+            "rust": 132000,
+            "python": 1326041
+          }
+        ],
+        "python_median_ns": 1111145.5,
+        "rust_median_ns": 134895.5,
+        "median_paired_speedup": 7.725996479665186,
+        "paired_bootstrap_95pct": [
+          6.011640770032805,
+          10.020551993816214
+        ],
+        "parity": true,
+        "promotable": true
+      },
+      "cold": {
+        "samples_ns": [
+          {
+            "python": 288978667,
+            "rust": 34533542
+          },
+          {
+            "rust": 32657583,
+            "python": 276052250
+          },
+          {
+            "python": 280493209,
+            "rust": 33548834
+          },
+          {
+            "rust": 33913792,
+            "python": 286905750
+          },
+          {
+            "python": 288624041,
+            "rust": 34244666
+          },
+          {
+            "rust": 34216917,
+            "python": 308603125
+          },
+          {
+            "python": 301273250,
+            "rust": 38430500
+          },
+          {
+            "rust": 33962416,
+            "python": 280377584
+          },
+          {
+            "python": 297557167,
+            "rust": 35761625
+          },
+          {
+            "rust": 35259166,
+            "python": 308965959
+          }
+        ],
+        "python_median_ns": 288801354.0,
+        "rust_median_ns": 34230791.5,
+        "median_paired_speedup": 8.398174726043852,
+        "paired_bootstrap_95pct": [
+          8.308134588849143,
+          8.607821395252882
+        ],
+        "parity": true,
+        "promotable": true
+      },
+      "rss_time_l": {
+        "python": "        0.32 real         0.22 user         0.04 sys\n            73908224  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n               12205  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   8  voluntary context switches\n                 379  involuntary context switches\n           176145141  instructions retired\n            53971807  cycles elapsed\n            13042096  peak memory footprint\n",
+        "rust": "        0.04 real         0.02 user         0.00 sys\n            26312704  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3572  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   8  voluntary context switches\n                  46  involuntary context switches\n           171778612  instructions retired\n            52239156  cycles elapsed\n            14451120  peak memory footprint\n"
+      }
+    },
+    "representative": {
+      "spec_sha256": "c5fc4861da866777f7d28bae210aefacb39af1a0f1abaa45ec610a0fdf037168",
+      "request_sha256": "8245af4f291147e14c24228145944d58f0a6ba65dde37a4e63aac08d76651ccf",
+      "native_backend": {
+        "name": "marklab-rust",
+        "version": "0.1.0",
+        "implementation_sha256": "d924fad97d8d19b6adc9c21ac658b35fc758acebb67647432a67dee0a9d7d8f8"
+      },
+      "native_request_sha256": "f41c8baeb70c0bb0290af49fc8512e1bf2b9f2406512a69b2061bafcc59cb0ad",
+      "warm": {
+        "samples_ns": [
+          {
+            "python": 11466750,
+            "rust": 197375
+          },
+          {
+            "rust": 177250,
+            "python": 12017375
+          },
+          {
+            "python": 11411750,
+            "rust": 179416
+          },
+          {
+            "rust": 187083,
+            "python": 11670709
+          },
+          {
+            "python": 11893542,
+            "rust": 200541
+          },
+          {
+            "rust": 183583,
+            "python": 12154417
+          },
+          {
+            "python": 11518042,
+            "rust": 181125
+          },
+          {
+            "rust": 175667,
+            "python": 11638708
+          },
+          {
+            "python": 11603292,
+            "rust": 180834
+          },
+          {
+            "rust": 185666,
+            "python": 11498000
+          }
+        ],
+        "python_median_ns": 11621000.0,
+        "rust_median_ns": 182354.0,
+        "median_paired_speedup": 63.59832408673945,
+        "paired_bootstrap_95pct": [
+          60.844901927635206,
+          66.20665856860384
+        ],
+        "parity": true,
+        "promotable": true
+      },
+      "cold": {
+        "samples_ns": [
+          {
+            "python": 289157708,
+            "rust": 41448584
+          },
+          {
+            "rust": 33935417,
+            "python": 329357917
+          },
+          {
+            "python": 291168250,
+            "rust": 33526708
+          },
+          {
+            "rust": 33685917,
+            "python": 295929333
+          },
+          {
+            "python": 320628292,
+            "rust": 35730875
+          },
+          {
+            "rust": 34425208,
+            "python": 293178459
+          },
+          {
+            "python": 290932292,
+            "rust": 33747084
+          },
+          {
+            "rust": 33512084,
+            "python": 291712666
+          },
+          {
+            "python": 303736000,
+            "rust": 48822875
+          },
+          {
+            "rust": 49381583,
+            "python": 354547625
+          }
+        ],
+        "python_median_ns": 294553896.0,
+        "rust_median_ns": 34180312.5,
+        "median_paired_speedup": 8.652813290204868,
+        "paired_bootstrap_95pct": [
+          7.179754140323934,
+          8.839062434076563
+        ],
+        "parity": true,
+        "promotable": true
+      },
+      "rss_time_l": {
+        "python": "        0.36 real         0.23 user         0.04 sys\n            75218944  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n               12423  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   8  voluntary context switches\n                 219  involuntary context switches\n           177863008  instructions retired\n            54597212  cycles elapsed\n            14516632  peak memory footprint\n",
+        "rust": "        0.03 real         0.01 user         0.00 sys\n            26263552  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3548  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   8  voluntary context switches\n                  36  involuntary context switches\n           172047420  instructions retired\n            50727655  cycles elapsed\n            14385560  peak memory footprint\n"
+      }
+    },
+    "demanding": {
+      "spec_sha256": "48dd5c539ecb6c4b65de736322df779c064f3ec9d3bd1f079ee4b10cb9b495ca",
+      "request_sha256": "453a67de185740ef49e3172a67d47ac30c8ed328ce8eb2b2a149a97acccb2de9",
+      "native_backend": {
+        "name": "marklab-rust",
+        "version": "0.1.0",
+        "implementation_sha256": "d924fad97d8d19b6adc9c21ac658b35fc758acebb67647432a67dee0a9d7d8f8"
+      },
+      "native_request_sha256": "b7f6248237f86612b540999e6b3864bed0c3b0619e26d658f9a0446fa131bc0b",
+      "warm": {
+        "samples_ns": [
+          {
+            "python": 10092340709,
+            "rust": 330750
+          },
+          {
+            "rust": 334334,
+            "python": 10102348584
+          },
+          {
+            "python": 10126869333,
+            "rust": 298333
+          },
+          {
+            "rust": 335250,
+            "python": 10145876375
+          },
+          {
+            "python": 10194906250,
+            "rust": 336750
+          },
+          {
+            "rust": 308167,
+            "python": 10177808625
+          },
+          {
+            "python": 10184265125,
+            "rust": 317750
+          },
+          {
+            "rust": 322542,
+            "python": 10202471209
+          },
+          {
+            "python": 10237350583,
+            "rust": 345416
+          },
+          {
+            "rust": 332416,
+            "python": 10211371667
+          }
+        ],
+        "python_median_ns": 10181036875.0,
+        "rust_median_ns": 331583.0,
+        "median_paired_speedup": 30616.077249503076,
+        "paired_bootstrap_95pct": [
+          30245.371198999135,
+          32329.18796859782
+        ],
+        "parity": true,
+        "promotable": true
+      },
+      "cold": {
+        "samples_ns": [
+          {
+            "python": 10516751708,
+            "rust": 35902208
+          },
+          {
+            "rust": 34458917,
+            "python": 10494414667
+          },
+          {
+            "python": 10479979458,
+            "rust": 34132958
+          },
+          {
+            "rust": 35170458,
+            "python": 10514022459
+          },
+          {
+            "python": 10514427833,
+            "rust": 35010666
+          },
+          {
+            "rust": 35295167,
+            "python": 10509832042
+          },
+          {
+            "python": 10492445458,
+            "rust": 34818292
+          },
+          {
+            "rust": 34363333,
+            "python": 10511026708
+          },
+          {
+            "python": 10509307292,
+            "rust": 35223750
+          },
+          {
+            "rust": 34219584,
+            "python": 10475545625
+          }
+        ],
+        "python_median_ns": 10509569667.0,
+        "rust_median_ns": 34914479.0,
+        "median_paired_speedup": 300.834679025044,
+        "paired_bootstrap_95pct": [
+          298.3572169691713,
+          305.87913890657813
+        ],
+        "parity": true,
+        "promotable": true
+      },
+      "rss_time_l": {
+        "python": "       10.49 real        10.25 user         0.37 sys\n            80510976  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n               12605  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   7  voluntary context switches\n               55383  involuntary context switches\n           184910928  instructions retired\n            63129500  cycles elapsed\n            12697984  peak memory footprint\n",
+        "rust": "        0.03 real         0.01 user         0.00 sys\n            26443776  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                3583  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                  95  voluntary context switches\n                  40  involuntary context switches\n           174515446  instructions retired\n            52755499  cycles elapsed\n            14500248  peak memory footprint\n"
+      }
+    },
+    "maximum_null": {
+      "spec_sha256": "5e563658803b2a982b7f50bfc3d9f8c41d11e4f3a813fa1e7919be3017b11989",
+      "request_sha256": "c5741f7df80644a8ae1fee60859a0b152901a2d79b65992f4e3ceac30285c957",
+      "native_backend": {
+        "name": "marklab-rust",
+        "version": "0.1.0",
+        "implementation_sha256": "d924fad97d8d19b6adc9c21ac658b35fc758acebb67647432a67dee0a9d7d8f8"
+      },
+      "native_request_sha256": "a830a03e50913419781c72feccd3fa6c92db2dad2a6c58923e5eb5663e72bdec",
+      "warm": {
+        "samples_ns": [
+          {
+            "python": 3275090458,
+            "rust": 2336833
+          },
+          {
+            "rust": 2310125,
+            "python": 3262936959
+          },
+          {
+            "python": 3268165625,
+            "rust": 2329958
+          },
+          {
+            "rust": 2389083,
+            "python": 3272413333
+          },
+          {
+            "python": 3291020584,
+            "rust": 2444000
+          },
+          {
+            "rust": 2340000,
+            "python": 3283322792
+          },
+          {
+            "python": 3391165167,
+            "rust": 2316500
+          },
+          {
+            "rust": 2312375,
+            "python": 3317114833
+          },
+          {
+            "python": 3293664125,
+            "rust": 2322417
+          },
+          {
+            "rust": 2323250,
+            "python": 3320075625
+          }
+        ],
+        "python_median_ns": 3287171688.0,
+        "rust_median_ns": 2326604.0,
+        "median_paired_speedup": 1407.789894535159,
+        "paired_bootstrap_95pct": [
+          1386.2038089448638,
+          1429.065156569461
+        ],
+        "parity": true,
+        "promotable": true
+      },
+      "cold": {
+        "samples_ns": [
+          {
+            "python": 3595114958,
+            "rust": 42238292
+          },
+          {
+            "rust": 44124000,
+            "python": 3568062209
+          },
+          {
+            "python": 3566323709,
+            "rust": 43687083
+          },
+          {
+            "rust": 44048583,
+            "python": 3550635750
+          },
+          {
+            "python": 3601563208,
+            "rust": 42812292
+          },
+          {
+            "rust": 43017250,
+            "python": 3634899917
+          },
+          {
+            "python": 3600790833,
+            "rust": 43691875
+          },
+          {
+            "rust": 42485917,
+            "python": 3591450500
+          },
+          {
+            "python": 3553166625,
+            "rust": 42614792
+          },
+          {
+            "rust": 41996875,
+            "python": 3575971875
+          }
+        ],
+        "python_median_ns": 3583711187.5,
+        "rust_median_ns": 42914771.0,
+        "median_paired_speedup": 83.75161424833887,
+        "paired_bootstrap_95pct": [
+          81.63336767071402,
+          84.61978878822438
+        ],
+        "parity": true,
+        "promotable": true
+      },
+      "rss_time_l": {
+        "python": "        3.58 real        15.30 user         0.64 sys\n          1273659392  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n               85732  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                1095  voluntary context switches\n               58363  involuntary context switches\n           234532425  instructions retired\n            76321297  cycles elapsed\n            16105904  peak memory footprint\n",
+        "rust": "        0.03 real         0.02 user         0.00 sys\n            30916608  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                4060  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                1109  voluntary context switches\n                  36  involuntary context switches\n           224123167  instructions retired\n            67796921  cycles elapsed\n            18989464  peak memory footprint\n"
+      }
+    }
+  },
+  "identities": {
+    "worker": {
+      "path": "/Users/user/Bench/gsc-marklab/workers/python/marklab_scipy_partial_transport_worker.py",
+      "sha256": "210b79702c3a2dc08b410a154fc4c128eacbf09bdb0224a89805db11f71012d5"
+    },
+    "lock": {
+      "path": "/Users/user/Bench/gsc-marklab/workers/python/uv.lock",
+      "sha256": "56030b038e8661823a1a52ae9dbfb6acc72cdeaace7a1ec5a798c78cd62aa768"
+    },
+    "baseline": {
+      "path": "/Users/user/Bench/gsc-marklab/target/native-migration/partial-transport/python-baseline-marklab",
+      "sha256": "4931e5073fbf9a332222d57a08640b0ea08add4f669ad57cd72f1f15f6fb5819"
+    },
+    "candidate": {
+      "path": "/Users/user/Bench/gsc-marklab/target/native-migration/partial-transport/candidate-release-marklab",
+      "sha256": "569cb4f093fbb7136bab02c7966552c96c85d754e8027c6611b4c08a5552ceb8"
+    },
+    "warm": {
+      "path": "/Users/user/Bench/gsc-marklab/target/native-migration/partial-transport/candidate-release-benchmark",
+      "sha256": "343e6fd8cdc1c3c96b2a9382b3054ceaa911f82b4bd863a880c89299189d1c34"
+    }
+  },
+  "native_profile": {
+    "samples": 1592,
+    "exclusive": [
+      {
+        "function": "sha2::sha256::compress256",
+        "samples": 504,
+        "percent": 31.65829145728643
+      },
+      {
+        "function": "_platform_memmove",
+        "samples": 165,
+        "percent": 10.364321608040202
+      },
+      {
+        "function": "csv_core::reader::ReaderBuilder::build",
+        "samples": 135,
+        "percent": 8.479899497487438
+      },
+      {
+        "function": "marklab_bayes::partial_transport::native::fit_partial_transport",
+        "samples": 88,
+        "percent": 5.527638190954774
+      },
+      {
+        "function": "_platform_memcmp",
+        "samples": 56,
+        "percent": 3.5175879396984926
+      },
+      {
+        "function": "<&mut serde_json::ser::Serializer<W,F> as serde_core::ser::Serializer>::serialize_str",
+        "samples": 52,
+        "percent": 3.2663316582914574
+      },
+      {
+        "function": "marklab::transport::partial_spec",
+        "samples": 44,
+        "percent": 2.763819095477387
+      },
+      {
+        "function": "mach_absolute_time",
+        "samples": 43,
+        "percent": 2.701005025125628
+      },
+      {
+        "function": "0x1430",
+        "samples": 32,
+        "percent": 2.0100502512562812
+      },
+      {
+        "function": "<f64 as zmij::private::Sealed>::write_to_zmij_buffer",
+        "samples": 24,
+        "percent": 1.5075376884422111
+      },
+      {
+        "function": "<core::iter::adapters::flatten::FlattenCompat<I,U> as core::iter::traits::iterator::Iterator>::try_fold::flatten::{{closure}}",
+        "samples": 23,
+        "percent": 1.4447236180904524
+      },
+      {
+        "function": "0x1458",
+        "samples": 20,
+        "percent": 1.256281407035176
+      },
+      {
+        "function": "0x1428",
+        "samples": 19,
+        "percent": 1.193467336683417
+      },
+      {
+        "function": "0x52160",
+        "samples": 17,
+        "percent": 1.0678391959798994
+      },
+      {
+        "function": "_platform_memset",
+        "samples": 17,
+        "percent": 1.0678391959798994
+      },
+      {
+        "function": "csv_core::reader::Reader::read_record",
+        "samples": 16,
+        "percent": 1.0050251256281406
+      },
+      {
+        "function": "0x2a0d4",
+        "samples": 16,
+        "percent": 1.0050251256281406
+      },
+      {
+        "function": "0x13dc",
+        "samples": 15,
+        "percent": 0.9422110552763819
+      },
+      {
+        "function": "0x1200",
+        "samples": 14,
+        "percent": 0.8793969849246231
+      },
+      {
+        "function": "0x13d0",
+        "samples": 14,
+        "percent": 0.8793969849246231
+      }
+    ]
+  },
+  "python_profiles": {
+    "forced": "         764 function calls (620 primitive calls) in 0.001 seconds\n\n   Ordered by: cumulative time\n   List reduced from 181 to 20 due to restriction <20>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.000    0.000    0.001    0.001 /Users/user/Bench/gsc-marklab/workers/python/marklab_scipy_partial_transport_worker.py:62(run)\n        1    0.000    0.000    0.000    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/optimize/_minimize.py:54(minimize)\n        1    0.000    0.000    0.000    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/optimize/_slsqp_py.py:220(_minimize_slsqp)\n        1    0.000    0.000    0.000    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/optimize/_optimize.py:204(_prepare_scalar_function)\n        1    0.000    0.000    0.000    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/optimize/_differentiable_functions.py:218(__init__)\n        2    0.000    0.000    0.000    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/optimize/_minimize.py:1121(standardize_bounds)\n        1    0.000    0.000    0.000    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/optimize/_constraints.py:304(__init__)\n       50    0.000    0.000    0.000    0.000 {built-in method builtins.isinstance}\n        4    0.000    0.000    0.000    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/_lib/_sparse.py:10(issparse)\n        4    0.000    0.000    0.000    0.000 <frozen abc>:117(__instancecheck__)\n        4    0.000    0.000    0.000    0.000 {built-in method _abc._abc_instancecheck}\n     75/3    0.000    0.000    0.000    0.000 <frozen abc>:121(__subclasscheck__)\n     75/3    0.000    0.000    0.000    0.000 {built-in method _abc._abc_subclasscheck}\n        2    0.000    0.000    0.000    0.000 /Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/pathlib.py:1015(read_bytes)\n        3    0.000    0.000    0.000    0.000 {built-in method _hashlib.openssl_sha256}\n        2    0.000    0.000    0.000    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/optimize/_differentiable_functions.py:360(_update_fun)\n        1    0.000    0.000    0.000    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/_lib/_util.py:541(__call__)\n        2    0.000    0.000    0.000    0.000 /Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/pathlib.py:1005(open)\n        2    0.000    0.000    0.000    0.000 {built-in method _io.open}\n        2    0.000    0.000    0.000    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/optimize/_optimize.py:71(_compute_if_needed)\n\n\n",
+    "representative": "         13342 function calls in 0.013 seconds\n\n   Ordered by: cumulative time\n   List reduced from 176 to 20 due to restriction <20>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.000    0.000    0.013    0.013 /Users/user/Bench/gsc-marklab/workers/python/marklab_scipy_partial_transport_worker.py:62(run)\n        1    0.000    0.000    0.013    0.013 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/optimize/_minimize.py:54(minimize)\n        1    0.000    0.000    0.013    0.013 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/optimize/_slsqp_py.py:220(_minimize_slsqp)\n      154    0.008    0.000    0.008    0.000 {built-in method scipy.optimize._slsqplib.slsqp}\n      104    0.000    0.000    0.003    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/optimize/_differentiable_functions.py:391(fun)\n      105    0.000    0.000    0.002    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/optimize/_differentiable_functions.py:360(_update_fun)\n      104    0.000    0.000    0.002    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/_lib/_util.py:541(__call__)\n      155    0.000    0.000    0.001    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/optimize/_optimize.py:71(_compute_if_needed)\n      104    0.000    0.000    0.001    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/optimize/_optimize.py:78(__call__)\n      104    0.000    0.000    0.001    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/optimize/_slsqp_py.py:574(_eval_constraint)\n      104    0.000    0.000    0.001    0.000 /Users/user/Bench/gsc-marklab/workers/python/marklab_scipy_partial_transport_worker.py:91(<lambda>)\n      104    0.001    0.000    0.001    0.000 /Users/user/Bench/gsc-marklab/workers/python/marklab_scipy_partial_transport_worker.py:78(objective)\n      103    0.000    0.000    0.001    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/optimize/_differentiable_functions.py:337(_update_x)\n      536    0.000    0.000    0.000    0.000 {method 'reduce' of 'numpy.ufunc' objects}\n      155    0.000    0.000    0.000    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/_core/numeric.py:2535(array_equal)\n      215    0.000    0.000    0.000    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/_core/fromnumeric.py:2304(sum)\n       51    0.000    0.000    0.000    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/optimize/_slsqp_py.py:599(_eval_con_normals)\n       51    0.000    0.000    0.000    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/scipy/optimize/_differentiable_functions.py:397(grad)\n      217    0.000    0.000    0.000    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/_core/fromnumeric.py:66(_wrapreduction)\n      157    0.000    0.000    0.000    0.000 /Users/user/Bench/gsc-marklab/target/pymc-venv/lib/python3.12/site-packages/numpy/_core/fromnumeric.py:2548(all)\n\n\n"
+  },
+  "hardware": {
+    "cpu": "Apple M4 Pro",
+    "memory_bytes": 51539607552,
+    "logical_cpus": 12,
+    "os": "macOS 26.5.2 (25F84)"
+  },
+  "source_files_sha256": {
+    "Cargo.toml": "13f292bf94475a9196d118572b8c4adb85c3bbe34b4380f9a34fb5607d5abf91",
+    "src/transport.rs": "75bb870fdfe19892a87dd9c9e3552cddafd60fa4f8b7b8a6a9479831525a8066",
+    "src/transport/csv.rs": "06fe6fd4aa6b00d8225c64d38b25fe51d867e01501bae7764373c315bb1fd046",
+    "src/exact_float_json.rs": "b7986393033e021cb93395fea1be097977d376b1ac4dcfe154b47d400992ee97",
+    "src/native_backend.rs": "810c8fe4da74d77abb6a1c7c654fa03b1a252882c209266f07c7d87f9518680c",
+    "src/bin/marklab/backend.rs": "ee14ccef877c739b60b183615a8491c93e1c17574d7c56e4e5e06c2f06aa3feb",
+    "src/bin/marklab/bayes/transport.rs": "782cb4f79011cd6085449b06982b34cafe5971d9c19857f9b05478afb3d3b8f0",
+    "crates/marklab-bayes/src/partial_transport.rs": "d8bb075f842f3e413b0798adcc885128da55a59e05cb909ef32d7ffb7215684c",
+    "crates/marklab-bayes/src/partial_transport/native.rs": "f357a171a63176ec18d441a5e9217ab41646683058560534f29559feeab1660d",
+    "crates/marklab-bayes/src/partial_transport/solver.rs": "b4a930c77579c8fd2a457a0bd3926109a4c7c0507df638347388798512c42f76",
+    "crates/marklab-bayes/src/transport.rs": "ee1e44e109bf7d703731bd5a0426ba6dcfd638e29d728afd52dcb53b34232813",
+    "examples/partial_transport_benchmark.rs": "7a5b982f89f039d34627fda17b0b036c91fb766b7f624a0ea7d74d8685d8c689",
+    "tests/python/benchmark_partial_transport.py": "4e01d50907cd20988b2f02e608fa3e67b0ca72bd8af7f2d60a5ecc39511a92d8",
+    "tests/python/benchmark_late_fusion.py": "e1b7689abcfcdbb88c091ffa7337fce14f27175cf5eb98fb196a0015e2671449"
+  },
+  "fixture_identities": {
+    "crates/marklab-bayes/tests/fixtures/partial_transport/balanced.oracle.json": "76401115947f7b0a8a3e31c8bd90a183173f80fb70e18ebc81b0b7e9a3c6bbed",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/balanced.request.json": "c4634d76603c4ad510538fdd8bac9d5492c5767d671a566f9d485b8b900b2484",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/balanced.spec.json": "53af196f7552c376bce11a8f354075de73d9f74f2f03c117b402a90f12c98bb2",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/binding.oracle.json": "54850f167acaf2025f996dd630c5dc66835c80b867066474a45c59262430ae27",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/binding.request.json": "ce3d16adf21da2c482dae6df895c149114ac726041c71d05bf56106947103b0f",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/binding.spec.json": "4e8647e4d4532ca97a849eca24adbbc7e13867f95607ae315928977fbde56081",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/demanding.oracle.json": "df46fe61570738db318cba9e3600c241970c95da3606d74bdc1f3f11bbb33cc8",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/demanding.request.json": "453a67de185740ef49e3172a67d47ac30c8ed328ce8eb2b2a149a97acccb2de9",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/demanding.spec.json": "48dd5c539ecb6c4b65de736322df779c064f3ec9d3bd1f079ee4b10cb9b495ca",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/forced.oracle.json": "0a042502f935f948b8d6149612ac0d13512f843214f279342499dc804364d4db",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/forced.request.json": "80719b914aa0217e634c9777f79e180cdcea58ffe84a7b2fa2700ab0de3bdd1d",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/forced.spec.json": "2f860b3610503f205bc2c2842d4715a1ec48265c4707556bb38fb5006af30997",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/inactive.oracle.json": "fb15066f9d949c4889ca5ebfa59525236b0ad2922dbaf603d2f04c73e633776d",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/inactive.request.json": "23630c7b845f578eb84732eeb77b79e620a0af3a39a35695970630364fcea518",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/inactive.spec.json": "d680abf8ea310a9d2236a817ac09b1749d019bfb4f014157cb2bd7052776ca0d",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/maximum_null.oracle.json": "ccde3a605785df0d1fce732310c294d1a24640bde9aecf4b89e73cea0a72d8e6",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/maximum_null.request.json": "c5741f7df80644a8ae1fee60859a0b152901a2d79b65992f4e3ceac30285c957",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/maximum_null.spec.json": "5e563658803b2a982b7f50bfc3d9f8c41d11e4f3a813fa1e7919be3017b11989",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/representative.oracle.json": "ade986d3f00334c2fb2575e50437995ff5396d306a834a7cf90593f0dcfe9d34",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/representative.request.json": "8245af4f291147e14c24228145944d58f0a6ba65dde37a4e63aac08d76651ccf",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/representative.spec.json": "c5fc4861da866777f7d28bae210aefacb39af1a0f1abaa45ec610a0fdf037168",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/zero_capacity.request.json": "bb1b13065bc2ffcee0c9aa801399bd506181de0ea38920ce8d203611225ae710",
+    "crates/marklab-bayes/tests/fixtures/partial_transport/zero_capacity.spec.json": "c6afba7e3c9255307f17c3957447f2418b2bd5edb48cd557782ecdfa05a6032f"
+  },
+  "commands": [
+    "env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 target/pymc-venv/bin/python tests/python/benchmark_partial_transport.py --prepare",
+    "env CARGO_BUILD_JOBS=2 cargo +1.96.0 build --locked --release --bin marklab --example partial_transport_benchmark (7m12s)",
+    "samply record --save-only --no-open --unstable-presymbolicate --output target/native-migration/partial-transport/native-profile.json.gz -- target/native-migration/partial-transport/candidate-release-benchmark 5000 target/native-migration/partial-transport/profile-source.csv target/native-migration/partial-transport/profile-target.csv target/native-migration/partial-transport/profile-cost.csv 13.5 0.75 120 > target/native-migration/partial-transport/native-profile-output.json",
+    "env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONDONTWRITEBYTECODE=1 target/pymc-venv/bin/python tests/python/benchmark_partial_transport.py --warm target/native-migration/partial-transport/candidate-release-benchmark --baseline target/native-migration/partial-transport/python-baseline-marklab --candidate target/native-migration/partial-transport/candidate-release-marklab"
+  ],
+  "limits": [
+    "Synthetic single-host single-computational-thread comparisons; no real-data, parallel scaling or durable replay interface.",
+    "Cold covers fresh complete CLI processes with a warm filesystem. Warm covers original Python JSON worker and native CSV application, both with all outputs/serialization; file reading and process startup excluded.",
+    "Seven independent converged references pass complete-plan parity and both timing gates. The failed zero-capacity SciPy fit remains failed; native zero-capacity correctness has a separate analytic Gibbs oracle and no speedup claim.",
+    "No compiler, profiler or test suite overlaps the final paired timings. Profile samples precede timing and some system math addresses remain unresolved.",
+    "RSS is a separate one-shot macOS time -l maximum, not simultaneous process-tree memory.",
+    "Algorithm-specific gains preserve the entropic objective; these measurements do not imply a general Rust/Python speed ratio."
+  ]
+}

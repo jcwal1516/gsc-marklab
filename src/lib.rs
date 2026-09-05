@@ -90,11 +90,13 @@ mod prepost;
 mod probability_pair;
 mod probability_pair_workflow;
 mod python_backend;
+#[cfg(feature = "csv")]
+pub mod transport;
 #[cfg(feature = "cli")]
 #[doc(hidden)]
 pub use native_backend::{
-    run_native_grouped_conformal, run_native_late_fusion, run_native_prediction_calibration,
-    NativeBackendError,
+    run_native_grouped_conformal, run_native_late_fusion, run_native_partial_transport,
+    run_native_prediction_calibration, NativeBackendError,
 };
 mod qc;
 mod registration;
