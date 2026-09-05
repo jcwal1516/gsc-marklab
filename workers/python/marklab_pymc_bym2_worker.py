@@ -406,7 +406,7 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
     mcse_sd = float(stats(pm.stats.mcse(posterior, var_names=names, method="sd"), names).max())
     energy = np.asarray(posterior["sample_stats"]["energy"].values)
     ebfmi = float(np.min(np.mean(np.diff(energy, axis=1) ** 2, axis=1) / np.var(energy, axis=1)))
-    divergences = int(np.asarray(posterior["sample_stats"]["divergences"].values).sum())
+    divergences = int(np.asarray(posterior["sample_stats"]["diverging"].values).sum())
     depth_hits = int(np.asarray(posterior["sample_stats"]["reached_max_treedepth"].values).sum())
     flat_structured_unit = arrays["structured_unit"].reshape(-1, dimension)
     constraints_valid = bool(

@@ -9,7 +9,7 @@ use crate::errors::{MarklabError, Result};
 
 static TEMPORARY_DIRECTORY_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
-pub(super) struct OutputTransaction {
+pub(crate) struct OutputTransaction {
     final_path: PathBuf,
     staging_path: PathBuf,
     replace_empty_target: bool,
@@ -17,7 +17,7 @@ pub(super) struct OutputTransaction {
 }
 
 impl OutputTransaction {
-    pub(super) fn new(final_path: &Path) -> Result<Self> {
+    pub(crate) fn new(final_path: &Path) -> Result<Self> {
         let file_name = final_path.file_name().ok_or_else(|| {
             MarklabError::Validation(format!(
                 "output path must name a run directory: {}",
@@ -60,11 +60,11 @@ impl OutputTransaction {
         })
     }
 
-    pub(super) fn staging_path(&self) -> &Path {
+    pub(crate) fn staging_path(&self) -> &Path {
         &self.staging_path
     }
 
-    pub(super) fn commit(mut self) -> Result<()> {
+    pub(crate) fn commit(mut self) -> Result<()> {
         if self.replace_empty_target {
             fs::remove_dir(&self.final_path)
                 .map_err(|source| MarklabError::io(&self.final_path, source))?;

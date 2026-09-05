@@ -50,6 +50,13 @@ Source preparation and durable replay resolve and verify assets independently of
 availability. A cache miss requires a working admitted interpreter; a verified hit does not.
 Keep exact source inputs, worker assets, and configuration available for replay.
 
+Scientific workers start with a cleared environment, fixed Python hash seed and thread controls.
+Explicit `-P -s -B` flags exclude current/script and user import paths and disable bytecode writes;
+ambient `PYTHONPATH` and `PYTHONHOME` are not inherited. Backend-specific compilation settings remain
+owned by their existing runners. The corrected PyMC diagnostic extraction counts per-transition
+divergence flags rather than summing cumulative counters. These changes retain diagnostic thresholds;
+fresh fits may differ from historical runs whose declared hash seed was ignored.
+
 Runtime relocation and backend-free replay have a focused integration test. Packaging Windows or
 Linux binaries does not itself establish that every locked Python package or scientific backend is
 supported on those platforms; backend admission and integration evidence remain necessary.

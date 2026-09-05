@@ -6,10 +6,13 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 #[global_allocator]
 static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-#[path = "marklab/bayes.rs"]
-mod bayes;
+#[path = "marklab/study.rs"]
+mod study;
+
 #[path = "marklab/backend.rs"]
 mod backend;
+#[path = "marklab/bayes.rs"]
+mod bayes;
 #[path = "marklab/bayes_advanced.rs"]
 mod bayes_advanced;
 #[path = "marklab/causal.rs"]

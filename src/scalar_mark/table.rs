@@ -21,10 +21,12 @@ use super::{
 mod identity;
 
 mod artifact;
+mod assay;
 mod column;
 mod mark_table;
 mod validation;
 
+pub use assay::{AssayMarkDeclaration, AssayMarkValues};
 pub use column::{MissingnessPolicy, ScalarMarkColumn, ScalarMarkModality, ScalarMarkUnit};
 pub use mark_table::MarkTable;
 

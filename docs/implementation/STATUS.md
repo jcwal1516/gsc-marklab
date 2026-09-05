@@ -1,6 +1,68 @@
 # Implementation status
 
-Last updated: 2026-08-26
+Last updated: 2026-09-04
+
+## Current outcome — ARCH-INTEGRATION-01
+
+User-authorized architecture integration has delivered the bounded workflow below. Earlier local milestones:
+
+- `3f56e3b`: one composed command tree owns help, validation and execution routing. All original
+  method handlers and mathematical owners remain; the Bayesian parser is grouped to avoid its
+  large debug stack frame.
+- `f67f36e`: shared runtime asset/interpreter/cache resolution, installation doctor, release worker
+  assets, and an actual relocated-binary fit with byte-identical backend-free durable replay.
+- `3fc3dae`: provisioned required backend CI and standalone Python tests. Those tests exposed a
+  missing production Shapely dependency; the pinned lock adds only Shapely 2.1.2.
+
+The multiplex outcome is implemented: named nullable assay columns in the shared MarkTable,
+observed-cell Moran/Geary graphs, equal-slide patient Max-T, one library application, durable
+slide/collection/cohort execution and atomic claim-bounded reports. The CLI and thin Python client
+use the same service. Real AnnData 0.12.4/H5AD interchange preserves row identity, sparse selected
+values, annotations, nulls and explicit physical coordinates. Existing legacy public mark enums,
+Pattern projection and result-format 0.3 remain unchanged (DEC-0412–0414; IC-0201).
+
+Combined stabilization is complete with the bounded correction described below. Final focused
+numerical tests pass 17/17; scalar compatibility passes 11/11; CLI discovery/process replay passes 6/6; corrected real backend regressions pass 10/10;
+Python suites pass 76 scientific + 1 worker + 3 real-client tests. Final formatting, all-feature and
+CLI-only warning-denied Clippy, no-default workspace compilation, strict documentation and all
+seventeen workspace doc-test targets pass (zero doc cases). The complete all-feature nextest run
+executed all 1,701 selected tests in 2,816.825 s: 1,700 passed (12 slow), one CI-contract assertion
+failed, and 28 existing tests were skipped. Its blanket `python/tests` ban incorrectly matched the
+new `clients/python/tests` path. The contract now requires both locked environments and installation
+before their required test commands while retaining the obsolete root-package prohibition. All
+seven focused workflow tests pass under both Cargo test and nextest after that correction;
+warning-denied test Clippy also passes. No production
+code or CI configuration changed, and the expensive unfiltered suite was not repeated; a fully green
+single unfiltered run is not claimed.
+
+The suite exposed and corrected the lost explicit anisotropic-GP command name, PyMC cumulative
+rather than per-transition divergence extraction, and an ineffective Python hash seed under `-I`.
+Both runners now share a cleared-environment `-P -s -B` policy, preserving import exclusion and
+existing diagnostic thresholds. The relocated-binary fixture explicitly selects its source assets.
+The earlier full runs remain recorded failures/interruption in the task contract, not green gates.
+
+The optimized Unix archive smoke runs doctor and the native example after extraction to a path
+with spaces, with no asset override. A 31-second seeded fuzz run completes 174,252 inputs without a
+reported failure. Complete 72/60,000-cell synthetic workloads pass twelve cold/replay runs with
+exact scientific output and ledger/count oracles; the larger workload's median is 0.86 s cold and
+0.17 s replay, peak RSS below 50 MiB. Concurrent checks and warm filesystem caches limit timing
+interpretation; see `docs/multiplex-study-measurements.md` for all samples and hashes.
+
+All 233 tracker rows remain, and the previous 2,091-line active roadmap is preserved verbatim in
+ROADMAP_HISTORY. The bounded roadmap now promotes real multiplex input admission, independent
+study calibration and measurement of that admitted workload. Parent scopes remain active. The
+capability and multiplex guides describe available behavior and claim limits.
+
+Remaining: clean hosted CI, Windows/Linux backend execution, WSI-enabled release-matrix validation,
+real pathology panel admission, independent biological calibration and whole-slide inference
+capacity. Broader binary-service migration, universal result descriptors, arbitrary workflow
+construction, SpatialData/OME-NGFF and R/zero-copy clients remain caller-dependent work. The latest
+real joint location–embedding pilot remains diagnostic-only; this checkpoint does not promote it.
+
+## Historical implementation and checkpoint records
+
+The records below retain their original dates, identities, evidence and limitations. Their older
+"current" labels describe their own checkpoint, not the active outcome above.
 
 ## Identity
 

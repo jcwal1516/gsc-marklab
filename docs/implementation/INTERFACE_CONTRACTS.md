@@ -1043,3 +1043,28 @@ Status: characterization freeze for WS-A. Exact field/symbol inventory is active
 ## IC-0200 — Rectangular finite-element SPDE suite
 
 - `marklab bayes spde-suite` validates a hole-free rectangle, two or more bounded regular resolutions, alpha two, fixed positive kappa/tau, event points, and region Gaussian observations. Pinned SciPy emits vertices/triangles, consistent mass/stiffness, positive Matérn precision, barycentric projections, triangle quadrature, fixed-hyperparameter LGCP MAP/intensity, one-factor spatial MAP/reconstruction, and mesh sensitivity under a synthetic experimental ceiling.
+
+## IC-0201 — Concrete multiplex panel-to-patient application
+
+- Input: strict `marklab.multiplex_study_recipe` v1 with named nullable assay channels, globally
+  unique canonical Cell IDs, declared patients/groups, physical XY micrometre frames, exact
+  polygon windows and prespecified channel/radius/weight/missingness/reduction/randomization limits.
+- MarkTable admits several channels of the same kind without a dummy binary Pattern. Continuous
+  values are finite signed f64; binary and categorical observations retain explicit units/codebooks.
+  Compatibility constructors, public legacy enums, Pattern projection and v1 legacy identity bytes
+  remain; assay-bearing tables have a separate v2 logical identity.
+- Each selected quantitative/binary channel uses its observed-cell subgraph. Existing radius
+  Moran/Geary arithmetic shares that graph; unavailable data or arithmetic stays explicit. Equal
+  slide means produce one vector per patient; the canonical whole-patient Max-T implementation
+  compares the complete family. Required unavailable slides prevent inference rather than deletion.
+- `analyze_multiplex_study` is the filesystem-free service; `execute_multiplex_study` uses existing
+  durable scheduler owners for slide, bounded collection and cohort nodes. Resume restores exact
+  outputs without repeating completed statistics; one changed slide invalidates its dependent
+  inference. `publish_multiplex_study` validates finite claim state and uses the existing atomic
+  output transaction. The CLI and standard-library Python subprocess client call this service.
+- Output: a separate experimental study-result v1 plus report/content manifest. Existing result 0.3
+  is untouched. Software success does not establish assay provenance, biological calibration,
+  clinical/causal validity or whole-slide capacity. AnnData 0.12.4 interchange is bounded in-memory
+  H5AD/sparse input with explicit physical coordinates; broader formats/transforms are not inferred.
+- Decisions: DEC-0412–0414. Acceptance: `multiplex_panel`, `multiplex_study`,
+  `multiplex_study_cli`, real AnnData client tests and the bounded study fuzz target.

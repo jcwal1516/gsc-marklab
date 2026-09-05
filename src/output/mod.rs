@@ -16,6 +16,7 @@ mod multimodal_result_artifacts;
 mod nearest_space;
 mod result_types;
 mod transaction;
+pub(crate) use transaction::OutputTransaction;
 mod writer;
 
 #[cfg(all(test, feature = "cli"))]

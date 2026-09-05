@@ -1,15 +1,26 @@
 # Canonical symbols and ownership
 
+ARCH-INTEGRATION-01 multiplex ownership: `src/scalar_mark/table/assay.rs` owns nullable assay
+declarations and values within the existing MarkTable; legacy Pattern projection remains in
+`table/validation.rs`. `src/spatial_autocorrelation` owns radius Moran/Geary arithmetic and panel
+admission. `src/multiplex_study/**` owns the concrete recipe/application/result lifecycle;
+`src/bin/marklab/study.rs` owns CLI presentation and `clients/python/marklab_client.py` owns the
+bounded AnnData adapter and subprocess client. Existing cohort, scheduler, durable project and
+transaction owners remain canonical. `/root` is
+the sole writer of these files, their facade exports, CLI/client adapters and focused tests.
+
 ARCH-INTEGRATION-01 current ownership: `src/bin/marklab/command_tree.rs` owns composed command
 discovery, validation, and execution routing; each existing CLI schema/adapter owns its typed
 arguments and handler. `src/cli.rs::cli_command` is the hidden CLI-feature bridge consumed only by
 the executable. Numerical, result, project, and backend owners are unchanged at this outcome.
 
 ARCH-INTEGRATION-01 runtime ownership: `src/python_backend.rs` owns explicit/bundled/development
-asset selection and lazy interpreter/cache paths. Existing Bayesian and topology runners consume
-those paths and retain process/schema/digest admission. `src/bin/marklab/backend.rs` and
+asset selection, lazy interpreter/cache paths and the curated Python process-start policy.
+Existing Bayesian and topology runners consume that policy and retain process/schema/digest
+admission. Static PyMC workers own extraction of per-transition divergence flags.
+`src/bin/marklab/backend.rs` and
 `workers/python/marklab_backend_doctor.py` own read-only installation diagnosis; release workflows
-own packaging the unchanged worker assets with the binary.
+own packaging the curated worker assets and native study/client examples with the binary.
 
 Rows are characterization records at the implementation base. `Active task = none` means read-only during WS-A. A-03 verifies exact callers and tests before WS-B.
 

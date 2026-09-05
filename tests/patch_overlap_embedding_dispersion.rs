@@ -1,15 +1,20 @@
 use std::str::FromStr;
 
 use marklab::{
-    patch_overlap_embedding_dispersion, publish_patch_embedding_table_arrow,
-    read_patch_embedding_table_arrow_from_store, ArtifactId, ContentDigest,
-    EmbeddingColumnarBudgets, EmbeddingStatus, ExpectedPatchSet, LocalArtifactStore,
+    patch_overlap_embedding_dispersion, ArtifactId, ContentDigest, EmbeddingStatus,
     MeasurementStatus, MultiscaleArtifactBinding, MultiscaleDirectPatchInputArtifacts,
     MultiscaleDirectPatchModelProvenance, MultiscaleEmbeddingDerivationContract,
     MultiscaleEmbeddingExecutionProvenance, MultiscaleEmbeddingProvenance,
     MultiscaleEmbeddingProvenanceVariant, MultiscaleEmbeddingSupport, PatchEmbeddingRow,
-    PatchEmbeddingTable, PatchEmbeddingTableReadBindings, PatchOverlapEmbeddingDispersionError,
-    PatchOverlapEmbeddingDispersionStatus, PatchOverlapGraph, SlideId, StoreId,
+    PatchEmbeddingTable, PatchOverlapEmbeddingDispersionError,
+    PatchOverlapEmbeddingDispersionStatus, PatchOverlapGraph, SlideId,
+};
+
+#[cfg(feature = "parquet")]
+use marklab::{
+    publish_patch_embedding_table_arrow, read_patch_embedding_table_arrow_from_store,
+    EmbeddingColumnarBudgets, ExpectedPatchSet, LocalArtifactStore,
+    PatchEmbeddingTableReadBindings, StoreId,
 };
 
 #[allow(dead_code)]
@@ -36,6 +41,7 @@ enum Drift {
 }
 
 struct FlowFixture {
+    #[cfg(feature = "parquet")]
     expected: ExpectedPatchSet,
     table: PatchEmbeddingTable,
     support: MultiscaleEmbeddingSupport,
@@ -221,6 +227,7 @@ fn build(rows: [RowValue; 4], drift: Drift) -> FlowFixture {
     .expect("patch table");
 
     FlowFixture {
+        #[cfg(feature = "parquet")]
         expected: spatial.expected,
         table,
         support,
@@ -231,6 +238,7 @@ fn build(rows: [RowValue; 4], drift: Drift) -> FlowFixture {
 }
 
 #[test]
+#[cfg(feature = "parquet")]
 fn canonical_arrow_patch_table_materializes_into_the_dispersion_caller() {
     let fixture = build(default_rows(), Drift::None);
     let direct = compute(
@@ -287,6 +295,7 @@ fn canonical_arrow_patch_table_materializes_into_the_dispersion_caller() {
 }
 
 #[test]
+#[cfg(feature = "parquet")]
 fn canonical_arrow_patch_materialization_rejects_a_false_support_identity() {
     let fixture = build(default_rows(), Drift::None);
     let root = tempfile::tempdir().expect("store root");

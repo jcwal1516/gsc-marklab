@@ -1297,6 +1297,7 @@ enum FieldsCommands {
         #[arg(long)]
         out: PathBuf,
     },
+    #[command(name = "anisotropic-gp-3d")]
     AnisotropicGp3d {
         #[arg(long)]
         input: PathBuf,
@@ -3139,16 +3140,35 @@ enum TransportCommands {
     },
 }
 
-
 pub(super) fn cli_routes() -> Vec<crate::command_tree::Route> {
     vec![
-        crate::command_tree::Route::new::<BetaBinomialGroupGenderSlideHierarchySbcCli>(|| run_beta_binomial_group_gender_slide_hierarchy_sbc_cli().map_err(into_marklab_error)),
-        crate::command_tree::Route::new::<BetaBinomialGroupGenderSlideHierarchySensitivityCli>(|| run_beta_binomial_group_gender_slide_hierarchy_sensitivity_cli().map_err(into_marklab_error)),
-        crate::command_tree::Route::new::<BetaBinomialGroupGenderSlideHierarchyAgreementCli>(|| run_beta_binomial_group_gender_slide_hierarchy_agreement_cli().map_err(into_marklab_error)),
-        crate::command_tree::Route::new::<DirichletMultinomialGroupCli>(|| run_dirichlet_multinomial_group_cli().map_err(into_marklab_error)),
-        crate::command_tree::Route::new::<DirichletMultinomialGroupAgreementCli>(|| run_dirichlet_multinomial_group_agreement_cli().map_err(into_marklab_error)),
-        crate::command_tree::Route::new::<DirichletMultinomialGroupSensitivityCli>(|| run_dirichlet_multinomial_group_sensitivity_cli().map_err(into_marklab_error)),
-        crate::command_tree::Route::new::<DirichletMultinomialGroupSbcCli>(|| run_dirichlet_multinomial_group_sbc_cli().map_err(into_marklab_error)),
+        crate::command_tree::Route::new::<BetaBinomialGroupGenderSlideHierarchySbcCli>(|| {
+            run_beta_binomial_group_gender_slide_hierarchy_sbc_cli().map_err(into_marklab_error)
+        }),
+        crate::command_tree::Route::new::<BetaBinomialGroupGenderSlideHierarchySensitivityCli>(
+            || {
+                run_beta_binomial_group_gender_slide_hierarchy_sensitivity_cli()
+                    .map_err(into_marklab_error)
+            },
+        ),
+        crate::command_tree::Route::new::<BetaBinomialGroupGenderSlideHierarchyAgreementCli>(
+            || {
+                run_beta_binomial_group_gender_slide_hierarchy_agreement_cli()
+                    .map_err(into_marklab_error)
+            },
+        ),
+        crate::command_tree::Route::new::<DirichletMultinomialGroupCli>(|| {
+            run_dirichlet_multinomial_group_cli().map_err(into_marklab_error)
+        }),
+        crate::command_tree::Route::new::<DirichletMultinomialGroupAgreementCli>(|| {
+            run_dirichlet_multinomial_group_agreement_cli().map_err(into_marklab_error)
+        }),
+        crate::command_tree::Route::new::<DirichletMultinomialGroupSensitivityCli>(|| {
+            run_dirichlet_multinomial_group_sensitivity_cli().map_err(into_marklab_error)
+        }),
+        crate::command_tree::Route::new::<DirichletMultinomialGroupSbcCli>(|| {
+            run_dirichlet_multinomial_group_sbc_cli().map_err(into_marklab_error)
+        }),
         crate::command_tree::Route::new::<BayesCli>(|| run_cli().map_err(into_marklab_error)),
     ]
 }

@@ -253,7 +253,7 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
     mcse_sd = float(values(pm.stats.mcse(posterior, var_names=names, method="sd"), names).max())
     energy = np.asarray(posterior["sample_stats"]["energy"].values)
     ebfmi = float(np.min(np.mean(np.diff(energy, axis=1) ** 2, axis=1) / np.var(energy, axis=1)))
-    divergences = int(np.asarray(posterior["sample_stats"]["divergences"].values).sum())
+    divergences = int(np.asarray(posterior["sample_stats"]["diverging"].values).sum())
     depth_hits = int(np.asarray(posterior["sample_stats"]["reached_max_treedepth"].values).sum())
     flat = {name: array.reshape(-1) for name, array in arrays.items()}
     rng = np.random.default_rng(seed_for(config["seed"], "conditional_predictions"))

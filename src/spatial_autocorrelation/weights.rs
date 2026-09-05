@@ -60,11 +60,14 @@ impl RadiusWeights {
     }
 
     pub(super) fn evaluate(&self, values: &[f64]) -> Result<f64, GlobalMoranError> {
+        if values.windows(2).all(|pair| pair[0] == pair[1]) {
+            return Err(GlobalMoranError::ZeroVariance);
+        }
         let mean = compensated_sum(values.iter().copied()) / values.len() as f64;
         let centered = values.iter().map(|value| value - mean).collect::<Vec<_>>();
         let denominator = compensated_sum(centered.iter().map(|value| value * value));
         if !denominator.is_finite() || denominator <= 0.0 {
-            return Err(GlobalMoranError::ZeroVariance);
+            return Err(GlobalMoranError::NumericalFailure);
         }
         let numerator = compensated_sum(self.edges.iter().map(|(left, right)| {
             let weight = match self.policy {
@@ -86,13 +89,16 @@ impl RadiusWeights {
     }
 
     pub(super) fn evaluate_geary(&self, values: &[f64]) -> Result<f64, GlobalMoranError> {
+        if values.windows(2).all(|pair| pair[0] == pair[1]) {
+            return Err(GlobalMoranError::ZeroVariance);
+        }
         let mean = compensated_sum(values.iter().copied()) / values.len() as f64;
         let denominator = compensated_sum(values.iter().map(|value| {
             let centered = value - mean;
             centered * centered
         }));
         if !denominator.is_finite() || denominator <= 0.0 {
-            return Err(GlobalMoranError::ZeroVariance);
+            return Err(GlobalMoranError::NumericalFailure);
         }
         let numerator = compensated_sum(self.edges.iter().map(|(left, right)| {
             let weight = match self.policy {

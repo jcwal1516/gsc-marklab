@@ -183,16 +183,16 @@ fn sparse_motif_matches_an_exhaustive_triangle_oracle() {
         .collect::<Vec<_>>();
     let mut edge_matrix = vec![vec![false; NODE_COUNT]; NODE_COUNT];
     let mut edges = Vec::new();
-    for left in 0..NODE_COUNT {
-        for right in (left + 1)..NODE_COUNT {
-            if (left * 17 + right * 31) % 7 < 3 {
-                edge_matrix[left][right] = true;
-                edge_matrix[right][left] = true;
-                edges.push(MotifEdgeInput {
-                    source_id: format!("n{left:02}"),
-                    target_id: format!("n{right:02}"),
-                });
-            }
+    let unordered_pairs =
+        (0..NODE_COUNT).flat_map(|left| ((left + 1)..NODE_COUNT).map(move |right| (left, right)));
+    for (left, right) in unordered_pairs {
+        if (left * 17 + right * 31) % 7 < 3 {
+            edge_matrix[left][right] = true;
+            edge_matrix[right][left] = true;
+            edges.push(MotifEdgeInput {
+                source_id: format!("n{left:02}"),
+                target_id: format!("n{right:02}"),
+            });
         }
     }
     let mut expected_triangles = 0_u64;

@@ -360,7 +360,8 @@ pub(crate) fn run_dirichlet_multinomial_group_sbc_cli() -> Result<(), BayesCliEr
 pub(crate) fn run_cli() -> Result<(), BayesCliError> {
     match BayesCli::parse_from(std::env::args_os()).command {
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::StudentTHierarchy {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::StudentTHierarchy {
                     input,
                     global_prior_mean,
                     global_prior_sd,
@@ -393,7 +394,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::StudentTHierarchyAgreement {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::StudentTHierarchyAgreement {
                     input,
                     global_prior_mean,
                     global_prior_sd,
@@ -434,7 +436,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::StudentTHierarchySensitivity {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::StudentTHierarchySensitivity {
                     input,
                     global_prior_mean,
                     global_prior_sd,
@@ -473,7 +476,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::StudentTHierarchySbc {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::StudentTHierarchySbc {
                     input,
                     global_prior_mean,
                     global_prior_sd,
@@ -514,7 +518,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialHierarchy {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialHierarchy {
                     input,
                     population_alpha,
                     population_beta,
@@ -543,7 +548,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialHierarchyAgreement {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialHierarchyAgreement {
                     input,
                     population_alpha,
                     population_beta,
@@ -580,7 +586,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialHierarchySensitivity {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialHierarchySensitivity {
                     input,
                     population_alpha,
                     population_beta,
@@ -615,7 +622,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialHierarchySbc {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialHierarchySbc {
                     input,
                     population_alpha,
                     population_beta,
@@ -652,7 +660,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialGroupRegression {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialGroupRegression {
                     input,
                     reference_group,
                     comparison_group,
@@ -687,7 +696,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialGroupGenderRegression {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialGroupGenderRegression {
                     input,
                     reference_group,
                     comparison_group,
@@ -728,7 +738,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialGroupGenderRegressionAgreement {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialGroupGenderRegressionAgreement {
                     input,
                     reference_group,
                     comparison_group,
@@ -779,28 +790,31 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialGroupGenderRegressionSensitivity {
-                    input,
-                    reference_group,
-                    comparison_group,
-                    reference_gender,
-                    comparison_gender,
-                    intercept_prior_mean,
-                    intercept_prior_sd,
-                    group_effect_prior_sd,
-                    gender_effect_prior_sd,
-                    concentration_prior_sd,
-                    lower_scale_multiplier,
-                    upper_scale_multiplier,
-                    material_standardized_shift,
-                    chains,
-                    tune,
-                    draws,
-                    target_accept,
-                    seed,
-                    timeout_seconds,
-                    out,
-                }),
+            command:
+                BayesCommand::Hierarchy(
+                    HierarchyCommands::BetaBinomialGroupGenderRegressionSensitivity {
+                        input,
+                        reference_group,
+                        comparison_group,
+                        reference_gender,
+                        comparison_gender,
+                        intercept_prior_mean,
+                        intercept_prior_sd,
+                        group_effect_prior_sd,
+                        gender_effect_prior_sd,
+                        concentration_prior_sd,
+                        lower_scale_multiplier,
+                        upper_scale_multiplier,
+                        material_standardized_shift,
+                        chains,
+                        tune,
+                        draws,
+                        target_accept,
+                        seed,
+                        timeout_seconds,
+                        out,
+                    },
+                ),
         } => beta_binomial_group_gender_sensitivity::run(
             input,
             reference_group,
@@ -826,7 +840,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialGroupGenderRegressionSbc {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialGroupGenderRegressionSbc {
                     input,
                     reference_group,
                     comparison_group,
@@ -875,7 +890,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialGroupGenderSlideHierarchy {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialGroupGenderSlideHierarchy {
                     input,
                     reference_group,
                     comparison_group,
@@ -918,7 +934,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialGroupRegressionAgreement {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialGroupRegressionAgreement {
                     input,
                     reference_group,
                     comparison_group,
@@ -963,7 +980,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialGroupRegressionSensitivity {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialGroupRegressionSensitivity {
                     input,
                     reference_group,
                     comparison_group,
@@ -1004,7 +1022,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialGroupRegressionSbc {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::BetaBinomialGroupRegressionSbc {
                     input,
                     reference_group,
                     comparison_group,
@@ -1047,7 +1066,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::NormalMean {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::NormalMean {
                     input,
                     prior_mean,
                     prior_sd,
@@ -1076,7 +1096,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::HierarchicalNormal {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::HierarchicalNormal {
                     input,
                     global_prior_mean,
                     global_prior_sd,
@@ -1107,7 +1128,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::HierarchicalNormalAgreement {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::HierarchicalNormalAgreement {
                     input,
                     global_prior_mean,
                     global_prior_sd,
@@ -1142,7 +1164,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::HierarchicalNormalPriorSensitivity {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::HierarchicalNormalPriorSensitivity {
                     input,
                     global_prior_mean,
                     global_prior_sd,
@@ -1179,7 +1202,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::HierarchicalNormalSbc {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::HierarchicalNormalSbc {
                     global_prior_mean,
                     global_prior_sd,
                     between_patient_sd_prior,
@@ -1220,7 +1244,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Hierarchy(HierarchyCommands::MetaAnalysis {
+            command:
+                BayesCommand::Hierarchy(HierarchyCommands::MetaAnalysis {
                     input,
                     covariate_name,
                     new_site_covariate,
@@ -1255,7 +1280,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Fields(FieldsCommands::GpRegression {
+            command:
+                BayesCommand::Fields(FieldsCommands::GpRegression {
                     input,
                     predict,
                     mean_prior_mean,
@@ -1292,7 +1318,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Fields(FieldsCommands::AnisotropicGp3d {
+            command:
+                BayesCommand::Fields(FieldsCommands::AnisotropicGp3d {
                     input,
                     predict,
                     mean_prior_mean,
@@ -1335,7 +1362,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Fields(FieldsCommands::MultiOutputGp {
+            command:
+                BayesCommand::Fields(FieldsCommands::MultiOutputGp {
                     input,
                     predict,
                     output_a_name,
@@ -1378,7 +1406,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Fields(FieldsCommands::VariationalGp {
+            command:
+                BayesCommand::Fields(FieldsCommands::VariationalGp {
                     input,
                     predict,
                     mean_prior_mean,
@@ -1415,7 +1444,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Fields(FieldsCommands::PredictiveProcess {
+            command:
+                BayesCommand::Fields(FieldsCommands::PredictiveProcess {
                     input,
                     knots,
                     amplitude,
@@ -1434,7 +1464,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Fields(FieldsCommands::NngpDensity {
+            command:
+                BayesCommand::Fields(FieldsCommands::NngpDensity {
                     input,
                     mean,
                     amplitude,
@@ -1457,7 +1488,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Fields(FieldsCommands::ValidateWeights {
+            command:
+                BayesCommand::Fields(FieldsCommands::ValidateWeights {
                     regions,
                     edges,
                     symmetry,
@@ -1467,7 +1499,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
                 }),
         } => weights::run(regions, edges, symmetry, diagonal, normalization, out),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Fields(FieldsCommands::CarDensity {
+            command:
+                BayesCommand::Fields(FieldsCommands::CarDensity {
                     regions,
                     edges,
                     field,
@@ -1490,7 +1523,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Fields(FieldsCommands::GmrfDensity {
+            command:
+                BayesCommand::Fields(FieldsCommands::GmrfDensity {
                     regions,
                     precision,
                     field,
@@ -1507,7 +1541,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Fields(FieldsCommands::SarLikelihood {
+            command:
+                BayesCommand::Fields(FieldsCommands::SarLikelihood {
                     regions,
                     edges,
                     data,
@@ -1530,7 +1565,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Fields(FieldsCommands::SarFit {
+            command:
+                BayesCommand::Fields(FieldsCommands::SarFit {
                     regions,
                     edges,
                     data,
@@ -1571,7 +1607,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Fields(FieldsCommands::BymFit {
+            command:
+                BayesCommand::Fields(FieldsCommands::BymFit {
                     regions,
                     edges,
                     data,
@@ -1608,7 +1645,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Fields(FieldsCommands::Bym2Fit {
+            command:
+                BayesCommand::Fields(FieldsCommands::Bym2Fit {
                     regions,
                     edges,
                     data,
@@ -1647,7 +1685,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Fields(FieldsCommands::SpatialVaryingCoefficient {
+            command:
+                BayesCommand::Fields(FieldsCommands::SpatialVaryingCoefficient {
                     input,
                     global_predictor_name,
                     spatial_predictor_name,
@@ -1688,7 +1727,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Fields(FieldsCommands::DistanceToResource {
+            command:
+                BayesCommand::Fields(FieldsCommands::DistanceToResource {
                     input,
                     coefficient_prior_sd,
                     patient_effect_prior_sd,
@@ -1703,24 +1743,27 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::SimulationInference(SimulationInferenceCommands::RejectionAbcGrowthFront {
-                    input,
-                    diffusion_um2_per_time,
-                    carrying_capacity,
-                    final_time,
-                    time_step,
-                    front_threshold_fraction,
-                    observed_final_mass,
-                    mass_scale,
-                    growth_rate_prior_min,
-                    growth_rate_prior_max,
-                    epsilon,
-                    accepted_draws,
-                    maximum_proposals,
-                    maximum_cell_steps_per_proposal,
-                    seed,
-                    out,
-                }),
+            command:
+                BayesCommand::SimulationInference(
+                    SimulationInferenceCommands::RejectionAbcGrowthFront {
+                        input,
+                        diffusion_um2_per_time,
+                        carrying_capacity,
+                        final_time,
+                        time_step,
+                        front_threshold_fraction,
+                        observed_final_mass,
+                        mass_scale,
+                        growth_rate_prior_min,
+                        growth_rate_prior_max,
+                        epsilon,
+                        accepted_draws,
+                        maximum_proposals,
+                        maximum_cell_steps_per_proposal,
+                        seed,
+                        out,
+                    },
+                ),
         } => rejection_abc::run(
             input,
             diffusion_um2_per_time,
@@ -1740,7 +1783,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::SimulationInference(SimulationInferenceCommands::SmcAbcGrowthFront {
+            command:
+                BayesCommand::SimulationInference(SimulationInferenceCommands::SmcAbcGrowthFront {
                     input,
                     diffusion_um2_per_time,
                     carrying_capacity,
@@ -1777,28 +1821,31 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::SimulationInference(SimulationInferenceCommands::SyntheticLikelihoodGrowthFront {
-                    input,
-                    diffusion_um2_per_time,
-                    carrying_capacity,
-                    final_time,
-                    time_step,
-                    front_threshold_fraction,
-                    observed_final_mass,
-                    observed_maximum_density,
-                    mass_noise_sd,
-                    maximum_density_noise_sd,
-                    growth_rate_prior_min,
-                    growth_rate_prior_max,
-                    replicates,
-                    covariance_shrinkage,
-                    iterations,
-                    burn_in,
-                    proposal_sd,
-                    maximum_cell_steps_per_simulation,
-                    seed,
-                    out,
-                }),
+            command:
+                BayesCommand::SimulationInference(
+                    SimulationInferenceCommands::SyntheticLikelihoodGrowthFront {
+                        input,
+                        diffusion_um2_per_time,
+                        carrying_capacity,
+                        final_time,
+                        time_step,
+                        front_threshold_fraction,
+                        observed_final_mass,
+                        observed_maximum_density,
+                        mass_noise_sd,
+                        maximum_density_noise_sd,
+                        growth_rate_prior_min,
+                        growth_rate_prior_max,
+                        replicates,
+                        covariance_shrinkage,
+                        iterations,
+                        burn_in,
+                        proposal_sd,
+                        maximum_cell_steps_per_simulation,
+                        seed,
+                        out,
+                    },
+                ),
         } => synthetic_likelihood::run(
             input,
             diffusion_um2_per_time,
@@ -1822,25 +1869,28 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::SimulationInference(SimulationInferenceCommands::GrowthFrontRejectionAbcSbc {
-                    input,
-                    diffusion_um2_per_time,
-                    carrying_capacity,
-                    final_time,
-                    time_step,
-                    front_threshold_fraction,
-                    mass_scale,
-                    growth_rate_prior_min,
-                    growth_rate_prior_max,
-                    epsilon,
-                    posterior_draws,
-                    maximum_proposals_per_replicate,
-                    replicates,
-                    coverage_probability,
-                    maximum_cell_steps_per_simulation,
-                    seed,
-                    out,
-                }),
+            command:
+                BayesCommand::SimulationInference(
+                    SimulationInferenceCommands::GrowthFrontRejectionAbcSbc {
+                        input,
+                        diffusion_um2_per_time,
+                        carrying_capacity,
+                        final_time,
+                        time_step,
+                        front_threshold_fraction,
+                        mass_scale,
+                        growth_rate_prior_min,
+                        growth_rate_prior_max,
+                        epsilon,
+                        posterior_draws,
+                        maximum_proposals_per_replicate,
+                        replicates,
+                        coverage_probability,
+                        maximum_cell_steps_per_simulation,
+                        seed,
+                        out,
+                    },
+                ),
         } => sbi_sbc::run(
             input,
             diffusion_um2_per_time,
@@ -1861,25 +1911,32 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::SimulationInference(SimulationInferenceCommands::SimulationOod { input, out }),
-        } => simulation_ood::run(input, out),
-        BayesTopLevel::Bayes {
-            command: BayesCommand::SimulationInference(SimulationInferenceCommands::GrowthFrontPosteriorPredictiveLab {
+            command:
+                BayesCommand::SimulationInference(SimulationInferenceCommands::SimulationOod {
                     input,
-                    diffusion_um2_per_time,
-                    carrying_capacity,
-                    final_time,
-                    time_step,
-                    front_threshold_fraction,
-                    observed_final_mass,
-                    observed_maximum_density,
-                    replicates,
-                    interval_probability,
-                    discrepancy_alpha,
-                    maximum_cell_steps_per_replicate,
-                    seed,
                     out,
                 }),
+        } => simulation_ood::run(input, out),
+        BayesTopLevel::Bayes {
+            command:
+                BayesCommand::SimulationInference(
+                    SimulationInferenceCommands::GrowthFrontPosteriorPredictiveLab {
+                        input,
+                        diffusion_um2_per_time,
+                        carrying_capacity,
+                        final_time,
+                        time_step,
+                        front_threshold_fraction,
+                        observed_final_mass,
+                        observed_maximum_density,
+                        replicates,
+                        interval_probability,
+                        discrepancy_alpha,
+                        maximum_cell_steps_per_replicate,
+                        seed,
+                        out,
+                    },
+                ),
         } => posterior_predictive_lab::run(
             input,
             diffusion_um2_per_time,
@@ -1897,7 +1954,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Inference(InferenceCommands::NormalMeanSmc {
+            command:
+                BayesCommand::Inference(InferenceCommands::NormalMeanSmc {
                     input,
                     prior_mean,
                     prior_sd,
@@ -1926,7 +1984,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Inference(InferenceCommands::PoissonLogRateLaplace {
+            command:
+                BayesCommand::Inference(InferenceCommands::PoissonLogRateLaplace {
                     input,
                     prior_mean,
                     prior_sd,
@@ -1949,7 +2008,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Inference(InferenceCommands::PoissonLognormalInla {
+            command:
+                BayesCommand::Inference(InferenceCommands::PoissonLognormalInla {
                     input,
                     latent_mean,
                     tau_shape,
@@ -1986,7 +2046,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Inference(InferenceCommands::PsisLoo {
+            command:
+                BayesCommand::Inference(InferenceCommands::PsisLoo {
                     input,
                     model_name,
                     likelihood_target,
@@ -2012,7 +2073,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             command: BayesCommand::Inference(InferenceCommands::CompareModels { input, out }),
         } => model_comparison::run(input, out),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Inference(InferenceCommands::NormalMeanSbc {
+            command:
+                BayesCommand::Inference(InferenceCommands::NormalMeanSbc {
                     prior_mean,
                     prior_sd,
                     known_sigma,
@@ -2035,7 +2097,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Inference(InferenceCommands::NormalMeanPriorSensitivity {
+            command:
+                BayesCommand::Inference(InferenceCommands::NormalMeanPriorSensitivity {
                     input,
                     priors,
                     base_prior,
@@ -2058,7 +2121,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::InhomogeneousPoissonLikelihood {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::InhomogeneousPoissonLikelihood {
                     events,
                     quadrature,
                     xmin_um,
@@ -2085,7 +2149,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::FitInhomogeneousPoisson {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::FitInhomogeneousPoisson {
                     events,
                     quadrature,
                     xmin_um,
@@ -2130,7 +2195,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::BermanTurnerRefinement {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::BermanTurnerRefinement {
                     events,
                     coarse_quadrature,
                     fine_quadrature,
@@ -2165,7 +2231,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::BuildGriddedLgcp {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::BuildGriddedLgcp {
                     events,
                     grid,
                     xmin_um,
@@ -2202,7 +2269,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::FitGriddedLgcp {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::FitGriddedLgcp {
                     events,
                     grid,
                     xmin_um,
@@ -2253,7 +2321,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::GriddedLgcpAgreement {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::GriddedLgcpAgreement {
                     events,
                     grid,
                     xmin_um,
@@ -2310,7 +2379,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::GriddedLgcpSbc {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::GriddedLgcpSbc {
                     events,
                     grid,
                     xmin_um,
@@ -2369,7 +2439,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::GriddedLgcpSensitivity {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::GriddedLgcpSensitivity {
                     events,
                     grid,
                     xmin_um,
@@ -2426,7 +2497,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::GriddedLgcpSpatialPpc {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::GriddedLgcpSpatialPpc {
                     events,
                     grid,
                     xmin_um,
@@ -2483,33 +2555,36 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::SimulateGriddedLgcpPosteriorPredictive {
-                    events,
-                    grid,
-                    xmin_um,
-                    ymin_um,
-                    xmax_um,
-                    ymax_um,
-                    grid_x,
-                    grid_y,
-                    intercept_prior_mean,
-                    intercept_prior_sd,
-                    coefficient_prior_mean,
-                    coefficient_prior_sd,
-                    field_amplitude,
-                    field_length_scale_um,
-                    jitter,
-                    chains,
-                    tune,
-                    draws,
-                    target_accept,
-                    seed,
-                    replicates,
-                    prediction_seed,
-                    maximum_total_points,
-                    timeout_seconds,
-                    out,
-                }),
+            command:
+                BayesCommand::PointProcesses(
+                    PointProcessesCommands::SimulateGriddedLgcpPosteriorPredictive {
+                        events,
+                        grid,
+                        xmin_um,
+                        ymin_um,
+                        xmax_um,
+                        ymax_um,
+                        grid_x,
+                        grid_y,
+                        intercept_prior_mean,
+                        intercept_prior_sd,
+                        coefficient_prior_mean,
+                        coefficient_prior_sd,
+                        field_amplitude,
+                        field_length_scale_um,
+                        jitter,
+                        chains,
+                        tune,
+                        draws,
+                        target_accept,
+                        seed,
+                        replicates,
+                        prediction_seed,
+                        maximum_total_points,
+                        timeout_seconds,
+                        out,
+                    },
+                ),
         } => gridded_lgcp_fit::run_predictive(
             events,
             grid,
@@ -2540,7 +2615,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::SimulateThomasProcess {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::SimulateThomasProcess {
                     xmin_um,
                     ymin_um,
                     xmax_um,
@@ -2567,7 +2643,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::SimulateMaternClusterProcess {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::SimulateMaternClusterProcess {
                     xmin_um,
                     ymin_um,
                     xmax_um,
@@ -2594,7 +2671,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::FitThomasMinimumContrast {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::FitThomasMinimumContrast {
                     input,
                     observed_intensity_per_um2,
                     kappa_min_per_um2,
@@ -2617,7 +2695,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::StraussStatistics {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::StraussStatistics {
                     input,
                     interaction_radius_um,
                     proposal_x_um,
@@ -2638,7 +2717,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::SimulateStraussBirthDeath {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::SimulateStraussBirthDeath {
                     xmin_um,
                     ymin_um,
                     xmax_um,
@@ -2669,7 +2749,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::FitStraussPseudolikelihood {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::FitStraussPseudolikelihood {
                     input,
                     xmin_um,
                     ymin_um,
@@ -2710,7 +2791,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::GeyerSaturationStatistic {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::GeyerSaturationStatistic {
                     input,
                     interaction_radius_um,
                     saturation,
@@ -2725,7 +2807,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::MultitypePapangelou {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::MultitypePapangelou {
                     points,
                     baselines,
                     interactions,
@@ -2746,7 +2829,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::BuildJointLocationMarkModel {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::BuildJointLocationMarkModel {
                     points,
                     grid,
                     xmin_um,
@@ -2777,7 +2861,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::BuildJointContinuousMarkModel {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::BuildJointContinuousMarkModel {
                     points,
                     grid,
                     xmin_um,
@@ -2812,23 +2897,26 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::BuildJointLocationEmbeddingFactorModel {
-                    points,
-                    grid,
-                    xmin_um,
-                    ymin_um,
-                    xmax_um,
-                    ymax_um,
-                    grid_x,
-                    grid_y,
-                    factors,
-                    field_amplitude,
-                    field_length_scale_um,
-                    jitter,
-                    loading_prior_sd,
-                    noise_prior_sd,
-                    out,
-                }),
+            command:
+                BayesCommand::PointProcesses(
+                    PointProcessesCommands::BuildJointLocationEmbeddingFactorModel {
+                        points,
+                        grid,
+                        xmin_um,
+                        ymin_um,
+                        xmax_um,
+                        ymax_um,
+                        grid_x,
+                        grid_y,
+                        factors,
+                        field_amplitude,
+                        field_length_scale_um,
+                        jitter,
+                        loading_prior_sd,
+                        noise_prior_sd,
+                        out,
+                    },
+                ),
         } => embedding_factor::run(
             points,
             grid,
@@ -2847,7 +2935,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::BuildReplicatedHierarchicalLgcp {
+            command:
+                BayesCommand::PointProcesses(PointProcessesCommands::BuildReplicatedHierarchicalLgcp {
                     input,
                     field_policy,
                     global_prior_sd,
@@ -2870,18 +2959,21 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::PointProcesses(PointProcessesCommands::PointProcessPosteriorPredictiveDiagnostics {
-                    observed,
-                    replicated,
-                    radii,
-                    xmin_um,
-                    ymin_um,
-                    xmax_um,
-                    ymax_um,
-                    alpha,
-                    maximum_pair_visits,
-                    out,
-                }),
+            command:
+                BayesCommand::PointProcesses(
+                    PointProcessesCommands::PointProcessPosteriorPredictiveDiagnostics {
+                        observed,
+                        replicated,
+                        radii,
+                        xmin_um,
+                        ymin_um,
+                        xmax_um,
+                        ymax_um,
+                        alpha,
+                        maximum_pair_visits,
+                        out,
+                    },
+                ),
         } => point_process_ppc::run(
             observed,
             replicated,
@@ -2895,7 +2987,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Embeddings(EmbeddingsCommands::VectorSemivariogram {
+            command:
+                BayesCommand::Embeddings(EmbeddingsCommands::VectorSemivariogram {
                     input,
                     bins,
                     weights,
@@ -2910,7 +3003,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Embeddings(EmbeddingsCommands::ProjectedEmbeddingVariograms {
+            command:
+                BayesCommand::Embeddings(EmbeddingsCommands::ProjectedEmbeddingVariograms {
                     input,
                     bins,
                     components,
@@ -2931,7 +3025,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Embeddings(EmbeddingsCommands::EmbeddingCrossCovarianceByDistance {
+            command:
+                BayesCommand::Embeddings(EmbeddingsCommands::EmbeddingCrossCovarianceByDistance {
                     input,
                     bins,
                     maximum_pair_visits,
@@ -2946,7 +3041,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Embeddings(EmbeddingsCommands::CrossModalCovarianceByDistance {
+            command:
+                BayesCommand::Embeddings(EmbeddingsCommands::CrossModalCovarianceByDistance {
                     a_input,
                     b_input,
                     pairs,
@@ -2971,7 +3067,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Embeddings(EmbeddingsCommands::KernelMarkCorrelation {
+            command:
+                BayesCommand::Embeddings(EmbeddingsCommands::KernelMarkCorrelation {
                     input,
                     bins,
                     kernel,
@@ -2988,7 +3085,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Embeddings(EmbeddingsCommands::EmbeddingSpatialDependenceEnvelope {
+            command:
+                BayesCommand::Embeddings(EmbeddingsCommands::EmbeddingSpatialDependenceEnvelope {
                     input,
                     bins,
                     curve,
@@ -3009,7 +3107,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Embeddings(EmbeddingsCommands::GraphDirichletEnergy {
+            command:
+                BayesCommand::Embeddings(EmbeddingsCommands::GraphDirichletEnergy {
                     nodes,
                     edges,
                     laplacian,
@@ -3026,7 +3125,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Embeddings(EmbeddingsCommands::GraphSmoothnessPermutationTest {
+            command:
+                BayesCommand::Embeddings(EmbeddingsCommands::GraphSmoothnessPermutationTest {
                     nodes,
                     edges,
                     laplacian,
@@ -3045,7 +3145,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Embeddings(EmbeddingsCommands::LocalEmbeddingRoughness {
+            command:
+                BayesCommand::Embeddings(EmbeddingsCommands::LocalEmbeddingRoughness {
                     nodes,
                     edges,
                     epsilon,
@@ -3054,7 +3155,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
                 }),
         } => graph_signal::run_local(nodes, edges, epsilon, maximum_component_edge_visits, out),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Embeddings(EmbeddingsCommands::TestCellPatchComplementarity {
+            command:
+                BayesCommand::Embeddings(EmbeddingsCommands::TestCellPatchComplementarity {
                     input,
                     outer_folds,
                     inner_folds,
@@ -3075,7 +3177,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Embeddings(EmbeddingsCommands::MultiscaleEmbeddingKernel {
+            command:
+                BayesCommand::Embeddings(EmbeddingsCommands::MultiscaleEmbeddingKernel {
                     input,
                     weights,
                     sample_a,
@@ -3096,7 +3199,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Embeddings(EmbeddingsCommands::RetrieveAnalogousRegions {
+            command:
+                BayesCommand::Embeddings(EmbeddingsCommands::RetrieveAnalogousRegions {
                     training,
                     query,
                     k,
@@ -3113,7 +3217,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Prediction(PredictionCommands::ApplyAbstention {
+            command:
+                BayesCommand::Prediction(PredictionCommands::ApplyAbstention {
                     input,
                     maximum_uncertainty,
                     maximum_ood_score,
@@ -3121,7 +3226,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
                 }),
         } => prediction_safety::run_abstention(input, maximum_uncertainty, maximum_ood_score, out),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Prediction(PredictionCommands::OodScore {
+            command:
+                BayesCommand::Prediction(PredictionCommands::OodScore {
                     input,
                     shrinkage,
                     validation_quantile,
@@ -3129,7 +3235,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
                 }),
         } => prediction_safety::run_ood(input, shrinkage, validation_quantile, out),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Prediction(PredictionCommands::CalibratePredictions {
+            command:
+                BayesCommand::Prediction(PredictionCommands::CalibratePredictions {
                     input,
                     method,
                     bins,
@@ -3138,7 +3245,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
                 }),
         } => prediction_calibration::run(input, method, bins, timeout_seconds, out),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Prediction(PredictionCommands::GroupedConformal {
+            command:
+                BayesCommand::Prediction(PredictionCommands::GroupedConformal {
                     input,
                     alpha,
                     l2_penalty,
@@ -3147,7 +3255,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
                 }),
         } => grouped_conformal::run(input, alpha, l2_penalty, timeout_seconds, out),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Prediction(PredictionCommands::LateFusion {
+            command:
+                BayesCommand::Prediction(PredictionCommands::LateFusion {
                     input,
                     l2_penalty,
                     timeout_seconds,
@@ -3155,14 +3264,16 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
                 }),
         } => late_fusion::run(input, l2_penalty, timeout_seconds, out),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Prediction(PredictionCommands::PredictiveStacking {
+            command:
+                BayesCommand::Prediction(PredictionCommands::PredictiveStacking {
                     input,
                     timeout_seconds,
                     out,
                 }),
         } => predictive_stacking::run(input, timeout_seconds, out),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Prediction(PredictionCommands::MixtureOfExpertsFusion {
+            command:
+                BayesCommand::Prediction(PredictionCommands::MixtureOfExpertsFusion {
                     input,
                     l2_penalty,
                     entropy_regularization,
@@ -3179,7 +3290,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Transport(TransportCommands::SinkhornOt {
+            command:
+                BayesCommand::Transport(TransportCommands::SinkhornOt {
                     source,
                     target,
                     cost,
@@ -3198,7 +3310,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Transport(TransportCommands::EntropicSoftAssignment {
+            command:
+                BayesCommand::Transport(TransportCommands::EntropicSoftAssignment {
                     source,
                     target,
                     cost,
@@ -3219,7 +3332,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Transport(TransportCommands::FusedGromovWasserstein {
+            command:
+                BayesCommand::Transport(TransportCommands::FusedGromovWasserstein {
                     input,
                     alpha,
                     epsilon,
@@ -3242,7 +3356,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Transport(TransportCommands::PartialFusedGromovWasserstein {
+            command:
+                BayesCommand::Transport(TransportCommands::PartialFusedGromovWasserstein {
                     input,
                     transported_mass,
                     alpha,
@@ -3267,7 +3382,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Transport(TransportCommands::UnbalancedSinkhorn {
+            command:
+                BayesCommand::Transport(TransportCommands::UnbalancedSinkhorn {
                     source,
                     target,
                     cost,
@@ -3290,7 +3406,8 @@ pub(crate) fn run_cli() -> Result<(), BayesCliError> {
             out,
         ),
         BayesTopLevel::Bayes {
-            command: BayesCommand::Transport(TransportCommands::PartialOt {
+            command:
+                BayesCommand::Transport(TransportCommands::PartialOt {
                     source,
                     target,
                     cost,

@@ -197,7 +197,7 @@ fn compile_inference_design(
     }
 }
 
-fn reject_duplicate_points(x: &[f64], y: &[f64]) -> Result<(), GlobalMoranError> {
+pub(super) fn reject_duplicate_points(x: &[f64], y: &[f64]) -> Result<(), GlobalMoranError> {
     let mut rows = BTreeMap::new();
     for (row, (&x, &y)) in x.iter().zip(y).enumerate() {
         let key = (canonical_bits(x), canonical_bits(y));

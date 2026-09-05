@@ -450,5 +450,7 @@ fn equal(left: f64, right: f64) -> bool {
 }
 
 pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<SpatialPpcCli>(|| run_cli().map_err(super::into_marklab_error))
+    crate::command_tree::Route::new::<SpatialPpcCli>(|| {
+        run_cli().map_err(super::into_marklab_error)
+    })
 }

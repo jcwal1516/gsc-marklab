@@ -16,5 +16,6 @@ pub use identity::DeclaredScalarIdentity;
 pub use input::DeclaredScalarPatternInput;
 pub(crate) use provenance::validate_nucleus_area_um2_provenance;
 pub use table::{
-    MarkTable, MissingnessPolicy, ScalarMarkColumn, ScalarMarkModality, ScalarMarkUnit,
+    AssayMarkDeclaration, AssayMarkValues, MarkTable, MissingnessPolicy, ScalarMarkColumn,
+    ScalarMarkModality, ScalarMarkUnit,
 };

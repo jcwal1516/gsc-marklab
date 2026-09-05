@@ -1,8 +1,39 @@
 //! Installed Python asset and environment locations shared by existing backend adapters.
 
-use std::{env, fs, io, path::{Path, PathBuf}};
+use std::{
+    env, fs, io,
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+};
 
 use thiserror::Error;
+
+/// Build the curated startup policy shared by the static scientific worker runners.
+///
+/// The callers own interpreter/worker admission, special backend caches, stream limits and child
+/// lifetime. No ambient environment is inherited. The returned expert builder must not be given
+/// additional import paths or untrusted environment variables by an application adapter.
+pub fn python_backend_command(interpreter: &Path, worker: &Path) -> Command {
+    let mut command = Command::new(interpreter);
+    // -I also implies -E, which ignores the deliberately curated PYTHONHASHSEED.
+    // Keep its import protections explicitly and admit only the environment below.
+    command
+        .args(["-P", "-s", "-B"])
+        .arg(worker)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
+        .env("LC_ALL", "C")
+        .env("PYTHONHASHSEED", "0")
+        .env("PYTHONNOUSERSITE", "1")
+        .env("PYTHONDONTWRITEBYTECODE", "1")
+        .env("OMP_NUM_THREADS", "1")
+        .env("OPENBLAS_NUM_THREADS", "1")
+        .env("MKL_NUM_THREADS", "1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    command
+}
 
 /// A backend location cannot be resolved or admitted.
 #[derive(Debug, Error)]
@@ -43,17 +74,21 @@ pub fn python_backend_assets_root() -> Result<PathBuf, PythonBackendRuntimeError
             path: PathBuf::from("current executable"),
             source,
         })?;
-        let beside = executable.parent().ok_or_else(|| PythonBackendRuntimeError::Io {
-            operation: "locate asset directory",
-            path: executable.clone(),
-            source: io::Error::new(io::ErrorKind::InvalidInput, "executable has no parent"),
-        })?;
+        let beside = executable
+            .parent()
+            .ok_or_else(|| PythonBackendRuntimeError::Io {
+                operation: "locate asset directory",
+                path: executable.clone(),
+                source: io::Error::new(io::ErrorKind::InvalidInput, "executable has no parent"),
+            })?;
         let bundled = beside.join("workers/python");
-        let has_bundle = bundled.try_exists().map_err(|source| PythonBackendRuntimeError::Io {
-            operation: "inspect bundled assets",
-            path: bundled,
-            source,
-        })?;
+        let has_bundle = bundled
+            .try_exists()
+            .map_err(|source| PythonBackendRuntimeError::Io {
+                operation: "inspect bundled assets",
+                path: bundled,
+                source,
+            })?;
         let development = Path::new(env!("CARGO_MANIFEST_DIR"));
         if has_bundle {
             beside.to_owned()
@@ -64,7 +99,10 @@ pub fn python_backend_assets_root() -> Result<PathBuf, PythonBackendRuntimeError
         }
     };
     for name in ["uv.lock", "pyproject.toml"] {
-        regular_file(&root.join("workers/python").join(name), "read runtime control")?;
+        regular_file(
+            &root.join("workers/python").join(name),
+            "read runtime control",
+        )?;
     }
     Ok(root)
 }
@@ -74,7 +112,9 @@ pub fn python_backend_assets_root() -> Result<PathBuf, PythonBackendRuntimeError
 /// Prefer absolute `MARKLAB_PYTHON`; otherwise retain the development environment under
 /// `assets_root/target/pymc-venv`, using the platform's virtual-environment layout.
 /// The worker remains responsible for exact Python/package version admission.
-pub fn python_backend_interpreter(assets_root: &Path) -> Result<PathBuf, PythonBackendRuntimeError> {
+pub fn python_backend_interpreter(
+    assets_root: &Path,
+) -> Result<PathBuf, PythonBackendRuntimeError> {
     let interpreter = absolute_override("MARKLAB_PYTHON")?.unwrap_or_else(|| {
         assets_root.join(if cfg!(windows) {
             "target/pymc-venv/Scripts/python.exe"
@@ -96,13 +136,15 @@ pub fn python_backend_cache(assets_root: &Path) -> Result<PathBuf, PythonBackend
 }
 
 fn absolute_override(variable: &'static str) -> Result<Option<PathBuf>, PythonBackendRuntimeError> {
-    env::var_os(variable).map(|value| {
-        let path = PathBuf::from(value);
-        if !path.is_absolute() {
-            return Err(PythonBackendRuntimeError::RelativeOverride { variable, path });
-        }
-        Ok(path)
-    }).transpose()
+    env::var_os(variable)
+        .map(|value| {
+            let path = PathBuf::from(value);
+            if !path.is_absolute() {
+                return Err(PythonBackendRuntimeError::RelativeOverride { variable, path });
+            }
+            Ok(path)
+        })
+        .transpose()
 }
 
 fn regular_file(path: &Path, operation: &'static str) -> Result<(), PythonBackendRuntimeError> {

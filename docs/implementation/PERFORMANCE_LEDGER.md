@@ -390,3 +390,29 @@ The rectangular mesh caps resolution at 16 per axis and uses dense matrix assemb
 though precision/projections are serialized sparsely. Event/region counts and iterations are bounded;
 two declared resolutions are fitted for sensitivity. No adaptive/holed mesh, sparse factorization,
 posterior sampling, memory scaling, WSI-scale workload, or throughput measurement was run.
+
+
+## ARCH-INTEGRATION-01 multiplex application — 2026-09-04
+
+A complete native six-patient/twelve-slide study is measured, including strict panel admission,
+shared radius Moran/Geary graphs, canonical patient Max-T, durable persistence/replay and atomic
+publication. The canonical owners remain; no optimization or new benchmark framework was added.
+The fixed generator checks exact graph counts, all patient/slide denominators and available
+inference; every cold/replay result is byte-identical and all project ledgers remain at thirteen
+executions. Repeated workloads cover 72 and 60,000 cells with two selected quantitative channels
+plus nullable binary/categorical annotations.
+
+Build: `cargo +1.96.0 build --locked --release --features cli --bin marklab`, default features and
+system allocator, Apple M4 Pro/48 GiB/macOS 26.5.2. `/usr/bin/time -l` measures three independent
+empty-project cold runs and three replays for each workload. Median cold/replay wall time is
+0.75/0.10 s for 72 cells and 0.86/0.17 s for 60,000 cells; maximum large-workload RSS is 49.766 MiB.
+Concurrent full-suite/fuzz work, unflushed filesystem caches and startup noise limit interpretation.
+Cold/replay are different execution paths with the same scientific output, not an equivalent-work
+algorithm speedup comparison. The large grid requires 19,700 directed edges per slide/channel and
+945,600 reserved statistic edge evaluations over the study.
+
+All raw samples, commands, input/binary hashes, exact verification and limits are in
+[`docs/multiplex-study-measurements.md`](../multiplex-study-measurements.md). Irregular geometry,
+dense graphs, selected-channel missingness, large panels, millions of cells and other inference
+engines require their own workloads. The strict 16 MiB recipe limit and fixed point/edge/memory/work
+admission remain. No clinical, biological or universal whole-slide capacity claim is made.

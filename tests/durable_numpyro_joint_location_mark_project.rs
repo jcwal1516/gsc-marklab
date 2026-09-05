@@ -126,7 +126,7 @@ fn fixtures() -> (String, String) {
                             2 + type_index + usize::from(group_index == 1 && type_id == "A");
                         writeln!(location,
                             "{pattern},{patient},{group},synthetic,q-{node_index},{type_id},{x},{y},1,4,{}, {count},{:064x},{:064x}",
-                            node_index as i32 % 2 * 2 - 1,
+                            node_index % 2 * 2 - 1,
                             group_index * 100 + patient_index * 10 + pattern_index + 1,
                             group_index * 1000 + patient_index * 100 + pattern_index + 1,
                         ).unwrap();

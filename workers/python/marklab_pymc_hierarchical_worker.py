@@ -450,7 +450,7 @@ def fit_hierarchy(
     minimum_ebfmi = float(
         np.min(np.mean(np.diff(energy, axis=1) ** 2, axis=1) / np.var(energy, axis=1))
     )
-    divergences = int(np.asarray(fit["sample_stats"]["divergences"].values).sum())
+    divergences = int(np.asarray(fit["sample_stats"]["diverging"].values).sum())
     tree_depth_hits = int(
         np.asarray(fit["sample_stats"]["reached_max_treedepth"].values).sum()
     )

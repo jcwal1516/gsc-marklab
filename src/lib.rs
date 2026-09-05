@@ -64,6 +64,7 @@ mod mark_weighted_k_workflow;
 mod marked_prepost_dag;
 mod measurement_status_wire;
 mod multimodal;
+mod multiplex_study;
 mod multiscale_residual;
 mod nearest_space;
 mod nearest_space_workflow;
@@ -114,10 +115,6 @@ mod wsi;
 pub use cli::{cli_command, run_cli};
 
 pub use api::{AnalysisEngine, DeclaredMarkedAnalysisRun, MarkedAnalysisRun};
-pub use python_backend::{
-    python_backend_assets_root, python_backend_cache, python_backend_interpreter,
-    PythonBackendRuntimeError,
-};
 pub use arbitrary_window_ipp::{
     arbitrary_window_ipp_log_likelihood, ArbitraryWindowIppError, ArbitraryWindowIppEvent,
     ArbitraryWindowIppLikelihoodResult, ArbitraryWindowIppLimits, ArbitraryWindowIppQuadratureNode,
@@ -476,6 +473,10 @@ pub use multimodal::{
     MultimodalAnalysisRun, MultimodalEngine, MultimodalInput, NullModelSensitivityResult,
     RegistrationExtrapolation, RegistrationResidual,
 };
+pub use multiplex_study::{
+    analyze_multiplex_study, execute_multiplex_study, publish_multiplex_study,
+    MultiplexStudyResult, MultiplexStudyRun, MultiplexStudyTarget,
+};
 pub use nearest_space::{
     analyze_nearest_space_pattern, DistributionPointStatus, JPointStatus, NearestSpaceCacheStatus,
     NearestSpaceComponentInference, NearestSpaceConfig, NearestSpaceConfigurationSummary,
@@ -524,16 +525,21 @@ pub use probability_pair::{
     ProbabilityPairLimits, ProbabilityPairPoint, ProbabilityPairPointStatus, ProbabilityPairResult,
 };
 pub use probability_pair_workflow::ProbabilityPairAnalysisNode;
+pub use python_backend::{
+    python_backend_assets_root, python_backend_cache, python_backend_command,
+    python_backend_interpreter, PythonBackendRuntimeError,
+};
 pub use registration::{
     landmarks::LandmarkPair,
     transform::{Transform2D, TransformKind},
 };
 pub use scalar_mark::{
-    BinaryMarkDeclaration, BinaryMarkOrigin, DeclaredMarkUse, DeclaredScalarIdentity,
-    DeclaredScalarInputError, DeclaredScalarPatternInput, HistologicCompartmentMarkDeclaration,
-    MarkTable, MissingnessPolicy, NucleusAreaUm2MarkDeclaration, OrdinalMarkDeclaration,
-    ProbabilityMarkDeclaration, ProbabilitySimplexMarkDeclaration, ProbabilityThresholdComparator,
-    ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit, ScalarMarkValueKind,
+    AssayMarkDeclaration, AssayMarkValues, BinaryMarkDeclaration, BinaryMarkOrigin,
+    DeclaredMarkUse, DeclaredScalarIdentity, DeclaredScalarInputError, DeclaredScalarPatternInput,
+    HistologicCompartmentMarkDeclaration, MarkTable, MissingnessPolicy,
+    NucleusAreaUm2MarkDeclaration, OrdinalMarkDeclaration, ProbabilityMarkDeclaration,
+    ProbabilitySimplexMarkDeclaration, ProbabilityThresholdComparator, ScalarMarkColumn,
+    ScalarMarkId, ScalarMarkModality, ScalarMarkUnit, ScalarMarkValueKind,
     VectorArtifactRefMarkDeclaration,
 };
 pub use scalar_variogram::{
@@ -566,10 +572,11 @@ pub use soft_pair_mixing::{
 };
 pub use soft_pair_mixing_workflow::SoftPairMixingAnalysisNode;
 pub use spatial_autocorrelation::{
-    global_geary_permutation, global_moran_permutation, GlobalGearyAlternative, GlobalGearyDesign,
-    GlobalGearyError, GlobalGearyLimits, GlobalGearyResult, GlobalMoranAlternative,
-    GlobalMoranConditioning, GlobalMoranDesign, GlobalMoranError, GlobalMoranLimits,
-    GlobalMoranResult, GlobalMoranWeightPolicy,
+    global_geary_permutation, global_moran_permutation, summarize_assay_spatial, AssaySpatialInput,
+    AssaySpatialLimits, AssaySpatialOutcome, AssaySpatialSummary, AssaySpatialUnavailable,
+    GlobalGearyAlternative, GlobalGearyDesign, GlobalGearyError, GlobalGearyLimits,
+    GlobalGearyResult, GlobalMoranAlternative, GlobalMoranConditioning, GlobalMoranDesign,
+    GlobalMoranError, GlobalMoranLimits, GlobalMoranResult, GlobalMoranWeightPolicy,
 };
 pub use spatial_autocorrelation_workflow::{
     GlobalMoranAnalysisNode, GlobalMoranPrePostNode, GlobalMoranPrePostResult,

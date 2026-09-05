@@ -373,7 +373,7 @@ def result_from_sample(
     mcse_sd = float(tree_values(pm.stats.mcse(posterior, var_names=monitored, method="sd"), monitored).max())
     energy = np.asarray(posterior["sample_stats"]["energy"].values, dtype=np.float64)
     ebfmi = float(np.min(np.mean(np.diff(energy, axis=1) ** 2, axis=1) / np.var(energy, axis=1)))
-    divergences = int(np.asarray(posterior["sample_stats"]["divergences"].values).sum())
+    divergences = int(np.asarray(posterior["sample_stats"]["diverging"].values).sum())
     depth_hits = int(np.asarray(posterior["sample_stats"]["reached_max_treedepth"].values).sum())
     constraints_valid = bool(np.all(intensity > 0.0) and np.all(expected > 0.0))
     complete = (

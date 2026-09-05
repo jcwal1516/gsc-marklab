@@ -59,6 +59,12 @@ jobs:
         run: |
           "$MARKLAB_PYTHON" -m unittest discover -s tests/python -p 'test_*.py'
           "$MARKLAB_PYTHON" -m unittest discover -s workers/python -p 'test_*.py'
+      - name: Install the separately locked client test environment
+        env:
+          UV_PROJECT_ENVIRONMENT: ${{ github.workspace }}/target/client-venv
+        run: uv sync --project clients/python --locked --group test --python 3.12
+      - name: Required AnnData interchange and native client integration tests
+        run: target/client-venv/bin/python -m unittest discover -s clients/python/tests -p 'test_*.py'
 
   feature-matrix:
     runs-on: ubuntu-latest

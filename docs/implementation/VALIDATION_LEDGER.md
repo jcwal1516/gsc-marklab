@@ -5245,3 +5245,56 @@ vascular transport.
   `cmp` passes and the ledger remains one row. Diagnostics and hashes are recorded in STATUS.
 - No model control, patient, slide, factor, residual family, degree of freedom, or spatial scale is
   changed after seeing the result. No broad workspace/Nextest loader loop or unrelated gate runs.
+
+
+## ARCH-INTEGRATION-01 architecture integration checkpoint — 2026-09-04
+
+Base: `f53f20746ec1455f8b9e76cbc983af08e7d101e9`; foundation milestones `3f56e3b`, `f67f36e`,
+`3fc3dae`; decisions DEC-0408–0414 and IC-0201. This is one combined checkpoint for delivery,
+backend corrections and the complete multiplex study/client workflow. The task contract retains
+expected-red evidence, earlier failed/interrupted full runs, unavailable commands and design limits.
+
+| Gate | Exact command or reproducible evidence | Result |
+|---|---|---|
+| Focused numerical/data/workflow | `cargo +1.96.0 test --locked --package marklab --no-default-features --test multiplex_panel --test multiplex_study --test global_moran_typed_workflow --test global_moran_project_workflow` | Pass: 17/17 (5 panel, 9 study, 2 typed Moran, 1 project Moran); includes independent missing-row oracle, f64 extreme/constant diagnostics, patient parity, resource bounds, fan-in, replay and publication. |
+| Legacy scalar compatibility | Affected no-default test invocation including `--test scalar_mark_input`, recorded in `target/multiplex-focused-tests.log`; the final complete workspace command also covers this target | Pass: 11/11; existing public unit/modality exhaustive-match regression also passes in `multiplex_panel`. |
+| CLI/discovery/process boundary | `cargo +1.96.0 test --locked --package marklab --all-features --test multiplex_study_cli --test cli_discovery` | Pass: 6/6, including separate-process partial/resumed execution, exact library/CLI JSON, thirteen ledger rows and original named GP command. |
+| Corrected real backend flows | `cargo +1.96.0 test --locked --package marklab --all-features --test python_backend_runtime --test bayes_sar_fit_cli --test topology_raster_morphology_cli --test cell_patch_complementarity_project_cli --test bayes_normal_mean_cli` | Pass: 10/10; original science assertions and diagnostic thresholds retained. |
+| Effective Python startup | `env PYTHONPATH=/not-a-worker-import-root PYTHONHOME=/not-a-python-home cargo +1.96.0 test --locked --package marklab --no-default-features --test python_worker_startup` | Expected flag red, then pass: fixed repeated hashes, safe import paths, no ambient imports/user site or bytecode. |
+| Python scientific tests | `env PYTHONDONTWRITEBYTECODE=1 target/pymc-venv/bin/python -m unittest discover -s tests/python -p 'test_*.py'`; same command with `-s workers/python` | Pass: 76/76 in 62.563 s and 1/1; divergence test executes all 26 production expressions against three counter/flag cases. |
+| Real AnnData/native client | `env PYTHONDONTWRITEBYTECODE=1 target/client-venv/bin/python -m unittest discover -s clients/python/tests -p 'test_*.py'` | Pass: 3/3 in 96.804 s; actual sparse H5AD round trip, bounds/identity failures, native resume/replay and overwrite error. Separate lock/environment; no statistical duplication. |
+| Formatting | `cargo +1.96.0 fmt --all --check` | Pass, exit 0. |
+| All-feature warnings | `cargo +1.96.0 clippy --locked --workspace --all-targets --all-features -- -D warnings` | Pass, exit 0 (58.26 s). |
+| CLI-only warnings | `cargo +1.96.0 clippy --locked --workspace --all-targets --no-default-features --features cli -- -D warnings` | Pass, exit 0. Only physical Arrow tests/imports are feature-gated; their six mathematical tests remain available without Parquet. |
+| Minimal build | `cargo +1.96.0 check --locked --workspace --no-default-features` | Pass, exit 0 (16.63 s). |
+| Strict documentation | `env RUSTDOCFLAGS=-Dwarnings cargo +1.96.0 doc --locked --no-deps --workspace --all-features` | Pass, exit 0; seventeen package docs generated (31.43 s). |
+| Workspace doctests | `cargo +1.96.0 test --locked --workspace --doc --all-features` | Pass, all seventeen targets; zero doc-test cases, not new executable-example coverage. |
+| Complete workspace | `cargo +1.96.0 nextest run --locked --workspace --all-features --test-threads 2 --no-fail-fast` | Completed: 1,701 selected cases, 1,700 passed (12 slow), one failed, 28 existing skips; 2,816.825 s. The sole failure was the obsolete blanket `python/tests` substring ban matching the new client path. Production code/CI were unchanged; the corrected contract passes the focused checks below. No later unfiltered pass is claimed. |
+| Parser fuzz build/execution | `cargo +nightly fuzz check`; `cargo +nightly fuzz run multiplex_study target/multiplex-fuzz-corpus -- -max_total_time=30 -max_len=65536 -timeout=10` | Pass: final check 22.98 s; seeded execution 174,252 inputs in 31 s, no reported failure. Short bounded sanitizer smoke, not exhaustive coverage. |
+| Workload/RSS/replay | Optimized native build plus the exact commands/oracles in `docs/multiplex-study-measurements.md` | Pass: 12 complete measurements at 72/60,000 cells. Large-workload cold/replay medians 0.86/0.17 s, maximum RSS 49.766 MiB. Concurrent checks/OS caches limit timing interpretation. |
+| Unix extracted package | Same curated tar layout as release workflow, actual optimized default-feature binary, extracted directory with spaces; doctor with no asset override and shipped native study/verifier | Pass: 167 entries, 17,806,475 compressed bytes; ten direct Python pins; twelve slides/six patients/thirteen executions. No virtual environment/cache packaged. Not the WSI release matrix or Windows execution. |
+| Environment consistency | `uv pip check --python target/pymc-venv/bin/python`; `uv pip check --python target/client-venv/bin/python` | Pass: 74 and 17 packages. An earlier UV_PROJECT_ENVIRONMENT-only pip command selected host Python and failed; no host changes were made. Exact limitation is retained in the task contract. |
+| Workflow configuration | `ruby -rpsych -e 'ARGV.each { |path| Psych.parse_file(path); puts "YAML syntax OK: #{path}" }' .github/workflows/ci.yml .github/workflows/release.yml` | Pass: YAML syntax. Existing workflow contract tests passed 7/7 in the foundation milestone. `actionlint` unavailable; hosted CI not run. |
+| Compatibility/records | Final diff/whitespace review, unchanged master-plan and root Cargo manifest/lock, source comparison, tracker/history checks | All 99 Bayesian variant attributes/argument declarations preserve baseline semantics; all 233 tracker rows remain in order; original 2,091-line roadmap is verbatim in history. Fuzz shared versions match the root, fuzz-only pins unchanged. |
+
+Not run at this checkpoint: hosted CI, Windows/Linux runtime execution, full WSI release/feature
+matrix, cargo packaging/dependency-audit suite, existing unrelated benchmarks/DHAT/real-data ignored
+fixtures, or new external biological calibration. Rust production dependencies did not change;
+Shapely's already-used Python dependency and separate test-only AnnData lock have recorded decisions
+and executed environment checks. Existing ignored tests remain unchanged. No push, deployment,
+external dataset access, whole-slide claim, or scientific promotion was performed.
+
+
+Final contract correction: `cargo +1.96.0 test --locked --package marklab --all-features --test
+workflow_contract` passes 7/7 after the expected full-run red. The changed contract keeps the removed
+root Python/PyO3 package absent and requires both locked environment installs before their respective
+test commands, the separate client environment and all Python suites. `cargo +1.96.0 clippy --locked
+--package marklab --all-features --test workflow_contract -- -D warnings` passes (16.72 s), and final
+`cargo +1.96.0 fmt --all --check` passes. Only the CI test and documentation changed after the complete
+workspace run, so no scientific/production pass is invalidated and no expensive unfiltered repeat is
+claimed. The final focused nextest result is recorded in the task contract.
+
+
+`cargo +1.96.0 nextest run --locked --package marklab --all-features --test workflow_contract`
+subsequently passes 7/7, zero skipped (0.015 s). Final diff/whitespace/status checks pass before the
+local stabilization commit. No production code changed after the 1,701-case complete run.

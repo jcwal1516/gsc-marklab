@@ -14,6 +14,13 @@ marklab = { path = "..", default-features = false, features = ["csv", "wsi"] }
 marklab-embeddings = { path = "../crates/marklab-embeddings", default-features = false, features = ["csv", "parquet"] }
 
 [[bin]]
+name = "multiplex_study"
+path = "fuzz_targets/multiplex_study.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "config"
 path = "fuzz_targets/config.rs"
 test = false

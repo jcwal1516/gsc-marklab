@@ -76,13 +76,16 @@ impl MissingnessPolicy {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScalarMarkColumn {
     pub(super) values: ScalarMarkColumnValues,
-    pub(super) modality: ScalarMarkModality,
-    pub(super) unit: ScalarMarkUnit,
+    pub(super) compatibility_semantics: Option<(ScalarMarkModality, ScalarMarkUnit)>,
     pub(super) missingness: MissingnessPolicy,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum ScalarMarkColumnValues {
+    Assay {
+        declaration: AssayMarkDeclaration,
+        values: AssayMarkValues,
+    },
     Binary {
         declaration: BinaryMarkDeclaration,
         values: Box<[u8]>,
@@ -137,8 +140,7 @@ impl ScalarMarkColumn {
                 declaration,
                 values,
             },
-            modality,
-            unit,
+            compatibility_semantics: Some((modality, unit)),
             missingness,
         })
     }
@@ -166,8 +168,7 @@ impl ScalarMarkColumn {
                 declaration,
                 values,
             },
-            modality,
-            unit,
+            compatibility_semantics: Some((modality, unit)),
             missingness,
         })
     }
@@ -195,8 +196,7 @@ impl ScalarMarkColumn {
                 declaration,
                 values,
             },
-            modality,
-            unit,
+            compatibility_semantics: Some((modality, unit)),
             missingness,
         })
     }
@@ -227,8 +227,7 @@ impl ScalarMarkColumn {
                 declaration,
                 values,
             },
-            modality,
-            unit,
+            compatibility_semantics: Some((modality, unit)),
             missingness,
         })
     }
@@ -279,8 +278,7 @@ impl ScalarMarkColumn {
                 row_count,
                 values: values.into_boxed_slice(),
             },
-            modality,
-            unit,
+            compatibility_semantics: Some((modality, unit)),
             missingness,
         })
     }
@@ -317,8 +315,7 @@ impl ScalarMarkColumn {
                 declaration,
                 values,
             },
-            modality,
-            unit,
+            compatibility_semantics: Some((modality, unit)),
             missingness,
         })
     }
@@ -360,14 +357,14 @@ impl ScalarMarkColumn {
                 row_count,
                 cell_ids_logical_digest,
             },
-            modality,
-            unit,
+            compatibility_semantics: Some((modality, unit)),
             missingness,
         })
     }
 
     pub(super) fn mark_id(&self) -> &ScalarMarkId {
         match &self.values {
+            ScalarMarkColumnValues::Assay { declaration, .. } => declaration.mark_id(),
             ScalarMarkColumnValues::Binary { declaration, .. } => declaration.mark_id(),
             ScalarMarkColumnValues::Probability { declaration, .. } => declaration.mark_id(),
             ScalarMarkColumnValues::Continuous { declaration, .. } => declaration.mark_id(),
@@ -380,6 +377,7 @@ impl ScalarMarkColumn {
 
     pub(super) fn len(&self) -> usize {
         match &self.values {
+            ScalarMarkColumnValues::Assay { values, .. } => values.len(),
             ScalarMarkColumnValues::Binary { values, .. } => values.len(),
             ScalarMarkColumnValues::Probability { values, .. } => values.len(),
             ScalarMarkColumnValues::Continuous { values, .. } => values.len(),

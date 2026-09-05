@@ -9977,7 +9977,7 @@ fn topology_error(error: TopologyCliError) -> BayesCliError {
     }
 }
 
-fn native_runtime_provenance() -> Result<NativeRuntimeProvenance, BayesCliError> {
+pub(super) fn native_runtime_provenance() -> Result<NativeRuntimeProvenance, BayesCliError> {
     let executable = executable_artifact()?;
     let git_sha = match env!("MARKLAB_BUILD_GIT_SHA") {
         "" => None,
@@ -10073,6 +10073,10 @@ fn report_recovery(project: &DurableProject) {
     }
 }
 
+pub(crate) fn cli_route() -> crate::command_tree::Route {
+    crate::command_tree::Route::new::<ProjectCli>(|| run_cli().map_err(bayes::into_marklab_error))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -10119,8 +10123,4 @@ mod tests {
         let wrong_backend = backend("pot", "0.9.7.post1", 'a', 'b');
         assert!(descriptor.validate_request_backend(&wrong_backend).is_err());
     }
-}
-
-pub(crate) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<ProjectCli>(|| run_cli().map_err(bayes::into_marklab_error))
 }

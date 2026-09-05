@@ -257,5 +257,7 @@ fn standardized(summary: &SarScalarSummary, baseline: f64, baseline_sd: f64) -> 
 }
 
 pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<SensitivityCli>(|| run_cli().map_err(super::into_marklab_error))
+    crate::command_tree::Route::new::<SensitivityCli>(|| {
+        run_cli().map_err(super::into_marklab_error)
+    })
 }

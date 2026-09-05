@@ -135,7 +135,40 @@ fn ci_workflow_runs_locked_rust_wsi_and_benchmark_gates() {
     assert!(scheduled_benchmarks.contains("benchmark-resources.txt"));
 
     assert!(!workflow.contains("maturin"));
-    assert!(!workflow.contains("python/tests"));
+    // The removed root Python package stays absent; DEC-0414 adds a thin client with its own
+    // required, separately provisioned test environment rather than a second scientific engine.
+    assert!(!workflow.contains("-s python/tests"));
+    let backend_job = workflow
+        .split_once("  backend-integration:\n")
+        .expect("required backend job")
+        .1
+        .split_once("\n  feature-matrix:")
+        .expect("bounded backend job")
+        .0;
+    for (installation, tests) in [
+        (
+            "uv sync --project workers/python --locked --python 3.12",
+            "cargo nextest run --locked --workspace --all-features --test-threads 2",
+        ),
+        (
+            "uv sync --project clients/python --locked --group test --python 3.12",
+            "target/client-venv/bin/python -m unittest discover -s clients/python/tests",
+        ),
+    ] {
+        let installed = backend_job
+            .find(installation)
+            .expect("locked environment installation");
+        let executed = backend_job.find(tests).expect("required integration tests");
+        assert!(
+            installed < executed,
+            "install the required environment before testing"
+        );
+    }
+    assert!(
+        backend_job.contains("UV_PROJECT_ENVIRONMENT: ${{ github.workspace }}/target/client-venv")
+    );
+    assert!(backend_job.contains("-m unittest discover -s tests/python"));
+    assert!(backend_job.contains("-m unittest discover -s workers/python"));
     assert!(!workflow.contains("--replicates 1000"));
 }
 

@@ -44,43 +44,6 @@ pub(super) use arbitrary_window_lgcp_fit::{
     FitResult as ArbitraryWindowLgcpFitResult, PreparedArbitraryWindowLgcpFit,
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 pub(crate) use arbitrary_window_ipp_spatial_ppc::{
     execute as execute_arbitrary_window_ipp_spatial_ppc,
     prepare as prepare_arbitrary_window_ipp_spatial_ppc,
@@ -448,10 +411,6 @@ pub(super) use ordinal_site_heldout::{
     PreparedOrdinalSiteHeldout,
 };
 pub(super) use worker_process::{publish_json, run_worker};
-
-
-
-
 
 use normal_mean::{observations_digest, read_observations, run_normal_mean};
 

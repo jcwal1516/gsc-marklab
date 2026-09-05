@@ -2,7 +2,7 @@ use std::{
     fs,
     io::{Read, Write},
     path::{Path, PathBuf},
-    process::{Command, ExitStatus, Stdio},
+    process::ExitStatus,
     thread,
     time::{Duration, Instant},
 };
@@ -41,25 +41,11 @@ pub(crate) fn run_worker(
         path: cache.clone(),
         source,
     })?;
-    let mut child = Command::new(&interpreter)
-        .arg("-I")
-        .arg(&worker)
-        .env_clear()
-        .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
-        .env("LC_ALL", "C")
-        .env("PYTHONHASHSEED", "0")
-        .env("PYTHONNOUSERSITE", "1")
-        .env("PYTHONDONTWRITEBYTECODE", "1")
-        .env("OMP_NUM_THREADS", "1")
-        .env("OPENBLAS_NUM_THREADS", "1")
-        .env("MKL_NUM_THREADS", "1")
+    let mut child = marklab::python_backend_command(&interpreter, &worker)
         .env(
             "PYTENSOR_FLAGS",
             format!("base_compiledir={}", cache.display()),
         )
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
         .spawn()
         .map_err(|source| BayesCliError::Io {
             path: interpreter.clone(),

@@ -7,11 +7,30 @@ use assert_cmd::Command;
 fn normal_command(input: &Path, out: &Path) -> Command {
     let mut command = Command::cargo_bin("marklab").expect("binary");
     command.args([
-        "bayes", "normal-mean", "--input", input.to_str().unwrap(),
-        "--prior-mean", "0", "--prior-sd", "1", "--known-sigma", "1",
-        "--chains", "2", "--tune", "100", "--draws", "100",
-        "--target-accept", "0.9", "--seed", "41", "--timeout-seconds", "60",
-        "--out", out.to_str().unwrap(),
+        "bayes",
+        "normal-mean",
+        "--input",
+        input.to_str().unwrap(),
+        "--prior-mean",
+        "0",
+        "--prior-sd",
+        "1",
+        "--known-sigma",
+        "1",
+        "--chains",
+        "2",
+        "--tune",
+        "100",
+        "--draws",
+        "100",
+        "--target-accept",
+        "0.9",
+        "--seed",
+        "41",
+        "--timeout-seconds",
+        "60",
+        "--out",
+        out.to_str().unwrap(),
     ]);
     command
 }
@@ -58,7 +77,9 @@ fn backend_doctor_reports_the_resolved_assets_and_interpreter() {
         .assert()
         .success()
         .stdout(predicates::str::contains("Python 3.12"))
-        .stdout(predicates::str::contains(interpreter.to_string_lossy().as_ref()));
+        .stdout(predicates::str::contains(
+            interpreter.to_string_lossy().as_ref(),
+        ));
 }
 
 #[test]
@@ -73,21 +94,34 @@ fn explicit_missing_interpreter_is_reported_before_a_fit() {
         .env("MARKLAB_PYTHON", &interpreter)
         .assert()
         .failure()
-        .stderr(predicates::str::contains(interpreter.to_string_lossy().as_ref()));
+        .stderr(predicates::str::contains(
+            interpreter.to_string_lossy().as_ref(),
+        ));
     assert!(!out.exists());
 }
 
 #[test]
 fn relocated_bundle_executes_once_and_replays_without_an_interpreter() {
-    let directory = tempfile::Builder::new().prefix("marklab installed ").tempdir().unwrap();
+    let directory = tempfile::Builder::new()
+        .prefix("marklab installed ")
+        .tempdir()
+        .unwrap();
     let bundle = directory.path().join("bundle");
     let assets = bundle.join("workers/python");
     fs::create_dir_all(&assets).unwrap();
     let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
     for name in ["uv.lock", "pyproject.toml", "marklab_pymc_worker.py"] {
-        fs::copy(repository.join("workers/python").join(name), assets.join(name)).unwrap();
+        fs::copy(
+            repository.join("workers/python").join(name),
+            assets.join(name),
+        )
+        .unwrap();
     }
-    let executable = bundle.join(if cfg!(windows) { "marklab.exe" } else { "marklab" });
+    let executable = bundle.join(if cfg!(windows) {
+        "marklab.exe"
+    } else {
+        "marklab"
+    });
     fs::copy(assert_cmd::cargo::cargo_bin("marklab"), &executable).unwrap();
     let input = directory.path().join("observations.csv");
     fs::write(&input, "observation\n1\n2\n3\n4\n").unwrap();
@@ -98,30 +132,71 @@ fn relocated_bundle_executes_once_and_replays_without_an_interpreter() {
 
     for (out, replay) in [(&first, false), (&second, true)] {
         let mut command = Command::new(&executable);
-        command.current_dir(directory.path())
+        command
+            .current_dir(directory.path())
             .env_remove("MARKLAB_RUNTIME_ROOT")
-            .env("MARKLAB_PYTHON", if replay { directory.path().join("absent-python") } else { interpreter.clone() })
+            .env(
+                "MARKLAB_PYTHON",
+                if replay {
+                    directory.path().join("absent-python")
+                } else {
+                    interpreter.clone()
+                },
+            )
             .env("MARKLAB_BACKEND_CACHE", directory.path().join("cache"))
             .args([
-                "project", "normal-mean", "--project", project.to_str().unwrap(),
-                "--input", input.to_str().unwrap(), "--prior-mean", "0",
-                "--prior-sd", "1", "--known-sigma", "1", "--chains", "2",
-                "--tune", "100", "--draws", "100", "--target-accept", "0.9",
-                "--seed", "41", "--timeout-seconds", "120", "--out", out.to_str().unwrap(),
+                "project",
+                "normal-mean",
+                "--project",
+                project.to_str().unwrap(),
+                "--input",
+                input.to_str().unwrap(),
+                "--prior-mean",
+                "0",
+                "--prior-sd",
+                "1",
+                "--known-sigma",
+                "1",
+                "--chains",
+                "2",
+                "--tune",
+                "100",
+                "--draws",
+                "100",
+                "--target-accept",
+                "0.9",
+                "--seed",
+                "41",
+                "--timeout-seconds",
+                "120",
+                "--out",
+                out.to_str().unwrap(),
             ]);
         if replay {
             command.env("MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION", "1");
         }
-        command.assert().success().stderr(predicates::str::contains(
-            if replay { "cache_status=hit" } else { "cache_status=miss" }
-        ));
+        command
+            .assert()
+            .success()
+            .stderr(predicates::str::contains(if replay {
+                "cache_status=hit"
+            } else {
+                "cache_status=miss"
+            }));
     }
     let first_bytes = fs::read(first).unwrap();
     assert_eq!(first_bytes, fs::read(second).unwrap());
     let result: serde_json::Value = serde_json::from_slice(&first_bytes).unwrap();
     assert_eq!(result["format"], "marklab.bayesian_fit");
-    assert_eq!(result["backend"]["worker_sha256"], marklab_bayes::sha256_hex(
-        &fs::read(assets.join("marklab_pymc_worker.py")).unwrap()
-    ));
-    assert_eq!(fs::read_to_string(project.join("executions.jsonl")).unwrap().lines().count(), 1);
+    assert_eq!(
+        result["backend"]["worker_sha256"],
+        marklab_bayes::sha256_hex(&fs::read(assets.join("marklab_pymc_worker.py")).unwrap())
+    );
+    assert_eq!(
+        fs::read_to_string(project.join("executions.jsonl"))
+            .unwrap()
+            .lines()
+            .count(),
+        1
+    );
 }

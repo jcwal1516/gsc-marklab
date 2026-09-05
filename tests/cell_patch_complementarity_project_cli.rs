@@ -37,6 +37,7 @@ fn project_command(
     permutations: &str,
 ) -> Command {
     let mut command = Command::new(binary);
+    command.env("MARKLAB_RUNTIME_ROOT", env!("CARGO_MANIFEST_DIR"));
     command.args([
         "project",
         "test-cell-patch-complementarity",
@@ -88,6 +89,7 @@ fn complementarity_is_admitted_then_replays_without_a_second_scipy_process() {
 
     let direct = directory.path().join("direct.json");
     Command::new(&binary)
+        .env("MARKLAB_RUNTIME_ROOT", env!("CARGO_MANIFEST_DIR"))
         .args([
             "bayes",
             "test-cell-patch-complementarity",

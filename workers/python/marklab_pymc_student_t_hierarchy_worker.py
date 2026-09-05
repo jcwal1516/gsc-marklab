@@ -176,7 +176,7 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
     mcse_sd = float(flattened(pm.stats.mcse(posterior, var_names=monitored, method="sd"), monitored).max())
     energy = np.asarray(posterior["sample_stats"]["energy"].values, dtype=np.float64)
     ebfmi = float(np.min(np.mean(np.diff(energy, axis=1)**2, axis=1) / np.var(energy, axis=1)))
-    divergences = int(np.asarray(posterior["sample_stats"]["divergences"].values).sum())
+    divergences = int(np.asarray(posterior["sample_stats"]["diverging"].values).sum())
     depth_hits = int(np.asarray(posterior["sample_stats"]["reached_max_treedepth"].values).sum())
     constraints = bool(np.all(draws["between_patient_sd"] > 0.0) and np.all(draws["observation_sd"] > 0.0) and np.all(draws["degrees_of_freedom"] > 2.0))
     complete = prior_finite and posterior_finite and constraints and r_hat <= config["maximum_r_hat"] and bulk >= config["minimum_bulk_ess"] and tail >= config["minimum_tail_ess"] and ebfmi >= config["minimum_ebfmi"] and divergences <= config["maximum_divergences"] and depth_hits <= config["maximum_tree_depth_hits"]

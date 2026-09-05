@@ -70,64 +70,13 @@ impl MarkTable {
         if mark_ids.windows(2).any(|pair| pair[0] == pair[1]) {
             return Err(DeclaredScalarInputError::DuplicateMarkId);
         }
-        let binary_count = columns
-            .iter()
-            .filter(|column| matches!(&column.values, ScalarMarkColumnValues::Binary { .. }))
-            .count();
-        if binary_count != 1 {
-            return Err(DeclaredScalarInputError::BinaryColumnCountMismatch);
-        }
-        let probability_count = columns
-            .iter()
-            .filter(|column| matches!(&column.values, ScalarMarkColumnValues::Probability { .. }))
-            .count();
-        if probability_count > 1 {
-            return Err(DeclaredScalarInputError::ProbabilityColumnCountMismatch);
-        }
-        let continuous_count = columns
-            .iter()
-            .filter(|column| matches!(&column.values, ScalarMarkColumnValues::Continuous { .. }))
-            .count();
-        if continuous_count > 1 {
-            return Err(DeclaredScalarInputError::ContinuousColumnCountMismatch);
-        }
-        let categorical_count = columns
-            .iter()
-            .filter(|column| matches!(&column.values, ScalarMarkColumnValues::Categorical { .. }))
-            .count();
-        if categorical_count > 1 {
-            return Err(DeclaredScalarInputError::CategoricalColumnCountMismatch);
-        }
-        let simplex_count = columns
-            .iter()
-            .filter(|column| {
-                matches!(
-                    &column.values,
-                    ScalarMarkColumnValues::ProbabilitySimplex { .. }
-                )
-            })
-            .count();
-        if simplex_count > 1 {
-            return Err(DeclaredScalarInputError::ProbabilitySimplexColumnCountMismatch);
-        }
-        let ordinal_count = columns
-            .iter()
-            .filter(|column| matches!(&column.values, ScalarMarkColumnValues::Ordinal { .. }))
-            .count();
-        if ordinal_count > 1 {
-            return Err(DeclaredScalarInputError::OrdinalColumnCountMismatch);
-        }
-        let vector_ref_count = columns
-            .iter()
-            .filter(|column| {
-                matches!(
-                    &column.values,
-                    ScalarMarkColumnValues::VectorArtifactRef { .. }
-                )
-            })
-            .count();
-        if vector_ref_count > 1 {
-            return Err(DeclaredScalarInputError::VectorArtifactRefColumnCountMismatch);
+        if columns.len() > 256 {
+            return Err(DeclaredScalarInputError::analysis(
+                crate::MarklabError::Validation(format!(
+                    "mark table has {} columns; maximum is 256",
+                    columns.len()
+                )),
+            ));
         }
         let table = Self {
             cell_ids: cell_ids.into_boxed_slice(),

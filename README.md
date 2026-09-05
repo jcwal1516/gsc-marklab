@@ -27,6 +27,15 @@ multiscale residual diagnostics, and descriptive pre/post differences relative t
 fixed-position random labeling. The multimodal workflow has first-class MMR-IHC
 inputs, but the core marked-pattern analysis is not tied to one marker.
 
+For the wider method catalog, supported workflows, and current scientific limits, start with
+[Capabilities and current evidence](docs/capabilities.md). `marklab --help` lists every enabled
+command family; `marklab backend doctor` checks a Python backend installation.
+
+For a complete multiplex panel-to-patient analysis, use the
+[multiplex study guide](docs/multiplex-study.md). Its synthetic example connects nullable assay
+channels, spatial summaries, patient-level inference, resumable execution and reports through one
+library service, with a thin Python/AnnData client.
+
 ## Scope
 
 | Marklab does | Marklab does not |

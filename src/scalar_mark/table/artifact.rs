@@ -32,6 +32,9 @@ impl MarkTable {
             .iter()
             .find(|column| column.mark_id() == mark_id)
             .map(|column| match &column.values {
+                ScalarMarkColumnValues::Assay { declaration, .. } => {
+                    declaration.measurement_status()
+                }
                 ScalarMarkColumnValues::Binary { declaration, .. } => {
                     declaration.measurement_status()
                 }
@@ -67,7 +70,9 @@ impl MarkTable {
         else {
             unreachable!()
         };
-        let binary_modality = binary_column.modality;
+        let binary_modality = binary_column
+            .compatibility_semantics
+            .map(|(modality, _)| modality);
         let probability = match self.probability_column()? {
             Some(column) => {
                 let ScalarMarkColumnValues::Probability { declaration, .. } = &column.values else {
@@ -82,7 +87,8 @@ impl MarkTable {
                 if matches!(
                     binary_declaration.origin(),
                     BinaryMarkOrigin::Thresholded { .. }
-                ) && column.modality != binary_modality
+                ) && column.compatibility_semantics.map(|(modality, _)| modality)
+                    != binary_modality
                 {
                     return Err(DeclaredScalarInputError::ThresholdModalityMismatch);
                 }
@@ -97,8 +103,12 @@ impl MarkTable {
         &self,
     ) -> Result<Box<[ArtifactId]>, DeclaredScalarInputError> {
         let mut ids = Vec::with_capacity(self.columns.len() + 1);
+        let mut assay_ids = Vec::new();
         for column in &self.columns {
             match &column.values {
+                ScalarMarkColumnValues::Assay { declaration, .. } => {
+                    assay_ids.push(declaration.provenance_artifact_id())
+                }
                 ScalarMarkColumnValues::Binary { declaration, .. } => {
                     ids.push(declaration.provenance_artifact_id());
                     if let BinaryMarkOrigin::Thresholded {
@@ -137,10 +147,17 @@ impl MarkTable {
         if distinct.windows(2).any(|pair| pair[0] == pair[1]) {
             return Err(DeclaredScalarInputError::DuplicateArtifactRole);
         }
+        // Assay channels may share one acquisition/processing provenance record. Legacy
+        // specialized roles retain their stricter distinct-role contract above.
+        for id in assay_ids {
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
         Ok(ids.into_boxed_slice())
     }
 
-    pub(in crate::scalar_mark) fn declared_artifact_ref(
+    pub(crate) fn declared_artifact_ref(
         &self,
         slide_id: &SlideId,
         frame_id: &CoordinateFrameId,

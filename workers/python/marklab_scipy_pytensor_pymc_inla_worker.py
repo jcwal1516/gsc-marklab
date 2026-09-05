@@ -465,7 +465,7 @@ def hmc_comparison(config: dict[str, Any]) -> dict[str, Any]:
     ebfmi = float(
         np.min(np.mean(np.diff(energy, axis=1) ** 2, axis=1) / np.var(energy, axis=1))
     )
-    divergences = int(np.asarray(posterior["sample_stats"]["divergences"].values).sum())
+    divergences = int(np.asarray(posterior["sample_stats"]["diverging"].values).sum())
     depth_hits = int(
         np.asarray(posterior["sample_stats"]["reached_max_treedepth"].values).sum()
     )

@@ -4081,3 +4081,158 @@ Checkpoint addendum, accepted 2026-08-24: the exact window owns its canonical bo
   [GEOS license context](https://shapely.readthedocs.io/en/stable/index.html).
 - Changing the environment-lock digest intentionally invalidates affected scientific cache keys.
   Existing stored artifacts are preserved; new runs retain the new environment identity.
+
+
+## DEC-0412 — Caller-driven multiplex study boundary
+
+Date: 2026-09-04. Authorization: architecture-review implementation, ARCH-INTEGRATION-01.
+
+The immediate production caller is one declared multiplex cohort recipe: named per-cell protein
+intensities and phenotypes within exact slide windows, two existing radius spatial summaries,
+equal-slide patient reduction and the existing whole-patient single-step Max-T comparison.
+
+Extend the existing MarkTable with a typed nullable assay column carrying a stable mark ID, label,
+explicit assay unit, measurement status, provenance identity, and continuous/binary/categorical
+values. Keep existing column constructors and their identity encoding unchanged. Make general table
+construction independent of the legacy one-binary Pattern projection; retain that projection's
+strict multiplicity, threshold, modality, and complete-observation validation. Do not use a dummy
+binary endpoint, nucleus-area field, nonfinite sentinel, or nominal category code as a continuous
+measurement. Bound rows, columns, text, retained values and geometry work at recipe admission.
+
+The new public application surface is a concrete multiplex-study service in the root library,
+consumed immediately by the CLI and then the thin Python client. Scientific Moran and Geary
+arithmetic remains in the existing spatial-autocorrelation owner; use one radius graph for both
+statistics on the same observed rows. Missing observations use explicitly declared per-marker
+complete cases, with counts and their conditional estimand in the output. Insufficient rows,
+isolates, constant marks and numerical failure yield explicit unavailable slide endpoints. An
+unavailable required endpoint prevents complete-family patient inference; it never silently removes
+a slide or patient. Patients receive equal weight after an explicit equal-slide reduction. The
+recipe must freeze endpoint order, groups, patient exchangeability, radius, normalization, seed,
+permutations and resource limits. General ROI weights, covariates and missing-data estimators are
+outside this concrete caller.
+
+Add a strictly versioned study recipe/result envelope separate from result-format 0.3. It binds
+source/panel/window identities, declared units and status, selected estimands, patient design,
+actual diagnostics, exact geometry and finite-permutation inference, execution limits and evidence
+ceiling. Derive the existing policy decision from actual study outcomes. New software/oracle
+coverage does not promote biological validity; this workflow remains experimental and makes no
+clinical or causal claim. Original assay provenance remains a declaration unless independently
+verified. Existing specialized outputs retain their own schemas.
+
+Compose per-slide nodes and a dependent cohort node through existing WorkflowNode, LocalScheduler,
+execute_algorithm and DurableProject owners, serially within a whole-study memory bound. Expose a
+bounded slide checkpoint for interruption/resume. Keys bind values, availability, design, semantics
+and dependencies; resumable execution must not rerun completed slide arithmetic. CLI presentation
+uses the shared result and atomic publication. No generic registry, distributed scheduler, new
+crate, new backend, production dependency, or result-0.3 change is introduced.
+
+Acceptance before closure: independent small-graph Moran/Geary oracle; nullable, multi-marker and
+categorical preservation; patient-level comparison against the canonical cohort function; exact
+CLI/library payload equality; process-boundary resume without new completed-slide ledger rows;
+changed-source invalidation; unavailable-slide propagation; malformed identity/unit/value and
+resource-bound cases. One interchange profile and Python client must feed this same service, with
+row/column identity and physical-coordinate checks. Scale promotion requires a separate measured
+representative workload, not extrapolation from these bounded tests.
+
+### DEC-0412 implementation clarification
+
+Assay-bearing MarkTables use logical identity version 2 with explicit row/column counts, channel
+units, typed availability tags and finite value bits. Existing compatibility-only tables retain
+version-1 bytes and their original constructors. Assay-specific modality/unit semantics remain
+private to the new column variant; existing public modality, unit and error enums are unchanged,
+so downstream exhaustive matches continue to compile.
+The study recipe/result use their own version-1 envelopes; result-format 0.3 is unchanged. The
+concrete durable workflow groups more than 64 slide dependencies into bounded collections, because
+the existing durable record's 64-input ceiling remains authoritative. No generic graph registry or
+physical payload format is added. Exact-float cache encoding reuses `exact_float_json`.
+
+## DEC-0413 — Correct backend diagnostic counts and make startup policy effective
+
+Date: 2026-09-04. Found during ARCH-INTEGRATION-01 combined verification.
+
+The required suite produced a SAR diagnostic count of 18,765 for 2,000 posterior transitions, while
+an unchanged focused retry passed. Inspection of installed PyMC 6.3.0 `base_hmc.py` confirms that
+`sample_stats.divergences` is a cumulative per-chain counter; `sample_stats.diverging` is the actual
+per-transition Boolean. Twenty-five static workers sum the cumulative counter. Replace those
+extraction expressions with sums of the Boolean flags, preserving all convergence thresholds,
+result fields and complete/nonconverged policy. Exercise each production expression against
+synthetic per-chain flags and deliberately different cumulative counters. This changes erroneous
+positive counts and may change outcomes when a nonzero divergence tolerance was explicitly used;
+zero-tolerance behavior is unchanged. Worker content identities must invalidate affected caches.
+
+A separate two-process probe confirms that the existing `-I` startup ignores the explicitly set
+`PYTHONHASHSEED=0` (and `PYTHONDONTWRITEBYTECODE`): string hashes differ across invocations.
+[Python 3.12 startup documentation](https://docs.python.org/3.12/using/cmdline.html#cmdoption-I)
+states that `-I` implies `-E`, `-P`, and `-s`. The count defect is confirmed; the extent to which
+hash-dependent compiler ordering explains the SAR variability remains a hypothesis.
+
+Make the existing curated process policy a single `python_backend_command` library owner, used by
+both production runners. Clear the entire environment and set only the existing explicit runtime
+variables, including fixed hash seed and thread controls; pass `-P`, `-s` and `-B` explicitly.
+This retains exclusion of the script/current directory and user site-packages, prevents ambient
+PYTHONPATH/PYTHONHOME/other environment injection, and disables bytecode writes, while allowing
+the admitted hash seed to take effect. Do not inherit user environment or widen module search
+paths. Keep file admission, worker/lock/version checks, stream bounds, timeout and child cleanup
+with their existing owners. The shared constructor is an expert Command builder, not a new
+backend or sandbox; callers must retain the owned policy rather than adding arbitrary environment.
+Tests must verify the effective flags, absent ambient import paths, repeated hashes and both real
+runner callers. Frozen Python hash ordering can change fresh-fit draws relative to historical
+randomized ordering; it does not authorize threshold relaxation or scientific promotion.
+
+## DEC-0414 — Thin Python client and one bounded AnnData interchange profile
+
+Date: 2026-09-04. Immediate caller: the multiplex study CLI/library service in DEC-0412.
+
+Add a standard-library-only Python module that invokes `marklab study`, preserves native errors,
+requires explicit project/output paths, and returns the published typed JSON. No statistic is
+implemented in Python. Its AnnData adapter consumes an already supplied object: named quantitative
+variables, explicit binary/categorical observation columns, physical 2-D coordinates, exact window,
+measurement/processing declarations and source row IDs. Select bounded variables before `to_df`
+can densify a sparse matrix. Use explicit nulls and declared category codebooks; require physical
+micrometres rather than guessing pixel scale. Source-local Cell IDs are losslessly qualified by
+slide and sorted with every aligned value/coordinate. Duplicate observations, wrong units,
+unknown categories and excessive matrix/recipe size must fail before native execution.
+
+Verify real AnnData/H5AD round trips against AnnData 0.12.4 in a separate, pinned uv test environment
+under this checkout. AnnData is BSD-3-Clause, brings scientific array/HDF5/Zarr dependencies and
+native-wheel footprint, and remains a test-only dependency; the client imports no AnnData, NumPy,
+Pandas or HDF5 package itself. Its maintenance/compatibility scope is this narrow tested profile,
+not arbitrary AnnData versions, backed/lazy/dask arrays, SpatialData transformations, R bindings or
+zero-copy interchange. Keep its lock isolated from the scientific worker lock so installing a
+client test package cannot silently change fitted-model environments. Required client CI runs in
+that separate environment; no global package installation or external data download is authorized.
+
+Primary API reference: [AnnData.to_df](https://anndata.readthedocs.io/en/stable/generated/anndata.AnnData.to_df.html)
+explicitly notes sparse densification and absent annotations in the returned frame. The adapter
+therefore bounds the selected slice and separately carries observation annotations and coordinates.
+
+### Verification-driven refinements for DEC-0412
+
+Finite f64 assay inputs exposed a previously unreachable ambiguity in the f32-oriented radius
+engines: nonrepresentable variance was labeled zero variance, and a constant decimal channel could
+acquire a rounding residual. Detect exact constant observations before centering and report
+nonfinite/underflowed variance for nonconstant observations as numerical failure. Preserve all
+ordinary arithmetic and result fields. Focused tests distinguish large/tiny nonconstant values,
+constant 0.1 and constant large values; legacy typed Moran/Geary callers remain covered.
+
+The existing fuzz workspace gains a bounded multiplex JSON target. Its canonical check exposed a
+stale lock missing dependencies already present in the root workspace. Resolve from the existing
+generated root lock with Cargo's offline workspace update, so every shared dependency version
+matches the root (including thiserror 2.0.18, j2k-tilecodec 0.7.3 and rand 0.8.6). The fuzz-only
+arbitrary 1.4.2 and libfuzzer-sys 0.4.13 pins remain unchanged. Cargo removes root-only development
+packages and adds the fuzz package's requirements. This admits no new production dependency and
+does not alter the root Cargo lock. The task contract records the failed precise-downgrade attempts
+that preceded this simpler lock reconciliation; the earlier stale fuzz environment is not claimed
+to be bit-identical.
+
+
+### CI contract clarification for DEC-0414
+
+The complete architecture suite exposed a historical blanket `python/tests` substring ban that
+also matched the newly authorized `clients/python/tests` path. The removed root Python/PyO3
+package remains prohibited. The contract now requires the separate locked worker and client
+environments, their installation before their respective test commands, the client environment
+override and all Python test directories. This is an intended test-contract update for the admitted
+standard-library client, not removal of required CI coverage. Production code and CI jobs are
+unchanged by this correction. Record the original complete-run failure and focused green honestly;
+no new unfiltered full-suite pass may be inferred from a focused rerun.
