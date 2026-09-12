@@ -7,3 +7,4 @@ dhat-heap.json
 .DS_Store
 __pycache__/
 *.py[cod]
+AGENTS.md
