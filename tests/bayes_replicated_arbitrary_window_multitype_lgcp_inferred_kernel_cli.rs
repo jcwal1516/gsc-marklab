@@ -49,7 +49,7 @@ fn replicated_multitype_lgcp_infers_one_shared_physical_kernel_at_the_patient_un
             "--draws",
             "1500",
             "--target-accept",
-            "0.95",
+            "0.99",
             "--seed",
             "20260829",
             "--maximum-patients",
@@ -85,7 +85,11 @@ fn replicated_multitype_lgcp_infers_one_shared_physical_kernel_at_the_patient_un
         result["format"],
         "marklab.bayesian_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_fit"
     );
-    assert_eq!(result["fit_state"], "complete", "{result}");
+    assert_eq!(
+        result["fit_state"], "complete",
+        "diagnostics: {}",
+        result["diagnostics"]
+    );
     assert_eq!(result["statistical_unit"], "patient");
     assert_eq!(result["patient_count"], 8);
     assert_eq!(result["pattern_count"], 16);

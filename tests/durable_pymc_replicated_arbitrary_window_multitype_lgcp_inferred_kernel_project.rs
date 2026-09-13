@@ -70,7 +70,11 @@ fn inferred_multitype_kernel_replays_without_a_second_backend_execution() {
         1
     );
     let result: serde_json::Value = serde_json::from_slice(&fs::read(first).unwrap()).unwrap();
-    assert_eq!(result["fit_state"], "complete");
+    assert_eq!(
+        result["fit_state"], "complete",
+        "diagnostics: {}",
+        result["diagnostics"]
+    );
     assert_eq!(result["statistical_unit"], "patient");
 }
 
@@ -114,7 +118,7 @@ fn command(project: &Path, input: &Path, output: &Path) -> Command {
         "--draws",
         "1500",
         "--target-accept",
-        "0.95",
+        "0.99",
         "--seed",
         "20260829",
         "--maximum-patients",
