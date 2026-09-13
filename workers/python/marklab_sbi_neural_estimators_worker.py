@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import sys
+from importlib.metadata import version
 
 import numpy as np
 import sbi
@@ -40,15 +41,20 @@ class NoOpTracker:
         pass
 
 
-def main():
+def validate_backend_versions():
     if (
         sbi.__version__ != "0.26.1"
-        or torch.__version__ != "2.13.0"
+        # Torch's runtime label includes a platform suffix on Linux wheels.
+        or version("torch") != "2.13.0"
         or np.__version__ != "2.4.6"
         or scipy.__version__ != "1.18.1"
         or sys.version_info[:2] != (3, 12)
     ):
         raise ContractError("neural SBI backend version drift")
+
+
+def main():
+    validate_backend_versions()
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
     torch.use_deterministic_algorithms(True)

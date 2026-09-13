@@ -13,5 +13,4 @@ The CI repair also restores readable directory handles for Linux durability
 barriers, gates the CSV-dependent test on CSV, places the CLI smoke test in the
 integration suite, selects the native GNU target for fuzz checks, and permits
 600 seconds for the existing hierarchy regression. Backend CI collects all test
-failures in one run. No dependency, scientific model, schema, or assertion changes
-are required.
+failures in one run. No dependency, scientific model, or schema changes are required.

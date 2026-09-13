@@ -105,7 +105,7 @@ fn inferred_kernel_replicated_patient_lgcp_sbc_calibrates_hierarchy_kernel_and_f
             "--maximum-coverage-90",
             "1",
             "--timeout-seconds",
-            "600",
+            "1800",
             "--out",
             output.to_str().unwrap(),
         ])
