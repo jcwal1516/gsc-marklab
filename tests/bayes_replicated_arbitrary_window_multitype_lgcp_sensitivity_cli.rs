@@ -20,6 +20,13 @@ fn replicated_multitype_lgcp_runs_the_fixed_hierarchy_and_kernel_grid() {
         .assert()
         .success();
 
+    let baseline: serde_json::Value = serde_json::from_slice(&fs::read(&pymc).unwrap()).unwrap();
+    assert_eq!(
+        baseline["fit_state"], "complete",
+        "baseline: {}",
+        baseline["diagnostics"]
+    );
+
     Command::cargo_bin("marklab")
         .expect("binary")
         .args([
@@ -50,8 +57,6 @@ fn replicated_multitype_lgcp_runs_the_fixed_hierarchy_and_kernel_grid() {
         result["format"],
         "marklab.replicated_arbitrary_window_multitype_lgcp_prior_kernel_sensitivity"
     );
-    assert_eq!(result["fit_state"], "nonconverged");
-    assert_eq!(result["material_sensitivity"], false);
     let scenarios = result["scenarios"].as_array().unwrap();
     assert_eq!(scenarios.len(), 8);
     assert_eq!(
@@ -71,12 +76,11 @@ fn replicated_multitype_lgcp_runs_the_fixed_hierarchy_and_kernel_grid() {
         ]
     );
     for scenario in scenarios {
-        if scenario["scenario"] == "field_length_double" {
-            assert_eq!(scenario["fit"]["fit_state"], "nonconverged");
-            assert_eq!(scenario["fit"]["diagnostics"]["divergences"], 1);
-        } else {
-            assert_eq!(scenario["fit"]["fit_state"], "complete", "{scenario}");
-        }
+        assert_eq!(
+            scenario["fit"]["fit_state"], "complete",
+            "{}: {}",
+            scenario["scenario"], scenario["fit"]["diagnostics"]
+        );
         let a = scenario["fit"]["type_posteriors"]
             .as_array()
             .unwrap()
@@ -85,6 +89,8 @@ fn replicated_multitype_lgcp_runs_the_fixed_hierarchy_and_kernel_grid() {
             .unwrap();
         assert!(a["group_effect"]["interval_lower"].as_f64().unwrap() > 0.0);
     }
+    assert_eq!(result["fit_state"], "complete");
+    assert_eq!(result["material_sensitivity"], false);
     assert_eq!(result["statistical_unit"], "patient");
 }
 
@@ -123,7 +129,7 @@ fn common(input: &Path) -> Vec<&str> {
         "--draws",
         "2000",
         "--target-accept",
-        "0.95",
+        "0.999",
         "--seed",
         "20260829",
         "--maximum-patients",
