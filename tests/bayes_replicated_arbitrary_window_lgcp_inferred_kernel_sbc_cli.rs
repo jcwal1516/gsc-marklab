@@ -79,7 +79,7 @@ fn inferred_kernel_replicated_patient_lgcp_sbc_calibrates_hierarchy_kernel_and_f
             "--draws",
             "1000",
             "--target-accept",
-            "0.95",
+            "0.99",
             "--seed",
             "20260829",
             "--maximum-patients",
@@ -117,7 +117,11 @@ fn inferred_kernel_replicated_patient_lgcp_sbc_calibrates_hierarchy_kernel_and_f
         result["format"],
         "marklab.replicated_arbitrary_window_lgcp_inferred_kernel_sbc"
     );
-    assert_eq!(result["fit_state"], "complete", "{result}");
+    assert_eq!(
+        result["fit_state"], "complete",
+        "failures: {:#}\ndiagnostics: {:#}",
+        result["failures"], result["diagnostics"]
+    );
     assert_eq!(result["replicates"].as_array().unwrap().len(), 20);
     assert!(
         result["failures"].as_array().unwrap().is_empty(),
