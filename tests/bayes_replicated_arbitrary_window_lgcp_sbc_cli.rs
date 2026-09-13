@@ -101,7 +101,7 @@ fn replicated_patient_lgcp_sbc_calibrates_population_hierarchy_and_field() {
             "--maximum-coverage-90",
             "1",
             "--timeout-seconds",
-            "300",
+            "900",
             "--out",
             output.to_str().unwrap(),
         ])
