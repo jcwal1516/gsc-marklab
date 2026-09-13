@@ -4,6 +4,9 @@ use std::fs;
 
 use assert_cmd::Command;
 
+const CHAINS: u64 = 2;
+const DRAWS_PER_CHAIN: u64 = 2000;
+
 #[test]
 fn numpyro_hierarchy_sbc_has_bounded_ranks_coverage_and_failures() {
     let directory = tempfile::tempdir().expect("tempdir");
@@ -29,13 +32,13 @@ fn numpyro_hierarchy_sbc_has_bounded_ranks_coverage_and_failures() {
             "--replicates",
             "20",
             "--chains",
-            "2",
+            &CHAINS.to_string(),
             "--tune",
-            "500",
-            "--draws",
             "1000",
+            "--draws",
+            &DRAWS_PER_CHAIN.to_string(),
             "--target-accept",
-            "0.95",
+            "0.99",
             "--seed",
             "20260826",
             "--minimum-rank-uniformity-p-value",
@@ -56,7 +59,11 @@ fn numpyro_hierarchy_sbc_has_bounded_ranks_coverage_and_failures() {
         serde_json::from_slice(&fs::read(output).expect("result")).expect("JSON");
     assert_eq!(result["format"], "marklab.bayesian_hierarchical_sbc");
     assert_eq!(result["version"], 1);
-    assert_eq!(result["fit_state"], "complete", "{result}");
+    assert_eq!(
+        result["fit_state"], "complete",
+        "failures: {}\ndiagnostics: {}",
+        result["failures"], result["diagnostics"]
+    );
     assert_eq!(
         result["replicates"].as_array().expect("replicates").len(),
         20
@@ -67,11 +74,11 @@ fn numpyro_hierarchy_sbc_has_bounded_ranks_coverage_and_failures() {
         .expect("replicates")
         .iter()
         .all(|replicate| {
-            replicate["global_mean_rank"].as_u64().expect("global rank") <= 2000
+            replicate["global_mean_rank"].as_u64().expect("global rank") <= CHAINS * DRAWS_PER_CHAIN
                 && replicate["between_patient_sd_rank"]
                     .as_u64()
                     .expect("scale rank")
-                    <= 2000
+                    <= CHAINS * DRAWS_PER_CHAIN
         }));
     for parameter in ["global_mean", "between_patient_sd"] {
         assert_eq!(

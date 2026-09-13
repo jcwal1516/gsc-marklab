@@ -35,7 +35,7 @@ fn conditional_multitype_mark_reports_fixed_prior_scale_sensitivity() {
             "--interaction-prior-sd",
             "1",
             "--chains",
-            "2",
+            "4",
             "--tune",
             "750",
             "--draws",
@@ -47,7 +47,7 @@ fn conditional_multitype_mark_reports_fixed_prior_scale_sensitivity() {
             "--maximum-points",
             "100",
             "--maximum-types",
-            "4",
+            "3",
             "--maximum-neighbor-visits",
             "10000",
             "--maximum-edges",
@@ -77,6 +77,20 @@ fn conditional_multitype_mark_reports_fixed_prior_scale_sensitivity() {
     );
     assert_eq!(result["scenarios"].as_array().unwrap().len(), 5);
     assert_eq!(result["baseline_scenario"], "baseline");
-    assert_eq!(result["fit_state"], "complete", "{result}");
+    let diagnostics = result["scenarios"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|scenario| {
+            format!(
+                "intercept prior SD={}, interaction prior SD={}: {}",
+                scenario["intercept_prior_sd"],
+                scenario["interaction_prior_sd"],
+                scenario["result"]["diagnostics"]
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert_eq!(result["fit_state"], "complete", "{diagnostics}");
     assert_eq!(result["sensitivity_status"], "material_prior_sensitivity");
 }

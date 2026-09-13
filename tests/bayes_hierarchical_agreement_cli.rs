@@ -59,9 +59,9 @@ p-6,3.8\n",
             "--tune",
             "1000",
             "--draws",
-            "2000",
+            "8000",
             "--target-accept",
-            "0.9",
+            "0.99",
             "--seed",
             "20260825",
             "--maximum-standardized-difference",
@@ -83,7 +83,11 @@ p-6,3.8\n",
         "marklab.bayesian_hierarchical_cross_backend_agreement"
     );
     assert_eq!(result["version"], 1);
-    assert_eq!(result["fit_state"], "complete");
+    assert_eq!(
+        result["fit_state"], "complete",
+        "PyMC: {}\nNumPyro: {}",
+        result["pymc"]["diagnostics"], result["numpyro"]["diagnostics"]
+    );
     assert_eq!(result["agreement_status"], "agree_within_monte_carlo_error");
     assert_eq!(result["pymc"]["backend"]["name"], "pymc");
     assert_eq!(result["numpyro"]["backend"]["name"], "numpyro");
