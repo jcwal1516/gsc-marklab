@@ -34,7 +34,7 @@ fn project_hierarchical_command(
         "--draws",
         "2000",
         "--target-accept",
-        "0.9",
+        "0.95",
         "--seed",
         seed,
         "--timeout-seconds",
