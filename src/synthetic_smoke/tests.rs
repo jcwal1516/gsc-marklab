@@ -202,8 +202,6 @@ fn no_manual_status_flag_injection() {
 }
 
 mod multimodal {
-    use assert_cmd::Command;
-
     #[test]
     fn positive_control_detects_signal() {
         let summary =
@@ -376,41 +374,6 @@ mod multimodal {
         assert_eq!(result.failure_reasons.len(), 1);
         assert!(result.failure_reasons[0].contains("replicate 1"));
         assert!(!result.passed);
-    }
-
-    #[test]
-    fn smoke_cli_writes_multimodal_smoke_json() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let out = dir.path().join("smoke-multimodal");
-
-        Command::cargo_bin("marklab")
-            .expect("binary")
-            .args([
-                "smoke",
-                "--suite",
-                "multimodal",
-                "--replicates",
-                "25",
-                "--out",
-                out.to_str().expect("out path"),
-            ])
-            .assert()
-            .success();
-
-        let summary: serde_json::Value = serde_json::from_str(
-            &std::fs::read_to_string(out.join("smoke.json")).expect("smoke json"),
-        )
-        .expect("json");
-        assert_eq!(summary["suite"], "multimodal_production_pipeline_smoke");
-        assert_eq!(summary["suite_kind"], "smoke");
-        assert_eq!(
-            summary["immune_associated_mmr_territory"]["passed"].as_bool(),
-            Some(true)
-        );
-        assert_eq!(
-            summary["registration_jitter"]["passed"].as_bool(),
-            Some(true)
-        );
     }
 }
 

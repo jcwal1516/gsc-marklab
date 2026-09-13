@@ -288,7 +288,9 @@ pub(super) fn sync_directory_at(root: &Dir, path: impl AsRef<Path>) -> io::Resul
     } else {
         root.open_dir(path)?
     };
-    directory.into_std_file().sync_all()
+    // Linux directory capabilities may use O_PATH, which cannot be fsynced.
+    // Reopen this directory for reading through the same confined capability.
+    directory.open(".")?.sync_all()
 }
 
 #[cfg(windows)]

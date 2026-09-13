@@ -297,8 +297,9 @@ pub(super) fn validate_regular_metadata(
 
 #[cfg(not(windows))]
 pub(super) fn sync_root(root: &Dir) -> Result<(), DurableProjectError> {
-    root.try_clone()
-        .and_then(|directory| directory.into_std_file().sync_all())
+    // Reopen for reading because Linux O_PATH capabilities cannot be fsynced.
+    root.open(".")
+        .and_then(|directory| directory.sync_all())
         .map_err(|source| DurableProjectError::Io {
             operation: "sync project root",
             path: ".".to_owned(),

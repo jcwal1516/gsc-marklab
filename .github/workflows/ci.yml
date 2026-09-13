@@ -54,7 +54,7 @@ jobs:
           cargo build --locked --package marklab --all-features --bin marklab
           target/debug/marklab backend doctor
       - name: Required workspace and real-backend integration tests
-        run: cargo nextest run --locked --workspace --all-features --test-threads 2
+        run: cargo nextest run --locked --workspace --all-features --test-threads 2 --no-fail-fast
       - name: Python scientific and adapter regression tests
         run: |
           "$MARKLAB_PYTHON" -m unittest discover -s tests/python -p 'test_*.py'
@@ -115,7 +115,7 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-fuzz
-      - run: cargo +nightly fuzz check
+      - run: cargo +nightly fuzz check --target x86_64-unknown-linux-gnu
 
   benchmark:
     runs-on: ubuntu-latest

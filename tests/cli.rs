@@ -1041,3 +1041,37 @@ fn prepost_cli_writes_delta_result_with_safe_language() {
     assert!(lower.contains("coarse-scale organization"));
     assert!(!lower.contains("same cells"));
 }
+
+#[cfg(feature = "cli")]
+#[test]
+fn smoke_cli_writes_multimodal_smoke_json() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let out = dir.path().join("smoke-multimodal");
+
+    Command::new(env!("CARGO_BIN_EXE_marklab"))
+        .args([
+            "smoke",
+            "--suite",
+            "multimodal",
+            "--replicates",
+            "25",
+            "--out",
+            out.to_str().expect("out path"),
+        ])
+        .assert()
+        .success();
+
+    let summary: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(out.join("smoke.json")).expect("smoke json"))
+            .expect("json");
+    assert_eq!(summary["suite"], "multimodal_production_pipeline_smoke");
+    assert_eq!(summary["suite_kind"], "smoke");
+    assert_eq!(
+        summary["immune_associated_mmr_territory"]["passed"].as_bool(),
+        Some(true)
+    );
+    assert_eq!(
+        summary["registration_jitter"]["passed"].as_bool(),
+        Some(true)
+    );
+}

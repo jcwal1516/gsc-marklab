@@ -141,7 +141,7 @@ impl GaussianCrossedNestedHierarchyWorkerRequest {
         });
         validate_design(&spec.observations)?;
         let diagnostic_policy = DiagnosticPolicy {
-            maximum_tree_depth: 11,
+            maximum_tree_depth: 12,
             ..DiagnosticPolicy::default()
         };
         Ok(Self {

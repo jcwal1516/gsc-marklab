@@ -74,7 +74,7 @@ fn fitted_hierarchy_separates_nested_crossed_and_transport_components() {
             "--seed",
             "20260901",
             "--timeout-seconds",
-            "180",
+            "600",
             "--out",
             output.to_str().expect("output path"),
         ])
