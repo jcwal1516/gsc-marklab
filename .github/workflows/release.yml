@@ -33,7 +33,7 @@ jobs:
             target: x86_64-pc-windows-msvc
             archive: zip
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build declared target with WSI support
         uses: houseabsolute/actions-rust-cross@v1
         with:
@@ -76,7 +76,7 @@ jobs:
           foreach ($name in @("marklab.exe", "README.md", "LICENSE-MIT", "LICENSE-APACHE", "workers/python/uv.lock", "workers/python/marklab_backend_doctor.py", "docs/python-backends.md", "clients/python/marklab_client.py", "examples/multiplex-study/recipe.json")) {
             if (-not (Test-Path archive-smoke/$name)) { throw "$name missing from archive" }
           }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: marklab-${{ matrix.target }}
           path: dist/*
