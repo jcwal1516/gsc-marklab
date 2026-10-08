@@ -1,0 +1,344 @@
+use crate::common::stats::mean_all_finite;
+use crate::errors::{MarklabError, Result};
+use crate::registration::landmarks::LandmarkPair;
+
+#[cfg(test)]
+thread_local! {
+    static TRANSFORM_FIT_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn reset_transform_fit_call_count() {
+    TRANSFORM_FIT_CALLS.set(0);
+}
+
+#[cfg(test)]
+pub(crate) fn transform_fit_call_count() -> usize {
+    TRANSFORM_FIT_CALLS.get()
+}
+
+#[cfg(test)]
+fn record_transform_fit_call() {
+    TRANSFORM_FIT_CALLS.set(TRANSFORM_FIT_CALLS.get() + 1);
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TransformKind {
+    Identity,
+    Rigid,
+    Affine,
+}
+
+impl TransformKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Identity => "identity",
+            Self::Rigid => "rigid",
+            Self::Affine => "affine",
+        }
+    }
+}
+
+impl std::fmt::Display for TransformKind {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Transform2D {
+    pub transform_type: TransformKind,
+    pub m00: f64,
+    pub m01: f64,
+    pub m02: f64,
+    pub m10: f64,
+    pub m11: f64,
+    pub m12: f64,
+}
+
+impl Transform2D {
+    #[cfg(test)]
+    pub fn identity() -> Self {
+        Self {
+            transform_type: TransformKind::Identity,
+            m00: 1.0,
+            m01: 0.0,
+            m02: 0.0,
+            m10: 0.0,
+            m11: 1.0,
+            m12: 0.0,
+        }
+    }
+
+    pub fn apply(&self, x: f64, y: f64) -> (f64, f64) {
+        (
+            self.m00 * x + self.m01 * y + self.m02,
+            self.m10 * x + self.m11 * y + self.m12,
+        )
+    }
+}
+
+/// Fit an orientation-preserving two-dimensional rigid transformation.
+///
+/// The least-squares fit estimates rotation and translation only. It cannot
+/// absorb scale changes or reflections. Source and target covariance terms
+/// are normalized before accumulation to avoid overflow without changing the
+/// fitted angle.
+pub fn fit_rigid(landmarks: &[LandmarkPair]) -> Result<Transform2D> {
+    #[cfg(test)]
+    record_transform_fit_call();
+    validate_landmarks(landmarks)?;
+    if landmarks.len() < 2 {
+        return Err(MarklabError::Compute(
+            "at least two landmarks are required for rigid registration".into(),
+        ));
+    }
+
+    let source_x_mean = mean_all_finite(landmarks.iter().map(|point| point.source_x_um))
+        .ok_or_else(|| MarklabError::Compute("rigid source x centroid is undefined".into()))?;
+    let source_y_mean = mean_all_finite(landmarks.iter().map(|point| point.source_y_um))
+        .ok_or_else(|| MarklabError::Compute("rigid source y centroid is undefined".into()))?;
+    let target_x_mean = mean_all_finite(landmarks.iter().map(|point| point.target_x_um))
+        .ok_or_else(|| MarklabError::Compute("rigid target x centroid is undefined".into()))?;
+    let target_y_mean = mean_all_finite(landmarks.iter().map(|point| point.target_y_um))
+        .ok_or_else(|| MarklabError::Compute("rigid target y centroid is undefined".into()))?;
+
+    let source_scale = landmarks.iter().fold(0.0_f64, |scale, point| {
+        scale
+            .max((point.source_x_um - source_x_mean).abs())
+            .max((point.source_y_um - source_y_mean).abs())
+    });
+    if source_scale == 0.0 || !source_scale.is_finite() {
+        return Err(MarklabError::Compute(
+            "source landmarks must span nonzero distance for rigid registration".into(),
+        ));
+    }
+    let target_scale = landmarks.iter().fold(0.0_f64, |scale, point| {
+        scale
+            .max((point.target_x_um - target_x_mean).abs())
+            .max((point.target_y_um - target_y_mean).abs())
+    });
+    if !target_scale.is_finite() {
+        return Err(MarklabError::Compute(
+            "rigid target landmark spread is non-finite".into(),
+        ));
+    }
+
+    let (a, b) = if target_scale == 0.0 {
+        (0.0, 0.0)
+    } else {
+        landmarks
+            .iter()
+            .try_fold((0.0, 0.0), |(a, b), point| {
+                let source_x = (point.source_x_um - source_x_mean) / source_scale;
+                let source_y = (point.source_y_um - source_y_mean) / source_scale;
+                let target_x = (point.target_x_um - target_x_mean) / target_scale;
+                let target_y = (point.target_y_um - target_y_mean) / target_scale;
+                let next_a = a + source_x * target_x + source_y * target_y;
+                let next_b = b + source_x * target_y - source_y * target_x;
+                (next_a.is_finite() && next_b.is_finite()).then_some((next_a, next_b))
+            })
+            .ok_or_else(|| {
+                MarklabError::Compute("rigid covariance accumulation is non-finite".into())
+            })?
+    };
+    let theta = b.atan2(a);
+    let cosine = theta.cos();
+    let sine = theta.sin();
+    let translation_x = target_x_mean - cosine * source_x_mean + sine * source_y_mean;
+    let translation_y = target_y_mean - sine * source_x_mean - cosine * source_y_mean;
+    let coefficients = [cosine, -sine, translation_x, sine, cosine, translation_y];
+    if coefficients.iter().any(|value| !value.is_finite()) {
+        return Err(MarklabError::Compute(
+            "rigid fit produced non-finite coefficients".into(),
+        ));
+    }
+
+    Ok(Transform2D {
+        transform_type: TransformKind::Rigid,
+        m00: coefficients[0],
+        m01: coefficients[1],
+        m02: coefficients[2],
+        m10: coefficients[3],
+        m11: coefficients[4],
+        m12: coefficients[5],
+    })
+}
+
+pub fn fit_affine(landmarks: &[LandmarkPair]) -> Result<Transform2D> {
+    #[cfg(test)]
+    record_transform_fit_call();
+    validate_landmarks(landmarks)?;
+    if landmarks.len() < 3 {
+        return Err(MarklabError::Compute(
+            "at least three landmarks are required for affine".into(),
+        ));
+    }
+
+    // Solve in centered, per-axis scaled coordinates. Raw physical coordinates
+    // make the intercept pivot depend on the arbitrary frame origin and units.
+    let centroid_error = || MarklabError::Compute("affine landmark centroid is undefined".into());
+    let source_x = mean_all_finite(landmarks.iter().map(|point| point.source_x_um))
+        .ok_or_else(centroid_error)?;
+    let source_y = mean_all_finite(landmarks.iter().map(|point| point.source_y_um))
+        .ok_or_else(centroid_error)?;
+    let target_x_mean = mean_all_finite(landmarks.iter().map(|point| point.target_x_um))
+        .ok_or_else(centroid_error)?;
+    let target_y_mean = mean_all_finite(landmarks.iter().map(|point| point.target_y_um))
+        .ok_or_else(centroid_error)?;
+    let (scale_x, scale_y) = landmarks.iter().fold((0.0_f64, 0.0_f64), |(x, y), point| {
+        (
+            x.max((point.source_x_um - source_x).abs()),
+            y.max((point.source_y_um - source_y).abs()),
+        )
+    });
+    if [scale_x, scale_y]
+        .iter()
+        .any(|scale| !scale.is_finite() || *scale == 0.0)
+    {
+        return Err(MarklabError::Compute(
+            "landmark geometry is singular for affine transform".into(),
+        ));
+    }
+
+    let mut normal = [[0.0; 3]; 3];
+    let mut target_x = [0.0; 3];
+    let mut target_y = [0.0; 3];
+
+    for landmark in landmarks {
+        let row = [
+            (landmark.source_x_um - source_x) / scale_x,
+            (landmark.source_y_um - source_y) / scale_y,
+            1.0,
+        ];
+        for i in 0..3 {
+            target_x[i] += row[i] * (landmark.target_x_um - target_x_mean);
+            target_y[i] += row[i] * (landmark.target_y_um - target_y_mean);
+            for j in 0..3 {
+                normal[i][j] += row[i] * row[j];
+            }
+        }
+    }
+
+    let mut x_coefficients = solve_3x3(normal, target_x)?;
+    let mut y_coefficients = solve_3x3(normal, target_y)?;
+    for (coefficients, target_mean) in [
+        (&mut x_coefficients, target_x_mean),
+        (&mut y_coefficients, target_y_mean),
+    ] {
+        coefficients[0] /= scale_x;
+        coefficients[1] /= scale_y;
+        coefficients[2] += target_mean - coefficients[0] * source_x - coefficients[1] * source_y;
+        if coefficients.iter().any(|value| !value.is_finite()) {
+            return Err(MarklabError::Compute(
+                "affine fit produced non-finite coefficients".into(),
+            ));
+        }
+    }
+
+    // Registration must preserve two-dimensional geometry. Normalize each row
+    // independently so this singularity check does not reject a valid
+    // transform solely because its two output axes use very different scales.
+    // A collapsed fit from rounded coordinates keeps a rounding-level, not
+    // exactly zero, determinant; sqrt(epsilon) separates it from any map
+    // whose row-equilibrated condition number is below about 7e7.
+    let x_row_scale = x_coefficients[..2]
+        .iter()
+        .map(|value| value.abs())
+        .fold(0.0_f64, f64::max);
+    let y_row_scale = y_coefficients[..2]
+        .iter()
+        .map(|value| value.abs())
+        .fold(0.0_f64, f64::max);
+    if x_row_scale == 0.0
+        || y_row_scale == 0.0
+        || ((x_coefficients[0] / x_row_scale) * (y_coefficients[1] / y_row_scale)
+            - (x_coefficients[1] / x_row_scale) * (y_coefficients[0] / y_row_scale))
+            .abs()
+            <= f64::EPSILON.sqrt()
+    {
+        return Err(MarklabError::Compute(
+            "affine fit produced a singular transform".into(),
+        ));
+    }
+
+    Ok(Transform2D {
+        transform_type: TransformKind::Affine,
+        m00: x_coefficients[0],
+        m01: x_coefficients[1],
+        m02: x_coefficients[2],
+        m10: y_coefficients[0],
+        m11: y_coefficients[1],
+        m12: y_coefficients[2],
+    })
+}
+
+pub(crate) fn validate_landmarks(landmarks: &[LandmarkPair]) -> Result<()> {
+    if landmarks.iter().all(LandmarkPair::is_finite) {
+        Ok(())
+    } else {
+        Err(MarklabError::Compute(
+            "landmark coordinates must be finite".into(),
+        ))
+    }
+}
+
+fn solve_3x3(mut matrix: [[f64; 3]; 3], mut rhs: [f64; 3]) -> Result<[f64; 3]> {
+    let matrix_scale = matrix
+        .iter()
+        .flat_map(|row| row.iter())
+        .map(|value| value.abs())
+        .fold(0.0_f64, f64::max);
+    let singular_threshold = matrix_scale.max(1.0) * 1.0e-12;
+
+    for pivot_col in 0..3 {
+        let pivot_row = (pivot_col..3)
+            .max_by(|&a, &b| {
+                matrix[a][pivot_col]
+                    .abs()
+                    .total_cmp(&matrix[b][pivot_col].abs())
+            })
+            .expect("non-empty pivot range");
+        if matrix[pivot_row][pivot_col].abs() <= singular_threshold {
+            return Err(MarklabError::Compute(
+                "landmark geometry is singular for affine transform".into(),
+            ));
+        }
+        if pivot_row != pivot_col {
+            matrix.swap(pivot_col, pivot_row);
+            rhs.swap(pivot_col, pivot_row);
+        }
+
+        let pivot = matrix[pivot_col][pivot_col];
+        for value in matrix[pivot_col].iter_mut().skip(pivot_col) {
+            *value /= pivot;
+        }
+        rhs[pivot_col] /= pivot;
+
+        let pivot_row_values = matrix[pivot_col];
+        for (row_index, row_values) in matrix.iter_mut().enumerate() {
+            if row_index == pivot_col {
+                continue;
+            }
+            let factor = row_values[pivot_col];
+            for (value, pivot_value) in row_values
+                .iter_mut()
+                .zip(pivot_row_values.iter())
+                .skip(pivot_col)
+            {
+                *value -= factor * pivot_value;
+            }
+            rhs[row_index] -= factor * rhs[pivot_col];
+        }
+    }
+
+    if rhs.iter().all(|value| value.is_finite()) {
+        Ok(rhs)
+    } else {
+        Err(MarklabError::Compute(
+            "affine solve produced non-finite coefficients".into(),
+        ))
+    }
+}
+use serde::{Deserialize, Serialize};

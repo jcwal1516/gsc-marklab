@@ -1,0 +1,10 @@
+{
+  "area_um2": 100.0,
+  "bandwidth_um": 0.5,
+  "directed_pairs_in_support": 2,
+  "eligible_centers": 3,
+  "g": 5.305164769729845,
+  "kernel": "epanechnikov",
+  "kernel_weight_sum": 3.0,
+  "radius_um": 1.0
+}

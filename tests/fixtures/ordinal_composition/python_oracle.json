@@ -1,0 +1,32 @@
+{
+  "counts": [
+    1,
+    2,
+    0,
+    1
+  ],
+  "cumulative_proportions": [
+    0.25,
+    0.75,
+    0.75,
+    1.0
+  ],
+  "effective_level_count": 2.82842712474619,
+  "entropy_nats": 1.0397207708399179,
+  "levels": [
+    "negative",
+    "weak",
+    "moderate",
+    "strong"
+  ],
+  "lower_median_level": "weak",
+  "normalized_entropy": 0.75,
+  "oracle": "Python standard-library ordinal counts and order statistics",
+  "proportions": [
+    0.25,
+    0.5,
+    0.0,
+    0.25
+  ],
+  "upper_median_level": "weak"
+}

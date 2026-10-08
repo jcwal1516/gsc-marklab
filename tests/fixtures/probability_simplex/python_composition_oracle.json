@@ -1,0 +1,12 @@
+{
+  "aggregate_composition_entropy_nats": 1.0433534269422904,
+  "effective_class_count": 2.8387205126507515,
+  "maximum_row_sum_absolute_error": 0.0,
+  "mean_probabilities": [
+    0.375,
+    0.1875,
+    0.4375
+  ],
+  "mean_row_entropy_nats": 0.31387058129468837,
+  "oracle": "Python standard-library complete simplex rows"
+}

@@ -1,0 +1,62 @@
+{
+  "oracle": "scipy.spatial.cKDTree",
+  "scipy_version": "1.18.1",
+  "points": [
+    [
+      1.0,
+      1.0
+    ],
+    [
+      2.0,
+      6.0
+    ],
+    [
+      5.0,
+      5.0
+    ],
+    [
+      7.0,
+      8.0
+    ],
+    [
+      9.0,
+      2.0
+    ]
+  ],
+  "probe_grid": [
+    4,
+    4
+  ],
+  "radii": [
+    {
+      "radius_um": 0.5,
+      "eligible_events": 5,
+      "events_with_neighbor": 0,
+      "g": 0.0,
+      "eligible_probes": 16,
+      "probes_with_event": 1,
+      "f": 0.0625,
+      "j": 1.0666666666666667
+    },
+    {
+      "radius_um": 1.0,
+      "eligible_events": 5,
+      "events_with_neighbor": 0,
+      "g": 0.0,
+      "eligible_probes": 16,
+      "probes_with_event": 3,
+      "f": 0.1875,
+      "j": 1.2307692307692308
+    },
+    {
+      "radius_um": 2.5,
+      "eligible_events": 1,
+      "events_with_neighbor": 0,
+      "g": 0.0,
+      "eligible_probes": 4,
+      "probes_with_event": 4,
+      "f": 1.0,
+      "j": null
+    }
+  ]
+}

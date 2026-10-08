@@ -1,0 +1,105 @@
+#![cfg(feature = "cli")]
+
+use std::fs;
+
+use assert_cmd::Command;
+
+#[test]
+fn group_gender_sbc_has_complete_rank_coverage_and_disposition() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let input = directory.path().join("shape.csv");
+    let output = directory.path().join("sbc.json");
+    let mut csv = String::from("patient_id,group,gender,successes,trials\n");
+    for (group, gender) in [
+        ("MSS", "Male"),
+        ("MSS", "Female"),
+        ("MSI", "Male"),
+        ("MSI", "Female"),
+    ] {
+        for index in 0..4 {
+            csv.push_str(&format!(
+                "{group}-{gender}-{index},{group},{gender},0,100\n"
+            ));
+        }
+    }
+    fs::write(&input, csv).expect("shape");
+    Command::cargo_bin("marklab")
+        .expect("binary")
+        .args([
+            "bayes",
+            "beta-binomial-group-gender-regression-sbc",
+            "--input",
+            input.to_str().unwrap(),
+            "--reference-group",
+            "MSS",
+            "--comparison-group",
+            "MSI",
+            "--reference-gender",
+            "Male",
+            "--comparison-gender",
+            "Female",
+            "--intercept-prior-mean",
+            "0",
+            "--intercept-prior-sd",
+            "2",
+            "--group-effect-prior-sd",
+            "1",
+            "--gender-effect-prior-sd",
+            "1",
+            "--concentration-prior-sd",
+            "20",
+            "--replicates",
+            "20",
+            "--chains",
+            "2",
+            "--tune",
+            "1500",
+            "--draws",
+            "3000",
+            "--target-accept",
+            "0.99",
+            "--seed",
+            "20260827",
+            "--minimum-rank-uniformity-p-value",
+            "0.001",
+            "--minimum-coverage-90",
+            "0.7",
+            "--maximum-coverage-90",
+            "1",
+            "--timeout-seconds",
+            "600",
+            "--out",
+            output.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    let result: serde_json::Value = serde_json::from_slice(&fs::read(output).unwrap()).unwrap();
+    assert_eq!(
+        result["format"],
+        "marklab.bayesian_beta_binomial_group_gender_sbc"
+    );
+    assert_eq!(result["fit_state"], "complete", "{result}");
+    assert_eq!(result["replicates"].as_array().unwrap().len(), 20);
+    assert!(result["failures"].as_array().unwrap().is_empty());
+    for parameter in [
+        "intercept_log_odds",
+        "group_log_odds_effect",
+        "gender_log_odds_effect",
+        "concentration",
+        "marginal_probability_difference",
+        "patient_probability_0",
+    ] {
+        let diagnostic = &result["diagnostics"][parameter];
+        assert_eq!(
+            diagnostic["rank_histogram"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_u64().unwrap())
+                .sum::<u64>(),
+            20
+        );
+        assert!(diagnostic["rank_uniformity_p_value"].as_f64().unwrap() >= 0.001);
+        assert!((0.7..=1.0).contains(&diagnostic["coverage_90"].as_f64().unwrap()));
+    }
+}

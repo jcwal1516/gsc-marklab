@@ -1,0 +1,35 @@
+[graph]
+all-features = true
+
+[advisories]
+ignore = [
+  { id = "RUSTSEC-2021-0153", reason = "Reviewed transitive wsi-rs DICOM dependency; see docs/dependency_advisories.md (expires 2027-01-15)" },
+  { id = "RUSTSEC-2024-0436", reason = "Reviewed transitive macro dependency with no safe upgrade; see docs/dependency_advisories.md (expires 2027-01-15)" },
+]
+
+[licenses]
+confidence-threshold = 0.8
+allow = [
+  "0BSD",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "BSL-1.0",
+  "CC0-1.0",
+  "MIT",
+  "Unicode-3.0",
+  "Unlicense",
+  "Zlib",
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "simplest-path"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

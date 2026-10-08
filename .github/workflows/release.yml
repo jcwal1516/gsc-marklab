@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  binary:
+    name: binary-${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            archive: tar.gz
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            archive: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build declared target with WSI support
+        uses: houseabsolute/actions-rust-cross@v1
+        with:
+          command: build
+          target: ${{ matrix.target }}
+          toolchain: 1.99.0
+          args: --release --locked --package marklab --features wsi --bin marklab
+      - name: Package Unix binary
+        if: matrix.archive == 'tar.gz'
+        run: |
+          mkdir -p dist
+          cp README.md LICENSE-MIT LICENSE-APACHE dist/
+          tar -czf dist/marklab-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release marklab -C "$GITHUB_WORKSPACE" README.md LICENSE-MIT LICENSE-APACHE workers/python/*.py workers/python/pyproject.toml workers/python/uv.lock docs/python-backends.md docs/multiplex-study.md docs/multiplex-study-measurements.md docs/capabilities.md clients/python/marklab_client.py examples/multiplex-study/recipe.json examples/multiplex-study/generate.py
+          sha256sum dist/marklab-${{ matrix.target }}.tar.gz > dist/marklab-${{ matrix.target }}.tar.gz.sha256
+          sha256sum --check dist/marklab-${{ matrix.target }}.tar.gz.sha256
+          tar -tzf dist/marklab-${{ matrix.target }}.tar.gz | grep -E '(^|/)README.md$'
+          tar -tzf dist/marklab-${{ matrix.target }}.tar.gz | grep -E '(^|/)LICENSE-MIT$'
+          tar -tzf dist/marklab-${{ matrix.target }}.tar.gz | grep -E '(^|/)LICENSE-APACHE$'
+          tar -tzf dist/marklab-${{ matrix.target }}.tar.gz | grep -E '^workers/python/uv.lock$'
+          tar -tzf dist/marklab-${{ matrix.target }}.tar.gz | grep -E '^workers/python/marklab_backend_doctor.py$'
+          tar -tzf dist/marklab-${{ matrix.target }}.tar.gz | grep -E '^clients/python/marklab_client.py$'
+          tar -tzf dist/marklab-${{ matrix.target }}.tar.gz | grep -E '^examples/multiplex-study/recipe.json$'
+      - name: Package Windows binary
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          Copy-Item README.md,LICENSE-MIT,LICENSE-APACHE -Destination dist
+          New-Item -ItemType Directory -Force -Path dist/workers/python,dist/docs,dist/clients/python,dist/examples/multiplex-study
+          Copy-Item workers/python/*.py,workers/python/pyproject.toml,workers/python/uv.lock -Destination dist/workers/python
+          Copy-Item docs/python-backends.md,docs/multiplex-study.md,docs/multiplex-study-measurements.md,docs/capabilities.md -Destination dist/docs
+          Copy-Item clients/python/marklab_client.py -Destination dist/clients/python
+          Copy-Item examples/multiplex-study/recipe.json,examples/multiplex-study/generate.py -Destination dist/examples/multiplex-study
+          Compress-Archive -Path target/${{ matrix.target }}/release/marklab.exe,dist/README.md,dist/LICENSE-MIT,dist/LICENSE-APACHE,dist/workers,dist/docs,dist/clients,dist/examples -DestinationPath dist/marklab-${{ matrix.target }}.zip
+          (Get-FileHash dist/marklab-${{ matrix.target }}.zip -Algorithm SHA256).Hash.ToLower() + "  marklab-${{ matrix.target }}.zip" | Out-File -Encoding ascii dist/marklab-${{ matrix.target }}.zip.sha256
+          $archive = Get-FileHash dist/marklab-${{ matrix.target }}.zip -Algorithm SHA256
+          $expected = (Get-Content dist/marklab-${{ matrix.target }}.zip.sha256).Split()[0]
+          if ($archive.Hash.ToLower() -ne $expected) { throw "archive checksum mismatch" }
+          Expand-Archive dist/marklab-${{ matrix.target }}.zip -DestinationPath archive-smoke
+          foreach ($name in @("marklab.exe", "README.md", "LICENSE-MIT", "LICENSE-APACHE", "workers/python/uv.lock", "workers/python/marklab_backend_doctor.py", "docs/python-backends.md", "clients/python/marklab_client.py", "examples/multiplex-study/recipe.json")) {
+            if (-not (Test-Path archive-smoke/$name)) { throw "$name missing from archive" }
+          }
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: marklab-${{ matrix.target }}
+          path: dist/*

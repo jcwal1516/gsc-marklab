@@ -1,0 +1,122 @@
+{
+  "schema_version": "1",
+  "oracle_policy": "Lossless fixtures require exact RGBA8 equality. Lossy tolerances are fixture-specific and changes require review.",
+  "fixtures": [
+    {
+      "name": "raw_lossless_rgb_j2k",
+      "source": "wsi-rs 0.5.0 tests/fixtures/jp2k/rgb_nomct.ppm",
+      "generator": "OpenJPEG 2.5.4: opj_compress -i rgb_nomct.ppm -o rgb_lossless.j2k -mct 0 -r 1 -n 3",
+      "license": "MIT OR Apache-2.0",
+      "sha256": "2fc2115c2dbb224e30fdfd057902a7a11b319b8f481e0b872964674cafb45b2a",
+      "container": "raw_j2k",
+      "codec": "jpeg2000",
+      "path": "raw/rgb_lossless.j2k",
+      "dimensions": [16, 12],
+      "sample_type": "uint8",
+      "encoding": "lossless",
+      "oracle": {
+        "decoder": "OpenJPEG 2.5.4",
+        "path": "raw/rgb_nomct.ppm",
+        "sha256": "3b20d3016f388fa99f590c23b3470eff63b199d172bac7223d866d6524229ecf",
+        "comparison": "exact"
+      }
+    },
+    {
+      "name": "raw_j2c",
+      "source": "generated from the raw_lossless_rgb_j2k codestream with .j2c naming",
+      "generator": "byte-identical copy of raw/rgb_lossless.j2k with the .j2c extension",
+      "license": "MIT OR Apache-2.0",
+      "sha256": "2fc2115c2dbb224e30fdfd057902a7a11b319b8f481e0b872964674cafb45b2a",
+      "container": "raw_j2c",
+      "codec": "jpeg2000",
+      "path": "raw/rgb_lossless.j2c",
+      "dimensions": [16, 12],
+      "sample_type": "uint8",
+      "encoding": "lossless",
+      "oracle": {
+        "decoder": "OpenJPEG 2.5.4",
+        "path": "raw/rgb_nomct.ppm",
+        "sha256": "3b20d3016f388fa99f590c23b3470eff63b199d172bac7223d866d6524229ecf",
+        "comparison": "exact"
+      }
+    },
+    {
+      "name": "raw_lossless_rgb_htj2k",
+      "source": "wsi-rs 0.5.0 tests/fixtures/jp2k/rgb_nomct.ppm",
+      "generator": "OpenJPH 0.27.0: ojph_compress -i rgb_nomct.ppm -o rgb_lossless_htj2k.j2k -num_decomps 3 -reversible true -colour_trans false",
+      "license": "MIT OR Apache-2.0",
+      "sha256": "e9b6fb4b31f246a1ea82f98fc5d15d1642a7d6134d2f2a2eaee488ff3a65a903",
+      "container": "raw_htj2k",
+      "codec": "htj2k",
+      "path": "raw/rgb_lossless_htj2k.j2k",
+      "dimensions": [16, 12],
+      "sample_type": "uint8",
+      "encoding": "lossless",
+      "oracle": {
+        "decoder": "OpenJPEG 2.5.4 PPM source pixels",
+        "path": "raw/rgb_nomct.ppm",
+        "sha256": "3b20d3016f388fa99f590c23b3470eff63b199d172bac7223d866d6524229ecf",
+        "comparison": "exact"
+      }
+    },
+    {
+      "name": "tiled_tiff_lossless_rgb_jpeg2000",
+      "source": "generated in this repository from raw/rgb_lossless.j2k",
+      "generator": "rustc +1.96.0 tests/fixtures/wsi/generate_jp2k_tiff.rs -o /tmp/generate_jp2k_tiff && /tmp/generate_jp2k_tiff tests/fixtures/wsi/raw/rgb_lossless.j2k tests/fixtures/wsi/tiff/rgb_lossless_jp2k.tiff",
+      "license": "MIT OR Apache-2.0",
+      "sha256": "d1dffe6fbb55d5bce08d47d91ecd1d96ec6daefc5c19cb9cde3a82a45cb9af45",
+      "container": "tiled_tiff",
+      "codec": "jpeg2000_rgb",
+      "path": "tiff/rgb_lossless_jp2k.tiff",
+      "dimensions": [16, 12],
+      "sample_type": "uint8",
+      "encoding": "lossless",
+      "oracle": {
+        "decoder": "OpenJPEG 2.5.4 PPM source pixels",
+        "path": "raw/rgb_nomct.ppm",
+        "sha256": "3b20d3016f388fa99f590c23b3470eff63b199d172bac7223d866d6524229ecf",
+        "comparison": "exact"
+      }
+    },
+    {
+      "name": "synthetic_dicom_vl_wsi_lossless_rgb_jpeg2000",
+      "source": "generated in this repository from raw/rgb_lossless.j2k",
+      "generator": "cargo +1.96.0 run --locked --features wsi --example generate_dicom_wsi_fixture -- tests/fixtures/wsi/raw/rgb_lossless.j2k tests/fixtures/wsi/dicom/synthetic_vl_wsi_jp2k.dcm",
+      "license": "MIT OR Apache-2.0",
+      "sha256": "70565c64493d9602129d5a971d3ac69289e69a5a6538e2d9c4f5d09c95c819fa",
+      "container": "dicom_vl_wsi",
+      "codec": "jpeg2000_lossless",
+      "path": "dicom/synthetic_vl_wsi_jp2k.dcm",
+      "dimensions": [16, 12],
+      "sample_type": "uint8",
+      "encoding": "lossless",
+      "oracle": {
+        "decoder": "OpenJPEG 2.5.4 PPM source pixels",
+        "path": "raw/rgb_nomct.ppm",
+        "sha256": "3b20d3016f388fa99f590c23b3470eff63b199d172bac7223d866d6524229ecf",
+        "comparison": "exact"
+      }
+    },
+    {
+      "name": "public_aperio_jp2k_svs",
+      "source": "https://openslide.cs.cmu.edu/download/openslide-testdata/Aperio/JP2K-33003-1.svs",
+      "generator": null,
+      "license": "CC0-1.0",
+      "sha256": "6205ccf75a8fa6c32df7c5c04b7377398971a490fb6b320d50d91f7ba6a0e6fd",
+      "container": "aperio_svs_tiff",
+      "codec": "jpeg2000",
+      "dimensions": [15374, 17497],
+      "sample_type": "uint8",
+      "encoding": "lossy",
+      "oracle": {
+        "decoder": "OpenSlide 4.0.0/OpenJPEG",
+        "comparison": "scheduled_opt_in",
+        "region": {"level": 0, "x": 7000, "y": 8000, "width": 256, "height": 256},
+        "max_channel_error": 24,
+        "max_mean_absolute_error_rgba": 2.5,
+        "reviewed_observation": "OpenSlide 4.0.0 on macOS: max RGB errors [18, 17, 24], alpha error 0, mean RGBA absolute error 2.415"
+      }
+    }
+  ],
+  "pending_fixture_candidates": []
+}

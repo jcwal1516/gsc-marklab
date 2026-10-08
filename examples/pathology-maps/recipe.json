@@ -1,0 +1,50 @@
+{
+  "format": "marklab.pathology_maps_recipe",
+  "version": 1,
+  "study_id": "synthetic-ihc",
+  "marker": {
+    "name": "Ki67",
+    "unit": "DAB_OD",
+    "measurement_status": "measured",
+    "provenance": "synthetic known marks"
+  },
+  "phenotypes": {
+    "names": ["tumor", "immune"],
+    "measurement_status": "measured",
+    "provenance": "synthetic known identities"
+  },
+  "design": {
+    "profile_edges_um": [-2.0, 0.0, 2.0],
+    "neighborhood_radii_um": [1.1, 2.1],
+    "minimum_neighbors": 1,
+    "dominance_threshold": 0.7,
+    "local_radius_um": 1.1,
+    "permutations": 99,
+    "seed": 71,
+    "alpha": 0.05
+  },
+  "slides": [{
+    "slide_id": "slide-1",
+    "patient_id": "patient-1",
+    "coordinate_frame_id": "slide-1-um",
+    "window": {
+      "type": "MultiPolygon",
+      "coordinates": [[[[0,0],[10,0],[10,10],[0,10],[0,0]]]]
+    },
+    "annotations": [{
+      "id": "tumor",
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [[[[2,2],[8,2],[8,8],[2,8],[2,2]]]]
+      },
+      "provenance": "synthetic rectangle",
+      "boundary_uncertainty_um": 0.0
+    }],
+    "cells": [
+      {"id":"c0","x_um":3.0,"y_um":5.0,"marker":0.0,"phenotype_probabilities":[1.0,0.0],"stratum":"all"},
+      {"id":"c1","x_um":4.0,"y_um":5.0,"marker":0.0,"phenotype_probabilities":[1.0,0.0],"stratum":"all"},
+      {"id":"c2","x_um":5.0,"y_um":5.0,"marker":1.0,"phenotype_probabilities":[0.0,1.0],"stratum":"all"},
+      {"id":"c3","x_um":6.0,"y_um":5.0,"marker":1.0,"phenotype_probabilities":[0.0,1.0],"stratum":"all"}
+    ]
+  }]
+}

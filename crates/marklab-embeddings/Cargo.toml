@@ -1,0 +1,39 @@
+[package]
+name = "marklab-embeddings"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Canonical embedding artifacts and bounded import contracts for Marklab"
+
+[lib]
+bench = false
+
+[features]
+default = []
+csv = ["dep:csv"]
+parquet = [
+    "dep:arrow",
+    "dep:arrow-ipc",
+    "dep:bytes",
+    "dep:flatbuffers",
+    "dep:parquet",
+    "dep:thrift",
+]
+
+[dependencies]
+marklab-data = { version = "0.1.0", path = "../marklab-data" }
+marklab-project = { version = "0.1.0", path = "../marklab-project" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+csv = { version = "1", optional = true }
+arrow = { version = "56", default-features = false, features = ["ipc"], optional = true }
+arrow-ipc = { version = "56", optional = true }
+bytes = { version = "=1.11.1", optional = true }
+flatbuffers = { version = "25", optional = true }
+parquet = { version = "=56.2.1", default-features = false, features = ["arrow"], optional = true }
+thrift = { version = "=0.17.0", default-features = false, optional = true }
+
+[dev-dependencies]
+proptest = "1"

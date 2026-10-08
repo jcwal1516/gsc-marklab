@@ -1,0 +1,70 @@
+[package]
+name = "marklab-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+tempfile = "3"
+marklab = { path = "..", default-features = false, features = ["csv", "wsi"] }
+marklab-embeddings = { path = "../crates/marklab-embeddings", default-features = false, features = ["csv", "parquet"] }
+
+[[bin]]
+name = "multiplex_study"
+path = "fuzz_targets/multiplex_study.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "config"
+path = "fuzz_targets/config.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "geojson_mask"
+path = "fuzz_targets/mask_contains.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "csv_row_parser"
+path = "fuzz_targets/load_cells.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "result_document"
+path = "fuzz_targets/result_document.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "wsi_region_request"
+path = "fuzz_targets/wsi_region_request.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "artifact_catalog"
+path = "fuzz_targets/artifact_catalog.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "embedding_inputs"
+path = "fuzz_targets/embedding_inputs.rs"
+test = false
+doc = false
+bench = false

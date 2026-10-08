@@ -1,0 +1,49 @@
+mod artifact_io;
+mod artifact_plan;
+#[cfg(feature = "cli")]
+mod classical;
+#[cfg(feature = "parquet")]
+mod curve_parquet;
+mod document;
+mod figures;
+pub(crate) use figures::xml_text;
+mod manifest;
+mod marked_artifacts;
+mod migrate_v02;
+#[cfg(feature = "csv")]
+mod multimodal_artifacts;
+mod multimodal_result_artifacts;
+#[cfg(feature = "cli")]
+mod nearest_space;
+mod result_types;
+mod transaction;
+pub(crate) use transaction::OutputTransaction;
+mod writer;
+
+#[cfg(all(test, feature = "cli"))]
+mod tests;
+
+#[cfg(feature = "cli")]
+pub(crate) use classical::{ClassicalOutputContext, ClassicalOutputWriter};
+#[cfg(feature = "cli")]
+pub(crate) use document::read_result_document_path_or_dir;
+#[cfg(feature = "cli")]
+pub(crate) use manifest::{RunManifestContext, RunManifestExecution, RunManifestInputs};
+#[cfg(feature = "cli")]
+pub(crate) use nearest_space::{NearestSpaceOutputContext, NearestSpaceOutputWriter};
+pub use result_types::{
+    AnalysisResult, AnalysisSection, AnalysisStatus, AnisotropySummary, ArtifactStatus,
+    BetaPosteriorGroupSummary, BetaPosteriorSummary, ComponentAnalysisSummary,
+    ComponentModeSelection, CrossInteractionCurve, CrossInteractionPoint,
+    CurveComparisonAvailability, CurveComparisonMethod, CurveComparisonResult, DiagnosticsResult,
+    EnrichmentStatisticUnavailableReason, FunctionalSummary, FusedCellSummary,
+    GraphSmoothingLabelPairSummary, GraphSmoothingSummary, Interpretation, InterpretationClass,
+    LabelFraction, MarkPairCovariancePoint, MarkedPatternResult, MultimodalResult,
+    MultiscaleResidualSummary, NeighborhoodEnrichmentResult, NeighborhoodTerritory, OutputManifest,
+    PrePostResult, PrimaryEndpoint, PrimaryEndpointKind, Provenance, QcSummary,
+    RegistrationSummary, ResidualTerritory, ResolvedComponentMode, ResultDocument, ScaleEnergyBand,
+    ScaleEnergyPoint, SpectrumConfoundingConclusion, SpectrumNullInferenceSummary,
+    SpectrumNullModel, SpectrumNullSensitivitySummary, SpectrumPoint, SpectrumSummary, StatusFlag,
+    TerritoryPrePostSummary, TerritoryProfile, TimingStage, WindowSummary, RESULT_FORMAT_VERSION,
+};
+pub use writer::OutputWriter;

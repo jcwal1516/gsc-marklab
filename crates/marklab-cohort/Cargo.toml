@@ -1,0 +1,15 @@
+[package]
+name = "marklab-cohort"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Cohort-valid population inference for Marklab"
+
+[lib]
+bench = false
+
+[dependencies]
+sha2 = "0.10.9"
+statrs = "0.18"
+thiserror = "2"

@@ -1,0 +1,17 @@
+{
+  "background_area_um2": 95.0,
+  "background_perimeter_area_ratio_per_um": 0.5473684210526316,
+  "background_perimeter_um": 52.0,
+  "domain_area_um2": 100.0,
+  "geos_version": "3.14.1",
+  "islands_area_um2": 5.0,
+  "islands_component_area_entropy_nats": 0.5004024235381879,
+  "islands_component_areas_um2": [
+    1.0,
+    4.0
+  ],
+  "islands_normalized_component_area_entropy": 0.7219280948873623,
+  "islands_perimeter_um": 12.0,
+  "oracle": "GEOS geosop plus Python standard-library entropy",
+  "union_equals_domain": true
+}

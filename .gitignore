@@ -1,0 +1,18 @@
+/target/
+/fuzz/target/
+*.profraw
+*.profdata
+flamegraph.svg
+dhat-heap.json
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Keep study inputs and generated outputs outside the source checkout.
+/data/
+/datasets/
+/results/
+/output/
+/outputs/
+/runs/
+/gsc-marklab_results/

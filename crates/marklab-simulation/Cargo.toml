@@ -1,0 +1,18 @@
+[package]
+name = "marklab-simulation"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Mechanistic tissue simulation contracts and solvers for Marklab"
+
+[lib]
+bench = false
+
+[dependencies]
+rand = "=0.8.6"
+rand_chacha = "=0.3.1"
+rand_distr = "=0.4.3"
+rustfft = "6"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"

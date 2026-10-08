@@ -1,0 +1,26 @@
+{
+  "cross_compartment_edge_count": 1,
+  "cross_compartment_edge_fraction": 0.3333333333333333,
+  "cross_edge_fraction_minus_expectation": -0.3333333333333333,
+  "directed_pair_visits": 6,
+  "edge_type_entropy_nats": 0.6365141682948128,
+  "edges": [
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      3
+    ]
+  ],
+  "normalized_edge_type_entropy": 0.9182958340544894,
+  "oracle": "Python standard-library direct undirected pair loop",
+  "radius_um": 2.1,
+  "random_label_cross_edge_expectation": 0.6666666666666666,
+  "undirected_edge_count": 3
+}

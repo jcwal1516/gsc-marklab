@@ -1,0 +1,670 @@
+#![allow(dead_code)]
+
+use approx::assert_abs_diff_eq;
+use marklab::{
+    execute_algorithm_with_store, global_geary_permutation, global_moran_permutation,
+    scalar_semivariogram, scalar_semivariogram_permutation, ArtifactRef, ArtifactSchema,
+    BinaryMarkDeclaration, CacheStatus, DeclaredScalarPatternInput, DurableProject,
+    DurableProjectLimits, GlobalGearyAlternative, GlobalGearyDesign, GlobalGearyLimits,
+    GlobalMoranAlternative, GlobalMoranDesign, GlobalMoranError, GlobalMoranLimits,
+    GlobalMoranWeightPolicy, HistologicCompartmentMarkDeclaration, LocalScheduler, MarkTable,
+    MeasurementStatus, MissingnessPolicy, NativeRuntimeProvenance, NodeId,
+    NucleusAreaUm2MarkDeclaration, ObservationWindow2D, ObservationWindowError,
+    ObservationWindowLimits, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
+    ScalarVariogramAnalysisNode, ScalarVariogramBin, ScalarVariogramInferenceDesign,
+    ScalarVariogramInferenceLimits, ScalarVariogramLimits, SchedulerLimits, WorkflowGraph,
+};
+use marklab_cohort::{InferenceAlternative, InferenceDesign};
+
+#[path = "support/declared_scalar.rs"]
+mod support;
+use support::*;
+
+#[test]
+fn observation_window_rejects_noncanonical_physical_frame_axes() {
+    let fixture = fixture_with_frame(Some(FrameProfile::PhysicalYxMicrometer));
+    let window = ObservationWindow2D::from_geojson_str(
+        r#"{"type":"MultiPolygon","coordinates":[[[[0,0],[1,0],[1,1],[0,1],[0,0]]]]}"#,
+        ObservationWindowLimits::default(),
+    )
+    .expect("window");
+    assert_eq!(
+        window.with_coordinate_frame(
+            fixture.project.coordinate_registry().expect("registry"),
+            fixture.frame_id.clone(),
+        ),
+        Err(ObservationWindowError::InvalidCoordinateFrame {
+            frame: fixture.frame_id,
+        })
+    );
+}
+
+#[test]
+fn typed_frame_mark_and_compartment_design_drive_global_moran_inference() {
+    let mut fixture = fixture();
+    fixture.pattern.nucleus_area_um2 = Some(vec![1.0, 2.0, 8.0, 9.0].into_boxed_slice());
+    fixture.pattern.categorical_strata.insert(
+        "histologic_compartment".into(),
+        vec![0_u32, 0, 1, 1].into_boxed_slice(),
+    );
+    let binary_provenance = publish_record(
+        &mut fixture,
+        b"moran-binary-provenance",
+        MARK_SCHEMA,
+        1,
+        None,
+        Vec::new(),
+        binary_metadata(
+            "mmr_loss",
+            "MMR loss",
+            MeasurementStatus::Measured,
+            "independent",
+        ),
+    );
+    let area_provenance = publish_record(
+        &mut fixture,
+        b"moran-area-provenance",
+        MARK_SCHEMA,
+        1,
+        None,
+        Vec::new(),
+        nucleus_area_um2_metadata(MeasurementStatus::Measured),
+    );
+    let compartment_provenance = publish_record(
+        &mut fixture,
+        b"moran-compartment-provenance",
+        MARK_SCHEMA,
+        1,
+        None,
+        Vec::new(),
+        histologic_compartment_metadata(MeasurementStatus::Measured, &["tumor", "stroma"]),
+    );
+    let binary = BinaryMarkDeclaration::independent(
+        ScalarMarkId::new("mmr_loss").expect("binary mark ID"),
+        "MMR loss",
+        MeasurementStatus::Measured,
+        binary_provenance,
+    )
+    .expect("binary declaration");
+    let area = NucleusAreaUm2MarkDeclaration::new(MeasurementStatus::Measured, area_provenance)
+        .expect("area declaration");
+    let compartment = HistologicCompartmentMarkDeclaration::new(
+        vec!["tumor".into(), "stroma".into()],
+        MeasurementStatus::Measured,
+        compartment_provenance,
+    )
+    .expect("compartment declaration");
+    assert!(matches!(
+        ScalarMarkColumn::histologic_compartment(
+            compartment.clone(),
+            ScalarMarkModality::Histology,
+            ScalarMarkUnit::Categorical,
+            MissingnessPolicy::NotPermitted,
+            vec![0_u32, 0, 1, 2],
+        ),
+        Err(marklab::DeclaredScalarInputError::InvalidCategoricalValue {
+            row: 3,
+            code: 2,
+            level_count: 2,
+        })
+    ));
+
+    assert!(matches!(
+        ScalarMarkColumn::histologic_compartment(
+            compartment.clone(),
+            ScalarMarkModality::Morphology,
+            ScalarMarkUnit::Categorical,
+            MissingnessPolicy::NotPermitted,
+            vec![0_u32, 0, 1, 1],
+        ),
+        Err(marklab::DeclaredScalarInputError::UnitMismatch)
+    ));
+    let table = MarkTable::new(
+        fixture.cell_ids.clone(),
+        vec![
+            ScalarMarkColumn::binary(
+                binary,
+                ScalarMarkModality::Immunohistochemistry,
+                ScalarMarkUnit::Unitless,
+                MissingnessPolicy::NotPermitted,
+                fixture.pattern.mark.clone(),
+            )
+            .expect("binary column"),
+            ScalarMarkColumn::continuous(
+                area,
+                ScalarMarkModality::Morphology,
+                ScalarMarkUnit::SquareMicrometer,
+                MissingnessPolicy::NotPermitted,
+                fixture
+                    .pattern
+                    .nucleus_area_um2
+                    .clone()
+                    .expect("area values"),
+            )
+            .expect("area column"),
+            ScalarMarkColumn::histologic_compartment(
+                compartment,
+                ScalarMarkModality::Histology,
+                ScalarMarkUnit::Categorical,
+                MissingnessPolicy::NotPermitted,
+                fixture.pattern.categorical_strata["histologic_compartment"].clone(),
+            )
+            .expect("compartment column"),
+        ],
+        4,
+        fixture.cell_ids.iter().map(|id| id.as_str().len()).sum(),
+    )
+    .expect("mark table");
+    let input = DeclaredScalarPatternInput::from_mark_table(
+        &fixture.project,
+        &fixture.pattern,
+        &table,
+        fixture.slide_id.clone(),
+        fixture.frame_id.clone(),
+    )
+    .expect("declared input");
+    let window = ObservationWindow2D::from_geojson_str(
+        r#"{"type":"MultiPolygon","coordinates":[[[[-1,-1],[4,-1],[4,1],[-1,1],[-1,-1]]]]}"#,
+        ObservationWindowLimits::default(),
+    )
+    .expect("window")
+    .with_coordinate_frame(
+        fixture.project.coordinate_registry().expect("registry"),
+        fixture.frame_id.clone(),
+    )
+    .expect("framed window");
+    let result = global_moran_permutation(
+        &input,
+        &window,
+        &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+        1.1,
+        GlobalMoranWeightPolicy::BinarySymmetric,
+        &GlobalMoranDesign::histologic_compartment_random_labeling(
+            31,
+            20260826,
+            GlobalMoranAlternative::Greater,
+        )
+        .expect("design"),
+        GlobalMoranLimits::new(4, 6, 6 * 31).expect("limits"),
+    )
+    .expect("global Moran workflow");
+
+    assert_abs_diff_eq!(result.statistic, 0.4, epsilon = 1e-12);
+    assert_abs_diff_eq!(result.null_expectation, 47.0 / 150.0, epsilon = 1e-12);
+    assert_eq!(result.directed_edge_count, 6);
+    assert_eq!(result.stratum_count, 2);
+    assert_eq!(
+        result
+            .conditioning_mark_id
+            .as_ref()
+            .expect("conditioning mark")
+            .as_str(),
+        "histologic_compartment"
+    );
+    assert_eq!(
+        result.conditioning_measurement_status,
+        Some(MeasurementStatus::Measured)
+    );
+    assert_eq!(result.permutations_completed, 31);
+    assert_eq!(result.coordinate_frame_id, fixture.frame_id);
+    assert_eq!(result.mark_id.as_str(), "nucleus_area_um2");
+    assert_eq!(result.measurement_status, MeasurementStatus::Measured);
+    assert!(result.p_value > 0.0 && result.p_value <= 1.0);
+
+    let replay = global_moran_permutation(
+        &input,
+        &window,
+        &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+        1.1,
+        GlobalMoranWeightPolicy::BinarySymmetric,
+        &GlobalMoranDesign::histologic_compartment_random_labeling(
+            31,
+            20260826,
+            GlobalMoranAlternative::Greater,
+        )
+        .expect("design"),
+        GlobalMoranLimits::new(4, 6, 6 * 31).expect("limits"),
+    )
+    .expect("deterministic replay");
+    assert_eq!(result, replay);
+
+    let row_standardized = global_moran_permutation(
+        &input,
+        &window,
+        &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+        1.1,
+        GlobalMoranWeightPolicy::RowStandardized,
+        &GlobalMoranDesign::histologic_compartment_random_labeling(
+            31,
+            20260826,
+            GlobalMoranAlternative::Greater,
+        )
+        .expect("design"),
+        GlobalMoranLimits::new(4, 6, 6 * 31).expect("limits"),
+    )
+    .expect("row-standardized workflow");
+    assert_abs_diff_eq!(row_standardized.statistic, 0.54, epsilon = 1e-12);
+
+    let geary = global_geary_permutation(
+        &input,
+        &window,
+        &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+        1.1,
+        GlobalMoranWeightPolicy::BinarySymmetric,
+        &GlobalGearyDesign::histologic_compartment_random_labeling(
+            31,
+            20260826,
+            GlobalGearyAlternative::Less,
+        )
+        .expect("Geary design"),
+        GlobalGearyLimits::new(4, 6, 6 * 31).expect("Geary limits"),
+    )
+    .expect("global Geary workflow");
+    assert_abs_diff_eq!(geary.statistic, 0.38, epsilon = 1e-12);
+    assert_abs_diff_eq!(geary.null_expectation, 0.515, epsilon = 1e-12);
+    assert_eq!(geary.weights_digest, result.weights_digest);
+    assert_eq!(geary.stratum_count, 2);
+    assert_eq!(geary.permutations_completed, 31);
+    assert!(geary.p_value > 0.0 && geary.p_value <= 1.0);
+
+    let two_sided_moran = global_moran_permutation(
+        &input,
+        &window,
+        &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+        1.1,
+        GlobalMoranWeightPolicy::BinarySymmetric,
+        &GlobalMoranDesign::histologic_compartment_random_labeling(
+            31,
+            20260826,
+            GlobalMoranAlternative::TwoSided,
+        )
+        .expect("two-sided Moran design"),
+        GlobalMoranLimits::new(4, 6, 6 * 31).expect("Moran limits"),
+    )
+    .expect("two-sided Moran workflow");
+    let two_sided_geary = global_geary_permutation(
+        &input,
+        &window,
+        &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+        1.1,
+        GlobalMoranWeightPolicy::BinarySymmetric,
+        &GlobalGearyDesign::histologic_compartment_random_labeling(
+            31,
+            20260826,
+            GlobalGearyAlternative::TwoSided,
+        )
+        .expect("two-sided Geary design"),
+        GlobalGearyLimits::new(4, 6, 6 * 31).expect("Geary limits"),
+    )
+    .expect("two-sided Geary workflow");
+    let schedule = InferenceDesign::stratified_random_labeling(
+        &[0_u32, 0, 1, 1],
+        31,
+        20260826,
+        InferenceAlternative::TwoSided,
+    )
+    .expect("independent permutation schedule");
+    let values = [1.0_f64, 2.0, 8.0, 9.0];
+    let edges = [(0_usize, 1_usize), (1, 0), (1, 2), (2, 1), (2, 3), (3, 2)];
+    let mean = values.iter().sum::<f64>() / values.len() as f64;
+    let denominator = values
+        .iter()
+        .map(|value| (value - mean).powi(2))
+        .sum::<f64>();
+    let statistics = |indices: &[usize]| {
+        let moran_numerator = edges
+            .iter()
+            .map(|(left, right)| (values[indices[*left]] - mean) * (values[indices[*right]] - mean))
+            .sum::<f64>();
+        let geary_numerator = edges
+            .iter()
+            .map(|(left, right)| (values[indices[*left]] - values[indices[*right]]).powi(2))
+            .sum::<f64>();
+        (
+            values.len() as f64 * moran_numerator / (edges.len() as f64 * denominator),
+            (values.len() as f64 - 1.0) * geary_numerator
+                / (2.0 * edges.len() as f64 * denominator),
+        )
+    };
+    let mut moran_extreme = 0_usize;
+    let mut geary_extreme = 0_usize;
+    for replicate in 0..31 {
+        let indices = schedule
+            .permuted_indices(replicate)
+            .expect("scheduled permutation");
+        let (moran, geary) = statistics(&indices);
+        moran_extreme += usize::from(
+            (moran - 47.0 / 150.0).abs() >= (two_sided_moran.statistic - 47.0 / 150.0).abs(),
+        );
+        geary_extreme +=
+            usize::from((geary - 0.515).abs() >= (two_sided_geary.statistic - 0.515).abs());
+    }
+    assert_abs_diff_eq!(
+        two_sided_moran.p_value,
+        (moran_extreme + 1) as f64 / 32.0,
+        epsilon = 1.0e-12
+    );
+    assert_abs_diff_eq!(
+        two_sided_geary.p_value,
+        (geary_extreme + 1) as f64 / 32.0,
+        epsilon = 1.0e-12
+    );
+
+    let geary_row_standardized = global_geary_permutation(
+        &input,
+        &window,
+        &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+        1.1,
+        GlobalMoranWeightPolicy::RowStandardized,
+        &GlobalGearyDesign::histologic_compartment_random_labeling(
+            31,
+            20260826,
+            GlobalGearyAlternative::Less,
+        )
+        .expect("Geary design"),
+        GlobalGearyLimits::new(4, 6, 6 * 31).expect("Geary limits"),
+    )
+    .expect("row-standardized Geary workflow");
+    assert_abs_diff_eq!(geary_row_standardized.statistic, 0.2925, epsilon = 1e-12);
+
+    let lag_bins = [
+        ScalarVariogramBin::new(0.0, 1.5).expect("first lag bin"),
+        ScalarVariogramBin::new(1.5, 2.5).expect("second lag bin"),
+        ScalarVariogramBin::new(2.5, 3.5).expect("third lag bin"),
+    ];
+    let variogram = scalar_semivariogram(
+        &input,
+        &window,
+        &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+        &lag_bins,
+        ScalarVariogramLimits::new(4, 6).expect("variogram limits"),
+    )
+    .expect("scalar semivariogram");
+    assert_eq!(variogram.pair_visits, 6);
+    assert_eq!(
+        variogram
+            .curve
+            .iter()
+            .map(|row| row.pair_count)
+            .collect::<Vec<_>>(),
+        vec![3, 2, 1]
+    );
+    assert_abs_diff_eq!(
+        variogram.curve[0].semivariance.expect("first bin"),
+        19.0 / 3.0,
+        epsilon = 1e-12
+    );
+    assert_abs_diff_eq!(
+        variogram.curve[1].semivariance.expect("second bin"),
+        24.5,
+        epsilon = 1e-12
+    );
+    assert_abs_diff_eq!(
+        variogram.curve[2].semivariance.expect("third bin"),
+        32.0,
+        epsilon = 1e-12
+    );
+    assert!(matches!(
+        scalar_semivariogram(
+            &input,
+            &window,
+            &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+            &lag_bins,
+            ScalarVariogramLimits::new(4, 5).expect("bounded variogram limits"),
+        ),
+        Err(marklab::ScalarVariogramError::PairVisitLimitExceeded {
+            observed: 6,
+            maximum: 5,
+        })
+    ));
+
+    let variogram_inference = scalar_semivariogram_permutation(
+        &input,
+        &window,
+        &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+        &lag_bins,
+        &ScalarVariogramInferenceDesign::histologic_compartment_random_labeling(31, 20260826, 0.25)
+            .expect("variogram inference design"),
+        ScalarVariogramInferenceLimits::new(4, 6, 6 * 31).expect("inference limits"),
+    )
+    .expect("scalar semivariogram inference");
+    assert_eq!(variogram_inference.observed, variogram);
+    assert_eq!(variogram_inference.permutations_completed, 31);
+    assert_eq!(variogram_inference.eligible_bin_count, 3);
+    assert_eq!(
+        variogram_inference
+            .conditioning_mark_id
+            .as_ref()
+            .expect("variogram conditioning mark")
+            .as_str(),
+        "histologic_compartment"
+    );
+    assert_eq!(
+        variogram_inference.conditioning_measurement_status,
+        Some(MeasurementStatus::Measured)
+    );
+    assert!(variogram_inference.p_global > 0.0 && variogram_inference.p_global <= 1.0);
+    assert!(variogram_inference.curve.iter().all(|row| {
+        row.lower_global_envelope.is_some_and(f64::is_finite)
+            && row.upper_global_envelope.is_some_and(f64::is_finite)
+    }));
+    let variogram_replay = scalar_semivariogram_permutation(
+        &input,
+        &window,
+        &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+        &lag_bins,
+        &ScalarVariogramInferenceDesign::histologic_compartment_random_labeling(31, 20260826, 0.25)
+            .expect("variogram inference design"),
+        ScalarVariogramInferenceLimits::new(4, 6, 6 * 31).expect("inference limits"),
+    )
+    .expect("deterministic variogram replay");
+    assert_eq!(variogram_replay, variogram_inference);
+
+    let variogram_mark_id = ScalarMarkId::new("nucleus_area_um2").expect("area mark ID");
+    let variogram_design =
+        ScalarVariogramInferenceDesign::histologic_compartment_random_labeling(31, 20260826, 0.25)
+            .expect("variogram inference design");
+    let variogram_limits =
+        ScalarVariogramInferenceLimits::new(4, 6, 6 * 31).expect("inference limits");
+    assert!(ScalarVariogramAnalysisNode::new(
+        &mut fixture.project,
+        NodeId::new("scalar-variogram-too-small").expect("node ID"),
+        &input,
+        &window,
+        &variogram_mark_id,
+        &lag_bins,
+        &variogram_design,
+        variogram_limits,
+        1,
+    )
+    .is_err());
+    let node = ScalarVariogramAnalysisNode::new(
+        &mut fixture.project,
+        NodeId::new("scalar-variogram").expect("node ID"),
+        &input,
+        &window,
+        &variogram_mark_id,
+        &lag_bins,
+        &variogram_design,
+        variogram_limits,
+        1 << 20,
+    )
+    .expect("variogram node");
+    let graph = WorkflowGraph::new([node.spec().clone()]).expect("graph");
+    let scheduler = LocalScheduler::new(SchedulerLimits {
+        max_inline_output_bytes: 1 << 20,
+    })
+    .expect("scheduler");
+    let durable_limits = DurableProjectLimits::new(64 * 1024, 1 << 20, 64, 64 * 1024, 1 << 20)
+        .expect("durable limits");
+    let project_path = tempfile::tempdir().expect("durable root");
+    let mut durable = DurableProject::open_or_create(project_path.path(), durable_limits)
+        .expect("durable project");
+    let runtime = || {
+        NativeRuntimeProvenance::new(
+            "0.0.0-test",
+            None,
+            None,
+            "rustc 1.96.0-test",
+            vec!["test".into()],
+            ArtifactRef::from_bytes(
+                "application/vnd.marklab.executable",
+                b"scalar-variogram-test",
+            )
+            .expect("executable"),
+        )
+        .expect("runtime")
+    };
+    let schema = || ArtifactSchema::new("marklab.scalar_variogram_inference", 1).expect("schema");
+    let miss = execute_algorithm_with_store(
+        &mut durable,
+        &mut fixture.project,
+        &graph,
+        &node,
+        &scheduler,
+        schema(),
+        runtime(),
+        &fixture.store,
+    )
+    .expect("variogram miss");
+    assert_eq!(miss.cache_status, CacheStatus::Miss);
+    assert_eq!(miss.output, variogram_inference);
+    drop(durable);
+    let mut durable = DurableProject::open_or_create(project_path.path(), durable_limits)
+        .expect("reopened durable project");
+    let hit = execute_algorithm_with_store(
+        &mut durable,
+        &mut fixture.project,
+        &graph,
+        &node,
+        &scheduler,
+        schema(),
+        runtime(),
+        &fixture.store,
+    )
+    .expect("variogram hit");
+    assert_eq!(hit.cache_status, CacheStatus::Hit);
+    assert_eq!(hit.output, variogram_inference);
+    assert_eq!(durable.execution_count(), 1);
+    let changed_design =
+        ScalarVariogramInferenceDesign::histologic_compartment_random_labeling(31, 20260827, 0.25)
+            .expect("changed variogram design");
+    let changed_node = ScalarVariogramAnalysisNode::new(
+        &mut fixture.project,
+        NodeId::new("scalar-variogram").expect("node ID"),
+        &input,
+        &window,
+        &variogram_mark_id,
+        &lag_bins,
+        &changed_design,
+        variogram_limits,
+        1 << 20,
+    )
+    .expect("changed variogram node");
+    let changed_graph = WorkflowGraph::new([changed_node.spec().clone()]).expect("changed graph");
+    let changed = execute_algorithm_with_store(
+        &mut durable,
+        &mut fixture.project,
+        &changed_graph,
+        &changed_node,
+        &scheduler,
+        schema(),
+        runtime(),
+        &fixture.store,
+    )
+    .expect("changed variogram run");
+    assert_eq!(changed.cache_status, CacheStatus::Miss);
+    assert_eq!(durable.execution_count(), 2);
+    assert!(matches!(
+        scalar_semivariogram_permutation(
+            &input,
+            &window,
+            &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+            &lag_bins,
+            &ScalarVariogramInferenceDesign::random_labeling(31, 20260826, 0.25)
+                .expect("variogram inference design"),
+            ScalarVariogramInferenceLimits::new(4, 6, 6 * 31 - 1)
+                .expect("bounded inference limits"),
+        ),
+        Err(marklab::ScalarVariogramError::PermutationWorkExceeded {
+            observed: 186,
+            maximum: 185,
+        })
+    ));
+    assert_eq!(
+        ScalarVariogramInferenceDesign::random_labeling(1, 7, 0.25),
+        Err(marklab::ScalarVariogramError::InvalidInferenceDesign)
+    );
+
+    let unbound = ObservationWindow2D::from_geojson_str(
+        r#"{"type":"MultiPolygon","coordinates":[[[[-1,-1],[4,-1],[4,1],[-1,1],[-1,-1]]]]}"#,
+        ObservationWindowLimits::default(),
+    )
+    .expect("unbound window");
+    assert_eq!(
+        global_moran_permutation(
+            &input,
+            &unbound,
+            &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+            1.1,
+            GlobalMoranWeightPolicy::BinarySymmetric,
+            &GlobalMoranDesign::random_labeling(7, 1, GlobalMoranAlternative::TwoSided)
+                .expect("design"),
+            GlobalMoranLimits::new(4, 6, 6 * 7).expect("limits"),
+        ),
+        Err(GlobalMoranError::UnboundObservationWindow)
+    );
+
+    let wrong_frame = ObservationWindow2D::from_geojson_str(
+        r#"{"type":"MultiPolygon","coordinates":[[[[-1,-1],[4,-1],[4,1],[-1,1],[-1,-1]]]]}"#,
+        ObservationWindowLimits::default(),
+    )
+    .expect("window")
+    .with_coordinate_frame(
+        fixture.project.coordinate_registry().expect("registry"),
+        fixture.alternate_frame_id.clone(),
+    )
+    .expect("alternate framed window");
+    assert!(matches!(
+        global_moran_permutation(
+            &input,
+            &wrong_frame,
+            &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+            1.1,
+            GlobalMoranWeightPolicy::BinarySymmetric,
+            &GlobalMoranDesign::random_labeling(7, 1, GlobalMoranAlternative::TwoSided)
+                .expect("design"),
+            GlobalMoranLimits::new(4, 6, 6 * 7).expect("limits"),
+        ),
+        Err(GlobalMoranError::CoordinateFrameMismatch { .. })
+    ));
+    assert!(matches!(
+        global_moran_permutation(
+            &input,
+            &window,
+            &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+            0.5,
+            GlobalMoranWeightPolicy::BinarySymmetric,
+            &GlobalMoranDesign::random_labeling(7, 1, GlobalMoranAlternative::TwoSided)
+                .expect("design"),
+            GlobalMoranLimits::new(4, 6, 6 * 7).expect("limits"),
+        ),
+        Err(GlobalMoranError::IsolatedPoint { row: 0 })
+    ));
+    assert_eq!(
+        global_moran_permutation(
+            &input,
+            &window,
+            &ScalarMarkId::new("nucleus_area_um2").expect("area mark ID"),
+            1.1,
+            GlobalMoranWeightPolicy::BinarySymmetric,
+            &GlobalMoranDesign::random_labeling(31, 1, GlobalMoranAlternative::TwoSided)
+                .expect("design"),
+            GlobalMoranLimits::new(4, 6, 6 * 31 - 1).expect("limits"),
+        ),
+        Err(GlobalMoranError::PermutationWorkExceeded {
+            observed: 6 * 31,
+            maximum: 6 * 31 - 1,
+        })
+    );
+}

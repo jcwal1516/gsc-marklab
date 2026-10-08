@@ -1,0 +1,183 @@
+[workspace]
+members = [
+    "crates/marklab-core",
+    "crates/marklab-data",
+    "crates/marklab-project",
+    "crates/marklab-embeddings",
+    "crates/marklab-cohort",
+    "crates/marklab-bayes",
+    "crates/marklab-simulation",
+    "crates/marklab-sbi",
+    "crates/marklab-longitudinal",
+    "crates/marklab-spatial3d",
+    "crates/marklab-causal",
+    "crates/marklab-numerics",
+    "crates/marklab-policy",
+    "crates/marklab-graph",
+    "crates/marklab-topology",
+    "crates/marklab-workflow",
+]
+exclude = ["fuzz"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.99"
+license = "MIT OR Apache-2.0"
+
+[package]
+name = "marklab"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.99"
+license = "MIT OR Apache-2.0"
+description = "Spatial statistics for marked cell patterns in pathology"
+repository = "https://github.com/jcwal1516/gsc-marklab"
+readme = "README.md"
+keywords = ["pathology", "spatial", "statistics", "ihc", "rust"]
+categories = ["science", "command-line-utilities"]
+
+[lib]
+name = "marklab"
+crate-type = ["rlib"]
+bench = false
+
+[[bin]]
+name = "marklab"
+path = "src/bin/marklab.rs"
+required-features = ["cli"]
+bench = false
+
+[features]
+default = [
+    "cli",
+    "parallel",
+    "parquet",
+    "csv",
+]
+cli = ["dep:clap", "dep:tracing-subscriber", "csv"]
+parallel = ["dep:rayon"]
+parquet = ["dep:arrow", "dep:parquet", "marklab-embeddings/parquet"]
+csv = ["dep:csv", "marklab-embeddings/csv"]
+wsi = ["dep:wsi-rs", "dep:image"]
+allocator-mimalloc = ["dep:mimalloc"]
+dhat-heap = ["dep:dhat"]
+
+[dependencies]
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_path_to_error = "0.1"
+toml = "0.8"
+clap = { version = "4", features = ["derive"], optional = true }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"], optional = true }
+marklab-workflow = { version = "0.1.0", path = "crates/marklab-workflow" }
+marklab-data = { version = "0.1.0", path = "crates/marklab-data" }
+marklab-embeddings = { version = "0.1.0", path = "crates/marklab-embeddings", default-features = false }
+marklab-cohort = { version = "0.1.0", path = "crates/marklab-cohort" }
+marklab-bayes = { version = "0.1.0", path = "crates/marklab-bayes" }
+marklab-simulation = { version = "0.1.0", path = "crates/marklab-simulation" }
+marklab-sbi = { version = "0.1.0", path = "crates/marklab-sbi" }
+marklab-longitudinal = { version = "0.1.0", path = "crates/marklab-longitudinal" }
+marklab-spatial3d = { version = "0.1.0", path = "crates/marklab-spatial3d" }
+marklab-causal = { version = "0.1.0", path = "crates/marklab-causal" }
+marklab-numerics = { version = "0.1.0", path = "crates/marklab-numerics" }
+marklab-policy = { version = "0.1.0", path = "crates/marklab-policy" }
+marklab-graph = { version = "0.1.0", path = "crates/marklab-graph" }
+marklab-topology = { version = "0.1.0", path = "crates/marklab-topology" }
+
+rayon = { version = "1", optional = true }
+rustfft = "6"
+num-complex = "0.4"
+statrs = "0.18"
+
+geojson = { version = "0.24", default-features = false }
+geo = { version = "0.33.1", default-features = false }
+rstar = { version = "0.13.0", default-features = false }
+
+arrow = { version = "56", optional = true }
+parquet = { version = "56", optional = true }
+csv = { version = "1", optional = true }
+wsi-rs = { version = "=0.5.0", optional = true }
+image = { version = "0.25", default-features = false, features = ["png"], optional = true }
+
+mimalloc = { version = "0.1", optional = true }
+dhat = { version = "0.3", optional = true }
+
+[dev-dependencies]
+criterion = { version = "0.7", features = ["html_reports"] }
+proptest = "1"
+insta = { version = "1", features = ["json"] }
+approx = "0.5"
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"
+dicom-core = "0.9.1"
+dicom-object = "0.9.1"
+
+[[example]]
+name = "generate_dicom_wsi_fixture"
+path = "tests/fixtures/wsi/generate_dicom_wsi_fixture.rs"
+required-features = ["wsi"]
+
+[[bench]]
+name = "structure_factor"
+harness = false
+
+[[bench]]
+name = "permutation_engine"
+harness = false
+
+[[bench]]
+name = "periodogram"
+harness = false
+
+[[bench]]
+name = "multiscale_residual"
+harness = false
+
+[[bench]]
+name = "random_labeling_envelope"
+harness = false
+
+[[bench]]
+name = "pattern_load"
+harness = false
+required-features = ["csv"]
+
+[[bench]]
+name = "cohort_hierarchy"
+harness = false
+
+[[bench]]
+name = "cell_embeddings"
+harness = false
+required-features = ["csv", "parquet"]
+
+[[bench]]
+name = "patch_embeddings"
+harness = false
+required-features = ["parquet"]
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+debug = "line-tables-only"
+
+[profile.profiling]
+inherits = "release"
+debug = true
+strip = "none"
+
+[profile.samply]
+inherits = "release"
+debug = true
+strip = "none"
+
+[profile.bench]
+opt-level = 3
+debug = true
+lto = "thin"
+codegen-units = 1
