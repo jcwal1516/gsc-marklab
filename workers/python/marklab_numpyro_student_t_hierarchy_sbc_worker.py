@@ -114,7 +114,8 @@ def run_sbc(config: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str
             true_observation = float(abs(rng.normal(0.0, config["observation_sd"])))
             true_df = float(2.0 + rng.exponential(1.0/config["df_rate"]))
             patient_means = true_global + true_between * rng.normal(0.0, 1.0, len(config["patient_ids"]))
-            observations = patient_means[patient_index] + true_observation * rng.standard_t(true_df, patient_index.size)
+            true_scale = student.student_t_scale_from_sd(true_observation, true_df)
+            observations = patient_means[patient_index] + true_scale * rng.standard_t(true_df, patient_index.size)
             sampler = MCMC(kernel, num_warmup=config["tune"], num_samples=config["draws"], num_chains=config["chains"], chain_method="sequential", progress_bar=False)
             sampler.run(jax.random.PRNGKey(seed_for(config["seed"], "fit", replicate)), patient_index=jnp.asarray(patient_index), observations=jnp.asarray(observations), patient_count=len(config["patient_ids"]), global_mean=config["global_mean"], global_sd=config["global_sd"], between_sd=config["between_sd"], observation_sd=config["observation_sd"], df_rate=config["df_rate"], extra_fields=("diverging", "num_steps", "energy"))
             samples = {name: np.asarray(value, dtype=np.float64) for name, value in sampler.get_samples(group_by_chain=True).items()}

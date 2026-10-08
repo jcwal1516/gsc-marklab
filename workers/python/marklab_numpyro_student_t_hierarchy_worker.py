@@ -74,15 +74,25 @@ def seed_for(seed: int, purpose: str) -> int:
     return int.from_bytes(digest[:4], "little")
 
 
+def student_t_scale_from_sd(observation_sd: Any, degrees_of_freedom: Any) -> Any:
+    return observation_sd * ((degrees_of_freedom - 2.0) / degrees_of_freedom) ** 0.5
+
+
 def model(patient_index: jnp.ndarray, observations: jnp.ndarray, patient_count: int, global_mean: float, global_sd: float, between_sd: float, observation_sd: float, df_rate: float) -> None:
     population = numpyro.sample("global_mean", dist.Normal(global_mean, global_sd))
     between = numpyro.sample("between_patient_sd", dist.HalfNormal(between_sd))
     patient_z = numpyro.sample("patient_z", dist.Normal(0.0, 1.0).expand([patient_count]).to_event(1))
     patient_mean = numpyro.deterministic("patient_mean", population + between * patient_z)
-    sigma = numpyro.sample("observation_sd", dist.HalfNormal(observation_sd))
     df_excess = numpyro.sample("degrees_of_freedom_excess", dist.Exponential(df_rate))
     degrees = numpyro.deterministic("degrees_of_freedom", 2.0 + df_excess)
-    numpyro.sample("observation", dist.StudentT(degrees, patient_mean[patient_index], sigma), obs=observations)
+    # NUTS moves in the likelihood scale, which the data identify separately from the
+    # degrees of freedom. The declared HalfNormal prior stays on observation_sd through
+    # the change-of-variables density sd = scale / scale_per_sd.
+    scale_per_sd = student_t_scale_from_sd(1.0, degrees)
+    observation_scale = numpyro.sample("observation_scale", dist.ImproperUniform(dist.constraints.positive, (), ()))
+    inferred_observation_sd = numpyro.deterministic("observation_sd", observation_scale / scale_per_sd)
+    numpyro.factor("observation_sd_prior", dist.HalfNormal(observation_sd).log_prob(inferred_observation_sd) - jnp.log(scale_per_sd))
+    numpyro.sample("observation", dist.StudentT(degrees, patient_mean[patient_index], observation_scale), obs=observations)
 
 
 def summary(values: np.ndarray) -> dict[str, float]:
@@ -92,6 +102,43 @@ def summary(values: np.ndarray) -> dict[str, float]:
 
 def flattened(tree: Any, names: list[str]) -> np.ndarray:
     return np.concatenate([np.asarray(tree[name].values).reshape(-1) for name in names])
+
+
+def prior_predictive_is_finite(config: dict[str, Any], patient_index: np.ndarray) -> bool:
+    rng = np.random.default_rng(seed_for(config["seed"], "prior"))
+    draws = config["prior_draws"]
+    patient_count = len(config["patient_ids"])
+    population = rng.normal(config["global_mean"], config["global_sd"], draws)
+    between_patient_sd = np.abs(rng.normal(0.0, config["between_sd"], draws))
+    observation_sd = np.abs(rng.normal(0.0, config["observation_sd"], draws))
+    degrees_of_freedom = 2.0 + rng.exponential(1.0 / config["df_rate"], draws)
+    if not (
+        np.isfinite(population).all()
+        and np.isfinite(between_patient_sd).all()
+        and np.isfinite(observation_sd).all()
+        and np.isfinite(degrees_of_freedom).all()
+    ):
+        return False
+    # Only a finiteness flag is needed; keep one generated observation vector
+    # at a time instead of retaining prior_draws * observation_count values.
+    for mean, between, sd, degrees in zip(
+        population, between_patient_sd, observation_sd, degrees_of_freedom, strict=True
+    ):
+        patient_z = rng.normal(size=patient_count)
+        with np.errstate(over="ignore", invalid="ignore"):
+            patient_mean = mean + between * patient_z
+            observation_scale = student_t_scale_from_sd(sd, degrees)
+            observations = patient_mean[patient_index] + observation_scale * rng.standard_t(
+                degrees, size=patient_index.size
+            )
+        if not (
+            np.isfinite(patient_z).all()
+            and np.isfinite(patient_mean).all()
+            and np.isfinite(observation_scale)
+            and np.isfinite(observations).all()
+        ):
+            return False
+    return True
 
 
 def fit(config: dict[str, Any], request_sha: str, source_sha: str, lock_sha: str, worker_sha: str) -> dict[str, Any]:
@@ -122,13 +169,9 @@ def fit(config: dict[str, Any], request_sha: str, source_sha: str, lock_sha: str
     depth_hits = int((np.asarray(extra["num_steps"]) >= 2**config["maximum_tree_depth"] - 1).sum())
     rng = np.random.default_rng(seed_for(config["seed"], "predictive"))
     patient_draws = samples["patient_mean"]
-    predictive = patient_draws[..., patient_index] + samples["observation_sd"][..., None] * rng.standard_t(degrees[..., None], size=patient_draws[..., patient_index].shape)
-    prior_rng = np.random.default_rng(seed_for(config["seed"], "prior"))
-    prior_population = prior_rng.normal(config["global_mean"], config["global_sd"], config["prior_draws"])
-    prior_between = np.abs(prior_rng.normal(0.0, config["between_sd"], config["prior_draws"]))
-    prior_sigma = np.abs(prior_rng.normal(0.0, config["observation_sd"], config["prior_draws"]))
-    prior_df = 2.0 + prior_rng.exponential(1.0 / config["df_rate"], config["prior_draws"])
-    prior_finite = bool(np.isfinite(prior_population).all() and np.isfinite(prior_between).all() and np.isfinite(prior_sigma).all() and np.isfinite(prior_df).all())
+    predictive_scale = student_t_scale_from_sd(samples["observation_sd"], degrees)
+    predictive = patient_draws[..., patient_index] + predictive_scale[..., None] * rng.standard_t(degrees[..., None], size=patient_draws[..., patient_index].shape)
+    prior_finite = prior_predictive_is_finite(config, patient_index)
     posterior_finite = bool(all(np.isfinite(value).all() for value in monitored_samples.values()) and np.isfinite(predictive).all())
     constraints = bool(np.all(samples["between_patient_sd"] > 0.0) and np.all(samples["observation_sd"] > 0.0) and np.all(degrees > 2.0))
     complete = prior_finite and posterior_finite and constraints and r_hat <= config["maximum_r_hat"] and bulk >= config["minimum_bulk_ess"] and tail >= config["minimum_tail_ess"] and ebfmi >= config["minimum_ebfmi"] and divergences <= config["maximum_divergences"] and depth_hits <= config["maximum_tree_depth_hits"]

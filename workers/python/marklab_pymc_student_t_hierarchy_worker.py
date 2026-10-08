@@ -142,6 +142,18 @@ def seed_for(seed: int, purpose: str, index: int = 0) -> int:
     return int.from_bytes(digest[:4], "little")
 
 
+def student_t_scale_from_sd(observation_sd: Any, degrees_of_freedom: Any) -> Any:
+    return observation_sd * ((degrees_of_freedom - 2.0) / degrees_of_freedom) ** 0.5
+
+
+def prior_predictive_is_finite(prior: Any) -> bool:
+    return bool(all(
+        np.isfinite(np.asarray(value.values)).all()
+        for group in ("prior", "prior_predictive")
+        for value in prior[group].values()
+    ))
+
+
 def summary(values: np.ndarray) -> dict[str, float]:
     values = values.reshape(-1)
     return {"mean": float(values.mean()), "sd": float(values.std(ddof=1)), "interval_lower": float(np.quantile(values, 0.025)), "interval_upper": float(np.quantile(values, 0.975))}
@@ -162,13 +174,14 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
         observation_sd = pm.HalfNormal("observation_sd", config["observation_sd"])
         df_excess = pm.Exponential("degrees_of_freedom_excess", config["df_rate"])
         degrees_of_freedom = pm.Deterministic("degrees_of_freedom", 2.0 + df_excess)
-        pm.StudentT("observation", nu=degrees_of_freedom, mu=patient_mean[patient_index], sigma=observation_sd, observed=observations)
+        observation_scale = student_t_scale_from_sd(observation_sd, degrees_of_freedom)
+        pm.StudentT("observation", nu=degrees_of_freedom, mu=patient_mean[patient_index], sigma=observation_scale, observed=observations)
         prior = pm.sample_prior_predictive(draws=config["prior_draws"], random_seed=seed_for(config["seed"], "prior"))
         posterior = pm.sample(draws=config["draws"], tune=config["tune"], chains=config["chains"], cores=1, blas_cores=1, random_seed=[seed_for(config["seed"], "chain", index) for index in range(config["chains"])], target_accept=config["target_accept"], nuts_sampler="pymc", nuts={"max_treedepth": config["maximum_tree_depth"]}, progressbar=False, quiet=True, compute_convergence_checks=False)
         predictive = pm.sample_posterior_predictive(posterior, var_names=["observation"], random_seed=seed_for(config["seed"], "predictive"), progressbar=False)
     draws = {name: np.asarray(posterior["posterior"][name].values, dtype=np.float64) for name in ["global_mean", "between_patient_sd", "patient_mean", "observation_sd", "degrees_of_freedom"]}
     replicated = np.asarray(predictive["posterior_predictive"]["observation"].values, dtype=np.float64).reshape(-1, observations.size)
-    prior_finite = bool(all(np.isfinite(np.asarray(value.values)).all() for value in prior["prior"].values()))
+    prior_finite = prior_predictive_is_finite(prior)
     posterior_finite = bool(all(np.isfinite(value).all() for value in draws.values()) and np.isfinite(replicated).all())
     monitored = ["global_mean", "between_patient_sd", "patient_mean", "observation_sd", "degrees_of_freedom"]
     r_hat = float(flattened(pm.stats.rhat(posterior, var_names=monitored, method="rank"), monitored).max())
