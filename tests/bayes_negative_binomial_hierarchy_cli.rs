@@ -5,12 +5,7 @@ use std::{fs, path::Path};
 use assert_cmd::Command;
 
 fn command() -> Command {
-    let mut command = Command::cargo_bin("marklab").expect("binary");
-    command.env(
-        "MARKLAB_PYTHON",
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("workers/python/.venv/bin/python"),
-    );
-    command
+    Command::cargo_bin("marklab").expect("binary")
 }
 
 fn project_command(project: &Path, input: &Path, output: &Path) -> Command {
