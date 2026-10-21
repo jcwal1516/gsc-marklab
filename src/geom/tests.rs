@@ -403,7 +403,10 @@ fn round_offsets_stay_within_the_reported_chord_error_bound() {
             ]),
             vec![],
         );
-        for buffered in [line.buffer_with_style(style()), corner.buffer_with_style(style())] {
+        for buffered in [
+            line.buffer_with_style(style()),
+            corner.buffer_with_style(style()),
+        ] {
             let ring = buffered.0[0].exterior();
             let gap = ring
                 .0
@@ -427,4 +430,50 @@ fn round_offsets_stay_within_the_reported_chord_error_bound() {
             assert!(gap <= bound, "turn {turn}: gap {gap} exceeds bound {bound}");
         }
     }
+}
+
+#[test]
+fn many_component_windows_reject_overlap_but_admit_islands_in_holes() {
+    use crate::geom::window::{ObservationWindow2D, ObservationWindowLimits};
+    let square = |x: f64, y: f64, side: f64| {
+        format!(
+            "[[{x},{y}],[{},{y}],[{},{}],[{x},{}],[{x},{y}]]",
+            x + side,
+            x + side,
+            y + side,
+            y + side
+        )
+    };
+    let mut components = (0..20_000)
+        .map(|index| {
+            let (x, y) = (f64::from(index % 200) * 3.0, f64::from(index / 200) * 3.0);
+            format!("[{}]", square(x, y, 1.0))
+        })
+        .collect::<Vec<_>>();
+    // A lake with an island: the island lies in the hole, not in the lake's area.
+    components.push(format!(
+        "[{},{}]",
+        square(1000.0, 0.0, 30.0),
+        square(1010.0, 10.0, 10.0)
+    ));
+    components.push(format!("[{}]", square(1012.0, 12.0, 2.0)));
+    let parse = |components: &[String]| {
+        ObservationWindow2D::from_geojson_str(
+            &format!(
+                r#"{{"type":"MultiPolygon","coordinates":[{}]}}"#,
+                components.join(",")
+            ),
+            ObservationWindowLimits::new(64 << 20, 100_000, 200_000, 1_000_000, 50_000_000)
+                .unwrap(),
+        )
+    };
+    assert_eq!(
+        parse(&components).unwrap().descriptor().component_count,
+        20_002
+    );
+    // The same small square inside the lake's area overlaps it.
+    let last = components.len() - 1;
+    components[last] = format!("[{}]", square(1002.0, 2.0, 2.0));
+    let error = parse(&components).unwrap_err().to_string();
+    assert!(error.contains("overlap or contain"), "{error}");
 }

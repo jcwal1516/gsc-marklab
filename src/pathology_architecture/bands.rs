@@ -7,9 +7,8 @@ use super::{
     front::Front,
     geometry::{bounded, buffered, charge_overlay, line_vertices, polygon_vertices},
     input::Recipe,
-    invalid,
+    invalid, nuclei,
     preparation::SlideGeometry,
-    nuclei,
     result::{BandResult, CellRow, ClassBand, ComponentRow},
 };
 
@@ -105,8 +104,13 @@ pub(super) fn analyze(
                     .iter()
                     .filter(|row| row.band == Some(index) && row.class_index == class)
                     .collect::<Vec<_>>();
-                let mut summary =
-                    summarize(name, areas[class + 1], epithelial_area_um2, &members, lumens_declared);
+                let mut summary = summarize(
+                    name,
+                    areas[class + 1],
+                    epithelial_area_um2,
+                    &members,
+                    lumens_declared,
+                );
                 summary.bud_count = measured
                     .buds_available
                     .then(|| members.iter().filter(|row| row.bud == Some(true)).count());
@@ -176,7 +180,9 @@ fn summarize(
         branch_points_per_mm2: per_mm2(members, component_area_um2, |row| {
             row.branch_point_count.map(|count| count as f64)
         }),
-        skeleton_length_um_per_mm2: per_mm2(members, component_area_um2, |row| row.skeleton_length_um),
+        skeleton_length_um_per_mm2: per_mm2(members, component_area_um2, |row| {
+            row.skeleton_length_um
+        }),
         epithelial_nuclei: None,
     }
 }
@@ -191,6 +197,9 @@ fn per_mm2(
     if members.is_empty() || area_um2 <= 0.0 {
         return None;
     }
-    let values = members.iter().map(|row| value(row)).collect::<Option<Vec<_>>>()?;
+    let values = members
+        .iter()
+        .map(|row| value(row))
+        .collect::<Option<Vec<_>>>()?;
     Some(neumaier_sum(values) / area_um2 * 1e6)
 }

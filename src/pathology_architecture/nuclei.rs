@@ -80,7 +80,9 @@ fn shape(nucleus: Nucleus, front: &Front, point: [f64; 2]) -> NucleusRow {
 pub(super) fn summarize(cells: &[CellRow], band: usize, class: usize) -> Option<NucleusSummary> {
     let nuclei = cells
         .iter()
-        .filter(|cell| cell.epithelial && cell.band == Some(band) && cell.class_index == Some(class))
+        .filter(|cell| {
+            cell.epithelial && cell.band == Some(band) && cell.class_index == Some(class)
+        })
         .filter_map(|cell| cell.nucleus)
         .collect::<Vec<_>>();
     if nuclei.is_empty() {

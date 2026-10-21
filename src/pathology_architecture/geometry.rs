@@ -65,15 +65,20 @@ pub(super) struct RingIndex {
 }
 
 impl RingIndex {
-    pub(super) fn from_lines<'a>(lines: impl IntoIterator<Item = (u32, &'a LineString<f64>)>) -> Self {
+    pub(super) fn from_lines<'a>(
+        lines: impl IntoIterator<Item = (u32, &'a LineString<f64>)>,
+    ) -> Self {
         let segments = lines
             .into_iter()
             .flat_map(|(tag, line)| {
-                line.0.windows(2).filter(|pair| pair[0] != pair[1]).map(move |pair| Segment {
-                    start: [pair[0].x, pair[0].y],
-                    end: [pair[1].x, pair[1].y],
-                    tag,
-                })
+                line.0
+                    .windows(2)
+                    .filter(|pair| pair[0] != pair[1])
+                    .map(move |pair| Segment {
+                        start: [pair[0].x, pair[0].y],
+                        end: [pair[1].x, pair[1].y],
+                        tag,
+                    })
             })
             .collect::<Vec<_>>();
         let maximum_x = segments
@@ -158,7 +163,11 @@ pub(super) fn line_vertices(lines: &MultiLineString<f64>) -> usize {
 }
 
 /// Charge an `n log n` overlay estimate for the summed input vertices.
-pub(super) fn charge_overlay(remaining: &mut usize, vertices: usize, description: &str) -> Result<()> {
+pub(super) fn charge_overlay(
+    remaining: &mut usize,
+    vertices: usize,
+    description: &str,
+) -> Result<()> {
     let log = (usize::BITS - vertices.saturating_add(2).leading_zeros()) as usize;
     charge(remaining, vertices.saturating_mul(log).max(1), description)
 }
@@ -170,7 +179,9 @@ pub(super) fn bounded(
     description: &str,
 ) -> Result<MultiPolygon<f64>> {
     if polygon_vertices(&geometry) > maximum_vertices {
-        return Err(invalid(format!("{description} vertex resource limit exceeded")));
+        return Err(invalid(format!(
+            "{description} vertex resource limit exceeded"
+        )));
     }
     Ok(geometry)
 }
@@ -253,7 +264,10 @@ pub(super) fn parse_multilinestring(
 ) -> Result<MultiLineString<f64>> {
     let object = value
         .as_object()
-        .filter(|object| object.len() == 2 && object.get("type").and_then(|t| t.as_str()) == Some("MultiLineString"))
+        .filter(|object| {
+            object.len() == 2
+                && object.get("type").and_then(|t| t.as_str()) == Some("MultiLineString")
+        })
         .ok_or_else(|| invalid("declared front must be a GeoJSON MultiLineString"))?;
     let lines = object["coordinates"]
         .as_array()
@@ -275,9 +289,13 @@ pub(super) fn parse_multilinestring(
             .map(|position| match position.as_array().map(Vec::as_slice) {
                 Some([x, y]) => match (x.as_f64(), y.as_f64()) {
                     (Some(x), Some(y)) if x.is_finite() && y.is_finite() => Ok(Coord { x, y }),
-                    _ => Err(invalid("declared front positions must be finite [x, y] pairs")),
+                    _ => Err(invalid(
+                        "declared front positions must be finite [x, y] pairs",
+                    )),
                 },
-                _ => Err(invalid("declared front positions must be finite [x, y] pairs")),
+                _ => Err(invalid(
+                    "declared front positions must be finite [x, y] pairs",
+                )),
             })
             .collect::<Result<Vec<_>>>()?;
         if coordinates.windows(2).any(|pair| pair[0] == pair[1]) {

@@ -6,7 +6,9 @@ use crate::Result;
 use super::{
     charge,
     front::Front,
-    geometry::{charge_overlay, polygon_vertices, round_style, segment_distance_2, Point, RingIndex},
+    geometry::{
+        charge_overlay, polygon_vertices, round_style, segment_distance_2, Point, RingIndex,
+    },
     input::BuddingDesign,
     preparation::SlideGeometry,
     result::{BuddingResult, ComponentRow, Hotspot},
@@ -138,7 +140,8 @@ fn hotspot(
     }
     let field_tissue_fraction = match best.1 {
         Some(center) => {
-            let field = geo::Point::new(center[0], center[1]).buffer_with_style(round_style(radius));
+            let field =
+                geo::Point::new(center[0], center[1]).buffer_with_style(round_style(radius));
             charge_overlay(
                 remaining,
                 polygon_vertices(&field) + polygon_vertices(&slide.window),

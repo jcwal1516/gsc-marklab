@@ -57,9 +57,19 @@ pub(super) fn measure(
     remaining_work: &mut usize,
     memory_budget_bytes: usize,
 ) -> Result<Skeleton> {
-    let mut grid = rasterize(polygon, design.pixel_size_um, remaining_pixels, remaining_work, memory_budget_bytes)?;
+    let mut grid = rasterize(
+        polygon,
+        design.pixel_size_um,
+        remaining_pixels,
+        remaining_work,
+        memory_budget_bytes,
+    )?;
     thin(&mut grid, remaining_work)?;
-    prune(&mut grid, design.minimum_branch_length_um / design.pixel_size_um, remaining_work)?;
+    prune(
+        &mut grid,
+        design.minimum_branch_length_um / design.pixel_size_um,
+        remaining_work,
+    )?;
     Ok(summarize(&grid, design.pixel_size_um))
 }
 
@@ -102,7 +112,11 @@ fn rasterize(
                     row_crossings.push(a.x + (center - a.y) * (b.x - a.x) / (b.y - a.y));
                 }
             }
-            charge(remaining_work, last.saturating_sub(first) + 1, "branching rasterization")?;
+            charge(
+                remaining_work,
+                last.saturating_sub(first) + 1,
+                "branching rasterization",
+            )?;
         }
     }
     let mut grid = Grid {
@@ -111,10 +125,10 @@ fn rasterize(
     };
     for (j, row) in crossings.iter_mut().enumerate() {
         row.sort_by(f64::total_cmp);
-        for pair in row.chunks_exact(2) {
+        for [enter, leave] in row.as_chunks::<2>().0 {
             let column = |x: f64| (x - origin[0]) / pixel_um - 0.5;
-            let first = column(pair[0]).ceil().max(0.0) as usize;
-            let last = (column(pair[1]).floor().max(-1.0) + 1.0) as usize;
+            let first = column(*enter).ceil().max(0.0) as usize;
+            let last = (column(*leave).floor().max(-1.0) + 1.0) as usize;
             for i in first..last.min(width) {
                 grid.pixels[j * width + i] = 1;
             }
@@ -158,9 +172,9 @@ fn thin(grid: &mut Grid, remaining_work: &mut usize) -> Result<()> {
             for &index in &candidates {
                 queued[index] = false;
             }
-            let neighbors = delete.iter().flat_map(|&index| {
-                OFFSETS.map(|offset| grid.neighbor(index, offset))
-            });
+            let neighbors = delete
+                .iter()
+                .flat_map(|&index| OFFSETS.map(|offset| grid.neighbor(index, offset)));
             for index in candidates.iter().copied().chain(neighbors) {
                 if grid.pixels[index] == 1 && !queued[index] {
                     queued[index] = true;
@@ -196,7 +210,10 @@ fn prune(grid: &mut Grid, minimum_pixels: f64, remaining_work: &mut usize) -> Re
     let crossing = |grid: &Grid, index: usize| counts(&grid.ring(index)).1;
     let mut on_path = vec![false; grid.pixels.len()];
     let mut removals = Vec::new();
-    for &end in foreground.iter().filter(|&&index| crossing(grid, index) == 1) {
+    for &end in foreground
+        .iter()
+        .filter(|&&index| crossing(grid, index) == 1)
+    {
         let mut path = vec![end];
         on_path[end] = true;
         let (mut current, mut length, mut reached) = (end, 0.0, false);
@@ -206,7 +223,10 @@ fn prune(grid: &mut Grid, minimum_pixels: f64, remaining_work: &mut usize) -> Re
                 .map(|&offset| (offset, grid.neighbor(current, offset)))
                 .filter(|&(_, index)| grid.pixels[index] == 1 && !on_path[index])
                 .collect::<Vec<_>>();
-            if let Some(&(offset, _)) = options.iter().find(|&&(_, index)| crossing(grid, index) >= 3) {
+            if let Some(&(offset, _)) = options
+                .iter()
+                .find(|&&(_, index)| crossing(grid, index) >= 3)
+            {
                 length += step_length(offset);
                 reached = true;
                 break;

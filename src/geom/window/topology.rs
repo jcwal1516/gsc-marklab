@@ -1,4 +1,7 @@
-use rstar::{PointDistance, RTree, RTreeObject, AABB};
+use rstar::{
+    primitives::{GeomWithData, Rectangle},
+    PointDistance, RTree, RTreeObject, AABB,
+};
 use std::cmp::Ordering;
 
 use super::ObservationWindowError;
@@ -298,28 +301,55 @@ fn validate_segment_intersections(
 
 fn validate_containment(polygons: &[Polygon]) -> Result<(), ObservationWindowError> {
     for polygon in polygons {
-        for (hole_index, hole) in polygon.holes.iter().enumerate() {
-            let sample = hole[0];
-            if !point_in_ring(&polygon.exterior, sample) {
+        for hole in &polygon.holes {
+            if !point_in_ring(&polygon.exterior, hole[0]) {
                 return invalid("hole lies outside its exterior ring");
             }
-            for (other_index, other) in polygon.holes.iter().enumerate() {
-                if hole_index != other_index && point_in_ring(other, sample) {
-                    return invalid("holes overlap or contain one another");
-                }
-            }
+        }
+        let holes = polygon.holes.iter().map(Vec::as_slice).collect::<Vec<_>>();
+        if first_vertex_nested(&holes, |index, point| point_in_ring(holes[index], point)) {
+            return invalid("holes overlap or contain one another");
         }
     }
-    for left in 0..polygons.len() {
-        for right in (left + 1)..polygons.len() {
-            if polygon_contains(&polygons[left], polygons[right].exterior[0])
-                || polygon_contains(&polygons[right], polygons[left].exterior[0])
-            {
-                return invalid("polygon components overlap or contain one another");
-            }
-        }
+    // Boundaries never cross, so overlapping components put one first vertex inside the other.
+    let exteriors = polygons
+        .iter()
+        .map(|polygon| polygon.exterior.as_slice())
+        .collect::<Vec<_>>();
+    if first_vertex_nested(&exteriors, |index, point| {
+        polygon_contains(&polygons[index], point)
+    }) {
+        return invalid("polygon components overlap or contain one another");
     }
     Ok(())
+}
+
+/// Whether any ring's first vertex lies inside another member, testing only members whose
+/// bounding box holds that vertex.
+fn first_vertex_nested(rings: &[&[Point]], inside: impl Fn(usize, Point) -> bool) -> bool {
+    let tree = RTree::bulk_load(
+        rings
+            .iter()
+            .enumerate()
+            .map(|(index, ring)| {
+                let mut bounds = [
+                    f64::INFINITY,
+                    f64::INFINITY,
+                    f64::NEG_INFINITY,
+                    f64::NEG_INFINITY,
+                ];
+                update_bounds(&mut bounds, ring);
+                GeomWithData::new(
+                    Rectangle::from_corners([bounds[0], bounds[1]], [bounds[2], bounds[3]]),
+                    index,
+                )
+            })
+            .collect(),
+    );
+    rings.iter().enumerate().any(|(index, ring)| {
+        tree.locate_all_at_point(ring[0])
+            .any(|candidate| candidate.data != index && inside(candidate.data, ring[0]))
+    })
 }
 
 fn segments_intersect(a: Point, b: Point, c: Point, d: Point) -> bool {

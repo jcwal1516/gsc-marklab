@@ -117,10 +117,13 @@ pub(super) fn attach(
             .iter()
             .enumerate()
             .filter(|(_, share)| **share > 0.0)
-            .fold(None, |best: Option<(usize, f64)>, (index, share)| match best {
-                Some((_, top)) if top >= *share => best,
-                _ => Some((index, *share)),
-            });
+            .fold(
+                None,
+                |best: Option<(usize, f64)>, (index, share)| match best {
+                    Some((_, top)) if top >= *share => best,
+                    _ => Some((index, *share)),
+                },
+            );
         let signed_front_distance_um = front.signed_distance_um(center);
         rows.push(SpotRow {
             id: spot.id.clone(),

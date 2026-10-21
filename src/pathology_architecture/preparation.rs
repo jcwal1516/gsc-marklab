@@ -56,7 +56,9 @@ pub(super) fn prepare(bytes: &[u8]) -> Result<Prepared> {
         return Err(invalid("cell resource limit exceeded"));
     }
     if total_cells > 0 && recipe.cells.is_none() {
-        return Err(invalid("slides declare cells without top-level cells provenance"));
+        return Err(invalid(
+            "slides declare cells without top-level cells provenance",
+        ));
     }
     let total_spots = recipe
         .slides
@@ -67,7 +69,9 @@ pub(super) fn prepare(bytes: &[u8]) -> Result<Prepared> {
         return Err(invalid("spot resource limit exceeded"));
     }
     if total_spots > 0 && recipe.spots.is_none() {
-        return Err(invalid("slides declare spots without top-level spots provenance"));
+        return Err(invalid(
+            "slides declare spots without top-level spots provenance",
+        ));
     }
     let estimate = bytes
         .len()
@@ -101,7 +105,9 @@ pub(super) fn prepare(bytes: &[u8]) -> Result<Prepared> {
             || !slide_ids.insert(slide.slide_id.clone())
             || !frames.insert(slide.coordinate_frame_id.clone())
         {
-            return Err(invalid("invalid or duplicate slide or coordinate-frame identity"));
+            return Err(invalid(
+                "invalid or duplicate slide or coordinate-frame identity",
+            ));
         }
         if slide.declared_front.is_some() && recipe.declared_front.is_none() {
             return Err(invalid(format!(
@@ -120,19 +126,22 @@ pub(super) fn prepare(bytes: &[u8]) -> Result<Prepared> {
 
 fn validate_recipe(recipe: &Recipe) -> Result<()> {
     let classes = &recipe.architecture.classes;
-    let layers = std::iter::once((&recipe.epithelium.measurement_status, &recipe.epithelium.provenance))
-        .chain(std::iter::once((
-            &recipe.architecture.measurement_status,
-            &recipe.architecture.provenance,
-        )))
-        .chain(
-            recipe
-                .declared_front
-                .iter()
-                .chain(&recipe.cells)
-                .chain(&recipe.spots)
-                .map(|layer| (&layer.measurement_status, &layer.provenance)),
-        );
+    let layers = std::iter::once((
+        &recipe.epithelium.measurement_status,
+        &recipe.epithelium.provenance,
+    ))
+    .chain(std::iter::once((
+        &recipe.architecture.measurement_status,
+        &recipe.architecture.provenance,
+    )))
+    .chain(
+        recipe
+            .declared_front
+            .iter()
+            .chain(&recipe.cells)
+            .chain(&recipe.spots)
+            .map(|layer| (&layer.measurement_status, &layer.provenance)),
+    );
     if recipe.format != "marklab.pathology_architecture_recipe"
         || recipe.version != 1
         || !text(&recipe.study_id)
@@ -140,10 +149,14 @@ fn validate_recipe(recipe: &Recipe) -> Result<()> {
         || recipe.slides.len() > 64
         || classes.is_empty()
         || classes.len() > MAXIMUM_CLASSES
-        || classes.iter().any(|name| !text(name) || name == UNCLASSIFIED)
+        || classes
+            .iter()
+            .any(|name| !text(name) || name == UNCLASSIFIED)
         || classes.iter().collect::<BTreeSet<_>>().len() != classes.len()
     {
-        return Err(invalid("invalid recipe identity, slide count or architecture classes"));
+        return Err(invalid(
+            "invalid recipe identity, slide count or architecture classes",
+        ));
     }
     for (status, provenance) in layers {
         if crate::measurement_status_wire::parse(status).is_none() || !text(provenance) {
@@ -158,7 +171,9 @@ fn validate_recipe(recipe: &Recipe) -> Result<()> {
         || !positive(d.contour_sample_spacing_um)
         || !(d.curvature_smoothing_um.is_finite() && d.curvature_smoothing_um >= 0.0)
         || !(2..=33).contains(&d.band_edges_um.len())
-        || d.band_edges_um.iter().any(|edge| !(edge * edge).is_finite())
+        || d.band_edges_um
+            .iter()
+            .any(|edge| !(edge * edge).is_finite())
         || d.band_edges_um.windows(2).any(|pair| pair[0] >= pair[1])
     {
         return Err(invalid(
@@ -183,7 +198,9 @@ fn validate_recipe(recipe: &Recipe) -> Result<()> {
             || !(branching.minimum_branch_length_um.is_finite()
                 && branching.minimum_branch_length_um >= 0.0)
         {
-            return Err(invalid("invalid branching pixel size or minimum branch length"));
+            return Err(invalid(
+                "invalid branching pixel size or minimum branch length",
+            ));
         }
     }
     let l = recipe.limits;
@@ -238,7 +255,9 @@ fn prepare_slide(slide: &Slide, recipe: &Recipe, remaining: &mut usize) -> Resul
     let uncertainty = slide.boundary_uncertainty_um;
     if !uncertainty.is_finite()
         || uncertainty < 0.0
-        || edges.windows(2).any(|band| band[1] - band[0] < 2.0 * uncertainty)
+        || edges
+            .windows(2)
+            .any(|band| band[1] - band[0] < 2.0 * uncertainty)
         || slide.architecture_regions.len() > MAXIMUM_REGIONS
     {
         return Err(invalid(format!(
@@ -311,17 +330,19 @@ fn prepare_slide(slide: &Slide, recipe: &Recipe, remaining: &mut usize) -> Resul
         limits.maximum_geometry_vertices,
         "unclassified epithelium",
     )?);
-    let regions = RingIndex::from_lines(class_regions.iter().enumerate().flat_map(|(class, regions)| {
-        regions.0.iter().flat_map(move |polygon| {
-            std::iter::once(polygon.exterior())
-                .chain(polygon.interiors())
-                .map(move |ring| (class as u32, ring))
-        })
-    }));
+    let regions = RingIndex::from_lines(class_regions.iter().enumerate().flat_map(
+        |(class, regions)| {
+            regions.0.iter().flat_map(move |polygon| {
+                std::iter::once(polygon.exterior())
+                    .chain(polygon.interiors())
+                    .map(move |ring| (class as u32, ring))
+            })
+        },
+    ));
     let optional = |value: &Option<serde_json::Value>,
-                        name: &str,
-                        disjoint: bool,
-                        remaining: &mut usize|
+                    name: &str,
+                    disjoint: bool,
+                    remaining: &mut usize|
      -> Result<Option<MultiPolygon<f64>>> {
         let Some(value) = value else { return Ok(None) };
         let geometry = parse(value, name)?;
@@ -343,7 +364,12 @@ fn prepare_slide(slide: &Slide, recipe: &Recipe, remaining: &mut usize) -> Resul
     };
     let lumens = optional(&slide.lumens, "lumens", true, remaining)?;
     let mucin = optional(&slide.mucin, "mucin", true, remaining)?;
-    let exclusions = optional(&slide.front_exclusions, "front exclusions", false, remaining)?;
+    let exclusions = optional(
+        &slide.front_exclusions,
+        "front exclusions",
+        false,
+        remaining,
+    )?;
     let declared_front = slide
         .declared_front
         .as_ref()
@@ -357,7 +383,9 @@ fn prepare_slide(slide: &Slide, recipe: &Recipe, remaining: &mut usize) -> Resul
             || !spot_ids.insert(&spot.id)
             || !spot.x_um.is_finite()
             || !spot.y_um.is_finite()
-            || !(spot.diameter_um.is_finite() && spot.diameter_um > 0.0 && spot.diameter_um <= 10_000.0)
+            || !(spot.diameter_um.is_finite()
+                && spot.diameter_um > 0.0
+                && spot.diameter_um <= 10_000.0)
     }) {
         return Err(invalid(format!(
             "slide {} has an invalid or duplicate spot or spot diameter",
@@ -398,9 +426,15 @@ fn validate_cells(slide: &Slide, window: &RingIndex) -> Result<()> {
     let bits = |value: f64| if value == 0.0 { 0 } else { value.to_bits() };
     for cell in &slide.cells {
         let nucleus_valid = cell.nucleus.is_none_or(|n| {
-            [n.area_um2, n.perimeter_um, n.convex_area_um2, n.major_axis_um, n.minor_axis_um]
-                .iter()
-                .all(|value| value.is_finite() && *value > 0.0)
+            [
+                n.area_um2,
+                n.perimeter_um,
+                n.convex_area_um2,
+                n.major_axis_um,
+                n.minor_axis_um,
+            ]
+            .iter()
+            .all(|value| value.is_finite() && *value > 0.0)
                 && n.minor_axis_um <= n.major_axis_um
                 && n.area_um2 <= n.convex_area_um2 * (1.0 + 1e-9)
                 && n.major_axis_angle_rad.is_finite()

@@ -45,9 +45,12 @@ pub(super) fn measure(
             charge(
                 remaining,
                 (samples as usize).saturating_mul(
-                    kernel_half_width(design.curvature_smoothing_um, design.contour_sample_spacing_um)
-                        .saturating_mul(2)
-                        .saturating_add(2),
+                    kernel_half_width(
+                        design.curvature_smoothing_um,
+                        design.contour_sample_spacing_um,
+                    )
+                    .saturating_mul(2)
+                    .saturating_add(2),
                 ),
                 "contour curvature",
             )?;

@@ -8,7 +8,10 @@ fn polygon(left: f64, bottom: f64, right: f64, top: f64) -> Value {
 }
 
 fn recipe() -> Value {
-    serde_json::from_str(include_str!("../examples/pathology-architecture/recipe.json")).unwrap()
+    serde_json::from_str(include_str!(
+        "../examples/pathology-architecture/recipe.json"
+    ))
+    .unwrap()
 }
 
 fn analyze(input: &Value) -> Value {
@@ -20,7 +23,9 @@ fn analyze(input: &Value) -> Value {
 }
 
 fn number(value: &Value) -> f64 {
-    value.as_f64().unwrap_or_else(|| panic!("expected number, found {value}"))
+    value
+        .as_f64()
+        .unwrap_or_else(|| panic!("expected number, found {value}"))
 }
 
 fn close(value: &Value, expected: f64, tolerance: f64) {
@@ -53,15 +58,35 @@ fn closed_bulk_front_bands_and_components_match_exact_square_geometry() {
     let bands = slide["bands"].as_array().unwrap();
     assert_eq!(bands.len(), 4);
     close(&bands[0]["tissue_area_um2"], 40_000.0, 1.0);
-    close(&class_band(&bands[0], "glandular")["epithelial_area_um2"], 30_000.0, 1.0);
+    close(
+        &class_band(&bands[0], "glandular")["epithelial_area_um2"],
+        30_000.0,
+        1.0,
+    );
     close(&bands[1]["tissue_area_um2"], 120_000.0, 1.0);
-    close(&class_band(&bands[1], "glandular")["epithelial_area_um2"], 120_000.0, 1.0);
+    close(
+        &class_band(&bands[1], "glandular")["epithelial_area_um2"],
+        120_000.0,
+        1.0,
+    );
     // Outer offsets of the derived front: length * d + pi * d^2, less the polygonal-arc
     // deficit (about 13.5 and 54 um2 for full circles of radius 100 and 200 um).
     let length = number(&front["length_um"]);
-    close(&bands[2]["tissue_area_um2"], length * 100.0 + PI * 1e4, 15.0);
-    close(&bands[3]["tissue_area_um2"], length * 100.0 + PI * 3e4, 45.0);
-    close(&front["maximum_buffer_chord_error_um"], 200.0 * (1.0 - 0.05f64.cos()), 1e-12);
+    close(
+        &bands[2]["tissue_area_um2"],
+        length * 100.0 + PI * 1e4,
+        15.0,
+    );
+    close(
+        &bands[3]["tissue_area_um2"],
+        length * 100.0 + PI * 3e4,
+        45.0,
+    );
+    close(
+        &front["maximum_buffer_chord_error_um"],
+        200.0 * (1.0 - 0.05f64.cos()),
+        1e-12,
+    );
     let fragments = class_band(&bands[3], "highly_fragmented");
     close(&fragments["epithelial_area_um2"], 200.0, 1e-6);
     assert_eq!(fragments["component_count"], 2);
@@ -77,7 +102,11 @@ fn closed_bulk_front_bands_and_components_match_exact_square_geometry() {
     close(&gland["perimeter_um"], 2000.0, 1e-9);
     assert_eq!(gland["hole_count"], 1);
     assert_eq!(gland["lumen_count"], 1);
-    close(&gland["isoperimetric_quotient"], 4.0 * PI * 150_000.0 / 4e6, 1e-12);
+    close(
+        &gland["isoperimetric_quotient"],
+        4.0 * PI * 150_000.0 / 4e6,
+        1e-12,
+    );
     // Convex exterior and convex hole each turn by exactly 2*pi after smoothing.
     close(&gland["absolute_turning_rad"], 4.0 * PI, 1e-9);
     let (x, y) = (number(&gland["x_um"]), number(&gland["y_um"]));
@@ -110,8 +139,7 @@ fn front_excludes_tissue_edges_and_declared_exclusions() {
 
     let mut input = recipe();
     input["slides"][0]["window"] = polygon(300.0, 0.0, 1000.0, 1000.0);
-    input["slides"][0]["architecture_regions"][0]["geometry"] =
-        polygon(300.0, 290.0, 710.0, 710.0);
+    input["slides"][0]["architecture_regions"][0]["geometry"] = polygon(300.0, 290.0, 710.0, 710.0);
     input["slides"][0]["declared_front"] = Value::Null;
     let slide = &analyze(&input)["slides"][0];
     // The gland's left side is the tissue edge; 25 um of each adjacent side is within tolerance.
@@ -146,7 +174,11 @@ fn unclassified_and_unavailable_states_stay_explicit() {
         .iter()
         .all(|row| row["class"] == "unclassified" && row["lumen_count"].is_null()));
     let band = &slide["bands"][1];
-    close(&class_band(band, "unclassified")["epithelial_area_um2"], 120_000.0, 1.0);
+    close(
+        &class_band(band, "unclassified")["epithelial_area_um2"],
+        120_000.0,
+        1.0,
+    );
     assert!(class_band(band, "unclassified")["lumen_containing_component_fraction"].is_null());
     assert_eq!(class_band(band, "glandular")["epithelial_area_um2"], 0.0);
     assert!(class_band(band, "glandular")["median_component_area_um2"].is_null());
@@ -184,7 +216,8 @@ fn canonical_order_is_independent_of_input_order() {
 
 #[test]
 fn invalid_layers_and_designs_are_rejected() {
-    let cases: Vec<(&str, Box<dyn Fn(&mut Value)>)> = vec![
+    type Mutation = Box<dyn Fn(&mut Value)>;
+    let cases: Vec<(&str, Mutation)> = vec![
         (
             "overlapping regions",
             Box::new(|r| {
@@ -214,7 +247,13 @@ fn invalid_layers_and_designs_are_rejected() {
         ),
         (
             "declared front without provenance",
-            Box::new(|r| r.as_object_mut().unwrap().remove("declared_front").map(drop).unwrap()),
+            Box::new(|r| {
+                r.as_object_mut()
+                    .unwrap()
+                    .remove("declared_front")
+                    .map(drop)
+                    .unwrap()
+            }),
         ),
         (
             "declared front outside tissue",
@@ -237,14 +276,22 @@ fn invalid_layers_and_designs_are_rejected() {
         (
             "cells without provenance",
             Box::new(|r| {
-                r.as_object_mut().unwrap().remove("cells").map(drop).unwrap();
+                r.as_object_mut()
+                    .unwrap()
+                    .remove("cells")
+                    .map(drop)
+                    .unwrap();
                 r["design"].as_object_mut().unwrap().remove("budding");
             }),
         ),
         (
             "budding without a cells layer",
             Box::new(|r| {
-                r.as_object_mut().unwrap().remove("cells").map(drop).unwrap();
+                r.as_object_mut()
+                    .unwrap()
+                    .remove("cells")
+                    .map(drop)
+                    .unwrap();
                 r["slides"][0]["cells"] = json!([]);
             }),
         ),
@@ -261,7 +308,13 @@ fn invalid_layers_and_designs_are_rejected() {
         ),
         (
             "spots without provenance",
-            Box::new(|r| r.as_object_mut().unwrap().remove("spots").map(drop).unwrap()),
+            Box::new(|r| {
+                r.as_object_mut()
+                    .unwrap()
+                    .remove("spots")
+                    .map(drop)
+                    .unwrap()
+            }),
         ),
         (
             "raster pixel limit",
@@ -286,8 +339,13 @@ fn invalid_layers_and_designs_are_rejected() {
 }
 
 fn square(left: f64, bottom: f64, side: f64) -> Value {
-    json!([[[left, bottom], [left + side, bottom], [left + side, bottom + side],
-        [left, bottom + side], [left, bottom]]])
+    json!([[
+        [left, bottom],
+        [left + side, bottom],
+        [left + side, bottom + side],
+        [left, bottom + side],
+        [left, bottom]
+    ]])
 }
 
 #[test]
@@ -334,7 +392,10 @@ fn buds_and_the_front_centred_hotspot_follow_the_itbcc_count() {
     assert_eq!(hotspot["bud_count"], 2);
     assert_eq!(hotspot["grade"], "Bd1");
     close(&hotspot["radius_um"], (0.785e6 / PI).sqrt(), 1e-9);
-    assert_eq!(class_band(&result["slides"][0]["bands"][3], "highly_fragmented")["bud_count"], 2);
+    assert_eq!(
+        class_band(&result["slides"][0]["bands"][3], "highly_fragmented")["bud_count"],
+        2
+    );
 
     // Twelve 4-um buds 80 um outside the right side, 25 um apart, one nucleus each.
     let mut input = recipe();
@@ -356,13 +417,21 @@ fn buds_and_the_front_centred_hotspot_follow_the_itbcc_count() {
     // The first maximal centre lies on the gland boundary, the only front.
     let center = field["center_um"].as_array().unwrap();
     let (x, y) = (number(&center[0]), number(&center[1]));
-    let edge = (x - 300.0).abs().min((x - 700.0).abs()).min((y - 300.0).abs()).min((y - 700.0).abs());
+    let edge = (x - 300.0)
+        .abs()
+        .min((x - 700.0).abs())
+        .min((y - 300.0).abs())
+        .min((y - 700.0).abs());
     assert!(edge < 0.01 && (299.0..=701.0).contains(&x) && (299.0..=701.0).contains(&y));
     // A 100-um field 82 um from the bud column spans a 114.5-um chord: five buds.
     input["design"]["budding"]["hotspot_area_mm2"] = json!(PI * 1e4 / 1e6);
     let small = hotspot(&input);
     assert_eq!(small["bud_count"], 5);
-    close(&small["bud_count_per_0_785_mm2"], 5.0 * 0.785 / (PI * 1e-2), 1e-9);
+    close(
+        &small["bud_count_per_0_785_mm2"],
+        5.0 * 0.785 / (PI * 1e-2),
+        1e-9,
+    );
     // Mucin within 5 um of three buds excludes them: nine remain in the 0.785-mm2 field.
     input["design"]["budding"]["hotspot_area_mm2"] = json!(0.785);
     input["slides"][0]["mucin"] = polygon(786.0, 315.0, 790.0, 380.0);
@@ -401,14 +470,22 @@ fn skeleton_branch_points_and_ends_match_known_shapes() {
             .find(|row| (number(&row["x_um"]) - x).abs() < 60.0)
             .unwrap()
     };
-    let counts = |row: &Value| (row["branch_point_count"].clone(), row["end_point_count"].clone());
+    let counts = |row: &Value| {
+        (
+            row["branch_point_count"].clone(),
+            row["end_point_count"].clone(),
+        )
+    };
     assert_eq!(counts(shape(150.0)), (json!(0), json!(2)), "bar");
     assert_eq!(counts(shape(350.0)), (json!(1), json!(4)), "plus");
     assert_eq!(counts(shape(550.0)), (json!(1), json!(3)), "T");
     assert_eq!(counts(shape(750.0)), (json!(0), json!(0)), "annulus");
     close(&shape(150.0)["skeleton_length_um"], 90.0, 3.0);
     close(&shape(750.0)["skeleton_length_um"], 360.0, 8.0);
-    assert_eq!(result["slides"][0]["budding"]["status"], "unavailable_no_cells");
+    assert_eq!(
+        result["slides"][0]["budding"]["status"],
+        "unavailable_no_cells"
+    );
 }
 
 #[test]
@@ -479,11 +556,13 @@ fn cli_publishes_result_tables_and_overlays_atomically() {
     let bands = fs::read_to_string(out.join("bands.csv")).unwrap();
     // Four bands times four declared classes plus unclassified, and a header.
     assert_eq!(bands.lines().count(), 21);
-    let overlay: Value = serde_json::from_slice(
-        &fs::read(out.join("slide-000-architecture.geojson")).unwrap(),
-    )
-    .unwrap();
-    assert_eq!(overlay["features"][1]["properties"]["layer"], "invasive_front");
+    let overlay: Value =
+        serde_json::from_slice(&fs::read(out.join("slide-000-architecture.geojson")).unwrap())
+            .unwrap();
+    assert_eq!(
+        overlay["features"][1]["properties"]["layer"],
+        "invasive_front"
+    );
     assert_eq!(overlay["features"].as_array().unwrap().len(), 5);
     let before = fs::read(out.join("result.json")).unwrap();
     run().failure();

@@ -768,8 +768,7 @@ pub mod pathology {
         MultiplexStudyResult, MultiplexStudyRun, MultiplexStudyTarget,
     };
     pub use crate::pathology_architecture::{
-        analyze_pathology_architecture, publish_pathology_architecture,
-        PathologyArchitectureResult,
+        analyze_pathology_architecture, publish_pathology_architecture, PathologyArchitectureResult,
     };
     pub use crate::pathology_maps::{
         analyze_pathology_maps, publish_pathology_maps, PathologyMapsResult,

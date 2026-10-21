@@ -105,11 +105,29 @@ pub(super) fn derive(
             polygon_vertices(&slide.epithelium) + polygon_vertices(&extras),
             "tumor tissue union",
         )?;
-        bounded(slide.epithelium.union(&extras), maximum, "tumor tissue union")?
+        bounded(
+            slide.epithelium.union(&extras),
+            maximum,
+            "tumor tissue union",
+        )?
     };
     let radius = design.closing_radius_um;
-    let dilated = buffered(&tumor, radius, polygon_vertices(&tumor), maximum, remaining, "tumor dilation")?;
-    let closed = buffered(&dilated, -radius, polygon_vertices(&dilated), maximum, remaining, "tumor erosion")?;
+    let dilated = buffered(
+        &tumor,
+        radius,
+        polygon_vertices(&tumor),
+        maximum,
+        remaining,
+        "tumor dilation",
+    )?;
+    let closed = buffered(
+        &dilated,
+        -radius,
+        polygon_vertices(&dilated),
+        maximum,
+        remaining,
+        "tumor erosion",
+    )?;
     let filled = closed
         .0
         .iter()
@@ -165,7 +183,9 @@ pub(super) fn derive(
         )?;
         lines = exclusions.clip(&lines, true);
     }
-    lines.0.retain(|line| line.0.len() >= 2 && line_length(line) > 0.0);
+    lines
+        .0
+        .retain(|line| line.0.len() >= 2 && line_length(line) > 0.0);
     lines.0.sort_by(|left, right| {
         let key = |line: &geo::LineString<f64>| (line.0[0].x, line.0[0].y, line.0.len());
         let (a, b) = (key(left), key(right));
