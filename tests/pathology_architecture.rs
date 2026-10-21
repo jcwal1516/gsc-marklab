@@ -338,6 +338,46 @@ fn invalid_layers_and_designs_are_rejected() {
     }
 }
 
+#[test]
+fn many_disjoint_jagged_regions_are_not_reported_as_overlapping() {
+    // 64 disjoint tiles with jagged top edges, as when region tiles are clipped to a
+    // tissue outline. Unioning them all loses more area to overlay rounding than the
+    // overlap tolerance, so an overlap test based on that union rejected them.
+    let mut input = recipe();
+    let mut seed = 7_u64;
+    let regions = input["slides"][0]["architecture_regions"]
+        .as_array_mut()
+        .unwrap();
+    for i in 0..8_u8 {
+        for j in 0..8_u8 {
+            let left = 1000.25 + 501.0 * f64::from(i);
+            let bottom = 1000.5 + 501.0 * f64::from(j);
+            let mut ring = vec![json!([left, bottom]), json!([left + 500.0, bottom])];
+            for k in (0..=16_u8).rev() {
+                seed = seed
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
+                let jitter = (seed >> 33) as f64 / f64::from(1_u32 << 31) * 7.3;
+                ring.push(json!([
+                    left + 500.0 * f64::from(k) / 16.0,
+                    bottom + 500.0 - jitter
+                ]));
+            }
+            ring.push(json!([left, bottom]));
+            regions.push(json!({"id": format!("tile-{i}-{j}"), "class": "solid",
+                "geometry": {"type": "MultiPolygon", "coordinates": [[ring]]}}));
+        }
+    }
+    let side = 1000.25 + 501.0 * 8.0 + 10.0;
+    input["slides"][0]["window"] = polygon(0.0, 0.0, side, side);
+    let slide = &analyze(&input)["slides"][0];
+    assert!(slide["components"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|row| row["class"] == "glandular"));
+}
+
 fn square(left: f64, bottom: f64, side: f64) -> Value {
     json!([[
         [left, bottom],

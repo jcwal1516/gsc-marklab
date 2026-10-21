@@ -1,6 +1,10 @@
 use std::collections::BTreeSet;
 
-use geo::{unary_union, Area, BooleanOps, MultiLineString, MultiPolygon};
+use geo::{unary_union, Area, BooleanOps, MultiLineString, MultiPolygon, Polygon};
+use rstar::{
+    primitives::{GeomWithData, Rectangle},
+    RTree, RTreeObject,
+};
 
 use crate::{
     CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit,
@@ -300,8 +304,7 @@ fn prepare_slide(slide: &Slide, recipe: &Recipe, remaining: &mut usize) -> Resul
     let region_vertices = class_regions.iter().map(polygon_vertices).sum::<usize>();
     charge_overlay(remaining, region_vertices, "region union")?;
     let region_union = unary_union(&all_regions);
-    let summed_region_area = class_regions.iter().map(Area::unsigned_area).sum::<f64>();
-    if summed_region_area - region_union.unsigned_area() > tolerance {
+    if region_overlap_area(&all_regions, remaining)? > tolerance {
         return Err(invalid(format!(
             "slide {} architecture regions overlap",
             slide.slide_id
@@ -418,6 +421,52 @@ fn prepare_slide(slide: &Slide, recipe: &Recipe, remaining: &mut usize) -> Resul
         exclusions,
         declared_front,
     })
+}
+
+/// Summed pairwise intersection area of regions whose bounding boxes meet. Overlap is
+/// measured directly: the area of a union of many regions differs from their summed area
+/// by overlay rounding that grows with the total boundary, which exceeded the tolerance
+/// for disjoint regions.
+fn region_overlap_area(polygons: &[Polygon<f64>], remaining: &mut usize) -> Result<f64> {
+    let boxes = polygons
+        .iter()
+        .enumerate()
+        .map(|(index, polygon)| {
+            let (mut low, mut high) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
+            for point in &polygon.exterior().0 {
+                low = [low[0].min(point.x), low[1].min(point.y)];
+                high = [high[0].max(point.x), high[1].max(point.y)];
+            }
+            GeomWithData::new(Rectangle::from_corners(low, high), index)
+        })
+        .collect::<Vec<_>>();
+    let vertices = polygons
+        .iter()
+        .map(|polygon| {
+            std::iter::once(polygon.exterior())
+                .chain(polygon.interiors())
+                .map(|ring| ring.0.len())
+                .sum::<usize>()
+        })
+        .collect::<Vec<_>>();
+    let tree = RTree::bulk_load(boxes.clone());
+    let mut overlap = 0.0;
+    for item in &boxes {
+        for other in tree.locate_in_envelope_intersecting(item.envelope()) {
+            if other.data <= item.data {
+                continue;
+            }
+            charge_overlay(
+                remaining,
+                vertices[item.data] + vertices[other.data],
+                "region overlap",
+            )?;
+            overlap += polygons[item.data]
+                .intersection(&polygons[other.data])
+                .unsigned_area();
+        }
+    }
+    Ok(overlap)
 }
 
 fn validate_cells(slide: &Slide, window: &RingIndex) -> Result<()> {
