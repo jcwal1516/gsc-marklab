@@ -70,12 +70,51 @@ impl ResidualTerritoryPlan {
         max_scale_um: f64,
         storage_budget_bytes: usize,
     ) -> Result<Self> {
-        if !max_scale_um.is_finite() || max_scale_um < 0.0 {
-            return Err(MarklabError::Geometry(
-                "maximum residual territory scale must be finite and non-negative".into(),
-            ));
-        }
+        validate_max_scale(max_scale_um)?;
         Self::build(pattern, index, Some(max_scale_um), storage_budget_bytes)
+    }
+
+    /// Reject a plan that would exceed `storage_budget_bytes` without storing
+    /// its neighborhoods, so callers can fail before running earlier expensive
+    /// stages. Admission uses the same byte accounting as `new_with_index`.
+    pub(crate) fn admit_with_index(
+        pattern: &Pattern,
+        index: &SpatialIndex2D,
+        max_scale_um: f64,
+        storage_budget_bytes: usize,
+    ) -> Result<()> {
+        validate_max_scale(max_scale_um)?;
+        validate_index_len(pattern, index)?;
+        let fixed_scale_bytes = fixed_scale_bytes(pattern.len());
+        let mut stored_bytes = 0usize;
+        for (_, radius_um) in planned_scales(pattern, Some(max_scale_um))? {
+            let scale_start_bytes = stored_bytes.saturating_add(fixed_scale_bytes);
+            enforce_storage_budget(
+                "residual territory plan",
+                scale_start_bytes,
+                storage_budget_bytes,
+            )?;
+            let max_neighbor_entries = storage_budget_bytes.saturating_sub(scale_start_bytes)
+                / std::mem::size_of::<usize>();
+            let mut neighbor_entries = 0usize;
+            for center in 0..pattern.len() {
+                index.visit_within_radius(center, radius_um, |_| neighbor_entries += 1)?;
+                // Each neighborhood also stores its center.
+                neighbor_entries = neighbor_entries.saturating_add(1);
+                if neighbor_entries > max_neighbor_entries {
+                    return enforce_storage_budget(
+                        "residual territory plan",
+                        scale_start_bytes.saturating_add(
+                            neighbor_entries.saturating_mul(std::mem::size_of::<usize>()),
+                        ),
+                        storage_budget_bytes,
+                    );
+                }
+            }
+            stored_bytes = scale_start_bytes
+                .saturating_add(neighbor_entries.saturating_mul(std::mem::size_of::<usize>()));
+        }
+        Ok(())
     }
 
     fn build(
@@ -86,32 +125,12 @@ impl ResidualTerritoryPlan {
     ) -> Result<Self> {
         #[cfg(test)]
         PLAN_BUILD_CALLS.set(PLAN_BUILD_CALLS.get() + 1);
-        if index.len() != pattern.len() {
-            return Err(MarklabError::Geometry(format!(
-                "residual territory plan has {} points but spatial index has {}",
-                pattern.len(),
-                index.len()
-            )));
-        }
+        validate_index_len(pattern, index)?;
 
         let mut scales = Vec::new();
         let mut stored_bytes = 0usize;
-        for scale_um in territory_scales(pattern)
-            .into_iter()
-            .filter(|scale_um| max_scale_um.is_none_or(|maximum| *scale_um <= maximum))
-        {
-            let radius_um = neighborhood_radius_from_scale(scale_um);
-            if !scale_um.is_finite() || !radius_um.is_finite() || radius_um < 0.0 {
-                return Err(MarklabError::Geometry(
-                    "residual territory scales must be finite and non-negative".into(),
-                ));
-            }
-            let fixed_scale_bytes = std::mem::size_of::<ScaleNeighborhoods>().saturating_add(
-                pattern
-                    .len()
-                    .saturating_add(1)
-                    .saturating_mul(std::mem::size_of::<usize>()),
-            );
+        let fixed_scale_bytes = fixed_scale_bytes(pattern.len());
+        for (scale_um, radius_um) in planned_scales(pattern, max_scale_um)? {
             enforce_storage_budget(
                 "residual territory plan",
                 stored_bytes.saturating_add(fixed_scale_bytes),
@@ -278,6 +297,52 @@ impl ResidualTerritoryPlan {
         }
         Ok(selected)
     }
+}
+
+fn validate_max_scale(max_scale_um: f64) -> Result<()> {
+    if !max_scale_um.is_finite() || max_scale_um < 0.0 {
+        return Err(MarklabError::Geometry(
+            "maximum residual territory scale must be finite and non-negative".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_index_len(pattern: &Pattern, index: &SpatialIndex2D) -> Result<()> {
+    if index.len() != pattern.len() {
+        return Err(MarklabError::Geometry(format!(
+            "residual territory plan has {} points but spatial index has {}",
+            pattern.len(),
+            index.len()
+        )));
+    }
+    Ok(())
+}
+
+/// Planned `(scale, neighborhood radius)` pairs no larger than `max_scale_um`.
+fn planned_scales(pattern: &Pattern, max_scale_um: Option<f64>) -> Result<Vec<(f64, f64)>> {
+    territory_scales(pattern)
+        .into_iter()
+        .filter(|scale_um| max_scale_um.is_none_or(|maximum| *scale_um <= maximum))
+        .map(|scale_um| {
+            let radius_um = neighborhood_radius_from_scale(scale_um);
+            if !scale_um.is_finite() || !radius_um.is_finite() || radius_um < 0.0 {
+                return Err(MarklabError::Geometry(
+                    "residual territory scales must be finite and non-negative".into(),
+                ));
+            }
+            Ok((scale_um, radius_um))
+        })
+        .collect()
+}
+
+/// Per-scale bytes stored before any neighbor entry: the scale record and its offsets.
+fn fixed_scale_bytes(point_count: usize) -> usize {
+    std::mem::size_of::<ScaleNeighborhoods>().saturating_add(
+        point_count
+            .saturating_add(1)
+            .saturating_mul(std::mem::size_of::<usize>()),
+    )
 }
 
 #[cfg(test)]

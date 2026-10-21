@@ -337,6 +337,20 @@ fn residual_territory_plan_rejects_storage_over_budget() {
     assert!(error
         .to_string()
         .contains("remaining geometry memory budget"));
+
+    // Admission without storing neighborhoods must accept and reject exactly
+    // the budgets that plan construction does.
+    let required = ResidualTerritoryPlan::new_with_index(&pattern, &index, 3.0, usize::MAX)
+        .expect("unbounded plan")
+        .estimated_storage_bytes();
+    for budget in [0, 64, required - 1, required, required + 1] {
+        let built = ResidualTerritoryPlan::new_with_index(&pattern, &index, 3.0, budget);
+        let admitted = ResidualTerritoryPlan::admit_with_index(&pattern, &index, 3.0, budget);
+        assert_eq!(admitted.is_ok(), built.is_ok(), "budget {budget}");
+        if let Err(error) = admitted {
+            assert!(error.to_string().contains("residual territory plan"));
+        }
+    }
 }
 
 fn brute_force_residual_territories(

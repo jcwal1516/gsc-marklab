@@ -195,12 +195,19 @@ impl AnalysisEngine {
 
         let mut timings = Vec::new();
 
-        let (mut status_flags, configured_strata) =
-            timed_stage(&mut timings, "validate", self.threads, || {
-                validate_pattern(&self.config, &analysis_context)
-            })?;
         let component_plan = component_analysis_plan(&self.config, pattern);
         let includes_pooled = component_plan.includes_pooled();
+        let (mut status_flags, configured_strata) =
+            timed_stage(&mut timings, "validate", self.threads, || -> Result<_> {
+                let validated = validate_pattern(&self.config, &analysis_context)?;
+                spatial_stage::admit_geometry(
+                    &self.config,
+                    pattern,
+                    includes_pooled,
+                    geometry_budget_bytes,
+                )?;
+                Ok(validated)
+            })?;
 
         let spectrum_stage::Output {
             spectrum,

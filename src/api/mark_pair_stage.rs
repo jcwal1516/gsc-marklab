@@ -22,14 +22,7 @@ pub(super) fn mark_pair_covariance_with_envelope(
     AnalysisSection<FunctionalSummary>,
     usize,
 )> {
-    let bin_width_um = pattern.window.d_nn_mean_um.max(1.0);
-    let max_r_um = maximum_interpretable_scale_for_points_um(
-        pattern.window.analysis_effective_length_um,
-        &pattern.x_um,
-        &pattern.y_um,
-        config.validation.largest_interpretable_scale_fraction,
-    )
-    .unwrap_or(0.0);
+    let (bin_width_um, max_r_um) = pair_plan_distances(config, pattern);
     let index_storage_bytes = spatial_index.estimated_storage_bytes();
     let plan_budget_bytes = geometry_budget_bytes.saturating_sub(index_storage_bytes);
     let Some(plan) = MarkPairCovariancePlan::new_with_index(
@@ -129,6 +122,36 @@ pub(super) fn mark_pair_covariance_with_envelope(
         .collect::<Result<Vec<_>>>()?;
 
     Ok((points, summary, geometry_storage_bytes))
+}
+
+/// Reject a mark-pair covariance plan that cannot fit `plan_budget_bytes`
+/// without building it.
+pub(super) fn admit_mark_pair_plan(
+    config: &AnalysisConfig,
+    pattern: &Pattern,
+    spatial_index: &SpatialIndex2D,
+    plan_budget_bytes: usize,
+) -> Result<()> {
+    let (bin_width_um, max_r_um) = pair_plan_distances(config, pattern);
+    MarkPairCovariancePlan::admit_with_index(
+        pattern,
+        spatial_index,
+        bin_width_um,
+        max_r_um,
+        plan_budget_bytes,
+    )
+}
+
+fn pair_plan_distances(config: &AnalysisConfig, pattern: &Pattern) -> (f64, f64) {
+    let bin_width_um = pattern.window.d_nn_mean_um.max(1.0);
+    let max_r_um = maximum_interpretable_scale_for_points_um(
+        pattern.window.analysis_effective_length_um,
+        &pattern.x_um,
+        &pattern.y_um,
+        config.validation.largest_interpretable_scale_fraction,
+    )
+    .unwrap_or(0.0);
+    (bin_width_um, max_r_um)
 }
 
 fn mark_pair_covariance_permutation_curves(

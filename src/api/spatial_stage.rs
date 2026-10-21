@@ -24,7 +24,7 @@ use crate::{
 
 use super::{
     context::MarkedAnalysisContext,
-    mark_pair_stage::mark_pair_covariance_with_envelope,
+    mark_pair_stage::{admit_mark_pair_plan, mark_pair_covariance_with_envelope},
     multiscale_stage::{
         multiscale_residual_scalar_p_values, scale_energy_with_envelope, territories_for,
     },
@@ -47,6 +47,40 @@ pub(super) struct ExecutionContext<'a> {
     pub(super) geometry_budget_bytes: usize,
     pub(super) timings: &'a mut Vec<TimingStage>,
     pub(super) threads: usize,
+}
+
+/// Reject geometry plans that cannot fit the remaining budget before any
+/// permutation stage runs. Pair and neighborhood counts are taken from a
+/// temporary spatial index and use the same byte accounting as the plans
+/// built later by [`run`], which still enforce the budget themselves.
+pub(super) fn admit_geometry(
+    config: &AnalysisConfig,
+    pattern: &Pattern,
+    includes_pooled: bool,
+    geometry_budget_bytes: usize,
+) -> Result<()> {
+    if !includes_pooled {
+        return Ok(());
+    }
+    enforce_storage_budget(
+        "spatial index",
+        SpatialIndex2D::estimated_storage_bytes_for_len(pattern.len()),
+        geometry_budget_bytes,
+    )?;
+    let index = SpatialIndex2D::new(&pattern.x_um, &pattern.y_um)?;
+    let plan_budget_bytes = geometry_budget_bytes.saturating_sub(index.estimated_storage_bytes());
+    admit_mark_pair_plan(config, pattern, &index, plan_budget_bytes)?;
+    if config.multiscale_residual.enabled && config.multiscale_residual.territory_detection {
+        let max_scale_um = maximum_interpretable_scale_for_points_um(
+            pattern.window.analysis_effective_length_um,
+            &pattern.x_um,
+            &pattern.y_um,
+            config.validation.largest_interpretable_scale_fraction,
+        )
+        .unwrap_or(0.0);
+        ResidualTerritoryPlan::admit_with_index(pattern, &index, max_scale_um, plan_budget_bytes)?;
+    }
+    Ok(())
 }
 
 pub(super) fn run(
@@ -312,7 +346,7 @@ pub(super) fn estimated_raster_pixels(pattern: &Pattern) -> usize {
 #[cfg(test)]
 mod tests {
     use crate::{
-        api::{context::MarkedAnalysisContext, mark_pair_stage, spatial_stage},
+        api::{context::MarkedAnalysisContext, mark_pair_stage, spatial_stage, spectrum_stage},
         config::AnalysisConfig,
         data::{Pattern, PatternMeta},
         geom::spatial_index::SpatialIndex2D,
@@ -325,6 +359,7 @@ mod tests {
             reset_plan_build_call_count as reset_raster_plan_build_call_count,
         },
         spectra::mark_pair_covariance::{plan_build_call_count, reset_plan_build_call_count},
+        AnalysisEngine,
     };
 
     #[test]
@@ -364,6 +399,66 @@ mod tests {
         .expect("covariance envelope");
 
         assert_eq!(plan_build_call_count(), 1);
+    }
+
+    #[test]
+    fn over_budget_geometry_is_rejected_before_spectrum_permutations() {
+        let mut config = AnalysisConfig::default();
+        config.validation.n_min = 8;
+        config.validation.n_marked_min = 1;
+        config.validation.n_unmarked_min = 1;
+        config.validation.area_min_um2 = 1.0;
+        config.validation.k_shell_min = 1;
+        config.spectrum.k_shells = 4;
+        config.spectrum.low_k_shells = 2;
+        config.spectrum.anisotropy_low_k_shells = 3;
+        config.permutation.b = 17;
+        config.permutation.stratified = false;
+        config.inference.family_wise_alpha = 0.25;
+        config.periodogram.enabled = false;
+        // 1 MiB admits the spectral estimate but not 400 mutually close points' pair plan.
+        config.performance.memory_budget_mib = 1;
+        config.performance.k_chunk_modes = 8;
+        let side = 20;
+        let mut pattern = Pattern::from_arrays(
+            (0..side * side)
+                .map(|index| (index % side) as f64 * 0.01)
+                .collect(),
+            (0..side * side)
+                .map(|index| (index / side) as f64 * 0.01)
+                .collect(),
+            (0..side * side)
+                .map(|index| u8::from(index % 2 == 0))
+                .collect(),
+            PatternMeta {
+                case_id: "geometry-budget".into(),
+                timepoint: "post".into(),
+                protein: "MSH6".into(),
+                slide_id: None,
+                section_id: None,
+                stain_batch: None,
+                block_id: None,
+                region_id: None,
+            },
+        )
+        .expect("pattern");
+        pattern.window.area_um2 = 100.0;
+        pattern.window.analysis_effective_length_um = 10.0;
+        pattern.window.d_nn_mean_um = 1.0;
+        let engine = AnalysisEngine::new(config).expect("engine");
+        spectrum_stage::reset_run_call_count();
+        reset_plan_build_call_count();
+
+        let error = engine
+            .analyze_pattern_inner(&pattern)
+            .expect_err("pair plan should exceed the remaining budget");
+
+        assert!(
+            error.to_string().contains("mark-pair covariance plan"),
+            "{error}"
+        );
+        assert_eq!(spectrum_stage::run_call_count(), 0);
+        assert_eq!(plan_build_call_count(), 0);
     }
 
     #[test]

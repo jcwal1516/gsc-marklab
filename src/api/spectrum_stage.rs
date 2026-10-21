@@ -22,6 +22,21 @@ use super::{
     timed_stage,
 };
 
+#[cfg(test)]
+thread_local! {
+    static RUN_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(super) fn reset_run_call_count() {
+    RUN_CALLS.set(0);
+}
+
+#[cfg(test)]
+pub(super) fn run_call_count() -> usize {
+    RUN_CALLS.get()
+}
+
 pub(super) struct Output {
     pub(super) spectrum: Option<PermutationWhitenedSpectrum>,
     pub(super) null_sensitivity: Option<SpectrumNullSensitivity>,
@@ -36,6 +51,8 @@ pub(super) fn run(
     timings: &mut Vec<TimingStage>,
     threads: usize,
 ) -> Result<Output> {
+    #[cfg(test)]
+    RUN_CALLS.set(RUN_CALLS.get() + 1);
     let pattern = context.pattern();
     let modes = timed_stage(timings, "kgrid", threads, || {
         includes_pooled

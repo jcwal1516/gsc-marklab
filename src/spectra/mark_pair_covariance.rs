@@ -33,6 +33,91 @@ struct PairBin {
     bin_index: usize,
 }
 
+/// Distance binning and storage limits shared by plan admission and construction.
+struct PairGeometry {
+    n_bins: usize,
+    edge_count: usize,
+    bin_width_um: f64,
+    max_r_um: f64,
+    fixed_storage_bytes: usize,
+    max_pair_entries: usize,
+}
+
+impl PairGeometry {
+    fn new(
+        pattern: &Pattern,
+        index: &SpatialIndex2D,
+        bin_width_um: f64,
+        max_r_um: f64,
+        storage_budget_bytes: usize,
+    ) -> Result<Option<Self>> {
+        if pattern.len() < 2
+            || index.len() != pattern.len()
+            || bin_width_um <= 0.0
+            || max_r_um <= 0.0
+            || !bin_width_um.is_finite()
+            || !max_r_um.is_finite()
+        {
+            return Ok(None);
+        }
+        let n_bins = (max_r_um / bin_width_um).ceil() as usize;
+        if n_bins == 0 {
+            return Ok(None);
+        }
+        let Some(edge_count) = n_bins.checked_add(1) else {
+            return Ok(None);
+        };
+
+        let fixed_storage_bytes = edge_count
+            .saturating_mul(std::mem::size_of::<f64>())
+            .saturating_add(n_bins.saturating_mul(std::mem::size_of::<usize>()));
+        enforce_storage_budget(
+            "mark-pair covariance plan",
+            fixed_storage_bytes,
+            storage_budget_bytes,
+        )?;
+        Ok(Some(Self {
+            n_bins,
+            edge_count,
+            bin_width_um,
+            max_r_um,
+            fixed_storage_bytes,
+            max_pair_entries: storage_budget_bytes.saturating_sub(fixed_storage_bytes)
+                / std::mem::size_of::<PairBin>(),
+        }))
+    }
+
+    fn visit_pairs_from(
+        &self,
+        index: &SpatialIndex2D,
+        source: usize,
+        mut visit: impl FnMut(PairBin),
+    ) -> Result<()> {
+        index.visit_within_radius(source, self.max_r_um, |neighbor| {
+            if neighbor.index <= source || neighbor.distance_um >= self.max_r_um {
+                return;
+            }
+            let bin_index = (neighbor.distance_um / self.bin_width_um).floor() as usize;
+            if bin_index < self.n_bins {
+                visit(PairBin {
+                    source,
+                    target: neighbor.index,
+                    bin_index,
+                });
+            }
+        })
+    }
+
+    fn enforce_pair_entries(&self, pair_entries: usize, storage_budget_bytes: usize) -> Result<()> {
+        enforce_storage_budget(
+            "mark-pair covariance plan",
+            self.fixed_storage_bytes
+                .saturating_add(pair_entries.saturating_mul(std::mem::size_of::<PairBin>())),
+            storage_budget_bytes,
+        )
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct MarkPairCovariancePlan {
     point_count: usize,
@@ -59,76 +144,31 @@ impl MarkPairCovariancePlan {
     ) -> Result<Option<Self>> {
         #[cfg(test)]
         PLAN_BUILD_CALLS.set(PLAN_BUILD_CALLS.get() + 1);
-        if pattern.len() < 2
-            || index.len() != pattern.len()
-            || bin_width_um <= 0.0
-            || max_r_um <= 0.0
-            || !bin_width_um.is_finite()
-            || !max_r_um.is_finite()
-        {
-            return Ok(None);
-        }
-        let n_bins = (max_r_um / bin_width_um).ceil() as usize;
-        if n_bins == 0 {
-            return Ok(None);
-        }
-        let Some(edge_count) = n_bins.checked_add(1) else {
+        let Some(geometry) =
+            PairGeometry::new(pattern, index, bin_width_um, max_r_um, storage_budget_bytes)?
+        else {
             return Ok(None);
         };
-
-        let fixed_storage_bytes = edge_count
-            .saturating_mul(std::mem::size_of::<f64>())
-            .saturating_add(n_bins.saturating_mul(std::mem::size_of::<usize>()));
-        enforce_storage_budget(
-            "mark-pair covariance plan",
-            fixed_storage_bytes,
-            storage_budget_bytes,
-        )?;
-        let max_pair_entries = storage_budget_bytes.saturating_sub(fixed_storage_bytes)
-            / std::mem::size_of::<PairBin>();
         let mut pairs = Vec::new();
-        let mut pair_counts = vec![0usize; n_bins];
+        let mut pair_counts = vec![0usize; geometry.n_bins];
         for source in 0..pattern.len() {
-            let mut over_budget_bytes = None;
-            index.visit_within_radius(source, max_r_um, |neighbor| {
-                if over_budget_bytes.is_some()
-                    || neighbor.index <= source
-                    || neighbor.distance_um >= max_r_um
-                {
+            let mut over_budget = false;
+            geometry.visit_pairs_from(index, source, |pair| {
+                if over_budget || pairs.len() >= geometry.max_pair_entries {
+                    over_budget = true;
                     return;
                 }
-                let bin_index = (neighbor.distance_um / bin_width_um).floor() as usize;
-                if bin_index < n_bins {
-                    if pairs.len() >= max_pair_entries {
-                        over_budget_bytes = Some(
-                            fixed_storage_bytes.saturating_add(
-                                pairs
-                                    .len()
-                                    .saturating_add(1)
-                                    .saturating_mul(std::mem::size_of::<PairBin>()),
-                            ),
-                        );
-                        return;
-                    }
-                    pairs.push(PairBin {
-                        source,
-                        target: neighbor.index,
-                        bin_index,
-                    });
-                    pair_counts[bin_index] += 1;
-                }
+                pair_counts[pair.bin_index] += 1;
+                pairs.push(pair);
             })?;
-            if let Some(required_bytes) = over_budget_bytes {
-                enforce_storage_budget(
-                    "mark-pair covariance plan",
-                    required_bytes,
-                    storage_budget_bytes,
-                )?;
+            if over_budget {
+                geometry
+                    .enforce_pair_entries(pairs.len().saturating_add(1), storage_budget_bytes)?;
             }
         }
         pairs.sort_unstable_by_key(|pair| (pair.source, pair.target));
         pairs.shrink_to_fit();
-        let bin_edges = (0..edge_count)
+        let bin_edges = (0..geometry.edge_count)
             .map(|index| index as f64 * bin_width_um)
             .collect();
 
@@ -144,6 +184,31 @@ impl MarkPairCovariancePlan {
             storage_budget_bytes,
         )?;
         Ok(Some(plan))
+    }
+
+    /// Reject a plan that would exceed `storage_budget_bytes` without storing
+    /// its pairs, so callers can fail before running earlier expensive stages.
+    /// Admission uses the same byte accounting as `new_with_index`.
+    pub(crate) fn admit_with_index(
+        pattern: &Pattern,
+        index: &SpatialIndex2D,
+        bin_width_um: f64,
+        max_r_um: f64,
+        storage_budget_bytes: usize,
+    ) -> Result<()> {
+        let Some(geometry) =
+            PairGeometry::new(pattern, index, bin_width_um, max_r_um, storage_budget_bytes)?
+        else {
+            return Ok(());
+        };
+        let mut pair_entries = 0usize;
+        for source in 0..pattern.len() {
+            geometry.visit_pairs_from(index, source, |_| pair_entries += 1)?;
+            if pair_entries > geometry.max_pair_entries {
+                return geometry.enforce_pair_entries(pair_entries, storage_budget_bytes);
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn estimated_storage_bytes(&self) -> usize {

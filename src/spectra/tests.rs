@@ -161,6 +161,21 @@ fn pair_plan_rejects_storage_over_budget() {
     assert!(error
         .to_string()
         .contains("remaining geometry memory budget"));
+
+    // Admission without storing pairs must accept and reject exactly the
+    // budgets that plan construction does.
+    let required = MarkPairCovariancePlan::new_with_index(&pattern, &index, 1.0, 2.0, usize::MAX)
+        .expect("unbounded plan")
+        .expect("plan")
+        .estimated_storage_bytes();
+    for budget in [0, 64, required - 1, required, required + 1] {
+        let built = MarkPairCovariancePlan::new_with_index(&pattern, &index, 1.0, 2.0, budget);
+        let admitted = MarkPairCovariancePlan::admit_with_index(&pattern, &index, 1.0, 2.0, budget);
+        assert_eq!(admitted.is_ok(), built.is_ok(), "budget {budget}");
+        if let Err(error) = admitted {
+            assert!(error.to_string().contains("mark-pair covariance plan"));
+        }
+    }
 }
 
 fn brute_force_mark_pair_covariance(
