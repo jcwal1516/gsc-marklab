@@ -104,7 +104,12 @@ fn tissue_holes_clip_density_and_round_buffers_report_their_approximation() {
             .abs()
             < 0.02
     );
-    assert!(profile["maximum_buffer_chord_error_um"].as_f64().unwrap() < 0.001);
+    // One polygon edge can span almost two 0.05-rad steps, so the gap is r * (1 - cos(0.05)).
+    assert!(
+        (profile["maximum_buffer_chord_error_um"].as_f64().unwrap() - 2.0 * (1.0 - 0.05f64.cos()))
+            .abs()
+            < 1e-15
+    );
     assert_eq!(profile["bands"][1]["cell_density_per_mm2"], 0.0);
 }
 
