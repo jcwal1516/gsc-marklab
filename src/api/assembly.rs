@@ -161,6 +161,7 @@ fn assemble_spectrum(
     let xi_stability_interval_um = spectrum
         .and_then(|value| value.xi_stability_interval_um)
         .filter(|interval| interval.iter().all(|value| value.is_finite()));
+    let xi_resolution = spectrum.and_then(super::xi_resolution);
     let alpha = config
         .spectrum
         .fit_low_k_alpha
@@ -258,6 +259,7 @@ fn assemble_spectrum(
                 ),
                 xi_um,
                 xi_stability_interval_um,
+                xi_resolution,
                 low_k_excess: value.low_k_excess,
                 low_k_excess_p_value,
                 alpha,

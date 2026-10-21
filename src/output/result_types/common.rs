@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{marked::MarkedPatternResult, multimodal::MultimodalResult, prepost::PrePostResult};
 
-pub const RESULT_FORMAT_VERSION: &str = "0.4";
+pub const RESULT_FORMAT_VERSION: &str = "0.5";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]

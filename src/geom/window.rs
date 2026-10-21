@@ -17,5 +17,5 @@ pub use model::{
     ObservationWindowLimits,
 };
 pub(crate) use model::{TranslationOverlap2D, VisibleCircleArc2D};
-pub(crate) use offset::PROFILE_BUFFER_ANGLE;
+pub(crate) use offset::{buffer_chord_error_bound_um, PROFILE_BUFFER_ANGLE};
 pub(crate) use study_clip::StudyTile;

@@ -45,7 +45,9 @@ with one feature. Limits: 16 MiB, 4,096 polygons, 65,536 rings, one million coor
 positions (counting ring closures) and eight million topology checks. Rings must be
 finite, closed, have nonzero area and no zero-length edges. Self-intersections, overlaps,
 crossings, touching rings or polygons, holes outside their polygon, and nested or
-overlapping polygons are errors. Marklab never repairs invalid geometry.
+overlapping polygons are errors. Marklab never repairs invalid geometry. A crossing or
+touching error gives the coordinates of the first contact found. Masks built from square
+tiles often have squares that meet only at a corner; merge them or buffer the mask slightly.
 
 The outline is normalized (ring direction, starting point, hole and polygon order) so the
 same shape always has the same identity. Points on an outer boundary or a hole boundary
@@ -90,7 +92,7 @@ the seed, alpha, the number of cells and the number of radii tested.
 ## Results
 
 The command runs through Marklab's workflow scheduler. `result.json` is a `marklab.classical_spatial` version
-1 document, separate from result format 0.4. It records the input, the outline, the
+1 document, separate from result format 0.5. It records the input, the outline, the
 settings and the identities used for caching.
 
 The overall status is one of:

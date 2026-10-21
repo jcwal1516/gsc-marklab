@@ -542,20 +542,43 @@ fn window_byte_component_ring_and_touching_limits_are_explicit() {
             maximum: 1
         })
     ));
-    for invalid in [
-        r#"{"type":"MultiPolygon","coordinates":[[
-            [[0,0],[10,0],[10,10],[0,10],[0,0]],
-            [[0,3],[4,3],[4,7],[0,7],[0,3]]
-        ]]}"#,
-        r#"{"type":"MultiPolygon","coordinates":[
-            [[[0,0],[2,0],[2,2],[0,2],[0,0]]],
-            [[[2,0],[4,0],[4,2],[2,2],[2,0]]]
-        ]}"#,
-        r#"{"type":"MultiPolygon","coordinates":[[[[0,0],[1,0],[2,0],[0,0]]]]}"#,
+    for (invalid, expected_reason) in [
+        (
+            r#"{"type":"MultiPolygon","coordinates":[[
+                [[0,0],[10,0],[10,10],[0,10],[0,0]],
+                [[0,3],[4,3],[4,7],[0,7],[0,3]]
+            ]]}"#,
+            "two rings meet",
+        ),
+        (
+            r#"{"type":"MultiPolygon","coordinates":[
+                [[[0,0],[2,0],[2,2],[0,2],[0,0]]],
+                [[[2,0],[4,0],[4,2],[2,2],[2,0]]]
+            ]}"#,
+            "two rings meet",
+        ),
+        (
+            r#"{"type":"MultiPolygon","coordinates":[
+                [[[0,0],[2,0],[2,2],[0,2],[0,0]]],
+                [[[2,2],[4,2],[4,4],[2,4],[2,2]]]
+            ]}"#,
+            "two rings meet at (2, 2); rings may not touch, even at a single point",
+        ),
+        (
+            r#"{"type":"MultiPolygon","coordinates":[[[[0,0],[4,4],[4,0],[0,2],[0,0]]]]}"#,
+            "a ring meets itself: boundaries cross near (1.333, 1.333)",
+        ),
+        (
+            r#"{"type":"MultiPolygon","coordinates":[[[[0,0],[1,0],[2,0],[0,0]]]]}"#,
+            "",
+        ),
     ] {
-        assert!(matches!(
-            ObservationWindow2D::from_geojson_str(invalid, window_limits()),
-            Err(ObservationWindowError::InvalidTopology { .. })
-        ));
+        match ObservationWindow2D::from_geojson_str(invalid, window_limits()) {
+            Err(ObservationWindowError::InvalidTopology { reason }) => assert!(
+                reason.contains(expected_reason),
+                "reason {reason:?} lacks {expected_reason:?}"
+            ),
+            other => panic!("expected invalid topology, got {other:?}"),
+        }
     }
 }

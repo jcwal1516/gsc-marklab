@@ -1,4 +1,4 @@
-use crate::{common::stats::mean_all_finite, geom::window::PROFILE_BUFFER_ANGLE, Result};
+use crate::{common::stats::mean_all_finite, geom::window::buffer_chord_error_bound_um, Result};
 
 use super::{
     charge,
@@ -138,8 +138,9 @@ pub(super) fn analyze(
             distance_convention:
                 "negative_inside_positive_outside; half_open_bands_final_upper_inclusive",
             area_method: "tissue_clipped_round_polygon_offsets; angular_step_0.05_radians",
-            maximum_buffer_chord_error_um: edges.iter().copied().map(f64::abs).fold(0.0, f64::max)
-                * (1.0 - (PROFILE_BUFFER_ANGLE / 2.0).cos()),
+            maximum_buffer_chord_error_um: buffer_chord_error_bound_um(
+                edges.iter().copied().map(f64::abs).fold(0.0, f64::max),
+            ),
             bands,
         });
     }

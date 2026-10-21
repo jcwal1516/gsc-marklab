@@ -84,6 +84,7 @@ mod ordinal_composition_workflow;
 mod output;
 mod pair_correlation;
 mod pair_correlation_workflow;
+mod pathology_architecture;
 mod pathology_maps;
 mod pathology_study;
 mod periodogram;
@@ -166,7 +167,8 @@ pub use output::{
     RegistrationSummary, ResidualTerritory, ResolvedComponentMode, ResultDocument, ScaleEnergyBand,
     ScaleEnergyPoint, SpectrumConfoundingConclusion, SpectrumNullInferenceSummary,
     SpectrumNullModel, SpectrumNullSensitivitySummary, SpectrumPoint, SpectrumSummary, StatusFlag,
-    TerritoryPrePostSummary, TerritoryProfile, TimingStage, WindowSummary, RESULT_FORMAT_VERSION,
+    TerritoryPrePostSummary, TerritoryProfile, TimingStage, WindowSummary, XiPeakShell,
+    XiResolution, RESULT_FORMAT_VERSION,
 };
 pub use prepost::{
     compare_declared_marked_prepost, compare_declared_marked_prevalence, compare_marked_prepost,
@@ -760,11 +762,14 @@ pub mod workflow {
     };
 }
 
-/// Pathology map recipes, pathology studies and multiplex studies.
+/// Pathology map and architecture recipes, pathology studies and multiplex studies.
 pub mod pathology {
     pub use crate::multiplex_study::{
         analyze_multiplex_study, execute_multiplex_study, publish_multiplex_study,
         MultiplexStudyResult, MultiplexStudyRun, MultiplexStudyTarget,
+    };
+    pub use crate::pathology_architecture::{
+        analyze_pathology_architecture, publish_pathology_architecture, PathologyArchitectureResult,
     };
     pub use crate::pathology_maps::{
         analyze_pathology_maps, publish_pathology_maps, PathologyMapsResult,

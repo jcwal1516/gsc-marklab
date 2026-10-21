@@ -120,6 +120,8 @@ pub struct SpectrumSummary {
     pub spectral_curve_test: AnalysisSection<FunctionalSummary>,
     pub xi_um: Option<f64>,
     pub xi_stability_interval_um: Option<[f64; 2]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xi_resolution: Option<XiResolution>,
     pub low_k_excess: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub low_k_excess_p_value: Option<f64>,
@@ -128,6 +130,45 @@ pub struct SpectrumSummary {
     pub xi_um_p_value: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub alpha_p_value: Option<f64>,
+}
+
+/// Where the shell that sets `xi_um` sits among the inference-eligible shells, with the
+/// correlation lengths of its eligible neighbours (`lower_um` from the next higher `k`,
+/// `upper_um` from the next lower `k`).
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct XiResolution {
+    pub peak_shell: XiPeakShell,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lower_um: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upper_um: Option<f64>,
+}
+
+impl XiResolution {
+    pub(crate) fn from_neighbours(lower_um: Option<f64>, upper_um: Option<f64>) -> Self {
+        let peak_shell = match (lower_um, upper_um) {
+            (Some(_), Some(_)) => XiPeakShell::Interior,
+            (Some(_), None) => XiPeakShell::LowestK,
+            (None, Some(_)) => XiPeakShell::HighestK,
+            (None, None) => XiPeakShell::OnlyShell,
+        };
+        Self {
+            peak_shell,
+            lower_um,
+            upper_um,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum XiPeakShell {
+    Interior,
+    /// The window may hide a longer correlation length.
+    LowestK,
+    HighestK,
+    OnlyShell,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -247,6 +288,8 @@ pub struct ComponentAnalysisSummary {
     pub k_max: Option<f64>,
     pub n_k_modes: usize,
     pub xi_um: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xi_resolution: Option<XiResolution>,
     pub alpha: Option<f64>,
 }
 

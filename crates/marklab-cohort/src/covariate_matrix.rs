@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use super::{
-    covariate::{fit_ols, inference_alternative, validate_spec},
+    covariate::{fit_ols_absorbing, inference_alternative, validate_spec, BlockMeans},
     inference_design::align_patient_blocks,
     numeric::stable_mean,
     CohortInferenceError, CovariatePermutationSpec, InferenceDesign, PatientExchangeabilityBlock,
@@ -52,13 +52,14 @@ pub struct CovariateMatrixPermutationResult {
     pub covariate_centers: Vec<f64>,
     /// Positive deterministic max-absolute-deviation column scales.
     pub covariate_scales: Vec<f64>,
-    /// Reduced-model column count: intercept plus nuisance columns.
+    /// Reduced-model column count: intercept plus nuisance columns, plus one indicator per block after the
+    /// first when blocked.
     pub reduced_model_columns: usize,
     /// Full-model column count: reduced columns plus group indicator.
     pub full_model_columns: usize,
     /// Full-model residual degrees of freedom.
     pub residual_degrees_of_freedom: usize,
-    /// Adjusted group-A-minus-group-B coefficient.
+    /// Adjusted group-A-minus-group-B coefficient; within blocks when blocked.
     pub effect_group_a_minus_group_b: f64,
     /// Standard error of the adjusted group coefficient.
     pub target_standard_error: f64,
@@ -82,7 +83,8 @@ pub fn patient_covariate_matrix_freedman_lane(
     execute(records, None, spec)
 }
 
-/// Restrict nuisance-matrix residual movement within exact patient-ID-keyed blocks.
+/// Restrict nuisance-matrix residual movement within exact patient-ID-keyed blocks, with block fixed effects
+/// in the model so the effect and the p-value describe the same within-block contrast.
 pub fn patient_blocked_covariate_matrix_freedman_lane(
     records: &[CovariateMatrixPatientRecord],
     assignments: &[PatientExchangeabilityBlock],
@@ -135,52 +137,87 @@ fn execute(
         centers.push(center);
         scales.push(scale);
     }
-    let reduced = rows
+    let scaled = (0..nuisance_count)
+        .map(|column| {
+            rows.iter()
+                .map(|row| (row.covariates[column] - centers[column]) / scales[column])
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let groups = rows
         .iter()
-        .map(|row| {
-            let mut design = Vec::with_capacity(nuisance_count + 1);
-            design.push(1.0);
-            design.extend(
-                row.covariates
-                    .iter()
-                    .enumerate()
-                    .map(|(column, value)| (value - centers[column]) / scales[column]),
-            );
-            design
+        .map(|row| f64::from(row.group_a))
+        .collect::<Vec<_>>();
+    let blocks = assignments
+        .map(|assignments| {
+            let patient_ids = rows
+                .iter()
+                .map(|row| row.patient_id.clone())
+                .collect::<Vec<_>>();
+            align_patient_blocks(&patient_ids, assignments, "covariate matrix")
+        })
+        .transpose()?;
+    let block_means = blocks
+        .as_deref()
+        .map(|blocks| {
+            let group_a = rows.iter().map(|row| row.group_a).collect::<Vec<_>>();
+            BlockMeans::new(blocks, &group_a)
+        })
+        .transpose()?;
+    // A blocked design absorbs block means, which also replace the intercept.
+    let (columns, groups, outcomes, absorbed) = match &block_means {
+        Some(means) => (
+            scaled
+                .iter()
+                .zip(&rows[0].covariate_names)
+                .map(|(column, name)| means.demean_nuisance(column, name))
+                .collect::<Result<Vec<_>, _>>()?,
+            means.demean(&groups),
+            means.demean(&outcomes),
+            means.block_count(),
+        ),
+        None => (
+            std::iter::once(vec![1.0; rows.len()])
+                .chain(scaled)
+                .collect::<Vec<_>>(),
+            groups,
+            outcomes,
+            0,
+        ),
+    };
+    let reduced = (0..rows.len())
+        .map(|index| {
+            columns
+                .iter()
+                .map(|column| column[index])
+                .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
     let full = reduced
         .iter()
-        .zip(&rows)
-        .map(|(reduced, row)| {
+        .zip(&groups)
+        .map(|(reduced, group)| {
             let mut design = reduced.clone();
-            design.push(f64::from(row.group_a));
+            design.push(*group);
             design
         })
         .collect::<Vec<_>>();
-    let reduced_fit = fit_ols(&reduced, &outcomes, None)?;
+    let reduced_fit = fit_ols_absorbing(&reduced, &outcomes, None, absorbed)?;
     let target_index = full[0].len() - 1;
-    let observed = fit_ols(&full, &outcomes, Some(target_index))?;
+    let observed = fit_ols_absorbing(&full, &outcomes, Some(target_index), absorbed)?;
     let residuals = outcomes
         .iter()
         .zip(&reduced_fit.fitted)
         .map(|(outcome, fitted)| outcome - fitted)
         .collect::<Vec<_>>();
-    let design = match assignments {
-        Some(assignments) => {
-            let patient_ids = rows
-                .iter()
-                .map(|row| row.patient_id.clone())
-                .collect::<Vec<_>>();
-            let blocks = align_patient_blocks(&patient_ids, assignments, "covariate matrix")?;
-            InferenceDesign::blocked_covariate_conditional_residual_permutation(
-                &blocks,
-                spec.permutations,
-                spec.seed,
-                COVARIATE_MATRIX_NAMESPACE,
-                inference_alternative(spec.alternative),
-            )
-        }
+    let design = match &blocks {
+        Some(blocks) => InferenceDesign::blocked_covariate_conditional_residual_permutation(
+            blocks,
+            spec.permutations,
+            spec.seed,
+            COVARIATE_MATRIX_NAMESPACE,
+            inference_alternative(spec.alternative),
+        ),
         None => InferenceDesign::covariate_conditional_residual_permutation(
             rows.len(),
             spec.permutations,
@@ -201,7 +238,8 @@ fn execute(
         for index in 0..rows.len() {
             permuted[index] = reduced_fit.fitted[index] + residuals[indices[index]];
         }
-        let statistic = fit_ols(&full, &permuted, Some(target_index))?.target_statistic;
+        let statistic =
+            fit_ols_absorbing(&full, &permuted, Some(target_index), absorbed)?.target_statistic;
         lower_tail += usize::from(statistic <= observed.target_statistic);
         upper_tail += usize::from(statistic >= observed.target_statistic);
     }
@@ -226,8 +264,8 @@ fn execute(
         covariate_names: rows[0].covariate_names.clone(),
         covariate_centers: centers,
         covariate_scales: scales,
-        reduced_model_columns: reduced[0].len(),
-        full_model_columns: full[0].len(),
+        reduced_model_columns: reduced[0].len() + absorbed,
+        full_model_columns: full[0].len() + absorbed,
         residual_degrees_of_freedom: observed.residual_degrees_of_freedom,
         effect_group_a_minus_group_b: observed.target_coefficient,
         target_standard_error: observed.target_standard_error,

@@ -53,6 +53,8 @@ struct Design {
     blocked: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     block_count: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    block_indicator_columns: Option<usize>,
     nuisance_columns: usize,
     reduced_model_columns: usize,
     full_model_columns: usize,
@@ -142,19 +144,23 @@ impl Output {
         }
         Self {
             format: "marklab.cohort_covariate_matrix_permutation",
-            version: 1,
+            version: 2,
             design: Design {
                 randomization_unit: "patient_residual",
                 null_family: "covariate_conditional_residual_permutation",
                 permutation_unit: "complete_patient_residual",
                 blocked: result.blocked.then_some(true),
                 block_count: result.blocked.then_some(result.block_count),
+                block_indicator_columns: result.blocked.then(|| result.block_count - 1),
                 nuisance_columns: result.covariate_names.len(),
                 reduced_model_columns: result.reduced_model_columns,
                 full_model_columns: result.full_model_columns,
                 residual_degrees_of_freedom: result.residual_degrees_of_freedom,
-                exchangeability_assumption:
-                    "reduced-model residuals are exchangeable across independent patients within declared blocks conditional on the fixed nuisance matrix",
+                exchangeability_assumption: if result.blocked {
+                    "after block means are removed, reduced-model residuals are exchangeable across independent patients within declared blocks conditional on the fixed nuisance matrix"
+                } else {
+                    "reduced-model residuals are exchangeable across independent patients conditional on the fixed nuisance matrix"
+                },
             },
             patients: Patients {
                 total: result.patient_count,

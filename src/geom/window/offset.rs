@@ -7,6 +7,14 @@ use super::{ObservationWindow2D, ObservationWindowError};
 
 pub(crate) const PROFILE_BUFFER_ANGLE: f64 = 0.05;
 
+/// Largest radial gap between a round offset arc and its polygonal approximation.
+///
+/// The overlay engine splits a join turning by `a` into `floor(a / step)` chords, or one
+/// bevel, so a single chord can subtend almost twice the requested angular step.
+pub(crate) fn buffer_chord_error_bound_um(distance_um: f64) -> f64 {
+    distance_um.abs() * (1.0 - PROFILE_BUFFER_ANGLE.cos())
+}
+
 impl ObservationWindow2D {
     /// Area of an annotation offset clipped to this tissue window. Round arcs are polygonal.
     pub(crate) fn clipped_annotation_offset_area(

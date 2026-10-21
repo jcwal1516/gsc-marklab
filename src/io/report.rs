@@ -1,8 +1,30 @@
 use crate::output::{
     AnalysisSection, DiagnosticsResult, MarkedPatternResult, MultimodalResult,
     SpectrumConfoundingConclusion, SpectrumNullInferenceSummary, SpectrumNullModel,
-    SpectrumNullSensitivitySummary,
+    SpectrumNullSensitivitySummary, XiPeakShell, XiResolution,
 };
+
+fn xi_resolution_note(resolution: Option<&XiResolution>) -> String {
+    let Some(resolution) = resolution else {
+        return String::new();
+    };
+    match (
+        resolution.peak_shell,
+        resolution.lower_um,
+        resolution.upper_um,
+    ) {
+        (XiPeakShell::Interior, Some(lower), Some(upper)) => {
+            format!(" (neighbouring shells {lower:.3} to {upper:.3} um)")
+        }
+        (XiPeakShell::LowestK, ..) => {
+            " (lowest eligible k: the window may hide a longer correlation length)".into()
+        }
+        (XiPeakShell::HighestK, ..) => {
+            " (highest eligible k: the correlation length may be shorter)".into()
+        }
+        _ => " (only one eligible shell)".into(),
+    }
+}
 
 pub fn render_analysis_report(result: &MarkedPatternResult) -> String {
     let diagnostics = render_diagnostics(&result.diagnostics);
@@ -19,8 +41,14 @@ pub fn render_analysis_report(result: &MarkedPatternResult) -> String {
     let anisotropy = result.anisotropy.value();
     let multiscale_residual = result.multiscale_residual.value();
     let xi = spectrum
-        .and_then(|value| value.xi_um)
-        .map(|value| format!("{value:.3} um"))
+        .and_then(|value| {
+            value.xi_um.map(|xi_um| {
+                format!(
+                    "{xi_um:.3} um{}",
+                    xi_resolution_note(value.xi_resolution.as_ref())
+                )
+            })
+        })
         .unwrap_or_else(|| "not available".into());
     let anisotropy_p = anisotropy
         .and_then(|value| value.p_value)

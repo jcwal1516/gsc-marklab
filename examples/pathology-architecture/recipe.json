@@ -1,0 +1,94 @@
+{
+  "format": "marklab.pathology_architecture_recipe",
+  "version": 1,
+  "study_id": "synthetic-architecture",
+  "architecture": {
+    "classes": ["glandular", "solid", "moderately_fragmented", "highly_fragmented"],
+    "measurement_status": "measured",
+    "provenance": "synthetic known regions"
+  },
+  "epithelium": {
+    "measurement_status": "measured",
+    "provenance": "synthetic known epithelium"
+  },
+  "declared_front": {
+    "measurement_status": "measured",
+    "provenance": "synthetic front drawn 5 um outside the gland"
+  },
+  "cells": {
+    "measurement_status": "measured",
+    "provenance": "synthetic known nuclei and epithelial labels"
+  },
+  "spots": {
+    "measurement_status": "measured",
+    "provenance": "synthetic 55-um capture spots"
+  },
+  "design": {
+    "closing_radius_um": 30.0,
+    "minimum_bulk_area_um2": 10000.0,
+    "tissue_edge_tolerance_um": 25.0,
+    "band_edges_um": [-200.0, -100.0, 0.0, 100.0, 200.0],
+    "contour_sample_spacing_um": 1.0,
+    "curvature_smoothing_um": 2.0,
+    "budding": {"maximum_cells": 4, "hotspot_area_mm2": 0.785, "mucin_exclusion_um": 5.0},
+    "branching": {"pixel_size_um": 2.0, "minimum_branch_length_um": 10.0}
+  },
+  "slides": [{
+    "slide_id": "slide-1",
+    "patient_id": "patient-1",
+    "coordinate_frame_id": "slide-1-um",
+    "window": {
+      "type": "MultiPolygon",
+      "coordinates": [[[[0,0],[1000,0],[1000,1000],[0,1000],[0,0]]]]
+    },
+    "epithelium": {
+      "type": "MultiPolygon",
+      "coordinates": [
+        [[[300,300],[700,300],[700,700],[300,700],[300,300]],
+         [[450,450],[450,550],[550,550],[550,450],[450,450]]],
+        [[[805,480],[815,480],[815,490],[805,490],[805,480]]],
+        [[[825,500],[835,500],[835,510],[825,510],[825,500]]]
+      ]
+    },
+    "boundary_uncertainty_um": 2.0,
+    "architecture_regions": [
+      {
+        "id": "gland",
+        "class": "glandular",
+        "geometry": {"type": "MultiPolygon", "coordinates": [[[[290,290],[710,290],[710,710],[290,710],[290,290]]]]}
+      },
+      {
+        "id": "fragments",
+        "class": "highly_fragmented",
+        "geometry": {"type": "MultiPolygon", "coordinates": [[[[780,460],[850,460],[850,530],[780,530],[780,460]]]]}
+      }
+    ],
+    "lumens": {
+      "type": "MultiPolygon",
+      "coordinates": [[[[450,450],[550,450],[550,550],[450,550],[450,450]]]]
+    },
+    "declared_front": {
+      "type": "MultiLineString",
+      "coordinates": [[[295,295],[705,295],[705,705],[295,705],[295,295]]]
+    },
+    "cells": [
+      {"id":"g1","x_um":690,"y_um":500,"epithelial":true,"nucleus":{"area_um2":20.0,"perimeter_um":16.0,"convex_area_um2":21.0,"major_axis_um":6.0,"minor_axis_um":4.0,"major_axis_angle_rad":1.5707963267948966}},
+      {"id":"g2","x_um":500,"y_um":310,"epithelial":true,"nucleus":{"area_um2":20.0,"perimeter_um":16.0,"convex_area_um2":21.0,"major_axis_um":6.0,"minor_axis_um":4.0,"major_axis_angle_rad":1.5707963267948966}},
+      {"id":"g3","x_um":400,"y_um":400,"epithelial":true},
+      {"id":"g4","x_um":600,"y_um":600,"epithelial":true},
+      {"id":"g5","x_um":350,"y_um":650,"epithelial":true},
+      {"id":"g6","x_um":650,"y_um":350,"epithelial":true},
+      {"id":"f1","x_um":810,"y_um":485,"epithelial":true},
+      {"id":"f2","x_um":830,"y_um":505,"epithelial":true},
+      {"id":"o1","x_um":750,"y_um":800,"epithelial":true},
+      {"id":"s1","x_um":900,"y_um":900,"epithelial":false}
+    ],
+    "spots": [
+      {"id":"spot-edge","x_um":0,"y_um":500,"diameter_um":55},
+      {"id":"spot-fragments","x_um":810,"y_um":485,"diameter_um":55},
+      {"id":"spot-front","x_um":700,"y_um":500,"diameter_um":55},
+      {"id":"spot-gland","x_um":350,"y_um":500,"diameter_um":55},
+      {"id":"spot-lumen","x_um":500,"y_um":500,"diameter_um":55}
+    ]
+  }]
+}

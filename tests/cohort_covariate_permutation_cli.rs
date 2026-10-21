@@ -53,7 +53,7 @@ b-6,B,11.0,5\n",
     let result: serde_json::Value =
         serde_json::from_slice(&fs::read(output).expect("result")).expect("JSON");
     assert_eq!(result["format"], "marklab.cohort_covariate_permutation");
-    assert_eq!(result["version"], 1);
+    assert_eq!(result["version"], 2);
     assert_eq!(result["design"]["randomization_unit"], "patient_residual");
     assert_eq!(
         result["design"]["null_family"],
@@ -133,6 +133,9 @@ b-6,B,11.0,5,south\n",
         serde_json::from_slice(&fs::read(output).expect("result")).expect("JSON");
     assert_eq!(result["design"]["blocked"], true);
     assert_eq!(result["design"]["block_count"], 2);
+    assert_eq!(result["design"]["block_indicator_columns"], 1);
+    assert_eq!(result["design"]["reduced_model_columns"], 3);
+    assert_eq!(result["design"]["residual_degrees_of_freedom"], 8);
     assert_eq!(result["design"]["randomization_unit"], "patient_residual");
     assert_eq!(result["permutations"]["requested"], 199);
 }
