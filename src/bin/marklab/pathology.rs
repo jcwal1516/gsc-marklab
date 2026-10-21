@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use clap::Subcommand;
 use marklab::pathology::{
-    analyze_pathology_composition, analyze_pathology_maps, publish_pathology_composition,
-    publish_pathology_maps,
+    analyze_pathology_architecture, analyze_pathology_composition, analyze_pathology_maps,
+    publish_pathology_architecture, publish_pathology_composition, publish_pathology_maps,
 };
 use marklab::pathology::{analyze_pathology_scan, publish_pathology_scan};
 use marklab::pathology::{analyze_pathology_spatial_study, publish_pathology_spatial_study};
@@ -46,11 +46,21 @@ pub(crate) enum PathologyCommand {
         #[arg(long)]
         out: PathBuf,
     },
+    /// Measure epithelial architecture in distance bands from a derived invasive front.
+    Architecture {
+        /// Strict version-one JSON recipe; see docs/pathology-architecture.md.
+        #[arg(long)]
+        recipe: PathBuf,
+        /// New or empty output directory for results, tables, overlays and report.
+        #[arg(long)]
+        out: PathBuf,
+    },
 }
 
 pub(crate) fn run(command: PathologyCommand) -> marklab::Result<()> {
     let (recipe, out) = match &command {
         PathologyCommand::Maps { recipe, out }
+        | PathologyCommand::Architecture { recipe, out }
         | PathologyCommand::Composition { recipe, out }
         | PathologyCommand::SpatialStudy { recipe, out } => (recipe, out),
         PathologyCommand::Scan { recipe, out } => (recipe, out),
@@ -70,6 +80,9 @@ pub(crate) fn run(command: PathologyCommand) -> marklab::Result<()> {
         }
         PathologyCommand::Maps { .. } => {
             publish_pathology_maps(&analyze_pathology_maps(&bytes)?, out)
+        }
+        PathologyCommand::Architecture { .. } => {
+            publish_pathology_architecture(&analyze_pathology_architecture(&bytes)?, out)
         }
         PathologyCommand::Composition { .. } => {
             publish_pathology_composition(&analyze_pathology_composition(&bytes)?, out)

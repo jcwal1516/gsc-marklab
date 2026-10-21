@@ -1,0 +1,65 @@
+{
+  "format": "marklab.pathology_architecture_recipe",
+  "version": 1,
+  "study_id": "synthetic-architecture",
+  "architecture": {
+    "classes": ["glandular", "solid", "moderately_fragmented", "highly_fragmented"],
+    "measurement_status": "measured",
+    "provenance": "synthetic known regions"
+  },
+  "epithelium": {
+    "measurement_status": "measured",
+    "provenance": "synthetic known epithelium"
+  },
+  "declared_front": {
+    "measurement_status": "measured",
+    "provenance": "synthetic front drawn 5 um outside the gland"
+  },
+  "design": {
+    "closing_radius_um": 30.0,
+    "minimum_bulk_area_um2": 10000.0,
+    "tissue_edge_tolerance_um": 25.0,
+    "band_edges_um": [-200.0, -100.0, 0.0, 100.0, 200.0],
+    "contour_sample_spacing_um": 1.0,
+    "curvature_smoothing_um": 2.0
+  },
+  "slides": [{
+    "slide_id": "slide-1",
+    "patient_id": "patient-1",
+    "coordinate_frame_id": "slide-1-um",
+    "window": {
+      "type": "MultiPolygon",
+      "coordinates": [[[[0,0],[1000,0],[1000,1000],[0,1000],[0,0]]]]
+    },
+    "epithelium": {
+      "type": "MultiPolygon",
+      "coordinates": [
+        [[[300,300],[700,300],[700,700],[300,700],[300,300]],
+         [[450,450],[450,550],[550,550],[550,450],[450,450]]],
+        [[[805,480],[815,480],[815,490],[805,490],[805,480]]],
+        [[[825,500],[835,500],[835,510],[825,510],[825,500]]]
+      ]
+    },
+    "boundary_uncertainty_um": 2.0,
+    "architecture_regions": [
+      {
+        "id": "gland",
+        "class": "glandular",
+        "geometry": {"type": "MultiPolygon", "coordinates": [[[[290,290],[710,290],[710,710],[290,710],[290,290]]]]}
+      },
+      {
+        "id": "fragments",
+        "class": "highly_fragmented",
+        "geometry": {"type": "MultiPolygon", "coordinates": [[[[780,460],[850,460],[850,530],[780,530],[780,460]]]]}
+      }
+    ],
+    "lumens": {
+      "type": "MultiPolygon",
+      "coordinates": [[[[450,450],[550,450],[550,550],[450,550],[450,450]]]]
+    },
+    "declared_front": {
+      "type": "MultiLineString",
+      "coordinates": [[[295,295],[705,295],[705,705],[295,705],[295,295]]]
+    }
+  }]
+}

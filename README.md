@@ -189,6 +189,7 @@ marklab backend doctor
 | [Multiplex studies](docs/multiplex-study.md) | Analyzing a panel of markers across slides and patients |
 | [Input and output formats](docs/formats.md) | Tested cell-table, annotation, embedding and image profiles, with their limits |
 | [Pathology maps](docs/pathology-maps.md) | Marker and cell-type profiles around annotated structures, and hotspot maps |
+| [Pathology architecture](docs/pathology-architecture.md) | Epithelial architecture in distance bands from a derived invasive front |
 | [Pathology studies](docs/pathology-studies.md) | Composition, spatial-study and enrichment-scan workflows |
 | [Normal-mean prior sensitivity](docs/normal-mean-prior-sensitivity.md) | How much a Bayesian conclusion depends on the chosen prior |
 | [Python backends](docs/python-backends.md) | Installing and checking the Python environment |

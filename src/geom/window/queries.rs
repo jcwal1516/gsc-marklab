@@ -69,6 +69,11 @@ impl ObservationWindow2D {
         &self.descriptor
     }
 
+    /// Validated canonical polygons for exact boolean and offset operations.
+    pub(crate) fn geo_multipolygon(&self) -> &geo::MultiPolygon<f64> {
+        &self.translation_geometry
+    }
+
     /// Axis-aligned physical bounds used by conditional-CSR proposal sampling.
     pub(crate) fn bounds_um(&self) -> [f64; 4] {
         self.descriptor.bounds_um

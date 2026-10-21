@@ -187,6 +187,10 @@ it does not turn individual cells into independent patient replicates.
 - `pathology::{analyze_pathology_maps, publish_pathology_maps, PathologyMapsResult}`: marker and
   density profiles around annotated structures, cell-type mix maps and single-marker
   hotspot maps. See [pathology maps](pathology-maps.md).
+- `pathology::{analyze_pathology_architecture, publish_pathology_architecture,
+  PathologyArchitectureResult}`: invasive-front derivation and epithelial architecture in
+  distance bands from declared region polygons. See
+  [pathology architecture](pathology-architecture.md).
 - `pathology::{analyze_pathology_composition, analyze_pathology_spatial_study,
   analyze_pathology_scan}`, their matching `publish_*` functions and result types: the
   composition, spatial-study and enrichment-scan workflows. See

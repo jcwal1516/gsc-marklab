@@ -371,3 +371,60 @@ fn assert_neighbors_equal(actual: &[Neighbor], expected: &[(usize, f64)]) {
         assert_eq!(actual.distance_um, expected.1);
     }
 }
+
+#[test]
+fn round_offsets_stay_within_the_reported_chord_error_bound() {
+    use crate::geom::window::{buffer_chord_error_bound_um, PROFILE_BUFFER_ANGLE};
+    use geo::{
+        algorithm::buffer::{BufferStyle, LineCap, LineJoin},
+        Buffer, LineString, Polygon,
+    };
+    let radius = 100.0;
+    let bound = buffer_chord_error_bound_um(radius);
+    // Sweep turns across bevel, few-chord and many-chord joins; integer snapping is < 1e-6 um.
+    for turn in (50..400).map(|hundredths| f64::from(hundredths) * 0.01 * PROFILE_BUFFER_ANGLE) {
+        let bend = [100.0, 0.0];
+        let style = || {
+            BufferStyle::new(radius)
+                .line_join(LineJoin::Round(PROFILE_BUFFER_ANGLE))
+                .line_cap(LineCap::Round(PROFILE_BUFFER_ANGLE))
+        };
+        let line = LineString::from(vec![
+            (0.0, 0.0),
+            (bend[0], bend[1]),
+            (bend[0] + 100.0 * turn.cos(), 100.0 * turn.sin()),
+        ]);
+        let corner = Polygon::new(
+            LineString::from(vec![
+                (0.0, -50.0),
+                (bend[0], bend[1]),
+                (bend[0] - 100.0 * turn.cos(), 100.0 * turn.sin()),
+                (0.0, -50.0),
+            ]),
+            vec![],
+        );
+        for buffered in [line.buffer_with_style(style()), corner.buffer_with_style(style())] {
+            let ring = buffered.0[0].exterior();
+            let gap = ring
+                .0
+                .windows(2)
+                .filter(|pair| {
+                    pair.iter().all(|point| {
+                        ((point.x - bend[0]).hypot(point.y - bend[1]) - radius).abs() < 1e-6
+                    })
+                })
+                .map(|pair| {
+                    let (a, b) = ([pair[0].x, pair[0].y], [pair[1].x, pair[1].y]);
+                    let direction = [b[0] - a[0], b[1] - a[1]];
+                    let t = (((bend[0] - a[0]) * direction[0] + (bend[1] - a[1]) * direction[1])
+                        / (direction[0].powi(2) + direction[1].powi(2)))
+                    .clamp(0.0, 1.0);
+                    radius
+                        - (a[0] + t * direction[0] - bend[0])
+                            .hypot(a[1] + t * direction[1] - bend[1])
+                })
+                .fold(0.0, f64::max);
+            assert!(gap <= bound, "turn {turn}: gap {gap} exceeds bound {bound}");
+        }
+    }
+}
