@@ -161,7 +161,7 @@ fn fit_command(input: &Path, output: &Path, maximum_rows: usize) -> Command {
         "--draws",
         "1500",
         "--target-accept",
-        "0.95",
+        "0.99",
         "--seed",
         "20260829",
         "--maximum-patients",
