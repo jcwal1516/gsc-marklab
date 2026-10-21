@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
     inference_design::{
@@ -58,9 +58,10 @@ pub struct CovariatePermutationResult {
     pub group_a: String,
     /// Exact second group label.
     pub group_b: String,
-    /// Reduced-model column count: intercept plus one covariate.
+    /// Reduced-model column count: intercept plus one covariate, plus one indicator per block after the
+    /// first when blocked.
     pub reduced_model_columns: usize,
-    /// Full-model column count: intercept, covariate, and group indicator.
+    /// Full-model column count: reduced columns plus the group indicator.
     pub full_model_columns: usize,
     /// Full-model residual degrees of freedom.
     pub residual_degrees_of_freedom: usize,
@@ -68,7 +69,7 @@ pub struct CovariatePermutationResult {
     pub covariate_center: f64,
     /// Positive deterministic max-absolute-deviation scale applied to the nuisance covariate.
     pub covariate_scale: f64,
-    /// Adjusted group-A-minus-group-B coefficient.
+    /// Adjusted group-A-minus-group-B coefficient; within blocks when blocked.
     pub effect_group_a_minus_group_b: f64,
     /// Standard error of the adjusted group coefficient.
     pub target_standard_error: f64,
@@ -92,7 +93,8 @@ pub fn patient_covariate_freedman_lane(
     execute_covariate_freedman_lane(records, None, spec)
 }
 
-/// Restrict reduced-model residual movement within exact patient-ID-keyed blocks.
+/// Restrict reduced-model residual movement within exact patient-ID-keyed blocks, with block fixed effects
+/// in the model so the effect and the p-value describe the same within-block contrast.
 pub fn patient_blocked_covariate_freedman_lane(
     records: &[CovariatePatientRecord],
     assignments: &[PatientExchangeabilityBlock],
@@ -135,38 +137,75 @@ fn execute_covariate_freedman_lane(
         .iter()
         .map(|value| (value - covariate_center) / covariate_scale)
         .collect::<Vec<_>>();
-    let reduced = rows
+    let groups = rows
         .iter()
-        .zip(&covariates)
-        .map(|(_, covariate)| vec![1.0, *covariate])
+        .map(|row| f64::from(row.group_a))
         .collect::<Vec<_>>();
-    let full = rows
-        .iter()
-        .zip(&covariates)
-        .map(|(row, covariate)| vec![1.0, *covariate, f64::from(row.group_a)])
-        .collect::<Vec<_>>();
-    let reduced_fit = fit_ols(&reduced, &outcomes, None)?;
-    let observed = fit_ols(&full, &outcomes, Some(2))?;
+    let blocks = assignments
+        .map(|assignments| {
+            let patient_ids = rows
+                .iter()
+                .map(|row| row.patient_id.clone())
+                .collect::<Vec<_>>();
+            align_patient_blocks(&patient_ids, assignments, "covariate residual")
+        })
+        .transpose()?;
+    let block_means = blocks
+        .as_deref()
+        .map(|blocks| {
+            let group_a = rows.iter().map(|row| row.group_a).collect::<Vec<_>>();
+            BlockMeans::new(blocks, &group_a)
+        })
+        .transpose()?;
+    // A blocked design absorbs block means, which also replace the intercept.
+    let (reduced, full, outcomes, absorbed) = match &block_means {
+        Some(means) => {
+            let covariates = means.demean_nuisance(&covariates, "covariate")?;
+            let groups = means.demean(&groups);
+            (
+                covariates
+                    .iter()
+                    .map(|covariate| vec![*covariate])
+                    .collect::<Vec<_>>(),
+                covariates
+                    .iter()
+                    .zip(&groups)
+                    .map(|(covariate, group)| vec![*covariate, *group])
+                    .collect::<Vec<_>>(),
+                means.demean(&outcomes),
+                means.block_count(),
+            )
+        }
+        None => (
+            covariates
+                .iter()
+                .map(|covariate| vec![1.0, *covariate])
+                .collect(),
+            covariates
+                .iter()
+                .zip(&groups)
+                .map(|(covariate, group)| vec![1.0, *covariate, *group])
+                .collect(),
+            outcomes,
+            0,
+        ),
+    };
+    let target_index = full[0].len() - 1;
+    let reduced_fit = fit_ols_absorbing(&reduced, &outcomes, None, absorbed)?;
+    let observed = fit_ols_absorbing(&full, &outcomes, Some(target_index), absorbed)?;
     let residuals = outcomes
         .iter()
         .zip(&reduced_fit.fitted)
         .map(|(outcome, fitted)| outcome - fitted)
         .collect::<Vec<_>>();
-    let design = match assignments {
-        Some(assignments) => {
-            let patient_ids = rows
-                .iter()
-                .map(|row| row.patient_id.clone())
-                .collect::<Vec<_>>();
-            let blocks = align_patient_blocks(&patient_ids, assignments, "covariate residual")?;
-            InferenceDesign::blocked_covariate_conditional_residual_permutation(
-                &blocks,
-                spec.permutations,
-                spec.seed,
-                COVARIATE_FREEDMAN_LANE_NAMESPACE,
-                inference_alternative(spec.alternative),
-            )
-        }
+    let design = match &blocks {
+        Some(blocks) => InferenceDesign::blocked_covariate_conditional_residual_permutation(
+            blocks,
+            spec.permutations,
+            spec.seed,
+            COVARIATE_FREEDMAN_LANE_NAMESPACE,
+            inference_alternative(spec.alternative),
+        ),
         None => InferenceDesign::covariate_conditional_residual_permutation(
             rows.len(),
             spec.permutations,
@@ -187,7 +226,8 @@ fn execute_covariate_freedman_lane(
         for index in 0..rows.len() {
             permuted_outcomes[index] = reduced_fit.fitted[index] + residuals[indices[index]];
         }
-        let statistic = fit_ols(&full, &permuted_outcomes, Some(2))?.target_statistic;
+        let statistic = fit_ols_absorbing(&full, &permuted_outcomes, Some(target_index), absorbed)?
+            .target_statistic;
         lower_tail += usize::from(statistic <= observed.target_statistic);
         upper_tail += usize::from(statistic >= observed.target_statistic);
     }
@@ -209,8 +249,8 @@ fn execute_covariate_freedman_lane(
         group_b_count: rows.len() - group_a_count,
         group_a: spec.group_a.clone(),
         group_b: spec.group_b.clone(),
-        reduced_model_columns: reduced[0].len(),
-        full_model_columns: full[0].len(),
+        reduced_model_columns: reduced[0].len() + absorbed,
+        full_model_columns: full[0].len() + absorbed,
         residual_degrees_of_freedom: observed.residual_degrees_of_freedom,
         covariate_center,
         covariate_scale,
@@ -308,9 +348,20 @@ pub(crate) fn fit_ols(
     outcome: &[f64],
     target_index: Option<usize>,
 ) -> Result<OlsFit, CohortInferenceError> {
+    fit_ols_absorbing(design, outcome, target_index, 0)
+}
+
+/// OLS on columns from which `absorbed` fixed effects were already removed (block-demeaned data), so the
+/// residual degrees of freedom also count those effects.
+pub(crate) fn fit_ols_absorbing(
+    design: &[Vec<f64>],
+    outcome: &[f64],
+    target_index: Option<usize>,
+    absorbed: usize,
+) -> Result<OlsFit, CohortInferenceError> {
     let row_count = design.len();
     let column_count = design[0].len();
-    if row_count <= column_count {
+    if row_count <= column_count + absorbed {
         return Err(CohortInferenceError::InvalidInput(
             "covariate model has no residual degrees of freedom".into(),
         ));
@@ -335,7 +386,7 @@ pub(crate) fn fit_ols(
                 .sum()
         })
         .collect::<Vec<f64>>();
-    let residual_degrees_of_freedom = row_count - column_count;
+    let residual_degrees_of_freedom = row_count - column_count - absorbed;
     let Some(target_index) = target_index else {
         return Ok(OlsFit {
             fitted,
@@ -373,6 +424,78 @@ pub(crate) fn fit_ols(
         target_statistic: statistic,
         residual_degrees_of_freedom,
     })
+}
+
+/// Block fixed effects for a blocked residual permutation.
+///
+/// Residuals permuted within blocks keep each block's mean, so the permutation p-value tests the within-block
+/// group contrast. Removing block means from the outcome, the nuisance columns and the group indicator makes
+/// the reported coefficient, standard error and statistic describe that same contrast; by Frisch-Waugh-Lovell
+/// this equals adding one indicator per block.
+pub(crate) struct BlockMeans {
+    block_of: Vec<usize>,
+    block_count: usize,
+}
+
+impl BlockMeans {
+    pub(crate) fn new(blocks: &[String], group_a: &[bool]) -> Result<Self, CohortInferenceError> {
+        let index = blocks
+            .iter()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .enumerate()
+            .map(|(position, label)| (label, position))
+            .collect::<BTreeMap<_, _>>();
+        let block_of = blocks.iter().map(|label| index[label]).collect::<Vec<_>>();
+        let mut groups_seen = vec![[false; 2]; index.len()];
+        for (block, is_a) in block_of.iter().zip(group_a) {
+            groups_seen[*block][usize::from(*is_a)] = true;
+        }
+        if !groups_seen.iter().any(|seen| seen[0] && seen[1]) {
+            return Err(CohortInferenceError::InvalidInput(
+                "no block contains both groups, so the within-block group contrast is undefined"
+                    .into(),
+            ));
+        }
+        Ok(Self {
+            block_of,
+            block_count: index.len(),
+        })
+    }
+
+    pub(crate) fn block_count(&self) -> usize {
+        self.block_count
+    }
+
+    pub(crate) fn demean(&self, values: &[f64]) -> Vec<f64> {
+        let mut sums = vec![0.0; self.block_count];
+        let mut counts = vec![0usize; self.block_count];
+        for (block, value) in self.block_of.iter().zip(values) {
+            sums[*block] += value;
+            counts[*block] += 1;
+        }
+        values
+            .iter()
+            .zip(&self.block_of)
+            .map(|(value, block)| value - sums[*block] / counts[*block] as f64)
+            .collect()
+    }
+
+    /// Demean a max-abs-scaled nuisance column; a column constant within every block is collinear with the
+    /// block effects.
+    pub(crate) fn demean_nuisance(
+        &self,
+        values: &[f64],
+        name: &str,
+    ) -> Result<Vec<f64>, CohortInferenceError> {
+        let within = self.demean(values);
+        if within.iter().all(|value| value.abs() <= 1e-12) {
+            return Err(CohortInferenceError::InvalidInput(format!(
+                "covariate model design is rank deficient: nuisance covariate {name:?} is constant within every block"
+            )));
+        }
+        Ok(within)
+    }
 }
 
 fn solve(matrix: &[Vec<f64>], rhs: &[f64]) -> Result<Vec<f64>, CohortInferenceError> {

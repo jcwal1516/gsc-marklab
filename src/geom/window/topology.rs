@@ -1,4 +1,7 @@
-use rstar::{PointDistance, RTree, RTreeObject, AABB};
+use rstar::{
+    primitives::{GeomWithData, Rectangle},
+    PointDistance, RTree, RTreeObject, AABB,
+};
 use std::cmp::Ordering;
 
 use super::ObservationWindowError;
@@ -289,7 +292,9 @@ fn validate_segment_intersections(
                 });
             }
             if segments_intersect(segment.start, segment.end, other.start, other.end) {
-                return invalid("rings self-intersect, cross, overlap, or touch");
+                return Err(ObservationWindowError::InvalidTopology {
+                    reason: describe_contact(segment, other),
+                });
             }
         }
     }
@@ -298,28 +303,55 @@ fn validate_segment_intersections(
 
 fn validate_containment(polygons: &[Polygon]) -> Result<(), ObservationWindowError> {
     for polygon in polygons {
-        for (hole_index, hole) in polygon.holes.iter().enumerate() {
-            let sample = hole[0];
-            if !point_in_ring(&polygon.exterior, sample) {
+        for hole in &polygon.holes {
+            if !point_in_ring(&polygon.exterior, hole[0]) {
                 return invalid("hole lies outside its exterior ring");
             }
-            for (other_index, other) in polygon.holes.iter().enumerate() {
-                if hole_index != other_index && point_in_ring(other, sample) {
-                    return invalid("holes overlap or contain one another");
-                }
-            }
+        }
+        let holes = polygon.holes.iter().map(Vec::as_slice).collect::<Vec<_>>();
+        if first_vertex_nested(&holes, |index, point| point_in_ring(holes[index], point)) {
+            return invalid("holes overlap or contain one another");
         }
     }
-    for left in 0..polygons.len() {
-        for right in (left + 1)..polygons.len() {
-            if polygon_contains(&polygons[left], polygons[right].exterior[0])
-                || polygon_contains(&polygons[right], polygons[left].exterior[0])
-            {
-                return invalid("polygon components overlap or contain one another");
-            }
-        }
+    // Boundaries never cross, so overlapping components put one first vertex inside the other.
+    let exteriors = polygons
+        .iter()
+        .map(|polygon| polygon.exterior.as_slice())
+        .collect::<Vec<_>>();
+    if first_vertex_nested(&exteriors, |index, point| {
+        polygon_contains(&polygons[index], point)
+    }) {
+        return invalid("polygon components overlap or contain one another");
     }
     Ok(())
+}
+
+/// Whether any ring's first vertex lies inside another member, testing only members whose
+/// bounding box holds that vertex.
+fn first_vertex_nested(rings: &[&[Point]], inside: impl Fn(usize, Point) -> bool) -> bool {
+    let tree = RTree::bulk_load(
+        rings
+            .iter()
+            .enumerate()
+            .map(|(index, ring)| {
+                let mut bounds = [
+                    f64::INFINITY,
+                    f64::INFINITY,
+                    f64::NEG_INFINITY,
+                    f64::NEG_INFINITY,
+                ];
+                update_bounds(&mut bounds, ring);
+                GeomWithData::new(
+                    Rectangle::from_corners([bounds[0], bounds[1]], [bounds[2], bounds[3]]),
+                    index,
+                )
+            })
+            .collect(),
+    );
+    rings.iter().enumerate().any(|(index, ring)| {
+        tree.locate_all_at_point(ring[0])
+            .any(|candidate| candidate.data != index && inside(candidate.data, ring[0]))
+    })
 }
 
 fn segments_intersect(a: Point, b: Point, c: Point, d: Point) -> bool {
@@ -334,6 +366,45 @@ fn segments_intersect(a: Point, b: Point, c: Point, d: Point) -> bool {
         || (ab_d == 0.0 && point_on_segment(d, a, b))
         || (cd_a == 0.0 && point_on_segment(a, c, d))
         || (cd_b == 0.0 && point_on_segment(b, c, d))
+}
+
+/// Names the kind and location of a contact between two non-adjacent boundary segments,
+/// so the caller can find and fix it in the source geometry.
+fn describe_contact(segment: &BoundarySegment, other: &BoundarySegment) -> String {
+    let rings = if segment.ring_id == other.ring_id {
+        "a ring meets itself"
+    } else {
+        "two rings meet"
+    };
+    let [a, b, c, d] = [segment.start, segment.end, other.start, other.end];
+    let shared = [c, d]
+        .into_iter()
+        .filter(|point| point_on_segment(*point, a, b))
+        .chain(
+            [a, b]
+                .into_iter()
+                .filter(|point| point_on_segment(*point, c, d)),
+        )
+        .collect::<Vec<_>>();
+    match shared.as_slice() {
+        [] => {
+            let t = cross(c, d, a) / (cross(c, d, a) - cross(c, d, b));
+            let x = a[0] + t * (b[0] - a[0]);
+            let y = a[1] + t * (b[1] - a[1]);
+            format!("{rings}: boundaries cross near ({x:.3}, {y:.3})")
+        }
+        // A pair touching at one point may still be part of a longer shared edge, so the
+        // message names the location without claiming the contact is only a point.
+        [point, rest @ ..] if rest.iter().all(|candidate| candidate == point) => format!(
+            "{rings} at ({}, {}); rings may not touch, even at a single point such as squares \
+             meeting only at a corner, so merge those parts or buffer the mask slightly",
+            point[0], point[1]
+        ),
+        [point, ..] => format!(
+            "{rings} along a shared stretch of boundary through ({}, {})",
+            point[0], point[1]
+        ),
+    }
 }
 
 fn opposite_signs(left: f64, right: f64) -> bool {

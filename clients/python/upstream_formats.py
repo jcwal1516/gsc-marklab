@@ -19,6 +19,10 @@ MCMICRO_RESERVED_COLUMNS = frozenset({
     "Eccentricity", "Solidity", "Extent", "Orientation",
 })
 MAXIMUM_QUPATH_GEOJSON_BYTES = 64 * 1024 * 1024
+ARCHITECTURE_AREA_LAYERS = frozenset({
+    "window", "artifact", "epithelium", "lumens", "mucin", "front_exclusions",
+})
+ARCHITECTURE_LINE_LAYERS = frozenset({"declared_front"})
 
 
 def qupath_nuclei_slide(
@@ -65,33 +69,7 @@ def qupath_nuclei_slide(
     if classification_channel.get("kind") != "categorical":
         raise ValueError("QuPath classification channel must be categorical")
 
-    path = Path(path)
-    try:
-        size = path.stat().st_size
-        with path.open("rb") as stream:
-            encoded = stream.read(maximum_file_bytes + 1)
-    except OSError as error:
-        raise ValueError(f"cannot read QuPath GeoJSON: {error}") from error
-    if size == 0 or size > maximum_file_bytes or len(encoded) > maximum_file_bytes:
-        raise ValueError(
-            f"QuPath GeoJSON size {size} exceeds the admitted nonempty byte bound"
-        )
-
-    def unique_fields(pairs):
-        result = {}
-        for key, value in pairs:
-            if key in result:
-                raise ValueError(f"QuPath GeoJSON has a duplicate JSON field: {key}")
-            result[key] = value
-        return result
-
-    try:
-        document = json.loads(encoded, object_pairs_hook=unique_fields)
-    except (UnicodeError, json.JSONDecodeError) as error:
-        raise ValueError(f"cannot decode QuPath GeoJSON: {error}") from error
-
-    if not isinstance(document, dict) or document.get("type") != "FeatureCollection":
-        raise ValueError("QuPath GeoJSON must be a FeatureCollection")
+    document = _read_geojson(path, maximum_file_bytes)
     features = document.get("features")
     if not isinstance(features, list) or not features:
         raise ValueError("QuPath GeoJSON FeatureCollection must contain nuclei")
@@ -197,6 +175,255 @@ def qupath_nuclei_slide(
         channel_columns={channel_id: "classification"},
         maximum_cells=maximum_nuclei,
     )
+
+
+def qupath_architecture_slide(
+    path: str | Path,
+    *,
+    slide_id: str,
+    patient_id: str,
+    coordinate_frame_id: str,
+    coordinate_scale_um: Sequence[float],
+    layers: Mapping[str, str],
+    boundary_uncertainty_um: float,
+    clearance_um: float = 0.001,
+    maximum_features: int = 100_000,
+    maximum_vertices: int = 5_000_000,
+    maximum_file_bytes: int = MAXIMUM_QUPATH_GEOJSON_BYTES,
+) -> dict[str, Any]:
+    """Convert one QuPath annotation export into a ``pathology architecture`` slide.
+
+    ``layers`` maps every QuPath classification name in the file to ``window``,
+    ``artifact``, ``epithelium``, ``lumens``, ``mucin``, ``front_exclusions``,
+    ``declared_front``, ``region:<architecture class>`` or ``ignore``; an unmapped name is
+    an error. Area layers need Polygon or MultiPolygon geometry and the declared front needs
+    LineString or MultiLineString geometry. Coordinates are multiplied by the explicit
+    micrometres-per-pixel scales; the frame keeps QuPath's image orientation (y down).
+
+    The tissue window is the tissue union minus artifacts. Lumens and mucin are clipped to
+    the window and removed from epithelium, so a gland can be drawn by its outer boundary.
+    Regions of different classes must not overlap. Every polygon layer is shrunk by
+    ``clearance_um`` (mitred) so pieces that touch at a point become disjoint, as the
+    native validator requires; the default 0.001 um changes areas negligibly. Cells and
+    spots are not read here; add them to the returned slide.
+    """
+    for name, value, low, high in (
+        ("feature", maximum_features, 1, 1_000_000),
+        ("vertex", maximum_vertices, 4, 20_000_000),
+        ("byte", maximum_file_bytes, 1, MAXIMUM_QUPATH_GEOJSON_BYTES),
+    ):
+        if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+            raise ValueError(f"QuPath architecture {name} limit must be in {low}..={high}")
+    if len(coordinate_scale_um) != 2 or any(
+        isinstance(value, bool) or not isinstance(value, (int, float))
+        or not math.isfinite(value) or value <= 0
+        for value in coordinate_scale_um
+    ):
+        raise ValueError("coordinate_scale_um must be two finite positive micrometres per pixel")
+    for name, value in (("boundary_uncertainty_um", boundary_uncertainty_um),
+                        ("clearance_um", clearance_um)):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not (
+            math.isfinite(value) and value >= 0
+        ):
+            raise ValueError(f"{name} must be finite and nonnegative")
+    for name, layer in layers.items():
+        if not isinstance(name, str) or not name or not isinstance(layer, str) or not (
+            layer in ARCHITECTURE_AREA_LAYERS | ARCHITECTURE_LINE_LAYERS | {"ignore"}
+            or (layer.startswith("region:") and layer != "region:")
+        ):
+            raise ValueError(f"invalid QuPath architecture layer mapping {name!r}: {layer!r}")
+    try:
+        import shapely
+        from shapely.geometry import shape
+    except ImportError as error:
+        raise RuntimeError(
+            "QuPath architecture import requires the upstream-formats optional dependency"
+        ) from error
+
+    document = _read_geojson(path, maximum_file_bytes)
+    features = document.get("features")
+    if not isinstance(features, list) or not features:
+        raise ValueError("QuPath GeoJSON FeatureCollection must contain annotations")
+    if len(features) > maximum_features:
+        raise ValueError("QuPath GeoJSON exceeds the feature limit")
+    scale_x, scale_y = (float(value) for value in coordinate_scale_um)
+    parts: dict[str, list[Any]] = {}
+    vertex_count = 0
+    for index, feature in enumerate(features):
+        label = f"feature {feature.get('id', index)!r}" if isinstance(feature, dict) else "feature"
+        if not isinstance(feature, dict) or feature.get("type") != "Feature":
+            raise ValueError("QuPath architecture objects must be GeoJSON Features")
+        properties = feature.get("properties")
+        if not isinstance(properties, dict) or properties.get("objectType") != "annotation":
+            raise ValueError(f"{label} is not a QuPath annotation object")
+        classification = properties.get("classification")
+        name = classification.get("name") if isinstance(classification, dict) else None
+        if not isinstance(name, str) or not name:
+            raise ValueError(f"{label} has no classification name")
+        if name not in layers:
+            raise ValueError(f"{label} classification {name!r} is not mapped to a layer")
+        layer = layers[name]
+        if layer == "ignore":
+            continue
+        geometry = feature.get("geometry")
+        kind = geometry.get("type") if isinstance(geometry, dict) else None
+        expected = (
+            ("LineString", "MultiLineString")
+            if layer in ARCHITECTURE_LINE_LAYERS
+            else ("Polygon", "MultiPolygon")
+        )
+        if kind not in expected:
+            raise ValueError(f"{label} layer {layer} needs {' or '.join(expected)} geometry")
+        coordinates, count = _scaled_coordinates(geometry["coordinates"], scale_x, scale_y)
+        vertex_count += count
+        if vertex_count > maximum_vertices:
+            raise ValueError("QuPath GeoJSON exceeds the vertex limit")
+        parsed = shape({"type": kind, "coordinates": coordinates})
+        if parsed.is_empty or not parsed.is_valid:
+            raise ValueError(f"{label} geometry is empty or invalid; repair it in QuPath")
+        parts.setdefault(layer, []).append(parsed)
+
+    def union(layer):
+        return shapely.union_all(parts.get(layer, [])) if layer in parts else None
+
+    window = union("window")
+    if window is None:
+        raise ValueError("QuPath architecture export needs a window (tissue) layer")
+    if (artifact := union("artifact")) is not None:
+        window = window.difference(artifact)
+    lumens = union("lumens")
+    lumens = lumens.intersection(window) if lumens is not None else None
+    mucin = union("mucin")
+    if mucin is not None:
+        mucin = mucin.intersection(window)
+        if lumens is not None:
+            mucin = mucin.difference(lumens)
+    epithelium = union("epithelium")
+    if epithelium is None:
+        raise ValueError("QuPath architecture export needs an epithelium layer")
+    epithelium = epithelium.intersection(window)
+    for carved in (lumens, mucin):
+        if carved is not None:
+            epithelium = epithelium.difference(carved)
+    regions = {
+        layer.removeprefix("region:"): shapely.union_all(geometries).intersection(window)
+        for layer, geometries in sorted(parts.items())
+        if layer.startswith("region:")
+    }
+    tolerance = 1e-9 * window.area
+    names = sorted(regions)
+    for left_index, left in enumerate(names):
+        for right in names[left_index + 1:]:
+            if regions[left].intersection(regions[right]).area > tolerance:
+                raise ValueError(f"architecture regions {left!r} and {right!r} overlap")
+
+    def area_json(geometry, name, required=False):
+        if geometry is not None and clearance_um > 0:
+            geometry = geometry.buffer(-clearance_um, join_style="mitre", mitre_limit=5.0)
+        polygons = [] if geometry is None else _polygons(geometry)
+        if not polygons:
+            if required:
+                raise ValueError(f"QuPath architecture {name} layer has no area inside the window")
+            return None
+        return {"type": "MultiPolygon", "coordinates": [_polygon_coordinates(polygon) for polygon in polygons]}
+
+    slide: dict[str, Any] = {
+        "slide_id": slide_id,
+        "patient_id": patient_id,
+        "coordinate_frame_id": coordinate_frame_id,
+        "window": area_json(window, "window", required=True),
+        "epithelium": area_json(epithelium, "epithelium", required=True),
+        "boundary_uncertainty_um": float(boundary_uncertainty_um),
+        "architecture_regions": [
+            {"id": f"region-{name}", "class": name, "geometry": geometry}
+            for name in names
+            if (geometry := area_json(regions[name], f"region {name}")) is not None
+        ],
+    }
+    for name, geometry in (("lumens", lumens), ("mucin", mucin),
+                           ("front_exclusions", union("front_exclusions"))):
+        if geometry is not None and name == "front_exclusions":
+            geometry = geometry.intersection(window)
+        if (value := area_json(geometry, name)) is not None:
+            slide[name] = value
+    if (front := union("declared_front")) is not None:
+        inner = window.buffer(-clearance_um) if clearance_um > 0 else window
+        lines = [line for line in _lines(front.intersection(inner)) if line.length > 0]
+        if not lines:
+            raise ValueError("QuPath declared front lies outside the tissue window")
+        slide["declared_front"] = {
+            "type": "MultiLineString",
+            "coordinates": [[list(point) for point in line.coords] for line in lines],
+        }
+    return slide
+
+
+def _read_geojson(path, maximum_file_bytes):
+    path = Path(path)
+    try:
+        size = path.stat().st_size
+        with path.open("rb") as stream:
+            encoded = stream.read(maximum_file_bytes + 1)
+    except OSError as error:
+        raise ValueError(f"cannot read QuPath GeoJSON: {error}") from error
+    if size == 0 or size > maximum_file_bytes or len(encoded) > maximum_file_bytes:
+        raise ValueError(f"QuPath GeoJSON size {size} exceeds the admitted nonempty byte bound")
+
+    def unique_fields(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"QuPath GeoJSON has a duplicate JSON field: {key}")
+            result[key] = value
+        return result
+
+    try:
+        document = json.loads(encoded, object_pairs_hook=unique_fields)
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"cannot decode QuPath GeoJSON: {error}") from error
+    if not isinstance(document, dict) or document.get("type") != "FeatureCollection":
+        raise ValueError("QuPath GeoJSON must be a FeatureCollection")
+    return document
+
+
+def _scaled_coordinates(value, scale_x, scale_y):
+    """Scale nested GeoJSON positions, rejecting non-finite or non-XY positions."""
+    if isinstance(value, list) and len(value) == 2 and all(
+        isinstance(item, (int, float)) and not isinstance(item, bool) for item in value
+    ):
+        if not all(math.isfinite(item) for item in value):
+            raise ValueError("QuPath positions must be finite numeric XY pairs")
+        return [value[0] * scale_x, value[1] * scale_y], 1
+    if not isinstance(value, list) or not value:
+        raise ValueError("QuPath positions must be finite numeric XY pairs")
+    scaled, count = [], 0
+    for item in value:
+        child, child_count = _scaled_coordinates(item, scale_x, scale_y)
+        scaled.append(child)
+        count += child_count
+    return scaled, count
+
+
+def _polygons(geometry):
+    if geometry.geom_type == "Polygon":
+        return [] if geometry.is_empty or geometry.area <= 0 else [geometry]
+    if geometry.geom_type in ("MultiPolygon", "GeometryCollection"):
+        return [polygon for part in geometry.geoms for polygon in _polygons(part)]
+    return []
+
+
+def _lines(geometry):
+    if geometry.geom_type == "LineString":
+        return [] if geometry.is_empty else [geometry]
+    if geometry.geom_type in ("MultiLineString", "GeometryCollection"):
+        return [line for part in geometry.geoms for line in _lines(part)]
+    return []
+
+
+def _polygon_coordinates(polygon):
+    return [[list(point) for point in polygon.exterior.coords]] + [
+        [list(point) for point in ring.coords] for ring in polygon.interiors
+    ]
 
 
 def steinbock_csv_slide(

@@ -78,8 +78,8 @@ density.
 Band area is the difference between successive buffers around the annotation, each clipped
 to the tissue window. Buffers are polygons with a 0.05-radian angular step, so curved band
 areas are approximate. The result records the largest error this causes,
-`max(|distance|)*(1-cos(0.025))`. Cells are assigned to bands by exact distance, so densities
-in thin or intricate bands can be sensitive to this approximation. A band with zero area has
+`max(|distance|)*(1-cos(0.05))`, because a single polygon edge can span almost twice the
+step. Cells are assigned to bands by exact distance, so densities in thin or intricate bands can be sensitive to this approximation. A band with zero area has
 no density, and a cell that lands in a band with zero computed area is an error.
 Overlapping annotations are analyzed separately; do not add their counts as if they were
 separate pieces of tissue.

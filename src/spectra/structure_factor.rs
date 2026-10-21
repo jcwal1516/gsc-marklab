@@ -41,6 +41,9 @@ pub struct PermutationWhitenedSpectrum {
     pub dominant_k: Option<f64>,
     pub xi_um: Option<f64>,
     pub xi_stability_interval_um: Option<[f64; 2]>,
+    /// `2π / k` of the eligible shells just above and below the dominant shell in `k`.
+    pub xi_lower_um: Option<f64>,
+    pub xi_upper_um: Option<f64>,
     pub xi_um_p_value: Option<f64>,
     pub alpha: Option<f64>,
     pub alpha_p_value: Option<f64>,
@@ -197,6 +200,27 @@ mod tests {
         let readout = spectrum_scalar_readouts(&[0.1, 0.2, 0.3], &[2.0, 4.0, 100.0], 2, true);
 
         assert_abs_diff_eq!(readout.low_k_excess, 3.0, epsilon = 1e-12);
+    }
+
+    #[test]
+    fn xi_neighbours_bracket_the_peak_and_open_at_the_eligible_edges() {
+        let xi = |k: f64| 2.0 * std::f64::consts::PI / k;
+        let k = [0.1, 0.2, 0.3];
+        for (power, lower, upper) in [
+            ([9.0, 4.0, 2.0], Some(xi(0.2)), None),
+            ([2.0, 9.0, 4.0], Some(xi(0.3)), Some(xi(0.1))),
+            ([2.0, 4.0, 9.0], None, Some(xi(0.2))),
+        ] {
+            let readout = spectrum_scalar_readouts(&k, &power, 1, false);
+            assert_eq!(
+                (readout.xi_lower_um, readout.xi_upper_um),
+                (lower, upper),
+                "{power:?}"
+            );
+        }
+        let single = spectrum_scalar_readouts(&[0.1], &[3.0], 1, false);
+        assert_eq!(single.xi_um, Some(xi(0.1)));
+        assert_eq!((single.xi_lower_um, single.xi_upper_um), (None, None));
     }
 
     #[test]

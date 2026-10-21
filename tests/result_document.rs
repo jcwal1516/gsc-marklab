@@ -203,7 +203,7 @@ fn analysis_sections_use_explicit_statuses() {
 #[test]
 fn other_result_versions_are_rejected() {
     // Earlier formats are not converted: regenerate them from the original inputs.
-    for version in ["0.2", "0.3", "9.9"] {
+    for version in ["0.2", "0.3", "0.4", "9.9"] {
         let error = ResultDocument::from_json(&format!(
             r#"{{"format_version":"{version}","provenance":{{}},"analysis":{{}}}}"#
         ))

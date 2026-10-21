@@ -273,6 +273,7 @@ pub(super) fn component_summary_for(
             .as_ref()
             .and_then(|spectrum| spectrum.xi_um)
             .and_then(finite_option),
+        xi_resolution: spectrum.as_ref().and_then(super::xi_resolution),
         alpha: if config.spectrum.fit_low_k_alpha {
             spectrum
                 .as_ref()

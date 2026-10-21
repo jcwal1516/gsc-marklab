@@ -26,10 +26,10 @@ OutputWriter::write(&ResultDocument, output_directory, &OutputSection)
     -> Result<OutputManifest>
 ```
 
-Result format 0.4 is fixed by the library and cannot be configured. Its top
+Result format 0.5 is fixed by the library and cannot be configured. Its top
 level is `format_version`, `provenance`, and the adjacently tagged `analysis`
 enum (`kind` plus `result`). Unknown versions are rejected with
-`UnsupportedFormatVersion`. The reader accepts only 0.4; 0.2 and 0.3 documents
+`UnsupportedFormatVersion`. The reader accepts only 0.5; 0.2, 0.3 and 0.4 documents
 must be regenerated from the original inputs. There is no legacy converter.
 The supported kinds are `marked_pattern`, `multimodal`, `marked_prepost`, and
 `multimodal_prepost`. Both pre/post commands accept either a result file or the
@@ -50,7 +50,7 @@ The generic NPY reader enforces finite, little-endian, row-major float32 values 
 existing byte/shape limits; the legacy CellViT wrapper additionally requires 1,280 columns.
 The vector-semivariogram CLI's optional separate NPY input uses a version-2 result with
 both source identities. Its statistic and the existing CSV-only version-1 result are
-unchanged. These artifact versions do not change the main result format 0.4.
+unchanged. These artifact versions do not change the main result format.
 
 ## Availability and output files
 
@@ -80,7 +80,7 @@ fixed-count label-permutation stratum. Exact edge-indicator moments are reported
 separately from Monte Carlo mean, sample-standard-deviation z-score and inclusive
 one-sided enrichment p-value. The exact standardized descriptor does not imply a
 Gaussian null. Its version-1 result leaves existing multimodal enrichment fields
-and result format 0.4 unchanged. See [the null and limits](docs/categorical-enrichment.md).
+and the main result format unchanged. See [the null and limits](docs/categorical-enrichment.md).
 
 Group centrality uses an unweighted undirected radius graph. Group degree is the
 number of distinct external neighbors divided by the number of nodes outside the
@@ -122,7 +122,7 @@ random-labeling population. Isolates have zero weights. With `S0 = sum(w_ij)` an
 `C = (n-1) / (2 S0) * sum(w_ij (x_i-x_j)^2) / D`.
 Both require `S0 > 0` and `D > 0`; a zero-edge multiplex channel reports
 `no_spatial_edges`. No cell or patient is silently removed. This adds an explicit
-policy value without changing existing serialized definitions or result format 0.4.
+policy value without changing existing serialized definitions or the main result format.
 See [the public API conventions](docs/public-api.md#spatial-autocorrelation-weights).
 
 Mark-pair covariance at a distance bin is the mean of
@@ -229,6 +229,8 @@ A required undefined tensor makes anisotropy unavailable. The configured anisotr
 radius remains a maximum radial index, so a restricted physical range may contain no
 eligible anisotropy modes. The `xi_um` readout denotes a selected peak wavelength,
 not an independently estimated correlation-decay length or calibrated confidence interval.
+`xi_resolution` records whether that shell is inside the eligible range or at its lowest-
+or highest-`k` edge, and the wavelengths of the neighbouring eligible shells.
 
 
 ## Inference
@@ -321,7 +323,7 @@ confounded only when the unstratified low-k endpoint is significant at
 `family_wise_alpha` and the evaluable stratified endpoint is not. If every
 configured stratum is mark-homogeneous, the stratified spectrum null is
 reported as degenerate and no numeric spectrum p-value is emitted. Result
-format 0.4 persists both inference summaries, the threshold, primary-null
+format 0.5 persists both inference summaries, the threshold, primary-null
 identity, and typed conclusion in `spectrum_null_sensitivity`; an unavailable
 member is a tagged state rather than a numeric sentinel.
 
@@ -329,7 +331,7 @@ Marked and multimodal result schemas are disjoint. Marked results do not carry
 registration or neighborhood placeholders. Multimodal DBSCAN output uses a
 `NeighborhoodTerritory` with an explicit abnormal-cell support count and
 cluster ID; unimplemented profile enrichment/cross-curve and QC-overlap fields
-are omitted from format 0.4.
+are omitted from format 0.5.
 
 Configuration keys and method names removed after version 0.1 are not accepted
 under their old names.

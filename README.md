@@ -184,11 +184,12 @@ marklab backend doctor
 | --- | --- |
 | [What Marklab can do](docs/capabilities.md) | Every workflow, the question it answers and how mature it is |
 | [SPEC.md](SPEC.md) | Exact definitions of the statistics, inference and outputs |
-| [Result format 0.4](docs/result-format-0.4.md) | The fields in `result.json` |
+| [Result format 0.5](docs/result-format-0.5.md) | The fields in `result.json` |
 | [Classical spatial workflow](docs/classical-spatial-workflow.md) | Ripley's K and L: inputs, method and interpretation |
 | [Multiplex studies](docs/multiplex-study.md) | Analyzing a panel of markers across slides and patients |
 | [Input and output formats](docs/formats.md) | Tested cell-table, annotation, embedding and image profiles, with their limits |
 | [Pathology maps](docs/pathology-maps.md) | Marker and cell-type profiles around annotated structures, and hotspot maps |
+| [Pathology architecture](docs/pathology-architecture.md) | Epithelial architecture in distance bands from a derived invasive front |
 | [Pathology studies](docs/pathology-studies.md) | Composition, spatial-study and enrichment-scan workflows |
 | [Normal-mean prior sensitivity](docs/normal-mean-prior-sensitivity.md) | How much a Bayesian conclusion depends on the chosen prior |
 | [Python backends](docs/python-backends.md) | Installing and checking the Python environment |

@@ -25,7 +25,7 @@ The output directory must be new or empty. From Rust, `analyze_pathology_composi
 `analyze_pathology_spatial_study` and `analyze_pathology_scan` take the recipe as JSON bytes
 and return the result; the matching `publish_*` functions write the output directory. These
 workflows write their own versioned result documents (v1), separate from
-[result format 0.4](result-format-0.4.md).
+[result format 0.5](result-format-0.5.md).
 
 ## Recipes
 
