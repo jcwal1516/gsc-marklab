@@ -47,10 +47,22 @@ pub(super) fn prepare(bytes: &[u8]) -> Result<Prepared> {
     validate_recipe(&recipe)?;
     let limits = recipe.limits;
     let mut remaining = limits.maximum_geometry_work;
+    let total_cells = recipe
+        .slides
+        .iter()
+        .try_fold(0usize, |sum, slide| sum.checked_add(slide.cells.len()))
+        .ok_or_else(|| invalid("cell count overflow"))?;
+    if total_cells > limits.maximum_cells {
+        return Err(invalid("cell resource limit exceeded"));
+    }
+    if total_cells > 0 && recipe.cells.is_none() {
+        return Err(invalid("slides declare cells without top-level cells provenance"));
+    }
     let estimate = bytes
         .len()
         .checked_mul(16)
         .and_then(|value| value.checked_add(limits.maximum_geometry_vertices.checked_mul(256)?))
+        .and_then(|value| value.checked_add(total_cells.checked_mul(512)?))
         .ok_or_else(|| invalid("memory estimate overflow"))?;
     if estimate > limits.memory_budget_bytes {
         return Err(invalid(format!(
@@ -68,6 +80,7 @@ pub(super) fn prepare(bytes: &[u8]) -> Result<Prepared> {
         slide
             .architecture_regions
             .sort_by(|left, right| left.id.cmp(&right.id));
+        slide.cells.sort_by(|left, right| left.id.cmp(&right.id));
     }
     for slide in &recipe.slides {
         if !text(&slide.slide_id)
@@ -103,6 +116,7 @@ fn validate_recipe(recipe: &Recipe) -> Result<()> {
             recipe
                 .declared_front
                 .iter()
+                .chain(&recipe.cells)
                 .map(|layer| (&layer.measurement_status, &layer.provenance)),
         );
     if recipe.format != "marklab.pathology_architecture_recipe"
@@ -137,6 +151,27 @@ fn validate_recipe(recipe: &Recipe) -> Result<()> {
             "invalid closing radius, bulk area, edge tolerance, contour sampling or distance bands",
         ));
     }
+    if let Some(budding) = &d.budding {
+        if !(1..=64).contains(&budding.maximum_cells)
+            || !(budding.hotspot_area_mm2.is_finite()
+                && budding.hotspot_area_mm2 > 0.0
+                && budding.hotspot_area_mm2 <= 100.0)
+            || !(budding.mucin_exclusion_um.is_finite() && budding.mucin_exclusion_um >= 0.0)
+            || recipe.cells.is_none()
+        {
+            return Err(invalid(
+                "budding needs 1..=64 cells, a hotspot area in (0, 100] mm2, a nonnegative mucin exclusion and a declared cells layer",
+            ));
+        }
+    }
+    if let Some(branching) = &d.branching {
+        if !positive(branching.pixel_size_um)
+            || !(branching.minimum_branch_length_um.is_finite()
+                && branching.minimum_branch_length_um >= 0.0)
+        {
+            return Err(invalid("invalid branching pixel size or minimum branch length"));
+        }
+    }
     let l = recipe.limits;
     if l.maximum_geometry_vertices == 0
         || l.maximum_geometry_vertices > 20_000_000
@@ -144,6 +179,10 @@ fn validate_recipe(recipe: &Recipe) -> Result<()> {
         || l.maximum_components > 2_000_000
         || l.maximum_geometry_work == 0
         || l.maximum_geometry_work as u64 > 200_000_000_000
+        || l.maximum_cells == 0
+        || l.maximum_cells > 5_000_000
+        || l.maximum_raster_pixels == 0
+        || l.maximum_raster_pixels as u64 > 4_000_000_000
         || l.memory_budget_bytes == 0
         || l.memory_budget_bytes as u64 > 8_u64 * 1024 * 1024 * 1024
     {
@@ -294,8 +333,10 @@ fn prepare_slide(slide: &Slide, recipe: &Recipe, remaining: &mut usize) -> Resul
         .as_ref()
         .map(|value| parse_multilinestring(value, limits.maximum_geometry_vertices))
         .transpose()?;
+    let window_index = RingIndex::from_polygons(&window, |_| 0);
+    validate_cells(slide, &window_index)?;
     if let Some(front) = &declared_front {
-        let index = RingIndex::from_polygons(&window, |_| 0);
+        let index = &window_index;
         if front
             .0
             .iter()
@@ -320,6 +361,37 @@ fn prepare_slide(slide: &Slide, recipe: &Recipe, remaining: &mut usize) -> Resul
         exclusions,
         declared_front,
     })
+}
+
+fn validate_cells(slide: &Slide, window: &RingIndex) -> Result<()> {
+    let mut ids = BTreeSet::new();
+    let mut locations = BTreeSet::new();
+    let bits = |value: f64| if value == 0.0 { 0 } else { value.to_bits() };
+    for cell in &slide.cells {
+        let nucleus_valid = cell.nucleus.is_none_or(|n| {
+            [n.area_um2, n.perimeter_um, n.convex_area_um2, n.major_axis_um, n.minor_axis_um]
+                .iter()
+                .all(|value| value.is_finite() && *value > 0.0)
+                && n.minor_axis_um <= n.major_axis_um
+                && n.area_um2 <= n.convex_area_um2 * (1.0 + 1e-9)
+                && n.major_axis_angle_rad.is_finite()
+                && n.major_axis_angle_rad.abs() <= std::f64::consts::PI
+        });
+        if !text(&cell.id)
+            || !ids.insert(&cell.id)
+            || !cell.x_um.is_finite()
+            || !cell.y_um.is_finite()
+            || window.locate([cell.x_um, cell.y_um]).is_none()
+            || !locations.insert((bits(cell.x_um), bits(cell.y_um)))
+            || !nucleus_valid
+        {
+            return Err(invalid(format!(
+                "slide {} has an invalid or duplicate cell, an out-of-window cell or an invalid nucleus",
+                slide.slide_id
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn contained(

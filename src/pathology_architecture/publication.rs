@@ -40,20 +40,28 @@ pub fn publish_pathology_architecture(
         .map_err(|error| MarklabError::io(&result_path, error))?;
     let mut components = String::from(
         "slide_id,patient_id,component_id,class,x_um,y_um,area_um2,perimeter_um,hole_count,lumen_count,\
-         isoperimetric_quotient,mean_absolute_curvature_per_um,signed_front_distance_um,band_lower_um,band_upper_um\n",
+         isoperimetric_quotient,mean_absolute_curvature_per_um,signed_front_distance_um,band_lower_um,band_upper_um,\
+         epithelial_cell_count,bud,skeleton_length_um,branch_point_count,end_point_count\n",
     );
     let mut bands = String::from(
         "slide_id,patient_id,band_lower_um,band_upper_um,class,tissue_area_um2,band_epithelial_area_um2,\
          epithelial_area_um2,epithelial_area_share,component_count,component_area_um2,median_component_area_um2,\
          normalized_component_area_entropy,mean_absolute_curvature_per_um,area_weighted_isoperimetric_quotient,\
-         lumen_containing_component_fraction\n",
+         lumen_containing_component_fraction,bud_count,branch_points_per_mm2,skeleton_length_um_per_mm2,\
+         epithelial_nucleus_count,mean_nuclear_area_um2,mean_nuclear_circularity,mean_nuclear_solidity,\
+         mean_nuclear_aspect_ratio,mean_nuclear_front_alignment\n",
+    );
+    let mut cells = String::from(
+        "slide_id,patient_id,cell_id,epithelial,x_um,y_um,component_id,class,signed_front_distance_um,\
+         band_lower_um,band_upper_um,nuclear_area_um2,nuclear_circularity,nuclear_solidity,\
+         nuclear_aspect_ratio,nuclear_front_alignment\n",
     );
     let edges = &result.design.band_edges_um;
     for (index, slide) in result.slides.iter().enumerate() {
         for row in &slide.components {
             let _ = writeln!(
                 components,
-                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
                 csv(&slide.slide_id),
                 csv(&slide.patient_id),
                 csv(&row.id),
@@ -69,13 +77,42 @@ pub fn publish_pathology_architecture(
                 optional(row.signed_front_distance_um),
                 optional(row.band.map(|band| edges[band])),
                 optional(row.band.map(|band| edges[band + 1])),
+                optional(row.epithelial_cell_count),
+                optional(row.bud),
+                optional(row.skeleton_length_um),
+                optional(row.branch_point_count),
+                optional(row.end_point_count),
+            );
+        }
+        for row in &slide.cells {
+            let nucleus = row.nucleus.as_ref();
+            let _ = writeln!(
+                cells,
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                csv(&slide.slide_id),
+                csv(&slide.patient_id),
+                csv(&row.id),
+                row.epithelial,
+                row.x_um,
+                row.y_um,
+                row.component_id.as_deref().map(csv).unwrap_or_default(),
+                row.class.as_deref().map(csv).unwrap_or_default(),
+                optional(row.signed_front_distance_um),
+                optional(row.band.map(|band| edges[band])),
+                optional(row.band.map(|band| edges[band + 1])),
+                optional(nucleus.map(|n| n.area_um2)),
+                optional(nucleus.map(|n| n.circularity)),
+                optional(nucleus.map(|n| n.solidity)),
+                optional(nucleus.map(|n| n.aspect_ratio)),
+                optional(nucleus.and_then(|n| n.front_alignment)),
             );
         }
         for band in &slide.bands {
             for class in &band.classes {
+                let nuclei = class.epithelial_nuclei.as_ref();
                 let _ = writeln!(
                     bands,
-                    "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                    "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
                     csv(&slide.slide_id),
                     csv(&slide.patient_id),
                     band.lower_um,
@@ -92,6 +129,15 @@ pub fn publish_pathology_architecture(
                     optional(class.mean_absolute_curvature_per_um),
                     optional(class.area_weighted_isoperimetric_quotient),
                     optional(class.lumen_containing_component_fraction),
+                    optional(class.bud_count),
+                    optional(class.branch_points_per_mm2),
+                    optional(class.skeleton_length_um_per_mm2),
+                    optional(nuclei.map(|n| n.count)),
+                    optional(nuclei.map(|n| n.mean_area_um2)),
+                    optional(nuclei.map(|n| n.mean_circularity)),
+                    optional(nuclei.map(|n| n.mean_solidity)),
+                    optional(nuclei.map(|n| n.mean_aspect_ratio)),
+                    optional(nuclei.and_then(|n| n.mean_front_alignment)),
                 );
             }
         }
@@ -124,6 +170,9 @@ pub fn publish_pathology_architecture(
     }
     write("components.csv", components.as_bytes())?;
     write("bands.csv", bands.as_bytes())?;
+    if result.cells.is_some() {
+        write("cells.csv", cells.as_bytes())?;
+    }
     write(
         "report.md",
         format!(
@@ -135,9 +184,14 @@ pub fn publish_pathology_architecture(
              Signed distances are negative inside the bulk. Band areas are tissue-clipped round offsets of the front at \
              0.05 radians; the result reports the maximum chord error. Whole components are assigned to a band by the \
              signed distance of their interior point. Curvature is the absolute turning of each contour after uniform \
-             resampling and Gaussian smoothing, divided by smoothed contour length.\n\n\
-             `result.json` holds the design, provenance and all results. `components.csv` and `bands.csv` hold the same \
-             rows as tables; empty fields are unavailable values. `slide-NNN-architecture.geojson` holds the bulk, front \
+             resampling and Gaussian smoothing, divided by smoothed contour length. Branching uses pruned \
+             Zhang-Suen skeletons of rasterized components. Buds are components with 1 to the declared number of \
+             epithelial cells, outside mucin; the hotspot field is centred on the front at the position holding the \
+             most buds, and its grade uses the count scaled to 0.785 mm2. Nuclear alignment is cos(2 * angle to the \
+             nearest front segment). None of these is a pathologist score or a measured force.\n\n\
+             `result.json` holds the design, provenance and all results. `components.csv`, `bands.csv` and \
+             `cells.csv` (when cells are declared) hold the same rows as tables; empty fields are unavailable values. \
+             `slide-NNN-architecture.geojson` holds the bulk, front \
              and component points in the declared micrometre frame, not geographic coordinates.\n",
             result.slides.len(),
             result.design.closing_radius_um,

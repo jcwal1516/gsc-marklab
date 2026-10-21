@@ -93,6 +93,11 @@ pub(super) fn measure(
             signed_front_distance_um,
             band: signed_front_distance_um
                 .and_then(|distance| band_index(distance, &design.band_edges_um)),
+            epithelial_cell_count: None,
+            bud: None,
+            skeleton_length_um: None,
+            branch_point_count: None,
+            end_point_count: None,
         });
     }
     Ok(rows)

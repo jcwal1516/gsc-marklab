@@ -5,7 +5,9 @@ positions. For each slide it answers:
 
 - Where is the advancing tumor front, after the tissue edge and any regions you exclude?
 - How much glandular, solid or fragmented epithelium lies in each distance band from that front?
-- How fragmented, lumen-forming and irregular are the epithelial pieces in each band?
+- How fragmented, lumen-forming, irregular and branched are the epithelial pieces in each band?
+- How many tumor buds are there, and how many fall in the densest front-centred field?
+- How do epithelial nuclear shape and orientation relative to the front change by band and class?
 
 It works from polygons you provide. It does not segment epithelium, classify architecture
 or predict anything from H&E; produce those upstream (for example, a segmentation model
@@ -20,7 +22,8 @@ cargo +1.99.0 run --locked --package marklab --features cli -- \
 ```
 
 The output directory must be new or empty. The example is synthetic: one square gland with
-a lumen and two small fragments, chosen so every area and distance can be checked by hand.
+a lumen, two small fragments and ten cells, chosen so every area and distance can be checked
+by hand.
 Its design values are not recommendations.
 
 ## Recipe
@@ -34,6 +37,8 @@ calibration first.
   source. `unclassified` is reserved for epithelium outside every region.
 - **`epithelium`**: how the epithelium polygons were produced and their source.
 - **`declared_front`** (optional): source of hand-drawn fronts, required when any slide has one.
+- **`cells`** (optional): how cell positions, epithelial labels and nuclear measurements were
+  produced, required when any slide has cells.
 - **`design`**:
   - `closing_radius_um`: radius of the morphological closing that joins nearby epithelium
     into a tumor bulk.
@@ -42,6 +47,10 @@ calibration first.
   - `band_edges_um`: increasing signed distances, 2 to 33 edges.
   - `contour_sample_spacing_um` and `curvature_smoothing_um`: contour resampling step and
     Gaussian smoothing scale for curvature (0 disables smoothing).
+  - `budding` (optional, needs `cells`): `maximum_cells` per bud (ITBCC uses 4),
+    `hotspot_area_mm2` (ITBCC uses 0.785) and `mucin_exclusion_um`.
+  - `branching` (optional): `pixel_size_um` for rasterizing components and
+    `minimum_branch_length_um` for pruning terminal skeleton spurs.
 - **Slides**: each has its real patient ID, unique slide and coordinate-frame IDs and:
   - `window`: the tissue outline as a GeoJSON MultiPolygon, with artifacts removed.
   - `epithelium`: one MultiPolygon whose pieces are the epithelial components. Pieces must
@@ -54,6 +63,11 @@ calibration first.
   - `front_exclusions` (optional MultiPolygon): tumor boundary inside it is not front, for
     example a luminal surface or a lateral margin with adjacent mucosa.
   - `declared_front` (optional MultiLineString): a hand-drawn front, used only for agreement.
+  - `cells` (optional): `id`, `x_um`, `y_um`, `epithelial` (true or false) and an optional
+    `nucleus` with `area_um2`, `perimeter_um`, `convex_area_um2`, `major_axis_um`,
+    `minor_axis_um` and `major_axis_angle_rad`, measured counterclockwise from +x in the
+    declared micrometre frame. Image tools often measure angles with y pointing down; convert
+    them first. Cells can come from H&E nuclei or a registered multiplex assay.
 
 Every layer must lie inside the window. Slides, regions and components are put in a
 canonical order, so input order does not change results.
@@ -101,14 +115,55 @@ are summed. Mean absolute curvature is that sum divided by the smoothed length. 
 convex ring turns by exactly `2*pi`; indentations add turning. Rings with fewer than 16
 samples, or too short for the complete smoothing kernel, are left out of both sums.
 
+With `branching`, each component is rasterized at pixel centres, thinned with the
+Zhang-Suen algorithm, and every path from an end to a branch point shorter than
+`minimum_branch_length_um` is removed once. Branch points are connected clusters of
+skeleton pixels with three or more crossings; ends have one. Skeleton length counts
+orthogonal steps as one pixel and diagonal steps as `sqrt(2)`. Medial-axis spurs also grow
+into every convex corner, so set the minimum branch length near the typical epithelial
+width; a square ring keeps its four corner spurs unless they are shorter than that length.
+Bands report branch points and skeleton length per square millimetre of component area.
+
 These are descriptions of the polygons you supplied. They do not establish that a region
 is invasive, that a fragment is a tumor bud or that architecture causes a cell state.
 
+## Cells and nuclei
+
+Each cell is placed in the epithelial component containing it (boundary included), gets
+that component's class and its own signed front distance and band. Components report their
+count of epithelial cells. `cell_summary` counts epithelial cells outside every epithelial
+polygon, a check on agreement between the cell labels and the region segmentation.
+
+For cells with a nucleus the result reports circularity `4*pi*area/perimeter^2`, solidity
+`area/convex_area`, aspect ratio `major/minor` and front alignment `cos(2*(nucleus angle -
+nearest front segment angle))`: +1 parallel to the front, -1 perpendicular, 0 on average for
+random orientation. Bands report the means for epithelial nuclei inside each class's
+components. Elongation and alignment are a descriptive proxy for compression; they do not
+measure force.
+
+## Tumor budding
+
+A bud is an epithelial component holding between 1 and `maximum_cells` epithelial cells.
+Candidates whose interior point lies in mucin, or with an exterior vertex within
+`mucin_exclusion_um` of mucin, are excluded and counted. Buds are reported inside and
+outside the tumor bulk and per band and class.
+
+The hotspot is a circular field of `hotspot_area_mm2` whose centre lies on the front. Its
+position maximizes the number of bud interior points inside the field, found exactly: each
+bud defines the stretch of each front segment within the field radius, and a sweep finds
+the largest overlap. Ties keep the first segment and position. The count is scaled to
+0.785 mm2 and graded Bd1 (0 to 4), Bd2 (5 to 9) or Bd3 (10 or more). The fraction of the
+field inside tissue is reported but the count is not rescaled for it.
+
+This follows the ITBCC definition operationally. It counts the epithelial components
+and nuclei you supplied: without cytokeratin confirmation or pathologist review, a
+"bud" can be a tangentially cut gland, an epithelial fragment or a misclassified cell.
+
 ## Outputs
 
-`result.json` holds the design, layer provenance and all results. `components.csv` and
-`bands.csv` hold the same rows as tables, one row per component and per band and class;
-empty fields are unavailable values. `slide-NNN-architecture.geojson` holds the tumor
+`result.json` holds the design, layer provenance and all results. `components.csv`,
+`bands.csv` and, when cells are declared, `cells.csv` hold the same rows as tables, one row
+per component, per band and class, and per cell; empty fields are unavailable values. `slide-NNN-architecture.geojson` holds the tumor
 bulk, the front and component interior points in the declared micrometre frame, not
 geographic coordinates. Apply the inverse calibration to overlay them on slide pixels.
 
@@ -117,5 +172,7 @@ geographic coordinates. Apply the inverse calibration to overlay them on slide p
 A recipe can be at most 64 MiB with up to 64 slides. The optional `limits` section sets the
 maximum vertices per layer or derived geometry (default 2 million, at most 20 million),
 polygon components per layer (default 200,000), total geometry work (default 2 billion
-units, at most 200 billion) and estimated memory (default 2 GiB, at most 8 GiB). Hitting a
+units, at most 200 billion), total cells (default 1 million, at most 5 million), total
+branching raster pixels (default 100 million, at most 4 billion) and estimated memory
+(default 2 GiB, at most 8 GiB). Hitting a
 limit stops the run before anything is written.

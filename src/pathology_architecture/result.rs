@@ -15,6 +15,8 @@ pub struct PathologyArchitectureResult {
     pub(super) epithelium: Layer,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) declared_front: Option<Layer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) cells: Option<Layer>,
     pub(super) design: Design,
     pub(super) limits: Limits,
     pub(super) claim_scope: &'static str,
@@ -31,8 +33,75 @@ pub(super) struct SlideResult {
     pub epithelial_area_um2: f64,
     pub epithelial_component_count: usize,
     pub front: FrontResult,
+    pub cell_summary: Option<CellSummary>,
+    pub budding: Option<BuddingResult>,
     pub bands: Vec<BandResult>,
     pub components: Vec<ComponentRow>,
+    pub cells: Vec<CellRow>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct CellSummary {
+    pub cell_count: usize,
+    pub epithelial_cell_count: usize,
+    pub epithelial_cells_outside_epithelium: usize,
+    pub nucleus_count: usize,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct BuddingResult {
+    pub status: &'static str,
+    pub definition: &'static str,
+    pub bud_count: usize,
+    pub buds_inside_bulk: usize,
+    pub buds_outside_bulk: usize,
+    pub mucin_excluded_candidates: usize,
+    pub hotspot: Option<Hotspot>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct Hotspot {
+    pub center_um: Option<[f64; 2]>,
+    pub radius_um: f64,
+    pub area_mm2: f64,
+    pub bud_count: usize,
+    pub bud_count_per_0_785_mm2: f64,
+    pub grade: &'static str,
+    pub field_tissue_fraction: Option<f64>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct CellRow {
+    pub id: String,
+    pub epithelial: bool,
+    pub x_um: f64,
+    pub y_um: f64,
+    pub component_id: Option<String>,
+    pub class: Option<String>,
+    #[serde(skip)]
+    pub class_index: Option<usize>,
+    pub signed_front_distance_um: Option<f64>,
+    pub band: Option<usize>,
+    pub nucleus: Option<NucleusRow>,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+pub(super) struct NucleusRow {
+    pub area_um2: f64,
+    pub circularity: f64,
+    pub solidity: f64,
+    pub aspect_ratio: f64,
+    pub front_alignment: Option<f64>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct NucleusSummary {
+    pub count: usize,
+    pub mean_area_um2: f64,
+    pub mean_circularity: f64,
+    pub mean_solidity: f64,
+    pub mean_aspect_ratio: f64,
+    pub mean_front_alignment: Option<f64>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -87,6 +156,10 @@ pub(super) struct ClassBand {
     pub mean_absolute_curvature_per_um: Option<f64>,
     pub area_weighted_isoperimetric_quotient: Option<f64>,
     pub lumen_containing_component_fraction: Option<f64>,
+    pub bud_count: Option<usize>,
+    pub branch_points_per_mm2: Option<f64>,
+    pub skeleton_length_um_per_mm2: Option<f64>,
+    pub epithelial_nuclei: Option<NucleusSummary>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -107,4 +180,9 @@ pub(super) struct ComponentRow {
     pub mean_absolute_curvature_per_um: Option<f64>,
     pub signed_front_distance_um: Option<f64>,
     pub band: Option<usize>,
+    pub epithelial_cell_count: Option<usize>,
+    pub bud: Option<bool>,
+    pub skeleton_length_um: Option<f64>,
+    pub branch_point_count: Option<usize>,
+    pub end_point_count: Option<usize>,
 }

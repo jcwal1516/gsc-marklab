@@ -46,6 +46,27 @@ impl Front {
         })
     }
 
+    /// Whether a point lies in the closed tumor bulk.
+    pub(super) fn in_bulk(&self, point: Point) -> bool {
+        self.bulk_index.locate(point).is_some()
+    }
+
+    /// Direction of the nearest front segment, counterclockwise from +x.
+    pub(super) fn nearest_direction_rad(&self, point: Point) -> Option<f64> {
+        let (_, segment) = self.segments.nearest(point)?;
+        Some((segment.end[1] - segment.start[1]).atan2(segment.end[0] - segment.start[0]))
+    }
+
+    /// Front segments for exact hotspot placement.
+    pub(super) fn segments(&self) -> impl Iterator<Item = (Point, Point)> + '_ {
+        self.lines
+            .0
+            .iter()
+            .flat_map(|line| line.0.windows(2))
+            .filter(|pair| pair[0] != pair[1])
+            .map(|pair| ([pair[0].x, pair[0].y], [pair[1].x, pair[1].y]))
+    }
+
     fn unavailable(status: &'static str, bulk: MultiPolygon<f64>) -> Self {
         let bulk_index = RingIndex::from_polygons(&bulk, |_| 0);
         Self {

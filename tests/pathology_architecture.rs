@@ -231,6 +231,35 @@ fn invalid_layers_and_designs_are_rejected() {
             Box::new(|r| r["design"]["band_edges_um"] = json!([0.0, 0.0])),
         ),
         (
+            "nucleus minor axis above major axis",
+            Box::new(|r| r["slides"][0]["cells"][0]["nucleus"]["minor_axis_um"] = json!(7.0)),
+        ),
+        (
+            "cells without provenance",
+            Box::new(|r| {
+                r.as_object_mut().unwrap().remove("cells").map(drop).unwrap();
+                r["design"].as_object_mut().unwrap().remove("budding");
+            }),
+        ),
+        (
+            "budding without a cells layer",
+            Box::new(|r| {
+                r.as_object_mut().unwrap().remove("cells").map(drop).unwrap();
+                r["slides"][0]["cells"] = json!([]);
+            }),
+        ),
+        (
+            "duplicate cell location",
+            Box::new(|r| {
+                r["slides"][0]["cells"][1]["x_um"] = json!(690.0);
+                r["slides"][0]["cells"][1]["y_um"] = json!(500.0);
+            }),
+        ),
+        (
+            "raster pixel limit",
+            Box::new(|r| r["limits"] = json!({"maximum_raster_pixels": 100})),
+        ),
+        (
             "geometry work limit",
             Box::new(|r| r["limits"] = json!({"maximum_geometry_work": 10})),
         ),
@@ -246,6 +275,132 @@ fn invalid_layers_and_designs_are_rejected() {
             "{name} was accepted"
         );
     }
+}
+
+fn square(left: f64, bottom: f64, side: f64) -> Value {
+    json!([[[left, bottom], [left + side, bottom], [left + side, bottom + side],
+        [left, bottom + side], [left, bottom]]])
+}
+
+#[test]
+fn nuclei_are_placed_in_components_and_report_shape_and_front_alignment() {
+    let result = analyze(&recipe());
+    let slide = &result["slides"][0];
+    let summary = &slide["cell_summary"];
+    assert_eq!(summary["cell_count"], 10);
+    assert_eq!(summary["epithelial_cell_count"], 9);
+    assert_eq!(summary["epithelial_cells_outside_epithelium"], 1);
+    assert_eq!(summary["nucleus_count"], 2);
+    let components = slide["components"].as_array().unwrap();
+    assert_eq!(components[0]["epithelial_cell_count"], 6);
+    assert_eq!(components[1]["epithelial_cell_count"], 1);
+    let cells = slide["cells"].as_array().unwrap();
+    let cell = |id: &str| cells.iter().find(|cell| cell["id"] == id).unwrap();
+    assert_eq!(cell("g1")["component_id"], components[0]["id"]);
+    assert_eq!(cell("g1")["class"], "glandular");
+    assert!(cell("s1")["component_id"].is_null() && cell("o1")["class"].is_null());
+    close(&cell("g1")["signed_front_distance_um"], -10.0, 0.01);
+    let nucleus = &cell("g1")["nucleus"];
+    close(&nucleus["circularity"], 4.0 * PI * 20.0 / 256.0, 1e-12);
+    close(&nucleus["solidity"], 20.0 / 21.0, 1e-12);
+    close(&nucleus["aspect_ratio"], 1.5, 1e-12);
+    // A vertical nucleus is parallel to the right side and perpendicular to the bottom.
+    close(&nucleus["front_alignment"], 1.0, 1e-9);
+    close(&cell("g2")["nucleus"]["front_alignment"], -1.0, 1e-9);
+    let nuclei = &class_band(&slide["bands"][1], "glandular")["epithelial_nuclei"];
+    assert_eq!(nuclei["count"], 2);
+    close(&nuclei["mean_front_alignment"], 0.0, 1e-9);
+    close(&nuclei["mean_aspect_ratio"], 1.5, 1e-12);
+    assert!(class_band(&slide["bands"][0], "glandular")["epithelial_nuclei"].is_null());
+}
+
+#[test]
+fn buds_and_the_front_centred_hotspot_follow_the_itbcc_count() {
+    let result = analyze(&recipe());
+    let budding = &result["slides"][0]["budding"];
+    assert_eq!(budding["status"], "available");
+    // Each 10-um fragment holds one epithelial nucleus; the six-nucleus gland is not a bud.
+    assert_eq!(budding["bud_count"], 2);
+    assert_eq!(budding["buds_outside_bulk"], 2);
+    let hotspot = &budding["hotspot"];
+    assert_eq!(hotspot["bud_count"], 2);
+    assert_eq!(hotspot["grade"], "Bd1");
+    close(&hotspot["radius_um"], (0.785e6 / PI).sqrt(), 1e-9);
+    assert_eq!(class_band(&result["slides"][0]["bands"][3], "highly_fragmented")["bud_count"], 2);
+
+    // Twelve 4-um buds 80 um outside the right side, 25 um apart, one nucleus each.
+    let mut input = recipe();
+    let slide = &mut input["slides"][0];
+    let mut epithelium = vec![slide["epithelium"]["coordinates"][0].clone()];
+    let mut cells = vec![];
+    for k in 0..12 {
+        let y = 320.0 + 25.0 * f64::from(k);
+        epithelium.push(square(780.0, y - 2.0, 4.0));
+        cells.push(json!({"id": format!("b{k:02}"), "x_um": 782.0, "y_um": y, "epithelial": true}));
+    }
+    slide["epithelium"]["coordinates"] = json!(epithelium);
+    slide["cells"] = json!(cells);
+    slide["architecture_regions"][1]["geometry"] = polygon(770.0, 300.0, 800.0, 620.0);
+    let hotspot = |input: &Value| analyze(input)["slides"][0]["budding"]["hotspot"].clone();
+    let field = hotspot(&input);
+    assert_eq!(field["bud_count"], 12);
+    assert_eq!(field["grade"], "Bd3");
+    // The first maximal centre lies on the gland boundary, the only front.
+    let center = field["center_um"].as_array().unwrap();
+    let (x, y) = (number(&center[0]), number(&center[1]));
+    let edge = (x - 300.0).abs().min((x - 700.0).abs()).min((y - 300.0).abs()).min((y - 700.0).abs());
+    assert!(edge < 0.01 && (299.0..=701.0).contains(&x) && (299.0..=701.0).contains(&y));
+    // A 100-um field 82 um from the bud column spans a 114.5-um chord: five buds.
+    input["design"]["budding"]["hotspot_area_mm2"] = json!(PI * 1e4 / 1e6);
+    let small = hotspot(&input);
+    assert_eq!(small["bud_count"], 5);
+    close(&small["bud_count_per_0_785_mm2"], 5.0 * 0.785 / (PI * 1e-2), 1e-9);
+    // Mucin within 5 um of three buds excludes them: nine remain in the 0.785-mm2 field.
+    input["design"]["budding"]["hotspot_area_mm2"] = json!(0.785);
+    input["slides"][0]["mucin"] = polygon(786.0, 315.0, 790.0, 380.0);
+    let output = analyze(&input);
+    let budding = &output["slides"][0]["budding"];
+    assert_eq!(budding["mucin_excluded_candidates"], 3);
+    assert_eq!(budding["hotspot"]["bud_count"], 9);
+    assert_eq!(budding["hotspot"]["grade"], "Bd2");
+}
+
+#[test]
+fn skeleton_branch_points_and_ends_match_known_shapes() {
+    let mut input = recipe();
+    input["design"]["minimum_bulk_area_um2"] = json!(1e9);
+    input["design"]["branching"] = json!({"pixel_size_um": 1.0, "minimum_branch_length_um": 15.0});
+    let slide = &mut input["slides"][0];
+    slide["epithelium"] = json!({"type": "MultiPolygon", "coordinates": [
+        [[[100,100],[200,100],[200,110],[100,110],[100,100]]],
+        [[[300,145],[345,145],[345,100],[355,100],[355,145],[400,145],[400,155],[355,155],
+          [355,200],[345,200],[345,155],[300,155],[300,145]]],
+        [[[500,190],[545,190],[545,100],[555,100],[555,190],[600,190],[600,200],[500,200],
+          [500,190]]],
+        [[[700,100],[800,100],[800,200],[700,200],[700,100]],
+         [[710,110],[710,190],[790,190],[790,110],[710,110]]]
+    ]});
+    slide["architecture_regions"] = json!([]);
+    for field in ["lumens", "declared_front"] {
+        slide[field] = Value::Null;
+    }
+    slide["cells"] = json!([]);
+    let result = analyze(&input);
+    let components = result["slides"][0]["components"].as_array().unwrap();
+    let shape = |x: f64| {
+        components
+            .iter()
+            .find(|row| (number(&row["x_um"]) - x).abs() < 60.0)
+            .unwrap()
+    };
+    let counts = |row: &Value| (row["branch_point_count"].clone(), row["end_point_count"].clone());
+    assert_eq!(counts(shape(150.0)), (json!(0), json!(2)), "bar");
+    assert_eq!(counts(shape(350.0)), (json!(1), json!(4)), "plus");
+    assert_eq!(counts(shape(550.0)), (json!(1), json!(3)), "T");
+    assert_eq!(counts(shape(750.0)), (json!(0), json!(0)), "annulus");
+    close(&shape(150.0)["skeleton_length_um"], 90.0, 3.0);
+    close(&shape(750.0)["skeleton_length_um"], 360.0, 8.0);
+    assert_eq!(result["slides"][0]["budding"]["status"], "unavailable_no_cells");
 }
 
 #[cfg(feature = "cli")]
@@ -273,6 +428,8 @@ fn cli_publishes_result_tables_and_overlays_atomically() {
     let components = fs::read_to_string(out.join("components.csv")).unwrap();
     assert_eq!(components.lines().count(), 4);
     assert!(components.lines().nth(1).unwrap().contains("\"glandular\""));
+    let cells = fs::read_to_string(out.join("cells.csv")).unwrap();
+    assert_eq!(cells.lines().count(), 11);
     let bands = fs::read_to_string(out.join("bands.csv")).unwrap();
     // Four bands times four declared classes plus unclassified, and a header.
     assert_eq!(bands.lines().count(), 21);

@@ -15,13 +15,19 @@
     "measurement_status": "measured",
     "provenance": "synthetic front drawn 5 um outside the gland"
   },
+  "cells": {
+    "measurement_status": "measured",
+    "provenance": "synthetic known nuclei and epithelial labels"
+  },
   "design": {
     "closing_radius_um": 30.0,
     "minimum_bulk_area_um2": 10000.0,
     "tissue_edge_tolerance_um": 25.0,
     "band_edges_um": [-200.0, -100.0, 0.0, 100.0, 200.0],
     "contour_sample_spacing_um": 1.0,
-    "curvature_smoothing_um": 2.0
+    "curvature_smoothing_um": 2.0,
+    "budding": {"maximum_cells": 4, "hotspot_area_mm2": 0.785, "mucin_exclusion_um": 5.0},
+    "branching": {"pixel_size_um": 2.0, "minimum_branch_length_um": 10.0}
   },
   "slides": [{
     "slide_id": "slide-1",
@@ -60,6 +66,18 @@
     "declared_front": {
       "type": "MultiLineString",
       "coordinates": [[[295,295],[705,295],[705,705],[295,705],[295,295]]]
-    }
+    },
+    "cells": [
+      {"id":"g1","x_um":690,"y_um":500,"epithelial":true,"nucleus":{"area_um2":20.0,"perimeter_um":16.0,"convex_area_um2":21.0,"major_axis_um":6.0,"minor_axis_um":4.0,"major_axis_angle_rad":1.5707963267948966}},
+      {"id":"g2","x_um":500,"y_um":310,"epithelial":true,"nucleus":{"area_um2":20.0,"perimeter_um":16.0,"convex_area_um2":21.0,"major_axis_um":6.0,"minor_axis_um":4.0,"major_axis_angle_rad":1.5707963267948966}},
+      {"id":"g3","x_um":400,"y_um":400,"epithelial":true},
+      {"id":"g4","x_um":600,"y_um":600,"epithelial":true},
+      {"id":"g5","x_um":350,"y_um":650,"epithelial":true},
+      {"id":"g6","x_um":650,"y_um":350,"epithelial":true},
+      {"id":"f1","x_um":810,"y_um":485,"epithelial":true},
+      {"id":"f2","x_um":830,"y_um":505,"epithelial":true},
+      {"id":"o1","x_um":750,"y_um":800,"epithelial":true},
+      {"id":"s1","x_um":900,"y_um":900,"epithelial":false}
+    ]
   }]
 }

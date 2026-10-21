@@ -9,15 +9,22 @@ use super::{
     input::Recipe,
     invalid,
     preparation::SlideGeometry,
-    result::{BandResult, ClassBand, ComponentRow},
+    nuclei,
+    result::{BandResult, CellRow, ClassBand, ComponentRow},
 };
 
 /// Exact band areas from cumulative tissue-clipped front offsets on each side, with
 /// whole components assigned by their interior point's signed distance.
+pub(super) struct Measured<'a> {
+    pub components: &'a [ComponentRow],
+    pub cells: &'a [CellRow],
+    pub buds_available: bool,
+}
+
 pub(super) fn analyze(
     slide: &SlideGeometry,
     front: &Front,
-    components: &[ComponentRow],
+    measured: &Measured<'_>,
     recipe: &Recipe,
     class_order: &[String],
     remaining: &mut usize,
@@ -93,11 +100,18 @@ pub(super) fn analyze(
             .iter()
             .enumerate()
             .map(|(class, name)| {
-                let members = components
+                let members = measured
+                    .components
                     .iter()
                     .filter(|row| row.band == Some(index) && row.class_index == class)
                     .collect::<Vec<_>>();
-                summarize(name, areas[class + 1], epithelial_area_um2, &members, lumens_declared)
+                let mut summary =
+                    summarize(name, areas[class + 1], epithelial_area_um2, &members, lumens_declared);
+                summary.bud_count = measured
+                    .buds_available
+                    .then(|| members.iter().filter(|row| row.bud == Some(true)).count());
+                summary.epithelial_nuclei = nuclei::summarize(measured.cells, index, class);
+                summary
             })
             .collect();
         bands.push(BandResult {
@@ -158,5 +172,25 @@ fn summarize(
                 .count() as f64
                 / members.len() as f64
         }),
+        bud_count: None,
+        branch_points_per_mm2: per_mm2(members, component_area_um2, |row| {
+            row.branch_point_count.map(|count| count as f64)
+        }),
+        skeleton_length_um_per_mm2: per_mm2(members, component_area_um2, |row| row.skeleton_length_um),
+        epithelial_nuclei: None,
     }
+}
+
+/// Summed component quantity per square millimetre of component area, when every
+/// member reports it.
+fn per_mm2(
+    members: &[&ComponentRow],
+    area_um2: f64,
+    value: impl Fn(&ComponentRow) -> Option<f64>,
+) -> Option<f64> {
+    if members.is_empty() || area_um2 <= 0.0 {
+        return None;
+    }
+    let values = members.iter().map(|row| value(row)).collect::<Option<Vec<_>>>()?;
+    Some(neumaier_sum(values) / area_um2 * 1e6)
 }

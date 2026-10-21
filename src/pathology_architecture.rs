@@ -1,13 +1,16 @@
 //! Epithelial architecture relative to a derived invasive front; geometry owners remain shared.
 
 mod bands;
+mod budding;
 mod components;
 mod front;
 mod geometry;
 mod input;
+mod nuclei;
 mod preparation;
 mod publication;
 mod result;
+mod skeleton;
 
 pub use publication::publish_pathology_architecture;
 pub use result::PathologyArchitectureResult;
@@ -47,6 +50,7 @@ pub fn analyze_pathology_architecture(recipe_json: &[u8]) -> Result<PathologyArc
             .map(f64::abs)
             .fold(0.0, f64::max),
     );
+    let mut remaining_pixels = recipe.limits.maximum_raster_pixels;
     let mut slides = Vec::with_capacity(recipe.slides.len());
     for (slide, geometry) in recipe.slides.iter().zip(&prepared.slides) {
         let front = front::derive(geometry, design, &recipe.limits, &mut remaining)?;
@@ -63,17 +67,64 @@ pub fn analyze_pathology_architecture(recipe_json: &[u8]) -> Result<PathologyArc
             })
             .transpose()?
             .flatten();
-        let components = components::measure(
+        let mut components = components::measure(
             geometry,
             &front,
             design,
             &recipe.architecture.classes,
             &mut remaining,
         )?;
+        let (cells, cell_summary) = match recipe.cells {
+            Some(_) => {
+                let (rows, summary) = nuclei::assign(
+                    &slide.cells,
+                    geometry,
+                    &front,
+                    &mut components,
+                    &design.band_edges_um,
+                );
+                (rows, Some(summary))
+            }
+            None => (Vec::new(), None),
+        };
+        if let Some(branching) = &design.branching {
+            for (row, polygon) in components.iter_mut().zip(&geometry.epithelium.0) {
+                let skeleton = skeleton::measure(
+                    polygon,
+                    branching,
+                    &mut remaining_pixels,
+                    &mut remaining,
+                    recipe.limits.memory_budget_bytes,
+                )?;
+                row.skeleton_length_um = Some(skeleton.length_um);
+                row.branch_point_count = Some(skeleton.branch_points);
+                row.end_point_count = Some(skeleton.end_points);
+            }
+        }
+        let budding = design
+            .budding
+            .as_ref()
+            .map(|budding| {
+                budding::analyze(
+                    budding,
+                    geometry,
+                    !slide.cells.is_empty(),
+                    &front,
+                    &mut components,
+                    &mut remaining,
+                )
+            })
+            .transpose()?;
         let bands = bands::analyze(
             geometry,
             &front,
-            &components,
+            &bands::Measured {
+                components: &components,
+                cells: &cells,
+                buds_available: budding
+                    .as_ref()
+                    .is_some_and(|budding| budding.status != "unavailable_no_cells"),
+            },
             &recipe,
             &class_order,
             &mut remaining,
@@ -98,8 +149,11 @@ pub fn analyze_pathology_architecture(recipe_json: &[u8]) -> Result<PathologyArc
                 lines: geometry::multilinestring_json(&front.lines),
                 bulk: geometry::multipolygon_json(&front.bulk),
             },
+            cell_summary,
+            budding,
             bands,
             components,
+            cells,
         });
     }
     let result = PathologyArchitectureResult {
@@ -109,6 +163,7 @@ pub fn analyze_pathology_architecture(recipe_json: &[u8]) -> Result<PathologyArc
         architecture: recipe.architecture,
         epithelium: recipe.epithelium,
         declared_front: recipe.declared_front,
+        cells: recipe.cells,
         design: recipe.design,
         limits: recipe.limits,
         claim_scope: "research_descriptive_architecture_geometry; regions_declared_upstream; no_population_or_mechanism_claim",
