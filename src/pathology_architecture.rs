@@ -11,6 +11,7 @@ mod preparation;
 mod publication;
 mod result;
 mod skeleton;
+mod spots;
 
 pub use publication::publish_pathology_architecture;
 pub use result::PathologyArchitectureResult;
@@ -115,6 +116,17 @@ pub fn analyze_pathology_architecture(recipe_json: &[u8]) -> Result<PathologyArc
                 )
             })
             .transpose()?;
+        let spots = match recipe.spots {
+            Some(_) => spots::attach(
+                &slide.spots,
+                geometry,
+                &front,
+                &class_order,
+                &design.band_edges_um,
+                &mut remaining,
+            )?,
+            None => Vec::new(),
+        };
         let bands = bands::analyze(
             geometry,
             &front,
@@ -154,6 +166,7 @@ pub fn analyze_pathology_architecture(recipe_json: &[u8]) -> Result<PathologyArc
             bands,
             components,
             cells,
+            spots,
         });
     }
     let result = PathologyArchitectureResult {
@@ -164,6 +177,7 @@ pub fn analyze_pathology_architecture(recipe_json: &[u8]) -> Result<PathologyArc
         epithelium: recipe.epithelium,
         declared_front: recipe.declared_front,
         cells: recipe.cells,
+        spots: recipe.spots,
         design: recipe.design,
         limits: recipe.limits,
         claim_scope: "research_descriptive_architecture_geometry; regions_declared_upstream; no_population_or_mechanism_claim",

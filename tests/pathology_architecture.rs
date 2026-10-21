@@ -256,6 +256,14 @@ fn invalid_layers_and_designs_are_rejected() {
             }),
         ),
         (
+            "nonpositive spot diameter",
+            Box::new(|r| r["slides"][0]["spots"][0]["diameter_um"] = json!(0.0)),
+        ),
+        (
+            "spots without provenance",
+            Box::new(|r| r.as_object_mut().unwrap().remove("spots").map(drop).unwrap()),
+        ),
+        (
             "raster pixel limit",
             Box::new(|r| r["limits"] = json!({"maximum_raster_pixels": 100})),
         ),
@@ -403,6 +411,41 @@ fn skeleton_branch_points_and_ends_match_known_shapes() {
     assert_eq!(result["slides"][0]["budding"]["status"], "unavailable_no_cells");
 }
 
+#[test]
+fn spots_report_tissue_bulk_and_class_cover_with_front_bands() {
+    let result = analyze(&recipe());
+    let order = result["class_order"].as_array().unwrap();
+    let class = |name: &str| order.iter().position(|entry| entry == name).unwrap();
+    let spots = result["slides"][0]["spots"].as_array().unwrap();
+    let spot = |id: &str| spots.iter().find(|spot| spot["id"] == id).unwrap();
+    let gland = spot("spot-gland");
+    close(&gland["class_fractions"][class("glandular")], 1.0, 1e-12);
+    close(&gland["tissue_fraction"], 1.0, 1e-12);
+    close(&gland["tumor_bulk_fraction"], 1.0, 1e-12);
+    close(&gland["signed_front_distance_um"], -50.0, 0.01);
+    assert_eq!(gland["band"], 1);
+    assert_eq!(gland["dominant_class"], "glandular");
+    // A spot centred on the front is split by it.
+    let front = spot("spot-front");
+    close(&front["class_fractions"][class("glandular")], 0.5, 1e-3);
+    close(&front["tumor_bulk_fraction"], 0.5, 1e-3);
+    close(&front["signed_front_distance_um"], 0.0, 0.01);
+    assert_eq!(front["band"], 2);
+    let lumen = spot("spot-lumen");
+    assert_eq!(lumen["epithelial_fraction"], 0.0);
+    assert!(lumen["dominant_class"].is_null());
+    close(&lumen["tumor_bulk_fraction"], 1.0, 1e-12);
+    let edge = spot("spot-edge");
+    close(&edge["tissue_fraction"], 0.5, 1e-3);
+    assert!(edge["band"].is_null());
+    let fragments = spot("spot-fragments");
+    assert_eq!(fragments["dominant_class"], "highly_fragmented");
+    let disk = PI * 27.5 * 27.5;
+    let share = number(&fragments["class_fractions"][class("highly_fragmented")]);
+    assert!(share > 100.0 / disk && share < 200.0 / disk, "{share}");
+    close(&fragments["epithelial_fraction"], share, 1e-12);
+}
+
 #[cfg(feature = "cli")]
 #[test]
 fn cli_publishes_result_tables_and_overlays_atomically() {
@@ -430,6 +473,9 @@ fn cli_publishes_result_tables_and_overlays_atomically() {
     assert!(components.lines().nth(1).unwrap().contains("\"glandular\""));
     let cells = fs::read_to_string(out.join("cells.csv")).unwrap();
     assert_eq!(cells.lines().count(), 11);
+    let spots = fs::read_to_string(out.join("spots.csv")).unwrap();
+    assert_eq!(spots.lines().count(), 6);
+    assert!(spots.lines().next().unwrap().ends_with("\"glandular_fraction\",\"solid_fraction\",\"moderately_fragmented_fraction\",\"highly_fragmented_fraction\",\"unclassified_fraction\""));
     let bands = fs::read_to_string(out.join("bands.csv")).unwrap();
     // Four bands times four declared classes plus unclassified, and a header.
     assert_eq!(bands.lines().count(), 21);

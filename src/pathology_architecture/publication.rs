@@ -56,6 +56,14 @@ pub fn publish_pathology_architecture(
          band_lower_um,band_upper_um,nuclear_area_um2,nuclear_circularity,nuclear_solidity,\
          nuclear_aspect_ratio,nuclear_front_alignment\n",
     );
+    let mut spots = String::from(
+        "slide_id,patient_id,spot_id,x_um,y_um,diameter_um,signed_front_distance_um,band_lower_um,\
+         band_upper_um,tissue_fraction,tumor_bulk_fraction,epithelial_fraction,dominant_class",
+    );
+    for class in &result.class_order {
+        let _ = write!(spots, ",{}", csv(&format!("{class}_fraction")));
+    }
+    spots.push('\n');
     let edges = &result.design.band_edges_um;
     for (index, slide) in result.slides.iter().enumerate() {
         for row in &slide.components {
@@ -106,6 +114,29 @@ pub fn publish_pathology_architecture(
                 optional(nucleus.map(|n| n.aspect_ratio)),
                 optional(nucleus.and_then(|n| n.front_alignment)),
             );
+        }
+        for row in &slide.spots {
+            let _ = write!(
+                spots,
+                "{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                csv(&slide.slide_id),
+                csv(&slide.patient_id),
+                csv(&row.id),
+                row.x_um,
+                row.y_um,
+                row.diameter_um,
+                optional(row.signed_front_distance_um),
+                optional(row.band.map(|band| edges[band])),
+                optional(row.band.map(|band| edges[band + 1])),
+                row.tissue_fraction,
+                optional(row.tumor_bulk_fraction),
+                row.epithelial_fraction,
+                row.dominant_class.as_deref().map(csv).unwrap_or_default(),
+            );
+            for share in &row.class_fractions {
+                let _ = write!(spots, ",{share}");
+            }
+            spots.push('\n');
         }
         for band in &slide.bands {
             for class in &band.classes {
@@ -173,6 +204,9 @@ pub fn publish_pathology_architecture(
     if result.cells.is_some() {
         write("cells.csv", cells.as_bytes())?;
     }
+    if result.spots.is_some() {
+        write("spots.csv", spots.as_bytes())?;
+    }
     write(
         "report.md",
         format!(
@@ -189,8 +223,9 @@ pub fn publish_pathology_architecture(
              epithelial cells, outside mucin; the hotspot field is centred on the front at the position holding the \
              most buds, and its grade uses the count scaled to 0.785 mm2. Nuclear alignment is cos(2 * angle to the \
              nearest front segment). None of these is a pathologist score or a measured force.\n\n\
-             `result.json` holds the design, provenance and all results. `components.csv`, `bands.csv` and \
-             `cells.csv` (when cells are declared) hold the same rows as tables; empty fields are unavailable values. \
+             Spot fractions are relative to polygonal disks and describe mixtures, not single labels.\n\n\
+             `result.json` holds the design, provenance and all results. `components.csv`, `bands.csv`, \
+             `cells.csv` and `spots.csv` (when declared) hold the same rows as tables; empty fields are unavailable values. \
              `slide-NNN-architecture.geojson` holds the bulk, front \
              and component points in the declared micrometre frame, not geographic coordinates.\n",
             result.slides.len(),

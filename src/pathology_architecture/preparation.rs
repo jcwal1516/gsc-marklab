@@ -58,11 +58,23 @@ pub(super) fn prepare(bytes: &[u8]) -> Result<Prepared> {
     if total_cells > 0 && recipe.cells.is_none() {
         return Err(invalid("slides declare cells without top-level cells provenance"));
     }
+    let total_spots = recipe
+        .slides
+        .iter()
+        .try_fold(0usize, |sum, slide| sum.checked_add(slide.spots.len()))
+        .ok_or_else(|| invalid("spot count overflow"))?;
+    if total_spots > limits.maximum_spots {
+        return Err(invalid("spot resource limit exceeded"));
+    }
+    if total_spots > 0 && recipe.spots.is_none() {
+        return Err(invalid("slides declare spots without top-level spots provenance"));
+    }
     let estimate = bytes
         .len()
         .checked_mul(16)
         .and_then(|value| value.checked_add(limits.maximum_geometry_vertices.checked_mul(256)?))
         .and_then(|value| value.checked_add(total_cells.checked_mul(512)?))
+        .and_then(|value| value.checked_add(total_spots.checked_mul(1024)?))
         .ok_or_else(|| invalid("memory estimate overflow"))?;
     if estimate > limits.memory_budget_bytes {
         return Err(invalid(format!(
@@ -81,6 +93,7 @@ pub(super) fn prepare(bytes: &[u8]) -> Result<Prepared> {
             .architecture_regions
             .sort_by(|left, right| left.id.cmp(&right.id));
         slide.cells.sort_by(|left, right| left.id.cmp(&right.id));
+        slide.spots.sort_by(|left, right| left.id.cmp(&right.id));
     }
     for slide in &recipe.slides {
         if !text(&slide.slide_id)
@@ -117,6 +130,7 @@ fn validate_recipe(recipe: &Recipe) -> Result<()> {
                 .declared_front
                 .iter()
                 .chain(&recipe.cells)
+                .chain(&recipe.spots)
                 .map(|layer| (&layer.measurement_status, &layer.provenance)),
         );
     if recipe.format != "marklab.pathology_architecture_recipe"
@@ -181,6 +195,8 @@ fn validate_recipe(recipe: &Recipe) -> Result<()> {
         || l.maximum_geometry_work as u64 > 200_000_000_000
         || l.maximum_cells == 0
         || l.maximum_cells > 5_000_000
+        || l.maximum_spots == 0
+        || l.maximum_spots > 2_000_000
         || l.maximum_raster_pixels == 0
         || l.maximum_raster_pixels as u64 > 4_000_000_000
         || l.memory_budget_bytes == 0
@@ -335,6 +351,19 @@ fn prepare_slide(slide: &Slide, recipe: &Recipe, remaining: &mut usize) -> Resul
         .transpose()?;
     let window_index = RingIndex::from_polygons(&window, |_| 0);
     validate_cells(slide, &window_index)?;
+    let mut spot_ids = BTreeSet::new();
+    if slide.spots.iter().any(|spot| {
+        !text(&spot.id)
+            || !spot_ids.insert(&spot.id)
+            || !spot.x_um.is_finite()
+            || !spot.y_um.is_finite()
+            || !(spot.diameter_um.is_finite() && spot.diameter_um > 0.0 && spot.diameter_um <= 10_000.0)
+    }) {
+        return Err(invalid(format!(
+            "slide {} has an invalid or duplicate spot or spot diameter",
+            slide.slide_id
+        )));
+    }
     if let Some(front) = &declared_front {
         let index = &window_index;
         if front

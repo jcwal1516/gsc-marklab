@@ -17,6 +17,8 @@ pub struct PathologyArchitectureResult {
     pub(super) declared_front: Option<Layer>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) cells: Option<Layer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) spots: Option<Layer>,
     pub(super) design: Design,
     pub(super) limits: Limits,
     pub(super) claim_scope: &'static str,
@@ -38,6 +40,23 @@ pub(super) struct SlideResult {
     pub bands: Vec<BandResult>,
     pub components: Vec<ComponentRow>,
     pub cells: Vec<CellRow>,
+    pub spots: Vec<SpotRow>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct SpotRow {
+    pub id: String,
+    pub x_um: f64,
+    pub y_um: f64,
+    pub diameter_um: f64,
+    pub signed_front_distance_um: Option<f64>,
+    pub band: Option<usize>,
+    pub tissue_fraction: f64,
+    pub tumor_bulk_fraction: Option<f64>,
+    pub epithelial_fraction: f64,
+    /// Fraction of the spot area covered by each class's epithelium, in class order.
+    pub class_fractions: Vec<f64>,
+    pub dominant_class: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]

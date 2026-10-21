@@ -12,6 +12,8 @@ pub(super) struct Recipe {
     pub declared_front: Option<Layer>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cells: Option<Layer>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spots: Option<Layer>,
     pub design: Design,
     pub slides: Vec<Slide>,
     #[serde(default)]
@@ -83,6 +85,17 @@ pub(super) struct Slide {
     pub declared_front: Option<serde_json::Value>,
     #[serde(default)]
     pub cells: Vec<Cell>,
+    #[serde(default)]
+    pub spots: Vec<Spot>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Spot {
+    pub id: String,
+    pub x_um: f64,
+    pub y_um: f64,
+    pub diameter_um: f64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -123,6 +136,7 @@ pub(super) struct Limits {
     pub maximum_components: usize,
     pub maximum_geometry_work: usize,
     pub maximum_cells: usize,
+    pub maximum_spots: usize,
     pub maximum_raster_pixels: usize,
     pub memory_budget_bytes: usize,
 }
@@ -134,6 +148,7 @@ impl Default for Limits {
             maximum_components: 200_000,
             maximum_geometry_work: 2_000_000_000,
             maximum_cells: 1_000_000,
+            maximum_spots: 200_000,
             maximum_raster_pixels: 100_000_000,
             memory_budget_bytes: 2 * 1024 * 1024 * 1024,
         }

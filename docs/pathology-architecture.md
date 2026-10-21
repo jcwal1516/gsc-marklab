@@ -8,6 +8,8 @@ positions. For each slide it answers:
 - How fragmented, lumen-forming, irregular and branched are the epithelial pieces in each band?
 - How many tumor buds are there, and how many fall in the densest front-centred field?
 - How do epithelial nuclear shape and orientation relative to the front change by band and class?
+- Which architecture, front distance and band does each spatial-transcriptomic spot or
+  registered multiplex cell sit in?
 
 It works from polygons you provide. It does not segment epithelium, classify architecture
 or predict anything from H&E; produce those upstream (for example, a segmentation model
@@ -22,8 +24,8 @@ cargo +1.99.0 run --locked --package marklab --features cli -- \
 ```
 
 The output directory must be new or empty. The example is synthetic: one square gland with
-a lumen, two small fragments and ten cells, chosen so every area and distance can be checked
-by hand.
+a lumen, two small fragments, ten cells and five spots, chosen so every area and distance
+can be checked by hand.
 Its design values are not recommendations.
 
 ## Recipe
@@ -39,6 +41,8 @@ calibration first.
 - **`declared_front`** (optional): source of hand-drawn fronts, required when any slide has one.
 - **`cells`** (optional): how cell positions, epithelial labels and nuclear measurements were
   produced, required when any slide has cells.
+- **`spots`** (optional): the capture platform and registration of spot positions, required
+  when any slide has spots.
 - **`design`**:
   - `closing_radius_um`: radius of the morphological closing that joins nearby epithelium
     into a tumor bulk.
@@ -68,6 +72,9 @@ calibration first.
     `minor_axis_um` and `major_axis_angle_rad`, measured counterclockwise from +x in the
     declared micrometre frame. Image tools often measure angles with y pointing down; convert
     them first. Cells can come from H&E nuclei or a registered multiplex assay.
+  - `spots` (optional): `id`, `x_um`, `y_um` and `diameter_um` of circular capture areas,
+    such as Visium spots registered to the same frame (55 um diameter). Centres may lie
+    outside the tissue.
 
 Every layer must lie inside the window. Slides, regions and components are put in a
 canonical order, so input order does not change results.
@@ -141,6 +148,15 @@ random orientation. Bands report the means for epithelial nuclei inside each cla
 components. Elongation and alignment are a descriptive proxy for compression; they do not
 measure force.
 
+## Spots
+
+Each spot is a polygonal disk at the same 0.05-radian step. It reports the signed front
+distance and band of its centre, the fraction of its area inside tissue and inside the
+tumor bulk, and the fraction covered by each class's epithelium (in `class_order`), their
+sum and the class covering the most. Fractions are relative to the polygonal disk. Join
+`spots.csv` to expression or protein measurements by spot ID; spots overlapping several
+classes or the front are mixtures, so model their fractions rather than assigning one label.
+
 ## Tumor budding
 
 A bud is an epithelial component holding between 1 and `maximum_cells` epithelial cells.
@@ -162,8 +178,9 @@ and nuclei you supplied: without cytokeratin confirmation or pathologist review,
 ## Outputs
 
 `result.json` holds the design, layer provenance and all results. `components.csv`,
-`bands.csv` and, when cells are declared, `cells.csv` hold the same rows as tables, one row
-per component, per band and class, and per cell; empty fields are unavailable values. `slide-NNN-architecture.geojson` holds the tumor
+`bands.csv` and, when declared, `cells.csv` and `spots.csv` hold the same rows as tables, one
+row per component, per band and class, per cell and per spot; empty fields are unavailable
+values. `slide-NNN-architecture.geojson` holds the tumor
 bulk, the front and component interior points in the declared micrometre frame, not
 geographic coordinates. Apply the inverse calibration to overlay them on slide pixels.
 
@@ -173,6 +190,7 @@ A recipe can be at most 64 MiB with up to 64 slides. The optional `limits` secti
 maximum vertices per layer or derived geometry (default 2 million, at most 20 million),
 polygon components per layer (default 200,000), total geometry work (default 2 billion
 units, at most 200 billion), total cells (default 1 million, at most 5 million), total
+spots (default 200,000, at most 2 million), total
 branching raster pixels (default 100 million, at most 4 billion) and estimated memory
 (default 2 GiB, at most 8 GiB). Hitting a
 limit stops the run before anything is written.
