@@ -7,6 +7,7 @@ use super::{
     CoordinateUnit, CuboidWindowInput, HomogeneousK3dSpec, K3dCorrection, NormalizedPoint3D,
     Point3DInput, Spatial3dError, MAXIMUM_PAIR_RADIUS_EVALUATIONS,
 };
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -79,7 +80,7 @@ pub struct InhomogeneousK3dResult {
     pub curve: Vec<WeightedK3dCurvePoint>,
     pub unordered_pairs_visited: u64,
     pub pair_radius_evaluations: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -95,7 +96,7 @@ pub struct DirectedCrossK3dResult {
     pub curve: Vec<CrossK3dCurvePoint>,
     pub cross_pairs_visited: u64,
     pub pair_radius_evaluations: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn inhomogeneous_k3d(
@@ -143,7 +144,7 @@ pub fn inhomogeneous_k3d(
         curve,
         unordered_pairs_visited: pair_count,
         pair_radius_evaluations: work,
-        claim_status: "supplied_intensity_cuboid_3d_descriptive_only",
+        claim_status: ClaimStatus::SuppliedIntensityCuboid3dDescriptiveOnly,
     })
 }
 
@@ -241,7 +242,7 @@ pub fn directed_cross_k3d(
         curve,
         cross_pairs_visited: cross_pairs,
         pair_radius_evaluations: work,
-        claim_status: "supplied_intensity_directed_cuboid_3d_descriptive_only",
+        claim_status: ClaimStatus::SuppliedIntensityDirectedCuboid3dDescriptiveOnly,
     })
 }
 

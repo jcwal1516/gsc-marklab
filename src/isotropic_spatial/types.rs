@@ -1,3 +1,6 @@
+use crate::result_vocabulary::{
+    ArcMeasureOwner, DuplicatePointPolicy, EdgeCorrection, PairTraversal, SpatialExecutionMode,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -214,13 +217,13 @@ pub struct IsotropicGeometrySummary {
     /// Exact point/window plan identity.
     pub logical_digest: String,
     /// Exact execution mode.
-    pub execution_mode: String,
+    pub execution_mode: SpatialExecutionMode,
     /// Duplicate-coordinate policy.
-    pub duplicate_policy: String,
+    pub duplicate_policy: DuplicatePointPolicy,
     /// Owner of visible-circle fractions.
-    pub visible_arc_owner: String,
+    pub visible_arc_owner: ArcMeasureOwner,
     /// Pair traversal mode.
-    pub pair_traversal: String,
+    pub pair_traversal: PairTraversal,
 }
 
 /// Configuration identity persisted with every result.
@@ -244,7 +247,7 @@ pub struct IsotropicSpatialResult {
     /// Source timepoint.
     pub timepoint: String,
     /// Fixed correction name.
-    pub correction: String,
+    pub correction: EdgeCorrection,
     /// Workflow availability.
     pub status: IsotropicSpatialStatus,
     /// Exact observation window.

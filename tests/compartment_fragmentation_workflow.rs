@@ -1,11 +1,17 @@
 use approx::assert_abs_diff_eq;
 use marklab::{
-    compartment_fragmentation, execute_algorithm, ArtifactRef, ArtifactSchema,
-    BinaryCompartmentPartition2D, CacheStatus, CompartmentFragmentationAnalysisNode,
-    CompartmentFragmentationResult, CompartmentPartitionLimits, CoordinateFrame, CoordinateFrameId,
-    CoordinateRegistry, CoordinateSpace, CoordinateUnit, DurableProject, DurableProjectLimits,
-    LocalScheduler, MarklabProject, NativeRuntimeProvenance, NodeId, ObservationWindow2D,
-    ObservationWindowLimits, SchedulerLimits, SpatialAxis, WorkflowGraph,
+    compartments::{
+        compartment_fragmentation, BinaryCompartmentPartition2D,
+        CompartmentFragmentationAnalysisNode, CompartmentFragmentationResult,
+        CompartmentPartitionLimits,
+    },
+    workflow::{
+        execute_algorithm, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
+        DurableProjectLimits, LocalScheduler, MarklabProject, NativeRuntimeProvenance, NodeId,
+        SchedulerLimits, WorkflowGraph,
+    },
+    CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit,
+    ObservationWindow2D, ObservationWindowLimits, SpatialAxis,
 };
 
 const GEOS_ORACLE: &str =

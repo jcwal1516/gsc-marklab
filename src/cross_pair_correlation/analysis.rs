@@ -1,16 +1,18 @@
+use crate::result_vocabulary::{EdgeCorrection, MarkNullModel, MarkPermutationUnit};
 use marklab_cohort::{InferenceAlternative, InferenceDesign};
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 
 use crate::common::finite::canonical_zero;
-pub(super) use crate::measurement_status_wire::name as measurement_status_name;
 
 use crate::{
     classical::window_summary,
     mark_pair_plan::{build_mark_pair_plan, erl_workspace_bytes},
+    marks::{DeclaredScalarPatternInput, ScalarMarkId},
     pair_correlation::epanechnikov_weight,
     permutation::envelopes::GlobalEnvelope,
-    DeclaredScalarPatternInput, ObservationWindow2D, PairCorrelationKernel,
-    PairCorrelationPointStatus, ScalarMarkId,
+    scalar_mark::COMPARTMENT_MARK_ID,
+    spatial::{PairCorrelationKernel, PairCorrelationPointStatus},
+    ObservationWindow2D,
 };
 
 use super::types::*;
@@ -32,7 +34,7 @@ pub fn categorical_cross_pair_correlation(
     if frame != input.coordinate_frame_id() {
         return Err(CategoricalCrossPairCorrelationError::CoordinateFrameMismatch);
     }
-    let mark_id = ScalarMarkId::new("histologic_compartment").map_err(dependency)?;
+    let mark_id = ScalarMarkId::new(COMPARTMENT_MARK_ID).map_err(dependency)?;
     let table = input
         .mark_table()
         .ok_or(CategoricalCrossPairCorrelationError::MissingCategoricalMark)?;
@@ -152,12 +154,9 @@ pub fn categorical_cross_pair_correlation(
         };
     Ok(CategoricalCrossPairCorrelationResult {
         mark_id: mark_id.as_str().into(),
-        measurement_status: measurement_status_name(
-            table
-                .measurement_status(&mark_id)
-                .ok_or(CategoricalCrossPairCorrelationError::MissingCategoricalMark)?,
-        )
-        .into(),
+        measurement_status: table
+            .measurement_status(&mark_id)
+            .ok_or(CategoricalCrossPairCorrelationError::MissingCategoricalMark)?,
         coordinate_frame_id: frame.as_str().into(),
         window: window_summary(window.descriptor()),
         source_level: config.source_level.clone(),
@@ -166,17 +165,16 @@ pub fn categorical_cross_pair_correlation(
         target_count,
         kernel: PairCorrelationKernel::Epanechnikov,
         bandwidth_um: config.bandwidth_um,
-        edge_correction: "standard_border_radius_plus_bandwidth".into(),
+        edge_correction: EdgeCorrection::StandardBorderRadiusPlusBandwidth,
         geometry_digest: plan.geometry.logical_digest().to_string(),
         pair_plan_digest: plan.digest.to_string(),
         directed_pair_count: plan.pairs.len(),
-        geometry_build_count: 1,
         estimated_storage_bytes: retained_bytes,
         configuration_digest: configuration_digest(config).to_string(),
         curve: observed.points,
         inference: CategoricalCrossPairCorrelationInference {
-            null_model: "random_labeling".into(),
-            permutation_unit: "complete_categorical_row".into(),
+            null_model: MarkNullModel::RandomLabeling,
+            permutation_unit: MarkPermutationUnit::CompleteCategoricalRow,
             p_global,
             erl_depth,
             critical_depth,
@@ -260,7 +258,7 @@ fn evaluate(
         } else {
             PairCorrelationPointStatus::Available
         };
-        let cross_g = (status == PairCorrelationPointStatus::Available).then(|| {
+        let cross_g = (centers[index] > 0 && target_count > 0).then(|| {
             area_um2 * sums[index]
                 / (2.0
                     * std::f64::consts::PI
@@ -376,12 +374,8 @@ pub(crate) fn configuration_digest(
 fn zeroed_vec<T: Default + Clone>(
     length: usize,
 ) -> Result<Vec<T>, CategoricalCrossPairCorrelationError> {
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(length)
-        .map_err(|_| CategoricalCrossPairCorrelationError::AllocationFailed)?;
-    values.resize(length, T::default());
-    Ok(values)
+    crate::common::alloc::try_filled(length, T::default())
+        .map_err(|_| CategoricalCrossPairCorrelationError::AllocationFailed)
 }
 
 pub(super) fn resolve(

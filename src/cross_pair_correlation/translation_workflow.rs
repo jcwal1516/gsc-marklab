@@ -1,14 +1,15 @@
+use crate::result_vocabulary::EdgeCorrection;
 use std::io;
 
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_project::{ArtifactRef, ContentDigest, MarklabProject};
+use marklab_workflow::{CacheKeyMaterial, NodeError, NodeId, NodeSpec, WorkflowNode};
 use serde::Serialize;
 
 use crate::{
-    workflow::pattern_artifact, DeclaredScalarPatternInput, ObservationWindow2D,
-    PairCorrelationKernel, PairCorrelationPointStatus,
+    marked_workflow::pattern_artifact,
+    marks::DeclaredScalarPatternInput,
+    spatial::{PairCorrelationKernel, PairCorrelationPointStatus},
+    ObservationWindow2D,
 };
 
 use super::{
@@ -51,8 +52,9 @@ impl<'a> TranslationCategoricalCrossPairCorrelationAnalysisNode<'a> {
             window,
             config,
             format!(
-                "marklab/{};adapter=translation-categorical-cross-g-node-v2;geo=0.33.1",
-                env!("CARGO_PKG_VERSION")
+                "marklab/{};adapter=translation-categorical-cross-g-node-v4;{}",
+                env!("CARGO_PKG_VERSION"),
+                crate::common::GEO_IDENTITY
             ),
             Vec::new(),
         )
@@ -112,7 +114,7 @@ impl WorkflowNode for TranslationCategoricalCrossPairCorrelationAnalysisNode<'_>
     fn input_artifacts(&self) -> &[ArtifactRef] {
         &self.inputs
     }
-    fn semantic_input_artifacts(&self) -> &[marklab_workflow::ArtifactId] {
+    fn semantic_input_artifacts(&self) -> &[marklab_project::ArtifactId] {
         self.input.semantic_artifact_ids()
     }
     fn verify_input_content(&self) -> Result<(), NodeError> {
@@ -175,7 +177,7 @@ struct ConfigArtifact<'a> {
     seed: u64,
     alpha: f64,
     categorical_limits: [usize; 5],
-    translation_limits: crate::TranslationSpatialLimits,
+    translation_limits: crate::spatial::TranslationSpatialLimits,
     logical_digest: String,
 }
 
@@ -210,7 +212,7 @@ fn validate(
     config: &TranslationCategoricalCrossPairCorrelationConfig,
 ) -> io::Result<()> {
     let base = config.base();
-    if result.edge_correction != "translation"
+    if result.edge_correction != EdgeCorrection::Translation
         || result.kernel != PairCorrelationKernel::Epanechnikov
         || result.bandwidth_um.to_bits() != base.bandwidth_um().to_bits()
         || result.source_level != base.source_level()
@@ -228,7 +230,11 @@ fn validate(
         ));
     }
     for (point, radius) in result.curve.iter().zip(base.radii_um()) {
-        let available = point.status == PairCorrelationPointStatus::Available;
+        let available = point.status == PairCorrelationPointStatus::Available
+            || (point.status == PairCorrelationPointStatus::NoPairsInKernelSupport
+                && point.directed_source_target_pairs_in_support == 0
+                && point.translation_weighted_kernel_sum == 0.0
+                && point.cross_g == Some(0.0));
         if point.radius_um.to_bits() != radius.to_bits()
             || point.overlap_evaluations != point.directed_source_target_pairs_in_support
             || point.cross_g.is_some() != available

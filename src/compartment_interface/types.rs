@@ -78,7 +78,8 @@ pub struct CompartmentInterfaceProfile {
     /// Exact categorical mark identity.
     pub mark_id: String,
     /// Column-wide measurement status.
-    pub measurement_status: String,
+    #[serde(with = "crate::measurement_status_wire")]
+    pub measurement_status: marklab_data::MeasurementStatus,
     /// Compartment assigned negative distance.
     pub negative_compartment_id: String,
     /// Compartment assigned positive distance.

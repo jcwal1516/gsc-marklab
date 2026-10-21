@@ -3,7 +3,7 @@ use std::io::Write;
 use marklab_embeddings::{
     CellEmbeddingArtifact, CellEmbeddingTable, EmbeddingQcSummary, EmbeddingStatus,
 };
-use marklab_workflow::{ArtifactId, ContentDigest, ContentDigestWriter};
+use marklab_project::{ArtifactId, ContentDigest, ContentDigestWriter};
 use thiserror::Error;
 
 use crate::{
@@ -12,8 +12,10 @@ use crate::{
         requirements as scalar_embedding_cross_covariance_requirements,
         ScalarEmbeddingCrossCovarianceError,
     },
-    BinaryMarkDeclaration, DeclaredScalarIdentity, DeclaredScalarPatternInput,
-    ProbabilityMarkDeclaration,
+    marks::{
+        BinaryMarkDeclaration, DeclaredScalarIdentity, DeclaredScalarPatternInput,
+        ProbabilityMarkDeclaration,
+    },
 };
 
 const PROBABILITY_VALUES_DIGEST_DOMAIN: &[u8] =
@@ -139,7 +141,7 @@ pub enum DeclaredProbabilityCellEmbeddingCrossCovarianceError {
         /// First mismatched or absent row.
         row: usize,
     },
-    /// The admitted row traversal exceeds the caller maximum.
+    /// The validated row traversal exceeds the caller maximum.
     #[error("declared probability cell-embedding rows {required} exceed caller maximum {maximum}")]
     RowCountBudgetExceeded {
         /// Exact table row count.
@@ -198,7 +200,7 @@ impl From<ScalarEmbeddingCrossCovarianceError>
 
 /// Measure population cross-covariance energy for a declared probability and cell embeddings.
 ///
-/// The probability modality is required, the materialized table is bound to its existing verified
+/// The probability modality is required, the materialized table is bound to its verified
 /// artifact, and every ordered CellId is bound before explicit row/component/working limits admit
 /// arithmetic. Present rows alone enter a fixed-order two-pass `f64` population covariance; binary
 /// rows are retained only as declared context. Runtime is `O(N*D)` when available with exactly two

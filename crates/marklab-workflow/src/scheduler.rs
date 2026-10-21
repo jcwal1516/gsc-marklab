@@ -1,9 +1,7 @@
 use std::collections::BTreeSet;
 
-use crate::{
-    ArtifactRef, ContentDigest, LocalArtifactStore, MarklabProject, NodeId, WorkflowError,
-    WorkflowGraph, WorkflowNode,
-};
+use crate::{NodeId, WorkflowError, WorkflowGraph, WorkflowNode};
+use marklab_project::{ArtifactRef, ContentDigest, LocalArtifactStore, MarklabProject};
 
 /// Resource bounds enforced before a successful output is committed.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

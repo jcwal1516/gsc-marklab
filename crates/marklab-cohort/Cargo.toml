@@ -1,15 +1,17 @@
 [package]
 name = "marklab-cohort"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Cohort-valid population inference for Marklab"
+repository.workspace = true
+description = "Cohort-level hypothesis tests and population inference for Marklab"
 
 [lib]
 bench = false
 
 [dependencies]
-sha2 = "0.10.9"
+marklab-numerics.workspace = true
+sha2.workspace = true
 statrs = "0.18"
-thiserror = "2"
+thiserror.workspace = true

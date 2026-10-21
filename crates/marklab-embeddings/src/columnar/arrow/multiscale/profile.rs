@@ -1,11 +1,10 @@
-use arrow::datatypes::{DataType, Field, Schema};
+use arrow::datatypes::Schema;
 use arrow_ipc::{Endianness, Type};
 
 use crate::{ExpectedPatchSet, PatchEmbeddingContext, PatchFootprintSet, PatchOverlapGraph};
 
 use super::super::super::multiscale::{
-    validate_footprint_domain, validate_overlap_domain, MultiscaleColumnarError,
-    SpatialArrowFailure,
+    validate_footprint_domain, validate_overlap_domain, ArrowIpcFailure, ColumnarError,
 };
 use super::physical::validate_required_utf8_field;
 use crate::multiscale::physical::{
@@ -61,14 +60,10 @@ pub(super) fn footprint_schema(
     expected: &ExpectedPatchSet,
     context: &PatchEmbeddingContext,
     footprints: &PatchFootprintSet,
-) -> Result<Schema, MultiscaleColumnarError> {
+) -> Result<Schema, ColumnarError> {
     validate_footprint_domain(expected, context, footprints)?;
     Ok(Schema::new_with_metadata(
-        vec![
-            Field::new("patch_id", DataType::Utf8, false),
-            Field::new("origin_x_px", DataType::Int64, false),
-            Field::new("origin_y_px", DataType::Int64, false),
-        ],
+        crate::columnar::multiscale::footprint_fields(),
         footprint_metadata(expected, footprints)
             .into_iter()
             .collect(),
@@ -80,13 +75,10 @@ pub(super) fn overlap_schema(
     context: &PatchEmbeddingContext,
     footprints: &PatchFootprintSet,
     overlap: &PatchOverlapGraph,
-) -> Result<Schema, MultiscaleColumnarError> {
+) -> Result<Schema, ColumnarError> {
     validate_overlap_domain(expected, context, footprints, overlap)?;
     Ok(Schema::new_with_metadata(
-        vec![
-            Field::new("left_patch_id", DataType::Utf8, false),
-            Field::new("right_patch_id", DataType::Utf8, false),
-        ],
+        crate::columnar::multiscale::overlap_fields(),
         overlap_metadata(expected, footprints, overlap)
             .into_iter()
             .collect(),
@@ -100,7 +92,7 @@ pub(super) fn validate_flatbuffer_schema(
     context: &PatchEmbeddingContext,
     footprints: &PatchFootprintSet,
     overlap: Option<&PatchOverlapGraph>,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     validate_schema_shape(schema, profile)?;
     validate_metadata(
         schema.custom_metadata(),
@@ -115,7 +107,7 @@ pub(super) fn validate_flatbuffer_schema(
             expected,
             context,
             footprints,
-            overlap.ok_or(MultiscaleColumnarError::ArtifactBindingMismatch)?,
+            overlap.ok_or(ColumnarError::ArtifactBindingMismatch)?,
         ),
     }
 }
@@ -123,19 +115,19 @@ pub(super) fn validate_flatbuffer_schema(
 fn validate_schema_shape(
     schema: arrow_ipc::Schema<'_>,
     profile: SpatialArrowProfile,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     if schema.endianness() != Endianness::Little
         || schema
             .features()
             .is_some_and(|features| !features.is_empty())
     {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     let fields = schema
         .fields()
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidSchema))?;
+        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidSchema))?;
     if fields.len() != profile.field_count() {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     match profile {
         SpatialArrowProfile::Footprint => {
@@ -156,14 +148,14 @@ pub(super) fn expected_schema(
     context: &PatchEmbeddingContext,
     footprints: &PatchFootprintSet,
     overlap: Option<&PatchOverlapGraph>,
-) -> Result<Schema, MultiscaleColumnarError> {
+) -> Result<Schema, ColumnarError> {
     match profile {
         SpatialArrowProfile::Footprint => footprint_schema(expected, context, footprints),
         SpatialArrowProfile::Overlap => overlap_schema(
             expected,
             context,
             footprints,
-            overlap.ok_or(MultiscaleColumnarError::ArtifactBindingMismatch)?,
+            overlap.ok_or(ColumnarError::ArtifactBindingMismatch)?,
         ),
     }
 }
@@ -224,53 +216,44 @@ fn validate_metadata(
     expected: &ExpectedPatchSet,
     footprints: &PatchFootprintSet,
     overlap: Option<&PatchOverlapGraph>,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     let expected_entries: Vec<(String, String)> = match profile {
         SpatialArrowProfile::Footprint => footprint_metadata(expected, footprints).into(),
         SpatialArrowProfile::Overlap => overlap_metadata(
             expected,
             footprints,
-            overlap.ok_or(MultiscaleColumnarError::ArtifactBindingMismatch)?,
+            overlap.ok_or(ColumnarError::ArtifactBindingMismatch)?,
         )
         .into(),
     };
     let metadata =
-        metadata.ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidApplicationMetadata))?;
+        metadata.ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata))?;
     if metadata.len() != expected_entries.len() {
-        return Err(arrow_failure(
-            SpatialArrowFailure::InvalidApplicationMetadata,
-        ));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata));
     }
     let mut total = 0_usize;
     for (entry, (expected_key, expected_value)) in metadata.iter().zip(expected_entries) {
         let key = entry
             .key()
-            .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidApplicationMetadata))?;
+            .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata))?;
         let value = entry
             .value()
-            .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidApplicationMetadata))?;
+            .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata))?;
         total = total
             .checked_add(key.len())
             .and_then(|sum| sum.checked_add(value.len()))
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         if key != expected_key || value != expected_value || value.is_empty() {
-            return Err(arrow_failure(
-                SpatialArrowFailure::InvalidApplicationMetadata,
-            ));
+            return Err(arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata));
         }
     }
     if total > METADATA_LIMIT {
-        return Err(arrow_failure(
-            SpatialArrowFailure::InvalidApplicationMetadata,
-        ));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata));
     }
     Ok(())
 }
 
-fn validate_i64_field(
-    field: arrow_ipc::Field<'_>,
-    name: &str,
-) -> Result<(), MultiscaleColumnarError> {
+fn validate_i64_field(field: arrow_ipc::Field<'_>, name: &str) -> Result<(), ColumnarError> {
     let integer = field.type_as_int();
     if field.name() != Some(name)
         || field.nullable()
@@ -284,13 +267,13 @@ fn validate_i64_field(
         || field.type_type() != Type::Int
         || integer.is_none_or(|integer| integer.bitWidth() != 64 || !integer.is_signed())
     {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     Ok(())
 }
 
-pub(super) fn arrow_failure(reason: SpatialArrowFailure) -> MultiscaleColumnarError {
-    MultiscaleColumnarError::Arrow { reason }
+pub(super) fn arrow_failure(reason: ArrowIpcFailure) -> ColumnarError {
+    ColumnarError::Arrow { reason }
 }
 
 #[cfg(test)]
@@ -327,8 +310,8 @@ mod tests {
                 root_as_schema(&extra_bytes).expect("extra-field schema"),
                 SpatialArrowProfile::Footprint,
             ),
-            Err(MultiscaleColumnarError::Arrow {
-                reason: SpatialArrowFailure::InvalidSchema,
+            Err(ColumnarError::Arrow {
+                reason: ArrowIpcFailure::InvalidSchema,
             })
         ));
 
@@ -347,8 +330,8 @@ mod tests {
                 root_as_schema(&dictionary_bytes).expect("dictionary schema"),
                 SpatialArrowProfile::Footprint,
             ),
-            Err(MultiscaleColumnarError::Arrow {
-                reason: SpatialArrowFailure::InvalidSchema,
+            Err(ColumnarError::Arrow {
+                reason: ArrowIpcFailure::InvalidSchema,
             })
         ));
     }
@@ -374,8 +357,8 @@ mod tests {
                 root_as_schema(builder.finished_data()).expect("feature schema"),
                 SpatialArrowProfile::Footprint,
             ),
-            Err(MultiscaleColumnarError::Arrow {
-                reason: SpatialArrowFailure::InvalidSchema,
+            Err(ColumnarError::Arrow {
+                reason: ArrowIpcFailure::InvalidSchema,
             })
         ));
     }

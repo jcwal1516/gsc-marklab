@@ -3,7 +3,7 @@
 use std::{fmt::Write as _, fs, path::Path};
 
 use assert_cmd::Command;
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 
 fn write_fixture(events: &Path, grid: &Path) {
     let counts = [2, 5, 12];

@@ -3,7 +3,7 @@ use parquet::format::{ColumnOrder, CompressionCodec, Encoding, FileMetaData, Pag
 use crate::{
     columnar::{
         enforce_decoded_budget, enforce_row_group_budget, CellEmbeddingTablePhysicalBindings,
-        EmbeddingColumnarBudgets, EmbeddingColumnarError, ParquetFailure,
+        ColumnarError, EmbeddingColumnarBudgets, ParquetFailure,
     },
     ExpectedCellSet,
 };
@@ -23,9 +23,9 @@ pub(super) fn validate_file_metadata<F>(
     bindings: CellEmbeddingTablePhysicalBindings,
     budgets: EmbeddingColumnarBudgets,
     mut page_validator: F,
-) -> Result<(), EmbeddingColumnarError>
+) -> Result<(), ColumnarError>
 where
-    F: FnMut(usize, usize, usize, usize, u32) -> Result<ValidatedPages, EmbeddingColumnarError>,
+    F: FnMut(usize, usize, usize, usize, u32) -> Result<ValidatedPages, ColumnarError>,
 {
     let expected_rows = expected.cells().len();
     if metadata.version != 2
@@ -56,7 +56,7 @@ where
     for (group_index, row_group) in metadata.row_groups.iter().enumerate() {
         let remaining = expected_rows
             .checked_sub(aggregate_rows)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let rows = remaining.min(ROW_GROUP_ROWS);
         if usize::try_from(row_group.num_rows).ok() != Some(rows)
             || row_group.columns.len() != 3
@@ -80,10 +80,8 @@ where
         let expected_types = [Type::BYTE_ARRAY, Type::FLOAT, Type::BYTE_ARRAY];
         let expected_values = [
             rows,
-            rows.checked_mul(
-                usize::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
-            )
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?,
+            rows.checked_mul(usize::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?)
+                .ok_or(ColumnarError::SizeOverflow)?,
             rows,
         ];
         let mut group_compressed_bytes = 0_usize;
@@ -156,7 +154,7 @@ where
             }
             next_chunk_offset = data_offset
                 .checked_add(compressed_bytes)
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
             if next_chunk_offset > footer_start {
                 return Err(parquet_failure(ParquetFailure::InvalidColumnChunk));
             }
@@ -180,21 +178,21 @@ where
                 0 => {
                     identifier_bytes = identifier_bytes
                         .checked_add(pages.string_payload_bytes)
-                        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+                        .ok_or(ColumnarError::SizeOverflow)?;
                 }
                 2 => {
                     status_bytes = status_bytes
                         .checked_add(pages.string_payload_bytes)
-                        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+                        .ok_or(ColumnarError::SizeOverflow)?;
                 }
                 _ => {}
             }
             group_compressed_bytes = group_compressed_bytes
                 .checked_add(compressed_bytes)
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
             group_uncompressed_bytes = group_uncompressed_bytes
                 .checked_add(uncompressed_bytes)
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
         }
         if usize::try_from(row_group.total_byte_size).ok() != Some(group_uncompressed_bytes)
             || row_group
@@ -207,7 +205,7 @@ where
         enforce_row_group_budget(group_compressed_bytes, budgets)?;
         aggregate_rows = aggregate_rows
             .checked_add(rows)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
     }
     if aggregate_rows != expected_rows || next_chunk_offset != footer_start {
         return Err(parquet_failure(ParquetFailure::InvalidRowCount));

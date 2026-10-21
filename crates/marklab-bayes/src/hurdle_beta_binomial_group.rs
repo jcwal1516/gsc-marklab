@@ -1,14 +1,18 @@
+use crate::is_worker_timeout;
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::ClaimStatus;
 use crate::{
     model::{PYMC_VERSION, WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION},
-    sha256_hex,
-    validation::{diagnostics_satisfy_policy, is_lower_hex_sha256},
-    BackendContract, BayesError, DiagnosticPolicy, FitState, NormalMeanDiagnostics,
-    NutsSamplingSpec, SamplingSummary, SarScalarSummary, WorkerBackend,
+    validation::{diagnostics_satisfy_policy, is_exact_name, is_sha256},
+    BackendContract, BayesError, DiagnosticPolicy, FitState, NutsSamplingSpec,
+    PosteriorDiagnostics, SamplingSummary, ScalarSummary, WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct HurdleBetaBinomialGroupPatientData {
@@ -18,6 +22,20 @@ pub struct HurdleBetaBinomialGroupPatientData {
     pub trials: u64,
 }
 
+/// Patient counts with separate presence and positive-abundance group regressions.
+///
+/// With comparison indicator `g_i`, presence follows
+/// `1[y_i > 0] ~ Bernoulli(sigmoid(a_p + b_p * g_i))`. Positive counts follow a
+/// beta-binomial with `trials_i` trials and shapes `q_i * phi`, `(1 - q_i) * phi`,
+/// conditioned on a positive count, where `q_i = sigmoid(a_q + b_q * g_i)`.
+/// Thus `q_i` is the untruncated beta-binomial mean proportion, not the positive
+/// count's conditional mean proportion. Presence intercept `a_p` has prior
+/// `Normal(presence_intercept_prior_mean, presence_intercept_prior_sd)`; `a_q`
+/// uses the corresponding abundance fields. Group effects have zero-mean
+/// normal priors with their corresponding prior SDs.
+/// Concentration has prior `phi ~ HalfNormal(concentration_prior_sd)`, whose
+/// argument is its underlying normal SD. The worker adds the positive-count
+/// log density minus its truncation normalizer as a potential.
 #[derive(Clone, Debug)]
 pub struct HurdleBetaBinomialGroupSpec {
     pub reference_group: String,
@@ -56,8 +74,8 @@ pub struct HurdleBetaBinomialGroupModelIr {
     pub positive_process: &'static str,
     pub observation_unit: &'static str,
     pub biological_unit: &'static str,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -98,8 +116,8 @@ impl HurdleBetaBinomialGroupWorkerRequest {
             spec.abundance_group_effect_prior_sd,
             spec.concentration_prior_sd,
         ];
-        if !valid_name(&spec.reference_group)
-            || !valid_name(&spec.comparison_group)
+        if !is_exact_name(&spec.reference_group)
+            || !is_exact_name(&spec.comparison_group)
             || spec.reference_group == spec.comparison_group
             || !spec.presence_intercept_prior_mean.is_finite()
             || !spec.abundance_intercept_prior_mean.is_finite()
@@ -107,9 +125,9 @@ impl HurdleBetaBinomialGroupWorkerRequest {
                 .iter()
                 .any(|value| !value.is_finite() || *value <= 0.0)
             || !(8..=512).contains(&spec.patients.len())
-            || !is_lower_hex_sha256(&environment_lock_sha256)
-            || !is_lower_hex_sha256(&worker_sha256)
-            || !(1..=3_600).contains(&timeout_seconds)
+            || !is_sha256(&environment_lock_sha256)
+            || !is_sha256(&worker_sha256)
+            || !is_worker_timeout(timeout_seconds)
         {
             return Err(BayesError::InvalidSpec(
                 "hurdle beta-binomial controls or identities are invalid".into(),
@@ -123,7 +141,7 @@ impl HurdleBetaBinomialGroupWorkerRequest {
         let mut positive_counts = BTreeMap::<&str, usize>::new();
         let mut total_trials = 0_u64;
         for patient in &patients {
-            if !valid_name(&patient.patient_id)
+            if !is_exact_name(&patient.patient_id)
                 || !patient_ids.insert(patient.patient_id.as_str())
                 || (patient.group != spec.reference_group && patient.group != spec.comparison_group)
                 || patient.trials == 0
@@ -182,7 +200,7 @@ impl HurdleBetaBinomialGroupWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -209,8 +227,8 @@ impl HurdleBetaBinomialGroupWorkerRequest {
                 positive_process: "exposure_adjusted_positive_abundance",
                 observation_unit: "one_complete_class_count_and_total_exposure_per_patient",
                 biological_unit: "patient",
-                backend_capability: "nuts",
-                maturity: "experimental",
+                backend_capability: BackendCapability::Nuts,
+                maturity: ModelMaturity::Experimental,
             },
             patients,
             sampling,
@@ -227,30 +245,23 @@ impl HurdleBetaBinomialGroupWorkerRequest {
     }
 }
 
-fn valid_name(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 128
-        && value.trim() == value
-        && !value.chars().any(char::is_control)
-}
-
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct HurdleBetaBinomialGroupPosterior {
-    pub presence_intercept_log_odds: SarScalarSummary,
-    pub presence_group_log_odds_effect: SarScalarSummary,
-    pub reference_presence_probability: SarScalarSummary,
-    pub comparison_presence_probability: SarScalarSummary,
-    pub presence_probability_difference_comparison_minus_reference: SarScalarSummary,
-    pub positive_abundance_intercept_log_odds: SarScalarSummary,
-    pub positive_abundance_group_log_odds_effect: SarScalarSummary,
-    pub reference_positive_abundance_probability: SarScalarSummary,
-    pub comparison_positive_abundance_probability: SarScalarSummary,
-    pub positive_abundance_difference_comparison_minus_reference: SarScalarSummary,
-    pub reference_unconditional_expected_proportion: SarScalarSummary,
-    pub comparison_unconditional_expected_proportion: SarScalarSummary,
-    pub unconditional_expected_proportion_difference: SarScalarSummary,
-    pub concentration: SarScalarSummary,
+    pub presence_intercept_log_odds: ScalarSummary,
+    pub presence_group_log_odds_effect: ScalarSummary,
+    pub reference_presence_probability: ScalarSummary,
+    pub comparison_presence_probability: ScalarSummary,
+    pub presence_probability_difference_comparison_minus_reference: ScalarSummary,
+    pub positive_abundance_intercept_log_odds: ScalarSummary,
+    pub positive_abundance_group_log_odds_effect: ScalarSummary,
+    pub reference_positive_abundance_probability: ScalarSummary,
+    pub comparison_positive_abundance_probability: ScalarSummary,
+    pub positive_abundance_difference_comparison_minus_reference: ScalarSummary,
+    pub reference_unconditional_expected_proportion: ScalarSummary,
+    pub comparison_unconditional_expected_proportion: ScalarSummary,
+    pub unconditional_expected_proportion_difference: ScalarSummary,
+    pub concentration: ScalarSummary,
     pub overdispersion_mean: f64,
 }
 
@@ -282,7 +293,7 @@ pub struct HurdleBetaBinomialGroupWorkerResult {
     pub fit_state: FitState,
     pub sampling: SamplingSummary,
     pub posterior: HurdleBetaBinomialGroupPosterior,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: HurdleBetaBinomialGroupPosteriorPredictive,
 }
 
@@ -294,11 +305,7 @@ impl HurdleBetaBinomialGroupWorkerResult {
     ) -> Result<(), BayesError> {
         if self.format != "marklab.pymc_hurdle_beta_binomial_group_worker_result"
             || self.version != 1
-            || self.backend.name != request.backend.name
-            || self.backend.version != request.backend.version
-            || self.backend.python_version != request.backend.python_version
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
         {
             return Err(BayesError::WorkerContract(
@@ -440,9 +447,9 @@ impl HurdleBetaBinomialGroupWorkerResult {
             posterior_predictive: self.posterior_predictive,
             seed: request.sampling.seed,
             claim_status: if self.fit_state == FitState::Complete {
-                "experimental_patient_hurdle_group_association"
+                ClaimStatus::ExperimentalPatientHurdleGroupAssociation
             } else {
-                "diagnostic_only_nonconverged"
+                ClaimStatus::DiagnosticOnlyNonconverged
             },
             request_sha256: self.request_sha256,
         }
@@ -450,7 +457,7 @@ impl HurdleBetaBinomialGroupWorkerResult {
 }
 
 fn validate_summary(
-    summary: &SarScalarSummary,
+    summary: &ScalarSummary,
     support: Option<(f64, f64)>,
 ) -> Result<(), BayesError> {
     if ![
@@ -489,12 +496,6 @@ pub struct HurdleBetaBinomialGroupInputIdentity {
     pub total_trials: u64,
 }
 
-pub fn hurdle_beta_binomial_group_data_sha256(
-    patients: &[HurdleBetaBinomialGroupPatientData],
-) -> Result<String, BayesError> {
-    Ok(sha256_hex(&serde_json::to_vec(patients)?))
-}
-
 #[derive(Debug, Serialize)]
 pub struct HurdleBetaBinomialGroupResult {
     pub format: &'static str,
@@ -505,10 +506,10 @@ pub struct HurdleBetaBinomialGroupResult {
     pub sampling: SamplingSummary,
     pub fit_state: FitState,
     pub posterior: HurdleBetaBinomialGroupPosterior,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: HurdleBetaBinomialGroupPosteriorPredictive,
     pub seed: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub request_sha256: String,
 }
 

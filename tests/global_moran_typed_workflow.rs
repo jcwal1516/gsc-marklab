@@ -1,21 +1,28 @@
-#![allow(dead_code)]
-
 use approx::assert_abs_diff_eq;
 use marklab::{
-    execute_algorithm_with_store, global_geary_permutation, global_moran_permutation,
-    scalar_semivariogram, scalar_semivariogram_permutation, ArtifactRef, ArtifactSchema,
-    BinaryMarkDeclaration, CacheStatus, DeclaredScalarPatternInput, DurableProject,
-    DurableProjectLimits, GlobalGearyAlternative, GlobalGearyDesign, GlobalGearyLimits,
-    GlobalMoranAlternative, GlobalMoranDesign, GlobalMoranError, GlobalMoranLimits,
-    GlobalMoranWeightPolicy, HistologicCompartmentMarkDeclaration, LocalScheduler, MarkTable,
-    MeasurementStatus, MissingnessPolicy, NativeRuntimeProvenance, NodeId,
-    NucleusAreaUm2MarkDeclaration, ObservationWindow2D, ObservationWindowError,
-    ObservationWindowLimits, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
-    ScalarVariogramAnalysisNode, ScalarVariogramBin, ScalarVariogramInferenceDesign,
-    ScalarVariogramInferenceLimits, ScalarVariogramLimits, SchedulerLimits, WorkflowGraph,
+    autocorrelation::{
+        global_geary_permutation, global_moran_permutation, scalar_semivariogram,
+        scalar_semivariogram_permutation, GlobalGearyAlternative, GlobalGearyDesign,
+        GlobalGearyLimits, GlobalMoranAlternative, GlobalMoranDesign, GlobalMoranError,
+        GlobalMoranLimits, GlobalMoranWeightPolicy, ScalarVariogramAnalysisNode,
+        ScalarVariogramBin, ScalarVariogramInferenceDesign, ScalarVariogramInferenceLimits,
+        ScalarVariogramLimits,
+    },
+    marks::{
+        BinaryMarkDeclaration, DeclaredScalarPatternInput, HistologicCompartmentMarkDeclaration,
+        MarkTable, MissingnessPolicy, NucleusAreaUm2MarkDeclaration, ScalarMarkColumn,
+        ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
+    },
+    workflow::{
+        execute_algorithm_with_store, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
+        DurableProjectLimits, LocalScheduler, NativeRuntimeProvenance, NodeId, SchedulerLimits,
+        WorkflowGraph,
+    },
+    MeasurementStatus, ObservationWindow2D, ObservationWindowError, ObservationWindowLimits,
 };
 use marklab_cohort::{InferenceAlternative, InferenceDesign};
 
+#[allow(dead_code)]
 #[path = "support/declared_scalar.rs"]
 mod support;
 use support::*;
@@ -102,11 +109,13 @@ fn typed_frame_mark_and_compartment_design_drive_global_moran_inference() {
             MissingnessPolicy::NotPermitted,
             vec![0_u32, 0, 1, 2],
         ),
-        Err(marklab::DeclaredScalarInputError::InvalidCategoricalValue {
-            row: 3,
-            code: 2,
-            level_count: 2,
-        })
+        Err(
+            marklab::marks::DeclaredScalarInputError::InvalidCategoricalValue {
+                row: 3,
+                code: 2,
+                level_count: 2,
+            }
+        )
     ));
 
     assert!(matches!(
@@ -117,7 +126,7 @@ fn typed_frame_mark_and_compartment_design_drive_global_moran_inference() {
             MissingnessPolicy::NotPermitted,
             vec![0_u32, 0, 1, 1],
         ),
-        Err(marklab::DeclaredScalarInputError::UnitMismatch)
+        Err(marklab::marks::DeclaredScalarInputError::UnitMismatch)
     ));
     let table = MarkTable::new(
         fixture.cell_ids.clone(),
@@ -205,7 +214,7 @@ fn typed_frame_mark_and_compartment_design_drive_global_moran_inference() {
         result.conditioning_measurement_status,
         Some(MeasurementStatus::Measured)
     );
-    assert_eq!(result.permutations_completed, 31);
+    assert_eq!(result.permutations_requested, 31);
     assert_eq!(result.coordinate_frame_id, fixture.frame_id);
     assert_eq!(result.mark_id.as_str(), "nucleus_area_um2");
     assert_eq!(result.measurement_status, MeasurementStatus::Measured);
@@ -264,7 +273,7 @@ fn typed_frame_mark_and_compartment_design_drive_global_moran_inference() {
     assert_abs_diff_eq!(geary.null_expectation, 0.515, epsilon = 1e-12);
     assert_eq!(geary.weights_digest, result.weights_digest);
     assert_eq!(geary.stratum_count, 2);
-    assert_eq!(geary.permutations_completed, 31);
+    assert_eq!(geary.permutations_requested, 31);
     assert!(geary.p_value > 0.0 && geary.p_value <= 1.0);
 
     let two_sided_moran = global_moran_permutation(
@@ -412,10 +421,12 @@ fn typed_frame_mark_and_compartment_design_drive_global_moran_inference() {
             &lag_bins,
             ScalarVariogramLimits::new(4, 5).expect("bounded variogram limits"),
         ),
-        Err(marklab::ScalarVariogramError::PairVisitLimitExceeded {
-            observed: 6,
-            maximum: 5,
-        })
+        Err(
+            marklab::autocorrelation::ScalarVariogramError::PairVisitLimitExceeded {
+                observed: 6,
+                maximum: 5,
+            }
+        )
     ));
 
     let variogram_inference = scalar_semivariogram_permutation(
@@ -429,7 +440,7 @@ fn typed_frame_mark_and_compartment_design_drive_global_moran_inference() {
     )
     .expect("scalar semivariogram inference");
     assert_eq!(variogram_inference.observed, variogram);
-    assert_eq!(variogram_inference.permutations_completed, 31);
+    assert_eq!(variogram_inference.permutations_requested, 31);
     assert_eq!(variogram_inference.eligible_bin_count, 3);
     assert_eq!(
         variogram_inference
@@ -586,14 +597,16 @@ fn typed_frame_mark_and_compartment_design_drive_global_moran_inference() {
             ScalarVariogramInferenceLimits::new(4, 6, 6 * 31 - 1)
                 .expect("bounded inference limits"),
         ),
-        Err(marklab::ScalarVariogramError::PermutationWorkExceeded {
-            observed: 186,
-            maximum: 185,
-        })
+        Err(
+            marklab::autocorrelation::ScalarVariogramError::PermutationWorkExceeded {
+                observed: 186,
+                maximum: 185,
+            }
+        )
     ));
     assert_eq!(
         ScalarVariogramInferenceDesign::random_labeling(1, 7, 0.25),
-        Err(marklab::ScalarVariogramError::InvalidInferenceDesign)
+        Err(marklab::autocorrelation::ScalarVariogramError::InvalidInferenceDesign)
     );
 
     let unbound = ObservationWindow2D::from_geojson_str(

@@ -1,6 +1,6 @@
 #![cfg(feature = "cli")]
 
-use std::{fmt::Write as _, fs};
+use std::{collections::HashSet, fmt::Write as _, fs};
 
 use assert_cmd::Command;
 
@@ -111,23 +111,73 @@ fn arbitrary_window_lgcp_runs_fixed_amplitude_and_length_scale_grid() {
         result["format"],
         "marklab.arbitrary_window_lgcp_sensitivity"
     );
-    assert_eq!(result["scenarios"].as_array().unwrap().len(), 5);
+    let scenarios = result["scenarios"].as_array().unwrap();
+    assert_eq!(scenarios.len(), 5);
     assert_eq!(result["all_fits_complete"], true);
     assert_eq!(result["total_draw_node_work"], 40000);
-    assert!(result["scenarios"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .all(|scenario| {
-            scenario["backend"]["name"] == "pymc"
-                && scenario["source_backend"]["name"] == "pymc"
-                && scenario["request_sha256"].as_str().unwrap().len() == 64
-                && scenario["spatial_posterior_predictive"]["replicate_count"] == 8
-        }));
-    assert!(result["maximum_standardized_shift"]
-        .as_f64()
-        .unwrap()
-        .is_finite());
+    assert_eq!(result["material_standardized_shift"], 0.75);
+    let baseline = &scenarios[0]["posterior"];
+    let mut requests = HashSet::new();
+    let mut material = Vec::new();
+    let mut overall_maximum = 0.0_f64;
+    for (scenario, (name, amplitude, length_scale)) in scenarios.iter().zip([
+        ("baseline", 0.2, 1.0),
+        ("field_amplitude_lower", 0.1, 1.0),
+        ("field_amplitude_upper", 0.4, 1.0),
+        ("field_length_scale_lower", 0.2, 0.5),
+        ("field_length_scale_upper", 0.2, 2.0),
+    ]) {
+        assert_eq!(scenario["name"], name);
+        assert_eq!(scenario["field_amplitude"], amplitude);
+        assert_eq!(scenario["field_length_scale_um"], length_scale);
+        assert_eq!(scenario["backend"]["name"], "pymc");
+        assert_eq!(scenario["source_backend"]["name"], "pymc");
+        assert_eq!(scenario["fit_state"], "complete");
+        assert_eq!(
+            scenario["spatial_posterior_predictive"]["replicate_count"],
+            8
+        );
+        let request = scenario["request_sha256"].as_str().unwrap();
+        assert_eq!(request.len(), 64);
+        assert!(
+            requests.insert(request),
+            "{name} reused an earlier fit request"
+        );
+        let mut maximum = scenario["latent_field_rms_standardized_shift"]
+            .as_f64()
+            .unwrap();
+        assert!(maximum.is_finite() && maximum >= 0.0);
+        for (parameter, field) in [
+            ("intercept", "intercept_standardized_shift"),
+            ("coefficient", "coefficient_standardized_shift"),
+        ] {
+            let scale = baseline[parameter]["sd"].as_f64().unwrap();
+            assert!(scale > 0.0);
+            let shift = (scenario["posterior"][parameter]["mean"].as_f64().unwrap()
+                - baseline[parameter]["mean"].as_f64().unwrap())
+            .abs()
+                / scale;
+            assert!(
+                (scenario[field].as_f64().unwrap() - shift).abs() < 1e-12,
+                "{name}, {parameter}"
+            );
+            maximum = maximum.max(shift);
+        }
+        assert!((scenario["maximum_standardized_shift"].as_f64().unwrap() - maximum).abs() < 1e-12);
+        if name == "baseline" {
+            assert_eq!(maximum, 0.0);
+        }
+        let changed = name != "baseline" && maximum >= 0.75;
+        assert_eq!(scenario["material_change"], changed);
+        if changed {
+            material.push(name);
+        }
+        overall_maximum = overall_maximum.max(maximum);
+    }
+    assert!(
+        (result["maximum_standardized_shift"].as_f64().unwrap() - overall_maximum).abs() < 1e-12
+    );
+    assert_eq!(result["material_scenarios"], serde_json::json!(material));
     assert_eq!(
         result["claim_status"],
         "experimental_fixed_kernel_sensitivity"

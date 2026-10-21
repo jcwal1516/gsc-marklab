@@ -1,22 +1,27 @@
 use std::{io::Write, str::FromStr};
 
 use marklab::{
-    publish_cell_patch_assignment_table_arrow, publish_cell_patch_assignment_table_parquet,
-    publish_cell_patch_edge_table_arrow, publish_cell_patch_edge_table_parquet,
-    publish_patch_embedding_table_arrow, publish_patch_embedding_table_parquet,
-    validate_cell_patch_assignment_table_arrow_from_store,
-    validate_cell_patch_assignment_table_parquet_from_store,
-    validate_cell_patch_edge_table_arrow_from_store,
-    validate_cell_patch_edge_table_parquet_from_store,
-    validate_patch_embedding_table_arrow_from_store,
-    validate_patch_embedding_table_parquet_from_store, ArtifactId, ArtifactRecord, CellId,
-    CellPatchAnchor, CellPatchLink, CellPatchLinkBindings, CohortHierarchy, ContentDigest,
-    ContentDigestWriter, CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace,
-    CoordinateUnit, EffectiveReceptiveField, EmbeddingColumnarBudgets, ExpectedCellSet,
-    ExpectedPatchSet, FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention,
-    LocalArtifactStore, PatchBoundaryPolicy, PatchEmbeddingContext, PatchEmbeddingRow,
-    PatchEmbeddingTable, PatchFootprint, PatchFootprintSet, PatchId, PatientId, PositiveRational,
-    ReplicationRole, SlideId, SpatialAxis, StoreId, TransformId, TransformMatrix,
+    embeddings::{
+        publish_cell_patch_assignment_table_arrow, publish_cell_patch_assignment_table_parquet,
+        publish_cell_patch_edge_table_arrow, publish_cell_patch_edge_table_parquet,
+        publish_patch_embedding_table_arrow, publish_patch_embedding_table_parquet,
+        validate_cell_patch_assignment_table_arrow_from_store,
+        validate_cell_patch_assignment_table_parquet_from_store,
+        validate_cell_patch_edge_table_arrow_from_store,
+        validate_cell_patch_edge_table_parquet_from_store,
+        validate_patch_embedding_table_arrow_from_store,
+        validate_patch_embedding_table_parquet_from_store, CellPatchAnchor, CellPatchLink,
+        CellPatchLinkBindings, EffectiveReceptiveField, EmbeddingColumnarBudgets, ExpectedCellSet,
+        ExpectedPatchSet, PatchBoundaryPolicy, PatchEmbeddingContext, PatchEmbeddingRow,
+        PatchEmbeddingTable, PatchFootprint, PatchFootprintSet, PositiveRational,
+    },
+    workflow::{
+        ArtifactId, ArtifactRecord, ContentDigest, ContentDigestWriter, LocalArtifactStore, StoreId,
+    },
+    CellId, CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry,
+    CoordinateSpace, CoordinateUnit, FrameTransform, HierarchyId, HierarchyNode,
+    ImageCoordinateConvention, PatchId, PatientId, ReplicationRole, SlideId, SpatialAxis,
+    TransformId, TransformMatrix,
 };
 use tempfile::TempDir;
 

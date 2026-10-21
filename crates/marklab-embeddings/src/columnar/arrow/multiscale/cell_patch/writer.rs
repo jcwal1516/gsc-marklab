@@ -1,3 +1,4 @@
+use crate::columnar::arrow::multiscale::writer::enforce_footer_bound;
 use std::{io::Write, sync::Arc};
 
 use crate::{CellPatchAssignmentMode, CellPatchLink};
@@ -10,12 +11,10 @@ use arrow::{
 
 use super::super::physical::{enforce_writer_budgets, write_record_batches};
 use super::profile::{assignment_schema, edge_schema};
-use crate::columnar::arrow::profile::{
-    ALIGNMENT, MAXIMUM_FOOTER_BYTES, MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS,
-};
+use crate::columnar::arrow::profile::{ALIGNMENT, MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS};
 use crate::columnar::{
     multiscale::{assignment_decoded_bytes, edge_decoded_bytes, validate_cell_patch_domain},
-    EmbeddingColumnarBudgets, MultiscaleColumnarError, SpatialColumnarWriteSummary,
+    ColumnarError, EmbeddingColumnarBudgets, SpatialColumnarWriteSummary,
 };
 
 /// Write the exact deterministic Arrow IPC cell-patch assignment-table profile.
@@ -23,7 +22,7 @@ pub fn write_cell_patch_assignment_table_arrow(
     output: &mut dyn Write,
     link: &CellPatchLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<SpatialColumnarWriteSummary, MultiscaleColumnarError> {
+) -> Result<SpatialColumnarWriteSummary, ColumnarError> {
     validate_cell_patch_domain(link)?;
     enforce_footer_bound(link.assignment_count())?;
     let estimates = assignment_estimates(link)?;
@@ -48,7 +47,7 @@ pub fn write_cell_patch_edge_table_arrow(
     output: &mut dyn Write,
     link: &CellPatchLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<SpatialColumnarWriteSummary, MultiscaleColumnarError> {
+) -> Result<SpatialColumnarWriteSummary, ColumnarError> {
     validate_cell_patch_domain(link)?;
     enforce_footer_bound(link.edge_count())?;
     let estimates = edge_estimates(link)?;
@@ -74,9 +73,9 @@ fn write_arrow<F>(
     row_count: usize,
     budgets: EmbeddingColumnarBudgets,
     build_batch: F,
-) -> Result<SpatialColumnarWriteSummary, MultiscaleColumnarError>
+) -> Result<SpatialColumnarWriteSummary, ColumnarError>
 where
-    F: FnMut(&Schema, usize, usize) -> Result<RecordBatch, MultiscaleColumnarError>,
+    F: FnMut(&Schema, usize, usize) -> Result<RecordBatch, ColumnarError>,
 {
     let encoded = write_record_batches(output, schema, row_count, budgets, build_batch)?;
     Ok(SpatialColumnarWriteSummary::new(
@@ -91,22 +90,22 @@ fn build_assignment_batch(
     link: &CellPatchLink,
     start: usize,
     end: usize,
-) -> Result<RecordBatch, MultiscaleColumnarError> {
+) -> Result<RecordBatch, ColumnarError> {
     let selected = link
         .assignments()
         .get(start..end)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let (cell_text, status_text) =
         selected
             .iter()
             .try_fold((0_usize, 0_usize), |(cells, statuses), row| {
-                Ok::<_, MultiscaleColumnarError>((
+                Ok::<_, ColumnarError>((
                     cells
                         .checked_add(row.cell_id().as_str().len())
-                        .ok_or(MultiscaleColumnarError::SizeOverflow)?,
+                        .ok_or(ColumnarError::SizeOverflow)?,
                     statuses
                         .checked_add(row.status().wire_name().len())
-                        .ok_or(MultiscaleColumnarError::SizeOverflow)?,
+                        .ok_or(ColumnarError::SizeOverflow)?,
                 ))
             })?;
     let mut cells = StringBuilder::with_capacity(selected.len(), cell_text);
@@ -131,8 +130,7 @@ fn build_assignment_batch(
         Arc::new(edge_start.finish()),
         Arc::new(edge_count.finish()),
     ];
-    RecordBatch::try_new(Arc::new(schema.clone()), columns)
-        .map_err(|_| MultiscaleColumnarError::ArrowWriter)
+    RecordBatch::try_new(Arc::new(schema.clone()), columns).map_err(|_| ColumnarError::ArrowWriter)
 }
 
 fn build_edge_batch(
@@ -140,28 +138,28 @@ fn build_edge_batch(
     link: &CellPatchLink,
     start: usize,
     end: usize,
-) -> Result<RecordBatch, MultiscaleColumnarError> {
+) -> Result<RecordBatch, ColumnarError> {
     let selected = link
         .edges()
         .get(start..end)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let patch_text = selected.iter().try_fold(0_usize, |total, row| {
         total
             .checked_add(row.patch_id().as_str().len())
-            .ok_or(MultiscaleColumnarError::SizeOverflow)
+            .ok_or(ColumnarError::SizeOverflow)
     })?;
     let mut assignment_rows = UInt64Builder::with_capacity(selected.len());
     let mut patch_ids = StringBuilder::with_capacity(selected.len(), patch_text);
     let mut numerators = Vec::new();
-    numerators.try_reserve_exact(selected.len()).map_err(|_| {
-        MultiscaleColumnarError::AllocationFailed {
+    numerators
+        .try_reserve_exact(selected.len())
+        .map_err(|_| ColumnarError::AllocationFailed {
             requested: selected.len().saturating_mul(size_of::<u64>()),
-        }
-    })?;
+        })?;
     let mut denominators = Vec::new();
     denominators
         .try_reserve_exact(selected.len())
-        .map_err(|_| MultiscaleColumnarError::AllocationFailed {
+        .map_err(|_| ColumnarError::AllocationFailed {
             requested: selected.len().saturating_mul(size_of::<u64>()),
         })?;
     for row in selected {
@@ -179,18 +177,17 @@ fn build_edge_batch(
         Arc::new(numerator_array),
         Arc::new(denominator_array),
     ];
-    RecordBatch::try_new(Arc::new(schema.clone()), columns)
-        .map_err(|_| MultiscaleColumnarError::ArrowWriter)
+    RecordBatch::try_new(Arc::new(schema.clone()), columns).map_err(|_| ColumnarError::ArrowWriter)
 }
 
 fn explicit_weight_validity(
     mode: CellPatchAssignmentMode,
     rows: usize,
-) -> Result<NullBuffer, MultiscaleColumnarError> {
+) -> Result<NullBuffer, ColumnarError> {
     let byte_count = rows
         .checked_add(7)
         .map(|value| value / 8)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let bytes = vec![
         match mode {
             CellPatchAssignmentMode::ContainedShared => 0,
@@ -207,7 +204,7 @@ struct WriterEstimates {
     maximum_batch_bytes: usize,
 }
 
-fn assignment_estimates(link: &CellPatchLink) -> Result<WriterEstimates, MultiscaleColumnarError> {
+fn assignment_estimates(link: &CellPatchLink) -> Result<WriterEstimates, ColumnarError> {
     estimate_chunks(
         link.assignments()
             .chunks(RECORD_BATCH_ROWS)
@@ -215,7 +212,7 @@ fn assignment_estimates(link: &CellPatchLink) -> Result<WriterEstimates, Multisc
     )
 }
 
-fn edge_estimates(link: &CellPatchLink) -> Result<WriterEstimates, MultiscaleColumnarError> {
+fn edge_estimates(link: &CellPatchLink) -> Result<WriterEstimates, ColumnarError> {
     estimate_chunks(
         link.edges()
             .chunks(RECORD_BATCH_ROWS)
@@ -224,40 +221,24 @@ fn edge_estimates(link: &CellPatchLink) -> Result<WriterEstimates, MultiscaleCol
 }
 
 fn estimate_chunks(
-    chunks: impl Iterator<Item = Result<(usize, usize), MultiscaleColumnarError>>,
-) -> Result<WriterEstimates, MultiscaleColumnarError> {
+    chunks: impl Iterator<Item = Result<(usize, usize), ColumnarError>>,
+) -> Result<WriterEstimates, ColumnarError> {
     let mut decoded = 0_u64;
     let mut maximum = 0_usize;
     for chunk in chunks {
         let (bytes, buffer_count) = chunk?;
         decoded = decoded
-            .checked_add(u64::try_from(bytes).map_err(|_| MultiscaleColumnarError::SizeOverflow)?)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .checked_add(u64::try_from(bytes).map_err(|_| ColumnarError::SizeOverflow)?)
+            .ok_or(ColumnarError::SizeOverflow)?;
         maximum = maximum.max(
             bytes
                 .checked_add(buffer_count * (ALIGNMENT - 1))
                 .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?,
+                .ok_or(ColumnarError::SizeOverflow)?,
         );
     }
     Ok(WriterEstimates {
         decoded_bytes: decoded,
         maximum_batch_bytes: maximum,
     })
-}
-
-fn enforce_footer_bound(row_count: usize) -> Result<(), MultiscaleColumnarError> {
-    const FOOTER_BASE_BYTES: usize = 64 * 1024;
-    let footer_bytes = FOOTER_BASE_BYTES
-        .checked_add(
-            row_count
-                .div_ceil(RECORD_BATCH_ROWS)
-                .checked_mul(size_of::<arrow_ipc::Block>())
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?,
-        )
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-    if footer_bytes > MAXIMUM_FOOTER_BYTES {
-        return Err(MultiscaleColumnarError::ArrowWriter);
-    }
-    Ok(())
 }

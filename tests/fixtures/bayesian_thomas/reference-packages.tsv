@@ -1,0 +1,11 @@
+package	version
+R	4.5.2
+jsonlite	2.0.0
+spatstat.data	3.1-9
+spatstat.explore	3.8-3
+spatstat.geom	3.8-3
+spatstat.model	3.7-2
+spatstat.random	3.5-2
+spatstat.sparse	3.2-0
+spatstat.univar	3.2-0
+spatstat.utils	3.2-5

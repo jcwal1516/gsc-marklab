@@ -5,6 +5,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::eigendecomposition::symmetric_eigendecomposition;
+use marklab_core::backend::ClaimStatus;
 
 const MAXIMUM_NODES: usize = 128;
 
@@ -102,7 +103,7 @@ pub struct GraphSpectralResult {
     pub spectrum: GraphSpectrum,
     pub frequency_bands: Vec<FrequencyBandSummary>,
     pub work: GraphSpectralWork,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 #[derive(Debug, Error)]
@@ -247,7 +248,7 @@ pub fn graph_spectral_workflow(
             pair_evaluations,
             jacobi_rotations,
         },
-        claim_status: "experimental_synthetic_graph_signal",
+        claim_status: ClaimStatus::ExperimentalSyntheticGraphSignal,
     })
 }
 

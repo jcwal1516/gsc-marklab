@@ -49,7 +49,7 @@ impl VerifiedPatchEmbeddingSupportArtifact {
         graph: VerifiedDirectPatchEmbeddingArtifactGraph,
         footprints: VerifiedPatchFootprintArtifact,
         overlap: VerifiedPatchOverlapArtifact,
-    ) -> Result<Self, crate::columnar::MultiscaleColumnarError> {
+    ) -> Result<Self, crate::columnar::ColumnarError> {
         if footprints.artifact_id != graph.patch_footprints_artifact_id
             || footprints.expected_patches_artifact_id != graph.expected_patches_artifact_id
             || footprints.patch_context_artifact_id != graph.patch_context_artifact_id
@@ -60,7 +60,7 @@ impl VerifiedPatchEmbeddingSupportArtifact {
             || overlap.footprint_artifact_id != graph.patch_footprints_artifact_id
             || overlap.logical_digest != graph.patch_overlap_logical_digest
         {
-            return Err(crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch);
+            return Err(crate::columnar::ColumnarError::ArtifactBindingMismatch);
         }
         Ok(Self {
             artifact_id: graph.patch_support_artifact_id,
@@ -276,14 +276,14 @@ impl VerifiedSlideEmbeddingSupportArtifact {
         owning_slide_id: &SlideId,
         support: VerifiedPatchEmbeddingSupportBindings,
         source: VerifiedPatchEmbeddingTableBindings,
-    ) -> Result<Self, crate::columnar::MultiscaleColumnarError> {
+    ) -> Result<Self, crate::columnar::ColumnarError> {
         if source.support_artifact_id != support.artifact_id
             || source.support_logical_digest != support.logical_digest
             || source.expected_patches_artifact_id != support.expected_patches_artifact_id
             || source.expected_patches_logical_digest != support.expected_patches_logical_digest
             || source.qc_summary.row_count() != support.row_count
         {
-            return Err(crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch);
+            return Err(crate::columnar::ColumnarError::ArtifactBindingMismatch);
         }
         Ok(Self::new(
             artifact_id,
@@ -308,13 +308,13 @@ impl VerifiedSlideEmbeddingSupportArtifact {
         owning_slide_id: &SlideId,
         support: VerifiedRegionEmbeddingSupportBindings,
         source: VerifiedRegionEmbeddingTableBindings,
-    ) -> Result<Self, crate::columnar::MultiscaleColumnarError> {
+    ) -> Result<Self, crate::columnar::ColumnarError> {
         if source.support_artifact_id != support.artifact_id
             || source.support_logical_digest != support.logical_digest
             || source.expected_regions_artifact_id != support.expected_regions_artifact_id
             || source.expected_regions_logical_digest != support.expected_regions_logical_digest
         {
-            return Err(crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch);
+            return Err(crate::columnar::ColumnarError::ArtifactBindingMismatch);
         }
         Ok(Self::new(
             artifact_id,

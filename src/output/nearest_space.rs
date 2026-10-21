@@ -1,11 +1,15 @@
 use std::path::{Path, PathBuf};
 
-use marklab_workflow::{ArtifactRef, CacheStatus, ContentDigest};
+use marklab_project::{ArtifactRef, ContentDigest};
+use marklab_workflow::CacheStatus;
 use serde::Serialize;
 
 use crate::{
-    NearestSpaceCacheStatus, NearestSpaceResult, NearestSpaceResultDocument,
-    NearestSpaceWorkflowIdentity, Result,
+    spatial::{
+        NearestSpaceCacheStatus, NearestSpaceResult, NearestSpaceResultDocument,
+        NearestSpaceWorkflowIdentity,
+    },
+    Result,
 };
 
 use super::transaction::OutputTransaction;
@@ -116,7 +120,7 @@ impl RunManifest {
 }
 
 fn render_report(result: &NearestSpaceResult) -> String {
-    let component = |name: &str, value: Option<&crate::NearestSpaceComponentInference>| {
+    let component = |name: &str, value: Option<&crate::spatial::NearestSpaceComponentInference>| {
         value.map_or_else(
             || format!("{name}: unavailable under the typed support rules."),
             |value| {

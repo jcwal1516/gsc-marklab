@@ -1,68 +1,23 @@
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
-use clap::{Args, Parser, Subcommand};
+use clap::Args;
 use marklab_bayes::{
-    ordinal_group_site_data_sha256, sha256_hex, NutsSamplingSpec,
-    OrdinalGroupSiteHierarchyInputIdentity, OrdinalGroupSiteHierarchySpec,
+    json_sha256, sha256_hex, OrdinalGroupSiteHierarchyInputIdentity, OrdinalGroupSiteHierarchySpec,
     OrdinalGroupSiteHierarchyWorkerRequest, OrdinalGroupSiteHierarchyWorkerResult,
     OrdinalGroupSitePatientData,
 };
 use serde::Deserialize;
 
-use super::{publish_json, run_worker, BayesCliError, MAXIMUM_INPUT_BYTES};
-
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct Cli {
-    #[command(subcommand)]
-    command: TopLevel,
-}
-
-#[derive(Debug, Subcommand)]
-enum TopLevel {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    OrdinalGroupSiteHierarchy(Box<ArgsValue>),
-}
+use super::OrdinalGroupSiteHierarchyModelArgs;
+use super::{publish_json, run_worker, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Debug, Args)]
-struct ArgsValue {
+pub(crate) struct OrdinalGroupSiteHierarchyArgs {
+    #[command(flatten)]
+    pub(super) model: OrdinalGroupSiteHierarchyModelArgs,
+    /// Destination for the analysis output.
     #[arg(long)]
-    input: PathBuf,
-    #[arg(long)]
-    reference_group: String,
-    #[arg(long)]
-    comparison_group: String,
-    #[arg(long)]
-    ordered_levels: String,
-    #[arg(long)]
-    cutpoint_prior_sd: f64,
-    #[arg(long)]
-    group_effect_prior_sd: f64,
-    #[arg(long)]
-    site_intercept_sd_prior_sd: f64,
-    #[arg(long)]
-    site_group_slope_sd_prior_sd: f64,
-    #[arg(long)]
-    chains: u32,
-    #[arg(long)]
-    tune: u32,
-    #[arg(long)]
-    draws: u32,
-    #[arg(long)]
-    target_accept: f64,
-    #[arg(long)]
-    seed: u64,
-    #[arg(long)]
-    timeout_seconds: u64,
-    #[arg(long)]
-    out: PathBuf,
+    pub(super) out: PathBuf,
 }
 
 #[derive(Deserialize)]
@@ -74,31 +29,8 @@ struct PatientRow {
     outcome: String,
 }
 
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let Cli {
-        command:
-            TopLevel::Bayes {
-                command: Command::OrdinalGroupSiteHierarchy(args),
-            },
-    } = Cli::parse();
-    let prepared = prepare(
-        args.input,
-        args.reference_group,
-        args.comparison_group,
-        args.ordered_levels.split(',').map(str::to_owned).collect(),
-        args.cutpoint_prior_sd,
-        args.group_effect_prior_sd,
-        args.site_intercept_sd_prior_sd,
-        args.site_group_slope_sd_prior_sd,
-        NutsSamplingSpec {
-            chains: args.chains,
-            tune_per_chain: args.tune,
-            draws_per_chain: args.draws,
-            target_accept: args.target_accept,
-            seed: args.seed,
-        },
-        args.timeout_seconds,
-    )?;
+pub(super) fn run(args: OrdinalGroupSiteHierarchyArgs) -> Result<(), CliError> {
+    let prepared = prepare(args.model)?;
     let result = execute(&prepared)?;
     publish_json(
         &args.out,
@@ -114,29 +46,33 @@ pub(crate) struct PreparedOrdinalGroupSiteHierarchy {
     pub(crate) timeout_seconds: u64,
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare(
-    input_path: PathBuf,
-    reference_group: String,
-    comparison_group: String,
-    ordered_levels: Vec<String>,
-    cutpoint_prior_sd: f64,
-    group_effect_prior_sd: f64,
-    site_intercept_sd_prior_sd: f64,
-    site_group_slope_sd_prior_sd: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-) -> Result<PreparedOrdinalGroupSiteHierarchy, BayesCliError> {
-    let metadata = fs::metadata(&input_path).map_err(|source| BayesCliError::Io {
+    model: OrdinalGroupSiteHierarchyModelArgs,
+) -> Result<PreparedOrdinalGroupSiteHierarchy, CliError> {
+    let OrdinalGroupSiteHierarchyModelArgs {
+        input: input_path,
+        reference_group,
+        comparison_group,
+        ordered_levels,
+        cutpoint_prior_sd,
+        group_effect_prior_sd,
+        site_intercept_sd_prior_sd,
+        site_group_slope_sd_prior_sd,
+        timeout_seconds,
+        nuts,
+    } = model;
+    let sampling = nuts.spec();
+
+    let metadata = fs::metadata(&input_path).map_err(|source| CliError::Io {
         path: input_path.clone(),
         source,
     })?;
     if metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "ordinal site hierarchy input exceeds 16 MiB".into(),
         ));
     }
-    let input_bytes = fs::read(&input_path).map_err(|source| BayesCliError::Io {
+    let input_bytes = fs::read(&input_path).map_err(|source| CliError::Io {
         path: input_path.clone(),
         source,
     })?;
@@ -150,37 +86,33 @@ pub(crate) fn prepare(
         .from_reader(input_bytes.as_slice());
     let patients = reader
         .deserialize::<PatientRow>()
-        .map(
-            |row| -> Result<OrdinalGroupSitePatientData, BayesCliError> {
-                let row = row?;
-                let outcome_code =
-                    level_codes
-                        .get(row.outcome.as_str())
-                        .copied()
-                        .ok_or_else(|| {
-                            BayesCliError::Input(format!(
-                                "ordinal site hierarchy outcome {:?} is not in --ordered-levels",
-                                row.outcome
-                            ))
-                        })?;
-                Ok(OrdinalGroupSitePatientData {
-                    patient_id: row.patient_id,
-                    site_id: row.site_id,
-                    group: row.group,
-                    outcome_code,
-                })
-            },
-        )
+        .map(|row| -> Result<OrdinalGroupSitePatientData, CliError> {
+            let row = row?;
+            let outcome_code = level_codes
+                .get(row.outcome.as_str())
+                .copied()
+                .ok_or_else(|| {
+                    CliError::Input(format!(
+                        "ordinal site hierarchy outcome {:?} is not in --ordered-levels",
+                        row.outcome
+                    ))
+                })?;
+            Ok(OrdinalGroupSitePatientData {
+                patient_id: row.patient_id,
+                site_id: row.site_id,
+                group: row.group,
+                outcome_code,
+            })
+        })
         .collect::<Result<Vec<_>, _>>()?;
-    let repository = &marklab::python_backend_assets_root()?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let worker_directory = repository.join("workers/python");
-    let lock_bytes =
-        fs::read(worker_directory.join("uv.lock")).map_err(|source| BayesCliError::Io {
-            path: worker_directory.join("uv.lock"),
-            source,
-        })?;
+    let lock_bytes = fs::read(worker_directory.join("uv.lock")).map_err(|source| CliError::Io {
+        path: worker_directory.join("uv.lock"),
+        source,
+    })?;
     let worker_path = worker_directory.join("marklab_pymc_ordinal_group_site_hierarchy_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
+    let worker_bytes = fs::read(&worker_path).map_err(|source| CliError::Io {
         path: worker_path,
         source,
     })?;
@@ -202,7 +134,7 @@ pub(crate) fn prepare(
     )?;
     let input_identity = OrdinalGroupSiteHierarchyInputIdentity {
         path: input_path.display().to_string(),
-        patient_data_sha256: ordinal_group_site_data_sha256(&request.patients)?,
+        patient_data_sha256: json_sha256(&request.patients)?,
         patient_count: request.patients.len(),
         site_count: request.site_ids.len(),
         level_count: ordered_levels.len(),
@@ -230,9 +162,9 @@ pub(crate) fn prepare(
 
 pub(crate) fn execute(
     prepared: &PreparedOrdinalGroupSiteHierarchy,
-) -> Result<OrdinalGroupSiteHierarchyWorkerResult, BayesCliError> {
+) -> Result<OrdinalGroupSiteHierarchyWorkerResult, CliError> {
     let result_bytes = run_worker(
-        &marklab::python_backend_assets_root()?,
+        &marklab::backend::python_backend_assets_root()?,
         "marklab_pymc_ordinal_group_site_hierarchy_worker.py",
         &prepared.request_bytes,
         prepared.timeout_seconds,
@@ -240,8 +172,4 @@ pub(crate) fn execute(
     let result: OrdinalGroupSiteHierarchyWorkerResult = serde_json::from_slice(&result_bytes)?;
     result.validate(&prepared.request, &prepared.request_sha256)?;
     Ok(result)
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<Cli>(|| run_cli().map_err(super::into_marklab_error))
 }

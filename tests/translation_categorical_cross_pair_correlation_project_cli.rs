@@ -72,6 +72,12 @@ s:3,3,0,0,c,baseline,cellvit,true,true,s,Stroma\n").expect("cells");
         .success()
         .stderr(predicates::str::contains("cache_status=hit"));
     assert_eq!(fs::read(&first).unwrap(), fs::read(&second).unwrap());
+    // The analytic cross-g is 49 / (8 pi), which rounds to 1.9496480528757179.
+    // The former JSON parser rounded the stored value up to 1.949648052875718.
+    assert_eq!(
+        fs::read(&first).unwrap(),
+        include_bytes!("fixtures/edge_estimators/translation_cross_g.json")
+    );
     let value: serde_json::Value = serde_json::from_slice(&fs::read(first).unwrap()).expect("JSON");
     assert_eq!(value["edge_correction"], "translation");
     assert_eq!(

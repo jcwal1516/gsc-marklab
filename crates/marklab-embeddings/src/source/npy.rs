@@ -14,7 +14,10 @@ const MAGIC: &[u8; 6] = b"\x93NUMPY";
 const MAX_HEADER_BYTES: u64 = 64 * 1024;
 const MAX_ROWS: u64 = 100_000_000;
 const MAX_DIMENSION: u64 = 65_536;
-const CELLVIT_DIMENSION: u64 = 1_280;
+const CELLVIT_DIMENSION: u32 = 1_280;
+
+mod cellvit;
+pub use cellvit::{CellVitNpyMatrix, CellVitNpySummary};
 const STREAM_BUFFER_BYTES: usize = 64 * 1024;
 
 #[cfg(feature = "csv")]
@@ -38,9 +41,9 @@ impl NpyVersion {
     }
 }
 
-/// Aggregate-only facts from one fully validated raw CellViT NPY matrix.
+/// Aggregate-only facts from one fully validated finite little-endian float32 NPY matrix.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct CellVitNpySummary {
+pub struct EmbeddingNpySummary {
     version: NpyVersion,
     row_count: u64,
     dimension: u32,
@@ -48,13 +51,13 @@ pub struct CellVitNpySummary {
     content_digest: ContentDigest,
 }
 
-impl CellVitNpySummary {
+impl EmbeddingNpySummary {
     /// Inspect and validate a bounded seekable reader without retaining its vector payload.
     pub fn from_reader(
         reader: &mut dyn ArtifactReadSeek,
         budgets: SourceBundleBudgets,
     ) -> Result<Self, SourceBundleError> {
-        visit_reader(reader, budgets, &mut |_row, _column, _value| Ok(()))
+        visit_reader_with_dimension(reader, budgets, None, &mut |_row, _column, _value| Ok(()))
     }
 
     /// Accepted NPY wire version.
@@ -67,7 +70,7 @@ impl CellVitNpySummary {
         self.row_count
     }
 
-    /// Frozen raw CellViT vector width.
+    /// Source-declared positive vector width, bounded at 65,536.
     pub fn dimension(self) -> u32 {
         self.dimension
     }
@@ -100,7 +103,8 @@ pub(crate) fn reader_shape(
     reader
         .seek(SeekFrom::Start(0))
         .map_err(|error| io_error(SourceIoOperation::Seek, &error))?;
-    let (layout, _encoded_header) = read_layout(reader, file_bytes, budgets)?;
+    let (layout, _encoded_header) =
+        read_layout(reader, file_bytes, budgets, Some(CELLVIT_DIMENSION))?;
     Ok((layout.rows, layout.dimension))
 }
 
@@ -109,6 +113,16 @@ pub(crate) fn visit_reader(
     budgets: SourceBundleBudgets,
     visitor: &mut dyn FnMut(u64, u32, f32) -> Result<(), SourceBundleError>,
 ) -> Result<CellVitNpySummary, SourceBundleError> {
+    visit_reader_with_dimension(reader, budgets, Some(CELLVIT_DIMENSION), visitor)
+        .map(CellVitNpySummary)
+}
+
+fn visit_reader_with_dimension(
+    reader: &mut dyn ArtifactReadSeek,
+    budgets: SourceBundleBudgets,
+    expected_dimension: Option<u32>,
+    visitor: &mut dyn FnMut(u64, u32, f32) -> Result<(), SourceBundleError>,
+) -> Result<EmbeddingNpySummary, SourceBundleError> {
     let file_bytes = reader
         .seek(SeekFrom::End(0))
         .map_err(|error| io_error(SourceIoOperation::InspectLength, &error))?;
@@ -116,7 +130,7 @@ pub(crate) fn visit_reader(
     reader
         .seek(SeekFrom::Start(0))
         .map_err(|error| io_error(SourceIoOperation::Seek, &error))?;
-    let (layout, encoded_header) = read_layout(reader, file_bytes, budgets)?;
+    let (layout, encoded_header) = read_layout(reader, file_bytes, budgets, expected_dimension)?;
     let peak_parser_bytes = encoded_header
         .len()
         .checked_add(STREAM_BUFFER_BYTES)
@@ -134,32 +148,40 @@ pub(crate) fn visit_reader(
     Ok(layout.summary(content_digest, file_bytes))
 }
 
-/// Borrowed, structurally validated, finite raw CellViT NPY matrix.
+/// Borrowed, bounded row-major float32 NPY matrix with producer-declared dimensions.
 #[derive(Clone, Copy)]
-pub struct CellVitNpyMatrix<'a> {
+pub struct EmbeddingNpyMatrix<'a> {
     payload: &'a [u8],
     layout: Layout,
-    summary: CellVitNpySummary,
+    summary: EmbeddingNpySummary,
 }
 
-impl fmt::Debug for CellVitNpyMatrix<'_> {
+impl fmt::Debug for EmbeddingNpyMatrix<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("CellVitNpyMatrix")
+            .debug_struct("EmbeddingNpyMatrix")
             .field("summary", &self.summary)
             .finish_non_exhaustive()
     }
 }
 
-impl<'a> CellVitNpyMatrix<'a> {
+impl<'a> EmbeddingNpyMatrix<'a> {
     /// Validate one complete borrowed NPY file without allocating its vector payload.
     pub fn from_bytes(
         bytes: &'a [u8],
         budgets: SourceBundleBudgets,
     ) -> Result<Self, SourceBundleError> {
+        Self::from_bytes_with_dimension(bytes, budgets, None)
+    }
+
+    fn from_bytes_with_dimension(
+        bytes: &'a [u8],
+        budgets: SourceBundleBudgets,
+        expected_dimension: Option<u32>,
+    ) -> Result<Self, SourceBundleError> {
         let file_bytes = u64::try_from(bytes.len()).map_err(|_| SourceBundleError::SizeOverflow)?;
         enforce_file_budget(file_bytes, budgets)?;
-        let layout = parse_layout(bytes, file_bytes, budgets)?;
+        let layout = parse_layout(bytes, file_bytes, budgets, expected_dimension)?;
         let offset =
             usize::try_from(layout.data_offset).map_err(|_| SourceBundleError::SizeOverflow)?;
         let payload = bytes
@@ -179,13 +201,13 @@ impl<'a> CellVitNpyMatrix<'a> {
         self.layout.rows
     }
 
-    /// Frozen raw CellViT vector width.
+    /// Source-declared positive vector width, bounded at 65,536.
     pub fn dimension(self) -> u32 {
         self.layout.dimension
     }
 
     /// Aggregate-only validated matrix facts.
-    pub fn summary(self) -> CellVitNpySummary {
+    pub fn summary(self) -> EmbeddingNpySummary {
         self.summary
     }
 
@@ -220,8 +242,8 @@ struct Layout {
 }
 
 impl Layout {
-    fn summary(self, content_digest: ContentDigest, encoded_byte_len: u64) -> CellVitNpySummary {
-        CellVitNpySummary {
+    fn summary(self, content_digest: ContentDigest, encoded_byte_len: u64) -> EmbeddingNpySummary {
+        EmbeddingNpySummary {
             version: self.version,
             row_count: self.rows,
             dimension: self.dimension,
@@ -249,6 +271,7 @@ fn parse_layout(
     bytes: &[u8],
     file_bytes: u64,
     budgets: SourceBundleBudgets,
+    expected_dimension: Option<u32>,
 ) -> Result<Layout, SourceBundleError> {
     if bytes.get(..MAGIC.len()) != Some(MAGIC) {
         return Err(npy_error(NpyFailure::InvalidMagic));
@@ -280,6 +303,7 @@ fn parse_layout(
         bytes,
         file_bytes,
         budgets,
+        expected_dimension,
     )
 }
 
@@ -287,6 +311,7 @@ fn read_layout(
     reader: &mut dyn ArtifactReadSeek,
     file_bytes: u64,
     budgets: SourceBundleBudgets,
+    expected_dimension: Option<u32>,
 ) -> Result<(Layout, Vec<u8>), SourceBundleError> {
     if file_bytes < 6 {
         return Err(npy_error(NpyFailure::InvalidMagic));
@@ -355,6 +380,7 @@ fn read_layout(
         &encoded_header,
         file_bytes,
         budgets,
+        expected_dimension,
     )?;
     Ok((layout, encoded_header))
 }
@@ -366,6 +392,7 @@ fn parse_layout_parts(
     encoded_header: &[u8],
     file_bytes: u64,
     budgets: SourceBundleBudgets,
+    expected_dimension: Option<u32>,
 ) -> Result<Layout, SourceBundleError> {
     enforce_header_budget(header_length)?;
     if header_length == 0 {
@@ -390,7 +417,7 @@ fn parse_layout_parts(
     if shape.dimension == 0 || shape.dimension > MAX_DIMENSION {
         return Err(npy_error(NpyFailure::InvalidShape));
     }
-    if shape.dimension != CELLVIT_DIMENSION {
+    if expected_dimension.is_some_and(|dimension| shape.dimension != u64::from(dimension)) {
         return Err(npy_error(NpyFailure::WrongDimension));
     }
     let payload_bytes = shape

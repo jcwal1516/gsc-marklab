@@ -1,12 +1,16 @@
 use std::str::FromStr;
 
 use marklab::{
-    ArtifactId, CellEmbeddingRow, CellEmbeddingTable, CellId, CellIdentityMap,
-    CellIdentityMapEntry, CohortHierarchy, ContentDigest, CoordinateFrame, CoordinateFrameId,
-    CoordinateRegistry, CoordinateSpace, CoordinateUnit, EmbeddingSpatialContext, EmbeddingStatus,
-    ExpectedCellSet, FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention,
-    PatchBoundaryPolicy, PatientId, PositiveRational, ReplicationRole, SlideId, SpatialAxis,
-    TransformId, TransformMatrix,
+    embeddings::{
+        CellEmbeddingRow, CellEmbeddingTable, CellIdentityMap, CellIdentityMapEntry,
+        EmbeddingSpatialContext, EmbeddingStatus, ExpectedCellSet, PatchBoundaryPolicy,
+        PositiveRational,
+    },
+    workflow::{ArtifactId, ContentDigest},
+    CellId, CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry,
+    CoordinateSpace, CoordinateUnit, FrameTransform, HierarchyId, HierarchyNode,
+    ImageCoordinateConvention, PatientId, ReplicationRole, SlideId, SpatialAxis, TransformId,
+    TransformMatrix,
 };
 
 fn artifact_id(label: &[u8]) -> ArtifactId {

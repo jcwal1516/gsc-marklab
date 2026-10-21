@@ -1,18 +1,20 @@
 [package]
 name = "marklab-sbi"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Bounded simulation-based inference workflows for Marklab"
+repository.workspace = true
+description = "Simulation-based inference workflows for Marklab"
 
 [lib]
 bench = false
 
 [dependencies]
-marklab-simulation = { version = "0.1.0", path = "../marklab-simulation" }
-rand = "=0.8.6"
-rand_chacha = "=0.3.1"
-rand_distr = "=0.4.3"
-serde = { version = "1", features = ["derive"] }
-thiserror = "2"
+marklab-core.workspace = true
+marklab-simulation.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+rand_distr.workspace = true
+serde.workspace = true
+thiserror.workspace = true

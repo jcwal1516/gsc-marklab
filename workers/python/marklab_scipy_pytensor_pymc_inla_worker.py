@@ -1,58 +1,51 @@
 #!/usr/bin/env python3
-"""Static nested-Laplace and PyMC worker for a Poisson-lognormal model."""
+"""Nested-Laplace (INLA-style) worker for a Poisson-lognormal model, with a PyMC NUTS check."""
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
-import numpy as np
 sys.path.append(str(Path(__file__).resolve().parent))
-import marklab_pytensor_config  # noqa: E402,F401
+
+# Configure PyTensor before PyMC is imported.
+from marklab_worker_support import pytensor_config  # noqa: F401
+
+# isort: split
+import numpy as np
 import pymc as pm
 import pytensor
 import pytensor.tensor as pt
 import scipy
-from scipy import optimize, special, stats as scipy_stats
+from scipy import optimize, special
+from scipy import stats as scipy_stats
 
-BACKEND_VERSION = "scipy-1.18.1+pytensor-3.2.4+pymc-6.3.0"
+from marklab_worker_support import pymc_nuts, versions
+from marklab_worker_support.diagnostics import pymc_sampler_diagnostics, rank_convergence
+from marklab_worker_support.nuts_contract import UNBOUNDED_COUNT, nuts_policy, nuts_sampling
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    backend_identity,
+    derive_seed,
+    exact,
+    integer,
+    number,
+    obj,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    validate_backend,
+    worker_digests,
+    write_result,
+)
 
-
-class ContractError(ValueError):
-    pass
-
-
-def obj(value: Any, keys: set[str], path: str) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != keys:
-        actual = set(value) if isinstance(value, dict) else set()
-        raise ContractError(
-            f"{path} fields differ: missing={sorted(keys - actual)}, unknown={sorted(actual - keys)}"
-        )
-    return value
-
-
-def number(value: Any, path: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ContractError(f"{path} must be numeric")
-    result = float(value)
-    if not math.isfinite(result):
-        raise ContractError(f"{path} must be finite")
-    return result
-
-
-def integer(value: Any, path: str, low: int, high: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
-        raise ContractError(f"{path} must be an integer in [{low}, {high}]")
-    return value
-
-
-def exact(value: Any, expected: Any, path: str) -> None:
-    if value != expected:
-        raise ContractError(f"{path} must equal {expected!r}")
+BACKEND_VERSION = f"scipy-{versions.SCIPY}+pytensor-{versions.PYTENSOR}+pymc-{versions.PYMC}"
+NEWTON_STEPS = 64
 
 
 def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, Any]:
@@ -73,16 +66,14 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     )
     exact(request["format"], "marklab.pymc_worker_request", "request.format")
     integer(request["version"], "request.version", 1, 1)
-    backend = obj(
+    validate_backend(
         request["backend"],
-        {"name", "version", "python_version", "environment_lock_sha256", "worker_sha256"},
         "backend",
+        name="scipy_pytensor_pymc",
+        version=BACKEND_VERSION,
+        lock_sha256=lock_digest,
+        worker_sha256=worker_digest,
     )
-    exact(backend["name"], "scipy_pytensor_pymc", "backend.name")
-    exact(backend["version"], BACKEND_VERSION, "backend.version")
-    exact(backend["python_version"], "3.12", "backend.python")
-    exact(backend["environment_lock_sha256"], lock_digest, "backend.lock")
-    exact(backend["worker_sha256"], worker_digest, "backend.worker")
 
     model = obj(
         request["model"],
@@ -182,22 +173,16 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     ):
         raise ContractError("grid controls are invalid")
 
-    sampling = obj(
-        request["sampling"],
-        {"chains", "tune_per_chain", "draws_per_chain", "target_accept", "seed"},
-        "sampling",
-    )
-    chains = integer(sampling["chains"], "sampling.chains", 2, 8)
-    tune = integer(sampling["tune_per_chain"], "sampling.tune", 100, 100_000)
-    draws = integer(sampling["draws_per_chain"], "sampling.draws", 100, 100_000)
-    target_accept = number(sampling["target_accept"], "sampling.target_accept")
-    seed = integer(sampling["seed"], "sampling.seed", 0, 2**64 - 1)
-    if not 0.5 <= target_accept < 1.0:
-        raise ContractError("target acceptance must be in [0.5,1)")
+    sampling = nuts_sampling(request["sampling"], "sampling")
 
     resources = obj(
         request["resources"],
-        {"maximum_observations", "maximum_total_iterations", "maximum_output_bytes", "timeout_seconds"},
+        {
+            "maximum_observations",
+            "maximum_total_iterations",
+            "maximum_output_bytes",
+            "timeout_seconds",
+        },
         "resources",
     )
     if len(observations) > integer(
@@ -207,42 +192,17 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     maximum_total = integer(
         resources["maximum_total_iterations"], "resources.iterations", 1, 400_000
     )
-    if chains * (tune + draws) > maximum_total:
+    if sampling["chains"] * (sampling["tune"] + sampling["draws"]) > maximum_total:
         raise ContractError("NUTS iterations exceed resource limit")
     integer(resources["maximum_output_bytes"], "resources.output", 1, 1_048_576)
     integer(resources["timeout_seconds"], "resources.timeout", 1, 3_600)
 
-    policy = obj(
+    policy = nuts_policy(
         request["diagnostic_policy"],
-        {
-            "prior_predictive_draws",
-            "maximum_r_hat",
-            "minimum_bulk_ess",
-            "minimum_tail_ess",
-            "minimum_ebfmi",
-            "maximum_divergences",
-            "maximum_tree_depth_hits",
-            "maximum_tree_depth",
-        },
         "policy",
+        prior_draw_range=(1, 100_000),
+        count_ceiling=UNBOUNDED_COUNT,
     )
-    parsed_policy = {
-        "prior_draws": integer(policy["prior_predictive_draws"], "policy.prior_draws", 1, 100_000),
-        "maximum_r_hat": number(policy["maximum_r_hat"], "policy.rhat"),
-        "minimum_bulk_ess": number(policy["minimum_bulk_ess"], "policy.bulk"),
-        "minimum_tail_ess": number(policy["minimum_tail_ess"], "policy.tail"),
-        "minimum_ebfmi": number(policy["minimum_ebfmi"], "policy.ebfmi"),
-        "maximum_divergences": integer(policy["maximum_divergences"], "policy.divergences", 0, 2**63 - 1),
-        "maximum_tree_depth_hits": integer(policy["maximum_tree_depth_hits"], "policy.depth_hits", 0, 2**63 - 1),
-        "maximum_tree_depth": integer(policy["maximum_tree_depth"], "policy.depth", 1, 32),
-    }
-    if (
-        parsed_policy["maximum_r_hat"] < 1.0
-        or parsed_policy["minimum_bulk_ess"] <= 0.0
-        or parsed_policy["minimum_tail_ess"] <= 0.0
-        or parsed_policy["minimum_ebfmi"] <= 0.0
-    ):
-        raise ContractError("diagnostic policy is invalid")
     return {
         "region_ids": region_ids,
         "counts": np.asarray(counts, dtype=np.int64),
@@ -257,25 +217,17 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
         "mode_tolerance": mode_tolerance,
         "maximum_mode_iterations": maximum_mode_iterations,
         "rmse_limit": rmse_limit,
-        "chains": chains,
-        "tune": tune,
-        "draws": draws,
-        "target_accept": target_accept,
-        "seed": seed,
-        **parsed_policy,
+        **sampling,
+        **policy,
     }
 
 
 def seed_for(seed: int, purpose: str, index: int = 0) -> int:
-    digest = hashlib.sha256(f"marklab-inla-v1\0{seed}\0{purpose}\0{index}".encode()).digest()
-    return int.from_bytes(digest[:4], "little")
-
-
-def tree_values(tree: Any, names: list[str]) -> np.ndarray:
-    return np.concatenate([np.asarray(tree[name].values).reshape(-1) for name in names])
+    return derive_seed("marklab-inla-v1", seed, purpose, index)
 
 
 def weighted_quantile(values: np.ndarray, weights: np.ndarray, probability: float) -> float:
+    """Quantile of a discrete distribution by linear interpolation of its cumulative weights."""
     cumulative = np.cumsum(weights)
     return float(np.interp(probability, cumulative, values, left=values[0], right=values[-1]))
 
@@ -283,6 +235,7 @@ def weighted_quantile(values: np.ndarray, weights: np.ndarray, probability: floa
 def mixture_quantile(
     modes: np.ndarray, variances: np.ndarray, weights: np.ndarray, probability: float
 ) -> float:
+    """Quantile of a weighted mixture of normals, found by Brent's method."""
     standard_deviations = np.sqrt(variances)
 
     def objective(value: float) -> float:
@@ -297,11 +250,20 @@ def mixture_quantile(
 
 
 def nested_laplace(config: dict[str, Any]) -> dict[str, Any]:
+    """Nested Laplace approximation over a grid in ``log(tau)``.
+
+    Model: ``y_i ~ Poisson(e_i * exp(x_i))`` with independent normal ``x_i`` of mean ``latent_mean``
+    and variance ``1 / tau``, and ``tau ~ Gamma(tau_shape, tau_rate)`` (shape and rate).
+    At each grid value of ``tau`` the conditional mode of
+    ``x`` is found (BFGS, then Newton steps) and the Laplace approximation gives the marginal
+    density of ``log(tau)`` (including its Jacobian); trapezoid weights then mix the Gaussian
+    conditionals into latent marginals.
+    """
     dimension = len(config["region_ids"])
     latent = pt.dvector("latent")
     tau_symbol = pt.dscalar("tau")
     likelihood = (
-        config["counts"] * latent
+        config["counts"] * (latent + np.log(config["exposures"]))
         - config["exposures"] * pt.exp(latent)
         - special.gammaln(config["counts"] + 1.0)
     ).sum()
@@ -315,9 +277,7 @@ def nested_laplace(config: dict[str, Any]) -> dict[str, Any]:
     gradient = pt.grad(log_joint, latent)
     evaluate = pytensor.function([latent, tau_symbol], [log_joint, gradient])
 
-    log_taus = np.linspace(
-        config["log_tau_min"], config["log_tau_max"], config["grid_points"]
-    )
+    log_taus = np.linspace(config["log_tau_min"], config["log_tau_max"], config["grid_points"])
     taus = np.exp(log_taus)
     modes = np.empty((config["grid_points"], dimension), dtype=np.float64)
     variances = np.empty_like(modes)
@@ -326,16 +286,17 @@ def nested_laplace(config: dict[str, Any]) -> dict[str, Any]:
     log_densities = np.empty(config["grid_points"], dtype=np.float64)
     initial = np.log((config["counts"] + 0.5) / config["exposures"])
 
-    for grid_index, (log_tau, tau) in enumerate(zip(log_taus, taus)):
-        def objective(value: np.ndarray) -> float:
-            return -float(evaluate(value, tau)[0])
+    def objective(value: np.ndarray, tau: float) -> float:
+        return -float(evaluate(value, tau)[0])
 
-        def jacobian(value: np.ndarray) -> np.ndarray:
-            return -np.asarray(evaluate(value, tau)[1], dtype=np.float64)
+    def jacobian(value: np.ndarray, tau: float) -> np.ndarray:
+        return -np.asarray(evaluate(value, tau)[1], dtype=np.float64)
 
+    for grid_index, (log_tau, tau) in enumerate(zip(log_taus, taus, strict=True)):
         optimized = optimize.minimize(
             objective,
             initial,
+            args=(tau,),
             jac=jacobian,
             method="BFGS",
             options={
@@ -344,7 +305,7 @@ def nested_laplace(config: dict[str, Any]) -> dict[str, Any]:
             },
         )
         mode = np.asarray(optimized.x, dtype=np.float64)
-        for _ in range(64):
+        for _ in range(NEWTON_STEPS):
             _, gradient_value = evaluate(mode, tau)
             gradient_value = np.asarray(gradient_value, dtype=np.float64)
             if float(np.max(np.abs(gradient_value))) <= config["mode_tolerance"]:
@@ -416,6 +377,11 @@ def nested_laplace(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def hmc_comparison(config: dict[str, Any]) -> dict[str, Any]:
+    """Fit the same model by PyMC NUTS for comparison with the nested Laplace marginals.
+
+    Model: ``y_i ~ Poisson(e_i * exp(x_i))`` with non-centered ``x_i = latent_mean + z_i /
+    sqrt(tau)``, ``z_i ~ Normal(0, 1)``, and ``tau ~ Gamma(tau_shape, tau_rate)``.
+    """
     dimension = len(config["region_ids"])
     coords = {"region": config["region_ids"]}
     with pm.Model(coords=coords):
@@ -430,29 +396,8 @@ def hmc_comparison(config: dict[str, Any]) -> dict[str, Any]:
             observed=config["counts"],
             dims="region",
         )
-        posterior = pm.sample(
-            draws=config["draws"],
-            tune=config["tune"],
-            chains=config["chains"],
-            cores=1,
-            blas_cores=1,
-            random_seed=[
-                seed_for(config["seed"], "chain", chain)
-                for chain in range(config["chains"])
-            ],
-            target_accept=config["target_accept"],
-            nuts_sampler="pymc",
-            nuts={"max_treedepth": config["maximum_tree_depth"]},
-            progressbar=False,
-            quiet=True,
-            compute_convergence_checks=False,
-        )
-        predictive = pm.sample_posterior_predictive(
-            posterior,
-            var_names=["observed_count"],
-            random_seed=seed_for(config["seed"], "predictive"),
-            progressbar=False,
-        )
+        posterior = pymc_nuts.nuts(config, seed_for)
+        predictive = pymc_nuts.posterior_predictive(posterior, "observed_count", config, seed_for)
 
     monitored = ["tau", "latent_raw"]
     tau_draws = np.asarray(posterior["posterior"]["tau"].values, dtype=np.float64)
@@ -460,21 +405,10 @@ def hmc_comparison(config: dict[str, Any]) -> dict[str, Any]:
     predictive_draws = np.asarray(
         predictive["posterior_predictive"]["observed_count"].values, dtype=np.float64
     )
-    r_hat = float(tree_values(pm.stats.rhat(posterior, var_names=monitored, method="rank"), monitored).max())
-    bulk = float(tree_values(pm.stats.ess(posterior, var_names=monitored, method="bulk"), monitored).min())
-    tail = float(tree_values(pm.stats.ess(posterior, var_names=monitored, method="tail"), monitored).min())
-    energy = np.asarray(posterior["sample_stats"]["energy"].values, dtype=np.float64)
-    ebfmi = float(
-        np.min(np.mean(np.diff(energy, axis=1) ** 2, axis=1) / np.var(energy, axis=1))
-    )
-    divergences = int(np.asarray(posterior["sample_stats"]["diverging"].values).sum())
-    depth_hits = int(
-        np.asarray(posterior["sample_stats"]["reached_max_treedepth"].values).sum()
-    )
+    r_hat, bulk, tail = rank_convergence(posterior, monitored)
+    ebfmi, divergences, depth_hits = pymc_sampler_diagnostics(posterior["sample_stats"])
     rng = np.random.default_rng(seed_for(config["seed"], "prior"))
-    prior_tau = rng.gamma(
-        config["tau_shape"], 1.0 / config["tau_rate"], size=config["prior_draws"]
-    )
+    prior_tau = rng.gamma(config["tau_shape"], 1.0 / config["tau_rate"], size=config["prior_draws"])
     prior_latent = config["latent_mean"] + rng.normal(
         size=(config["prior_draws"], dimension)
     ) / np.sqrt(prior_tau[:, None])
@@ -514,9 +448,7 @@ def hmc_comparison(config: dict[str, Any]) -> dict[str, Any]:
 def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str) -> dict[str, Any]:
     approximation = nested_laplace(config)
     hmc = hmc_comparison(config)
-    rmse = float(
-        np.sqrt(np.mean((approximation["latent_means"] - hmc["latent_means"]) ** 2))
-    )
+    rmse = float(np.sqrt(np.mean((approximation["latent_means"] - hmc["latent_means"]) ** 2)))
     all_modes_converged = bool(
         np.all(approximation["maximum_gradients"] <= config["mode_tolerance"])
     )
@@ -550,13 +482,7 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
     return {
         "format": "marklab.scipy_pytensor_pymc_inla_worker_result",
         "version": 1,
-        "backend": {
-            "name": "scipy_pytensor_pymc",
-            "version": BACKEND_VERSION,
-            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
-            "environment_lock_sha256": lock_sha,
-            "worker_sha256": worker_sha,
-        },
+        "backend": backend_identity("scipy_pytensor_pymc", BACKEND_VERSION, lock_sha, worker_sha),
         "request_sha256": request_sha,
         "fit_state": "approximate_only" if valid else "nonconverged",
         "grid": [
@@ -606,28 +532,12 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
 
 
 def main() -> None:
-    if (
-        scipy.__version__ != "1.18.1"
-        or pytensor.__version__ != "3.2.4"
-        or pm.__version__ != "6.3.0"
-        or sys.version_info[:2] != (3, 12)
-    ):
-        raise ContractError("SciPy, PyTensor, PyMC, or Python version drift")
-    script = Path(__file__)
-    lock_sha = hashlib.sha256(script.with_name("uv.lock").read_bytes()).hexdigest()
-    worker_sha = hashlib.sha256(script.read_bytes()).hexdigest()
-    raw = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
-    if len(raw) > 16 * 1024 * 1024:
-        raise ContractError("request exceeds 16 MiB")
-    request_sha = hashlib.sha256(raw).hexdigest()
-    result = fit(validate(json.loads(raw), lock_sha, worker_sha), request_sha, lock_sha, worker_sha)
-    sys.stdout.write(json.dumps(result, allow_nan=False, sort_keys=True, separators=(",", ":")))
-    sys.stdout.write("\n")
+    require_versions(scipy=scipy.__version__, pytensor=pytensor.__version__, pymc=pm.__version__)
+    lock_sha, worker_sha = worker_digests(__file__)
+    raw = read_request(16 * MIB)
+    config = validate(json.loads(raw), lock_sha, worker_sha)
+    write_result(fit(config, sha256_hex(raw), lock_sha, worker_sha))
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as error:
-        print(f"marklab INLA worker failed: {type(error).__name__}: {error}", file=sys.stderr)
-        raise SystemExit(2) from error
+    run_worker(main, "marklab INLA worker failed")

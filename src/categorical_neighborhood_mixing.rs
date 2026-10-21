@@ -1,10 +1,12 @@
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    classical::SpatialGeometryPlan2D, compartment_interface::analysis::measurement_status_name,
-    ClassicalSpatialLimits, DeclaredScalarPatternInput, ObservationWindow2D, ScalarMarkId,
+    classical::SpatialGeometryPlan2D,
+    marks::{DeclaredScalarPatternInput, ScalarMarkId},
+    spatial::ClassicalSpatialLimits,
+    ObservationWindow2D,
 };
 
 /// Fixed work and retained-memory ceilings for one multiclass radius graph.
@@ -90,7 +92,8 @@ pub struct CategoricalNeighborhoodMixingResult {
     pub case_id: String,
     pub timepoint: String,
     pub mark_id: String,
-    pub measurement_status: String,
+    #[serde(with = "crate::measurement_status_wire")]
+    pub measurement_status: marklab_data::MeasurementStatus,
     pub coordinate_frame_id: String,
     pub window_digest: String,
     pub radius_um: f64,
@@ -335,7 +338,7 @@ pub fn categorical_neighborhood_mixing(
         case_id: input.pattern().meta.case_id.clone(),
         timepoint: input.pattern().meta.timepoint.clone(),
         mark_id: mark_id.as_str().into(),
-        measurement_status: measurement_status_name(status).into(),
+        measurement_status: status,
         coordinate_frame_id: input.coordinate_frame_id().as_str().into(),
         window_digest: window.descriptor().logical_digest.to_string(),
         radius_um: config.radius_um,
@@ -402,12 +405,8 @@ pub(crate) fn entropy_nats(probabilities: &[f64]) -> f64 {
 fn allocated_zeros<T: Default + Clone>(
     length: usize,
 ) -> Result<Vec<T>, CategoricalNeighborhoodMixingError> {
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(length)
-        .map_err(|_| CategoricalNeighborhoodMixingError::AllocationFailed)?;
-    values.resize(length, T::default());
-    Ok(values)
+    crate::common::alloc::try_filled(length, T::default())
+        .map_err(|_| CategoricalNeighborhoodMixingError::AllocationFailed)
 }
 
 fn geometry(error: impl std::fmt::Display) -> CategoricalNeighborhoodMixingError {

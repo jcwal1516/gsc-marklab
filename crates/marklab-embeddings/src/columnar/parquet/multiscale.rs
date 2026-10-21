@@ -1,11 +1,11 @@
-mod cell_patch;
-mod matrix;
-mod patch_region;
-mod physical;
-mod preflight;
-mod profile;
+pub(in crate::columnar::parquet) mod cell_patch;
+pub(in crate::columnar::parquet) mod matrix;
+pub(in crate::columnar::parquet) mod patch_region;
+pub(in crate::columnar::parquet) mod physical;
+pub(in crate::columnar::parquet) mod preflight;
+pub(in crate::columnar::parquet) mod profile;
 mod publication;
-mod reader;
+pub(in crate::columnar::parquet) mod reader;
 mod writer;
 mod writer_resources;
 

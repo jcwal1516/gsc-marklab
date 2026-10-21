@@ -26,8 +26,8 @@ use super::{
     profile::{row_link_schema, CONTENT_KIND, ENCODING_VERSION, SCHEMA_ID},
 };
 use crate::columnar::{
-    enforce_retained_budget, enforce_row_group_budget, EmbeddingColumnarBudgets,
-    EmbeddingColumnarError, ParquetFailure,
+    enforce_retained_budget, enforce_row_group_budget, ColumnarError, EmbeddingColumnarBudgets,
+    ParquetFailure,
 };
 
 /// Fully decode and validate borrowed canonical row-link Parquet bytes.
@@ -37,11 +37,10 @@ pub fn validate_cell_embedding_row_link_parquet_bytes(
     expected: &ExpectedCellSet,
     row_link: &CellEmbeddingRowLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<super::CellEmbeddingRowLinkParquetPreflight, EmbeddingColumnarError> {
-    let encoded_byte_len =
-        u64::try_from(bytes.len()).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+) -> Result<super::CellEmbeddingRowLinkParquetPreflight, ColumnarError> {
+    let encoded_byte_len = u64::try_from(bytes.len()).map_err(|_| ColumnarError::SizeOverflow)?;
     if encoded_byte_len > budgets.maximum_file_bytes() {
-        return Err(EmbeddingColumnarError::FileByteBudgetExceeded {
+        return Err(ColumnarError::FileByteBudgetExceeded {
             observed: encoded_byte_len,
             maximum: budgets.maximum_file_bytes(),
         });
@@ -67,12 +66,11 @@ pub fn validate_cell_embedding_row_link_parquet_from_store(
     expected: &ExpectedCellSet,
     row_link: &CellEmbeddingRowLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<super::CellEmbeddingRowLinkParquetPreflight, VerifiedReaderError<EmbeddingColumnarError>>
-{
+) -> Result<super::CellEmbeddingRowLinkParquetPreflight, VerifiedReaderError<ColumnarError>> {
     let encoded_byte_len = record.content().byte_len();
     if encoded_byte_len > budgets.maximum_file_bytes() {
         return Err(VerifiedReaderError::Callback(
-            EmbeddingColumnarError::FileByteBudgetExceeded {
+            ColumnarError::FileByteBudgetExceeded {
                 observed: encoded_byte_len,
                 maximum: budgets.maximum_file_bytes(),
             },
@@ -100,12 +98,14 @@ pub fn verify_cell_embedding_row_link_parquet_bytes(
     expected: &ExpectedCellSet,
     row_link: &CellEmbeddingRowLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<VerifiedCellEmbeddingRowLinkArtifact, EmbeddingColumnarError> {
-    validate_cell_embedding_row_link_parquet_bytes(bytes, record, expected, row_link, budgets)?;
-    Ok(VerifiedCellEmbeddingRowLinkArtifact::new(
-        record.id(),
-        row_link,
-    ))
+) -> Result<VerifiedCellEmbeddingRowLinkArtifact, ColumnarError> {
+    let context = crate::CellEmbeddingRowLinkVerifyContext { expected, row_link };
+    crate::columnar::verify::<crate::Parquet, crate::CellEmbeddingRowLinkEntity>(
+        Cursor::new(bytes),
+        record,
+        &context,
+        budgets,
+    )
 }
 
 /// Fully verify a managed Parquet row link and return an exact artifact-bound receipt.
@@ -115,24 +115,21 @@ pub fn verify_cell_embedding_row_link_parquet_from_store(
     expected: &ExpectedCellSet,
     row_link: &CellEmbeddingRowLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<VerifiedCellEmbeddingRowLinkArtifact, VerifiedReaderError<EmbeddingColumnarError>> {
-    validate_cell_embedding_row_link_parquet_from_store(
-        store, record, expected, row_link, budgets,
-    )?;
-    Ok(VerifiedCellEmbeddingRowLinkArtifact::new(
-        record.id(),
-        row_link,
-    ))
+) -> Result<VerifiedCellEmbeddingRowLinkArtifact, VerifiedReaderError<ColumnarError>> {
+    let context = crate::CellEmbeddingRowLinkVerifyContext { expected, row_link };
+    crate::columnar::with_verified_columnar_reader(store, record, budgets, |reader| {
+        reader.verify::<crate::Parquet, crate::CellEmbeddingRowLinkEntity>(&context)
+    })
 }
 
 fn validate_preflight_identity(
     prepared: &PreparedCellEmbeddingRowLinkParquet,
     record: &ArtifactRecord,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     if prepared.summary.content_digest() != record.content().digest()
         || prepared.summary.encoded_byte_len() != record.content().byte_len()
     {
-        return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     Ok(())
 }
@@ -142,7 +139,7 @@ fn decode_row_link_parquet<R: Read + Seek + ?Sized>(
     row_link: &CellEmbeddingRowLink,
     prepared: PreparedCellEmbeddingRowLinkParquet,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<super::CellEmbeddingRowLinkParquetPreflight, EmbeddingColumnarError> {
+) -> Result<super::CellEmbeddingRowLinkParquetPreflight, ColumnarError> {
     let maximum_group_peak = prepared
         .metadata
         .row_groups()
@@ -155,7 +152,7 @@ fn decode_row_link_parquet<R: Read + Seek + ?Sized>(
         .memory_size()
         .checked_add(maximum_group_peak)
         .and_then(|value| value.checked_add(64 * 1024))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?
+        .ok_or(ColumnarError::SizeOverflow)?
         .max(prepared.summary.retained_preflight_bytes);
     enforce_retained_budget(retained, budgets)?;
 
@@ -177,15 +174,15 @@ fn decode_row_link_parquet<R: Read + Seek + ?Sized>(
         let mut bytes = Vec::new();
         bytes
             .try_reserve_exact(length)
-            .map_err(|_| EmbeddingColumnarError::AllocationFailed { requested: length })?;
+            .map_err(|_| ColumnarError::AllocationFailed { requested: length })?;
         bytes.resize(length, 0);
         source
             .seek(SeekFrom::Start(start))
             .and_then(|_| source.read_exact(&mut bytes))
             .map_err(|_| parquet_failure(ParquetFailure::ArtifactRead))?;
         let end = start
-            .checked_add(u64::try_from(length).map_err(|_| EmbeddingColumnarError::SizeOverflow)?)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .checked_add(u64::try_from(length).map_err(|_| ColumnarError::SizeOverflow)?)
+            .ok_or(ColumnarError::SizeOverflow)?;
         let window = RowGroupWindow::new(start, end, Bytes::from(bytes));
         let mut reader =
             ParquetRecordBatchReaderBuilder::new_with_metadata(window, reader_metadata.clone())
@@ -203,7 +200,7 @@ fn decode_row_link_parquet<R: Read + Seek + ?Sized>(
         }
         if global_row
             .checked_sub(group_start)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?
+            .ok_or(ColumnarError::SizeOverflow)?
             != rows
         {
             return Err(parquet_failure(ParquetFailure::InvalidRowCount));
@@ -219,7 +216,34 @@ fn validate_batch(
     batch: &arrow::record_batch::RecordBatch,
     row_link: &CellEmbeddingRowLink,
     global_row: &mut usize,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
+    visit_batch(
+        batch,
+        global_row,
+        |index, id, source_cell, source_embedding| {
+            let entry = row_link
+                .entries()
+                .get(index)
+                .ok_or_else(|| parquet_failure(ParquetFailure::InvalidRowCount))?;
+            if id != entry.cell_id().as_str() {
+                return Err(parquet_failure(ParquetFailure::InvalidCellOrder));
+            }
+            if source_cell != entry.source_cell_row() {
+                return Err(parquet_failure(ParquetFailure::InvalidComponent));
+            }
+            if source_embedding != entry.source_embedding_row() {
+                return Err(parquet_failure(ParquetFailure::InvalidStatus));
+            }
+            Ok(())
+        },
+    )
+}
+
+pub(in crate::columnar::parquet) fn visit_batch(
+    batch: &arrow::record_batch::RecordBatch,
+    global_row: &mut usize,
+    mut visit: impl FnMut(usize, &str, u64, Option<u64>) -> Result<(), ColumnarError>,
+) -> Result<(), ColumnarError> {
     if batch.num_columns() != 3 {
         return Err(parquet_failure(ParquetFailure::StockDecode));
     }
@@ -248,35 +272,24 @@ fn validate_batch(
         return Err(parquet_failure(ParquetFailure::StockDecode));
     }
     for local_row in 0..batch.num_rows() {
-        let entry = row_link
-            .entries()
-            .get(*global_row)
-            .ok_or_else(|| parquet_failure(ParquetFailure::InvalidRowCount))?;
-        if cells.value(local_row) != entry.cell_id().as_str() {
-            return Err(parquet_failure(ParquetFailure::InvalidCellOrder));
-        }
-        if source_cells.value(local_row) != entry.source_cell_row() {
-            return Err(parquet_failure(ParquetFailure::InvalidComponent));
-        }
-        match entry.source_embedding_row() {
-            Some(expected_row)
-                if !source_embeddings.is_null(local_row)
-                    && source_embeddings.value(local_row) == expected_row => {}
-            None if source_embeddings.is_null(local_row) => {}
-            _ => return Err(parquet_failure(ParquetFailure::InvalidStatus)),
-        }
+        visit(
+            *global_row,
+            cells.value(local_row),
+            source_cells.value(local_row),
+            (!source_embeddings.is_null(local_row)).then(|| source_embeddings.value(local_row)),
+        )?;
         *global_row = global_row
             .checked_add(1)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
     }
     Ok(())
 }
 
-fn validate_record(
+pub(in crate::columnar::parquet) fn validate_record(
     record: &ArtifactRecord,
     observed_byte_len: u64,
     row_link: &CellEmbeddingRowLink,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     if record.content().kind() != CONTENT_KIND
         || record.content().byte_len() != observed_byte_len
         || record.schema().id() != SCHEMA_ID
@@ -284,11 +297,11 @@ fn validate_record(
         || !record.semantic_metadata().is_empty()
         || record.dependencies() != row_link.direct_dependencies()
     {
-        return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     let manifest = record
         .table()
-        .ok_or(EmbeddingColumnarError::ArtifactBindingMismatch)?;
+        .ok_or(ColumnarError::ArtifactBindingMismatch)?;
     if manifest.format() != TableFormat::ParquetFile
         || manifest.encoding_version() != ENCODING_VERSION
         || manifest.row_count() != row_link.row_count()
@@ -304,12 +317,12 @@ fn validate_record(
         || !manifest.columns()[2].nullable()
         || manifest.primary_key() != ["cell_id"]
     {
-        return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     Ok(())
 }
 
-fn validated_group_range(group: &RowGroupMetaData) -> Result<(u64, usize), EmbeddingColumnarError> {
+fn validated_group_range(group: &RowGroupMetaData) -> Result<(u64, usize), ColumnarError> {
     if group.num_columns() != 3 {
         return Err(parquet_failure(ParquetFailure::StockDecode));
     }
@@ -326,32 +339,55 @@ fn validated_group_range(group: &RowGroupMetaData) -> Result<(u64, usize), Embed
         }
         next = next
             .checked_add(length)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
     }
     Ok((
         start,
-        usize::try_from(next - start).map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
+        usize::try_from(next - start).map_err(|_| ColumnarError::SizeOverflow)?,
     ))
 }
 
-fn estimate_group_peak(group: &RowGroupMetaData) -> Result<usize, EmbeddingColumnarError> {
+fn estimate_group_peak(group: &RowGroupMetaData) -> Result<usize, ColumnarError> {
     let (_, encoded) = validated_group_range(group)?;
     let rows = usize::try_from(group.num_rows())
         .map_err(|_| parquet_failure(ParquetFailure::StockDecode))?;
     let arrow_output = encoded
         .checked_add(
             rows.checked_mul(size_of::<u64>() * 2)
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?,
+                .ok_or(ColumnarError::SizeOverflow)?,
         )
         .and_then(|value| value.checked_add((rows + 1).checked_mul(size_of::<i32>())?))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     encoded
         .checked_mul(2)
         .and_then(|value| value.checked_add(arrow_output.checked_mul(2)?))
         .and_then(|value| value.checked_add(rows.checked_mul(4)?))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)
 }
 
-fn parquet_failure(reason: ParquetFailure) -> EmbeddingColumnarError {
-    EmbeddingColumnarError::Parquet { reason }
+fn parquet_failure(reason: ParquetFailure) -> ColumnarError {
+    ColumnarError::Parquet { reason }
+}
+
+pub(crate) fn verify_cell_embedding_row_link_parquet_reader<R: Read + Seek + ?Sized>(
+    reader: &mut R,
+    record: &ArtifactRecord,
+    context: &crate::CellEmbeddingRowLinkVerifyContext<'_>,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<VerifiedCellEmbeddingRowLinkArtifact, ColumnarError> {
+    validate_record(record, record.content().byte_len(), context.row_link)?;
+    let prepared = prepare_cell_embedding_row_link_parquet_reader(
+        reader,
+        record.content().byte_len(),
+        record.content().digest(),
+        context.expected,
+        context.row_link,
+        budgets,
+    )?;
+    validate_preflight_identity(&prepared, record)?;
+    decode_row_link_parquet(reader, context.row_link, prepared, budgets)?;
+    Ok(VerifiedCellEmbeddingRowLinkArtifact::new(
+        record.id(),
+        context.row_link,
+    ))
 }

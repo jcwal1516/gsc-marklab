@@ -1,31 +1,37 @@
 #![cfg(feature = "parquet")]
 
 use marklab::{
-    publish_cell_patch_assignment_table_arrow, publish_cell_patch_assignment_table_parquet,
-    publish_cell_patch_edge_table_arrow, publish_cell_patch_edge_table_parquet,
-    publish_patch_footprint_set_arrow, publish_patch_footprint_set_parquet,
-    validate_cell_patch_assignment_table_arrow_bytes,
-    validate_cell_patch_assignment_table_arrow_from_store,
-    validate_cell_patch_assignment_table_parquet_bytes,
-    validate_cell_patch_assignment_table_parquet_from_store,
-    validate_cell_patch_edge_table_arrow_bytes, validate_cell_patch_edge_table_arrow_from_store,
-    validate_cell_patch_edge_table_parquet_bytes,
-    validate_cell_patch_edge_table_parquet_from_store,
-    verify_cell_patch_assignment_table_arrow_from_store,
-    verify_cell_patch_assignment_table_parquet_from_store,
-    verify_cell_patch_edge_table_arrow_from_store, verify_cell_patch_edge_table_parquet_from_store,
-    write_cell_patch_assignment_table_arrow, write_cell_patch_assignment_table_parquet,
-    write_cell_patch_edge_table_arrow, write_cell_patch_edge_table_parquet, ArtifactCatalog,
-    ArtifactDraft, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef, ArtifactSchema,
-    ArtifactStoreError, CellId, CellPatchAnchor, CellPatchInputArtifactGraphError,
-    CellPatchInputArtifactRole, CellPatchLink, CellPatchLinkBindings, CellPatchLinkProducer,
-    CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace,
-    CoordinateUnit, EffectiveReceptiveField, EmbeddingColumnarBudgets, ExpectedCellSet,
-    ExpectedPatchSet, FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention,
-    LocalArtifactStore, MultiscaleColumnarError, PatchBoundaryPolicy, PatchEmbeddingContext,
-    PatchFootprint, PatchFootprintSet, PatchId, PatientId, PositiveRational, ReplicationRole,
-    SlideId, SpatialAxis, StoreId, TransformId, TransformMatrix, VerifiedCellPatchLinkArtifact,
-    VerifiedReaderError,
+    embeddings::{
+        publish_cell_patch_assignment_table_arrow, publish_cell_patch_assignment_table_parquet,
+        publish_cell_patch_edge_table_arrow, publish_cell_patch_edge_table_parquet,
+        publish_patch_footprint_set_arrow, publish_patch_footprint_set_parquet,
+        validate_cell_patch_assignment_table_arrow_bytes,
+        validate_cell_patch_assignment_table_arrow_from_store,
+        validate_cell_patch_assignment_table_parquet_bytes,
+        validate_cell_patch_assignment_table_parquet_from_store,
+        validate_cell_patch_edge_table_arrow_bytes,
+        validate_cell_patch_edge_table_arrow_from_store,
+        validate_cell_patch_edge_table_parquet_bytes,
+        validate_cell_patch_edge_table_parquet_from_store,
+        verify_cell_patch_assignment_table_arrow_from_store,
+        verify_cell_patch_assignment_table_parquet_from_store,
+        verify_cell_patch_edge_table_arrow_from_store,
+        verify_cell_patch_edge_table_parquet_from_store, write_cell_patch_assignment_table_arrow,
+        write_cell_patch_assignment_table_parquet, write_cell_patch_edge_table_arrow,
+        write_cell_patch_edge_table_parquet, CellPatchAnchor, CellPatchInputArtifactGraphError,
+        CellPatchInputArtifactRole, CellPatchLink, CellPatchLinkBindings, CellPatchLinkProducer,
+        ColumnarError, EffectiveReceptiveField, EmbeddingColumnarBudgets, ExpectedCellSet,
+        ExpectedPatchSet, PatchBoundaryPolicy, PatchEmbeddingContext, PatchFootprint,
+        PatchFootprintSet, PositiveRational, VerifiedCellPatchLinkArtifact,
+    },
+    workflow::{
+        ArtifactCatalog, ArtifactDraft, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef,
+        ArtifactSchema, ArtifactStoreError, LocalArtifactStore, StoreId, VerifiedReaderError,
+    },
+    CellId, CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry,
+    CoordinateSpace, CoordinateUnit, FrameTransform, HierarchyId, HierarchyNode,
+    ImageCoordinateConvention, PatchId, PatientId, ReplicationRole, SlideId, SpatialAxis,
+    TransformId, TransformMatrix,
 };
 use tempfile::TempDir;
 
@@ -73,7 +79,7 @@ fn draft_record(
     schema: &str,
     kind: &str,
     bytes: &[u8],
-    dependencies: Vec<marklab::ArtifactId>,
+    dependencies: Vec<marklab::workflow::ArtifactId>,
 ) -> ArtifactRecord {
     ArtifactRecord::new(
         ArtifactRef::from_bytes(kind, bytes).expect("artifact content"),
@@ -96,7 +102,7 @@ fn publish_record(
     schema: &str,
     kind: &str,
     bytes: &[u8],
-    dependencies: Vec<marklab::ArtifactId>,
+    dependencies: Vec<marklab::workflow::ArtifactId>,
 ) -> ArtifactRecord {
     let draft = draft_record(schema, kind, bytes, dependencies);
     store
@@ -453,7 +459,7 @@ fn alternate_link(fixture: &Fixture) -> CellPatchLink {
 fn verified_graph(
     fixture: &Fixture,
     link: &CellPatchLink,
-) -> marklab::VerifiedCellPatchInputArtifactGraph {
+) -> marklab::embeddings::VerifiedCellPatchInputArtifactGraph {
     fixture
         .producer
         .validate_cell_patch_input_artifact_graph(
@@ -630,7 +636,7 @@ fn cell_patch_receipts_reject_different_links_and_wrong_graph_tokens() {
     .expect("verify alternate edge");
     assert_eq!(
         VerifiedCellPatchLinkArtifact::from_verified_halves(assignment_receipt, edge_receipt),
-        Err(MultiscaleColumnarError::ArtifactBindingMismatch)
+        Err(ColumnarError::ArtifactBindingMismatch)
     );
     assert!(matches!(
         verify_cell_patch_assignment_table_arrow_from_store(
@@ -641,7 +647,7 @@ fn cell_patch_receipts_reject_different_links_and_wrong_graph_tokens() {
             budgets(),
         ),
         Err(VerifiedReaderError::Callback(
-            MultiscaleColumnarError::ArtifactBindingMismatch
+            ColumnarError::ArtifactBindingMismatch
         ))
     ));
 }
@@ -1070,7 +1076,7 @@ fn cell_patch_input_graph_requires_managed_evidence_and_preserves_integrity_prec
         error,
         CellPatchInputArtifactGraphError::Unavailable {
             role: CellPatchInputArtifactRole::PatchFootprints,
-            reason: marklab::ArtifactAvailabilityFailure::Integrity,
+            reason: marklab::embeddings::ArtifactAvailabilityFailure::Integrity,
         }
     ));
     let rendered = error.to_string();

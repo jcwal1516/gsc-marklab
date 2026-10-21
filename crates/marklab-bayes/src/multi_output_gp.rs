@@ -1,17 +1,24 @@
+use crate::is_worker_timeout;
 use crate::validation::all_finite as finite;
 
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::validation::{validate_scalar_summary, SummarySupport};
+use crate::ClaimStatus;
+use crate::ScalarSummary;
 use crate::{
     model::{
         BackendContract, DiagnosticPolicy, MODEL_FORMAT, MODEL_VERSION, PYMC_VERSION,
         WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION,
     },
-    BayesError, FitState, GpPredictionCoordinate, GpResourceLimits, NormalMeanDiagnostics,
-    NutsSamplingSpec, SamplingSummary, WorkerBackend,
+    BayesError, FitState, GpPredictionCoordinate, GpResourceLimits, NutsSamplingSpec,
+    PosteriorDiagnostics, SamplingSummary, WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct MultiOutputGpObservation {
@@ -21,6 +28,16 @@ pub struct MultiOutputGpObservation {
     pub output_b: f64,
 }
 
+/// Two Gaussian outputs sharing one Matérn-3/2 latent process.
+///
+/// Output A has fixed loading one and output B has positive loading `lambda`. The stacked
+/// likelihood has mean `(mu_a * 1, mu_b * 1)` and covariance `[[K, lambda K], [lambda K,
+/// lambda^2 K]]` plus the known output-specific noise variances and `jitter` on its diagonal.
+/// Here `K` has amplitude squared and the supplied length-scale parameterization. Priors are
+/// independent `Normal(0, mean_prior_sd)` on both means and half-normal priors on amplitude,
+/// length scale, and B's loading, using the corresponding supplied scales. Fixing A's loading
+/// identifies the shared-process scale.
+///
 #[derive(Clone, Debug)]
 pub struct MultiOutputGpSpec {
     pub output_a_name: String,
@@ -56,8 +73,8 @@ pub struct MultiOutputGpModelIr {
     pub noise_a_sd: f64,
     pub noise_b_sd: f64,
     pub jitter: f64,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -161,7 +178,7 @@ impl MultiOutputGpWorkerRequest {
                 ));
             }
         }
-        if !(1..=3_600).contains(&timeout_seconds) {
+        if !is_worker_timeout(timeout_seconds) {
             return Err(BayesError::InvalidSpec(
                 "worker timeout must be between 1 and 3600 seconds".into(),
             ));
@@ -187,7 +204,7 @@ impl MultiOutputGpWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -210,8 +227,8 @@ impl MultiOutputGpWorkerRequest {
                 noise_a_sd: spec.noise_a_sd,
                 noise_b_sd: spec.noise_b_sd,
                 jitter: spec.jitter,
-                backend_capability: "nuts_exact_dense_multi_output_gp",
-                maturity: "experimental",
+                backend_capability: BackendCapability::NutsExactDenseMultiOutputGp,
+                maturity: ModelMaturity::Experimental,
             },
             observations: spec.observations,
             predictions: spec.predictions,
@@ -231,21 +248,12 @@ impl MultiOutputGpWorkerRequest {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct MultiOutputScalarSummary {
-    pub mean: f64,
-    pub sd: f64,
-    pub interval_lower: f64,
-    pub interval_upper: f64,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct MultiOutputPosterior {
-    pub mean_a: MultiOutputScalarSummary,
-    pub mean_b: MultiOutputScalarSummary,
-    pub amplitude: MultiOutputScalarSummary,
-    pub length_scale_um: MultiOutputScalarSummary,
-    pub loading_b: MultiOutputScalarSummary,
+    pub mean_a: ScalarSummary,
+    pub mean_b: ScalarSummary,
+    pub amplitude: ScalarSummary,
+    pub length_scale_um: ScalarSummary,
+    pub loading_b: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -285,7 +293,7 @@ pub struct MultiOutputGpWorkerResult {
     pub sampling: SamplingSummary,
     pub posterior: MultiOutputPosterior,
     pub predictions: Vec<MultiOutputPrediction>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: MultiOutputPosteriorPredictive,
 }
 
@@ -302,11 +310,7 @@ impl MultiOutputGpWorkerResult {
         }
         if self.format != "marklab.pymc_multi_output_gp_worker_result"
             || self.version != 1
-            || self.backend.name != "pymc"
-            || self.backend.version != PYMC_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
             || self.predictions.len() != request.predictions.len()
         {
@@ -457,9 +461,9 @@ impl MultiOutputGpWorkerResult {
             input,
             fit_state: self.fit_state,
             claim_status: match self.fit_state {
-                FitState::Complete => "experimental",
-                FitState::Nonconverged => "diagnostic_only_nonconverged",
-                FitState::ApproximateOnly => "experimental_approximate_only",
+                FitState::Complete => ClaimStatus::Experimental,
+                FitState::Nonconverged => ClaimStatus::DiagnosticOnlyNonconverged,
+                FitState::ApproximateOnly => ClaimStatus::ExperimentalApproximateOnly,
             },
             sampling: self.sampling,
             posterior: self.posterior,
@@ -472,20 +476,12 @@ impl MultiOutputGpWorkerResult {
     }
 }
 
-fn validate_scalar(value: &MultiOutputScalarSummary) -> Result<(), BayesError> {
-    if !finite(&[
-        value.mean,
-        value.sd,
-        value.interval_lower,
-        value.interval_upper,
-    ]) || value.sd <= 0.0
-        || value.interval_lower > value.interval_upper
-    {
-        return Err(BayesError::WorkerContract(
-            "invalid multi-output scalar summary".into(),
-        ));
-    }
-    Ok(())
+fn validate_scalar(value: &ScalarSummary) -> Result<(), BayesError> {
+    validate_scalar_summary(
+        value,
+        SummarySupport::Real,
+        "invalid multi-output scalar summary",
+    )
 }
 
 #[derive(Debug, Serialize)]
@@ -505,11 +501,11 @@ pub struct MultiOutputGpFit {
     pub model: MultiOutputGpModelIr,
     pub input: MultiOutputGpInputIdentity,
     pub fit_state: FitState,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub sampling: SamplingSummary,
     pub posterior: MultiOutputPosterior,
     pub predictions: Vec<MultiOutputPrediction>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: MultiOutputPosteriorPredictive,
     pub seed: u64,
     pub request_sha256: String,

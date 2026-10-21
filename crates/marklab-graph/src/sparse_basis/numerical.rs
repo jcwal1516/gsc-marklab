@@ -1,7 +1,7 @@
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 
-use super::{admission::ComponentGraph, model::SparseRadiusBasisMode};
+use super::{model::SparseRadiusBasisMode, planning::ComponentGraph};
 use crate::{
     sparse_radius_graph::laplacian_product, symmetric_eigendecomposition_with_limit, GraphError,
 };

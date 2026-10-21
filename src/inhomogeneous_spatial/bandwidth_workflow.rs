@@ -1,12 +1,14 @@
+use crate::result_vocabulary::{
+    BandwidthSelectionMethod, BandwidthSelectionObjective, BandwidthTieBreak,
+};
+use crate::workflow_codec::invalid;
 use std::io;
 
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_project::{ArtifactRef, ContentDigest, MarklabProject};
+use marklab_workflow::{CacheKeyMaterial, NodeError, NodeId, NodeSpec, WorkflowNode};
 use serde::Serialize;
 
-use crate::{workflow::pattern_artifact, ObservationWindow2D, Pattern};
+use crate::{marked_workflow::pattern_artifact, ObservationWindow2D, Pattern};
 
 use super::{
     bandwidth::{
@@ -184,9 +186,10 @@ fn validate(
     let selection = &result.selection;
     if result.configuration_digest != bandwidth_selection_configuration_digest(config).to_string()
         || result.selection_limits != config.selection_limits
-        || selection.method != "leave_one_out_log_likelihood"
-        || selection.objective != "maximize_mean_log_leave_one_out_event_intensity"
-        || selection.tie_break != "smallest_bandwidth_um"
+        || selection.method != BandwidthSelectionMethod::LeaveOneOutLogLikelihood
+        || selection.objective
+            != BandwidthSelectionObjective::MaximizeMeanLogLeaveOneOutEventIntensity
+        || selection.tie_break != BandwidthTieBreak::SmallestBandwidthUm
         || selection.selection_uses_spatial_curve
         || selection.candidates.len() != config.candidate_bandwidths_um.len()
         || selection.selected_index >= selection.candidates.len()
@@ -252,8 +255,4 @@ fn validate(
     )
     .map_err(|_| invalid("selected analysis config is invalid"))?;
     validate_analysis(&result.analysis, pattern, window, &selected_config)
-}
-
-fn invalid(message: &'static str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message)
 }

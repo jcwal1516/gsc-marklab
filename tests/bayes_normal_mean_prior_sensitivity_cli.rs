@@ -139,7 +139,7 @@ fn invalid_or_oversized_inputs_do_not_publish_results() {
 fn native_scientific_results_agree_with_independent_scipy_worker() {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
     let worker = repository.join("workers/python/marklab_scipy_prior_sensitivity_worker.py");
-    let interpreter = marklab::python_backend_interpreter(repository).unwrap();
+    let interpreter = marklab::backend::python_backend_interpreter(repository).unwrap();
     let lock_digest = sha256_hex(&fs::read(repository.join("workers/python/uv.lock")).unwrap());
     let worker_digest = sha256_hex(&fs::read(&worker).unwrap());
     let priors = vec![
@@ -183,11 +183,14 @@ fn native_scientific_results_agree_with_independent_scipy_worker() {
         .unwrap();
         let request_bytes = serde_json::to_vec(&request).unwrap();
         let request_digest = sha256_hex(&request_bytes);
-        let assertion = Command::from_std(marklab::python_backend_command(&interpreter, &worker))
-            .timeout(Duration::from_secs(60))
-            .write_stdin(request_bytes)
-            .assert()
-            .success();
+        let assertion = Command::from_std(
+            marklab::backend::python_backend_command(&interpreter, &worker)
+                .expect("worker command"),
+        )
+        .timeout(Duration::from_secs(60))
+        .write_stdin(request_bytes)
+        .assert()
+        .success();
         let mut reference: PriorSensitivityWorkerResult =
             serde_json::from_slice(&assertion.get_output().stdout).unwrap();
         reference.validate(&request, &request_digest).unwrap();
@@ -252,12 +255,14 @@ fn native_scientific_results_agree_with_independent_scipy_worker() {
                 / 2.0;
             let boundary_bytes = serde_json::to_vec(&boundary_request).unwrap();
             let boundary_digest = sha256_hex(&boundary_bytes);
-            let boundary_output =
-                Command::from_std(marklab::python_backend_command(&interpreter, &worker))
-                    .timeout(Duration::from_secs(60))
-                    .write_stdin(boundary_bytes)
-                    .assert()
-                    .success();
+            let boundary_output = Command::from_std(
+                marklab::backend::python_backend_command(&interpreter, &worker)
+                    .expect("worker command"),
+            )
+            .timeout(Duration::from_secs(60))
+            .write_stdin(boundary_bytes)
+            .assert()
+            .success();
             let boundary_reference: PriorSensitivityWorkerResult =
                 serde_json::from_slice(&boundary_output.get_output().stdout).unwrap();
             // The cutoff may separate two valid floating-point approximations. Validate

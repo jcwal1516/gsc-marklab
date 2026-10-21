@@ -1,6 +1,6 @@
 use marklab_data::{CellId, CoordinateFrameId, MeasurementStatus, SlideId};
 use marklab_embeddings::{CellEmbeddingArtifact, CellEmbeddingTable};
-use marklab_workflow::{ArtifactId, ArtifactRef, ContentDigest, MarklabProject};
+use marklab_project::{ArtifactId, ArtifactRef, ContentDigest, MarklabProject};
 
 use crate::data::Pattern;
 

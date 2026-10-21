@@ -1,8 +1,8 @@
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
-use marklab::{
-    CellVitNpyMatrix, CellVitNpySummary, NpyFailure, NpyVersion, SourceBundleBudgets,
-    SourceBundleError,
+use marklab::embeddings::{
+    CellVitNpyMatrix, CellVitNpySummary, EmbeddingNpyMatrix, EmbeddingNpySummary, NpyFailure,
+    NpyVersion, SourceBundleBudgets, SourceBundleError,
 };
 
 fn budgets(npy_bytes: usize, decoded_bytes: usize) -> SourceBundleBudgets {
@@ -105,6 +105,65 @@ fn borrowed_and_chunked_npy_parsers_have_exact_summary_parity() {
         assert_eq!(streamed, borrowed);
         assert_eq!(streamed.version(), version);
         assert_eq!(streamed.present_count(), 2);
+    }
+}
+
+#[test]
+fn model_independent_npy_readers_preserve_values_and_enforce_shared_bounds() {
+    // Common ViT, projected and concatenated widths, plus nonstandard and boundary widths.
+    for dimension in [
+        1, 3, 192, 384, 512, 768, 1_024, 1_152, 1_280, 1_536, 2_560, 4_096, 65_536,
+    ] {
+        for version in [NpyVersion::V1, NpyVersion::V2] {
+            let mut values = vec![0.0; 2 * dimension];
+            values[dimension - 1] = 2.0;
+            values[2 * dimension - 1] = 5.0;
+            values[0] = 1.25;
+            values[dimension] = -3.5;
+            let mut bytes = npy(
+                version,
+                &format!("{{'descr': '<f4', 'fortran_order': False, 'shape': (2, {dimension}), }}"),
+                &values,
+            );
+            let decoded_bytes = 2 * dimension * 4;
+            let limits = budgets(bytes.len(), decoded_bytes);
+            let matrix = EmbeddingNpyMatrix::from_bytes(&bytes, limits).unwrap();
+            assert_eq!(matrix.dimension() as usize, dimension);
+            for (index, value) in values.iter().enumerate() {
+                assert_eq!(
+                    matrix
+                        .value((index / dimension) as u64, (index % dimension) as u32)
+                        .unwrap(),
+                    *value
+                );
+            }
+            let mut reader = ChunkedCursor::new(bytes.clone(), 7);
+            assert_eq!(
+                EmbeddingNpySummary::from_reader(&mut reader, limits).unwrap(),
+                matrix.summary()
+            );
+            assert!(matches!(
+                EmbeddingNpyMatrix::from_bytes(&bytes, budgets(bytes.len(), decoded_bytes - 1)),
+                Err(SourceBundleError::DecodedByteBudgetExceeded {
+                    required,
+                    maximum
+                }) if required == decoded_bytes as u64 && maximum == decoded_bytes as u64 - 1
+            ));
+            if dimension != 1_280 {
+                assert!(matches!(
+                    CellVitNpyMatrix::from_bytes(&bytes, limits),
+                    Err(SourceBundleError::Npy {
+                        reason: NpyFailure::WrongDimension
+                    })
+                ));
+            }
+            let last = bytes.len() - 4;
+            bytes[last..].copy_from_slice(&f32::INFINITY.to_le_bytes());
+            assert!(matches!(
+                EmbeddingNpyMatrix::from_bytes(&bytes, limits),
+                Err(SourceBundleError::NonFiniteSourceComponent { row: 1, column }) if column == dimension as u32 - 1
+            ));
+        }
     }
 }
 

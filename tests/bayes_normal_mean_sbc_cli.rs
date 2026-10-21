@@ -22,13 +22,13 @@ fn conjugate_normal_mean_sbc_has_uniform_ranks_and_deterministic_output() {
                 "--known-sigma",
                 "1",
                 "--observations-per-replicate",
-                "4",
+                "1",
                 "--replicates",
-                "500",
+                "5000",
                 "--posterior-draws",
-                "200",
+                "20",
                 "--seed",
-                "14101",
+                "0",
                 "--timeout-seconds",
                 "60",
                 "--out",
@@ -43,13 +43,13 @@ fn conjugate_normal_mean_sbc_has_uniform_ranks_and_deterministic_output() {
         serde_json::from_slice(&fs::read(output).unwrap()).expect("SBC JSON");
     assert_eq!(result["format"], "marklab.bayesian_normal_mean_sbc");
     assert_eq!(result["fit_state"], "complete");
-    assert_eq!(result["replicates"].as_array().unwrap().len(), 500);
+    assert_eq!(result["replicates"].as_array().unwrap().len(), 5000);
     assert!(result["failures"].as_array().unwrap().is_empty());
     assert!(result["replicates"]
         .as_array()
         .unwrap()
         .iter()
-        .all(|replicate| replicate["rank"].as_u64().unwrap() <= 200));
+        .all(|replicate| replicate["rank"].as_u64().unwrap() <= 20));
     assert_eq!(
         result["diagnostics"]["rank_histogram"]
             .as_array()
@@ -57,7 +57,7 @@ fn conjugate_normal_mean_sbc_has_uniform_ranks_and_deterministic_output() {
             .iter()
             .map(|count| count.as_u64().unwrap())
             .sum::<u64>(),
-        500
+        5000
     );
     assert!(
         result["diagnostics"]["rank_uniformity_p_value"]
@@ -66,7 +66,7 @@ fn conjugate_normal_mean_sbc_has_uniform_ranks_and_deterministic_output() {
             > 0.01
     );
     let coverage = result["diagnostics"]["coverage_95"].as_f64().unwrap();
-    assert!((0.90..=0.99).contains(&coverage));
+    assert!((0.94..=0.96).contains(&coverage));
     assert!(
         result["diagnostics"]["z_score_mean"]
             .as_f64()
@@ -75,7 +75,7 @@ fn conjugate_normal_mean_sbc_has_uniform_ranks_and_deterministic_output() {
             <= 0.15
     );
     assert!((result["diagnostics"]["z_score_sd"].as_f64().unwrap() - 1.0).abs() <= 0.15);
-    assert!((result["diagnostics"]["mean_shrinkage"].as_f64().unwrap() - 0.8).abs() <= 1e-12);
+    assert!((result["diagnostics"]["mean_shrinkage"].as_f64().unwrap() - 0.5).abs() <= 1e-12);
     assert_eq!(result["diagnostics"]["posterior_draws_exchangeable"], true);
     assert_eq!(result["claim_status"], "experimental_calibration_procedure");
 }

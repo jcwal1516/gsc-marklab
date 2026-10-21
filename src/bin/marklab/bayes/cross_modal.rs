@@ -1,27 +1,26 @@
-use std::path::PathBuf;
-
-use marklab_bayes::{
-    cross_modal_covariance_by_distance, sha256_hex, CrossModalCovarianceError,
-    CrossModalCovarianceResult, CrossModalCovarianceSpec, CrossModalMeanPolicy, CrossModalPair,
-    EmbeddingModalityRow,
+use marklab_bayes::sha256_hex;
+use marklab_embeddings::analysis::{
+    cross_modal_covariance_by_distance, CrossModalCovarianceError, CrossModalCovarianceResult,
+    CrossModalCovarianceSpec, CrossModalMeanPolicy, CrossModalPair, EmbeddingModalityRow,
 };
 use serde::Serialize;
 
-use super::{embedding_spatial, publish_json, BayesCliError};
+use super::cli_schema::CrossModalCovarianceByDistanceArgs;
+use super::{embedding_spatial, publish_json, CliError};
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    a_input: PathBuf,
-    b_input: PathBuf,
-    pairs: PathBuf,
-    bins: PathBuf,
-    mean_policy: String,
-    permutations: u32,
-    seed: u64,
-    maximum_pairs: u64,
-    maximum_component_pair_visits: u64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: CrossModalCovarianceByDistanceArgs) -> Result<(), CliError> {
+    let CrossModalCovarianceByDistanceArgs {
+        a_input,
+        b_input,
+        pairs,
+        bins,
+        mean_policy,
+        permutations,
+        seed,
+        maximum_pairs,
+        maximum_component_pair_visits,
+        out,
+    } = args;
     let a_bytes = embedding_spatial::read(&a_input)?;
     let b_bytes = embedding_spatial::read(&b_input)?;
     let pair_bytes = embedding_spatial::read(&pairs)?;
@@ -56,7 +55,7 @@ pub(super) fn run(
     )
 }
 
-fn read_modality(bytes: &[u8]) -> Result<(Vec<EmbeddingModalityRow>, Vec<String>), BayesCliError> {
+fn read_modality(bytes: &[u8]) -> Result<(Vec<EmbeddingModalityRow>, Vec<String>), CliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
@@ -66,7 +65,7 @@ fn read_modality(bytes: &[u8]) -> Result<(Vec<EmbeddingModalityRow>, Vec<String>
         || headers.iter().take(3).collect::<Vec<_>>()
             != ["object_id", "source_section", "compartment"]
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "cross-modal inputs require object_id,source_section,compartment and embedding_* columns"
                 .into(),
         ));
@@ -82,7 +81,7 @@ fn read_modality(bytes: &[u8]) -> Result<(Vec<EmbeddingModalityRow>, Vec<String>
         let embedding = (3..record.len())
             .map(|index| {
                 record[index].parse::<f64>().map_err(|_| {
-                    BayesCliError::Input(format!(
+                    CliError::Input(format!(
                         "cross-modal numeric value in column {} is invalid",
                         &headers[index]
                     ))
@@ -99,7 +98,7 @@ fn read_modality(bytes: &[u8]) -> Result<(Vec<EmbeddingModalityRow>, Vec<String>
     Ok((rows, feature_names))
 }
 
-fn read_pairs(bytes: &[u8]) -> Result<Vec<CrossModalPair>, BayesCliError> {
+fn read_pairs(bytes: &[u8]) -> Result<Vec<CrossModalPair>, CliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
@@ -114,7 +113,7 @@ fn read_pairs(bytes: &[u8]) -> Result<Vec<CrossModalPair>, BayesCliError> {
             "weight",
         ]
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "cross-modal pair headers differ from the exact contract".into(),
         ));
     }
@@ -129,16 +128,16 @@ fn read_pairs(bytes: &[u8]) -> Result<Vec<CrossModalPair>, BayesCliError> {
             bin_id: record[4].to_owned(),
             weight: record[5]
                 .parse::<f64>()
-                .map_err(|_| BayesCliError::Input("cross-modal pair weight is invalid".into()))?,
+                .map_err(|_| CliError::Input("cross-modal pair weight is invalid".into()))?,
         });
     }
     Ok(rows)
 }
 
-fn map_error(error: CrossModalCovarianceError) -> BayesCliError {
+fn map_error(error: CrossModalCovarianceError) -> CliError {
     match error {
-        CrossModalCovarianceError::Invalid(message) => BayesCliError::Input(message),
-        CrossModalCovarianceError::Numeric(message) => BayesCliError::Backend(message),
+        CrossModalCovarianceError::Invalid(message) => CliError::Input(message),
+        CrossModalCovarianceError::Numeric(message) => CliError::Backend(message),
     }
 }
 

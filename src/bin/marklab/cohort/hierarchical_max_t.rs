@@ -77,20 +77,35 @@ struct EndpointOutput {
 #[derive(Debug, Serialize)]
 struct Permutations {
     requested: usize,
-    attempted: usize,
-    completed: usize,
     seed: u64,
 }
 
-pub(super) struct RunArgs {
-    pub input: PathBuf,
-    pub group_a: String,
-    pub group_b: String,
-    pub permutations: usize,
-    pub seed: u64,
-    pub alpha: f64,
-    pub step_down: bool,
-    pub out: PathBuf,
+#[derive(Debug, clap::Args)]
+pub(crate) struct RunArgs {
+    /// CSV with patient_id, group, family_order, family, endpoint and value columns.
+    #[arg(long)]
+    pub(super) input: PathBuf,
+    /// Label of the first group in the contrast.
+    #[arg(long)]
+    pub(super) group_a: String,
+    /// Label of the second group in the contrast.
+    #[arg(long)]
+    pub(super) group_b: String,
+    /// Number of randomized label or residual assignments.
+    #[arg(long)]
+    pub(super) permutations: usize,
+    /// Random seed for reproducible simulation or inference.
+    #[arg(long)]
+    pub(super) seed: u64,
+    /// Significance level or excluded tail probability for the reported inference.
+    #[arg(long)]
+    pub(super) alpha: f64,
+    /// Apply step-down rather than single-step Max-T within each opened family.
+    #[arg(long)]
+    pub(super) step_down: bool,
+    /// Destination for the analysis output.
+    #[arg(long)]
+    pub(super) out: PathBuf,
 }
 
 pub(super) fn run(args: RunArgs) -> Result<(), CohortError> {
@@ -177,8 +192,6 @@ impl Output {
             alpha: result.alpha,
             permutations: Permutations {
                 requested: result.permutations_requested,
-                attempted: result.permutations_attempted,
-                completed: result.permutations_completed,
                 seed: result.seed,
             },
             claim_status: "strong_fwer_prespecified_serial_gatekeeping",

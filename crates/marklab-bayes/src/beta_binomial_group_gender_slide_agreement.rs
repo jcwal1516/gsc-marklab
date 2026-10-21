@@ -1,19 +1,24 @@
-use crate::validation::is_lower_hex_sha256 as is_sha256;
-
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::agreement_metric::AgreementVerdict;
+use crate::agreement_metric::{
+    compare_elements, compare_parameter, ParameterAgreement, PatientAgreement,
+};
+use crate::backend_versions::PYTHON_VERSION;
+use crate::validation::is_sha256;
+use crate::AgreementStatus;
+use crate::ClaimStatus;
 use crate::{
     hierarchical_agreement::{JAX_VERSION, NUMPYRO_VERSION},
-    sha256_hex, BackendContract, BayesError, BetaBinomialGroupGenderSlideHierarchyInputIdentity,
+    json_sha256, BackendContract, BayesError, BetaBinomialGroupGenderSlideHierarchyInputIdentity,
     BetaBinomialGroupGenderSlideHierarchyModelIr, BetaBinomialGroupGenderSlideHierarchyPosterior,
     BetaBinomialGroupGenderSlideHierarchyWorkerRequest,
     BetaBinomialGroupGenderSlideHierarchyWorkerResult,
     BetaBinomialGroupGenderSlidePatientPosterior, BetaBinomialGroupGenderSlidePosterior,
-    BetaBinomialGroupGenderSlidePosteriorPredictive, BetaBinomialParameterAgreement,
-    BetaBinomialPatientAgreement, FitState, NormalMeanDiagnostics, SamplingSummary,
-    SarScalarSummary, WorkerBackend,
+    BetaBinomialGroupGenderSlidePosteriorPredictive, FitState, McseScalarSummary,
+    PosteriorDiagnostics, SamplingSummary, WorkerBackend,
 };
 
 const REQUEST_FORMAT: &str =
@@ -42,14 +47,14 @@ impl NumpyroBetaBinomialGroupGenderSlideHierarchyWorkerRequest {
                 "NumPyro slide hierarchy identities must be SHA-256 digests".into(),
             ));
         }
-        let source_request_sha256 = sha256_hex(&serde_json::to_vec(&source_request)?);
+        let source_request_sha256 = json_sha256(&source_request)?;
         Ok(Self {
             format: REQUEST_FORMAT,
             version: 1,
             backend: BackendContract {
                 name: "numpyro",
                 version: NUMPYRO_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -74,7 +79,7 @@ pub struct NumpyroBetaBinomialGroupGenderSlideHierarchyWorkerResult {
     posterior: BetaBinomialGroupGenderSlideHierarchyPosterior,
     patients: Vec<BetaBinomialGroupGenderSlidePatientPosterior>,
     slides: Vec<BetaBinomialGroupGenderSlidePosterior>,
-    diagnostics: NormalMeanDiagnostics,
+    diagnostics: PosteriorDiagnostics,
     posterior_predictive: BetaBinomialGroupGenderSlidePosteriorPredictive,
 }
 
@@ -154,9 +159,9 @@ impl BetaBinomialGroupGenderSlideAgreementPolicy {
 
 #[derive(Debug, Serialize)]
 pub struct BetaBinomialGroupGenderSlideAgreementComparison {
-    pub parameters: BTreeMap<String, BetaBinomialParameterAgreement>,
-    pub patient_probabilities: BetaBinomialPatientAgreement,
-    pub patient_random_effects: BetaBinomialPatientAgreement,
+    pub parameters: BTreeMap<String, ParameterAgreement>,
+    pub patient_probabilities: PatientAgreement,
+    pub patient_random_effects: PatientAgreement,
     pub maximum_standardized_difference: f64,
     pub minimum_probability_tolerance: f64,
     pub minimum_log_odds_tolerance: f64,
@@ -174,7 +179,7 @@ pub struct BetaBinomialGroupGenderSlideBackendSummary {
     pub sampling: SamplingSummary,
     pub posterior: BetaBinomialGroupGenderSlideHierarchyPosterior,
     pub patients: Vec<BetaBinomialGroupGenderSlidePatientPosterior>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: BetaBinomialGroupGenderSlidePosteriorPredictive,
 }
 
@@ -185,12 +190,12 @@ pub struct BetaBinomialGroupGenderSlideAgreementResult {
     pub model: BetaBinomialGroupGenderSlideHierarchyModelIr,
     pub input: BetaBinomialGroupGenderSlideHierarchyInputIdentity,
     pub fit_state: FitState,
-    pub agreement_status: &'static str,
+    pub agreement_status: AgreementStatus,
     pub pymc: BetaBinomialGroupGenderSlideBackendSummary,
     pub numpyro: BetaBinomialGroupGenderSlideBackendSummary,
     pub comparison: BetaBinomialGroupGenderSlideAgreementComparison,
     pub seed: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 impl BetaBinomialGroupGenderSlideAgreementResult {
@@ -298,11 +303,9 @@ impl BetaBinomialGroupGenderSlideAgreementResult {
         ] {
             parameters.insert(
                 name.into(),
-                compare_beta_binomial_parameter(
+                compare_parameter(
                     left,
-                    pymc.diagnostics.ess_bulk,
                     right,
-                    numpyro.diagnostics.ess_bulk,
                     policy.maximum_standardized_difference,
                     tolerance,
                 ),
@@ -311,37 +314,29 @@ impl BetaBinomialGroupGenderSlideAgreementResult {
         let patient_probabilities = compare_patients(
             &pymc,
             &numpyro,
-            |patient| &patient.posterior_probability,
+            |patient| patient.posterior_probability,
             policy.minimum_patient_probability_tolerance,
             policy,
         )?;
         let patient_random_effects = compare_patients(
             &pymc,
             &numpyro,
-            |patient| &patient.random_log_odds_effect,
+            |patient| patient.random_log_odds_effect,
             policy.minimum_patient_effect_tolerance,
             policy,
         )?;
-        let fits_complete =
-            pymc.fit_state == FitState::Complete && numpyro.fit_state == FitState::Complete;
         let agrees = parameters.values().all(|value| value.passes)
-            && patient_probabilities.passes
-            && patient_random_effects.passes;
-        let available = fits_complete && agrees;
+            && patient_probabilities.agreement.passes
+            && patient_random_effects.agreement.passes;
+        let verdict = AgreementVerdict::new(pymc.fit_state, numpyro.fit_state, agrees);
         let seed = source_request.sampling.seed;
         Ok(Self {
             format: "marklab.bayesian_beta_binomial_group_gender_slide_hierarchy_cross_backend_agreement",
             version: 1,
             model: source_request.model,
             input,
-            fit_state: if fits_complete { FitState::Complete } else { FitState::Nonconverged },
-            agreement_status: if available {
-                "agree_within_monte_carlo_error"
-            } else if fits_complete {
-                "diagnostic_only_backend_disagreement"
-            } else {
-                "diagnostic_only_nonconverged"
-            },
+            fit_state: verdict.fit_state,
+            agreement_status: verdict.agreement_status,
             pymc: summarize(pymc),
             numpyro: summarize(numpyro),
             comparison: BetaBinomialGroupGenderSlideAgreementComparison {
@@ -357,11 +352,7 @@ impl BetaBinomialGroupGenderSlideAgreementResult {
                 minimum_patient_effect_tolerance: policy.minimum_patient_effect_tolerance,
             },
             seed,
-            claim_status: if available {
-                "experimental_cross_backend_validation"
-            } else {
-                "diagnostic_only_cross_backend_validation"
-            },
+            claim_status: verdict.claim_status,
         })
     }
 }
@@ -382,51 +373,31 @@ fn summarize(
 }
 
 fn compare_patients(
-    left: &BetaBinomialGroupGenderSlideHierarchyWorkerResult,
-    right: &BetaBinomialGroupGenderSlideHierarchyWorkerResult,
-    select: fn(&BetaBinomialGroupGenderSlidePatientPosterior) -> &SarScalarSummary,
+    pymc: &BetaBinomialGroupGenderSlideHierarchyWorkerResult,
+    numpyro: &BetaBinomialGroupGenderSlideHierarchyWorkerResult,
+    select: fn(&BetaBinomialGroupGenderSlidePatientPosterior) -> McseScalarSummary,
     minimum_tolerance: f64,
     policy: BetaBinomialGroupGenderSlideAgreementPolicy,
-) -> Result<BetaBinomialPatientAgreement, BayesError> {
-    let mut squared = 0.0;
-    let mut maximum_absolute = 0.0_f64;
-    let mut maximum_standardized = 0.0_f64;
-    let mut overlaps = true;
-    let mut passes = true;
-    for (pymc, numpyro) in left.patients.iter().zip(&right.patients) {
-        if pymc.patient_id != numpyro.patient_id
-            || pymc.group != numpyro.group
-            || pymc.gender != numpyro.gender
-            || pymc.slide_count != numpyro.slide_count
-            || pymc.successes != numpyro.successes
-            || pymc.trials != numpyro.trials
-        {
-            return Err(BayesError::WorkerContract(
-                "slide hierarchy backend patient identities differ".into(),
-            ));
-        }
-        let left_summary = select(pymc);
-        let right_summary = select(numpyro);
-        let difference = (left_summary.mean - right_summary.mean).abs();
-        let mcse = (left_summary.sd / left.diagnostics.ess_bulk.sqrt())
-            .hypot(right_summary.sd / right.diagnostics.ess_bulk.sqrt());
-        let standardized = standardized_mcse_difference(difference, mcse);
-        let tolerance = minimum_tolerance.max(policy.maximum_standardized_difference * mcse);
-        let overlap = left_summary.interval_lower <= right_summary.interval_upper
-            && right_summary.interval_lower <= left_summary.interval_upper;
-        squared += difference * difference;
-        maximum_absolute = maximum_absolute.max(difference);
-        maximum_standardized = maximum_standardized.max(standardized);
-        overlaps &= overlap;
-        passes &= overlap && difference <= tolerance;
+) -> Result<PatientAgreement, BayesError> {
+    let patients = || pymc.patients.iter().zip(&numpyro.patients);
+    if patients().any(|(left, right)| {
+        left.patient_id != right.patient_id
+            || left.group != right.group
+            || left.gender != right.gender
+            || left.slide_count != right.slide_count
+            || left.successes != right.successes
+            || left.trials != right.trials
+    }) {
+        return Err(BayesError::WorkerContract(
+            "slide hierarchy backend patient identities differ".into(),
+        ));
     }
-    Ok(BetaBinomialPatientAgreement {
-        patient_count: left.patients.len(),
-        root_mean_square_difference: (squared / left.patients.len() as f64).sqrt(),
-        maximum_absolute_difference: maximum_absolute,
-        maximum_standardized_difference: maximum_standardized,
-        all_intervals_overlap: overlaps,
-        passes,
+    Ok(PatientAgreement {
+        patient_count: pymc.patients.len(),
+        agreement: compare_elements(
+            patients().map(|(left, right)| (select(left), select(right))),
+            policy.maximum_standardized_difference,
+            minimum_tolerance,
+        ),
     })
 }
-use crate::agreement_metric::{compare_beta_binomial_parameter, standardized_mcse_difference};

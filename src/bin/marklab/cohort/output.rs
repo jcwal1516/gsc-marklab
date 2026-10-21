@@ -21,7 +21,7 @@ pub(super) struct PermutationOutput {
     effect_group_a_minus_group_b: f64,
     studentized_statistic: f64,
     p_value: f64,
-    permutations: PermutationSummary,
+    permutations: usize,
     seed: u64,
     alternative: CliAlternative,
 }
@@ -59,11 +59,7 @@ impl PermutationOutput {
             effect_group_a_minus_group_b: result.effect_group_a_minus_group_b,
             studentized_statistic: result.studentized_statistic,
             p_value: result.p_value,
-            permutations: PermutationSummary {
-                requested: result.permutations_requested,
-                attempted: result.permutations_attempted,
-                completed: result.permutations_completed,
-            },
+            permutations: result.permutations_requested,
             seed: result.seed,
             alternative,
         }
@@ -96,13 +92,6 @@ struct GroupSummary {
 }
 
 #[derive(Debug, Serialize)]
-struct PermutationSummary {
-    requested: usize,
-    attempted: usize,
-    completed: usize,
-}
-
-#[derive(Debug, Serialize)]
 pub(super) struct PairedPermutationOutput {
     format: &'static str,
     version: u32,
@@ -113,7 +102,7 @@ pub(super) struct PairedPermutationOutput {
     effect_condition_b_minus_condition_a: f64,
     studentized_statistic: f64,
     p_value: f64,
-    permutations: PermutationSummary,
+    permutations: usize,
     seed: u64,
     alternative: CliAlternative,
 }
@@ -160,11 +149,7 @@ impl PairedPermutationOutput {
             effect_condition_b_minus_condition_a: result.effect_condition_b_minus_condition_a,
             studentized_statistic: result.studentized_statistic,
             p_value: result.p_value,
-            permutations: PermutationSummary {
-                requested: result.permutations_requested,
-                attempted: result.permutations_attempted,
-                completed: result.permutations_completed,
-            },
+            permutations: result.permutations_requested,
             seed: result.seed,
             alternative,
         }
@@ -195,7 +180,7 @@ pub(super) struct PairedMaxTOutput {
     endpoints: Vec<PairedMaxTEndpointOutput>,
     alpha: f64,
     critical_value: f64,
-    permutations: PermutationSummary,
+    permutations: usize,
     seed: u64,
 }
 
@@ -240,11 +225,7 @@ impl PairedMaxTOutput {
                 .collect(),
             alpha: result.alpha,
             critical_value: result.critical_value,
-            permutations: PermutationSummary {
-                requested: result.permutations_requested,
-                attempted: result.permutations_attempted,
-                completed: result.permutations_completed,
-            },
+            permutations: result.permutations_requested,
             seed: result.seed,
         }
     }
@@ -299,7 +280,7 @@ pub(super) struct FunctionalPermutationOutput {
     statistic: CliFunctionalStatistic,
     observed_statistic: f64,
     p_value: f64,
-    permutations: PermutationSummary,
+    permutations: usize,
     seed: u64,
 }
 
@@ -330,11 +311,7 @@ impl FunctionalPermutationOutput {
             statistic,
             observed_statistic: result.observed_statistic,
             p_value: result.p_value,
-            permutations: PermutationSummary {
-                requested: result.permutations_requested,
-                attempted: result.permutations_attempted,
-                completed: result.permutations_completed,
-            },
+            permutations: result.permutations_requested,
             seed: result.seed,
         }
     }
@@ -382,7 +359,7 @@ pub(super) struct MaxTOutput {
     endpoints: Vec<MaxTEndpointOutput>,
     alpha: f64,
     critical_value: f64,
-    permutations: PermutationSummary,
+    permutations: usize,
     seed: u64,
 }
 
@@ -419,11 +396,7 @@ impl MaxTOutput {
                 .collect(),
             alpha: result.alpha,
             critical_value: result.critical_value,
-            permutations: PermutationSummary {
-                requested: result.permutations_requested,
-                attempted: result.permutations_attempted,
-                completed: result.permutations_completed,
-            },
+            permutations: result.permutations_requested,
             seed: result.seed,
         }
     }
@@ -461,7 +434,7 @@ pub(super) struct MmdOutput {
     estimator: CliMmdEstimator,
     mmd_squared: f64,
     p_value: f64,
-    permutations: PermutationSummary,
+    permutations: usize,
     seed: u64,
 }
 
@@ -499,11 +472,7 @@ impl MmdOutput {
             estimator,
             mmd_squared: result.mmd_squared,
             p_value: result.p_value,
-            permutations: PermutationSummary {
-                requested: result.permutations_requested,
-                attempted: result.permutations_attempted,
-                completed: result.permutations_completed,
-            },
+            permutations: result.permutations_requested,
             seed: result.seed,
         }
     }
@@ -542,7 +511,7 @@ pub(super) struct EnergyOutput {
     metric: CliEnergyMetric,
     energy_distance: f64,
     p_value: f64,
-    permutations: PermutationSummary,
+    permutations: usize,
     seed: u64,
 }
 
@@ -570,11 +539,7 @@ impl EnergyOutput {
             metric,
             energy_distance: result.energy_distance,
             p_value: result.p_value,
-            permutations: PermutationSummary {
-                requested: result.permutations_requested,
-                attempted: result.permutations_attempted,
-                completed: result.permutations_completed,
-            },
+            permutations: result.permutations_requested,
             seed: result.seed,
         }
     }

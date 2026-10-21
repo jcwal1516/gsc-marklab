@@ -3,11 +3,16 @@
 use std::{fs, process::Command, str::FromStr};
 
 use marklab::{
-    preflight_cell_embedding_table_arrow_bytes, publish_cell_embedding_table_arrow,
-    write_cell_embedding_table_arrow, ArrowIpcFailure, ArtifactId, CellEmbeddingRow,
-    CellEmbeddingTable, CellEmbeddingTablePhysicalBindings, CellId, ContentDigest,
-    EmbeddingColumnarBudgets, EmbeddingColumnarError, EmbeddingStatus, ExpectedCellSet,
-    LocalArtifactStore, PublicationDisposition, StoreId, TableFormat,
+    embeddings::{
+        preflight_cell_embedding_table_arrow_bytes, publish_cell_embedding_table_arrow,
+        write_cell_embedding_table_arrow, ArrowIpcFailure, CellEmbeddingRow, CellEmbeddingTable,
+        CellEmbeddingTablePhysicalBindings, ColumnarError, EmbeddingColumnarBudgets,
+        EmbeddingStatus, ExpectedCellSet,
+    },
+    workflow::{
+        ArtifactId, ContentDigest, LocalArtifactStore, PublicationDisposition, StoreId, TableFormat,
+    },
+    CellId,
 };
 use tempfile::TempDir;
 
@@ -285,7 +290,7 @@ fn arrow_preflight_rejects_magic_footer_and_file_budget_before_stock_decode() {
     bad_magic[0] = 0;
     assert!(matches!(
         preflight_cell_embedding_table_arrow_bytes(&bad_magic, &expected, bindings, limits),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidMagic,
         })
     ));
@@ -295,7 +300,7 @@ fn arrow_preflight_rejects_magic_footer_and_file_budget_before_stock_decode() {
     negative_footer[footer_length..footer_length + 4].copy_from_slice(&(-1_i32).to_le_bytes());
     assert!(matches!(
         preflight_cell_embedding_table_arrow_bytes(&negative_footer, &expected, bindings, limits),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidFooterLength,
         })
     ));
@@ -307,7 +312,7 @@ fn arrow_preflight_rejects_magic_footer_and_file_budget_before_stock_decode() {
             bindings,
             budgets(bytes.len() as u64 - 1)
         ),
-        Err(EmbeddingColumnarError::FileByteBudgetExceeded { .. })
+        Err(ColumnarError::FileByteBudgetExceeded { .. })
     ));
 }
 
@@ -338,7 +343,7 @@ fn arrow_preflight_rejects_absent_footer_record_batch_vector_for_empty_table() {
     clear_footer_record_batches(&mut bytes);
     assert!(matches!(
         preflight_cell_embedding_table_arrow_bytes(&bytes, &expected, bindings, limits),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidFooter,
         })
     ));
@@ -357,7 +362,7 @@ fn arrow_preflight_rejects_block_node_buffer_and_metadata_drift() {
     negative_block[block_offset..block_offset + 8].copy_from_slice(&(-1_i64).to_le_bytes());
     assert!(matches!(
         preflight_cell_embedding_table_arrow_bytes(&negative_block, &expected, bindings, limits),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidBlock,
         })
     ));
@@ -368,7 +373,7 @@ fn arrow_preflight_rejects_block_node_buffer_and_metadata_drift() {
         .copy_from_slice(&(original_offset + 1).to_le_bytes());
     assert!(matches!(
         preflight_cell_embedding_table_arrow_bytes(&misaligned_block, &expected, bindings, limits),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidBlock,
         })
     ));
@@ -378,7 +383,7 @@ fn arrow_preflight_rejects_block_node_buffer_and_metadata_drift() {
     wrong_node[node_offset..node_offset + 8].copy_from_slice(&0_i64.to_le_bytes());
     assert!(matches!(
         preflight_cell_embedding_table_arrow_bytes(&wrong_node, &expected, bindings, limits),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidFieldNodes,
         })
     ));
@@ -390,7 +395,7 @@ fn arrow_preflight_rejects_block_node_buffer_and_metadata_drift() {
         .copy_from_slice(&(original_buffer_offset + 1).to_le_bytes());
     assert!(matches!(
         preflight_cell_embedding_table_arrow_bytes(&misaligned_buffer, &expected, bindings, limits),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidBuffers,
         })
     ));
@@ -405,7 +410,7 @@ fn arrow_preflight_rejects_block_node_buffer_and_metadata_drift() {
             bindings,
             limits,
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidBuffers,
         })
     ));
@@ -414,7 +419,7 @@ fn arrow_preflight_rejects_block_node_buffer_and_metadata_drift() {
     giant_buffer[buffer_offset + 8..buffer_offset + 16].copy_from_slice(&i64::MAX.to_le_bytes());
     assert!(matches!(
         preflight_cell_embedding_table_arrow_bytes(&giant_buffer, &expected, bindings, limits,),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidBuffers,
         })
     ));
@@ -433,7 +438,7 @@ fn arrow_preflight_rejects_block_node_buffer_and_metadata_drift() {
             .expect_err("metadata drift");
     assert!(matches!(
         error,
-        EmbeddingColumnarError::Arrow {
+        ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidApplicationMetadata,
         }
     ));
@@ -457,7 +462,7 @@ fn arrow_preflight_rejects_initial_schema_footer_disagreement() {
     );
     assert!(matches!(
         preflight_cell_embedding_table_arrow_bytes(&bytes, &expected, bindings, limits),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidSchema,
         })
     ));
@@ -481,7 +486,7 @@ fn arrow_preflight_enforces_row_group_decoded_and_retained_budget_edges() {
             generous.maximum_decoded_bytes(),
         ),
     ) {
-        Err(EmbeddingColumnarError::RowGroupByteBudgetExceeded {
+        Err(ColumnarError::RowGroupByteBudgetExceeded {
             required,
             maximum: 0,
         }) => required,
@@ -507,7 +512,7 @@ fn arrow_preflight_enforces_row_group_decoded_and_retained_budget_edges() {
                 generous.maximum_decoded_bytes(),
             ),
         ),
-        Err(EmbeddingColumnarError::RowGroupByteBudgetExceeded { .. })
+        Err(ColumnarError::RowGroupByteBudgetExceeded { .. })
     ));
 
     let component_bytes = table.row_count() as u64 * u64::from(table.dimension()) * 4;
@@ -522,7 +527,7 @@ fn arrow_preflight_enforces_row_group_decoded_and_retained_budget_edges() {
             component_bytes,
         ),
     ) {
-        Err(EmbeddingColumnarError::DecodedByteBudgetExceeded { required, .. }) => required,
+        Err(ColumnarError::DecodedByteBudgetExceeded { required, .. }) => required,
         result => panic!("expected decoded failure, observed {result:?}"),
     };
     let decoded_exact = EmbeddingColumnarBudgets::new(
@@ -545,7 +550,7 @@ fn arrow_preflight_enforces_row_group_decoded_and_retained_budget_edges() {
             generous.maximum_decoded_bytes(),
         ),
     ) {
-        Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
+        Err(ColumnarError::RetainedByteBudgetExceeded {
             required,
             maximum: 0,
         }) => required,
@@ -562,7 +567,7 @@ fn arrow_preflight_enforces_row_group_decoded_and_retained_budget_edges() {
             generous.maximum_decoded_bytes(),
         ),
     ) {
-        Err(EmbeddingColumnarError::RetainedByteBudgetExceeded { required, maximum })
+        Err(ColumnarError::RetainedByteBudgetExceeded { required, maximum })
             if maximum == footer_retained_required && required > maximum =>
         {
             required
@@ -589,7 +594,7 @@ fn arrow_preflight_enforces_row_group_decoded_and_retained_budget_edges() {
                 generous.maximum_decoded_bytes(),
             ),
         ),
-        Err(EmbeddingColumnarError::RetainedByteBudgetExceeded { .. })
+        Err(ColumnarError::RetainedByteBudgetExceeded { .. })
     ));
 }
 
@@ -620,11 +625,11 @@ fn canonical_arrow_writer_and_preflight_enforce_exact_budget_edges() {
     );
     assert!(matches!(
         write_cell_embedding_table_arrow(&mut Vec::new(), &table, bindings, too_small),
-        Err(EmbeddingColumnarError::FileByteBudgetExceeded { .. })
+        Err(ColumnarError::FileByteBudgetExceeded { .. })
     ));
     assert!(matches!(
         preflight_cell_embedding_table_arrow_bytes(&bytes, &expected, bindings, too_small),
-        Err(EmbeddingColumnarError::FileByteBudgetExceeded { .. })
+        Err(ColumnarError::FileByteBudgetExceeded { .. })
     ));
 }
 
@@ -648,13 +653,13 @@ fn canonical_arrow_writer_charges_every_decoded_buffer_at_exact_edge() {
         bindings,
         component_only,
     ) {
-        Err(EmbeddingColumnarError::DecodedByteBudgetExceeded { required, .. }) => required,
+        Err(ColumnarError::DecodedByteBudgetExceeded { required, .. }) => required,
         result => panic!("expected preflight decoded failure, observed {result:?}"),
     };
     assert!(decoded_required > component_bytes);
     assert!(matches!(
         write_cell_embedding_table_arrow(&mut Vec::new(), &table, bindings, component_only),
-        Err(EmbeddingColumnarError::DecodedByteBudgetExceeded {
+        Err(ColumnarError::DecodedByteBudgetExceeded {
             required,
             maximum,
         }) if required == decoded_required && maximum == component_bytes
@@ -679,7 +684,7 @@ fn canonical_arrow_writer_charges_many_batch_index_and_footer_peak_at_exact_edge
         EmbeddingColumnarBudgets::new(64 * 1024 * 1024, 0, 64 * 1024 * 1024, 64 * 1024 * 1024);
     let required =
         match write_cell_embedding_table_arrow(&mut Vec::new(), &table, bindings, zero_retained) {
-            Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
+            Err(ColumnarError::RetainedByteBudgetExceeded {
                 required,
                 maximum: 0,
             }) => required,
@@ -702,7 +707,7 @@ fn canonical_arrow_writer_charges_many_batch_index_and_footer_peak_at_exact_edge
     );
     assert!(matches!(
         write_cell_embedding_table_arrow(&mut Vec::new(), &table, bindings, one_short),
-        Err(EmbeddingColumnarError::RetainedByteBudgetExceeded { .. })
+        Err(ColumnarError::RetainedByteBudgetExceeded { .. })
     ));
 }
 
@@ -717,7 +722,7 @@ fn arrow_preflight_rejects_noncanonical_header_padding_and_eos() {
     bad_padding[6] = 1;
     assert!(matches!(
         preflight_cell_embedding_table_arrow_bytes(&bad_padding, &expected, bindings, limits),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidMagic,
         })
     ));
@@ -733,7 +738,7 @@ fn arrow_preflight_rejects_noncanonical_header_padding_and_eos() {
     bad_eos[footer_start - 1] = 1;
     assert!(matches!(
         preflight_cell_embedding_table_arrow_bytes(&bad_eos, &expected, bindings, limits),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidFooterLength,
         })
     ));

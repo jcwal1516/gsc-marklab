@@ -1,11 +1,10 @@
-use std::path::PathBuf;
-
 use marklab_bayes::{
     low_rank_predictive_process, FieldCoordinate1D, PredictiveProcessError, PredictiveProcessSpec,
 };
 use serde::{Deserialize, Serialize};
 
-use super::{publish_json, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::PredictiveProcessArgs;
+use super::{publish_json, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -21,15 +20,19 @@ struct KnotRow {
     x_um: f64,
 }
 
-pub(super) fn run(
-    input_path: PathBuf,
-    knot_path: PathBuf,
-    amplitude: f64,
-    length_scale_um: f64,
-    jitter: f64,
-    diagonal_correction: bool,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: PredictiveProcessArgs) -> Result<(), CliError> {
+    let PredictiveProcessArgs {
+        input,
+        knots,
+        amplitude,
+        length_scale_um,
+        jitter,
+        diagonal_correction,
+        out,
+    } = args;
+    let input_path = input;
+    let knot_path = knots;
+    let output_path = out;
     let coordinates = read_coordinates(&input_path)?;
     let knots = read_knots(&knot_path)?;
     let plan = low_rank_predictive_process(PredictiveProcessSpec {
@@ -93,11 +96,11 @@ pub(super) fn run(
     publish_json(&output_path, &result)
 }
 
-fn read_coordinates(path: &std::path::Path) -> Result<Vec<FieldCoordinate1D>, BayesCliError> {
+fn read_coordinates(path: &std::path::Path) -> Result<Vec<FieldCoordinate1D>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader.headers()?.iter().eq(["coordinate_id", "x_um"]) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "predictive-process headers must be exactly: coordinate_id,x_um".into(),
         ));
     }
@@ -109,7 +112,7 @@ fn read_coordinates(path: &std::path::Path) -> Result<Vec<FieldCoordinate1D>, Ba
             x_um: row.x_um,
         });
         if rows.len() > 2_000 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "predictive-process coordinate count exceeds 2000".into(),
             ));
         }
@@ -117,11 +120,11 @@ fn read_coordinates(path: &std::path::Path) -> Result<Vec<FieldCoordinate1D>, Ba
     Ok(rows)
 }
 
-fn read_knots(path: &std::path::Path) -> Result<Vec<FieldCoordinate1D>, BayesCliError> {
+fn read_knots(path: &std::path::Path) -> Result<Vec<FieldCoordinate1D>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader.headers()?.iter().eq(["knot_id", "x_um"]) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "predictive-process knot headers must be exactly: knot_id,x_um".into(),
         ));
     }
@@ -133,7 +136,7 @@ fn read_knots(path: &std::path::Path) -> Result<Vec<FieldCoordinate1D>, BayesCli
             x_um: row.x_um,
         });
         if rows.len() > 128 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "predictive-process knot count exceeds 128".into(),
             ));
         }
@@ -141,18 +144,18 @@ fn read_knots(path: &std::path::Path) -> Result<Vec<FieldCoordinate1D>, BayesCli
     Ok(rows)
 }
 
-fn validate_file(path: &std::path::Path) -> Result<(), BayesCliError> {
-    super::input_file::validate_regular_file(
+fn validate_file(path: &std::path::Path) -> Result<(), CliError> {
+    crate::input_file::validate_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,
         "predictive-process input must be a regular file within the 16 MiB limit",
     )
 }
 
-fn map_error(error: PredictiveProcessError) -> BayesCliError {
+fn map_error(error: PredictiveProcessError) -> CliError {
     match error {
-        PredictiveProcessError::InvalidInput(message) => BayesCliError::Input(message),
-        PredictiveProcessError::Numerical(message) => BayesCliError::Backend(message),
+        PredictiveProcessError::InvalidInput(message) => CliError::Input(message),
+        PredictiveProcessError::Numerical(message) => CliError::Backend(message),
     }
 }
 

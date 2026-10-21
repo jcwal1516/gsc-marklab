@@ -1,121 +1,97 @@
-use std::path::PathBuf;
-
 use marklab_bayes::{
     DirichletMultinomialGroupSensitivityResult, DirichletMultinomialGroupSensitivityScenario,
-    DirichletMultinomialGroupSensitivityScenarioRun, NutsSamplingSpec,
+    DirichletMultinomialGroupSensitivityScenarioRun,
 };
 
-use super::{dirichlet_multinomial_group, publish_json, BayesCliError};
+use super::cli_schema::{
+    DirichletMultinomialGroupModelArgs, DirichletMultinomialGroupSensitivityArgs,
+};
+use super::{cross_backend, dirichlet_multinomial_group, publish_json, CliError};
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input_path: PathBuf,
-    reference_group: String,
-    comparison_group: String,
-    logit_prior_sd: f64,
-    group_effect_prior_sd: f64,
-    concentration_prior_sd: f64,
-    lower_scale_multiplier: f64,
-    upper_scale_multiplier: f64,
-    material_standardized_shift: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
-    if !lower_scale_multiplier.is_finite()
-        || !(0.0..1.0).contains(&lower_scale_multiplier)
-        || !upper_scale_multiplier.is_finite()
-        || !(1.0..=10.0).contains(&upper_scale_multiplier)
-        || !material_standardized_shift.is_finite()
-        || material_standardized_shift <= 0.0
-    {
-        return Err(BayesCliError::Input(
-            "Dirichlet-multinomial sensitivity multipliers or material-shift threshold are invalid"
-                .into(),
-        ));
-    }
+pub(super) fn run(args: DirichletMultinomialGroupSensitivityArgs) -> Result<(), CliError> {
+    let DirichletMultinomialGroupSensitivityArgs {
+        model,
+        lower_scale_multiplier,
+        upper_scale_multiplier,
+        material_standardized_shift,
+        out: output_path,
+    } = args;
+    cross_backend::validate_sensitivity_controls(
+        lower_scale_multiplier,
+        upper_scale_multiplier,
+        material_standardized_shift,
+        "Dirichlet-multinomial sensitivity multipliers or material-shift threshold are invalid",
+    )?;
     let scenarios = [
         (
             "baseline",
-            logit_prior_sd,
-            group_effect_prior_sd,
-            concentration_prior_sd,
+            model.logit_prior_sd,
+            model.group_effect_prior_sd,
+            model.concentration_prior_sd,
         ),
         (
             "logit_sd_lower",
-            logit_prior_sd * lower_scale_multiplier,
-            group_effect_prior_sd,
-            concentration_prior_sd,
+            model.logit_prior_sd * lower_scale_multiplier,
+            model.group_effect_prior_sd,
+            model.concentration_prior_sd,
         ),
         (
             "logit_sd_upper",
-            logit_prior_sd * upper_scale_multiplier,
-            group_effect_prior_sd,
-            concentration_prior_sd,
+            model.logit_prior_sd * upper_scale_multiplier,
+            model.group_effect_prior_sd,
+            model.concentration_prior_sd,
         ),
         (
             "group_effect_sd_lower",
-            logit_prior_sd,
-            group_effect_prior_sd * lower_scale_multiplier,
-            concentration_prior_sd,
+            model.logit_prior_sd,
+            model.group_effect_prior_sd * lower_scale_multiplier,
+            model.concentration_prior_sd,
         ),
         (
             "group_effect_sd_upper",
-            logit_prior_sd,
-            group_effect_prior_sd * upper_scale_multiplier,
-            concentration_prior_sd,
+            model.logit_prior_sd,
+            model.group_effect_prior_sd * upper_scale_multiplier,
+            model.concentration_prior_sd,
         ),
         (
             "concentration_sd_lower",
-            logit_prior_sd,
-            group_effect_prior_sd,
-            concentration_prior_sd * lower_scale_multiplier,
+            model.logit_prior_sd,
+            model.group_effect_prior_sd,
+            model.concentration_prior_sd * lower_scale_multiplier,
         ),
         (
             "concentration_sd_upper",
-            logit_prior_sd,
-            group_effect_prior_sd,
-            concentration_prior_sd * upper_scale_multiplier,
+            model.logit_prior_sd,
+            model.group_effect_prior_sd,
+            model.concentration_prior_sd * upper_scale_multiplier,
         ),
     ];
-    let mut input_digest = None;
-    let mut input_identity = None;
-    let mut runs = Vec::with_capacity(scenarios.len());
-    for (scenario_id, logit_sd, group_sd, concentration_sd) in scenarios {
-        let prepared = dirichlet_multinomial_group::prepare(
-            input_path.clone(),
-            reference_group.clone(),
-            comparison_group.clone(),
-            logit_sd,
-            group_sd,
-            concentration_sd,
-            sampling.clone(),
-            timeout_seconds,
-        )?;
-        if let Some(expected) = &input_digest {
-            if expected != &prepared.input_identity.patient_data_sha256 {
-                return Err(BayesCliError::Input(
-                    "Dirichlet-multinomial input changed across sensitivity scenarios".into(),
-                ));
-            }
-        } else {
-            input_digest = Some(prepared.input_identity.patient_data_sha256.clone());
-            input_identity = Some(prepared.input_identity.clone());
-        }
-        let result = dirichlet_multinomial_group::execute(&prepared)?;
-        runs.push(DirichletMultinomialGroupSensitivityScenarioRun {
-            scenario: DirichletMultinomialGroupSensitivityScenario {
-                scenario_id: scenario_id.into(),
+    let (input_identity, runs) = cross_backend::sensitivity(
+        scenarios,
+        "Dirichlet-multinomial input changed across sensitivity scenarios",
+        |(_scenario_id, logit_sd, group_sd, concentration_sd)| {
+            dirichlet_multinomial_group::prepare(DirichletMultinomialGroupModelArgs {
                 logit_prior_sd: logit_sd,
                 group_effect_prior_sd: group_sd,
                 concentration_prior_sd: concentration_sd,
-            },
-            result,
-        });
-    }
+                ..model.clone()
+            })
+        },
+        |(scenario_id, logit_sd, group_sd, concentration_sd), _prepared, result| {
+            DirichletMultinomialGroupSensitivityScenarioRun {
+                scenario: DirichletMultinomialGroupSensitivityScenario {
+                    scenario_id: scenario_id.into(),
+                    logit_prior_sd: logit_sd,
+                    group_effect_prior_sd: group_sd,
+                    concentration_prior_sd: concentration_sd,
+                },
+                result,
+            }
+        },
+    )?;
     let result = DirichletMultinomialGroupSensitivityResult::new(
-        input_identity.expect("baseline scenario exists"),
-        sampling.seed,
+        input_identity,
+        model.nuts.seed,
         material_standardized_shift,
         runs,
     )?;

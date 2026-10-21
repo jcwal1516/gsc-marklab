@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
+"""JAX worker for stationary-velocity-field diffeomorphic registration of two images."""
 
-import hashlib
 import json
 import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import jax
 import jax.numpy as jnp
@@ -11,28 +14,35 @@ import scipy
 from jax.scipy.ndimage import map_coordinates
 from scipy.optimize import minimize
 
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    ContractError,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
+from marklab_worker_support.registration import (
+    center_of_mass_translation,
+    pixel_grid,
+    scipy_objective,
+)
 
-class ContractError(Exception):
-    pass
 
+def register(request, request_sha256):
+    """Fit a stationary velocity field by penalized least squares.
 
-def main():
-    if (
-        jax.__version__ != "0.11.1"
-        or np.__version__ != "2.4.6"
-        or scipy.__version__ != "1.18.1"
-        or sys.version_info[:2] != (3, 12)
-    ):
-        raise ContractError("SVF backend version drift")
-    jax.config.update("jax_enable_x64", True)
-    request_bytes = sys.stdin.buffer.read(32 * 1024 * 1024 + 1)
-    request = json.loads(request_bytes)
-    if request["format"] != "marklab.jax_svf_registration_request" or request["version"] != 1:
-        raise ContractError("request identity mismatch")
+    The transform is the exponential of the velocity field computed by scaling and squaring.
+    The objective is the mean squared difference between the fixed image and the bilinearly
+    warped moving image plus ``regularization_weight`` times the mean squared first differences
+    of the velocity field, minimized by L-BFGS-B from the centre-of-mass translation.
+    """
     fixed = np.asarray(request["fixed"]["pixels"], dtype=float)
     moving = np.asarray(request["moving"]["pixels"], dtype=float)
     height, width = fixed.shape
-    yy, xx = np.meshgrid(np.arange(height, dtype=float), np.arange(width, dtype=float), indexing="ij")
+    yy, xx = pixel_grid(height, width)
     grid = jnp.asarray(np.stack([yy, xx], axis=-1))
     fixed_jax = jnp.asarray(fixed)
     moving_jax = jnp.asarray(moving)
@@ -48,7 +58,8 @@ def main():
 
     def sample_vector(field, coordinates):
         return jnp.stack(
-            [sample_scalar(field[..., component], coordinates) for component in range(2)], axis=-1
+            [sample_scalar(field[..., component], coordinates) for component in range(2)],
+            axis=-1,
         )
 
     def compose_displacements(left, right):
@@ -60,11 +71,7 @@ def main():
             displacement = compose_displacements(displacement, displacement)
         return grid + displacement
 
-    fixed_mass = fixed.sum()
-    moving_mass = moving.sum()
-    fixed_center = np.asarray([(fixed * yy).sum() / fixed_mass, (fixed * xx).sum() / fixed_mass])
-    moving_center = np.asarray([(moving * yy).sum() / moving_mass, (moving * xx).sum() / moving_mass])
-    translation = moving_center - fixed_center
+    translation = center_of_mass_translation(fixed, moving, yy, xx)
     initial_velocity = np.broadcast_to(translation, (height, width, 2)).copy()
 
     def objective(parameters):
@@ -77,16 +84,12 @@ def main():
         regularization = jnp.mean(dy * dy) + jnp.mean(dx * dx)
         return data_loss + request["regularization_weight"] * regularization
 
-    value_and_gradient = jax.jit(jax.value_and_grad(objective))
-
-    def scipy_objective(parameters):
-        value, gradient = value_and_gradient(jnp.asarray(parameters))
-        return float(value), np.asarray(gradient, dtype=float)
+    fit_objective = scipy_objective(jax.jit(jax.value_and_grad(objective)))
 
     initial = initial_velocity.ravel()
-    initial_objective = scipy_objective(initial)[0]
+    initial_objective = fit_objective(initial)[0]
     fit = minimize(
-        scipy_objective,
+        fit_objective,
         initial,
         jac=True,
         method="L-BFGS-B",
@@ -112,11 +115,13 @@ def main():
     velocity_xy = velocity[..., [1, 0]]
     transform_xy = transform[..., [1, 0]]
     inverse_xy = inverse[..., [1, 0]]
-    result = {
+    tolerance = request["jacobian_tolerance"]
+    converged = jacobian.min() > tolerance and mse_after < mse_before
+    return {
         "format": "marklab.svf_diffeomorphic_registration",
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "request_sha256": request_sha256,
         "fixed_frame": request["fixed"]["frame"],
         "moving_frame": request["moving"]["frame"],
         "transform": {
@@ -134,7 +139,7 @@ def main():
             "mse_after": mse_after,
             "minimum_jacobian_determinant": float(jacobian.min()),
             "maximum_jacobian_determinant": float(jacobian.max()),
-            "nonpositive_jacobian_fraction": float(np.mean(jacobian <= request["jacobian_tolerance"])),
+            "nonpositive_jacobian_fraction": float(np.mean(jacobian <= tolerance)),
             "inverse_consistency_max_pixels": float(inverse_error.max()),
             "inverse_consistency_mean_pixels": float(inverse_error.mean()),
         },
@@ -146,16 +151,20 @@ def main():
             "metric": request["metric"],
             "regularization": "first_difference_velocity_energy",
         },
-        "fit_state": "complete" if jacobian.min() > request["jacobian_tolerance"] and mse_after < mse_before else "nonconverged",
+        "fit_state": "complete" if converged else "nonconverged",
         "claim_status": "experimental_synthetic_svf_diffeomorphism",
     }
-    json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    sys.stdout.write("\n")
+
+
+def main():
+    require_versions(jax=jax.__version__, numpy=np.__version__, scipy=scipy.__version__)
+    jax.config.update("jax_enable_x64", True)
+    request_bytes = read_request(32 * MIB)
+    request = json.loads(request_bytes)
+    if request["format"] != "marklab.jax_svf_registration_request" or request["version"] != 1:
+        raise ContractError("request identity mismatch")
+    write_result(register(request, sha256_hex(request_bytes)))
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, json.JSONDecodeError, np.linalg.LinAlgError) as error:
-        print(f"SVF registration worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(main, "SVF registration worker contract error", errors=CONTRACT_ERRORS)

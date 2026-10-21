@@ -79,7 +79,7 @@ fn composition(scenario: usize, seed: u64) -> Value {
 
 // Families: 0 homogeneous, 1 smooth gradient, 2 masked gradient, 3 sharp compartments,
 // 4 sparse phenotype, 5 clustered, 6 inhibited, 7 cross attraction.
-fn spatial(family: usize, statistic: &str, mode: &str, seed: u64) -> Value {
+fn spatial(family: usize, statistic: &str, mode: &str, seed: u64, support_rule: bool) -> Value {
     let mut rng = Rng(seed);
     let count = if statistic == "cross_g_minus_one" && family != 4 {
         80
@@ -163,7 +163,8 @@ fn spatial(family: usize, statistic: &str, mode: &str, seed: u64) -> Value {
         vec![s],
         json!({"group_a":"A","group_b":"B","permutations":199,"seed":seed^0x53504154,"alpha":0.05,"statistic":statistic,"phenotype":null,
         "source":if cross {Some("immune")}else{None},"target":if cross {Some("tumor")}else{None},"radii_um":radii,"pair_bandwidth_um":if family==7 {30}else{40},
-        "intensity":{"model":if family==3 {"binary_compartments"}else{"gaussian"},"bandwidth_um":250,"grid":[8,8],"minimum_intensity_per_um2":1e-12,"cross_fit_folds":null,"bandwidth_candidates_um":[],"null_mode":mode},"compartments":partitions}),
+        "intensity":{"model":if family==3 {"binary_compartments"}else{"gaussian"},"bandwidth_um":250,"grid":[8,8],"minimum_intensity_per_um2":1e-12,"cross_fit_folds":null,"bandwidth_candidates_um":[],"null_mode":mode},"compartments":partitions,
+        "support_rule":if support_rule {json!({"kind":"expected_pair_count","minimum_expected_pairs":1.0,"maximum_draws_per_simulation":50})} else {Value::Null}}),
     )
 }
 
@@ -200,13 +201,29 @@ fn scan(family: usize, seed: u64) -> Value {
     )
 }
 
-fn interval(successes: usize, n: usize) -> Option<[f64; 2]> {
+const Z_95: f64 = 1.959963984540054;
+/// Minimum share of attempts that must produce inference for size or power to be assessed.
+const MINIMUM_AVAILABILITY: f64 = 0.95;
+/// Minimum Wilson 95% lower bound on the rejection rate of a supported alternative.
+const MINIMUM_POWER_LOWER_BOUND: f64 = 0.8;
+/// Scenarios whose recipes declare the expected-pair support rule: at least one expected pair
+/// per radius bin and at most 50 draws per null simulation. Without it every attempt lacked a
+/// complete radius axis. The rule and the thresholds below were fixed before these scenarios
+/// produced any inference.
+const SUPPORT_RULE_SCENARIOS: [&str; 2] = ["sparse_cross_g_refit", "cluster_g_refit"];
+/// `sparse_cross_g_refit` places its 4 sources uniformly in a 1000 um square. A source is an
+/// eligible center at r = 200 um only at least r + h = 240 um from the border, with probability
+/// 0.52^2 = 0.2704, so an observed pattern supports the axis with probability
+/// 1 - 0.7296^4 = 0.717. Its availability threshold is set below that analytic rate; size is
+/// assessed among the available attempts.
+const SPARSE_MINIMUM_AVAILABILITY: f64 = 0.65;
+
+fn wilson(successes: usize, n: usize, z: f64) -> Option<[f64; 2]> {
     if n == 0 {
         return None;
     }
     let n = n as f64;
     let p = successes as f64 / n;
-    let z = 1.959963984540054;
     let d = 1.0 + z * z / n;
     let center = (p + z * z / (2.0 * n)) / d;
     let half = z * ((p * (1.0 - p) + z * z / (4.0 * n)) / n).sqrt() / d;
@@ -275,6 +292,14 @@ fn pathology_studies_prespecified_calibration() {
     {
         scenarios.push((name.into(), "scan", family, "", "", family < 2));
     }
+    // Each supported null scenario is a one-sided anti-conservatism check. Bonferroni keeps the
+    // family-wise false-alarm rate at 2.5% across all of them.
+    let supported_nulls = scenarios.iter().filter(|scenario| scenario.5).count();
+    let null_z = statrs::distribution::ContinuousCDF::inverse_cdf(
+        &statrs::distribution::Normal::standard(),
+        1.0 - 0.025 / supported_nulls as f64,
+    );
+    let mut failures = Vec::new();
     for (name, workflow, family, statistic, mode, is_null) in scenarios {
         let attempts = if is_null { 1000 } else { 250 };
         let mut rejections = 0;
@@ -296,16 +321,22 @@ fn pathology_studies_prespecified_calibration() {
                 .wrapping_add(replicate as u64);
             let input = match workflow {
                 "composition" => composition(family, seed),
-                "spatial" => spatial(family, statistic, mode, seed),
+                "spatial" => spatial(
+                    family,
+                    statistic,
+                    mode,
+                    seed,
+                    SUPPORT_RULE_SCENARIOS.contains(&name.as_str()),
+                ),
                 _ => scan(family, seed),
             };
             let bytes = serde_json::to_vec(&input).unwrap();
             let value = match workflow {
-                "composition" => marklab::analyze_pathology_composition(&bytes)
+                "composition" => marklab::pathology::analyze_pathology_composition(&bytes)
                     .map(|v| serde_json::to_value(v).unwrap()),
-                "spatial" => marklab::analyze_pathology_spatial_study(&bytes)
+                "spatial" => marklab::pathology::analyze_pathology_spatial_study(&bytes)
                     .map(|v| serde_json::to_value(v).unwrap()),
-                _ => marklab::analyze_pathology_scan(&bytes)
+                _ => marklab::pathology::analyze_pathology_scan(&bytes)
                     .map(|v| serde_json::to_value(v).unwrap()),
             };
             match value {
@@ -350,7 +381,7 @@ fn pathology_studies_prespecified_calibration() {
         };
         let row = json!({"scenario":name,"workflow":workflow,"statistic":statistic,"null_mode":mode,"is_null":is_null,"outer_attempted":attempts,"inner_replicates":199,
             "completed_inference":completed,"unavailable":unavailable,"errors":errors,"partial_endpoint_family":partial,"rejections":rejections,
-            "rate_among_available":rate,"wilson_95_among_available":interval(rejections,completed),"mcse_among_available":rate.map(|p|(p*(1.0-p)/completed as f64).sqrt()),
+            "rate_among_available":rate,"wilson_95_among_available":wilson(rejections,completed,Z_95),"mcse_among_available":rate.map(|p|(p*(1.0-p)/completed as f64).sqrt()),
             "rejections_per_attempt":rejections as f64/attempts as f64,"availability_rate":completed as f64/attempts as f64,
             "unavailable_reasons":reasons,"first_error":first_failure,
             "scope":if workflow=="composition" {"patient_MaxT_available_family"}else{"single_slide_complete_search_or_curve"}});
@@ -358,9 +389,44 @@ fn pathology_studies_prespecified_calibration() {
         output.flush().unwrap();
         println!("{row}");
         assert_eq!(completed + unavailable + errors, attempts);
-        assert_eq!(
-            errors, 0,
-            "unexpected execution error in {name}; preserve output and investigate"
-        );
+        let availability = completed as f64 / attempts as f64;
+        if errors != 0 {
+            failures.push(format!(
+                "{name}: {errors} execution errors, first: {first_failure:?}"
+            ));
+        }
+        let minimum_availability = if name == "sparse_cross_g_refit" {
+            SPARSE_MINIMUM_AVAILABILITY
+        } else {
+            MINIMUM_AVAILABILITY
+        };
+        if availability < minimum_availability {
+            failures.push(format!(
+                "{name}: inference available for {completed}/{attempts} attempts, below \
+                 {minimum_availability}"
+            ));
+        } else if is_null {
+            let [lower, upper] = wilson(rejections, completed, null_z).unwrap();
+            if lower > 0.05 {
+                failures.push(format!(
+                    "{name} exceeds nominal alpha: {rejections}/{completed} rejections, \
+                     Bonferroni Wilson interval [{lower}, {upper}] (z = {null_z})"
+                ));
+            }
+        } else {
+            let [lower, upper] = wilson(rejections, completed, Z_95).unwrap();
+            if lower < MINIMUM_POWER_LOWER_BOUND {
+                failures.push(format!(
+                    "{name} lacks power: {rejections}/{completed} rejections, \
+                     Wilson 95% interval [{lower}, {upper}]"
+                ));
+            }
+        }
     }
+    // Report every scenario before failing so one regression does not hide another.
+    assert!(
+        failures.is_empty(),
+        "pathology calibration criteria failed; preserve output and investigate:\n{}",
+        failures.join("\n")
+    );
 }

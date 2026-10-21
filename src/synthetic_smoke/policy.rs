@@ -31,7 +31,7 @@ pub(super) fn marked_acceptance_criterion(generator: &str) -> &'static str {
         "prepost_metadata_mismatch" => {
             "smoke only: every production pre/post comparison reports anatomical incomparability"
         }
-        _ => "unknown smoke acceptance criterion",
+        _ => unreachable!("smoke generators are checked before their policy is looked up"),
     }
 }
 
@@ -63,7 +63,7 @@ pub(super) fn note_for(generator: &str) -> &'static str {
         "prepost_metadata_mismatch" => {
             "mismatched pre/post identifiers must be reported as not anatomically comparable"
         }
-        _ => "synthetic generator smoke check generator",
+        _ => unreachable!("smoke generators are checked before their policy is looked up"),
     }
 }
 
@@ -152,7 +152,7 @@ pub(super) fn multimodal_acceptance_criterion(generator: &str) -> &'static str {
         "affine_deformation" => {
             "smoke only: production affine fit recovers the known deformation"
         }
-        _ => "unknown smoke acceptance criterion",
+        _ => unreachable!("smoke generators are checked before their policy is looked up"),
     }
 }
 
@@ -219,6 +219,6 @@ pub(super) fn multimodal_note_for(generator: &str) -> &'static str {
         "affine_deformation" => {
             "the affine production path should recover a known shear and anisotropic scale"
         }
-        _ => "multimodal synthetic generator smoke check generator",
+        _ => unreachable!("smoke generators are checked before their policy is looked up"),
     }
 }

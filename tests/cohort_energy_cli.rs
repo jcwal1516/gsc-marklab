@@ -52,7 +52,7 @@ b-2,B,x,1\n",
     assert!(result["design"].get("block_count").is_none());
     assert_eq!(result["metric"], "euclidean");
     assert_eq!(result["energy_distance"], 5.5);
-    assert_eq!(result["permutations"]["completed"], 99);
+    assert_eq!(result["permutations"], 99);
 }
 
 #[test]
@@ -107,5 +107,5 @@ b-4,B,x,2,south\n",
     assert_eq!(result["design"]["block_count"], 2);
     assert_eq!(result["groups"]["group_a_patients"], 4);
     assert_eq!(result["groups"]["group_b_patients"], 4);
-    assert_eq!(result["permutations"]["completed"], 99);
+    assert_eq!(result["permutations"], 99);
 }

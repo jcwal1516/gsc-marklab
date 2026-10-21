@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{marked::MarkedPatternResult, multimodal::MultimodalResult, prepost::PrePostResult};
 
-pub const RESULT_FORMAT_VERSION: &str = "0.3";
+pub const RESULT_FORMAT_VERSION: &str = "0.4";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -56,7 +56,7 @@ pub struct Provenance {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "kind", content = "result", rename_all = "snake_case")]
-// The unboxed variants are part of the result-format 0.3 Rust contract.
+// The unboxed variants are part of the result-format Rust contract.
 #[allow(clippy::large_enum_variant)]
 pub enum AnalysisResult {
     MarkedPattern(MarkedPatternResult),

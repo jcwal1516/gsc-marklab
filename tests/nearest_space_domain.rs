@@ -1,8 +1,14 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use approx::assert_abs_diff_eq;
 use marklab::{
-    analyze_nearest_space_pattern, DistributionPointStatus, JPointStatus, NearestSpaceConfig,
-    NearestSpaceLimits, NearestSpaceStatus, ObservationWindow2D, ObservationWindowLimits, Pattern,
-    PatternMeta,
+    spatial::{
+        analyze_nearest_space_pattern, DistributionPointStatus, JPointStatus, NearestSpaceConfig,
+        NearestSpaceLimits, NearestSpaceStatus,
+    },
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 
 fn window() -> ObservationWindow2D {
@@ -18,16 +24,12 @@ fn pattern() -> Pattern {
         vec![2.0, 8.0, 2.0, 8.0],
         vec![2.0, 2.0, 8.0, 8.0],
         vec![0; 4],
-        PatternMeta {
-            case_id: "fgj-oracle".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("fgj-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "fgj-oracle".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("fgj-slide".into()),
+        ),
     )
     .expect("pattern")
 }
@@ -121,16 +123,12 @@ fn observed_f_and_g_match_an_independent_brute_force_oracle() {
         vec![1.0, 2.0, 5.0, 7.0, 9.0],
         vec![1.0, 6.0, 5.0, 8.0, 2.0],
         vec![0; 5],
-        PatternMeta {
-            case_id: "differential".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: None,
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "differential".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            None,
+        ),
     )
     .expect("pattern");
     let radii = vec![0.5, 1.0, 2.5];
@@ -195,16 +193,7 @@ fn empty_and_singleton_patterns_round_trip_as_typed_insufficient_event_results()
             x,
             y,
             marks,
-            PatternMeta {
-                case_id: "sparse".into(),
-                timepoint: "baseline".into(),
-                protein: "unmarked".into(),
-                slide_id: None,
-                section_id: None,
-                stain_batch: None,
-                block_id: None,
-                region_id: None,
-            },
+            pattern_meta("sparse".into(), "baseline".into(), "unmarked".into(), None),
         )
         .expect("pattern");
         let result = analyze_nearest_space_pattern(&input, &window(), &config).expect("analysis");
@@ -213,11 +202,11 @@ fn empty_and_singleton_patterns_round_trip_as_typed_insufficient_event_results()
             .curve
             .iter()
             .all(|point| point.g.is_none() && point.j.is_none()));
-        let encoded = marklab::NearestSpaceResultDocument::new(result)
+        let encoded = marklab::spatial::NearestSpaceResultDocument::new(result)
             .expect("document")
             .to_json_pretty()
             .expect("encode");
-        marklab::NearestSpaceResultDocument::from_json(&encoded).expect("decode");
+        marklab::spatial::NearestSpaceResultDocument::from_json(&encoded).expect("decode");
     }
 }
 
@@ -240,16 +229,12 @@ fn pinned_scipy_ckdtree_oracle_agrees_for_every_f_g_j_field() {
             .map(|row| row[1].as_f64().expect("y"))
             .collect(),
         vec![0; coordinates.len()],
-        PatternMeta {
-            case_id: "scipy-oracle".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: None,
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "scipy-oracle".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            None,
+        ),
     )
     .expect("pattern");
     let rows = oracle["radii"].as_array().expect("radii");

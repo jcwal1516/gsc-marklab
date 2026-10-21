@@ -1,13 +1,17 @@
-use marklab_workflow::ContentDigest;
+use crate::result_vocabulary::{EdgeCorrection, InhomogeneousNullModel, SpatialRandomizationUnit};
+use marklab_project::ContentDigest;
 
-use crate::common::{finite::canonical_zero, summation::kahan_add};
+use marklab_numerics::summation::NeumaierSum;
+
+use crate::common::finite::canonical_zero;
 
 use crate::{
     classical::{window_summary, SpatialGeometryPlan2D},
     common::seeds::{derive_seed, SeedEndpoint},
     pair_correlation::epanechnikov_weight,
     permutation::envelopes::GlobalEnvelope,
-    ObservationWindow2D, PairCorrelationKernel, PairCorrelationPointStatus, Pattern,
+    spatial::{PairCorrelationKernel, PairCorrelationPointStatus},
+    ObservationWindow2D, Pattern,
 };
 
 use super::{
@@ -39,6 +43,7 @@ pub fn analyze_inhomogeneous_pair_correlation(
         window,
         config,
         &super::study_fit::StudyFitPolicy::default(),
+        None,
     )
 }
 
@@ -47,6 +52,7 @@ pub(crate) fn analyze_inhomogeneous_pair_correlation_with_policy(
     window: &ObservationWindow2D,
     config: &InhomogeneousPairCorrelationConfig,
     policy: &super::study_fit::StudyFitPolicy,
+    capture: Option<&mut super::NullCurveCapture>,
 ) -> Result<InhomogeneousPairCorrelationResult, InhomogeneousSpatialError> {
     let base = &config.intensity;
     if pattern.len() < 2 {
@@ -95,45 +101,72 @@ pub(crate) fn analyze_inhomogeneous_pair_correlation_with_policy(
         .try_reserve_exact(base.simulations)
         .map_err(|_| InhomogeneousSpatialError::AllocationFailed)?;
     let mut jointly_eligible = observed.eligible.clone();
+    let mut support_redraws = 0_usize;
     for simulation in 0..base.simulations {
-        let seed = derive_seed(
+        let first_seed = derive_seed(
             base.seed,
             SeedEndpoint::InhomogeneousSpatialNull,
             simulation,
         );
-        let (x, y) = sample_fixed_grid_pattern(
-            window,
-            pattern.len(),
-            &fitted.grid,
-            &fitted.probe_cdf,
-            fitted.fixed_grid_total_mass,
-            seed,
-            base,
-            &mut counters,
-        )?;
-        let intensities = if policy.refit {
-            super::study_fit::refit_intensities(
-                &x,
-                &y,
-                pattern,
+        let mut draw = 0_usize;
+        let evaluated = loop {
+            let seed = if draw == 0 {
+                first_seed
+            } else {
+                derive_seed(first_seed, SeedEndpoint::InhomogeneousSupportRedraw, draw)
+            };
+            let (x, y) = sample_fixed_grid_pattern(
+                window,
+                pattern.len(),
                 &fitted.grid,
+                &fitted.probe_cdf,
+                fitted.fixed_grid_total_mass,
+                seed,
                 base,
-                policy,
                 &mut counters,
-            )?
-        } else {
-            evaluate_fixed_intensities(&x, &y, pattern, &fitted, base, &mut counters)?
+            )?;
+            let intensities = if policy.refit {
+                super::study_fit::refit_intensities(
+                    &x,
+                    &y,
+                    pattern,
+                    &fitted.grid,
+                    base,
+                    policy,
+                    &mut counters,
+                )?
+            } else {
+                evaluate_fixed_intensities(&x, &y, pattern, &fitted, base, &mut counters)?
+            };
+            let plan =
+                SpatialGeometryPlan2D::new(&x, &y, window, geometry_limits).map_err(dependency)?;
+            let evaluated = evaluate_g(
+                &plan,
+                &intensities,
+                &base.radii_um,
+                config.pair_bandwidth_um,
+                base.limits.maximum_pair_visits,
+                &mut counters,
+            )?;
+            draw += 1;
+            match policy.support {
+                Some(support)
+                    if !super::study_fit::covers_observed_support(
+                        &observed.eligible,
+                        &evaluated.eligible,
+                    ) =>
+                {
+                    if draw >= support.maximum_draws_per_simulation {
+                        return Err(InhomogeneousSpatialError::SupportRedrawsExhausted {
+                            simulation,
+                            draws: draw,
+                        });
+                    }
+                    support_redraws += 1;
+                }
+                _ => break evaluated,
+            }
         };
-        let plan =
-            SpatialGeometryPlan2D::new(&x, &y, window, geometry_limits).map_err(dependency)?;
-        let evaluated = evaluate_g(
-            &plan,
-            &intensities,
-            &base.radii_um,
-            config.pair_bandwidth_um,
-            base.limits.maximum_pair_visits,
-            &mut counters,
-        )?;
         for (joint, current) in jointly_eligible.iter_mut().zip(&evaluated.eligible) {
             *joint &= *current;
         }
@@ -164,6 +197,10 @@ pub(crate) fn analyze_inhomogeneous_pair_correlation_with_policy(
         } else {
             (None, None, None, 0)
         };
+    if let Some(capture) = capture {
+        capture.simulated = simulated;
+        capture.jointly_eligible = jointly_eligible;
+    }
     let intensity = into_intensity_summary(pattern, window, base, fitted)?;
     Ok(InhomogeneousPairCorrelationResult {
         case_id: pattern.meta.case_id.clone(),
@@ -173,8 +210,7 @@ pub(crate) fn analyze_inhomogeneous_pair_correlation_with_policy(
         kernel: PairCorrelationKernel::Epanechnikov,
         pair_bandwidth_um: config.pair_bandwidth_um,
         intensity_bandwidth_um: base.bandwidth_um,
-        edge_correction: "standard_border_radius_plus_pair_bandwidth_inverse_intensity_ratio"
-            .into(),
+        edge_correction: EdgeCorrection::StandardBorderRadiusPlusPairBandwidthInverseIntensityRatio,
         configuration_digest: g_configuration_digest(config).to_string(),
         observed_pair_visits,
         total_pair_visits: counters.pair_visits,
@@ -184,12 +220,11 @@ pub(crate) fn analyze_inhomogeneous_pair_correlation_with_policy(
         curve: observed.points,
         inference: InhomogeneousSpatialInference {
             null_model: if policy.refit {
-                "refitted_gridded_inhomogeneous_binomial_experimental"
+                InhomogeneousNullModel::RefittedGriddedInhomogeneousBinomialExperimental
             } else {
-                "fixed_gridded_inhomogeneous_binomial"
-            }
-            .into(),
-            randomization_unit: "whole_location_pattern_conditioned_on_count".into(),
+                InhomogeneousNullModel::FixedGriddedInhomogeneousBinomial
+            },
+            randomization_unit: SpatialRandomizationUnit::WholeLocationPatternConditionedOnCount,
             p_global,
             erl_depth,
             critical_depth,
@@ -198,6 +233,7 @@ pub(crate) fn analyze_inhomogeneous_pair_correlation_with_policy(
             seed: base.seed,
             alpha: base.alpha,
             null_draws: counters.null_draws,
+            support_redraws: policy.support.map(|_| support_redraws),
         },
     })
 }
@@ -211,11 +247,9 @@ pub(super) fn evaluate_g(
     counters: &mut Counters,
 ) -> Result<Evaluation, InhomogeneousSpatialError> {
     let mut centers = zeroed_vec::<usize>(radii.len())?;
-    let mut center_inverse_sums = zeroed_vec::<f64>(radii.len())?;
-    let mut center_corrections = zeroed_vec::<f64>(radii.len())?;
+    let mut center_inverse_sums = zeroed_vec::<NeumaierSum>(radii.len())?;
     let mut pairs = zeroed_vec::<usize>(radii.len())?;
-    let mut kernel_sums = zeroed_vec::<f64>(radii.len())?;
-    let mut kernel_corrections = zeroed_vec::<f64>(radii.len())?;
+    let mut kernel_sums = zeroed_vec::<NeumaierSum>(radii.len())?;
     let maximum_query = radii[radii.len() - 1] + pair_bandwidth_um;
     let starting_visits = counters.pair_visits;
     for source in 0..intensities.len() {
@@ -226,11 +260,7 @@ pub(super) fn evaluate_g(
             centers[index] = centers[index]
                 .checked_add(1)
                 .ok_or(InhomogeneousSpatialError::SizeOverflow)?;
-            kahan_add(
-                &mut center_inverse_sums[index],
-                &mut center_corrections[index],
-                inverse_source,
-            );
+            center_inverse_sums[index].add(inverse_source);
         }
         if eligible_end == 0 {
             continue;
@@ -269,11 +299,7 @@ pub(super) fn evaluate_g(
                             return;
                         }
                     };
-                    kahan_add(
-                        &mut kernel_sums[index],
-                        &mut kernel_corrections[index],
-                        weight,
-                    );
+                    kernel_sums[index].add(weight);
                 }
             })
             .map_err(dependency)?;
@@ -290,11 +316,11 @@ pub(super) fn evaluate_g(
         .and_then(|()| eligible.try_reserve_exact(radii.len()))
         .map_err(|_| InhomogeneousSpatialError::AllocationFailed)?;
     for (index, radius_um) in radii.iter().copied().enumerate() {
-        let center_sum = center_inverse_sums[index] + center_corrections[index];
+        let center_sum = center_inverse_sums[index].total();
         let kernel_sum = if pairs[index] == 0 {
             0.0
         } else {
-            kernel_sums[index] + kernel_corrections[index]
+            kernel_sums[index].total()
         };
         let status = if centers[index] == 0 {
             PairCorrelationPointStatus::NoEligibleCenters
@@ -303,7 +329,8 @@ pub(super) fn evaluate_g(
         } else {
             PairCorrelationPointStatus::Available
         };
-        let g = (status == PairCorrelationPointStatus::Available)
+        let estimable = centers[index] > 0;
+        let g = estimable
             .then(|| kernel_sum / (2.0 * std::f64::consts::PI * radius_um * center_sum))
             .map(canonical_zero);
         if g.is_some_and(|value| !value.is_finite() || value < 0.0) {
@@ -364,10 +391,6 @@ pub(crate) fn g_configuration_digest(config: &InhomogeneousPairCorrelationConfig
 }
 
 fn zeroed_vec<T: Default + Clone>(length: usize) -> Result<Vec<T>, InhomogeneousSpatialError> {
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(length)
-        .map_err(|_| InhomogeneousSpatialError::AllocationFailed)?;
-    values.resize(length, T::default());
-    Ok(values)
+    crate::common::alloc::try_filled(length, T::default())
+        .map_err(|_| InhomogeneousSpatialError::AllocationFailed)
 }

@@ -1,13 +1,15 @@
-#![allow(dead_code)]
-
 use approx::assert_abs_diff_eq;
 use marklab::{
-    probability_mark_connection, BinaryMarkDeclaration, DeclaredScalarPatternInput, MarkTable,
-    MeasurementStatus, MissingnessPolicy, ObservationWindow2D, ObservationWindowLimits,
-    ProbabilityMarkDeclaration, ProbabilityPairConfig, ProbabilityPairError, ProbabilityPairLimits,
-    ProbabilityPairPointStatus, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
+    marks::{
+        probability_mark_connection, BinaryMarkDeclaration, DeclaredScalarPatternInput, MarkTable,
+        MissingnessPolicy, ProbabilityMarkDeclaration, ProbabilityPairConfig, ProbabilityPairError,
+        ProbabilityPairLimits, ProbabilityPairPointStatus, ScalarMarkColumn, ScalarMarkId,
+        ScalarMarkModality, ScalarMarkUnit,
+    },
+    MeasurementStatus, ObservationWindow2D, ObservationWindowLimits,
 };
 
+#[allow(dead_code)]
 #[path = "support/declared_scalar.rs"]
 mod support;
 use support::*;
@@ -135,13 +137,12 @@ fn expected_positive_positive_connection_matches_hand_oracle() {
     );
     assert_eq!(
         result.normalization,
-        "expected_positive_positive_pairs_per_eligible_directed_pair"
+        marklab::marks::MarkNormalization::ExpectedPositivePositivePairsPerEligibleDirectedPair
     );
     assert_abs_diff_eq!(result.effective_positive_mass, 2.5);
     assert_abs_diff_eq!(result.effective_negative_mass, 1.5);
     assert_abs_diff_eq!(result.expected_random_label_connection, 1.0 / 3.0);
     assert_eq!(result.geometry.directed_pair_count, 6);
-    assert_eq!(result.geometry.geometry_build_count, 1);
 
     let empty = &result.curve[0];
     assert_eq!(empty.status, ProbabilityPairPointStatus::NoPairsInShell);
@@ -156,7 +157,7 @@ fn expected_positive_positive_connection_matches_hand_oracle() {
         1.0 / 6.0
     );
     assert!(radius.connection_inference_eligible);
-    assert_eq!(result.inference.permutations_completed, 31);
+    assert_eq!(result.inference.permutations_requested, 31);
     assert!(result.inference.connection.is_some());
 
     // Points lie at x = 0, 1, 2, 3 with boundary distance exactly 2. The

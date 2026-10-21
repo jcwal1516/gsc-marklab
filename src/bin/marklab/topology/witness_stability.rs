@@ -9,8 +9,10 @@ use marklab_topology::{
 use super::{
     publish_json, read_input, read_required,
     witness_persistence::{execute_witness_persistence, PreparedWitnessPersistence},
-    TopologyCliError,
+    CliError,
 };
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::StatisticalUnit;
 
 pub(crate) struct PreparedWitnessPersistenceStability {
     pub(crate) spec: WitnessPersistenceStabilitySpec,
@@ -18,7 +20,7 @@ pub(crate) struct PreparedWitnessPersistenceStability {
 }
 pub(crate) fn prepare_witness_persistence_stability(
     input: &Path,
-) -> Result<PreparedWitnessPersistenceStability, TopologyCliError> {
+) -> Result<PreparedWitnessPersistenceStability, CliError> {
     let bytes = read_input(input)?;
     let spec: WitnessPersistenceStabilitySpec = serde_json::from_slice(&bytes)?;
     prepare_witness_persistence_stability_spec(spec)
@@ -26,9 +28,9 @@ pub(crate) fn prepare_witness_persistence_stability(
 
 pub(super) fn prepare_witness_persistence_stability_spec(
     spec: WitnessPersistenceStabilitySpec,
-) -> Result<PreparedWitnessPersistenceStability, TopologyCliError> {
+) -> Result<PreparedWitnessPersistenceStability, CliError> {
     validate_witness_stability_controls(&spec)?;
-    let repository = marklab::python_backend_assets_root()?;
+    let repository = marklab::backend::python_backend_assets_root()?;
     let lock = read_required(&repository.join("workers/python/uv.lock"))?;
     let worker_path = repository.join("workers/python/marklab_gudhi_witness_persistence_worker.py");
     let worker = read_required(&worker_path)?;
@@ -46,7 +48,7 @@ pub(super) fn prepare_witness_persistence_stability_spec(
             lock_digest.clone(),
             worker_digest.clone(),
         )
-        .map_err(|error| TopologyCliError::Input(error.to_string()))?;
+        .map_err(|error| CliError::Input(error.to_string()))?;
         let request_bytes = serde_json::to_vec(&request)?;
         runs.push(PreparedWitnessPersistence {
             request,
@@ -59,18 +61,18 @@ pub(super) fn prepare_witness_persistence_stability_spec(
 
 pub(crate) fn execute_witness_persistence_stability(
     prepared: &PreparedWitnessPersistenceStability,
-) -> Result<WitnessPersistenceStabilityResult, TopologyCliError> {
+) -> Result<WitnessPersistenceStabilityResult, CliError> {
     let results = execute_witness_persistence_stability_runs(prepared)?;
     summarize_witness_persistence_stability(prepared, &results)
 }
 
 pub(super) fn execute_witness_persistence_stability_runs(
     prepared: &PreparedWitnessPersistenceStability,
-) -> Result<Vec<WitnessPersistenceResult>, TopologyCliError> {
+) -> Result<Vec<WitnessPersistenceResult>, CliError> {
     let mut results = Vec::with_capacity(prepared.runs.len());
     for (index, run) in prepared.runs.iter().enumerate() {
         results.push(execute_witness_persistence(run).map_err(|error| {
-            TopologyCliError::Backend(format!(
+            CliError::Backend(format!(
                 "witness stability backend execution {index} failed: {error}"
             ))
         })?);
@@ -81,9 +83,9 @@ pub(super) fn execute_witness_persistence_stability_runs(
 pub(super) fn summarize_witness_persistence_stability(
     prepared: &PreparedWitnessPersistenceStability,
     results: &[WitnessPersistenceResult],
-) -> Result<WitnessPersistenceStabilityResult, TopologyCliError> {
+) -> Result<WitnessPersistenceStabilityResult, CliError> {
     if results.len() != prepared.runs.len() {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "witness stability backend result count differs".into(),
         ));
     }
@@ -123,7 +125,7 @@ pub(super) fn summarize_witness_persistence_stability(
     let result = WitnessPersistenceStabilityResult {
         format: "marklab.witness_persistence_stability".into(),
         version: 1,
-        statistical_unit: "one_specimen_point_pattern".into(),
+        statistical_unit: StatisticalUnit::OneSpecimenPointPattern,
         perturbation_rule: "sha256_uniform_independent_axis_jitter".into(),
         finite_result_policy: "reject_non_finite_input_or_output".into(),
         seed: prepared.spec.seed,
@@ -153,7 +155,7 @@ pub(super) fn summarize_witness_persistence_stability(
             && maximum_simplex_count_l1_change <= prepared.spec.maximum_simplex_count_l1_change
             && maximum_total_persistence_change_um_squared
                 <= prepared.spec.maximum_total_persistence_change_um_squared,
-        claim_status: "witness_coordinate_perturbation_stability_diagnostic".into(),
+        claim_status: ClaimStatus::WitnessCoordinatePerturbationStabilityDiagnostic,
     };
     validate_witness_persistence_stability_result(prepared, &result)?;
     Ok(result)
@@ -162,11 +164,11 @@ pub(super) fn summarize_witness_persistence_stability(
 pub(crate) fn validate_witness_persistence_stability_result(
     prepared: &PreparedWitnessPersistenceStability,
     result: &WitnessPersistenceStabilityResult,
-) -> Result<(), TopologyCliError> {
+) -> Result<(), CliError> {
     result
         .baseline
         .validate(&prepared.runs[0].request, &prepared.runs[0].request_bytes)
-        .map_err(|error| TopologyCliError::Backend(error.to_string()))?;
+        .map_err(|error| CliError::Backend(error.to_string()))?;
     let minimum_match = result
         .perturbations
         .iter()
@@ -194,10 +196,10 @@ pub(crate) fn validate_witness_persistence_stability_result(
     let timeout = executions * prepared.spec.timeout_seconds;
     if result.format != "marklab.witness_persistence_stability"
         || result.version != 1
-        || result.statistical_unit != "one_specimen_point_pattern"
+        || result.statistical_unit != StatisticalUnit::OneSpecimenPointPattern
         || result.perturbation_rule != "sha256_uniform_independent_axis_jitter"
         || result.finite_result_policy != "reject_non_finite_input_or_output"
-        || result.claim_status != "witness_coordinate_perturbation_stability_diagnostic"
+        || result.claim_status != ClaimStatus::WitnessCoordinatePerturbationStabilityDiagnostic
         || result.seed != prepared.spec.seed
         || result.perturbation_replicates != prepared.spec.perturbation_replicates
         || result.perturbations.len() != prepared.spec.perturbation_replicates
@@ -244,7 +246,7 @@ pub(crate) fn validate_witness_persistence_stability_result(
                     .any(|dimension| !dimension.total_persistence_change_um_squared.is_finite())
         })
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "witness stability result identity or contract mismatch".into(),
         ));
     }
@@ -253,7 +255,7 @@ pub(crate) fn validate_witness_persistence_stability_result(
 
 fn validate_witness_stability_controls(
     spec: &WitnessPersistenceStabilitySpec,
-) -> Result<(), TopologyCliError> {
+) -> Result<(), CliError> {
     if !(1..=32).contains(&spec.perturbation_replicates)
         || !spec.maximum_coordinate_jitter_um.is_finite()
         || spec.maximum_coordinate_jitter_um < 0.0
@@ -264,39 +266,39 @@ fn validate_witness_stability_controls(
         || !spec.maximum_total_persistence_change_um_squared.is_finite()
         || spec.maximum_total_persistence_change_um_squared < 0.0
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "witness stability perturbation controls or thresholds are invalid".into(),
         ));
     }
     let executions = (spec.perturbation_replicates as u64)
         .checked_add(1)
-        .ok_or_else(|| TopologyCliError::Input("backend execution count overflow".into()))?;
+        .ok_or_else(|| CliError::Input("backend execution count overflow".into()))?;
     if executions > spec.maximum_backend_executions {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "backend executions exceed caller maximum".into(),
         ));
     }
     let point_work = executions
         .checked_mul(spec.points.len() as u64)
-        .ok_or_else(|| TopologyCliError::Input("aggregate point work overflow".into()))?;
+        .ok_or_else(|| CliError::Input("aggregate point work overflow".into()))?;
     if point_work > spec.maximum_total_point_work {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "aggregate point work exceeds caller maximum".into(),
         ));
     }
     let simplex_budget = executions
         .checked_mul(spec.maximum_simplices as u64)
-        .ok_or_else(|| TopologyCliError::Input("aggregate simplex budget overflow".into()))?;
+        .ok_or_else(|| CliError::Input("aggregate simplex budget overflow".into()))?;
     if simplex_budget > spec.maximum_total_simplex_budget {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "aggregate simplex budget exceeds caller maximum".into(),
         ));
     }
     let timeout = executions
         .checked_mul(spec.timeout_seconds)
-        .ok_or_else(|| TopologyCliError::Input("aggregate timeout overflow".into()))?;
+        .ok_or_else(|| CliError::Input("aggregate timeout overflow".into()))?;
     if timeout > spec.maximum_total_timeout_seconds {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "aggregate timeout exceeds caller maximum".into(),
         ));
     }
@@ -323,7 +325,7 @@ fn witness_spec(
 fn perturb_witness_points(
     spec: &WitnessPersistenceStabilitySpec,
     replicate: usize,
-) -> Result<(Vec<marklab_topology::TopologyPointInput>, f64), TopologyCliError> {
+) -> Result<(Vec<marklab_topology::TopologyPointInput>, f64), CliError> {
     let mut points = spec.points.clone();
     let mut maximum_displacement = 0.0_f64;
     for point in &mut points {
@@ -340,7 +342,7 @@ fn perturb_witness_points(
             squared_displacement += jitter * jitter;
         }
         if point.coordinates_um.iter().any(|value| !value.is_finite()) {
-            return Err(TopologyCliError::Input(
+            return Err(CliError::Input(
                 "witness perturbation produced a non-finite coordinate".into(),
             ));
         }
@@ -377,7 +379,7 @@ fn summarize_witness_perturbation(
     maximum_coordinate_displacement_um: f64,
     baseline: &WitnessPersistenceResult,
     perturbed: &WitnessPersistenceResult,
-) -> Result<WitnessPerturbationStabilityResult, TopologyCliError> {
+) -> Result<WitnessPerturbationStabilityResult, CliError> {
     let baseline_landmarks = baseline
         .landmark_ids
         .iter()
@@ -413,7 +415,7 @@ fn summarize_witness_perturbation(
         total.checked_add(left.abs_diff(right))
     });
     let simplex_count_l1_change = simplex_count_l1_change
-        .ok_or_else(|| TopologyCliError::Backend("witness simplex-count change overflow".into()))?;
+        .ok_or_else(|| CliError::Backend("witness simplex-count change overflow".into()))?;
     let baseline_dimensions = persistence_dimension_summaries(baseline)?;
     let perturbed_dimensions = persistence_dimension_summaries(perturbed)?;
     let dimensions = baseline_dimensions
@@ -446,7 +448,7 @@ fn summarize_witness_perturbation(
         || !coverage_radius_change_um.is_finite()
         || !maximum_total_persistence_change_um_squared.is_finite()
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "witness stability summary is non-finite".into(),
         ));
     }
@@ -464,7 +466,7 @@ fn summarize_witness_perturbation(
 
 fn persistence_dimension_summaries(
     result: &WitnessPersistenceResult,
-) -> Result<std::collections::BTreeMap<usize, (u64, u64, f64)>, TopologyCliError> {
+) -> Result<std::collections::BTreeMap<usize, (u64, u64, f64)>, CliError> {
     let mut summaries = std::collections::BTreeMap::new();
     for dimension in &result.persistence.by_dimension {
         let total_persistence = dimension
@@ -472,7 +474,7 @@ fn persistence_dimension_summaries(
             .iter()
             .map(|pair| {
                 if !pair.birth.is_finite() || !pair.death.is_finite() || pair.death < pair.birth {
-                    Err(TopologyCliError::Backend(
+                    Err(CliError::Backend(
                         "witness persistence pair is invalid".into(),
                     ))
                 } else {
@@ -492,7 +494,7 @@ fn persistence_dimension_summaries(
                 )
                 .is_some()
         {
-            return Err(TopologyCliError::Backend(
+            return Err(CliError::Backend(
                 "witness persistence dimensions are invalid".into(),
             ));
         }
@@ -502,7 +504,7 @@ fn persistence_dimension_summaries(
 pub(super) fn run_witness_persistence_stability(
     input: PathBuf,
     out: PathBuf,
-) -> Result<(), TopologyCliError> {
+) -> Result<(), CliError> {
     let prepared = prepare_witness_persistence_stability(&input)?;
     let result = execute_witness_persistence_stability(&prepared)?;
     publish_json(&out, &result)

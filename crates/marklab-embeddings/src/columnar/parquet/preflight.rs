@@ -6,8 +6,8 @@ use parquet::file::metadata::ParquetMetaData;
 use crate::ExpectedCellSet;
 
 use super::super::{
-    enforce_file_budget, CellEmbeddingTablePhysicalBindings, EmbeddingColumnarBudgets,
-    EmbeddingColumnarError, ParquetFailure,
+    enforce_file_budget, CellEmbeddingTablePhysicalBindings, ColumnarError,
+    EmbeddingColumnarBudgets, ParquetFailure,
 };
 
 mod file_metadata;
@@ -16,12 +16,13 @@ mod levels;
 mod pages;
 mod schema;
 
+pub(super) use footer::read_exact_at;
 pub(super) use footer::{
     declared_table_logical_digest_parquet_reader, estimate_raw_preflight_bytes,
     estimate_stock_metadata_bytes, footer_compact_limits_with_metadata,
     preflight_cell_embedding_table_parquet_reader, prepare_cell_embedding_table_parquet_reader,
 };
-pub(super) use levels::read_level_varint;
+pub(super) use levels::level_error;
 
 /// Validated structural declaration for one canonical embedding Parquet file.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -73,9 +74,8 @@ pub fn preflight_cell_embedding_table_parquet_bytes(
     dimension: u32,
     bindings: CellEmbeddingTablePhysicalBindings,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CellEmbeddingParquetPreflight, EmbeddingColumnarError> {
-    let encoded_byte_len =
-        u64::try_from(bytes.len()).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+) -> Result<CellEmbeddingParquetPreflight, ColumnarError> {
+    let encoded_byte_len = u64::try_from(bytes.len()).map_err(|_| ColumnarError::SizeOverflow)?;
     enforce_file_budget(encoded_byte_len, budgets)?;
     preflight_cell_embedding_table_parquet_reader(
         &mut Cursor::new(bytes),
@@ -88,8 +88,8 @@ pub fn preflight_cell_embedding_table_parquet_bytes(
     )
 }
 
-fn parquet_failure(reason: ParquetFailure) -> EmbeddingColumnarError {
-    EmbeddingColumnarError::Parquet { reason }
+fn parquet_failure(reason: ParquetFailure) -> ColumnarError {
+    ColumnarError::Parquet { reason }
 }
 
 #[cfg(test)]

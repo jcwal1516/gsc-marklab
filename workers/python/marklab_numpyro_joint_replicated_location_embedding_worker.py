@@ -1,48 +1,71 @@
 #!/usr/bin/env python3
-"""Patient-replicated joint exact-window location and projected-embedding model."""
+"""NumPyro worker for a patient-replicated joint location and projected-embedding model."""
 
 from __future__ import annotations
 
-import csv
-import hashlib
-import io
 import json
 import math
-from pathlib import Path
 import sys
-from typing import Any, Callable
+from collections.abc import Callable
+from functools import partial
+from pathlib import Path
+from typing import Any
 
-import arviz as az
 import jax
 
 jax.config.update("jax_enable_x64", True)
+
 import jax.numpy as jnp
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
-from numpyro.infer import MCMC, NUTS
 
+sys.path.append(str(Path(__file__).resolve().parent))
+
+from marklab_worker_support.joint_location import (
+    LOCATION_FIELDS,
+    combined_diagnostics,
+    diagnostics_complete,
+    finite,
+    parse_csv,
+    sample_model,
+    validate_request_header,
+    verified_csv,
+)
+from marklab_worker_support.posterior import summary as posterior_summary
+from marklab_worker_support.posterior import two_sided_tail
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    backend_identity,
+    derive_seed,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    worker_digests,
+    write_result,
+)
 
 REQUEST_FORMAT = "marklab.numpyro_joint_replicated_location_embedding_request"
 RESULT_FORMAT = "marklab.numpyro_joint_replicated_location_embedding_result"
-NUMPYRO_VERSION = "0.21.0"
-JAX_VERSION = "0.11.1"
-LOCATION_FIELDS = (
-    "pattern_id",
-    "patient_id",
-    "group",
-    "cohort",
-    "node_id",
-    "type_id",
-    "x_um",
-    "y_um",
-    "weight_um2",
-    "window_area_um2",
-    "covariate",
-    "count",
-    "window_sha256",
-    "event_sha256",
-)
+REQUEST_FIELDS = {
+    "format",
+    "version",
+    "backend",
+    "jax_version",
+    "location_csv",
+    "embedding_csv",
+    "location_sha256",
+    "embedding_sha256",
+    "reference_group",
+    "comparison_group",
+    "embedding_projection_identity",
+    "embedding_residual",
+    "priors",
+    "sampling",
+    "resources",
+}
 EMBEDDING_PREFIX = (
     "pattern_id",
     "patient_id",
@@ -51,65 +74,42 @@ EMBEDDING_PREFIX = (
     "x_um",
     "y_um",
 )
+JOINT_MONITORED = [
+    "field_length_scale_um",
+    "patient_factor_scale",
+    "patient_factor_raw",
+    "field_raw",
+    "location_intercept",
+    "location_group",
+    "location_covariate",
+    "location_factor_loading",
+    "embedding_intercept",
+    "embedding_loading_raw",
+    "embedding_noise",
+]
+BASELINE_MONITORED = [
+    "embedding_intercept",
+    "embedding_patient_sd",
+    "embedding_patient_raw",
+    "embedding_noise",
+]
 
 
-class ContractError(ValueError):
-    pass
-
-
-def finite(value: str, name: str) -> float:
-    result = float(value)
-    if not math.isfinite(result):
-        raise ContractError(f"{name} is nonfinite")
-    return result
-
-
-def parse_csv(text: str, name: str) -> tuple[tuple[str, ...], list[dict[str, str]]]:
-    reader = csv.DictReader(io.StringIO(text))
-    fields = tuple(reader.fieldnames or ())
-    rows = list(reader)
-    if not fields or not rows:
-        raise ContractError(f"{name} is empty")
-    return fields, rows
+summary = partial(posterior_summary, dtype=float)
+"""Draw summary after conversion to float64."""
 
 
 def validate(request: dict[str, Any], lock_sha: str, worker_sha: str) -> dict[str, Any]:
-    expected = {
-        "format",
-        "version",
-        "backend",
-        "jax_version",
-        "location_csv",
-        "embedding_csv",
-        "location_sha256",
-        "embedding_sha256",
-        "reference_group",
-        "comparison_group",
-        "embedding_projection_identity",
-        "embedding_residual",
-        "priors",
-        "sampling",
-        "resources",
-    }
-    if not isinstance(request, dict) or set(request) != expected:
-        raise ContractError("request fields differ")
-    if request["format"] != REQUEST_FORMAT or request["version"] != 2:
-        raise ContractError("request identity differs")
-    if request["backend"] != {
-        "name": "numpyro",
-        "version": NUMPYRO_VERSION,
-        "python_version": "3.12",
-        "environment_lock_sha256": lock_sha,
-        "worker_sha256": worker_sha,
-    } or request["jax_version"] != JAX_VERSION:
-        raise ContractError("backend identity differs")
-    location_text, embedding_text = request["location_csv"], request["embedding_csv"]
-    if not isinstance(location_text, str) or not isinstance(embedding_text, str):
-        raise ContractError("CSV payload differs")
-    if hashlib.sha256(location_text.encode()).hexdigest() != request["location_sha256"]:
-        raise ContractError("location digest differs")
-    if hashlib.sha256(embedding_text.encode()).hexdigest() != request["embedding_sha256"]:
-        raise ContractError("embedding digest differs")
+    validate_request_header(
+        request,
+        fields=REQUEST_FIELDS,
+        request_format=REQUEST_FORMAT,
+        version=2,
+        lock_sha=lock_sha,
+        worker_sha=worker_sha,
+    )
+    location_text = verified_csv(request, "location")
+    embedding_text = verified_csv(request, "embedding")
     projection = request["embedding_projection_identity"]
     if (
         not isinstance(projection, str)
@@ -151,7 +151,10 @@ def validate(request: dict[str, Any], lock_sha: str, worker_sha: str) -> dict[st
     dimension = len(embedding_fields) - 6
     reference, comparison = request["reference_group"], request["comparison_group"]
     if (
-        not all(isinstance(value, str) and value and value.strip() == value for value in (reference, comparison))
+        not all(
+            isinstance(value, str) and value and value.strip() == value
+            for value in (reference, comparison)
+        )
         or reference == comparison
     ):
         raise ContractError("group identity differs")
@@ -220,7 +223,11 @@ def validate(request: dict[str, Any], lock_sha: str, worker_sha: str) -> dict[st
             raise ContractError("patient group changes")
         if pattern in pattern_patient and pattern_patient[pattern] != patient:
             raise ContractError("pattern patient changes")
-        patient_group[patient], pattern_patient[pattern], pattern_group[pattern] = group, patient, group
+        patient_group[patient], pattern_patient[pattern], pattern_group[pattern] = (
+            group,
+            patient,
+            group,
+        )
         key = (pattern, row["node_id"])
         values = {
             "pattern": pattern,
@@ -283,7 +290,12 @@ def validate(request: dict[str, Any], lock_sha: str, worker_sha: str) -> dict[st
     nearest_visits = sum(node_counts[pattern] * point_counts[pattern] for pattern in patterns)
     kernel_work = sum(node_counts[pattern] ** 3 for pattern in patterns)
     draw_work = chains * draws * (len(nodes) + len(embeddings) * dimension) * 2
-    estimated = len(location_rows) * 256 + len(embeddings) * dimension * 32 + nearest_visits * 16 + 384 * 1024**2
+    estimated = (
+        len(location_rows) * 256
+        + len(embeddings) * dimension * 32
+        + nearest_visits * 16
+        + 384 * 1024**2
+    )
     exact_resources = {
         "location_node_count": len(nodes),
         "embedding_point_count": len(embeddings),
@@ -336,10 +348,7 @@ def validate(request: dict[str, Any], lock_sha: str, worker_sha: str) -> dict[st
 
 
 def seed_for(seed: int, purpose: str) -> int:
-    digest = hashlib.sha256(
-        f"marklab-joint-location-embedding-v1\0{seed}\0{purpose}".encode()
-    ).digest()
-    return int.from_bytes(digest[:4], "little")
+    return derive_seed("marklab-joint-location-embedding-v1", seed, purpose)
 
 
 def prepare_arrays(config: dict[str, Any]) -> dict[str, Any]:
@@ -349,8 +358,7 @@ def prepare_arrays(config: dict[str, Any]) -> dict[str, Any]:
     arrays: dict[str, Any] = {
         "patient_groups": np.asarray(
             [
-                config["patient_group"][patient]
-                == config["request"]["comparison_group"]
+                config["patient_group"][patient] == config["request"]["comparison_group"]
                 for patient in config["patients"]
             ],
             dtype=float,
@@ -368,16 +376,13 @@ def prepare_arrays(config: dict[str, Any]) -> dict[str, Any]:
     nearest = []
     for point in config["embeddings"]:
         candidates = [
-            (index, row)
-            for index, row in enumerate(nodes)
-            if row["pattern"] == point["pattern"]
+            (index, row) for index, row in enumerate(nodes) if row["pattern"] == point["pattern"]
         ]
         nearest.append(
             min(
                 candidates,
                 key=lambda item: (
-                    (item[1]["x"] - point["x"]) ** 2
-                    + (item[1]["y"] - point["y"]) ** 2,
+                    (item[1]["x"] - point["x"]) ** 2 + (item[1]["y"] - point["y"]) ** 2,
                     item[1]["node"],
                 ),
             )[0]
@@ -400,9 +405,7 @@ def prepare_arrays(config: dict[str, Any]) -> dict[str, Any]:
             dtype=np.int64,
         )
         coordinates = np.asarray([[nodes[index]["x"], nodes[index]["y"]] for index in selected])
-        distances.append(
-            np.linalg.norm(coordinates[:, None, :] - coordinates[None, :, :], axis=2)
-        )
+        distances.append(np.linalg.norm(coordinates[:, None, :] - coordinates[None, :, :], axis=2))
         selections.append(selected)
     arrays["distances"], arrays["selections"] = distances, selections
     return arrays
@@ -422,12 +425,21 @@ def embedding_distribution(
 ) -> dist.Distribution:
     if config["embedding_residual_family"] == "gaussian":
         return dist.Normal(mean, scale).to_event(1)
-    return dist.StudentT(
-        config["student_t_degrees_of_freedom"], mean, scale
-    ).to_event(1)
+    return dist.StudentT(config["student_t_degrees_of_freedom"], mean, scale).to_event(1)
 
 
 def joint_model(config: dict[str, Any], data: dict[str, Any]) -> Callable[[], None]:
+    """Joint Poisson location and embedding model with shared patient and spatial factors.
+
+    Location counts at quadrature nodes: ``n ~ Poisson(w * exp(a + b * group + c * covariate
+    + (s + p) . lambda))`` with node weight ``w``, latent spatial factors ``s`` (unit-amplitude
+    Matern-3/2 fields per pattern with ``field_length_scale_um ~ HalfNormal``, centred within
+    the pattern), and patient factors ``p = scale * z`` (``scale ~ HalfNormal``,
+    ``z ~ Normal(0, 1)``). Training embeddings: ``e ~ Normal`` or ``StudentT(mu, noise)`` with
+    ``mu = m + L (s_nearest + p)``, a lower-triangular loading matrix ``L`` with positive
+    diagonal, ``m ~ Normal(0, 2)``, and ``noise ~ HalfNormal``. Coefficient priors are normal
+    with the request scales.
+    """
     priors = config["request"]["priors"]
     patients, dimension, factors = len(config["patients"]), config["dimension"], config["factors"]
     group = jnp.asarray(data["patient_groups"])
@@ -459,9 +471,7 @@ def joint_model(config: dict[str, Any], data: dict[str, Any]) -> Callable[[], No
         )
         field_raw = numpyro.sample(
             "field_raw",
-            dist.Normal(0.0, 1.0)
-            .expand([factors, len(data["node_count"])])
-            .to_event(2),
+            dist.Normal(0.0, 1.0).expand([factors, len(data["node_count"])]).to_event(2),
         )
         blocks = []
         for distance, selected in zip(distances, selections, strict=True):
@@ -474,17 +484,13 @@ def joint_model(config: dict[str, Any], data: dict[str, Any]) -> Callable[[], No
         location_intercept = numpyro.sample(
             "location_intercept", dist.Normal(0.0, priors["location_sd"])
         )
-        location_group = numpyro.sample(
-            "location_group", dist.Normal(0.0, priors["group_sd"])
-        )
+        location_group = numpyro.sample("location_group", dist.Normal(0.0, priors["group_sd"]))
         location_covariate = numpyro.sample(
             "location_covariate", dist.Normal(0.0, priors["location_sd"])
         )
         location_loading = numpyro.sample(
             "location_factor_loading",
-            dist.Normal(0.0, priors["location_factor_loading_sd"])
-            .expand([factors])
-            .to_event(1),
+            dist.Normal(0.0, priors["location_factor_loading_sd"]).expand([factors]).to_event(1),
         )
         node_factor = spatial.T + patient_factor[npatient]
         location_log = (
@@ -510,9 +516,7 @@ def joint_model(config: dict[str, Any], data: dict[str, Any]) -> Callable[[], No
         )
         noise = numpyro.sample(
             "embedding_noise",
-            dist.HalfNormal(priors["embedding_noise_scale"])
-            .expand([dimension])
-            .to_event(1),
+            dist.HalfNormal(priors["embedding_noise_scale"]).expand([dimension]).to_event(1),
         )
         point_factor = spatial[:, enearest].T + patient_factor[epatient]
         point_mean = embedding_mean[None, :] + point_factor @ loading.T
@@ -521,10 +525,17 @@ def joint_model(config: dict[str, Any], data: dict[str, Any]) -> Callable[[], No
             embedding_distribution(config, point_mean[etrain], noise),
             obs=evalues[etrain],
         )
+
     return model
 
 
 def nonspatial_model(config: dict[str, Any], data: dict[str, Any]) -> Callable[[], None]:
+    """Baseline embedding model with patient random intercepts and no spatial factors.
+
+    Training embeddings: ``e ~ Normal`` or ``StudentT(m + sd * z_patient, noise)`` with
+    ``m ~ Normal(0, 2)``, ``sd ~ HalfNormal(patient_factor_scale)``, ``z ~ Normal(0, 1)``, and
+    ``noise ~ HalfNormal(embedding_noise_scale)`` per dimension.
+    """
     priors = config["request"]["priors"]
     patients, dimension = len(config["patients"]), config["dimension"]
     epatient = jnp.asarray(data["embedding_patient"])
@@ -537,9 +548,7 @@ def nonspatial_model(config: dict[str, Any], data: dict[str, Any]) -> Callable[[
         )
         patient_sd = numpyro.sample(
             "embedding_patient_sd",
-            dist.HalfNormal(priors["patient_factor_scale"])
-            .expand([dimension])
-            .to_event(1),
+            dist.HalfNormal(priors["patient_factor_scale"]).expand([dimension]).to_event(1),
         )
         patient_raw = numpyro.sample(
             "embedding_patient_raw",
@@ -547,9 +556,7 @@ def nonspatial_model(config: dict[str, Any], data: dict[str, Any]) -> Callable[[
         )
         noise = numpyro.sample(
             "embedding_noise",
-            dist.HalfNormal(priors["embedding_noise_scale"])
-            .expand([dimension])
-            .to_event(1),
+            dist.HalfNormal(priors["embedding_noise_scale"]).expand([dimension]).to_event(1),
         )
         mean = intercept[None, :] + patient_sd[None, :] * patient_raw[epatient]
         numpyro.sample(
@@ -561,77 +568,12 @@ def nonspatial_model(config: dict[str, Any], data: dict[str, Any]) -> Callable[[
     return model
 
 
-def sample(
-    config: dict[str, Any], model: Callable[[], None], purpose: str, diagnostic_names: list[str]
-) -> tuple[dict[str, np.ndarray], dict[str, float | int]]:
-    sampler = MCMC(
-        NUTS(
-            model,
-            target_accept_prob=config["target_accept"],
-            max_tree_depth=config["depth"],
-        ),
-        num_warmup=config["tune"],
-        num_samples=config["draws"],
-        num_chains=config["chains"],
-        chain_method="sequential",
-        progress_bar=False,
-    )
-    sampler.run(
-        jax.random.PRNGKey(seed_for(config["seed"], purpose)),
-        extra_fields=("diverging", "num_steps", "energy"),
-    )
-    samples = {
-        name: np.asarray(value, dtype=float)
-        for name, value in sampler.get_samples(group_by_chain=True).items()
-    }
-    posterior = az.from_dict(
-        {"posterior": {name: samples[name] for name in diagnostic_names}}
-    )
-    flatten = lambda tree: np.concatenate(
-        [np.asarray(tree[name].values).reshape(-1) for name in diagnostic_names]
-    )
-    extra = sampler.get_extra_fields(group_by_chain=True)
-    energy = np.asarray(extra["energy"], dtype=float)
-    diagnostics = {
-        "r_hat": float(flatten(az.rhat(posterior, var_names=diagnostic_names, method="rank")).max()),
-        "ess_bulk": float(flatten(az.ess(posterior, var_names=diagnostic_names, method="bulk")).min()),
-        "ess_tail": float(flatten(az.ess(posterior, var_names=diagnostic_names, method="tail")).min()),
-        "minimum_ebfmi": float(
-            np.min(np.mean(np.diff(energy, axis=1) ** 2, axis=1) / np.var(energy, axis=1))
-        ),
-        "divergences": int(np.asarray(extra["diverging"]).sum()),
-        "max_tree_depth_hits": int(
-            (
-                np.asarray(extra["num_steps"])
-                >= 2 ** config["depth"] - 1
-            ).sum()
-        ),
-    }
-    return {
-        name: value.reshape((-1, *value.shape[2:])) for name, value in samples.items()
-    }, diagnostics
-
-
-def summary(values: np.ndarray) -> dict[str, float]:
-    values = np.asarray(values, dtype=float).reshape(-1)
-    return {
-        "mean": float(values.mean()),
-        "sd": float(values.std(ddof=1)),
-        "interval_lower": float(np.quantile(values, 0.025)),
-        "interval_upper": float(np.quantile(values, 0.975)),
-    }
-
-
 def embedding_log_density(
     config: dict[str, Any], values: np.ndarray, mean: np.ndarray, scale: np.ndarray
 ) -> np.ndarray:
     residual = (values[None, :, :] - mean) / scale[:, None, :]
     if config["embedding_residual_family"] == "gaussian":
-        return (
-            -0.5 * residual**2
-            - np.log(scale[:, None, :])
-            - 0.5 * math.log(2.0 * math.pi)
-        )
+        return -0.5 * residual**2 - np.log(scale[:, None, :]) - 0.5 * math.log(2.0 * math.pi)
     degrees = config["student_t_degrees_of_freedom"]
     constant = (
         math.lgamma((degrees + 1.0) / 2.0)
@@ -659,14 +601,6 @@ def joint_vector_log_predictive_density(log_density: np.ndarray) -> np.ndarray:
     if log_density.ndim != 3 or log_density.shape[0] == 0:
         raise ContractError("embedding log-density shape differs")
     return log_mean_exp(log_density.sum(axis=2), axis=0)
-
-
-def tail(values: np.ndarray, observed: float) -> float:
-    return min(
-        1.0,
-        2.0
-        * min(float(np.mean(values <= observed)), float(np.mean(values >= observed))),
-    )
 
 
 def paired_two_sided_tail(replicated: np.ndarray, observed: np.ndarray) -> float:
@@ -701,31 +635,32 @@ def evaluate(
         "dnk,dfk->dnf", point_factor, joint["embedding_loading"]
     )
     joint_point_lpd = joint_vector_log_predictive_density(
-        embedding_log_density(
-            config, values, joint_mean, joint["embedding_noise"]
-        )
+        embedding_log_density(config, values, joint_mean, joint["embedding_noise"])
     )
     baseline_mean = baseline["embedding_intercept"][:, None, :] + (
         baseline["embedding_patient_sd"][:, None, :]
         * baseline["embedding_patient_raw"][:, patients, :]
     )
     baseline_point_lpd = joint_vector_log_predictive_density(
-        embedding_log_density(
-            config, values, baseline_mean, baseline["embedding_noise"]
-        )
+        embedding_log_density(config, values, baseline_mean, baseline["embedding_noise"])
     )
     patient_scores_joint = np.asarray(
         [joint_point_lpd[patients == patient].sum() for patient in range(len(config["patients"]))]
     )
     patient_scores_baseline = np.asarray(
-        [baseline_point_lpd[patients == patient].sum() for patient in range(len(config["patients"]))]
+        [
+            baseline_point_lpd[patients == patient].sum()
+            for patient in range(len(config["patients"]))
+        ]
     )
     heldout_point_counts = np.asarray(
         [np.count_nonzero(patients == patient) for patient in range(len(config["patients"]))],
         dtype=np.int64,
     )
     comparison = {
-        "score_definition": "pointwise_joint_embedding_vector_log_predictive_density_summed_within_patient",
+        "score_definition": (
+            "pointwise_joint_embedding_vector_log_predictive_density_summed_within_patient"
+        ),
         "score_version": 2,
         "score_unit": "heldout_embedding_point_complete_vector",
         "patient_aggregation": "sum_point_scores_within_patient_then_equal_patient_mean",
@@ -756,18 +691,14 @@ def evaluate(
         residual_draws = rng.standard_t(
             config["student_t_degrees_of_freedom"], size=joint_mean.shape
         )
-    replicated_embeddings = (
-        joint_mean + residual_draws * joint["embedding_noise"][:, None, :]
-    )
-    replicated_rmse = np.sqrt(
-        np.mean((replicated_embeddings - joint_mean) ** 2, axis=(1, 2))
-    )
+    replicated_embeddings = joint_mean + residual_draws * joint["embedding_noise"][:, None, :]
+    replicated_rmse = np.sqrt(np.mean((replicated_embeddings - joint_mean) ** 2, axis=(1, 2)))
     observed_rmse = float(observed_rmse_draws.mean())
     ppc = {
         "total_location_count": {
             "observed": observed_count,
             "replicated_mean": float(count_values.mean()),
-            "two_sided_tail_probability": tail(count_values, observed_count),
+            "two_sided_tail_probability": two_sided_tail(count_values, observed_count),
         },
         "heldout_embedding_rmse": {
             "observed": observed_rmse,
@@ -780,88 +711,32 @@ def evaluate(
     return comparison, ppc
 
 
-def main() -> int:
-    if (
-        numpyro.__version__ != NUMPYRO_VERSION
-        or jax.__version__ != JAX_VERSION
-        or sys.version_info[:2] != (3, 12)
-    ):
-        raise ContractError("backend version drift")
-    script = Path(__file__)
-    lock_sha = hashlib.sha256(script.with_name("uv.lock").read_bytes()).hexdigest()
-    worker_sha = hashlib.sha256(script.read_bytes()).hexdigest()
-    raw = sys.stdin.buffer.read(32 * 1024 * 1024 + 1)
-    if not raw or len(raw) > 32 * 1024 * 1024:
-        raise ContractError("request size differs")
-    request_sha = hashlib.sha256(raw).hexdigest()
+def main() -> None:
+    require_versions(numpyro=numpyro.__version__, jax=jax.__version__)
+    lock_sha, worker_sha = worker_digests(__file__)
+    raw = read_request(32 * MIB)
     config = validate(json.loads(raw), lock_sha, worker_sha)
     data = prepare_arrays(config)
-    joint_names = [
-        "field_length_scale_um",
-        "patient_factor_scale",
-        "patient_factor_raw",
-        "field_raw",
-        "location_intercept",
-        "location_group",
-        "location_covariate",
-        "location_factor_loading",
-        "embedding_intercept",
-        "embedding_loading_raw",
-        "embedding_noise",
-    ]
-    baseline_names = [
-        "embedding_intercept",
-        "embedding_patient_sd",
-        "embedding_patient_raw",
-        "embedding_noise",
-    ]
-    joint, joint_diagnostics = sample(
-        config, joint_model(config, data), "joint", joint_names
+    joint, joint_diagnostics = sample_model(
+        config, joint_model(config, data), seed_for(config["seed"], "joint"), JOINT_MONITORED
     )
-    baseline, baseline_diagnostics = sample(
-        config, nonspatial_model(config, data), "nonspatial", baseline_names
+    baseline, baseline_diagnostics = sample_model(
+        config,
+        nonspatial_model(config, data),
+        seed_for(config["seed"], "nonspatial"),
+        BASELINE_MONITORED,
     )
     comparison, ppc = evaluate(config, data, joint, baseline)
-    diagnostics = {
-        "maximum_r_hat": max(
-            joint_diagnostics["r_hat"], baseline_diagnostics["r_hat"]
-        ),
-        "minimum_bulk_ess": min(
-            joint_diagnostics["ess_bulk"], baseline_diagnostics["ess_bulk"]
-        ),
-        "minimum_tail_ess": min(
-            joint_diagnostics["ess_tail"], baseline_diagnostics["ess_tail"]
-        ),
-        "minimum_ebfmi": min(
-            joint_diagnostics["minimum_ebfmi"],
-            baseline_diagnostics["minimum_ebfmi"],
-        ),
-        "divergences": int(joint_diagnostics["divergences"])
-        + int(baseline_diagnostics["divergences"]),
-        "max_tree_depth_hits": int(joint_diagnostics["max_tree_depth_hits"])
-        + int(baseline_diagnostics["max_tree_depth_hits"]),
-    }
-    complete = bool(
-        diagnostics["maximum_r_hat"] <= 1.01
-        and diagnostics["minimum_bulk_ess"] >= 100.0
-        and diagnostics["minimum_tail_ess"] >= 100.0
-        and diagnostics["minimum_ebfmi"] >= 0.3
-        and diagnostics["divergences"] == 0
-        and diagnostics["max_tree_depth_hits"] == 0
-    )
+    diagnostics = combined_diagnostics(joint_diagnostics, baseline_diagnostics)
+    complete = diagnostics_complete(diagnostics)
     loading_norms = np.sqrt(np.sum(joint["embedding_loading"] ** 2, axis=1))
+    factors = range(config["factors"])
     result = {
         "format": RESULT_FORMAT,
         "version": 2,
-        "backend": {
-            "name": "numpyro",
-            "version": numpyro.__version__,
-            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
-            "environment_lock_sha256": lock_sha,
-            "worker_sha256": worker_sha,
-        },
+        "backend": backend_identity("numpyro", numpyro.__version__, lock_sha, worker_sha),
         "jax_version": jax.__version__,
-        "request_sha256": request_sha,
+        "request_sha256": sha256_hex(raw),
         "location_sha256": config["request"]["location_sha256"],
         "embedding_sha256": config["request"]["embedding_sha256"],
         "patient_count": len(config["patients"]),
@@ -875,19 +750,14 @@ def main() -> int:
         "joint_posterior": {
             "field_length_scale_um": summary(joint["field_length_scale_um"]),
             "patient_factor_scales": [
-                summary(joint["patient_factor_scale"][:, index])
-                for index in range(config["factors"])
+                summary(joint["patient_factor_scale"][:, index]) for index in factors
             ],
             "location_factor_loadings": [
-                summary(joint["location_factor_loading"][:, index])
-                for index in range(config["factors"])
+                summary(joint["location_factor_loading"][:, index]) for index in factors
             ],
-            "embedding_loading_norms": [
-                summary(loading_norms[:, index]) for index in range(config["factors"])
-            ],
+            "embedding_loading_norms": [summary(loading_norms[:, index]) for index in factors],
             "embedding_noise_scales": [
-                summary(joint["embedding_noise"][:, index])
-                for index in range(config["dimension"])
+                summary(joint["embedding_noise"][:, index]) for index in range(config["dimension"])
             ],
         },
         "heldout_embedding_comparison": comparison,
@@ -895,19 +765,8 @@ def main() -> int:
         "diagnostics": diagnostics,
         "fit_state": "complete" if complete else "nonconverged",
     }
-    output = json.dumps(result, allow_nan=False, sort_keys=True, separators=(",", ":")) + "\n"
-    if len(output.encode()) > int(config["request"]["resources"]["maximum_output_bytes"]):
-        raise ContractError("output ceiling exceeded")
-    sys.stdout.write(output)
-    return 0
+    write_result(result, max_bytes=int(config["request"]["resources"]["maximum_output_bytes"]))
 
 
 if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    except Exception as error:
-        print(
-            f"marklab joint location-embedding failed: {type(error).__name__}: {error}",
-            file=sys.stderr,
-        )
-        raise SystemExit(2) from error
+    run_worker(main, "marklab joint location-embedding failed")

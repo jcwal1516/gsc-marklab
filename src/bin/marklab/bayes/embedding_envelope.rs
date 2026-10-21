@@ -1,25 +1,25 @@
-use std::path::PathBuf;
-
-use marklab_bayes::{
-    sha256_hex, test_embedding_spatial_dependence, EmbeddingEnvelopeError, EmbeddingEnvelopeRow,
+use marklab_bayes::sha256_hex;
+use marklab_embeddings::analysis::{
+    test_embedding_spatial_dependence, EmbeddingEnvelopeError, EmbeddingEnvelopeRow,
     EmbeddingSpatialCurveFunction, EmbeddingSpatialDependenceResult,
     EmbeddingSpatialDependenceSpec,
 };
 use serde::Serialize;
 
-use super::{embedding_spatial, publish_json, BayesCliError};
+use super::cli_schema::EmbeddingSpatialDependenceEnvelopeArgs;
+use super::{embedding_spatial, publish_json, CliError};
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input: PathBuf,
-    bins: PathBuf,
-    curve: String,
-    permutations: u32,
-    alpha: f64,
-    seed: u64,
-    maximum_pair_visits: u64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: EmbeddingSpatialDependenceEnvelopeArgs) -> Result<(), CliError> {
+    let EmbeddingSpatialDependenceEnvelopeArgs {
+        input,
+        bins,
+        curve,
+        permutations,
+        alpha,
+        seed,
+        maximum_pair_visits,
+        out,
+    } = args;
     let input_bytes = embedding_spatial::read(&input)?;
     let bin_bytes = embedding_spatial::read(&bins)?;
     let (rows, feature_names) = read_rows(&input_bytes)?;
@@ -45,7 +45,7 @@ pub(super) fn run(
     )
 }
 
-fn read_rows(bytes: &[u8]) -> Result<(Vec<EmbeddingEnvelopeRow>, Vec<String>), BayesCliError> {
+fn read_rows(bytes: &[u8]) -> Result<(Vec<EmbeddingEnvelopeRow>, Vec<String>), CliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
@@ -55,7 +55,7 @@ fn read_rows(bytes: &[u8]) -> Result<(Vec<EmbeddingEnvelopeRow>, Vec<String>), B
         || headers.iter().take(4).collect::<Vec<_>>()
             != ["object_id", "permutation_stratum", "x_um", "y_um"]
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "embedding envelope input requires object_id,permutation_stratum,x_um,y_um and at least two embedding_* columns"
                 .into(),
         ));
@@ -70,7 +70,7 @@ fn read_rows(bytes: &[u8]) -> Result<(Vec<EmbeddingEnvelopeRow>, Vec<String>), B
         let record = record?;
         let parse = |index: usize| {
             record[index].parse::<f64>().map_err(|_| {
-                BayesCliError::Input(format!(
+                CliError::Input(format!(
                     "embedding envelope numeric value in column {} is invalid",
                     &headers[index]
                 ))
@@ -89,10 +89,10 @@ fn read_rows(bytes: &[u8]) -> Result<(Vec<EmbeddingEnvelopeRow>, Vec<String>), B
     Ok((rows, feature_names))
 }
 
-fn map_error(error: EmbeddingEnvelopeError) -> BayesCliError {
+fn map_error(error: EmbeddingEnvelopeError) -> CliError {
     match error {
-        EmbeddingEnvelopeError::Invalid(message) => BayesCliError::Input(message),
-        EmbeddingEnvelopeError::Numeric(message) => BayesCliError::Backend(message),
+        EmbeddingEnvelopeError::Invalid(message) => CliError::Input(message),
+        EmbeddingEnvelopeError::Numeric(message) => CliError::Backend(message),
     }
 }
 

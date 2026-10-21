@@ -42,6 +42,10 @@ cargo bench --bench periodogram
 cargo bench --bench multiscale_residual
 cargo bench --bench random_labeling_envelope
 cargo bench --bench pattern_load
+cargo bench --bench spatial_stages
+cargo bench --bench cohort_hierarchy
+cargo bench --bench cell_embeddings
+cargo bench --bench patch_embeddings
 ```
 "#
     );

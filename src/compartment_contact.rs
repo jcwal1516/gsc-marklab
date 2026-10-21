@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::BinaryCompartmentPartition2D;
+use crate::compartments::BinaryCompartmentPartition2D;
 
 /// One compartment's exact shared-interface contact fraction.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]

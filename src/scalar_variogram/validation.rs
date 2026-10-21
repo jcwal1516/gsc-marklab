@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 
 use super::{ScalarVariogramBin, ScalarVariogramError};
 use crate::{

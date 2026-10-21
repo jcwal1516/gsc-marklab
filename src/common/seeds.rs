@@ -13,6 +13,7 @@ pub(crate) enum SeedEndpoint {
     CrossInteraction = 0x6372_6f73_735f_696e,
     NeighborhoodEnrichment = 0x6e65_6967_685f_656e,
     NeighborhoodStratifiedEnrichment = 0x6e65_6967_685f_7374,
+    CategoricalEnrichment = 0x6361_7465_5f65_6e72,
     PooledBinDifference = 0x6375_7276_655f_6469,
     ClassicalCsr = 0x636c_6173_735f_6373,
     TranslationSpatialCsr = 0x7472_616e_735f_6373,
@@ -25,7 +26,12 @@ pub(crate) enum SeedEndpoint {
     InhomogeneousCrossSourceNull = 0x696e_685f_7873_7263,
     InhomogeneousCrossTargetNull = 0x696e_685f_7874_6774,
     PiecewiseCompartmentSpatialNull = 0x7063_5f63_6d70_5f6e,
+    /// Redraws of one inhomogeneous null simulation under a declared support rule, derived
+    /// from that simulation's own seed so first draws keep their existing seeds.
+    InhomogeneousSupportRedraw = 0x696e_685f_7265_6472,
     PathologyBernoulliScan = 0x7061_7468_7363_616e,
+    MutualInformationBlockPermutation = 0x6d75_7475_5f62_6c6b,
+    MutualInformationVariogramSurrogate = 0x6d75_7475_5f76_676d,
 }
 
 /// Derive a stable seed from a base seed, endpoint namespace, and run index.
@@ -80,6 +86,7 @@ mod tests {
             SeedEndpoint::CrossInteraction,
             SeedEndpoint::NeighborhoodEnrichment,
             SeedEndpoint::NeighborhoodStratifiedEnrichment,
+            SeedEndpoint::CategoricalEnrichment,
             SeedEndpoint::PooledBinDifference,
             SeedEndpoint::ClassicalCsr,
             SeedEndpoint::TranslationSpatialCsr,
@@ -92,6 +99,8 @@ mod tests {
             SeedEndpoint::InhomogeneousCrossSourceNull,
             SeedEndpoint::InhomogeneousCrossTargetNull,
             SeedEndpoint::PiecewiseCompartmentSpatialNull,
+            SeedEndpoint::MutualInformationBlockPermutation,
+            SeedEndpoint::MutualInformationVariogramSurrogate,
         ];
         let mut seeds = endpoints
             .into_iter()

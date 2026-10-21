@@ -1,14 +1,18 @@
+use crate::is_worker_timeout;
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::ClaimStatus;
 use crate::{
     model::{PYMC_VERSION, WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION},
-    sha256_hex,
-    validation::{diagnostics_satisfy_policy, is_lower_hex_sha256},
-    BackendContract, BayesError, DiagnosticPolicy, FitState, NormalMeanDiagnostics,
-    NutsSamplingSpec, SamplingSummary, SarScalarSummary, WorkerBackend,
+    validation::{diagnostics_satisfy_policy, is_exact_name, is_sha256},
+    BackendContract, BayesError, DiagnosticPolicy, FitState, NutsSamplingSpec,
+    PosteriorDiagnostics, SamplingSummary, ScalarSummary, WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct OrdinalGroupPatientData {
@@ -17,6 +21,15 @@ pub struct OrdinalGroupPatientData {
     pub outcome_code: u32,
 }
 
+/// Proportional-odds ordinal outcomes with a comparison-group effect.
+///
+/// For comparison indicator `g_i`, the likelihood satisfies
+/// `P(y_i <= k) = sigmoid(c_k - beta * g_i)`. The `K - 1` cutpoints use normal
+/// prior densities with means evenly spaced from -1.5 to 1.5, SD
+/// `cutpoint_prior_sd`, and an ordering constraint. The group effect has prior
+/// `beta ~ Normal(0, group_effect_prior_sd)`; a positive effect shifts probability
+/// toward higher levels. The cutpoints supply the intercept, so there is no
+/// separate intercept parameter. Outcomes follow the order in `ordered_levels`.
 #[derive(Clone, Debug)]
 pub struct OrdinalGroupSpec {
     pub reference_group: String,
@@ -44,8 +57,8 @@ pub struct OrdinalGroupModelIr {
     pub proportional_odds_assumption: bool,
     pub observation_unit: &'static str,
     pub biological_unit: &'static str,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -78,8 +91,8 @@ impl OrdinalGroupWorkerRequest {
         timeout_seconds: u64,
     ) -> Result<Self, BayesError> {
         sampling.validate()?;
-        if !valid_name(&spec.reference_group)
-            || !valid_name(&spec.comparison_group)
+        if !is_exact_name(&spec.reference_group)
+            || !is_exact_name(&spec.comparison_group)
             || spec.reference_group == spec.comparison_group
             || !(2..=8).contains(&spec.ordered_levels.len())
             || !spec.cutpoint_prior_sd.is_finite()
@@ -87,15 +100,18 @@ impl OrdinalGroupWorkerRequest {
             || !spec.group_effect_prior_sd.is_finite()
             || spec.group_effect_prior_sd <= 0.0
             || !(8..=512).contains(&spec.patients.len())
-            || !is_lower_hex_sha256(&environment_lock_sha256)
-            || !is_lower_hex_sha256(&worker_sha256)
-            || !(1..=3_600).contains(&timeout_seconds)
+            || !is_sha256(&environment_lock_sha256)
+            || !is_sha256(&worker_sha256)
+            || !is_worker_timeout(timeout_seconds)
         {
             return Err(BayesError::InvalidSpec(
                 "ordinal-group controls or identities are invalid".into(),
             ));
         }
-        if spec.ordered_levels.iter().any(|level| !valid_name(level))
+        if spec
+            .ordered_levels
+            .iter()
+            .any(|level| !is_exact_name(level))
             || spec.ordered_levels.iter().collect::<BTreeSet<_>>().len()
                 != spec.ordered_levels.len()
         {
@@ -109,7 +125,7 @@ impl OrdinalGroupWorkerRequest {
         let mut group_counts = BTreeMap::new();
         let mut level_counts = vec![0_usize; spec.ordered_levels.len()];
         for patient in &patients {
-            if !valid_name(&patient.patient_id)
+            if !is_exact_name(&patient.patient_id)
                 || !patient_ids.insert(patient.patient_id.as_str())
                 || (patient.group != spec.reference_group && patient.group != spec.comparison_group)
                 || patient.outcome_code as usize >= spec.ordered_levels.len()
@@ -154,7 +170,7 @@ impl OrdinalGroupWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -174,8 +190,8 @@ impl OrdinalGroupWorkerRequest {
                 proportional_odds_assumption: true,
                 observation_unit: "one_complete_ordered_outcome_per_patient",
                 biological_unit: "patient",
-                backend_capability: "nuts",
-                maturity: "experimental",
+                backend_capability: BackendCapability::Nuts,
+                maturity: ModelMaturity::Experimental,
             },
             patients,
             sampling,
@@ -191,39 +207,32 @@ impl OrdinalGroupWorkerRequest {
     }
 }
 
-fn valid_name(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 128
-        && value.trim() == value
-        && !value.chars().any(char::is_control)
-}
-
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct OrdinalCutpointPosterior {
     pub lower_level: String,
     pub upper_level: String,
     #[serde(flatten)]
-    pub summary: SarScalarSummary,
+    pub summary: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct OrdinalLevelPosterior {
     pub level: String,
-    pub reference_probability: SarScalarSummary,
-    pub comparison_probability: SarScalarSummary,
-    pub difference_comparison_minus_reference: SarScalarSummary,
+    pub reference_probability: ScalarSummary,
+    pub comparison_probability: ScalarSummary,
+    pub difference_comparison_minus_reference: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct OrdinalGroupPosterior {
-    pub group_log_odds_effect: SarScalarSummary,
+    pub group_log_odds_effect: ScalarSummary,
     pub cutpoints: Vec<OrdinalCutpointPosterior>,
     pub levels: Vec<OrdinalLevelPosterior>,
-    pub reference_expected_code: SarScalarSummary,
-    pub comparison_expected_code: SarScalarSummary,
+    pub reference_expected_code: ScalarSummary,
+    pub comparison_expected_code: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -253,7 +262,7 @@ pub struct OrdinalGroupWorkerResult {
     pub fit_state: FitState,
     pub sampling: SamplingSummary,
     pub posterior: OrdinalGroupPosterior,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: OrdinalGroupPosteriorPredictive,
 }
 
@@ -266,11 +275,7 @@ impl OrdinalGroupWorkerResult {
         let levels = &request.model.ordered_levels;
         if self.format != "marklab.pymc_ordinal_group_worker_result"
             || self.version != 1
-            || self.backend.name != request.backend.name
-            || self.backend.version != request.backend.version
-            || self.backend.python_version != request.backend.python_version
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
             || self.posterior.cutpoints.len() + 1 != levels.len()
             || self.posterior.levels.len() != levels.len()
@@ -408,9 +413,9 @@ impl OrdinalGroupWorkerResult {
             posterior_predictive: self.posterior_predictive,
             seed: request.sampling.seed,
             claim_status: if self.fit_state == FitState::Complete {
-                "experimental_patient_ordinal_group_association"
+                ClaimStatus::ExperimentalPatientOrdinalGroupAssociation
             } else {
-                "diagnostic_only_nonconverged"
+                ClaimStatus::DiagnosticOnlyNonconverged
             },
             request_sha256: self.request_sha256,
         }
@@ -418,7 +423,7 @@ impl OrdinalGroupWorkerResult {
 }
 
 fn validate_summary(
-    summary: &SarScalarSummary,
+    summary: &ScalarSummary,
     support: Option<(f64, f64)>,
 ) -> Result<(), BayesError> {
     if ![
@@ -455,12 +460,6 @@ pub struct OrdinalGroupInputIdentity {
     pub comparison_patients: usize,
 }
 
-pub fn ordinal_group_data_sha256(
-    patients: &[OrdinalGroupPatientData],
-) -> Result<String, BayesError> {
-    Ok(sha256_hex(&serde_json::to_vec(patients)?))
-}
-
 #[derive(Debug, Serialize)]
 pub struct OrdinalGroupResult {
     pub format: &'static str,
@@ -471,10 +470,10 @@ pub struct OrdinalGroupResult {
     pub sampling: SamplingSummary,
     pub fit_state: FitState,
     pub posterior: OrdinalGroupPosterior,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: OrdinalGroupPosteriorPredictive,
     pub seed: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub request_sha256: String,
 }
 

@@ -2,10 +2,12 @@ use std::io::{self, Write};
 
 use cap_std::fs::OpenOptions;
 
+#[cfg(test)]
+use super::PublishFault;
 use super::{
     coordination::{split_parent, sync_directory_at, CoordinationMode},
     ArtifactPublication, ArtifactStoreError, LocalArtifactStore, PublicationDisposition,
-    PublishFault, STAGING_DIRECTORY,
+    STAGING_DIRECTORY,
 };
 use crate::{ArtifactDraft, ArtifactLocator, ArtifactRecord, ContentDigest, ContentDigestWriter};
 
@@ -21,7 +23,7 @@ impl LocalArtifactStore {
     where
         F: FnOnce(&mut dyn Write) -> io::Result<()>,
     {
-        self.publish_inner(record, |writer| write(writer), PublishFault::None)
+        self.publish_inner(record, |writer| write(writer))
     }
 
     /// Stream through a send-capable writer while preserving publication semantics.
@@ -35,7 +37,7 @@ impl LocalArtifactStore {
     where
         F: FnOnce(&mut (dyn Write + Send)) -> io::Result<()>,
     {
-        self.publish_inner(record, |writer| write(writer), PublishFault::None)
+        self.publish_inner(record, |writer| write(writer))
     }
 
     /// Stream, verify, and durably publish a location-free fresh artifact declaration.
@@ -52,19 +54,17 @@ impl LocalArtifactStore {
     {
         let managed = ArtifactLocator::managed(self.store_id.clone(), draft.id());
         let record = draft.located_record(managed);
-        self.publish_inner(&record, |writer| write(writer), PublishFault::None)
+        self.publish_inner(&record, |writer| write(writer))
     }
 
     fn publish_inner<F>(
         &self,
         record: &ArtifactRecord,
         write: F,
-        fault: PublishFault,
     ) -> Result<ArtifactPublication, ArtifactStoreError>
     where
         F: FnOnce(&mut DigestingWriter) -> io::Result<()>,
     {
-        let _ = fault;
         let _coordination = self.acquire_coordination_lock(CoordinationMode::Shared)?;
         let managed = ArtifactLocator::managed(self.store_id.clone(), record.id());
         let mut located_record = record.clone();
@@ -99,7 +99,7 @@ impl LocalArtifactStore {
                 })?;
         let staging_key = self.create_staging_key(record.id())?;
         #[cfg(test)]
-        if fault == PublishFault::StagingCreateCollision {
+        if self.publish_fault == PublishFault::StagingCreateCollision {
             self.root
                 .write(&staging_key, b"owned by another writer")
                 .map_err(|source| ArtifactStoreError::Io {
@@ -144,7 +144,7 @@ impl LocalArtifactStore {
             });
         }
         #[cfg(test)]
-        if fault == PublishFault::AfterFileSync {
+        if self.publish_fault == PublishFault::AfterFileSync {
             drop(writer);
             guard.cleanup("injected prepublication cleanup")?;
             return Err(ArtifactStoreError::Io {
@@ -176,7 +176,7 @@ impl LocalArtifactStore {
                     });
                 }
                 #[cfg(test)]
-                if fault == PublishFault::AfterPublication {
+                if self.publish_fault == PublishFault::AfterPublication {
                     guard.leave_for_recovery();
                     return Err(ArtifactStoreError::PublishedButCleanupFailed {
                         artifact: record.id(),
@@ -246,7 +246,7 @@ impl LocalArtifactStore {
 
     #[cfg(test)]
     pub(super) fn publish_with_fault<F>(
-        &self,
+        &mut self,
         record: &ArtifactRecord,
         write: F,
         fault: PublishFault,
@@ -254,7 +254,10 @@ impl LocalArtifactStore {
     where
         F: FnOnce(&mut dyn Write) -> io::Result<()>,
     {
-        self.publish_inner(record, |writer| write(writer), fault)
+        self.publish_fault = fault;
+        let result = self.publish(record, write);
+        self.publish_fault = PublishFault::None;
+        result
     }
 
     fn publication(

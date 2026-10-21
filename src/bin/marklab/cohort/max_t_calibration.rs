@@ -28,15 +28,32 @@ pub(crate) struct PreparedMaxTCalibration {
     pub configuration: MaxTCalibrationConfiguration,
 }
 
+#[derive(Debug, clap::Args)]
 pub(crate) struct RunArgs {
-    pub input: PathBuf,
-    pub group_a_count: usize,
-    pub family_sizes: Vec<usize>,
-    pub alpha: f64,
-    pub maximum_assignments: usize,
-    pub maximum_assignment_endpoint_evaluations: u64,
-    pub memory_budget_mib: usize,
-    pub out: PathBuf,
+    /// CSV of fixed patient endpoint vectors: patient_id, then one numeric column per endpoint.
+    #[arg(long)]
+    pub(super) input: PathBuf,
+    /// Number of simulated patients assigned to the first group.
+    #[arg(long)]
+    pub(super) group_a_count: usize,
+    /// Endpoint counts for the declared calibration families.
+    #[arg(long, value_delimiter = ',')]
+    pub(super) family_sizes: Vec<usize>,
+    /// Significance level or excluded tail probability for the reported inference.
+    #[arg(long)]
+    pub(super) alpha: f64,
+    /// Upper bound on assignments.
+    #[arg(long)]
+    pub(super) maximum_assignments: usize,
+    /// Upper bound on assignment endpoint evaluations.
+    #[arg(long)]
+    pub(super) maximum_assignment_endpoint_evaluations: u64,
+    /// Maximum working memory in mebibytes.
+    #[arg(long)]
+    pub(super) memory_budget_mib: usize,
+    /// Destination for the analysis output.
+    #[arg(long)]
+    pub(super) out: PathBuf,
 }
 
 pub(crate) fn run(args: RunArgs) -> Result<(), CohortError> {
@@ -53,7 +70,6 @@ pub(crate) fn run(args: RunArgs) -> Result<(), CohortError> {
     publish_json(&args.out, &output)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare(
     input: PathBuf,
     group_a_count: usize,

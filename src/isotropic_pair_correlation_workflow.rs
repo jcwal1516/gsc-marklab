@@ -1,7 +1,6 @@
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use crate::workflow_node::{NodeAnalysis, TypedNode};
+use marklab_project::{ArtifactRef, MarklabProject};
+use marklab_workflow::{NodeError, NodeId, NodeSpec};
 use serde::Serialize;
 
 use crate::{
@@ -11,8 +10,9 @@ use crate::{
         IsotropicPairCorrelationResultDocument,
     },
     isotropic_spatial_workflow::window_artifact,
-    workflow::pattern_artifact,
-    ObservationWindow2D, PairCorrelationKernel, Pattern,
+    marked_workflow::pattern_artifact,
+    spatial::PairCorrelationKernel,
+    ObservationWindow2D, Pattern,
 };
 
 const CONFIG_KIND: &str =
@@ -24,13 +24,13 @@ const POLICY: &[u8] =
 
 /// Cache-addressed exact isotropic homogeneous pair-correlation node.
 pub struct IsotropicPairCorrelationAnalysisNode<'a> {
-    spec: NodeSpec,
+    node: TypedNode<IsotropicPairCorrelationAnalysis<'a>>,
+}
+
+struct IsotropicPairCorrelationAnalysis<'a> {
     pattern: &'a Pattern,
     window: &'a ObservationWindow2D,
     config: &'a IsotropicPairCorrelationConfig,
-    inputs: Vec<ArtifactRef>,
-    configuration_digest: ContentDigest,
-    implementation_identity: String,
 }
 
 impl<'a> IsotropicPairCorrelationAnalysisNode<'a> {
@@ -49,7 +49,7 @@ impl<'a> IsotropicPairCorrelationAnalysisNode<'a> {
             window,
             config,
             format!(
-                "marklab/{};adapter=isotropic-pair-correlation-node-v2",
+                "marklab/{};adapter=isotropic-pair-correlation-node-v4",
                 env!("CARGO_PKG_VERSION")
             ),
             Vec::new(),
@@ -74,51 +74,40 @@ impl<'a> IsotropicPairCorrelationAnalysisNode<'a> {
                 .register_reference(artifact.clone())
                 .map_err(NodeError::input)?;
         }
+        let node_spec = NodeSpec::new(id, "isotropic_pair_correlation_analysis", 1, Vec::new())
+            .map_err(NodeError::input)?;
+        let node_configuration_digest = config_ref.digest();
         Ok(Self {
-            spec: NodeSpec::new(id, "isotropic_pair_correlation_analysis", 1, Vec::new())
-                .map_err(NodeError::input)?,
-            pattern,
-            window,
-            config,
-            inputs,
-            configuration_digest: config_ref.digest(),
-            implementation_identity,
+            node: TypedNode {
+                spec: node_spec,
+                analysis: IsotropicPairCorrelationAnalysis {
+                    pattern,
+                    window,
+                    config,
+                },
+                inputs,
+                configuration_digest: node_configuration_digest,
+                execution_policy: std::borrow::Cow::Borrowed(POLICY),
+                implementation_identity,
+            },
         })
     }
     /// Dependency-free graph specification.
     pub fn spec(&self) -> &NodeSpec {
-        &self.spec
+        self.node.spec()
     }
 }
 
-impl WorkflowNode for IsotropicPairCorrelationAnalysisNode<'_> {
+impl NodeAnalysis for IsotropicPairCorrelationAnalysis<'_> {
     type Output = IsotropicPairCorrelationResult;
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.inputs
-    }
-    fn verify_input_content(&self) -> Result<(), NodeError> {
+    type Inputs = Vec<ArtifactRef>;
+    fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
         let pattern = pattern_artifact(self.pattern)?;
-        self.inputs[0]
-            .verify_identity(pattern.digest(), pattern.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 0, &pattern)?;
         let window = window_artifact(self.window)?;
-        self.inputs[1]
-            .verify_identity(window.digest(), window.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 1, &window)?;
         let config = config_artifact(self.config)?;
-        self.inputs[2]
-            .verify_identity(config.digest(), config.byte_len())
-            .map_err(NodeError::input)
-    }
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: POLICY,
-            implementation_identity: &self.implementation_identity,
-        }
+        crate::workflow_node::verify_input(inputs, 2, &config)
     }
     fn execute(&self) -> Result<Self::Output, NodeError> {
         analyze_isotropic_pair_correlation(self.pattern, self.window, self.config)
@@ -142,6 +131,8 @@ impl WorkflowNode for IsotropicPairCorrelationAnalysisNode<'_> {
     }
 }
 
+crate::workflow_node::impl_workflow_node!(IsotropicPairCorrelationAnalysisNode<'_> => IsotropicPairCorrelationResult);
+
 #[derive(Serialize)]
 struct ConfigArtifact<'a> {
     radii_um: &'a [f64],
@@ -150,7 +141,7 @@ struct ConfigArtifact<'a> {
     simulations: usize,
     seed: u64,
     alpha: f64,
-    limits: crate::IsotropicSpatialLimits,
+    limits: crate::spatial::IsotropicSpatialLimits,
     logical_digest: String,
 }
 

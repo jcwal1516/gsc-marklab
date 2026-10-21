@@ -1,7 +1,11 @@
+use crate::result_vocabulary::{
+    EdgeCorrection, InhomogeneousNullModel, IntensityBoundaryCorrection, IntensityCrossFit,
+    IntensityEstimator, IntensityKernel, SpatialRandomizationUnit,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::ClassicalWindowSummary;
+use crate::spatial::ClassicalWindowSummary;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -16,7 +20,6 @@ pub struct InhomogeneousSpatialLimits {
 }
 
 impl InhomogeneousSpatialLimits {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         maximum_points: usize,
         maximum_radii: usize,
@@ -229,10 +232,10 @@ pub struct InhomogeneousIntensityGridPoint {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct InhomogeneousIntensitySummary {
-    pub estimator: String,
-    pub kernel: String,
-    pub cross_fit: String,
-    pub boundary_correction: String,
+    pub estimator: IntensityEstimator,
+    pub kernel: IntensityKernel,
+    pub cross_fit: IntensityCrossFit,
+    pub boundary_correction: IntensityBoundaryCorrection,
     pub bandwidth_um: f64,
     pub integration_grid: [usize; 2],
     pub retained_probe_count: usize,
@@ -276,8 +279,8 @@ pub struct InhomogeneousSpatialPoint {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct InhomogeneousSpatialInference {
-    pub null_model: String,
-    pub randomization_unit: String,
+    pub null_model: InhomogeneousNullModel,
+    pub randomization_unit: SpatialRandomizationUnit,
     pub p_global: Option<f64>,
     pub erl_depth: Option<f64>,
     pub critical_depth: Option<f64>,
@@ -286,6 +289,9 @@ pub struct InhomogeneousSpatialInference {
     pub seed: u64,
     pub alpha: f64,
     pub null_draws: usize,
+    /// Simulated patterns discarded under a declared support rule; absent without one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub support_redraws: Option<usize>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -295,7 +301,7 @@ pub struct InhomogeneousSpatialResult {
     pub timepoint: String,
     pub window: ClassicalWindowSummary,
     pub intensity: InhomogeneousIntensitySummary,
-    pub edge_correction: String,
+    pub edge_correction: EdgeCorrection,
     pub configuration_digest: String,
     pub observed_pair_visits: usize,
     pub total_pair_visits: usize,
@@ -345,4 +351,18 @@ pub enum InhomogeneousSpatialError {
     SizeOverflow,
     #[error("inhomogeneous dependency failed: {0}")]
     Dependency(String),
+    #[error(
+        "null simulation {simulation} lacked eligible centers where the observed curve has them after {draws} draws"
+    )]
+    SupportRedrawsExhausted { simulation: usize, draws: usize },
+}
+
+/// Simulated null curves of one within-specimen envelope test, retained for export.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct NullCurveCapture {
+    /// Untransformed simulated curves (L, g or cross-type g), one per simulation, in order.
+    /// Entries at radii outside `jointly_eligible` are placeholders, not estimates.
+    pub(crate) simulated: Vec<Vec<f64>>,
+    /// Radii eligible in the observed curve and in every simulated curve.
+    pub(crate) jointly_eligible: Vec<bool>,
 }

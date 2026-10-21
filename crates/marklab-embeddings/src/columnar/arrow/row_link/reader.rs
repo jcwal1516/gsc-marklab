@@ -11,7 +11,7 @@ use crate::{CellEmbeddingRowLink, ExpectedCellSet, VerifiedCellEmbeddingRowLinkA
 
 use super::{
     super::{
-        super::super::{ArrowIpcFailure, EmbeddingColumnarBudgets, EmbeddingColumnarError},
+        super::super::{ArrowIpcFailure, ColumnarError, EmbeddingColumnarBudgets},
         profile::arrow_failure,
     },
     preflight::{
@@ -28,11 +28,10 @@ pub fn validate_cell_embedding_row_link_arrow_bytes(
     expected: &ExpectedCellSet,
     row_link: &CellEmbeddingRowLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CellEmbeddingRowLinkArrowPreflight, EmbeddingColumnarError> {
-    let encoded_byte_len =
-        u64::try_from(bytes.len()).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+) -> Result<CellEmbeddingRowLinkArrowPreflight, ColumnarError> {
+    let encoded_byte_len = u64::try_from(bytes.len()).map_err(|_| ColumnarError::SizeOverflow)?;
     if encoded_byte_len > budgets.maximum_file_bytes() {
-        return Err(EmbeddingColumnarError::FileByteBudgetExceeded {
+        return Err(ColumnarError::FileByteBudgetExceeded {
             observed: encoded_byte_len,
             maximum: budgets.maximum_file_bytes(),
         });
@@ -51,28 +50,37 @@ pub fn validate_cell_embedding_row_link_arrow_from_store(
     expected: &ExpectedCellSet,
     row_link: &CellEmbeddingRowLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CellEmbeddingRowLinkArrowPreflight, VerifiedReaderError<EmbeddingColumnarError>> {
+) -> Result<CellEmbeddingRowLinkArrowPreflight, VerifiedReaderError<ColumnarError>> {
+    store.with_verified_reader(record, |reader| {
+        validate_cell_embedding_row_link_arrow_reader(reader, record, expected, row_link, budgets)
+    })
+}
+
+pub(crate) fn validate_cell_embedding_row_link_arrow_reader<R: Read + Seek + ?Sized>(
+    reader: &mut R,
+    record: &ArtifactRecord,
+    expected: &ExpectedCellSet,
+    row_link: &CellEmbeddingRowLink,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<CellEmbeddingRowLinkArrowPreflight, ColumnarError> {
     let encoded_byte_len = record.content().byte_len();
     if encoded_byte_len > budgets.maximum_file_bytes() {
-        return Err(VerifiedReaderError::Callback(
-            EmbeddingColumnarError::FileByteBudgetExceeded {
-                observed: encoded_byte_len,
-                maximum: budgets.maximum_file_bytes(),
-            },
-        ));
+        return Err(ColumnarError::FileByteBudgetExceeded {
+            observed: encoded_byte_len,
+            maximum: budgets.maximum_file_bytes(),
+        });
     }
-    validate_record(record, encoded_byte_len, row_link).map_err(VerifiedReaderError::Callback)?;
-    store.with_verified_reader(record, |reader| {
-        let preflight = preflight_cell_embedding_row_link_arrow_reader(
-            reader,
-            record.content().digest(),
-            expected,
-            row_link,
-            budgets,
-        )?;
-        validate_preflight_identity(preflight, record)?;
-        decode_row_link_arrow(reader, row_link, preflight, budgets)
-    })
+    validate_record(record, encoded_byte_len, row_link)?;
+
+    let preflight = preflight_cell_embedding_row_link_arrow_reader(
+        reader,
+        record.content().digest(),
+        expected,
+        row_link,
+        budgets,
+    )?;
+    validate_preflight_identity(preflight, record)?;
+    decode_row_link_arrow(reader, row_link, preflight, budgets)
 }
 
 /// Fully verify borrowed Arrow row-link bytes and return an exact artifact-bound receipt.
@@ -82,12 +90,13 @@ pub fn verify_cell_embedding_row_link_arrow_bytes(
     expected: &ExpectedCellSet,
     row_link: &CellEmbeddingRowLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<VerifiedCellEmbeddingRowLinkArtifact, EmbeddingColumnarError> {
-    validate_cell_embedding_row_link_arrow_bytes(bytes, record, expected, row_link, budgets)?;
-    Ok(VerifiedCellEmbeddingRowLinkArtifact::new(
-        record.id(),
-        row_link,
-    ))
+) -> Result<VerifiedCellEmbeddingRowLinkArtifact, ColumnarError> {
+    crate::columnar::verify::<crate::columnar::ArrowIpc, crate::columnar::CellEmbeddingRowLinkEntity>(
+        Cursor::new(bytes),
+        record,
+        &crate::columnar::CellEmbeddingRowLinkVerifyContext { expected, row_link },
+        budgets,
+    )
 }
 
 /// Fully verify a managed Arrow row link and return an exact artifact-bound receipt.
@@ -97,22 +106,22 @@ pub fn verify_cell_embedding_row_link_arrow_from_store(
     expected: &ExpectedCellSet,
     row_link: &CellEmbeddingRowLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<VerifiedCellEmbeddingRowLinkArtifact, VerifiedReaderError<EmbeddingColumnarError>> {
-    validate_cell_embedding_row_link_arrow_from_store(store, record, expected, row_link, budgets)?;
-    Ok(VerifiedCellEmbeddingRowLinkArtifact::new(
-        record.id(),
-        row_link,
-    ))
+) -> Result<VerifiedCellEmbeddingRowLinkArtifact, VerifiedReaderError<ColumnarError>> {
+    crate::columnar::with_verified_columnar_reader(store, record, budgets, |reader| {
+        reader.verify::<crate::columnar::ArrowIpc, crate::columnar::CellEmbeddingRowLinkEntity>(
+            &crate::columnar::CellEmbeddingRowLinkVerifyContext { expected, row_link },
+        )
+    })
 }
 
 fn validate_preflight_identity(
     preflight: CellEmbeddingRowLinkArrowPreflight,
     record: &ArtifactRecord,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     if preflight.content_digest() != record.content().digest()
         || preflight.encoded_byte_len() != record.content().byte_len()
     {
-        return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     Ok(())
 }
@@ -122,13 +131,13 @@ fn decode_row_link_arrow<R: Read + Seek>(
     row_link: &CellEmbeddingRowLink,
     preflight: CellEmbeddingRowLinkArrowPreflight,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CellEmbeddingRowLinkArrowPreflight, EmbeddingColumnarError> {
+) -> Result<CellEmbeddingRowLinkArrowPreflight, ColumnarError> {
     let required_retained = preflight
         .retained_preflight_bytes
         .checked_add(preflight.maximum_batch_decoded_bytes)
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     if required_retained > budgets.maximum_retained_bytes() {
-        return Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
+        return Err(ColumnarError::RetainedByteBudgetExceeded {
             required: required_retained,
             maximum: budgets.maximum_retained_bytes(),
         });
@@ -193,7 +202,7 @@ fn decode_row_link_arrow<R: Read + Seek>(
             }
             global_row = global_row
                 .checked_add(1)
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
         }
     }
     if global_row != row_link.entries().len() {
@@ -206,7 +215,7 @@ fn validate_record(
     record: &ArtifactRecord,
     observed_byte_len: u64,
     row_link: &CellEmbeddingRowLink,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     if record.content().kind() != CONTENT_KIND
         || record.content().byte_len() != observed_byte_len
         || record.schema().id() != SCHEMA_ID
@@ -214,11 +223,11 @@ fn validate_record(
         || !record.semantic_metadata().is_empty()
         || record.dependencies() != row_link.direct_dependencies()
     {
-        return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     let manifest = record
         .table()
-        .ok_or(EmbeddingColumnarError::ArtifactBindingMismatch)?;
+        .ok_or(ColumnarError::ArtifactBindingMismatch)?;
     if manifest.format() != TableFormat::ArrowIpcFile
         || manifest.encoding_version() != ENCODING_VERSION
         || manifest.row_count() != row_link.row_count()
@@ -234,7 +243,7 @@ fn validate_record(
         || !manifest.columns()[2].nullable()
         || manifest.primary_key() != ["cell_id"]
     {
-        return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     Ok(())
 }

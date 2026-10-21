@@ -1,6 +1,7 @@
 use serde::Serialize;
 
 use super::SimulationError;
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug)]
 pub struct LevelSetSpec {
@@ -79,7 +80,7 @@ pub struct LevelSetResult {
     pub trajectory: Vec<LevelSetSnapshot>,
     pub solver: LevelSetSolverDiagnostics,
     pub observation_model: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn evolve_interface_level_set(spec: LevelSetSpec) -> Result<LevelSetResult, SimulationError> {
@@ -152,7 +153,7 @@ pub fn evolve_interface_level_set(spec: LevelSetSpec) -> Result<LevelSetResult, 
             cfl_limit: 0.5,
         },
         observation_model: "identity_zero_contour_observation",
-        claim_status: "experimental_interface_not_tumour_forecast",
+        claim_status: ClaimStatus::ExperimentalInterfaceNotTumourForecast,
     })
 }
 

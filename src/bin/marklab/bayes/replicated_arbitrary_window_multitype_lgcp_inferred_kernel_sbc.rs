@@ -1,281 +1,131 @@
-use std::{collections::BTreeMap, fs, path::PathBuf};
+use marklab_bayes::protocol::replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc::SCENARIOS;
+pub(crate) use marklab_bayes::protocol::replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc::{Calibration, Resources, WorkerRequest, WorkerResult, Output, validate_worker, assumptions};
 
-use clap::{Parser, Subcommand};
-use marklab_bayes::{sha256_hex, BackendContract, FitState, WorkerBackend};
-use serde::{Deserialize, Serialize};
+use crate::input_file::read_file;
+use std::path::PathBuf;
 
-use super::{
-    publish_json,
-    replicated_arbitrary_window_lgcp_agreement::backend_matches,
-    replicated_arbitrary_window_multitype_lgcp_inferred_kernel::{self, Args as FitArgs},
-    run_worker, BayesCliError,
-};
+use marklab_bayes::sha256_hex;
+use marklab_bayes::BackendContract;
 
-const NUMPYRO_VERSION: &str = "0.21.0";
-const JAX_VERSION: &str = "0.11.1";
-const SCENARIOS: [&str; 5] = [
-    "positive",
-    "null",
-    "weak_identification",
-    "boundary",
-    "misspecified",
-];
-
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct Cli {
-    #[command(subcommand)]
-    command: Top,
-}
-
-#[derive(Debug, Subcommand)]
-enum Top {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    ReplicatedArbitraryWindowMultitypeLgcpInferredKernelSbc(Box<Args>),
-}
+use super::publish_json;
+use super::replicated_arbitrary_window_multitype_lgcp_inferred_kernel;
+use super::replicated_arbitrary_window_multitype_lgcp_inferred_kernel::Args as FitArgs;
+use super::run_worker;
+use super::CliError;
+use marklab_bayes::backend_versions::JAX_VERSION;
+use marklab_bayes::backend_versions::NUMPYRO_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::NullHypothesis;
+use marklab_core::vocabulary::StatisticalUnit;
 
 #[derive(Clone, Debug, clap::Args)]
 pub(crate) struct Args {
+    /// Per-node, per-type quadrature CSV (pattern_id, patient_id, group, type_id, count, ...).
     #[arg(long)]
     pub(crate) input: PathBuf,
+    /// Group level used as the regression reference.
     #[arg(long)]
     pub(crate) reference_group: String,
+    /// Group level whose effect is compared with the reference group.
     #[arg(long)]
     pub(crate) comparison_group: String,
+    /// Point-type label used as the model reference.
     #[arg(long)]
     pub(crate) reference_type: String,
+    /// Prior mean for intercept.
     #[arg(long, allow_hyphen_values = true)]
     pub(crate) intercept_prior_mean: f64,
+    /// Prior scale for intercept.
     #[arg(long)]
     pub(crate) intercept_prior_sd: f64,
+    /// Prior scale for group effect.
     #[arg(long)]
     pub(crate) group_effect_prior_sd: f64,
+    /// Prior scale for covariate effect.
     #[arg(long)]
     pub(crate) covariate_effect_prior_sd: f64,
+    /// Prior scale for patient standard deviation.
     #[arg(long)]
     pub(crate) patient_sd_prior_scale: f64,
+    /// Prior scale for pattern standard deviation.
     #[arg(long)]
     pub(crate) pattern_sd_prior_scale: f64,
+    /// Prior scale for field amplitude.
     #[arg(long)]
     pub(crate) field_amplitude_prior_scale: f64,
+    /// Prior scale, in micrometers, for field length scale.
     #[arg(long)]
     pub(crate) field_length_scale_prior_scale_um: f64,
+    /// Diagonal stabilization added to covariance matrices.
     #[arg(long)]
     pub(crate) jitter: f64,
+    /// Number of simulated replicates for each declared calibration scenario.
     #[arg(long)]
     pub(crate) replicates_per_scenario: u32,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
     pub(crate) chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
     pub(crate) tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
     pub(crate) draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
     pub(crate) target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
     pub(crate) seed: u64,
+    /// Upper bound on patients.
     #[arg(long)]
     pub(crate) maximum_patients: usize,
+    /// Upper bound on patterns.
     #[arg(long)]
     pub(crate) maximum_patterns: usize,
+    /// Upper bound on types.
     #[arg(long)]
     pub(crate) maximum_types: usize,
+    /// Upper bound on nodes per pattern.
     #[arg(long)]
     pub(crate) maximum_nodes_per_pattern: usize,
+    /// Upper bound on total nodes.
     #[arg(long)]
     pub(crate) maximum_total_nodes: usize,
+    /// Upper bound on total node type rows.
     #[arg(long)]
     pub(crate) maximum_total_node_type_rows: usize,
+    /// Upper bound on total events.
     #[arg(long)]
     pub(crate) maximum_total_events: u64,
+    /// Upper bound on draw node type work.
     #[arg(long)]
     pub(crate) maximum_draw_node_type_work: u64,
+    /// Upper bound on kernel cube work.
     #[arg(long)]
     pub(crate) maximum_kernel_cube_work: u64,
+    /// Upper bound on tree depth.
     #[arg(long)]
     pub(crate) maximum_tree_depth: u32,
+    /// Upper bound on simulated node type work.
     #[arg(long)]
     pub(crate) maximum_simulated_node_type_work: u64,
+    /// Upper bound on total iterations.
     #[arg(long)]
     pub(crate) maximum_total_iterations: u64,
+    /// Upper bound on posterior predictive pair work.
     #[arg(long)]
     pub(crate) maximum_ppc_pair_work: u64,
+    /// Upper bound on working bytes.
     #[arg(long)]
     pub(crate) maximum_working_bytes: u64,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
     pub(crate) timeout_seconds: u64,
+    /// Destination for the analysis output.
     #[arg(long)]
     pub(crate) out: PathBuf,
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Calibration {
-    scenarios: Vec<String>,
-    replicates_per_scenario: u32,
-    rank_bins: u32,
-    interval_probability: f64,
-    latent_node_index: usize,
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Resources {
-    scenario_replicates: u64,
-    simulated_node_type_work: u64,
-    maximum_simulated_node_type_work: u64,
-    total_iterations: u64,
-    maximum_total_iterations: u64,
-    ppc_pair_work: u64,
-    maximum_ppc_pair_work: u64,
-    estimated_working_bytes: u64,
-    maximum_working_bytes: u64,
-    maximum_output_bytes: usize,
-    timeout_seconds: u64,
-}
-
-#[derive(Serialize)]
-struct WorkerRequest<'a> {
-    format: &'static str,
-    version: u32,
-    backend: BackendContract,
-    jax_version: &'static str,
-    source_request_sha256: &'a str,
-    source_request: serde_json::Value,
-    calibration: Calibration,
-    resources: Resources,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Truth {
-    intercept_type_a: f64,
-    intercept_type_b: f64,
-    group_effect_difference: f64,
-    patient_sd_type_a: f64,
-    pattern_sd_type_a: f64,
-    field_amplitude: f64,
-    field_length_scale_um: f64,
-    latent_node_type_a: f64,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Ranks {
-    intercept_type_a: u64,
-    group_effect_difference: u64,
-    patient_sd_type_a: u64,
-    pattern_sd_type_a: u64,
-    field_amplitude: u64,
-    field_length_scale_um: u64,
-    latent_node_type_a: u64,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Coverage {
-    intercept_type_a: bool,
-    group_effect_difference: bool,
-    patient_sd_type_a: bool,
-    pattern_sd_type_a: bool,
-    field_amplitude: bool,
-    field_length_scale_um: bool,
-    latent_node_type_a: bool,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct PpcMetric {
-    observed: f64,
-    replicated_mean: f64,
-    two_sided_tail_probability: f64,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct PosteriorPredictive {
-    counts: PpcMetric,
-    cross_type_enrichment: PpcMetric,
-    mark_proportions: PpcMetric,
-    clustering: PpcMetric,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct ScenarioDisposition {
-    scenario: String,
-    replicate: u32,
-    status: String,
-    failure_reason: Option<String>,
-    simulated_total_events: u64,
-    truth: Truth,
-    ranks: Option<Ranks>,
-    coverage_90: Option<Coverage>,
-    posterior_predictive: Option<PosteriorPredictive>,
-    r_hat: Option<f64>,
-    ess_bulk: Option<f64>,
-    ess_tail: Option<f64>,
-    minimum_ebfmi: Option<f64>,
-    divergences: Option<u64>,
-    max_tree_depth_hits: Option<u64>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct ParameterDiagnostics {
-    completed_replicates: u64,
-    rank_histogram: Vec<u64>,
-    coverage_90: f64,
-    mean_normalized_rank: f64,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WorkerResult {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    jax_version: String,
-    input_sha256: String,
-    request_sha256: String,
-    source_request_sha256: String,
-    fit_state: FitState,
-    scenario_dispositions: Vec<ScenarioDisposition>,
-    rank_diagnostics: BTreeMap<String, ParameterDiagnostics>,
-    pattern_representation: String,
-    cross_type_dependence_estimand: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct Output {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    jax_version: String,
-    input_sha256: String,
-    request_sha256: String,
-    source_request_sha256: String,
-    fit_state: FitState,
-    calibration: Calibration,
-    resources: Resources,
-    scenario_dispositions: Vec<ScenarioDisposition>,
-    rank_diagnostics: BTreeMap<String, ParameterDiagnostics>,
-    pattern_representation: String,
-    cross_type_dependence_estimand: String,
-    statistical_unit: String,
-    null_model: String,
-    assumptions: Vec<String>,
-    failure_policy: String,
-    finite_result_policy: String,
-    claim_status: String,
 }
 
 pub(crate) struct Prepared {
@@ -295,15 +145,13 @@ impl Prepared {
     }
 }
 
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let Top::Bayes { command } = Cli::parse_from(std::env::args_os()).command;
-    let Command::ReplicatedArbitraryWindowMultitypeLgcpInferredKernelSbc(args) = command;
+pub(super) fn run(args: Box<Args>) -> Result<(), CliError> {
     let out = args.out.clone();
     let prepared = prepare(*args)?;
     publish_json(&out, &execute(&prepared)?)
 }
 
-pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
+pub(crate) fn prepare(args: Args) -> Result<Prepared, CliError> {
     if !(1..=20).contains(&args.replicates_per_scenario)
         || args.maximum_simulated_node_type_work == 0
         || args.maximum_total_iterations == 0
@@ -311,9 +159,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         || args.maximum_working_bytes == 0
         || args.maximum_working_bytes > 8 * 1024 * 1024 * 1024
     {
-        return Err(BayesCliError::Input(
-            "multitype SBC controls are invalid".into(),
-        ));
+        return Err(CliError::Input("multitype SBC controls are invalid".into()));
     }
     let fit = replicated_arbitrary_window_multitype_lgcp_inferred_kernel::prepare(FitArgs {
         input: args.input,
@@ -351,41 +197,41 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
     let fixed = &source["source_request"];
     let rows = fixed["node_type_counts"]
         .as_array()
-        .ok_or_else(|| BayesCliError::Input("prepared SBC rows differ".into()))?
+        .ok_or_else(|| CliError::Input("prepared SBC rows differ".into()))?
         .len() as u64;
     let nodes = fixed["nodes"]
         .as_array()
-        .ok_or_else(|| BayesCliError::Input("prepared SBC nodes differ".into()))?
+        .ok_or_else(|| CliError::Input("prepared SBC nodes differ".into()))?
         .len() as u64;
     let input_sha256 = fixed["input_sha256"]
         .as_str()
-        .ok_or_else(|| BayesCliError::Input("prepared SBC input digest differs".into()))?
+        .ok_or_else(|| CliError::Input("prepared SBC input digest differs".into()))?
         .to_owned();
     let scenario_replicates = u64::from(args.replicates_per_scenario) * SCENARIOS.len() as u64;
     let simulated_node_type_work = scenario_replicates
         .checked_mul(rows)
-        .ok_or_else(|| BayesCliError::Input("SBC simulation work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("SBC simulation work overflows".into()))?;
     let total_iterations = scenario_replicates
         .checked_mul(u64::from(args.chains))
         .and_then(|value| value.checked_mul(u64::from(args.tune) + u64::from(args.draws)))
-        .ok_or_else(|| BayesCliError::Input("SBC iteration work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("SBC iteration work overflows".into()))?;
     let completed_draws = u64::from(args.chains) * u64::from(args.draws);
     let ppc_pair_work = scenario_replicates
         .checked_mul(nodes)
         .and_then(|value| value.checked_mul(nodes))
         .and_then(|value| value.checked_mul(completed_draws))
-        .ok_or_else(|| BayesCliError::Input("SBC PPC work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("SBC PPC work overflows".into()))?;
     let estimated_working_bytes = scenario_replicates
         .checked_mul(rows)
         .and_then(|value| value.checked_mul(256))
         .and_then(|value| value.checked_add(384 * 1024 * 1024))
-        .ok_or_else(|| BayesCliError::Input("SBC memory estimate overflows".into()))?;
+        .ok_or_else(|| CliError::Input("SBC memory estimate overflows".into()))?;
     if simulated_node_type_work > args.maximum_simulated_node_type_work
         || total_iterations > args.maximum_total_iterations
         || ppc_pair_work > args.maximum_ppc_pair_work
         || estimated_working_bytes > args.maximum_working_bytes
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "multitype SBC resource ceiling exceeded".into(),
         ));
     }
@@ -409,14 +255,14 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         maximum_output_bytes: 4 * 1_048_576,
         timeout_seconds: args.timeout_seconds,
     };
-    let repository = &marklab::python_backend_assets_root()?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let directory = repository.join("workers/python");
     let backend = BackendContract {
         name: "numpyro",
         version: NUMPYRO_VERSION,
-        python_version: "3.12",
-        environment_lock_sha256: sha256_hex(&read(&directory.join("uv.lock"))?),
-        worker_sha256: sha256_hex(&read(&directory.join(
+        python_version: PYTHON_VERSION,
+        environment_lock_sha256: sha256_hex(&read_file(&directory.join("uv.lock"))?),
+        worker_sha256: sha256_hex(&read_file(&directory.join(
             "marklab_numpyro_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc_worker.py",
         ))?),
     };
@@ -446,15 +292,15 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
     })
 }
 
-pub(crate) fn execute(prepared: &Prepared) -> Result<Output, BayesCliError> {
+pub(crate) fn execute(prepared: &Prepared) -> Result<Output, CliError> {
     let bytes = run_worker(
-        &marklab::python_backend_assets_root()?,
+        &marklab::backend::python_backend_assets_root()?,
         "marklab_numpyro_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc_worker.py",
         &prepared.request_bytes,
         prepared.timeout_seconds,
     )?;
     let result: WorkerResult = serde_json::from_slice(&bytes)?;
-    validate_worker(&result, prepared)?;
+    validate_worker(&result, &prepared.validation_context()).map_err(super::protocol_error)?;
     Ok(Output {
         format: "marklab.replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc".into(),
         version: 1,
@@ -472,103 +318,32 @@ pub(crate) fn execute(prepared: &Prepared) -> Result<Output, BayesCliError> {
             .into(),
         cross_type_dependence_estimand:
             "not_estimated_current_model_uses_conditionally_independent_type_fields".into(),
-        statistical_unit: "patient".into(),
+        statistical_unit: StatisticalUnit::Patient,
         null_model:
-            "prior_generative_or_declared_stress_scenario_under_the_same_quadrature_likelihood"
-                .into(),
+            NullHypothesis::PriorGenerativeOrDeclaredStressScenarioUnderTheSameQuadratureLikelihood,
         assumptions: assumptions().into_iter().map(str::to_owned).collect(),
         failure_policy: "retain_every_scenario_replicate_with_explicit_status_and_reason".into(),
         finite_result_policy: "reject_non_finite_completed_rows_failed_rows_remain_diagnostic"
             .into(),
-        claim_status: "experimental_multitype_sbc_diagnostic".into(),
+        claim_status: ClaimStatus::ExperimentalMultitypeSbcDiagnostic,
     })
 }
 
-impl Output {
-    pub(crate) fn validate_for(&self, prepared: &Prepared) -> Result<(), BayesCliError> {
-        if self.format != "marklab.replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc"
-            || self.version != 1
-            || self.input_sha256 != prepared.input_sha256
-            || self.request_sha256 != prepared.request_sha256
-            || self.source_request_sha256 != sha256_hex(prepared.fit.request_bytes())
-            || self.calibration != prepared.calibration
-            || self.resources != prepared.resources
-            || self.scenario_dispositions.len() != prepared.resources.scenario_replicates as usize
-            || self.pattern_representation
-                != "complete_quadrature_resolved_counting_measure_on_exact_window"
-            || self.cross_type_dependence_estimand
-                != "not_estimated_current_model_uses_conditionally_independent_type_fields"
-            || self.statistical_unit != "patient"
-            || self.claim_status != "experimental_multitype_sbc_diagnostic"
-        {
-            return Err(BayesCliError::Backend(
-                "durable multitype SBC result differs".into(),
-            ));
+impl Prepared {
+    fn validation_context(&self) -> marklab_bayes::protocol::replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc::ValidationContext<'_>{
+        marklab_bayes::protocol::replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc::ValidationContext {
+            backend: &self.backend,
+            source_request_bytes: self.fit.request_bytes(),
+            request_sha256: &self.request_sha256,
+            input_sha256: &self.input_sha256,
+            calibration: &self.calibration,
+            resources: &self.resources,
         }
-        Ok(())
     }
-}
 
-fn validate_worker(result: &WorkerResult, prepared: &Prepared) -> Result<(), BayesCliError> {
-    let per_scenario = prepared.calibration.replicates_per_scenario as usize;
-    let dispositions_valid = result.scenario_dispositions.len()
-        == prepared.resources.scenario_replicates as usize
-        && result
-            .scenario_dispositions
-            .iter()
-            .enumerate()
-            .all(|(index, row)| {
-                row.scenario == SCENARIOS[index / per_scenario]
-                    && row.replicate == (index % per_scenario) as u32
-                    && ((row.status == "complete"
-                        && row.failure_reason.is_none()
-                        && row.ranks.is_some()
-                        && row.coverage_90.is_some()
-                        && row.posterior_predictive.is_some())
-                        || (row.status == "failed"
-                            && row
-                                .failure_reason
-                                .as_ref()
-                                .is_some_and(|value| !value.is_empty())))
-            });
-    if result.format
-        != "marklab.numpyro_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_sbc_result"
-        || result.version != 1
-        || !backend_matches(&result.backend, &prepared.backend)
-        || result.jax_version != JAX_VERSION
-        || result.input_sha256 != prepared.input_sha256
-        || result.request_sha256 != prepared.request_sha256
-        || result.source_request_sha256 != sha256_hex(prepared.fit.request_bytes())
-        || result.pattern_representation
-            != "complete_quadrature_resolved_counting_measure_on_exact_window"
-        || result.cross_type_dependence_estimand
-            != "not_estimated_current_model_uses_conditionally_independent_type_fields"
-        || !dispositions_valid
-    {
-        return Err(BayesCliError::Backend(
-            "multitype SBC backend result differs".into(),
-        ));
+    pub(crate) fn validate_result(&self, result: &Output) -> Result<(), CliError> {
+        result
+            .validate_for(&self.validation_context())
+            .map_err(super::protocol_error)
     }
-    Ok(())
-}
-
-fn assumptions() -> [&'static str; 5] {
-    [
-        "simulation_and_refit_use_the_same_declared_quadrature_likelihood",
-        "positive_null_weak_boundary_and_misspecified_scenarios_are_fixed_before_fitting",
-        "type_fields_are_conditionally_independent_given_the_shared_kernel_scales",
-        "cross_type_enrichment_is_a_posterior_predictive_summary_not_a_dependence_parameter",
-        "patients_not_patterns_nodes_types_or_events_are_population_replicates",
-    ]
-}
-
-fn read(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<Cli>(|| run_cli().map_err(super::into_marklab_error))
 }

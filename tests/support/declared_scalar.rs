@@ -1,11 +1,18 @@
+#[path = "pattern.rs"]
+pub(crate) mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use std::collections::BTreeMap;
 
 use marklab::{
-    AnalysisConfig, ArtifactDraft, ArtifactId, ArtifactRef, ArtifactSchema, CellId,
-    CohortHierarchy, ContentDigest, CoordinateFrame, CoordinateFrameId, CoordinateRegistry,
-    CoordinateSpace, CoordinateUnit, HierarchyId, HierarchyNode, LocalArtifactStore,
-    MarklabProject, Pattern, PatternMeta, ReplicationRole, SlideId, SpatialAxis, StoreId,
-    TableColumn, TableColumnType, TableFormat, TableManifest, TableScalarType, ThreadSetting,
+    workflow::{
+        ArtifactDraft, ArtifactId, ArtifactRef, ArtifactSchema, ContentDigest, LocalArtifactStore,
+        MarklabProject, StoreId, TableColumn, TableColumnType, TableFormat, TableManifest,
+        TableScalarType,
+    },
+    AnalysisConfig, CellId, CohortHierarchy, CoordinateFrame, CoordinateFrameId,
+    CoordinateRegistry, CoordinateSpace, CoordinateUnit, HierarchyId, HierarchyNode, Pattern,
+    ReplicationRole, SlideId, SpatialAxis, ThreadSetting,
 };
 use tempfile::TempDir;
 
@@ -169,16 +176,12 @@ pub(crate) fn fixture_with_frame(profile: Option<FrameProfile>) -> Fixture {
         vec![0.0, 1.0, 2.0, 3.0],
         vec![0.0, 0.0, 0.0, 0.0],
         vec![0, 1, 1, 0],
-        PatternMeta {
-            case_id: "declared-case".into(),
-            timepoint: "post".into(),
-            protein: "MSH6".into(),
-            slide_id: Some(slide_id.as_str().to_owned()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "declared-case".into(),
+            "post".into(),
+            "MSH6".into(),
+            Some(slide_id.as_str().to_owned()),
+        ),
     )
     .expect("pattern");
     pattern.window.area_um2 = 40.0;

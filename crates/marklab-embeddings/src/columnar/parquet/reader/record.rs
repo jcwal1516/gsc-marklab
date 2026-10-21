@@ -8,7 +8,7 @@ use crate::{
 use super::super::profile::{
     CONTENT_KIND, ENCODING_VERSION, MAXIMUM_DIMENSION, MAXIMUM_ROWS, SCHEMA_ID,
 };
-use crate::columnar::{EmbeddingColumnarError, ParquetFailure};
+use crate::columnar::{ColumnarError, ParquetFailure};
 
 pub(super) fn validate_embedding_record(
     record: &ArtifactRecord,
@@ -16,7 +16,7 @@ pub(super) fn validate_embedding_record(
     expected: &ExpectedCellSet,
     row_link: &CellEmbeddingRowLink,
     graph: VerifiedCellEmbeddingArtifactGraph,
-) -> Result<u32, EmbeddingColumnarError> {
+) -> Result<u32, ColumnarError> {
     if record.content().kind() != CONTENT_KIND
         || record.content().byte_len() != observed_byte_len
         || record.schema().id() != SCHEMA_ID
@@ -33,7 +33,7 @@ pub(super) fn validate_embedding_record(
         || row_link.expected_cells_logical_digest() != expected.logical_digest()
         || row_link.entries().len() != expected.cells().len()
     {
-        return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     let mut expected_dependencies = vec![
         graph.expected_cells_artifact_id,
@@ -42,16 +42,15 @@ pub(super) fn validate_embedding_record(
     ];
     expected_dependencies.sort_unstable();
     if record.dependencies() != expected_dependencies {
-        return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     let manifest = record
         .table()
-        .ok_or(EmbeddingColumnarError::ArtifactBindingMismatch)?;
+        .ok_or(ColumnarError::ArtifactBindingMismatch)?;
     if manifest.format() != TableFormat::ParquetFile
         || manifest.encoding_version() != ENCODING_VERSION
         || manifest.row_count()
-            != u64::try_from(expected.cells().len())
-                .map_err(|_| EmbeddingColumnarError::SizeOverflow)?
+            != u64::try_from(expected.cells().len()).map_err(|_| ColumnarError::SizeOverflow)?
         || manifest.columns().len() != 3
         || manifest.columns()[0].name() != "cell_id"
         || manifest.columns()[0].column_type() != &TableColumnType::Scalar(TableScalarType::Utf8)
@@ -63,28 +62,26 @@ pub(super) fn validate_embedding_record(
         || manifest.columns()[2].nullable()
         || manifest.primary_key() != ["cell_id"]
     {
-        return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     let dimension = match manifest.columns()[1].column_type() {
         TableColumnType::FixedSizeList {
             element: TableScalarType::F32,
             length,
         } => *length,
-        _ => return Err(EmbeddingColumnarError::ArtifactBindingMismatch),
+        _ => return Err(ColumnarError::ArtifactBindingMismatch),
     };
     if dimension != graph.output_dimension
         || dimension == 0
         || dimension > MAXIMUM_DIMENSION
         || expected.cells().len() > MAXIMUM_ROWS
     {
-        return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     Ok(dimension)
 }
 
-pub(super) fn parse_embedding_status(
-    value: &str,
-) -> Result<EmbeddingStatus, EmbeddingColumnarError> {
+pub(super) fn parse_embedding_status(value: &str) -> Result<EmbeddingStatus, ColumnarError> {
     match value {
         "present" => Ok(EmbeddingStatus::Present),
         "missing_vector" => Ok(EmbeddingStatus::MissingVector),
@@ -94,19 +91,19 @@ pub(super) fn parse_embedding_status(
     }
 }
 
-pub(super) fn map_table_construction_error(error: EmbeddingError) -> EmbeddingColumnarError {
+pub(super) fn map_table_construction_error(error: EmbeddingError) -> ColumnarError {
     match error {
-        EmbeddingError::SizeOverflow => EmbeddingColumnarError::SizeOverflow,
+        EmbeddingError::SizeOverflow => ColumnarError::SizeOverflow,
         EmbeddingError::RetainedByteBudgetExceeded { required, maximum } => {
-            EmbeddingColumnarError::RetainedByteBudgetExceeded { required, maximum }
+            ColumnarError::RetainedByteBudgetExceeded { required, maximum }
         }
         EmbeddingError::AllocationFailed { requested } => {
-            EmbeddingColumnarError::AllocationFailed { requested }
+            ColumnarError::AllocationFailed { requested }
         }
         _ => parquet_failure(ParquetFailure::InvalidComponent),
     }
 }
 
-pub(super) fn parquet_failure(reason: ParquetFailure) -> EmbeddingColumnarError {
-    EmbeddingColumnarError::Parquet { reason }
+pub(super) fn parquet_failure(reason: ParquetFailure) -> ColumnarError {
+    ColumnarError::Parquet { reason }
 }

@@ -1,295 +1,106 @@
-use std::{
-    collections::{BTreeMap, HashSet},
-    fs,
-    path::PathBuf,
+pub(crate) use marklab_bayes::protocol::replicated_conditional_multitype_mark::{
+    validate_points, validate_result, CsvPoint, DiagnosticPolicy, Edge, Output, Patient, Pattern,
+    PointRow, Priors, Resources, WorkerRequest, WorkerResult,
 };
 
-use clap::{Parser, Subcommand};
-use marklab_bayes::{
-    sha256_hex, BackendContract, FitState, NormalMeanDiagnostics, NutsSamplingSpec,
-    SamplingSummary, SarScalarSummary, WorkerBackend,
-};
-use serde::{Deserialize, Serialize};
+use crate::input_file::read_file;
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::PathBuf;
 
-use super::{publish_json, run_worker, BayesCliError};
+use marklab_bayes::is_worker_timeout;
+use marklab_bayes::sha256_hex;
+use marklab_bayes::BackendContract;
+use marklab_bayes::NutsSamplingSpec;
 
-const PYMC_VERSION: &str = "6.3.0";
+use super::publish_json;
+use super::run_worker;
+use super::CliError;
+use marklab_bayes::backend_versions::PYMC_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::NullHypothesis;
+use marklab_core::vocabulary::StatisticalUnit;
+
 const MAXIMUM_INPUT_BYTES: u64 = 64 * 1_048_576;
-
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct Cli {
-    #[command(subcommand)]
-    command: Top,
-}
-
-#[derive(Debug, Subcommand)]
-enum Top {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    FitReplicatedConditionalMultitypeMark(Box<Args>),
-}
 
 #[derive(Clone, Debug, clap::Args)]
 pub(crate) struct Args {
+    /// CSV of points with pattern_id, patient_id, group, point_id, x_um, y_um and type_id.
     #[arg(long)]
     pub(crate) input: PathBuf,
+    /// Group level used as the regression reference.
     #[arg(long)]
     pub(crate) reference_group: String,
+    /// Point-type label used as the model reference.
     #[arg(long)]
     pub(crate) reference_type: String,
+    /// Spatial radius in micrometers.
     #[arg(long)]
     pub(crate) radius_um: f64,
+    /// Prior scale for intercept.
     #[arg(long)]
     pub(crate) intercept_prior_sd: f64,
+    /// Prior scale for interaction.
     #[arg(long)]
     pub(crate) interaction_prior_sd: f64,
+    /// Prior scale for group effect.
     #[arg(long)]
     pub(crate) group_effect_prior_sd: f64,
+    /// Prior scale for patient standard deviation.
     #[arg(long)]
     pub(crate) patient_sd_prior_scale: f64,
+    /// Prior scale for pattern standard deviation.
     #[arg(long)]
     pub(crate) pattern_sd_prior_scale: f64,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
     pub(crate) chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
     pub(crate) tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
     pub(crate) draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
     pub(crate) target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
     pub(crate) seed: u64,
+    /// Upper bound on patients.
     #[arg(long)]
     pub(crate) maximum_patients: usize,
+    /// Upper bound on patterns.
     #[arg(long)]
     pub(crate) maximum_patterns: usize,
+    /// Upper bound on points.
     #[arg(long)]
     pub(crate) maximum_points: usize,
+    /// Upper bound on types.
     #[arg(long)]
     pub(crate) maximum_types: usize,
+    /// Upper bound on neighbor visits.
     #[arg(long)]
     pub(crate) maximum_neighbor_visits: u64,
+    /// Upper bound on edges.
     #[arg(long)]
     pub(crate) maximum_edges: usize,
+    /// Upper bound on draw parameter work.
     #[arg(long)]
     pub(crate) maximum_draw_parameter_work: u64,
+    /// Upper bound on working bytes.
     #[arg(long)]
     pub(crate) maximum_working_bytes: usize,
+    /// Upper bound on tree depth.
     #[arg(long)]
     pub(crate) maximum_tree_depth: u32,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
     pub(crate) timeout_seconds: u64,
+    /// Destination for the analysis output.
     #[arg(long)]
     pub(crate) out: PathBuf,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct CsvPoint {
-    pattern_id: String,
-    patient_id: String,
-    group: String,
-    point_id: String,
-    x_um: f64,
-    y_um: f64,
-    type_id: String,
-}
-
-#[derive(Debug, Serialize)]
-struct Patient {
-    patient_id: String,
-    group_index: usize,
-}
-
-#[derive(Debug, Serialize)]
-struct Pattern {
-    pattern_id: String,
-    patient_index: usize,
-    group_index: usize,
-    point_count: usize,
-    edge_count: usize,
-}
-
-#[derive(Debug, Serialize)]
-struct PointRow {
-    point_id: String,
-    pattern_index: usize,
-    patient_index: usize,
-    group_index: usize,
-    type_index: usize,
-    neighbor_counts: Vec<u32>,
-}
-
-#[derive(Debug, Serialize)]
-struct Edge {
-    left: usize,
-    right: usize,
-    pattern_index: usize,
-}
-
-#[derive(Debug, Serialize)]
-struct Priors {
-    intercept_sd: f64,
-    interaction_sd: f64,
-    group_effect_sd: f64,
-    patient_sd_scale: f64,
-    pattern_sd_scale: f64,
-}
-
-#[derive(Debug, Serialize)]
-struct DiagnosticPolicy {
-    maximum_r_hat: f64,
-    minimum_bulk_ess: f64,
-    minimum_tail_ess: f64,
-    minimum_ebfmi: f64,
-    maximum_divergences: u64,
-    maximum_tree_depth_hits: u64,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Resources {
-    maximum_patients: usize,
-    maximum_patterns: usize,
-    maximum_points: usize,
-    maximum_types: usize,
-    maximum_neighbor_visits: u64,
-    neighbor_visits: u64,
-    maximum_edges: usize,
-    maximum_draw_parameter_work: u64,
-    draw_parameter_work: u64,
-    maximum_working_bytes: usize,
-    estimated_working_bytes: usize,
-    memory_scope: String,
-    maximum_output_bytes: usize,
-    maximum_tree_depth: u32,
-    timeout_seconds: u64,
-}
-
-#[derive(Debug, Serialize)]
-struct WorkerRequest {
-    format: String,
-    version: u32,
-    backend: BackendContract,
-    input_sha256: String,
-    group_ids: Vec<String>,
-    reference_group: String,
-    type_ids: Vec<String>,
-    reference_type: String,
-    radius_um: f64,
-    patients: Vec<Patient>,
-    patterns: Vec<Pattern>,
-    points: Vec<PointRow>,
-    edges: Vec<Edge>,
-    priors: Priors,
-    sampling: NutsSamplingSpec,
-    diagnostic_policy: DiagnosticPolicy,
-    resources: Resources,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct NamedScaleSummary {
-    level: String,
-    component: String,
-    scale: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct PairSummary {
-    type_a: String,
-    type_b: String,
-    contrast: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct PatientPairSummary {
-    patient_id: String,
-    group: String,
-    type_a: String,
-    type_b: String,
-    contrast: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct PatternCheck {
-    pattern_id: String,
-    observed_same_type_edges: u64,
-    expected_same_type_edges: SarScalarSummary,
-    observed_type_counts: Vec<u64>,
-    expected_type_counts: Vec<SarScalarSummary>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Comparison {
-    independent_pattern_label_composite_log_score: f64,
-    spatial_hierarchical_composite_log_score: SarScalarSummary,
-    mean_composite_log_score_improvement: f64,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WorkerResult {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    input_sha256: String,
-    request_sha256: String,
-    fit_state: FitState,
-    sampling: SamplingSummary,
-    baseline_affinities: Vec<PairSummary>,
-    group_affinity_shifts: Vec<PairSummary>,
-    patient_affinities: Vec<PatientPairSummary>,
-    hierarchy_scales: Vec<NamedScaleSummary>,
-    comparison: Comparison,
-    pattern_checks: Vec<PatternCheck>,
-    diagnostics: NormalMeanDiagnostics,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct Output {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    input_sha256: String,
-    request_sha256: String,
-    fit_state: FitState,
-    sampling: SamplingSummary,
-    radius_um: f64,
-    group_ids: Vec<String>,
-    reference_group: String,
-    type_ids: Vec<String>,
-    reference_type: String,
-    patient_count: usize,
-    pattern_count: usize,
-    point_count: usize,
-    type_count: usize,
-    edge_count: usize,
-    baseline_affinities: Vec<PairSummary>,
-    group_affinity_shifts: Vec<PairSummary>,
-    patient_affinities: Vec<PatientPairSummary>,
-    hierarchy_scales: Vec<NamedScaleSummary>,
-    comparison: Comparison,
-    pattern_checks: Vec<PatternCheck>,
-    diagnostics: NormalMeanDiagnostics,
-    resources: Resources,
-    statistical_unit: String,
-    null_model: String,
-    assumptions: [String; 5],
-    finite_result_policy: String,
-    claim_status: String,
 }
 
 pub(crate) struct Prepared {
@@ -310,29 +121,27 @@ impl Prepared {
     }
 }
 
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let Top::Bayes { command } = Cli::parse_from(std::env::args_os()).command;
-    let Command::FitReplicatedConditionalMultitypeMark(args) = command;
+pub(super) fn run(args: Box<Args>) -> Result<(), CliError> {
     let output_path = args.out.clone();
     publish_json(&output_path, &execute(*args)?)
 }
 
-pub(crate) fn execute(args: Args) -> Result<Output, BayesCliError> {
+pub(crate) fn execute(args: Args) -> Result<Output, CliError> {
     execute_prepared(&prepare(args)?)
 }
 
-pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
+pub(crate) fn prepare(args: Args) -> Result<Prepared, CliError> {
     validate_controls(&args)?;
-    let metadata = fs::metadata(&args.input).map_err(|source| BayesCliError::Io {
+    let metadata = fs::metadata(&args.input).map_err(|source| CliError::Io {
         path: args.input.clone(),
         source,
     })?;
     if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated conditional-mark input file or size is invalid".into(),
         ));
     }
-    let input_bytes = fs::read(&args.input).map_err(|source| BayesCliError::Io {
+    let input_bytes = fs::read(&args.input).map_err(|source| CliError::Io {
         path: args.input.clone(),
         source,
     })?;
@@ -350,7 +159,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
             "type_id",
         ]
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated conditional-mark CSV headers differ".into(),
         ));
     }
@@ -358,14 +167,14 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         .deserialize::<CsvPoint>()
         .collect::<Result<Vec<_>, _>>()?;
     if !(24..=args.maximum_points).contains(&points.len()) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated conditional-mark point count is invalid".into(),
         ));
     }
     points.sort_by(|left, right| {
         (&left.pattern_id, &left.point_id).cmp(&(&right.pattern_id, &right.point_id))
     });
-    validate_points(&points)?;
+    validate_points(&points).map_err(super::protocol_error)?;
 
     let mut type_ids = points
         .iter()
@@ -376,7 +185,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
     if !(3..=args.maximum_types.min(8)).contains(&type_ids.len())
         || !type_ids.contains(&args.reference_type)
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated conditional-mark type identities are invalid".into(),
         ));
     }
@@ -393,7 +202,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
     for point in &points {
         match patient_groups.insert(point.patient_id.clone(), point.group.clone()) {
             Some(group) if group != point.group => {
-                return Err(BayesCliError::Input(
+                return Err(CliError::Input(
                     "one patient belongs to multiple groups".into(),
                 ));
             }
@@ -404,7 +213,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
             (point.patient_id.clone(), point.group.clone()),
         ) {
             Some(owner) if owner != (point.patient_id.clone(), point.group.clone()) => {
-                return Err(BayesCliError::Input(
+                return Err(CliError::Input(
                     "one pattern belongs to multiple patients or groups".into(),
                 ));
             }
@@ -413,7 +222,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
     }
     if patient_groups.len() > args.maximum_patients || pattern_owners.len() > args.maximum_patterns
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated conditional-mark hierarchy exceeds its ceiling".into(),
         ));
     }
@@ -421,7 +230,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
     group_ids.sort();
     group_ids.dedup();
     if group_ids.len() != 2 || !group_ids.contains(&args.reference_group) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "exactly two groups including the reference are required".into(),
         ));
     }
@@ -452,7 +261,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         })
         .collect::<Vec<_>>();
     if group_patient_counts.iter().any(|count| *count < 2) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "each group requires at least two independent patients".into(),
         ));
     }
@@ -472,7 +281,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         })
         .collect::<Vec<_>>();
     if pattern_counts.iter().any(|count| *count < 2) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "each patient requires at least two nested patterns".into(),
         ));
     }
@@ -486,7 +295,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         let end = points.partition_point(|point| point.pattern_id <= *pattern_id);
         let pattern_points = &points[begin..end];
         if pattern_points.len() < 6 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "every pattern requires at least six points".into(),
             ));
         }
@@ -495,30 +304,28 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
             observed[type_index[point.type_id.as_str()]] += 1;
         }
         if observed.iter().any(|count| *count < 2) {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "every pattern requires at least two points of every type".into(),
             ));
         }
         let visits = (pattern_points.len() as u64)
             .checked_mul(pattern_points.len().saturating_sub(1) as u64)
             .and_then(|value| value.checked_div(2))
-            .ok_or_else(|| BayesCliError::Input("neighbor work overflows".into()))?;
+            .ok_or_else(|| CliError::Input("neighbor work overflows".into()))?;
         neighbor_visits = neighbor_visits
             .checked_add(visits)
-            .ok_or_else(|| BayesCliError::Input("neighbor work overflows".into()))?;
+            .ok_or_else(|| CliError::Input("neighbor work overflows".into()))?;
         let edge_begin = edges.len();
         for left in begin..end {
             for right in left + 1..end {
                 let distance = (points[left].x_um - points[right].x_um)
                     .hypot(points[left].y_um - points[right].y_um);
                 if !distance.is_finite() {
-                    return Err(BayesCliError::Input(
-                        "neighbor distance is nonfinite".into(),
-                    ));
+                    return Err(CliError::Input("neighbor distance is nonfinite".into()));
                 }
                 if distance <= args.radius_um {
                     if edges.len() == args.maximum_edges {
-                        return Err(BayesCliError::Input(
+                        return Err(CliError::Input(
                             "replicated conditional-mark edge ceiling exceeded".into(),
                         ));
                     }
@@ -535,7 +342,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
             }
         }
         if edges.len() == edge_begin {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "every replicated conditional-mark pattern requires radius edges".into(),
             ));
         }
@@ -549,7 +356,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         });
     }
     if neighbor_visits > args.maximum_neighbor_visits {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "replicated conditional-mark neighbor visits exceed maximum: {neighbor_visits} > {}",
             args.maximum_neighbor_visits
         )));
@@ -582,15 +389,15 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         .checked_mul(free_per_level)
         .and_then(|value| value.checked_add((patients.len() + patterns.len()) * free_per_level))
         .and_then(|value| value.checked_add(4))
-        .ok_or_else(|| BayesCliError::Input("parameter count overflows".into()))?;
+        .ok_or_else(|| CliError::Input("parameter count overflows".into()))?;
     let completed_draws = u64::from(args.chains)
         .checked_mul(u64::from(args.draws))
-        .ok_or_else(|| BayesCliError::Input("completed draws overflow".into()))?;
+        .ok_or_else(|| CliError::Input("completed draws overflow".into()))?;
     let draw_parameter_work = completed_draws
         .checked_mul(parameter_count as u64)
-        .ok_or_else(|| BayesCliError::Input("draw-parameter work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("draw-parameter work overflows".into()))?;
     if draw_parameter_work > args.maximum_draw_parameter_work {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated conditional-mark draw-parameter work exceeds maximum".into(),
         ));
     }
@@ -606,9 +413,9 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
                     .checked_mul(8)?,
             )
         })
-        .ok_or_else(|| BayesCliError::Input("working-byte estimate overflows".into()))?;
+        .ok_or_else(|| CliError::Input("working-byte estimate overflows".into()))?;
     if estimated_working_bytes > args.maximum_working_bytes {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated conditional-mark working-byte estimate exceeds maximum".into(),
         ));
     }
@@ -671,7 +478,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
     };
     let request_bytes = serde_json::to_vec(&request)?;
     if request_bytes.len() > MAXIMUM_INPUT_BYTES as usize {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated conditional-mark worker request exceeds input ceiling".into(),
         ));
     }
@@ -685,8 +492,8 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
     })
 }
 
-pub(crate) fn execute_prepared(prepared: &Prepared) -> Result<Output, BayesCliError> {
-    let repository = &marklab::python_backend_assets_root()?;
+pub(crate) fn execute_prepared(prepared: &Prepared) -> Result<Output, CliError> {
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let worker_bytes = run_worker(
         repository,
         "marklab_pymc_replicated_conditional_multitype_mark_worker.py",
@@ -699,7 +506,8 @@ pub(crate) fn execute_prepared(prepared: &Prepared) -> Result<Output, BayesCliEr
         &prepared.request,
         &prepared.backend,
         &prepared.request_sha256,
-    )?;
+    )
+    .map_err(super::protocol_error)?;
     Ok(Output {
         format: "marklab.replicated_conditional_multitype_mark_fit".into(),
         version: 1,
@@ -742,9 +550,9 @@ pub(crate) fn execute_prepared(prepared: &Prepared) -> Result<Output, BayesCliEr
             maximum_tree_depth: prepared.request.resources.maximum_tree_depth,
             timeout_seconds: prepared.request.resources.timeout_seconds,
         },
-        statistical_unit: "patient".into(),
+        statistical_unit: StatisticalUnit::Patient,
         null_model:
-            "zero_patient_population_group_shift_in_fixed_location_conditional_mark_affinity".into(),
+            NullHypothesis::ZeroPatientPopulationGroupShiftInFixedLocationConditionalMarkAffinity,
         assumptions: [
             "cell_locations_and_within_pattern_radius_graphs_are_conditioned_on".into(),
             "patients_are_independent_and_patterns_are_nested_within_patient".into(),
@@ -755,73 +563,24 @@ pub(crate) fn execute_prepared(prepared: &Prepared) -> Result<Output, BayesCliEr
         finite_result_policy:
             "all_posterior_diagnostics_hierarchy_affinities_scores_and_predictions_must_be_finite"
                 .into(),
-        claim_status: "experimental_patient_population_conditional_mark_pseudolikelihood".into(),
+        claim_status: ClaimStatus::ExperimentalPatientPopulationConditionalMarkPseudolikelihood,
     })
 }
 
-pub(crate) fn backend_contract() -> Result<BackendContract, BayesCliError> {
-    let directory = marklab::python_backend_assets_root()?.join("workers/python");
+pub(crate) fn backend_contract() -> Result<BackendContract, CliError> {
+    let directory = marklab::backend::python_backend_assets_root()?.join("workers/python");
     Ok(BackendContract {
         name: "pymc",
         version: PYMC_VERSION,
-        python_version: "3.12",
-        environment_lock_sha256: sha256_hex(&read(&directory.join("uv.lock"))?),
-        worker_sha256: sha256_hex(&read(
+        python_version: PYTHON_VERSION,
+        environment_lock_sha256: sha256_hex(&read_file(&directory.join("uv.lock"))?),
+        worker_sha256: sha256_hex(&read_file(
             &directory.join("marklab_pymc_replicated_conditional_multitype_mark_worker.py"),
         )?),
     })
 }
 
-impl Output {
-    pub(crate) fn validate_for(
-        &self,
-        input_sha256: &str,
-        reference_group: &str,
-        reference_type: &str,
-        radius_um: f64,
-        backend: &BackendContract,
-    ) -> Result<(), BayesCliError> {
-        let expected_pairs = self.type_count * (self.type_count - 1) / 2;
-        let complete = self.diagnostics.prior_predictive_finite
-            && self.diagnostics.posterior_finite
-            && self.diagnostics.constraints_valid
-            && self.diagnostics.identifiability_checks_passed
-            && self.diagnostics.r_hat <= 1.01
-            && self.diagnostics.ess_bulk >= 400.0
-            && self.diagnostics.ess_tail >= 400.0
-            && self.diagnostics.minimum_ebfmi >= 0.2
-            && self.diagnostics.divergences == 0
-            && self.diagnostics.max_tree_depth_hits == 0;
-        if self.format != "marklab.replicated_conditional_multitype_mark_fit"
-            || self.version != 1
-            || !backend_matches(&self.backend, backend)
-            || self.input_sha256 != input_sha256
-            || self.reference_group != reference_group
-            || self.group_ids.first().map(String::as_str) != Some(reference_group)
-            || self.reference_type != reference_type
-            || self.type_ids.first().map(String::as_str) != Some(reference_type)
-            || self.radius_um.to_bits() != radius_um.to_bits()
-            || self.group_ids.len() != 2
-            || self.patient_count < 4
-            || self.pattern_count < self.patient_count * 2
-            || self.point_count < 24
-            || self.type_count != self.type_ids.len()
-            || self.baseline_affinities.len() != expected_pairs
-            || self.group_affinity_shifts.len() != expected_pairs
-            || self.patient_affinities.len() != self.patient_count * expected_pairs
-            || self.pattern_checks.len() != self.pattern_count
-            || self.edge_count == 0
-            || (self.fit_state == FitState::Complete) != complete
-        {
-            return Err(BayesCliError::Backend(
-                "durable replicated conditional-mark result differs".into(),
-            ));
-        }
-        Ok(())
-    }
-}
-
-fn validate_controls(args: &Args) -> Result<(), BayesCliError> {
+fn validate_controls(args: &Args) -> Result<(), CliError> {
     let scales = [
         args.radius_um,
         args.intercept_prior_sd,
@@ -848,132 +607,11 @@ fn validate_controls(args: &Args) -> Result<(), BayesCliError> {
         || args.maximum_draw_parameter_work == 0
         || args.maximum_working_bytes == 0
         || !(10..=14).contains(&args.maximum_tree_depth)
-        || !(1..=3_600).contains(&args.timeout_seconds)
+        || !is_worker_timeout(args.timeout_seconds)
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated conditional-mark controls are invalid".into(),
         ));
     }
     Ok(())
-}
-
-fn validate_points(points: &[CsvPoint]) -> Result<(), BayesCliError> {
-    let mut ids = HashSet::with_capacity(points.len());
-    for point in points {
-        if point.pattern_id.is_empty()
-            || point.patient_id.is_empty()
-            || point.group.is_empty()
-            || point.point_id.is_empty()
-            || point.type_id.is_empty()
-            || point.pattern_id.len() > 256
-            || point.patient_id.len() > 256
-            || point.group.len() > 128
-            || point.point_id.len() > 256
-            || point.type_id.len() > 128
-            || !point.x_um.is_finite()
-            || !point.y_um.is_finite()
-            || !ids.insert(point.point_id.as_str())
-        {
-            return Err(BayesCliError::Input(
-                "replicated conditional-mark point identity or value is invalid".into(),
-            ));
-        }
-    }
-    Ok(())
-}
-
-fn validate_result(
-    result: &WorkerResult,
-    request: &WorkerRequest,
-    backend: &BackendContract,
-    request_sha256: &str,
-) -> Result<(), BayesCliError> {
-    let expected_pairs = request.type_ids.len() * (request.type_ids.len() - 1) / 2;
-    let summaries = result
-        .baseline_affinities
-        .iter()
-        .map(|row| &row.contrast)
-        .chain(result.group_affinity_shifts.iter().map(|row| &row.contrast))
-        .chain(result.patient_affinities.iter().map(|row| &row.contrast))
-        .chain(result.hierarchy_scales.iter().map(|row| &row.scale))
-        .chain(result.pattern_checks.iter().flat_map(|row| {
-            std::iter::once(&row.expected_same_type_edges).chain(row.expected_type_counts.iter())
-        }))
-        .chain(std::iter::once(
-            &result.comparison.spatial_hierarchical_composite_log_score,
-        ));
-    let finite = summaries.into_iter().all(summary_finite)
-        && result
-            .pattern_checks
-            .iter()
-            .all(|row| row.expected_type_counts.len() == request.type_ids.len())
-        && result
-            .comparison
-            .independent_pattern_label_composite_log_score
-            .is_finite()
-        && result
-            .comparison
-            .mean_composite_log_score_improvement
-            .is_finite();
-    let complete = result.diagnostics.prior_predictive_finite
-        && result.diagnostics.posterior_finite
-        && result.diagnostics.constraints_valid
-        && result.diagnostics.identifiability_checks_passed
-        && result.diagnostics.r_hat <= 1.01
-        && result.diagnostics.ess_bulk >= 400.0
-        && result.diagnostics.ess_tail >= 400.0
-        && result.diagnostics.minimum_ebfmi >= 0.2
-        && result.diagnostics.divergences == 0
-        && result.diagnostics.max_tree_depth_hits == 0;
-    if result.format != "marklab.pymc_replicated_conditional_multitype_mark_result"
-        || result.version != 1
-        || !backend_matches(&result.backend, backend)
-        || result.input_sha256 != request.input_sha256
-        || result.request_sha256 != request_sha256
-        || result.sampling.chains != request.sampling.chains
-        || result.sampling.tune_per_chain != request.sampling.tune_per_chain
-        || result.sampling.draws_per_chain != request.sampling.draws_per_chain
-        || result.sampling.completed_draws
-            != u64::from(request.sampling.chains) * u64::from(request.sampling.draws_per_chain)
-        || result.baseline_affinities.len() != expected_pairs
-        || result.group_affinity_shifts.len() != expected_pairs
-        || result.patient_affinities.len() != request.patients.len() * expected_pairs
-        || result.hierarchy_scales.len() != 4
-        || result.pattern_checks.len() != request.patterns.len()
-        || !finite
-        || (result.fit_state == FitState::Complete) != complete
-    {
-        return Err(BayesCliError::Backend(
-            "replicated conditional-mark backend result differs".into(),
-        ));
-    }
-    Ok(())
-}
-
-fn summary_finite(summary: &SarScalarSummary) -> bool {
-    summary.mean.is_finite()
-        && summary.sd.is_finite()
-        && summary.interval_lower.is_finite()
-        && summary.interval_upper.is_finite()
-        && summary.sd >= 0.0
-        && summary.interval_lower <= summary.interval_upper
-}
-
-fn backend_matches(result: &WorkerBackend, expected: &BackendContract) -> bool {
-    result.name == expected.name
-        && result.version == expected.version
-        && result.python_version == expected.python_version
-        && result.environment_lock_sha256 == expected.environment_lock_sha256
-        && result.worker_sha256 == expected.worker_sha256
-}
-
-fn read(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<Cli>(|| run_cli().map_err(super::into_marklab_error))
 }

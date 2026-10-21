@@ -3,7 +3,7 @@
 use std::{fs, path::Path};
 
 use assert_cmd::Command;
-use marklab::NearestSpaceResultDocument;
+use marklab::spatial::NearestSpaceResultDocument;
 
 fn write_fixture(root: &Path) -> (std::path::PathBuf, std::path::PathBuf) {
     let cells = root.join("cells.csv");

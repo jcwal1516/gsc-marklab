@@ -1,9 +1,15 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use approx::assert_abs_diff_eq;
 use marklab::{
-    analyze_inhomogeneous_pair_correlation, analyze_inhomogeneous_spatial_pattern,
-    InhomogeneousPairCorrelationConfig, InhomogeneousSpatialConfig, InhomogeneousSpatialLimits,
-    ObservationWindow2D, ObservationWindowLimits, PairCorrelationKernel,
-    PairCorrelationPointStatus, Pattern, PatternMeta,
+    spatial::{
+        analyze_inhomogeneous_pair_correlation, analyze_inhomogeneous_spatial_pattern,
+        InhomogeneousPairCorrelationConfig, InhomogeneousSpatialConfig, InhomogeneousSpatialLimits,
+        PairCorrelationKernel, PairCorrelationPointStatus,
+    },
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 
 const PYTHON_ORACLE: &str =
@@ -14,16 +20,12 @@ fn pattern() -> Pattern {
         vec![2.0, 3.0, 7.0, 9.0],
         vec![2.0, 2.0, 7.0, 7.0],
         vec![0; 4],
-        PatternMeta {
-            case_id: "inhomogeneous-g-case".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("inhomogeneous-g-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "inhomogeneous-g-case".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("inhomogeneous-g-slide".into()),
+        ),
     )
     .expect("pattern")
 }
@@ -102,7 +104,7 @@ fn persisted_leave_one_out_pilot_flows_into_inhomogeneous_g() {
     assert_eq!(point.theoretical_g, 1.0);
     assert_eq!(
         result.inference.null_model,
-        "fixed_gridded_inhomogeneous_binomial"
+        marklab::spatial::InhomogeneousNullModel::FixedGriddedInhomogeneousBinomial
     );
     assert_eq!(result.inference.simulations_completed, 19);
 }
@@ -134,7 +136,7 @@ fn zero_kernel_endpoints_and_actual_resource_ceilings_are_explicit() {
             )
             .expect("one-short memory config")
         ),
-        Err(marklab::InhomogeneousSpatialError::RetainedByteLimitExceeded {
+        Err(marklab::spatial::InhomogeneousSpatialError::RetainedByteLimitExceeded {
             required,
             maximum
         }) if required == maximum + 1
@@ -149,7 +151,7 @@ fn zero_kernel_endpoints_and_actual_resource_ceilings_are_explicit() {
             )
             .expect("one-short pair config")
         ),
-        Err(marklab::InhomogeneousSpatialError::PairVisitLimitExceeded { .. })
+        Err(marklab::spatial::InhomogeneousSpatialError::PairVisitLimitExceeded { .. })
     ));
 
     let endpoint_pattern = Pattern::from_arrays(
@@ -170,5 +172,5 @@ fn zero_kernel_endpoints_and_actual_resource_ceilings_are_explicit() {
         endpoint.curve[0].status,
         PairCorrelationPointStatus::NoPairsInKernelSupport
     );
-    assert_eq!(endpoint.curve[0].g, None);
+    assert_eq!(endpoint.curve[0].g, Some(0.0));
 }

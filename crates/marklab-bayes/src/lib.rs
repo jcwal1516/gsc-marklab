@@ -1,7 +1,35 @@
+//! Bayesian model requests, worker results and posterior checks for Marklab.
+//!
+//! Most models are fitted by pinned Python workers (PyMC, NumPyro or NumPy/SciPy). For each
+//! model this crate builds a typed worker request, validates the worker's result, and turns
+//! it into a result document:
+//!
+//! - **Requests** (`*WorkerRequest::new`) check the specification and resource limits, and
+//!   record the model as an intermediate representation (`*ModelIr`) that names its
+//!   likelihood, priors and parameterization. Every request also carries a
+//!   [`BackendContract`]: the backend and Python versions and the SHA-256 of the environment
+//!   lock and worker script, so a result can be traced to the exact code that produced it.
+//! - **Results** (`*WorkerResult::validate`) reject a worker output whose identity, request
+//!   hash, dimensions or summaries do not match the request. A fit counts as complete only
+//!   when its sampler diagnostics satisfy the request's [`DiagnosticPolicy`] (R-hat, bulk
+//!   and tail ESS, E-BFMI, divergences and tree-depth hits); otherwise its summaries are
+//!   still reported, but marked nonconverged and diagnostic-only.
+//! - **Calibration checks** come in three kinds per model: simulation-based calibration
+//!   (`*_sbc`), whose rank histograms and interval coverage are recomputed here from the
+//!   replicate rows; two-backend agreement (`*_agreement`), which compares PyMC and NumPyro
+//!   posteriors within their combined Monte Carlo standard error; and prior sensitivity
+//!   (`*_sensitivity`) over a declared grid of priors.
+//!
+//! A few estimators run entirely in Rust, for example the CAR, SAR and GMRF densities, the
+//! Berman-Turner quadrature.
 #![forbid(unsafe_code)]
 
+pub mod advanced;
 mod agreement_metric;
+mod agreement_status;
 mod anisotropic_gp3d;
+mod sensitivity_status;
+pub use marklab_core::backend::versions as backend_versions;
 mod berman_turner;
 mod beta_binomial_group_gender_agreement;
 mod beta_binomial_group_gender_regression;
@@ -22,30 +50,21 @@ mod beta_binomial_hierarchy_sensitivity;
 mod bym;
 mod bym2;
 mod car;
-mod complementarity;
-mod cross_modal;
 mod dirichlet_multinomial_group;
 mod dirichlet_multinomial_group_agreement;
 mod dirichlet_multinomial_group_sbc;
 mod dirichlet_multinomial_group_sensitivity;
 mod distance_to_resource;
-mod embedding_envelope;
-mod embedding_factor;
-mod embedding_kernel;
-mod embedding_spatial;
-mod fused_gromov;
 mod gaussian_crossed_nested_hierarchy;
 mod geyer;
 mod gmrf;
 mod gp;
-mod graph_signal;
 mod gridded_lgcp;
 mod gridded_lgcp_agreement;
 mod gridded_lgcp_fit;
 mod gridded_lgcp_sbc;
 mod gridded_lgcp_sensitivity;
 mod gridded_lgcp_spatial_ppc;
-mod grouped_conformal;
 mod hierarchical;
 mod hierarchical_agreement;
 mod hierarchical_sbc;
@@ -57,16 +76,10 @@ mod inhomogeneous_poisson_fit;
 mod inla;
 mod joint_mark;
 mod laplace;
-mod late_fusion;
-mod linalg;
-mod matern_cluster;
-mod matern_covariance;
 mod meta_analysis;
-mod mixture_of_experts;
 mod model;
 mod model_comparison;
 mod multi_output_gp;
-mod multiscale_kernel;
 mod multitype;
 mod negative_binomial_hierarchy;
 mod nngp;
@@ -74,19 +87,16 @@ mod nonproportional_ordinal_group_site;
 mod ordinal_group;
 mod ordinal_group_site_hierarchy;
 mod ordinal_heldout;
-mod partial_fused_gromov;
-mod partial_transport;
 mod point_process_ppc;
 mod prediction_calibration;
 mod prediction_safety;
 mod predictive_process;
 mod predictive_stacking;
 mod prior_sensitivity;
-mod probability_transform;
+pub mod protocol;
 mod psis_loo;
 mod replicated;
 mod result;
-mod retrieval;
 mod sar;
 mod sar_fit;
 mod sbc;
@@ -100,13 +110,14 @@ mod student_t_hierarchy;
 mod student_t_hierarchy_agreement;
 mod student_t_hierarchy_sbc;
 mod student_t_hierarchy_sensitivity;
-mod thomas;
-mod thomas_minimum_contrast;
-mod transport;
 mod validation;
 mod variational_gp;
 mod weights;
 
+pub use agreement_metric::{
+    combined_mcse, compare_elements, compare_parameter, intervals_overlap, ElementwiseAgreement,
+    ParameterAgreement, PatientAgreement,
+};
 pub use anisotropic_gp3d::{
     anisotropic_matern32_covariance, AnisotropicGp3dFit, AnisotropicGp3dInputIdentity,
     AnisotropicGp3dModelIr, AnisotropicGp3dObservation, AnisotropicGp3dPosterior,
@@ -124,18 +135,17 @@ pub use beta_binomial_group_gender_agreement::{
     NumpyroBetaBinomialGroupGenderWorkerRequest, NumpyroBetaBinomialGroupGenderWorkerResult,
 };
 pub use beta_binomial_group_gender_regression::{
-    beta_binomial_group_gender_data_sha256, BetaBinomialGroupGenderPatientData,
-    BetaBinomialGroupGenderPatientPosterior, BetaBinomialGroupGenderPosteriorPredictive,
-    BetaBinomialGroupGenderRegressionInputIdentity, BetaBinomialGroupGenderRegressionModelIr,
-    BetaBinomialGroupGenderRegressionPosterior, BetaBinomialGroupGenderRegressionResourceLimits,
-    BetaBinomialGroupGenderRegressionResult, BetaBinomialGroupGenderRegressionSpec,
-    BetaBinomialGroupGenderRegressionWorkerRequest, BetaBinomialGroupGenderRegressionWorkerResult,
+    BetaBinomialGroupGenderPatientData, BetaBinomialGroupGenderPatientPosterior,
+    BetaBinomialGroupGenderPosteriorPredictive, BetaBinomialGroupGenderRegressionInputIdentity,
+    BetaBinomialGroupGenderRegressionModelIr, BetaBinomialGroupGenderRegressionPosterior,
+    BetaBinomialGroupGenderRegressionResourceLimits, BetaBinomialGroupGenderRegressionResult,
+    BetaBinomialGroupGenderRegressionSpec, BetaBinomialGroupGenderRegressionWorkerRequest,
+    BetaBinomialGroupGenderRegressionWorkerResult,
 };
 pub use beta_binomial_group_gender_sbc::{
-    BetaBinomialGroupGenderSbcCalibrationPolicy, BetaBinomialGroupGenderSbcDiagnostics,
-    BetaBinomialGroupGenderSbcReplicate, BetaBinomialGroupGenderSbcResourceLimits,
-    BetaBinomialGroupGenderSbcResult, NumpyroBetaBinomialGroupGenderSbcWorkerRequest,
-    NumpyroBetaBinomialGroupGenderSbcWorkerResult,
+    BetaBinomialGroupGenderSbcDiagnostics, BetaBinomialGroupGenderSbcReplicate,
+    BetaBinomialGroupGenderSbcResourceLimits, BetaBinomialGroupGenderSbcResult,
+    NumpyroBetaBinomialGroupGenderSbcWorkerRequest, NumpyroBetaBinomialGroupGenderSbcWorkerResult,
 };
 pub use beta_binomial_group_gender_sensitivity::{
     BetaBinomialGroupGenderSensitivityResult, BetaBinomialGroupGenderSensitivityScenario,
@@ -149,8 +159,7 @@ pub use beta_binomial_group_gender_slide_agreement::{
     NumpyroBetaBinomialGroupGenderSlideHierarchyWorkerResult,
 };
 pub use beta_binomial_group_gender_slide_hierarchy::{
-    beta_binomial_group_gender_slide_data_sha256, BetaBinomialGroupGenderSlideData,
-    BetaBinomialGroupGenderSlideHierarchyInputIdentity,
+    BetaBinomialGroupGenderSlideData, BetaBinomialGroupGenderSlideHierarchyInputIdentity,
     BetaBinomialGroupGenderSlideHierarchyModelIr, BetaBinomialGroupGenderSlideHierarchyPosterior,
     BetaBinomialGroupGenderSlideHierarchyResourceLimits,
     BetaBinomialGroupGenderSlideHierarchyResult, BetaBinomialGroupGenderSlideHierarchySpec,
@@ -160,9 +169,9 @@ pub use beta_binomial_group_gender_slide_hierarchy::{
     BetaBinomialGroupGenderSlidePosteriorPredictive,
 };
 pub use beta_binomial_group_gender_slide_sbc::{
-    BetaBinomialGroupGenderSlideSbcCalibrationPolicy, BetaBinomialGroupGenderSlideSbcDiagnostics,
-    BetaBinomialGroupGenderSlideSbcReplicate, BetaBinomialGroupGenderSlideSbcResourceLimits,
-    BetaBinomialGroupGenderSlideSbcResult, NumpyroBetaBinomialGroupGenderSlideSbcWorkerRequest,
+    BetaBinomialGroupGenderSlideSbcDiagnostics, BetaBinomialGroupGenderSlideSbcReplicate,
+    BetaBinomialGroupGenderSlideSbcResourceLimits, BetaBinomialGroupGenderSlideSbcResult,
+    NumpyroBetaBinomialGroupGenderSlideSbcWorkerRequest,
     NumpyroBetaBinomialGroupGenderSlideSbcWorkerResult,
 };
 pub use beta_binomial_group_gender_slide_sensitivity::{
@@ -171,12 +180,12 @@ pub use beta_binomial_group_gender_slide_sensitivity::{
     BetaBinomialGroupGenderSlideSensitivityScenarioRun,
 };
 pub use beta_binomial_group_regression::{
-    beta_binomial_group_data_sha256, BetaBinomialGroupPatientData,
-    BetaBinomialGroupPatientPosterior, BetaBinomialGroupPosteriorPredictive,
-    BetaBinomialGroupRegressionInputIdentity, BetaBinomialGroupRegressionModelIr,
-    BetaBinomialGroupRegressionPosterior, BetaBinomialGroupRegressionResourceLimits,
-    BetaBinomialGroupRegressionResult, BetaBinomialGroupRegressionSpec,
-    BetaBinomialGroupRegressionWorkerRequest, BetaBinomialGroupRegressionWorkerResult,
+    BetaBinomialGroupPatientData, BetaBinomialGroupPatientPosterior,
+    BetaBinomialGroupPosteriorPredictive, BetaBinomialGroupRegressionInputIdentity,
+    BetaBinomialGroupRegressionModelIr, BetaBinomialGroupRegressionPosterior,
+    BetaBinomialGroupRegressionResourceLimits, BetaBinomialGroupRegressionResult,
+    BetaBinomialGroupRegressionSpec, BetaBinomialGroupRegressionWorkerRequest,
+    BetaBinomialGroupRegressionWorkerResult,
 };
 pub use beta_binomial_group_regression_agreement::{
     BetaBinomialGroupAgreementComparison, BetaBinomialGroupAgreementPolicy,
@@ -185,8 +194,8 @@ pub use beta_binomial_group_regression_agreement::{
     NumpyroBetaBinomialGroupRegressionWorkerResult,
 };
 pub use beta_binomial_group_regression_sbc::{
-    BetaBinomialGroupSbcCalibrationPolicy, BetaBinomialGroupSbcDiagnostics,
-    BetaBinomialGroupSbcReplicate, BetaBinomialGroupSbcResourceLimits, BetaBinomialGroupSbcResult,
+    BetaBinomialGroupSbcDiagnostics, BetaBinomialGroupSbcReplicate,
+    BetaBinomialGroupSbcResourceLimits, BetaBinomialGroupSbcResult,
     NumpyroBetaBinomialGroupSbcWorkerRequest, NumpyroBetaBinomialGroupSbcWorkerResult,
 };
 pub use beta_binomial_group_regression_sensitivity::{
@@ -194,7 +203,7 @@ pub use beta_binomial_group_regression_sensitivity::{
     BetaBinomialGroupSensitivityScenarioResult, BetaBinomialGroupSensitivityScenarioRun,
 };
 pub use beta_binomial_hierarchy::{
-    patient_data_sha256, BetaBinomialHierarchyInputIdentity, BetaBinomialHierarchyModelIr,
+    BetaBinomialHierarchyInputIdentity, BetaBinomialHierarchyModelIr,
     BetaBinomialHierarchyPosterior, BetaBinomialHierarchyResourceLimits,
     BetaBinomialHierarchyResult, BetaBinomialHierarchySpec, BetaBinomialHierarchyWorkerRequest,
     BetaBinomialHierarchyWorkerResult, BetaBinomialPatientData, BetaBinomialPatientPosterior,
@@ -202,13 +211,12 @@ pub use beta_binomial_hierarchy::{
 };
 pub use beta_binomial_hierarchy_agreement::{
     BetaBinomialAgreementComparison, BetaBinomialAgreementPolicy, BetaBinomialAgreementResult,
-    BetaBinomialBackendSummary, BetaBinomialParameterAgreement, BetaBinomialPatientAgreement,
-    NumpyroBetaBinomialHierarchyWorkerRequest, NumpyroBetaBinomialHierarchyWorkerResult,
+    BetaBinomialBackendSummary, NumpyroBetaBinomialHierarchyWorkerRequest,
+    NumpyroBetaBinomialHierarchyWorkerResult,
 };
 pub use beta_binomial_hierarchy_sbc::{
-    BetaBinomialSbcCalibrationPolicy, BetaBinomialSbcDiagnostics, BetaBinomialSbcReplicate,
-    BetaBinomialSbcResourceLimits, BetaBinomialSbcResult, NumpyroBetaBinomialSbcWorkerRequest,
-    NumpyroBetaBinomialSbcWorkerResult,
+    BetaBinomialSbcDiagnostics, BetaBinomialSbcReplicate, BetaBinomialSbcResourceLimits,
+    BetaBinomialSbcResult, NumpyroBetaBinomialSbcWorkerRequest, NumpyroBetaBinomialSbcWorkerResult,
 };
 pub use beta_binomial_hierarchy_sensitivity::{
     BetaBinomialSensitivityResult, BetaBinomialSensitivityScenario,
@@ -223,13 +231,12 @@ pub use bym2::{
     Bym2InputIdentity, Bym2ModelIr, Bym2Posterior, Bym2RegionSummary,
 };
 pub use dirichlet_multinomial_group::{
-    dirichlet_multinomial_group_data_sha256, DirichletMultinomialClassPosterior,
-    DirichletMultinomialClassPredictive, DirichletMultinomialGroupInputIdentity,
-    DirichletMultinomialGroupModelIr, DirichletMultinomialGroupPosterior,
-    DirichletMultinomialGroupPosteriorPredictive, DirichletMultinomialGroupResourceLimits,
-    DirichletMultinomialGroupResult, DirichletMultinomialGroupSpec,
-    DirichletMultinomialGroupWorkerRequest, DirichletMultinomialGroupWorkerResult,
-    DirichletMultinomialPatientData,
+    DirichletMultinomialClassPosterior, DirichletMultinomialClassPredictive,
+    DirichletMultinomialGroupInputIdentity, DirichletMultinomialGroupModelIr,
+    DirichletMultinomialGroupPosterior, DirichletMultinomialGroupPosteriorPredictive,
+    DirichletMultinomialGroupResourceLimits, DirichletMultinomialGroupResult,
+    DirichletMultinomialGroupSpec, DirichletMultinomialGroupWorkerRequest,
+    DirichletMultinomialGroupWorkerResult, DirichletMultinomialPatientData,
 };
 pub use dirichlet_multinomial_group_agreement::{
     DirichletMultinomialClassAgreement, DirichletMultinomialGroupAgreementComparison,
@@ -238,19 +245,15 @@ pub use dirichlet_multinomial_group_agreement::{
     NumpyroDirichletMultinomialGroupWorkerResult,
 };
 pub use dirichlet_multinomial_group_sbc::{
-    DirichletMultinomialGroupSbcCalibrationPolicy, DirichletMultinomialGroupSbcDiagnostics,
-    DirichletMultinomialGroupSbcReplicate, DirichletMultinomialGroupSbcResourceLimits,
-    DirichletMultinomialGroupSbcResult, NumpyroDirichletMultinomialGroupSbcWorkerRequest,
+    DirichletMultinomialGroupSbcDiagnostics, DirichletMultinomialGroupSbcReplicate,
+    DirichletMultinomialGroupSbcResourceLimits, DirichletMultinomialGroupSbcResult,
+    NumpyroDirichletMultinomialGroupSbcWorkerRequest,
     NumpyroDirichletMultinomialGroupSbcWorkerResult,
 };
 pub use dirichlet_multinomial_group_sensitivity::{
     DirichletMultinomialGroupSensitivityResult, DirichletMultinomialGroupSensitivityScenario,
     DirichletMultinomialGroupSensitivityScenarioResult,
     DirichletMultinomialGroupSensitivityScenarioRun,
-};
-pub use fused_gromov::{
-    FgwInitializationResult, FgwPlanEntry, FgwResources, FgwSupport, FusedGromovWassersteinSpec,
-    FusedGromovWassersteinWorkerRequest, FusedGromovWassersteinWorkerResult,
 };
 pub use gaussian_crossed_nested_hierarchy::{
     GaussianCrossedNestedCounts, GaussianCrossedNestedHierarchyFit,
@@ -266,21 +269,13 @@ pub use gp::{
     ExactGpFit, ExactGpInputIdentity, ExactGpSpec, ExactGpWorkerRequest, ExactGpWorkerResult,
     GpObservation, GpPredictionCoordinate, GpResourceLimits,
 };
-pub use graph_signal::{
-    graph_dirichlet_energy, graph_smoothness_permutation_test, local_embedding_roughness,
-    GraphDirichletEnergyResult, GraphDirichletEnergySpec, GraphEnergyNormalization, GraphLaplacian,
-    GraphSignalEdge, GraphSignalError, GraphSignalNode, GraphSmoothnessPermutationResult,
-    GraphSmoothnessPermutationSpec, LocalEmbeddingRoughnessResult, LocalEmbeddingRoughnessRow,
-    LocalEmbeddingRoughnessSpec, StratifiedGraphSignalNode,
-};
 pub use gridded_lgcp::{
     build_gridded_lgcp, GriddedLgcpCell, GriddedLgcpError, GriddedLgcpModel, GriddedLgcpModelIr,
     GriddedLgcpSpec,
 };
 pub use gridded_lgcp_agreement::{
     GriddedLgcpAgreementComparison, GriddedLgcpAgreementPolicy, GriddedLgcpAgreementResult,
-    GriddedLgcpBackendSummary, LgcpFieldAgreement, LgcpScalarAgreement,
-    NumpyroGriddedLgcpWorkerRequest, NumpyroGriddedLgcpWorkerResult,
+    GriddedLgcpBackendSummary, NumpyroGriddedLgcpWorkerRequest, NumpyroGriddedLgcpWorkerResult,
 };
 pub use gridded_lgcp_fit::{
     GriddedLgcpCellPosterior, GriddedLgcpFitInputIdentity, GriddedLgcpFitModelIr,
@@ -292,8 +287,8 @@ pub use gridded_lgcp_fit::{
 };
 pub use gridded_lgcp_sbc::{
     GriddedLgcpSbcCalibrationPolicy, GriddedLgcpSbcDiagnostics, GriddedLgcpSbcFailure,
-    GriddedLgcpSbcParameterDiagnostics, GriddedLgcpSbcReplicate, GriddedLgcpSbcResourceLimits,
-    GriddedLgcpSbcResult, NumpyroGriddedLgcpSbcWorkerRequest, NumpyroGriddedLgcpSbcWorkerResult,
+    GriddedLgcpSbcReplicate, GriddedLgcpSbcResourceLimits, GriddedLgcpSbcResult,
+    NumpyroGriddedLgcpSbcWorkerRequest, NumpyroGriddedLgcpSbcWorkerResult,
 };
 pub use gridded_lgcp_sensitivity::{
     GriddedLgcpSensitivityResult, GriddedLgcpSensitivityScenario,
@@ -303,38 +298,30 @@ pub use gridded_lgcp_spatial_ppc::{
     gridded_lgcp_spatial_ppc, GriddedLgcpSpatialPpcResult, GriddedLgcpSpatialPpcSummaries,
     GriddedLgcpSpatialPpcSummary,
 };
-pub use grouped_conformal::{
-    CoverageRow, GroupedConformalModel, GroupedConformalPatient, GroupedConformalPrediction,
-    GroupedConformalResources, GroupedConformalSpec, GroupedConformalWorkerRequest,
-    GroupedConformalWorkerResult, GroupedCoverage,
-};
 pub use hierarchical::{
     GaussianHierarchyFit, GaussianHierarchyInputIdentity, GaussianHierarchySpec,
     GaussianHierarchyWorkerRequest, HalfNormalPrior, HierarchicalPatientData,
     HierarchicalPosteriorPredictive, HierarchicalWorkerResult, NormalPrior, PartialPoolingSummary,
-    ScalarPosteriorSummary,
 };
 pub use hierarchical_agreement::{
     HierarchicalAgreementComparison, HierarchicalAgreementPolicy, HierarchicalAgreementResult,
     HierarchicalBackendSummary, NumpyroHierarchyWorkerRequest, NumpyroHierarchyWorkerResult,
-    ParameterAgreement,
 };
 pub use hierarchical_sbc::{
     HierarchicalSbcCalibrationPolicy, HierarchicalSbcDiagnostics, HierarchicalSbcFailure,
-    HierarchicalSbcParameterDiagnostics, HierarchicalSbcReplicate, HierarchicalSbcResourceLimits,
-    HierarchicalSbcResult, NumpyroHierarchySbcWorkerRequest, NumpyroHierarchySbcWorkerResult,
+    HierarchicalSbcReplicate, HierarchicalSbcResourceLimits, HierarchicalSbcResult,
+    NumpyroHierarchySbcWorkerRequest, NumpyroHierarchySbcWorkerResult,
 };
 pub use hierarchical_sensitivity::{
     HierarchicalPriorScenario, HierarchicalPriorScenarioResult, HierarchicalPriorScenarioRun,
     HierarchicalPriorSensitivityResult,
 };
 pub use hurdle_beta_binomial_group::{
-    hurdle_beta_binomial_group_data_sha256, HurdleBetaBinomialGroupInputIdentity,
-    HurdleBetaBinomialGroupModelIr, HurdleBetaBinomialGroupPatientData,
-    HurdleBetaBinomialGroupPosterior, HurdleBetaBinomialGroupPosteriorPredictive,
-    HurdleBetaBinomialGroupResourceLimits, HurdleBetaBinomialGroupResult,
-    HurdleBetaBinomialGroupSpec, HurdleBetaBinomialGroupWorkerRequest,
-    HurdleBetaBinomialGroupWorkerResult,
+    HurdleBetaBinomialGroupInputIdentity, HurdleBetaBinomialGroupModelIr,
+    HurdleBetaBinomialGroupPatientData, HurdleBetaBinomialGroupPosterior,
+    HurdleBetaBinomialGroupPosteriorPredictive, HurdleBetaBinomialGroupResourceLimits,
+    HurdleBetaBinomialGroupResult, HurdleBetaBinomialGroupSpec,
+    HurdleBetaBinomialGroupWorkerRequest, HurdleBetaBinomialGroupWorkerResult,
 };
 pub use icar::{build_icar_plan, IcarPlan, IcarPlanError};
 pub use inhomogeneous_poisson::{
@@ -366,23 +353,9 @@ pub use laplace::{
     PoissonLaplaceFit, PoissonLaplaceInputIdentity, PoissonLaplaceModelIr, PoissonLaplaceSpec,
     PoissonLaplaceWorkerRequest, PoissonLaplaceWorkerResult,
 };
-pub use late_fusion::{
-    LateFusionCalibrator, LateFusionMetric, LateFusionModel, LateFusionPatient,
-    LateFusionPrediction, LateFusionResources, LateFusionSpec, LateFusionWorkerRequest,
-    LateFusionWorkerResult, MissingScenario, ModalityAblation,
-};
-pub use matern_cluster::{
-    simulate_matern_cluster_process, MaternClusterBoundary, MaternClusterProcessError,
-    MaternClusterProcessResult, MaternClusterProcessSpec,
-};
 pub use meta_analysis::{
     MetaAnalysisFit, MetaAnalysisInputIdentity, MetaAnalysisSpec, MetaAnalysisWorkerRequest,
     MetaAnalysisWorkerResult, SiteEstimate,
-};
-pub use mixture_of_experts::{
-    MixtureCalibrator, MixtureGateModel, MixtureMetrics, MixtureOfExpertsPatient,
-    MixtureOfExpertsResources, MixtureOfExpertsSpec, MixtureOfExpertsWorkerRequest,
-    MixtureOfExpertsWorkerResult, MixturePrediction,
 };
 pub use model_comparison::{
     compare_psis_loo_models, BayesianModelComparisonResult, ComparedModel, PairwiseElpdDifference,
@@ -391,11 +364,6 @@ pub use model_comparison::{
 pub use multi_output_gp::{
     MultiOutputGpFit, MultiOutputGpInputIdentity, MultiOutputGpObservation, MultiOutputGpSpec,
     MultiOutputGpWorkerRequest, MultiOutputGpWorkerResult,
-};
-pub use multiscale_kernel::{
-    multiscale_embedding_kernel, MultiscaleBaseKernel, MultiscaleEmbeddingKernelResult,
-    MultiscaleEmbeddingKernelSpec, MultiscaleEmbeddingSummary, MultiscaleKernelError,
-    MultiscaleKernelScaleResult, MultiscaleKernelSensitivity, MultiscaleKernelWeight,
 };
 pub use multitype::{
     multitype_papangelou, MultitypeBaseline, MultitypeContribution, MultitypeError,
@@ -406,39 +374,29 @@ pub use nngp::{
     NngpSpec,
 };
 pub use nonproportional_ordinal_group_site::{
-    nonproportional_ordinal_group_site_data_sha256, NonproportionalOrdinalGroupSiteInputIdentity,
-    NonproportionalOrdinalGroupSiteModelIr, NonproportionalOrdinalGroupSitePosterior,
-    NonproportionalOrdinalGroupSitePosteriorPredictive, NonproportionalOrdinalGroupSiteResources,
-    NonproportionalOrdinalGroupSiteResult, NonproportionalOrdinalGroupSiteSpec,
-    NonproportionalOrdinalGroupSiteWorkerRequest, NonproportionalOrdinalGroupSiteWorkerResult,
-    NonproportionalOrdinalSitePosterior, OrdinalThresholdGroupEffect,
+    NonproportionalOrdinalGroupSiteInputIdentity, NonproportionalOrdinalGroupSiteModelIr,
+    NonproportionalOrdinalGroupSitePosterior, NonproportionalOrdinalGroupSitePosteriorPredictive,
+    NonproportionalOrdinalGroupSiteResources, NonproportionalOrdinalGroupSiteResult,
+    NonproportionalOrdinalGroupSiteSpec, NonproportionalOrdinalGroupSiteWorkerRequest,
+    NonproportionalOrdinalGroupSiteWorkerResult, NonproportionalOrdinalSitePosterior,
+    OrdinalThresholdGroupEffect,
 };
 pub use ordinal_group::{
-    ordinal_group_data_sha256, OrdinalCutpointPosterior, OrdinalGroupInputIdentity,
-    OrdinalGroupModelIr, OrdinalGroupPatientData, OrdinalGroupPosterior,
-    OrdinalGroupPosteriorPredictive, OrdinalGroupResourceLimits, OrdinalGroupResult,
-    OrdinalGroupSpec, OrdinalGroupWorkerRequest, OrdinalGroupWorkerResult, OrdinalLevelPosterior,
-    OrdinalLevelPredictive,
+    OrdinalCutpointPosterior, OrdinalGroupInputIdentity, OrdinalGroupModelIr,
+    OrdinalGroupPatientData, OrdinalGroupPosterior, OrdinalGroupPosteriorPredictive,
+    OrdinalGroupResourceLimits, OrdinalGroupResult, OrdinalGroupSpec, OrdinalGroupWorkerRequest,
+    OrdinalGroupWorkerResult, OrdinalLevelPosterior, OrdinalLevelPredictive,
 };
 pub use ordinal_group_site_hierarchy::{
-    ordinal_group_site_data_sha256, OrdinalGroupSiteHierarchyInputIdentity,
-    OrdinalGroupSiteHierarchyModelIr, OrdinalGroupSiteHierarchyPosterior,
-    OrdinalGroupSiteHierarchyPosteriorPredictive, OrdinalGroupSiteHierarchyResourceLimits,
-    OrdinalGroupSiteHierarchyResult, OrdinalGroupSiteHierarchySpec,
-    OrdinalGroupSiteHierarchyWorkerRequest, OrdinalGroupSiteHierarchyWorkerResult,
-    OrdinalGroupSitePatientData, OrdinalSitePosterior,
+    OrdinalGroupSiteHierarchyInputIdentity, OrdinalGroupSiteHierarchyModelIr,
+    OrdinalGroupSiteHierarchyPosterior, OrdinalGroupSiteHierarchyPosteriorPredictive,
+    OrdinalGroupSiteHierarchyResourceLimits, OrdinalGroupSiteHierarchyResult,
+    OrdinalGroupSiteHierarchySpec, OrdinalGroupSiteHierarchyWorkerRequest,
+    OrdinalGroupSiteHierarchyWorkerResult, OrdinalGroupSitePatientData, OrdinalSitePosterior,
 };
 pub use ordinal_heldout::{
     ordinal_site_heldout_comparison, OrdinalSiteFoldScore, OrdinalSiteHeldoutComparison,
     OrdinalSiteHeldoutSpec,
-};
-pub use partial_fused_gromov::{
-    PartialFgwFit, PartialFgwResources, PartialFusedGromovWassersteinSpec,
-    PartialFusedGromovWassersteinWorkerRequest, PartialFusedGromovWassersteinWorkerResult,
-};
-pub use partial_transport::{
-    PartialTransportOptimizer, PartialTransportPlanEntry, PartialTransportResources,
-    PartialTransportSpec, PartialTransportWorkerRequest, PartialTransportWorkerResult,
 };
 pub use point_process_ppc::{
     posterior_predictive_point_process_diagnostics, PointProcessPpcCurveRow, PointProcessPpcError,
@@ -483,50 +441,16 @@ pub use car::{
     car_density, CarDensityError, CarDensityResult, CarMode, CarSpec, IslandPolicy,
     RegionFieldValue,
 };
-pub use complementarity::{
-    expected_model_features, CellPatchComplementaritySpec, CellPatchComplementarityWorkerRequest,
-    CellPatchComplementarityWorkerResult, ComplementarityFeatureNames,
-    ComplementarityFoldSelection, ComplementarityModelResult, ComplementarityPatientRow,
-    ComplementarityPrediction,
-};
-pub use cross_modal::{
-    cross_modal_covariance_by_distance, CrossModalCovarianceError, CrossModalCovarianceMatrix,
-    CrossModalCovarianceMatrixArtifact, CrossModalCovarianceResult, CrossModalCovarianceSpec,
-    CrossModalCovarianceSummary, CrossModalMeanPolicy, CrossModalPair, EmbeddingModalityRow,
-};
 pub use distance_to_resource::{
     fit_distance_to_resource_model, DerivedResourceDistance, DistanceOutcomeObservation,
     DistancePosterior, DistancePosteriorPredictive, DistancePrediction, DistanceResponsePoint,
     DistanceToResourceFit, DistanceToResourceModel, DistanceToResourceSpec,
     GaussianPosteriorSummary, PatientPredictiveCheck, ResourcePredictiveCheck, ResourceSegment,
 };
-pub use embedding_envelope::{
-    test_embedding_spatial_dependence, EmbeddingEnvelopeCurveRow, EmbeddingEnvelopeError,
-    EmbeddingEnvelopeRow, EmbeddingSpatialCurveFunction, EmbeddingSpatialDependenceResult,
-    EmbeddingSpatialDependenceSpec,
-};
-pub use embedding_factor::{
-    joint_location_embedding_latent_factor_model, EmbeddingFactorError, EmbeddingFactorModel,
-    EmbeddingFactorModelIr, EmbeddingFactorPoint, EmbeddingFactorSpec,
-};
-pub use embedding_kernel::{
-    build_embedding_kernel, kernel_mark_correlation, EmbeddingKernelArtifact, EmbeddingKernelError,
-    EmbeddingKernelKind, EmbeddingKernelSpec, KernelEmbeddingRow, KernelMarkCorrelationCurve,
-    KernelMarkCorrelationResult, KernelMarkCorrelationRow, KernelMarkCorrelationSpec,
-};
-pub use embedding_spatial::{
-    embedding_cross_covariance_by_distance, vector_semivariogram, EmbeddingCrossCovarianceMatrix,
-    EmbeddingCrossCovarianceMatrixArtifact, EmbeddingCrossCovarianceResult,
-    EmbeddingCrossCovarianceSpec, EmbeddingCrossCovarianceSummary, EmbeddingDistanceBin,
-    EmbeddingPairWeight, EmbeddingSpatialError, EmbeddingSpatialPoint,
-    ProjectedEmbeddingInputIdentity, ProjectedEmbeddingPoint, ProjectedEmbeddingVariogramResult,
-    ProjectedEmbeddingVariogramSpec, ProjectedEmbeddingVariogramWorkerRequest,
-    ProjectedEmbeddingVariogramWorkerResult, ProjectedSplitCurve, ProjectedVariogramRow,
-    ProjectionArtifact, VectorSemivariogramResult, VectorSemivariogramRow, VectorSemivariogramSpec,
-};
 pub use model::{
-    sha256_hex, BackendContract, DiagnosticPolicy, NormalMeanModelIr, NormalMeanSpec,
-    NormalMeanWorkerRequest, NutsSamplingSpec, WorkerResourceLimits,
+    is_worker_timeout, json_sha256, sha256_hex, BackendContract, DiagnosticPolicy,
+    NormalMeanModelIr, NormalMeanSpec, NormalMeanWorkerRequest, NutsSamplingSpec,
+    WorkerResourceLimits, MAXIMUM_WORKER_TIMEOUT_SECONDS,
 };
 pub use negative_binomial_hierarchy::{
     NegativeBinomialHierarchyDesign, NegativeBinomialHierarchyModel,
@@ -543,13 +467,9 @@ pub use replicated::{
     ReplicatedLgcpModelIr, ReplicatedLgcpPattern, ReplicatedLgcpSpec,
 };
 pub use result::{
-    FitState, NormalMeanDiagnostics, NormalMeanFit, NormalMeanInputIdentity, NormalMeanPosterior,
-    NormalMeanPosteriorPredictive, SamplingSummary, WorkerBackend, WorkerResult,
-};
-pub use retrieval::{
-    build_region_retrieval_index, retrieve_analogous_regions, QueryRegion, RegionRetrievalError,
-    RegionRetrievalIndexArtifact, RegionRetrievalMatch, RegionRetrievalResult,
-    RetrievalLeakagePolicy, TrainingRegion,
+    FitState, McseScalarSummary, NormalMeanFit, NormalMeanInputIdentity, NormalMeanPosterior,
+    NormalMeanPosteriorPredictive, PosteriorDiagnostics, SamplingSummary, ScalarSummary,
+    WorkerBackend, WorkerResult,
 };
 pub use sar::{
     sar_gaussian_log_likelihood, SarError, SarImpact, SarLikelihoodResult, SarModelType, SarSpec,
@@ -557,12 +477,11 @@ pub use sar::{
 pub use sar_fit::{
     SarCoefficientSummary, SarFitInputIdentity, SarFitModelIr, SarFitPosterior, SarFitResult,
     SarFitSpec, SarFitWorkerRequest, SarFitWorkerResult, SarImpactSummary, SarPosteriorPredictive,
-    SarScalarSummary,
 };
 pub use sbc::{
     NormalMeanSbcModelIr, NormalMeanSbcResult, NormalMeanSbcSpec, NormalMeanSbcWorkerRequest,
-    NormalMeanSbcWorkerResult, SbcDiagnostics, SbcExecutionSpec, SbcFailure, SbcReplicate,
-    SbcResourceLimits,
+    NormalMeanSbcWorkerResult, SbcCalibrationPolicy, SbcControls, SbcDiagnostics, SbcExecutionSpec,
+    SbcFailure, SbcParameterDiagnostics, SbcReplicate, SbcResourceLimits,
 };
 pub use smc::{
     NormalMeanSmcFit, NormalMeanSmcInputIdentity, NormalMeanSmcWorkerRequest,
@@ -599,34 +518,15 @@ pub use student_t_hierarchy::{
 pub use student_t_hierarchy_agreement::{
     NumpyroStudentTHierarchyWorkerRequest, NumpyroStudentTHierarchyWorkerResult,
     StudentTHierarchyAgreementComparison, StudentTHierarchyAgreementPolicy,
-    StudentTHierarchyAgreementResult, StudentTHierarchyBackendSummary, StudentTParameterAgreement,
-    StudentTPatientMeanAgreement,
+    StudentTHierarchyAgreementResult, StudentTHierarchyBackendSummary,
 };
 pub use student_t_hierarchy_sbc::{
-    NumpyroStudentTSbcWorkerRequest, NumpyroStudentTSbcWorkerResult, StudentTSbcCalibrationPolicy,
-    StudentTSbcDiagnostics, StudentTSbcReplicate, StudentTSbcResourceLimits, StudentTSbcResult,
+    NumpyroStudentTSbcWorkerRequest, NumpyroStudentTSbcWorkerResult, StudentTSbcDiagnostics,
+    StudentTSbcReplicate, StudentTSbcResourceLimits, StudentTSbcResult,
 };
 pub use student_t_hierarchy_sensitivity::{
     StudentTHierarchySensitivityResult, StudentTSensitivityScenario,
     StudentTSensitivityScenarioResult, StudentTSensitivityScenarioRun,
-};
-pub use thomas::{
-    simulate_thomas_process, NeymanScottCounts, NeymanScottOffspring, NeymanScottParent,
-    ThomasCounts, ThomasOffspring, ThomasParent, ThomasProcessError, ThomasProcessResult,
-    ThomasProcessSpec, ThomasTruncation,
-};
-pub use thomas_minimum_contrast::{
-    ThomasKCurveRow, ThomasLikelihoodComparison, ThomasMinimumContrastBounds,
-    ThomasMinimumContrastCurveFitRow, ThomasMinimumContrastFitSummary,
-    ThomasMinimumContrastInputIdentity, ThomasMinimumContrastModelIr,
-    ThomasMinimumContrastResources, ThomasMinimumContrastResult, ThomasMinimumContrastSpec,
-    ThomasMinimumContrastWorkerRequest, ThomasMinimumContrastWorkerResult,
-};
-pub use transport::{
-    entropic_soft_assignment, sinkhorn_ot, unbalanced_sinkhorn, EntropicSoftAssignmentResult,
-    EntropicSoftAssignmentSensitivity, EntropicSoftAssignmentSpec, SinkhornResult, SinkhornSpec,
-    TransportError, TransportMass, TransportPlanEntry, UnbalancedSinkhornResult,
-    UnbalancedSinkhornSpec,
 };
 pub use variational_gp::{
     VariationalGpFit, VariationalGpInputIdentity, VariationalGpSpec, VariationalGpWorkerRequest,
@@ -638,16 +538,6 @@ pub use weights::{
     ValidatedWeight,
 };
 
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum BayesError {
-    #[error("invalid Bayesian specification: {0}")]
-    InvalidSpec(String),
-    #[error("Bayesian numerical calculation failed: {0}")]
-    Numerical(String),
-    #[error("Bayesian worker contract violation: {0}")]
-    WorkerContract(String),
-    #[error("Bayesian JSON boundary failed: {0}")]
-    Json(#[from] serde_json::Error),
-}
+pub use agreement_status::AgreementStatus;
+pub use marklab_core::backend::{ClaimStatus, WorkerError as BayesError};
+pub use sensitivity_status::SensitivityStatus;

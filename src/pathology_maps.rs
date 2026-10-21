@@ -1,9 +1,9 @@
 //! One concrete H&E/IHC workflow; numerical and geometry owners remain shared.
 
-mod admission;
 mod input;
 mod local;
 mod neighborhoods;
+mod preparation;
 mod profiles;
 mod publication;
 mod render;
@@ -20,7 +20,7 @@ use crate::{MarklabError, Result};
 /// local random-labeling family per slide. The combined location/slide family uses existing
 /// within-slide Max-absolute adjustment and Bonferroni across slides. No filesystem I/O.
 pub fn analyze_pathology_maps(recipe_json: &[u8]) -> Result<PathologyMapsResult> {
-    let prepared = admission::prepare(recipe_json)?;
+    let prepared = preparation::prepare(recipe_json)?;
     let recipe = prepared.recipe;
     let mut slides = Vec::with_capacity(recipe.slides.len());
     let mut remaining_pairs = recipe.limits.maximum_pair_visits;

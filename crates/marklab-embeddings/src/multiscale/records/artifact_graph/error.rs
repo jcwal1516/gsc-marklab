@@ -6,7 +6,7 @@ use thiserror::Error;
 use crate::ArtifactAvailabilityFailure;
 use crate::EmbeddingEntityKind;
 
-/// Artifact roles admitted by multiscale embedding graph validation.
+/// Artifact roles accepted by multiscale embedding graph validation.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 #[non_exhaustive]
 pub enum MultiscaleEmbeddingArtifactRole {

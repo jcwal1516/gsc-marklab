@@ -187,13 +187,16 @@ fn piecewise_compartment_g_runs_durably_across_fresh_cli_processes() {
         .success()
         .stderr(predicates::str::contains("cache_status=hit"));
     assert_eq!(fs::read(&first).unwrap(), fs::read(&second).unwrap());
-    let result: marklab::PiecewiseCompartmentPairCorrelationResult =
+    let result: marklab::spatial::PiecewiseCompartmentPairCorrelationResult =
         marklab::exact_float_json::decode(&fs::read(first).unwrap()).expect("typed result");
     assert_eq!(
         result.intensity.estimator,
-        "piecewise_constant_binary_compartment"
+        marklab::spatial::IntensityEstimator::PiecewiseConstantBinaryCompartment
     );
-    assert_eq!(result.kernel, marklab::PairCorrelationKernel::Epanechnikov);
+    assert_eq!(
+        result.kernel,
+        marklab::spatial::PairCorrelationKernel::Epanechnikov
+    );
     assert_eq!(result.pair_bandwidth_um, 0.5);
     assert_eq!(result.curve.len(), 1);
     assert_eq!(

@@ -1,17 +1,15 @@
-use std::{fs, io, path::PathBuf};
+use std::{borrow::Cow, io};
 
-use marklab_bayes::{vector_semivariogram, VectorSemivariogramSpec};
-use marklab_workflow::{
-    execute_algorithm, ArtifactRef, ArtifactSchema, CacheKeyMaterial, CacheStatus, ContentDigest,
-    DurableProject, DurableProjectLimits, LocalScheduler, MarklabProject, NodeError, NodeId,
-    NodeSpec, SchedulerLimits, WorkflowGraph, WorkflowNode,
-};
+use marklab_embeddings::analysis::{vector_semivariogram, VectorSemivariogramSpec};
+use marklab_project::ContentDigest;
+use marklab_workflow::NodeError;
 use serde::{Deserialize, Serialize};
 
+use super::cli_schema::VectorSemivariogramProjectArgs;
 use super::{
-    bayes, native_runtime_provenance, report_recovery, source_artifact, BayesCliError,
-    MAXIMUM_INPUT_BYTES, MAXIMUM_RESULT_BYTES, PROJECT_CONTROL_BYTES, PROJECT_LEDGER_BYTES,
-    PROJECT_LEDGER_RECORDS, PROJECT_RECORD_BYTES,
+    bayes,
+    durable::{self, Codec, NodeContract, Source, SourceNode},
+    CliError, MAXIMUM_INPUT_BYTES, MAXIMUM_RESULT_BYTES,
 };
 
 const INPUT_KIND: &str = "application/vnd.marklab.source.embedding-points-csv;version=1";
@@ -20,47 +18,48 @@ const WEIGHTS_KIND: &str = "application/vnd.marklab.source.pair-weights-csv;vers
 const OUTPUT_KIND: &str = "application/vnd.marklab.vector-semivariogram+json;version=1";
 const IMPLEMENTATION_IDENTITY: &str = "marklab-project-vector-semivariogram-node-v1";
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    project_path: PathBuf,
-    input_path: PathBuf,
-    bins_path: PathBuf,
-    weights_path: Option<PathBuf>,
-    output_path: PathBuf,
-    maximum_points: usize,
-    maximum_dimension: usize,
-    maximum_pair_visits: u64,
-    memory_budget_mib: usize,
-) -> Result<(), BayesCliError> {
-    let memory_bytes = memory_budget_mib
-        .checked_mul(1024 * 1024)
-        .ok_or_else(|| BayesCliError::Input("--memory-budget-mib is too large".into()))?;
-    if maximum_points < 2 || maximum_dimension < 2 || maximum_pair_visits == 0 || memory_bytes == 0
-    {
-        return Err(BayesCliError::Input(
-            "vector semivariogram limits must admit two points and two dimensions".into(),
-        ));
-    }
-    let paths = SourcePaths {
+pub(super) fn run(args: VectorSemivariogramProjectArgs) -> Result<(), CliError> {
+    let VectorSemivariogramProjectArgs {
+        project: project_path,
         input: input_path,
         bins: bins_path,
         weights: weights_path,
-    };
-    let before = source_artifacts(&paths)?;
-    let input_bytes = read_bounded(&paths.input, memory_bytes)?;
-    let bins_bytes = read_bounded(&paths.bins, memory_bytes)?;
-    let weight_bytes = paths
-        .weights
-        .as_ref()
-        .map(|path| read_bounded(path, memory_bytes))
+        out: output_path,
+        maximum_points,
+        maximum_dimension,
+        maximum_pair_visits,
+        memory_budget_mib,
+    } = args;
+    const LABEL: &str = "vector semivariogram sources";
+    let memory_bytes = memory_budget_mib
+        .checked_mul(1024 * 1024)
+        .ok_or_else(|| CliError::Input("--memory-budget-mib is too large".into()))?;
+    if maximum_points < 2 || maximum_dimension < 2 || maximum_pair_visits == 0 || memory_bytes == 0
+    {
+        return Err(CliError::Input(
+            "vector semivariogram limits must admit two points and two dimensions".into(),
+        ));
+    }
+    let mut sources = vec![
+        Source::identify(input_path, INPUT_KIND)?,
+        Source::identify(bins_path, BINS_KIND)?,
+    ];
+    if let Some(path) = weights_path {
+        sources.push(Source::identify(path, WEIGHTS_KIND)?);
+    }
+    let input_bytes = read_bounded(sources[0].path(), memory_bytes)?;
+    let bins_bytes = read_bounded(sources[1].path(), memory_bytes)?;
+    let weight_bytes = sources
+        .get(2)
+        .map(|source| read_bounded(source.path(), memory_bytes))
         .transpose()?;
     let source_bytes = input_bytes
         .len()
         .checked_add(bins_bytes.len())
         .and_then(|value| value.checked_add(weight_bytes.as_ref().map_or(0, Vec::len)))
-        .ok_or_else(|| BayesCliError::Input("vector source-byte total overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("vector source-byte total overflowed".into()))?;
     if source_bytes > memory_bytes {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "vector source files exceed the retained-memory budget".into(),
         ));
     }
@@ -71,7 +70,7 @@ pub(super) fn run(
         .map(bayes::embedding_spatial::read_weights)
         .transpose()?;
     if points.len() > maximum_points || feature_names.len() > maximum_dimension {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "vector point count or embedding dimension exceeds its declared ceiling".into(),
         ));
     }
@@ -83,22 +82,17 @@ pub(super) fn run(
         weights.as_ref().map_or(0, Vec::len),
     )?;
     if retained > memory_bytes {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "vector semivariogram retained-memory estimate exceeds its budget".into(),
         ));
     }
-    let after = source_artifacts(&paths)?;
-    if before != after {
-        return Err(BayesCliError::Input(
-            "vector semivariogram sources changed while prepared".into(),
-        ));
-    }
-    let input_sha256 = after[0].digest().to_string();
-    let bins_sha256 = after[1].digest().to_string();
-    let weights_sha256 = after.get(2).map(|artifact| artifact.digest().to_string());
-    let node = VectorSemivariogramProjectNode::new(
-        paths,
-        after.clone(),
+    Source::ensure_all_unchanged(&sources, LABEL)?;
+    let input_sha256 = sources[0].artifact().digest().to_string();
+    let bins_sha256 = sources[1].artifact().digest().to_string();
+    let weights_sha256 = sources
+        .get(2)
+        .map(|source| source.artifact().digest().to_string());
+    let (analysis, contract) = VectorSemivariogram::new(
         VectorSemivariogramSpec {
             points,
             feature_names,
@@ -112,105 +106,50 @@ pub(super) fn run(
         maximum_points,
         maximum_dimension,
         memory_budget_mib,
+    );
+    let node = SourceNode::new(
+        contract,
+        LABEL,
+        sources,
+        analysis,
+        VectorSemivariogram::execute,
+        |analysis, output| analysis.validate(output).map_err(NodeError::decode),
     )?;
-    let runtime = native_runtime_provenance()?;
-    let limits = DurableProjectLimits::new(
-        PROJECT_CONTROL_BYTES,
-        PROJECT_LEDGER_BYTES,
-        PROJECT_LEDGER_RECORDS,
-        PROJECT_RECORD_BYTES,
-        MAXIMUM_RESULT_BYTES,
-    )
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let mut durable = DurableProject::open_or_create(&project_path, limits)
-        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
-    report_recovery(&durable);
-    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    for artifact in &after {
-        project
-            .register_reference(artifact.clone())
-            .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    }
-    let graph = WorkflowGraph::new([node.spec().clone()])
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let scheduler = LocalScheduler::new(SchedulerLimits {
-        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
-    })
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let execution = execute_algorithm(
-        &mut durable,
-        &mut project,
-        &graph,
+    let run = durable::execute_node(
+        &project_path,
         &node,
-        &scheduler,
-        ArtifactSchema::new("marklab.vector_semivariogram", 1)
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-        runtime,
+        ("marklab.vector_semivariogram", 1),
+        MAXIMUM_RESULT_BYTES,
+    )?;
+    durable::publish(
+        "vector-semivariogram",
+        &output_path,
+        &run.output,
+        run.cache_status,
     )
-    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
-    bayes::publish_json(&output_path, &execution.output)?;
-    let cache_status = match execution.cache_status {
-        CacheStatus::Hit => "hit",
-        CacheStatus::Miss => "miss",
-    };
-    eprintln!("project vector-semivariogram cache_status={cache_status}");
-    Ok(())
 }
 
-#[derive(Clone)]
-struct SourcePaths {
-    input: PathBuf,
-    bins: PathBuf,
-    weights: Option<PathBuf>,
-}
-
-fn source_artifacts(paths: &SourcePaths) -> Result<Vec<ArtifactRef>, BayesCliError> {
-    let mut artifacts = vec![
-        source_artifact(&paths.input, INPUT_KIND)?,
-        source_artifact(&paths.bins, BINS_KIND)?,
-    ];
-    if let Some(path) = &paths.weights {
-        artifacts.push(source_artifact(path, WEIGHTS_KIND)?);
-    }
-    Ok(artifacts)
-}
-
-fn read_bounded(path: &std::path::Path, memory_bytes: usize) -> Result<Vec<u8>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
+fn read_bounded(path: &std::path::Path, memory_bytes: usize) -> Result<Vec<u8>, CliError> {
     let maximum = (MAXIMUM_INPUT_BYTES as usize).min(memory_bytes);
-    if !metadata.is_file() || metadata.len() > maximum as u64 {
-        return Err(BayesCliError::Input(format!(
+    crate::input_file::read_regular_file(
+        path,
+        maximum as u64,
+        &format!(
             "vector source must be a regular file within {maximum} bytes: {}",
             path.display()
-        )));
-    }
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
+        ),
+    )
 }
 
-struct VectorSemivariogramProjectNode {
-    spec: NodeSpec,
-    paths: SourcePaths,
-    input_artifacts: Vec<ArtifactRef>,
+struct VectorSemivariogram {
     analysis: VectorSemivariogramSpec,
     input_sha256: String,
     bins_sha256: String,
     weights_sha256: Option<String>,
-    configuration_digest: ContentDigest,
-    execution_policy: Vec<u8>,
 }
 
-impl VectorSemivariogramProjectNode {
-    #[allow(clippy::too_many_arguments)]
+impl VectorSemivariogram {
     fn new(
-        paths: SourcePaths,
-        input_artifacts: Vec<ArtifactRef>,
         analysis: VectorSemivariogramSpec,
         input_sha256: String,
         bins_sha256: String,
@@ -218,12 +157,7 @@ impl VectorSemivariogramProjectNode {
         maximum_points: usize,
         maximum_dimension: usize,
         memory_budget_mib: usize,
-    ) -> Result<Self, BayesCliError> {
-        if input_artifacts.len() != if paths.weights.is_some() { 3 } else { 2 } {
-            return Err(BayesCliError::Input(
-                "vector source identities are incomplete".into(),
-            ));
-        }
+    ) -> (Self, NodeContract) {
         let configuration_digest = ContentDigest::from_framed([
             b"marklab-vector-semivariogram-configuration-v1".as_slice(),
             maximum_points.to_string().as_bytes(),
@@ -236,28 +170,56 @@ impl VectorSemivariogramProjectNode {
             analysis.maximum_pair_visits
         )
         .into_bytes();
-        Ok(Self {
-            spec: NodeSpec::new(
-                NodeId::new("vector-semivariogram")
-                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
-                "vector_semivariogram",
-                1,
-                Vec::new(),
-            )
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-            paths,
-            input_artifacts,
-            analysis,
-            input_sha256,
-            bins_sha256,
-            weights_sha256,
-            configuration_digest,
-            execution_policy,
-        })
+        (
+            Self {
+                analysis,
+                input_sha256,
+                bins_sha256,
+                weights_sha256,
+            },
+            NodeContract {
+                id: "vector-semivariogram",
+                kind: "vector_semivariogram",
+                version: 1,
+                configuration_digest,
+                execution_policy: Cow::Owned(execution_policy),
+                implementation_identity: IMPLEMENTATION_IDENTITY,
+                output_kind: OUTPUT_KIND,
+                codec: Codec::Json,
+            },
+        )
     }
 
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
+    fn execute(&self) -> Result<VectorSemivariogramDocument, NodeError> {
+        let result = vector_semivariogram(self.analysis.clone()).map_err(NodeError::execution)?;
+        Ok(VectorSemivariogramDocument {
+            format: "marklab.vector_semivariogram".into(),
+            version: 1,
+            input_sha256: self.input_sha256.clone(),
+            bins_sha256: self.bins_sha256.clone(),
+            weights_sha256: self.weights_sha256.clone(),
+            coordinate_unit: result.coordinate_unit.into(),
+            object_count: result.object_count,
+            embedding_dimension: result.embedding_dimension,
+            feature_names: result.feature_names,
+            pair_visits: result.pair_visits,
+            weighting: result.weighting.into(),
+            rotation_invariant: result.rotation_invariant,
+            curve: result
+                .curve
+                .into_iter()
+                .map(|row| VectorSemivariogramRowDocument {
+                    bin_id: row.bin_id,
+                    lower_um: row.lower_um,
+                    upper_um: row.upper_um,
+                    upper_inclusive: row.upper_inclusive,
+                    pair_count: row.pair_count,
+                    weight_sum: row.weight_sum,
+                    semivariance: row.semivariance,
+                    inference_eligible: row.inference_eligible,
+                })
+                .collect(),
+        })
     }
 
     fn validate(&self, output: &VectorSemivariogramDocument) -> io::Result<()> {
@@ -310,87 +272,6 @@ impl VectorSemivariogramProjectNode {
     }
 }
 
-impl WorkflowNode for VectorSemivariogramProjectNode {
-    type Output = VectorSemivariogramDocument;
-
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.input_artifacts
-    }
-
-    fn verify_input_content(&self) -> Result<(), NodeError> {
-        let current = source_artifacts(&self.paths).map_err(NodeError::input)?;
-        if current != self.input_artifacts {
-            return Err(NodeError::input(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "vector source identity changed",
-            )));
-        }
-        Ok(())
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: &self.execution_policy,
-            implementation_identity: IMPLEMENTATION_IDENTITY,
-        }
-    }
-
-    fn execute(&self) -> Result<Self::Output, NodeError> {
-        let result = vector_semivariogram(self.analysis.clone()).map_err(NodeError::execution)?;
-        Ok(VectorSemivariogramDocument {
-            format: "marklab.vector_semivariogram".into(),
-            version: 1,
-            input_sha256: self.input_sha256.clone(),
-            bins_sha256: self.bins_sha256.clone(),
-            weights_sha256: self.weights_sha256.clone(),
-            coordinate_unit: result.coordinate_unit.into(),
-            object_count: result.object_count,
-            embedding_dimension: result.embedding_dimension,
-            feature_names: result.feature_names,
-            pair_visits: result.pair_visits,
-            weighting: result.weighting.into(),
-            rotation_invariant: result.rotation_invariant,
-            curve: result
-                .curve
-                .into_iter()
-                .map(|row| VectorSemivariogramRowDocument {
-                    bin_id: row.bin_id,
-                    lower_um: row.lower_um,
-                    upper_um: row.upper_um,
-                    upper_inclusive: row.upper_inclusive,
-                    pair_count: row.pair_count,
-                    weight_sum: row.weight_sum,
-                    semivariance: row.semivariance,
-                    inference_eligible: row.inference_eligible,
-                })
-                .collect(),
-        })
-    }
-
-    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
-        self.validate(output).map_err(NodeError::encoding)?;
-        serde_json::to_vec(output)
-            .map(Vec::into_boxed_slice)
-            .map_err(NodeError::encoding)
-    }
-
-    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
-        let output: VectorSemivariogramDocument =
-            serde_json::from_slice(bytes).map_err(NodeError::decode)?;
-        self.validate(&output).map_err(NodeError::decode)?;
-        Ok(output)
-    }
-
-    fn output_kind(&self) -> &'static str {
-        OUTPUT_KIND
-    }
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct VectorSemivariogramDocument {
     format: String,
@@ -426,17 +307,17 @@ fn retained_bytes(
     dimension: usize,
     bins: usize,
     weights: usize,
-) -> Result<usize, BayesCliError> {
+) -> Result<usize, CliError> {
     let values = points
         .checked_mul(dimension)
         .and_then(|value| value.checked_mul(std::mem::size_of::<f64>()))
-        .ok_or_else(|| BayesCliError::Input("vector value memory overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("vector value memory overflowed".into()))?;
     source_bytes
         .checked_add(values)
         .and_then(|value| value.checked_add(points.saturating_mul(128)))
         .and_then(|value| value.checked_add(bins.saturating_mul(256)))
         .and_then(|value| value.checked_add(weights.saturating_mul(256)))
-        .ok_or_else(|| BayesCliError::Input("vector retained-memory estimate overflowed".into()))
+        .ok_or_else(|| CliError::Input("vector retained-memory estimate overflowed".into()))
 }
 
 fn invalid(message: &str) -> io::Error {

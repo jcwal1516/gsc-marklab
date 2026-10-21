@@ -1,41 +1,48 @@
+use crate::result_vocabulary::{
+    EdgeCorrection, MarkNormalization, MarkNullModel, MarkPermutationUnit, MultiplicityCorrection,
+};
+use crate::workflow_codec::{invalid, nearly_equal, parse_status, unit_interval};
+use crate::workflow_node::{NodeAnalysis, TypedNode};
 use std::{io, str::FromStr};
 
-use marklab_data::{CoordinateFrameId, MeasurementStatus};
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_data::CoordinateFrameId;
+use marklab_project::{ArtifactRef, ContentDigest, MarklabProject};
+use marklab_workflow::{NodeError, NodeId, NodeSpec};
 use serde::{Deserialize, Serialize};
 
-use crate::measurement_status_wire::{name as status_name, parse as parse_measurement_status};
+use crate::measurement_status_wire::name as status_name;
 use crate::observation_window_artifact::frame_bound_window_artifact as window_artifact;
 use crate::{
     continuous_mark_correlation::{configuration_digest, mark_statistics},
-    workflow::pattern_artifact,
-    ClassicalWindowSummary, ContinuousMarkCorrelationComponentInference,
-    ContinuousMarkCorrelationConfig, ContinuousMarkCorrelationGeometrySummary,
-    ContinuousMarkCorrelationInferenceSummary, ContinuousMarkCorrelationLimits,
-    ContinuousMarkCorrelationPoint, ContinuousMarkCorrelationPointStatus,
-    ContinuousMarkCorrelationResult, DeclaredScalarPatternInput, ObservationWindow2D, ScalarMarkId,
+    marked_workflow::pattern_artifact,
+    marks::{
+        ContinuousMarkCorrelationComponentInference, ContinuousMarkCorrelationConfig,
+        ContinuousMarkCorrelationGeometrySummary, ContinuousMarkCorrelationInferenceSummary,
+        ContinuousMarkCorrelationLimits, ContinuousMarkCorrelationPoint,
+        ContinuousMarkCorrelationPointStatus, ContinuousMarkCorrelationResult,
+        DeclaredScalarPatternInput, ScalarMarkId,
+    },
+    spatial::ClassicalWindowSummary,
+    ObservationWindow2D,
 };
 
 const NODE_KIND: &str = "continuous_mark_correlation";
 const CONFIG_KIND: &str =
     "application/vnd.marklab.continuous-mark-correlation-config+json;version=1";
 const RESULT_KIND: &str =
-    "application/vnd.marklab.continuous-mark-correlation-result+json;version=1";
+    "application/vnd.marklab.continuous-mark-correlation-result+json;version=2";
 const EXECUTION_POLICY: &[u8] = b"serial;exact-rstar;retained-directed-pairs;standard-border;global-arithmetic-mean-product;complete-continuous-row-random-labeling;erl";
-const IMPLEMENTATION: &str = "continuous-mark-correlation-analysis-node-v2";
+const IMPLEMENTATION: &str = "continuous-mark-correlation-analysis-node-v3";
 
 /// Exact typed continuous mark-correlation node with store-verified MarkTable provenance.
 pub struct ContinuousMarkCorrelationAnalysisNode<'a> {
-    spec: NodeSpec,
+    node: TypedNode<ContinuousMarkCorrelationAnalysis<'a>>,
+}
+
+struct ContinuousMarkCorrelationAnalysis<'a> {
     input: &'a DeclaredScalarPatternInput<'a>,
     window: &'a ObservationWindow2D,
     config: &'a ContinuousMarkCorrelationConfig,
-    inputs: [ArtifactRef; 4],
-    configuration_digest: ContentDigest,
-    implementation_identity: String,
 }
 
 impl<'a> ContinuousMarkCorrelationAnalysisNode<'a> {
@@ -60,73 +67,58 @@ impl<'a> ContinuousMarkCorrelationAnalysisNode<'a> {
                 .register_reference(artifact.clone())
                 .map_err(NodeError::input)?;
         }
+        let node_spec = NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?;
+        let node_configuration_digest = config_ref.digest();
+        let node_implementation_identity = format!(
+            "marklab/{};adapter={IMPLEMENTATION}",
+            env!("CARGO_PKG_VERSION")
+        );
         Ok(Self {
-            spec: NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?,
-            input,
-            window,
-            config,
-            inputs,
-            configuration_digest: config_ref.digest(),
-            implementation_identity: format!(
-                "marklab/{};adapter={IMPLEMENTATION}",
-                env!("CARGO_PKG_VERSION")
-            ),
+            node: TypedNode {
+                spec: node_spec,
+                analysis: ContinuousMarkCorrelationAnalysis {
+                    input,
+                    window,
+                    config,
+                },
+                inputs,
+                configuration_digest: node_configuration_digest,
+                execution_policy: std::borrow::Cow::Borrowed(EXECUTION_POLICY),
+                implementation_identity: node_implementation_identity,
+            },
         })
     }
 
     /// Exact versioned node specification.
     pub fn spec(&self) -> &NodeSpec {
-        &self.spec
+        self.node.spec()
     }
 }
 
-impl WorkflowNode for ContinuousMarkCorrelationAnalysisNode<'_> {
+impl NodeAnalysis for ContinuousMarkCorrelationAnalysis<'_> {
     type Output = ContinuousMarkCorrelationResult;
+    type Inputs = [ArtifactRef; 4];
 
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.inputs
-    }
-
-    fn semantic_input_artifacts(&self) -> &[marklab_workflow::ArtifactId] {
+    fn semantic_input_artifacts(&self) -> &[marklab_project::ArtifactId] {
         self.input.semantic_artifact_ids()
     }
 
-    fn verify_input_content(&self) -> Result<(), NodeError> {
+    fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
         let pattern = pattern_artifact(self.input.pattern())?;
-        self.inputs[0]
-            .verify_identity(pattern.digest(), pattern.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 0, &pattern)?;
         let declared = self
             .input
             .declared_artifact_ref()
             .map_err(NodeError::input)?;
-        self.inputs[1]
-            .verify_identity(declared.digest(), declared.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 1, &declared)?;
         let window = window_artifact(self.window)?;
-        self.inputs[2]
-            .verify_identity(window.digest(), window.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 2, &window)?;
         let config = config_artifact(self.config)?;
-        self.inputs[3]
-            .verify_identity(config.digest(), config.byte_len())
-            .map_err(NodeError::input)
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: EXECUTION_POLICY,
-            implementation_identity: &self.implementation_identity,
-        }
+        crate::workflow_node::verify_input(inputs, 3, &config)
     }
 
     fn execute(&self) -> Result<Self::Output, NodeError> {
-        crate::continuous_mark_correlation(self.input, self.window, self.config)
+        crate::marks::continuous_mark_correlation(self.input, self.window, self.config)
             .map_err(NodeError::execution)
     }
 
@@ -161,9 +153,9 @@ impl WorkflowNode for ContinuousMarkCorrelationAnalysisNode<'_> {
                 != table.measurement_status(&result.mark_id).ok_or_else(|| {
                     NodeError::decode(invalid("decoded continuous mark is absent"))
                 })?
-            || !same(result.global_mark_mean, mean)
-            || !same(result.global_mark_population_variance, variance)
-            || !same(result.expected_random_label_correlation, expected)
+            || !nearly_equal(result.global_mark_mean, mean)
+            || !nearly_equal(result.global_mark_population_variance, variance)
+            || !nearly_equal(result.expected_random_label_correlation, expected)
             || result.geometry.point_count != self.input.pattern().len()
             || result.window.logical_digest != descriptor.logical_digest.to_string()
             || result.window.area_um2.to_bits() != descriptor.area_um2.to_bits()
@@ -187,11 +179,13 @@ impl WorkflowNode for ContinuousMarkCorrelationAnalysisNode<'_> {
     }
 }
 
+crate::workflow_node::impl_workflow_node!(ContinuousMarkCorrelationAnalysisNode<'_> => ContinuousMarkCorrelationResult);
+
 #[derive(Serialize)]
 struct ConfigArtifact<'a> {
     mark_id: &'a str,
     radii_um: &'a [f64],
-    normalization: &'static str,
+    normalization: MarkNormalization,
     permutations: usize,
     seed: u64,
     alpha: f64,
@@ -203,7 +197,7 @@ fn config_artifact(config: &ContinuousMarkCorrelationConfig) -> Result<ArtifactR
     let encoded = serde_json::to_vec(&ConfigArtifact {
         mark_id: config.mark_id().as_str(),
         radii_um: config.radii_um(),
-        normalization: "global_arithmetic_mean_product",
+        normalization: MarkNormalization::GlobalArithmeticMeanProduct,
         permutations: config.permutations(),
         seed: config.seed(),
         alpha: config.alpha(),
@@ -260,7 +254,7 @@ struct ResultWire {
     unit: String,
     coordinate_frame_id: String,
     window: ClassicalWindowSummary,
-    normalization: String,
+    normalization: MarkNormalization,
     global_mark_mean: f64,
     global_mark_population_variance: f64,
     expected_random_label_correlation: f64,
@@ -276,10 +270,9 @@ struct ResultWire {
 struct GeometryWire {
     point_count: usize,
     directed_pair_count: usize,
-    geometry_build_count: usize,
     geometry_digest: String,
     pair_plan_digest: String,
-    edge_correction: String,
+    edge_correction: EdgeCorrection,
     estimated_storage_bytes: usize,
 }
 
@@ -300,14 +293,13 @@ struct PointWire {
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct InferenceWire {
-    null_model: String,
-    permutation_unit: String,
-    alternative: String,
-    multiplicity: String,
+    null_model: MarkNullModel,
+    permutation_unit: MarkPermutationUnit,
+    #[serde(with = "crate::result_vocabulary::AlternativeWire")]
+    alternative: marklab_cohort::InferenceAlternative,
+    multiplicity: MultiplicityCorrection,
     correlation: Option<ComponentWire>,
     permutations_requested: usize,
-    permutations_attempted: usize,
-    permutations_completed: usize,
     seed: u64,
     alpha: f64,
     permutation_pair_evaluations: usize,
@@ -331,17 +323,16 @@ impl From<&ContinuousMarkCorrelationResult> for ResultWire {
             unit: value.unit.clone(),
             coordinate_frame_id: value.coordinate_frame_id.as_str().into(),
             window: value.window.clone(),
-            normalization: value.normalization.clone(),
+            normalization: value.normalization,
             global_mark_mean: value.global_mark_mean,
             global_mark_population_variance: value.global_mark_population_variance,
             expected_random_label_correlation: value.expected_random_label_correlation,
             geometry: GeometryWire {
                 point_count: value.geometry.point_count,
                 directed_pair_count: value.geometry.directed_pair_count,
-                geometry_build_count: value.geometry.geometry_build_count,
                 geometry_digest: value.geometry.geometry_digest.to_string(),
                 pair_plan_digest: value.geometry.pair_plan_digest.to_string(),
-                edge_correction: value.geometry.edge_correction.clone(),
+                edge_correction: value.geometry.edge_correction,
                 estimated_storage_bytes: value.geometry.estimated_storage_bytes,
             },
             configuration_digest: value.configuration_digest.to_string(),
@@ -375,14 +366,12 @@ impl From<&ContinuousMarkCorrelationPoint> for PointWire {
 impl From<&ContinuousMarkCorrelationInferenceSummary> for InferenceWire {
     fn from(value: &ContinuousMarkCorrelationInferenceSummary) -> Self {
         Self {
-            null_model: value.null_model.clone(),
-            permutation_unit: value.permutation_unit.clone(),
-            alternative: value.alternative.clone(),
-            multiplicity: value.multiplicity.clone(),
+            null_model: value.null_model,
+            permutation_unit: value.permutation_unit,
+            alternative: value.alternative,
+            multiplicity: value.multiplicity,
             correlation: value.correlation.as_ref().map(ComponentWire::from),
             permutations_requested: value.permutations_requested,
-            permutations_attempted: value.permutations_attempted,
-            permutations_completed: value.permutations_completed,
             seed: value.seed,
             alpha: value.alpha,
             permutation_pair_evaluations: value.permutation_pair_evaluations,
@@ -425,7 +414,6 @@ impl TryFrom<ResultWire> for ContinuousMarkCorrelationResult {
             geometry: ContinuousMarkCorrelationGeometrySummary {
                 point_count: value.geometry.point_count,
                 directed_pair_count: value.geometry.directed_pair_count,
-                geometry_build_count: value.geometry.geometry_build_count,
                 geometry_digest: ContentDigest::from_str(&value.geometry.geometry_digest)
                     .map_err(|error| invalid(error.to_string()))?,
                 pair_plan_digest: ContentDigest::from_str(&value.geometry.pair_plan_digest)
@@ -478,8 +466,6 @@ impl From<InferenceWire> for ContinuousMarkCorrelationInferenceSummary {
             multiplicity: value.multiplicity,
             correlation: value.correlation.map(Into::into),
             permutations_requested: value.permutations_requested,
-            permutations_attempted: value.permutations_attempted,
-            permutations_completed: value.permutations_completed,
             seed: value.seed,
             alpha: value.alpha,
             permutation_pair_evaluations: value.permutation_pair_evaluations,
@@ -501,7 +487,7 @@ impl From<ComponentWire> for ContinuousMarkCorrelationComponentInference {
 fn validate_result(result: &ContinuousMarkCorrelationResult) -> io::Result<()> {
     if result.mark_id.as_str() != "nucleus_area_um2"
         || result.unit != "square_micrometer"
-        || result.normalization != "global_arithmetic_mean_product"
+        || result.normalization != MarkNormalization::GlobalArithmeticMeanProduct
         || !result.global_mark_mean.is_finite()
         || result.global_mark_mean <= 0.0
         || !result.global_mark_population_variance.is_finite()
@@ -511,20 +497,17 @@ fn validate_result(result: &ContinuousMarkCorrelationResult) -> io::Result<()> {
         || result.expected_random_label_correlation > 1.0
         || result.geometry.point_count < 2
         || result.geometry.directed_pair_count > result.limits.maximum_directed_pairs
-        || result.geometry.geometry_build_count != 1
-        || result.geometry.edge_correction != "standard_border_reduced_sample"
+        || result.geometry.edge_correction != EdgeCorrection::StandardBorderReducedSample
         || result.geometry.estimated_storage_bytes > result.limits.maximum_retained_bytes
         || result.curve.is_empty()
         || result.curve.len() > result.limits.maximum_radii
         || result.inference.permutations_requested == 0
-        || result.inference.permutations_attempted != result.inference.permutations_requested
-        || result.inference.permutations_completed != result.inference.permutations_requested
         || result.inference.permutation_pair_evaluations
             > result.limits.maximum_permutation_pair_evaluations
-        || result.inference.null_model != "random_labeling"
-        || result.inference.permutation_unit != "complete_continuous_mark_row"
-        || result.inference.alternative != "two_sided"
-        || result.inference.multiplicity != "single_correlation_erl_family"
+        || result.inference.null_model != MarkNullModel::RandomLabeling
+        || result.inference.permutation_unit != MarkPermutationUnit::CompleteContinuousMarkRow
+        || result.inference.alternative != marklab_cohort::InferenceAlternative::TwoSided
+        || result.inference.multiplicity != MultiplicityCorrection::SingleCorrelationErlFamily
         || !result.inference.alpha.is_finite()
         || result.inference.alpha <= 0.0
         || result.inference.alpha >= 1.0
@@ -564,7 +547,7 @@ fn validate_result(result: &ContinuousMarkCorrelationResult) -> io::Result<()> {
                 if point.directed_pairs_in_shell == 0
                     || !correlation.is_finite()
                     || correlation < 0.0
-                    || !same(
+                    || !nearly_equal(
                         correlation,
                         point.mark_product_sum_in_shell
                             / point.directed_pairs_in_shell as f64
@@ -636,25 +619,6 @@ fn validate_component(
     }
 }
 
-fn parse_status(value: &str) -> io::Result<MeasurementStatus> {
-    parse_measurement_status(value).ok_or_else(|| invalid("invalid measurement status"))
-}
-
 fn nonnegative_finite(value: f64) -> bool {
     value.is_finite() && value >= 0.0
-}
-
-fn unit_interval(value: f64) -> bool {
-    value.is_finite() && (0.0..=1.0).contains(&value)
-}
-
-fn same(left: f64, right: f64) -> bool {
-    left == right
-        || (left.is_finite()
-            && right.is_finite()
-            && (left - right).abs() <= 16.0 * f64::EPSILON * left.abs().max(right.abs()).max(1.0))
-}
-
-fn invalid(message: impl Into<String>) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message.into())
 }

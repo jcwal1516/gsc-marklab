@@ -5,11 +5,11 @@ use crate::{
     data::Pattern,
     diagnostics::beta_posterior::beta_posterior_group_summary,
     errors::{MarklabError, Result},
+    memory_budget::{estimate_peak_memory, MemoryEstimate, MemoryInputs},
     output::{
         AnalysisStatus, Interpretation, InterpretationClass, MarkedPatternResult, StatusFlag,
         TimingStage,
     },
-    perf::counters::{estimate_peak_memory, MemoryEstimate, MemoryInputs},
     scalar_mark::{
         DeclaredMarkUse, DeclaredScalarIdentity, DeclaredScalarInputError,
         DeclaredScalarPatternInput,
@@ -86,10 +86,10 @@ pub struct MarkedAnalysisRun {
     pub actual_thread_count: usize,
 }
 
-/// Legacy marked-analysis output paired with the declared scalar routing used at runtime.
+/// Marked-analysis output paired with the declared scalar routing used at runtime.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DeclaredMarkedAnalysisRun {
-    /// Exact compatibility marked-pattern result.
+    /// Marked-pattern result.
     pub result: MarkedPatternResult,
     /// Thread count selected by the unchanged analysis engine.
     pub actual_thread_count: usize,
@@ -288,6 +288,7 @@ impl AnalysisEngine {
             &self.config,
             &analysis_context,
             assembly::Inputs {
+                configured_strata,
                 status,
                 status_flags,
                 spectrum,

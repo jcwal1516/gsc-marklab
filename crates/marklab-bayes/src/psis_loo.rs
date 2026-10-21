@@ -1,16 +1,21 @@
+use crate::is_worker_timeout;
 use crate::validation::all_finite as finite;
-use crate::validation::is_lower_hex_sha256 as sha256;
+use crate::validation::{is_exact_name, is_sha256};
+use marklab_numerics::relative_eq;
 
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::ARVIZ_BACKEND;
+use crate::backend_versions::PYTHON_VERSION;
+use crate::ClaimStatus;
 use crate::{
     model::{BackendContract, WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION},
     BayesError, WorkerBackend,
 };
 
-const PSIS_BACKEND_VERSION: &str = "arviz-1.3.0+arviz-stats-1.3.1";
+const RELATIVE_TOLERANCE: f64 = 1e-10;
 const MAXIMUM_LOG_LIKELIHOOD_VALUES: usize = 500_000;
 
 #[derive(Clone, Debug)]
@@ -64,16 +69,16 @@ impl PsisLooWorkerRequest {
         worker_sha256: String,
         timeout_seconds: u64,
     ) -> Result<Self, BayesError> {
-        if !exact_name(&spec.model_name)
-            || !exact_name(&spec.likelihood_target)
-            || !sha256(&spec.data_identity_sha256)
-            || !sha256(&spec.preprocessing_identity_sha256)
+        if !is_exact_name(&spec.model_name)
+            || !is_exact_name(&spec.likelihood_target)
+            || !is_sha256(&spec.data_identity_sha256)
+            || !is_sha256(&spec.preprocessing_identity_sha256)
             || spec.heldout_unit.is_empty()
             || spec.heldout_unit.trim() != spec.heldout_unit
             || !spec.relative_efficiency.is_finite()
             || spec.relative_efficiency <= 0.0
             || spec.relative_efficiency > 1.0
-            || !(1..=3_600).contains(&timeout_seconds)
+            || !is_worker_timeout(timeout_seconds)
             || spec.draws.len() > MAXIMUM_LOG_LIKELIHOOD_VALUES
         {
             return Err(BayesError::InvalidSpec(
@@ -155,8 +160,8 @@ impl PsisLooWorkerRequest {
             version: WORKER_REQUEST_VERSION,
             backend: BackendContract {
                 name: "arviz",
-                version: PSIS_BACKEND_VERSION,
-                python_version: "3.12",
+                version: ARVIZ_BACKEND,
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -217,11 +222,7 @@ impl PsisLooWorkerResult {
     ) -> Result<(), BayesError> {
         if self.format != "marklab.arviz_psis_loo_worker_result"
             || self.version != 1
-            || self.backend.name != "arviz"
-            || self.backend.version != PSIS_BACKEND_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
             || self.pointwise.len() != request.unit_ids.len()
             || !finite(&[
@@ -262,8 +263,8 @@ impl PsisLooWorkerResult {
                 refit_units.push(actual.unit_id.clone());
             }
         }
-        if !approximately_equal(pointwise_sum, self.elpd_loo)
-            || !approximately_equal(maximum_pareto_k, self.maximum_pareto_k)
+        if !relative_eq(pointwise_sum, self.elpd_loo, RELATIVE_TOLERANCE)
+            || !relative_eq(maximum_pareto_k, self.maximum_pareto_k, RELATIVE_TOLERANCE)
             || self.warning == refit_units.is_empty()
             || self.refit_or_kfold_units != refit_units
         {
@@ -306,7 +307,7 @@ impl PsisLooWorkerResult {
             },
             pointwise: self.pointwise,
             refit_or_kfold_units: self.refit_or_kfold_units,
-            claim_status: "experimental_predictive_diagnostic".into(),
+            claim_status: ClaimStatus::ExperimentalPredictiveDiagnostic,
             request_sha256: self.request_sha256,
         }
     }
@@ -323,17 +324,17 @@ impl PsisLooResult {
         if self.format != "marklab.bayesian_psis_loo"
             || self.version != 1
             || self.backend.name != "arviz"
-            || self.backend.version != PSIS_BACKEND_VERSION
-            || self.backend.python_version != "3.12"
-            || !sha256(&self.backend.environment_lock_sha256)
-            || !sha256(&self.backend.worker_sha256)
-            || !sha256(&self.input.log_likelihood_sha256)
-            || !sha256(&self.request_sha256)
-            || !sha256(&self.data_identity_sha256)
-            || !sha256(&self.preprocessing_identity_sha256)
-            || !exact_name(&self.model_name)
-            || !exact_name(&self.likelihood_target)
-            || !exact_name(&self.heldout_unit)
+            || self.backend.version != ARVIZ_BACKEND
+            || self.backend.python_version != PYTHON_VERSION
+            || !is_sha256(&self.backend.environment_lock_sha256)
+            || !is_sha256(&self.backend.worker_sha256)
+            || !is_sha256(&self.input.log_likelihood_sha256)
+            || !is_sha256(&self.request_sha256)
+            || !is_sha256(&self.data_identity_sha256)
+            || !is_sha256(&self.preprocessing_identity_sha256)
+            || !is_exact_name(&self.model_name)
+            || !is_exact_name(&self.likelihood_target)
+            || !is_exact_name(&self.heldout_unit)
             || !(2..=8).contains(&self.chains)
             || !(100..=100_000).contains(&self.draws_per_chain)
             || self.sample_count != u64::from(self.chains) * u64::from(self.draws_per_chain)
@@ -353,7 +354,7 @@ impl PsisLooResult {
             || self.good_pareto_k <= 0.0
             || self.good_pareto_k > 1.0
             || !(2..=10_000).contains(&self.pointwise.len())
-            || self.claim_status != "experimental_predictive_diagnostic"
+            || self.claim_status != ClaimStatus::ExperimentalPredictiveDiagnostic
         {
             return Err(BayesError::WorkerContract(
                 "published PSIS-LOO identity or aggregate is invalid".into(),
@@ -364,7 +365,7 @@ impl PsisLooResult {
         let mut prior_unit = "";
         let mut refit_units = Vec::new();
         for point in &self.pointwise {
-            if !exact_name(&point.unit_id)
+            if !is_exact_name(&point.unit_id)
                 || point.unit_id.as_str() <= prior_unit
                 || !finite(&[point.elpd_loo, point.pareto_k])
                 || point.reliability
@@ -390,8 +391,8 @@ impl PsisLooResult {
         } else {
             "requires_refit_or_kfold"
         };
-        if !approximately_equal(pointwise_sum, self.elpd_loo)
-            || !approximately_equal(maximum_pareto_k, self.maximum_pareto_k)
+        if !relative_eq(pointwise_sum, self.elpd_loo, RELATIVE_TOLERANCE)
+            || !relative_eq(maximum_pareto_k, self.maximum_pareto_k, RELATIVE_TOLERANCE)
             || self.warning == refit_units.is_empty()
             || self.reliability != expected_reliability
             || self.refit_or_kfold_units != refit_units
@@ -402,14 +403,6 @@ impl PsisLooResult {
         }
         Ok(())
     }
-}
-
-fn approximately_equal(left: f64, right: f64) -> bool {
-    (left - right).abs() <= 1e-10 * left.abs().max(right.abs()).max(1.0)
-}
-
-fn exact_name(value: &str) -> bool {
-    !value.is_empty() && value.len() <= 128 && value.trim() == value
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -445,7 +438,7 @@ pub struct PsisLooResult {
     pub reliability: String,
     pub pointwise: Vec<PsisLooPointwise>,
     pub refit_or_kfold_units: Vec<String>,
-    pub claim_status: String,
+    pub claim_status: ClaimStatus,
     pub request_sha256: String,
 }
 

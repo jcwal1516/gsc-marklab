@@ -9,8 +9,7 @@ use thiserror::Error;
 use crate::{
     columnar::{
         validate_patch_footprint_set_arrow_from_store,
-        validate_patch_footprint_set_parquet_from_store, EmbeddingColumnarBudgets,
-        MultiscaleColumnarError,
+        validate_patch_footprint_set_parquet_from_store, ColumnarError, EmbeddingColumnarBudgets,
     },
     multiscale::{
         context::PatchEmbeddingContext,
@@ -24,7 +23,7 @@ use crate::{
     ArtifactAvailabilityFailure,
 };
 
-/// Artifact roles admitted by vector-independent patch-region input validation.
+/// Artifact roles accepted by vector-independent patch-region input validation.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 #[non_exhaustive]
 pub enum PatchRegionInputArtifactRole {
@@ -125,7 +124,7 @@ pub enum PatchRegionInputArtifactGraphError {
     #[error("patch footprint physical validation failed: {reason}")]
     FootprintPhysical {
         /// Redacted physical failure.
-        reason: MultiscaleColumnarError,
+        reason: ColumnarError,
     },
 }
 
@@ -308,7 +307,6 @@ impl PatchRegionAssessment {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn validate_domain_bindings(
     assessment: &PatchRegionAssessment,
     assessment_artifact_id: ArtifactId,

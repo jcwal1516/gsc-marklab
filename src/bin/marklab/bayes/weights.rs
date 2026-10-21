@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, path::PathBuf};
+use std::collections::BTreeMap;
 
 use clap::ValueEnum;
 use marklab_bayes::{
@@ -7,7 +7,8 @@ use marklab_bayes::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{publish_json, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::ValidateWeightsArgs;
+use super::{publish_json, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
 pub(super) enum CliSymmetry {
@@ -41,14 +42,18 @@ struct EdgeRow {
     weight: f64,
 }
 
-pub(super) fn run(
-    region_path: PathBuf,
-    edge_path: PathBuf,
-    symmetry: CliSymmetry,
-    diagonal: CliDiagonal,
-    normalization: CliNormalization,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: ValidateWeightsArgs) -> Result<(), CliError> {
+    let ValidateWeightsArgs {
+        regions,
+        edges,
+        symmetry,
+        diagonal,
+        normalization,
+        out,
+    } = args;
+    let region_path = regions;
+    let edge_path = edges;
+    let output_path = out;
     let region_ids = read_regions(&region_path)?;
     let edges = read_edges(&edge_path)?;
     let policy = SpatialWeightsPolicy {
@@ -95,11 +100,11 @@ pub(super) fn run(
     publish_json(&output_path, &result)
 }
 
-fn read_regions(path: &std::path::Path) -> Result<Vec<String>, BayesCliError> {
+fn read_regions(path: &std::path::Path) -> Result<Vec<String>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader.headers()?.iter().eq(["region_id"]) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "region headers must be exactly: region_id".into(),
         ));
     }
@@ -107,13 +112,13 @@ fn read_regions(path: &std::path::Path) -> Result<Vec<String>, BayesCliError> {
     for row in reader.deserialize::<RegionRow>() {
         rows.push(row?.region_id);
         if rows.len() > 100_000 {
-            return Err(BayesCliError::Input("region count exceeds 100000".into()));
+            return Err(CliError::Input("region count exceeds 100000".into()));
         }
     }
     Ok(rows)
 }
 
-fn read_edges(path: &std::path::Path) -> Result<Vec<SpatialEdge>, BayesCliError> {
+fn read_edges(path: &std::path::Path) -> Result<Vec<SpatialEdge>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader
@@ -121,7 +126,7 @@ fn read_edges(path: &std::path::Path) -> Result<Vec<SpatialEdge>, BayesCliError>
         .iter()
         .eq(["source_region", "target_region", "weight"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "edge headers must be exactly: source_region,target_region,weight".into(),
         ));
     }
@@ -134,23 +139,23 @@ fn read_edges(path: &std::path::Path) -> Result<Vec<SpatialEdge>, BayesCliError>
             weight: row.weight,
         });
         if rows.len() > 2_000_000 {
-            return Err(BayesCliError::Input("edge count exceeds 2000000".into()));
+            return Err(CliError::Input("edge count exceeds 2000000".into()));
         }
     }
     Ok(rows)
 }
 
-fn validate_file(path: &std::path::Path) -> Result<(), BayesCliError> {
-    super::input_file::validate_regular_file(
+fn validate_file(path: &std::path::Path) -> Result<(), CliError> {
+    crate::input_file::validate_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,
         "spatial-weights input must be a regular file within the 16 MiB limit",
     )
 }
 
-fn map_error(error: SpatialWeightsError) -> BayesCliError {
+fn map_error(error: SpatialWeightsError) -> CliError {
     match error {
-        SpatialWeightsError::InvalidInput(message) => BayesCliError::Input(message),
+        SpatialWeightsError::InvalidInput(message) => CliError::Input(message),
     }
 }
 

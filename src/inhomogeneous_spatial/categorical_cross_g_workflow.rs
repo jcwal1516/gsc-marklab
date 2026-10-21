@@ -1,15 +1,18 @@
+use crate::result_vocabulary::{EdgeCorrection, InhomogeneousNullModel, SpatialRandomizationUnit};
+use crate::workflow_codec::invalid;
 use std::io;
 
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_project::{ArtifactRef, ContentDigest, MarklabProject};
+use marklab_workflow::{CacheKeyMaterial, NodeError, NodeId, NodeSpec, WorkflowNode};
 use serde::Serialize;
 
 use crate::{
-    cross_pair_correlation::window_artifact, workflow::pattern_artifact,
-    DeclaredScalarPatternInput, ObservationWindow2D, PairCorrelationKernel,
-    PairCorrelationPointStatus, Pattern, ScalarMarkId,
+    cross_pair_correlation::window_artifact,
+    marked_workflow::pattern_artifact,
+    marks::{DeclaredScalarPatternInput, ScalarMarkId},
+    scalar_mark::COMPARTMENT_MARK_ID,
+    spatial::{PairCorrelationKernel, PairCorrelationPointStatus},
+    ObservationWindow2D, Pattern,
 };
 
 use super::{
@@ -65,12 +68,19 @@ impl<'a> InhomogeneousCategoricalCrossPairCorrelationAnalysisNode<'a> {
             || "type-specific-leave-one-out".to_owned(),
             |folds| format!("type-specific-balanced-cell-id-rank-{folds}-fold"),
         );
-        let implementation_version = if config.intensity_config().cross_fit_folds().is_some() {
+        let mut implementation_version = if config.intensity_config().cross_fit_folds().is_some() {
             "inhomogeneous-categorical-cross-g-node-v4"
         } else {
             "inhomogeneous-categorical-cross-g-node-v3"
         };
         let correction = edge_correction_name(config.edge_correction());
+        if correction == "translation" {
+            implementation_version = if config.intensity_config().cross_fit_folds().is_some() {
+                "inhomogeneous-categorical-cross-g-node-v4-translation-rectangle-v2"
+            } else {
+                "inhomogeneous-categorical-cross-g-node-v3-translation-rectangle-v2"
+            };
+        }
         Ok(Self {
             spec: NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?,
             input,
@@ -79,7 +89,7 @@ impl<'a> InhomogeneousCategoricalCrossPairCorrelationAnalysisNode<'a> {
             inputs,
             configuration_digest: config_ref.digest(),
             implementation_identity: format!(
-                "marklab/{};adapter={implementation_version};erl=finite-sample-v2",
+                "marklab/{};adapter={implementation_version};erl=finite-sample-v2;empty-kernel=zero",
                 env!("CARGO_PKG_VERSION"),
             ),
             execution_policy: if config.intensity_config().cross_fit_folds().is_some()
@@ -108,7 +118,7 @@ impl WorkflowNode for InhomogeneousCategoricalCrossPairCorrelationAnalysisNode<'
         &self.inputs
     }
 
-    fn semantic_input_artifacts(&self) -> &[marklab_workflow::ArtifactId] {
+    fn semantic_input_artifacts(&self) -> &[marklab_project::ArtifactId] {
         self.input.semantic_artifact_ids()
     }
 
@@ -216,7 +226,7 @@ fn validate(
     window: &ObservationWindow2D,
     config: &InhomogeneousCategoricalCrossPairCorrelationConfig,
 ) -> io::Result<()> {
-    let mark_id = ScalarMarkId::new("histologic_compartment").map_err(invalid_owned)?;
+    let mark_id = ScalarMarkId::new(COMPARTMENT_MARK_ID).map_err(invalid_owned)?;
     let table = input
         .mark_table()
         .ok_or_else(|| invalid("typed MarkTable is absent"))?;
@@ -233,16 +243,10 @@ fn validate(
     let source_pattern = subset_pattern(input.pattern(), &source_rows)?;
     let target_pattern = subset_pattern(input.pattern(), &target_rows)?;
     let intensity = config.intensity_config();
-    let expected_status = match table
+    let expected_status = table
         .measurement_status(&mark_id)
-        .ok_or_else(|| invalid("measurement status is absent"))?
-    {
-        marklab_data::MeasurementStatus::Measured => "measured",
-        marklab_data::MeasurementStatus::ImportedPrediction => "imported_prediction",
-        marklab_data::MeasurementStatus::MorphologyPrediction => "morphology_prediction",
-        marklab_data::MeasurementStatus::DerivedSummary => "derived_summary",
-    };
-    if result.mark_id != "histologic_compartment"
+        .ok_or_else(|| invalid("measurement status is absent"))?;
+    if result.mark_id != COMPARTMENT_MARK_ID
         || result.measurement_status != expected_status
         || result.coordinate_frame_id != input.coordinate_frame_id().as_str()
         || result.window.logical_digest != window.descriptor().logical_digest.to_string()
@@ -265,9 +269,9 @@ fn validate(
         || result.curve.len() != intensity.radii_um().len()
         || !validate_edge_work(result, config.edge_correction())
         || result.inference.null_model
-            != "independent_fixed_gridded_type_specific_inhomogeneous_binomial"
+            != InhomogeneousNullModel::IndependentFixedGriddedTypeSpecificInhomogeneousBinomial
         || result.inference.randomization_unit
-            != "independent_source_and_target_location_patterns_conditioned_on_type_counts"
+            != SpatialRandomizationUnit::IndependentSourceAndTargetLocationPatternsConditionedOnTypeCounts
         || result.inference.simulations_completed != intensity.simulations()
         || result.inference.seed != intensity.seed()
         || result.inference.alpha.to_bits() != intensity.alpha().to_bits()
@@ -312,7 +316,7 @@ fn validate_curve(
                     && point.directed_source_target_pairs_in_support == 0
                     && point.inverse_intensity_kernel_sum.to_bits() == 0.0_f64.to_bits()
                     && point.eligible_source_inverse_intensity_sum > 0.0
-                    && point.cross_g.is_none()
+                    && point.cross_g.is_none_or(|value| value == 0.0)
             }
         };
         if !status_consistent
@@ -370,16 +374,16 @@ fn edge_correction_name(correction: InhomogeneousCategoricalCrossEdgeCorrection)
 
 fn expected_edge_correction(
     correction: InhomogeneousCategoricalCrossEdgeCorrection,
-) -> &'static str {
+) -> EdgeCorrection {
     match correction {
         InhomogeneousCategoricalCrossEdgeCorrection::StandardBorder => {
-            "standard_border_radius_plus_pair_bandwidth_type_specific_inverse_intensity_ratio"
+            EdgeCorrection::StandardBorderRadiusPlusPairBandwidthTypeSpecificInverseIntensityRatio
         }
         InhomogeneousCategoricalCrossEdgeCorrection::Translation(_) => {
-            "translation_exact_polygon_type_specific_inverse_intensity"
+            EdgeCorrection::TranslationExactPolygonTypeSpecificInverseIntensity
         }
         InhomogeneousCategoricalCrossEdgeCorrection::Isotropic(_) => {
-            "isotropic_visible_arc_type_specific_inverse_intensity"
+            EdgeCorrection::IsotropicVisibleArcTypeSpecificInverseIntensity
         }
     }
 }
@@ -391,7 +395,7 @@ fn validate_edge_work(
     match (correction, result.edge_work.as_ref()) {
         (InhomogeneousCategoricalCrossEdgeCorrection::StandardBorder, None) => true,
         (InhomogeneousCategoricalCrossEdgeCorrection::Translation(limits), Some(work)) => {
-            work.correction == "translation"
+            work.correction == EdgeCorrection::Translation
                 && work.pair_visits <= limits.maximum_pair_visits
                 && work.geometry_evaluations <= limits.maximum_overlap_evaluations
                 && work.geometry_candidate_work <= limits.maximum_overlap_candidate_work
@@ -399,7 +403,7 @@ fn validate_edge_work(
                 && work.maximum_geometry_output_size <= limits.maximum_overlap_output_vertices
         }
         (InhomogeneousCategoricalCrossEdgeCorrection::Isotropic(limits), Some(work)) => {
-            work.correction == "isotropic"
+            work.correction == EdgeCorrection::Isotropic
                 && work.pair_visits <= limits.maximum_pair_visits
                 && work.geometry_evaluations <= limits.maximum_visible_arc_evaluations
                 && work.geometry_candidate_work <= limits.maximum_arc_segment_tests
@@ -442,10 +446,6 @@ fn subset_pattern(pattern: &Pattern, rows: &[usize]) -> io::Result<Pattern> {
         );
     }
     Ok(subset)
-}
-
-fn invalid(message: &'static str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message)
 }
 
 fn invalid_owned(error: impl std::fmt::Display) -> io::Error {

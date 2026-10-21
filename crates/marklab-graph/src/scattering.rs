@@ -6,6 +6,7 @@ use crate::{
     filter::spectral_filter_signal, graph_spectral_workflow, GraphError, GraphSpectralSpec,
     GraphSpectrum,
 };
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -52,7 +53,7 @@ pub struct GraphScatteringResult {
     pub maximum_order: usize,
     pub features: Vec<GraphScatteringFeature>,
     pub stability: Vec<GraphScatteringStability>,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn graph_scattering_workflow(
@@ -150,7 +151,7 @@ pub fn graph_scattering_workflow(
         maximum_order: spec.maximum_order,
         features,
         stability,
-        claim_status: "experimental_declared_perturbation_stability_only",
+        claim_status: ClaimStatus::ExperimentalDeclaredPerturbationStabilityOnly,
     })
 }
 

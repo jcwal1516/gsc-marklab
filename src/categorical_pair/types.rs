@@ -1,8 +1,11 @@
+use crate::result_vocabulary::{
+    EdgeCorrection, MarkNullModel, MarkPermutationUnit, MultiplicityCorrection,
+};
 use marklab_data::{CoordinateFrameId, MeasurementStatus};
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 use thiserror::Error;
 
-use crate::{ClassicalWindowSummary, ScalarMarkId};
+use crate::{marks::ScalarMarkId, spatial::ClassicalWindowSummary};
 
 /// Exact resource ceilings for one categorical pair workflow.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -63,7 +66,6 @@ pub struct CategoricalPairConfig {
 
 impl CategoricalPairConfig {
     /// Validate one directed distinct-level categorical pair design.
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         radii_um: Vec<f64>,
         source_level: impl Into<String>,
@@ -164,7 +166,7 @@ pub enum CategoricalPairPointStatus {
     NoPairsInShell,
 }
 
-/// One radius of directed categorical mark-connection and cumulative cross-K output.
+/// One radius of directed categorical mark-connection and cumulative cross-K/L output.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CategoricalPairPoint {
     /// Inclusive cumulative radius and shell upper edge.
@@ -185,8 +187,12 @@ pub struct CategoricalPairPoint {
     pub connection_probability: Option<f64>,
     /// Standard-border directed cross-K.
     pub cross_k: Option<f64>,
+    /// Standard-border directed cross-L, `sqrt(cross_k / pi)`.
+    pub cross_l: Option<f64>,
     /// Homogeneous independent-label theoretical cross-K.
     pub theoretical_cross_k: f64,
+    /// Homogeneous independent-label theoretical cross-L.
+    pub theoretical_cross_l: f64,
     /// Whether mark connection is jointly inference-eligible.
     pub connection_inference_eligible: bool,
     /// Lower mark-connection ERL envelope.
@@ -199,6 +205,10 @@ pub struct CategoricalPairPoint {
     pub lower_cross_k: Option<f64>,
     /// Upper cross-K ERL envelope.
     pub upper_cross_k: Option<f64>,
+    /// Lower cross-L ERL envelope, transformed from the cross-K family.
+    pub lower_cross_l: Option<f64>,
+    /// Upper cross-L ERL envelope, transformed from the cross-K family.
+    pub upper_cross_l: Option<f64>,
 }
 
 /// Exact shared geometry and work telemetry.
@@ -208,14 +218,12 @@ pub struct CategoricalPairGeometrySummary {
     pub point_count: usize,
     /// Directed pairs retained once through the maximum radius.
     pub directed_pair_count: usize,
-    /// Geometry was constructed exactly once and reused for all permutations.
-    pub geometry_build_count: usize,
     /// Point/window geometry identity.
     pub geometry_digest: ContentDigest,
     /// Directed pair-plan identity.
     pub pair_plan_digest: ContentDigest,
     /// Edge correction.
-    pub edge_correction: String,
+    pub edge_correction: EdgeCorrection,
     /// Conservative retained bytes.
     pub estimated_storage_bytes: usize,
 }
@@ -237,23 +245,19 @@ pub struct CategoricalPairComponentInference {
 #[derive(Clone, Debug, PartialEq)]
 pub struct CategoricalPairInferenceSummary {
     /// Exact null family.
-    pub null_model: String,
+    pub null_model: MarkNullModel,
     /// Complete categorical row is the atomic permutation unit.
-    pub permutation_unit: String,
+    pub permutation_unit: MarkPermutationUnit,
     /// Two-sided componentwise alternative.
-    pub alternative: String,
+    pub alternative: marklab_cohort::InferenceAlternative,
     /// Each named curve is one simultaneous ERL family.
-    pub multiplicity: String,
+    pub multiplicity: MultiplicityCorrection,
     /// Mark-connection inference.
     pub connection: Option<CategoricalPairComponentInference>,
     /// Directed cross-K inference.
     pub cross_k: Option<CategoricalPairComponentInference>,
     /// Requested permutations.
     pub permutations_requested: usize,
-    /// Attempted permutations.
-    pub permutations_attempted: usize,
-    /// Completed permutations.
-    pub permutations_completed: usize,
     /// Base seed.
     pub seed: u64,
     /// Family-wise alpha within each named component family.
@@ -363,7 +367,7 @@ pub enum CategoricalPairError {
     /// Checked arithmetic overflowed.
     #[error("categorical pair size arithmetic overflow")]
     SizeOverflow,
-    /// Existing typed input, geometry, design, or ERL owner failed.
+    /// Input, geometry, design or ERL validation failed.
     #[error("categorical pair dependency failed: {reason}")]
     Dependency {
         /// Redacted deterministic reason.

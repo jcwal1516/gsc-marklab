@@ -34,7 +34,7 @@ fn arrow_materialization_charges_the_decoded_batch_alongside_the_final_table() {
             budgets,
         ) {
             Ok(_) => break,
-            Err(EmbeddingColumnarError::RetainedByteBudgetExceeded { required, maximum }) => {
+            Err(ColumnarError::RetainedByteBudgetExceeded { required, maximum }) => {
                 assert!(required > maximum);
                 retained_preflight_bytes = required;
             }
@@ -79,7 +79,7 @@ fn arrow_materialization_charges_the_decoded_batch_alongside_the_final_table() {
                 8 * 1024 * 1024,
             ),
         ),
-        Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
+        Err(ColumnarError::RetainedByteBudgetExceeded {
             required,
             maximum,
         }) if required > maximum && maximum == previously_undercounted_peak
@@ -168,7 +168,7 @@ fn verified_graph_gates_full_arrow_table_materialization() {
             verified,
             too_small,
         ),
-        Err(EmbeddingColumnarError::FileByteBudgetExceeded { .. })
+        Err(ColumnarError::FileByteBudgetExceeded { .. })
     ));
 }
 
@@ -214,7 +214,7 @@ fn verified_store_arrow_reader_matches_borrowed_bytes_and_checks_budget_first() 
             too_small,
         ),
         Err(VerifiedReaderError::Callback(
-            EmbeddingColumnarError::FileByteBudgetExceeded { .. }
+            ColumnarError::FileByteBudgetExceeded { .. }
         ))
     ));
 }
@@ -257,7 +257,7 @@ fn verified_parquet_readers_match_the_domain_table_and_check_budget_first() {
             verified,
             embedding_budgets(),
         ),
-        Err(EmbeddingColumnarError::ArtifactBindingMismatch)
+        Err(ColumnarError::ArtifactBindingMismatch)
     ));
 
     let record = fixture
@@ -291,7 +291,7 @@ fn verified_parquet_readers_match_the_domain_table_and_check_budget_first() {
             verified,
             too_small,
         ),
-        Err(EmbeddingColumnarError::FileByteBudgetExceeded { .. })
+        Err(ColumnarError::FileByteBudgetExceeded { .. })
     ));
     assert!(matches!(
         read_cell_embedding_table_parquet_from_store(
@@ -303,7 +303,7 @@ fn verified_parquet_readers_match_the_domain_table_and_check_budget_first() {
             too_small,
         ),
         Err(VerifiedReaderError::Callback(
-            EmbeddingColumnarError::FileByteBudgetExceeded { .. }
+            ColumnarError::FileByteBudgetExceeded { .. }
         ))
     ));
 }

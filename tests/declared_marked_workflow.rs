@@ -1,10 +1,15 @@
 use marklab::{
-    AnalysisEngine, BinaryMarkDeclaration, CacheStatus, DeclaredMarkedAnalysisNode,
-    DeclaredScalarInputError, DeclaredScalarPatternInput, LocalScheduler, MarkTable,
-    MeasurementStatus, MissingnessPolicy, NodeError, NodeId, NucleusAreaUm2MarkDeclaration,
-    ProbabilityMarkDeclaration, ProbabilityThresholdComparator, ResultDocument, ScalarMarkColumn,
-    ScalarMarkId, ScalarMarkModality, ScalarMarkUnit, ScalarMarkValueKind, SchedulerLimits,
-    WorkflowError, WorkflowGraph,
+    marks::{
+        BinaryMarkDeclaration, DeclaredScalarInputError, DeclaredScalarPatternInput, MarkTable,
+        MissingnessPolicy, NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration,
+        ProbabilityThresholdComparator, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality,
+        ScalarMarkUnit, ScalarMarkValueKind,
+    },
+    workflow::{
+        CacheStatus, DeclaredMarkedAnalysisNode, LocalScheduler, NodeError, NodeId,
+        SchedulerLimits, WorkflowError, WorkflowGraph,
+    },
+    AnalysisEngine, MeasurementStatus, ResultDocument,
 };
 
 #[path = "support/declared_scalar.rs"]
@@ -109,7 +114,7 @@ fn paired_declarations_with_threshold(
 }
 
 fn input<'a>(
-    project: &marklab::MarklabProject,
+    project: &marklab::workflow::MarklabProject,
     pattern: &'a marklab::Pattern,
     cell_ids: &'a [marklab::CellId],
     slide_id: &marklab::SlideId,
@@ -383,7 +388,7 @@ fn declared_node_revalidates_the_target_project_before_cataloging_inputs() {
         None,
     );
     let config = analysis_config(false);
-    let mut unrelated_project = marklab::MarklabProject::new();
+    let mut unrelated_project = marklab::workflow::MarklabProject::new();
 
     let error = match DeclaredMarkedAnalysisNode::new(
         &mut unrelated_project,
@@ -399,7 +404,7 @@ fn declared_node_revalidates_the_target_project_before_cataloging_inputs() {
 }
 
 #[test]
-fn scheduler_miss_hit_preserves_mark_use_and_exact_result_v03_codec() {
+fn scheduler_miss_hit_preserves_mark_use_and_exact_result_codec() {
     let mut fixture = fixture();
     fixture.pattern.mark_prob = Some(vec![0.1, 0.8, 0.7, 0.2].into_boxed_slice());
     let (binary, probability) = paired_declarations(&mut fixture);

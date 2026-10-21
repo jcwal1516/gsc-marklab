@@ -53,23 +53,23 @@ impl VerifiedPatchEmbeddingTableArtifact {
         source_row_link: &PatchEmbeddingSourceRowLink,
         support: VerifiedPatchEmbeddingSupportArtifact,
         graph: VerifiedDirectPatchEmbeddingArtifactGraph,
-    ) -> Result<Self, crate::columnar::MultiscaleColumnarError> {
+    ) -> Result<Self, crate::columnar::ColumnarError> {
         let row_count = u64::try_from(table.row_count())
-            .map_err(|_| crate::columnar::MultiscaleColumnarError::SizeOverflow)?;
+            .map_err(|_| crate::columnar::ColumnarError::SizeOverflow)?;
         if source_row_link.expected_patches_artifact_id() != graph.expected_patches_artifact_id
             || source_row_link.expected_patches_logical_digest()
                 != graph.expected_patches_logical_digest
             || source_row_link.logical_digest() != graph.source_row_link_logical_digest
             || source_row_link.entries().len() != table.row_count()
         {
-            return Err(crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch);
+            return Err(crate::columnar::ColumnarError::ArtifactBindingMismatch);
         }
         for (index, source) in source_row_link.entries().iter().enumerate() {
             let row = table
                 .row(index)
-                .map_err(|_| crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch)?;
+                .map_err(|_| crate::columnar::ColumnarError::ArtifactBindingMismatch)?;
             if row.patch_id() != source.patch_id() || row.status() != source.status() {
-                return Err(crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch);
+                return Err(crate::columnar::ColumnarError::ArtifactBindingMismatch);
             }
         }
         if artifact_id == table.expected_entities_artifact_id()
@@ -90,7 +90,7 @@ impl VerifiedPatchEmbeddingTableArtifact {
             || support.patch_overlap_artifact_id != graph.patch_overlap_artifact_id
             || support.row_count != row_count
         {
-            return Err(crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch);
+            return Err(crate::columnar::ColumnarError::ArtifactBindingMismatch);
         }
         Ok(Self {
             artifact_id,
@@ -203,7 +203,7 @@ impl VerifiedRegionEmbeddingTableArtifact {
     pub(crate) fn new(
         artifact_id: ArtifactId,
         candidate: &DerivedRegionEmbeddingTableCandidate,
-    ) -> Result<Self, crate::columnar::MultiscaleColumnarError> {
+    ) -> Result<Self, crate::columnar::ColumnarError> {
         let table = candidate.table();
         let graph = candidate.graph;
         if [
@@ -223,7 +223,7 @@ impl VerifiedRegionEmbeddingTableArtifact {
             || table.provenance_logical_digest() != graph.provenance_logical_digest
             || table.dimension() != graph.output_dimension
         {
-            return Err(crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch);
+            return Err(crate::columnar::ColumnarError::ArtifactBindingMismatch);
         }
         Ok(Self {
             artifact_id,
@@ -386,7 +386,7 @@ impl VerifiedSlideEmbeddingTableArtifact {
     pub(crate) fn new(
         artifact_id: ArtifactId,
         candidate: &DerivedSlideEmbeddingTableCandidate,
-    ) -> Result<Self, crate::columnar::MultiscaleColumnarError> {
+    ) -> Result<Self, crate::columnar::ColumnarError> {
         let table = candidate.table();
         let graph = candidate.graph;
         if [
@@ -406,7 +406,7 @@ impl VerifiedSlideEmbeddingTableArtifact {
             || table.provenance_logical_digest() != graph.provenance_logical_digest
             || table.dimension() != graph.output_dimension
         {
-            return Err(crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch);
+            return Err(crate::columnar::ColumnarError::ArtifactBindingMismatch);
         }
         Ok(Self {
             artifact_id,

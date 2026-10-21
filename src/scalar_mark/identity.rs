@@ -1,12 +1,12 @@
+use crate::measurement_status_wire::name as measurement_status_name;
 use std::io::Write;
 
 use marklab_data::{CellId, CoordinateFrameId, SlideId};
-use marklab_workflow::{ContentDigest, ContentDigestWriter};
+use marklab_project::{ContentDigest, ContentDigestWriter};
 
 use super::{
     declaration::{
-        measurement_status_name, BinaryMarkDeclaration, BinaryMarkOrigin, DeclaredMarkUse,
-        ProbabilityMarkDeclaration,
+        BinaryMarkDeclaration, BinaryMarkOrigin, DeclaredMarkUse, ProbabilityMarkDeclaration,
     },
     DeclaredScalarInputError,
 };

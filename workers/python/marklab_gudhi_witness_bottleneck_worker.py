@@ -1,21 +1,30 @@
 #!/usr/bin/env python3
+"""GUDHI worker for exact bottleneck distances between paired witness persistence diagrams."""
 
-import hashlib
 import json
 import math
 import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import gudhi
 
-
-GUDHI_VERSION = "3.13.0"
-
-
-class ContractError(Exception):
-    pass
+from marklab_worker_support import versions
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    ContractError,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
 
 
 def validate_diagram(diagram):
+    """Return finite pairs and essential classes (death at infinity) as GUDHI intervals."""
     finite = []
     for pair in diagram["finite_pairs"]:
         birth = float(pair["birth"])
@@ -33,11 +42,8 @@ def validate_diagram(diagram):
 
 
 def main():
-    if gudhi.__version__ != GUDHI_VERSION or sys.version_info[:2] != (3, 12):
-        raise ContractError("GUDHI or Python version drift")
-    request_bytes = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
-    if not request_bytes or len(request_bytes) > 16 * 1024 * 1024:
-        raise ContractError("request is empty or too large")
+    require_versions(gudhi=gudhi.__version__)
+    request_bytes = read_request(16 * MIB)
     request = json.loads(request_bytes)
     if (
         request["format"] != "marklab.gudhi_witness_bottleneck_request"
@@ -45,8 +51,8 @@ def main():
         or request["metric"] != "bottleneck_linf"
         or request["coefficient"] != 0.0
         or request["backend"]["name"] != "gudhi"
-        or request["backend"]["version"] != GUDHI_VERSION
-        or request["backend"]["python_version"] != "3.12"
+        or request["backend"]["version"] != versions.GUDHI
+        or request["backend"]["python_version"] != versions.PYTHON
     ):
         raise ContractError("request or backend identity mismatch")
     comparisons = request["comparisons"]
@@ -65,10 +71,7 @@ def main():
         left_finite, left_essential = validate_diagram(comparison["baseline"])
         right_finite, right_essential = validate_diagram(comparison["perturbed"])
         interval_count += (
-            len(left_finite)
-            + len(left_essential)
-            + len(right_finite)
-            + len(right_essential)
+            len(left_finite) + len(left_essential) + len(right_finite) + len(right_essential)
         )
         if interval_count > request["maximum_interval_budget"]:
             raise ContractError("bottleneck interval budget exceeds maximum")
@@ -101,7 +104,7 @@ def main():
         "format": "marklab.gudhi_witness_bottleneck_result",
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "request_sha256": sha256_hex(request_bytes),
         "metric": "gudhi_exact_linf",
         "essential_interval_policy": "infinite_death_equal_counts_else_infinite_mismatch",
         "comparisons": output,
@@ -111,13 +114,8 @@ def main():
         "has_infinite_essential_mismatch": has_infinite,
         "claim_status": "exact_witness_diagram_bottleneck_stability_diagnostic",
     }
-    json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    sys.stdout.write("\n")
+    write_result(result)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
-        print(f"witness bottleneck worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(main, "witness bottleneck worker contract error", errors=CONTRACT_ERRORS)

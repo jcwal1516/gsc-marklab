@@ -12,7 +12,8 @@ fn clone_phylogeography_and_niche_models_integrate_imported_uncertainty_and_pati
     for patient in 0..4 {
         let patient_offset = (patient as f64 - 1.5) * 0.1;
         for index in 0..20 {
-            let clone_a = index < 10;
+            // Vary clone abundance across patients while keeping their true contrast at 2.
+            let clone_a = index < 10 + 3 * patient;
             cells.push(serde_json::json!({
                 "cell_id":format!("p{patient}_c{index:02}"),"patient_id":format!("p{patient}"),
                 "coordinates_um":[index as f64,patient as f64],
@@ -92,4 +93,33 @@ fn clone_phylogeography_and_niche_models_integrate_imported_uncertainty_and_pati
         result["claim_status"],
         "experimental_synthetic_clone_models_no_identified_history"
     );
+
+    let mut invalid = fixture.clone();
+    invalid["tree"]["nodes"] = serde_json::json!(["root", "A", "B", "C"]);
+    invalid["tree"]["branches"] = serde_json::json!([
+        {"parent":"root","child":"A","length":1.0},
+        {"parent":"B","child":"C","length":1.0},
+        {"parent":"C","child":"B","length":1.0}
+    ]);
+    invalid["clone_locations"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({"clone_id":"C","mean_xy_um":[0.0,1.0],
+            "covariance_um2":[[0.01,0.0],[0.0,0.01]]}));
+    fs::write(&input, serde_json::to_vec(&invalid).unwrap()).unwrap();
+    let invalid_output = directory.path().join("invalid-tree.json");
+    Command::cargo_bin("marklab")
+        .unwrap()
+        .args([
+            "spatial3d",
+            "clone-models",
+            "--input",
+            input.to_str().unwrap(),
+            "--out",
+            invalid_output.to_str().unwrap(),
+        ])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("rooted"));
+    assert!(!invalid_output.exists());
 }

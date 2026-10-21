@@ -3,7 +3,8 @@
 use std::{fs, path::Path};
 
 use assert_cmd::Command;
-use marklab_workflow::{ContentDigest, NodeId, NodeSpec};
+use marklab_project::ContentDigest;
+use marklab_workflow::{NodeId, NodeSpec};
 
 #[path = "support/runtime_features.rs"]
 mod runtime_features;

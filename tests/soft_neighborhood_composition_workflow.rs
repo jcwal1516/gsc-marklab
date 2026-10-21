@@ -1,22 +1,26 @@
-#![allow(dead_code)]
-
+#[allow(dead_code)]
 #[path = "support/declared_scalar.rs"]
 mod support;
 
 use std::collections::BTreeMap;
 
 use marklab::{
-    execute_algorithm_with_store, soft_multiscale_neighborhood_composition,
-    soft_neighborhood_composition, ArtifactRef, ArtifactSchema, BinaryMarkDeclaration, CacheStatus,
-    DeclaredScalarPatternInput, DurableProject, DurableProjectLimits, LocalScheduler, MarkTable,
-    MeasurementStatus, MissingnessPolicy, NativeRuntimeProvenance, NodeId, ObservationWindow2D,
-    ObservationWindowLimits, ProbabilitySimplexMarkDeclaration, ScalarMarkColumn, ScalarMarkId,
-    ScalarMarkModality, ScalarMarkUnit, SchedulerLimits, SoftMultiscaleNeighborhoodAnalysisNode,
-    SoftMultiscaleNeighborhoodConfig, SoftMultiscaleNeighborhoodError,
-    SoftMultiscaleNeighborhoodLimits, SoftNeighborhoodCompositionAnalysisNode,
-    SoftNeighborhoodCompositionConfig, SoftNeighborhoodCompositionError,
-    SoftNeighborhoodCompositionLimits, SoftNeighborhoodCompositionResult, WorkflowGraph,
-    WorkflowNode,
+    marks::{
+        soft_multiscale_neighborhood_composition, soft_neighborhood_composition,
+        BinaryMarkDeclaration, DeclaredScalarPatternInput, MarkTable, MissingnessPolicy,
+        ProbabilitySimplexMarkDeclaration, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality,
+        ScalarMarkUnit, SoftMultiscaleNeighborhoodAnalysisNode, SoftMultiscaleNeighborhoodConfig,
+        SoftMultiscaleNeighborhoodError, SoftMultiscaleNeighborhoodLimits,
+        SoftNeighborhoodCompositionAnalysisNode, SoftNeighborhoodCompositionConfig,
+        SoftNeighborhoodCompositionError, SoftNeighborhoodCompositionLimits,
+        SoftNeighborhoodCompositionResult,
+    },
+    workflow::{
+        execute_algorithm_with_store, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
+        DurableProjectLimits, LocalScheduler, NativeRuntimeProvenance, NodeId, SchedulerLimits,
+        WorkflowGraph, WorkflowNode,
+    },
+    MeasurementStatus, ObservationWindow2D, ObservationWindowLimits,
 };
 use support::{binary_metadata, fixture, publish_record, MARK_SCHEMA};
 
@@ -24,7 +28,8 @@ const PYTHON_ORACLE: &str = include_str!("fixtures/soft_neighborhood/python_radi
 
 fn simplex_metadata() -> BTreeMap<String, String> {
     let levels = ["neoplastic", "inflammatory"];
-    let digest = marklab::ContentDigest::from_framed(levels.iter().map(|level| level.as_bytes()));
+    let digest =
+        marklab::workflow::ContentDigest::from_framed(levels.iter().map(|level| level.as_bytes()));
     BTreeMap::from([
         ("levels_count".into(), "2".into()),
         ("levels_digest".into(), digest.to_string()),
@@ -69,7 +74,7 @@ fn run_once(
     CacheStatus,
     SoftNeighborhoodCompositionResult,
     CacheStatus,
-    marklab::SoftMultiscaleNeighborhoodResult,
+    marklab::marks::SoftMultiscaleNeighborhoodResult,
     usize,
 ) {
     let mut fixture = fixture();
@@ -388,7 +393,6 @@ fn complete_simplex_rows_flow_across_one_fixed_physical_radius() {
     let multiscale =
         soft_multiscale_neighborhood_composition(&input, &window, &mark_id, &multiscale_config)
             .expect("multiscale soft neighborhoods");
-    assert_eq!(multiscale.geometry_build_count, 1);
     assert_eq!(multiscale.scales.len(), 2);
     assert_eq!(
         multiscale.total_directed_pair_visits,

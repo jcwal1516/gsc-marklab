@@ -1,15 +1,18 @@
+use crate::agreement_metric::{SensitivityKind, SensitivityVerdict};
 use crate::validation::all_finite as finite;
 
 use std::collections::BTreeSet;
 
 use serde::Serialize;
 
+use crate::ClaimStatus;
+use crate::SensitivityStatus;
 use crate::{
     hierarchical::{
         GaussianHierarchyInputIdentity, GaussianHierarchyPosterior,
         HierarchicalPosteriorPredictive, HierarchicalWorkerResult,
     },
-    BayesError, FitState, NormalMeanDiagnostics, SamplingSummary, WorkerBackend,
+    BayesError, FitState, PosteriorDiagnostics, SamplingSummary, WorkerBackend,
 };
 
 #[derive(Clone, Debug)]
@@ -35,7 +38,7 @@ pub struct HierarchicalPriorScenarioResult {
     pub fit_state: FitState,
     pub sampling: SamplingSummary,
     pub posterior: GaussianHierarchyPosterior,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: HierarchicalPosteriorPredictive,
     pub global_mean_shift_standardized: f64,
     pub between_patient_sd_shift_standardized: f64,
@@ -52,11 +55,11 @@ pub struct HierarchicalPriorSensitivityResult {
     pub base_scenario: &'static str,
     pub material_standardized_shift: f64,
     pub fit_state: FitState,
-    pub sensitivity_state: &'static str,
+    pub sensitivity_state: SensitivityStatus,
     pub scenarios: Vec<HierarchicalPriorScenarioResult>,
     pub material_shift_scenarios: Vec<String>,
     pub seed: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 impl HierarchicalPriorSensitivityResult {
@@ -147,13 +150,11 @@ impl HierarchicalPriorSensitivityResult {
                 }
             })
             .collect::<Vec<_>>();
-        let sensitivity_state = if !all_complete {
-            "diagnostic_only_nonconverged"
-        } else if material_shift_scenarios.is_empty() {
-            "stable_within_declared_prior_grid"
-        } else {
-            "sensitive_within_declared_prior_grid"
-        };
+        let verdict = SensitivityVerdict::new(
+            all_complete,
+            !material_shift_scenarios.is_empty(),
+            SensitivityKind::HierarchicalPrior,
+        );
         Ok(Self {
             format: "marklab.bayesian_hierarchical_prior_sensitivity",
             version: 1,
@@ -161,20 +162,12 @@ impl HierarchicalPriorSensitivityResult {
             known_sigma,
             base_scenario: "baseline",
             material_standardized_shift,
-            fit_state: if all_complete {
-                FitState::Complete
-            } else {
-                FitState::Nonconverged
-            },
-            sensitivity_state,
+            fit_state: verdict.fit_state,
+            sensitivity_state: verdict.status,
             scenarios,
             material_shift_scenarios,
             seed,
-            claim_status: if all_complete {
-                "experimental_prior_sensitivity"
-            } else {
-                "diagnostic_only_prior_sensitivity"
-            },
+            claim_status: verdict.claim_status,
         })
     }
 }

@@ -1,23 +1,22 @@
-use std::{collections::BTreeMap, fs, io, path::PathBuf};
+use std::{borrow::Cow, collections::BTreeMap, io, path::PathBuf};
 
 use marklab_cohort::{
     multisite_covariate_patient_contrast, MultisiteCovariatePatientRecord, MultisiteEffectModel,
     MultisiteInferenceSpec,
 };
-use marklab_workflow::{
-    execute_algorithm, ArtifactRef, ArtifactSchema, CacheKeyMaterial, CacheStatus, ContentDigest,
-    DurableProject, DurableProjectLimits, LocalScheduler, MarklabProject, NodeError, NodeId,
-    NodeSpec, SchedulerLimits, WorkflowGraph, WorkflowNode,
-};
+use marklab_project::ContentDigest;
+use marklab_workflow::NodeError;
 
 use super::super::cohort::{
     multisite::{read_covariate_records_from_bytes, CovariateContrastOutput},
     CliMultisiteModel,
 };
+use super::cli_schema::{
+    CohortMultisiteCovariateContrastLimits, CohortMultisiteCovariateContrastProjectArgs,
+};
 use super::{
-    bayes, native_runtime_provenance, report_recovery, source_artifact, BayesCliError,
-    MAXIMUM_INPUT_BYTES, MAXIMUM_RESULT_BYTES, PROJECT_CONTROL_BYTES, PROJECT_LEDGER_BYTES,
-    PROJECT_LEDGER_RECORDS, PROJECT_RECORD_BYTES,
+    durable::{self, Codec, NodeContract, Source, SourceNode},
+    CliError, MAXIMUM_INPUT_BYTES, MAXIMUM_RESULT_BYTES,
 };
 
 const INPUT_KIND: &str =
@@ -31,22 +30,26 @@ const FIXED_MAXIMUM_COVARIATES: usize = 32;
 const FIXED_MAXIMUM_PATIENT_COVARIATE_CELLS: u64 = 32_000_000;
 const FIXED_MAXIMUM_OLS_WORK: u64 = 100_000_000;
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    project_path: PathBuf,
-    input_path: PathBuf,
-    group_a: String,
-    group_b: String,
-    model: CliMultisiteModel,
-    alpha: f64,
-    maximum_patients: usize,
-    maximum_sites: usize,
-    maximum_covariates: usize,
-    maximum_patient_covariate_cells: u64,
-    maximum_ols_work: u64,
-    memory_budget_mib: usize,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: CohortMultisiteCovariateContrastProjectArgs) -> Result<(), CliError> {
+    let CohortMultisiteCovariateContrastProjectArgs {
+        project: project_path,
+        input: input_path,
+        group_a,
+        group_b,
+        model,
+        alpha,
+        limits,
+        out: output_path,
+    } = args;
+    let CohortMultisiteCovariateContrastLimits {
+        maximum_patients,
+        maximum_sites,
+        maximum_covariates,
+        maximum_patient_covariate_cells,
+        maximum_ols_work,
+        memory_budget_mib,
+    } = limits;
+    const LABEL: &str = "multisite-covariate input";
     validate_declared_limits(
         maximum_patients,
         maximum_sites,
@@ -57,37 +60,22 @@ pub(super) fn run(
     )?;
     let memory_bytes = memory_budget_mib
         .checked_mul(1024 * 1024)
-        .ok_or_else(|| BayesCliError::Input("--memory-budget-mib is too large".into()))?;
+        .ok_or_else(|| CliError::Input("--memory-budget-mib is too large".into()))?;
     let input_path_identity = serde_json::to_vec(&input_path).map_err(|error| {
-        BayesCliError::Input(format!("input path is not JSON-serializable: {error}"))
+        CliError::Input(format!("input path is not JSON-serializable: {error}"))
     })?;
     let input_bytes = read_bounded(&input_path, memory_bytes)?;
-    let input_artifact = ArtifactRef::from_bytes(INPUT_KIND, &input_bytes)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let source = Source::from_bytes(input_path.clone(), INPUT_KIND, &input_bytes)?;
     let records = read_covariate_records_from_bytes(&input_bytes)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let requirements = preflight(
-        &records,
-        &group_a,
-        &group_b,
-        alpha,
-        maximum_patients,
-        maximum_sites,
-        maximum_covariates,
-        maximum_patient_covariate_cells,
-        maximum_ols_work,
-    )?;
+        .map_err(|error| CliError::Input(error.to_string()))?;
+    let requirements = preflight(&records, &group_a, &group_b, alpha, limits)?;
     let retained = retained_bytes(input_bytes.len(), &requirements)?;
     if retained > memory_bytes {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "multisite-covariate retained-memory estimate {retained} exceeds budget {memory_bytes}"
         )));
     }
-    if source_artifact(&input_path, INPUT_KIND)? != input_artifact {
-        return Err(BayesCliError::Input(
-            "multisite-covariate input changed while prepared".into(),
-        ));
-    }
+    source.ensure_unchanged(LABEL)?;
 
     let analysis = Analysis {
         group_a,
@@ -98,61 +86,35 @@ pub(super) fn run(
         },
         cli_model: model,
     };
-    let node = CohortMultisiteCovariateNode::new(
+    let (analysis, contract) = CohortMultisiteCovariate::new(
         input_path,
         input_path_identity,
-        input_artifact.clone(),
         records,
         analysis,
         requirements,
-        maximum_patients,
-        maximum_sites,
-        maximum_covariates,
-        maximum_patient_covariate_cells,
-        maximum_ols_work,
-        memory_budget_mib,
+        limits,
     )?;
-    let runtime = native_runtime_provenance()?;
-    let limits = DurableProjectLimits::new(
-        PROJECT_CONTROL_BYTES,
-        PROJECT_LEDGER_BYTES,
-        PROJECT_LEDGER_RECORDS,
-        PROJECT_RECORD_BYTES,
-        MAXIMUM_RESULT_BYTES,
-    )
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let mut durable = DurableProject::open_or_create(&project_path, limits)
-        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
-    report_recovery(&durable);
-    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    project
-        .register_reference(input_artifact)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let graph = WorkflowGraph::new([node.spec().clone()])
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let scheduler = LocalScheduler::new(SchedulerLimits {
-        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
-    })
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let execution = execute_algorithm(
-        &mut durable,
-        &mut project,
-        &graph,
+    let node = SourceNode::new(
+        contract,
+        LABEL,
+        vec![source],
+        analysis,
+        CohortMultisiteCovariate::execute,
+        |analysis, output| analysis.validate(output).map_err(NodeError::decode),
+    )?;
+
+    let run = durable::execute_node(
+        &project_path,
         &node,
-        &scheduler,
-        ArtifactSchema::new("marklab.cohort_multisite_covariate_contrast", 1)
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-        runtime,
+        ("marklab.cohort_multisite_covariate_contrast", 1),
+        MAXIMUM_RESULT_BYTES,
+    )?;
+    durable::publish(
+        "cohort-multisite-covariate-contrast",
+        &output_path,
+        &run.output,
+        run.cache_status,
     )
-    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
-    bayes::publish_json(&output_path, &execution.output)?;
-    let cache_status = match execution.cache_status {
-        CacheStatus::Hit => "hit",
-        CacheStatus::Miss => "miss",
-    };
-    eprintln!("project cohort-multisite-covariate-contrast cache_status={cache_status}");
-    Ok(())
 }
 
 fn validate_declared_limits(
@@ -162,7 +124,7 @@ fn validate_declared_limits(
     maximum_patient_covariate_cells: u64,
     maximum_ols_work: u64,
     memory_budget_mib: usize,
-) -> Result<(), BayesCliError> {
+) -> Result<(), CliError> {
     if maximum_patients == 0
         || maximum_sites == 0
         || maximum_covariates == 0
@@ -170,7 +132,7 @@ fn validate_declared_limits(
         || maximum_ols_work == 0
         || memory_budget_mib == 0
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "multisite-covariate resource limits must be positive".into(),
         ));
     }
@@ -180,29 +142,23 @@ fn validate_declared_limits(
         || maximum_patient_covariate_cells > FIXED_MAXIMUM_PATIENT_COVARIATE_CELLS
         || maximum_ols_work > FIXED_MAXIMUM_OLS_WORK
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "multisite-covariate declared resource limits exceed fixed production ceilings".into(),
         ));
     }
     Ok(())
 }
 
-fn read_bounded(path: &std::path::Path, memory_bytes: usize) -> Result<Vec<u8>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
+fn read_bounded(path: &std::path::Path, memory_bytes: usize) -> Result<Vec<u8>, CliError> {
     let maximum = (MAXIMUM_INPUT_BYTES as usize).min(memory_bytes);
-    if !metadata.is_file() || metadata.len() > maximum as u64 {
-        return Err(BayesCliError::Input(format!(
+    crate::input_file::read_regular_file(
+        path,
+        maximum as u64,
+        &format!(
             "multisite-covariate input must be a regular file within {maximum} bytes: {}",
             path.display()
-        )));
-    }
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
+        ),
+    )
 }
 
 #[derive(Clone)]
@@ -222,40 +178,43 @@ struct Requirements {
     ols_work: u64,
 }
 
-#[allow(clippy::too_many_arguments)]
 fn preflight(
     records: &[MultisiteCovariatePatientRecord],
     group_a: &str,
     group_b: &str,
     alpha: f64,
-    maximum_patients: usize,
-    maximum_sites: usize,
-    maximum_covariates: usize,
-    maximum_patient_covariate_cells: u64,
-    maximum_ols_work: u64,
-) -> Result<Requirements, BayesCliError> {
+    limits: CohortMultisiteCovariateContrastLimits,
+) -> Result<Requirements, CliError> {
+    let CohortMultisiteCovariateContrastLimits {
+        maximum_patients,
+        maximum_sites,
+        maximum_covariates,
+        maximum_patient_covariate_cells,
+        maximum_ols_work,
+        ..
+    } = limits;
     if group_a.is_empty()
         || group_b.is_empty()
         || group_a.trim() != group_a
         || group_b.trim() != group_b
         || group_a == group_b
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "multisite-covariate groups must be distinct exact non-empty labels".into(),
         ));
     }
     if !alpha.is_finite() || alpha <= 0.0 || alpha >= 0.5 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "multisite alpha must be in (0, 0.5)".into(),
         ));
     }
     if records.is_empty() {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "multisite-covariate input has no patient rows".into(),
         ));
     }
     if records.len() > maximum_patients {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "multisite-covariate patient count {} exceeds maximum_patients {maximum_patients}",
             records.len()
         )));
@@ -269,12 +228,12 @@ fn preflight(
                 || name.chars().any(char::is_control)
         })
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "multisite nuisance names must be 1-32 exact unique bounded names".into(),
         ));
     }
     if covariate_names.len() > maximum_covariates {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "multisite-covariate covariate count {} exceeds maximum_covariates {maximum_covariates}",
             covariate_names.len()
         )));
@@ -290,7 +249,7 @@ fn preflight(
             || record.covariates.len() != covariate_names.len()
             || record.covariates.iter().any(|value| !value.is_finite())
         {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "multisite-covariate rows require exact IDs and one complete finite nuisance vector"
                     .into(),
             ));
@@ -300,7 +259,7 @@ fn preflight(
         } else if record.group == group_b {
             2
         } else {
-            return Err(BayesCliError::Input(format!(
+            return Err(CliError::Input(format!(
                 "patient {} has undeclared group {:?}",
                 record.patient_id, record.group
             )));
@@ -314,13 +273,13 @@ fn preflight(
         }
     }
     if sites.len() > maximum_sites {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "multisite-covariate site count {} exceeds maximum_sites {maximum_sites}",
             sites.len()
         )));
     }
     if !(3..=FIXED_MAXIMUM_SITES).contains(&sites.len()) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "multisite inference requires 3-10000 sites".into(),
         ));
     }
@@ -328,7 +287,7 @@ fn preflight(
         .into_iter()
         .map(|(site_id, (patient_count, group_a_count, group_b_count))| {
             if group_a_count < 2 || group_b_count < 2 {
-                return Err(BayesCliError::Input(format!(
+                return Err(CliError::Input(format!(
                     "site {site_id}: each group must contain at least two patients"
                 )));
             }
@@ -347,14 +306,14 @@ fn preflight(
                 .ok()
                 .and_then(|covariates| patients.checked_mul(covariates))
         })
-        .ok_or_else(|| BayesCliError::Input("patient-covariate cell count overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("patient-covariate cell count overflowed".into()))?;
     if patient_covariate_cells > maximum_patient_covariate_cells {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "multisite-covariate {patient_covariate_cells} patient-covariate cells exceed maximum_patient_covariate_cells {maximum_patient_covariate_cells}"
         )));
     }
     let full_columns = u64::try_from(covariate_names.len() + 2)
-        .map_err(|_| BayesCliError::Input("design column count overflowed".into()))?;
+        .map_err(|_| CliError::Input("design column count overflowed".into()))?;
     let ols_work = u64::try_from(records.len())
         .ok()
         .and_then(|patients| patients.checked_mul(full_columns))
@@ -365,9 +324,9 @@ fn preflight(
                 .and_then(|site_count| site_count.checked_mul(full_columns.pow(3)))
                 .and_then(|solver| value.checked_add(solver))
         })
-        .ok_or_else(|| BayesCliError::Input("multisite-covariate OLS work overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("multisite-covariate OLS work overflowed".into()))?;
     if ols_work > maximum_ols_work {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "multisite-covariate {ols_work} OLS work units exceed maximum_ols_work {maximum_ols_work}"
         )));
     }
@@ -380,18 +339,13 @@ fn preflight(
     })
 }
 
-fn retained_bytes(
-    source_bytes: usize,
-    requirements: &Requirements,
-) -> Result<usize, BayesCliError> {
+fn retained_bytes(source_bytes: usize, requirements: &Requirements) -> Result<usize, CliError> {
     source_bytes
         .checked_mul(2)
         .and_then(|value| value.checked_add(requirements.patient_count.saturating_mul(768)))
         .and_then(|value| value.checked_add(requirements.sites.len().saturating_mul(2048)))
         .and_then(|value| value.checked_add(128 * 1024))
-        .ok_or_else(|| {
-            BayesCliError::Input("multisite-covariate memory estimate overflowed".into())
-        })
+        .ok_or_else(|| CliError::Input("multisite-covariate memory estimate overflowed".into()))
 }
 
 struct Analysis {
@@ -401,34 +355,31 @@ struct Analysis {
     cli_model: CliMultisiteModel,
 }
 
-struct CohortMultisiteCovariateNode {
-    spec: NodeSpec,
+struct CohortMultisiteCovariate {
     input_path: PathBuf,
     input_path_identity: Vec<u8>,
-    input_artifacts: Vec<ArtifactRef>,
     records: Vec<MultisiteCovariatePatientRecord>,
     analysis: Analysis,
     requirements: Requirements,
-    configuration_digest: ContentDigest,
-    execution_policy: Vec<u8>,
 }
 
-impl CohortMultisiteCovariateNode {
-    #[allow(clippy::too_many_arguments)]
+impl CohortMultisiteCovariate {
     fn new(
         input_path: PathBuf,
         input_path_identity: Vec<u8>,
-        input_artifact: ArtifactRef,
         records: Vec<MultisiteCovariatePatientRecord>,
         analysis: Analysis,
         requirements: Requirements,
-        maximum_patients: usize,
-        maximum_sites: usize,
-        maximum_covariates: usize,
-        maximum_patient_covariate_cells: u64,
-        maximum_ols_work: u64,
-        memory_budget_mib: usize,
-    ) -> Result<Self, BayesCliError> {
+        limits: CohortMultisiteCovariateContrastLimits,
+    ) -> Result<(Self, NodeContract), CliError> {
+        let CohortMultisiteCovariateContrastLimits {
+            maximum_patients,
+            maximum_sites,
+            maximum_covariates,
+            maximum_patient_covariate_cells,
+            maximum_ols_work,
+            memory_budget_mib,
+        } = limits;
         let model_name = model_name(analysis.cli_model);
         let alpha_bits = analysis.inference.alpha.to_bits().to_string();
         let configuration_digest = ContentDigest::from_framed([
@@ -449,28 +400,25 @@ impl CohortMultisiteCovariateNode {
             "serial;patient-unit;within-site-adjusted-ols;inverse-variance-pooling;model={model_name};alpha_bits={alpha_bits};maximum_patients={maximum_patients};maximum_sites={maximum_sites};maximum_covariates={maximum_covariates};maximum_patient_covariate_cells={maximum_patient_covariate_cells};maximum_ols_work={maximum_ols_work};memory_budget_mib={memory_budget_mib}"
         )
         .into_bytes();
-        Ok(Self {
-            spec: NodeSpec::new(
-                NodeId::new("cohort-multisite-covariate")
-                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
-                "cohort_multisite_covariate_contrast",
-                1,
-                Vec::new(),
-            )
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-            input_path,
-            input_path_identity,
-            input_artifacts: vec![input_artifact],
-            records,
-            analysis,
-            requirements,
-            configuration_digest,
-            execution_policy,
-        })
-    }
-
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
+        Ok((
+            Self {
+                input_path,
+                input_path_identity,
+                records,
+                analysis,
+                requirements,
+            },
+            NodeContract {
+                id: "cohort-multisite-covariate",
+                kind: "cohort_multisite_covariate_contrast",
+                version: 1,
+                configuration_digest,
+                execution_policy: Cow::Owned(execution_policy),
+                implementation_identity: IMPLEMENTATION_IDENTITY,
+                output_kind: OUTPUT_KIND,
+                codec: Codec::ExactFloatJson,
+            },
+        ))
     }
 
     fn validate(&self, output: &CovariateContrastOutput) -> io::Result<()> {
@@ -561,39 +509,8 @@ impl CohortMultisiteCovariateNode {
         }
         Ok(())
     }
-}
 
-impl WorkflowNode for CohortMultisiteCovariateNode {
-    type Output = CovariateContrastOutput;
-
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.input_artifacts
-    }
-
-    fn verify_input_content(&self) -> Result<(), NodeError> {
-        let current = source_artifact(&self.input_path, INPUT_KIND).map_err(NodeError::input)?;
-        if self.input_artifacts.first() != Some(&current) {
-            return Err(NodeError::input(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "multisite-covariate input identity changed",
-            )));
-        }
-        Ok(())
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: &self.execution_policy,
-            implementation_identity: IMPLEMENTATION_IDENTITY,
-        }
-    }
-
-    fn execute(&self) -> Result<Self::Output, NodeError> {
+    fn execute(&self) -> Result<CovariateContrastOutput, NodeError> {
         let result = multisite_covariate_patient_contrast(
             &self.records,
             &self.analysis.group_a,
@@ -605,22 +522,6 @@ impl WorkflowNode for CohortMultisiteCovariateNode {
             self.input_path.clone(),
             result,
         ))
-    }
-
-    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
-        self.validate(output).map_err(NodeError::encoding)?;
-        marklab::exact_float_json::encode(output).map_err(NodeError::encoding)
-    }
-
-    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
-        let output: CovariateContrastOutput =
-            marklab::exact_float_json::decode(bytes).map_err(NodeError::decode)?;
-        self.validate(&output).map_err(NodeError::decode)?;
-        Ok(output)
-    }
-
-    fn output_kind(&self) -> &'static str {
-        OUTPUT_KIND
     }
 }
 

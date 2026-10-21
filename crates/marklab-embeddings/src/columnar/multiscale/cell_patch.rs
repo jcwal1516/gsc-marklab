@@ -8,7 +8,7 @@ use crate::{
     CellPatchAssignmentMode, CellPatchAssignmentStatus, CellPatchLink,
 };
 
-use super::MultiscaleColumnarError;
+use super::ColumnarError;
 
 pub(crate) const CELL_PATCH_METADATA_KEYS: [&str; 11] = [
     "marklab.assignment_mode",
@@ -62,9 +62,7 @@ pub(crate) fn cell_patch_metadata(
     })
 }
 
-pub(crate) fn validate_cell_patch_domain(
-    link: &CellPatchLink,
-) -> Result<(), MultiscaleColumnarError> {
+pub(crate) fn validate_cell_patch_domain(link: &CellPatchLink) -> Result<(), ColumnarError> {
     let dependencies = cell_patch_dependencies(link);
     if dependencies.windows(2).any(|pair| pair[0] == pair[1]) {
         return binding_mismatch();
@@ -80,17 +78,15 @@ pub(crate) fn validate_cell_patch_domain(
         {
             return binding_mismatch();
         }
-        let start =
-            usize::try_from(edge_prefix).map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+        let start = usize::try_from(edge_prefix).map_err(|_| ColumnarError::SizeOverflow)?;
         edge_prefix = edge_prefix
             .checked_add(assignment.edge_count())
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-        let end =
-            usize::try_from(edge_prefix).map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
+        let end = usize::try_from(edge_prefix).map_err(|_| ColumnarError::SizeOverflow)?;
         let edges = link
             .edges()
             .get(start..end)
-            .ok_or(MultiscaleColumnarError::ArtifactBindingMismatch)?;
+            .ok_or(ColumnarError::ArtifactBindingMismatch)?;
         if edges
             .windows(2)
             .any(|pair| pair[0].patch_id() >= pair[1].patch_id())
@@ -111,9 +107,7 @@ pub(crate) fn validate_cell_patch_domain(
             }
         }
     }
-    if edge_prefix
-        != u64::try_from(link.edge_count()).map_err(|_| MultiscaleColumnarError::SizeOverflow)?
-    {
+    if edge_prefix != u64::try_from(link.edge_count()).map_err(|_| ColumnarError::SizeOverflow)? {
         return binding_mismatch();
     }
     Ok(())
@@ -146,22 +140,20 @@ fn valid_assignment_state(
     )
 }
 
-fn validate_interpolation_group(
-    edges: &[crate::CellPatchEdge],
-) -> Result<(), MultiscaleColumnarError> {
+fn validate_interpolation_group(edges: &[crate::CellPatchEdge]) -> Result<(), ColumnarError> {
     if edges.is_empty() {
         return Ok(());
     }
     let first = edges[0]
         .weight()
-        .ok_or(MultiscaleColumnarError::ArtifactBindingMismatch)?;
+        .ok_or(ColumnarError::ArtifactBindingMismatch)?;
     let denominator = first.denominator();
     let mut numerator_sum = 0_u64;
     let mut group_gcd = denominator;
     for edge in edges {
         let weight = edge
             .weight()
-            .ok_or(MultiscaleColumnarError::ArtifactBindingMismatch)?;
+            .ok_or(ColumnarError::ArtifactBindingMismatch)?;
         if weight.numerator() == 0
             || weight.denominator() == 0
             || weight.denominator() != denominator
@@ -170,7 +162,7 @@ fn validate_interpolation_group(
         }
         numerator_sum = numerator_sum
             .checked_add(weight.numerator())
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         group_gcd = greatest_common_divisor(group_gcd, weight.numerator());
     }
     if numerator_sum != denominator || group_gcd != 1 {
@@ -181,30 +173,28 @@ fn validate_interpolation_group(
 
 pub(crate) fn assignment_decoded_bytes(
     rows: &[crate::CellPatchAssignment],
-) -> Result<usize, MultiscaleColumnarError> {
+) -> Result<usize, ColumnarError> {
     let cell_text = rows.iter().try_fold(0_usize, |total, row| {
         total
             .checked_add(row.cell_id().as_str().len())
-            .ok_or(MultiscaleColumnarError::SizeOverflow)
+            .ok_or(ColumnarError::SizeOverflow)
     })?;
     let status_text = rows.iter().try_fold(0_usize, |total, row| {
         total
             .checked_add(row.status().wire_name().len())
-            .ok_or(MultiscaleColumnarError::SizeOverflow)
+            .ok_or(ColumnarError::SizeOverflow)
     })?;
     let text_bytes = cell_text
         .checked_add(status_text)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     decoded_bytes(rows.len(), 6, 2, text_bytes, 4)
 }
 
-pub(crate) fn edge_decoded_bytes(
-    rows: &[crate::CellPatchEdge],
-) -> Result<usize, MultiscaleColumnarError> {
+pub(crate) fn edge_decoded_bytes(rows: &[crate::CellPatchEdge]) -> Result<usize, ColumnarError> {
     let patch_text = rows.iter().try_fold(0_usize, |total, row| {
         total
             .checked_add(row.patch_id().as_str().len())
-            .ok_or(MultiscaleColumnarError::SizeOverflow)
+            .ok_or(ColumnarError::SizeOverflow)
     })?;
     decoded_bytes(rows.len(), 4, 1, patch_text, 3)
 }
@@ -215,28 +205,50 @@ fn decoded_bytes(
     utf8_columns: usize,
     text_bytes: usize,
     u64_columns: usize,
-) -> Result<usize, MultiscaleColumnarError> {
+) -> Result<usize, ColumnarError> {
     let validity = rows
         .checked_add(7)
         .map(|value| value / 8)
         .and_then(|value| value.checked_mul(validity_columns))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let offsets = rows
         .checked_add(1)
         .and_then(|value| value.checked_mul(size_of::<i32>()))
         .and_then(|value| value.checked_mul(utf8_columns))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let values = rows
         .checked_mul(size_of::<u64>())
         .and_then(|value| value.checked_mul(u64_columns))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     validity
         .checked_add(offsets)
         .and_then(|value| value.checked_add(text_bytes))
         .and_then(|value| value.checked_add(values))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)
 }
 
-fn binding_mismatch<T>() -> Result<T, MultiscaleColumnarError> {
-    Err(MultiscaleColumnarError::ArtifactBindingMismatch)
+fn binding_mismatch<T>() -> Result<T, ColumnarError> {
+    Err(ColumnarError::ArtifactBindingMismatch)
+}
+
+pub(crate) fn cell_patch_assignment_fields() -> Vec<arrow::datatypes::Field> {
+    use arrow::datatypes::{DataType, Field};
+    vec![
+        Field::new("cell_id", DataType::Utf8, false),
+        Field::new("assignment_status", DataType::Utf8, false),
+        Field::new("anchor_x_bits", DataType::UInt64, false),
+        Field::new("anchor_y_bits", DataType::UInt64, false),
+        Field::new("edge_start", DataType::UInt64, false),
+        Field::new("edge_count", DataType::UInt64, false),
+    ]
+}
+
+pub(crate) fn cell_patch_edge_fields() -> Vec<arrow::datatypes::Field> {
+    use arrow::datatypes::{DataType, Field};
+    vec![
+        Field::new("assignment_row", DataType::UInt64, false),
+        Field::new("patch_id", DataType::Utf8, false),
+        Field::new("weight_numerator", DataType::UInt64, true),
+        Field::new("weight_denominator", DataType::UInt64, true),
+    ]
 }

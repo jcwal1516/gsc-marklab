@@ -1,22 +1,27 @@
 #![cfg(feature = "parquet")]
 
 use marklab::{
-    publish_patch_footprint_set_arrow, publish_patch_footprint_set_parquet,
-    publish_patch_region_link_arrow, publish_patch_region_link_parquet,
-    validate_patch_region_link_arrow_bytes, validate_patch_region_link_arrow_from_store,
-    validate_patch_region_link_parquet_bytes, validate_patch_region_link_parquet_from_store,
-    verify_patch_region_link_arrow_from_store, verify_patch_region_link_parquet_from_store,
-    write_patch_region_link_arrow, write_patch_region_link_parquet, ArtifactCatalog, ArtifactDraft,
-    ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef, ArtifactSchema, ArtifactStoreError,
+    embeddings::{
+        publish_patch_footprint_set_arrow, publish_patch_footprint_set_parquet,
+        publish_patch_region_link_arrow, publish_patch_region_link_parquet,
+        validate_patch_region_link_arrow_bytes, validate_patch_region_link_arrow_from_store,
+        validate_patch_region_link_parquet_bytes, validate_patch_region_link_parquet_from_store,
+        verify_patch_region_link_arrow_from_store, verify_patch_region_link_parquet_from_store,
+        write_patch_region_link_arrow, write_patch_region_link_parquet, ColumnarError,
+        EffectiveReceptiveField, EmbeddingColumnarBudgets, ExpectedPatchSet, ExpectedRegionSet,
+        PatchBoundaryPolicy, PatchEmbeddingContext, PatchFootprint, PatchFootprintSet,
+        PatchRegionAssessment, PatchRegionAssessmentBindings, PatchRegionDeclaration,
+        PatchRegionInputArtifactGraphError, PatchRegionInputArtifactRole, PatchRegionLink,
+        PositiveRational, VerifiedPatchRegionInputArtifactGraph,
+    },
+    workflow::{
+        ArtifactCatalog, ArtifactDraft, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef,
+        ArtifactSchema, ArtifactStoreError, LocalArtifactStore, StoreId, TableManifest,
+        VerifiedReaderError,
+    },
     CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace,
-    CoordinateUnit, EffectiveReceptiveField, EmbeddingColumnarBudgets, ExpectedPatchSet,
-    ExpectedRegionSet, FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention,
-    LocalArtifactStore, MultiscaleColumnarError, PatchBoundaryPolicy, PatchEmbeddingContext,
-    PatchFootprint, PatchFootprintSet, PatchId, PatchRegionAssessment,
-    PatchRegionAssessmentBindings, PatchRegionDeclaration, PatchRegionInputArtifactGraphError,
-    PatchRegionInputArtifactRole, PatchRegionLink, PatientId, PositiveRational, RegionId,
-    ReplicationRole, SlideId, SpatialAxis, StoreId, TableManifest, TransformId, TransformMatrix,
-    VerifiedPatchRegionInputArtifactGraph, VerifiedReaderError,
+    CoordinateUnit, FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention, PatchId,
+    PatientId, RegionId, ReplicationRole, SlideId, SpatialAxis, TransformId, TransformMatrix,
 };
 use tempfile::TempDir;
 
@@ -73,7 +78,7 @@ fn publish_record(
     schema: &str,
     kind: &str,
     bytes: &[u8],
-    dependencies: Vec<marklab::ArtifactId>,
+    dependencies: Vec<marklab::workflow::ArtifactId>,
 ) -> ArtifactRecord {
     let draft = ArtifactRecord::new(
         ArtifactRef::from_bytes(kind, bytes).expect("artifact content"),
@@ -98,7 +103,7 @@ fn publish_record(
 fn rebuild_record(
     record: &ArtifactRecord,
     schema_version: u32,
-    dependencies: Vec<marklab::ArtifactId>,
+    dependencies: Vec<marklab::workflow::ArtifactId>,
 ) -> ArtifactRecord {
     ArtifactRecord::new(
         record.content().clone(),
@@ -773,7 +778,7 @@ fn patch_region_receipt_rejects_a_graph_for_a_different_logical_link() {
             budgets(),
         ),
         Err(VerifiedReaderError::Callback(
-            MultiscaleColumnarError::ArtifactBindingMismatch,
+            ColumnarError::ArtifactBindingMismatch,
         ))
     ));
 }
@@ -925,7 +930,7 @@ fn patch_region_input_graph_preserves_managed_footprint_integrity_precedence() {
         error,
         PatchRegionInputArtifactGraphError::Unavailable {
             role: PatchRegionInputArtifactRole::PatchFootprints,
-            reason: marklab::ArtifactAvailabilityFailure::Integrity,
+            reason: marklab::embeddings::ArtifactAvailabilityFailure::Integrity,
         }
     );
     let rendered = error.to_string();

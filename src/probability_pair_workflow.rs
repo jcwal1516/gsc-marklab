@@ -1,37 +1,45 @@
+use crate::result_vocabulary::{
+    EdgeCorrection, MarkNormalization, MarkNullModel, MarkPermutationUnit, MultiplicityCorrection,
+    ProbabilityContributionMode,
+};
+use crate::workflow_codec::{invalid, nearly_equal, parse_status, unit_interval};
+use crate::workflow_node::{NodeAnalysis, TypedNode};
 use std::{io, str::FromStr};
 
-use marklab_data::{CoordinateFrameId, MeasurementStatus};
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_data::CoordinateFrameId;
+use marklab_project::{ArtifactRef, ContentDigest, MarklabProject};
+use marklab_workflow::{NodeError, NodeId, NodeSpec};
 use serde::{Deserialize, Serialize};
 
-use crate::measurement_status_wire::{name as status_name, parse as parse_measurement_status};
+use crate::measurement_status_wire::name as status_name;
 use crate::observation_window_artifact::frame_bound_window_artifact as window_artifact;
 use crate::{
-    probability_pair::configuration_digest, workflow::pattern_artifact, ClassicalWindowSummary,
-    DeclaredScalarPatternInput, ObservationWindow2D, ProbabilityPairComponentInference,
-    ProbabilityPairConfig, ProbabilityPairGeometrySummary, ProbabilityPairInferenceSummary,
-    ProbabilityPairLimits, ProbabilityPairPoint, ProbabilityPairPointStatus, ProbabilityPairResult,
-    ScalarMarkId,
+    marked_workflow::pattern_artifact,
+    marks::{
+        DeclaredScalarPatternInput, ProbabilityPairComponentInference, ProbabilityPairConfig,
+        ProbabilityPairGeometrySummary, ProbabilityPairInferenceSummary, ProbabilityPairLimits,
+        ProbabilityPairPoint, ProbabilityPairPointStatus, ProbabilityPairResult, ScalarMarkId,
+    },
+    probability_pair::configuration_digest,
+    spatial::ClassicalWindowSummary,
+    ObservationWindow2D,
 };
 
 const NODE_KIND: &str = "probability_mark_connection";
 const CONFIG_KIND: &str = "application/vnd.marklab.probability-pair-config+json;version=1";
-const RESULT_KIND: &str = "application/vnd.marklab.probability-pair-result+json;version=1";
+const RESULT_KIND: &str = "application/vnd.marklab.probability-pair-result+json;version=2";
 const EXECUTION_POLICY: &[u8] = b"serial;exact-rstar;retained-directed-pairs;standard-border;expected-positive-positive;complete-probability-row-random-labeling;erl";
-const IMPLEMENTATION: &str = "probability-pair-analysis-node-v3";
+const IMPLEMENTATION: &str = "probability-pair-analysis-node-v4";
 
 /// Exact typed probability-pair node with store-verified MarkTable provenance.
 pub struct ProbabilityPairAnalysisNode<'a> {
-    spec: NodeSpec,
+    node: TypedNode<ProbabilityPairAnalysis<'a>>,
+}
+
+struct ProbabilityPairAnalysis<'a> {
     input: &'a DeclaredScalarPatternInput<'a>,
     window: &'a ObservationWindow2D,
     config: &'a ProbabilityPairConfig,
-    inputs: [ArtifactRef; 4],
-    configuration_digest: ContentDigest,
-    implementation_identity: String,
 }
 
 impl<'a> ProbabilityPairAnalysisNode<'a> {
@@ -56,73 +64,58 @@ impl<'a> ProbabilityPairAnalysisNode<'a> {
                 .register_reference(artifact.clone())
                 .map_err(NodeError::input)?;
         }
+        let node_spec = NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?;
+        let node_configuration_digest = config_ref.digest();
+        let node_implementation_identity = format!(
+            "marklab/{};adapter={IMPLEMENTATION}",
+            env!("CARGO_PKG_VERSION")
+        );
         Ok(Self {
-            spec: NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?,
-            input,
-            window,
-            config,
-            inputs,
-            configuration_digest: config_ref.digest(),
-            implementation_identity: format!(
-                "marklab/{};adapter={IMPLEMENTATION}",
-                env!("CARGO_PKG_VERSION")
-            ),
+            node: TypedNode {
+                spec: node_spec,
+                analysis: ProbabilityPairAnalysis {
+                    input,
+                    window,
+                    config,
+                },
+                inputs,
+                configuration_digest: node_configuration_digest,
+                execution_policy: std::borrow::Cow::Borrowed(EXECUTION_POLICY),
+                implementation_identity: node_implementation_identity,
+            },
         })
     }
 
     /// Exact versioned node specification.
     pub fn spec(&self) -> &NodeSpec {
-        &self.spec
+        self.node.spec()
     }
 }
 
-impl WorkflowNode for ProbabilityPairAnalysisNode<'_> {
+impl NodeAnalysis for ProbabilityPairAnalysis<'_> {
     type Output = ProbabilityPairResult;
+    type Inputs = [ArtifactRef; 4];
 
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.inputs
-    }
-
-    fn semantic_input_artifacts(&self) -> &[marklab_workflow::ArtifactId] {
+    fn semantic_input_artifacts(&self) -> &[marklab_project::ArtifactId] {
         self.input.semantic_artifact_ids()
     }
 
-    fn verify_input_content(&self) -> Result<(), NodeError> {
+    fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
         let pattern = pattern_artifact(self.input.pattern())?;
-        self.inputs[0]
-            .verify_identity(pattern.digest(), pattern.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 0, &pattern)?;
         let declared = self
             .input
             .declared_artifact_ref()
             .map_err(NodeError::input)?;
-        self.inputs[1]
-            .verify_identity(declared.digest(), declared.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 1, &declared)?;
         let window = window_artifact(self.window)?;
-        self.inputs[2]
-            .verify_identity(window.digest(), window.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 2, &window)?;
         let config = config_artifact(self.config)?;
-        self.inputs[3]
-            .verify_identity(config.digest(), config.byte_len())
-            .map_err(NodeError::input)
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: EXECUTION_POLICY,
-            implementation_identity: &self.implementation_identity,
-        }
+        crate::workflow_node::verify_input(inputs, 3, &config)
     }
 
     fn execute(&self) -> Result<Self::Output, NodeError> {
-        crate::probability_mark_connection(self.input, self.window, self.config)
+        crate::marks::probability_mark_connection(self.input, self.window, self.config)
             .map_err(NodeError::execution)
     }
 
@@ -169,12 +162,12 @@ impl WorkflowNode for ProbabilityPairAnalysisNode<'_> {
                 != table.measurement_status(&result.mark_id).ok_or_else(|| {
                     NodeError::decode(invalid("decoded probability mark is absent"))
                 })?
-            || !same(result.effective_positive_mass, positive)
-            || !same(
+            || !nearly_equal(result.effective_positive_mass, positive)
+            || !nearly_equal(
                 result.effective_negative_mass,
                 probabilities.len() as f64 - positive,
             )
-            || !same(result.expected_random_label_connection, expected_random)
+            || !nearly_equal(result.expected_random_label_connection, expected_random)
             || result.geometry.point_count != self.input.pattern().len()
             || result.window.logical_digest != descriptor.logical_digest.to_string()
             || result.window.area_um2.to_bits() != descriptor.area_um2.to_bits()
@@ -197,6 +190,8 @@ impl WorkflowNode for ProbabilityPairAnalysisNode<'_> {
         RESULT_KIND
     }
 }
+
+crate::workflow_node::impl_workflow_node!(ProbabilityPairAnalysisNode<'_> => ProbabilityPairResult);
 
 #[derive(Serialize)]
 struct ConfigArtifact<'a> {
@@ -268,7 +263,7 @@ struct ResultWire {
     measurement_status: String,
     coordinate_frame_id: String,
     window: ClassicalWindowSummary,
-    normalization: String,
+    normalization: MarkNormalization,
     effective_positive_mass: f64,
     effective_negative_mass: f64,
     expected_random_label_connection: f64,
@@ -284,10 +279,9 @@ struct ResultWire {
 struct GeometryWire {
     point_count: usize,
     directed_pair_count: usize,
-    geometry_build_count: usize,
     geometry_digest: String,
     pair_plan_digest: String,
-    edge_correction: String,
+    edge_correction: EdgeCorrection,
     estimated_storage_bytes: usize,
 }
 
@@ -308,15 +302,14 @@ struct PointWire {
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct InferenceWire {
-    null_model: String,
-    permutation_unit: String,
-    probability_mode: String,
-    alternative: String,
-    multiplicity: String,
+    null_model: MarkNullModel,
+    permutation_unit: MarkPermutationUnit,
+    probability_mode: ProbabilityContributionMode,
+    #[serde(with = "crate::result_vocabulary::AlternativeWire")]
+    alternative: marklab_cohort::InferenceAlternative,
+    multiplicity: MultiplicityCorrection,
     connection: Option<ComponentWire>,
     permutations_requested: usize,
-    permutations_attempted: usize,
-    permutations_completed: usize,
     seed: u64,
     alpha: f64,
     permutation_pair_evaluations: usize,
@@ -339,17 +332,16 @@ impl From<&ProbabilityPairResult> for ResultWire {
             measurement_status: status_name(value.measurement_status).into(),
             coordinate_frame_id: value.coordinate_frame_id.as_str().into(),
             window: value.window.clone(),
-            normalization: value.normalization.clone(),
+            normalization: value.normalization,
             effective_positive_mass: value.effective_positive_mass,
             effective_negative_mass: value.effective_negative_mass,
             expected_random_label_connection: value.expected_random_label_connection,
             geometry: GeometryWire {
                 point_count: value.geometry.point_count,
                 directed_pair_count: value.geometry.directed_pair_count,
-                geometry_build_count: value.geometry.geometry_build_count,
                 geometry_digest: value.geometry.geometry_digest.to_string(),
                 pair_plan_digest: value.geometry.pair_plan_digest.to_string(),
-                edge_correction: value.geometry.edge_correction.clone(),
+                edge_correction: value.geometry.edge_correction,
                 estimated_storage_bytes: value.geometry.estimated_storage_bytes,
             },
             configuration_digest: value.configuration_digest.to_string(),
@@ -383,15 +375,13 @@ impl From<&ProbabilityPairPoint> for PointWire {
 impl From<&ProbabilityPairInferenceSummary> for InferenceWire {
     fn from(value: &ProbabilityPairInferenceSummary) -> Self {
         Self {
-            null_model: value.null_model.clone(),
-            permutation_unit: value.permutation_unit.clone(),
-            probability_mode: value.probability_mode.clone(),
-            alternative: value.alternative.clone(),
-            multiplicity: value.multiplicity.clone(),
+            null_model: value.null_model,
+            permutation_unit: value.permutation_unit,
+            probability_mode: value.probability_mode,
+            alternative: value.alternative,
+            multiplicity: value.multiplicity,
             connection: value.connection.as_ref().map(ComponentWire::from),
             permutations_requested: value.permutations_requested,
-            permutations_attempted: value.permutations_attempted,
-            permutations_completed: value.permutations_completed,
             seed: value.seed,
             alpha: value.alpha,
             permutation_pair_evaluations: value.permutation_pair_evaluations,
@@ -431,7 +421,6 @@ impl TryFrom<ResultWire> for ProbabilityPairResult {
             geometry: ProbabilityPairGeometrySummary {
                 point_count: value.geometry.point_count,
                 directed_pair_count: value.geometry.directed_pair_count,
-                geometry_build_count: value.geometry.geometry_build_count,
                 geometry_digest: ContentDigest::from_str(&value.geometry.geometry_digest)
                     .map_err(|error| invalid(error.to_string()))?,
                 pair_plan_digest: ContentDigest::from_str(&value.geometry.pair_plan_digest)
@@ -485,8 +474,6 @@ impl From<InferenceWire> for ProbabilityPairInferenceSummary {
             multiplicity: value.multiplicity,
             connection: value.connection.map(Into::into),
             permutations_requested: value.permutations_requested,
-            permutations_attempted: value.permutations_attempted,
-            permutations_completed: value.permutations_completed,
             seed: value.seed,
             alpha: value.alpha,
             permutation_pair_evaluations: value.permutation_pair_evaluations,
@@ -506,32 +493,31 @@ impl From<ComponentWire> for ProbabilityPairComponentInference {
 }
 
 fn validate_result(result: &ProbabilityPairResult) -> io::Result<()> {
-    if result.normalization != "expected_positive_positive_pairs_per_eligible_directed_pair"
+    if result.normalization
+        != MarkNormalization::ExpectedPositivePositivePairsPerEligibleDirectedPair
         || !result.effective_positive_mass.is_finite()
         || result.effective_positive_mass <= 0.0
         || !result.effective_negative_mass.is_finite()
         || result.effective_negative_mass <= 0.0
         || result.geometry.point_count < 2
-        || !same(
+        || !nearly_equal(
             result.effective_positive_mass + result.effective_negative_mass,
             result.geometry.point_count as f64,
         )
         || result.geometry.directed_pair_count > result.limits.maximum_directed_pairs
-        || result.geometry.geometry_build_count != 1
-        || result.geometry.edge_correction != "standard_border_reduced_sample"
+        || result.geometry.edge_correction != EdgeCorrection::StandardBorderReducedSample
         || result.geometry.estimated_storage_bytes > result.limits.maximum_retained_bytes
         || result.curve.is_empty()
         || result.curve.len() > result.limits.maximum_radii
         || result.inference.permutations_requested == 0
-        || result.inference.permutations_attempted != result.inference.permutations_requested
-        || result.inference.permutations_completed != result.inference.permutations_requested
         || result.inference.permutation_pair_evaluations
             > result.limits.maximum_permutation_pair_evaluations
-        || result.inference.null_model != "random_labeling"
-        || result.inference.permutation_unit != "complete_probability_row"
-        || result.inference.probability_mode != "exact_expected_contributions"
-        || result.inference.alternative != "two_sided"
-        || result.inference.multiplicity != "single_connection_erl_family"
+        || result.inference.null_model != MarkNullModel::RandomLabeling
+        || result.inference.permutation_unit != MarkPermutationUnit::CompleteProbabilityRow
+        || result.inference.probability_mode
+            != ProbabilityContributionMode::ExactExpectedContributions
+        || result.inference.alternative != marklab_cohort::InferenceAlternative::TwoSided
+        || result.inference.multiplicity != MultiplicityCorrection::SingleConnectionErlFamily
         || !result.inference.alpha.is_finite()
         || result.inference.alpha <= 0.0
         || result.inference.alpha >= 1.0
@@ -566,7 +552,7 @@ fn validate_result(result: &ProbabilityPairResult) -> io::Result<()> {
                     return Err(invalid("available probability connection lacks a value"));
                 };
                 if point.directed_pairs_in_shell == 0
-                    || !same(
+                    || !nearly_equal(
                         connection,
                         point.expected_positive_pairs_in_shell
                             / point.directed_pairs_in_shell as f64,
@@ -632,23 +618,4 @@ fn validate_component(
         None if eligible == 0 => Ok(()),
         _ => Err(invalid("invalid probability pair component inference")),
     }
-}
-
-fn parse_status(value: &str) -> io::Result<MeasurementStatus> {
-    parse_measurement_status(value).ok_or_else(|| invalid("invalid measurement status"))
-}
-
-fn unit_interval(value: f64) -> bool {
-    value.is_finite() && (0.0..=1.0).contains(&value)
-}
-
-fn same(left: f64, right: f64) -> bool {
-    left == right
-        || (left.is_finite()
-            && right.is_finite()
-            && (left - right).abs() <= 16.0 * f64::EPSILON * left.abs().max(right.abs()).max(1.0))
-}
-
-fn invalid(message: impl Into<String>) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message.into())
 }

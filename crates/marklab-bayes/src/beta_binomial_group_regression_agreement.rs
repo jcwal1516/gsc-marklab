@@ -1,15 +1,20 @@
-use crate::validation::is_lower_hex_sha256 as is_sha256;
-
 use serde::{Deserialize, Serialize};
 
+use crate::agreement_metric::AgreementVerdict;
+use crate::agreement_metric::{
+    compare_elements, compare_parameter, ParameterAgreement, PatientAgreement,
+};
+use crate::backend_versions::PYTHON_VERSION;
+use crate::validation::is_sha256;
+use crate::AgreementStatus;
+use crate::ClaimStatus;
 use crate::{
     hierarchical_agreement::{JAX_VERSION, NUMPYRO_VERSION},
-    sha256_hex, BackendContract, BayesError, BetaBinomialGroupPatientPosterior,
+    json_sha256, BackendContract, BayesError, BetaBinomialGroupPatientPosterior,
     BetaBinomialGroupPosteriorPredictive, BetaBinomialGroupRegressionInputIdentity,
     BetaBinomialGroupRegressionModelIr, BetaBinomialGroupRegressionPosterior,
-    BetaBinomialGroupRegressionWorkerRequest, BetaBinomialGroupRegressionWorkerResult,
-    BetaBinomialParameterAgreement, BetaBinomialPatientAgreement, FitState, NormalMeanDiagnostics,
-    SamplingSummary, SarScalarSummary, WorkerBackend,
+    BetaBinomialGroupRegressionWorkerRequest, BetaBinomialGroupRegressionWorkerResult, FitState,
+    McseScalarSummary, PosteriorDiagnostics, SamplingSummary, WorkerBackend,
 };
 
 const REQUEST_FORMAT: &str = "marklab.numpyro_beta_binomial_group_regression_worker_request";
@@ -36,14 +41,14 @@ impl NumpyroBetaBinomialGroupRegressionWorkerRequest {
                 "NumPyro beta-binomial group identities must be SHA-256 digests".into(),
             ));
         }
-        let source_request_sha256 = sha256_hex(&serde_json::to_vec(&source_request)?);
+        let source_request_sha256 = json_sha256(&source_request)?;
         Ok(Self {
             format: REQUEST_FORMAT,
             version: 1,
             backend: BackendContract {
                 name: "numpyro",
                 version: NUMPYRO_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -67,7 +72,7 @@ pub struct NumpyroBetaBinomialGroupRegressionWorkerResult {
     sampling: SamplingSummary,
     posterior: BetaBinomialGroupRegressionPosterior,
     patients: Vec<BetaBinomialGroupPatientPosterior>,
-    diagnostics: NormalMeanDiagnostics,
+    diagnostics: PosteriorDiagnostics,
     posterior_predictive: BetaBinomialGroupPosteriorPredictive,
 }
 
@@ -140,14 +145,14 @@ impl BetaBinomialGroupAgreementPolicy {
 
 #[derive(Debug, Serialize)]
 pub struct BetaBinomialGroupAgreementComparison {
-    pub intercept_log_odds: BetaBinomialParameterAgreement,
-    pub group_log_odds_effect: BetaBinomialParameterAgreement,
-    pub reference_probability: BetaBinomialParameterAgreement,
-    pub comparison_probability: BetaBinomialParameterAgreement,
-    pub probability_difference: BetaBinomialParameterAgreement,
-    pub odds_ratio: BetaBinomialParameterAgreement,
-    pub concentration: BetaBinomialParameterAgreement,
-    pub patient_probabilities: BetaBinomialPatientAgreement,
+    pub intercept_log_odds: ParameterAgreement,
+    pub group_log_odds_effect: ParameterAgreement,
+    pub reference_probability: ParameterAgreement,
+    pub comparison_probability: ParameterAgreement,
+    pub probability_difference: ParameterAgreement,
+    pub odds_ratio: ParameterAgreement,
+    pub concentration: ParameterAgreement,
+    pub patient_probabilities: PatientAgreement,
     pub maximum_standardized_difference: f64,
     pub minimum_probability_tolerance: f64,
     pub minimum_log_odds_tolerance: f64,
@@ -163,7 +168,7 @@ pub struct BetaBinomialGroupBackendSummary {
     pub sampling: SamplingSummary,
     pub posterior: BetaBinomialGroupRegressionPosterior,
     pub patients: Vec<BetaBinomialGroupPatientPosterior>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: BetaBinomialGroupPosteriorPredictive,
 }
 
@@ -174,12 +179,12 @@ pub struct BetaBinomialGroupAgreementResult {
     pub model: BetaBinomialGroupRegressionModelIr,
     pub input: BetaBinomialGroupRegressionInputIdentity,
     pub fit_state: FitState,
-    pub agreement_status: &'static str,
+    pub agreement_status: AgreementStatus,
     pub pymc: BetaBinomialGroupBackendSummary,
     pub numpyro: BetaBinomialGroupBackendSummary,
     pub comparison: BetaBinomialGroupAgreementComparison,
     pub seed: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 impl BetaBinomialGroupAgreementResult {
@@ -196,24 +201,20 @@ impl BetaBinomialGroupAgreementResult {
                 "beta-binomial group backend patient dimensions differ".into(),
             ));
         }
-        let probability = |left: &SarScalarSummary, right: &SarScalarSummary| {
+        let probability = |left: &McseScalarSummary, right: &McseScalarSummary| {
             compare_parameter(
                 left,
-                &pymc,
                 right,
-                &numpyro,
+                policy.maximum_standardized_difference,
                 policy.minimum_probability_tolerance,
-                policy,
             )
         };
-        let log_odds = |left: &SarScalarSummary, right: &SarScalarSummary| {
+        let log_odds = |left: &McseScalarSummary, right: &McseScalarSummary| {
             compare_parameter(
                 left,
-                &pymc,
                 right,
-                &numpyro,
+                policy.maximum_standardized_difference,
                 policy.minimum_log_odds_tolerance,
-                policy,
             )
         };
         let intercept_log_odds = log_odds(
@@ -243,15 +244,11 @@ impl BetaBinomialGroupAgreementResult {
         let odds_ratio = log_odds(&pymc.posterior.odds_ratio, &numpyro.posterior.odds_ratio);
         let concentration = compare_parameter(
             &pymc.posterior.concentration,
-            &pymc,
             &numpyro.posterior.concentration,
-            &numpyro,
+            policy.maximum_standardized_difference,
             policy.minimum_concentration_tolerance,
-            policy,
         );
         let patient_probabilities = compare_patients(&pymc, &numpyro, policy)?;
-        let fits_complete =
-            pymc.fit_state == FitState::Complete && numpyro.fit_state == FitState::Complete;
         let agrees = [
             &intercept_log_odds,
             &group_log_odds_effect,
@@ -263,26 +260,16 @@ impl BetaBinomialGroupAgreementResult {
         ]
         .iter()
         .all(|comparison| comparison.passes)
-            && patient_probabilities.passes;
-        let available = fits_complete && agrees;
+            && patient_probabilities.agreement.passes;
+        let verdict = AgreementVerdict::new(pymc.fit_state, numpyro.fit_state, agrees);
         let seed = source_request.sampling.seed;
         Ok(Self {
             format: "marklab.bayesian_beta_binomial_group_cross_backend_agreement",
             version: 1,
             model: source_request.model,
             input,
-            fit_state: if fits_complete {
-                FitState::Complete
-            } else {
-                FitState::Nonconverged
-            },
-            agreement_status: if available {
-                "agree_within_monte_carlo_error"
-            } else if fits_complete {
-                "diagnostic_only_backend_disagreement"
-            } else {
-                "diagnostic_only_nonconverged"
-            },
+            fit_state: verdict.fit_state,
+            agreement_status: verdict.agreement_status,
             pymc: summarize(pymc),
             numpyro: summarize(numpyro),
             comparison: BetaBinomialGroupAgreementComparison {
@@ -301,11 +288,7 @@ impl BetaBinomialGroupAgreementResult {
                 minimum_patient_tolerance: policy.minimum_patient_tolerance,
             },
             seed,
-            claim_status: if available {
-                "experimental_cross_backend_validation"
-            } else {
-                "diagnostic_only_cross_backend_validation"
-            },
+            claim_status: verdict.claim_status,
         })
     }
 }
@@ -323,71 +306,29 @@ fn summarize(result: BetaBinomialGroupRegressionWorkerResult) -> BetaBinomialGro
     }
 }
 
-fn compare_parameter(
-    pymc_summary: &SarScalarSummary,
-    pymc: &BetaBinomialGroupRegressionWorkerResult,
-    numpyro_summary: &SarScalarSummary,
-    numpyro: &BetaBinomialGroupRegressionWorkerResult,
-    minimum_tolerance: f64,
-    policy: BetaBinomialGroupAgreementPolicy,
-) -> BetaBinomialParameterAgreement {
-    compare_beta_binomial_parameter(
-        pymc_summary,
-        pymc.diagnostics.ess_bulk,
-        numpyro_summary,
-        numpyro.diagnostics.ess_bulk,
-        policy.maximum_standardized_difference,
-        minimum_tolerance,
-    )
-}
-
 fn compare_patients(
     pymc: &BetaBinomialGroupRegressionWorkerResult,
     numpyro: &BetaBinomialGroupRegressionWorkerResult,
     policy: BetaBinomialGroupAgreementPolicy,
-) -> Result<BetaBinomialPatientAgreement, BayesError> {
-    let mut squared = 0.0;
-    let mut maximum_absolute = 0.0_f64;
-    let mut maximum_standardized = 0.0_f64;
-    let mut overlaps = true;
-    let mut passes = true;
-    for (left, right) in pymc.patients.iter().zip(&numpyro.patients) {
-        if left.patient_id != right.patient_id
+) -> Result<PatientAgreement, BayesError> {
+    let patients = || pymc.patients.iter().zip(&numpyro.patients);
+    if patients().any(|(left, right)| {
+        left.patient_id != right.patient_id
             || left.group != right.group
             || left.successes != right.successes
             || left.trials != right.trials
-        {
-            return Err(BayesError::WorkerContract(
-                "beta-binomial group backend patient identities differ".into(),
-            ));
-        }
-        let difference = (left.posterior_probability.mean - right.posterior_probability.mean).abs();
-        let mcse = (left.posterior_probability.sd / pymc.diagnostics.ess_bulk.sqrt())
-            .hypot(right.posterior_probability.sd / numpyro.diagnostics.ess_bulk.sqrt());
-        let standardized_difference = standardized(difference, mcse);
-        let tolerance = policy
-            .minimum_patient_tolerance
-            .max(policy.maximum_standardized_difference * mcse);
-        let overlap = left.posterior_probability.interval_lower
-            <= right.posterior_probability.interval_upper
-            && right.posterior_probability.interval_lower
-                <= left.posterior_probability.interval_upper;
-        squared += difference * difference;
-        maximum_absolute = maximum_absolute.max(difference);
-        maximum_standardized = maximum_standardized.max(standardized_difference);
-        overlaps &= overlap;
-        passes &= overlap && difference <= tolerance;
+    }) {
+        return Err(BayesError::WorkerContract(
+            "beta-binomial group backend patient identities differ".into(),
+        ));
     }
-    Ok(BetaBinomialPatientAgreement {
+    Ok(PatientAgreement {
         patient_count: pymc.patients.len(),
-        root_mean_square_difference: (squared / pymc.patients.len() as f64).sqrt(),
-        maximum_absolute_difference: maximum_absolute,
-        maximum_standardized_difference: maximum_standardized,
-        all_intervals_overlap: overlaps,
-        passes,
+        agreement: compare_elements(
+            patients()
+                .map(|(left, right)| (left.posterior_probability, right.posterior_probability)),
+            policy.maximum_standardized_difference,
+            policy.minimum_patient_tolerance,
+        ),
     })
 }
-
-use crate::agreement_metric::{
-    compare_beta_binomial_parameter, standardized_mcse_difference as standardized,
-};

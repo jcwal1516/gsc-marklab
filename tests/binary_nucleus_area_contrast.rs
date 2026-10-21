@@ -1,8 +1,14 @@
 use marklab::{
-    declared_binary_group_nucleus_area_contrast, BinaryMarkDeclaration,
-    DeclaredBinaryGroupNucleusAreaContrastError, DeclaredBinaryGroupNucleusAreaContrastStatus,
-    DeclaredScalarInputError, DeclaredScalarPatternInput, MarklabProject, MeasurementStatus,
-    NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration, ScalarMarkId,
+    embeddings::{
+        declared_binary_group_nucleus_area_contrast, DeclaredBinaryGroupNucleusAreaContrastError,
+        DeclaredBinaryGroupNucleusAreaContrastStatus,
+    },
+    marks::{
+        BinaryMarkDeclaration, DeclaredScalarInputError, DeclaredScalarPatternInput,
+        NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration, ScalarMarkId,
+    },
+    workflow::MarklabProject,
+    MeasurementStatus,
 };
 
 #[path = "support/declared_scalar.rs"]

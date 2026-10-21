@@ -1,122 +1,138 @@
-use std::{fs, path::PathBuf};
+pub(crate) use marklab_bayes::protocol::replicated_arbitrary_window_multitype_lgcp_inferred_kernel_agreement::{FitView, NumpyroView, Output, WorkerRequest, validate_numpyro, compare};
 
-use clap::{Parser, Subcommand};
-use marklab_bayes::{
-    sha256_hex, BackendContract, DiagnosticPolicy, FitState, NormalMeanDiagnostics,
-    SamplingSummary, SarScalarSummary, WorkerBackend,
-};
-use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
 
-use super::{
-    posterior_validation::diagnostics_pass,
-    publish_json,
-    replicated_arbitrary_window_lgcp_agreement::backend_matches,
-    replicated_arbitrary_window_multitype_lgcp_inferred_kernel::{
-        self, Args as FitArgs, Output as FitOutput,
-    },
-    run_worker, BayesCliError,
-};
+use marklab_bayes::sha256_hex;
+use marklab_bayes::BackendContract;
+use marklab_bayes::FitState;
 
-const NUMPYRO_VERSION: &str = "0.21.0";
-const JAX_VERSION: &str = "0.11.1";
+use super::publish_json;
+use super::replicated_arbitrary_window_multitype_lgcp_inferred_kernel;
+use super::replicated_arbitrary_window_multitype_lgcp_inferred_kernel::Args as FitArgs;
+use super::replicated_arbitrary_window_multitype_lgcp_inferred_kernel::Output as FitOutput;
+use super::run_worker;
+use super::CliError;
+use marklab_bayes::backend_versions::JAX_VERSION;
+use marklab_bayes::backend_versions::NUMPYRO_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_bayes::AgreementStatus;
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::StatisticalUnit;
+
 const MAXIMUM_RESULT_BYTES: u64 = 16 * 1_048_576;
 
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct Cli {
-    #[command(subcommand)]
-    command: Top,
-}
-
-#[derive(Debug, Subcommand)]
-enum Top {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    ReplicatedArbitraryWindowMultitypeLgcpInferredKernelAgreement(Box<Args>),
-}
-
 #[derive(Debug, clap::Args)]
-struct Args {
+pub(crate) struct Args {
+    /// Previously fitted PyMC result to use in the comparison.
     #[arg(long)]
     pymc_result: PathBuf,
     #[command(flatten)]
     fit: AgreementFitArgs,
+    /// Largest standardized difference accepted between backend estimates.
     #[arg(long)]
     maximum_standardized_difference: f64,
+    /// Minimum absolute comparison tolerance for parameter.
     #[arg(long)]
     minimum_parameter_tolerance: f64,
+    /// Minimum absolute comparison tolerance for field.
     #[arg(long)]
     minimum_field_tolerance: f64,
+    /// Maximum NUTS tree depth for the NumPyro fit.
     #[arg(long)]
     numpyro_maximum_tree_depth: u32,
+    /// Destination for the analysis output.
     #[arg(long)]
     out: PathBuf,
 }
 
 #[derive(Debug, clap::Args)]
 struct AgreementFitArgs {
+    /// Per-node, per-type quadrature CSV (pattern_id, patient_id, group, type_id, count, ...).
     #[arg(long)]
     input: PathBuf,
+    /// Group level used as the regression reference.
     #[arg(long)]
     reference_group: String,
+    /// Group level whose effect is compared with the reference group.
     #[arg(long)]
     comparison_group: String,
+    /// Point-type label used as the model reference.
     #[arg(long)]
     reference_type: String,
+    /// Prior mean for intercept.
     #[arg(long, allow_hyphen_values = true)]
     intercept_prior_mean: f64,
+    /// Prior scale for intercept.
     #[arg(long)]
     intercept_prior_sd: f64,
+    /// Prior scale for group effect.
     #[arg(long)]
     group_effect_prior_sd: f64,
+    /// Prior scale for covariate effect.
     #[arg(long)]
     covariate_effect_prior_sd: f64,
+    /// Prior scale for patient standard deviation.
     #[arg(long)]
     patient_sd_prior_scale: f64,
+    /// Prior scale for pattern standard deviation.
     #[arg(long)]
     pattern_sd_prior_scale: f64,
+    /// Prior scale for field amplitude.
     #[arg(long)]
     field_amplitude_prior_scale: f64,
+    /// Prior scale, in micrometers, for field length scale.
     #[arg(long)]
     field_length_scale_prior_scale_um: f64,
+    /// Diagonal stabilization added to covariance matrices.
     #[arg(long)]
     jitter: f64,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
     chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
     tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
     draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
     target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
     seed: u64,
+    /// Upper bound on patients.
     #[arg(long)]
     maximum_patients: usize,
+    /// Upper bound on patterns.
     #[arg(long)]
     maximum_patterns: usize,
+    /// Upper bound on types.
     #[arg(long)]
     maximum_types: usize,
+    /// Upper bound on nodes per pattern.
     #[arg(long)]
     maximum_nodes_per_pattern: usize,
+    /// Upper bound on total nodes.
     #[arg(long)]
     maximum_total_nodes: usize,
+    /// Upper bound on total node type rows.
     #[arg(long)]
     maximum_total_node_type_rows: usize,
+    /// Upper bound on total events.
     #[arg(long)]
     maximum_total_events: u64,
+    /// Upper bound on draw node type work.
     #[arg(long)]
     maximum_draw_node_type_work: u64,
+    /// Upper bound on kernel cube work.
     #[arg(long)]
     maximum_kernel_cube_work: u64,
+    /// Upper bound on tree depth.
     #[arg(long)]
     maximum_tree_depth: u32,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
     timeout_seconds: u64,
 }
@@ -158,149 +174,20 @@ impl AgreementFitArgs {
     }
 }
 
-#[derive(Debug, Deserialize)]
-struct TypeRow {
-    type_id: String,
-    intercept: SarScalarSummary,
-    group_effect: SarScalarSummary,
-    covariate_effect: SarScalarSummary,
-    patient_sd: SarScalarSummary,
-    pattern_sd: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize)]
-struct KernelRow {
-    field_amplitude: SarScalarSummary,
-    field_length_scale_um: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize)]
-struct DifferenceRow {
-    type_a: String,
-    type_b: String,
-    difference: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize)]
-struct EffectRow {
-    owner_id: String,
-    type_id: String,
-    effect: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize)]
-struct NodeRow {
-    pattern_id: String,
-    node_id: String,
-    type_id: String,
-    latent_effect: SarScalarSummary,
-    expected_count: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize)]
-struct FitView {
-    input_sha256: String,
-    fit_state: FitState,
-    sampling: SamplingSummary,
-    kernel_posterior: KernelRow,
-    type_posteriors: Vec<TypeRow>,
-    group_effect_differences: Vec<DifferenceRow>,
-    patient_type_effects: Vec<EffectRow>,
-    pattern_type_effects: Vec<EffectRow>,
-    node_type_posteriors: Vec<NodeRow>,
-    diagnostics: NormalMeanDiagnostics,
-}
-
-#[derive(Debug, Deserialize)]
-struct NumpyroView {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    jax_version: String,
-    input_sha256: String,
-    request_sha256: String,
-    source_request_sha256: String,
-    maximum_tree_depth: u32,
-    fit_state: FitState,
-    sampling: SamplingSummary,
-    kernel_posterior: KernelRow,
-    type_posteriors: Vec<TypeRow>,
-    group_effect_differences: Vec<DifferenceRow>,
-    patient_type_effects: Vec<EffectRow>,
-    pattern_type_effects: Vec<EffectRow>,
-    node_type_posteriors: Vec<NodeRow>,
-    diagnostics: NormalMeanDiagnostics,
-}
-
-#[derive(Debug, Serialize)]
-struct VectorAgreement {
-    element_count: usize,
-    maximum_standardized_difference: f64,
-    all_intervals_overlap: bool,
-    passes: bool,
-}
-
-#[derive(Debug, Serialize)]
-struct Comparison {
-    type_parameters: VectorAgreement,
-    kernel_parameters: VectorAgreement,
-    group_effect_differences: VectorAgreement,
-    patient_type_effects: VectorAgreement,
-    pattern_type_effects: VectorAgreement,
-    latent_effects: VectorAgreement,
-    expected_counts: VectorAgreement,
-    maximum_standardized_difference: f64,
-    minimum_parameter_tolerance: f64,
-    minimum_field_tolerance: f64,
-    all_pass: bool,
-}
-
-#[derive(Debug, Serialize)]
-struct Output {
-    format: &'static str,
-    version: u32,
-    pymc: FitOutput,
-    numpyro: serde_json::Value,
-    comparison: Comparison,
-    fit_state: FitState,
-    agreement_status: &'static str,
-    statistical_unit: &'static str,
-    assumptions: [&'static str; 4],
-    finite_result_policy: &'static str,
-    claim_status: &'static str,
-}
-
-#[derive(Serialize)]
-struct WorkerRequest {
-    format: &'static str,
-    version: u32,
-    backend: BackendContract,
-    jax_version: &'static str,
-    source_request_sha256: String,
-    source_request: serde_json::Value,
-    maximum_tree_depth: u32,
-}
-
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let Top::Bayes { command } = Cli::parse_from(std::env::args_os()).command;
-    let Command::ReplicatedArbitraryWindowMultitypeLgcpInferredKernelAgreement(args) = command;
-    run(*args)
-}
-
-fn run(args: Args) -> Result<(), BayesCliError> {
+pub(super) fn run(args: Args) -> Result<(), CliError> {
     for value in [
         args.maximum_standardized_difference,
         args.minimum_parameter_tolerance,
         args.minimum_field_tolerance,
     ] {
         if !value.is_finite() || value <= 0.0 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "inferred multitype agreement controls are invalid".into(),
             ));
         }
     }
     if !(10..=14).contains(&args.numpyro_maximum_tree_depth) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "NumPyro inferred multitype tree depth is invalid".into(),
         ));
     }
@@ -308,7 +195,7 @@ fn run(args: Args) -> Result<(), BayesCliError> {
     let prepared =
         replicated_arbitrary_window_multitype_lgcp_inferred_kernel::prepare(args.fit.into_fit())?;
     let pymc: FitOutput = serde_json::from_slice(&read_bounded(&args.pymc_result)?)?;
-    pymc.validate_for(&prepared)?;
+    prepared.validate_result(&pymc)?;
     let pymc_view: FitView = serde_json::from_value(serde_json::to_value(&pymc)?)?;
     let (result, backend, request_sha) =
         execute_numpyro(&prepared, args.numpyro_maximum_tree_depth, timeout)?;
@@ -320,7 +207,8 @@ fn run(args: Args) -> Result<(), BayesCliError> {
         &request_sha,
         sha256_hex(prepared.request_bytes()),
         args.numpyro_maximum_tree_depth,
-    )?;
+    )
+    .map_err(super::protocol_error)?;
     let comparison = compare(
         &pymc_view,
         &numpyro,
@@ -334,19 +222,22 @@ fn run(args: Args) -> Result<(), BayesCliError> {
     publish_json(
         &args.out,
         &Output {
-            format:
-                "marklab.replicated_arbitrary_window_multitype_lgcp_inferred_kernel_backend_agreement",
+            format: "marklab.replicated_arbitrary_window_multitype_lgcp_inferred_kernel_backend_agreement",
             version: 1,
             pymc,
             numpyro: result,
             comparison,
-            fit_state: if complete { FitState::Complete } else { FitState::Nonconverged },
-            agreement_status: if complete {
-                "agree_within_monte_carlo_error"
+            fit_state: if complete {
+                FitState::Complete
             } else {
-                "diagnostic_only_disagreement_or_nonconvergence"
+                FitState::Nonconverged
             },
-            statistical_unit: "patient",
+            agreement_status: if complete {
+                AgreementStatus::AgreeWithinMonteCarloError
+            } else {
+                AgreementStatus::DiagnosticOnlyDisagreementOrNonconvergence
+            },
+            statistical_unit: StatisticalUnit::Patient,
             assumptions: [
                 "same_exact_patients_patterns_windows_types_priors_draws_target_accept_and_seed",
                 "numpyro_tree_depth_capacity_is_explicit_and_sampler_specific",
@@ -354,7 +245,7 @@ fn run(args: Args) -> Result<(), BayesCliError> {
                 "patients_not_patterns_nodes_types_or_cells_are_population_replicates",
             ],
             finite_result_policy: "both_backends_finite_complete_and_monte_carlo_compatible",
-            claim_status: "experimental_cross_backend_validation",
+            claim_status: ClaimStatus::ExperimentalCrossBackendValidation,
         },
     )
 }
@@ -363,23 +254,23 @@ fn execute_numpyro(
     prepared: &replicated_arbitrary_window_multitype_lgcp_inferred_kernel::Prepared,
     depth: u32,
     timeout: u64,
-) -> Result<(serde_json::Value, BackendContract, String), BayesCliError> {
-    let repository = &marklab::python_backend_assets_root()?;
+) -> Result<(serde_json::Value, BackendContract, String), CliError> {
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let workers = repository.join("workers/python");
     let worker_name =
         "marklab_numpyro_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_worker.py";
     let backend = BackendContract {
         name: "numpyro",
         version: NUMPYRO_VERSION,
-        python_version: "3.12",
+        python_version: PYTHON_VERSION,
         environment_lock_sha256: sha256_hex(&fs::read(workers.join("uv.lock")).map_err(
-            |source| BayesCliError::Io {
+            |source| CliError::Io {
                 path: workers.join("uv.lock"),
                 source,
             },
         )?),
         worker_sha256: sha256_hex(&fs::read(workers.join(worker_name)).map_err(|source| {
-            BayesCliError::Io {
+            CliError::Io {
                 path: workers.join(worker_name),
                 source,
             }
@@ -401,229 +292,10 @@ fn execute_numpyro(
     Ok((serde_json::from_slice(&output)?, backend, request_sha))
 }
 
-#[allow(clippy::too_many_arguments)]
-fn validate_numpyro(
-    result: &NumpyroView,
-    baseline: &FitView,
-    backend: &BackendContract,
-    request_sha: &str,
-    source_sha: String,
-    depth: u32,
-) -> Result<(), BayesCliError> {
-    let complete = diagnostics_pass(&result.diagnostics, &DiagnosticPolicy::default());
-    if result.format
-        != "marklab.numpyro_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_result"
-        || result.version != 1
-        || !backend_matches(&result.backend, backend)
-        || result.jax_version != JAX_VERSION
-        || result.input_sha256 != baseline.input_sha256
-        || result.request_sha256 != request_sha
-        || result.source_request_sha256 != source_sha
-        || result.maximum_tree_depth != depth
-        || result.sampling.completed_draws != baseline.sampling.completed_draws
-        || !rows_match(baseline, result)
-        || (result.fit_state == FitState::Complete) != complete
-    {
-        return Err(BayesCliError::Backend(
-            "NumPyro inferred multitype LGCP result differs".into(),
-        ));
-    }
-    Ok(())
-}
-
-fn rows_match(left: &FitView, right: &NumpyroView) -> bool {
-    left.type_posteriors.len() == right.type_posteriors.len()
-        && left
-            .type_posteriors
-            .iter()
-            .zip(&right.type_posteriors)
-            .all(|(a, b)| a.type_id == b.type_id)
-        && left.group_effect_differences.len() == right.group_effect_differences.len()
-        && left
-            .group_effect_differences
-            .iter()
-            .zip(&right.group_effect_differences)
-            .all(|(a, b)| a.type_a == b.type_a && a.type_b == b.type_b)
-        && effects_match(&left.patient_type_effects, &right.patient_type_effects)
-        && effects_match(&left.pattern_type_effects, &right.pattern_type_effects)
-        && left.node_type_posteriors.len() == right.node_type_posteriors.len()
-        && left
-            .node_type_posteriors
-            .iter()
-            .zip(&right.node_type_posteriors)
-            .all(|(a, b)| {
-                a.pattern_id == b.pattern_id && a.node_id == b.node_id && a.type_id == b.type_id
-            })
-}
-
-fn effects_match(left: &[EffectRow], right: &[EffectRow]) -> bool {
-    left.len() == right.len()
-        && left
-            .iter()
-            .zip(right)
-            .all(|(a, b)| a.owner_id == b.owner_id && a.type_id == b.type_id)
-}
-
-fn compare(
-    left: &FitView,
-    right: &NumpyroView,
-    maximum: f64,
-    parameter_tolerance: f64,
-    field_tolerance: f64,
-) -> Comparison {
-    let left_ess = left.diagnostics.ess_bulk;
-    let right_ess = right.diagnostics.ess_bulk;
-    let type_parameters = compare_vector(
-        left.type_posteriors.iter().flat_map(type_summaries),
-        right.type_posteriors.iter().flat_map(type_summaries),
-        left_ess,
-        right_ess,
-        maximum,
-        parameter_tolerance,
-    );
-    let kernel_parameters = compare_vector(
-        [
-            &left.kernel_posterior.field_amplitude,
-            &left.kernel_posterior.field_length_scale_um,
-        ]
-        .into_iter(),
-        [
-            &right.kernel_posterior.field_amplitude,
-            &right.kernel_posterior.field_length_scale_um,
-        ]
-        .into_iter(),
-        left_ess,
-        right_ess,
-        maximum,
-        parameter_tolerance,
-    );
-    let group_effect_differences = compare_vector(
-        left.group_effect_differences
-            .iter()
-            .map(|row| &row.difference),
-        right
-            .group_effect_differences
-            .iter()
-            .map(|row| &row.difference),
-        left_ess,
-        right_ess,
-        maximum,
-        parameter_tolerance,
-    );
-    let patient_type_effects = compare_vector(
-        left.patient_type_effects.iter().map(|row| &row.effect),
-        right.patient_type_effects.iter().map(|row| &row.effect),
-        left_ess,
-        right_ess,
-        maximum,
-        parameter_tolerance,
-    );
-    let pattern_type_effects = compare_vector(
-        left.pattern_type_effects.iter().map(|row| &row.effect),
-        right.pattern_type_effects.iter().map(|row| &row.effect),
-        left_ess,
-        right_ess,
-        maximum,
-        parameter_tolerance,
-    );
-    let latent_effects = compare_vector(
-        left.node_type_posteriors
-            .iter()
-            .map(|row| &row.latent_effect),
-        right
-            .node_type_posteriors
-            .iter()
-            .map(|row| &row.latent_effect),
-        left_ess,
-        right_ess,
-        maximum,
-        field_tolerance,
-    );
-    let expected_counts = compare_vector(
-        left.node_type_posteriors
-            .iter()
-            .map(|row| &row.expected_count),
-        right
-            .node_type_posteriors
-            .iter()
-            .map(|row| &row.expected_count),
-        left_ess,
-        right_ess,
-        maximum,
-        field_tolerance,
-    );
-    let all_pass = [
-        &type_parameters,
-        &kernel_parameters,
-        &group_effect_differences,
-        &patient_type_effects,
-        &pattern_type_effects,
-        &latent_effects,
-        &expected_counts,
-    ]
-    .into_iter()
-    .all(|row| row.passes);
-    Comparison {
-        type_parameters,
-        kernel_parameters,
-        group_effect_differences,
-        patient_type_effects,
-        pattern_type_effects,
-        latent_effects,
-        expected_counts,
-        maximum_standardized_difference: maximum,
-        minimum_parameter_tolerance: parameter_tolerance,
-        minimum_field_tolerance: field_tolerance,
-        all_pass,
-    }
-}
-
-fn type_summaries(row: &TypeRow) -> [&SarScalarSummary; 5] {
-    [
-        &row.intercept,
-        &row.group_effect,
-        &row.covariate_effect,
-        &row.patient_sd,
-        &row.pattern_sd,
-    ]
-}
-
-fn compare_vector<'a>(
-    left: impl Iterator<Item = &'a SarScalarSummary>,
-    right: impl Iterator<Item = &'a SarScalarSummary>,
-    left_ess: f64,
-    right_ess: f64,
-    maximum: f64,
-    tolerance: f64,
-) -> VectorAgreement {
-    let mut element_count = 0;
-    let mut maximum_standardized_difference = 0.0_f64;
-    let mut all_intervals_overlap = true;
-    for (left, right) in left.zip(right) {
-        element_count += 1;
-        let combined =
-            ((left.sd / left_ess.sqrt()).powi(2) + (right.sd / right_ess.sqrt()).powi(2)).sqrt();
-        maximum_standardized_difference = maximum_standardized_difference
-            .max((left.mean - right.mean).abs() / combined.max(tolerance));
-        all_intervals_overlap &= left.interval_lower <= right.interval_upper
-            && right.interval_lower <= left.interval_upper;
-    }
-    VectorAgreement {
-        element_count,
-        maximum_standardized_difference,
-        all_intervals_overlap,
-        passes: maximum_standardized_difference <= maximum && all_intervals_overlap,
-    }
-}
-
-fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
-    super::input_file::read_regular_file(
+fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>, CliError> {
+    crate::input_file::read_regular_file(
         path,
         MAXIMUM_RESULT_BYTES,
         "PyMC inferred multitype result is absent or oversized",
     )
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<Cli>(|| run_cli().map_err(super::into_marklab_error))
 }

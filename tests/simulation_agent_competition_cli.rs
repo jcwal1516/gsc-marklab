@@ -102,3 +102,36 @@ fn zero_rate_agent_process_stops_without_inventing_events() {
     assert_eq!(result["termination"], "no_active_rates");
     assert_eq!(result["final_agents"][0]["agent_id"], "b1");
 }
+
+#[cfg(unix)]
+#[test]
+fn special_file_inputs_are_rejected_before_reading() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let output = directory.path().join("out.json");
+    Command::cargo_bin("marklab")
+        .expect("binary")
+        .args([
+            "simulate",
+            "agent-competition",
+            "--input",
+            "/dev/zero",
+            "--seed",
+            "1",
+            "--maximum-events",
+            "1",
+            "--maximum-agents",
+            "1",
+            "--maximum-pair-visits",
+            "1",
+            "--retain-events",
+            "0",
+            "--out",
+            output.to_str().unwrap(),
+        ])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "agent-competition input must be a regular file",
+        ));
+    assert!(!output.exists());
+}

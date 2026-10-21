@@ -1,6 +1,10 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use marklab::{
-    analyze_nearest_space_pattern, NearestSpaceConfig, NearestSpaceLimits, ObservationWindow2D,
-    ObservationWindowLimits, Pattern, PatternMeta,
+    spatial::{analyze_nearest_space_pattern, NearestSpaceConfig, NearestSpaceLimits},
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 
 fn window() -> ObservationWindow2D {
@@ -16,16 +20,7 @@ fn pattern(x: Vec<f64>, y: Vec<f64>, case: &str) -> Pattern {
         x.clone(),
         y,
         vec![0; x.len()],
-        PatternMeta {
-            case_id: case.into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: None,
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(case.into(), "baseline".into(), "unmarked".into(), None),
     )
     .expect("pattern")
 }

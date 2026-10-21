@@ -336,7 +336,7 @@ impl EncodedLabelPair {
     }
 }
 
-fn enrichment_result(
+pub(crate) fn enrichment_result(
     pair: &LabelPair,
     observed_edges: usize,
     null_counts: &[usize],

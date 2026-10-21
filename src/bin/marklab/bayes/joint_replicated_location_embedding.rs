@@ -1,336 +1,137 @@
-use std::{collections::BTreeMap, fs, path::PathBuf};
-
-use clap::{Parser, Subcommand};
-use marklab_bayes::{sha256_hex, BackendContract, FitState, WorkerBackend};
-use serde::{Deserialize, Serialize};
-
-use super::{
-    publish_json, replicated_arbitrary_window_lgcp_agreement::backend_matches, run_worker,
-    BayesCliError,
+pub(crate) use marklab_bayes::protocol::joint_replicated_location_embedding::{
+    validate_worker, EmbeddingResidual, EmbeddingResidualFamily, Output, Priors, Resources,
+    Sampling, WorkerRequest, WorkerResult,
 };
 
-const NUMPYRO_VERSION: &str = "0.21.0";
-const JAX_VERSION: &str = "0.11.1";
+use clap::builder::TypedValueParser;
+use std::collections::BTreeMap;
+use std::path::PathBuf;
+
+use marklab_bayes::sha256_hex;
+use marklab_bayes::BackendContract;
+use marklab_bayes::FitState;
+use serde::Deserialize;
+
+use super::publish_json;
+use super::run_worker;
+use super::CliError;
+use marklab_bayes::backend_versions::JAX_VERSION;
+use marklab_bayes::backend_versions::NUMPYRO_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::NullHypothesis;
+use marklab_core::vocabulary::StatisticalUnit;
+
 const MAXIMUM_INPUT_BYTES: u64 = 16 * 1024 * 1024;
-
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct Cli {
-    #[command(subcommand)]
-    command: Top,
-}
-
-#[derive(Debug, Subcommand)]
-enum Top {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    FitJointReplicatedLocationEmbedding(Box<Args>),
-}
-
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, clap::ValueEnum)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum EmbeddingResidualFamily {
-    #[default]
-    Gaussian,
-    StudentT,
-}
-
-impl EmbeddingResidualFamily {
-    fn likelihood_name(self, degrees_of_freedom: Option<f64>) -> String {
-        match self {
-            Self::Gaussian => "diagonal_gaussian_on_fold_frozen_projected_embeddings".into(),
-            Self::StudentT => format!(
-                "independent_student_t_on_fold_frozen_projected_embeddings_df_{}",
-                degrees_of_freedom.expect("validated Student-t degrees of freedom")
-            ),
-        }
-    }
-}
 
 #[derive(Clone, Debug, clap::Args)]
 pub(crate) struct Args {
+    /// Observed locations and their replicate bindings.
     #[arg(long)]
     pub(crate) location_input: PathBuf,
+    /// Input embedding observations and their replicate bindings.
     #[arg(long)]
     pub(crate) embedding_input: PathBuf,
+    /// Group level used as the regression reference.
     #[arg(long)]
     pub(crate) reference_group: String,
+    /// Group level whose effect is compared with the reference group.
     #[arg(long)]
     pub(crate) comparison_group: String,
+    /// Identifier of the embedding projection used by the model.
     #[arg(long)]
     pub(crate) embedding_projection_identity: String,
+    /// Number of shared latent factors.
     #[arg(long)]
     pub(crate) factors: usize,
+    /// Prior scale for location.
     #[arg(long)]
     pub(crate) location_prior_sd: f64,
+    /// Prior scale for group.
     #[arg(long)]
     pub(crate) group_prior_sd: f64,
+    /// Prior scale for patient factor.
     #[arg(long)]
     pub(crate) patient_factor_prior_scale: f64,
+    /// Prior scale for location factor loading.
     #[arg(long)]
     pub(crate) location_factor_loading_prior_sd: f64,
+    /// Prior scale for embedding loading.
     #[arg(long)]
     pub(crate) embedding_loading_prior_sd: f64,
+    /// Prior scale for embedding noise.
     #[arg(long)]
     pub(crate) embedding_noise_prior_scale: f64,
-    #[arg(long, value_enum, default_value_t)]
+    /// Residual distribution used for embedding features.
+    #[arg(long, default_value = "gaussian", value_parser = clap::builder::PossibleValuesParser::new(["gaussian", "student-t"]).map(|value| match value.as_str() {
+        "gaussian" => EmbeddingResidualFamily::Gaussian,
+        "student-t" => EmbeddingResidualFamily::StudentT,
+        _ => unreachable!("possible values validated by clap"),
+    }))]
     pub(crate) embedding_residual_family: EmbeddingResidualFamily,
+    /// Degrees of freedom of the Student-t residual distribution.
     #[arg(long)]
     pub(crate) student_t_degrees_of_freedom: Option<f64>,
+    /// Prior scale, in micrometers, for field length scale.
     #[arg(long)]
     pub(crate) field_length_scale_prior_scale_um: f64,
+    /// Diagonal stabilization added to covariance matrices.
     #[arg(long)]
     pub(crate) jitter: f64,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
     pub(crate) chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
     pub(crate) tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
     pub(crate) draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
     pub(crate) target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
     pub(crate) seed: u64,
+    /// Upper bound on patients.
     #[arg(long)]
     pub(crate) maximum_patients: usize,
+    /// Upper bound on patterns.
     #[arg(long)]
     pub(crate) maximum_patterns: usize,
+    /// Upper bound on location rows.
     #[arg(long)]
     pub(crate) maximum_location_rows: usize,
+    /// Upper bound on embedding points.
     #[arg(long)]
     pub(crate) maximum_embedding_points: usize,
+    /// Upper bound on embedding dimension.
     #[arg(long)]
     pub(crate) maximum_embedding_dimension: usize,
+    /// Upper bound on factor count.
     #[arg(long)]
     pub(crate) maximum_factor_count: usize,
+    /// Upper bound on nearest node visits.
     #[arg(long)]
     pub(crate) maximum_nearest_node_visits: u64,
+    /// Upper bound on kernel cube work.
     #[arg(long)]
     pub(crate) maximum_kernel_cube_work: u64,
+    /// Upper bound on draw observation work.
     #[arg(long)]
     pub(crate) maximum_draw_observation_work: u64,
+    /// Upper bound on working bytes.
     #[arg(long)]
     pub(crate) maximum_working_bytes: u64,
+    /// Upper bound on tree depth.
     #[arg(long)]
     pub(crate) maximum_tree_depth: u32,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
     pub(crate) timeout_seconds: u64,
+    /// Destination for the analysis output.
     #[arg(long)]
     pub(crate) out: PathBuf,
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Priors {
-    location_sd: f64,
-    group_sd: f64,
-    patient_factor_scale: f64,
-    location_factor_loading_sd: f64,
-    embedding_loading_sd: f64,
-    embedding_noise_scale: f64,
-    field_length_scale_um: f64,
-    jitter: f64,
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Sampling {
-    chains: u32,
-    tune: u32,
-    draws: u32,
-    target_accept: f64,
-    seed: u64,
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Resources {
-    maximum_patients: usize,
-    maximum_patterns: usize,
-    maximum_location_rows: usize,
-    maximum_embedding_points: usize,
-    maximum_embedding_dimension: usize,
-    maximum_factor_count: usize,
-    location_node_count: usize,
-    embedding_point_count: usize,
-    embedding_dimension: usize,
-    factor_count: usize,
-    nearest_node_visits: u64,
-    maximum_nearest_node_visits: u64,
-    kernel_cube_work: u64,
-    maximum_kernel_cube_work: u64,
-    draw_observation_work: u64,
-    maximum_draw_observation_work: u64,
-    estimated_working_bytes: u64,
-    maximum_working_bytes: u64,
-    maximum_tree_depth: u32,
-    timeout_seconds: u64,
-    maximum_output_bytes: usize,
-}
-
-#[derive(Serialize)]
-struct WorkerRequest<'a> {
-    format: &'static str,
-    version: u32,
-    backend: BackendContract,
-    jax_version: &'static str,
-    location_csv: &'a str,
-    embedding_csv: &'a str,
-    location_sha256: &'a str,
-    embedding_sha256: &'a str,
-    reference_group: &'a str,
-    comparison_group: &'a str,
-    embedding_projection_identity: &'a str,
-    embedding_residual: EmbeddingResidual,
-    priors: Priors,
-    sampling: Sampling,
-    resources: Resources,
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-struct EmbeddingResidual {
-    family: EmbeddingResidualFamily,
-    student_t_degrees_of_freedom: Option<f64>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Summary {
-    mean: f64,
-    sd: f64,
-    interval_lower: f64,
-    interval_upper: f64,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct PredictiveScore {
-    mean_log_predictive_density: f64,
-    patient_score_spread: Summary,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct HeldoutEmbeddingComparison {
-    score_definition: String,
-    score_version: u32,
-    score_unit: String,
-    patient_aggregation: String,
-    patient_count: usize,
-    heldout_embedding_point_count: usize,
-    heldout_embedding_point_counts_by_patient: Vec<usize>,
-    joint_spatial: PredictiveScore,
-    nonspatial: PredictiveScore,
-    joint_minus_nonspatial_patient_score_spread: Summary,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct PpcMetric {
-    observed: f64,
-    replicated_mean: f64,
-    two_sided_tail_probability: f64,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct PosteriorPredictive {
-    total_location_count: PpcMetric,
-    heldout_embedding_rmse: PpcMetric,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct JointPosterior {
-    field_length_scale_um: Summary,
-    patient_factor_scales: Vec<Summary>,
-    location_factor_loadings: Vec<Summary>,
-    embedding_loading_norms: Vec<Summary>,
-    embedding_noise_scales: Vec<Summary>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Diagnostics {
-    maximum_r_hat: f64,
-    minimum_bulk_ess: f64,
-    minimum_tail_ess: f64,
-    minimum_ebfmi: f64,
-    divergences: u64,
-    max_tree_depth_hits: u64,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WorkerResult {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    jax_version: String,
-    request_sha256: String,
-    location_sha256: String,
-    embedding_sha256: String,
-    patient_count: usize,
-    pattern_count: usize,
-    training_pattern_count: usize,
-    heldout_pattern_count: usize,
-    embedding_dimension: usize,
-    factor_count: usize,
-    training_pattern_ids: Vec<String>,
-    heldout_pattern_ids: Vec<String>,
-    joint_posterior: JointPosterior,
-    heldout_embedding_comparison: HeldoutEmbeddingComparison,
-    posterior_predictive: PosteriorPredictive,
-    diagnostics: Diagnostics,
-    fit_state: FitState,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct Output {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    jax_version: String,
-    request_sha256: String,
-    location_sha256: String,
-    embedding_sha256: String,
-    embedding_projection_identity: String,
-    patient_count: usize,
-    pattern_count: usize,
-    training_pattern_count: usize,
-    heldout_pattern_count: usize,
-    embedding_dimension: usize,
-    factor_count: usize,
-    training_pattern_ids: Vec<String>,
-    heldout_pattern_ids: Vec<String>,
-    joint_posterior: JointPosterior,
-    heldout_embedding_comparison: HeldoutEmbeddingComparison,
-    posterior_predictive: PosteriorPredictive,
-    diagnostics: Diagnostics,
-    fit_state: FitState,
-    sampling: Sampling,
-    resources: Resources,
-    statistical_unit: String,
-    location_likelihood: String,
-    embedding_likelihood: String,
-    factor_identifiability: String,
-    embedding_mapping: String,
-    holdout_policy: String,
-    null_model: String,
-    patient_score_spread_interpretation: String,
-    posterior_predictive_interpretation: String,
-    assumptions: Vec<String>,
-    failure_policy: String,
-    finite_result_policy: String,
-    claim_status: String,
 }
 
 pub(crate) struct Prepared {
@@ -352,28 +153,26 @@ impl Prepared {
     }
 }
 
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let Top::Bayes { command } = Cli::parse_from(std::env::args_os()).command;
-    let Command::FitJointReplicatedLocationEmbedding(args) = command;
+pub(super) fn run(args: Box<Args>) -> Result<(), CliError> {
     let out = args.out.clone();
     let prepared = prepare(*args)?;
     publish_json(&out, &execute(&prepared)?)
 }
 
-pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
+pub(crate) fn prepare(args: Args) -> Result<Prepared, CliError> {
     let location_bytes = read(&args.location_input)?;
     let embedding_bytes = read(&args.embedding_input)?;
     let location_csv = String::from_utf8(location_bytes)
-        .map_err(|_| BayesCliError::Input("location CSV is not UTF-8".into()))?;
+        .map_err(|_| CliError::Input("location CSV is not UTF-8".into()))?;
     let embedding_csv = String::from_utf8(embedding_bytes)
-        .map_err(|_| BayesCliError::Input("embedding CSV is not UTF-8".into()))?;
+        .map_err(|_| CliError::Input("embedding CSV is not UTF-8".into()))?;
     if args.embedding_projection_identity.len() != 64
         || !args
             .embedding_projection_identity
             .bytes()
             .all(|value| value.is_ascii_hexdigit())
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "embedding projection identity must be a SHA-256 digest".into(),
         ));
     }
@@ -394,7 +193,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
             .skip(6)
             .any(|name| !name.starts_with("embedding_"))
     {
-        return Err(BayesCliError::Input("embedding CSV headers differ".into()));
+        return Err(CliError::Input("embedding CSV headers differ".into()));
     }
     let embedding_dimension = headers.len() - 6;
     let embedding_point_count = embedding_reader.records().count();
@@ -432,7 +231,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
                 .checked_mul(*node_counts.get(pattern).unwrap_or(&0) as u64)
                 .and_then(|work| total.checked_add(work))
         })
-        .ok_or_else(|| BayesCliError::Input("nearest-node work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("nearest-node work overflows".into()))?;
     let kernel_cube_work = node_counts
         .values()
         .try_fold(0_u64, |total, count| {
@@ -440,7 +239,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
                 .checked_pow(3)
                 .and_then(|work| total.checked_add(work))
         })
-        .ok_or_else(|| BayesCliError::Input("embedding kernel work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("embedding kernel work overflows".into()))?;
     let draw_observation_work = u64::from(args.chains)
         .checked_mul(u64::from(args.draws))
         .and_then(|value| {
@@ -450,7 +249,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
             )
         })
         .and_then(|value| value.checked_mul(2))
-        .ok_or_else(|| BayesCliError::Input("embedding draw work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("embedding draw work overflows".into()))?;
     let estimated_working_bytes = (location_rows as u64)
         .checked_mul(256)
         .and_then(|value| {
@@ -462,7 +261,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         })
         .and_then(|value| value.checked_add(nearest_node_visits.checked_mul(16)?))
         .and_then(|value| value.checked_add(384 * 1024 * 1024))
-        .ok_or_else(|| BayesCliError::Input("embedding memory estimate overflows".into()))?;
+        .ok_or_else(|| CliError::Input("embedding memory estimate overflows".into()))?;
     let priors = Priors {
         location_sd: args.location_prior_sd,
         group_sd: args.group_prior_sd,
@@ -501,7 +300,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         || estimated_working_bytes > args.maximum_working_bytes
         || !(10..=14).contains(&args.maximum_tree_depth)
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "joint location-embedding controls or resources differ".into(),
         ));
     }
@@ -535,11 +334,11 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         timeout_seconds: args.timeout_seconds,
         maximum_output_bytes: 4 * 1024 * 1024,
     };
-    let workers = marklab::python_backend_assets_root()?.join("workers/python");
+    let workers = marklab::backend::python_backend_assets_root()?.join("workers/python");
     let backend = BackendContract {
         name: "numpyro",
         version: NUMPYRO_VERSION,
-        python_version: "3.12",
+        python_version: PYTHON_VERSION,
         environment_lock_sha256: sha256_hex(&read(&workers.join("uv.lock"))?),
         worker_sha256: sha256_hex(&read(
             &workers.join("marklab_numpyro_joint_replicated_location_embedding_worker.py"),
@@ -580,15 +379,15 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
     })
 }
 
-pub(crate) fn execute(prepared: &Prepared) -> Result<Output, BayesCliError> {
+pub(crate) fn execute(prepared: &Prepared) -> Result<Output, CliError> {
     let bytes = run_worker(
-        &marklab::python_backend_assets_root()?,
+        &marklab::backend::python_backend_assets_root()?,
         "marklab_numpyro_joint_replicated_location_embedding_worker.py",
         &prepared.request_bytes,
         prepared.timeout_seconds,
     )?;
     let result: WorkerResult = serde_json::from_slice(&bytes)?;
-    validate_worker(&result, prepared)?;
+    validate_worker(&result, &prepared.validation_context()).map_err(super::protocol_error)?;
     Ok(Output {
         format: "marklab.joint_replicated_location_embedding_fit".into(),
         version: 2,
@@ -613,7 +412,7 @@ pub(crate) fn execute(prepared: &Prepared) -> Result<Output, BayesCliError> {
         fit_state: result.fit_state,
         sampling: prepared.sampling.clone(),
         resources: prepared.resources.clone(),
-        statistical_unit: "patient".into(),
+        statistical_unit: StatisticalUnit::Patient,
         location_likelihood: "exact_window_quadrature_poisson_total_location_intensity".into(),
         embedding_likelihood: prepared.embedding_residual.family.likelihood_name(
             prepared
@@ -627,7 +426,7 @@ pub(crate) fn execute(prepared: &Prepared) -> Result<Output, BayesCliError> {
         holdout_policy:
             "first_pattern_embeddings_train_second_pattern_embeddings_evaluate_locations_observed_for_both"
                 .into(),
-        null_model: "zero_spatial_factor_embedding_increment_over_nonspatial_patient_model".into(),
+        null_model: NullHypothesis::ZeroSpatialFactorEmbeddingIncrementOverNonspatialPatientModel,
         patient_score_spread_interpretation:
             "descriptive_between_patient_score_spread_not_uncertainty_for_the_mean_advantage"
                 .into(),
@@ -645,223 +444,43 @@ pub(crate) fn execute(prepared: &Prepared) -> Result<Output, BayesCliError> {
         failure_policy: "backend_failure_or_nonfinite_result_stops_publication".into(),
         finite_result_policy: "reject_non_finite_posterior_predictive_or_heldout_summaries".into(),
         claim_status: if result.fit_state == FitState::Complete {
-            "joint_spatial_embedding_association_not_communication_or_causality"
+            ClaimStatus::JointSpatialEmbeddingAssociationNotCommunicationOrCausality
         } else {
-            "diagnostic_only_nonconverged_joint_location_embedding"
-        }
-        .into(),
+            ClaimStatus::DiagnosticOnlyNonconvergedJointLocationEmbedding
+        },
     })
 }
 
-impl Output {
-    pub(crate) fn validate_for(&self, prepared: &Prepared) -> Result<(), BayesCliError> {
-        let expected_claim_status = if self.fit_state == FitState::Complete {
-            "joint_spatial_embedding_association_not_communication_or_causality"
-        } else {
-            "diagnostic_only_nonconverged_joint_location_embedding"
-        };
-        if self.format != "marklab.joint_replicated_location_embedding_fit"
-            || self.version != 2
-            || self.request_sha256 != prepared.request_sha256
-            || self.location_sha256 != prepared.location_sha256
-            || self.embedding_sha256 != prepared.embedding_sha256
-            || self.embedding_projection_identity != prepared.embedding_projection_identity
-            || self.embedding_likelihood
-                != prepared
-                    .embedding_residual
-                    .family
-                    .likelihood_name(prepared.embedding_residual.student_t_degrees_of_freedom)
-            || self.sampling != prepared.sampling
-            || self.resources != prepared.resources
-            || self.statistical_unit != "patient"
-            || self.heldout_embedding_comparison.score_version != 2
-            || self.heldout_embedding_comparison.score_definition
-                != "pointwise_joint_embedding_vector_log_predictive_density_summed_within_patient"
-            || self.heldout_embedding_comparison.score_unit
-                != "heldout_embedding_point_complete_vector"
-            || self.heldout_embedding_comparison.patient_aggregation
-                != "sum_point_scores_within_patient_then_equal_patient_mean"
-            || self.patient_score_spread_interpretation
-                != "descriptive_between_patient_score_spread_not_uncertainty_for_the_mean_advantage"
-            || self.posterior_predictive_interpretation
-                != "paired_draw_parameter_dependent_discrepancy_not_a_classically_calibrated_p_value"
-            || self.claim_status != expected_claim_status
-            || (self.fit_state == FitState::Complete) != diagnostics_pass(&self.diagnostics)
-            || !valid_heldout_comparison(
-                &self.heldout_embedding_comparison,
-                self.patient_count,
-                prepared.resources.embedding_point_count,
-            )
-            || !valid_joint_posterior(
-                &self.joint_posterior,
-                self.factor_count,
-                self.embedding_dimension,
-            )
-            || !valid_posterior_predictive(&self.posterior_predictive)
-        {
-            return Err(BayesCliError::Backend(
-                "durable joint location-embedding result differs".into(),
-            ));
-        }
-        Ok(())
-    }
-}
-
-fn validate_worker(result: &WorkerResult, prepared: &Prepared) -> Result<(), BayesCliError> {
-    if result.format != "marklab.numpyro_joint_replicated_location_embedding_result"
-        || result.version != 2
-        || !backend_matches(&result.backend, &prepared.backend)
-        || result.jax_version != JAX_VERSION
-        || result.request_sha256 != prepared.request_sha256
-        || result.location_sha256 != prepared.location_sha256
-        || result.embedding_sha256 != prepared.embedding_sha256
-        || result.patient_count < 2
-        || result.pattern_count != result.patient_count * 2
-        || result.training_pattern_count != result.patient_count
-        || result.heldout_pattern_count != result.patient_count
-        || result.embedding_dimension != prepared.resources.embedding_dimension
-        || result.factor_count != prepared.resources.factor_count
-        || !valid_heldout_comparison(
-            &result.heldout_embedding_comparison,
-            result.patient_count,
-            prepared.resources.embedding_point_count,
-        )
-        || !valid_joint_posterior(
-            &result.joint_posterior,
-            result.factor_count,
-            result.embedding_dimension,
-        )
-        || (result.fit_state == FitState::Complete) != diagnostics_pass(&result.diagnostics)
-        || !valid_posterior_predictive(&result.posterior_predictive)
-    {
-        return Err(BayesCliError::Backend(
-            "joint location-embedding backend result differs".into(),
-        ));
-    }
-    Ok(())
-}
-
-fn diagnostics_pass(diagnostics: &Diagnostics) -> bool {
-    diagnostics.maximum_r_hat.is_finite()
-        && diagnostics.maximum_r_hat <= 1.01
-        && diagnostics.minimum_bulk_ess.is_finite()
-        && diagnostics.minimum_bulk_ess >= 100.0
-        && diagnostics.minimum_tail_ess.is_finite()
-        && diagnostics.minimum_tail_ess >= 100.0
-        && diagnostics.minimum_ebfmi.is_finite()
-        && diagnostics.minimum_ebfmi >= 0.3
-        && diagnostics.divergences == 0
-        && diagnostics.max_tree_depth_hits == 0
-}
-
-fn valid_heldout_comparison(
-    comparison: &HeldoutEmbeddingComparison,
-    patient_count: usize,
-    maximum_embedding_points: usize,
-) -> bool {
-    comparison.score_version == 2
-        && comparison.score_definition
-            == "pointwise_joint_embedding_vector_log_predictive_density_summed_within_patient"
-        && comparison.score_unit == "heldout_embedding_point_complete_vector"
-        && comparison.patient_aggregation
-            == "sum_point_scores_within_patient_then_equal_patient_mean"
-        && comparison.patient_count == patient_count
-        && comparison.heldout_embedding_point_counts_by_patient.len() == patient_count
-        && !comparison
-            .heldout_embedding_point_counts_by_patient
-            .contains(&0)
-        && comparison
-            .heldout_embedding_point_counts_by_patient
-            .iter()
-            .sum::<usize>()
-            == comparison.heldout_embedding_point_count
-        && (1..=maximum_embedding_points).contains(&comparison.heldout_embedding_point_count)
-        && comparison.joint_spatial.mean_log_predictive_density
-            == comparison.joint_spatial.patient_score_spread.mean
-        && comparison.nonspatial.mean_log_predictive_density
-            == comparison.nonspatial.patient_score_spread.mean
-        && valid_summary(&comparison.joint_spatial.patient_score_spread)
-        && valid_summary(&comparison.nonspatial.patient_score_spread)
-        && valid_summary(&comparison.joint_minus_nonspatial_patient_score_spread)
-}
-
-fn valid_joint_posterior(
-    posterior: &JointPosterior,
-    factor_count: usize,
-    embedding_dimension: usize,
-) -> bool {
-    valid_summary(&posterior.field_length_scale_um)
-        && posterior.patient_factor_scales.len() == factor_count
-        && posterior.location_factor_loadings.len() == factor_count
-        && posterior.embedding_loading_norms.len() == factor_count
-        && posterior.embedding_noise_scales.len() == embedding_dimension
-        && posterior
-            .patient_factor_scales
-            .iter()
-            .chain(&posterior.location_factor_loadings)
-            .chain(&posterior.embedding_loading_norms)
-            .chain(&posterior.embedding_noise_scales)
-            .all(valid_summary)
-}
-
-fn valid_posterior_predictive(posterior_predictive: &PosteriorPredictive) -> bool {
-    [
-        &posterior_predictive.total_location_count,
-        &posterior_predictive.heldout_embedding_rmse,
-    ]
-    .iter()
-    .all(|row| {
-        [
-            row.observed,
-            row.replicated_mean,
-            row.two_sided_tail_probability,
-        ]
-        .into_iter()
-        .all(f64::is_finite)
-            && (0.0..=1.0).contains(&row.two_sided_tail_probability)
-    })
-}
-
-fn valid_summary(row: &Summary) -> bool {
-    [row.mean, row.sd, row.interval_lower, row.interval_upper]
-        .into_iter()
-        .all(f64::is_finite)
-        && row.sd >= 0.0
-        && row.interval_lower <= row.interval_upper
-}
-
-impl Priors {
-    fn values(&self) -> [f64; 8] {
-        [
-            self.location_sd,
-            self.group_sd,
-            self.patient_factor_scale,
-            self.location_factor_loading_sd,
-            self.embedding_loading_sd,
-            self.embedding_noise_scale,
-            self.field_length_scale_um,
-            self.jitter,
-        ]
-    }
-}
-
-fn read(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(format!(
+fn read(path: &std::path::Path) -> Result<Vec<u8>, CliError> {
+    crate::input_file::read_regular_file(
+        path,
+        MAXIMUM_INPUT_BYTES,
+        &format!(
             "input must be a regular file within 16 MiB: {}",
             path.display()
-        )));
-    }
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
+        ),
+    )
 }
 
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<Cli>(|| run_cli().map_err(super::into_marklab_error))
+impl Prepared {
+    fn validation_context(
+        &self,
+    ) -> marklab_bayes::protocol::joint_replicated_location_embedding::ValidationContext<'_> {
+        marklab_bayes::protocol::joint_replicated_location_embedding::ValidationContext {
+            backend: &self.backend,
+            request_sha256: &self.request_sha256,
+            location_sha256: &self.location_sha256,
+            embedding_sha256: &self.embedding_sha256,
+            embedding_projection_identity: &self.embedding_projection_identity,
+            embedding_residual: &self.embedding_residual,
+            sampling: &self.sampling,
+            resources: &self.resources,
+        }
+    }
+
+    pub(crate) fn validate_result(&self, result: &Output) -> Result<(), CliError> {
+        result
+            .validate_for(&self.validation_context())
+            .map_err(super::protocol_error)
+    }
 }

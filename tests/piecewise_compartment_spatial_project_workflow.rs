@@ -1,13 +1,22 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use marklab::{
-    execute_algorithm, ArtifactRef, ArtifactSchema, BinaryCompartmentPartition2D, CacheStatus,
-    CompartmentPartitionLimits, CoordinateFrame, CoordinateFrameId, CoordinateRegistry,
-    CoordinateSpace, CoordinateUnit, DurableProject, DurableProjectLimits, LocalScheduler,
-    MarklabProject, NativeRuntimeProvenance, NodeId, ObservationWindow2D, ObservationWindowLimits,
-    Pattern, PatternMeta, PiecewiseCompartmentPairCorrelationAnalysisNode,
-    PiecewiseCompartmentPairCorrelationConfig, PiecewiseCompartmentPairCorrelationResult,
-    PiecewiseCompartmentSpatialAnalysisNode, PiecewiseCompartmentSpatialConfig,
-    PiecewiseCompartmentSpatialLimits, PiecewiseCompartmentSpatialResult, SchedulerLimits,
-    SpatialAxis, WorkflowGraph,
+    compartments::{BinaryCompartmentPartition2D, CompartmentPartitionLimits},
+    spatial::{
+        PiecewiseCompartmentPairCorrelationAnalysisNode, PiecewiseCompartmentPairCorrelationConfig,
+        PiecewiseCompartmentPairCorrelationResult, PiecewiseCompartmentSpatialAnalysisNode,
+        PiecewiseCompartmentSpatialConfig, PiecewiseCompartmentSpatialLimits,
+        PiecewiseCompartmentSpatialResult,
+    },
+    workflow::{
+        execute_algorithm, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
+        DurableProjectLimits, LocalScheduler, MarklabProject, NativeRuntimeProvenance, NodeId,
+        SchedulerLimits, WorkflowGraph,
+    },
+    CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit,
+    ObservationWindow2D, ObservationWindowLimits, Pattern, SpatialAxis,
 };
 
 fn runtime() -> NativeRuntimeProvenance {
@@ -88,16 +97,12 @@ fn fixture(swap_roles: bool) -> (Pattern, BinaryCompartmentPartition2D) {
         vec![2.0, 4.0, 6.0, 8.0, 9.0],
         vec![5.0; 5],
         vec![0; 5],
-        PatternMeta {
-            case_id: "durable-piecewise-compartment".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("piecewise-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "durable-piecewise-compartment".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("piecewise-slide".into()),
+        ),
     )
     .expect("pattern");
     (pattern, partition)

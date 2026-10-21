@@ -1,14 +1,16 @@
 [package]
 name = "marklab-data"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Typed cohort hierarchy and data contracts for Marklab"
+repository.workspace = true
+description = "Cohort hierarchy and data model for Marklab"
 
 [lib]
 bench = false
 
 [dependencies]
-marklab-core = { version = "0.1.0", path = "../marklab-core" }
-thiserror = "2"
+marklab-core.workspace = true
+thiserror.workspace = true
+serde.workspace = true

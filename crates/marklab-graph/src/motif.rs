@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::GraphError;
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::NullHypothesis;
 
 const MAXIMUM_FORWARD_WEDGES: u64 = 2_000_000;
 const MAXIMUM_TRIANGLES: usize = 250_000;
@@ -54,13 +56,13 @@ pub struct TypedTriangleMotifResult {
     pub observed_count: u64,
     pub instances: Vec<[String; 3]>,
     pub motif_adjacency: Vec<Vec<u64>>,
-    pub null_model: &'static str,
+    pub null_model: NullHypothesis,
     pub null_counts: Vec<u64>,
     pub p_value_upper: f64,
     pub permutations_completed: usize,
     pub seed: u64,
     pub triples_evaluated: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -74,13 +76,13 @@ pub struct TypedTriangleMotifSummaryResult {
     pub node_count: usize,
     pub edge_count: usize,
     pub observed_count: u64,
-    pub null_model: String,
+    pub null_model: NullHypothesis,
     pub null_counts: Vec<u64>,
     pub p_value_upper: f64,
     pub permutations_completed: usize,
     pub seed: u64,
     pub triples_evaluated: u64,
-    pub claim_status: String,
+    pub claim_status: ClaimStatus,
 }
 
 impl TypedTriangleMotifSummaryResult {
@@ -105,7 +107,7 @@ impl TypedTriangleMotifSummaryResult {
             || self.node_count != spec.nodes.len()
             || self.edge_count != spec.edges.len()
             || self.observed_count > MAXIMUM_TRIANGLES as u64
-            || self.null_model != "labels_permuted_within_declared_strata"
+            || self.null_model != NullHypothesis::LabelsPermutedWithinDeclaredStrata
             || self.null_counts.len() != spec.permutations
             || self
                 .null_counts
@@ -115,7 +117,7 @@ impl TypedTriangleMotifSummaryResult {
             || self.permutations_completed != spec.permutations
             || self.seed != spec.seed
             || self.triples_evaluated > spec.maximum_triples.min(MAXIMUM_FORWARD_WEDGES)
-            || self.claim_status != "experimental_typed_triangle_motif_summary"
+            || self.claim_status != ClaimStatus::ExperimentalTypedTriangleMotifSummary
         {
             return Err(GraphError::Invalid(
                 "typed triangle motif summary does not match its specification".into(),
@@ -168,13 +170,13 @@ pub fn typed_triangle_motif_workflow(
         observed_count: analysis.matching.len() as u64,
         instances,
         motif_adjacency,
-        null_model: "labels_permuted_within_declared_strata",
+        null_model: NullHypothesis::LabelsPermutedWithinDeclaredStrata,
         null_counts: analysis.null_counts,
         p_value_upper: analysis.p_value_upper,
         permutations_completed: analysis.permutations_completed,
         seed: analysis.seed,
         triples_evaluated: analysis.triples_evaluated,
-        claim_status: "experimental_typed_triangle_motif",
+        claim_status: ClaimStatus::ExperimentalTypedTriangleMotif,
     })
 }
 
@@ -191,13 +193,13 @@ pub fn typed_triangle_motif_summary_workflow(
         node_count: analysis.nodes.len(),
         edge_count: analysis.edges.len(),
         observed_count: analysis.matching.len() as u64,
-        null_model: "labels_permuted_within_declared_strata".to_owned(),
+        null_model: NullHypothesis::LabelsPermutedWithinDeclaredStrata,
         null_counts: analysis.null_counts,
         p_value_upper: analysis.p_value_upper,
         permutations_completed: analysis.permutations_completed,
         seed: analysis.seed,
         triples_evaluated: analysis.triples_evaluated,
-        claim_status: "experimental_typed_triangle_motif_summary".to_owned(),
+        claim_status: ClaimStatus::ExperimentalTypedTriangleMotifSummary,
     })
 }
 

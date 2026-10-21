@@ -5,6 +5,7 @@ use crate::BayesError;
 mod linear_gaussian;
 mod types;
 
+use crate::ClaimStatus;
 use linear_gaussian::{linear_summary, posterior};
 pub use types::*;
 
@@ -117,7 +118,7 @@ pub fn fit_distance_to_resource_model(
         distance_response,
         predictions,
         posterior_predictive,
-        claim_status: "association_not_transport_or_resource_causality",
+        claim_status: ClaimStatus::AssociationNotTransportOrResourceCausality,
     })
 }
 

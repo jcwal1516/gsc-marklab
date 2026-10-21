@@ -5,17 +5,19 @@ outputs, as currently implemented. For an overview, start with the [README](READ
 
 ## Scientific scope
 
-Marklab measures how a label, either yes/no or a probability, is arranged across cells whose
-positions are fixed. Every confirmatory test compares the real section with versions in
-which the labels are shuffled among the same cells (random labeling). The multimodal
-workflow is built for tumor-cell MMR immunohistochemistry; the single-section engine works
-with any label. Results describe one tissue section. They do not show clonality, track
+The marked-pattern engine measures how a label, either yes/no or a probability, is arranged
+across cells whose positions are fixed. Its random-labeling tests compare the real section
+with versions in which labels are shuffled among the same cells. Other workflows have
+different declared nulls: classical spatial tests simulate locations, pathology spatial
+studies condition on fitted intensity, and cohort tests permute independent patients.
+The multimodal workflow is built for tumor-cell MMR immunohistochemistry; the single-section
+engine works with any label. Single-section results describe one tissue section. They do not show clonality, track
 cells between sections, detect gain or loss of expression, or determine treatment response
 or molecular MMR status.
 
 ## Rust API
 
-The supported analysis operations are:
+The result-document API includes:
 
 ```rust,ignore
 AnalysisEngine::analyze_pattern(&Pattern) -> Result<MarkedPatternResult>
@@ -24,15 +26,31 @@ OutputWriter::write(&ResultDocument, output_directory, &OutputSection)
     -> Result<OutputManifest>
 ```
 
-Result format 0.3 is fixed by the library and cannot be configured. Its top
+Result format 0.4 is fixed by the library and cannot be configured. Its top
 level is `format_version`, `provenance`, and the adjacently tagged `analysis`
 enum (`kind` plus `result`). Unknown versions are rejected with
-`UnsupportedFormatVersion`. The reader has a narrow 0.2 marked-pattern
-converter for fields with unambiguous semantics; unsafe legacy states and 0.2
-multimodal documents return a schema error telling you to rerun the analysis.
+`UnsupportedFormatVersion`. The reader accepts only 0.4; 0.2 and 0.3 documents
+must be regenerated from the original inputs. There is no legacy converter.
 The supported kinds are `marked_pattern`, `multimodal`, `marked_prepost`, and
 `multimodal_prepost`. Both pre/post commands accept either a result file or the
 directory containing `result.json`.
+
+JSON decimal parsing uses serde_json's `float_roundtrip` mode so finite binary64
+values written by the serializer retain their bits when read back. Strict schemas,
+semantic checks, integer handling and resource limits still apply. Existing tagged-bit
+artifact codecs remain readable. This is a numerical parsing correction within the
+existing formats, not a change to statistical definitions. Cache identities change when
+removing a formerly lossy decode/re-encode step changes canonical artifact bytes.
+
+Cell-embedding provenance version 2 records the producer's declared vector dimension,
+pooling, normalization, input channels, modality and stain. Its verified artifact graph
+binds generic CSV/NPY sources without requiring CellViT-specific content labels or
+calibration. Version 1 keeps the original fixed CellViT contract and canonical reader.
+The generic NPY reader enforces finite, little-endian, row-major float32 values and the
+existing byte/shape limits; the legacy CellViT wrapper additionally requires 1,280 columns.
+The vector-semivariogram CLI's optional separate NPY input uses a version-2 result with
+both source identities. Its statistic and the existing CSV-only version-1 result are
+unchanged. These artifact versions do not change the main result format 0.4.
 
 ## Availability and output files
 
@@ -48,6 +66,64 @@ non-empty and symbolic-link targets. A failed transaction removes its temporary
 directory and does not expose a new final run directory.
 
 ## Statistics
+
+Categorical co-occurrence counts ordered pairs of distinct cells within each declared
+physical radius, including coincident cells and the radius boundary. If `C_ab` is the
+class-pair count, `T` the total directed count and `D_a`, `D_b` the corresponding
+edge-incidence marginals, its score is `C_ab T / (D_a D_b)`. A zero marginal makes
+the score unavailable. This is an edge-incidence normalization, not a global
+cell-frequency normalization or a point-process pair-correlation function. See
+[categorical co-occurrence](docs/categorical-cooccurrence.md).
+
+Categorical neighborhood enrichment uses one fixed radius graph and one global
+fixed-count label-permutation stratum. Exact edge-indicator moments are reported
+separately from Monte Carlo mean, sample-standard-deviation z-score and inclusive
+one-sided enrichment p-value. The exact standardized descriptor does not imply a
+Gaussian null. Its version-1 result leaves existing multimodal enrichment fields
+and result format 0.4 unchanged. See [the null and limits](docs/categorical-enrichment.md).
+
+Group centrality uses an unweighted undirected radius graph. Group degree is the
+number of distinct external neighbors divided by the number of nodes outside the
+group. Group closeness follows NetworkX: that same outside-node count is divided
+by the sum of shortest distances from the group to reachable outside nodes;
+unreachable nodes add zero to the denominator. It returns zero when that sum is
+zero and can exceed one on disconnected graphs. Average clustering includes zero
+coefficients for leaves and isolates. Empty and all-node groups are rejected. See
+[group centrality](docs/group-centrality.md) for the scientific limits.
+
+Adaptive polygon-window SPDE factor fits use bounded block-coordinate warmup followed
+by L-BFGS-B within the same caller-declared total iteration budget. The latter uses
+`ftol = 10 * eps64` and the existing `gtol = 1e-7`. A finite fitted state is accepted
+only when the raw gradient infinity norm is at most `2e-4`; an optimizer's successful
+relative-objective stop cannot override that requirement. Model definitions and result
+field meanings are unchanged. See [backend convergence](docs/python-backends.md#adaptive-spde-convergence).
+
+The stable numerical primitives use the sample `n - 1` covariance definition when no
+covariance weights are supplied. The implementation retains `1/n`-scaled compensated
+cross products and divides by the directly computed `(n - 1)/n`, avoiding the extra
+rounding in `1 - sum((1/n)^2)`. Unweighted effective sample size is exactly `n`.
+Caller-weighted reliability covariance retains its effective-weight denominator.
+This is a numerical correction, with no change to field meanings or artifact version.
+
+Translation edge correction weights an ordered displacement by the reciprocal area of
+`W intersect (W + h)`. For a validated single axis-aligned rectangular window without
+holes, Marklab evaluates that same overlap analytically as
+`max(0, width - |h_x|) * max(0, height - |h_y|)`. This avoids coordinate-cancellation
+error in a polygon Boolean operation while preserving the estimator. All other polygon,
+hole, and multipolygon windows continue through the bounded Boolean-intersection path.
+
+Global Moran's I and Geary's C use the explicitly named radius-weight policy. The
+existing `binary_symmetric` and `row_standardized` policies reject any isolated
+observed row. The opt-in `binary_symmetric_including_isolates` retains all observed
+rows, including isolates, in the sample size `n`, mean, variance denominator and
+random-labeling population. Isolates have zero weights. With `S0 = sum(w_ij)` and
+`D = sum((x_i - mean(x))^2)`, the statistics are
+`I = n / S0 * sum(w_ij (x_i-mean(x)) (x_j-mean(x))) / D` and
+`C = (n-1) / (2 S0) * sum(w_ij (x_i-x_j)^2) / D`.
+Both require `S0 > 0` and `D > 0`; a zero-edge multiplex channel reports
+`no_spatial_edges`. No cell or patient is silently removed. This adds an explicit
+policy value without changing existing serialized definitions or result format 0.4.
+See [the public API conventions](docs/public-api.md#spatial-autocorrelation-weights).
 
 Mark-pair covariance at a distance bin is the mean of
 `(m_i - p_hat) * (m_j - p_hat)` over contributing cell pairs. It is not the
@@ -86,6 +162,19 @@ not applicable, and `both` emits both. `auto` selects `both` only when there are
 multiple components and the largest contains less than 80% of cells; otherwise
 it selects `pooled`. Every result records the requested mode, resolved mode, and
 selection reason.
+
+Separate component spectra subset the configured permutation strata with the component's
+cell rows. A component whose strata are all mark-homogeneous has a degenerate null and reports
+an unavailable endpoint and p-value. Declared scalar inputs compare any retained source cell
+IDs against the supplied row identities. Direct marked-pattern analysis requires every supplied
+probability row to be finite, in `[0, 1]`, and aligned with the cell rows.
+
+Kernel pair-correlation estimates with positive normalization remain zero when no pair
+contributes to the kernel. This applies to homogeneous and intensity-reweighted `g` and
+cross-type `g`, with border, isotropic or translation correction. The
+`no_pairs_in_kernel_support` status describes empty support; the estimate can be zero and
+inference-eligible. Missing eligible centers or an undefined normalization remains unavailable.
+Conditional averages such as mark-pair covariance still require contributing pairs.
 
 The `[multiscale_residual]` analysis is a three-part heuristic. It computes
 mean squared horizontal/vertical neighbor differences, variance across 2x2
@@ -232,7 +321,7 @@ confounded only when the unstratified low-k endpoint is significant at
 `family_wise_alpha` and the evaluable stratified endpoint is not. If every
 configured stratum is mark-homogeneous, the stratified spectrum null is
 reported as degenerate and no numeric spectrum p-value is emitted. Result
-format 0.3 persists both inference summaries, the threshold, primary-null
+format 0.4 persists both inference summaries, the threshold, primary-null
 identity, and typed conclusion in `spectrum_null_sensitivity`; an unavailable
 member is a tagged state rather than a numeric sentinel.
 
@@ -240,7 +329,7 @@ Marked and multimodal result schemas are disjoint. Marked results do not carry
 registration or neighborhood placeholders. Multimodal DBSCAN output uses a
 `NeighborhoodTerritory` with an explicit abnormal-cell support count and
 cluster ID; unimplemented profile enrichment/cross-curve and QC-overlap fields
-are omitted from format 0.3.
+are omitted from format 0.4.
 
 Configuration keys and method names removed after version 0.1 are not accepted
 under their old names.

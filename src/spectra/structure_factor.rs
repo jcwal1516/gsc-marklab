@@ -556,7 +556,7 @@ mod tests {
             permutation_modes.clone(),
             options,
         )
-        .expect("legacy mode-level summary")
+        .expect("mode-level summary")
         .expect("summary");
         let shell_plan =
             super::shells::ShellPlan::new(&modes, options.n_shells).expect("shell plan");

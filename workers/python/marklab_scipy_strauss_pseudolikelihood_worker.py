@@ -1,91 +1,324 @@
 #!/usr/bin/env python3
-"""Static SciPy worker for nested-grid Strauss pseudolikelihood."""
+"""SciPy worker for the nested-grid Strauss pseudolikelihood contract."""
+
 from __future__ import annotations
-import hashlib, json, math, sys
+
+import json
+import math
+import sys
 from pathlib import Path
 from typing import Any
+
+sys.path.append(str(Path(__file__).resolve().parent))
+
 import numpy as np
-from scipy import optimize
 import scipy
+from scipy import optimize
 
-VERSION = "1.18.1"
-class ContractError(ValueError): pass
+from marklab_worker_support import versions
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    backend_identity,
+    exact,
+    integer,
+    number,
+    obj,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    validate_backend,
+    worker_digests,
+    write_result,
+)
 
-def obj(v: Any, keys: set[str], path: str) -> dict[str, Any]:
-    if not isinstance(v, dict) or set(v) != keys:
-        actual = set(v) if isinstance(v, dict) else set()
-        raise ContractError(f"{path} fields differ: missing={sorted(keys-actual)}, unknown={sorted(actual-keys)}")
-    return v
-def num(v: Any, path: str) -> float:
-    if isinstance(v, bool) or not isinstance(v, (int,float)) or not math.isfinite(float(v)): raise ContractError(f"{path} numeric finite")
-    return float(v)
-def integer(v: Any, path: str, lo: int, hi: int) -> int:
-    if isinstance(v,bool) or not isinstance(v,int) or not lo <= v <= hi: raise ContractError(f"{path} integer range")
-    return v
-def exact(v: Any, expected: Any, path: str) -> None:
-    if v != expected: raise ContractError(f"{path} mismatch")
+BACKEND_VERSION = f"scipy-{versions.SCIPY}"
+RESOLUTION_KEYS = {
+    "grid_x",
+    "grid_y",
+    "cell_area_um2",
+    "weight_sum_um2",
+    "observed_nodes",
+    "dummy_nodes",
+    "neighbor_visits",
+    "rows",
+}
+ROW_KEYS = {
+    "node_id",
+    "node_kind",
+    "x_um",
+    "y_um",
+    "weight_um2",
+    "response",
+    "neighbor_count",
+    "block",
+}
+SPATIAL_BLOCKS = 4
+FINITE_FIT_FIELDS = [
+    "beta_per_um2",
+    "gamma",
+    "objective",
+    "model_se_log_beta",
+    "model_se_log_gamma",
+    "robust_se_log_beta",
+    "robust_se_log_gamma",
+]
+
 
 def resolution(raw: Any, path: str) -> dict[str, Any]:
-    r = obj(raw, {"grid_x","grid_y","cell_area_um2","weight_sum_um2","observed_nodes","dummy_nodes","neighbor_visits","rows"}, path)
-    gx, gy = integer(r["grid_x"], path+".gx",1,100000), integer(r["grid_y"],path+".gy",1,100000)
-    area, weight_sum = num(r["cell_area_um2"],path+".area"), num(r["weight_sum_um2"],path+".sum")
-    observed, dummy = integer(r["observed_nodes"],path+".observed",1,10000), integer(r["dummy_nodes"],path+".dummy",1,100000)
-    rows = r["rows"]
-    if not isinstance(rows,list) or len(rows) != observed+dummy or dummy != gx*gy: raise ContractError(path+" dimensions")
-    response=[]; weight=[]; neighbors=[]; blocks=[]
-    for i, rawrow in enumerate(rows):
-        row=obj(rawrow,{"node_id","node_kind","x_um","y_um","weight_um2","response","neighbor_count","block"},f"{path}.rows[{i}]")
-        if not isinstance(row["node_id"],str) or not row["node_id"] or row["node_kind"] not in {"observed","dummy"}: raise ContractError("node identity")
-        num(row["x_um"],"x"); num(row["y_um"],"y")
-        w,y=num(row["weight_um2"],"weight"),num(row["response"],"response")
-        n,b=integer(row["neighbor_count"],"neighbors",0,10000),integer(row["block"],"block",0,3)
-        if w<=0 or y<0 or (row["node_kind"]=="observed") != (y>0): raise ContractError("node values")
-        response.append(y); weight.append(w); neighbors.append(n); blocks.append(b)
-    if abs(sum(weight)-weight_sum) > 1e-9*max(1,weight_sum): raise ContractError("weight sum")
-    integer(r["neighbor_visits"],path+".visits",1,100000000)
-    return {"gx":gx,"gy":gy,"area":area,"weight_sum":weight_sum,"y":np.array(response),"w":np.array(weight),"z":np.array(neighbors,dtype=float),"block":np.array(blocks)}
+    """Validate one Berman-Turner quadrature table (data points plus a dummy grid)."""
+    table = obj(raw, RESOLUTION_KEYS, path)
+    grid_x = integer(table["grid_x"], path + ".grid_x", 1, 100_000)
+    grid_y = integer(table["grid_y"], path + ".grid_y", 1, 100_000)
+    area = number(table["cell_area_um2"], path + ".cell_area_um2")
+    weight_sum = number(table["weight_sum_um2"], path + ".weight_sum_um2")
+    observed = integer(table["observed_nodes"], path + ".observed_nodes", 1, 10_000)
+    dummy = integer(table["dummy_nodes"], path + ".dummy_nodes", 1, 100_000)
+    rows = table["rows"]
+    if not isinstance(rows, list) or len(rows) != observed + dummy or dummy != grid_x * grid_y:
+        raise ContractError(path + " dimensions")
+    responses = []
+    weights = []
+    neighbor_counts = []
+    blocks = []
+    for index, raw_row in enumerate(rows):
+        row = obj(raw_row, ROW_KEYS, f"{path}.rows[{index}]")
+        if (
+            not isinstance(row["node_id"], str)
+            or not row["node_id"]
+            or row["node_kind"] not in {"observed", "dummy"}
+        ):
+            raise ContractError("node identity")
+        number(row["x_um"], "x")
+        number(row["y_um"], "y")
+        weight = number(row["weight_um2"], "weight")
+        response = number(row["response"], "response")
+        neighbor_count = integer(row["neighbor_count"], "neighbors", 0, 10_000)
+        block = integer(row["block"], "block", 0, SPATIAL_BLOCKS - 1)
+        if weight <= 0 or response < 0 or (row["node_kind"] == "observed") != (response > 0):
+            raise ContractError("node values")
+        responses.append(response)
+        weights.append(weight)
+        neighbor_counts.append(neighbor_count)
+        blocks.append(block)
+    if abs(sum(weights) - weight_sum) > 1e-9 * max(1, weight_sum):
+        raise ContractError("weight sum")
+    integer(table["neighbor_visits"], path + ".neighbor_visits", 1, 100_000_000)
+    return {
+        "gx": grid_x,
+        "gy": grid_y,
+        "area": area,
+        "weight_sum": weight_sum,
+        "y": np.array(responses),
+        "w": np.array(weights),
+        "z": np.array(neighbor_counts, dtype=float),
+        "block": np.array(blocks),
+    }
+
 
 def validate(request: Any, lock: str, worker: str) -> dict[str, Any]:
-    q=obj(request,{"format","version","backend","model","window","interaction_radius_um","bounds","maximum_iterations","coarse","fine","resources"},"request")
-    exact(q["format"],"marklab.pymc_worker_request","format"); integer(q["version"],"version",1,1)
-    b=obj(q["backend"],{"name","version","python_version","environment_lock_sha256","worker_sha256"},"backend")
-    exact(b["name"],"scipy","backend"); exact(b["version"],"scipy-1.18.1","version"); exact(b["python_version"],"3.12","python"); exact(b["environment_lock_sha256"],lock,"lock"); exact(b["worker_sha256"],worker,"worker")
-    m=obj(q["model"],{"family","conditional_intensity","quadrature","pair_boundary","uncertainty","backend_capability","maturity"},"model")
-    exact(m["family"],"strauss_inhibitory_point_process","family"); exact(m["backend_capability"],"bounded_weighted_poisson_optimization","capability")
-    bounds=obj(q["bounds"],{"beta_min_per_um2","beta_max_per_um2","gamma_min","gamma_max"},"bounds")
-    lower=np.log([num(bounds["beta_min_per_um2"],"bmin"),num(bounds["gamma_min"],"gmin")]); upper=np.log([num(bounds["beta_max_per_um2"],"bmax"),num(bounds["gamma_max"],"gmax")])
-    if np.any(lower>=upper) or upper[1]>1e-15: raise ContractError("bounds")
-    iterations=integer(q["maximum_iterations"],"iterations",10,100000)
-    resources=obj(q["resources"],{"maximum_table_rows","maximum_iterations","maximum_neighbor_visits","maximum_output_bytes","timeout_seconds"},"resources")
-    integer(resources["maximum_table_rows"],"rows",1,100000); integer(resources["maximum_iterations"],"iters",10,100000); integer(resources["maximum_neighbor_visits"],"visits",1,100000000); integer(resources["maximum_output_bytes"],"output",1,1048576); integer(resources["timeout_seconds"],"timeout",1,3600)
-    return {"lower":lower,"upper":upper,"iterations":iterations,"coarse":resolution(q["coarse"],"coarse"),"fine":resolution(q["fine"],"fine")}
+    request = obj(
+        request,
+        {
+            "format",
+            "version",
+            "backend",
+            "model",
+            "window",
+            "interaction_radius_um",
+            "bounds",
+            "maximum_iterations",
+            "coarse",
+            "fine",
+            "resources",
+        },
+        "request",
+    )
+    exact(request["format"], "marklab.pymc_worker_request", "format")
+    integer(request["version"], "version", 1, 1)
+    validate_backend(
+        request["backend"],
+        "backend",
+        name="scipy",
+        version=BACKEND_VERSION,
+        lock_sha256=lock,
+        worker_sha256=worker,
+    )
+    model = obj(
+        request["model"],
+        {
+            "family",
+            "conditional_intensity",
+            "quadrature",
+            "pair_boundary",
+            "uncertainty",
+            "backend_capability",
+            "maturity",
+        },
+        "model",
+    )
+    exact(model["family"], "strauss_inhibitory_point_process", "model.family")
+    exact(
+        model["backend_capability"],
+        "bounded_weighted_poisson_optimization",
+        "model.backend_capability",
+    )
+    bounds = obj(
+        request["bounds"],
+        {"beta_min_per_um2", "beta_max_per_um2", "gamma_min", "gamma_max"},
+        "bounds",
+    )
+    beta_min = number(bounds["beta_min_per_um2"], "bounds.beta_min_per_um2")
+    gamma_min = number(bounds["gamma_min"], "bounds.gamma_min")
+    lower = np.log([beta_min, gamma_min])
+    beta_max = number(bounds["beta_max_per_um2"], "bounds.beta_max_per_um2")
+    gamma_max = number(bounds["gamma_max"], "bounds.gamma_max")
+    upper = np.log([beta_max, gamma_max])
+    # gamma <= 1 keeps the process inhibitory.
+    if np.any(lower >= upper) or upper[1] > 1e-15:
+        raise ContractError("bounds")
+    iterations = integer(request["maximum_iterations"], "maximum_iterations", 10, 100_000)
+    resources = obj(
+        request["resources"],
+        {
+            "maximum_table_rows",
+            "maximum_iterations",
+            "maximum_neighbor_visits",
+            "maximum_output_bytes",
+            "timeout_seconds",
+        },
+        "resources",
+    )
+    integer(resources["maximum_table_rows"], "resources.maximum_table_rows", 1, 100_000)
+    integer(resources["maximum_iterations"], "resources.maximum_iterations", 10, 100_000)
+    integer(
+        resources["maximum_neighbor_visits"], "resources.maximum_neighbor_visits", 1, 100_000_000
+    )
+    maximum_output_bytes = integer(
+        resources["maximum_output_bytes"], "resources.maximum_output_bytes", 1, MIB
+    )
+    integer(resources["timeout_seconds"], "resources.timeout_seconds", 1, 3_600)
+    return {
+        "lower": lower,
+        "upper": upper,
+        "iterations": iterations,
+        "coarse": resolution(request["coarse"], "coarse"),
+        "fine": resolution(request["fine"], "fine"),
+        "maximum_output_bytes": maximum_output_bytes,
+    }
 
-def fit_one(r: dict[str,Any], lower: np.ndarray, upper: np.ndarray, iterations: int) -> dict[str,Any]:
-    X=np.column_stack([np.ones(r["y"].size),r["z"]]); w,y=r["w"],r["y"]
-    def fun(t):
-        eta=X@t; return float(np.sum(w*(np.exp(eta)-y*eta)))
-    def jac(t):
-        eta=X@t; return X.T@(w*(np.exp(eta)-y))
-    initial=(lower+upper)/2; initial_obj=fun(initial)
-    result=optimize.minimize(fun,initial,jac=jac,bounds=list(zip(lower,upper)),method="L-BFGS-B",options={"maxiter":iterations,"gtol":1e-12,"ftol":1e-15,"maxls":50})
-    theta=np.asarray(result.x); eta=X@theta; mu=np.exp(eta); hessian=X.T@(X*(w*mu)[:,None]); covariance=np.linalg.inv(hessian)
-    scores=np.array([np.sum((w*(mu-y))[:,None]*X*(r["block"]==block)[:,None],axis=0) for block in range(4)])
-    robust=covariance@(scores.T@scores)@covariance
-    gradient=jac(theta); projected=gradient.copy()
-    for i in range(2):
-        if theta[i] <= lower[i]+1e-10 and gradient[i]>0: projected[i]=0
-        if theta[i] >= upper[i]-1e-10 and gradient[i]<0: projected[i]=0
-    return {"grid_x":r["gx"],"grid_y":r["gy"],"beta_per_um2":float(np.exp(theta[0])),"gamma":float(np.exp(theta[1])),"log_beta":float(theta[0]),"log_gamma":float(theta[1]),"objective":fun(theta),"initial_objective":initial_obj,"gradient_norm":float(np.linalg.norm(projected,np.inf)),"hessian_condition":float(np.linalg.cond(hessian)),"model_se_log_beta":float(np.sqrt(covariance[0,0])),"model_se_log_gamma":float(np.sqrt(covariance[1,1])),"robust_se_log_beta":float(np.sqrt(max(robust[0,0],np.finfo(float).tiny))),"robust_se_log_gamma":float(np.sqrt(max(robust[1,1],np.finfo(float).tiny))),"weight_sum_um2":r["weight_sum"],"converged":bool(result.success),"evaluations":int(result.nfev),"message":str(result.message)}
+
+def fit_one(
+    table: dict[str, Any], lower: np.ndarray, upper: np.ndarray, iterations: int
+) -> dict[str, Any]:
+    """Fit the Strauss model by Berman-Turner weighted Poisson pseudolikelihood.
+
+    The conditional intensity at node ``i`` is ``beta * gamma**z_i`` with ``z_i`` the number of
+    neighbours within the interaction radius, so ``eta_i = log(beta) + z_i * log(gamma)``. With
+    quadrature weights ``w_i`` and responses ``y_i`` (``1/w_i`` at data points, 0 at dummy
+    nodes) the minimized objective is ``sum_i w_i * (exp(eta_i) - y_i * eta_i)`` over the box
+    ``[lower, upper]`` on ``(log(beta), log(gamma))`` with ``gamma <= 1``. No prior is used.
+    Model standard errors come from the inverse Fisher information; robust ones from a sandwich
+    over the four spatial blocks.
+    """
+    design = np.column_stack([np.ones(table["y"].size), table["z"]])
+    weights = table["w"]
+    responses = table["y"]
+
+    def objective(theta: np.ndarray) -> float:
+        eta = design @ theta
+        return float(np.sum(weights * (np.exp(eta) - responses * eta)))
+
+    def gradient(theta: np.ndarray) -> np.ndarray:
+        eta = design @ theta
+        return design.T @ (weights * (np.exp(eta) - responses))
+
+    initial = (lower + upper) / 2
+    initial_objective = objective(initial)
+    result = optimize.minimize(
+        objective,
+        initial,
+        jac=gradient,
+        bounds=list(zip(lower, upper, strict=True)),
+        method="L-BFGS-B",
+        options={"maxiter": iterations, "gtol": 1e-12, "ftol": 1e-15, "maxls": 50},
+    )
+    theta = np.asarray(result.x)
+    eta = design @ theta
+    mu = np.exp(eta)
+    hessian = design.T @ (design * (weights * mu)[:, None])
+    covariance = np.linalg.inv(hessian)
+    residual_scores = (weights * (mu - responses))[:, None] * design
+    block_scores = np.array(
+        [
+            np.sum(residual_scores * (table["block"] == block)[:, None], axis=0)
+            for block in range(SPATIAL_BLOCKS)
+        ]
+    )
+    robust = covariance @ (block_scores.T @ block_scores) @ covariance
+    final_gradient = gradient(theta)
+    projected_gradient = final_gradient.copy()
+    for index in range(2):
+        if theta[index] <= lower[index] + 1e-10 and final_gradient[index] > 0:
+            projected_gradient[index] = 0
+        if theta[index] >= upper[index] - 1e-10 and final_gradient[index] < 0:
+            projected_gradient[index] = 0
+    tiny = np.finfo(float).tiny
+    return {
+        "grid_x": table["gx"],
+        "grid_y": table["gy"],
+        "beta_per_um2": float(np.exp(theta[0])),
+        "gamma": float(np.exp(theta[1])),
+        "log_beta": float(theta[0]),
+        "log_gamma": float(theta[1]),
+        "objective": objective(theta),
+        "initial_objective": initial_objective,
+        "gradient_norm": float(np.linalg.norm(projected_gradient, np.inf)),
+        "hessian_condition": float(np.linalg.cond(hessian)),
+        "model_se_log_beta": float(np.sqrt(covariance[0, 0])),
+        "model_se_log_gamma": float(np.sqrt(covariance[1, 1])),
+        "robust_se_log_beta": float(np.sqrt(max(robust[0, 0], tiny))),
+        "robust_se_log_gamma": float(np.sqrt(max(robust[1, 1], tiny))),
+        "weight_sum_um2": table["weight_sum"],
+        "converged": bool(result.success),
+        "evaluations": int(result.nfev),
+        "message": str(result.message),
+    }
+
+
+def fit_is_complete(fit: dict[str, Any]) -> bool:
+    return (
+        fit["converged"]
+        and fit["gradient_norm"] <= 1e-6
+        and all(math.isfinite(float(fit[key])) for key in FINITE_FIT_FIELDS)
+    )
+
 
 def main() -> None:
-    if scipy.__version__ != VERSION or sys.version_info[:2] != (3,12): raise ContractError("version drift")
-    script=Path(__file__); lock=hashlib.sha256(script.with_name("uv.lock").read_bytes()).hexdigest(); worker=hashlib.sha256(script.read_bytes()).hexdigest(); raw=sys.stdin.buffer.read(16*1024*1024+1)
-    if len(raw)>16*1024*1024: raise ContractError("request too large")
-    request_sha=hashlib.sha256(raw).hexdigest(); c=validate(json.loads(raw),lock,worker); coarse=fit_one(c["coarse"],c["lower"],c["upper"],c["iterations"]); fine=fit_one(c["fine"],c["lower"],c["upper"],c["iterations"])
-    complete=all(f["converged"] and f["gradient_norm"]<=1e-6 and all(math.isfinite(float(f[k])) for k in ["beta_per_um2","gamma","objective","model_se_log_beta","model_se_log_gamma","robust_se_log_beta","robust_se_log_gamma"]) for f in [coarse,fine])
-    out={"format":"marklab.scipy_strauss_pseudolikelihood_worker_result","version":1,"backend":{"name":"scipy","version":"scipy-1.18.1","python_version":"3.12","environment_lock_sha256":lock,"worker_sha256":worker},"request_sha256":request_sha,"fit_state":"complete" if complete else "nonconverged","coarse_fit":coarse,"fine_fit":fine,"refinement":{"absolute_beta_difference":abs(coarse["beta_per_um2"]-fine["beta_per_um2"]),"absolute_gamma_difference":abs(coarse["gamma"]-fine["gamma"]),"absolute_objective_difference":abs(coarse["objective"]-fine["objective"])}}
-    sys.stdout.write(json.dumps(out,allow_nan=False,sort_keys=True,separators=(",",":"))+"\n")
+    require_versions(scipy=scipy.__version__)
+    lock, worker = worker_digests(__file__)
+    raw = read_request(16 * MIB)
+    config = validate(json.loads(raw), lock, worker)
+    coarse = fit_one(config["coarse"], config["lower"], config["upper"], config["iterations"])
+    fine = fit_one(config["fine"], config["lower"], config["upper"], config["iterations"])
+    complete = all(fit_is_complete(fit) for fit in [coarse, fine])
+    result = {
+        "format": "marklab.scipy_strauss_pseudolikelihood_worker_result",
+        "version": 1,
+        "backend": backend_identity("scipy", BACKEND_VERSION, lock, worker),
+        "request_sha256": sha256_hex(raw),
+        "fit_state": "complete" if complete else "nonconverged",
+        "coarse_fit": coarse,
+        "fine_fit": fine,
+        "refinement": {
+            "absolute_beta_difference": abs(coarse["beta_per_um2"] - fine["beta_per_um2"]),
+            "absolute_gamma_difference": abs(coarse["gamma"] - fine["gamma"]),
+            "absolute_objective_difference": abs(coarse["objective"] - fine["objective"]),
+        },
+    }
+    write_result(result, max_bytes=config["maximum_output_bytes"])
+
+
 if __name__ == "__main__":
-    try: main()
-    except Exception as e:
-        print(f"marklab SciPy Strauss pseudolikelihood worker failed: {type(e).__name__}: {e}",file=sys.stderr); raise SystemExit(2) from e
+    run_worker(main, "marklab SciPy Strauss pseudolikelihood worker failed")

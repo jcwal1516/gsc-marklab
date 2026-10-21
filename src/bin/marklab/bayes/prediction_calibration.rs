@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::fs;
 
 use marklab_bayes::{
     sha256_hex, PredictionCalibrationMetrics, PredictionCalibrationRow, PredictionCalibrationSpec,
@@ -6,7 +6,8 @@ use marklab_bayes::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{embedding_spatial, publish_json, run_worker, BayesCliError};
+use super::cli_schema::{CalibratePredictionsArgs, CalibrationMethod};
+use super::{embedding_spatial, publish_json, run_worker, CliError};
 
 #[derive(Debug, Deserialize)]
 struct InputRow {
@@ -16,18 +17,14 @@ struct InputRow {
     label: u8,
 }
 
-pub(super) fn run(
-    input: PathBuf,
-    method: String,
-    bins: u32,
-    timeout_seconds: u64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
-    if method != "platt-logistic" {
-        return Err(BayesCliError::Input(
-            "calibration method must be platt-logistic".into(),
-        ));
-    }
+pub(super) fn run(args: CalibratePredictionsArgs) -> Result<(), CliError> {
+    let CalibratePredictionsArgs {
+        input,
+        method: CalibrationMethod::PlattLogistic,
+        bins,
+        timeout_seconds,
+        out,
+    } = args;
     let input_bytes = embedding_spatial::read(&input)?;
     let mut reader = csv::ReaderBuilder::new()
         .flexible(false)
@@ -37,9 +34,7 @@ pub(super) fn run(
         .iter()
         .eq(["patient_id", "split", "score", "label"])
     {
-        return Err(BayesCliError::Input(
-            "calibration CSV header differs".into(),
-        ));
+        return Err(CliError::Input("calibration CSV header differs".into()));
     }
     let rows = reader
         .deserialize::<InputRow>()
@@ -53,16 +48,16 @@ pub(super) fn run(
             })
         })
         .collect::<Result<Vec<_>, csv::Error>>()?;
-    let repository = &marklab::python_backend_assets_root()?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let worker_directory = repository.join("workers/python");
     let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
+    let lock_bytes = fs::read(&lock_path).map_err(|source| CliError::Io {
         path: lock_path,
         source,
     })?;
     let worker_name = "marklab_scipy_prediction_calibration_worker.py";
     let worker_path = worker_directory.join(worker_name);
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
+    let worker_bytes = fs::read(&worker_path).map_err(|source| CliError::Io {
         path: worker_path,
         source,
     })?;

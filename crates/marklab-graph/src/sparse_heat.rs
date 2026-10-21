@@ -5,6 +5,7 @@ use crate::{
     sparse_radius_graph::{build_sparse_radius_graph, graph_digest, laplacian_product},
     GraphError, GraphNodeInput,
 };
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -47,7 +48,7 @@ pub struct GraphSparseRadiusHeatResult {
     pub matrix_vector_products: usize,
     pub matrix_vector_work: u64,
     pub working_bytes: u64,
-    pub claim_status: String,
+    pub claim_status: ClaimStatus,
 }
 
 impl GraphSparseRadiusHeatResult {
@@ -56,7 +57,7 @@ impl GraphSparseRadiusHeatResult {
             || self.version != 1
             || self.graph_rule != "uniform_cell_exact_physical_radius"
             || self.laplacian_kind != "combinatorial_binary_sparse"
-            || self.claim_status != "experimental_sparse_graph_signal"
+            || self.claim_status != ClaimStatus::ExperimentalSparseGraphSignal
             || self.node_count != spec.nodes.len()
             || self.filtered_signal.len() != spec.nodes.len()
             || self.radius_um.to_bits() != spec.radius_um.to_bits()
@@ -210,7 +211,7 @@ pub fn graph_sparse_radius_heat_workflow(
         matrix_vector_products: selected_order,
         matrix_vector_work,
         working_bytes,
-        claim_status: "experimental_sparse_graph_signal".into(),
+        claim_status: ClaimStatus::ExperimentalSparseGraphSignal,
     })
 }
 

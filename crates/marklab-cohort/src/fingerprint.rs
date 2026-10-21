@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use sha2::{Digest, Sha256};
 
-use super::{compensated_sum, CohortInferenceError};
+use super::{neumaier_sum, CohortInferenceError};
 
 const MAXIMUM_COMPONENTS: usize = 4_096;
 const MAXIMUM_COMPONENT_VALUES: usize = 1_000_000;
@@ -275,7 +275,7 @@ pub fn fingerprint_distance(
             },
         });
     }
-    let total_distance = compensated_sum(
+    let total_distance = neumaier_sum(
         components
             .iter()
             .map(|component| component.weighted_contribution),
@@ -344,7 +344,7 @@ pub fn region_compatibility(
         }
 
         let distance_standard_uncertainty = if component_distance.distance > 0.0 {
-            let variance = compensated_sum(
+            let variance = neumaier_sum(
                 quadrature_weights
                     .iter()
                     .zip(left_component.values.iter().zip(&right_component.values))
@@ -384,7 +384,7 @@ pub fn region_compatibility(
     }
 
     let total_distance_standard_uncertainty = if total_available {
-        let variance = compensated_sum(weighted_variances);
+        let variance = neumaier_sum(weighted_variances);
         if !variance.is_finite() || variance < 0.0 {
             return Err(CohortInferenceError::NumericalFailure(
                 "total propagated fingerprint variance is invalid".into(),

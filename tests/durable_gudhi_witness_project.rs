@@ -3,7 +3,7 @@
 use std::{fs, path::Path};
 
 use assert_cmd::Command;
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 
 fn command(project: &Path, input: &Path, output: &Path) -> Command {
     let mut command = Command::cargo_bin("marklab").expect("binary");

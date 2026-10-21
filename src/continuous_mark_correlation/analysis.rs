@@ -1,13 +1,18 @@
+use crate::result_vocabulary::{
+    EdgeCorrection, MarkNormalization, MarkNullModel, MarkPermutationUnit, MultiplicityCorrection,
+};
 use marklab_cohort::{InferenceAlternative, InferenceDesign};
-use marklab_workflow::ContentDigest;
+use marklab_numerics::summation::{neumaier_sum, NeumaierSum};
+use marklab_project::ContentDigest;
 
 use crate::common::finite::canonical_zero;
 
 use crate::{
     classical::window_summary,
     mark_pair_plan::{build_mark_pair_plan, erl_workspace_bytes, MarkPairPlan, MarkPairPlanError},
+    marks::DeclaredScalarPatternInput,
     permutation::envelopes::GlobalEnvelope,
-    DeclaredScalarPatternInput, ObservationWindow2D,
+    ObservationWindow2D,
 };
 
 use super::types::*;
@@ -149,31 +154,28 @@ pub fn continuous_mark_correlation(
         unit: "square_micrometer".into(),
         coordinate_frame_id: frame.clone(),
         window: window_summary(window.descriptor()),
-        normalization: "global_arithmetic_mean_product".into(),
+        normalization: MarkNormalization::GlobalArithmeticMeanProduct,
         global_mark_mean: canonical_zero(global_mean),
         global_mark_population_variance: canonical_zero(global_variance),
         expected_random_label_correlation: canonical_zero(expected_random),
         geometry: ContinuousMarkCorrelationGeometrySummary {
             point_count: marks.len(),
             directed_pair_count: plan.pairs.len(),
-            geometry_build_count: 1,
             geometry_digest: plan.geometry.logical_digest(),
             pair_plan_digest: plan.digest,
-            edge_correction: "standard_border_reduced_sample".into(),
+            edge_correction: EdgeCorrection::StandardBorderReducedSample,
             estimated_storage_bytes: retained_bytes,
         },
         configuration_digest: configuration_digest(config),
         limits: config.limits,
         curve: observed.points,
         inference: ContinuousMarkCorrelationInferenceSummary {
-            null_model: "random_labeling".into(),
-            permutation_unit: "complete_continuous_mark_row".into(),
-            alternative: "two_sided".into(),
-            multiplicity: "single_correlation_erl_family".into(),
+            null_model: MarkNullModel::RandomLabeling,
+            permutation_unit: MarkPermutationUnit::CompleteContinuousMarkRow,
+            alternative: marklab_cohort::InferenceAlternative::TwoSided,
+            multiplicity: MultiplicityCorrection::SingleCorrelationErlFamily,
             correlation,
             permutations_requested: config.permutations,
-            permutations_attempted: config.permutations,
-            permutations_completed: config.permutations,
             seed: config.seed,
             alpha: config.alpha,
             permutation_pair_evaluations: required_evaluations,
@@ -187,9 +189,9 @@ pub(crate) fn mark_statistics(
     if marks.len() < 2 {
         return Err(ContinuousMarkCorrelationError::ZeroMarkVariance);
     }
-    let sum = compensated_sum(marks.iter().map(|value| f64::from(*value)));
+    let sum = neumaier_sum(marks.iter().map(|value| f64::from(*value)));
     let mean = sum / marks.len() as f64;
-    let variance = compensated_sum(marks.iter().map(|value| {
+    let variance = neumaier_sum(marks.iter().map(|value| {
         let centered = f64::from(*value) - mean;
         centered * centered
     })) / marks.len() as f64;
@@ -198,20 +200,14 @@ pub(crate) fn mark_statistics(
     }
     // Accumulate the algebraically equivalent ordered mass without subtracting two large,
     // nearly equal quantities when one positive mark dominates all others.
-    let mut prefix = 0.0;
-    let mut prefix_correction = 0.0;
-    let mut unordered_product_mass = 0.0;
-    let mut product_correction = 0.0;
+    let mut prefix = NeumaierSum::new();
+    let mut unordered_product_mass = NeumaierSum::new();
     for mark in marks {
         let value = f64::from(*mark);
-        compensated_add(
-            &mut unordered_product_mass,
-            &mut product_correction,
-            value * (prefix + prefix_correction),
-        );
-        compensated_add(&mut prefix, &mut prefix_correction, value);
+        unordered_product_mass.add(value * prefix.total());
+        prefix.add(value);
     }
-    let ordered_product_mass = 2.0 * (unordered_product_mass + product_correction);
+    let ordered_product_mass = 2.0 * unordered_product_mass.total();
     let ordered_pair_count = marks
         .len()
         .checked_mul(marks.len() - 1)
@@ -227,8 +223,7 @@ fn evaluate(
     radii_um: &[f64],
 ) -> Result<Evaluation, ContinuousMarkCorrelationError> {
     let mut shell_counts = vec![0_usize; radii_um.len()];
-    let mut shell_sums = vec![0.0_f64; radii_um.len()];
-    let mut shell_corrections = vec![0.0_f64; radii_um.len()];
+    let mut shell_sums = vec![NeumaierSum::new(); radii_um.len()];
     for pair in &plan.pairs {
         let shell = radii_um.partition_point(|radius| *radius < pair.distance_um);
         let eligible_end = radii_um
@@ -239,11 +234,7 @@ fn evaluate(
         shell_counts[shell] = shell_counts[shell]
             .checked_add(1)
             .ok_or(ContinuousMarkCorrelationError::SizeOverflow)?;
-        compensated_add(
-            &mut shell_sums[shell],
-            &mut shell_corrections[shell],
-            f64::from(marks[pair.source]) * f64::from(marks[pair.target]),
-        );
+        shell_sums[shell].add(f64::from(marks[pair.source]) * f64::from(marks[pair.target]));
     }
     let mut points = Vec::new();
     let mut values = Vec::new();
@@ -254,7 +245,7 @@ fn evaluate(
         .and_then(|()| eligible.try_reserve_exact(radii_um.len()))
         .map_err(|_| ContinuousMarkCorrelationError::AllocationFailed)?;
     for (index, radius_um) in radii_um.iter().copied().enumerate() {
-        let product_sum = canonical_zero(shell_sums[index] + shell_corrections[index]);
+        let product_sum = canonical_zero(shell_sums[index].total());
         let correlation = (shell_counts[index] > 0)
             .then(|| canonical_zero(product_sum / shell_counts[index] as f64 / normalization));
         values.push(correlation.unwrap_or(0.0));
@@ -338,25 +329,6 @@ pub(crate) fn configuration_digest(config: &ContinuousMarkCorrelationConfig) -> 
             .to_vec(),
     ]);
     ContentDigest::from_framed(fields.iter().map(Vec::as_slice))
-}
-
-fn compensated_sum(values: impl IntoIterator<Item = f64>) -> f64 {
-    let mut sum = 0.0;
-    let mut correction = 0.0;
-    for value in values {
-        compensated_add(&mut sum, &mut correction, value);
-    }
-    sum + correction
-}
-
-pub(crate) fn compensated_add(sum: &mut f64, correction: &mut f64, value: f64) {
-    let updated = *sum + value;
-    *correction += if sum.abs() >= value.abs() {
-        (*sum - updated) + value
-    } else {
-        (value - updated) + *sum
-    };
-    *sum = updated;
 }
 
 fn pair_plan_error(error: MarkPairPlanError) -> ContinuousMarkCorrelationError {

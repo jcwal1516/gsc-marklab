@@ -1,6 +1,7 @@
 use serde::Serialize;
 
 use super::{diffusion_step, reaction_step, trapezoidal_mass, SimulationError};
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug)]
 pub struct CompetitionInitialPoint {
@@ -104,7 +105,7 @@ pub struct SpatialCompetitionResult {
     pub trajectory: Vec<CompetitionSnapshot>,
     pub solver: CompetitionSolverDiagnostics,
     pub treatment_interpretation: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn simulate_spatial_competition(
@@ -250,7 +251,7 @@ pub fn simulate_spatial_competition(
             maximum_density,
         },
         treatment_interpretation: "declared_external_mortality_rate_not_estimated_causal_effect",
-        claim_status: "experimental_ecological_simulation_not_causal_treatment_effect",
+        claim_status: ClaimStatus::ExperimentalEcologicalSimulationNotCausalTreatmentEffect,
     })
 }
 

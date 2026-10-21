@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 
 use super::{
-    compensated_sum,
     inference_design::{
         compile_blocked_population_independence, validate_permutation_count,
         validate_two_group_labels,
     },
-    CohortInferenceError, InferenceDesign, PatientExchangeabilityBlock, MAXIMUM_PATIENTS,
+    neumaier_sum, CohortInferenceError, InferenceDesign, PatientExchangeabilityBlock,
+    MAXIMUM_PATIENTS,
 };
 
 const FUNCTIONAL_PERMUTATION_NAMESPACE: u64 = 0x6675_6e63_5f70_6572;
@@ -70,10 +70,6 @@ pub struct FunctionalPermutationResult {
     pub p_value: f64,
     /// Requested replicate count.
     pub permutations_requested: usize,
-    /// Attempted replicate count.
-    pub permutations_attempted: usize,
-    /// Completed replicate count.
-    pub permutations_completed: usize,
     /// Base seed.
     pub seed: u64,
 }
@@ -198,8 +194,6 @@ fn execute_functional(
         observed_statistic: observed.statistic,
         p_value,
         permutations_requested: spec.permutations,
-        permutations_attempted: spec.permutations,
-        permutations_completed: spec.permutations,
         seed: spec.seed,
     })
 }
@@ -312,13 +306,13 @@ fn evaluate(
     let mut group_a_mean = vec![0.0; axis_len];
     let mut group_b_mean = vec![0.0; axis_len];
     for axis_index in 0..axis_len {
-        group_a_mean[axis_index] = compensated_sum(
+        group_a_mean[axis_index] = neumaier_sum(
             curves
                 .iter()
                 .zip(labels)
                 .filter_map(|(curve, label)| label.then_some(curve.values[axis_index])),
         ) / group_a_count as f64;
-        group_b_mean[axis_index] = compensated_sum(
+        group_b_mean[axis_index] = neumaier_sum(
             curves
                 .iter()
                 .zip(labels)

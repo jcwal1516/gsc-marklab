@@ -1,19 +1,35 @@
 #!/usr/bin/env python3
+"""Bayesian CP or Tucker factorization of a partially observed three-mode tensor."""
 
-import hashlib
 import json
 import math
 import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import scipy
-from scipy.optimize import minimize
 
-
-class ContractError(Exception):
-    pass
+from marklab_worker_support.factor_models import (
+    delta_method_variance,
+    entry_gradient,
+    inverse_hessian_covariance,
+    jax_objective,
+    minimize_lbfgs,
+)
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    exact,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
 
 
 def mode_singular_vectors(tensor, mode, rank):
@@ -21,19 +37,45 @@ def mode_singular_vectors(tensor, mode, rank):
     return np.linalg.svd(unfolded, full_matrices=False)[0][:, :rank]
 
 
-def main():
-    if (
-        jax.__version__ != "0.11.1"
-        or np.__version__ != "2.4.6"
-        or scipy.__version__ != "1.18.1"
-        or sys.version_info[:2] != (3, 12)
-    ):
-        raise ContractError("tensor factor backend version drift")
+def initial_decomposition(training, values, observed, decomposition, ranks):
+    """Initialize factors from mode-wise leading singular vectors of the zero-filled tensor.
+
+    CP components are rescaled by their least-squares amplitude on the observed entries;
+    the Tucker core is the projection of the zero-filled tensor onto the factor bases.
+    Returns the factor shapes, the flattened initial parameter blocks, and the core shape
+    (``None`` for CP).
+    """
+    if decomposition == "cp":
+        rank = ranks[0]
+        factors = [mode_singular_vectors(training, mode, rank) for mode in range(3)]
+        for component in range(rank):
+            component_basis = np.einsum(
+                "i,j,k->ijk",
+                factors[0][:, component],
+                factors[1][:, component],
+                factors[2][:, component],
+            )
+            denominator = np.sum(component_basis[observed] ** 2)
+            projection = np.sum(values[observed] * component_basis[observed])
+            factors[0][:, component] *= projection / max(denominator, 1e-12)
+        factor_shapes = [factor.shape for factor in factors]
+        initial_parts = [factor.ravel() for factor in factors]
+        return factor_shapes, initial_parts, None
+    factors = [mode_singular_vectors(training, mode, ranks[mode]) for mode in range(3)]
+    core = np.einsum("ia,jb,kc,ijk->abc", factors[0], factors[1], factors[2], training)
+    factor_shapes = [factor.shape for factor in factors]
+    initial_parts = [factor.ravel() for factor in factors]
+    initial_parts.append(core.ravel())
+    return factor_shapes, initial_parts, tuple(ranks)
+
+
+def main() -> None:
+    require_versions(jax=jax.__version__, numpy=np.__version__, scipy=scipy.__version__)
     jax.config.update("jax_enable_x64", True)
-    request_bytes = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
+    request_bytes = read_request(16 * MIB)
     request = json.loads(request_bytes)
-    if request["format"] != "marklab.jax_scipy_tensor_factor_request" or request["version"] != 1:
-        raise ContractError("request identity mismatch")
+    exact(request["format"], "marklab.jax_scipy_tensor_factor_request", "request.format")
+    exact(request["version"], 1, "request.version")
     shape = tuple(request["shape"])
     values = np.empty(shape, dtype=float)
     observed = np.empty(shape, dtype=bool)
@@ -44,30 +86,9 @@ def main():
     training = np.where(observed, values, 0.0)
     decomposition = request["decomposition"]
     ranks = request["ranks"]
-    factor_shapes = []
-    initial_parts = []
-    if decomposition == "cp":
-        rank = ranks[0]
-        factors = [mode_singular_vectors(training, mode, rank) for mode in range(3)]
-        basis = np.einsum("ir,jr,kr->ijk", *factors)
-        for component in range(rank):
-            component_basis = np.einsum(
-                "i,j,k->ijk", factors[0][:, component], factors[1][:, component], factors[2][:, component]
-            )
-            denominator = np.sum(component_basis[observed] ** 2)
-            amplitude = np.sum(values[observed] * component_basis[observed]) / max(denominator, 1e-12)
-            factors[0][:, component] *= amplitude
-        for factor in factors:
-            factor_shapes.append(factor.shape)
-            initial_parts.append(factor.ravel())
-        core_shape = None
-    else:
-        factors = [mode_singular_vectors(training, mode, ranks[mode]) for mode in range(3)]
-        core = np.einsum("ia,jb,kc,ijk->abc", factors[0], factors[1], factors[2], training)
-        factor_shapes = [factor.shape for factor in factors]
-        initial_parts = [factor.ravel() for factor in factors]
-        core_shape = tuple(ranks)
-        initial_parts.append(core.ravel())
+    factor_shapes, initial_parts, core_shape = initial_decomposition(
+        training, values, observed, decomposition, ranks
+    )
     initial = np.concatenate(initial_parts)
     observed_jax = jnp.asarray(observed)
     values_jax = jnp.asarray(values)
@@ -91,6 +112,12 @@ def main():
         return jnp.einsum("abc,ia,jb,kc->ijk", current_core, *current_factors)
 
     def objective(parameters):
+        """Negative log posterior (up to a constant) of the CP or Tucker factorization.
+
+        Observed entries ``y_ijk ~ Normal(f_ijk, sigma^2)`` where ``f`` is the CP sum of rank-one
+        terms ``sum_r a_ir b_jr c_kr`` or the Tucker product ``G x1 A x2 B x3 C``; every factor
+        (and Tucker core) entry has a ``Normal(0, 1 / prior_precision)`` prior.
+        """
         prediction = reconstruction(parameters)
         residual = jnp.where(observed_jax, prediction - values_jax, 0.0)
         penalty = sum(jnp.sum(factor * factor) for factor in unpack(parameters)[0])
@@ -102,53 +129,68 @@ def main():
             + 0.5 * request["prior_precision"] * penalty
         )
 
-    value_and_gradient = jax.jit(jax.value_and_grad(objective))
-
-    def scipy_objective(parameters):
-        value, gradient = value_and_gradient(jnp.asarray(parameters))
-        return float(value), np.asarray(gradient, dtype=float)
-
-    initial_objective = scipy_objective(initial)[0]
-    fit = minimize(
-        scipy_objective,
+    objective_and_gradient = jax_objective(objective)
+    initial_objective, fit = minimize_lbfgs(
+        objective_and_gradient,
         initial,
-        jac=True,
-        method="L-BFGS-B",
-        options={"maxiter": request["maximum_iterations"], "ftol": 1e-10, "gtol": 1e-6},
+        maximum_iterations=request["maximum_iterations"],
+        ftol=1e-10,
+        gtol=1e-6,
+        failure="tensor Laplace MAP did not converge",
     )
-    if not fit.success or not np.isfinite(fit.x).all():
-        raise ContractError(f"tensor Laplace MAP did not converge: {fit.message}")
-    covariance = np.asarray(fit.hess_inv.todense(), dtype=float)
-    if covariance.shape != (len(fit.x), len(fit.x)) or not np.isfinite(covariance).all():
-        raise ContractError("tensor inverse-Hessian approximation is unavailable")
+    rotations = []
+    if decomposition == "tucker":
+        fitted_factors, fitted_core = unpack(np.asarray(fit.x))
+        offset = 0
+        for mode, factor in enumerate(fitted_factors):
+            rank = factor.shape[1]
+            for left in range(rank):
+                for right in range(left + 1, rank):
+                    generator = np.zeros((rank, rank))
+                    generator[left, right], generator[right, left] = 1.0, -1.0
+                    direction = np.zeros_like(fit.x)
+                    direction[offset : offset + factor.size] = (factor @ generator).ravel()
+                    core_direction = np.moveaxis(
+                        -np.tensordot(generator, fitted_core, axes=(1, mode)), 0, mode
+                    )
+                    direction[-fitted_core.size :] = core_direction.ravel()
+                    rotations.append(direction)
+            offset += factor.size
+    covariance = inverse_hessian_covariance(
+        fit,
+        "tensor posterior curvature is unavailable",
+        objective_and_gradient,
+        np.asarray(rotations).T if rotations else None,
+    )
     prediction = np.asarray(reconstruction(jnp.asarray(fit.x)), dtype=float)
     masked_predictions = []
     errors = []
     for index in np.ndindex(shape):
         if observed[index]:
             continue
-        entry_gradient = np.asarray(
-            jax.grad(lambda parameters: reconstruction(parameters)[index])(jnp.asarray(fit.x)), dtype=float
-        )
-        variance = max(
-            float(entry_gradient @ covariance @ entry_gradient)
-            + request["noise_standard_deviation"] ** 2,
-            1e-12,
+        gradient = entry_gradient(reconstruction, jnp.asarray(fit.x), index)
+        variance = delta_method_variance(
+            gradient, covariance, request["noise_standard_deviation"] ** 2
         )
         errors.append((prediction[index] - values[index]) ** 2)
-        masked_predictions.append({
-            "indices": list(index),
-            "posterior_mean": float(prediction[index]),
-            "posterior_standard_deviation": math.sqrt(variance),
-            "evaluation_target": float(values[index]),
-            "evaluation_role": "masked_before_fit",
-        })
+        masked_predictions.append(
+            {
+                "indices": list(index),
+                "posterior_mean": float(prediction[index]),
+                "posterior_standard_deviation": math.sqrt(variance),
+                "evaluation_target": float(values[index]),
+                "evaluation_role": "masked_before_fit",
+            }
+        )
     fitted_factors, fitted_core = unpack(np.asarray(fit.x))
     fitted_factors = [np.asarray(factor, dtype=float).copy() for factor in fitted_factors]
     alignment = {"sign": "max_mode_loading_positive"}
     if decomposition == "cp":
         component_energy = np.asarray(
-            [np.prod([np.sum(factor[:, component] ** 2) for factor in fitted_factors]) for component in range(ranks[0])]
+            [
+                np.prod([np.sum(factor[:, component] ** 2) for factor in fitted_factors])
+                for component in range(ranks[0])
+            ]
         )
         order = np.argsort(-component_energy, kind="stable")
         fitted_factors = [factor[:, order] for factor in fitted_factors]
@@ -174,13 +216,16 @@ def main():
                     slices[mode] = component
                     fitted_core[tuple(slices)] *= -1.0
         alignment["order"] = "declared_tucker_ranks"
-        extra = {"core_map": fitted_core.tolist(), "factor_matrices": [factor.tolist() for factor in fitted_factors]}
+        extra = {
+            "core_map": fitted_core.tolist(),
+            "factor_matrices": [factor.tolist() for factor in fitted_factors],
+        }
         output_format = "marklab.bayesian_tucker_factorization"
     result = {
         "format": output_format,
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "request_sha256": sha256_hex(request_bytes),
         "tensor_id": request["tensor_id"],
         "mode_names": request["mode_names"],
         "shape": request["shape"],
@@ -195,18 +240,13 @@ def main():
             "objective_final": float(fit.fun),
             "iterations": int(fit.nit),
             "gradient_max_absolute": float(np.max(np.abs(fit.jac))),
-            "covariance": "limited_memory_inverse_hessian",
+            "covariance": "posterior_curvature_identified_subspace",
         },
         "fit_state": "approximate_only",
         "claim_status": f"experimental_synthetic_bayesian_{decomposition}_factorization",
     }
-    json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    sys.stdout.write("\n")
+    write_result(result)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, json.JSONDecodeError, np.linalg.LinAlgError) as error:
-        print(f"tensor factor worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(main, "tensor factor worker contract error", errors=CONTRACT_ERRORS)

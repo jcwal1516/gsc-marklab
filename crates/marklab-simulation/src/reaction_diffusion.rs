@@ -2,6 +2,7 @@ use rustfft::{num_complex::Complex, FftPlanner};
 use serde::{Deserialize, Serialize};
 
 use super::SimulationError;
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(tag = "model", rename_all = "snake_case", deny_unknown_fields)]
@@ -164,7 +165,7 @@ pub struct ReactionDiffusionResult {
     pub pattern: ReactionDiffusionPatternDiagnostics,
     pub solver: ReactionDiffusionSolverDiagnostics,
     pub observation_model: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn simulate_reaction_diffusion(
@@ -245,7 +246,7 @@ pub fn simulate_reaction_diffusion(
             maximum_value,
         },
         observation_model: "identity_field_observation",
-        claim_status: "experimental_reaction_diffusion_not_biological_mechanism_proof",
+        claim_status: ClaimStatus::ExperimentalReactionDiffusionNotBiologicalMechanismProof,
     })
 }
 

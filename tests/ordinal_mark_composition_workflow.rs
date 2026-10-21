@@ -1,25 +1,30 @@
-#![allow(dead_code)]
-
+#[allow(dead_code)]
 #[path = "support/declared_scalar.rs"]
 mod support;
 
 use std::collections::BTreeMap;
 
 use marklab::{
-    execute_algorithm_with_store, ordinal_class_composition, ArtifactRef, ArtifactSchema,
-    BinaryMarkDeclaration, CacheStatus, DeclaredScalarPatternInput, DurableProject,
-    DurableProjectLimits, LocalScheduler, MarkTable, MeasurementStatus, MissingnessPolicy,
-    NativeRuntimeProvenance, NodeId, OrdinalClassCompositionAnalysisNode,
-    OrdinalClassCompositionConfig, OrdinalClassCompositionError, OrdinalClassCompositionLimits,
-    OrdinalMarkDeclaration, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
-    SchedulerLimits, WorkflowGraph,
+    marks::{
+        ordinal_class_composition, BinaryMarkDeclaration, DeclaredScalarPatternInput, MarkTable,
+        MissingnessPolicy, OrdinalClassCompositionAnalysisNode, OrdinalClassCompositionConfig,
+        OrdinalClassCompositionError, OrdinalClassCompositionLimits, OrdinalMarkDeclaration,
+        ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
+    },
+    workflow::{
+        execute_algorithm_with_store, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
+        DurableProjectLimits, LocalScheduler, NativeRuntimeProvenance, NodeId, SchedulerLimits,
+        WorkflowGraph,
+    },
+    MeasurementStatus,
 };
 use support::{binary_metadata, fixture, publish_record, MARK_SCHEMA};
 
 const PYTHON_ORACLE: &str = include_str!("fixtures/ordinal_composition/python_oracle.json");
 
 fn ordinal_metadata(mark_id: &str, levels: &[&str]) -> BTreeMap<String, String> {
-    let digest = marklab::ContentDigest::from_framed(levels.iter().map(|level| level.as_bytes()));
+    let digest =
+        marklab::workflow::ContentDigest::from_framed(levels.iter().map(|level| level.as_bytes()));
     BTreeMap::from([
         ("levels_count".into(), levels.len().to_string()),
         ("levels_digest".into(), digest.to_string()),
@@ -224,7 +229,7 @@ fn ordered_rows_produce_counts_cdf_entropy_and_median_interval_without_interval_
             MissingnessPolicy::NotPermitted,
             vec![0, 2, 0, 1],
         ),
-        Err(marklab::DeclaredScalarInputError::InvalidOrdinalValue { row: 1, .. })
+        Err(marklab::marks::DeclaredScalarInputError::InvalidOrdinalValue { row: 1, .. })
     ));
     assert!(matches!(
         OrdinalMarkDeclaration::new(
@@ -236,7 +241,7 @@ fn ordered_rows_produce_counts_cdf_entropy_and_median_interval_without_interval_
                 .parse()
                 .expect("artifact ID"),
         ),
-        Err(marklab::DeclaredScalarInputError::InvalidOrdinalLevels)
+        Err(marklab::marks::DeclaredScalarInputError::InvalidOrdinalLevels)
     ));
     assert!(matches!(
         ordinal_class_composition(

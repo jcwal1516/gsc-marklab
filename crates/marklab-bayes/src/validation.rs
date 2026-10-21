@@ -1,4 +1,4 @@
-use crate::{BayesError, DiagnosticPolicy, NormalMeanDiagnostics, SarScalarSummary};
+use crate::{BayesError, DiagnosticPolicy, McseScalarSummary, PosteriorDiagnostics, ScalarSummary};
 
 #[derive(Clone, Copy)]
 pub(crate) enum SummarySupport {
@@ -8,19 +8,21 @@ pub(crate) enum SummarySupport {
     Positive,
 }
 
-pub(crate) fn is_lower_hex_sha256(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+pub(crate) use marklab_core::backend::is_sha256;
+
+/// A user-supplied name or identifier: nonempty, at most 128 bytes, without surrounding
+/// whitespace and without control characters.
+pub(crate) fn is_exact_name(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value.trim() == value
+        && !value.chars().any(char::is_control)
 }
 
-pub(crate) fn all_finite(values: &[f64]) -> bool {
-    values.iter().all(|value| value.is_finite())
-}
+pub(crate) use marklab_numerics::all_finite;
 
 pub(crate) fn diagnostics_satisfy_policy(
-    diagnostics: &NormalMeanDiagnostics,
+    diagnostics: &PosteriorDiagnostics,
     policy: &DiagnosticPolicy,
 ) -> bool {
     diagnostics.prior_predictive_finite
@@ -36,7 +38,7 @@ pub(crate) fn diagnostics_satisfy_policy(
 }
 
 pub(crate) fn validate_scalar_summary(
-    summary: &SarScalarSummary,
+    summary: &ScalarSummary,
     support: SummarySupport,
     invalid_message: &str,
 ) -> Result<(), BayesError> {
@@ -63,16 +65,47 @@ pub(crate) fn validate_scalar_summary(
     Ok(())
 }
 
+/// Validates a summary as [`validate_scalar_summary`] does and requires a finite, non-negative
+/// MCSE (zero only for constant draws).
+pub(crate) fn validate_mcse_summary(
+    summary: &McseScalarSummary,
+    support: SummarySupport,
+    invalid_message: &str,
+) -> Result<(), BayesError> {
+    if !summary.mcse_mean.is_finite() || summary.mcse_mean < 0.0 {
+        return Err(BayesError::WorkerContract(invalid_message.into()));
+    }
+    validate_scalar_summary(&summary.scalar(), support, invalid_message)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn sha256_identity_requires_exact_lowercase_ascii_hex() {
-        assert!(is_lower_hex_sha256(&"0123456789abcdef".repeat(4)));
-        assert!(!is_lower_hex_sha256(&"0123456789ABCDEF".repeat(4)));
-        assert!(!is_lower_hex_sha256(&"0".repeat(63)));
-        assert!(!is_lower_hex_sha256(&format!("{}g", "0".repeat(63))));
+        assert!(is_sha256(&"0123456789abcdef".repeat(4)));
+        assert!(!is_sha256(&"0123456789ABCDEF".repeat(4)));
+        assert!(!is_sha256(&"0".repeat(63)));
+        assert!(!is_sha256(&format!("{}g", "0".repeat(63))));
+    }
+
+    #[test]
+    fn exact_names_reject_empty_padded_oversized_and_control_strings() {
+        assert!(is_exact_name("patient-01"));
+        assert!(is_exact_name("site A"));
+        assert!(is_exact_name(&"x".repeat(128)));
+        for invalid in [
+            "",
+            " patient",
+            "patient ",
+            "pa\ttient",
+            "patient\u{7f}",
+            "pa\ntient",
+        ] {
+            assert!(!is_exact_name(invalid), "{invalid:?}");
+        }
+        assert!(!is_exact_name(&"x".repeat(129)));
     }
 
     #[test]
@@ -97,7 +130,7 @@ mod tests {
         ];
 
         for (mean, interval_lower, interval_upper, support, expected_valid) in cases {
-            let summary = SarScalarSummary {
+            let summary = ScalarSummary {
                 mean,
                 sd: 0.5,
                 interval_lower,
@@ -111,6 +144,27 @@ mod tests {
                     Err(BayesError::WorkerContract(message)) if message == "caller-specific error"
                 ));
             }
+        }
+    }
+
+    #[test]
+    fn mcse_summary_requires_a_finite_non_negative_standard_error() {
+        for (mcse_mean, expected_valid) in [
+            (0.01, true),
+            (0.0, true),
+            (-0.01, false),
+            (f64::NAN, false),
+            (f64::INFINITY, false),
+        ] {
+            let summary = McseScalarSummary {
+                mean: 0.5,
+                sd: 0.1,
+                interval_lower: 0.3,
+                interval_upper: 0.7,
+                mcse_mean,
+            };
+            let result = validate_mcse_summary(&summary, SummarySupport::Unit, "error");
+            assert_eq!(result.is_ok(), expected_valid, "mcse_mean={mcse_mean}");
         }
     }
 }

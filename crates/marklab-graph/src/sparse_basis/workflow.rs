@@ -1,15 +1,16 @@
 use super::{
-    admission::{component_graphs, plan_work, validate_spec},
     model::{
         GraphSparseRadiusBasisResult, GraphSparseRadiusBasisSpec, SparseRadiusBasisComponent,
         SparseRadiusBasisMode,
     },
     numerical::{approximate_component_modes, orient_mode, orthogonality_error, CandidateMode},
+    planning::{component_graphs, plan_work, validate_spec},
 };
 use crate::{
     sparse_radius_graph::{build_sparse_radius_graph, graph_digest},
     GraphError,
 };
+use marklab_core::backend::ClaimStatus;
 
 const PRIMARY_SEED_STREAM: u64 = 0x12da_f125_2b76_4f0b;
 const COMPLEMENT_SEED_STREAM: u64 = 0xa541_69c8_7d9e_31f3;
@@ -77,7 +78,7 @@ pub fn graph_sparse_radius_basis_workflow(
         let primary_count = nonzero_needed.min(available_nonzero);
         let component_stream = (component_index as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15);
         // A dense block avoids the structural blind spot of coordinate-prefix seeds. Reserve the
-        // final admitted candidate for a separately seeded search in the block's complement. A
+        // final accepted candidate for a separately seeded search in the block's complement. A
         // clearly lower complement mode invalidates the primary enumeration; it is not silently
         // substituted into a result whose remaining omitted spectrum has not been inspected.
         let mut component_modes = if primary_count == 0 {
@@ -279,7 +280,7 @@ pub fn graph_sparse_radius_basis_workflow(
         ritz_rotations: rotations,
         working_bytes: plan.working_bytes,
         retained_bytes: plan.retained_bytes,
-        claim_status: "experimental_sparse_low_frequency_basis".into(),
+        claim_status: ClaimStatus::ExperimentalSparseLowFrequencyBasis,
     })
 }
 

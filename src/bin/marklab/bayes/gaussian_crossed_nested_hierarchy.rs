@@ -1,6 +1,6 @@
 use std::{fs, path::PathBuf};
 
-use clap::{Args, Parser, Subcommand};
+use clap::Args;
 use marklab_bayes::{
     sha256_hex, GaussianCrossedNestedHierarchySpec, GaussianCrossedNestedHierarchyWorkerRequest,
     GaussianCrossedNestedInputIdentity, GaussianCrossedNestedObservation,
@@ -8,50 +8,42 @@ use marklab_bayes::{
 };
 use serde::Deserialize;
 
-use super::{publish_json, run_worker, BayesCliError, MAXIMUM_INPUT_BYTES};
-
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct Cli {
-    #[command(subcommand)]
-    command: TopLevel,
-}
-
-#[derive(Debug, Subcommand)]
-enum TopLevel {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    GaussianCrossedNestedHierarchy(Options),
-}
+use super::worker_identity;
+use super::{publish_json, run_worker, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Debug, Args)]
-struct Options {
+pub(crate) struct Options {
+    /// CSV with patient_id, slide_id, roi_id, batch_id, cohort_id, exposure and outcome columns.
     #[arg(long)]
     input: PathBuf,
+    /// Prior scale for intercept.
     #[arg(long)]
     intercept_prior_sd: f64,
+    /// Prior scale for slope.
     #[arg(long)]
     slope_prior_sd: f64,
+    /// Prior scale for component.
     #[arg(long)]
     component_prior_sd: f64,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
     chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
     tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
     draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
     target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
     seed: u64,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
     timeout_seconds: u64,
+    /// Destination for the analysis output.
     #[arg(long)]
     out: PathBuf,
 }
@@ -68,13 +60,7 @@ struct ObservationRow {
     outcome: f64,
 }
 
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let Cli {
-        command:
-            TopLevel::Bayes {
-                command: Command::GaussianCrossedNestedHierarchy(options),
-            },
-    } = Cli::parse();
+pub(super) fn run_command(options: Options) -> Result<(), CliError> {
     run(
         options.input,
         options.intercept_prior_sd,
@@ -92,7 +78,6 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn run(
     input_path: PathBuf,
     intercept_prior_sd: f64,
@@ -101,7 +86,7 @@ pub(super) fn run(
     sampling: NutsSamplingSpec,
     timeout_seconds: u64,
     output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+) -> Result<(), CliError> {
     let prepared = prepare(
         input_path,
         intercept_prior_sd,
@@ -125,7 +110,6 @@ pub(crate) struct PreparedGaussianCrossedNestedHierarchy {
     pub(crate) timeout_seconds: u64,
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare(
     input_path: PathBuf,
     intercept_prior_sd: f64,
@@ -133,21 +117,13 @@ pub(crate) fn prepare(
     component_prior_sd: f64,
     sampling: NutsSamplingSpec,
     timeout_seconds: u64,
-) -> Result<PreparedGaussianCrossedNestedHierarchy, BayesCliError> {
+) -> Result<PreparedGaussianCrossedNestedHierarchy, CliError> {
     let observations = read_observations(&input_path)?;
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path =
-        worker_directory.join("marklab_pymc_gaussian_crossed_nested_hierarchy_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
+    let identity = worker_identity(
+        repository,
+        "marklab_pymc_gaussian_crossed_nested_hierarchy_worker.py",
+    )?;
     let request = GaussianCrossedNestedHierarchyWorkerRequest::new(
         GaussianCrossedNestedHierarchySpec {
             intercept_prior_sd,
@@ -156,8 +132,8 @@ pub(crate) fn prepare(
             observations,
         },
         sampling,
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
+        identity.environment_lock_sha256,
+        identity.worker_sha256,
         timeout_seconds,
     )?;
     let counts = request.counts();
@@ -185,8 +161,8 @@ pub(crate) fn prepare(
 
 pub(crate) fn execute(
     prepared: &PreparedGaussianCrossedNestedHierarchy,
-) -> Result<GaussianCrossedNestedWorkerResult, BayesCliError> {
-    let repository = &marklab::python_backend_assets_root()?;
+) -> Result<GaussianCrossedNestedWorkerResult, CliError> {
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let bytes = run_worker(
         repository,
         "marklab_pymc_gaussian_crossed_nested_hierarchy_worker.py",
@@ -200,19 +176,19 @@ pub(crate) fn execute(
 
 fn read_observations(
     path: &std::path::Path,
-) -> Result<Vec<GaussianCrossedNestedObservation>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
+) -> Result<Vec<GaussianCrossedNestedObservation>, CliError> {
+    let metadata = fs::metadata(path).map_err(|source| CliError::Io {
         path: path.to_owned(),
         source,
     })?;
     if !metadata.is_file() {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "input must be a regular file: {}",
             path.display()
         )));
     }
     if metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "input exceeds the {MAXIMUM_INPUT_BYTES}-byte limit"
         )));
     }
@@ -226,7 +202,7 @@ fn read_observations(
         "exposure",
         "outcome",
     ]) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "crossed/nested hierarchy CSV headers must be exactly: patient_id,slide_id,roi_id,batch_id,cohort_id,exposure,outcome".into(),
         ));
     }
@@ -243,14 +219,10 @@ fn read_observations(
             outcome: row.outcome,
         });
         if observations.len() > 4_096 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "crossed/nested hierarchy input exceeds 4096 observations".into(),
             ));
         }
     }
     Ok(observations)
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<Cli>(|| run_cli().map_err(super::into_marklab_error))
 }

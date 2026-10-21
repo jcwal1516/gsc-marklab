@@ -16,7 +16,7 @@ use crate::{
 use super::{
     super::{
         estimate_materialized_table_bytes, ArrowIpcFailure, CellEmbeddingTablePhysicalBindings,
-        EmbeddingColumnarBudgets, EmbeddingColumnarError,
+        ColumnarError, EmbeddingColumnarBudgets,
     },
     preflight::{
         declared_table_logical_digest, preflight_cell_embedding_table_arrow_bytes,
@@ -39,41 +39,15 @@ pub fn read_cell_embedding_table_arrow_bytes(
     row_link: &CellEmbeddingRowLink,
     graph: VerifiedCellEmbeddingArtifactGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CellEmbeddingTable, EmbeddingColumnarError> {
-    let encoded_byte_len =
-        u64::try_from(bytes.len()).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
-    if encoded_byte_len > budgets.maximum_file_bytes() {
-        return Err(EmbeddingColumnarError::FileByteBudgetExceeded {
-            observed: encoded_byte_len,
-            maximum: budgets.maximum_file_bytes(),
-        });
-    }
-    let manifest_dimension =
-        validate_embedding_record(record, encoded_byte_len, expected, row_link, graph)?;
-    let declared_logical_digest = declared_table_logical_digest(bytes, budgets)?;
-    let bindings = CellEmbeddingTablePhysicalBindings::new(
-        graph.expected_cells_artifact_id,
-        graph.provenance_artifact_id,
-        graph.row_link_artifact_id,
-        graph.row_link_logical_digest,
-        declared_logical_digest,
-    )?;
-    let preflight = preflight_cell_embedding_table_arrow_bytes(bytes, expected, bindings, budgets)?;
-    if preflight.dimension() != manifest_dimension
-        || preflight.content_digest() != record.content().digest()
-        || preflight.encoded_byte_len() != record.content().byte_len()
-    {
-        return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
-    }
-    materialize_cell_embedding_table_arrow(
+) -> Result<CellEmbeddingTable, ColumnarError> {
+    crate::columnar::read::<crate::columnar::ArrowIpc, crate::columnar::CellEmbeddingTableEntity>(
         Cursor::new(bytes),
-        expected,
-        row_link,
-        graph,
-        bindings,
-        manifest_dimension,
-        declared_logical_digest,
-        preflight,
+        record,
+        &crate::columnar::CellEmbeddingTableReadContext {
+            expected,
+            row_link,
+            graph,
+        },
         budgets,
     )
 }
@@ -86,53 +60,68 @@ pub fn read_cell_embedding_table_arrow_from_store(
     row_link: &CellEmbeddingRowLink,
     graph: VerifiedCellEmbeddingArtifactGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CellEmbeddingTable, VerifiedReaderError<EmbeddingColumnarError>> {
-    let encoded_byte_len = record.content().byte_len();
-    if encoded_byte_len > budgets.maximum_file_bytes() {
-        return Err(VerifiedReaderError::Callback(
-            EmbeddingColumnarError::FileByteBudgetExceeded {
-                observed: encoded_byte_len,
-                maximum: budgets.maximum_file_bytes(),
+) -> Result<CellEmbeddingTable, VerifiedReaderError<ColumnarError>> {
+    crate::columnar::with_verified_columnar_reader(store, record, budgets, |reader| {
+        reader.read::<crate::columnar::ArrowIpc, crate::columnar::CellEmbeddingTableEntity>(
+            &crate::columnar::CellEmbeddingTableReadContext {
+                expected,
+                row_link,
+                graph,
             },
-        ));
-    }
-    let manifest_dimension =
-        validate_embedding_record(record, encoded_byte_len, expected, row_link, graph)
-            .map_err(VerifiedReaderError::Callback)?;
-    store.with_verified_reader(record, |reader| {
-        let declared_logical_digest = declared_table_logical_digest_reader(reader, budgets)?;
-        let bindings = CellEmbeddingTablePhysicalBindings::new(
-            graph.expected_cells_artifact_id,
-            graph.provenance_artifact_id,
-            graph.row_link_artifact_id,
-            graph.row_link_logical_digest,
-            declared_logical_digest,
-        )?;
-        let preflight = preflight_cell_embedding_table_arrow_reader(
-            reader,
-            record.content().digest(),
-            expected,
-            bindings,
-            budgets,
-        )?;
-        if preflight.dimension() != manifest_dimension
-            || preflight.content_digest() != record.content().digest()
-            || preflight.encoded_byte_len() != record.content().byte_len()
-        {
-            return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
-        }
-        materialize_cell_embedding_table_arrow(
-            reader,
-            expected,
-            row_link,
-            graph,
-            bindings,
-            manifest_dimension,
-            declared_logical_digest,
-            preflight,
-            budgets,
         )
     })
+}
+
+pub(crate) fn read_cell_embedding_table_arrow_reader<R: Read + Seek + ?Sized>(
+    reader: &mut R,
+    record: &ArtifactRecord,
+    expected: &ExpectedCellSet,
+    row_link: &CellEmbeddingRowLink,
+    graph: VerifiedCellEmbeddingArtifactGraph,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<CellEmbeddingTable, ColumnarError> {
+    let encoded_byte_len = record.content().byte_len();
+    if encoded_byte_len > budgets.maximum_file_bytes() {
+        return Err(ColumnarError::FileByteBudgetExceeded {
+            observed: encoded_byte_len,
+            maximum: budgets.maximum_file_bytes(),
+        });
+    }
+    let manifest_dimension =
+        validate_embedding_record(record, encoded_byte_len, expected, row_link, graph)?;
+
+    let declared_logical_digest = declared_table_logical_digest_reader(reader, budgets)?;
+    let bindings = CellEmbeddingTablePhysicalBindings::new(
+        graph.expected_cells_artifact_id,
+        graph.provenance_artifact_id,
+        graph.row_link_artifact_id,
+        graph.row_link_logical_digest,
+        declared_logical_digest,
+    )?;
+    let preflight = preflight_cell_embedding_table_arrow_reader(
+        reader,
+        record.content().digest(),
+        expected,
+        bindings,
+        budgets,
+    )?;
+    if preflight.dimension() != manifest_dimension
+        || preflight.content_digest() != record.content().digest()
+        || preflight.encoded_byte_len() != record.content().byte_len()
+    {
+        return Err(ColumnarError::ArtifactBindingMismatch);
+    }
+    materialize_cell_embedding_table_arrow(
+        reader,
+        expected,
+        row_link,
+        graph,
+        bindings,
+        manifest_dimension,
+        declared_logical_digest,
+        preflight,
+        budgets,
+    )
 }
 
 /// Stream-scan fully preflighted borrowed Arrow bytes without retaining the table.
@@ -143,11 +132,10 @@ pub fn scan_cell_embedding_table_arrow_bytes(
     row_link: &CellEmbeddingRowLink,
     graph: VerifiedCellEmbeddingArtifactGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<EmbeddingQcSummary, EmbeddingColumnarError> {
-    let encoded_byte_len =
-        u64::try_from(bytes.len()).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+) -> Result<EmbeddingQcSummary, ColumnarError> {
+    let encoded_byte_len = u64::try_from(bytes.len()).map_err(|_| ColumnarError::SizeOverflow)?;
     if encoded_byte_len > budgets.maximum_file_bytes() {
-        return Err(EmbeddingColumnarError::FileByteBudgetExceeded {
+        return Err(ColumnarError::FileByteBudgetExceeded {
             observed: encoded_byte_len,
             maximum: budgets.maximum_file_bytes(),
         });
@@ -166,7 +154,7 @@ pub fn scan_cell_embedding_table_arrow_bytes(
         || preflight.content_digest() != record.content().digest()
         || preflight.encoded_byte_len() != record.content().byte_len()
     {
-        return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     scan_cell_embedding_table_arrow(
         Cursor::new(bytes),
@@ -189,52 +177,89 @@ pub fn scan_cell_embedding_table_arrow_from_store(
     row_link: &CellEmbeddingRowLink,
     graph: VerifiedCellEmbeddingArtifactGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<EmbeddingQcSummary, VerifiedReaderError<EmbeddingColumnarError>> {
-    let encoded_byte_len = record.content().byte_len();
-    if encoded_byte_len > budgets.maximum_file_bytes() {
-        return Err(VerifiedReaderError::Callback(
-            EmbeddingColumnarError::FileByteBudgetExceeded {
-                observed: encoded_byte_len,
-                maximum: budgets.maximum_file_bytes(),
-            },
-        ));
-    }
-    let dimension = validate_embedding_record(record, encoded_byte_len, expected, row_link, graph)
+) -> Result<EmbeddingQcSummary, VerifiedReaderError<ColumnarError>> {
+    // Reject budget and record-binding failures before the store reads or hashes any bytes.
+    let dimension = admit_cell_embedding_table_scan(record, expected, row_link, graph, budgets)
         .map_err(VerifiedReaderError::Callback)?;
     store.with_verified_reader(record, |reader| {
-        let declared_logical_digest = declared_table_logical_digest_reader(reader, budgets)?;
-        let bindings = CellEmbeddingTablePhysicalBindings::new(
-            graph.expected_cells_artifact_id,
-            graph.provenance_artifact_id,
-            graph.row_link_artifact_id,
-            graph.row_link_logical_digest,
-            declared_logical_digest,
-        )?;
-        let preflight = preflight_cell_embedding_table_arrow_reader(
-            reader,
-            record.content().digest(),
-            expected,
-            bindings,
-            budgets,
-        )?;
-        if preflight.dimension() != dimension
-            || preflight.content_digest() != record.content().digest()
-            || preflight.encoded_byte_len() != record.content().byte_len()
-        {
-            return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
-        }
-        scan_cell_embedding_table_arrow(
-            reader,
-            expected,
-            row_link,
-            graph,
-            bindings,
-            dimension,
-            declared_logical_digest,
-            preflight,
-            budgets,
+        scan_admitted_cell_embedding_table_arrow_reader(
+            reader, record, expected, row_link, graph, dimension, budgets,
         )
     })
+}
+
+pub(crate) fn scan_cell_embedding_table_arrow_reader<R: Read + Seek + ?Sized>(
+    reader: &mut R,
+    record: &ArtifactRecord,
+    expected: &ExpectedCellSet,
+    row_link: &CellEmbeddingRowLink,
+    graph: VerifiedCellEmbeddingArtifactGraph,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<EmbeddingQcSummary, ColumnarError> {
+    let dimension = admit_cell_embedding_table_scan(record, expected, row_link, graph, budgets)?;
+    scan_admitted_cell_embedding_table_arrow_reader(
+        reader, record, expected, row_link, graph, dimension, budgets,
+    )
+}
+
+fn admit_cell_embedding_table_scan(
+    record: &ArtifactRecord,
+    expected: &ExpectedCellSet,
+    row_link: &CellEmbeddingRowLink,
+    graph: VerifiedCellEmbeddingArtifactGraph,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<u32, ColumnarError> {
+    let encoded_byte_len = record.content().byte_len();
+    if encoded_byte_len > budgets.maximum_file_bytes() {
+        return Err(ColumnarError::FileByteBudgetExceeded {
+            observed: encoded_byte_len,
+            maximum: budgets.maximum_file_bytes(),
+        });
+    }
+    validate_embedding_record(record, encoded_byte_len, expected, row_link, graph)
+}
+
+fn scan_admitted_cell_embedding_table_arrow_reader<R: Read + Seek + ?Sized>(
+    reader: &mut R,
+    record: &ArtifactRecord,
+    expected: &ExpectedCellSet,
+    row_link: &CellEmbeddingRowLink,
+    graph: VerifiedCellEmbeddingArtifactGraph,
+    dimension: u32,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<EmbeddingQcSummary, ColumnarError> {
+    let declared_logical_digest = declared_table_logical_digest_reader(reader, budgets)?;
+    let bindings = CellEmbeddingTablePhysicalBindings::new(
+        graph.expected_cells_artifact_id,
+        graph.provenance_artifact_id,
+        graph.row_link_artifact_id,
+        graph.row_link_logical_digest,
+        declared_logical_digest,
+    )?;
+    let preflight = preflight_cell_embedding_table_arrow_reader(
+        reader,
+        record.content().digest(),
+        expected,
+        bindings,
+        budgets,
+    )?;
+    if preflight.dimension() != dimension
+        || preflight.content_digest() != record.content().digest()
+        || preflight.encoded_byte_len() != record.content().byte_len()
+    {
+        return Err(ColumnarError::ArtifactBindingMismatch);
+    }
+    scan_cell_embedding_table_arrow(
+        reader,
+        expected,
+        row_link,
+        graph,
+        bindings,
+        dimension,
+        declared_logical_digest,
+        preflight,
+        budgets,
+    )
 }
 
 /// Fully verify borrowed Arrow bytes and return a receipt bound to the exact artifact record.
@@ -245,14 +270,17 @@ pub fn verify_cell_embedding_table_arrow_bytes(
     row_link: &CellEmbeddingRowLink,
     graph: VerifiedCellEmbeddingArtifactGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<VerifiedCellEmbeddingTableArtifact, EmbeddingColumnarError> {
-    let qc_summary =
-        scan_cell_embedding_table_arrow_bytes(bytes, record, expected, row_link, graph, budgets)?;
-    Ok(VerifiedCellEmbeddingTableArtifact::new(
-        record.id(),
-        graph,
-        qc_summary,
-    ))
+) -> Result<VerifiedCellEmbeddingTableArtifact, ColumnarError> {
+    crate::columnar::verify::<crate::columnar::ArrowIpc, crate::columnar::CellEmbeddingTableEntity>(
+        Cursor::new(bytes),
+        record,
+        &crate::columnar::CellEmbeddingTableReadContext {
+            expected,
+            row_link,
+            graph,
+        },
+        budgets,
+    )
 }
 
 /// Fully verify a managed Arrow table and return an exact artifact-bound receipt.
@@ -263,15 +291,16 @@ pub fn verify_cell_embedding_table_arrow_from_store(
     row_link: &CellEmbeddingRowLink,
     graph: VerifiedCellEmbeddingArtifactGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<VerifiedCellEmbeddingTableArtifact, VerifiedReaderError<EmbeddingColumnarError>> {
-    let qc_summary = scan_cell_embedding_table_arrow_from_store(
-        store, record, expected, row_link, graph, budgets,
-    )?;
-    Ok(VerifiedCellEmbeddingTableArtifact::new(
-        record.id(),
-        graph,
-        qc_summary,
-    ))
+) -> Result<VerifiedCellEmbeddingTableArtifact, VerifiedReaderError<ColumnarError>> {
+    crate::columnar::with_verified_columnar_reader(store, record, budgets, |reader| {
+        reader.verify::<crate::columnar::ArrowIpc, crate::columnar::CellEmbeddingTableEntity>(
+            &crate::columnar::CellEmbeddingTableReadContext {
+                expected,
+                row_link,
+                graph,
+            },
+        )
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -285,40 +314,37 @@ fn materialize_cell_embedding_table_arrow<R: Read + Seek>(
     declared_logical_digest: marklab_project::ContentDigest,
     preflight: CellEmbeddingArrowPreflight,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CellEmbeddingTable, EmbeddingColumnarError> {
+) -> Result<CellEmbeddingTable, ColumnarError> {
     let final_retained_bytes = estimate_materialized_table_bytes(expected, manifest_dimension)?;
     let peak_retained_bytes = final_retained_bytes
         .checked_add(preflight.retained_preflight_bytes)
         .and_then(|value| value.checked_add(preflight.maximum_batch_decoded_bytes))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     enforce_retained_budget(peak_retained_bytes, budgets)?;
 
     let component_count = expected
         .cells()
         .len()
-        .checked_mul(
-            usize::try_from(manifest_dimension)
-                .map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
-        )
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .checked_mul(usize::try_from(manifest_dimension).map_err(|_| ColumnarError::SizeOverflow)?)
+        .ok_or(ColumnarError::SizeOverflow)?;
     let component_bytes = component_count
         .checked_mul(size_of::<f32>())
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let mut values = Vec::new();
-    values.try_reserve_exact(component_count).map_err(|_| {
-        EmbeddingColumnarError::AllocationFailed {
+    values
+        .try_reserve_exact(component_count)
+        .map_err(|_| ColumnarError::AllocationFailed {
             requested: component_bytes,
-        }
-    })?;
+        })?;
     let status_bytes = expected
         .cells()
         .len()
         .checked_mul(size_of::<EmbeddingStatus>())
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let mut statuses = Vec::new();
     statuses
         .try_reserve_exact(expected.cells().len())
-        .map_err(|_| EmbeddingColumnarError::AllocationFailed {
+        .map_err(|_| ColumnarError::AllocationFailed {
             requested: status_bytes,
         })?;
 
@@ -365,12 +391,12 @@ fn scan_cell_embedding_table_arrow<R: Read + Seek>(
     declared_logical_digest: marklab_project::ContentDigest,
     preflight: CellEmbeddingArrowPreflight,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<EmbeddingQcSummary, EmbeddingColumnarError> {
+) -> Result<EmbeddingQcSummary, ColumnarError> {
     let retained = preflight
         .retained_preflight_bytes
         .checked_add(preflight.maximum_batch_decoded_bytes)
         .and_then(|value| value.checked_add(size_of::<EmbeddingQcAccumulator>()))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     enforce_retained_budget(retained, budgets)?;
     let mut accumulator = EmbeddingQcAccumulator::new(
         graph.expected_cells_artifact_id,
@@ -410,10 +436,10 @@ fn visit_cell_embedding_table_arrow<R, F>(
     bindings: CellEmbeddingTablePhysicalBindings,
     dimension: u32,
     mut visit: F,
-) -> Result<(), EmbeddingColumnarError>
+) -> Result<(), ColumnarError>
 where
     R: Read + Seek,
-    F: FnMut(&marklab_data::CellId, EmbeddingStatus, &[f32]) -> Result<(), EmbeddingColumnarError>,
+    F: FnMut(&marklab_data::CellId, EmbeddingStatus, &[f32]) -> Result<(), ColumnarError>,
 {
     let mut reader = FileReaderBuilder::new()
         .with_max_footer_fb_depth(8)
@@ -462,7 +488,7 @@ where
             || components.null_count() != 0
             || status_values.null_count() != 0
             || embeddings.value_length()
-                != i32::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?
+                != i32::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?
         {
             return Err(arrow_failure(ArrowIpcFailure::StockDecode));
         }
@@ -485,10 +511,8 @@ where
             let start = usize::try_from(embeddings.value_offset(local_row))
                 .map_err(|_| arrow_failure(ArrowIpcFailure::StockDecode))?;
             let end = start
-                .checked_add(
-                    usize::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
-                )
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+                .checked_add(usize::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?)
+                .ok_or(ColumnarError::SizeOverflow)?;
             let vector = components
                 .values()
                 .get(start..end)
@@ -503,7 +527,7 @@ where
             visit(expected_cell, status, vector)?;
             global_row = global_row
                 .checked_add(1)
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
         }
     }
     if global_row != expected.cells().len() {
@@ -518,7 +542,7 @@ fn validate_embedding_record(
     expected: &ExpectedCellSet,
     row_link: &CellEmbeddingRowLink,
     graph: VerifiedCellEmbeddingArtifactGraph,
-) -> Result<u32, EmbeddingColumnarError> {
+) -> Result<u32, ColumnarError> {
     if record.content().kind() != "application/vnd.marklab.cell-embedding-table.v1+arrow"
         || record.content().byte_len() != observed_byte_len
         || record.schema().id() != SCHEMA_ID
@@ -535,7 +559,7 @@ fn validate_embedding_record(
         || row_link.expected_cells_logical_digest() != expected.logical_digest()
         || row_link.entries().len() != expected.cells().len()
     {
-        return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     let mut expected_dependencies = vec![
         graph.expected_cells_artifact_id,
@@ -544,16 +568,15 @@ fn validate_embedding_record(
     ];
     expected_dependencies.sort_unstable();
     if record.dependencies() != expected_dependencies {
-        return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     let manifest = record
         .table()
-        .ok_or(EmbeddingColumnarError::ArtifactBindingMismatch)?;
+        .ok_or(ColumnarError::ArtifactBindingMismatch)?;
     if manifest.format() != TableFormat::ArrowIpcFile
         || manifest.encoding_version() != ENCODING_VERSION
         || manifest.row_count()
-            != u64::try_from(expected.cells().len())
-                .map_err(|_| EmbeddingColumnarError::SizeOverflow)?
+            != u64::try_from(expected.cells().len()).map_err(|_| ColumnarError::SizeOverflow)?
         || manifest.columns().len() != 3
         || manifest.columns()[0].name() != "cell_id"
         || manifest.columns()[0].column_type() != &TableColumnType::Scalar(TableScalarType::Utf8)
@@ -565,23 +588,23 @@ fn validate_embedding_record(
         || manifest.columns()[2].nullable()
         || manifest.primary_key() != ["cell_id"]
     {
-        return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     let dimension = match manifest.columns()[1].column_type() {
         TableColumnType::FixedSizeList {
             element: TableScalarType::F32,
             length,
         } => *length,
-        _ => return Err(EmbeddingColumnarError::ArtifactBindingMismatch),
+        _ => return Err(ColumnarError::ArtifactBindingMismatch),
     };
     if dimension != graph.output_dimension {
-        return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     validate_shape(expected.cells().len(), dimension)?;
     Ok(dimension)
 }
 
-fn parse_embedding_status(value: &str) -> Result<EmbeddingStatus, EmbeddingColumnarError> {
+fn parse_embedding_status(value: &str) -> Result<EmbeddingStatus, ColumnarError> {
     match value {
         "present" => Ok(EmbeddingStatus::Present),
         "missing_vector" => Ok(EmbeddingStatus::MissingVector),
@@ -591,14 +614,14 @@ fn parse_embedding_status(value: &str) -> Result<EmbeddingStatus, EmbeddingColum
     }
 }
 
-fn map_table_construction_error(error: EmbeddingError) -> EmbeddingColumnarError {
+fn map_table_construction_error(error: EmbeddingError) -> ColumnarError {
     match error {
-        EmbeddingError::SizeOverflow => EmbeddingColumnarError::SizeOverflow,
+        EmbeddingError::SizeOverflow => ColumnarError::SizeOverflow,
         EmbeddingError::RetainedByteBudgetExceeded { required, maximum } => {
-            EmbeddingColumnarError::RetainedByteBudgetExceeded { required, maximum }
+            ColumnarError::RetainedByteBudgetExceeded { required, maximum }
         }
         EmbeddingError::AllocationFailed { requested } => {
-            EmbeddingColumnarError::AllocationFailed { requested }
+            ColumnarError::AllocationFailed { requested }
         }
         _ => arrow_failure(ArrowIpcFailure::InvalidComponent),
     }

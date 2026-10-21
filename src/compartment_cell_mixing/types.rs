@@ -81,7 +81,8 @@ pub struct CompartmentCellMixingResult {
     pub case_id: String,
     pub timepoint: String,
     pub mark_id: String,
-    pub measurement_status: String,
+    #[serde(with = "crate::measurement_status_wire")]
+    pub measurement_status: marklab_data::MeasurementStatus,
     pub coordinate_frame_id: String,
     pub partition_digest: String,
     pub radius_um: f64,

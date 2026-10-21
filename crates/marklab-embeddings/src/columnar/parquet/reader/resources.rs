@@ -1,11 +1,11 @@
 use parquet::file::metadata::RowGroupMetaData;
 
 use super::{super::preflight::PreparedCellEmbeddingParquet, record::parquet_failure};
-use crate::columnar::{EmbeddingColumnarError, ParquetFailure};
+use crate::columnar::{ColumnarError, ParquetFailure};
 
 pub(super) fn validated_group_range(
     row_group: &RowGroupMetaData,
-) -> Result<(u64, usize), EmbeddingColumnarError> {
+) -> Result<(u64, usize), ColumnarError> {
     if row_group.num_columns() != 3 {
         return Err(parquet_failure(ParquetFailure::StockDecode));
     }
@@ -22,22 +22,19 @@ pub(super) fn validated_group_range(
         }
         next = next
             .checked_add(length)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
     }
     Ok((
         start,
-        usize::try_from(
-            next.checked_sub(start)
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?,
-        )
-        .map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
+        usize::try_from(next.checked_sub(start).ok_or(ColumnarError::SizeOverflow)?)
+            .map_err(|_| ColumnarError::SizeOverflow)?,
     ))
 }
 
 pub(super) fn estimate_maximum_group_peak(
     prepared: &PreparedCellEmbeddingParquet,
     dimension: u32,
-) -> Result<usize, EmbeddingColumnarError> {
+) -> Result<usize, ColumnarError> {
     prepared
         .metadata
         .row_groups()
@@ -50,13 +47,13 @@ pub(super) fn estimate_maximum_group_peak(
 pub(super) fn estimate_group_peak(
     row_group: &RowGroupMetaData,
     dimension: u32,
-) -> Result<usize, EmbeddingColumnarError> {
+) -> Result<usize, ColumnarError> {
     let (_, encoded_bytes) = validated_group_range(row_group)?;
     let rows = usize::try_from(row_group.num_rows())
         .map_err(|_| parquet_failure(ParquetFailure::StockDecode))?;
     let components = rows
-        .checked_mul(usize::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?)
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .checked_mul(usize::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?)
+        .ok_or(ColumnarError::SizeOverflow)?;
     let arrow_output = components
         .checked_mul(size_of::<f32>())
         .and_then(|value| value.checked_add(encoded_bytes))
@@ -67,10 +64,10 @@ pub(super) fn estimate_group_peak(
                     .checked_mul(2)?,
             )
         })
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     encoded_bytes
         .checked_mul(2)
         .and_then(|value| value.checked_add(arrow_output.checked_mul(2)?))
         .and_then(|value| value.checked_add(components.checked_mul(4)?))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)
 }

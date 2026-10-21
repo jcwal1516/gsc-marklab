@@ -1,11 +1,11 @@
-mod cell_patch;
-mod matrix;
-mod patch_region;
-mod physical;
-mod preflight;
-mod profile;
+pub(crate) mod cell_patch;
+pub(crate) mod matrix;
+pub(crate) mod patch_region;
+pub(crate) mod physical;
+pub(crate) mod preflight;
+pub(crate) mod profile;
 mod publication;
-mod reader;
+pub(crate) mod reader;
 mod writer;
 
 pub use cell_patch::{
@@ -44,10 +44,7 @@ pub use preflight::{
     preflight_patch_footprint_set_arrow_bytes, preflight_patch_overlap_graph_arrow_bytes,
     PatchFootprintArrowPreflight, PatchOverlapArrowPreflight,
 };
-pub use publication::{
-    publish_patch_footprint_set_arrow, publish_patch_overlap_graph_arrow,
-    MultiscaleColumnarPublicationError,
-};
+pub use publication::{publish_patch_footprint_set_arrow, publish_patch_overlap_graph_arrow};
 pub use reader::{
     validate_patch_footprint_set_arrow_bytes, validate_patch_footprint_set_arrow_from_store,
     validate_patch_overlap_graph_arrow_bytes, validate_patch_overlap_graph_arrow_from_store,

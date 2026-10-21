@@ -1,3 +1,4 @@
+use crate::columnar::parquet::levels::{check_level_stream, LevelPattern};
 use std::io::{Cursor, Read, Seek, SeekFrom};
 use std::mem::size_of;
 
@@ -19,7 +20,7 @@ use crate::{
 
 pub(super) use super::super::physical::parquet_failure;
 use super::super::physical::{
-    absolute_slice, page_limits, read_exact_at, read_level_varint, validate_footer_length,
+    absolute_slice, level_error, page_limits, read_exact_at, validate_footer_length,
     validate_row_group_tree,
 };
 use super::profile::COLUMN_COUNT;
@@ -37,7 +38,7 @@ use crate::columnar::{
             TRAILER_BYTES,
         },
     },
-    EmbeddingColumnarBudgets, MultiscaleColumnarError, SpatialParquetFailure,
+    ColumnarError, EmbeddingColumnarBudgets, ParquetFailure,
 };
 use crate::multiscale::physical::SpatialPhysicalEncoding;
 
@@ -120,8 +121,8 @@ fn preflight_matrix_parquet_bytes(
     bytes: &[u8],
     table: &dyn MultiscaleMatrixTable,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<MultiscaleMatrixParquetPreflight, MultiscaleColumnarError> {
-    let encoded = u64::try_from(bytes.len()).map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+) -> Result<MultiscaleMatrixParquetPreflight, ColumnarError> {
+    let encoded = u64::try_from(bytes.len()).map_err(|_| ColumnarError::SizeOverflow)?;
     enforce_file_budget(encoded, budgets)?;
     let prepared = prepare_reader(
         &mut Cursor::new(bytes),
@@ -140,7 +141,7 @@ macro_rules! typed_preflight {
             bytes: &[u8],
             table: &$table,
             budgets: EmbeddingColumnarBudgets,
-        ) -> Result<MultiscaleMatrixParquetPreflight, MultiscaleColumnarError> {
+        ) -> Result<MultiscaleMatrixParquetPreflight, ColumnarError> {
             preflight_matrix_parquet_bytes(bytes, table, budgets)
         }
     };
@@ -165,22 +166,22 @@ pub(super) fn prepare_reader<R: Read + Seek + ?Sized>(
     content_digest: ContentDigest,
     table: &dyn MultiscaleMatrixTable,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<PreparedMultiscaleMatrixParquet, MultiscaleColumnarError> {
+) -> Result<PreparedMultiscaleMatrixParquet, ColumnarError> {
     enforce_file_budget(encoded_byte_len, budgets)?;
     validate_matrix_domain(table)?;
     let row_count = table.row_count();
     enforce_decoded_budget(decoded_bytes(table)?, budgets)?;
     let minimum = u64::try_from(PARQUET_MAGIC.len() + TRAILER_BYTES)
-        .map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+        .map_err(|_| ColumnarError::SizeOverflow)?;
     if encoded_byte_len < minimum {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidMagic));
+        return Err(parquet_failure(ParquetFailure::InvalidMagic));
     }
     if reader
         .seek(SeekFrom::End(0))
-        .map_err(|_| parquet_failure(SpatialParquetFailure::ArtifactRead))?
+        .map_err(|_| parquet_failure(ParquetFailure::ArtifactRead))?
         != encoded_byte_len
     {
-        return Err(parquet_failure(SpatialParquetFailure::ArtifactRead));
+        return Err(parquet_failure(ParquetFailure::ArtifactRead));
     }
     let mut leading = [0_u8; 4];
     read_exact_at(reader, 0, &mut leading)?;
@@ -191,52 +192,52 @@ pub(super) fn prepare_reader<R: Read + Seek + ?Sized>(
         &mut trailer,
     )?;
     if &leading != PARQUET_MAGIC || trailer.get(4..) != Some(PARQUET_MAGIC) {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidMagic));
+        return Err(parquet_failure(ParquetFailure::InvalidMagic));
     }
-    let footer_len =
-        usize::try_from(u32::from_le_bytes(trailer[..4].try_into().map_err(
-            |_| parquet_failure(SpatialParquetFailure::InvalidFooterLength),
-        )?))
-        .map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
-    let file_len =
-        usize::try_from(encoded_byte_len).map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+    let footer_len = usize::try_from(u32::from_le_bytes(
+        trailer[..4]
+            .try_into()
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidFooterLength))?,
+    ))
+    .map_err(|_| ColumnarError::SizeOverflow)?;
+    let file_len = usize::try_from(encoded_byte_len).map_err(|_| ColumnarError::SizeOverflow)?;
     let footer_length_offset = file_len
         .checked_sub(TRAILER_BYTES)
-        .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidFooterLength))?;
+        .ok_or_else(|| parquet_failure(ParquetFailure::InvalidFooterLength))?;
     let footer_start = validate_footer_length(footer_len, footer_length_offset)?;
     let expected_groups = row_count.div_ceil(ROW_GROUP_ROWS);
     let limits = footer_compact_limits(expected_groups)?;
     let raw_retained = estimate_raw_preflight_bytes(footer_len, limits)
-        .map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+        .map_err(|_| ColumnarError::SizeOverflow)?;
     let stock_retained = estimate_raw_preflight_bytes(MAXIMUM_FOOTER_BYTES, limits)
-        .map_err(|_| MultiscaleColumnarError::SizeOverflow)?
+        .map_err(|_| ColumnarError::SizeOverflow)?
         .checked_mul(2)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let mut retained = raw_retained.max(stock_retained);
     enforce_retained_budget(retained, budgets)?;
     let mut footer = Vec::new();
-    footer.try_reserve_exact(footer_len).map_err(|_| {
-        MultiscaleColumnarError::AllocationFailed {
+    footer
+        .try_reserve_exact(footer_len)
+        .map_err(|_| ColumnarError::AllocationFailed {
             requested: footer_len,
-        }
-    })?;
+        })?;
     footer.resize(footer_len, 0);
     read_exact_at(
         reader,
-        u64::try_from(footer_start).map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+        u64::try_from(footer_start).map_err(|_| ColumnarError::SizeOverflow)?,
         &mut footer,
     )?;
     let mut protocol = BoundedCompactProtocol::new(&footer, limits);
     let raw = FileMetaData::read_from_in_protocol(&mut protocol)
-        .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidFooter))?;
+        .map_err(|_| parquet_failure(ParquetFailure::InvalidFooter))?;
     if protocol
         .consumed_bytes()
-        .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidFooter))?
+        .map_err(|_| parquet_failure(ParquetFailure::InvalidFooter))?
         != footer.len()
         || !is_canonical_compact(&raw, &footer)
-            .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidFooter))?
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidFooter))?
     {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidFooter));
+        return Err(parquet_failure(ParquetFailure::InvalidFooter));
     }
     validate_metadata_tree(
         footer_start,
@@ -244,24 +245,22 @@ pub(super) fn prepare_reader<R: Read + Seek + ?Sized>(
         table,
         budgets,
         |start, end, column, group_start, rows| {
-            let chunk_len = end
-                .checked_sub(start)
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            let chunk_len = end.checked_sub(start).ok_or(ColumnarError::SizeOverflow)?;
             let peak = raw_retained
                 .checked_add(chunk_len)
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
             retained = retained.max(peak);
             enforce_retained_budget(peak, budgets)?;
             let mut chunk = Vec::new();
-            chunk.try_reserve_exact(chunk_len).map_err(|_| {
-                MultiscaleColumnarError::AllocationFailed {
+            chunk
+                .try_reserve_exact(chunk_len)
+                .map_err(|_| ColumnarError::AllocationFailed {
                     requested: chunk_len,
-                }
-            })?;
+                })?;
             chunk.resize(chunk_len, 0);
             read_exact_at(
                 reader,
-                u64::try_from(start).map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+                u64::try_from(start).map_err(|_| ColumnarError::SizeOverflow)?,
                 &mut chunk,
             )?;
             validate_pages(&chunk, start, start, end, column, group_start, rows, table)
@@ -270,7 +269,7 @@ pub(super) fn prepare_reader<R: Read + Seek + ?Sized>(
     let row_group_count = raw.row_groups.len();
     drop(raw);
     let stock = ParquetMetaDataReader::decode_metadata(&footer)
-        .map_err(|_| parquet_failure(SpatialParquetFailure::StockDecode))?;
+        .map_err(|_| parquet_failure(ParquetFailure::StockDecode))?;
     if stock.memory_size() > stock_retained
         || stock.file_metadata().version() != 2
         || usize::try_from(stock.file_metadata().num_rows()).ok() != Some(row_count)
@@ -279,15 +278,14 @@ pub(super) fn prepare_reader<R: Read + Seek + ?Sized>(
         || stock.column_index().is_some()
         || stock.offset_index().is_some()
     {
-        return Err(parquet_failure(SpatialParquetFailure::StockDecode));
+        return Err(parquet_failure(ParquetFailure::StockDecode));
     }
     Ok(PreparedMultiscaleMatrixParquet {
         entity_kind: table.entity_kind(),
         qc_summary: table.qc_summary(),
-        row_count: u64::try_from(row_count).map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+        row_count: u64::try_from(row_count).map_err(|_| ColumnarError::SizeOverflow)?,
         dimension: table.dimension(),
-        row_group_count: u32::try_from(row_group_count)
-            .map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+        row_group_count: u32::try_from(row_group_count).map_err(|_| ColumnarError::SizeOverflow)?,
         encoded_byte_len,
         content_digest,
         retained_preflight_bytes: retained,
@@ -301,16 +299,16 @@ fn validate_metadata_tree<F>(
     table: &dyn MultiscaleMatrixTable,
     budgets: EmbeddingColumnarBudgets,
     page_validator: F,
-) -> Result<(), MultiscaleColumnarError>
+) -> Result<(), ColumnarError>
 where
-    F: FnMut(usize, usize, usize, usize, usize) -> Result<usize, MultiscaleColumnarError>,
+    F: FnMut(usize, usize, usize, usize, usize) -> Result<usize, ColumnarError>,
 {
     let expected_rows = table.row_count();
     if metadata.version != 2
         || usize::try_from(metadata.num_rows).ok() != Some(expected_rows)
         || metadata.row_groups.len() != expected_rows.div_ceil(ROW_GROUP_ROWS)
     {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidRowCount));
+        return Err(parquet_failure(ParquetFailure::InvalidRowCount));
     }
     validate_schema(&metadata.schema, table)?;
     validate_metadata(metadata, table)?;
@@ -324,10 +322,9 @@ where
             let (expected_type, expected_path) = column_profile(table, column_index)?;
             let expected_values = if column_index == 1 {
                 rows.checked_mul(
-                    usize::try_from(table.dimension())
-                        .map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+                    usize::try_from(table.dimension()).map_err(|_| ColumnarError::SizeOverflow)?,
                 )
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?
+                .ok_or(ColumnarError::SizeOverflow)?
             } else {
                 rows
             };
@@ -339,7 +336,7 @@ where
                     .ne(expected_path.iter().copied())
                 || usize::try_from(column_metadata.num_values).ok() != Some(expected_values)
             {
-                return Err(parquet_failure(SpatialParquetFailure::InvalidRowGroup));
+                return Err(parquet_failure(ParquetFailure::InvalidRowGroup));
             }
             Ok(())
         },
@@ -357,7 +354,32 @@ fn validate_pages(
     group_start_row: usize,
     group_rows: usize,
     table: &dyn MultiscaleMatrixTable,
-) -> Result<usize, MultiscaleColumnarError> {
+) -> Result<usize, ColumnarError> {
+    validate_pages_profile(
+        bytes,
+        base_offset,
+        start,
+        end,
+        column_index,
+        group_start_row,
+        group_rows,
+        table.dimension(),
+        Some(table),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(in crate::columnar::parquet) fn validate_pages_profile(
+    bytes: &[u8],
+    base_offset: usize,
+    start: usize,
+    end: usize,
+    column_index: usize,
+    group_start_row: usize,
+    group_rows: usize,
+    dimension: u32,
+    table: Option<&dyn MultiscaleMatrixTable>,
+) -> Result<usize, ColumnarError> {
     let mut cursor = start;
     let mut page_count = 0_usize;
     let mut page_start_row = 0_usize;
@@ -365,58 +387,55 @@ fn validate_pages(
         let header_limit = cursor
             .checked_add(MAXIMUM_PAGE_HEADER_BYTES)
             .map(|value| value.min(end))
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let window = absolute_slice(bytes, base_offset, cursor, header_limit)
-            .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?;
         let mut protocol = BoundedCompactProtocol::new(window, page_limits());
         let header = PageHeader::read_from_in_protocol(&mut protocol)
-            .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
         let header_bytes = protocol
             .consumed_bytes()
-            .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
         if header_bytes == 0
             || header_bytes > MAXIMUM_PAGE_HEADER_BYTES
             || !is_canonical_compact(
                 &header,
                 window
                     .get(..header_bytes)
-                    .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?,
+                    .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?,
             )
-            .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidPage))?
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?
         {
-            return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
+            return Err(parquet_failure(ParquetFailure::InvalidPage));
         }
         let body_bytes = usize::try_from(header.compressed_page_size)
-            .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
         let uncompressed = usize::try_from(header.uncompressed_page_size)
-            .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
         let body_start = cursor
             .checked_add(header_bytes)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let page_end = body_start
             .checked_add(body_bytes)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let page = header
             .data_page_header_v2
             .as_ref()
-            .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?;
         let rows = usize::try_from(page.num_rows)
-            .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
         let values = usize::try_from(page.num_values)
-            .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
         let definition_bytes = usize::try_from(page.definition_levels_byte_length)
-            .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
         let repetition_bytes = usize::try_from(page.repetition_levels_byte_length)
-            .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
         let level_bytes = definition_bytes
             .checked_add(repetition_bytes)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let expected_values = if column_index == 1 {
-            rows.checked_mul(
-                usize::try_from(table.dimension())
-                    .map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
-            )
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?
+            rows.checked_mul(usize::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?)
+                .ok_or(ColumnarError::SizeOverflow)?
         } else {
             rows
         };
@@ -442,48 +461,50 @@ fn validate_pages(
                 .checked_add(rows)
                 .is_none_or(|value| value > group_rows)
         {
-            return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
+            return Err(parquet_failure(ParquetFailure::InvalidPage));
         }
         let body = absolute_slice(bytes, base_offset, body_start, page_end)
-            .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?;
         let absolute_start = group_start_row
             .checked_add(page_start_row)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         if column_index == 1 {
             let repetition = body
                 .get(..repetition_bytes)
-                .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+                .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?;
             let definition = body
                 .get(repetition_bytes..level_bytes)
-                .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+                .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?;
             validate_level_stream(
                 repetition,
                 expected_values,
                 LevelPattern::FixedListRepetition {
-                    dimension: usize::try_from(table.dimension())
-                        .map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+                    dimension: usize::try_from(dimension)
+                        .map_err(|_| ColumnarError::SizeOverflow)?,
                 },
             )?;
             validate_level_stream(definition, expected_values, LevelPattern::AllOne)?;
         }
-        validate_plain_values(
-            body.get(level_bytes..)
-                .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?,
-            column_index,
-            absolute_start,
-            rows,
-            table,
-        )?;
+        let values = body
+            .get(level_bytes..)
+            .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?;
+        if let Some(table) = table {
+            validate_plain_values(values, column_index, absolute_start, rows, table)?;
+        } else if column_index == 1 {
+            crate::columnar::parquet::read::validate_f32(values, expected_values)?;
+        } else {
+            crate::columnar::parquet::read::validate_strings(values, rows)?;
+        }
         page_start_row = page_start_row
             .checked_add(rows)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         page_count = page_count
             .checked_add(1)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         cursor = page_end;
     }
     if cursor != end || page_start_row != group_rows {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
+        return Err(parquet_failure(ParquetFailure::InvalidPage));
     }
     Ok(page_count)
 }
@@ -494,10 +515,8 @@ fn validate_plain_values(
     start: usize,
     rows: usize,
     table: &dyn MultiscaleMatrixTable,
-) -> Result<(), MultiscaleColumnarError> {
-    let end = start
-        .checked_add(rows)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+) -> Result<(), ColumnarError> {
+    let end = start.checked_add(rows).ok_or(ColumnarError::SizeOverflow)?;
     match column {
         0 => validate_plain_strings(
             bytes,
@@ -505,7 +524,7 @@ fn validate_plain_values(
                 table
                     .row(index)
                     .map(|row| row.id())
-                    .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidCanonicalRows))
+                    .map_err(|_| parquet_failure(ParquetFailure::InvalidCanonicalRows))
             }),
         ),
         1 => validate_plain_f32(bytes, table, start, end),
@@ -515,41 +534,41 @@ fn validate_plain_values(
                 table
                     .row(index)
                     .map(|row| row.status().wire_name())
-                    .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidCanonicalRows))
+                    .map_err(|_| parquet_failure(ParquetFailure::InvalidCanonicalRows))
             }),
         ),
-        _ => Err(parquet_failure(SpatialParquetFailure::InvalidPage)),
+        _ => Err(parquet_failure(ParquetFailure::InvalidPage)),
     }
 }
 
 fn validate_plain_strings<'a>(
     bytes: &[u8],
-    expected: impl Iterator<Item = Result<&'a str, MultiscaleColumnarError>>,
-) -> Result<(), MultiscaleColumnarError> {
+    expected: impl Iterator<Item = Result<&'a str, ColumnarError>>,
+) -> Result<(), ColumnarError> {
     let mut cursor = 0_usize;
     for value in expected {
         let value = value?;
         let length_end = cursor
             .checked_add(size_of::<u32>())
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let length = usize::try_from(u32::from_le_bytes(
             bytes
                 .get(cursor..length_end)
-                .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?
+                .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?
                 .try_into()
-                .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidPage))?,
+                .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?,
         ))
-        .map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+        .map_err(|_| ColumnarError::SizeOverflow)?;
         let end = length_end
             .checked_add(length)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         if bytes.get(length_end..end) != Some(value.as_bytes()) {
-            return Err(parquet_failure(SpatialParquetFailure::InvalidCanonicalRows));
+            return Err(parquet_failure(ParquetFailure::InvalidCanonicalRows));
         }
         cursor = end;
     }
     if cursor != bytes.len() {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
+        return Err(parquet_failure(ParquetFailure::InvalidPage));
     }
     Ok(())
 }
@@ -559,157 +578,59 @@ fn validate_plain_f32(
     table: &dyn MultiscaleMatrixTable,
     start: usize,
     end: usize,
-) -> Result<(), MultiscaleColumnarError> {
-    let dimension =
-        usize::try_from(table.dimension()).map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+) -> Result<(), ColumnarError> {
+    let dimension = usize::try_from(table.dimension()).map_err(|_| ColumnarError::SizeOverflow)?;
     let mut cursor = 0_usize;
     for index in start..end {
         let row = table
             .row(index)
-            .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidCanonicalRows))?;
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidCanonicalRows))?;
         for column in 0..dimension {
             let expected = row.vector().map_or(0.0, |vector| vector[column]);
             let value_end = cursor
                 .checked_add(size_of::<f32>())
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
             let observed = f32::from_le_bytes(
                 bytes
                     .get(cursor..value_end)
-                    .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?
+                    .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?
                     .try_into()
-                    .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidPage))?,
+                    .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?,
             );
             if observed.to_bits() != expected.to_bits() {
-                return Err(parquet_failure(SpatialParquetFailure::InvalidCanonicalRows));
+                return Err(parquet_failure(ParquetFailure::InvalidCanonicalRows));
             }
             cursor = value_end;
         }
     }
     if cursor != bytes.len() {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
+        return Err(parquet_failure(ParquetFailure::InvalidPage));
     }
     Ok(())
-}
-
-#[derive(Clone, Copy)]
-enum LevelPattern {
-    AllOne,
-    FixedListRepetition { dimension: usize },
 }
 
 fn validate_level_stream(
     bytes: &[u8],
     expected_values: usize,
     pattern: LevelPattern,
-) -> Result<(), MultiscaleColumnarError> {
-    let mut cursor = 0_usize;
-    let mut produced = 0_usize;
-    while cursor < bytes.len() {
-        if produced == expected_values {
-            return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
-        }
-        let (header, header_bytes) = read_level_varint(
-            bytes
-                .get(cursor..)
-                .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?,
-        )?;
-        cursor = cursor
-            .checked_add(header_bytes)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-        if header == 0 {
-            return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
-        }
-        if header & 1 == 0 {
-            let run = header >> 1;
-            if run == 0 || run > expected_values.saturating_sub(produced) {
-                return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
-            }
-            let value = *bytes
-                .get(cursor)
-                .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?;
-            cursor = cursor
-                .checked_add(1)
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-            if value > 1 {
-                return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
-            }
-            for index in produced..produced + run {
-                if value != expected_level(pattern, index)? {
-                    return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
-                }
-            }
-            produced = produced
-                .checked_add(run)
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-        } else {
-            let groups = header >> 1;
-            let run = groups
-                .checked_mul(8)
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-            let remaining = expected_values
-                .checked_sub(produced)
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-            if groups == 0 || run > remaining.saturating_add(7) {
-                return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
-            }
-            let packed = bytes
-                .get(
-                    cursor
-                        ..cursor
-                            .checked_add(groups)
-                            .ok_or(MultiscaleColumnarError::SizeOverflow)?,
-                )
-                .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?;
-            for index in 0..run {
-                let value = (packed[index / 8] >> (index % 8)) & 1;
-                if index < remaining {
-                    if value != expected_level(pattern, produced + index)? {
-                        return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
-                    }
-                } else if value != 0 {
-                    return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
-                }
-            }
-            cursor = cursor
-                .checked_add(groups)
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-            produced = produced
-                .checked_add(run.min(remaining))
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-        }
-    }
-    if produced != expected_values {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
-    }
-    Ok(())
-}
-
-fn expected_level(pattern: LevelPattern, index: usize) -> Result<u8, MultiscaleColumnarError> {
-    match pattern {
-        LevelPattern::AllOne => Ok(1),
-        LevelPattern::FixedListRepetition { dimension } => {
-            if dimension == 0 {
-                return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
-            }
-            Ok(u8::from(!index.is_multiple_of(dimension)))
-        }
-    }
+) -> Result<(), ColumnarError> {
+    check_level_stream(bytes, expected_values, |index| pattern.level(index)).map_err(level_error)
 }
 
 fn validate_schema(
     schema: &[SchemaElement],
     table: &dyn MultiscaleMatrixTable,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
+    validate_schema_profile(schema, table.profile())
+}
+
+pub(in crate::columnar::parquet) fn validate_schema_profile(
+    schema: &[SchemaElement],
+    profile: crate::columnar::multiscale::MatrixPhysicalProfile,
+) -> Result<(), ColumnarError> {
     if schema.len() != 6
-        || !is_group(
-            &schema[0],
-            table.profile().parquet_root(),
-            None,
-            3,
-            None,
-            false,
-        )
-        || !is_utf8(&schema[1], table.profile().id_column())
+        || !is_group(&schema[0], profile.parquet_root(), None, 3, None, false)
+        || !is_utf8(&schema[1], profile.id_column())
         || !is_group(
             &schema[2],
             "embedding",
@@ -729,7 +650,7 @@ fn validate_schema(
         || !is_f32_element(&schema[4])
         || !is_utf8(&schema[5], "embedding_status")
     {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidSchema));
+        return Err(parquet_failure(ParquetFailure::InvalidSchema));
     }
     Ok(())
 }
@@ -774,31 +695,31 @@ fn is_f32_element(element: &SchemaElement) -> bool {
 fn validate_metadata(
     metadata: &FileMetaData,
     table: &dyn MultiscaleMatrixTable,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     let entries = metadata
         .key_value_metadata
         .as_ref()
-        .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidMetadata))?;
+        .ok_or_else(|| parquet_failure(ParquetFailure::InvalidMetadata))?;
     let expected = matrix_metadata(SpatialPhysicalEncoding::Parquet, table)?;
     if entries.len() != expected.len() {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidMetadata));
+        return Err(parquet_failure(ParquetFailure::InvalidMetadata));
     }
     let mut total = 0_usize;
     for (entry, (key, value)) in entries.iter().zip(expected) {
         let observed = entry
             .value
             .as_deref()
-            .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidMetadata))?;
+            .ok_or_else(|| parquet_failure(ParquetFailure::InvalidMetadata))?;
         total = total
             .checked_add(entry.key.len())
             .and_then(|sum| sum.checked_add(observed.len()))
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         if entry.key != key || observed != value || observed.is_empty() {
-            return Err(parquet_failure(SpatialParquetFailure::InvalidMetadata));
+            return Err(parquet_failure(ParquetFailure::InvalidMetadata));
         }
     }
     if total > MAXIMUM_APPLICATION_METADATA_BYTES {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidMetadata));
+        return Err(parquet_failure(ParquetFailure::InvalidMetadata));
     }
     Ok(())
 }
@@ -806,11 +727,18 @@ fn validate_metadata(
 fn column_profile(
     table: &dyn MultiscaleMatrixTable,
     index: usize,
-) -> Result<(Type, &'static [&'static str]), MultiscaleColumnarError> {
+) -> Result<(Type, &'static [&'static str]), ColumnarError> {
+    column_profile_for(table.profile(), index)
+}
+
+pub(in crate::columnar::parquet) fn column_profile_for(
+    profile: crate::columnar::multiscale::MatrixPhysicalProfile,
+    index: usize,
+) -> Result<(Type, &'static [&'static str]), ColumnarError> {
     match index {
         0 => Ok((
             Type::BYTE_ARRAY,
-            match table.profile() {
+            match profile {
                 crate::columnar::multiscale::MatrixPhysicalProfile::Patch => &["patch_id"],
                 crate::columnar::multiscale::MatrixPhysicalProfile::Region => &["region_id"],
                 crate::columnar::multiscale::MatrixPhysicalProfile::Slide => &["slide_id"],
@@ -818,51 +746,53 @@ fn column_profile(
         )),
         1 => Ok((Type::FLOAT, &["embedding", "list", "element"])),
         2 => Ok((Type::BYTE_ARRAY, &["embedding_status"])),
-        _ => Err(parquet_failure(SpatialParquetFailure::InvalidRowGroup)),
+        _ => Err(parquet_failure(ParquetFailure::InvalidRowGroup)),
     }
 }
 
-fn decoded_bytes(table: &dyn MultiscaleMatrixTable) -> Result<u64, MultiscaleColumnarError> {
+fn decoded_bytes(table: &dyn MultiscaleMatrixTable) -> Result<u64, ColumnarError> {
     let mut total = 0_u64;
     let mut start = 0_usize;
     while start < table.row_count() {
         let end = start
             .checked_add(ROW_GROUP_ROWS)
             .map(|value| value.min(table.row_count()))
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         total = total
             .checked_add(
                 u64::try_from(matrix_decoded_bytes(table, start, end)?)
-                    .map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+                    .map_err(|_| ColumnarError::SizeOverflow)?,
             )
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         start = end;
     }
     Ok(total)
 }
 
-fn footer_compact_limits(expected_groups: usize) -> Result<CompactLimits, MultiscaleColumnarError> {
+pub(in crate::columnar::parquet) fn footer_compact_limits(
+    expected_groups: usize,
+) -> Result<CompactLimits, ColumnarError> {
     let schema_elements = COLUMN_COUNT
         .checked_add(3)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let per_group_elements = COLUMN_COUNT
         .checked_mul(5)
         // The nested LIST leaf path contributes two elements beyond one path
         // component per physical column.
         .and_then(|value| value.checked_add(3))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let top_level_elements = schema_elements
         .checked_add(COLUMN_COUNT)
         .and_then(|value| value.checked_add(MATRIX_METADATA_KEYS.len()))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let maximum_total_elements = expected_groups
         .checked_mul(per_group_elements)
         .and_then(|value| value.checked_add(top_level_elements))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let maximum_fields = expected_groups
         .checked_mul(256)
         .and_then(|value| value.checked_add(256))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     Ok(CompactLimits {
         maximum_depth: 16,
         maximum_fields,

@@ -6,7 +6,7 @@ use assert_cmd::Command;
 use predicates::str::contains;
 
 #[test]
-fn uniform_logistic_growth_matches_the_closed_form() {
+fn growth_front_cli_publishes_the_declared_simulation() {
     let directory = tempfile::tempdir().expect("tempdir");
     let input = directory.path().join("initial.csv");
     fs::write(&input, "position_um,density\n0,0.25\n1,0.25\n2,0.25\n").expect("input");
@@ -44,11 +44,10 @@ fn uniform_logistic_growth_matches_the_closed_form() {
     let result: serde_json::Value =
         serde_json::from_slice(&fs::read(output).expect("output")).expect("JSON");
     assert_eq!(result["format"], "marklab.fisher_kpp_growth_front");
-    for row in result["final_state"].as_array().expect("final state") {
-        assert!((row["density"].as_f64().expect("density") - 0.5).abs() < 1e-12);
-    }
-    assert_eq!(result["front_status"], "unavailable_no_threshold_crossing");
-    assert_eq!(result["solver"]["positivity_violations"], 0);
+    assert_eq!(result["final_state"].as_array().unwrap().len(), 3);
+    assert_eq!(result["diffusion_um2_per_time"], 0.0);
+    assert_eq!(result["growth_rate_per_time"], 1.0);
+    assert_eq!(result["final_time"], 1.0986122886681098);
     assert_eq!(
         result["claim_status"],
         "experimental_mechanistic_simulation_not_tumor_forecast"

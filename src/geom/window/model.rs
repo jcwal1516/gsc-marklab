@@ -1,6 +1,6 @@
 use geo::MultiPolygon as GeoMultiPolygon;
 use marklab_data::CoordinateFrameId;
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 use rstar::RTree;
 use thiserror::Error;
 
@@ -67,7 +67,7 @@ impl Default for ObservationWindowLimits {
 /// Bounded summary and identity of an exact physical 2-D observation window.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ObservationWindowDescriptor {
-    /// Exact installed physical coordinate frame, absent only for the legacy unbound constructor.
+    /// Exact installed physical coordinate frame, absent when the window was built without one.
     pub coordinate_frame_id: Option<CoordinateFrameId>,
     /// Area after subtracting holes, in square micrometres.
     pub area_um2: f64,
@@ -187,7 +187,7 @@ pub enum ObservationWindowError {
         "observation-window coordinate frame mismatch: expected {expected}, observed {observed}"
     )]
     CoordinateFrameMismatch {
-        /// Existing exact frame.
+        /// The frame.
         expected: CoordinateFrameId,
         /// Attempted exact frame.
         observed: CoordinateFrameId,

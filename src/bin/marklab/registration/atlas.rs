@@ -1,11 +1,14 @@
+use marklab_bayes::is_worker_timeout;
 use std::{collections::HashSet, path::PathBuf};
 
 use marklab_topology::sha256_hex;
 use serde::{Deserialize, Serialize};
 
-use super::super::topology::{
-    publish_json, read_input, read_required, run_worker, TopologyCliError,
-};
+use super::super::topology::{publish_json, read_input, read_required, run_worker};
+use crate::cli_error::CliError;
+use marklab_bayes::backend_versions::NUMPY_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_bayes::backend_versions::SCIPY_VERSION;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -63,7 +66,7 @@ struct AtlasSpec {
     seed: u64,
     timeout_seconds: u64,
 }
-pub(super) fn run_atlas(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+pub(super) fn run_atlas(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let mut spec: AtlasSpec = serde_json::from_slice(&bytes)?;
     spec.reference_samples
@@ -71,7 +74,7 @@ pub(super) fn run_atlas(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliE
     spec.perturbations
         .sort_by(|left, right| left.perturbation_id.cmp(&right.perturbation_id));
     validate_atlas(&spec)?;
-    let repository = marklab::python_backend_assets_root()?;
+    let repository = marklab::backend::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_scipy_atlas_worker.py");
     let lock = read_required(&lock_path)?;
@@ -81,9 +84,9 @@ pub(super) fn run_atlas(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliE
         "version": 1,
         "backend": {
             "name": "scipy_biological_similarity_atlas",
-            "scipy_version": "1.18.1",
-            "numpy_version": "2.4.6",
-            "python_version": "3.12",
+            "scipy_version": SCIPY_VERSION,
+            "numpy_version": NUMPY_VERSION,
+            "python_version": PYTHON_VERSION,
             "license": "BSD-3-Clause",
             "environment_lock_sha256": sha256_hex(&lock),
             "worker_sha256": sha256_hex(&worker)
@@ -111,14 +114,12 @@ pub(super) fn run_atlas(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliE
         || result["request_sha256"] != sha256_hex(&request_bytes)
         || result["claim_status"] != "experimental_synthetic_biological_similarity_atlas"
     {
-        return Err(TopologyCliError::Backend(
-            "atlas result identity mismatch".into(),
-        ));
+        return Err(CliError::Backend("atlas result identity mismatch".into()));
     }
     publish_json(&out, &result)
 }
 
-fn validate_atlas(spec: &AtlasSpec) -> Result<(), TopologyCliError> {
+fn validate_atlas(spec: &AtlasSpec) -> Result<(), CliError> {
     let feature_count = spec.representation.feature_names.len();
     let mut feature_names = HashSet::new();
     let valid_feature_names = spec.representation.feature_names.iter().all(|name| {
@@ -201,9 +202,9 @@ fn validate_atlas(spec: &AtlasSpec) -> Result<(), TopologyCliError> {
         || !valid_perturbations
         || !spec.covariance_ridge.is_finite()
         || spec.covariance_ridge <= 0.0
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "atlas mapping requires replicated measured region domains/patients, frozen representation identity, shrinkage-Mahalanobis biological alignment, bounded queries, OOD threshold, and declared perturbations"
                 .into(),
         ));

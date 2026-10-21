@@ -32,12 +32,6 @@ struct GetErlOracle {
 }
 
 #[test]
-fn splitmix64_is_deterministic_and_index_dependent() {
-    assert_eq!(splitmix64(123), splitmix64(123));
-    assert_ne!(splitmix64(123), splitmix64(124));
-}
-
-#[test]
 fn fixed_count_permutation_preserves_marked_count_and_seed_reproducibility() {
     let first = permute_fixed_count(10, 3, 42).expect("permutation");
     let second = permute_fixed_count(10, 3, 42).expect("permutation");
@@ -293,17 +287,38 @@ fn benjamini_hochberg_known_vector() {
     let adjusted = benjamini_hochberg(&[0.01, 0.04, 0.03, 0.002]).expect("valid p-values");
 
     assert_eq!(adjusted, vec![0.02, 0.04, 0.04, 0.008]);
-    assert!(benjamini_hochberg(&[0.01, f64::NAN]).is_err());
-    assert!(benjamini_hochberg(&[-0.01, 0.50]).is_err());
-    assert!(benjamini_hochberg(&[0.01, 1.01]).is_err());
+    for (p_values, invalid_index) in [
+        (&[0.01, f64::NAN][..], 1),
+        (&[-0.01, 0.50][..], 0),
+        (&[0.01, 1.01][..], 1),
+    ] {
+        assert!(matches!(
+            benjamini_hochberg(p_values),
+            Err(crate::errors::MarklabError::Validation(message))
+                if message.contains(&format!("p-value {invalid_index} must be finite"))
+        ));
+    }
 }
 
 #[test]
 fn global_envelope_rejects_nonfinite_curves_and_unresolvable_alpha() {
     let permutations = vec![vec![1.0], vec![2.0], vec![3.0]];
-    assert!(GlobalEnvelope::from_curves(&[f64::NAN], &permutations, 0.25).is_err());
-    assert!(GlobalEnvelope::from_curves(&[1.0], &[vec![f64::INFINITY]], 0.5).is_err());
-    assert!(GlobalEnvelope::from_curves(&[1.0], &permutations, 0.2).is_err());
+    use crate::errors::MarklabError;
+    for (observed, permutations) in [
+        (vec![f64::NAN], permutations.clone()),
+        (vec![1.0], vec![vec![f64::INFINITY]]),
+    ] {
+        // (B + 1) * alpha = 1 in both cases, so only the non-finite value is wrong.
+        let alpha = 1.0 / (permutations.len() + 1) as f64;
+        assert!(matches!(
+            GlobalEnvelope::from_curves(&observed, &permutations, alpha),
+            Err(MarklabError::Compute(message)) if message.contains("non-finite value")
+        ));
+    }
+    assert!(matches!(
+        GlobalEnvelope::from_curves(&[1.0], &permutations, 0.2),
+        Err(MarklabError::Validation(message)) if message.contains("(B + 1) * alpha >= 1")
+    ));
 }
 
 #[test]

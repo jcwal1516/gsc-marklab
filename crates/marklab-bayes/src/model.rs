@@ -1,14 +1,25 @@
+pub use marklab_core::backend::{
+    is_worker_timeout, json_sha256, sha256_hex, BackendContract, MAXIMUM_WORKER_TIMEOUT_SECONDS,
+};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
+pub use crate::backend_versions::PYMC_VERSION;
+use crate::backend_versions::PYTHON_VERSION;
 use crate::BayesError;
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
 pub const WORKER_REQUEST_FORMAT: &str = "marklab.pymc_worker_request";
 pub const WORKER_REQUEST_VERSION: u32 = 1;
 pub const MODEL_FORMAT: &str = "marklab.bayesian_model_ir";
 pub const MODEL_VERSION: u32 = 1;
-pub const PYMC_VERSION: &str = "6.3.0";
 
+/// Gaussian observations with one unknown mean and a known observation SD.
+///
+/// The likelihood is `y_i ~ Normal(mu, known_sigma)` independently, with
+/// `mu ~ Normal(prior_mean, prior_sd)`. Both scale arguments are standard
+/// deviations, not variances. The PyMC worker samples `mu` directly; the same
+/// specification also defines the conjugate reference posterior.
 #[derive(Clone, Debug, Serialize)]
 pub struct NormalMeanSpec {
     pub prior_mean: f64,
@@ -72,8 +83,8 @@ impl NormalMeanSpec {
             },
             observation_unit: "scalar_observation",
             generated_quantities: ["posterior_predictive_observation_mean"],
-            backend_capability: "nuts",
-            maturity: "experimental",
+            backend_capability: BackendCapability::Nuts,
+            maturity: ModelMaturity::Experimental,
         }
     }
 }
@@ -88,8 +99,8 @@ pub struct NormalMeanModelIr {
     pub likelihood: NormalLikelihoodIr,
     pub observation_unit: &'static str,
     pub generated_quantities: [&'static str; 1],
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -111,15 +122,6 @@ pub struct NormalPriorIr {
 pub struct NormalLikelihoodIr {
     pub family: &'static str,
     pub known_sigma: f64,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub struct BackendContract {
-    pub name: &'static str,
-    pub version: &'static str,
-    pub python_version: &'static str,
-    pub environment_lock_sha256: String,
-    pub worker_sha256: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -216,7 +218,7 @@ impl NormalMeanWorkerRequest {
     ) -> Result<Self, BayesError> {
         spec.validate()?;
         sampling.validate()?;
-        if !(1..=3_600).contains(&timeout_seconds) {
+        if !is_worker_timeout(timeout_seconds) {
             return Err(BayesError::InvalidSpec(
                 "worker timeout must be between 1 and 3600 seconds".into(),
             ));
@@ -238,7 +240,7 @@ impl NormalMeanWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -254,10 +256,6 @@ impl NormalMeanWorkerRequest {
             diagnostic_policy: DiagnosticPolicy::default(),
         })
     }
-}
-
-pub fn sha256_hex(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
 }
 
 #[cfg(test)]

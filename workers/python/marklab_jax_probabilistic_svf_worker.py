@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+"""JAX worker for variational Bayesian translation-SVF registration of two images."""
 
-import hashlib
 import json
-import math
 import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import jax
 import jax.numpy as jnp
@@ -12,33 +14,38 @@ import scipy
 from jax.scipy.ndimage import map_coordinates
 from scipy.optimize import minimize
 
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    ContractError,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
+from marklab_worker_support.registration import (
+    center_of_mass_translation,
+    pixel_grid,
+    scipy_objective,
+)
 
-class ContractError(Exception):
-    pass
+Z_975 = 1.959963984540054
 
 
-def main():
-    if (
-        jax.__version__ != "0.11.1"
-        or np.__version__ != "2.4.6"
-        or scipy.__version__ != "1.18.1"
-        or sys.version_info[:2] != (3, 12)
-    ):
-        raise ContractError("probabilistic SVF backend version drift")
-    jax.config.update("jax_enable_x64", True)
-    request_bytes = sys.stdin.buffer.read(32 * 1024 * 1024 + 1)
-    request = json.loads(request_bytes)
-    if request["format"] != "marklab.jax_probabilistic_svf_request" or request["version"] != 1:
-        raise ContractError("request identity mismatch")
+def register(request, request_sha256):
+    """Fit a Gaussian variational posterior over a constant translation velocity.
+
+    Model: translation ``t ~ Normal(0, prior_sd^2 I)`` (pixels) and fixed image
+    ``F ~ Normal(M(x + t), noise_sd^2 I)`` with bilinear warping of the moving image ``M``.
+    The mean-field Gaussian ``q(t)`` is fitted by maximizing a reparameterized ELBO over a
+    fixed set of antithetic standard-normal draws.
+    """
     fixed = np.asarray(request["fixed"]["pixels"], dtype=float)
     moving = np.asarray(request["moving"]["pixels"], dtype=float)
     height, width = fixed.shape
-    yy, xx = np.meshgrid(np.arange(height, dtype=float), np.arange(width, dtype=float), indexing="ij")
-    fixed_mass = fixed.sum()
-    moving_mass = moving.sum()
-    fixed_center = np.asarray([(fixed * yy).sum() / fixed_mass, (fixed * xx).sum() / fixed_mass])
-    moving_center = np.asarray([(moving * yy).sum() / moving_mass, (moving * xx).sum() / moving_mass])
-    known_translation_yx = moving_center - fixed_center
+    yy, xx = pixel_grid(height, width)
+    known_translation_yx = center_of_mass_translation(fixed, moving, yy, xx)
     grid_y = jnp.asarray(yy)
     grid_x = jnp.asarray(xx)
     fixed_jax = jnp.asarray(fixed)
@@ -66,22 +73,23 @@ def main():
         def draw_term(translation, draw_epsilon):
             residual = fixed_jax - warp(translation)
             log_likelihood = -0.5 * jnp.sum(residual * residual) / noise_sd**2
-            log_prior = -0.5 * jnp.sum(translation * translation) / prior_sd**2 - 2.0 * jnp.log(prior_sd)
+            log_prior = -0.5 * jnp.sum(translation * translation) / prior_sd**2 - 2.0 * jnp.log(
+                prior_sd
+            )
             log_q = -0.5 * jnp.sum(draw_epsilon * draw_epsilon) - jnp.sum(log_sd)
             return log_likelihood + log_prior - log_q
 
         return jnp.mean(jax.vmap(draw_term)(translations, epsilon))
 
-    value_and_gradient = jax.jit(jax.value_and_grad(lambda parameters: -elbo(parameters)))
+    def negative_elbo(parameters):
+        return -elbo(parameters)
 
-    def scipy_objective(parameters):
-        value, gradient = value_and_gradient(jnp.asarray(parameters))
-        return float(value), np.asarray(gradient, dtype=float)
+    fit_objective = scipy_objective(jax.jit(jax.value_and_grad(negative_elbo)))
 
     initial = np.concatenate([known_translation_yx, np.log([0.5, 0.5])])
     initial_elbo = float(elbo(jnp.asarray(initial)))
     fit = minimize(
-        scipy_objective,
+        fit_objective,
         initial,
         jac=True,
         method="L-BFGS-B",
@@ -97,9 +105,11 @@ def main():
     warped_mean = np.asarray(warp(jnp.asarray(mean_yx)), dtype=float)
     mse_before = float(np.mean((fixed - moving) ** 2))
     mse_after = float(np.mean((fixed - warped_mean) ** 2))
-    lower_yx = mean_yx - 1.959963984540054 * sd_yx
-    upper_yx = mean_yx + 1.959963984540054 * sd_yx
-    calibrated = bool(np.all((known_translation_yx >= lower_yx) & (known_translation_yx <= upper_yx)))
+    lower_yx = mean_yx - Z_975 * sd_yx
+    upper_yx = mean_yx + Z_975 * sd_yx
+    calibrated = bool(
+        np.all((known_translation_yx >= lower_yx) & (known_translation_yx <= upper_yx))
+    )
     draw_payload = [
         {
             "draw": index,
@@ -109,11 +119,11 @@ def main():
         }
         for index, draw in enumerate(draws_yx)
     ]
-    result = {
+    return {
         "format": "marklab.probabilistic_diffeomorphic_registration",
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "request_sha256": request_sha256,
         "fixed_frame": request["fixed"]["frame"],
         "moving_frame": request["moving"]["frame"],
         "velocity_family": "constant_translation_svf",
@@ -132,7 +142,10 @@ def main():
             "nonpositive_sample_jacobian_count": 0,
         },
         "calibration": {
-            "known_translation_xy_pixels": [float(known_translation_yx[1]), float(known_translation_yx[0])],
+            "known_translation_xy_pixels": [
+                float(known_translation_yx[1]),
+                float(known_translation_yx[0]),
+            ],
             "known_translation_inside_95_percent_interval": calibrated,
             "oracle": "center_of_mass_translation_for_synthetic_same_shape_images",
         },
@@ -146,13 +159,17 @@ def main():
         "fit_state": "approximate_only",
         "claim_status": "experimental_synthetic_probabilistic_diffeomorphism",
     }
-    json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    sys.stdout.write("\n")
+
+
+def main():
+    require_versions(jax=jax.__version__, numpy=np.__version__, scipy=scipy.__version__)
+    jax.config.update("jax_enable_x64", True)
+    request_bytes = read_request(32 * MIB)
+    request = json.loads(request_bytes)
+    if request["format"] != "marklab.jax_probabilistic_svf_request" or request["version"] != 1:
+        raise ContractError("request identity mismatch")
+    write_result(register(request, sha256_hex(request_bytes)))
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, json.JSONDecodeError, np.linalg.LinAlgError) as error:
-        print(f"probabilistic SVF worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(main, "probabilistic SVF worker contract error", errors=CONTRACT_ERRORS)

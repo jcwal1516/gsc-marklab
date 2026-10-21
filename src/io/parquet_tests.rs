@@ -293,6 +293,112 @@ fn csv_parquet_equivalent_rows_produce_equal_pattern() {
     assert_eq!(csv_loaded, parquet_loaded);
 }
 
+#[cfg(feature = "csv")]
+#[test]
+#[ignore = "requires the openly licensed Schurch CSV and a fresh external output directory"]
+fn public_schurch_cells_round_trip_through_csv_parquet_and_geojson() {
+    let source = std::path::PathBuf::from(
+        std::env::var_os("MARKLAB_PUBLIC_SCHURCH_CSV").expect("public raw CSV path"),
+    );
+    let out = std::path::PathBuf::from(
+        std::env::var_os("MARKLAB_PUBLIC_INTERCHANGE_OUT").expect("fresh external output path"),
+    );
+    assert!(!out.exists(), "real-file outputs must be new");
+    fs::create_dir_all(&out).expect("fresh output directory");
+    let csv_path = out.join("A-reg001-b-cells.csv");
+    let parquet_path = out.join("A-reg001-b-cells.parquet");
+    let mut writer = csv::Writer::from_path(&csv_path).expect("derived CSV");
+    writer
+        .write_record([
+            "x_um",
+            "y_um",
+            "mark",
+            "case_id",
+            "timepoint",
+            "protein",
+            "valid_tumor",
+            "valid_ihc",
+        ])
+        .unwrap();
+    let mut reader = csv::Reader::from_path(source).expect("published Schurch CSV");
+    let headers = reader.headers().unwrap().clone();
+    let column = |name| {
+        headers
+            .iter()
+            .position(|value| value == name)
+            .expect("published column")
+    };
+    let (array, region, phenotype, patient, x, y) = (
+        column("TMA_AB"),
+        column("Region"),
+        column("ClusterName"),
+        column("patients"),
+        column("X:X"),
+        column("Y:Y"),
+    );
+    let mut expected_x = Vec::new();
+    let mut expected_y = Vec::new();
+    let mut expected_marks = Vec::new();
+    for record in reader.records() {
+        let record = record.expect("published row");
+        if &record[array] != "A" || &record[region] != "reg001" || &record[phenotype] == "dirt" {
+            continue;
+        }
+        assert_eq!(&record[patient], "1");
+        let x_um = record[x].parse::<f64>().unwrap() * 0.377442;
+        let y_um = record[y].parse::<f64>().unwrap() * 0.377442;
+        let mark = u8::from(&record[phenotype] == "B cells");
+        expected_x.push(x_um);
+        expected_y.push(y_um);
+        expected_marks.push(mark);
+        writer
+            .write_record([
+                x_um.to_string(),
+                y_um.to_string(),
+                mark.to_string(),
+                "p01".into(),
+                "sampled".into(),
+                "published_B_cell_label".into(),
+                "true".into(),
+                "true".into(),
+            ])
+            .unwrap();
+    }
+    writer.flush().unwrap();
+    assert_eq!(expected_x.len(), 1107);
+    assert_eq!(
+        expected_marks.iter().filter(|&&value| value == 1).count(),
+        117
+    );
+
+    // The declared acquired field is not a tissue segmentation. Only I/O is tested here.
+    let mask_path = out.join("acquired-field.geojson");
+    let (left, bottom, right, top) = (
+        -0.5 * 0.377442,
+        -0.5 * 0.377442,
+        1919.5 * 0.377442,
+        1439.5 * 0.377442,
+    );
+    let geometry = serde_json::json!({"type":"MultiPolygon", "coordinates":[[[
+        [left,bottom], [right,bottom], [right,top], [left,top], [left,bottom]
+    ]]]});
+    fs::write(&mask_path, serde_json::to_vec(&geometry).unwrap()).unwrap();
+    let mask = TumorMask::from_geojson_str(&fs::read_to_string(mask_path).unwrap()).unwrap();
+    let loaded = PatternLoader::new(&mask)
+        .load(&csv_path)
+        .expect("real-data CSV reader");
+    assert_eq!(loaded.x_um.as_ref(), expected_x);
+    assert_eq!(loaded.y_um.as_ref(), expected_y);
+    assert_eq!(loaded.mark.as_ref(), expected_marks);
+    assert_eq!(loaded.meta.case_id, "p01");
+    write_filtered_pattern_export_parquet(&loaded, &parquet_path)
+        .expect("real-data Parquet writer");
+    let replay = PatternLoader::new(&mask)
+        .load(parquet_path)
+        .expect("real-data Parquet reader");
+    assert_eq!(loaded, replay);
+}
+
 #[test]
 fn parquet_loader_uses_internal_control_local_as_validity_mask() {
     use std::{fs::File, sync::Arc};

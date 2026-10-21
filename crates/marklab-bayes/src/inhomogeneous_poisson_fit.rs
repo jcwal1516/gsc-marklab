@@ -1,7 +1,11 @@
+use crate::is_worker_timeout;
 use crate::validation::all_finite as finite;
+use marklab_numerics::relative_eq;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::ClaimStatus;
 use crate::{
     inhomogeneous_poisson::validate_and_canonicalize,
     model::{
@@ -9,10 +13,22 @@ use crate::{
         WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION,
     },
     BayesError, FitState, InhomogeneousPoissonEvent, InhomogeneousPoissonSpec,
-    MidpointQuadratureValue, NormalMeanDiagnostics, NutsSamplingSpec, RectangularWindow,
-    SamplingSummary, SarScalarSummary, WorkerBackend,
+    MidpointQuadratureValue, NutsSamplingSpec, PosteriorDiagnostics, RectangularWindow,
+    SamplingSummary, ScalarSummary, WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
+const RELATIVE_TOLERANCE: f64 = 1e-12;
+/// Bayesian log-linear Poisson point process with midpoint quadrature.
+///
+/// The log likelihood is `sum_events eta(s_i) - A * sum_grid exp(eta_k)`, with `eta = alpha +
+/// beta * covariate + offset` and equal quadrature-cell area `A`. Independent priors are
+/// `alpha ~ Normal(intercept_prior_mean, intercept_prior_sd)` and `beta ~
+/// Normal(coefficient_prior_mean, coefficient_prior_sd)`, parameterized by mean and SD. The
+/// worker evaluates event covariates separately from the complete integration grid; event
+/// counts are not substituted for the point-process likelihood.
+///
 #[derive(Clone, Debug)]
 pub struct InhomogeneousPoissonFitSpec {
     pub window: RectangularWindow,
@@ -41,8 +57,8 @@ pub struct InhomogeneousPoissonFitModelIr {
     pub coefficient_prior_sd: f64,
     pub likelihood: &'static str,
     pub posterior_predictive: &'static str,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -84,7 +100,7 @@ impl InhomogeneousPoissonFitWorkerRequest {
         timeout_seconds: u64,
     ) -> Result<Self, BayesError> {
         sampling.validate()?;
-        if !(1..=3_600).contains(&timeout_seconds)
+        if !is_worker_timeout(timeout_seconds)
             || !spec.intercept_prior_mean.is_finite()
             || !spec.intercept_prior_sd.is_finite()
             || spec.intercept_prior_sd <= 0.0
@@ -163,7 +179,7 @@ impl InhomogeneousPoissonFitWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -181,8 +197,8 @@ impl InhomogeneousPoissonFitWorkerRequest {
                 coefficient_prior_sd: spec.coefficient_prior_sd,
                 likelihood: "event_linear_predictor_sum_minus_complete_grid_integral",
                 posterior_predictive: "piecewise_constant_grid_poisson_counts",
-                backend_capability: "nuts",
-                maturity: "experimental",
+                backend_capability: BackendCapability::Nuts,
+                maturity: ModelMaturity::Experimental,
             },
             window: validated.window,
             grid_x: validated.grid_x,
@@ -210,8 +226,8 @@ impl InhomogeneousPoissonFitWorkerRequest {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct InhomogeneousPoissonPosterior {
-    pub intercept: SarScalarSummary,
-    pub coefficient: SarScalarSummary,
+    pub intercept: ScalarSummary,
+    pub coefficient: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -224,9 +240,9 @@ pub struct InhomogeneousPoissonCellSummary {
     pub covariate: f64,
     pub offset: f64,
     pub observed_count: u64,
-    pub intensity: SarScalarSummary,
-    pub expected_count: SarScalarSummary,
-    pub pearson_residual: SarScalarSummary,
+    pub intensity: ScalarSummary,
+    pub expected_count: ScalarSummary,
+    pub pearson_residual: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -250,7 +266,7 @@ pub struct InhomogeneousPoissonFitWorkerResult {
     pub sampling: SamplingSummary,
     pub posterior: InhomogeneousPoissonPosterior,
     pub cells: Vec<InhomogeneousPoissonCellSummary>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: InhomogeneousPoissonPosteriorPredictive,
 }
 
@@ -263,11 +279,7 @@ impl InhomogeneousPoissonFitWorkerResult {
         if self.fit_state == FitState::ApproximateOnly
             || self.format != "marklab.pymc_inhomogeneous_poisson_worker_result"
             || self.version != 1
-            || self.backend.name != "pymc"
-            || self.backend.version != PYMC_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
             || self.cells.len() != request.quadrature.len()
         {
@@ -295,10 +307,10 @@ impl InhomogeneousPoissonFitWorkerResult {
                 request.window.ymin_um + (f64::from(node.iy) + 0.5) * request.cell_height_um;
             if cell.ix != node.ix
                 || cell.iy != node.iy
-                || !approximately_equal(cell.midpoint_x_um, expected_x)
-                || !approximately_equal(cell.midpoint_y_um, expected_y)
-                || !approximately_equal(cell.covariate, node.covariate)
-                || !approximately_equal(cell.offset, node.offset)
+                || !relative_eq(cell.midpoint_x_um, expected_x, RELATIVE_TOLERANCE)
+                || !relative_eq(cell.midpoint_y_um, expected_y, RELATIVE_TOLERANCE)
+                || !relative_eq(cell.covariate, node.covariate, RELATIVE_TOLERANCE)
+                || !relative_eq(cell.offset, node.offset, RELATIVE_TOLERANCE)
                 || cell.observed_count != request.observed_cell_counts[index]
             {
                 return Err(BayesError::WorkerContract(
@@ -377,9 +389,9 @@ impl InhomogeneousPoissonFitWorkerResult {
             sampling: self.sampling,
             fit_state: self.fit_state,
             claim_status: if self.fit_state == FitState::Complete {
-                "experimental"
+                ClaimStatus::Experimental
             } else {
-                "diagnostic_only_nonconverged"
+                ClaimStatus::DiagnosticOnlyNonconverged
             },
             posterior: self.posterior,
             cells: self.cells,
@@ -391,7 +403,7 @@ impl InhomogeneousPoissonFitWorkerResult {
     }
 }
 
-fn validate_scalar(summary: &SarScalarSummary, positive: bool) -> Result<(), BayesError> {
+fn validate_scalar(summary: &ScalarSummary, positive: bool) -> Result<(), BayesError> {
     if !finite(&[
         summary.mean,
         summary.sd,
@@ -406,10 +418,6 @@ fn validate_scalar(summary: &SarScalarSummary, positive: bool) -> Result<(), Bay
         ));
     }
     Ok(())
-}
-
-fn approximately_equal(left: f64, right: f64) -> bool {
-    (left - right).abs() <= 1e-12 * left.abs().max(right.abs()).max(1.0)
 }
 
 #[derive(Debug, Serialize)]
@@ -436,10 +444,10 @@ pub struct InhomogeneousPoissonFitResult {
     pub observed_event_count: usize,
     pub sampling: SamplingSummary,
     pub fit_state: FitState,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub posterior: InhomogeneousPoissonPosterior,
     pub cells: Vec<InhomogeneousPoissonCellSummary>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: InhomogeneousPoissonPosteriorPredictive,
     pub seed: u64,
     pub request_sha256: String,

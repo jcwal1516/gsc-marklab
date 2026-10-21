@@ -68,10 +68,6 @@ pub struct CovariateMatrixPermutationResult {
     pub p_value: f64,
     /// Requested replicate count.
     pub permutations_requested: usize,
-    /// Attempted replicate count.
-    pub permutations_attempted: usize,
-    /// Completed replicate count.
-    pub permutations_completed: usize,
     /// Base seed.
     pub seed: u64,
     /// Prespecified alternative.
@@ -238,8 +234,6 @@ fn execute(
         studentized_statistic: observed.target_statistic,
         p_value,
         permutations_requested: spec.permutations,
-        permutations_attempted: spec.permutations,
-        permutations_completed: spec.permutations,
         seed: spec.seed,
         alternative: spec.alternative,
     })

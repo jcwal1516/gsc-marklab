@@ -1,87 +1,96 @@
-use std::path::PathBuf;
-
-use clap::{Parser, Subcommand};
-use marklab_bayes::{FitState, NutsSamplingSpec, SarScalarSummary};
-use serde::Serialize;
-
-use super::{
-    publish_json,
-    replicated_arbitrary_window_lgcp_fit::{self, ResultDocument},
-    BayesCliError,
+pub(crate) use marklab_bayes::protocol::replicated_arbitrary_window_lgcp_sensitivity::{
+    scenario, standardized_shifts, ScenarioPriors, SensitivityResult,
 };
 
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct SensitivityCli {
-    #[command(subcommand)]
-    command: TopLevel,
-}
+use std::path::PathBuf;
 
-#[derive(Debug, Subcommand)]
-enum TopLevel {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
+use marklab_bayes::FitState;
+use marklab_bayes::NutsSamplingSpec;
 
-#[derive(Debug, Subcommand)]
-enum Command {
-    ReplicatedArbitraryWindowLgcpSensitivity(Box<Arguments>),
-}
+use super::publish_json;
+use super::replicated_arbitrary_window_lgcp_fit;
+use super::CliError;
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::StatisticalUnit;
 
 #[derive(Debug, clap::Args)]
-struct Arguments {
+pub(crate) struct Arguments {
+    /// Per-node quadrature CSV (pattern_id, patient_id, group, node_id, x_um, y_um, count, ...).
     #[arg(long)]
     input: PathBuf,
+    /// Group level used as the regression reference.
     #[arg(long)]
     reference_group: String,
+    /// Group level whose effect is compared with the reference group.
     #[arg(long)]
     comparison_group: String,
+    /// Prior mean for intercept.
     #[arg(long, allow_hyphen_values = true)]
     intercept_prior_mean: f64,
+    /// Prior scale for intercept.
     #[arg(long)]
     intercept_prior_sd: f64,
+    /// Prior scale for group effect.
     #[arg(long)]
     group_effect_prior_sd: f64,
+    /// Prior scale for covariate effect.
     #[arg(long)]
     covariate_effect_prior_sd: f64,
+    /// Prior scale for patient standard deviation.
     #[arg(long)]
     patient_sd_prior_scale: f64,
+    /// Prior scale for pattern standard deviation.
     #[arg(long)]
     pattern_sd_prior_scale: f64,
+    /// Amplitude of the latent spatial field covariance.
     #[arg(long)]
     field_amplitude: f64,
+    /// Spatial covariance length scale in micrometers.
     #[arg(long)]
     field_length_scale_um: f64,
+    /// Diagonal stabilization added to covariance matrices.
     #[arg(long)]
     jitter: f64,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
     chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
     tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
     draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
     target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
     seed: u64,
+    /// Upper bound on patients.
     #[arg(long)]
     maximum_patients: usize,
+    /// Upper bound on patterns.
     #[arg(long)]
     maximum_patterns: usize,
+    /// Upper bound on nodes per pattern.
     #[arg(long)]
     maximum_nodes_per_pattern: usize,
+    /// Upper bound on total nodes.
     #[arg(long)]
     maximum_total_nodes: usize,
+    /// Upper bound on total events.
     #[arg(long)]
     maximum_total_events: u64,
+    /// Upper bound on total draw node work.
     #[arg(long)]
     maximum_total_draw_node_work: u64,
+    /// Smallest standardized posterior change considered material.
     #[arg(long)]
     material_standardized_shift: f64,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
     timeout_seconds: u64,
+    /// Destination for the analysis output.
     #[arg(long)]
     out: PathBuf,
 }
@@ -95,54 +104,13 @@ struct Definition {
     length_multiplier: f64,
 }
 
-#[derive(Debug, Serialize)]
-struct Scenario {
-    name: String,
-    patient_sd_prior_scale: f64,
-    pattern_sd_prior_scale: f64,
-    field_amplitude: f64,
-    field_length_scale_um: f64,
-    fit: ResultDocument,
-    intercept_standardized_shift: f64,
-    group_effect_standardized_shift: f64,
-    covariate_effect_standardized_shift: f64,
-    patient_sd_standardized_shift: f64,
-    pattern_sd_standardized_shift: f64,
-    patient_effect_rms_standardized_shift: f64,
-    pattern_effect_rms_standardized_shift: f64,
-    maximum_standardized_shift: f64,
-    material_change: bool,
-}
-
-#[derive(Debug, Serialize)]
-struct SensitivityResult {
-    format: String,
-    version: u32,
-    scenarios: Vec<Scenario>,
-    all_fits_complete: bool,
-    maximum_standardized_shift: f64,
-    material_standardized_shift: f64,
-    material_scenarios: Vec<String>,
-    total_draw_node_work: u64,
-    statistical_unit: String,
-    assumptions: Vec<String>,
-    finite_result_policy: String,
-    claim_status: String,
-}
-
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let TopLevel::Bayes { command } = SensitivityCli::parse_from(std::env::args_os()).command;
-    let Command::ReplicatedArbitraryWindowLgcpSensitivity(arguments) = command;
-    run(*arguments)
-}
-
-fn run(arguments: Arguments) -> Result<(), BayesCliError> {
+pub(super) fn run(arguments: Arguments) -> Result<(), CliError> {
     if !arguments.material_standardized_shift.is_finite()
         || arguments.material_standardized_shift <= 0.0
         || arguments.maximum_total_draw_node_work == 0
         || arguments.maximum_total_draw_node_work > 1_000_000_000
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated LGCP sensitivity controls are invalid".into(),
         ));
     }
@@ -160,14 +128,14 @@ fn run(arguments: Arguments) -> Result<(), BayesCliError> {
     let per_fit_work = u64::from(arguments.chains)
         .checked_mul(u64::from(arguments.draws))
         .and_then(|draws| draws.checked_mul(arguments.maximum_total_nodes as u64))
-        .ok_or_else(|| BayesCliError::Input("replicated LGCP sensitivity work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("replicated LGCP sensitivity work overflows".into()))?;
     let total_draw_node_work = per_fit_work
         .checked_mul(definitions.len() as u64)
         .ok_or_else(|| {
-            BayesCliError::Input("replicated LGCP total sensitivity work overflows".into())
+            CliError::Input("replicated LGCP total sensitivity work overflows".into())
         })?;
     if total_draw_node_work > arguments.maximum_total_draw_node_work {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "replicated LGCP sensitivity work exceeds maximum: {total_draw_node_work} > {}",
             arguments.maximum_total_draw_node_work
         )));
@@ -186,26 +154,33 @@ fn run(arguments: Arguments) -> Result<(), BayesCliError> {
         let amplitude = arguments.field_amplitude * definition.amplitude_multiplier;
         let length = arguments.field_length_scale_um * definition.length_multiplier;
         let prepared = replicated_arbitrary_window_lgcp_fit::prepare(
-            arguments.input.clone(),
-            arguments.reference_group.clone(),
-            arguments.comparison_group.clone(),
-            arguments.intercept_prior_mean,
-            arguments.intercept_prior_sd,
-            arguments.group_effect_prior_sd,
-            arguments.covariate_effect_prior_sd,
-            patient_scale,
-            pattern_scale,
-            amplitude,
-            length,
-            arguments.jitter,
-            sampling.clone(),
-            arguments.maximum_patients,
-            arguments.maximum_patterns,
-            arguments.maximum_nodes_per_pattern,
-            arguments.maximum_total_nodes,
-            arguments.maximum_total_events,
-            per_fit_work,
-            arguments.timeout_seconds,
+            crate::bayes::ReplicatedArbitraryWindowLgcpFitArgs {
+                input: arguments.input.clone(),
+                reference_group: arguments.reference_group.clone(),
+                comparison_group: arguments.comparison_group.clone(),
+                intercept_prior_mean: arguments.intercept_prior_mean,
+                intercept_prior_sd: arguments.intercept_prior_sd,
+                group_effect_prior_sd: arguments.group_effect_prior_sd,
+                covariate_effect_prior_sd: arguments.covariate_effect_prior_sd,
+                patient_sd_prior_scale: patient_scale,
+                pattern_sd_prior_scale: pattern_scale,
+                field_amplitude: amplitude,
+                field_length_scale_um: length,
+                jitter: arguments.jitter,
+                chains: sampling.chains,
+                tune: sampling.tune_per_chain,
+                draws: sampling.draws_per_chain,
+                target_accept: sampling.target_accept,
+                seed: sampling.seed,
+                maximum_patients: arguments.maximum_patients,
+                maximum_patterns: arguments.maximum_patterns,
+                maximum_nodes_per_pattern: arguments.maximum_nodes_per_pattern,
+                maximum_total_nodes: arguments.maximum_total_nodes,
+                maximum_total_events: arguments.maximum_total_events,
+                maximum_draw_node_work: per_fit_work,
+                timeout_seconds: arguments.timeout_seconds,
+                out: std::path::PathBuf::new(),
+            },
         )?;
         fits.push((
             definition,
@@ -221,7 +196,7 @@ fn run(arguments: Arguments) -> Result<(), BayesCliError> {
         .iter()
         .any(|fit| fit.5.input_sha256 != baseline.input_sha256)
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated LGCP input changed across sensitivity scenarios".into(),
         ));
     }
@@ -236,10 +211,12 @@ fn run(arguments: Arguments) -> Result<(), BayesCliError> {
             |((definition, patient_scale, pattern_scale, amplitude, length, fit), shifts)| {
                 scenario(
                     definition.name,
-                    patient_scale,
-                    pattern_scale,
-                    amplitude,
-                    length,
+                    ScenarioPriors {
+                        patient_sd_prior_scale: patient_scale,
+                        pattern_sd_prior_scale: pattern_scale,
+                        field_amplitude: amplitude,
+                        field_length_scale_um: length,
+                    },
                     fit,
                     shifts,
                     arguments.material_standardized_shift,
@@ -270,96 +247,16 @@ fn run(arguments: Arguments) -> Result<(), BayesCliError> {
             material_standardized_shift: arguments.material_standardized_shift,
             material_scenarios,
             total_draw_node_work,
-            statistical_unit: "patient".into(),
+            statistical_unit: StatisticalUnit::Patient,
             assumptions: vec![
                 "fixed_prespecified_half_and_double_scale_grid".into(),
                 "same_patients_patterns_windows_and_sampling_seed_in_every_scenario".into(),
                 "patients_not_patterns_nodes_or_cells_are_population_replicates".into(),
             ],
             finite_result_policy: "all_scenarios_must_be_finite_and_diagnostically_complete".into(),
-            claim_status: "experimental_hierarchy_and_kernel_sensitivity".into(),
+            claim_status: ClaimStatus::ExperimentalHierarchyAndKernelSensitivity,
         },
     )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn scenario(
-    name: &str,
-    patient_sd_prior_scale: f64,
-    pattern_sd_prior_scale: f64,
-    field_amplitude: f64,
-    field_length_scale_um: f64,
-    fit: ResultDocument,
-    shifts: [f64; 7],
-    threshold: f64,
-) -> Scenario {
-    let maximum_standardized_shift = shifts.into_iter().fold(0.0_f64, f64::max);
-    Scenario {
-        name: name.into(),
-        patient_sd_prior_scale,
-        pattern_sd_prior_scale,
-        field_amplitude,
-        field_length_scale_um,
-        fit,
-        intercept_standardized_shift: shifts[0],
-        group_effect_standardized_shift: shifts[1],
-        covariate_effect_standardized_shift: shifts[2],
-        patient_sd_standardized_shift: shifts[3],
-        pattern_sd_standardized_shift: shifts[4],
-        patient_effect_rms_standardized_shift: shifts[5],
-        pattern_effect_rms_standardized_shift: shifts[6],
-        maximum_standardized_shift,
-        material_change: maximum_standardized_shift >= threshold,
-    }
-}
-
-fn standardized_shifts(fit: &ResultDocument, baseline: &ResultDocument) -> [f64; 7] {
-    [
-        scalar_shift(&fit.posterior.intercept, &baseline.posterior.intercept),
-        scalar_shift(
-            &fit.posterior.group_effect,
-            &baseline.posterior.group_effect,
-        ),
-        scalar_shift(
-            &fit.posterior.covariate_effect,
-            &baseline.posterior.covariate_effect,
-        ),
-        scalar_shift(&fit.posterior.patient_sd, &baseline.posterior.patient_sd),
-        scalar_shift(&fit.posterior.pattern_sd, &baseline.posterior.pattern_sd),
-        effect_rms_shift(
-            fit.patient_effects.iter().map(|value| &value.effect),
-            baseline.patient_effects.iter().map(|value| &value.effect),
-        ),
-        effect_rms_shift(
-            fit.pattern_effects.iter().map(|value| &value.effect),
-            baseline.pattern_effects.iter().map(|value| &value.effect),
-        ),
-    ]
-}
-
-fn scalar_shift(value: &SarScalarSummary, baseline: &SarScalarSummary) -> f64 {
-    (value.mean - baseline.mean).abs() / baseline.sd.max(f64::EPSILON)
-}
-
-fn effect_rms_shift<'a>(
-    values: impl Iterator<Item = &'a SarScalarSummary>,
-    baselines: impl Iterator<Item = &'a SarScalarSummary>,
-) -> f64 {
-    let pairs = values.zip(baselines).collect::<Vec<_>>();
-    let difference = (pairs
-        .iter()
-        .map(|(value, baseline)| (value.mean - baseline.mean).powi(2))
-        .sum::<f64>()
-        / pairs.len() as f64)
-        .sqrt();
-    let scale = (pairs
-        .iter()
-        .map(|(_, baseline)| baseline.sd.powi(2))
-        .sum::<f64>()
-        / pairs.len() as f64)
-        .sqrt()
-        .max(f64::EPSILON);
-    difference / scale
 }
 
 impl Definition {
@@ -404,10 +301,4 @@ impl Definition {
             ..Self::baseline()
         }
     }
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<SensitivityCli>(|| {
-        run_cli().map_err(super::into_marklab_error)
-    })
 }

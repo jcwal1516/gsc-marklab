@@ -27,7 +27,7 @@ const FORMAT: &str = "marklab.multiscale_embedding_support";
 const VERSION: u32 = 1;
 const DOMAIN: &[u8] = b"marklab-multiscale-embedding-support-logical-v1";
 
-/// Closed lineage/support evidence variants admitted by multiscale records version one.
+/// Closed lineage/support evidence variants accepted by multiscale records version one.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MultiscaleEmbeddingSupportVariant {
     /// Exact patch context, footprints, and overlap graph.

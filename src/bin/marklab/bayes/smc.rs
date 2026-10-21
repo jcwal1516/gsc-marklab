@@ -1,40 +1,43 @@
-use std::{fs, path::PathBuf};
-
 use marklab_bayes::{
     sha256_hex, NormalMeanSmcInputIdentity, NormalMeanSmcWorkerRequest, NormalMeanSmcWorkerResult,
     NormalMeanSpec, SmcSamplingSpec,
 };
 
-use super::{observations_digest, publish_json, read_observations, run_worker, BayesCliError};
+use super::cli_schema::NormalMeanSmcArgs;
+use super::worker_identity;
+use super::{observations_digest, publish_json, read_observations, run_worker, CliError};
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input_path: PathBuf,
-    prior_mean: f64,
-    prior_sd: f64,
-    known_sigma: f64,
-    sampling: SmcSamplingSpec,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: NormalMeanSmcArgs) -> Result<(), CliError> {
+    let NormalMeanSmcArgs {
+        input,
+        prior_mean,
+        prior_sd,
+        known_sigma,
+        particles,
+        chains,
+        ess_target,
+        correlation_threshold,
+        seed,
+        timeout_seconds,
+        out,
+    } = args;
+    let input_path = input;
+    let sampling = SmcSamplingSpec {
+        particles,
+        chains,
+        ess_target,
+        correlation_threshold,
+        seed,
+    };
+    let output_path = out;
     let observations = read_observations(&input_path)?;
     let input = NormalMeanSmcInputIdentity {
         path: input_path.display().to_string(),
         observation_count: observations.len(),
         observations_sha256: observations_digest(&observations),
     };
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path = worker_directory.join("marklab_pymc_smc_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
+    let identity = worker_identity(repository, "marklab_pymc_smc_worker.py")?;
     let request = NormalMeanSmcWorkerRequest::new(
         NormalMeanSpec {
             prior_mean,
@@ -43,8 +46,8 @@ pub(super) fn run(
             observations,
         },
         sampling,
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
+        identity.environment_lock_sha256,
+        identity.worker_sha256,
         timeout_seconds,
     )?;
     let request_bytes = serde_json::to_vec(&request)?;

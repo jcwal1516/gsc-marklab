@@ -1,12 +1,13 @@
 use std::{fs, path::PathBuf};
 
-use marklab_bayes::{
+use marklab_transport::{
     FgwPlanEntry, FgwSupport, FusedGromovWassersteinSpec, FusedGromovWassersteinWorkerRequest,
     FusedGromovWassersteinWorkerResult,
 };
 use serde::{Deserialize, Serialize};
 
-use super::{embedding_spatial, publish_json, run_worker, BayesCliError};
+use super::cli_schema::FusedGromovWassersteinArgs;
+use super::{embedding_spatial, publish_json, run_worker, CliError};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -17,19 +18,8 @@ struct Input {
     target_structure_row_major: Vec<f64>,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input: PathBuf,
-    alpha: f64,
-    epsilon: f64,
-    feature_scale: f64,
-    structure_scale: f64,
-    tolerance: f64,
-    maximum_iterations: u32,
-    timeout_seconds: u64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
-    let prepared = prepare(
+pub(super) fn run(args: FusedGromovWassersteinArgs) -> Result<(), CliError> {
+    let FusedGromovWassersteinArgs {
         input,
         alpha,
         epsilon,
@@ -38,7 +28,18 @@ pub(super) fn run(
         tolerance,
         maximum_iterations,
         timeout_seconds,
-    )?;
+        out,
+    } = args;
+    let prepared = prepare(Parameters {
+        input,
+        alpha,
+        epsilon,
+        feature_scale,
+        structure_scale,
+        tolerance,
+        maximum_iterations,
+        timeout_seconds,
+    })?;
     let result = execute(&prepared)?;
     publish_result(&out, &prepared, result)
 }
@@ -50,29 +51,40 @@ pub(crate) struct PreparedFusedGromovWasserstein {
     input_sha256: String,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn prepare(
-    input: PathBuf,
-    alpha: f64,
-    epsilon: f64,
-    feature_scale: f64,
-    structure_scale: f64,
-    tolerance: f64,
-    maximum_iterations: u32,
-    timeout_seconds: u64,
-) -> Result<PreparedFusedGromovWasserstein, BayesCliError> {
+pub(crate) struct Parameters {
+    pub(crate) input: PathBuf,
+    pub(crate) alpha: f64,
+    pub(crate) epsilon: f64,
+    pub(crate) feature_scale: f64,
+    pub(crate) structure_scale: f64,
+    pub(crate) tolerance: f64,
+    pub(crate) maximum_iterations: u32,
+    pub(crate) timeout_seconds: u64,
+}
+
+pub(crate) fn prepare(parameters: Parameters) -> Result<PreparedFusedGromovWasserstein, CliError> {
+    let Parameters {
+        input,
+        alpha,
+        epsilon,
+        feature_scale,
+        structure_scale,
+        tolerance,
+        maximum_iterations,
+        timeout_seconds,
+    } = parameters;
     let input_bytes = embedding_spatial::read(&input)?;
     let input: Input = serde_json::from_slice(&input_bytes)?;
-    let repository = &marklab::python_backend_assets_root()?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let worker_directory = repository.join("workers/python");
     let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
+    let lock_bytes = fs::read(&lock_path).map_err(|source| CliError::Io {
         path: lock_path,
         source,
     })?;
     let worker_name = "marklab_pot_fused_gromov_worker.py";
     let worker_path = worker_directory.join(worker_name);
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
+    let worker_bytes = fs::read(&worker_path).map_err(|source| CliError::Io {
         path: worker_path,
         source,
     })?;
@@ -105,8 +117,8 @@ pub(crate) fn prepare(
 
 pub(crate) fn execute(
     prepared: &PreparedFusedGromovWasserstein,
-) -> Result<FusedGromovWassersteinWorkerResult, BayesCliError> {
-    let repository = &marklab::python_backend_assets_root()?;
+) -> Result<FusedGromovWassersteinWorkerResult, CliError> {
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let result_bytes = run_worker(
         repository,
         "marklab_pot_fused_gromov_worker.py",
@@ -122,7 +134,7 @@ pub(crate) fn publish_result(
     out: &std::path::Path,
     prepared: &PreparedFusedGromovWasserstein,
     result: FusedGromovWassersteinWorkerResult,
-) -> Result<(), BayesCliError> {
+) -> Result<(), CliError> {
     let request = &prepared.request;
     publish_json(
         out,
@@ -167,6 +179,6 @@ struct Output {
     maximum_iterations: u32,
     best_initialization: String,
     best_plan: Vec<FgwPlanEntry>,
-    initialization_sensitivity: Vec<marklab_bayes::FgwInitializationResult>,
+    initialization_sensitivity: Vec<marklab_transport::FgwInitializationResult>,
     claim_status: &'static str,
 }

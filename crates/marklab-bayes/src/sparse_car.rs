@@ -1,17 +1,22 @@
+use marklab_numerics::relative_eq;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use rand_distr::StandardNormal;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::ClaimStatus;
+use crate::FitState;
 use crate::{
     validate_spatial_weights, DiagonalPolicy, NormalizationPolicy, SpatialEdge,
     SpatialWeightsPolicy, SymmetryPolicy,
 };
+use marklab_core::vocabulary::StatisticalUnit;
 
+const RELATIVE_TOLERANCE: f64 = 1e-12;
 const Z_975: f64 = 1.959_963_984_540_054;
 const FORMAT: &str = "marklab.sparse_car_fit";
-const CLAIM: &str = "experimental_conditional_gaussian_field";
+const CLAIM: ClaimStatus = ClaimStatus::ExperimentalConditionalGaussianField;
 const INFERENCE: &str = "independent_gaussian_precision_perturbation_with_verified_sparse_solves";
 
 /// One declared region; `None` is an unobserved outcome, never an imputed input.
@@ -91,10 +96,10 @@ pub struct SparseCarDiagnostics {
 pub struct SparseCarResult {
     pub format: String,
     pub version: u32,
-    pub fit_state: String,
+    pub fit_state: FitState,
     pub graph_definition: String,
     pub coordinate_frame: String,
-    pub statistical_unit: String,
+    pub statistical_unit: StatisticalUnit,
     pub rho: f64,
     pub tau: f64,
     pub seed: u64,
@@ -105,7 +110,7 @@ pub struct SparseCarResult {
     pub prior_predictive: SparseCarPredictive,
     pub posterior_predictive: SparseCarPredictive,
     pub diagnostics: SparseCarDiagnostics,
-    pub claim_status: String,
+    pub claim_status: ClaimStatus,
 }
 
 #[derive(Debug, Error)]
@@ -139,11 +144,11 @@ impl SparseCarResult {
         let d = &self.diagnostics;
         let metadata_valid = self.format == FORMAT
             && self.version == 1
-            && self.fit_state == "complete"
+            && self.fit_state == FitState::Complete
             && self.claim_status == CLAIM
             && self.graph_definition == spec.graph_definition
             && self.coordinate_frame == spec.coordinate_frame
-            && self.statistical_unit == "region_conditional_on_declared_graph"
+            && self.statistical_unit == StatisticalUnit::RegionConditionalOnDeclaredGraph
             && self.rho == spec.rho
             && self.tau == spec.tau
             && self.seed == spec.seed
@@ -183,21 +188,25 @@ impl SparseCarResult {
                     && summary.posterior_sd > 0.0
                     && summary.predictive_sd >= summary.posterior_sd
                     && summary.sd_mcse > 0.0
-                    && close(
+                    && relative_eq(
                         summary.lower_95,
                         summary.posterior_mean - Z_975 * summary.posterior_sd,
+                        RELATIVE_TOLERANCE,
                     )
-                    && close(
+                    && relative_eq(
                         summary.upper_95,
                         summary.posterior_mean + Z_975 * summary.posterior_sd,
+                        RELATIVE_TOLERANCE,
                     )
-                    && close(
+                    && relative_eq(
                         summary.predictive_sd,
                         summary.posterior_sd.hypot(row.noise_sd),
+                        RELATIVE_TOLERANCE,
                     )
-                    && close(
+                    && relative_eq(
                         summary.sd_mcse,
                         summary.posterior_sd / (2.0 * (spec.draws - 1) as f64).sqrt(),
+                        RELATIVE_TOLERANCE,
                     )
             });
         let observed = prepared.discrepancies(&prepared.observed_residual);
@@ -291,10 +300,10 @@ pub fn fit_sparse_car(spec: &SparseCarSpec) -> Result<SparseCarResult, SparseCar
     let result = SparseCarResult {
         format: FORMAT.into(),
         version: 1,
-        fit_state: "complete".into(),
+        fit_state: FitState::Complete,
         graph_definition: spec.graph_definition.clone(),
         coordinate_frame: spec.coordinate_frame.clone(),
-        statistical_unit: "region_conditional_on_declared_graph".into(),
+        statistical_unit: StatisticalUnit::RegionConditionalOnDeclaredGraph,
         rho: spec.rho,
         tau: spec.tau,
         seed: spec.seed,
@@ -305,7 +314,7 @@ pub fn fit_sparse_car(spec: &SparseCarSpec) -> Result<SparseCarResult, SparseCar
         prior_predictive: prior_ppc.finish(),
         posterior_predictive: posterior_ppc.finish(),
         diagnostics,
-        claim_status: CLAIM.into(),
+        claim_status: CLAIM,
     };
     result.validate_prepared(spec, &prepared)?;
     Ok(result)
@@ -770,15 +779,12 @@ impl SparseCarPredictiveCheck {
             && self.replicate_mean >= 0.0
             && self.replicate_sd >= 0.0
             && (0.0..=1.0).contains(&self.upper_tail_probability)
-            && close(
+            && relative_eq(
                 self.probability_mcse,
                 (adjusted * (1.0 - adjusted) / (draws as f64 + 2.0)).sqrt(),
+                RELATIVE_TOLERANCE,
             )
     }
-}
-
-fn close(a: f64, b: f64) -> bool {
-    (a - b).abs() <= 1e-12 * (1.0 + a.abs().max(b.abs()))
 }
 
 #[cfg(test)]

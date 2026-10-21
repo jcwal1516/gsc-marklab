@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::{ContentDigest, WorkflowError};
+use crate::WorkflowError;
+use marklab_project::ContentDigest;
 
 /// Stable, path-safe workflow node identity.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

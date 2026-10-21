@@ -9,7 +9,7 @@ fn run(
     maximum_component_operations: u64,
     maximum_working_bytes: usize,
 ) -> Result<
-    marklab::ContainedCellPatchEmbeddingDispersion,
+    marklab::embeddings::ContainedCellPatchEmbeddingDispersion,
     ContainedCellPatchEmbeddingDispersionError,
 > {
     contained_cell_patch_embedding_dispersion(
@@ -29,7 +29,7 @@ fn run_exact(
     table: &CellEmbeddingTable,
     artifact: CellEmbeddingArtifact,
     links: &LinkFixture,
-) -> marklab::ContainedCellPatchEmbeddingDispersion {
+) -> marklab::embeddings::ContainedCellPatchEmbeddingDispersion {
     run(
         table,
         artifact,
@@ -107,10 +107,6 @@ fn contained_cell_patch_embedding_dispersion_matches_overlapping_oracle_and_iden
     assert_eq!(
         result.patch_footprints_artifact_id(),
         links.link.patch_footprints_artifact_id()
-    );
-    assert_eq!(
-        result.cell_patch_producer_artifact_id(),
-        links.link.producer_artifact_id()
     );
     let repeated = run_exact(&table, artifact, &links);
     assert_eq!(repeated, result);

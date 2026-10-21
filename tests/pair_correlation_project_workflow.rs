@@ -1,9 +1,18 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use marklab::{
-    execute_algorithm, ArtifactRef, ArtifactSchema, CacheStatus, ClassicalSpatialLimits,
-    DurableProject, DurableProjectLimits, HomogeneousPairCorrelationAnalysisNode,
-    HomogeneousPairCorrelationConfig, HomogeneousPairCorrelationResult, LocalScheduler,
-    MarklabProject, NativeRuntimeProvenance, NodeId, ObservationWindow2D, ObservationWindowLimits,
-    Pattern, PatternMeta, SchedulerLimits, WorkflowGraph,
+    spatial::{
+        ClassicalSpatialLimits, HomogeneousPairCorrelationAnalysisNode,
+        HomogeneousPairCorrelationConfig, HomogeneousPairCorrelationResult,
+    },
+    workflow::{
+        execute_algorithm, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
+        DurableProjectLimits, LocalScheduler, MarklabProject, NativeRuntimeProvenance, NodeId,
+        SchedulerLimits, WorkflowGraph,
+    },
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 use tempfile::TempDir;
 
@@ -32,16 +41,12 @@ fn run_once(
         vec![3.0, 4.0, 7.0],
         vec![5.0, 5.0, 5.0],
         vec![0; 3],
-        PatternMeta {
-            case_id: "durable-pair-correlation".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("pair-correlation-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "durable-pair-correlation".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("pair-correlation-slide".into()),
+        ),
     )
     .expect("pattern");
     let window = ObservationWindow2D::from_geojson_str(

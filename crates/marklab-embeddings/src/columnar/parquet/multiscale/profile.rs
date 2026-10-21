@@ -1,4 +1,4 @@
-use arrow::datatypes::{DataType, Field, Schema};
+use arrow::datatypes::Schema;
 use parquet::{file::properties::WriterProperties, format::KeyValue};
 
 use crate::{ExpectedPatchSet, PatchFootprintSet, PatchOverlapGraph};
@@ -8,10 +8,10 @@ use crate::multiscale::physical::{
     encoding_version, schema_id, SpatialArtifactRole, SpatialPhysicalEncoding,
 };
 
-pub(super) const FOOTPRINT_ROOT: &str = "marklab_patch_footprint_table";
-pub(super) const OVERLAP_ROOT: &str = "marklab_patch_overlap_edge_table";
+pub(in crate::columnar::parquet) const FOOTPRINT_ROOT: &str = "marklab_patch_footprint_table";
+pub(in crate::columnar::parquet) const OVERLAP_ROOT: &str = "marklab_patch_overlap_edge_table";
 
-pub(super) const FOOTPRINT_METADATA_KEYS: [&str; 7] = [
+pub(in crate::columnar::parquet) const FOOTPRINT_METADATA_KEYS: [&str; 7] = [
     "marklab.encoding_version",
     "marklab.expected_patches_artifact_id",
     "marklab.logical_digest",
@@ -21,7 +21,7 @@ pub(super) const FOOTPRINT_METADATA_KEYS: [&str; 7] = [
     "marklab.schema_version",
 ];
 
-pub(super) const OVERLAP_METADATA_KEYS: [&str; 8] = [
+pub(in crate::columnar::parquet) const OVERLAP_METADATA_KEYS: [&str; 8] = [
     "marklab.encoding_version",
     "marklab.expected_patches_artifact_id",
     "marklab.footprint_artifact_id",
@@ -33,20 +33,20 @@ pub(super) const OVERLAP_METADATA_KEYS: [&str; 8] = [
 ];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum SpatialParquetProfile {
+pub(in crate::columnar::parquet) enum SpatialParquetProfile {
     Footprint,
     Overlap,
 }
 
 impl SpatialParquetProfile {
-    pub(super) fn column_count(self) -> usize {
+    pub(in crate::columnar::parquet) fn column_count(self) -> usize {
         match self {
             Self::Footprint => 3,
             Self::Overlap => 2,
         }
     }
 
-    pub(super) fn root(self) -> &'static str {
+    pub(in crate::columnar::parquet) fn root(self) -> &'static str {
         match self {
             Self::Footprint => FOOTPRINT_ROOT,
             Self::Overlap => OVERLAP_ROOT,
@@ -54,29 +54,22 @@ impl SpatialParquetProfile {
     }
 }
 
-pub(super) fn footprint_schema() -> Schema {
-    Schema::new(vec![
-        Field::new("patch_id", DataType::Utf8, false),
-        Field::new("origin_x_px", DataType::Int64, false),
-        Field::new("origin_y_px", DataType::Int64, false),
-    ])
+pub(in crate::columnar::parquet) fn footprint_schema() -> Schema {
+    Schema::new(crate::columnar::multiscale::footprint_fields())
 }
 
-pub(super) fn overlap_schema() -> Schema {
-    Schema::new(vec![
-        Field::new("left_patch_id", DataType::Utf8, false),
-        Field::new("right_patch_id", DataType::Utf8, false),
-    ])
+pub(in crate::columnar::parquet) fn overlap_schema() -> Schema {
+    Schema::new(crate::columnar::multiscale::overlap_fields())
 }
 
-pub(super) fn expected_schema(profile: SpatialParquetProfile) -> Schema {
+pub(in crate::columnar::parquet) fn expected_schema(profile: SpatialParquetProfile) -> Schema {
     match profile {
         SpatialParquetProfile::Footprint => footprint_schema(),
         SpatialParquetProfile::Overlap => overlap_schema(),
     }
 }
 
-pub(super) fn writer_properties(
+pub(in crate::columnar::parquet) fn writer_properties(
     profile: SpatialParquetProfile,
     expected: &ExpectedPatchSet,
     footprints: &PatchFootprintSet,
@@ -89,7 +82,7 @@ pub(super) fn writer_properties(
     writer_properties_with_metadata(metadata)
 }
 
-pub(super) fn metadata_entries(
+pub(in crate::columnar::parquet) fn metadata_entries(
     profile: SpatialParquetProfile,
     expected: &ExpectedPatchSet,
     footprints: &PatchFootprintSet,

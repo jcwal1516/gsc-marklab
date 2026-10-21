@@ -1,4 +1,8 @@
-use marklab_workflow::ContentDigest;
+use crate::edge_corrected::{estimate_curve, CurveWork};
+use crate::result_vocabulary::{
+    DuplicatePointPolicy, EdgeCorrection, OverlapMeasureOwner, PairTraversal, SpatialExecutionMode,
+};
+use marklab_project::ContentDigest;
 
 use crate::common::finite::canonical_zero;
 
@@ -80,16 +84,16 @@ pub fn analyze_translation_spatial_pattern(
         maximum_overlap_output_vertices_observed: 0,
         estimated_storage_bytes,
         logical_digest: observed_plan.logical_digest().to_string(),
-        execution_mode: "exact".into(),
-        duplicate_policy: "reject".into(),
-        overlap_owner: "observation_window_2d_exact_boolean_intersection".into(),
-        pair_traversal: "exact_streaming_unordered_pairs_with_both_ordered_weights".into(),
+        execution_mode: SpatialExecutionMode::Exact,
+        duplicate_policy: DuplicatePointPolicy::Reject,
+        overlap_owner: OverlapMeasureOwner::ObservationWindow2dExactBooleanIntersection,
+        pair_traversal: PairTraversal::ExactStreamingUnorderedPairsWithBothOrderedWeights,
     };
     if pattern.len() < 2 {
         return Ok(TranslationSpatialResult {
             case_id: pattern.meta.case_id.clone(),
             timepoint: pattern.meta.timepoint.clone(),
-            correction: "translation".into(),
+            correction: EdgeCorrection::Translation,
             status: TranslationSpatialStatus::InsufficientPoints,
             window: window_summary(window.descriptor()),
             geometry,
@@ -173,7 +177,7 @@ pub fn analyze_translation_spatial_pattern(
     Ok(TranslationSpatialResult {
         case_id: pattern.meta.case_id.clone(),
         timepoint: pattern.meta.timepoint.clone(),
-        correction: "translation".into(),
+        correction: EdgeCorrection::Translation,
         status: TranslationSpatialStatus::Available,
         window: window_summary(window.descriptor()),
         geometry,
@@ -191,72 +195,21 @@ pub fn analyze_translation_spatial_pattern(
     })
 }
 
-struct TranslationCurveWork {
-    unordered_pairs: Vec<usize>,
-    overlap_evaluations: Vec<usize>,
-    overlap_area_sums: Vec<f64>,
-    ordered_weight_sums: Vec<f64>,
-}
-
 fn translation_curve(
     x: &[f64],
     y: &[f64],
     window: &ObservationWindow2D,
     radii_um: &[f64],
     budget: &mut TranslationOverlapBudget,
-) -> Result<TranslationCurveWork, TranslationSpatialError> {
-    let mut pair_starts = vec![0_usize; radii_um.len()];
-    let mut overlap_starts = vec![0_usize; radii_um.len()];
-    let mut overlap_area_starts = vec![0.0_f64; radii_um.len()];
-    let mut ordered_weight_starts = vec![0.0_f64; radii_um.len()];
-    let maximum_radius = *radii_um.last().expect("validated radii");
-    for left in 0..x.len() {
-        for right in (left + 1)..x.len() {
-            budget.charge_pair()?;
-            let displacement_x = x[right] - x[left];
-            let displacement_y = y[right] - y[left];
-            let distance = displacement_x.hypot(displacement_y);
-            if distance > maximum_radius {
-                continue;
-            }
-            let start = radii_um.partition_point(|radius| *radius < distance);
-            if start == radii_um.len() {
-                continue;
-            }
-            let overlap = budget.overlap(window, displacement_x, displacement_y, left, right)?;
-            pair_starts[start] = pair_starts[start]
-                .checked_add(1)
-                .ok_or(TranslationSpatialError::SizeOverflow)?;
-            overlap_starts[start] = overlap_starts[start]
-                .checked_add(1)
-                .ok_or(TranslationSpatialError::SizeOverflow)?;
-            overlap_area_starts[start] += overlap;
-            ordered_weight_starts[start] += 2.0 * window.area_um2() / overlap;
-            if !overlap_area_starts[start].is_finite() || !ordered_weight_starts[start].is_finite()
-            {
-                return Err(TranslationSpatialError::InvalidPattern {
-                    reason: "translation pair accumulation is non-finite".into(),
-                });
-            }
-        }
-    }
-    cumulative_counts(&mut pair_starts)?;
-    cumulative_counts(&mut overlap_starts)?;
-    cumulative_finite(&mut overlap_area_starts)?;
-    cumulative_finite(&mut ordered_weight_starts)?;
-    Ok(TranslationCurveWork {
-        unordered_pairs: pair_starts,
-        overlap_evaluations: overlap_starts,
-        overlap_area_sums: overlap_area_starts,
-        ordered_weight_sums: ordered_weight_starts,
-    })
+) -> Result<CurveWork, TranslationSpatialError> {
+    estimate_curve(x, y, window, radii_um, None, budget)
 }
 
 fn make_curve(
     area_um2: f64,
     point_count: usize,
     radii_um: &[f64],
-    work: &TranslationCurveWork,
+    work: &CurveWork,
 ) -> Result<Vec<TranslationKlPoint>, TranslationSpatialError> {
     let denominator = point_count
         .checked_mul(point_count - 1)
@@ -266,7 +219,7 @@ fn make_curve(
         .copied()
         .enumerate()
         .map(|(index, radius_um)| {
-            let k = area_um2 * work.ordered_weight_sums[index] / denominator;
+            let k = area_um2 * work.weighted_sums[index] / denominator;
             let l = (k / std::f64::consts::PI).sqrt();
             if !k.is_finite() || !l.is_finite() {
                 return Err(TranslationSpatialError::InvalidPattern {
@@ -275,12 +228,12 @@ fn make_curve(
             }
             Ok(TranslationKlPoint {
                 radius_um,
-                ordered_pairs: work.unordered_pairs[index]
+                ordered_pairs: work.pair_counts[index]
                     .checked_mul(2)
                     .ok_or(TranslationSpatialError::SizeOverflow)?,
-                overlap_evaluations: work.overlap_evaluations[index],
-                translation_overlap_area_sum_um2: canonical_zero(work.overlap_area_sums[index]),
-                translation_weight_sum: canonical_zero(work.ordered_weight_sums[index]),
+                overlap_evaluations: work.evaluations[index],
+                translation_overlap_area_sum_um2: canonical_zero(work.measure_sums[index]),
+                translation_weight_sum: canonical_zero(work.weighted_sums[index]),
                 k: Some(canonical_zero(k)),
                 l: Some(canonical_zero(l)),
                 theoretical_k: std::f64::consts::PI * radius_um * radius_um,
@@ -405,25 +358,4 @@ pub(super) fn translation_configuration_digest(config: &TranslationSpatialConfig
             .to_vec(),
     ]);
     ContentDigest::from_framed(fields.iter().map(Vec::as_slice))
-}
-
-fn cumulative_counts(values: &mut [usize]) -> Result<(), TranslationSpatialError> {
-    for index in 1..values.len() {
-        values[index] = values[index]
-            .checked_add(values[index - 1])
-            .ok_or(TranslationSpatialError::SizeOverflow)?;
-    }
-    Ok(())
-}
-
-fn cumulative_finite(values: &mut [f64]) -> Result<(), TranslationSpatialError> {
-    for index in 1..values.len() {
-        values[index] += values[index - 1];
-        if !values[index].is_finite() {
-            return Err(TranslationSpatialError::InvalidPattern {
-                reason: "translation cumulative sum is non-finite".into(),
-            });
-        }
-    }
-    Ok(())
 }

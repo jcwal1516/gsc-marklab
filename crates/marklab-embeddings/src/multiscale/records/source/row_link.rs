@@ -195,11 +195,10 @@ impl PatchEmbeddingSourceRowLink {
         {
             return Err(MultiscaleEmbeddingError::PatchSourceRowLinkMismatch);
         }
-        for (row, ((entry, expected), source_row)) in entries
+        for ((entry, expected), source_row) in entries
             .iter()
             .zip(expected_patches.ids())
             .zip(identity_map.source_rows_by_expected_patch())
-            .enumerate()
         {
             if &entry.patch_id != expected
                 || entry.source_entity_row != *source_row
@@ -208,7 +207,6 @@ impl PatchEmbeddingSourceRowLink {
                     EmbeddingStatus::Present | EmbeddingStatus::QcRejected
                 ) != entry.source_vector_row.is_some())
             {
-                let _ = row;
                 return Err(MultiscaleEmbeddingError::PatchSourceRowLinkMismatch);
             }
         }
@@ -280,7 +278,6 @@ impl PatchEmbeddingSourceRowLink {
     }
 
     /// Decode with count/string preflight and exact source-chain rebinding.
-    #[allow(clippy::too_many_arguments)]
     pub fn from_canonical_json(
         bytes: &[u8],
         source_entities: &PatchSourceEntitySet,

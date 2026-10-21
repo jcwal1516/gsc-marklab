@@ -1,18 +1,21 @@
-use std::{fs, path::PathBuf};
+use std::fs;
 
-use marklab_bayes::{
-    sha256_hex, LateFusionPatient, LateFusionSpec, LateFusionWorkerRequest, LateFusionWorkerResult,
+use marklab_bayes::sha256_hex;
+use marklab_prediction::{
+    LateFusionPatient, LateFusionSpec, LateFusionWorkerRequest, LateFusionWorkerResult,
 };
 use serde::Serialize;
 
-use super::{embedding_spatial, publish_json, run_worker, BayesCliError};
+use super::cli_schema::LateFusionArgs;
+use super::{embedding_spatial, publish_json, run_worker, CliError};
 
-pub(super) fn run(
-    input: PathBuf,
-    l2_penalty: f64,
-    timeout_seconds: u64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: LateFusionArgs) -> Result<(), CliError> {
+    let LateFusionArgs {
+        input,
+        l2_penalty,
+        timeout_seconds,
+        out,
+    } = args;
     let input_bytes = embedding_spatial::read(&input)?;
     let mut reader = csv::ReaderBuilder::new()
         .flexible(false)
@@ -22,9 +25,7 @@ pub(super) fn run(
         || headers.iter().take(4).collect::<Vec<_>>()
             != ["patient_id", "split", "base_prediction_source", "label"]
     {
-        return Err(BayesCliError::Input(
-            "late-fusion CSV header differs".into(),
-        ));
+        return Err(CliError::Input("late-fusion CSV header differs".into()));
     }
     let modalities = headers
         .iter()
@@ -40,7 +41,7 @@ pub(super) fn run(
             base_prediction_source: row[2].into(),
             label: row[3]
                 .parse()
-                .map_err(|_| BayesCliError::Input("late-fusion label is invalid".into()))?,
+                .map_err(|_| CliError::Input("late-fusion label is invalid".into()))?,
             modality_probabilities: row
                 .iter()
                 .skip(4)
@@ -49,23 +50,23 @@ pub(super) fn run(
                         Ok(None)
                     } else {
                         value.parse().map(Some).map_err(|_| {
-                            BayesCliError::Input("late-fusion probability is invalid".into())
+                            CliError::Input("late-fusion probability is invalid".into())
                         })
                     }
                 })
                 .collect::<Result<Vec<_>, _>>()?,
         });
     }
-    let repository = &marklab::python_backend_assets_root()?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let worker_directory = repository.join("workers/python");
     let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
+    let lock_bytes = fs::read(&lock_path).map_err(|source| CliError::Io {
         path: lock_path,
         source,
     })?;
     let worker_name = "marklab_scipy_late_fusion_worker.py";
     let worker_path = worker_directory.join(worker_name);
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
+    let worker_bytes = fs::read(&worker_path).map_err(|source| CliError::Io {
         path: worker_path,
         source,
     })?;
@@ -120,11 +121,11 @@ struct Output {
     calibration_split: &'static str,
     evaluation_split: &'static str,
     modalities: Vec<String>,
-    model: marklab_bayes::LateFusionModel,
-    calibrator: marklab_bayes::LateFusionCalibrator,
-    predictions: Vec<marklab_bayes::LateFusionPrediction>,
-    metrics: marklab_bayes::LateFusionMetric,
-    missing_scenarios: Vec<marklab_bayes::MissingScenario>,
-    modality_ablations: Vec<marklab_bayes::ModalityAblation>,
+    model: marklab_prediction::LateFusionModel,
+    calibrator: marklab_prediction::LateFusionCalibrator,
+    predictions: Vec<marklab_prediction::LateFusionPrediction>,
+    metrics: marklab_prediction::LateFusionMetric,
+    missing_scenarios: Vec<marklab_prediction::MissingScenario>,
+    modality_ablations: Vec<marklab_prediction::ModalityAblation>,
     claim_status: &'static str,
 }

@@ -1,10 +1,10 @@
 use std::{collections::BTreeMap, path::Path};
 
-use marklab::{ArbitraryWindowIppEvent, ArbitraryWindowIppQuadratureNode};
-use marklab_bayes::sha256_hex;
+use marklab::spatial::{ArbitraryWindowIppEvent, ArbitraryWindowIppQuadratureNode};
+use marklab_bayes::json_sha256;
 use serde::{Deserialize, Serialize};
 
-use super::BayesCliError;
+use super::CliError;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -22,13 +22,13 @@ pub(super) fn prepare(
     path: &Path,
     events: &[ArbitraryWindowIppEvent],
     quadrature: &[ArbitraryWindowIppQuadratureNode],
-) -> Result<PreparedEventMembership, BayesCliError> {
+) -> Result<PreparedEventMembership, CliError> {
     let mut reader = csv::ReaderBuilder::new().flexible(false).from_path(path)?;
     let rows = reader
         .deserialize()
         .collect::<Result<Vec<MembershipRow>, _>>()?;
     if rows.len() != events.len() || rows.len() > 100_000 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "exact-window event membership must contain every event once within 100000 rows".into(),
         ));
     }
@@ -40,14 +40,14 @@ pub(super) fn prepare(
     let mut counts = vec![0_u64; node_indices.len()];
     for (event, row) in events.iter().zip(&rows) {
         if event.event_id != row.event_id {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "exact-window membership event identities differ from canonical events".into(),
             ));
         }
         let index = node_indices
             .get(row.quadrature_node_id.as_str())
             .ok_or_else(|| {
-                BayesCliError::Input(format!(
+                CliError::Input(format!(
                     "exact-window event {} references absent quadrature node {}",
                     row.event_id, row.quadrature_node_id
                 ))
@@ -55,7 +55,7 @@ pub(super) fn prepare(
         counts[*index] += 1;
     }
     Ok(PreparedEventMembership {
-        digest: sha256_hex(&serde_json::to_vec(&rows)?),
+        digest: json_sha256(&rows)?,
         observed_node_counts: counts,
     })
 }
@@ -63,9 +63,9 @@ pub(super) fn prepare(
 pub(super) fn physical_neighbor_pairs(
     quadrature: &[ArbitraryWindowIppQuadratureNode],
     radius_um: f64,
-) -> Result<Vec<[usize; 2]>, BayesCliError> {
+) -> Result<Vec<[usize; 2]>, CliError> {
     if !radius_um.is_finite() || radius_um <= 0.0 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "exact-window physical neighbor radius must be positive and finite".into(),
         ));
     }
@@ -77,7 +77,7 @@ pub(super) fn physical_neighbor_pairs(
             let dy = quadrature[left].y_um - quadrature[right].y_um;
             let distance_squared = dx.mul_add(dx, dy * dy);
             if !distance_squared.is_finite() {
-                return Err(BayesCliError::Input(
+                return Err(CliError::Input(
                     "exact-window physical neighbor distance is non-finite".into(),
                 ));
             }

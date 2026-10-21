@@ -1,12 +1,17 @@
-use marklab_workflow::ContentDigest;
+use crate::result_vocabulary::{MarkNormalization, ProbabilityRowNullModel};
+use marklab_project::ContentDigest;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::common::{finite::canonical_zero, summation::kahan_add};
+use marklab_numerics::summation::NeumaierSum;
+
+use crate::common::finite::canonical_zero;
 
 use crate::{
-    classical::SpatialGeometryPlan2D, compartment_interface::analysis::measurement_status_name,
-    ClassicalSpatialLimits, DeclaredScalarPatternInput, ObservationWindow2D, ScalarMarkId,
+    classical::SpatialGeometryPlan2D,
+    marks::{DeclaredScalarPatternInput, ScalarMarkId},
+    spatial::ClassicalSpatialLimits,
+    ObservationWindow2D,
 };
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -94,13 +99,14 @@ pub struct SoftPairMixingResult {
     pub case_id: String,
     pub timepoint: String,
     pub mark_id: String,
-    pub measurement_status: String,
+    #[serde(with = "crate::measurement_status_wire")]
+    pub measurement_status: marklab_data::MeasurementStatus,
     pub coordinate_frame_id: String,
     pub window_digest: String,
     pub radius_um: f64,
     pub class_ids: Vec<String>,
-    pub normalization: String,
-    pub random_label_null: String,
+    pub normalization: MarkNormalization,
+    pub random_label_null: ProbabilityRowNullModel,
     pub graph_digest: String,
     pub configuration_digest: String,
     pub directed_pair_visits: usize,
@@ -198,8 +204,7 @@ pub fn soft_pair_mixing(
         });
     }
 
-    let mut observed = vec![0.0_f64; matrix_cells];
-    let mut observed_correction = vec![0.0_f64; matrix_cells];
+    let mut observed = vec![NeumaierSum::new(); matrix_cells];
     let mut directed_pair_visits = 0_usize;
     let mut probability_product_evaluations = 0_usize;
     for source in 0..points {
@@ -235,9 +240,7 @@ pub fn soft_pair_mixing(
             for source_class in 0..classes {
                 for target_class in 0..classes {
                     let index = source_class * classes + target_class;
-                    kahan_add(
-                        &mut observed[index],
-                        &mut observed_correction[index],
+                    observed[index].add(
                         f64::from(values[source_start + source_class])
                             * f64::from(values[target_start + target_class]),
                     );
@@ -280,7 +283,7 @@ pub fn soft_pair_mixing(
     for source_class in 0..classes {
         for target_class in 0..classes {
             let index = source_class * classes + target_class;
-            let expected_pair_mass = canonical_zero(observed[index] + observed_correction[index]);
+            let expected_pair_mass = canonical_zero(observed[index].total());
             let pair_probability = (directed_pair_visits > 0)
                 .then(|| canonical_zero(expected_pair_mass / directed_pair_visits as f64));
             let random_label_probability = canonical_zero(
@@ -314,13 +317,13 @@ pub fn soft_pair_mixing(
         case_id: input.pattern().meta.case_id.clone(),
         timepoint: input.pattern().meta.timepoint.clone(),
         mark_id: mark_id.as_str().into(),
-        measurement_status: measurement_status_name(status).into(),
+        measurement_status: status,
         coordinate_frame_id: input.coordinate_frame_id().as_str().into(),
         window_digest: window.descriptor().logical_digest.to_string(),
         radius_um: config.radius_um,
         class_ids: levels.to_vec(),
-        normalization: "expected_source_target_probability_mass_per_directed_radius_pair".into(),
-        random_label_null: "complete_probability_rows_without_replacement".into(),
+        normalization: MarkNormalization::ExpectedSourceTargetProbabilityMassPerDirectedRadiusPair,
+        random_label_null: ProbabilityRowNullModel::CompleteProbabilityRowsWithoutReplacement,
         graph_digest: graph_digest.to_string(),
         configuration_digest: configuration_digest.to_string(),
         directed_pair_visits,

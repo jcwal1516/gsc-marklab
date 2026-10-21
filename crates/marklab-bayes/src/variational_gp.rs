@@ -1,9 +1,13 @@
+use crate::is_worker_timeout;
 use crate::validation::all_finite as finite;
 
 use std::collections::{BTreeSet, HashSet};
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::ClaimStatus;
+use crate::ScalarSummary;
 use crate::{
     model::{
         BackendContract, MODEL_FORMAT, MODEL_VERSION, PYMC_VERSION, WORKER_REQUEST_FORMAT,
@@ -11,7 +15,18 @@ use crate::{
     },
     BayesError, FitState, GpObservation, GpPredictionCoordinate, WorkerBackend,
 };
+use marklab_core::backend::ModelMaturity;
 
+/// Matérn-3/2 Gaussian regression with a VFE inducing-point approximation.
+///
+/// The observation model is `y_i ~ Normal(f(x_i), noise_sd)` with `f ~ GP(mean, amplitude^2 *
+/// Matern32(length_scale))`. The mean has `Normal(mean_prior_mean, mean_prior_sd)` prior;
+/// amplitude, length scale, and noise SD have independent half-normal priors with their
+/// supplied scales. Inducing locations have normal priors around interior empirical
+/// coordinate quantiles, with scale `max(coordinate_range / (inducing_points + 1), 1e-3)` and
+/// an ordered transform. The worker optimizes mean-field ADVI with Adam over multiple starts;
+/// its draws are an approximate posterior, not NUTS draws.
+///
 #[derive(Clone, Debug)]
 pub struct VariationalGpSpec {
     pub mean_prior_mean: f64,
@@ -48,7 +63,7 @@ pub struct VariationalGpModelIr {
     pub inducing_initialization: &'static str,
     pub inducing_constraint: &'static str,
     pub fit_state_ceiling: &'static str,
-    pub maturity: &'static str,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -113,7 +128,7 @@ impl VariationalGpWorkerRequest {
             || !(1_000..=100_000).contains(&spec.iterations)
             || !(500..=10_000).contains(&spec.posterior_draws)
             || spec.learning_rate > 0.1
-            || !(1..=3_600).contains(&timeout_seconds)
+            || !is_worker_timeout(timeout_seconds)
         {
             return Err(BayesError::InvalidSpec(
                 "variational GP counts, learning rate, or timeout are outside limits".into(),
@@ -169,7 +184,7 @@ impl VariationalGpWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -190,7 +205,7 @@ impl VariationalGpWorkerRequest {
                 inducing_initialization: "coordinate_quantiles",
                 inducing_constraint: "strictly_ordered",
                 fit_state_ceiling: "approximate_only",
-                maturity: "experimental",
+                maturity: ModelMaturity::Experimental,
             },
             observations: spec.observations,
             predictions: spec.predictions,
@@ -218,20 +233,11 @@ impl VariationalGpWorkerRequest {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct VariationalScalarSummary {
-    pub mean: f64,
-    pub sd: f64,
-    pub interval_lower: f64,
-    pub interval_upper: f64,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct VariationalPosterior {
-    pub mean: VariationalScalarSummary,
-    pub amplitude: VariationalScalarSummary,
-    pub length_scale_um: VariationalScalarSummary,
-    pub noise_sd: VariationalScalarSummary,
+    pub mean: ScalarSummary,
+    pub amplitude: ScalarSummary,
+    pub length_scale_um: ScalarSummary,
+    pub noise_sd: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -300,11 +306,7 @@ impl VariationalGpWorkerResult {
     ) -> Result<(), BayesError> {
         if self.format != "marklab.pymc_variational_gp_worker_result"
             || self.version != 1
-            || self.backend.name != "pymc"
-            || self.backend.version != PYMC_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
             || self.fit_state == FitState::Complete
             || self.inducing_locations_um.len() != request.inference.inducing_points as usize
@@ -430,9 +432,9 @@ impl VariationalGpWorkerResult {
             inference: request.inference,
             fit_state: self.fit_state,
             claim_status: match self.fit_state {
-                FitState::ApproximateOnly => "experimental_approximate_only",
-                FitState::Nonconverged => "diagnostic_only_nonconverged",
-                FitState::Complete => "invalid_complete_state",
+                FitState::ApproximateOnly => ClaimStatus::ExperimentalApproximateOnly,
+                FitState::Nonconverged => ClaimStatus::DiagnosticOnlyNonconverged,
+                FitState::Complete => ClaimStatus::InvalidCompleteState,
             },
             posterior: self.posterior,
             inducing_locations_um: self.inducing_locations_um,
@@ -462,7 +464,7 @@ pub struct VariationalGpFit {
     pub input: VariationalGpInputIdentity,
     pub inference: VariationalInferenceSpec,
     pub fit_state: FitState,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub posterior: VariationalPosterior,
     pub inducing_locations_um: Vec<f64>,
     pub predictions: Vec<VariationalPrediction>,

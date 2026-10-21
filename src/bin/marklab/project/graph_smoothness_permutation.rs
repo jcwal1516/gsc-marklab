@@ -1,25 +1,20 @@
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
-};
+use std::{borrow::Cow, collections::BTreeMap, io, path::Path};
 
-use marklab_bayes::{
-    graph_smoothness_permutation_test, sha256_hex, GraphLaplacian, GraphSignalEdge,
-    GraphSignalNode, GraphSmoothnessPermutationResult, GraphSmoothnessPermutationSpec,
-    StratifiedGraphSignalNode,
+use marklab_graph::{
+    graph_smoothness_permutation_test, summarize_graph_signal_input, GraphLaplacian,
+    GraphSignalEdge, GraphSignalNode, GraphSmoothnessPermutationResult,
+    GraphSmoothnessPermutationSpec, StratifiedGraphSignalNode,
 };
-use marklab_workflow::{
-    execute_algorithm, ArtifactRef, ArtifactSchema, CacheKeyMaterial, CacheStatus, ContentDigest,
-    DurableProject, DurableProjectLimits, LocalScheduler, MarklabProject, NodeError, NodeId,
-    NodeSpec, SchedulerLimits, WorkflowGraph, WorkflowNode,
-};
+use marklab_project::ContentDigest;
+use marklab_workflow::NodeError;
 use serde::{Deserialize, Serialize};
 
+use super::cli_schema::{
+    GraphSmoothnessPermutationTestLimits, GraphSmoothnessPermutationTestProjectArgs,
+};
 use super::{
-    bayes, native_runtime_provenance, report_recovery, source_artifact, BayesCliError,
-    MAXIMUM_INPUT_BYTES, MAXIMUM_RESULT_BYTES, PROJECT_CONTROL_BYTES, PROJECT_LEDGER_BYTES,
-    PROJECT_LEDGER_RECORDS, PROJECT_RECORD_BYTES,
+    durable::{self, Codec, NodeContract, Source, SourceNode},
+    CliError, MAXIMUM_INPUT_BYTES, MAXIMUM_RESULT_BYTES,
 };
 
 const NODES_KIND: &str = "application/vnd.marklab.source.stratified-graph-signals-csv;version=1";
@@ -27,52 +22,55 @@ const EDGES_KIND: &str = "application/vnd.marklab.source.graph-edges-csv;version
 const OUTPUT_KIND: &str = "application/vnd.marklab.graph-smoothness-permutation+json;version=1";
 const IMPLEMENTATION_IDENTITY: &str = "marklab-project-graph-smoothness-permutation-test-node-v1";
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    project_path: PathBuf,
-    nodes_path: PathBuf,
-    edges_path: PathBuf,
-    laplacian: String,
-    permutations: u32,
-    seed: u64,
-    maximum_nodes: usize,
-    maximum_edges: usize,
-    maximum_dimension: usize,
-    maximum_component_edge_visits: u64,
-    memory_budget_mib: usize,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: GraphSmoothnessPermutationTestProjectArgs) -> Result<(), CliError> {
+    let GraphSmoothnessPermutationTestProjectArgs {
+        project: project_path,
+        nodes: nodes_path,
+        edges: edges_path,
+        laplacian,
+        permutations,
+        seed,
+        limits,
+        out: output_path,
+    } = args;
+    let GraphSmoothnessPermutationTestLimits {
+        maximum_nodes,
+        maximum_edges,
+        maximum_dimension,
+        maximum_component_edge_visits,
+        memory_budget_mib,
+    } = limits;
+    const LABEL: &str = "graph smoothness sources";
     let memory_bytes = memory_budget_mib
         .checked_mul(1024 * 1024)
-        .ok_or_else(|| BayesCliError::Input("--memory-budget-mib is too large".into()))?;
+        .ok_or_else(|| CliError::Input("--memory-budget-mib is too large".into()))?;
     if maximum_nodes < 2
         || maximum_edges == 0
         || maximum_dimension == 0
         || maximum_component_edge_visits == 0
         || memory_bytes == 0
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "graph smoothness node, edge, dimension, work, and memory limits must be positive"
                 .into(),
         ));
     }
     let laplacian_value = GraphLaplacian::parse(&laplacian).map_err(map_error)?;
-    let paths = SourcePaths {
-        nodes: nodes_path,
-        edges: edges_path,
-    };
-    let node_bytes = read_bounded(&paths.nodes, memory_bytes)?;
-    let edge_bytes = read_bounded(&paths.edges, memory_bytes)?;
+    let node_bytes = read_bounded(&nodes_path, memory_bytes)?;
+    let edge_bytes = read_bounded(&edges_path, memory_bytes)?;
     let source_bytes = node_bytes
         .len()
         .checked_add(edge_bytes.len())
-        .ok_or_else(|| BayesCliError::Input("graph source-byte total overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("graph source-byte total overflowed".into()))?;
     if source_bytes > memory_bytes {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "graph source files exceed the retained-memory budget".into(),
         ));
     }
-    let prepared_artifacts = source_artifacts_from_bytes(&node_bytes, &edge_bytes)?;
+    let sources = vec![
+        Source::from_bytes(nodes_path, NODES_KIND, &node_bytes)?,
+        Source::from_bytes(edges_path, EDGES_KIND, &edge_bytes)?,
+    ];
     let (nodes, feature_names) = read_nodes(&node_bytes)?;
     let edges = read_edges(&edge_bytes)?;
     let requirements = preflight(
@@ -81,10 +79,7 @@ pub(super) fn run(
         &edges,
         laplacian_value,
         permutations,
-        maximum_nodes,
-        maximum_edges,
-        maximum_dimension,
-        maximum_component_edge_visits,
+        limits,
     )?;
     let retained = retained_bytes(
         source_bytes,
@@ -94,20 +89,16 @@ pub(super) fn run(
         permutations,
     )?;
     if retained > memory_bytes {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "graph smoothness retained-memory estimate {retained} exceeds budget {memory_bytes}"
         )));
     }
-    if source_artifacts(&paths)? != prepared_artifacts {
-        return Err(BayesCliError::Input(
-            "graph smoothness sources changed while prepared".into(),
-        ));
-    }
+    Source::ensure_all_unchanged(&sources, LABEL)?;
     drop(node_bytes);
     drop(edge_bytes);
 
-    let nodes_sha256 = prepared_artifacts[0].digest().to_string();
-    let edges_sha256 = prepared_artifacts[1].digest().to_string();
+    let nodes_sha256 = sources[0].artifact().digest().to_string();
+    let edges_sha256 = sources[1].artifact().digest().to_string();
     let analysis = GraphSmoothnessPermutationSpec {
         nodes,
         feature_names,
@@ -117,110 +108,50 @@ pub(super) fn run(
         seed,
         maximum_component_edge_visits,
     };
-    let node = GraphSmoothnessProjectNode::new(
-        paths,
-        prepared_artifacts.clone(),
+    let (analysis, contract) = GraphSmoothness::new(
         analysis,
         requirements,
         nodes_sha256,
         edges_sha256,
         laplacian,
-        maximum_nodes,
-        maximum_edges,
-        maximum_dimension,
-        memory_budget_mib,
+        limits,
     )?;
-    let runtime = native_runtime_provenance()?;
-    let limits = DurableProjectLimits::new(
-        PROJECT_CONTROL_BYTES,
-        PROJECT_LEDGER_BYTES,
-        PROJECT_LEDGER_RECORDS,
-        PROJECT_RECORD_BYTES,
-        MAXIMUM_RESULT_BYTES,
-    )
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let mut durable = DurableProject::open_or_create(&project_path, limits)
-        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
-    report_recovery(&durable);
-    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    for artifact in &prepared_artifacts {
-        project
-            .register_reference(artifact.clone())
-            .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    }
-    let graph = WorkflowGraph::new([node.spec().clone()])
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let scheduler = LocalScheduler::new(SchedulerLimits {
-        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
-    })
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let execution = execute_algorithm(
-        &mut durable,
-        &mut project,
-        &graph,
+    let node = SourceNode::new(
+        contract,
+        LABEL,
+        sources,
+        analysis,
+        GraphSmoothness::execute,
+        |analysis, output| analysis.validate(output).map_err(NodeError::decode),
+    )?;
+
+    let run = durable::execute_node(
+        &project_path,
         &node,
-        &scheduler,
-        ArtifactSchema::new("marklab.graph_smoothness_permutation_test", 1)
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-        runtime,
+        ("marklab.graph_smoothness_permutation_test", 1),
+        MAXIMUM_RESULT_BYTES,
+    )?;
+    durable::publish(
+        "graph-smoothness-permutation-test",
+        &output_path,
+        &run.output,
+        run.cache_status,
     )
-    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
-    bayes::publish_json(&output_path, &execution.output)?;
-    let cache_status = match execution.cache_status {
-        CacheStatus::Hit => "hit",
-        CacheStatus::Miss => "miss",
-    };
-    eprintln!("project graph-smoothness-permutation-test cache_status={cache_status}");
-    Ok(())
 }
 
-#[derive(Clone)]
-struct SourcePaths {
-    nodes: PathBuf,
-    edges: PathBuf,
-}
-
-fn source_artifacts(paths: &SourcePaths) -> Result<Vec<ArtifactRef>, BayesCliError> {
-    Ok(vec![
-        source_artifact(&paths.nodes, NODES_KIND)?,
-        source_artifact(&paths.edges, EDGES_KIND)?,
-    ])
-}
-
-fn source_artifacts_from_bytes(
-    node_bytes: &[u8],
-    edge_bytes: &[u8],
-) -> Result<Vec<ArtifactRef>, BayesCliError> {
-    Ok(vec![
-        ArtifactRef::from_bytes(NODES_KIND, node_bytes)
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-        ArtifactRef::from_bytes(EDGES_KIND, edge_bytes)
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-    ])
-}
-
-fn read_bounded(path: &Path, memory_bytes: usize) -> Result<Vec<u8>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
+fn read_bounded(path: &Path, memory_bytes: usize) -> Result<Vec<u8>, CliError> {
     let maximum = (MAXIMUM_INPUT_BYTES as usize).min(memory_bytes);
-    if !metadata.is_file() || metadata.len() > maximum as u64 {
-        return Err(BayesCliError::Input(format!(
+    crate::input_file::read_regular_file(
+        path,
+        maximum as u64,
+        &format!(
             "graph source must be a regular file within {maximum} bytes: {}",
             path.display()
-        )));
-    }
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
+        ),
+    )
 }
 
-fn read_nodes(
-    bytes: &[u8],
-) -> Result<(Vec<StratifiedGraphSignalNode>, Vec<String>), BayesCliError> {
+fn read_nodes(bytes: &[u8]) -> Result<(Vec<StratifiedGraphSignalNode>, Vec<String>), CliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
@@ -229,7 +160,7 @@ fn read_nodes(
     if headers.len() < 3
         || headers.iter().take(2).collect::<Vec<_>>() != ["node_id", "permutation_stratum"]
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "smoothness nodes require node_id,permutation_stratum and signal_* columns".into(),
         ));
     }
@@ -244,7 +175,7 @@ fn read_nodes(
         let signal = (2..record.len())
             .map(|index| {
                 record[index].parse::<f64>().map_err(|_| {
-                    BayesCliError::Input(format!(
+                    CliError::Input(format!(
                         "smoothness signal value in column {} is invalid",
                         &headers[index]
                     ))
@@ -260,13 +191,13 @@ fn read_nodes(
     Ok((nodes, feature_names))
 }
 
-fn read_edges(bytes: &[u8]) -> Result<Vec<GraphSignalEdge>, BayesCliError> {
+fn read_edges(bytes: &[u8]) -> Result<Vec<GraphSignalEdge>, CliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
         .from_reader(bytes);
     if reader.headers()?.iter().collect::<Vec<_>>() != ["left_node_id", "right_node_id", "weight"] {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "graph edge headers must be left_node_id,right_node_id,weight".into(),
         ));
     }
@@ -278,7 +209,7 @@ fn read_edges(bytes: &[u8]) -> Result<Vec<GraphSignalEdge>, BayesCliError> {
             right_node_id: record[1].to_owned(),
             weight: record[2]
                 .parse::<f64>()
-                .map_err(|_| BayesCliError::Input("graph edge weight is invalid".into()))?,
+                .map_err(|_| CliError::Input("graph edge weight is invalid".into()))?,
         });
     }
     Ok(edges)
@@ -294,66 +225,52 @@ struct Requirements {
     graph_digest: String,
 }
 
-#[allow(clippy::too_many_arguments)]
 fn preflight(
     nodes: &[StratifiedGraphSignalNode],
     feature_names: &[String],
     edges: &[GraphSignalEdge],
     laplacian: GraphLaplacian,
     permutations: u32,
-    maximum_nodes: usize,
-    maximum_edges: usize,
-    maximum_dimension: usize,
-    maximum_component_edge_visits: u64,
-) -> Result<Requirements, BayesCliError> {
+    limits: GraphSmoothnessPermutationTestLimits,
+) -> Result<Requirements, CliError> {
+    let GraphSmoothnessPermutationTestLimits {
+        maximum_nodes,
+        maximum_edges,
+        maximum_dimension,
+        maximum_component_edge_visits,
+        ..
+    } = limits;
     if !(20..=10_000).contains(&permutations)
         || !(2..=100_000).contains(&nodes.len())
         || !(1..=128).contains(&feature_names.len())
         || edges.is_empty()
         || edges.len() > 1_000_000
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "smoothness graph dimensions or permutation controls are invalid".into(),
         ));
     }
     if nodes.len() > maximum_nodes {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "graph node count exceeds maximum_nodes {maximum_nodes}"
         )));
     }
     if edges.len() > maximum_edges {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "graph edge count exceeds maximum_edges {maximum_edges}"
         )));
     }
     if feature_names.len() > maximum_dimension {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "graph signal dimension exceeds maximum_dimension {maximum_dimension}"
         )));
     }
-    let mut feature_set = HashSet::new();
-    if feature_names.iter().any(|name| {
-        name.is_empty()
-            || name.trim() != name
-            || !name.starts_with("signal_")
-            || !feature_set.insert(name.as_str())
-    }) {
-        return Err(BayesCliError::Input(
-            "signal feature names must be unique exact signal_* names".into(),
-        ));
-    }
-    let mut node_ids = HashMap::new();
     let mut strata = BTreeMap::<&str, usize>::new();
-    for (index, node) in nodes.iter().enumerate() {
-        if node.node_id.is_empty()
-            || node.node_id.trim() != node.node_id
-            || node_ids.insert(node.node_id.as_str(), index).is_some()
-            || node.permutation_stratum.is_empty()
+    for node in nodes {
+        if node.permutation_stratum.is_empty()
             || node.permutation_stratum.trim() != node.permutation_stratum
-            || node.signal.len() != feature_names.len()
-            || node.signal.iter().any(|value| !value.is_finite())
         {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "smoothness nodes require unique exact IDs/strata and complete finite signal vectors"
                     .into(),
             ));
@@ -361,44 +278,21 @@ fn preflight(
         *strata.entry(node.permutation_stratum.as_str()).or_default() += 1;
     }
     if strata.values().any(|count| *count < 2) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "every graph permutation stratum requires at least two nodes".into(),
         ));
     }
-    let mut pairs = HashSet::new();
-    let mut degree = vec![0.0_f64; nodes.len()];
-    for edge in edges {
-        let Some(&left) = node_ids.get(edge.left_node_id.as_str()) else {
-            return Err(BayesCliError::Input(format!(
-                "edge references unknown node {}",
-                edge.left_node_id
-            )));
-        };
-        let Some(&right) = node_ids.get(edge.right_node_id.as_str()) else {
-            return Err(BayesCliError::Input(format!(
-                "edge references unknown node {}",
-                edge.right_node_id
-            )));
-        };
-        let pair = if left < right {
-            (left, right)
-        } else {
-            (right, left)
-        };
-        if left == right || !edge.weight.is_finite() || edge.weight <= 0.0 || !pairs.insert(pair) {
-            return Err(BayesCliError::Input(
-                "graph edges must be unique unordered positive-weight non-self pairs".into(),
-            ));
-        }
-        degree[left] += edge.weight;
-        degree[right] += edge.weight;
-        if !degree[left].is_finite() || !degree[right].is_finite() {
-            return Err(BayesCliError::Input("graph degree overflowed".into()));
-        }
-    }
-    if laplacian == GraphLaplacian::SymmetricNormalized && degree.iter().any(|value| *value <= 0.0)
-    {
-        return Err(BayesCliError::Input(
+    let unstratified = nodes
+        .iter()
+        .map(|node| GraphSignalNode {
+            node_id: node.node_id.clone(),
+            signal: node.signal.clone(),
+        })
+        .collect::<Vec<_>>();
+    let summary = summarize_graph_signal_input(&unstratified, feature_names, edges)
+        .map_err(|error| CliError::Input(error.to_string()))?;
+    if laplacian == GraphLaplacian::SymmetricNormalized && summary.neighbor_counts.contains(&0) {
+        return Err(CliError::Input(
             "symmetric-normalized Laplacian requires positive degree at every node".into(),
         ));
     }
@@ -407,7 +301,7 @@ fn preflight(
         for (mean, value) in means.iter_mut().zip(&node.signal) {
             *mean += value;
             if !mean.is_finite() {
-                return Err(BayesCliError::Input("graph signal sum overflowed".into()));
+                return Err(CliError::Input("graph signal sum overflowed".into()));
             }
         }
     }
@@ -419,73 +313,33 @@ fn preflight(
         for (value, mean) in node.signal.iter().zip(&means) {
             variation += (value - mean) * (value - mean);
             if !variation.is_finite() {
-                return Err(BayesCliError::Input(
-                    "graph signal variation overflowed".into(),
-                ));
+                return Err(CliError::Input("graph signal variation overflowed".into()));
             }
         }
     }
     if variation <= 1e-14 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "SIGNAL normalization requires nonzero global signal variation".into(),
         ));
     }
     let component_edge_visits = (u64::from(permutations) + 1)
         .checked_mul(edges.len() as u64)
         .and_then(|value| value.checked_mul(feature_names.len() as u64))
-        .ok_or_else(|| BayesCliError::Input("smoothness work overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("smoothness work overflowed".into()))?;
     if component_edge_visits > maximum_component_edge_visits
         || maximum_component_edge_visits > 250_000_000
     {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "{component_edge_visits} component-edge visits exceed the declared or fixed resource bound"
         )));
     }
-    let mut digest_nodes = nodes
-        .iter()
-        .map(|node| GraphSignalNode {
-            node_id: node.node_id.clone(),
-            signal: node.signal.clone(),
-        })
-        .collect::<Vec<_>>();
-    digest_nodes.sort_by(|left, right| left.node_id.cmp(&right.node_id));
-    let digest_indices = digest_nodes
-        .iter()
-        .enumerate()
-        .map(|(index, node)| (node.node_id.as_str(), index))
-        .collect::<HashMap<_, _>>();
-    let mut digest_edges = edges
-        .iter()
-        .map(|edge| {
-            let left = digest_indices[edge.left_node_id.as_str()];
-            let right = digest_indices[edge.right_node_id.as_str()];
-            if left < right {
-                (left, right, edge.weight)
-            } else {
-                (right, left, edge.weight)
-            }
-        })
-        .collect::<Vec<_>>();
-    digest_edges.sort_by_key(|edge| (edge.0, edge.1));
-    #[derive(Serialize)]
-    struct DigestGraph<'a> {
-        nodes: &'a [GraphSignalNode],
-        feature_names: &'a [String],
-        edges: &'a [(usize, usize, f64)],
-    }
-    let digest_bytes = serde_json::to_vec(&DigestGraph {
-        nodes: &digest_nodes,
-        feature_names,
-        edges: &digest_edges,
-    })
-    .map_err(|error| BayesCliError::Input(format!("graph digest encoding failed: {error}")))?;
     Ok(Requirements {
         node_count: nodes.len(),
         edge_count: edges.len(),
         dimension: feature_names.len(),
         stratum_count: strata.len(),
         component_edge_visits,
-        graph_digest: sha256_hex(&digest_bytes),
+        graph_digest: summary.graph_digest,
     })
 }
 
@@ -495,52 +349,43 @@ fn retained_bytes(
     edges: usize,
     dimension: usize,
     permutations: u32,
-) -> Result<usize, BayesCliError> {
+) -> Result<usize, CliError> {
     let analysis = source_bytes
         .checked_add(nodes.saturating_mul(384 + dimension.saturating_mul(8)))
         .and_then(|value| value.checked_add(edges.saturating_mul(256)))
         .and_then(|value| value.checked_add(dimension.saturating_mul(128)))
-        .ok_or_else(|| BayesCliError::Input("graph analysis memory overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("graph analysis memory overflowed".into()))?;
     analysis
         .checked_mul(2)
         .and_then(|value| value.checked_add(nodes.saturating_mul(128)))
         .and_then(|value| value.checked_add(edges.saturating_mul(64)))
         .and_then(|value| value.checked_add(permutations as usize * 16))
-        .ok_or_else(|| BayesCliError::Input("graph retained-memory estimate overflowed".into()))
+        .ok_or_else(|| CliError::Input("graph retained-memory estimate overflowed".into()))
 }
 
-struct GraphSmoothnessProjectNode {
-    spec: NodeSpec,
-    paths: SourcePaths,
-    input_artifacts: Vec<ArtifactRef>,
+struct GraphSmoothness {
     analysis: GraphSmoothnessPermutationSpec,
     requirements: Requirements,
     nodes_sha256: String,
     edges_sha256: String,
-    configuration_digest: ContentDigest,
-    execution_policy: Vec<u8>,
 }
 
-impl GraphSmoothnessProjectNode {
-    #[allow(clippy::too_many_arguments)]
+impl GraphSmoothness {
     fn new(
-        paths: SourcePaths,
-        input_artifacts: Vec<ArtifactRef>,
         analysis: GraphSmoothnessPermutationSpec,
         requirements: Requirements,
         nodes_sha256: String,
         edges_sha256: String,
         laplacian: String,
-        maximum_nodes: usize,
-        maximum_edges: usize,
-        maximum_dimension: usize,
-        memory_budget_mib: usize,
-    ) -> Result<Self, BayesCliError> {
-        if input_artifacts.len() != 2 {
-            return Err(BayesCliError::Input(
-                "graph smoothness source identities are incomplete".into(),
-            ));
-        }
+        limits: GraphSmoothnessPermutationTestLimits,
+    ) -> Result<(Self, NodeContract), CliError> {
+        let GraphSmoothnessPermutationTestLimits {
+            maximum_nodes,
+            maximum_edges,
+            maximum_dimension,
+            memory_budget_mib,
+            ..
+        } = limits;
         let configuration_digest = ContentDigest::from_framed([
             b"marklab-graph-smoothness-permutation-configuration-v1".as_slice(),
             laplacian.as_bytes(),
@@ -560,28 +405,24 @@ impl GraphSmoothnessProjectNode {
             analysis.permutations, analysis.seed, analysis.maximum_component_edge_visits
         )
         .into_bytes();
-        Ok(Self {
-            spec: NodeSpec::new(
-                NodeId::new("graph-smoothness-permutation-test")
-                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
-                "graph_smoothness_permutation_test",
-                1,
-                Vec::new(),
-            )
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-            paths,
-            input_artifacts,
-            analysis,
-            requirements,
-            nodes_sha256,
-            edges_sha256,
-            configuration_digest,
-            execution_policy,
-        })
-    }
-
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
+        Ok((
+            Self {
+                analysis,
+                requirements,
+                nodes_sha256,
+                edges_sha256,
+            },
+            NodeContract {
+                id: "graph-smoothness-permutation-test",
+                kind: "graph_smoothness_permutation_test",
+                version: 1,
+                configuration_digest,
+                execution_policy: Cow::Owned(execution_policy),
+                implementation_identity: IMPLEMENTATION_IDENTITY,
+                output_kind: OUTPUT_KIND,
+                codec: Codec::ExactFloatJson,
+            },
+        ))
     }
 
     fn validate(&self, output: &Output) -> io::Result<()> {
@@ -621,39 +462,8 @@ impl GraphSmoothnessProjectNode {
         }
         Ok(())
     }
-}
 
-impl WorkflowNode for GraphSmoothnessProjectNode {
-    type Output = Output;
-
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.input_artifacts
-    }
-
-    fn verify_input_content(&self) -> Result<(), NodeError> {
-        let current = source_artifacts(&self.paths).map_err(NodeError::input)?;
-        if current != self.input_artifacts {
-            return Err(NodeError::input(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "graph smoothness source identity changed",
-            )));
-        }
-        Ok(())
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: &self.execution_policy,
-            implementation_identity: IMPLEMENTATION_IDENTITY,
-        }
-    }
-
-    fn execute(&self) -> Result<Self::Output, NodeError> {
+    fn execute(&self) -> Result<Output, NodeError> {
         let result = graph_smoothness_permutation_test(self.analysis.clone())
             .map_err(NodeError::execution)?;
         Ok(Output::from_result(
@@ -661,21 +471,6 @@ impl WorkflowNode for GraphSmoothnessProjectNode {
             self.edges_sha256.clone(),
             result,
         ))
-    }
-
-    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
-        self.validate(output).map_err(NodeError::encoding)?;
-        marklab::exact_float_json::encode(output).map_err(NodeError::encoding)
-    }
-
-    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
-        let output: Output = marklab::exact_float_json::decode(bytes).map_err(NodeError::decode)?;
-        self.validate(&output).map_err(NodeError::decode)?;
-        Ok(output)
-    }
-
-    fn output_kind(&self) -> &'static str {
-        OUTPUT_KIND
     }
 }
 
@@ -752,10 +547,10 @@ fn laplacian_name(value: GraphLaplacian) -> &'static str {
     }
 }
 
-fn map_error(error: marklab_bayes::GraphSignalError) -> BayesCliError {
+fn map_error(error: marklab_graph::GraphSignalError) -> CliError {
     match error {
-        marklab_bayes::GraphSignalError::Invalid(message) => BayesCliError::Input(message),
-        marklab_bayes::GraphSignalError::Numeric(message) => BayesCliError::Backend(message),
+        marklab_graph::GraphSignalError::Invalid(message) => CliError::Input(message),
+        marklab_graph::GraphSignalError::Numeric(message) => CliError::Backend(message),
     }
 }
 

@@ -1,162 +1,119 @@
-use std::{fs, path::PathBuf};
-
-use clap::{Parser, Subcommand};
-use marklab_bayes::{
-    sha256_hex, BackendContract, FitState, GriddedLgcpSbcCalibrationPolicy,
-    GriddedLgcpSbcDiagnostics, GriddedLgcpSbcFailure, GriddedLgcpSbcReplicate,
-    GriddedLgcpSbcResourceLimits, NumpyroGriddedLgcpSbcWorkerRequest,
-    NumpyroGriddedLgcpSbcWorkerResult, NutsSamplingSpec, WorkerBackend,
-};
-use serde::{Deserialize, Serialize};
-
-use super::{
-    arbitrary_window_lgcp_fit::{self, InputIdentity},
-    publish_json, run_worker, BayesCliError,
+pub(crate) use marklab_bayes::protocol::arbitrary_window_lgcp_sbc::{
+    validate_outer, SbcResult, WorkerRequest, WorkerResult,
 };
 
-const NUMPYRO_VERSION: &str = "0.21.0";
-const JAX_VERSION: &str = "0.11.1";
+use crate::input_file::read_file;
+use std::path::PathBuf;
 
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct SbcCli {
-    #[command(subcommand)]
-    command: TopLevel,
-}
+use marklab_bayes::sha256_hex;
+use marklab_bayes::BackendContract;
+use marklab_bayes::NumpyroGriddedLgcpSbcWorkerRequest;
+use marklab_bayes::NutsSamplingSpec;
 
-#[derive(Debug, Subcommand)]
-enum TopLevel {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    ArbitraryWindowLgcpSbc(Box<Arguments>),
-}
+use super::arbitrary_window_lgcp_fit;
+use super::publish_json;
+use super::run_worker;
+use super::CliError;
+use marklab_bayes::backend_versions::JAX_VERSION;
+use marklab_bayes::backend_versions::NUMPYRO_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_core::vocabulary::StatisticalUnit;
 
 #[derive(Debug, clap::Args)]
-struct Arguments {
+pub(crate) struct Arguments {
+    /// Observed point events with coordinates and model covariates.
     #[arg(long)]
     events: PathBuf,
+    /// Table binding observed events to their declared components or quadrature cells.
     #[arg(long)]
     event_membership: PathBuf,
+    /// Quadrature nodes, weights and covariates for spatial integration.
     #[arg(long)]
     quadrature: PathBuf,
+    /// Observation-window geometry used for spatial integration or edge correction.
     #[arg(long)]
     window: PathBuf,
+    /// Prior mean for intercept.
     #[arg(long, allow_hyphen_values = true)]
     intercept_prior_mean: f64,
+    /// Prior scale for intercept.
     #[arg(long)]
     intercept_prior_sd: f64,
+    /// Prior mean for coefficient.
     #[arg(long, allow_hyphen_values = true)]
     coefficient_prior_mean: f64,
+    /// Prior scale for coefficient.
     #[arg(long)]
     coefficient_prior_sd: f64,
+    /// Amplitude of the latent spatial field covariance.
     #[arg(long)]
     field_amplitude: f64,
+    /// Spatial covariance length scale in micrometers.
     #[arg(long)]
     field_length_scale_um: f64,
+    /// Diagonal stabilization added to covariance matrices.
     #[arg(long)]
     jitter: f64,
+    /// Number of simulated datasets used for posterior calibration.
     #[arg(long)]
     replicates: u32,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
     chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
     tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
     draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
     target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
     seed: u64,
+    /// Upper bound on events.
     #[arg(long)]
     maximum_events: usize,
+    /// Upper bound on quadrature nodes.
     #[arg(long)]
     maximum_quadrature_nodes: usize,
+    /// Upper bound on draw node work.
     #[arg(long)]
     maximum_draw_node_work: u64,
+    /// Number of posterior predictive simulations.
     #[arg(long)]
     prediction_replicates: u32,
+    /// Random seed for posterior predictive simulation.
     #[arg(long)]
     prediction_seed: u64,
+    /// Upper bound on predictive points.
     #[arg(long)]
     maximum_predictive_points: u64,
+    /// Neighborhood radius in micrometers.
     #[arg(long)]
     neighbor_radius_um: f64,
+    /// Upper bound on neighbor pairs.
     #[arg(long)]
     maximum_neighbor_pairs: usize,
+    /// Smallest admitted p-value for simulation-based rank uniformity.
     #[arg(long)]
     minimum_rank_uniformity_p_value: f64,
+    /// Smallest admitted empirical coverage of nominal 90% intervals.
     #[arg(long)]
     minimum_coverage_90: f64,
+    /// Largest admitted empirical coverage of nominal 90% intervals.
     #[arg(long)]
     maximum_coverage_90: f64,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
     timeout_seconds: u64,
+    /// Destination for the analysis output.
     #[arg(long)]
     out: PathBuf,
 }
 
-#[derive(Serialize)]
-struct WorkerRequest<'a> {
-    format: &'static str,
-    version: u32,
-    backend: BackendContract,
-    source_backend: BackendContract,
-    jax_version: &'static str,
-    source_request_sha256: &'a str,
-    source_request: &'a arbitrary_window_lgcp_fit::WorkerRequest,
-    source_sbc_request_sha256: &'a str,
-    source_sbc_request: &'a NumpyroGriddedLgcpSbcWorkerRequest,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WorkerResult {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    jax_version: String,
-    input: InputIdentity,
-    covariance_sha256: String,
-    physical_latent_node_id: String,
-    request_sha256: String,
-    source_request_sha256: String,
-    source_sbc_request_sha256: String,
-    source_result: NumpyroGriddedLgcpSbcWorkerResult,
-}
-
-#[derive(Debug, Serialize)]
-struct SbcResult {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    source_backend: WorkerBackend,
-    jax_version: String,
-    input: InputIdentity,
-    covariance_sha256: String,
-    physical_latent_node_id: String,
-    sampling: NutsSamplingSpec,
-    calibration: GriddedLgcpSbcCalibrationPolicy,
-    resources: GriddedLgcpSbcResourceLimits,
-    fit_state: FitState,
-    replicates: Vec<GriddedLgcpSbcReplicate>,
-    failures: Vec<GriddedLgcpSbcFailure>,
-    diagnostics: GriddedLgcpSbcDiagnostics,
-    request_sha256: String,
-    source_request_sha256: String,
-    source_sbc_request_sha256: String,
-    statistical_unit: String,
-    claim_status: String,
-}
-
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let TopLevel::Bayes { command } = SbcCli::parse_from(std::env::args_os()).command;
-    let Command::ArbitraryWindowLgcpSbc(arguments) = command;
+pub(super) fn run(arguments: Box<Arguments>) -> Result<(), CliError> {
     let sampling = NutsSamplingSpec {
         chains: arguments.chains,
         tune_per_chain: arguments.tune,
@@ -164,34 +121,39 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
         target_accept: arguments.target_accept,
         seed: arguments.seed,
     };
-    let prepared = arbitrary_window_lgcp_fit::prepare(
-        arguments.events,
-        arguments.event_membership,
-        arguments.quadrature,
-        arguments.window,
-        arguments.intercept_prior_mean,
-        arguments.intercept_prior_sd,
-        arguments.coefficient_prior_mean,
-        arguments.coefficient_prior_sd,
-        arguments.field_amplitude,
-        arguments.field_length_scale_um,
-        arguments.jitter,
-        sampling,
-        arguments.maximum_events,
-        arguments.maximum_quadrature_nodes,
-        arguments.maximum_draw_node_work,
-        arguments.prediction_replicates,
-        arguments.prediction_seed,
-        arguments.maximum_predictive_points,
-        arguments.neighbor_radius_um,
-        arguments.maximum_neighbor_pairs,
-        arguments.timeout_seconds,
-    )?;
-    let repository = &marklab::python_backend_assets_root()?;
+    let prepared = arbitrary_window_lgcp_fit::prepare(crate::bayes::ArbitraryWindowLgcpFitArgs {
+        events: arguments.events,
+        event_membership: arguments.event_membership,
+        quadrature: arguments.quadrature,
+        window: arguments.window,
+        intercept_prior_mean: arguments.intercept_prior_mean,
+        intercept_prior_sd: arguments.intercept_prior_sd,
+        coefficient_prior_mean: arguments.coefficient_prior_mean,
+        coefficient_prior_sd: arguments.coefficient_prior_sd,
+        field_amplitude: arguments.field_amplitude,
+        field_length_scale_um: arguments.field_length_scale_um,
+        jitter: arguments.jitter,
+        chains: sampling.chains,
+        tune: sampling.tune_per_chain,
+        draws: sampling.draws_per_chain,
+        target_accept: sampling.target_accept,
+        seed: sampling.seed,
+        maximum_events: arguments.maximum_events,
+        maximum_quadrature_nodes: arguments.maximum_quadrature_nodes,
+        maximum_draw_node_work: arguments.maximum_draw_node_work,
+        prediction_replicates: arguments.prediction_replicates,
+        prediction_seed: arguments.prediction_seed,
+        maximum_predictive_points: arguments.maximum_predictive_points,
+        neighbor_radius_um: arguments.neighbor_radius_um,
+        maximum_neighbor_pairs: arguments.maximum_neighbor_pairs,
+        timeout_seconds: arguments.timeout_seconds,
+        out: std::path::PathBuf::new(),
+    })?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let directory = repository.join("workers/python");
-    let lock = read(&directory.join("uv.lock"))?;
-    let worker = read(&directory.join("marklab_numpyro_arbitrary_window_lgcp_sbc_worker.py"))?;
-    let source_worker = read(&directory.join("marklab_numpyro_gridded_lgcp_sbc_worker.py"))?;
+    let lock = read_file(&directory.join("uv.lock"))?;
+    let worker = read_file(&directory.join("marklab_numpyro_arbitrary_window_lgcp_sbc_worker.py"))?;
+    let source_worker = read_file(&directory.join("marklab_numpyro_gridded_lgcp_sbc_worker.py"))?;
     let source_sbc_request = NumpyroGriddedLgcpSbcWorkerRequest::new(
         prepared.request.source_request.clone(),
         arguments.replicates,
@@ -210,7 +172,7 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
         backend: BackendContract {
             name: "numpyro",
             version: NUMPYRO_VERSION,
-            python_version: "3.12",
+            python_version: PYTHON_VERSION,
             environment_lock_sha256: sha256_hex(&lock),
             worker_sha256: sha256_hex(&worker),
         },
@@ -234,9 +196,9 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
         &worker_result,
         &request,
         &request_sha256,
-        &prepared,
         &source_sbc_request_sha256,
-    )?;
+    )
+    .map_err(super::protocol_error)?;
     worker_result
         .source_result
         .validate(&source_sbc_request, &source_sbc_request_sha256)?;
@@ -262,53 +224,8 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             request_sha256: worker_result.request_sha256,
             source_request_sha256: worker_result.source_request_sha256,
             source_sbc_request_sha256: worker_result.source_sbc_request_sha256,
-            statistical_unit: "prior_generative_point_pattern".into(),
-            claim_status: source.claim_status.into(),
+            statistical_unit: StatisticalUnit::PriorGenerativePointPattern,
+            claim_status: source.claim_status,
         },
     )
-}
-
-fn validate_outer(
-    result: &WorkerResult,
-    request: &WorkerRequest<'_>,
-    request_sha256: &str,
-    prepared: &arbitrary_window_lgcp_fit::PreparedArbitraryWindowLgcpFit,
-    source_sbc_request_sha256: &str,
-) -> Result<(), BayesCliError> {
-    let latent_index = request.source_sbc_request.calibration.latent_cell_index as usize;
-    if result.format != "marklab.numpyro_arbitrary_window_lgcp_sbc_result"
-        || result.version != 1
-        || !backend_matches(&result.backend, &request.backend)
-        || result.jax_version != JAX_VERSION
-        || result.input != prepared.request.input
-        || result.covariance_sha256 != prepared.request.covariance_sha256
-        || result.physical_latent_node_id != prepared.request.nodes[latent_index].node_id
-        || result.request_sha256 != request_sha256
-        || result.source_request_sha256 != prepared.request_sha256
-        || result.source_sbc_request_sha256 != source_sbc_request_sha256
-    {
-        return Err(BayesCliError::Backend(
-            "NumPyro arbitrary-window LGCP SBC outer identity differs".into(),
-        ));
-    }
-    Ok(())
-}
-
-fn backend_matches(result: &WorkerBackend, request: &BackendContract) -> bool {
-    result.name == request.name
-        && result.version == request.version
-        && result.python_version == request.python_version
-        && result.environment_lock_sha256 == request.environment_lock_sha256
-        && result.worker_sha256 == request.worker_sha256
-}
-
-fn read(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<SbcCli>(|| run_cli().map_err(super::into_marklab_error))
 }

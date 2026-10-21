@@ -1,3 +1,4 @@
+use crate::ClaimStatus;
 use serde::Serialize;
 
 #[derive(Clone, Debug, Serialize)]
@@ -125,5 +126,5 @@ pub struct DistanceToResourceFit {
     pub distance_response: Vec<DistanceResponsePoint>,
     pub predictions: Vec<DistancePrediction>,
     pub posterior_predictive: DistancePosteriorPredictive,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }

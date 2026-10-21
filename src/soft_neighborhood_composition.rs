@@ -1,12 +1,14 @@
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::common::summation::kahan_add;
+use marklab_numerics::summation::NeumaierSum;
 
 use crate::{
-    classical::SpatialGeometryPlan2D, compartment_interface::analysis::measurement_status_name,
-    ClassicalSpatialLimits, DeclaredScalarPatternInput, ObservationWindow2D, ScalarMarkId,
+    classical::SpatialGeometryPlan2D,
+    marks::{DeclaredScalarPatternInput, ScalarMarkId},
+    spatial::ClassicalSpatialLimits,
+    ObservationWindow2D,
 };
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -89,7 +91,8 @@ pub struct SoftNeighborhoodCompositionResult {
     pub case_id: String,
     pub timepoint: String,
     pub mark_id: String,
-    pub measurement_status: String,
+    #[serde(with = "crate::measurement_status_wire")]
+    pub measurement_status: marklab_data::MeasurementStatus,
     pub coordinate_frame_id: String,
     pub window_digest: String,
     pub radius_um: f64,
@@ -222,7 +225,7 @@ pub fn soft_neighborhood_composition(
         case_id: input.pattern().meta.case_id.clone(),
         timepoint: input.pattern().meta.timepoint.clone(),
         mark_id: mark_id.as_str().into(),
-        measurement_status: measurement_status_name(status).into(),
+        measurement_status: status,
         coordinate_frame_id: input.coordinate_frame_id().as_str().into(),
         window_digest: window.descriptor().logical_digest.to_string(),
         radius_um: config.radius_um,
@@ -245,7 +248,7 @@ pub(crate) struct CompositionRows {
     pub(crate) zero_neighbor_cell_count: usize,
 }
 
-/// Shared arithmetic for already admitted, row-aligned simplex values.
+/// Shared arithmetic for already validated, row-aligned simplex values.
 pub(crate) fn composition_rows(
     index: &crate::geom::spatial_index::SpatialIndex2D,
     cell_ids: &[crate::CellId],
@@ -258,8 +261,7 @@ pub(crate) fn composition_rows(
     let mut rows = Vec::new();
     rows.try_reserve_exact(points)
         .map_err(|_| SoftNeighborhoodCompositionError::AllocationFailed)?;
-    let mut total_mass = vec![0.0; classes];
-    let mut total_correction = vec![0.0; classes];
+    let mut total_mass = vec![NeumaierSum::new(); classes];
     let mut directed_pair_visits = 0_usize;
     let mut zero_neighbor_cell_count = 0_usize;
     for (source, cell_id) in cell_ids.iter().enumerate() {
@@ -279,20 +281,18 @@ pub(crate) fn composition_rows(
                 .ok_or(SoftNeighborhoodCompositionError::SizeOverflow)?;
             None
         } else {
-            let mut sums = vec![0.0; classes];
-            let mut corrections = vec![0.0; classes];
+            let mut sums = vec![NeumaierSum::new(); classes];
             for neighbor in &neighbors {
                 let start = neighbor.index * classes;
                 for class in 0..classes {
                     let value = f64::from(values[start + class]);
-                    kahan_add(&mut sums[class], &mut corrections[class], value);
-                    kahan_add(&mut total_mass[class], &mut total_correction[class], value);
+                    sums[class].add(value);
+                    total_mass[class].add(value);
                 }
             }
             Some(
                 sums.into_iter()
-                    .zip(corrections)
-                    .map(|(sum, correction)| (sum + correction) / neighbors.len() as f64)
+                    .map(|sum| sum.total() / neighbors.len() as f64)
                     .collect(),
             )
         };
@@ -309,8 +309,7 @@ pub(crate) fn composition_rows(
         Some(
             total_mass
                 .into_iter()
-                .zip(total_correction)
-                .map(|(sum, correction)| (sum + correction) / directed_pair_visits as f64)
+                .map(|sum| sum.total() / directed_pair_visits as f64)
                 .collect(),
         )
     };

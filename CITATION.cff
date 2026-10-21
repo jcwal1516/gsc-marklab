@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "Please cite this software when using Marklab in research. Cite the datasets and reference methods separately."
+type: software
+title: "Marklab: spatial statistics for cells in tissue"
+authors:
+  - name: "Marklab contributors"
+version: 0.1.0
+repository-code: "https://github.com/jcwal1516/gsc-marklab"
+abstract: >-
+  Marklab analyzes cell positions, measured markers and imported predictions downstream
+  of segmentation. It provides spatial statistics, patient-level inference and explicitly
+  scoped research methods. Evidence and limitations are documented per workflow.

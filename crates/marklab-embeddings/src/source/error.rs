@@ -3,7 +3,7 @@ use thiserror::Error;
 /// Closed source-file roles used by privacy-safe resource errors.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SourceFileKind {
-    /// CellViT vector matrix in NPY format.
+    /// Embedding vector matrix in NPY format.
     Npy,
     /// Frozen CellViT source-cell CSV.
     Csv,

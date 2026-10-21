@@ -15,8 +15,8 @@ use parquet::{
 
 use crate::{
     columnar::{
-        enforce_retained_budget, CellEmbeddingTablePhysicalBindings, EmbeddingColumnarBudgets,
-        EmbeddingColumnarError, ParquetFailure,
+        enforce_retained_budget, CellEmbeddingTablePhysicalBindings, ColumnarError,
+        EmbeddingColumnarBudgets, ParquetFailure,
     },
     ExpectedCellSet,
 };
@@ -44,7 +44,7 @@ pub(in crate::columnar::parquet) fn preflight_cell_embedding_table_parquet_reade
     dimension: u32,
     bindings: CellEmbeddingTablePhysicalBindings,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CellEmbeddingParquetPreflight, EmbeddingColumnarError> {
+) -> Result<CellEmbeddingParquetPreflight, ColumnarError> {
     prepare_cell_embedding_table_parquet_reader(
         reader,
         encoded_byte_len,
@@ -67,9 +67,9 @@ pub(in crate::columnar::parquet) fn prepare_cell_embedding_table_parquet_reader<
     dimension: u32,
     bindings: CellEmbeddingTablePhysicalBindings,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<PreparedCellEmbeddingParquet, EmbeddingColumnarError> {
+) -> Result<PreparedCellEmbeddingParquet, ColumnarError> {
     if encoded_byte_len > budgets.maximum_file_bytes() {
-        return Err(EmbeddingColumnarError::FileByteBudgetExceeded {
+        return Err(ColumnarError::FileByteBudgetExceeded {
             observed: encoded_byte_len,
             maximum: budgets.maximum_file_bytes(),
         });
@@ -79,7 +79,7 @@ pub(in crate::columnar::parquet) fn prepare_cell_embedding_table_parquet_reader<
     }
     if encoded_byte_len
         < u64::try_from(PARQUET_MAGIC.len() + TRAILER_BYTES)
-            .map_err(|_| EmbeddingColumnarError::SizeOverflow)?
+            .map_err(|_| ColumnarError::SizeOverflow)?
     {
         return Err(parquet_failure(ParquetFailure::InvalidMagic));
     }
@@ -95,9 +95,7 @@ pub(in crate::columnar::parquet) fn prepare_cell_embedding_table_parquet_reader<
     read_exact_at(
         reader,
         encoded_byte_len
-            .checked_sub(
-                u64::try_from(TRAILER_BYTES).map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
-            )
+            .checked_sub(u64::try_from(TRAILER_BYTES).map_err(|_| ColumnarError::SizeOverflow)?)
             .ok_or_else(|| parquet_failure(ParquetFailure::InvalidFooterLength))?,
         &mut trailer,
     )?;
@@ -105,7 +103,7 @@ pub(in crate::columnar::parquet) fn prepare_cell_embedding_table_parquet_reader<
         return Err(parquet_failure(ParquetFailure::InvalidMagic));
     }
     let footer_length_offset = usize::try_from(encoded_byte_len)
-        .map_err(|_| EmbeddingColumnarError::SizeOverflow)?
+        .map_err(|_| ColumnarError::SizeOverflow)?
         .checked_sub(TRAILER_BYTES)
         .ok_or_else(|| parquet_failure(ParquetFailure::InvalidFooterLength))?;
     let footer_length = u32::from_le_bytes(
@@ -115,8 +113,7 @@ pub(in crate::columnar::parquet) fn prepare_cell_embedding_table_parquet_reader<
             .try_into()
             .map_err(|_| parquet_failure(ParquetFailure::InvalidFooterLength))?,
     );
-    let footer_length =
-        usize::try_from(footer_length).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+    let footer_length = usize::try_from(footer_length).map_err(|_| ColumnarError::SizeOverflow)?;
     if footer_length == 0 || footer_length > MAXIMUM_FOOTER_BYTES {
         return Err(parquet_failure(ParquetFailure::InvalidFooterLength));
     }
@@ -133,15 +130,15 @@ pub(in crate::columnar::parquet) fn prepare_cell_embedding_table_parquet_reader<
     let mut retained_preflight_bytes = raw_retained_bytes.max(stock_retained_bytes);
     enforce_retained_budget(retained_preflight_bytes, budgets)?;
     let mut footer_bytes = Vec::new();
-    footer_bytes.try_reserve_exact(footer_length).map_err(|_| {
-        EmbeddingColumnarError::AllocationFailed {
+    footer_bytes
+        .try_reserve_exact(footer_length)
+        .map_err(|_| ColumnarError::AllocationFailed {
             requested: footer_length,
-        }
-    })?;
+        })?;
     footer_bytes.resize(footer_length, 0);
     read_exact_at(
         reader,
-        u64::try_from(footer_start).map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
+        u64::try_from(footer_start).map_err(|_| ColumnarError::SizeOverflow)?,
         &mut footer_bytes,
     )?;
     let mut protocol = BoundedCompactProtocol::new(&footer_bytes, limits);
@@ -167,24 +164,22 @@ pub(in crate::columnar::parquet) fn prepare_cell_embedding_table_parquet_reader<
         bindings,
         budgets,
         |start, end, column_index, rows, dimension| {
-            let chunk_bytes = end
-                .checked_sub(start)
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            let chunk_bytes = end.checked_sub(start).ok_or(ColumnarError::SizeOverflow)?;
             let peak = raw_retained_bytes
                 .checked_add(chunk_bytes)
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
             retained_preflight_bytes = retained_preflight_bytes.max(peak);
             enforce_retained_budget(peak, budgets)?;
             let mut chunk = Vec::new();
-            chunk.try_reserve_exact(chunk_bytes).map_err(|_| {
-                EmbeddingColumnarError::AllocationFailed {
+            chunk
+                .try_reserve_exact(chunk_bytes)
+                .map_err(|_| ColumnarError::AllocationFailed {
                     requested: chunk_bytes,
-                }
-            })?;
+                })?;
             chunk.resize(chunk_bytes, 0);
             read_exact_at(
                 reader,
-                u64::try_from(start).map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
+                u64::try_from(start).map_err(|_| ColumnarError::SizeOverflow)?,
                 &mut chunk,
             )?;
             validate_pages(&chunk, start, start, end, column_index, rows, dimension)
@@ -208,10 +203,10 @@ pub(in crate::columnar::parquet) fn prepare_cell_embedding_table_parquet_reader<
     Ok(PreparedCellEmbeddingParquet {
         summary: CellEmbeddingParquetPreflight {
             row_count: u64::try_from(expected.cells().len())
-                .map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
+                .map_err(|_| ColumnarError::SizeOverflow)?,
             dimension,
             row_group_count: u32::try_from(row_group_count)
-                .map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
+                .map_err(|_| ColumnarError::SizeOverflow)?,
             encoded_byte_len,
             content_digest,
             retained_preflight_bytes,
@@ -220,11 +215,11 @@ pub(in crate::columnar::parquet) fn prepare_cell_embedding_table_parquet_reader<
     })
 }
 
-fn read_exact_at<R: Read + Seek + ?Sized>(
+pub(in crate::columnar::parquet) fn read_exact_at<R: Read + Seek + ?Sized>(
     reader: &mut R,
     offset: u64,
     buffer: &mut [u8],
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     reader
         .seek(SeekFrom::Start(offset))
         .and_then(|_| reader.read_exact(buffer))
@@ -238,15 +233,15 @@ pub(in crate::columnar::parquet) fn declared_table_logical_digest_parquet_reader
     encoded_byte_len: u64,
     expected: &ExpectedCellSet,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<ContentDigest, EmbeddingColumnarError> {
+) -> Result<ContentDigest, ColumnarError> {
     if encoded_byte_len > budgets.maximum_file_bytes() {
-        return Err(EmbeddingColumnarError::FileByteBudgetExceeded {
+        return Err(ColumnarError::FileByteBudgetExceeded {
             observed: encoded_byte_len,
             maximum: budgets.maximum_file_bytes(),
         });
     }
     let minimum = u64::try_from(PARQUET_MAGIC.len() + TRAILER_BYTES)
-        .map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+        .map_err(|_| ColumnarError::SizeOverflow)?;
     if encoded_byte_len < minimum {
         return Err(parquet_failure(ParquetFailure::InvalidMagic));
     }
@@ -262,9 +257,7 @@ pub(in crate::columnar::parquet) fn declared_table_logical_digest_parquet_reader
     read_exact_at(
         reader,
         encoded_byte_len
-            .checked_sub(
-                u64::try_from(TRAILER_BYTES).map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
-            )
+            .checked_sub(u64::try_from(TRAILER_BYTES).map_err(|_| ColumnarError::SizeOverflow)?)
             .ok_or_else(|| parquet_failure(ParquetFailure::InvalidFooterLength))?,
         &mut trailer,
     )?;
@@ -276,12 +269,12 @@ pub(in crate::columnar::parquet) fn declared_table_logical_digest_parquet_reader
             .try_into()
             .map_err(|_| parquet_failure(ParquetFailure::InvalidFooterLength))?,
     ))
-    .map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+    .map_err(|_| ColumnarError::SizeOverflow)?;
     if footer_length == 0 || footer_length > MAXIMUM_FOOTER_BYTES {
         return Err(parquet_failure(ParquetFailure::InvalidFooterLength));
     }
     let footer_length_offset = usize::try_from(encoded_byte_len)
-        .map_err(|_| EmbeddingColumnarError::SizeOverflow)?
+        .map_err(|_| ColumnarError::SizeOverflow)?
         .checked_sub(TRAILER_BYTES)
         .ok_or_else(|| parquet_failure(ParquetFailure::InvalidFooterLength))?;
     let footer_start = footer_length_offset
@@ -296,15 +289,15 @@ pub(in crate::columnar::parquet) fn declared_table_logical_digest_parquet_reader
         budgets,
     )?;
     let mut footer = Vec::new();
-    footer.try_reserve_exact(footer_length).map_err(|_| {
-        EmbeddingColumnarError::AllocationFailed {
+    footer
+        .try_reserve_exact(footer_length)
+        .map_err(|_| ColumnarError::AllocationFailed {
             requested: footer_length,
-        }
-    })?;
+        })?;
     footer.resize(footer_length, 0);
     read_exact_at(
         reader,
-        u64::try_from(footer_start).map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
+        u64::try_from(footer_start).map_err(|_| ColumnarError::SizeOverflow)?,
         &mut footer,
     )?;
     let mut protocol = BoundedCompactProtocol::new(&footer, limits);
@@ -338,25 +331,23 @@ pub(in crate::columnar::parquet) fn declared_table_logical_digest_parquet_reader
     ContentDigest::from_str(declared).map_err(|_| parquet_failure(ParquetFailure::InvalidMetadata))
 }
 
-fn footer_compact_limits(
-    expected_row_groups: usize,
-) -> Result<CompactLimits, EmbeddingColumnarError> {
+fn footer_compact_limits(expected_row_groups: usize) -> Result<CompactLimits, ColumnarError> {
     footer_compact_limits_with_metadata(expected_row_groups, METADATA_KEYS.len())
 }
 
 pub(in crate::columnar::parquet) fn footer_compact_limits_with_metadata(
     expected_row_groups: usize,
     metadata_entries: usize,
-) -> Result<CompactLimits, EmbeddingColumnarError> {
+) -> Result<CompactLimits, ColumnarError> {
     let maximum_collection_elements = expected_row_groups.max(metadata_entries).max(6);
     let maximum_total_elements = expected_row_groups
         .checked_mul(18)
         .and_then(|value| value.checked_add(16))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let maximum_fields = expected_row_groups
         .checked_mul(256)
         .and_then(|value| value.checked_add(256))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     Ok(CompactLimits {
         maximum_depth: 16,
         maximum_fields,
@@ -370,7 +361,7 @@ pub(in crate::columnar::parquet) fn footer_compact_limits_with_metadata(
 pub(in crate::columnar::parquet) fn estimate_raw_preflight_bytes(
     footer_length: usize,
     limits: CompactLimits,
-) -> Result<usize, EmbeddingColumnarError> {
+) -> Result<usize, ColumnarError> {
     let maximum_inline_element = [
         size_of::<SchemaElement>(),
         size_of::<RowGroup>(),
@@ -384,39 +375,39 @@ pub(in crate::columnar::parquet) fn estimate_raw_preflight_bytes(
     ]
     .into_iter()
     .max()
-    .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+    .ok_or(ColumnarError::SizeOverflow)?;
     let metadata_tree = limits
         .maximum_total_elements
         .checked_mul(maximum_inline_element)
         .and_then(|value| value.checked_mul(2))
         .and_then(|value| value.checked_add(footer_length))
         .and_then(|value| value.checked_add(size_of::<FileMetaData>()))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let protocol_state = limits
         .maximum_depth
         .checked_mul(64)
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let footer_replay = footer_length;
     let page_workspace = MAXIMUM_PAGE_HEADER_BYTES
         .checked_mul(2)
         .and_then(|value| value.checked_add(64 * maximum_inline_element))
         .and_then(|value| value.checked_add(protocol_state))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     metadata_tree
         .checked_add(protocol_state)
         .and_then(|value| value.checked_add(footer_replay))
         .and_then(|value| value.checked_add(page_workspace))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)
 }
 
 pub(in crate::columnar::parquet) fn estimate_stock_metadata_bytes(
     expected_row_groups: usize,
-) -> Result<usize, EmbeddingColumnarError> {
+) -> Result<usize, ColumnarError> {
     let raw_equivalent = estimate_raw_preflight_bytes(
         MAXIMUM_FOOTER_BYTES,
         footer_compact_limits(expected_row_groups)?,
     )?;
     raw_equivalent
         .checked_mul(2)
-        .ok_or(EmbeddingColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)
 }

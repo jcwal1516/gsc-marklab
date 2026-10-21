@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::GraphError;
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -59,7 +60,7 @@ pub struct HeterogeneousMessageResult {
     pub updated_features: BTreeMap<String, Vec<f64>>,
     pub pair_evaluations: u64,
     pub message_evaluations: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn heterogeneous_graph_message_workflow(
@@ -206,7 +207,7 @@ pub fn heterogeneous_graph_message_workflow(
         updated_features,
         pair_evaluations,
         message_evaluations: message_counts.iter().sum::<usize>() as u64,
-        claim_status: "descriptive_typed_message_passing_only",
+        claim_status: ClaimStatus::DescriptiveTypedMessagePassingOnly,
     })
 }
 

@@ -1,39 +1,43 @@
 #!/usr/bin/env python3
+"""Modality-dropout-robust linear encoder/decoder model of paired standardized views."""
 
-import hashlib
 import json
 import math
 import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import scipy
-from scipy.optimize import minimize
+
+from marklab_worker_support.factor_models import jax_objective, minimize_lbfgs
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    ContractError,
+    exact,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
 
 
-class ContractError(Exception):
-    pass
-
-
-def main():
-    if (
-        jax.__version__ != "0.11.1"
-        or np.__version__ != "2.4.6"
-        or scipy.__version__ != "1.18.1"
-        or sys.version_info[:2] != (3, 12)
-    ):
-        raise ContractError("modality dropout backend version drift")
+def main() -> None:
+    require_versions(jax=jax.__version__, numpy=np.__version__, scipy=scipy.__version__)
     jax.config.update("jax_enable_x64", True)
-    request_bytes = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
+    request_bytes = read_request(16 * MIB)
     request = json.loads(request_bytes)
-    if request["format"] != "marklab.jax_modality_dropout_request" or request["version"] != 1:
-        raise ContractError("request identity mismatch")
+    exact(request["format"], "marklab.jax_modality_dropout_request", "request.format")
+    exact(request["version"], 1, "request.version")
     rows = request["rows"]
     train_indices = [index for index, row in enumerate(rows) if row["split"] == "train"]
     test_indices = [index for index, row in enumerate(rows) if row["split"] == "test"]
     modality_ids = [modality["id"] for modality in request["design"]["modalities"]]
-    feature_counts = [len(modality["feature_names"]) for modality in request["design"]["modalities"]]
     raw_views = [
         np.asarray([row["views"][modality]["values"] for row in rows], dtype=float)
         for modality in range(len(modality_ids))
@@ -42,7 +46,9 @@ def main():
     scales = [view[train_indices].std(axis=0, ddof=0) for view in raw_views]
     if any(np.any(scale <= 0.0) or not np.isfinite(scale).all() for scale in scales):
         raise ContractError("every dropout-training feature must vary")
-    views = [(view - mean) / scale for view, mean, scale in zip(raw_views, means, scales)]
+    views = [
+        (view - mean) / scale for view, mean, scale in zip(raw_views, means, scales, strict=True)
+    ]
     training_concat = np.concatenate([view[train_indices] for view in views], axis=1)
     left, singular, _ = np.linalg.svd(training_concat, full_matrices=False)
     latent_dimensions = request["latent_dimensions"]
@@ -68,7 +74,7 @@ def main():
         offset = 0
         encoders = []
         decoders = []
-        for encoder_shape, decoder_shape in zip(encoder_shapes, decoder_shapes):
+        for encoder_shape, decoder_shape in zip(encoder_shapes, decoder_shapes, strict=True):
             encoder_size = int(np.prod(encoder_shape))
             decoder_size = int(np.prod(decoder_shape))
             encoders.append(parameters[offset : offset + encoder_size].reshape(encoder_shape))
@@ -78,17 +84,26 @@ def main():
         return encoders, decoders
 
     def latent_for(retained, current_views, encoders):
-        return sum((current_views[index] @ encoders[index] for index in retained)) / len(retained)
+        return sum(current_views[index] @ encoders[index] for index in retained) / len(retained)
 
     def objective(parameters):
+        """Dropout-weighted reconstruction loss with full/partial latent consistency.
+
+        Each view ``v`` has a linear encoder ``E_v`` and decoder ``D_v``. A retained subset
+        ``S`` encodes as the mean of ``X_v E_v`` over ``v in S``; for every declared dropout
+        pattern (weighted by its probability) the loss adds the mean squared reconstruction
+        error of all views from that latent plus ``consistency_weight`` times its mean squared
+        distance to the all-view latent. A ridge penalty ``parameter_precision / 2`` per
+        training row applies to all encoder and decoder entries.
+        """
         encoders, decoders = unpack(parameters)
         full_latent = latent_for(range(len(training_views)), training_views, encoders)
         loss = 0.0
-        for pattern, retained in zip(request["dropout_patterns"], pattern_indices):
+        for pattern, retained in zip(request["dropout_patterns"], pattern_indices, strict=True):
             partial_latent = latent_for(retained, training_views, encoders)
             reconstruction = sum(
                 jnp.mean((partial_latent @ decoder - target) ** 2)
-                for decoder, target in zip(decoders, training_views)
+                for decoder, target in zip(decoders, training_views, strict=True)
             )
             consistency = jnp.mean((partial_latent - full_latent) ** 2)
             loss += pattern["probability"] * (
@@ -97,27 +112,19 @@ def main():
         penalty = sum(jnp.sum(value * value) for value in [*encoders, *decoders])
         return loss + 0.5 * request["parameter_precision"] * penalty / len(train_indices)
 
-    value_and_gradient = jax.jit(jax.value_and_grad(objective))
-
-    def scipy_objective(parameters):
-        value, gradient = value_and_gradient(jnp.asarray(parameters))
-        return float(value), np.asarray(gradient, dtype=float)
-
-    initial_objective = scipy_objective(initial)[0]
-    fit = minimize(
-        scipy_objective,
+    initial_objective, fit = minimize_lbfgs(
+        jax_objective(objective),
         initial,
-        jac=True,
-        method="L-BFGS-B",
-        options={"maxiter": request["maximum_iterations"], "ftol": 1e-12, "gtol": 1e-7},
+        maximum_iterations=request["maximum_iterations"],
+        ftol=1e-12,
+        gtol=1e-7,
+        failure="modality-dropout optimization did not converge",
     )
-    if not fit.success or not np.isfinite(fit.x).all():
-        raise ContractError(f"modality-dropout optimization did not converge: {fit.message}")
     encoders, decoders = unpack(np.asarray(fit.x))
     test_views = [view[test_indices] for view in views]
     full_test_latent = latent_for(range(len(test_views)), test_views, encoders)
     pattern_validation = []
-    for pattern, retained in zip(request["dropout_patterns"], pattern_indices):
+    for pattern, retained in zip(request["dropout_patterns"], pattern_indices, strict=True):
         partial_latent = latent_for(retained, test_views, encoders)
         missing = [index for index in range(len(modality_ids)) if index not in retained]
         squared_errors = []
@@ -127,35 +134,44 @@ def main():
             prediction = standardized_prediction * scales[modality] + means[modality]
             target = raw_views[modality][test_indices]
             squared_errors.extend(((prediction - target) ** 2).ravel().tolist())
-            predictions.append({
-                "modality_id": modality_ids[modality],
-                "entity_ids": [rows[index]["entity_id"] for index in test_indices],
-                "posterior_means": prediction.tolist(),
-                "evaluation_targets": target.tolist(),
-            })
+            predictions.append(
+                {
+                    "modality_id": modality_ids[modality],
+                    "entity_ids": [rows[index]["entity_id"] for index in test_indices],
+                    "posterior_means": prediction.tolist(),
+                    "evaluation_targets": target.tolist(),
+                }
+            )
         consistency_rmse = math.sqrt(float(np.mean((partial_latent - full_test_latent) ** 2)))
-        pattern_validation.append({
-            "pattern_id": pattern["pattern_id"],
-            "retained_modalities": pattern["retained_modalities"],
-            "missing_modalities": [modality_ids[index] for index in missing],
-            "probability": pattern["probability"],
-            "heldout_patient_count": len(test_indices),
-            "heldout_missing_view_rmse": math.sqrt(sum(squared_errors) / len(squared_errors)),
-            "heldout_latent_consistency_rmse": consistency_rmse,
-            "predictions": predictions,
-        })
+        pattern_validation.append(
+            {
+                "pattern_id": pattern["pattern_id"],
+                "retained_modalities": pattern["retained_modalities"],
+                "missing_modalities": [modality_ids[index] for index in missing],
+                "probability": pattern["probability"],
+                "heldout_patient_count": len(test_indices),
+                "heldout_missing_view_rmse": math.sqrt(sum(squared_errors) / len(squared_errors)),
+                "heldout_latent_consistency_rmse": consistency_rmse,
+                "predictions": predictions,
+            }
+        )
     result = {
         "format": "marklab.modality_robust_inference_model",
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "request_sha256": sha256_hex(request_bytes),
         "design": request["design"],
         "latent_dimensions": latent_dimensions,
         "required_anchor_modalities": request["required_anchor_modalities"],
         "dropout_patterns": request["dropout_patterns"],
         "standardization": [
-            {"modality_id": modality_id, "means": mean.tolist(), "scales": scale.tolist(), "fit_split": "train"}
-            for modality_id, mean, scale in zip(modality_ids, means, scales)
+            {
+                "modality_id": modality_id,
+                "means": mean.tolist(),
+                "scales": scale.tolist(),
+                "fit_split": "train",
+            }
+            for modality_id, mean, scale in zip(modality_ids, means, scales, strict=True)
         ],
         "encoder_maps": [np.asarray(value).tolist() for value in encoders],
         "decoder_maps": [np.asarray(value).tolist() for value in decoders],
@@ -170,13 +186,8 @@ def main():
         "fit_state": "approximate_only",
         "claim_status": "experimental_synthetic_modality_dropout_robustness",
     }
-    json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    sys.stdout.write("\n")
+    write_result(result)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, json.JSONDecodeError, np.linalg.LinAlgError) as error:
-        print(f"modality dropout worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(main, "modality dropout worker contract error", errors=CONTRACT_ERRORS)

@@ -1,8 +1,13 @@
+use crate::result_vocabulary::{
+    BoundaryDistanceOwner, DuplicatePointPolicy, PairTraversal, SpatialExecutionMode,
+    WindowCoordinateFrame, WindowCoordinateUnit, WindowMembershipPolicy,
+};
+use crate::workflow_codec::unit_interval;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     errors::{MarklabError, Result},
-    ClassicalSpatialResult, ClassicalSpatialStatus, KlPointStatus,
+    spatial::{ClassicalSpatialResult, ClassicalSpatialStatus, KlPointStatus},
 };
 
 use super::analysis::classical_configuration_digest;
@@ -122,9 +127,9 @@ impl ClassicalSpatialResultDocument {
 
 fn validate_analysis(analysis: &ClassicalSpatialResult) -> Result<()> {
     let window = &analysis.window;
-    if window.coordinate_unit != "micrometre"
-        || window.coordinate_frame != "existing_pattern_physical_xy"
-        || window.membership_policy != "closed_window"
+    if window.coordinate_unit != WindowCoordinateUnit::Micrometre
+        || window.coordinate_frame != WindowCoordinateFrame::ExistingPatternPhysicalXy
+        || window.membership_policy != WindowMembershipPolicy::ClosedWindow
         || !window.area_um2.is_finite()
         || window.area_um2 <= 0.0
         || !window.perimeter_um.is_finite()
@@ -145,10 +150,10 @@ fn validate_analysis(analysis: &ClassicalSpatialResult) -> Result<()> {
         || geometry.maximum_radius_um <= 0.0
         || geometry.total_pair_visits < geometry.observed_pair_visits
         || !valid_digest(&geometry.logical_digest)
-        || geometry.execution_mode != "exact"
-        || geometry.duplicate_policy != "reject"
-        || geometry.boundary_distance_owner != "observation_window_2d"
-        || geometry.pair_traversal != "exact_streaming_ordered_pairs"
+        || geometry.execution_mode != SpatialExecutionMode::Exact
+        || geometry.duplicate_policy != DuplicatePointPolicy::Reject
+        || geometry.boundary_distance_owner != BoundaryDistanceOwner::ObservationWindow2d
+        || geometry.pair_traversal != PairTraversal::ExactStreamingOrderedPairs
     {
         return schema("classical result has an invalid geometry summary");
     }
@@ -330,10 +335,6 @@ fn same_calculated_float(actual: f64, expected: f64) -> bool {
         return false;
     }
     (actual - expected).abs() <= 16.0 * f64::EPSILON * actual.abs().max(expected.abs())
-}
-
-fn unit_interval(value: f64) -> bool {
-    value.is_finite() && (0.0..=1.0).contains(&value)
 }
 
 fn valid_digest(value: &str) -> bool {

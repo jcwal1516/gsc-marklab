@@ -4,15 +4,20 @@ use std::{
 };
 
 use crate::{
-    execute_algorithm_with_store,
+    compartments::{BinaryCompartmentPartition2D, CompartmentPartitionLimits},
     inhomogeneous_spatial::compartment_workflow::encode_piecewise_compartment_result,
-    ArtifactSchema, BinaryCompartmentPartition2D, CompartmentPartitionLimits, CoordinateFrame,
-    CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit, DurableProject,
-    DurableProjectLimits, LocalArtifactStore, LocalScheduler, MarklabError, MarklabProject, NodeId,
-    ObservationWindow2D, ObservationWindowLimits, Pattern, PatternLoader,
-    PiecewiseCompartmentSpatialAnalysisNode, PiecewiseCompartmentSpatialConfig,
-    PiecewiseCompartmentSpatialLimits, Result, SchedulerLimits, SpatialAxis, StoreId, TumorMask,
-    WorkflowGraph,
+    spatial::{
+        PiecewiseCompartmentSpatialAnalysisNode, PiecewiseCompartmentSpatialConfig,
+        PiecewiseCompartmentSpatialLimits,
+    },
+    workflow::{
+        execute_algorithm_with_store, ArtifactSchema, DurableProject, DurableProjectLimits,
+        LocalArtifactStore, LocalScheduler, MarklabProject, NodeId, SchedulerLimits, StoreId,
+        WorkflowGraph,
+    },
+    CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit,
+    MarklabError, ObservationWindow2D, ObservationWindowLimits, Pattern, PatternLoader, Result,
+    SpatialAxis, TumorMask,
 };
 
 use super::classical::{native_runtime_provenance, read_bounded_utf8, source_artifact};
@@ -24,29 +29,63 @@ const SOURCE_NEGATIVE_KIND: &str =
     "application/vnd.marklab.source.negative-compartment-window;version=1";
 const SOURCE_POSITIVE_KIND: &str =
     "application/vnd.marklab.source.positive-compartment-window;version=1";
-const PROJECT_CONTROL_BYTES: usize = 1024 * 1024;
-const PROJECT_LEDGER_BYTES: usize = 16 * 1024 * 1024;
-const PROJECT_LEDGER_RECORDS: usize = 10_000;
-const PROJECT_RECORD_BYTES: usize = 64 * 1024;
 const FRAME_ID: &str = "piecewise-compartment-spatial-physical-xy-um";
 
-pub(super) struct Request {
+#[derive(clap::Args, Debug)]
+pub struct Request {
+    /// Durable project directory that caches results.
+    #[arg(long)]
     pub project: PathBuf,
+    /// Cell table (CSV or Parquet).
+    #[arg(long)]
     pub cells: PathBuf,
+    /// Mask defining the observed tissue region.
+    #[arg(long)]
     pub observation_mask: PathBuf,
+    /// Mask defining the negative spatial compartment.
+    #[arg(long)]
     pub negative_mask: PathBuf,
+    /// Mask defining the positive spatial compartment.
+    #[arg(long)]
     pub positive_mask: PathBuf,
+    /// Identifier of the compartment treated as the negative level.
+    #[arg(long)]
     pub negative_compartment_id: String,
+    /// Identifier of the compartment treated as the positive level.
+    #[arg(long)]
     pub positive_compartment_id: String,
+    /// New JSON file for the result; it must not already exist.
+    #[arg(long)]
     pub out: PathBuf,
+    /// Comma-separated radii in µm.
+    #[arg(long, value_delimiter = ',')]
     pub radii_um: Vec<f64>,
+    /// Number of simulated null patterns.
+    #[arg(long)]
     pub simulations: usize,
+    /// Random seed; the same seed gives the same result.
+    #[arg(long)]
     pub seed: u64,
+    /// Significance level.
+    #[arg(long)]
     pub alpha: f64,
+    /// Memory budget in MiB.
+    #[arg(long)]
     pub memory_budget_mib: usize,
+    /// Upper bound on boundary segments.
+    #[arg(long = "max-boundary-segments", value_name = "MAX_BOUNDARY_SEGMENTS")]
     pub maximum_boundary_segments: usize,
+    /// Upper bound on compartment queries.
+    #[arg(
+        long = "max-compartment-queries",
+        value_name = "MAX_COMPARTMENT_QUERIES"
+    )]
     pub maximum_compartment_queries: usize,
+    /// Maximum number of cell pairs visited.
+    #[arg(long = "max-pair-visits", value_name = "MAX_PAIR_VISITS")]
     pub maximum_pair_visits: usize,
+    /// Upper bound on null draws.
+    #[arg(long = "max-null-draws", value_name = "MAX_NULL_DRAWS")]
     pub maximum_null_draws: usize,
 }
 
@@ -203,14 +242,8 @@ pub(super) fn prepare(request: PrepareRequest<'_>) -> Result<PreparedPiecewiseCo
             "piecewise compartment source changed while its durable input was prepared".into(),
         ));
     }
-    let durable_limits = DurableProjectLimits::new(
-        PROJECT_CONTROL_BYTES,
-        PROJECT_LEDGER_BYTES,
-        PROJECT_LEDGER_RECORDS,
-        PROJECT_RECORD_BYTES,
-        memory_bytes,
-    )
-    .map_err(|error| MarklabError::Validation(error.to_string()))?;
+    let durable_limits = DurableProjectLimits::for_object_bytes(memory_bytes)
+        .map_err(|error| MarklabError::Validation(error.to_string()))?;
     let durable = DurableProject::open_or_create(request.project, durable_limits)
         .map_err(|error| MarklabError::Compute(error.to_string()))?;
     let store_path = request.project.join(request.store_id);
@@ -233,7 +266,7 @@ pub(super) fn prepare(request: PrepareRequest<'_>) -> Result<PreparedPiecewiseCo
     })
 }
 
-fn source_identities(request: &PrepareRequest<'_>) -> Result<[crate::ArtifactRef; 4]> {
+fn source_identities(request: &PrepareRequest<'_>) -> Result<[crate::workflow::ArtifactRef; 4]> {
     Ok([
         source_artifact(request.cells, SOURCE_CELLS_KIND)?,
         source_artifact(request.observation_mask, SOURCE_OBSERVATION_KIND)?,

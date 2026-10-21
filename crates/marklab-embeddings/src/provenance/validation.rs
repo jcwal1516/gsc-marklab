@@ -37,7 +37,11 @@ impl CellEmbeddingProvenance {
         self.validate_linkage(expected, identity_map, row_link)?;
         let roles = self.roles(provenance_artifact_id);
         for (role, id) in roles {
-            require_schema(required_record(catalog, role, id)?, role)?;
+            require_schema(
+                required_record(catalog, role, id)?,
+                role,
+                self.format_version(),
+            )?;
         }
         self.validate_record_contracts(
             provenance_artifact_id,
@@ -101,7 +105,6 @@ impl CellEmbeddingProvenance {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn validate_record_contracts(
         &self,
         provenance_artifact_id: ArtifactId,
@@ -129,17 +132,29 @@ impl CellEmbeddingProvenance {
             (
                 CellEmbeddingArtifactRole::Provenance,
                 provenance_artifact_id,
-                "application/vnd.marklab.embedding-provenance.v1+json",
+                if self.format_version() == 1 {
+                    "application/vnd.marklab.embedding-provenance.v1+json"
+                } else {
+                    "application/vnd.marklab.embedding-provenance.v2+json"
+                },
             ),
             (
                 CellEmbeddingArtifactRole::SourceCells,
                 self.inputs.source_cells_artifact_id,
-                "text/csv;profile=marklab-cellvit-he-bundle-v1",
+                if self.format_version() == 1 {
+                    "text/csv;profile=marklab-cellvit-he-bundle-v1"
+                } else {
+                    "text/csv"
+                },
             ),
             (
                 CellEmbeddingArtifactRole::SourceVectors,
                 self.inputs.source_vectors_artifact_id,
-                "application/x-npy;profile=marklab-cellvit-he-f4-v1",
+                if self.format_version() == 1 {
+                    "application/x-npy;profile=marklab-cellvit-he-f4-v1"
+                } else {
+                    "application/x-npy"
+                },
             ),
             (
                 CellEmbeddingArtifactRole::ExpectedCells,
@@ -331,8 +346,14 @@ fn required_record(
 fn require_schema(
     record: &ArtifactRecord,
     role: CellEmbeddingArtifactRole,
+    provenance_version: u32,
 ) -> Result<(), EmbeddingArtifactGraphError> {
-    if record.schema().id() != schema_id(role) || record.schema().version() != 1 {
+    let version = if role == CellEmbeddingArtifactRole::Provenance {
+        provenance_version
+    } else {
+        1
+    };
+    if record.schema().id() != schema_id(role) || record.schema().version() != version {
         return Err(EmbeddingArtifactGraphError::SchemaMismatch { role });
     }
     Ok(())

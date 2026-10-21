@@ -1,5 +1,8 @@
 #![forbid(unsafe_code)]
-//! Bounded causal-design research workflows for Marklab.
+//! Causal-design research workflows for Marklab.
+
+#[doc(hidden)]
+pub mod protocol;
 
 mod eig;
 mod exposure_mapping;
@@ -21,12 +24,14 @@ pub use eig::{
 
 pub use exposure_mapping::{
     compute_spatial_exposure_mapping, ExposureGraphEdge, ExposureMappingKind,
-    ExposureMappingResult, ExposureMappingSpec, ExposureMappingUnit, UnitExposureValue,
+    ExposureMappingResult, ExposureMappingSpec, ExposureMappingUnit, ExposureValueStatus,
+    UnitExposureValue,
 };
 
 pub use interference::{
     randomized_binary_interference, BaselineCovariate, CausalError, CausalUnit, ClusterAssignment,
-    ExposureContrast, ExposureMeanEstimate, InterferenceEdge, InterferenceRandomizationResult,
-    JointBinaryExposure, JointExposureProbabilities, ObservedUnitExposure,
-    RandomizedInterferenceResult, RandomizedInterferenceSpec, UnitExposureProbabilities,
+    ExposureContrast, ExposureContrastStatus, ExposureMeanEstimate, ExposureMeanStatus,
+    InterferenceEdge, InterferenceRandomizationResult, JointBinaryExposure,
+    JointExposureProbabilities, ObservedUnitExposure, RandomizedInterferenceResult,
+    RandomizedInterferenceSpec, UnitExposureProbabilities,
 };

@@ -63,10 +63,23 @@ fn student_t_hierarchy_reports_one_at_a_time_prior_and_tail_sensitivity() {
         .unwrap()
         .iter()
         .all(|scenario| scenario["fit_state"] == "complete"));
-    assert!(matches!(
-        result["sensitivity_state"].as_str(),
-        Some("stable_within_declared_grid" | "sensitive_within_declared_grid")
-    ));
+    assert_eq!(
+        result["sensitivity_state"],
+        "sensitive_within_declared_grid"
+    );
+    let changed_prior = result["scenarios"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|scenario| scenario["scenario_id"] == "between_sd_lower")
+        .expect("declared prior scenario");
+    let shift = changed_prior["between_patient_sd_shift_standardized"]
+        .as_f64()
+        .unwrap();
+    assert!(
+        (-1.25..=-0.8).contains(&shift),
+        "unexpected signed shift: {shift}"
+    );
     assert_eq!(
         result["claim_status"],
         "experimental_prior_tail_sensitivity"

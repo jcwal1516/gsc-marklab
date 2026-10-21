@@ -1,8 +1,8 @@
 //! Concrete multiplex panel → slide summaries → independent-patient inference application.
 
-mod admission;
 mod model;
 mod nodes;
+mod preparation;
 mod publication;
 mod reduction;
 mod workflow;
@@ -13,11 +13,14 @@ pub use model::MultiplexStudyResult;
 pub use publication::publish_multiplex_study;
 
 use crate::{
-    summarize_assay_spatial, AssaySpatialInput, AssaySpatialLimits, AssaySpatialOutcome,
-    AssaySpatialUnavailable, MarklabError, Result,
+    autocorrelation::{
+        summarize_assay_spatial, AssaySpatialInput, AssaySpatialLimits, AssaySpatialOutcome,
+        AssaySpatialUnavailable,
+    },
+    MarklabError, Result,
 };
-use admission::{PreparedSlide, PreparedStudy};
-use model::{ChannelResult, SlideResult};
+use model::{Availability, ChannelResult, SlideResult};
+use preparation::{PreparedSlide, PreparedStudy};
 
 /// Analyze a complete version-one multiplex study using canonical Moran/Geary and patient Max-T.
 ///
@@ -25,7 +28,7 @@ use model::{ChannelResult, SlideResult};
 /// patient identities/reduction, exchangeability and bounded work. Unknown fields are rejected.
 /// All selected slide endpoints must be available for cohort inference; failures never silently
 /// remove slides or patients. This direct service performs no filesystem I/O. Durable execution
-/// consumes the same admission, slide and reduction owners. Errors identify invalid inputs or
+/// consumes the same preparation, slide and reduction owners. Errors identify invalid inputs or
 /// exhausted resources; scientific unavailability is retained in the typed result.
 pub fn analyze_multiplex_study(recipe_json: &[u8]) -> Result<MultiplexStudyResult> {
     let study = PreparedStudy::from_json(recipe_json)?;
@@ -78,10 +81,10 @@ fn analyze_slide(
         .map(|summary| {
             let (status, reason, moran_i, geary_c) = match summary.outcome {
                 AssaySpatialOutcome::Available { moran_i, geary_c } => {
-                    ("available", None, Some(moran_i), Some(geary_c))
+                    (Availability::Available, None, Some(moran_i), Some(geary_c))
                 }
                 AssaySpatialOutcome::Unavailable { reason } => (
-                    "unavailable",
+                    Availability::Unavailable,
                     Some(
                         match reason {
                             AssaySpatialUnavailable::InsufficientObservedPoints => {
@@ -90,6 +93,7 @@ fn analyze_slide(
                             AssaySpatialUnavailable::IsolatedObservedPoint => {
                                 "isolated_observed_point"
                             }
+                            AssaySpatialUnavailable::NoSpatialEdges => "no_spatial_edges",
                             AssaySpatialUnavailable::ZeroVariance => "zero_variance",
                             AssaySpatialUnavailable::NumericalFailure => "numerical_failure",
                         }
@@ -101,7 +105,7 @@ fn analyze_slide(
             };
             ChannelResult {
                 channel: summary.mark_id.as_str().into(),
-                status: status.into(),
+                status,
                 reason,
                 observed_rows: summary.observed_rows,
                 missing_rows: summary.missing_rows,

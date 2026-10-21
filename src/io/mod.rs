@@ -72,7 +72,8 @@ impl<'mask> PatternLoader<'mask> {
         }
     }
 
-    #[allow(dead_code, reason = "used by the feature-gated classical CLI adapter")]
+    /// Load cells for the classical point-pattern commands, which accept sparse patterns.
+    #[cfg(feature = "cli")]
     pub(crate) fn load_classical(&self, path: impl AsRef<Path>) -> Result<Pattern> {
         let path = path.as_ref();
         let extension = path
@@ -126,22 +127,16 @@ fn load_csv_path(path: &Path, mask: &TumorMask) -> Result<PatternLoadResult> {
     csv::load_pattern_csv_with_diagnostics(path, mask)
 }
 
-#[cfg(feature = "csv")]
-#[allow(dead_code, reason = "used by the feature-gated classical CLI adapter")]
+#[cfg(feature = "cli")]
 fn load_classical_csv_path(path: &Path, mask: &TumorMask) -> Result<PatternLoadResult> {
-    csv::load_classical_pattern_csv_with_diagnostics(path, mask)
+    csv::load_pattern_csv_with_builder(
+        path,
+        pattern_builder::PatternBuilder::with_sparse_policy(mask, "CSV", true),
+    )
 }
 
 #[cfg(not(feature = "csv"))]
 fn load_csv_path(_path: &Path, _mask: &TumorMask) -> Result<PatternLoadResult> {
-    Err(MarklabError::Schema(
-        "CSV input support is disabled; enable the csv feature".into(),
-    ))
-}
-
-#[cfg(not(feature = "csv"))]
-#[allow(dead_code, reason = "used by the feature-gated classical CLI adapter")]
-fn load_classical_csv_path(_path: &Path, _mask: &TumorMask) -> Result<PatternLoadResult> {
     Err(MarklabError::Schema(
         "CSV input support is disabled; enable the csv feature".into(),
     ))
@@ -152,10 +147,9 @@ fn load_parquet_path(path: &Path, mask: &TumorMask) -> Result<PatternLoadResult>
     parquet::load_pattern_parquet_with_diagnostics(path, mask)
 }
 
-#[cfg(feature = "parquet")]
-#[allow(dead_code, reason = "used by the feature-gated classical CLI adapter")]
+#[cfg(all(feature = "cli", feature = "parquet"))]
 fn load_classical_parquet_path(path: &Path, mask: &TumorMask) -> Result<PatternLoadResult> {
-    parquet::loader::load_classical_pattern_parquet_with_diagnostics(path, mask)
+    parquet::loader::load_pattern_parquet_with_builder(path, mask, true)
 }
 
 #[cfg(not(feature = "parquet"))]
@@ -165,8 +159,7 @@ fn load_parquet_path(_path: &Path, _mask: &TumorMask) -> Result<PatternLoadResul
     ))
 }
 
-#[cfg(not(feature = "parquet"))]
-#[allow(dead_code, reason = "used by the feature-gated classical CLI adapter")]
+#[cfg(all(feature = "cli", not(feature = "parquet")))]
 fn load_classical_parquet_path(_path: &Path, _mask: &TumorMask) -> Result<PatternLoadResult> {
     Err(MarklabError::Schema(
         "Parquet input support is disabled; enable the parquet feature".into(),

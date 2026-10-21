@@ -26,7 +26,6 @@ impl MultiscaleEmbeddingSupport {
     ///
     /// Returns a redacted graph error for variant, binding, role, record, canonical-payload, or
     /// managed-availability drift.
-    #[allow(clippy::too_many_arguments)]
     pub fn verify_region_from_patches_artifact(
         &self,
         support_artifact_id: ArtifactId,

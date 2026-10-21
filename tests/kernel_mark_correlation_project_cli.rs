@@ -3,7 +3,8 @@
 use std::{fmt::Write as _, fs, path::Path};
 
 use assert_cmd::Command;
-use marklab_workflow::{ContentDigest, NodeId, NodeSpec};
+use marklab_project::ContentDigest;
+use marklab_workflow::{NodeId, NodeSpec};
 
 #[path = "support/runtime_features.rs"]
 mod runtime_features;
@@ -355,7 +356,7 @@ fn kernel_mark_correlation_is_bounded_then_replays_exact_direct_bytes() {
         identity["configuration_digest"],
         configuration_digest.to_string()
     );
-    let execution_policy = b"serial;training-only-kernel-fit;split-isolated-curves;physical-distance-bins;kernel=rbf;global_reference_tolerance_bits=4427486594234968593;maximum_points=8;maximum_dimension=2;maximum_pair_visits=18;memory_budget_mib=8";
+    let execution_policy = b"serial;training-only-kernel-fit;split-and-biological-unit-isolated-curves;physical-distance-bins;kernel=rbf;global_reference_tolerance_bits=4427486594234968593;maximum_points=8;maximum_dimension=2;maximum_pair_visits=18;memory_budget_mib=8";
     assert_eq!(
         identity["execution_policy_digest"],
         ContentDigest::from_bytes(execution_policy).to_string()

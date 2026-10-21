@@ -1,4 +1,8 @@
-use marklab::{AnalysisConfig, AnalysisEngine, Pattern, PatternMeta, ThreadSetting};
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
+use marklab::{AnalysisConfig, AnalysisEngine, Pattern, ThreadSetting};
 
 fn contract_config() -> AnalysisConfig {
     let mut config = AnalysisConfig::default();
@@ -25,16 +29,12 @@ fn contract_pattern() -> Pattern {
         vec![0.0, 1.0, 2.0, 3.0, 0.0, 1.0, 2.0, 3.0],
         vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0],
         vec![1, 0, 0, 1, 0, 1, 0, 0],
-        PatternMeta {
-            case_id: "case_parallel_repro".into(),
-            timepoint: "post".into(),
-            protein: "MSH6".into(),
-            slide_id: None,
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "case_parallel_repro".into(),
+            "post".into(),
+            "MSH6".into(),
+            None,
+        ),
     )
     .expect("pattern")
 }
@@ -51,16 +51,7 @@ fn dense_geometry_pattern() -> Pattern {
         (0..side * side)
             .map(|index| u8::from((index as usize).is_multiple_of(2)))
             .collect(),
-        PatternMeta {
-            case_id: "geometry-budget".into(),
-            timepoint: "post".into(),
-            protein: "MSH6".into(),
-            slide_id: None,
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta("geometry-budget".into(), "post".into(), "MSH6".into(), None),
     )
     .expect("pattern");
     pattern.window.area_um2 = 100.0;
@@ -141,6 +132,8 @@ fn analysis_engine_rejects_a_zero_memory_budget_at_configuration_time() {
 fn analysis_engine_rejects_geometry_plans_over_memory_budget() {
     let mut config = contract_config();
     config.performance.memory_budget_mib = 1;
+    // Leave room for the spectral phase cache so this reaches geometry admission.
+    config.performance.k_chunk_modes = 8;
     config.multiscale_residual.enabled = true;
     config.multiscale_residual.territory_detection = true;
     config.multiscale_residual.min_territory_z = 0.1;
@@ -150,9 +143,12 @@ fn analysis_engine_rejects_geometry_plans_over_memory_budget() {
         .analyze_pattern(&dense_geometry_pattern())
         .expect_err("geometry plan should exceed the remaining budget");
 
-    assert!(error
-        .to_string()
-        .contains("remaining geometry memory budget"));
+    assert!(
+        error
+            .to_string()
+            .contains("remaining geometry memory budget"),
+        "{error}"
+    );
 }
 
 #[test]

@@ -3,32 +3,38 @@
 use std::{collections::BTreeMap, fs, mem::size_of};
 
 #[cfg(feature = "csv")]
-use marklab::{
+use marklab::embeddings::{
     import_cellvit_he_bundle_bytes, CellVitHeArtifactBindings, CellVitHeImportRequest,
     SourceBundleBudgets,
 };
 use marklab::{
-    preflight_cell_embedding_table_arrow_bytes, publish_cell_embedding_row_link_arrow,
-    read_cell_embedding_table_arrow_bytes, read_cell_embedding_table_arrow_from_store,
-    read_cell_embedding_table_parquet_bytes, read_cell_embedding_table_parquet_from_store,
-    scan_cell_embedding_table_arrow_bytes, scan_cell_embedding_table_arrow_from_store,
-    scan_cell_embedding_table_parquet_bytes, scan_cell_embedding_table_parquet_from_store,
-    verify_cell_embedding_row_link_arrow_from_store, verify_cell_embedding_table_arrow_bytes,
-    verify_cell_embedding_table_parquet_bytes, write_cell_embedding_table_arrow,
-    write_cell_embedding_table_parquet, ArrowIpcFailure, ArtifactAvailabilityFailure,
-    ArtifactCatalog, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef, ArtifactSchema,
-    ArtifactStoreError, CanonicalDecimal, CellEmbeddingArtifact, CellEmbeddingArtifactRole,
-    CellEmbeddingExecutionProvenance, CellEmbeddingInputArtifacts, CellEmbeddingModelProvenance,
-    CellEmbeddingProvenance, CellEmbeddingRow, CellEmbeddingRowLink, CellEmbeddingRowLinkEntry,
-    CellEmbeddingTable, CellEmbeddingTablePhysicalBindings, CellEmbeddingTensorContract, CellId,
-    CellIdentityMap, CellIdentityMapEntry, CohortHierarchy, CoordinateFrame, CoordinateFrameId,
-    CoordinateRegistry, CoordinateSpace, CoordinateUnit, EmbeddingArtifactGraphError,
-    EmbeddingColumnarBudgets, EmbeddingColumnarError, EmbeddingDtype, EmbeddingSpatialContext,
-    EmbeddingStatus, ExpectedCellSet, FrameTransform, HierarchyId, HierarchyNode,
-    ImageCoordinateConvention, LocalArtifactStore, PatchBoundaryPolicy, PatientId,
-    PositiveRational, ReplicationRole, SlideId, SpatialAxis, StoreId, TableColumn, TableColumnType,
-    TableFormat, TableManifest, TableScalarType, TransformId, TransformMatrix,
-    VerifiedCellEmbeddingArtifactGraph, VerifiedReaderError,
+    embeddings::{
+        preflight_cell_embedding_table_arrow_bytes, publish_cell_embedding_row_link_arrow,
+        read_cell_embedding_table_arrow_bytes, read_cell_embedding_table_arrow_from_store,
+        read_cell_embedding_table_parquet_bytes, read_cell_embedding_table_parquet_from_store,
+        scan_cell_embedding_table_arrow_bytes, scan_cell_embedding_table_arrow_from_store,
+        scan_cell_embedding_table_parquet_bytes, scan_cell_embedding_table_parquet_from_store,
+        verify_cell_embedding_row_link_arrow_from_store, verify_cell_embedding_table_arrow_bytes,
+        verify_cell_embedding_table_parquet_bytes, write_cell_embedding_table_arrow,
+        write_cell_embedding_table_parquet, ArrowIpcFailure, ArtifactAvailabilityFailure,
+        CanonicalDecimal, CellEmbeddingArtifact, CellEmbeddingArtifactRole,
+        CellEmbeddingExecutionProvenance, CellEmbeddingInputArtifacts,
+        CellEmbeddingModelProvenance, CellEmbeddingProvenance, CellEmbeddingRow,
+        CellEmbeddingRowLink, CellEmbeddingRowLinkEntry, CellEmbeddingTable,
+        CellEmbeddingTablePhysicalBindings, CellEmbeddingTensorContract, CellIdentityMap,
+        CellIdentityMapEntry, ColumnarError, EmbeddingArtifactGraphError, EmbeddingColumnarBudgets,
+        EmbeddingDtype, EmbeddingSpatialContext, EmbeddingStatus, ExpectedCellSet,
+        PatchBoundaryPolicy, PositiveRational, VerifiedCellEmbeddingArtifactGraph,
+    },
+    workflow::{
+        ArtifactCatalog, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef, ArtifactSchema,
+        ArtifactStoreError, LocalArtifactStore, StoreId, TableColumn, TableColumnType, TableFormat,
+        TableManifest, TableScalarType, VerifiedReaderError,
+    },
+    CellId, CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry,
+    CoordinateSpace, CoordinateUnit, FrameTransform, HierarchyId, HierarchyNode,
+    ImageCoordinateConvention, PatientId, ReplicationRole, SlideId, SpatialAxis, TransformId,
+    TransformMatrix,
 };
 use proptest::prelude::*;
 use tempfile::TempDir;

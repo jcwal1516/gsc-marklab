@@ -1,55 +1,63 @@
+use marklab_bayes::is_worker_timeout;
 use std::{collections::HashSet, path::PathBuf};
 
-use clap::{Parser, Subcommand};
+use clap::Subcommand;
 use marklab_topology::sha256_hex;
 use serde::{Deserialize, Serialize};
 
-use super::topology::{publish_json, read_input, read_required, run_worker, TopologyCliError};
-
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct NeuralCli {
-    #[command(subcommand)]
-    command: NeuralTopLevel,
-}
-
-#[derive(Debug, Subcommand)]
-enum NeuralTopLevel {
-    Neural {
-        #[command(subcommand)]
-        command: NeuralCommand,
-    },
-}
+use super::topology::{publish_json, read_input, read_required, run_worker};
+use crate::cli_error::{into_marklab_error, CliError};
+use marklab_bayes::backend_versions::JAX_VERSION;
+use marklab_bayes::backend_versions::NUMPY_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_bayes::backend_versions::SBI_BACKEND;
+use marklab_bayes::backend_versions::SCIPY_VERSION;
+use marklab_bayes::backend_versions::TORCH_VERSION;
 
 #[derive(Debug, Subcommand)]
-enum NeuralCommand {
+pub(crate) enum NeuralCommand {
+    /// Fit a neural model of spatial point intensity and marks.
     PointProcess {
+        /// JSON specification containing observations and settings for this analysis.
         #[arg(long)]
         input: PathBuf,
+        /// Destination for the analysis output.
         #[arg(long)]
         out: PathBuf,
     },
+    /// Fit and sample declared neural point-set generators.
     PointSetGenerators {
+        /// JSON specification containing observations and settings for this analysis.
         #[arg(long)]
         input: PathBuf,
+        /// Destination for the analysis output.
         #[arg(long)]
         out: PathBuf,
     },
+    /// Fit neural simulation-based inference on declared simulations.
     Sbi {
+        /// JSON specification containing observations and settings for this analysis.
         #[arg(long)]
         input: PathBuf,
+        /// Destination for the analysis output.
         #[arg(long)]
         out: PathBuf,
     },
+    /// Compare generated point sets with reference and repeated model outputs.
     ValidateGenerative {
+        /// Reference data used to assess the point-set generator.
         #[arg(long)]
         data: PathBuf,
+        /// Generated model output to assess against the reference data.
         #[arg(long)]
         model: PathBuf,
+        /// Repeated model output used to assess generator reproducibility.
         #[arg(long)]
         model_repeat: PathBuf,
+        /// Maximum worker execution time in seconds.
         #[arg(long)]
         timeout_seconds: u64,
+        /// Destination for the analysis output.
         #[arg(long)]
         out: PathBuf,
     },
@@ -175,26 +183,17 @@ struct NeuralSbiSpec {
     timeout_seconds: u64,
 }
 
-pub(crate) fn run_cli() -> Result<(), TopologyCliError> {
-    match NeuralCli::parse().command {
-        NeuralTopLevel::Neural {
-            command: NeuralCommand::PointProcess { input, out },
-        } => run_point_process(input, out),
-        NeuralTopLevel::Neural {
-            command: NeuralCommand::PointSetGenerators { input, out },
-        } => run_point_set_generators(input, out),
-        NeuralTopLevel::Neural {
-            command: NeuralCommand::Sbi { input, out },
-        } => run_neural_sbi(input, out),
-        NeuralTopLevel::Neural {
-            command:
-                NeuralCommand::ValidateGenerative {
-                    data,
-                    model,
-                    model_repeat,
-                    timeout_seconds,
-                    out,
-                },
+pub(crate) fn run_cli(command: NeuralCommand) -> Result<(), CliError> {
+    match command {
+        NeuralCommand::PointProcess { input, out } => run_point_process(input, out),
+        NeuralCommand::PointSetGenerators { input, out } => run_point_set_generators(input, out),
+        NeuralCommand::Sbi { input, out } => run_neural_sbi(input, out),
+        NeuralCommand::ValidateGenerative {
+            data,
+            model,
+            model_repeat,
+            timeout_seconds,
+            out,
         } => run_validate_generative(data, model, model_repeat, timeout_seconds, out),
     }
 }
@@ -205,9 +204,9 @@ fn run_validate_generative(
     model_repeat: PathBuf,
     timeout_seconds: u64,
     out: PathBuf,
-) -> Result<(), TopologyCliError> {
-    if !(1..=3_600).contains(&timeout_seconds) {
-        return Err(TopologyCliError::Input(
+) -> Result<(), CliError> {
+    if !is_worker_timeout(timeout_seconds) {
+        return Err(CliError::Input(
             "generative validation timeout must be between 1 and 3600 seconds".into(),
         ));
     }
@@ -221,12 +220,12 @@ fn run_validate_generative(
         || model_value["format"] != "marklab.point_set_flow_and_diffusion"
         || repeat_value["format"] != "marklab.point_set_flow_and_diffusion"
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "generative validation requires the original point-set data and two point-set generator artifacts"
                 .into(),
         ));
     }
-    let repository = marklab::python_backend_assets_root()?;
+    let repository = marklab::backend::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_generative_validation_worker.py");
     let lock = read_required(&lock_path)?;
@@ -236,9 +235,9 @@ fn run_validate_generative(
         "version": 1,
         "backend": {
             "name": "numpy_scipy_generative_validation",
-            "scipy_version": "1.18.1",
-            "numpy_version": "2.4.6",
-            "python_version": "3.12",
+            "scipy_version": SCIPY_VERSION,
+            "numpy_version": NUMPY_VERSION,
+            "python_version": PYTHON_VERSION,
             "license": "BSD-3-Clause",
             "environment_lock_sha256": sha256_hex(&lock),
             "worker_sha256": sha256_hex(&worker)
@@ -258,18 +257,18 @@ fn run_validate_generative(
         || result["request_sha256"] != sha256_hex(&request_bytes)
         || result["claim_status"] != "synthetic_generative_model_validation_no_real_promotion"
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "generative validation result identity mismatch".into(),
         ));
     }
     publish_json(&out, &result)
 }
 
-fn run_neural_sbi(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+fn run_neural_sbi(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let spec: NeuralSbiSpec = serde_json::from_slice(&bytes)?;
     validate_neural_sbi(&spec)?;
-    let repository = marklab::python_backend_assets_root()?;
+    let repository = marklab::backend::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_sbi_neural_estimators_worker.py");
     let lock = read_required(&lock_path)?;
@@ -279,11 +278,11 @@ fn run_neural_sbi(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> 
         "version": 1,
         "backend": {
             "name": "sbi_torch",
-            "version": "sbi-0.26.1",
-            "torch_version": "2.13.0",
-            "scipy_version": "1.18.1",
-            "numpy_version": "2.4.6",
-            "python_version": "3.12",
+            "version": SBI_BACKEND,
+            "torch_version": TORCH_VERSION,
+            "scipy_version": SCIPY_VERSION,
+            "numpy_version": NUMPY_VERSION,
+            "python_version": PYTHON_VERSION,
             "license": "Apache-2.0_plus_BSD-3-Clause",
             "device_policy": "deterministic_cpu_only",
             "environment_lock_sha256": sha256_hex(&lock),
@@ -312,14 +311,14 @@ fn run_neural_sbi(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> 
         || result["request_sha256"] != sha256_hex(&request_bytes)
         || result["claim_status"] != "experimental_synthetic_amortized_and_sequential_sbi"
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "neural SBI result identity mismatch".into(),
         ));
     }
     publish_json(&out, &result)
 }
 
-fn validate_neural_sbi(spec: &NeuralSbiSpec) -> Result<(), TopologyCliError> {
+fn validate_neural_sbi(spec: &NeuralSbiSpec) -> Result<(), CliError> {
     if spec.prior.family != "uniform"
         || !spec.prior.lower.is_finite()
         || !spec.prior.upper.is_finite()
@@ -340,9 +339,9 @@ fn validate_neural_sbi(spec: &NeuralSbiSpec) -> Result<(), TopologyCliError> {
         || spec.training.stop_after_epochs >= spec.training.maximum_epochs
         || !(401..=10_001).contains(&spec.posterior_grid_points)
         || spec.posterior_grid_points.is_multiple_of(2)
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "neural SBI requires a bounded uniform/Gaussian-location oracle, distinct NPE/NLE/NRE architectures, two isolated proposal rounds, bounded training, and an odd posterior grid"
                 .into(),
         ));
@@ -350,13 +349,13 @@ fn validate_neural_sbi(spec: &NeuralSbiSpec) -> Result<(), TopologyCliError> {
     Ok(())
 }
 
-fn run_point_set_generators(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+fn run_point_set_generators(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let mut spec: PointSetGeneratorsSpec = serde_json::from_slice(&bytes)?;
     spec.patterns
         .sort_by(|left, right| left.pattern_id.cmp(&right.pattern_id));
     validate_point_set_generators(&spec)?;
-    let repository = marklab::python_backend_assets_root()?;
+    let repository = marklab::backend::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path =
         repository.join("workers/python/marklab_scipy_point_set_generators_worker.py");
@@ -367,9 +366,9 @@ fn run_point_set_generators(input: PathBuf, out: PathBuf) -> Result<(), Topology
         "version": 1,
         "backend": {
             "name": "numpy_scipy_equivariant_flow_and_diffusion",
-            "scipy_version": "1.18.1",
-            "numpy_version": "2.4.6",
-            "python_version": "3.12",
+            "scipy_version": SCIPY_VERSION,
+            "numpy_version": NUMPY_VERSION,
+            "python_version": PYTHON_VERSION,
             "license": "BSD-3-Clause",
             "device_policy": "deterministic_cpu_only",
             "environment_lock_sha256": sha256_hex(&lock),
@@ -394,14 +393,14 @@ fn run_point_set_generators(input: PathBuf, out: PathBuf) -> Result<(), Topology
         || result["request_sha256"] != sha256_hex(&request_bytes)
         || result["claim_status"] != "experimental_synthetic_point_set_generators"
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "point-set generator result identity mismatch".into(),
         ));
     }
     publish_json(&out, &result)
 }
 
-fn validate_point_set_generators(spec: &PointSetGeneratorsSpec) -> Result<(), TopologyCliError> {
+fn validate_point_set_generators(spec: &PointSetGeneratorsSpec) -> Result<(), CliError> {
     let context_dimension = spec
         .patterns
         .first()
@@ -457,9 +456,9 @@ fn validate_point_set_generators(spec: &PointSetGeneratorsSpec) -> Result<(), To
         || spec.diffusion.beta_min <= 0.0
         || spec.diffusion.beta_max <= spec.diffusion.beta_min
         || !(4..=128).contains(&spec.generated_patterns_per_context)
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "point-set generators require independent train/test patient sets in one exact window/context contract, a bounded equivariant logistic-normal flow, VP diffusion schedule, and bounded sampling"
                 .into(),
         ));
@@ -467,13 +466,13 @@ fn validate_point_set_generators(spec: &PointSetGeneratorsSpec) -> Result<(), To
     Ok(())
 }
 
-fn run_point_process(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+fn run_point_process(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let mut spec: NeuralPointProcessSpec = serde_json::from_slice(&bytes)?;
     spec.patterns
         .sort_by(|left, right| left.pattern_id.cmp(&right.pattern_id));
     validate_point_process(&spec)?;
-    let repository = marklab::python_backend_assets_root()?;
+    let repository = marklab::backend::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_jax_neural_point_process_worker.py");
     let lock = read_required(&lock_path)?;
@@ -483,10 +482,10 @@ fn run_point_process(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliErro
         "version": 1,
         "backend": {
             "name": "jax_scipy_neural_point_process",
-            "jax_version": "0.11.1",
-            "scipy_version": "1.18.1",
-            "numpy_version": "2.4.6",
-            "python_version": "3.12",
+            "jax_version": JAX_VERSION,
+            "scipy_version": SCIPY_VERSION,
+            "numpy_version": NUMPY_VERSION,
+            "python_version": PYTHON_VERSION,
             "license": "Apache-2.0_plus_BSD-3-Clause",
             "device_policy": "deterministic_cpu_only",
             "environment_lock_sha256": sha256_hex(&lock),
@@ -514,14 +513,14 @@ fn run_point_process(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliErro
         || result["request_sha256"] != sha256_hex(&request_bytes)
         || result["claim_status"] != "experimental_synthetic_neural_marked_cox_process"
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "neural point-process result identity mismatch".into(),
         ));
     }
     publish_json(&out, &result)
 }
 
-fn validate_point_process(spec: &NeuralPointProcessSpec) -> Result<(), TopologyCliError> {
+fn validate_point_process(spec: &NeuralPointProcessSpec) -> Result<(), CliError> {
     let mut labels = HashSet::new();
     let valid_labels = spec.mark_labels.iter().all(|label| {
         !label.trim().is_empty() && label.trim() == label && labels.insert(label.as_str())
@@ -580,9 +579,9 @@ fn validate_point_process(spec: &NeuralPointProcessSpec) -> Result<(), TopologyC
         || !spec.parameter_precision.is_finite()
         || spec.parameter_precision <= 0.0
         || !(10..=10_000).contains(&spec.maximum_iterations)
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "neural point-process training requires independent train/test patient patterns, exact windows/contexts/marks, a bounded tanh-softplus/softmax network, fixed/reference quadrature, and positive controls"
                 .into(),
         ));
@@ -590,10 +589,6 @@ fn validate_point_process(spec: &NeuralPointProcessSpec) -> Result<(), TopologyC
     Ok(())
 }
 
-pub(crate) fn into_marklab_error(error: TopologyCliError) -> marklab::MarklabError {
-    marklab::MarklabError::Validation(error.to_string())
-}
-
-pub(crate) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<NeuralCli>(|| run_cli().map_err(into_marklab_error))
+pub(crate) fn execute(command: NeuralCommand) -> marklab::Result<()> {
+    run_cli(command).map_err(into_marklab_error)
 }

@@ -1,7 +1,17 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use marklab::{
-    CacheStatus, ClassicalSpatialAnalysisNode, ClassicalSpatialConfig, ClassicalSpatialLimits,
-    ClassicalSpatialResultDocument, LocalScheduler, MarklabProject, NodeId, ObservationWindow2D,
-    ObservationWindowLimits, Pattern, PatternMeta, SchedulerLimits, WorkflowGraph, WorkflowNode,
+    spatial::{
+        ClassicalSpatialAnalysisNode, ClassicalSpatialConfig, ClassicalSpatialLimits,
+        ClassicalSpatialResultDocument,
+    },
+    workflow::{
+        CacheStatus, LocalScheduler, MarklabProject, NodeId, SchedulerLimits, WorkflowGraph,
+        WorkflowNode,
+    },
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 
 fn pattern() -> Pattern {
@@ -9,16 +19,12 @@ fn pattern() -> Pattern {
         vec![2.0, 4.0, 8.0],
         vec![2.0, 2.0, 8.0],
         vec![0, 0, 0],
-        PatternMeta {
-            case_id: "workflow-case".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("workflow-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "workflow-case".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("workflow-slide".into()),
+        ),
     )
     .expect("pattern")
 }
@@ -126,6 +132,40 @@ fn classical_result_document_is_canonical_and_strict() {
 }
 
 #[test]
+fn classical_document_round_trips_a_decimal_generated_radius_axis() {
+    let pattern = pattern();
+    let window = window();
+    let radii = (1..=16)
+        .map(|index| 132.4 * (index as f64 / 16.0))
+        .collect::<Vec<_>>();
+    let config = ClassicalSpatialConfig::new(
+        radii,
+        19,
+        20261010,
+        0.05,
+        ClassicalSpatialLimits::new(16, 16, 100_000, 100_000, 1 << 20).expect("limits"),
+    )
+    .expect("config");
+    let mut project = MarklabProject::new();
+    let node = ClassicalSpatialAnalysisNode::new(
+        &mut project,
+        NodeId::new("classical-decimal-radius-codec").expect("node ID"),
+        &pattern,
+        &window,
+        &config,
+    )
+    .expect("node");
+    let output = node.execute().expect("output");
+    let encoded = node.encode_output(&output).expect("encoded");
+
+    assert_eq!(
+        node.decode_output(&encoded)
+            .expect("decimal-generated radii must survive result encoding"),
+        output
+    );
+}
+
+#[test]
 fn classical_document_accepts_one_ulp_formula_roundoff_after_serialization() {
     let pattern = pattern();
     let window = window();
@@ -152,6 +192,16 @@ fn classical_document_accepts_one_ulp_formula_roundoff_after_serialization() {
     }
     ClassicalSpatialResultDocument::from_json(&encoded.to_string())
         .expect("formula roundoff within one ULP is semantically identical");
+
+    let radius = encoded["analysis"]["curve"][0]["radius_um"]
+        .as_f64()
+        .expect("radius");
+    encoded["analysis"]["curve"][0]["radius_um"] =
+        serde_json::json!(f64::from_bits(radius.to_bits() + 1));
+    assert!(
+        ClassicalSpatialResultDocument::from_json(&encoded.to_string()).is_err(),
+        "a one-ULP radius change must invalidate the exact configuration identity"
+    );
 }
 
 #[test]

@@ -3,8 +3,10 @@
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
 use marklab::{
-    CellVitCsvField, CellVitCsvSummary, ContentDigest, CsvFailure, SourceBundleBudgets,
-    SourceBundleError,
+    embeddings::{
+        CellVitCsvField, CellVitCsvSummary, CsvFailure, SourceBundleBudgets, SourceBundleError,
+    },
+    workflow::ContentDigest,
 };
 
 const HEADER: [&str; 23] = [

@@ -1,17 +1,24 @@
+use crate::is_worker_timeout;
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::ClaimStatus;
 use crate::{
     model::{
         MODEL_FORMAT, MODEL_VERSION, PYMC_VERSION, WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION,
     },
     validation::{
-        diagnostics_satisfy_policy, is_lower_hex_sha256, validate_scalar_summary, SummarySupport,
+        diagnostics_satisfy_policy, is_exact_name, is_sha256, validate_scalar_summary,
+        SummarySupport,
     },
-    BackendContract, BayesError, DiagnosticPolicy, FitState, NormalMeanDiagnostics,
-    NutsSamplingSpec, SamplingSummary, SarScalarSummary, WorkerBackend,
+    BackendContract, BayesError, DiagnosticPolicy, FitState, NutsSamplingSpec,
+    PosteriorDiagnostics, SamplingSummary, ScalarSummary, WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
+use marklab_core::vocabulary::StatisticalUnit;
 
 const MAXIMUM_OBSERVATIONS: usize = 4_096;
 const MAXIMUM_TOTAL_ITERATIONS: u64 = 400_000;
@@ -29,6 +36,18 @@ pub struct GaussianCrossedNestedObservation {
 }
 
 /// Priors and observations for the fixed crossed/nested hierarchy.
+///
+/// Outcomes follow `Normal(mu, residual_sd)`. The mean contains a global
+/// intercept and exposure slope, cohort and patient intercepts and slopes,
+/// and slide, ROI, and batch intercepts. Exposure is centered over observations
+/// and divided by its population SD. Global priors are
+/// `intercept ~ Normal(0, intercept_prior_sd)` and
+/// `slope ~ Normal(0, slope_prior_sd)`; all component SDs, including residual SD,
+/// have `HalfNormal(component_prior_sd)` priors (underlying normal SD).
+/// Cohort effects use `sd * C z` with standard-normal `z`; patient, slide, ROI,
+/// and batch effects use `C u` with `u ~ Normal(0, sd)`. The projection `C`
+/// makes cohort and batch effects sum to zero globally, and patient, slide,
+/// and ROI effects sum to zero within their cohort, patient, and slide parent.
 #[derive(Clone, Debug)]
 pub struct GaussianCrossedNestedHierarchySpec {
     pub intercept_prior_sd: f64,
@@ -65,10 +84,10 @@ pub struct GaussianCrossedNestedHierarchyModelIr {
     pub random_effect_parameterization: &'static str,
     pub exposure_standardization: &'static str,
     pub observation_unit: &'static str,
-    pub statistical_unit: &'static str,
+    pub statistical_unit: StatisticalUnit,
     pub null: &'static str,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -111,9 +130,9 @@ impl GaussianCrossedNestedHierarchyWorkerRequest {
         ]
         .iter()
         .any(|value| !value.is_finite() || *value <= 0.0)
-            || !is_lower_hex_sha256(&environment_lock_sha256)
-            || !is_lower_hex_sha256(&worker_sha256)
-            || !(1..=3_600).contains(&timeout_seconds)
+            || !is_sha256(&environment_lock_sha256)
+            || !is_sha256(&worker_sha256)
+            || !is_worker_timeout(timeout_seconds)
         {
             return Err(BayesError::InvalidSpec(
                 "crossed/nested hierarchy priors, identities, or timeout are invalid".into(),
@@ -150,7 +169,7 @@ impl GaussianCrossedNestedHierarchyWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -172,10 +191,10 @@ impl GaussianCrossedNestedHierarchyWorkerRequest {
                     "hybrid_centered_replicated_levels_noncentered_cohort_sum_zero",
                 exposure_standardization: "global_center_and_population_sd",
                 observation_unit: "replicated_scalar_measurement",
-                statistical_unit: "patient",
+                statistical_unit: StatisticalUnit::Patient,
                 null: "zero_fixed_exposure_slope_and_zero_variance_components",
-                backend_capability: "nuts",
-                maturity: "experimental",
+                backend_capability: BackendCapability::Nuts,
+                maturity: ModelMaturity::Experimental,
             },
             observations: spec.observations,
             sampling,
@@ -197,10 +216,6 @@ impl GaussianCrossedNestedHierarchyWorkerRequest {
     pub fn counts(&self) -> GaussianCrossedNestedCounts {
         design_counts(&self.observations)
     }
-}
-
-fn valid_id(value: &str) -> bool {
-    !value.is_empty() && value.len() <= 128 && value.trim() == value
 }
 
 fn design_counts(observations: &[GaussianCrossedNestedObservation]) -> GaussianCrossedNestedCounts {
@@ -254,11 +269,11 @@ fn validate_design(
     let mut cohort_exposure = BTreeMap::<&str, BTreeSet<u64>>::new();
     let mut cohort_patients = BTreeMap::<&str, BTreeSet<&str>>::new();
     for row in observations {
-        if !valid_id(&row.patient_id)
-            || !valid_id(&row.slide_id)
-            || !valid_id(&row.roi_id)
-            || !valid_id(&row.batch_id)
-            || !valid_id(&row.cohort_id)
+        if !is_exact_name(&row.patient_id)
+            || !is_exact_name(&row.slide_id)
+            || !is_exact_name(&row.roi_id)
+            || !is_exact_name(&row.batch_id)
+            || !is_exact_name(&row.cohort_id)
             || !row.exposure.is_finite()
             || !row.outcome.is_finite()
         {
@@ -358,18 +373,23 @@ pub struct GaussianCrossedNestedInputIdentity {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct GaussianCrossedNestedPosterior {
-    pub intercept: SarScalarSummary,
-    pub exposure_slope: SarScalarSummary,
-    pub cohort_intercept_sd: SarScalarSummary,
-    pub cohort_exposure_slope_sd: SarScalarSummary,
-    pub patient_intercept_sd: SarScalarSummary,
-    pub patient_exposure_slope_sd: SarScalarSummary,
-    pub slide_intercept_sd: SarScalarSummary,
-    pub roi_intercept_sd: SarScalarSummary,
-    pub batch_intercept_sd: SarScalarSummary,
-    pub residual_sd: SarScalarSummary,
+    pub intercept: ScalarSummary,
+    pub exposure_slope: ScalarSummary,
+    pub cohort_intercept_sd: ScalarSummary,
+    pub cohort_exposure_slope_sd: ScalarSummary,
+    pub patient_intercept_sd: ScalarSummary,
+    pub patient_exposure_slope_sd: ScalarSummary,
+    pub slide_intercept_sd: ScalarSummary,
+    pub roi_intercept_sd: ScalarSummary,
+    pub batch_intercept_sd: ScalarSummary,
+    pub residual_sd: ScalarSummary,
 }
 
+/// Posterior mean shares of random-effect and residual variance, averaged over input rows.
+/// Each draw uses the diagonal of the centered effects' model-implied covariance, with
+/// squared standardized exposure for random slopes, and normalizes the eight contributions
+/// before averaging shares. Fixed effects are excluded; these shares are not an R-squared
+/// or a decomposition of the sample variance of realized effects.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct GaussianVariancePartition {
@@ -405,7 +425,7 @@ pub struct GaussianCrossedNestedWorkerResult {
     pub sampling: SamplingSummary,
     pub posterior: GaussianCrossedNestedPosterior,
     pub variance_partition: GaussianVariancePartition,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: GaussianCrossedNestedPpc,
 }
 
@@ -423,12 +443,7 @@ impl GaussianCrossedNestedWorkerResult {
                 "unsupported crossed/nested hierarchy worker result".into(),
             ));
         }
-        if self.backend.name != "pymc"
-            || self.backend.version != PYMC_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
-            || self.request_sha256 != expected_request_sha256
+        if !self.backend.matches(&request.backend) || self.request_sha256 != expected_request_sha256
         {
             return Err(BayesError::WorkerContract(
                 "crossed/nested hierarchy backend or request identity mismatch".into(),
@@ -549,7 +564,7 @@ impl GaussianCrossedNestedWorkerResult {
             model: request.model,
             input,
             fit_state: self.fit_state,
-            statistical_unit: "patient",
+            statistical_unit: StatisticalUnit::Patient,
             null: "zero_fixed_exposure_slope_and_zero_variance_components",
             assumptions: [
                 "declared_nesting_and_crossing_are_correct",
@@ -558,9 +573,9 @@ impl GaussianCrossedNestedWorkerResult {
                 "random_effects_are_independent_under_the_declared_parameterization",
             ],
             claim_status: if self.fit_state == FitState::Complete {
-                "experimental_identified_hierarchy"
+                ClaimStatus::ExperimentalIdentifiedHierarchy
             } else {
-                "diagnostic_only_nonconverged"
+                ClaimStatus::DiagnosticOnlyNonconverged
             },
             sampling: self.sampling,
             posterior: self.posterior,
@@ -581,14 +596,14 @@ pub struct GaussianCrossedNestedHierarchyFit {
     pub model: GaussianCrossedNestedHierarchyModelIr,
     pub input: GaussianCrossedNestedInputIdentity,
     pub fit_state: FitState,
-    pub statistical_unit: &'static str,
+    pub statistical_unit: StatisticalUnit,
     pub null: &'static str,
     pub assumptions: [&'static str; 4],
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub sampling: SamplingSummary,
     pub posterior: GaussianCrossedNestedPosterior,
     pub variance_partition: GaussianVariancePartition,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: GaussianCrossedNestedPpc,
     pub seed: u64,
     pub request_sha256: String,

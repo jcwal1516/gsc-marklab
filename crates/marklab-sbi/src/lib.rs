@@ -14,10 +14,11 @@ pub use posterior_predictive_lab::{
 pub use sbc::{
     growth_front_rejection_abc_sbc, GrowthFrontRejectionAbcSbcResult,
     GrowthFrontRejectionAbcSbcSpec, SbcCoverage, SbcRankDiagnostics, SbcReplicate,
+    SbcReplicateStatus,
 };
 pub use simulation_ood::{
     detect_simulation_ood, SimulationOodCalibrationScore, SimulationOodObservation,
-    SimulationOodResult, SimulationOodSpec, SimulationSummary,
+    SimulationOodResult, SimulationOodSpec, SimulationSummary, SupportStatus,
 };
 pub use smc_abc::{
     smc_abc_growth_front, SmcAbcGrowthFrontResult, SmcAbcGrowthFrontSpec, SmcAbcParticle,
@@ -29,6 +30,7 @@ pub use synthetic_likelihood::{
     SyntheticLikelihoodMcmcDiagnostics, SyntheticLikelihoodPosterior, SyntheticLikelihoodTraceRow,
 };
 
+use marklab_core::backend::ClaimStatus;
 use marklab_simulation::{
     simulate_growth_front, GrowthFrontInitialPoint, GrowthFrontSpec, SimulationError,
 };
@@ -89,7 +91,7 @@ pub struct RejectionAbcGrowthFrontResult {
     pub posterior: RejectionAbcPosterior,
     pub maximum_total_declared_cell_steps: u64,
     pub random_seed_namespace: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 #[derive(Debug, Error)]
@@ -181,7 +183,7 @@ pub fn rejection_abc_growth_front(
         },
         maximum_total_declared_cell_steps: maximum_total_work,
         random_seed_namespace: "rejection_abc_growth_front_v1_chacha20",
-        claim_status: "synthetic_abc_specialization_not_biological_calibration",
+        claim_status: ClaimStatus::SyntheticAbcSpecializationNotBiologicalCalibration,
     })
 }
 
@@ -218,4 +220,76 @@ fn validate(spec: &RejectionAbcGrowthFrontSpec) -> Result<u64, SbiError> {
         ));
     }
     Ok(maximum_total_work)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejection_abc_recovers_logistic_growth_and_replays_from_seed() {
+        let spec = RejectionAbcGrowthFrontSpec {
+            initial: [0.0, 1.0, 2.0]
+                .map(|position_um| GrowthFrontInitialPoint {
+                    position_um,
+                    density: 0.25,
+                })
+                .into(),
+            diffusion_um2_per_time: 0.0,
+            carrying_capacity: 1.0,
+            final_time: 1.0986122886681098,
+            time_step: 0.1,
+            front_threshold_fraction: 0.5,
+            observed_final_mass: 1.0,
+            mass_scale: 0.02,
+            growth_rate_prior_min: 0.5,
+            growth_rate_prior_max: 1.5,
+            epsilon: 1.0,
+            accepted_draws: 30,
+            maximum_proposals: 10_000,
+            maximum_cell_steps_per_proposal: 1000,
+            seed: 20260825,
+        };
+        let result = rejection_abc_growth_front(spec.clone()).expect("ABC fit");
+        let replay = rejection_abc_growth_front(spec).expect("seeded replay");
+        assert_eq!(result.accepted.len(), 30);
+        assert!(result.proposals_attempted <= 10_000);
+        assert!((result.posterior.growth_rate_mean - 1.0).abs() < 0.03);
+        assert!(result.accepted.iter().all(|row| row.distance <= 1.0));
+        assert_eq!(result.accepted.len(), replay.accepted.len());
+        assert_eq!(result.proposals_attempted, replay.proposals_attempted);
+        assert_eq!(result.acceptance_rate, replay.acceptance_rate);
+        for (first, second) in result.accepted.iter().zip(&replay.accepted) {
+            assert_eq!(
+                (
+                    first.proposal,
+                    first.growth_rate_per_time,
+                    first.simulated_final_mass,
+                    first.standardized_mass_residual,
+                    first.distance
+                ),
+                (
+                    second.proposal,
+                    second.growth_rate_per_time,
+                    second.simulated_final_mass,
+                    second.standardized_mass_residual,
+                    second.distance
+                )
+            );
+        }
+        assert_eq!(
+            (
+                result.posterior.growth_rate_mean,
+                result.posterior.growth_rate_sd,
+                result.posterior.growth_rate_min,
+                result.posterior.growth_rate_max
+            ),
+            (
+                replay.posterior.growth_rate_mean,
+                replay.posterior.growth_rate_sd,
+                replay.posterior.growth_rate_min,
+                replay.posterior.growth_rate_max
+            )
+        );
+    }
 }

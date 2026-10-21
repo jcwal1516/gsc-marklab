@@ -3,6 +3,13 @@ use std::collections::BTreeMap;
 use marklab_policy::Maturity;
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum Availability {
+    Available,
+    Unavailable,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Recipe {
@@ -91,7 +98,7 @@ impl Default for Limits {
 /// Version-one, claim-bounded scientific result of a complete multiplex cohort recipe.
 ///
 /// Serialize with Serde to obtain the documented study JSON profile. This envelope is separate
-/// from result-format 0.3. It retains every admitted slide and patient, including unavailable ones.
+/// from the current result format. It retains every accepted slide and patient, including unavailable ones.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MultiplexStudyResult {
@@ -129,7 +136,7 @@ pub(super) struct SlideResult {
 #[serde(deny_unknown_fields)]
 pub(super) struct ChannelResult {
     pub channel: String,
-    pub status: String,
+    pub status: Availability,
     pub reason: Option<String>,
     pub observed_rows: usize,
     pub missing_rows: usize,
@@ -146,7 +153,7 @@ pub(super) struct PatientResult {
     pub group: String,
     pub slide_count: usize,
     pub slide_ids: Vec<String>,
-    pub status: String,
+    pub status: Availability,
     pub values: Option<Vec<f64>>,
     pub unavailable_slide_ids: Vec<String>,
 }
@@ -154,9 +161,10 @@ pub(super) struct PatientResult {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct InferenceResult {
-    pub status: String,
+    pub status: Availability,
     pub reason: Option<String>,
-    pub correction: String,
+    #[serde(with = "crate::result_vocabulary::MaxTCorrectionWire")]
+    pub correction: marklab_cohort::MaxTCorrection,
     pub endpoints: Vec<EndpointResult>,
     pub critical_value: Option<f64>,
     pub permutations_attempted: Option<usize>,
@@ -205,7 +213,7 @@ impl MultiplexStudyResult {
             }
         }
         let inference = &self.inference;
-        let available = inference.status == "available";
+        let available = inference.status == Availability::Available;
         if self.maturity.method_maturity != marklab_policy::Maturity::Experimental
             || self.maturity.result_maturity
                 != if available {
@@ -213,7 +221,7 @@ impl MultiplexStudyResult {
                 } else {
                     marklab_policy::Maturity::UnsupportedForClaim
                 }
-            || inference.correction != "single_step_max_t"
+            || inference.correction != marklab_cohort::MaxTCorrection::SingleStep
         {
             return Err(invalid(
                 "cached study cannot promote its actual evidence or change its correction",
@@ -241,7 +249,7 @@ impl MultiplexStudyResult {
                     return Err(invalid("cached inference endpoint is invalid"));
                 }
             }
-        } else if inference.status != "unavailable"
+        } else if inference.status != Availability::Unavailable
             || inference.reason.is_none()
             || !inference.endpoints.is_empty()
             || inference.critical_value.is_some()
@@ -253,7 +261,7 @@ impl MultiplexStudyResult {
         if available
             && self.slides.iter().any(|slide| {
                 slide.channels.iter().any(|channel| {
-                    channel.status != "available"
+                    channel.status != Availability::Available
                         || !channel.moran_i.is_some_and(f64::is_finite)
                         || !channel.geary_c.is_some_and(f64::is_finite)
                 })

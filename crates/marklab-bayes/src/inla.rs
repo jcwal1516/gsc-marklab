@@ -1,18 +1,35 @@
+use crate::is_worker_timeout;
 use crate::validation::all_finite as finite;
+use marklab_numerics::relative_eq;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::backend_versions::SCIPY_PYTENSOR_PYMC_BACKEND;
+use crate::ClaimStatus;
 use crate::{
     model::{
         BackendContract, DiagnosticPolicy, WorkerResourceLimits, MODEL_FORMAT, MODEL_VERSION,
         WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION,
     },
-    BayesError, FitState, NutsSamplingSpec, PoissonExposureObservation, SarScalarSummary,
+    BayesError, FitState, NutsSamplingSpec, PoissonExposureObservation, ScalarSummary,
     WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
-const INLA_BACKEND_VERSION: &str = "scipy-1.18.1+pytensor-3.2.4+pymc-6.3.0";
+const RELATIVE_TOLERANCE: f64 = 1e-12;
 
+/// Nested Laplace approximation for independent latent Gaussian Poisson log rates.
+///
+/// The likelihood is `count_i ~ Poisson(exposure_i * exp(x_i))`. Conditional on precision
+/// `tau`, latent values are independent normals with mean `latent_mean` and variance `1 /
+/// tau`; `tau ~ Gamma(tau_shape, tau_rate)` uses shape and rate, not scale. The worker
+/// integrates conditional Laplace approximations on the bounded `log(tau)` grid, including
+/// the change-of-variable Jacobian, and compares them with a NUTS fit using `x_i =
+/// latent_mean + z_i / sqrt(tau)`, `z_i ~ Normal(0, 1)`. Endpoint mass checks guard against a
+/// truncated integration range.
+///
 #[derive(Clone, Debug)]
 pub struct PoissonInlaSpec {
     pub latent_mean: f64,
@@ -39,8 +56,8 @@ pub struct PoissonInlaModelIr {
     pub likelihood: &'static str,
     pub link: &'static str,
     pub integration_coordinate: &'static str,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -77,7 +94,7 @@ impl PoissonInlaWorkerRequest {
     ) -> Result<Self, BayesError> {
         sampling.validate()?;
         validate_spec(&mut spec)?;
-        if !(1..=3_600).contains(&timeout_seconds) {
+        if !is_worker_timeout(timeout_seconds) {
             return Err(BayesError::InvalidSpec(
                 "INLA-style worker timeout must be between 1 and 3600 seconds".into(),
             ));
@@ -95,8 +112,8 @@ impl PoissonInlaWorkerRequest {
             version: WORKER_REQUEST_VERSION,
             backend: BackendContract {
                 name: "scipy_pytensor_pymc",
-                version: INLA_BACKEND_VERSION,
-                python_version: "3.12",
+                version: SCIPY_PYTENSOR_PYMC_BACKEND,
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -113,8 +130,8 @@ impl PoissonInlaWorkerRequest {
                 likelihood: "poisson_exposure",
                 link: "log",
                 integration_coordinate: "log_tau_with_jacobian",
-                backend_capability: "inla_style_nested_laplace_with_nuts_comparison",
-                maturity: "experimental_approximation",
+                backend_capability: BackendCapability::InlaStyleNestedLaplaceWithNutsComparison,
+                maturity: ModelMaturity::ExperimentalApproximation,
             },
             observations: spec.observations,
             grid: InlaGridSpec {
@@ -254,7 +271,7 @@ pub struct PoissonInlaWorkerResult {
     pub fit_state: FitState,
     pub grid: Vec<InlaGridPoint>,
     pub grid_diagnostics: InlaGridDiagnostics,
-    pub tau: SarScalarSummary,
+    pub tau: ScalarSummary,
     pub latent_marginals: Vec<InlaLatentMarginal>,
     pub hmc_comparison: InlaHmcComparison,
     pub posterior_predictive: InlaPosteriorPredictive,
@@ -269,11 +286,7 @@ impl PoissonInlaWorkerResult {
         if self.fit_state == FitState::Complete
             || self.format != "marklab.scipy_pytensor_pymc_inla_worker_result"
             || self.version != 1
-            || self.backend.name != "scipy_pytensor_pymc"
-            || self.backend.version != INLA_BACKEND_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
             || self.grid.len() != request.grid.points as usize
             || self.latent_marginals.len() != request.observations.len()
@@ -301,8 +314,8 @@ impl PoissonInlaWorkerResult {
                 || point.normalized_weight < 0.0
                 || point.maximum_mode_gradient < 0.0
                 || point.minimum_negative_hessian <= 0.0
-                || !approximately_equal(point.log_tau, expected_log_tau)
-                || !approximately_equal(point.tau, point.log_tau.exp())
+                || !relative_eq(point.log_tau, expected_log_tau, RELATIVE_TOLERANCE)
+                || !relative_eq(point.tau, point.log_tau.exp(), RELATIVE_TOLERANCE)
             {
                 return Err(BayesError::WorkerContract(
                     "INLA-style grid point is invalid".into(),
@@ -341,14 +354,20 @@ impl PoissonInlaWorkerResult {
             self.posterior_predictive.hmc_replicated_total_sd,
         ]) || (weight_sum - 1.0).abs() > 1e-12
             || (self.grid_diagnostics.weight_sum - weight_sum).abs() > 1e-12
-            || !approximately_equal(self.grid_diagnostics.step, expected_step)
-            || !approximately_equal(
+            || !relative_eq(
+                self.grid_diagnostics.step,
+                expected_step,
+                RELATIVE_TOLERANCE,
+            )
+            || !relative_eq(
                 self.grid_diagnostics.left_endpoint_mass,
                 self.grid[0].normalized_weight,
+                RELATIVE_TOLERANCE,
             )
-            || !approximately_equal(
+            || !relative_eq(
                 self.grid_diagnostics.right_endpoint_mass,
                 self.grid[self.grid.len() - 1].normalized_weight,
+                RELATIVE_TOLERANCE,
             )
             || self.grid_diagnostics.all_modes_converged != all_modes_converged
             || !self.grid_diagnostics.all_hessians_positive
@@ -427,9 +446,9 @@ impl PoissonInlaWorkerResult {
             input,
             fit_state: self.fit_state,
             claim_status: match self.fit_state {
-                FitState::ApproximateOnly => "experimental_approximate_only",
-                FitState::Nonconverged => "diagnostic_only_nonconverged",
-                FitState::Complete => "experimental",
+                FitState::ApproximateOnly => ClaimStatus::ExperimentalApproximateOnly,
+                FitState::Nonconverged => ClaimStatus::DiagnosticOnlyNonconverged,
+                FitState::Complete => ClaimStatus::Experimental,
             },
             grid_spec: request.grid,
             grid: self.grid,
@@ -442,10 +461,6 @@ impl PoissonInlaWorkerResult {
             request_sha256: self.request_sha256,
         }
     }
-}
-
-fn approximately_equal(left: f64, right: f64) -> bool {
-    (left - right).abs() <= 1e-12 * left.abs().max(right.abs()).max(1.0)
 }
 
 #[derive(Debug, Serialize)]
@@ -463,11 +478,11 @@ pub struct PoissonInlaFit {
     pub model: PoissonInlaModelIr,
     pub input: PoissonInlaInputIdentity,
     pub fit_state: FitState,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub grid_spec: InlaGridSpec,
     pub grid: Vec<InlaGridPoint>,
     pub grid_diagnostics: InlaGridDiagnostics,
-    pub tau: SarScalarSummary,
+    pub tau: ScalarSummary,
     pub latent_marginals: Vec<InlaLatentMarginal>,
     pub hmc_comparison: InlaHmcComparison,
     pub posterior_predictive: InlaPosteriorPredictive,

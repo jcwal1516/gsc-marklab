@@ -33,10 +33,18 @@ fn physical_cuboid_k_replays_with_the_translation_oracle_intact() {
     .expect("fixture");
 
     project_command(&project, &input, &first)
+        .env(
+            "MARKLAB_RUNTIME_ROOT",
+            directory.path().join("absent-runtime"),
+        )
         .assert()
         .success()
         .stderr(predicates::str::contains("cache_status=miss"));
     project_command(&project, &input, &second)
+        .env(
+            "MARKLAB_RUNTIME_ROOT",
+            directory.path().join("absent-runtime"),
+        )
         .env("MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION", "1")
         .assert()
         .success()

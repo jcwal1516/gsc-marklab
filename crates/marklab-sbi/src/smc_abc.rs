@@ -5,6 +5,7 @@ use rand_distr::StandardNormal;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::SbiError;
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug)]
 pub struct SmcAbcGrowthFrontSpec {
@@ -66,7 +67,7 @@ pub struct SmcAbcGrowthFrontResult {
     pub total_simulations: u64,
     pub maximum_total_declared_cell_steps: u64,
     pub random_seed_namespace: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 impl<'de> Deserialize<'de> for SmcAbcGrowthFrontResult {
@@ -127,7 +128,7 @@ impl<'de> Deserialize<'de> for SmcAbcGrowthFrontResult {
             total_simulations: owned.total_simulations,
             maximum_total_declared_cell_steps: owned.maximum_total_declared_cell_steps,
             random_seed_namespace: "smc_abc_growth_front_v1_chacha20",
-            claim_status: "synthetic_smc_abc_specialization_not_biological_calibration",
+            claim_status: ClaimStatus::SyntheticSmcAbcSpecializationNotBiologicalCalibration,
         })
     }
 }
@@ -232,7 +233,7 @@ pub fn smc_abc_growth_front(
         total_simulations,
         maximum_total_declared_cell_steps: maximum_work,
         random_seed_namespace: "smc_abc_growth_front_v1_chacha20",
-        claim_status: "synthetic_smc_abc_specialization_not_biological_calibration",
+        claim_status: ClaimStatus::SyntheticSmcAbcSpecializationNotBiologicalCalibration,
     })
 }
 

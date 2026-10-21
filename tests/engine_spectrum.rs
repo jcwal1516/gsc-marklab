@@ -1,3 +1,7 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use marklab::{
     AnalysisConfig, AnalysisEngine, AnalysisSection, AnalysisStatus, ComponentMode,
     InterpretationClass, OutputWriter, Pattern, PatternMeta, PermutationStratum,
@@ -6,16 +10,7 @@ use marklab::{
 };
 
 fn meta() -> PatternMeta {
-    PatternMeta {
-        case_id: "case_clustered".into(),
-        timepoint: "post".into(),
-        protein: "MSH6".into(),
-        slide_id: None,
-        section_id: None,
-        stain_batch: None,
-        block_id: None,
-        region_id: None,
-    }
+    pattern_meta("case_clustered".into(), "post".into(), "MSH6".into(), None)
 }
 
 fn permissive_config() -> AnalysisConfig {
@@ -469,6 +464,60 @@ fn homogeneous_strata_report_degenerate_null() {
             if reason.contains("degenerate") && reason.contains("mark-homogeneous")
     ));
     assert_eq!(result.status, AnalysisStatus::Suppressed);
+}
+
+#[test]
+fn component_spectra_preserve_strata_after_subsetting() {
+    let mut config = permissive_config();
+    config.analysis.analyze_components = ComponentMode::Separate;
+    config.permutation.stratified = true;
+    config.permutation.strata_fields =
+        vec![PermutationStratum::QcBin, PermutationStratum::ComponentId];
+    let mut pattern = Pattern::from_arrays(
+        (0..80)
+            .map(|row| (row / 2) as f64 + 100.0 * (row % 2) as f64)
+            .collect(),
+        vec![0.0; 80],
+        (0..80).map(|row| u8::from(row / 2 < 8)).collect(),
+        meta(),
+    )
+    .expect("pattern");
+    pattern.window.area_um2 = 80.0;
+    pattern.window.d_nn_mean_um = 1.0;
+    pattern.component_id = Some((0..80).map(|row| (row % 2) as u32).collect());
+    // Component 0 has no exchangeable labels; component 1 can exchange eight
+    // positives among its first nine cells. Rows of the components are interleaved.
+    pattern.qc_bin = Some(
+        (0..80)
+            .map(|row| u16::from(row / 2 >= 8 + row % 2))
+            .collect(),
+    );
+
+    let result = AnalysisEngine::new(config.clone())
+        .unwrap()
+        .analyze_pattern(&pattern)
+        .unwrap();
+    let components = result.component_results.value().expect("components");
+    assert!(matches!(&components[0].primary_endpoint_value,
+        AnalysisSection::InsufficientData { reason } if reason.contains("degenerate")));
+    assert_eq!(components[0].p_global, None);
+    assert!(components[0]
+        .status_flags
+        .contains(&StatusFlag::DegenerateSpatialStrataNull));
+    assert!(components[1].primary_endpoint_value.value().is_some());
+    assert!(components[1].p_global.expect("stratified p") >= 0.10);
+
+    config.permutation.stratified = false;
+    let unstratified = AnalysisEngine::new(config)
+        .unwrap()
+        .analyze_pattern(&pattern)
+        .unwrap();
+    assert!(unstratified
+        .component_results
+        .value()
+        .unwrap()
+        .iter()
+        .all(|component| component.p_global.expect("unstratified p") < 0.10));
 }
 
 #[test]
@@ -997,6 +1046,41 @@ fn engine_uses_probabilistic_marks_when_configured() {
     );
     let p_value = *probabilistic.primary_endpoint.p_value.value().expect("p");
     assert!(0.0 < p_value && p_value <= 1.0);
+}
+
+#[test]
+fn engine_rejects_invalid_probability_rows_before_component_analysis() {
+    let mut config = permissive_config();
+    config.analysis.use_probabilistic_marks = true;
+    config.analysis.analyze_components = ComponentMode::Both;
+    let engine = AnalysisEngine::new(config).unwrap();
+    let mut pattern = Pattern::from_arrays(
+        (0..20).map(|row| row as f64).collect(),
+        vec![0.0; 20],
+        (0..20).map(|row| (row % 2) as u8).collect(),
+        meta(),
+    )
+    .unwrap();
+    pattern.component_id = Some(vec![1; 20].into_boxed_slice());
+    pattern.window.d_nn_mean_um = 1.0;
+    for invalid in [-1.0, 2.0, f32::NAN, f32::INFINITY] {
+        let mut values = vec![0.5; 20];
+        values[3] = invalid;
+        pattern.mark_prob = Some(values.into_boxed_slice());
+        assert!(
+            matches!(engine.analyze_pattern(&pattern), Err(marklab::MarklabError::Validation(reason))
+            if reason.contains("probability") && reason.contains("row 3")),
+            "value {invalid}"
+        );
+    }
+    for length in [19, 21] {
+        pattern.mark_prob = Some(vec![0.5; length].into_boxed_slice());
+        assert!(
+            matches!(engine.analyze_pattern(&pattern), Err(marklab::MarklabError::Validation(reason))
+            if reason.contains("probability") && reason.contains("20")),
+            "length {length}"
+        );
+    }
 }
 
 #[test]

@@ -1,16 +1,22 @@
-#![allow(dead_code)]
-
 use marklab::{
-    execute_algorithm_with_store, ArtifactRef, ArtifactSchema, BinaryMarkDeclaration, CacheStatus,
-    DeclaredScalarPatternInput, DurableProject, DurableProjectLimits, GlobalMoranAlternative,
-    GlobalMoranAnalysisNode, GlobalMoranDesign, GlobalMoranLimits, GlobalMoranPrePostNode,
-    GlobalMoranPrePostResult, GlobalMoranWeightPolicy, LocalScheduler, MarkTable,
-    MeasurementStatus, NativeRuntimeProvenance, NodeId, ObservationWindow2D,
-    ObservationWindowLimits, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
-    SchedulerLimits, WorkflowGraph,
+    autocorrelation::{
+        GlobalMoranAlternative, GlobalMoranAnalysisNode, GlobalMoranDesign, GlobalMoranLimits,
+        GlobalMoranPrePostNode, GlobalMoranPrePostResult, GlobalMoranWeightPolicy,
+    },
+    marks::{
+        BinaryMarkDeclaration, DeclaredScalarPatternInput, MarkTable, ScalarMarkColumn,
+        ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
+    },
+    workflow::{
+        execute_algorithm_with_store, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
+        DurableProjectLimits, LocalScheduler, NativeRuntimeProvenance, NodeId, SchedulerLimits,
+        WorkflowGraph,
+    },
+    MeasurementStatus, ObservationWindow2D, ObservationWindowLimits,
 };
 use tempfile::TempDir;
 
+#[allow(dead_code)]
 #[path = "support/declared_scalar.rs"]
 mod support;
 use support::*;
@@ -64,9 +70,11 @@ fn run_graph(fixture: &mut Fixture, durable: &mut DurableProject, seed: u64) -> 
         binary_provenance,
     )
     .expect("binary declaration");
-    let area =
-        marklab::NucleusAreaUm2MarkDeclaration::new(MeasurementStatus::Measured, area_provenance)
-            .expect("area declaration");
+    let area = marklab::marks::NucleusAreaUm2MarkDeclaration::new(
+        MeasurementStatus::Measured,
+        area_provenance,
+    )
+    .expect("area declaration");
 
     let mut pre_pattern = fixture.pattern.clone();
     pre_pattern.meta.timepoint = "pre".into();
@@ -83,7 +91,7 @@ fn run_graph(fixture: &mut Fixture, durable: &mut DurableProject, seed: u64) -> 
                     binary.clone(),
                     ScalarMarkModality::Immunohistochemistry,
                     ScalarMarkUnit::Unitless,
-                    marklab::MissingnessPolicy::NotPermitted,
+                    marklab::marks::MissingnessPolicy::NotPermitted,
                     pattern.mark.clone(),
                 )
                 .expect("binary column"),
@@ -91,7 +99,7 @@ fn run_graph(fixture: &mut Fixture, durable: &mut DurableProject, seed: u64) -> 
                     area.clone(),
                     ScalarMarkModality::Morphology,
                     ScalarMarkUnit::SquareMicrometer,
-                    marklab::MissingnessPolicy::NotPermitted,
+                    marklab::marks::MissingnessPolicy::NotPermitted,
                     pattern.nucleus_area_um2.clone().expect("continuous values"),
                 )
                 .expect("continuous column"),

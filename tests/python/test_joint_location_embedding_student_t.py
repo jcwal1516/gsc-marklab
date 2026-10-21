@@ -1,12 +1,9 @@
-#!/usr/bin/env python3
-
 import importlib.util
 import math
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 import numpy as np
-
 
 MODULE_PATH = (
     Path(__file__).resolve().parents[2]
@@ -79,9 +76,7 @@ class JointVectorPredictiveScoreTest(unittest.TestCase):
             atol=1e-15,
         )
 
-        identical_draws = np.asarray(
-            [[[-2.0, -3.0], [-1000.0, -1000.0]]] * 3
-        )
+        identical_draws = np.asarray([[[-2.0, -3.0], [-1000.0, -1000.0]]] * 3)
         actual = worker.joint_vector_log_predictive_density(identical_draws)
         permuted = worker.joint_vector_log_predictive_density(
             identical_draws[:, :, ::-1]

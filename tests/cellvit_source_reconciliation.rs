@@ -2,7 +2,7 @@
 
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
-use marklab::{
+use marklab::embeddings::{
     ManifestFailure, MissingPromotionField, ReconciliationFailure, SourceBundleBudgets,
     SourceBundleError, SourceBundleReconciler,
 };

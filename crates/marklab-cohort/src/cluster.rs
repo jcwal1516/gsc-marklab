@@ -38,8 +38,6 @@ pub struct ClusterPermutationResult {
     pub studentized_statistic: f64,
     pub p_value: f64,
     pub permutations_requested: usize,
-    pub permutations_attempted: usize,
-    pub permutations_completed: usize,
     pub seed: u64,
     pub alternative: PermutationAlternative,
 }
@@ -146,8 +144,6 @@ pub fn cluster_level_permutation_test(
         studentized_statistic: observed.studentized,
         p_value,
         permutations_requested: spec.permutations,
-        permutations_attempted: spec.permutations,
-        permutations_completed: spec.permutations,
         seed: spec.seed,
         alternative: spec.alternative,
     })

@@ -1,55 +1,44 @@
-use std::{fs, path::PathBuf};
+use std::fs;
 
-use marklab_bayes::{
-    sha256_hex, CellPatchComplementaritySpec, CellPatchComplementarityWorkerRequest,
-    CellPatchComplementarityWorkerResult, ComplementarityFeatureNames, ComplementarityModelResult,
-    ComplementarityPatientRow, WorkerBackend,
-};
+use marklab_bayes::{sha256_hex, WorkerBackend};
 use marklab_cohort::{
     paired_patient_permutation_test, PairedPatientEndpoint, PairedPatientPermutationSpec,
     PermutationAlternative,
 };
-use serde::Serialize;
+use marklab_embeddings::analysis::{
+    CellPatchComplementaritySpec, CellPatchComplementarityWorkerRequest,
+    CellPatchComplementarityWorkerResult, ComplementarityFeatureNames, ComplementarityModelResult,
+    ComplementarityPatientRow,
+};
+use serde::{Deserialize, Serialize};
 
-use super::{embedding_spatial, publish_json, run_worker, BayesCliError};
+use super::cli_schema::TestCellPatchComplementarityArgs;
+use super::{embedding_spatial, publish_json, run_worker, CliError};
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input: PathBuf,
-    outer_folds: u32,
-    inner_folds: u32,
-    ridge_alphas: String,
-    permutations: usize,
-    seed: u64,
-    timeout_seconds: u64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: TestCellPatchComplementarityArgs) -> Result<(), CliError> {
     run_with_output(
-        input,
-        outer_folds,
-        inner_folds,
-        ridge_alphas,
-        permutations,
-        seed,
-        timeout_seconds,
-        out,
+        args,
         "marklab.cell_patch_complementarity",
         "experimental_synthetic_predictive_design",
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn run_multimodal_comparison(
-    input: PathBuf,
-    outer_folds: u32,
-    inner_folds: u32,
-    ridge_alphas: String,
-    permutations: usize,
-    seed: u64,
-    timeout_seconds: u64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
+    args: TestCellPatchComplementarityArgs,
+) -> Result<(), CliError> {
     run_with_output(
+        args,
+        "marklab.multimodal_model_comparison",
+        "experimental_synthetic_multimodal_comparison",
+    )
+}
+
+fn run_with_output(
+    args: TestCellPatchComplementarityArgs,
+    output_format: &'static str,
+    claim_status: &'static str,
+) -> Result<(), CliError> {
+    let TestCellPatchComplementarityArgs {
         input,
         outer_folds,
         inner_folds,
@@ -58,44 +47,20 @@ pub(crate) fn run_multimodal_comparison(
         seed,
         timeout_seconds,
         out,
-        "marklab.multimodal_model_comparison",
-        "experimental_synthetic_multimodal_comparison",
-    )
-}
+    } = args;
 
-#[allow(clippy::too_many_arguments)]
-fn run_with_output(
-    input: PathBuf,
-    outer_folds: u32,
-    inner_folds: u32,
-    ridge_alphas: String,
-    permutations: usize,
-    seed: u64,
-    timeout_seconds: u64,
-    out: PathBuf,
-    output_format: &'static str,
-    claim_status: &'static str,
-) -> Result<(), BayesCliError> {
     let input_bytes = embedding_spatial::read(&input)?;
     let (patients, feature_names) = read_patients(&input_bytes)?;
-    let alphas = ridge_alphas
-        .split(',')
-        .map(|value| {
-            value
-                .parse::<f64>()
-                .map_err(|_| BayesCliError::Input("ridge alpha grid is invalid".into()))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let repository = &marklab::python_backend_assets_root()?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let worker_directory = repository.join("workers/python");
     let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
+    let lock_bytes = fs::read(&lock_path).map_err(|source| CliError::Io {
         path: lock_path,
         source,
     })?;
     let worker_name = "marklab_scipy_cell_patch_complementarity_worker.py";
     let worker_path = worker_directory.join(worker_name);
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
+    let worker_bytes = fs::read(&worker_path).map_err(|source| CliError::Io {
         path: worker_path,
         source,
     })?;
@@ -105,7 +70,7 @@ fn run_with_output(
             feature_names,
             outer_folds,
             inner_folds,
-            ridge_alphas: alphas,
+            ridge_alphas,
             timeout_seconds,
         },
         sha256_hex(&lock_bytes),
@@ -116,7 +81,7 @@ fn run_with_output(
     let result_bytes = run_worker(repository, worker_name, &request_bytes, timeout_seconds)?;
     let worker: CellPatchComplementarityWorkerResult = serde_json::from_slice(&result_bytes)?;
     worker.validate(&request, &request_sha256)?;
-    let comparisons = comparisons(&worker.models, permutations, seed)?;
+    let comparisons = comparisons(&worker.models, permutations, seed).map_err(CliError::Backend)?;
     publish_json(
         &out,
         &Output {
@@ -136,9 +101,9 @@ fn run_with_output(
     )
 }
 
-fn read_patients(
+pub(crate) fn read_patients(
     bytes: &[u8],
-) -> Result<(Vec<ComplementarityPatientRow>, ComplementarityFeatureNames), BayesCliError> {
+) -> Result<(Vec<ComplementarityPatientRow>, ComplementarityFeatureNames), CliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
@@ -148,7 +113,7 @@ fn read_patients(
         || headers.iter().take(4).collect::<Vec<_>>()
             != ["patient_id", "outer_fold", "inner_fold", "target"]
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "complementarity input requires patient/fold/target prefix and all feature groups"
                 .into(),
         ));
@@ -172,7 +137,7 @@ fn read_patients(
             .collect::<Vec<_>>()
     });
     if indices.iter().any(Vec::is_empty) || indices.iter().flatten().count() != headers.len() - 4 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "every complementarity feature must belong to one required prefix group".into(),
         ));
     }
@@ -200,7 +165,7 @@ fn read_patients(
                 .iter()
                 .map(|index| {
                     record[*index].parse::<f64>().map_err(|_| {
-                        BayesCliError::Input(format!(
+                        CliError::Input(format!(
                             "complementarity feature {} is invalid",
                             &headers[*index]
                         ))
@@ -212,13 +177,13 @@ fn read_patients(
             patient_id: record[0].to_owned(),
             outer_fold: record[1]
                 .parse()
-                .map_err(|_| BayesCliError::Input("outer fold is invalid".into()))?,
+                .map_err(|_| CliError::Input("outer fold is invalid".into()))?,
             inner_fold: record[2]
                 .parse()
-                .map_err(|_| BayesCliError::Input("inner fold is invalid".into()))?,
+                .map_err(|_| CliError::Input("inner fold is invalid".into()))?,
             target: record[3]
                 .parse()
-                .map_err(|_| BayesCliError::Input("target is invalid".into()))?,
+                .map_err(|_| CliError::Input("target is invalid".into()))?,
             technical: values(0)?,
             clinical: values(1)?,
             compartment: values(2)?,
@@ -232,24 +197,28 @@ fn read_patients(
     Ok((patients, feature_names))
 }
 
-#[derive(Serialize)]
-struct IncrementComparison {
-    comparison_id: String,
-    base_model: String,
-    expanded_model: String,
-    pair_count: usize,
-    mean_absolute_error_effect_expanded_minus_base: f64,
-    studentized_statistic: f64,
-    p_value_two_sided: f64,
-    permutations: usize,
-    seed: u64,
+/// One nested-model increment and its paired permutation test.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct IncrementComparison {
+    pub(crate) comparison_id: String,
+    pub(crate) base_model: String,
+    pub(crate) expanded_model: String,
+    pub(crate) pair_count: usize,
+    pub(crate) mean_absolute_error_effect_expanded_minus_base: f64,
+    pub(crate) studentized_statistic: f64,
+    pub(crate) p_value_two_sided: f64,
+    pub(crate) permutations: usize,
+    pub(crate) seed: u64,
 }
 
-fn comparisons(
+/// The six nested-model increments, each compared by a paired patient permutation test of
+/// absolute prediction error, with a per-comparison seed derived from `seed`.
+pub(crate) fn comparisons(
     models: &[ComplementarityModelResult],
     permutations: usize,
     seed: u64,
-) -> Result<Vec<IncrementComparison>, BayesCliError> {
+) -> Result<Vec<IncrementComparison>, String> {
     [
         ("baseline_plus_cell", "baseline"),
         ("baseline_plus_patch", "baseline"),
@@ -270,11 +239,11 @@ fn comparisons(
         let base = models
             .iter()
             .find(|model| model.model_id == base_id)
-            .unwrap();
+            .ok_or("complementarity base model is missing")?;
         let expanded = models
             .iter()
             .find(|model| model.model_id == expanded_id)
-            .unwrap();
+            .ok_or("complementarity expanded model is missing")?;
         let mut records = Vec::with_capacity(base.predictions.len() * 2);
         for (base_prediction, expanded_prediction) in
             base.predictions.iter().zip(&expanded.predictions)
@@ -301,7 +270,7 @@ fn comparisons(
                 alternative: PermutationAlternative::TwoSided,
             },
         )
-        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
+        .map_err(|error| error.to_string())?;
         Ok(IncrementComparison {
             comparison_id: format!("{expanded_id}_minus_{base_id}"),
             base_model: base_id.into(),

@@ -1,10 +1,11 @@
-use std::{fs, path::PathBuf};
+use std::fs;
 
 use marklab_sbi::{smc_abc_growth_front, SmcAbcGrowthFrontSpec};
 use marklab_simulation::GrowthFrontInitialPoint;
 use serde::Deserialize;
 
-use super::{publish_json, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::SmcAbcGrowthFrontArgs;
+use super::{publish_json, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -19,35 +20,37 @@ struct InitialPoint {
     density: f64,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input_path: PathBuf,
-    diffusion_um2_per_time: f64,
-    carrying_capacity: f64,
-    final_time: f64,
-    time_step: f64,
-    front_threshold_fraction: f64,
-    observed_final_mass: f64,
-    mass_scale: f64,
-    growth_rate_prior_min: f64,
-    growth_rate_prior_max: f64,
-    epsilon_schedule: Vec<f64>,
-    particles: u32,
-    maximum_proposals_per_stage: u32,
-    maximum_cell_steps_per_proposal: u64,
-    seed: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
-    let metadata = fs::metadata(&input_path).map_err(|source| BayesCliError::Io {
+pub(super) fn run(args: SmcAbcGrowthFrontArgs) -> Result<(), CliError> {
+    let SmcAbcGrowthFrontArgs {
+        input,
+        diffusion_um2_per_time,
+        carrying_capacity,
+        final_time,
+        time_step,
+        front_threshold_fraction,
+        observed_final_mass,
+        mass_scale,
+        growth_rate_prior_min,
+        growth_rate_prior_max,
+        epsilon_schedule,
+        particles,
+        maximum_proposals_per_stage,
+        maximum_cell_steps_per_proposal,
+        seed,
+        out,
+    } = args;
+    let input_path = input;
+    let output_path = out;
+    let metadata = fs::metadata(&input_path).map_err(|source| CliError::Io {
         path: input_path.clone(),
         source,
     })?;
     if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "SMC-ABC input must be a regular file within 16 MiB".into(),
         ));
     }
-    let bytes = fs::read(&input_path).map_err(|source| BayesCliError::Io {
+    let bytes = fs::read(&input_path).map_err(|source| CliError::Io {
         path: input_path,
         source,
     })?;
@@ -76,6 +79,6 @@ pub(super) fn run(
         maximum_cell_steps_per_proposal,
         seed,
     })
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    .map_err(|error| CliError::Input(error.to_string()))?;
     publish_json(&output_path, &result)
 }

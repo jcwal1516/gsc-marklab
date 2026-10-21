@@ -1,3 +1,5 @@
+use crate::result_vocabulary::{EdgeCorrection, NearestNeighborOwner, ProbeSamplingMethod};
+use crate::workflow_codec::unit_interval;
 use serde::{Deserialize, Serialize};
 
 use crate::{errors::MarklabError, Result};
@@ -140,9 +142,9 @@ fn validate_analysis(result: &NearestSpaceResult) -> Result<()> {
         || result.geometry.nearest_query_count > result.configuration.limits.maximum_nearest_queries
         || result.geometry.estimated_storage_bytes
             > result.configuration.limits.maximum_retained_bytes
-        || result.geometry.nearest_neighbor_owner != "spatial_index_2d"
-        || result.geometry.edge_correction != "standard_border_reduced_sample"
-        || result.probes.method != "fixed_cell_centred_rectangular_grid"
+        || result.geometry.nearest_neighbor_owner != NearestNeighborOwner::SpatialIndex2d
+        || result.geometry.edge_correction != EdgeCorrection::StandardBorderReducedSample
+        || result.probes.method != ProbeSamplingMethod::FixedCellCentredRectangularGrid
         || result.probes.requested_grid.contains(&0)
         || result.probes.retained_probe_count == 0
         || result.probes.retained_probe_count > result.configuration.limits.maximum_probes
@@ -348,10 +350,6 @@ fn validate_inference(
 
 fn finite_positive(value: f64) -> bool {
     value.is_finite() && value > 0.0
-}
-
-fn unit_interval(value: f64) -> bool {
-    value.is_finite() && (0.0..=1.0).contains(&value)
 }
 
 fn same_calculated_float(actual: f64, expected: f64) -> bool {

@@ -1,20 +1,27 @@
+use crate::is_worker_timeout;
+use marklab_numerics::relative_eq;
 use std::collections::{BTreeMap, BTreeSet};
 
+use marklab_numerics::summation::neumaier_sum;
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::ClaimStatus;
 use crate::{
     hierarchical_agreement::{JAX_VERSION, NUMPYRO_VERSION},
     validation::{
-        diagnostics_satisfy_policy, is_lower_hex_sha256, validate_scalar_summary, SummarySupport,
+        diagnostics_satisfy_policy, is_exact_name, is_sha256, validate_scalar_summary,
+        SummarySupport,
     },
-    BackendContract, BayesError, DiagnosticPolicy, FitState, NormalMeanDiagnostics,
-    NutsSamplingSpec, SamplingSummary, SarScalarSummary, WorkerBackend,
+    BackendContract, BayesError, DiagnosticPolicy, FitState, NutsSamplingSpec,
+    PosteriorDiagnostics, SamplingSummary, ScalarSummary, WorkerBackend,
 };
 
+const RELATIVE_TOLERANCE: f64 = 1e-12;
 const REQUEST_FORMAT: &str = "marklab.numpyro_negative_binomial_hierarchy_request";
 const RESULT_FORMAT: &str = "marklab.negative_binomial_hierarchy";
-const CLAIM_COMPLETE: &str = "experimental_conditional_within_patient_association";
-const CLAIM_NONCONVERGED: &str = "diagnostic_only_nonconverged";
+const CLAIM_COMPLETE: ClaimStatus = ClaimStatus::ExperimentalConditionalWithinPatientAssociation;
+const CLAIM_NONCONVERGED: ClaimStatus = ClaimStatus::DiagnosticOnlyNonconverged;
 const MAXIMUM_PATIENTS: usize = 64;
 const MAXIMUM_SLIDES: usize = 128;
 const MAXIMUM_OBSERVATIONS: usize = 512;
@@ -45,6 +52,20 @@ pub struct NegativeBinomialHierarchyPriors {
     pub slide_sd_scale: f64,
 }
 
+/// Negative-binomial ROI counts with patient intercepts/slopes and nested slide effects.
+///
+/// The NB2 likelihood has mean `mu` and variance `mu + mu^2 / phi`, with
+/// `log(mu) = log(area) + alpha + beta * x + u_patient + v_patient * x + s_slide`.
+/// The predictor `x` is centered within each patient and divided by the pooled
+/// root-mean-square centered predictor. Independent priors from `priors` are
+/// `alpha ~ Normal(intercept_mean, intercept_sd)`,
+/// `beta ~ Normal(0, slope_sd)`, and
+/// `log(phi) ~ Normal(log_dispersion_mean, log_dispersion_sd)`.
+/// Patient intercepts, patient slopes, and slide intercepts use non-centered
+/// effects `sd * z`, with independent standard-normal `z` and half-normal SD
+/// priors whose underlying normal scales are `patient_intercept_sd_scale`,
+/// `patient_slope_sd_scale`, and `slide_sd_scale`. Normal scale arguments are SDs.
+/// The NumPyro worker evaluates the NB2 log density directly as a factor.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct NegativeBinomialHierarchySpec {
@@ -87,7 +108,7 @@ impl NegativeBinomialHierarchyWorkerRequest {
         environment_lock_sha256: String,
         worker_sha256: String,
     ) -> Result<Self, BayesError> {
-        if !is_lower_hex_sha256(&environment_lock_sha256) || !is_lower_hex_sha256(&worker_sha256) {
+        if !is_sha256(&environment_lock_sha256) || !is_sha256(&worker_sha256) {
             return Err(BayesError::InvalidSpec(
                 "negative-binomial hierarchy backend identities must be lowercase SHA-256 digests"
                     .into(),
@@ -124,7 +145,7 @@ impl NegativeBinomialHierarchyWorkerRequest {
             backend: BackendContract {
                 name: "numpyro",
                 version: NUMPYRO_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -142,7 +163,7 @@ fn validate_controls(spec: &NegativeBinomialHierarchySpec) -> Result<(), BayesEr
         (&spec.predictor_name, "predictor name"),
         (&spec.predictor_unit, "predictor unit"),
     ] {
-        if value.is_empty() || value.len() > 128 || value.trim() != value {
+        if !is_exact_name(value) {
             return Err(BayesError::InvalidSpec(format!(
                 "negative-binomial hierarchy {name} must be an exact nonempty string"
             )));
@@ -178,7 +199,7 @@ fn validate_controls(spec: &NegativeBinomialHierarchySpec) -> Result<(), BayesEr
             "negative-binomial hierarchy requested {total_iterations} NUTS iterations above the {MAXIMUM_TOTAL_ITERATIONS} limit"
         )));
     }
-    if !(1..=3_600).contains(&spec.timeout_seconds) {
+    if !is_worker_timeout(spec.timeout_seconds) {
         return Err(BayesError::InvalidSpec(
             "negative-binomial hierarchy timeout must be between 1 and 3600 seconds".into(),
         ));
@@ -198,9 +219,9 @@ fn compile_design(
     let mut patient_rows = BTreeMap::<String, Vec<usize>>::new();
     let mut slide_rows = BTreeMap::<String, (String, Vec<usize>)>::new();
     for (index, row) in observations.iter().enumerate() {
-        if !valid_id(&row.patient_id)
-            || !valid_id(&row.slide_id)
-            || !valid_id(&row.roi_id)
+        if !is_exact_name(&row.patient_id)
+            || !is_exact_name(&row.slide_id)
+            || !is_exact_name(&row.roi_id)
             || !roi_ids.insert(row.roi_id.as_str())
             || !row.area.is_finite()
             || row.area <= 0.0
@@ -280,7 +301,7 @@ fn compile_design(
     for patient in &patient_ids {
         let indices = &patient_rows[patient];
         let origin = observations[indices[0]].predictor;
-        let mean_offset = compensated_sum(
+        let mean_offset = neumaier_sum(
             indices
                 .iter()
                 .map(|index| observations[*index].predictor - origin),
@@ -298,7 +319,7 @@ fn compile_design(
     }
     let maximum_centered = centered.iter().map(|value| value.abs()).fold(0.0, f64::max);
     let scale = maximum_centered
-        * (compensated_sum(
+        * (neumaier_sum(
             centered
                 .iter()
                 .map(|value| (value / maximum_centered).powi(2)),
@@ -335,35 +356,16 @@ fn compile_design(
     })
 }
 
-fn valid_id(value: &str) -> bool {
-    !value.is_empty() && value.len() <= 128 && value.trim() == value
-}
-
-fn compensated_sum(values: impl IntoIterator<Item = f64>) -> f64 {
-    let mut sum = 0.0;
-    let mut correction = 0.0;
-    for value in values {
-        let next = sum + value;
-        correction += if sum.abs() >= value.abs() {
-            (sum - next) + value
-        } else {
-            (value - next) + sum
-        };
-        sum = next;
-    }
-    sum + correction
-}
-
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct NegativeBinomialHierarchyPosterior {
-    pub alpha: SarScalarSummary,
-    pub beta: SarScalarSummary,
-    pub rate_ratio: SarScalarSummary,
-    pub dispersion: SarScalarSummary,
-    pub patient_intercept_sd: SarScalarSummary,
-    pub patient_slope_sd: SarScalarSummary,
-    pub slide_sd: SarScalarSummary,
+    pub alpha: ScalarSummary,
+    pub beta: ScalarSummary,
+    pub rate_ratio: ScalarSummary,
+    pub dispersion: ScalarSummary,
+    pub patient_intercept_sd: ScalarSummary,
+    pub patient_slope_sd: ScalarSummary,
+    pub slide_sd: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -371,8 +373,8 @@ pub struct NegativeBinomialHierarchyPosterior {
 pub struct NegativeBinomialHierarchyPatientPosterior {
     pub patient_id: String,
     pub observation_count: u32,
-    pub random_intercept: SarScalarSummary,
-    pub slope: SarScalarSummary,
+    pub random_intercept: ScalarSummary,
+    pub slope: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -381,7 +383,7 @@ pub struct NegativeBinomialHierarchySlidePosterior {
     pub slide_id: String,
     pub patient_id: String,
     pub observation_count: u32,
-    pub random_intercept: SarScalarSummary,
+    pub random_intercept: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -394,9 +396,9 @@ pub struct NegativeBinomialHierarchyRoiPosterior {
     pub area: f64,
     pub predictor: f64,
     pub within_predictor: f64,
-    pub expected_count: SarScalarSummary,
-    pub expected_rate: SarScalarSummary,
-    pub zero_probability: SarScalarSummary,
+    pub expected_count: ScalarSummary,
+    pub expected_rate: ScalarSummary,
+    pub zero_probability: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -475,10 +477,10 @@ pub struct NegativeBinomialHierarchyResult {
     pub jax_version: String,
     pub request_sha256: String,
     pub fit_state: FitState,
-    pub claim_status: String,
+    pub claim_status: ClaimStatus,
     pub model: NegativeBinomialHierarchyModel,
     pub sampling: SamplingSummary,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub design: NegativeBinomialHierarchyDesign,
     pub posterior: NegativeBinomialHierarchyPosterior,
     pub patients: Vec<NegativeBinomialHierarchyPatientPosterior>,
@@ -497,11 +499,7 @@ impl NegativeBinomialHierarchyResult {
         if self.format != RESULT_FORMAT
             || self.version != 1
             || self.fit_state == FitState::ApproximateOnly
-            || self.backend.name != "numpyro"
-            || self.backend.version != NUMPYRO_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.jax_version != JAX_VERSION
             || self.request_sha256 != expected_request_sha256
             || self.model != NegativeBinomialHierarchyModel::for_spec(&request.spec)
@@ -700,7 +698,11 @@ impl NegativeBinomialHierarchyResult {
             .filter(|row| row.count == 0)
             .count() as f64
             / request.spec.observations.len() as f64;
-        if !close(ppc.observed_zero_fraction, observed_zero_fraction) {
+        if !relative_eq(
+            ppc.observed_zero_fraction,
+            observed_zero_fraction,
+            RELATIVE_TOLERANCE,
+        ) {
             return Err(BayesError::WorkerContract(
                 "negative-binomial hierarchy posterior predictive changed the observed zero fraction"
                     .into(),
@@ -716,7 +718,8 @@ impl NegativeBinomialHierarchyResult {
                 (count + u64::from(row.count), area + row.area)
             });
             let observed_rate = count as f64 / area;
-            if actual.patient_id != *patient_id || !close(actual.observed_mean_rate, observed_rate)
+            if actual.patient_id != *patient_id
+                || !relative_eq(actual.observed_mean_rate, observed_rate, RELATIVE_TOLERANCE)
             {
                 return Err(BayesError::WorkerContract(
                     "negative-binomial hierarchy patient predictive identity changed".into(),
@@ -751,7 +754,7 @@ impl NegativeBinomialHierarchyResult {
     }
 }
 
-fn real_summary(summary: &SarScalarSummary) -> Result<(), BayesError> {
+fn real_summary(summary: &ScalarSummary) -> Result<(), BayesError> {
     validate_scalar_summary(
         summary,
         SummarySupport::Real,
@@ -759,7 +762,7 @@ fn real_summary(summary: &SarScalarSummary) -> Result<(), BayesError> {
     )
 }
 
-fn positive_summary(summary: &SarScalarSummary) -> Result<(), BayesError> {
+fn positive_summary(summary: &ScalarSummary) -> Result<(), BayesError> {
     validate_scalar_summary(
         summary,
         SummarySupport::Positive,
@@ -767,7 +770,7 @@ fn positive_summary(summary: &SarScalarSummary) -> Result<(), BayesError> {
     )
 }
 
-fn unit_summary(summary: &SarScalarSummary) -> Result<(), BayesError> {
+fn unit_summary(summary: &ScalarSummary) -> Result<(), BayesError> {
     validate_scalar_summary(
         summary,
         SummarySupport::Unit,
@@ -775,7 +778,7 @@ fn unit_summary(summary: &SarScalarSummary) -> Result<(), BayesError> {
     )
 }
 
-fn scaled_summary_equal(count: &SarScalarSummary, rate: &SarScalarSummary, area: f64) -> bool {
+fn scaled_summary_equal(count: &ScalarSummary, rate: &ScalarSummary, area: f64) -> bool {
     [
         (count.mean, rate.mean),
         (count.sd, rate.sd),
@@ -783,7 +786,7 @@ fn scaled_summary_equal(count: &SarScalarSummary, rate: &SarScalarSummary, area:
         (count.interval_upper, rate.interval_upper),
     ]
     .iter()
-    .all(|(count, rate)| close(*count, *rate * area))
+    .all(|(count, rate)| relative_eq(*count, *rate * area, RELATIVE_TOLERANCE))
 }
 
 fn finite_nonnegative(value: f64, name: &str) -> Result<(), BayesError> {
@@ -802,10 +805,6 @@ fn finite_unit(value: f64, name: &str) -> Result<(), BayesError> {
         )));
     }
     Ok(())
-}
-
-fn close(left: f64, right: f64) -> bool {
-    (left - right).abs() <= 1e-12 * left.abs().max(right.abs()).max(1.0)
 }
 
 fn counts_by_patient(

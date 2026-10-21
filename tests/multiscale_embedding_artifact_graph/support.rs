@@ -1,19 +1,24 @@
 pub(super) use std::{collections::BTreeMap, str::FromStr};
 
 pub(super) use marklab::{
-    ArtifactCatalog, ArtifactId, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef,
-    ArtifactSchema, CohortHierarchy, ContentDigest, CoordinateFrame, CoordinateFrameId,
-    CoordinateRegistry, CoordinateSpace, CoordinateUnit, EffectiveReceptiveField, EmbeddingStatus,
-    ExpectedPatchSet, FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention,
-    LocalArtifactStore, MultiscaleArtifactBinding, MultiscaleDirectPatchInputArtifacts,
-    MultiscaleDirectPatchModelProvenance, MultiscaleEmbeddingExecutionProvenance,
-    MultiscaleEmbeddingProvenance, MultiscaleEmbeddingSupport, PatchBoundaryPolicy,
-    PatchEmbeddingContext, PatchEmbeddingInputNormalization, PatchEmbeddingSourceRowLink,
-    PatchEmbeddingSourceRowLinkEntry, PatchFootprint, PatchFootprintSet, PatchId, PatchIdentityMap,
-    PatchIdentityMapEntry, PatchNormalizationDecimal, PatchOverlapGraph, PatchSourceEntityEntry,
-    PatchSourceEntitySet, PatientId, PositiveRational, ReplicationRole, SlideId, SpatialAxis,
-    StoreId, TableColumn, TableColumnType, TableFormat, TableManifest, TableScalarType,
-    TransformId, TransformMatrix,
+    embeddings::{
+        EffectiveReceptiveField, EmbeddingStatus, ExpectedPatchSet, MultiscaleArtifactBinding,
+        MultiscaleDirectPatchInputArtifacts, MultiscaleDirectPatchModelProvenance,
+        MultiscaleEmbeddingExecutionProvenance, MultiscaleEmbeddingProvenance,
+        MultiscaleEmbeddingSupport, PatchBoundaryPolicy, PatchEmbeddingContext,
+        PatchEmbeddingInputNormalization, PatchEmbeddingSourceRowLink,
+        PatchEmbeddingSourceRowLinkEntry, PatchFootprint, PatchFootprintSet, PatchIdentityMap,
+        PatchIdentityMapEntry, PatchNormalizationDecimal, PatchOverlapGraph,
+        PatchSourceEntityEntry, PatchSourceEntitySet, PositiveRational,
+    },
+    workflow::{
+        ArtifactCatalog, ArtifactId, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef,
+        ArtifactSchema, ContentDigest, LocalArtifactStore, StoreId, TableColumn, TableColumnType,
+        TableFormat, TableManifest, TableScalarType,
+    },
+    CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace,
+    CoordinateUnit, FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention, PatchId,
+    PatientId, ReplicationRole, SlideId, SpatialAxis, TransformId, TransformMatrix,
 };
 pub(super) use tempfile::TempDir;
 
@@ -185,3 +190,35 @@ mod record;
 pub(super) use domain::{context, footprint_manifest, hierarchy, overlap_manifest};
 pub(super) use fixture::{fixture, fixture_with_options};
 pub(super) use record::{draft_record, draft_record_with_version, publish_record};
+
+impl Fixture {
+    pub(super) fn direct_graph_result(
+        &self,
+    ) -> Result<
+        marklab::embeddings::VerifiedDirectPatchEmbeddingArtifactGraph,
+        marklab::embeddings::MultiscaleEmbeddingArtifactGraphError,
+    > {
+        self.provenance.validate_direct_patch_artifact_graph(
+            self.provenance_artifact_id,
+            &self.expected_patches,
+            &self.source_entities,
+            &self.identity_map,
+            &self.source_row_link,
+            &self.input_normalization,
+            &self.context,
+            &self.footprints,
+            &self.overlap,
+            &self.support,
+            &self.catalog,
+            &self.store,
+        )
+    }
+}
+
+#[cfg(feature = "parquet")]
+pub(super) fn budgets() -> marklab::embeddings::EmbeddingColumnarBudgets {
+    marklab::embeddings::EmbeddingColumnarBudgets::new(BUDGET as u64, BUDGET, BUDGET, BUDGET as u64)
+}
+
+#[cfg(feature = "parquet")]
+pub(super) use fixture::patch_support;

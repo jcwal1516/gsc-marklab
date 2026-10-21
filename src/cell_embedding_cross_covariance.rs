@@ -100,12 +100,8 @@ fn zeroed_accumulator(
     dimension: usize,
     requested: usize,
 ) -> Result<Vec<f64>, ScalarEmbeddingCrossCovarianceError> {
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(dimension)
-        .map_err(|_| ScalarEmbeddingCrossCovarianceError::AllocationFailed { requested })?;
-    values.resize(dimension, 0.0);
-    Ok(values)
+    crate::common::alloc::try_filled(dimension, 0.0)
+        .map_err(|_| ScalarEmbeddingCrossCovarianceError::AllocationFailed { requested })
 }
 
 #[cfg(test)]

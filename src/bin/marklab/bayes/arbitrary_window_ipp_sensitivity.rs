@@ -1,116 +1,77 @@
+pub(crate) use marklab_bayes::protocol::arbitrary_window_ipp_sensitivity::{
+    standardized, SensitivityResult, SensitivityScenario,
+};
+
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand};
-use marklab_bayes::{
-    FitState, NormalMeanDiagnostics, NutsSamplingSpec, SamplingSummary, SarScalarSummary,
-    WorkerBackend,
-};
-use serde::Serialize;
+use marklab_bayes::FitState;
+use marklab_bayes::NutsSamplingSpec;
 
-use super::{
-    arbitrary_window_ipp_fit::{
-        self, ArbitraryWindowIppFitInputIdentity, ArbitraryWindowIppFitPosterior,
-    },
-    publish_json, BayesCliError,
-};
-
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct SensitivityCli {
-    #[command(subcommand)]
-    command: SensitivityTopLevel,
-}
-
-#[derive(Debug, Subcommand)]
-enum SensitivityTopLevel {
-    Bayes {
-        #[command(subcommand)]
-        command: SensitivityCommand,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum SensitivityCommand {
-    ArbitraryWindowIppSensitivity(Box<SensitivityArguments>),
-}
+use super::arbitrary_window_ipp_fit;
+use super::publish_json;
+use super::CliError;
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::StatisticalUnit;
 
 #[derive(Debug, clap::Args)]
-struct SensitivityArguments {
+pub(crate) struct SensitivityArguments {
+    /// Observed point events with coordinates and model covariates.
     #[arg(long)]
     events: PathBuf,
+    /// Quadrature nodes, weights and covariates for spatial integration.
     #[arg(long)]
     quadrature: PathBuf,
+    /// Observation-window geometry used for spatial integration or edge correction.
     #[arg(long)]
     window: PathBuf,
+    /// Prior mean for intercept.
     #[arg(long, allow_hyphen_values = true)]
     intercept_prior_mean: f64,
+    /// Prior scale for intercept.
     #[arg(long)]
     intercept_prior_sd: f64,
+    /// Prior mean for coefficient.
     #[arg(long, allow_hyphen_values = true)]
     coefficient_prior_mean: f64,
+    /// Prior scale for coefficient.
     #[arg(long)]
     coefficient_prior_sd: f64,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
     chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
     tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
     draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
     target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
     seed: u64,
+    /// Upper bound on events.
     #[arg(long)]
     maximum_events: usize,
+    /// Upper bound on quadrature nodes.
     #[arg(long)]
     maximum_quadrature_nodes: usize,
+    /// Upper bound on draw node work.
     #[arg(long)]
     maximum_draw_node_work: u64,
+    /// Smallest standardized posterior change considered material.
     #[arg(long)]
     material_standardized_shift: f64,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
     timeout_seconds: u64,
+    /// Destination for the analysis output.
     #[arg(long)]
     out: PathBuf,
 }
 
-#[derive(Debug, Serialize)]
-struct SensitivityScenario {
-    name: String,
-    intercept_prior_sd: f64,
-    coefficient_prior_sd: f64,
-    backend: WorkerBackend,
-    input: ArbitraryWindowIppFitInputIdentity,
-    request_sha256: String,
-    sampling: SamplingSummary,
-    fit_state: FitState,
-    posterior: ArbitraryWindowIppFitPosterior,
-    diagnostics: NormalMeanDiagnostics,
-    total_expected_count_mean: f64,
-    intercept_standardized_shift: f64,
-    coefficient_standardized_shift: f64,
-    maximum_standardized_shift: f64,
-    material_change: bool,
-}
-
-#[derive(Debug, Serialize)]
-struct SensitivityResult {
-    format: String,
-    version: u32,
-    scenarios: Vec<SensitivityScenario>,
-    all_fits_complete: bool,
-    material_standardized_shift: f64,
-    material_scenarios: Vec<String>,
-    fit_count: usize,
-    total_draw_node_work: u64,
-    statistical_unit: String,
-    claim_status: String,
-}
-
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let SensitivityTopLevel::Bayes { command } =
-        SensitivityCli::parse_from(std::env::args_os()).command;
-    let SensitivityCommand::ArbitraryWindowIppSensitivity(arguments) = command;
+pub(super) fn run(arguments: SensitivityArguments) -> Result<(), CliError> {
     if !arguments.intercept_prior_sd.is_finite()
         || arguments.intercept_prior_sd <= 0.0
         || !arguments.coefficient_prior_sd.is_finite()
@@ -118,7 +79,7 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
         || !arguments.material_standardized_shift.is_finite()
         || arguments.material_standardized_shift <= 0.0
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "arbitrary-window IPP sensitivity scales and threshold must be positive and finite"
                 .into(),
         ));
@@ -160,28 +121,29 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
     let total_draw_node_work = arguments
         .maximum_draw_node_work
         .checked_mul(definitions.len() as u64)
-        .ok_or_else(|| BayesCliError::Input("sensitivity work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("sensitivity work overflows".into()))?;
     if total_draw_node_work > 100_000_000 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "arbitrary-window IPP sensitivity work exceeds 100000000".into(),
         ));
     }
     let mut fits = Vec::with_capacity(definitions.len());
     for (name, intercept_sd, coefficient_sd) in definitions {
-        let prepared = arbitrary_window_ipp_fit::prepare(
-            arguments.events.clone(),
-            arguments.quadrature.clone(),
-            arguments.window.clone(),
-            arguments.intercept_prior_mean,
-            intercept_sd,
-            arguments.coefficient_prior_mean,
-            coefficient_sd,
-            sampling.clone(),
-            arguments.maximum_events,
-            arguments.maximum_quadrature_nodes,
-            arguments.maximum_draw_node_work,
-            arguments.timeout_seconds,
-        )?;
+        let prepared =
+            arbitrary_window_ipp_fit::prepare(crate::bayes::ArbitraryWindowIppFitParameters {
+                events_path: arguments.events.clone(),
+                quadrature_path: arguments.quadrature.clone(),
+                window_path: arguments.window.clone(),
+                intercept_prior_mean: arguments.intercept_prior_mean,
+                intercept_prior_sd: intercept_sd,
+                coefficient_prior_mean: arguments.coefficient_prior_mean,
+                coefficient_prior_sd: coefficient_sd,
+                sampling: sampling.clone(),
+                maximum_events: arguments.maximum_events,
+                maximum_quadrature_nodes: arguments.maximum_quadrature_nodes,
+                maximum_draw_node_work: arguments.maximum_draw_node_work,
+                timeout_seconds: arguments.timeout_seconds,
+            })?;
         fits.push((
             name,
             intercept_sd,
@@ -246,18 +208,8 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             material_standardized_shift: arguments.material_standardized_shift,
             material_scenarios,
             total_draw_node_work,
-            statistical_unit: "one_observed_point_pattern".into(),
-            claim_status: "experimental_prior_scale_sensitivity".into(),
+            statistical_unit: StatisticalUnit::OneObservedPointPattern,
+            claim_status: ClaimStatus::ExperimentalPriorScaleSensitivity,
         },
     )
-}
-
-fn standardized(summary: &SarScalarSummary, baseline: f64, baseline_sd: f64) -> f64 {
-    (summary.mean - baseline).abs() / baseline_sd.max(f64::EPSILON)
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<SensitivityCli>(|| {
-        run_cli().map_err(super::into_marklab_error)
-    })
 }

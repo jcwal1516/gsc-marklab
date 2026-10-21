@@ -163,6 +163,49 @@ macro_rules! define_typed_table {
         }
 
         impl $table {
+            #[cfg(feature = "parquet")]
+            pub(crate) fn predicted_retained_bytes(
+                dimension: u32,
+                expected: &$expected,
+            ) -> Result<usize, MultiscaleEmbeddingError> {
+                super::predicted_final_retained_bytes(
+                    dimension,
+                    expected.owning_slide_id(),
+                    expected.ids(),
+                )
+            }
+
+            #[cfg(feature = "parquet")]
+            #[allow(clippy::too_many_arguments)]
+            pub(crate) fn from_physical_values(
+                dimension: u32,
+                expected: &$expected,
+                expected_entities_artifact_id: ArtifactId,
+                support_artifact_id: ArtifactId,
+                support_logical_digest: ContentDigest,
+                provenance_artifact_id: ArtifactId,
+                provenance_logical_digest: ContentDigest,
+                values: Vec<f32>,
+                statuses: Vec<EmbeddingStatus>,
+                maximum_retained_bytes: usize,
+            ) -> Result<Self, MultiscaleEmbeddingError> {
+                MatrixCore::from_physical_values(
+                    dimension,
+                    expected.owning_slide_id(),
+                    expected.ids(),
+                    expected_entities_artifact_id,
+                    expected.logical_digest(),
+                    support_artifact_id,
+                    support_logical_digest,
+                    provenance_artifact_id,
+                    provenance_logical_digest,
+                    values,
+                    statuses,
+                    maximum_retained_bytes,
+                )
+                .map(Self)
+            }
+
             /// Validate exact expected rows and materialize one checked contiguous matrix.
             #[allow(clippy::too_many_arguments)]
             pub fn from_rows(
@@ -386,14 +429,6 @@ impl PatchEmbeddingTable {
 
     pub(in crate::multiscale) fn retained_bytes(&self) -> Result<usize, MultiscaleEmbeddingError> {
         self.0.current_retained_bytes()
-    }
-
-    #[cfg(feature = "parquet")]
-    pub(crate) fn predicted_final_retained_bytes(
-        expected: &ExpectedPatchSet,
-        dimension: u32,
-    ) -> Result<usize, MultiscaleEmbeddingError> {
-        super::predicted_final_retained_bytes(dimension, expected.owning_slide_id(), expected.ids())
     }
 }
 

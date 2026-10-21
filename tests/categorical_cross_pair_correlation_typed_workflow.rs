@@ -1,21 +1,29 @@
-#![allow(dead_code)]
-
 use approx::assert_abs_diff_eq;
 use marklab::{
-    categorical_cross_pair_correlation, execute_algorithm_with_store,
-    isotropic_categorical_cross_pair_correlation, translation_categorical_cross_pair_correlation,
-    ArtifactRef, ArtifactSchema, BinaryMarkDeclaration, CacheStatus,
-    CategoricalCrossPairCorrelationAnalysisNode, CategoricalCrossPairCorrelationConfig,
-    CategoricalPairLimits, DeclaredScalarPatternInput, DurableProject, DurableProjectLimits,
-    HistologicCompartmentMarkDeclaration, IsotropicCategoricalCrossPairCorrelationAnalysisNode,
-    IsotropicCategoricalCrossPairCorrelationConfig, IsotropicSpatialLimits, LocalScheduler,
-    MarkTable, MeasurementStatus, MissingnessPolicy, NativeRuntimeProvenance, NodeId,
-    ObservationWindow2D, ObservationWindowLimits, PairCorrelationKernel,
-    PairCorrelationPointStatus, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
-    SchedulerLimits, TranslationCategoricalCrossPairCorrelationAnalysisNode,
-    TranslationCategoricalCrossPairCorrelationConfig, TranslationSpatialLimits, WorkflowGraph,
+    marks::{
+        BinaryMarkDeclaration, CategoricalPairLimits, DeclaredScalarPatternInput,
+        HistologicCompartmentMarkDeclaration, MarkTable, MissingnessPolicy, ScalarMarkColumn,
+        ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
+    },
+    spatial::{
+        categorical_cross_pair_correlation, isotropic_categorical_cross_pair_correlation,
+        translation_categorical_cross_pair_correlation,
+        CategoricalCrossPairCorrelationAnalysisNode, CategoricalCrossPairCorrelationConfig,
+        IsotropicCategoricalCrossPairCorrelationAnalysisNode,
+        IsotropicCategoricalCrossPairCorrelationConfig, IsotropicSpatialLimits,
+        PairCorrelationKernel, PairCorrelationPointStatus,
+        TranslationCategoricalCrossPairCorrelationAnalysisNode,
+        TranslationCategoricalCrossPairCorrelationConfig, TranslationSpatialLimits,
+    },
+    workflow::{
+        execute_algorithm_with_store, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
+        DurableProjectLimits, LocalScheduler, NativeRuntimeProvenance, NodeId, SchedulerLimits,
+        WorkflowGraph,
+    },
+    MeasurementStatus, ObservationWindow2D, ObservationWindowLimits,
 };
 
+#[allow(dead_code)]
 #[path = "support/declared_scalar.rs"]
 mod support;
 use support::*;
@@ -126,6 +134,72 @@ fn config_with_bytes(
 }
 
 #[test]
+fn empty_cross_kernel_is_zero_for_each_edge_correction() {
+    let (fixture, pattern, table, window) = input_fixture([0, 0, 1, 1]);
+    let input = DeclaredScalarPatternInput::from_mark_table(
+        &fixture.project,
+        &pattern,
+        &table,
+        fixture.slide_id.clone(),
+        fixture.frame_id.clone(),
+    )
+    .unwrap();
+    let base = CategoricalCrossPairCorrelationConfig::new(
+        vec![0.5],
+        0.25,
+        "tumor",
+        "stroma",
+        31,
+        7,
+        0.05,
+        config(7).limits(),
+    )
+    .unwrap();
+    let border = categorical_cross_pair_correlation(&input, &window, &base).unwrap();
+    let translation = translation_categorical_cross_pair_correlation(
+        &input,
+        &window,
+        &TranslationCategoricalCrossPairCorrelationConfig::new(
+            base.clone(),
+            TranslationSpatialLimits::new(16, 16, 64, 64, 2_048, 64, 1, 1 << 20).unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let isotropic = isotropic_categorical_cross_pair_correlation(
+        &input,
+        &window,
+        &IsotropicCategoricalCrossPairCorrelationConfig::new(
+            base,
+            IsotropicSpatialLimits::new(16, 16, 64, 128, 512, 1_024, 1, 1 << 20).unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    for (g, eligible, p) in [
+        (
+            border.curve[0].cross_g,
+            border.curve[0].inference_eligible,
+            border.inference.p_global,
+        ),
+        (
+            translation.curve[0].cross_g,
+            translation.curve[0].inference_eligible,
+            translation.inference.p_global,
+        ),
+        (
+            isotropic.curve[0].cross_g,
+            isotropic.curve[0].inference_eligible,
+            isotropic.inference.p_global,
+        ),
+    ] {
+        assert_eq!(g, Some(0.0));
+        assert!(eligible);
+        assert_eq!(p, Some(1.0)); // Every labeling has the same zero kernel sum.
+    }
+}
+
+#[test]
 fn directed_epanechnikov_cross_g_matches_the_hand_oracle() {
     let (fixture, pattern, table, window) = input_fixture([0, 0, 1, 1]);
     let input = DeclaredScalarPatternInput::from_mark_table(
@@ -147,7 +221,10 @@ fn directed_epanechnikov_cross_g_matches_the_hand_oracle() {
     assert_eq!(result.target_level, "stroma");
     assert_eq!(result.source_count, 2);
     assert_eq!(result.target_count, 2);
-    assert_eq!(result.measurement_status, "imported_prediction");
+    assert_eq!(
+        result.measurement_status,
+        marklab::MeasurementStatus::ImportedPrediction
+    );
     assert_eq!(result.configuration_digest.len(), 64);
 
     let point = &result.curve[0];
@@ -256,7 +333,7 @@ fn invalid_support_unknown_levels_and_one_short_memory_fail() {
     .expect("unknown-level config");
     assert!(matches!(
         categorical_cross_pair_correlation(&input, &window, &unknown),
-        Err(marklab::CategoricalCrossPairCorrelationError::MissingLevel(level))
+        Err(marklab::spatial::CategoricalCrossPairCorrelationError::MissingLevel(level))
             if level == "immune"
     ));
 
@@ -265,7 +342,7 @@ fn invalid_support_unknown_levels_and_one_short_memory_fail() {
     let one_short = config_with_bytes(7, baseline.estimated_storage_bytes - 1);
     assert!(matches!(
         categorical_cross_pair_correlation(&input, &window, &one_short),
-        Err(marklab::CategoricalCrossPairCorrelationError::RetainedByteLimitExceeded {
+        Err(marklab::spatial::CategoricalCrossPairCorrelationError::RetainedByteLimitExceeded {
             required,
             maximum
         }) if required == maximum + 1
@@ -356,7 +433,10 @@ fn translation_corrected_directed_cross_g_matches_the_rectangle_overlap_oracle()
     let result = translation_categorical_cross_pair_correlation(&input, &window, &config)
         .expect("translation cross-g");
     let point = &result.curve[0];
-    assert_eq!(result.edge_correction, "translation");
+    assert_eq!(
+        result.edge_correction,
+        marklab::spatial::EdgeCorrection::Translation
+    );
     assert_eq!(point.directed_source_target_pairs_in_support, 1);
     assert_eq!(point.overlap_evaluations, 1);
     assert_abs_diff_eq!(
@@ -467,7 +547,10 @@ fn isotropic_directed_cross_g_uses_the_source_centered_visible_fraction() {
     let result = isotropic_categorical_cross_pair_correlation(&input, &window, &config)
         .expect("isotropic cross-g");
     let point = &result.curve[0];
-    assert_eq!(result.edge_correction, "isotropic");
+    assert_eq!(
+        result.edge_correction,
+        marklab::spatial::EdgeCorrection::Isotropic
+    );
     assert_eq!(point.directed_source_target_pairs_in_support, 2);
     assert_eq!(point.visible_arc_evaluations, 2);
     assert_abs_diff_eq!(point.visible_arc_fraction_sum, 1.5, epsilon = 1e-12);

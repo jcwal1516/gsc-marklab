@@ -1,35 +1,38 @@
+use crate::workflow_codec::invalid;
+use crate::workflow_node::{NodeAnalysis, TypedNode};
 use std::io;
 
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_project::{ArtifactRef, MarklabProject};
+use marklab_workflow::{NodeError, NodeId, NodeSpec};
 use serde::Serialize;
 
 use crate::observation_window_artifact::frame_bound_window_artifact as window_artifact;
 use crate::{
-    compartment_interface::analysis::measurement_status_name,
-    soft_multiscale_neighborhood::configuration_digest, workflow::pattern_artifact,
-    DeclaredScalarPatternInput, ObservationWindow2D, ScalarMarkId,
-    SoftMultiscaleNeighborhoodConfig, SoftMultiscaleNeighborhoodResult,
+    marked_workflow::pattern_artifact,
+    marks::{
+        DeclaredScalarPatternInput, ScalarMarkId, SoftMultiscaleNeighborhoodConfig,
+        SoftMultiscaleNeighborhoodResult,
+    },
+    soft_multiscale_neighborhood::configuration_digest,
+    ObservationWindow2D,
 };
 
 const NODE_KIND: &str = "soft_multiscale_neighborhood_composition";
 const CONFIG_KIND: &str =
     "application/vnd.marklab.soft-multiscale-neighborhood-config+json;version=1";
-const RESULT_KIND: &str = "application/vnd.marklab.soft-multiscale-neighborhood+json;version=1";
+const RESULT_KIND: &str = "application/vnd.marklab.soft-multiscale-neighborhood+json;version=2";
 const POLICY: &[u8] = b"serial;one-exact-geometry-plan;strict-increasing-physical-radii;complete-simplex-target-rows;adjacent-scale-tv";
 
 /// Store-aware durable execution node for prespecified multiscale soft neighborhoods.
 pub struct SoftMultiscaleNeighborhoodAnalysisNode<'a> {
-    spec: NodeSpec,
+    node: TypedNode<SoftMultiscaleNeighborhoodAnalysis<'a>>,
+}
+
+struct SoftMultiscaleNeighborhoodAnalysis<'a> {
     input: &'a DeclaredScalarPatternInput<'a>,
     window: &'a ObservationWindow2D,
     mark_id: &'a ScalarMarkId,
     config: &'a SoftMultiscaleNeighborhoodConfig,
-    inputs: [ArtifactRef; 4],
-    configuration_digest: ContentDigest,
-    implementation_identity: String,
 }
 
 impl<'a> SoftMultiscaleNeighborhoodAnalysisNode<'a> {
@@ -55,43 +58,44 @@ impl<'a> SoftMultiscaleNeighborhoodAnalysisNode<'a> {
                 .register_reference(artifact.clone())
                 .map_err(NodeError::input)?;
         }
+        let node_spec = NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?;
+        let node_configuration_digest = config_ref.digest();
+        let node_implementation_identity = format!(
+            "marklab/{};adapter=soft-multiscale-neighborhood-node-v2",
+            env!("CARGO_PKG_VERSION")
+        );
         Ok(Self {
-            spec: NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?,
-            input,
-            window,
-            mark_id,
-            config,
-            inputs,
-            configuration_digest: config_ref.digest(),
-            implementation_identity: format!(
-                "marklab/{};adapter=soft-multiscale-neighborhood-node-v1",
-                env!("CARGO_PKG_VERSION")
-            ),
+            node: TypedNode {
+                spec: node_spec,
+                analysis: SoftMultiscaleNeighborhoodAnalysis {
+                    input,
+                    window,
+                    mark_id,
+                    config,
+                },
+                inputs,
+                configuration_digest: node_configuration_digest,
+                execution_policy: std::borrow::Cow::Borrowed(POLICY),
+                implementation_identity: node_implementation_identity,
+            },
         })
     }
 
     /// Return the immutable workflow-node specification.
     pub fn spec(&self) -> &NodeSpec {
-        &self.spec
+        self.node.spec()
     }
 }
 
-impl WorkflowNode for SoftMultiscaleNeighborhoodAnalysisNode<'_> {
+impl NodeAnalysis for SoftMultiscaleNeighborhoodAnalysis<'_> {
     type Output = SoftMultiscaleNeighborhoodResult;
+    type Inputs = [ArtifactRef; 4];
 
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.inputs
-    }
-
-    fn semantic_input_artifacts(&self) -> &[marklab_workflow::ArtifactId] {
+    fn semantic_input_artifacts(&self) -> &[marklab_project::ArtifactId] {
         self.input.semantic_artifact_ids()
     }
 
-    fn verify_input_content(&self) -> Result<(), NodeError> {
+    fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
         let current = [
             pattern_artifact(self.input.pattern())?,
             self.input
@@ -100,24 +104,11 @@ impl WorkflowNode for SoftMultiscaleNeighborhoodAnalysisNode<'_> {
             window_artifact(self.window)?,
             config_artifact(self.input, self.window, self.mark_id, self.config)?,
         ];
-        for (bound, current) in self.inputs.iter().zip(current) {
-            bound
-                .verify_identity(current.digest(), current.byte_len())
-                .map_err(NodeError::input)?;
-        }
-        Ok(())
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: POLICY,
-            implementation_identity: &self.implementation_identity,
-        }
+        crate::workflow_node::verify_inputs(inputs, current)
     }
 
     fn execute(&self) -> Result<Self::Output, NodeError> {
-        crate::soft_multiscale_neighborhood_composition(
+        crate::marks::soft_multiscale_neighborhood_composition(
             self.input,
             self.window,
             self.mark_id,
@@ -146,11 +137,13 @@ impl WorkflowNode for SoftMultiscaleNeighborhoodAnalysisNode<'_> {
     }
 }
 
+crate::workflow_node::impl_workflow_node!(SoftMultiscaleNeighborhoodAnalysisNode<'_> => SoftMultiscaleNeighborhoodResult);
+
 #[derive(Serialize)]
 struct ConfigArtifact<'a> {
     mark_id: &'a str,
     radii_um: &'a [f64],
-    limits: crate::SoftMultiscaleNeighborhoodLimits,
+    limits: crate::marks::SoftMultiscaleNeighborhoodLimits,
     logical_digest: String,
 }
 
@@ -190,16 +183,13 @@ fn validate(
         || result.timepoint != input.pattern().meta.timepoint
         || result.mark_id != mark_id.as_str()
         || result.measurement_status
-            != measurement_status_name(
-                table
-                    .measurement_status(mark_id)
-                    .ok_or_else(|| invalid("simplex status is absent"))?,
-            )
+            != table
+                .measurement_status(mark_id)
+                .ok_or_else(|| invalid("simplex status is absent"))?
         || result.coordinate_frame_id != input.coordinate_frame_id().as_str()
         || result.window_digest != window.descriptor().logical_digest.to_string()
         || result.class_ids != levels
         || result.configuration_digest != expected_digest.to_string()
-        || result.geometry_build_count != 1
         || result.scales.len() != config.radii_um().len()
         || result.adjacent_scale_total_variation_distance.len()
             != result.scales.len().saturating_sub(1)
@@ -291,10 +281,6 @@ fn valid_vector(values: &[f64], classes: usize) -> bool {
             .iter()
             .all(|value| value.is_finite() && (0.0..=1.0).contains(value))
         && (values.iter().sum::<f64>() - 1.0).abs() <= 1e-5
-}
-
-fn invalid(message: &'static str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message)
 }
 
 fn invalid_owned(error: impl std::fmt::Display) -> io::Error {

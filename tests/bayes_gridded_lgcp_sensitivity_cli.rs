@@ -75,7 +75,7 @@ fn gridded_lgcp_reports_one_at_a_time_prior_and_kernel_sensitivity() {
             "--upper-scale-multiplier",
             "2",
             "--material-standardized-shift",
-            "0.75",
+            "0.60",
             "--chains",
             "2",
             "--tune",
@@ -113,10 +113,23 @@ fn gridded_lgcp_reports_one_at_a_time_prior_and_kernel_sensitivity() {
                     .unwrap()
                     .is_finite()
         }));
-    assert!(matches!(
-        result["sensitivity_state"].as_str(),
-        Some("stable_within_declared_grid" | "sensitive_within_declared_grid")
-    ));
+    assert_eq!(
+        result["sensitivity_state"],
+        "sensitive_within_declared_grid"
+    );
+    let changed_prior = result["scenarios"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|scenario| scenario["scenario_id"] == "coefficient_sd_lower")
+        .expect("declared prior scenario");
+    let shift = changed_prior["coefficient_shift_standardized"]
+        .as_f64()
+        .unwrap();
+    assert!(
+        (-1.1..=-0.65).contains(&shift),
+        "unexpected signed shift: {shift}"
+    );
     assert_eq!(
         result["claim_status"],
         "experimental_prior_kernel_sensitivity"

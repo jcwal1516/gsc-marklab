@@ -1,0 +1,66 @@
+{
+  "mark_id": "histologic_compartment",
+  "measurement_status": "morphology_prediction",
+  "coordinate_frame_id": "categorical-pair-physical-xy-um",
+  "window": {
+    "coordinate_unit": "micrometre",
+    "coordinate_frame": "existing_pattern_physical_xy",
+    "membership_policy": "closed_window",
+    "area_um2": 28.0,
+    "perimeter_um": 22.0,
+    "bounds_um": [
+      -2.0,
+      -2.0,
+      5.0,
+      2.0
+    ],
+    "component_count": 1,
+    "hole_count": 0,
+    "ring_count": 1,
+    "vertex_count": 5,
+    "logical_digest": "fab476fba585d87a7943d8a491842e5ad553c6c422287096462bb4e5d9834c11"
+  },
+  "source_level": "Tumor",
+  "target_level": "Stroma",
+  "source_count": 2,
+  "target_count": 2,
+  "kernel": "epanechnikov",
+  "bandwidth_um": 0.5,
+  "edge_correction": "translation",
+  "geometry_digest": "ad035b09a0a81ec59370937ab773993e5c0d11d727f1cc5d78f79c71e7f7490d",
+  "pair_plan_digest": "5ac848fde4daba86666ac363830f44e081e9385323643a04775e17a1cef62e85",
+  "retained_directed_pair_count": 6,
+  "observed_unordered_pair_visits": 3,
+  "overlap_evaluations": 3,
+  "overlap_candidate_work": 48,
+  "maximum_overlap_output_vertices_observed": 5,
+  "estimated_storage_bytes": 2480,
+  "configuration_digest": "fd6e3e51572e89bcc39397cedaa64d634267ab0d0d2268d5736966212494e106",
+  "curve": [
+    {
+      "radius_um": 1.0,
+      "status": "available",
+      "directed_source_target_pairs_in_support": 1,
+      "overlap_evaluations": 1,
+      "translation_overlap_area_sum_um2": 24.0,
+      "translation_weighted_kernel_sum": 1.75,
+      "cross_g": 1.9496480528757179,
+      "theoretical_cross_g": 1.0,
+      "inference_eligible": true,
+      "lower_cross_g": 1.9496480528757179,
+      "upper_cross_g": 5.8489441586271536
+    }
+  ],
+  "inference": {
+    "null_model": "random_labeling",
+    "permutation_unit": "complete_categorical_row",
+    "p_global": 0.75,
+    "erl_depth": 0.575,
+    "critical_depth": 0.2,
+    "eligible_radius_count": 1,
+    "permutations_completed": 19,
+    "seed": 20260829,
+    "alpha": 0.05,
+    "permutation_pair_evaluations": 114
+  }
+}

@@ -1,17 +1,22 @@
+use crate::is_worker_timeout;
 use crate::validation::{
-    diagnostics_satisfy_policy, is_lower_hex_sha256 as is_sha256,
-    validate_scalar_summary as validate_supported_summary, SummarySupport,
+    diagnostics_satisfy_policy, is_exact_name, is_sha256,
+    validate_mcse_summary as validate_supported_summary, SummarySupport,
 };
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::ClaimStatus;
 use crate::{
     model::{PYMC_VERSION, WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION},
-    sha256_hex, BackendContract, BayesError, DiagnosticPolicy, FitState, NormalMeanDiagnostics,
-    NutsSamplingSpec, SamplingSummary, SarScalarSummary, WorkerBackend,
+    BackendContract, BayesError, DiagnosticPolicy, FitState, McseScalarSummary, NutsSamplingSpec,
+    PosteriorDiagnostics, SamplingSummary, WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct BetaBinomialGroupGenderSlideData {
@@ -23,6 +28,20 @@ pub struct BetaBinomialGroupGenderSlideData {
     pub trials: u64,
 }
 
+/// Beta-binomial slide counts nested in patients with group and gender effects.
+///
+/// For slide `j` of patient `i`, the likelihood has `trials_j` trials and beta
+/// shapes `p_i * phi` and `(1 - p_i) * phi`, where
+/// `logit(p_i) = alpha + beta_group * g_i + beta_gender * s_i + tau * z_i`.
+/// The indicators select the comparison group and gender; `z_i ~ Normal(0, 1)`
+/// gives non-centered patient effects. Priors are
+/// `alpha ~ Normal(intercept_prior_mean, intercept_prior_sd)`,
+/// `beta_group ~ Normal(0, group_effect_prior_sd)`,
+/// `beta_gender ~ Normal(0, gender_effect_prior_sd)`,
+/// `tau ~ HalfNormal(patient_log_odds_sd_prior_sd)`, and
+/// `phi ~ HalfNormal(slide_concentration_prior_sd)`. Normal scales are SDs;
+/// half-normal scales are underlying normal SDs. Slide probabilities are
+/// integrated out in the beta-binomial likelihood.
 #[derive(Clone, Debug)]
 pub struct BetaBinomialGroupGenderSlideHierarchySpec {
     pub reference_group: String,
@@ -64,8 +83,8 @@ pub struct BetaBinomialGroupGenderSlideHierarchyModelIr {
     pub standardization: &'static str,
     pub nesting: &'static str,
     pub biological_unit: &'static str,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -116,7 +135,7 @@ impl BetaBinomialGroupGenderSlideHierarchyWorkerRequest {
             .any(|value| !value.is_finite() || *value <= 0.0)
             || !is_sha256(&environment_lock_sha256)
             || !is_sha256(&worker_sha256)
-            || !(1..=3_600).contains(&timeout_seconds)
+            || !is_worker_timeout(timeout_seconds)
         {
             return Err(BayesError::InvalidSpec(
                 "beta-binomial group/gender slide hierarchy controls are invalid".into(),
@@ -137,13 +156,9 @@ impl BetaBinomialGroupGenderSlideHierarchyWorkerRequest {
         let mut patients = BTreeMap::<String, (String, String, usize)>::new();
         let mut total_trials = 0_u64;
         for slide in &slides {
-            if slide.slide_id.is_empty()
-                || slide.slide_id.len() > 128
-                || slide.slide_id.trim() != slide.slide_id
+            if !is_exact_name(&slide.slide_id)
                 || !slide_ids.insert(slide.slide_id.as_str())
-                || slide.patient_id.is_empty()
-                || slide.patient_id.len() > 128
-                || slide.patient_id.trim() != slide.patient_id
+                || !is_exact_name(&slide.patient_id)
                 || ![
                     spec.reference_group.as_str(),
                     spec.comparison_group.as_str(),
@@ -212,7 +227,7 @@ impl BetaBinomialGroupGenderSlideHierarchyWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -241,8 +256,8 @@ impl BetaBinomialGroupGenderSlideHierarchyWorkerRequest {
                 standardization: "observed_gender_distribution_typical_patient",
                 nesting: "slide_within_patient",
                 biological_unit: "patient",
-                backend_capability: "nuts",
-                maturity: "experimental",
+                backend_capability: BackendCapability::Nuts,
+                maturity: ModelMaturity::Experimental,
             },
             slides,
             sampling,
@@ -262,20 +277,20 @@ impl BetaBinomialGroupGenderSlideHierarchyWorkerRequest {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct BetaBinomialGroupGenderSlideHierarchyPosterior {
-    pub intercept_log_odds: SarScalarSummary,
-    pub group_log_odds_effect: SarScalarSummary,
-    pub gender_log_odds_effect: SarScalarSummary,
-    pub patient_log_odds_sd: SarScalarSummary,
-    pub slide_concentration: SarScalarSummary,
-    pub reference_group_reference_gender_probability: SarScalarSummary,
-    pub comparison_group_reference_gender_probability: SarScalarSummary,
-    pub reference_group_comparison_gender_probability: SarScalarSummary,
-    pub comparison_group_comparison_gender_probability: SarScalarSummary,
-    pub marginal_reference_group_probability: SarScalarSummary,
-    pub marginal_comparison_group_probability: SarScalarSummary,
-    pub marginal_probability_difference_comparison_minus_reference: SarScalarSummary,
-    pub group_odds_ratio: SarScalarSummary,
-    pub gender_odds_ratio: SarScalarSummary,
+    pub intercept_log_odds: McseScalarSummary,
+    pub group_log_odds_effect: McseScalarSummary,
+    pub gender_log_odds_effect: McseScalarSummary,
+    pub patient_log_odds_sd: McseScalarSummary,
+    pub slide_concentration: McseScalarSummary,
+    pub reference_group_reference_gender_probability: McseScalarSummary,
+    pub comparison_group_reference_gender_probability: McseScalarSummary,
+    pub reference_group_comparison_gender_probability: McseScalarSummary,
+    pub comparison_group_comparison_gender_probability: McseScalarSummary,
+    pub marginal_reference_group_probability: McseScalarSummary,
+    pub marginal_comparison_group_probability: McseScalarSummary,
+    pub marginal_probability_difference_comparison_minus_reference: McseScalarSummary,
+    pub group_odds_ratio: McseScalarSummary,
+    pub gender_odds_ratio: McseScalarSummary,
     pub slide_overdispersion_mean: f64,
 }
 
@@ -289,8 +304,8 @@ pub struct BetaBinomialGroupGenderSlidePatientPosterior {
     pub successes: u64,
     pub trials: u64,
     pub observed_proportion: f64,
-    pub random_log_odds_effect: SarScalarSummary,
-    pub posterior_probability: SarScalarSummary,
+    pub random_log_odds_effect: McseScalarSummary,
+    pub posterior_probability: McseScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -303,7 +318,7 @@ pub struct BetaBinomialGroupGenderSlidePosterior {
     pub successes: u64,
     pub trials: u64,
     pub observed_proportion: f64,
-    pub posterior_patient_probability: SarScalarSummary,
+    pub posterior_patient_probability: McseScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -335,7 +350,7 @@ pub struct BetaBinomialGroupGenderSlideHierarchyWorkerResult {
     pub posterior: BetaBinomialGroupGenderSlideHierarchyPosterior,
     pub patients: Vec<BetaBinomialGroupGenderSlidePatientPosterior>,
     pub slides: Vec<BetaBinomialGroupGenderSlidePosterior>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: BetaBinomialGroupGenderSlidePosteriorPredictive,
 }
 
@@ -368,11 +383,7 @@ impl BetaBinomialGroupGenderSlideHierarchyWorkerResult {
             .len();
         if self.format != result_format
             || self.version != 1
-            || self.backend.name != backend.name
-            || self.backend.version != backend.version
-            || self.backend.python_version != backend.python_version
-            || self.backend.environment_lock_sha256 != backend.environment_lock_sha256
-            || self.backend.worker_sha256 != backend.worker_sha256
+            || !self.backend.matches(backend)
             || self.request_sha256 != request_sha256
             || self.patients.len() != patient_count
             || self.slides.len() != request.slides.len()
@@ -537,16 +548,19 @@ impl BetaBinomialGroupGenderSlideHierarchyWorkerResult {
             posterior_predictive: self.posterior_predictive,
             seed: request.sampling.seed,
             claim_status: if self.fit_state == FitState::Complete {
-                "experimental_repeated_slide_patient_hierarchy"
+                ClaimStatus::ExperimentalRepeatedSlidePatientHierarchy
             } else {
-                "diagnostic_only_nonconverged"
+                ClaimStatus::DiagnosticOnlyNonconverged
             },
             request_sha256: self.request_sha256,
         }
     }
 }
 
-fn validate_summary(summary: &SarScalarSummary, support: SummarySupport) -> Result<(), BayesError> {
+fn validate_summary(
+    summary: &McseScalarSummary,
+    support: SummarySupport,
+) -> Result<(), BayesError> {
     validate_supported_summary(
         summary,
         support,
@@ -564,12 +578,6 @@ pub struct BetaBinomialGroupGenderSlideHierarchyInputIdentity {
     pub design_cell_patient_counts: BTreeMap<String, usize>,
 }
 
-pub fn beta_binomial_group_gender_slide_data_sha256(
-    slides: &[BetaBinomialGroupGenderSlideData],
-) -> Result<String, BayesError> {
-    Ok(sha256_hex(&serde_json::to_vec(slides)?))
-}
-
 #[derive(Debug, Serialize)]
 pub struct BetaBinomialGroupGenderSlideHierarchyResult {
     pub format: &'static str,
@@ -582,9 +590,9 @@ pub struct BetaBinomialGroupGenderSlideHierarchyResult {
     pub posterior: BetaBinomialGroupGenderSlideHierarchyPosterior,
     pub patients: Vec<BetaBinomialGroupGenderSlidePatientPosterior>,
     pub slides: Vec<BetaBinomialGroupGenderSlidePosterior>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: BetaBinomialGroupGenderSlidePosteriorPredictive,
     pub seed: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub request_sha256: String,
 }

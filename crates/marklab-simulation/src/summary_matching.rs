@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 use super::SimulationError;
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -84,7 +85,7 @@ pub struct SummaryMatchingResult {
     pub loss: SummaryMatchingLossResult,
     pub differentiability: &'static str,
     pub boundary_policy: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn summary_matching_loss(
@@ -132,7 +133,7 @@ pub fn summary_matching_loss(
         loss: SummaryMatchingLossResult { total, components },
         differentiability: "analytic_in_pair_distances_away_from_coincident_points",
         boundary_policy: "no_edge_correction_declared_same_window_comparison",
-        claim_status: "research_only_summary_surrogate_not_inferential_validation",
+        claim_status: ClaimStatus::ResearchOnlySummarySurrogateNotInferentialValidation,
     })
 }
 

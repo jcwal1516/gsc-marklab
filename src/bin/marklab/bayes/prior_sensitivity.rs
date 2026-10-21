@@ -1,12 +1,13 @@
-use std::{io::Cursor, path::PathBuf};
+use std::io::Cursor;
 
 use marklab_bayes::{
-    evaluate_normal_mean_prior_sensitivity, sha256_hex, NormalMeanPriorSensitivityResult,
+    evaluate_normal_mean_prior_sensitivity, json_sha256, NormalMeanPriorSensitivityResult,
     NormalMeanPriorSensitivitySpec, NormalPriorAlternative, PriorSensitivityInputIdentity,
 };
 use serde::{Deserialize, Serialize};
 
-use super::{publish_json, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::NormalMeanPriorSensitivityArgs;
+use super::{publish_json, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -21,26 +22,29 @@ struct PriorSensitivityOutput {
     input: PriorSensitivityInputIdentity,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input_path: PathBuf,
-    priors_path: PathBuf,
-    base_prior: String,
-    known_sigma: f64,
-    decision_threshold: f64,
-    decision_probability_threshold: f64,
-    material_mean_shift: f64,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: NormalMeanPriorSensitivityArgs) -> Result<(), CliError> {
+    let NormalMeanPriorSensitivityArgs {
+        input,
+        priors,
+        base_prior,
+        known_sigma,
+        decision_threshold,
+        decision_probability_threshold,
+        material_mean_shift,
+        timeout_seconds,
+        out,
+    } = args;
+    let input_path = input;
+    let priors_path = priors;
+    let output_path = out;
     let observations = read_observations(&input_path)?;
     let mut priors = read_priors(&priors_path)?;
     priors.sort_by(|left, right| left.prior_name.cmp(&right.prior_name));
     let input = PriorSensitivityInputIdentity {
         observations_path: input_path.display().to_string(),
         priors_path: priors_path.display().to_string(),
-        observations_sha256: sha256_hex(&serde_json::to_vec(&observations)?),
-        priors_sha256: sha256_hex(&serde_json::to_vec(&priors)?),
+        observations_sha256: json_sha256(&observations)?,
+        priors_sha256: json_sha256(&priors)?,
     };
     let analysis = evaluate_normal_mean_prior_sensitivity(
         NormalMeanPriorSensitivitySpec {
@@ -56,15 +60,15 @@ pub(super) fn run(
     )?;
     let output = PriorSensitivityOutput { analysis, input };
     if serde_json::to_vec_pretty(&output)?.len() + 1 > 1_048_576 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "prior-sensitivity output exceeds the 1 MiB limit".into(),
         ));
     }
     publish_json(&output_path, &output)
 }
 
-fn reader(path: &std::path::Path) -> Result<csv::Reader<Cursor<Vec<u8>>>, BayesCliError> {
-    let bytes = super::input_file::read_regular_file(
+fn reader(path: &std::path::Path) -> Result<csv::Reader<Cursor<Vec<u8>>>, CliError> {
+    let bytes = crate::input_file::read_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,
         "prior-sensitivity inputs must be regular files within the 16 MiB limit",
@@ -72,10 +76,10 @@ fn reader(path: &std::path::Path) -> Result<csv::Reader<Cursor<Vec<u8>>>, BayesC
     Ok(csv::ReaderBuilder::new().from_reader(Cursor::new(bytes)))
 }
 
-fn read_observations(path: &std::path::Path) -> Result<Vec<f64>, BayesCliError> {
+fn read_observations(path: &std::path::Path) -> Result<Vec<f64>, CliError> {
     let mut reader = reader(path)?;
     if !reader.headers()?.iter().eq(["observation"]) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "prior-sensitivity observation header must be exactly: observation".into(),
         ));
     }
@@ -83,7 +87,7 @@ fn read_observations(path: &std::path::Path) -> Result<Vec<f64>, BayesCliError> 
     for row in reader.deserialize::<ObservationRow>() {
         observations.push(row?.observation);
         if observations.len() > 100_000 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "prior-sensitivity observation count exceeds 100000".into(),
             ));
         }
@@ -91,14 +95,14 @@ fn read_observations(path: &std::path::Path) -> Result<Vec<f64>, BayesCliError> 
     Ok(observations)
 }
 
-fn read_priors(path: &std::path::Path) -> Result<Vec<NormalPriorAlternative>, BayesCliError> {
+fn read_priors(path: &std::path::Path) -> Result<Vec<NormalPriorAlternative>, CliError> {
     let mut reader = reader(path)?;
     if !reader
         .headers()?
         .iter()
         .eq(["prior_name", "prior_mean", "prior_sd"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "prior-sensitivity prior headers must be exactly: prior_name,prior_mean,prior_sd"
                 .into(),
         ));
@@ -107,7 +111,7 @@ fn read_priors(path: &std::path::Path) -> Result<Vec<NormalPriorAlternative>, Ba
     for row in reader.deserialize::<NormalPriorAlternative>() {
         priors.push(row?);
         if priors.len() > 32 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "prior-sensitivity prior count exceeds 32".into(),
             ));
         }

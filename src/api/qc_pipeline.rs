@@ -95,6 +95,8 @@ pub(super) fn validate_pattern(
     context: &MarkedAnalysisContext<'_>,
 ) -> Result<(Vec<StatusFlag>, Option<Vec<u32>>)> {
     let pattern = context.pattern();
+    crate::scalar_mark::validate_pattern_probabilities(pattern)
+        .map_err(|error| MarklabError::Validation(error.to_string()))?;
     let mut status_flags = validation_flags_with_counts(
         pattern,
         config,

@@ -1,6 +1,7 @@
+use crate::result_vocabulary::EdgeCorrection;
 use serde::{Deserialize, Serialize};
 
-use crate::{
+use crate::spatial::{
     ClassicalWindowSummary, InhomogeneousIntensitySummary, InhomogeneousSpatialConfig,
     InhomogeneousSpatialError, InhomogeneousSpatialInference, InhomogeneousSpatialLimits,
     PairCorrelationKernel, PairCorrelationPointStatus,
@@ -69,7 +70,7 @@ pub struct InhomogeneousPairCorrelationResult {
     pub kernel: PairCorrelationKernel,
     pub pair_bandwidth_um: f64,
     pub intensity_bandwidth_um: f64,
-    pub edge_correction: String,
+    pub edge_correction: EdgeCorrection,
     pub configuration_digest: String,
     pub observed_pair_visits: usize,
     pub total_pair_visits: usize,

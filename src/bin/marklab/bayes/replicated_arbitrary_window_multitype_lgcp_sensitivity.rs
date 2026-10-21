@@ -1,245 +1,135 @@
-use std::{path::PathBuf, thread};
-
-use clap::{Parser, Subcommand};
-use marklab_bayes::{
-    BackendContract, DiagnosticPolicy, FitState, NormalMeanDiagnostics, SarScalarSummary,
-    WorkerBackend,
+pub(crate) use marklab_bayes::protocol::replicated_arbitrary_window_multitype_lgcp_sensitivity::{
+    maximum_shift, validate_scenario, BaselineView, Output, Resources, ScenarioOutput, ScenarioView,
 };
-use serde::{Deserialize, Serialize};
 
-use super::{
-    posterior_validation::diagnostics_pass,
-    publish_json,
-    replicated_arbitrary_window_lgcp_agreement::{backend_matches, summary_valid},
-    replicated_arbitrary_window_multitype_lgcp::{
-        self, Args as FitArgs, Output as FitOutput, Prepared,
-    },
-    replicated_arbitrary_window_multitype_lgcp_numpyro::{self, JAX_VERSION},
-    BayesCliError,
-};
+use std::path::PathBuf;
+use std::thread;
+
+use marklab_bayes::FitState;
+
+use super::publish_json;
+use super::replicated_arbitrary_window_multitype_lgcp;
+use super::replicated_arbitrary_window_multitype_lgcp::Args as FitArgs;
+use super::replicated_arbitrary_window_multitype_lgcp::Output as FitOutput;
+use super::replicated_arbitrary_window_multitype_lgcp::Prepared;
+use super::replicated_arbitrary_window_multitype_lgcp_numpyro;
+use super::CliError;
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::StatisticalUnit;
 
 const MAXIMUM_RESULT_BYTES: u64 = 16 * 1_048_576;
 
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct Cli {
-    #[command(subcommand)]
-    command: Top,
-}
-
-#[derive(Debug, Subcommand)]
-enum Top {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    ReplicatedArbitraryWindowMultitypeLgcpSensitivity(Box<Args>),
-}
-
 #[derive(Debug, clap::Args)]
-struct Args {
+pub(crate) struct Args {
+    /// Previously fitted PyMC result to use in the comparison.
     #[arg(long)]
     pymc_result: PathBuf,
+    /// Per-node, per-type quadrature CSV (pattern_id, patient_id, group, type_id, count, ...).
     #[arg(long)]
     input: PathBuf,
+    /// Group level used as the regression reference.
     #[arg(long)]
     reference_group: String,
+    /// Group level whose effect is compared with the reference group.
     #[arg(long)]
     comparison_group: String,
+    /// Point-type label used as the model reference.
     #[arg(long)]
     reference_type: String,
+    /// Prior mean for intercept.
     #[arg(long, allow_hyphen_values = true)]
     intercept_prior_mean: f64,
+    /// Prior scale for intercept.
     #[arg(long)]
     intercept_prior_sd: f64,
+    /// Prior scale for group effect.
     #[arg(long)]
     group_effect_prior_sd: f64,
+    /// Prior scale for covariate effect.
     #[arg(long)]
     covariate_effect_prior_sd: f64,
+    /// Prior scale for patient standard deviation.
     #[arg(long)]
     patient_sd_prior_scale: f64,
+    /// Prior scale for pattern standard deviation.
     #[arg(long)]
     pattern_sd_prior_scale: f64,
+    /// Amplitude of the latent spatial field covariance.
     #[arg(long)]
     field_amplitude: f64,
+    /// Spatial covariance length scale in micrometers.
     #[arg(long)]
     field_length_scale_um: f64,
+    /// Diagonal stabilization added to covariance matrices.
     #[arg(long)]
     jitter: f64,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
     chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
     tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
     draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
     target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
     seed: u64,
+    /// Upper bound on patients.
     #[arg(long)]
     maximum_patients: usize,
+    /// Upper bound on patterns.
     #[arg(long)]
     maximum_patterns: usize,
+    /// Upper bound on types.
     #[arg(long)]
     maximum_types: usize,
+    /// Upper bound on nodes per pattern.
     #[arg(long)]
     maximum_nodes_per_pattern: usize,
+    /// Upper bound on total nodes.
     #[arg(long)]
     maximum_total_nodes: usize,
+    /// Upper bound on total node type rows.
     #[arg(long)]
     maximum_total_node_type_rows: usize,
+    /// Upper bound on total events.
     #[arg(long)]
     maximum_total_events: u64,
+    /// Upper bound on draw node type work.
     #[arg(long)]
     maximum_draw_node_type_work: u64,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
     timeout_seconds: u64,
+    /// Maximum NUTS tree depth for the NumPyro fit.
     #[arg(long)]
     numpyro_maximum_tree_depth: u32,
+    /// Upper bound on processes.
     #[arg(long)]
     maximum_processes: usize,
+    /// Upper bound on total draw node type work.
     #[arg(long)]
     maximum_total_draw_node_type_work: u64,
+    /// Posterior change, in standard-deviation units, considered material.
     #[arg(long)]
     materiality_standard_deviations: f64,
+    /// Destination for the analysis output.
     #[arg(long)]
     out: PathBuf,
 }
 
-#[derive(Debug, Deserialize)]
-struct TypeRow {
-    type_id: String,
-    intercept: SarScalarSummary,
-    group_effect: SarScalarSummary,
-    covariate_effect: SarScalarSummary,
-    patient_sd: SarScalarSummary,
-    pattern_sd: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize)]
-struct DifferenceRow {
-    type_a: String,
-    type_b: String,
-    difference: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize)]
-struct EffectRow {
-    owner_id: String,
-    type_id: String,
-    effect: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize)]
-struct NodeRow {
-    pattern_id: String,
-    node_id: String,
-    type_id: String,
-    latent_effect: SarScalarSummary,
-    expected_count: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize)]
-struct BaselineView {
-    input_sha256: String,
-    request_sha256: String,
-    fit_state: FitState,
-    type_posteriors: Vec<TypeRow>,
-    group_effect_differences: Vec<DifferenceRow>,
-    patient_type_effects: Vec<EffectRow>,
-    pattern_type_effects: Vec<EffectRow>,
-    node_type_posteriors: Vec<NodeRow>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ScenarioView {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    jax_version: String,
-    input_sha256: String,
-    request_sha256: String,
-    source_request_sha256: String,
-    maximum_tree_depth: u32,
-    fit_state: FitState,
-    type_posteriors: Vec<TypeRow>,
-    group_effect_differences: Vec<DifferenceRow>,
-    patient_type_effects: Vec<EffectRow>,
-    pattern_type_effects: Vec<EffectRow>,
-    node_type_posteriors: Vec<NodeRow>,
-    diagnostics: NormalMeanDiagnostics,
-}
-
-struct ScenarioSpec {
-    name: &'static str,
-    patient_scale: f64,
-    pattern_scale: f64,
-    field_amplitude: f64,
-    field_length: f64,
-    prepared: Prepared,
-}
-
-#[derive(Debug, Serialize)]
-struct ScenarioOutput {
-    scenario: &'static str,
-    patient_sd_prior_scale: f64,
-    pattern_sd_prior_scale: f64,
-    field_amplitude: f64,
-    field_length_scale_um: f64,
-    maximum_type_group_shift_sd: f64,
-    maximum_pairwise_group_difference_shift_sd: f64,
-    maximum_patient_effect_shift_sd: f64,
-    maximum_pattern_effect_shift_sd: f64,
-    maximum_hierarchy_scale_shift_sd: f64,
-    maximum_expected_count_shift_sd: f64,
-    material_sensitivity: bool,
-    fit: serde_json::Value,
-}
-
-#[derive(Debug, Serialize)]
-struct Resources {
-    scenario_count: usize,
-    maximum_processes: usize,
-    per_scenario_draw_node_type_work: u64,
-    total_draw_node_type_work: u64,
-    maximum_total_draw_node_type_work: u64,
-    timeout_seconds_per_process: u64,
-}
-
-#[derive(Debug, Serialize)]
-struct Output {
-    format: &'static str,
-    version: u32,
-    baseline_request_sha256: String,
-    scenarios: Vec<ScenarioOutput>,
-    materiality_standard_deviations: f64,
-    material_sensitivity: bool,
-    fit_state: FitState,
-    resources: Resources,
-    statistical_unit: &'static str,
-    assumptions: [&'static str; 5],
-    finite_result_policy: &'static str,
-    claim_status: &'static str,
-}
-
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let Top::Bayes { command } = Cli::parse_from(std::env::args_os()).command;
-    let Command::ReplicatedArbitraryWindowMultitypeLgcpSensitivity(args) = command;
-    run(*args)
-}
-
-fn run(args: Args) -> Result<(), BayesCliError> {
+pub(super) fn run(args: Args) -> Result<(), CliError> {
     if !(10..=14).contains(&args.numpyro_maximum_tree_depth)
         || !(1..=4).contains(&args.maximum_processes)
         || args.maximum_total_draw_node_type_work == 0
         || !args.materiality_standard_deviations.is_finite()
         || args.materiality_standard_deviations <= 0.0
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated multitype LGCP sensitivity controls are invalid".into(),
         ));
     }
@@ -251,19 +141,19 @@ fn run(args: Args) -> Result<(), BayesCliError> {
         args.field_length_scale_um,
     )?;
     let pymc: FitOutput = serde_json::from_slice(&read_bounded(&args.pymc_result)?)?;
-    pymc.validate_for(&baseline_prepared)?;
+    baseline_prepared.validate_result(&pymc)?;
     let baseline: BaselineView = serde_json::from_value(serde_json::to_value(&pymc)?)?;
     if baseline.request_sha256 != baseline_prepared.request_sha256() {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "PyMC baseline does not match exact sensitivity request".into(),
         ));
     }
     let per_scenario_work = baseline_prepared.draw_node_type_work();
     let total_work = per_scenario_work
         .checked_mul(8)
-        .ok_or_else(|| BayesCliError::Input("total sensitivity work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("total sensitivity work overflows".into()))?;
     if total_work > args.maximum_total_draw_node_type_work {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "total sensitivity draw-node-type work exceeds maximum: {total_work} > {}",
             args.maximum_total_draw_node_type_work
         )));
@@ -300,7 +190,7 @@ fn run(args: Args) -> Result<(), BayesCliError> {
                 )?,
             })
         })
-        .collect::<Result<Vec<_>, BayesCliError>>()?;
+        .collect::<Result<Vec<_>, CliError>>()?;
     let mut outputs = Vec::with_capacity(8);
     for wave in scenarios.chunks(args.maximum_processes) {
         let executions = thread::scope(|scope| {
@@ -320,23 +210,24 @@ fn run(args: Args) -> Result<(), BayesCliError> {
                 .into_iter()
                 .map(|handle| {
                     handle.join().map_err(|_| {
-                        BayesCliError::Backend(
+                        CliError::Backend(
                             "replicated multitype LGCP sensitivity worker panicked".into(),
                         )
                     })?
                 })
-                .collect::<Result<Vec<_>, BayesCliError>>()
+                .collect::<Result<Vec<_>, CliError>>()
         })?;
         for (scenario, execution) in wave.iter().zip(executions) {
             let view: ScenarioView = serde_json::from_value(execution.result.clone())?;
             validate_scenario(
                 &view,
                 &baseline,
-                &scenario.prepared,
+                scenario.prepared.request_sha256(),
                 &execution.request_sha256,
                 &execution.backend,
                 args.numpyro_maximum_tree_depth,
-            )?;
+            )
+            .map_err(super::protocol_error)?;
             let type_group = maximum_shift(
                 baseline.type_posteriors.iter().map(|row| &row.group_effect),
                 view.type_posteriors.iter().map(|row| &row.group_effect),
@@ -428,7 +319,7 @@ fn run(args: Args) -> Result<(), BayesCliError> {
                 maximum_total_draw_node_type_work: args.maximum_total_draw_node_type_work,
                 timeout_seconds_per_process: args.timeout_seconds,
             },
-            statistical_unit: "patient",
+            statistical_unit: StatisticalUnit::Patient,
             assumptions: [
                 "same_exact_data_types_windows_seed_likelihood_and_diagnostic_thresholds",
                 "patient_pattern_and_fixed_kernel_controls_vary_one_at_a_time",
@@ -437,7 +328,7 @@ fn run(args: Args) -> Result<(), BayesCliError> {
                 "materiality_is_standardized_by_baseline_pymc_posterior_sd",
             ],
             finite_result_policy: "every_scenario_summary_and_diagnostic_must_be_finite",
-            claim_status: "experimental_fixed_hierarchy_kernel_sensitivity",
+            claim_status: ClaimStatus::ExperimentalFixedHierarchyKernelSensitivity,
         },
     )
 }
@@ -448,7 +339,7 @@ fn prepare(
     pattern_scale: f64,
     field_amplitude: f64,
     field_length: f64,
-) -> Result<Prepared, BayesCliError> {
+) -> Result<Prepared, CliError> {
     replicated_arbitrary_window_multitype_lgcp::prepare(FitArgs {
         input: args.input.clone(),
         reference_group: args.reference_group.clone(),
@@ -481,121 +372,19 @@ fn prepare(
     })
 }
 
-fn validate_scenario(
-    result: &ScenarioView,
-    baseline: &BaselineView,
-    prepared: &Prepared,
-    request_sha: &str,
-    backend: &BackendContract,
-    depth: u32,
-) -> Result<(), BayesCliError> {
-    let policy = DiagnosticPolicy::default();
-    let complete = diagnostics_pass(&result.diagnostics, &policy);
-    let identities = row_identities_match(baseline, result);
-    if result.format != "marklab.numpyro_replicated_arbitrary_window_multitype_lgcp_result"
-        || result.version != 1
-        || !backend_matches(&result.backend, backend)
-        || result.jax_version != JAX_VERSION
-        || result.input_sha256 != baseline.input_sha256
-        || result.request_sha256 != request_sha
-        || result.source_request_sha256 != prepared.request_sha256()
-        || result.maximum_tree_depth != depth
-        || !identities
-        || !scenario_summaries_valid(result)
-        || (result.fit_state == FitState::Complete) != complete
-    {
-        return Err(BayesCliError::Backend(
-            "replicated multitype LGCP sensitivity result differs".into(),
-        ));
-    }
-    Ok(())
-}
-
-fn scenario_summaries_valid(result: &ScenarioView) -> bool {
-    result
-        .type_posteriors
-        .iter()
-        .flat_map(|row| {
-            [
-                &row.intercept,
-                &row.group_effect,
-                &row.covariate_effect,
-                &row.patient_sd,
-                &row.pattern_sd,
-            ]
-        })
-        .chain(
-            result
-                .group_effect_differences
-                .iter()
-                .map(|row| &row.difference),
-        )
-        .chain(result.patient_type_effects.iter().map(|row| &row.effect))
-        .chain(result.pattern_type_effects.iter().map(|row| &row.effect))
-        .chain(
-            result
-                .node_type_posteriors
-                .iter()
-                .flat_map(|row| [&row.latent_effect, &row.expected_count]),
-        )
-        .all(summary_valid)
-}
-
-fn row_identities_match(left: &BaselineView, right: &ScenarioView) -> bool {
-    left.type_posteriors.len() == right.type_posteriors.len()
-        && left
-            .type_posteriors
-            .iter()
-            .zip(&right.type_posteriors)
-            .all(|(a, b)| a.type_id == b.type_id)
-        && left.group_effect_differences.len() == right.group_effect_differences.len()
-        && left
-            .group_effect_differences
-            .iter()
-            .zip(&right.group_effect_differences)
-            .all(|(a, b)| a.type_a == b.type_a && a.type_b == b.type_b)
-        && left.patient_type_effects.len() == right.patient_type_effects.len()
-        && left
-            .patient_type_effects
-            .iter()
-            .zip(&right.patient_type_effects)
-            .all(|(a, b)| a.owner_id == b.owner_id && a.type_id == b.type_id)
-        && left.pattern_type_effects.len() == right.pattern_type_effects.len()
-        && left
-            .pattern_type_effects
-            .iter()
-            .zip(&right.pattern_type_effects)
-            .all(|(a, b)| a.owner_id == b.owner_id && a.type_id == b.type_id)
-        && left.node_type_posteriors.len() == right.node_type_posteriors.len()
-        && left
-            .node_type_posteriors
-            .iter()
-            .zip(&right.node_type_posteriors)
-            .all(|(a, b)| {
-                a.pattern_id == b.pattern_id && a.node_id == b.node_id && a.type_id == b.type_id
-            })
-}
-
-fn maximum_shift<'a>(
-    baseline: impl Iterator<Item = &'a SarScalarSummary>,
-    scenario: impl Iterator<Item = &'a SarScalarSummary>,
-) -> f64 {
-    baseline
-        .zip(scenario)
-        .map(|(baseline, scenario)| {
-            (baseline.mean - scenario.mean).abs() / baseline.sd.max(f64::MIN_POSITIVE)
-        })
-        .fold(0.0_f64, f64::max)
-}
-
-fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
-    super::input_file::read_regular_file(
+fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>, CliError> {
+    crate::input_file::read_regular_file(
         path,
         MAXIMUM_RESULT_BYTES,
         "PyMC multitype LGCP result is absent or oversized",
     )
 }
 
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<Cli>(|| run_cli().map_err(super::into_marklab_error))
+struct ScenarioSpec {
+    name: &'static str,
+    patient_scale: f64,
+    pattern_scale: f64,
+    field_amplitude: f64,
+    field_length: f64,
+    prepared: Prepared,
 }

@@ -1,6 +1,7 @@
 use thiserror::Error;
 
-use crate::{ArtifactId, ArtifactRef, ArtifactStoreError, NodeError, NodeId, ProjectError};
+use crate::{NodeError, NodeId};
+use marklab_project::{ArtifactId, ArtifactRef, ArtifactStoreError, ProjectError};
 
 /// Graph, scheduling, cache, resource, and project-commit failures.
 #[derive(Debug, Error)]

@@ -3,14 +3,14 @@ use parquet::format::{
 };
 
 use crate::columnar::parquet::schema::is_required_utf8 as is_utf8;
-use crate::columnar::{CellEmbeddingTablePhysicalBindings, EmbeddingColumnarError, ParquetFailure};
+use crate::columnar::{CellEmbeddingTablePhysicalBindings, ColumnarError, ParquetFailure};
 
 use super::super::profile::{
     metadata_values, MAXIMUM_APPLICATION_METADATA_BYTES, METADATA_KEYS, ROOT_NAME,
 };
 use super::parquet_failure;
 
-pub(super) fn validate_schema(schema: &[SchemaElement]) -> Result<(), EmbeddingColumnarError> {
+pub(super) fn validate_schema(schema: &[SchemaElement]) -> Result<(), ColumnarError> {
     if schema.len() != 6
         || !is_group(&schema[0], ROOT_NAME, None, 3, None, None)
         || !is_utf8(&schema[1], "cell_id")
@@ -74,7 +74,7 @@ fn is_group(
 pub(super) fn validate_metadata(
     metadata: &FileMetaData,
     bindings: CellEmbeddingTablePhysicalBindings,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     let entries = metadata
         .key_value_metadata
         .as_ref()
@@ -92,7 +92,7 @@ pub(super) fn validate_metadata(
         total_bytes = total_bytes
             .checked_add(entry.key.len())
             .and_then(|total| total.checked_add(observed_value.len()))
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         if entry.key != key || observed_value != value {
             return Err(parquet_failure(ParquetFailure::InvalidMetadata));
         }

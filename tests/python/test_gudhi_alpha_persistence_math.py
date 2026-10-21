@@ -1,7 +1,6 @@
 import importlib.util
-from pathlib import Path
 import unittest
-
+from pathlib import Path
 
 MODULE_PATH = (
     Path(__file__).resolve().parents[2]
@@ -10,7 +9,9 @@ MODULE_PATH = (
 
 
 def load_module():
-    spec = importlib.util.spec_from_file_location("gudhi_alpha_persistence_worker", MODULE_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "gudhi_alpha_persistence_worker", MODULE_PATH
+    )
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)

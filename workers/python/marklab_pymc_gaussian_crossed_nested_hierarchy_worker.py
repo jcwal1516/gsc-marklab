@@ -1,56 +1,97 @@
 #!/usr/bin/env python3
-"""Pinned PyMC worker for one identified nested/crossed Gaussian hierarchy."""
+"""PyMC worker for an identified Gaussian hierarchy with nested and crossed random effects."""
 
 from __future__ import annotations
 
-from collections import defaultdict
-import hashlib
 import json
 import math
-from pathlib import Path
 import sys
+from collections import defaultdict
+from pathlib import Path
 from typing import Any
 
-import numpy as np
 sys.path.append(str(Path(__file__).resolve().parent))
-import marklab_pytensor_config  # noqa: E402,F401
+
+# Configure PyTensor before PyMC is imported.
+from marklab_worker_support import pytensor_config  # noqa: F401
+
+# isort: split
+import numpy as np
 import pymc as pm
 
+from marklab_worker_support import pymc_nuts, pymc_request
+from marklab_worker_support.nuts_contract import fit_summary, pymc_nuts_diagnostics
+from marklab_worker_support.posterior import summary
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    backend_identity,
+    derive_seed,
+    exact,
+    integer,
+    number,
+    obj,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    worker_digests,
+    write_result,
+)
 
-PYMC_VERSION = "6.3.0"
-
-
-class ContractError(ValueError):
-    pass
-
-
-def obj(value: Any, keys: set[str], path: str) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != keys:
-        actual = set(value) if isinstance(value, dict) else set()
-        raise ContractError(
-            f"{path} fields differ: missing={sorted(keys - actual)}, unknown={sorted(actual - keys)}"
-        )
-    return value
-
-
-def exact(value: Any, expected: Any, path: str) -> None:
-    if value != expected:
-        raise ContractError(f"{path} must equal {expected!r}")
-
-
-def integer(value: Any, path: str, low: int, high: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
-        raise ContractError(f"{path} must be an integer in [{low},{high}]")
-    return value
-
-
-def number(value: Any, path: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ContractError(f"{path} must be numeric")
-    result = float(value)
-    if not math.isfinite(result):
-        raise ContractError(f"{path} must be finite")
-    return result
+RESULT_FORMAT = "marklab.pymc_gaussian_crossed_nested_hierarchy_worker_result"
+MODEL_KEYS = {
+    "format",
+    "version",
+    "family",
+    "likelihood",
+    "intercept_prior",
+    "intercept_prior_sd",
+    "exposure_slope_prior",
+    "exposure_slope_prior_sd",
+    "variance_component_prior",
+    "variance_component_prior_sd",
+    "nesting",
+    "crossed_effect",
+    "random_slopes",
+    "random_effect_parameterization",
+    "exposure_standardization",
+    "observation_unit",
+    "statistical_unit",
+    "null",
+    "backend_capability",
+    "maturity",
+}
+MODEL_CONSTANTS = {
+    "family": "gaussian_crossed_nested_random_slope_hierarchy",
+    "likelihood": "normal_unknown_residual_scale",
+    "intercept_prior": "normal_zero",
+    "exposure_slope_prior": "normal_zero",
+    "variance_component_prior": "half_normal_shared_scale",
+    "nesting": "roi_within_slide_within_patient",
+    "crossed_effect": "batch_crossed_with_patient",
+    "random_slopes": ["patient_exposure", "cohort_exposure"],
+    "random_effect_parameterization": (
+        "hybrid_centered_replicated_levels_noncentered_cohort_sum_zero"
+    ),
+    "exposure_standardization": "global_center_and_population_sd",
+    "observation_unit": "replicated_scalar_measurement",
+    "statistical_unit": "patient",
+    "null": "zero_fixed_exposure_slope_and_zero_variance_components",
+    "backend_capability": "nuts",
+    "maturity": "experimental",
+}
+COMPONENT_NAMES = [
+    "cohort_intercept_sd",
+    "cohort_exposure_slope_sd",
+    "patient_intercept_sd",
+    "patient_exposure_slope_sd",
+    "slide_intercept_sd",
+    "roi_intercept_sd",
+    "batch_intercept_sd",
+    "residual_sd",
+]
+MONITORED = ["intercept", "exposure_slope", *COMPONENT_NAMES]
 
 
 def index(values: list[str]) -> tuple[list[str], np.ndarray]:
@@ -75,84 +116,14 @@ def center_global(dimension: int) -> np.ndarray:
 
 
 def validate(request: Any, lock_sha: str, worker_sha: str) -> dict[str, Any]:
-    request = obj(
-        request,
-        {
-            "format",
-            "version",
-            "backend",
-            "model",
-            "observations",
-            "sampling",
-            "resources",
-            "diagnostic_policy",
-        },
-        "request",
+    request, model = pymc_request.validate_envelope(
+        request, lock_sha, worker_sha, ("observations",), MODEL_KEYS
     )
-    exact(request["format"], "marklab.pymc_worker_request", "request.format")
-    exact(request["version"], 1, "request.version")
-    backend = obj(
-        request["backend"],
-        {"name", "version", "python_version", "environment_lock_sha256", "worker_sha256"},
-        "backend",
-    )
-    exact(backend["name"], "pymc", "backend.name")
-    exact(backend["version"], PYMC_VERSION, "backend.version")
-    exact(backend["python_version"], "3.12", "backend.python")
-    exact(backend["environment_lock_sha256"], lock_sha, "backend.lock")
-    exact(backend["worker_sha256"], worker_sha, "backend.worker")
-    model = obj(
-        request["model"],
-        {
-            "format",
-            "version",
-            "family",
-            "likelihood",
-            "intercept_prior",
-            "intercept_prior_sd",
-            "exposure_slope_prior",
-            "exposure_slope_prior_sd",
-            "variance_component_prior",
-            "variance_component_prior_sd",
-            "nesting",
-            "crossed_effect",
-            "random_slopes",
-            "random_effect_parameterization",
-            "exposure_standardization",
-            "observation_unit",
-            "statistical_unit",
-            "null",
-            "backend_capability",
-            "maturity",
-        },
-        "model",
-    )
-    expected_model = {
-        "format": "marklab.bayesian_model_ir",
-        "version": 1,
-        "family": "gaussian_crossed_nested_random_slope_hierarchy",
-        "likelihood": "normal_unknown_residual_scale",
-        "intercept_prior": "normal_zero",
-        "exposure_slope_prior": "normal_zero",
-        "variance_component_prior": "half_normal_shared_scale",
-        "nesting": "roi_within_slide_within_patient",
-        "crossed_effect": "batch_crossed_with_patient",
-        "random_slopes": ["patient_exposure", "cohort_exposure"],
-        "random_effect_parameterization": "hybrid_centered_replicated_levels_noncentered_cohort_sum_zero",
-        "exposure_standardization": "global_center_and_population_sd",
-        "observation_unit": "replicated_scalar_measurement",
-        "statistical_unit": "patient",
-        "null": "zero_fixed_exposure_slope_and_zero_variance_components",
-        "backend_capability": "nuts",
-        "maturity": "experimental",
-    }
-    for key, expected in expected_model.items():
+    for key, expected in MODEL_CONSTANTS.items():
         exact(model[key], expected, f"model.{key}")
     intercept_prior_sd = number(model["intercept_prior_sd"], "model.intercept_prior_sd")
     slope_prior_sd = number(model["exposure_slope_prior_sd"], "model.slope_prior_sd")
-    component_prior_sd = number(
-        model["variance_component_prior_sd"], "model.component_prior_sd"
-    )
+    component_prior_sd = number(model["variance_component_prior_sd"], "model.component_prior_sd")
     if min(intercept_prior_sd, slope_prior_sd, component_prior_sd) <= 0.0:
         raise ContractError("prior scales must be positive")
 
@@ -172,7 +143,12 @@ def validate(request: Any, lock_sha: str, worker_sha: str) -> dict[str, Any]:
         )
         for key in ["patient_id", "slide_id", "roi_id", "batch_id", "cohort_id"]:
             value = row[key]
-            if not isinstance(value, str) or not value or len(value) > 128 or value.strip() != value:
+            if (
+                not isinstance(value, str)
+                or not value
+                or len(value) > 128
+                or value.strip() != value
+            ):
                 raise ContractError(f"{key} is invalid")
             columns[key].append(value)
         exposure = number(row["exposure"], "observation.exposure")
@@ -193,7 +169,10 @@ def validate(request: Any, lock_sha: str, worker_sha: str) -> dict[str, Any]:
             raise ContractError("slide parent differs")
         if row["roi_id"] in roi_slide and roi_slide[row["roi_id"]] != row["slide_id"]:
             raise ContractError("ROI parent differs")
-        if row["patient_id"] in patient_cohort and patient_cohort[row["patient_id"]] != row["cohort_id"]:
+        if (
+            row["patient_id"] in patient_cohort
+            and patient_cohort[row["patient_id"]] != row["cohort_id"]
+        ):
             raise ContractError("patient cohort differs")
         slide_patient[row["slide_id"]] = row["patient_id"]
         roi_slide[row["roi_id"]] = row["slide_id"]
@@ -265,16 +244,7 @@ def validate(request: Any, lock_sha: str, worker_sha: str) -> dict[str, Any]:
         raise ContractError("exposure variance is invalid")
     outcome = np.asarray(columns["outcome"], dtype=np.float64)
 
-    sampling = obj(
-        request["sampling"],
-        {"chains", "tune_per_chain", "draws_per_chain", "target_accept", "seed"},
-        "sampling",
-    )
-    chains = integer(sampling["chains"], "sampling.chains", 2, 8)
-    tune = integer(sampling["tune_per_chain"], "sampling.tune", 100, 100000)
-    draws = integer(sampling["draws_per_chain"], "sampling.draws", 100, 100000)
-    target_accept = number(sampling["target_accept"], "sampling.target_accept")
-    seed = integer(sampling["seed"], "sampling.seed", 0, 2**64 - 1)
+    sampling = pymc_request.validate_sampling(request["sampling"])
     resources = obj(
         request["resources"],
         {
@@ -290,7 +260,14 @@ def validate(request: Any, lock_sha: str, worker_sha: str) -> dict[str, Any]:
         },
         "resources",
     )
-    actual = [len(patient_ids), len(slide_ids), len(roi_ids), len(batch_ids), len(cohort_ids), len(raw_rows)]
+    actual = [
+        len(patient_ids),
+        len(slide_ids),
+        len(roi_ids),
+        len(batch_ids),
+        len(cohort_ids),
+        len(raw_rows),
+    ]
     maxima = [
         integer(resources["maximum_patients"], "resources.patients", 12, 512),
         integer(resources["maximum_slides"], "resources.slides", 24, 1024),
@@ -299,9 +276,10 @@ def validate(request: Any, lock_sha: str, worker_sha: str) -> dict[str, Any]:
         integer(resources["maximum_cohorts"], "resources.cohorts", 3, 32),
         integer(resources["maximum_observations"], "resources.observations", 48, 4096),
     ]
-    if any(value > maximum for value, maximum in zip(actual, maxima)):
+    if any(value > maximum for value, maximum in zip(actual, maxima, strict=True)):
         raise ContractError("crossed/nested resource limit exceeded")
-    if chains * (tune + draws) > integer(
+    iterations = sampling["chains"] * (sampling["tune"] + sampling["draws"])
+    if iterations > integer(
         resources["maximum_total_iterations"], "resources.iterations", 1, 400000
     ):
         raise ContractError("sampling work exceeds resource limit")
@@ -310,20 +288,6 @@ def validate(request: Any, lock_sha: str, worker_sha: str) -> dict[str, Any]:
     )
     integer(resources["timeout_seconds"], "resources.timeout", 1, 3600)
 
-    policy = obj(
-        request["diagnostic_policy"],
-        {
-            "prior_predictive_draws",
-            "maximum_r_hat",
-            "minimum_bulk_ess",
-            "minimum_tail_ess",
-            "minimum_ebfmi",
-            "maximum_divergences",
-            "maximum_tree_depth_hits",
-            "maximum_tree_depth",
-        },
-        "policy",
-    )
     return {
         "intercept_prior_sd": intercept_prior_sd,
         "slope_prior_sd": slope_prior_sd,
@@ -345,137 +309,99 @@ def validate(request: Any, lock_sha: str, worker_sha: str) -> dict[str, Any]:
         "rois": len(roi_ids),
         "batches": len(batch_ids),
         "cohorts": len(cohort_ids),
-        "chains": chains,
-        "tune": tune,
-        "draws": draws,
-        "target_accept": target_accept,
-        "seed": seed,
-        "prior_draws": integer(policy["prior_predictive_draws"], "policy.prior", 1, 100000),
-        "maximum_r_hat": number(policy["maximum_r_hat"], "policy.r_hat"),
-        "minimum_bulk_ess": number(policy["minimum_bulk_ess"], "policy.bulk"),
-        "minimum_tail_ess": number(policy["minimum_tail_ess"], "policy.tail"),
-        "minimum_ebfmi": number(policy["minimum_ebfmi"], "policy.ebfmi"),
-        "maximum_divergences": integer(policy["maximum_divergences"], "policy.divergences", 0, 2**63 - 1),
-        "maximum_tree_depth_hits": integer(policy["maximum_tree_depth_hits"], "policy.depth_hits", 0, 2**63 - 1),
-        "maximum_tree_depth": integer(policy["maximum_tree_depth"], "policy.depth", 1, 32),
+        **sampling,
+        **pymc_request.validate_policy(request["diagnostic_policy"]),
         "maximum_output_bytes": maximum_output_bytes,
     }
 
 
 def seed_for(seed: int, purpose: str, position: int = 0) -> int:
-    digest = hashlib.sha256(
-        f"marklab-pymc-gaussian-crossed-nested-v1\0{seed}\0{purpose}\0{position}".encode()
-    ).digest()
-    return int.from_bytes(digest[:4], "little")
+    return derive_seed("marklab-pymc-gaussian-crossed-nested-v1", seed, purpose, position)
 
 
-def summary(values: np.ndarray) -> dict[str, float]:
-    flat = values.reshape(-1)
+def noncentered_effect(name: str, sd: Any, center: np.ndarray, size: int) -> Any:
+    """``sd * C z`` with ``z ~ Normal(0, 1)`` named ``<name>_z`` and centring matrix ``C``."""
+    raw = pm.Normal(f"{name}_z", 0.0, 1.0, shape=size)
+    return pm.Deterministic(name, sd * pm.math.dot(center, raw))
+
+
+def centered_effect(name: str, sd: Any, center: np.ndarray, size: int) -> Any:
+    """``C u`` with ``u ~ Normal(0, sd)`` named ``<name>_raw`` and centring matrix ``C``."""
+    raw = pm.Normal(f"{name}_raw", 0.0, sd, shape=size)
+    return pm.Deterministic(name, pm.math.dot(center, raw))
+
+
+def variance_partition(config: dict[str, Any], arrays: dict[str, np.ndarray]) -> dict[str, float]:
+    """Posterior mean shares of design-averaged random-effect and residual variance.
+
+    Conditional on a component SD, centered effects have covariance ``sd**2 * C C.T``.
+    Average their marginal observation variances over the supplied rows, including ``x**2``
+    for random slopes, then normalize within each posterior draw. Fixed effects are excluded;
+    this is neither an R-squared nor the sample variance of fitted random-effect realizations.
+    """
+    weights = {"residual_sd": 1.0}
+    for level in ("cohort", "patient", "slide", "roi", "batch"):
+        center = config[f"{level}_center"]
+        marginal = np.einsum("ij,ij->i", center, center)[config[f"{level}_index"]]
+        weights[f"{level}_intercept_sd"] = float(marginal.mean())
+        if level in ("cohort", "patient"):
+            weights[f"{level}_exposure_slope_sd"] = float(
+                np.mean(marginal * config["exposure"] ** 2)
+            )
+    component_variances = np.stack(
+        [arrays[name].reshape(-1) ** 2 * weights[name] for name in COMPONENT_NAMES], axis=1
+    )
+    fractions = component_variances / component_variances.sum(axis=1, keepdims=True)
+    fraction_means = fractions.mean(axis=0)
+    fraction_means /= fraction_means.sum()
     return {
-        "mean": float(flat.mean()),
-        "sd": float(flat.std(ddof=1)),
-        "interval_lower": float(np.quantile(flat, 0.025)),
-        "interval_upper": float(np.quantile(flat, 0.975)),
+        name.removesuffix("_sd"): float(fraction)
+        for name, fraction in zip(COMPONENT_NAMES, fraction_means, strict=True)
     }
 
 
-def tree_values(tree: Any, names: list[str]) -> np.ndarray:
-    return np.concatenate([np.asarray(tree[name].values).reshape(-1) for name in names])
-
-
 def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str) -> dict[str, Any]:
-    component_names = [
-        "cohort_intercept_sd",
-        "cohort_exposure_slope_sd",
-        "patient_intercept_sd",
-        "patient_exposure_slope_sd",
-        "slide_intercept_sd",
-        "roi_intercept_sd",
-        "batch_intercept_sd",
-        "residual_sd",
-    ]
+    """Fit the crossed/nested Gaussian hierarchy by NUTS.
+
+    Likelihood: ``y ~ Normal(mu, sigma_residual)`` with ``mu = alpha + beta * x + c_k + g_k * x
+    + p_i + q_i * x + s_j + r_m + b_l`` for the standardized exposure ``x``, cohort ``k``,
+    patient ``i``, slide ``j``, ROI ``m``, and batch ``l``. Exposure is centered over observations
+    and divided by its population SD. Cohort intercepts and slopes are
+    non-centered and sum to zero (``sd * C z``); patient, slide, and ROI effects are centered
+    within their parent level and batch effects sum to zero (``C u`` with ``u ~ Normal(0, sd)``).
+    Priors: ``alpha ~ Normal(0, intercept_prior_sd)``, ``beta ~ Normal(0, slope_prior_sd)``, and
+    every component SD, including ``sigma_residual``, ``~ HalfNormal(component_prior_sd)``.
+    Normal scales are SDs; half-normal scales are the SDs of their underlying normal distributions.
+    """
     with pm.Model():
         intercept = pm.Normal("intercept", 0.0, config["intercept_prior_sd"])
         slope = pm.Normal("exposure_slope", 0.0, config["slope_prior_sd"])
-        components = {
-            name: pm.HalfNormal(name, config["component_prior_sd"])
-            for name in component_names
-        }
-        cohort_intercept = pm.Deterministic(
-            "cohort_intercept",
-            components["cohort_intercept_sd"]
-            * pm.math.dot(
-                config["cohort_center"],
-                pm.Normal("cohort_intercept_z", 0.0, 1.0, shape=config["cohorts"]),
-            ),
+        sd = {name: pm.HalfNormal(name, config["component_prior_sd"]) for name in COMPONENT_NAMES}
+        cohorts = config["cohorts"]
+        cohort_intercept = noncentered_effect(
+            "cohort_intercept", sd["cohort_intercept_sd"], config["cohort_center"], cohorts
         )
-        cohort_slope = pm.Deterministic(
+        cohort_slope = noncentered_effect(
             "cohort_exposure_slope",
-            components["cohort_exposure_slope_sd"]
-            * pm.math.dot(
-                config["cohort_center"],
-                pm.Normal("cohort_exposure_slope_z", 0.0, 1.0, shape=config["cohorts"]),
-            ),
+            sd["cohort_exposure_slope_sd"],
+            config["cohort_center"],
+            cohorts,
         )
-        patient_intercept = pm.Deterministic(
-            "patient_intercept",
-            pm.math.dot(
-                config["patient_center"],
-                pm.Normal(
-                    "patient_intercept_raw",
-                    0.0,
-                    components["patient_intercept_sd"],
-                    shape=config["patients"],
-                ),
-            ),
+        patient_center, patients = config["patient_center"], config["patients"]
+        patient_intercept = centered_effect(
+            "patient_intercept", sd["patient_intercept_sd"], patient_center, patients
         )
-        patient_slope = pm.Deterministic(
-            "patient_exposure_slope",
-            pm.math.dot(
-                config["patient_center"],
-                pm.Normal(
-                    "patient_exposure_slope_raw",
-                    0.0,
-                    components["patient_exposure_slope_sd"],
-                    shape=config["patients"],
-                ),
-            ),
+        patient_slope = centered_effect(
+            "patient_exposure_slope", sd["patient_exposure_slope_sd"], patient_center, patients
         )
-        slide_intercept = pm.Deterministic(
-            "slide_intercept",
-            pm.math.dot(
-                config["slide_center"],
-                pm.Normal(
-                    "slide_intercept_raw",
-                    0.0,
-                    components["slide_intercept_sd"],
-                    shape=config["slides"],
-                ),
-            ),
+        slide_intercept = centered_effect(
+            "slide_intercept", sd["slide_intercept_sd"], config["slide_center"], config["slides"]
         )
-        roi_intercept = pm.Deterministic(
-            "roi_intercept",
-            pm.math.dot(
-                config["roi_center"],
-                pm.Normal(
-                    "roi_intercept_raw",
-                    0.0,
-                    components["roi_intercept_sd"],
-                    shape=config["rois"],
-                ),
-            ),
+        roi_intercept = centered_effect(
+            "roi_intercept", sd["roi_intercept_sd"], config["roi_center"], config["rois"]
         )
-        batch_intercept = pm.Deterministic(
-            "batch_intercept",
-            pm.math.dot(
-                config["batch_center"],
-                pm.Normal(
-                    "batch_intercept_raw",
-                    0.0,
-                    components["batch_intercept_sd"],
-                    shape=config["batches"],
-                ),
-            ),
+        batch_intercept = centered_effect(
+            "batch_intercept", sd["batch_intercept_sd"], config["batch_center"], config["batches"]
         )
         x = config["exposure"]
         mu = (
@@ -489,159 +415,57 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
             + roi_intercept[config["roi_index"]]
             + batch_intercept[config["batch_index"]]
         )
-        pm.Normal("outcome", mu=mu, sigma=components["residual_sd"], observed=config["outcome"])
-        prior = pm.sample_prior_predictive(
-            draws=config["prior_draws"], random_seed=seed_for(config["seed"], "prior")
+        pm.Normal("outcome", mu=mu, sigma=sd["residual_sd"], observed=config["outcome"])
+        prior, posterior, predictive = pymc_nuts.sample_prior_posterior_predictive(
+            config, seed_for, "outcome"
         )
-        posterior = pm.sample(
-            draws=config["draws"],
-            tune=config["tune"],
-            chains=config["chains"],
-            cores=1,
-            blas_cores=1,
-            random_seed=[seed_for(config["seed"], "chain", chain) for chain in range(config["chains"])],
-            target_accept=config["target_accept"],
-            nuts_sampler="pymc",
-            nuts={"max_treedepth": config["maximum_tree_depth"]},
-            progressbar=False,
-            quiet=True,
-            compute_convergence_checks=False,
-        )
-        predictive = pm.sample_posterior_predictive(
-            posterior,
-            var_names=["outcome"],
-            random_seed=seed_for(config["seed"], "predictive"),
-            progressbar=False,
-        )
-    draws = posterior["posterior"]
-    fixed_names = ["intercept", "exposure_slope"]
-    monitored = fixed_names + component_names
-    arrays = {name: np.asarray(draws[name].values, dtype=np.float64) for name in monitored}
+    arrays = {
+        name: np.asarray(posterior["posterior"][name].values, dtype=np.float64)
+        for name in MONITORED
+    }
     replicated = np.asarray(predictive["posterior_predictive"]["outcome"].values, dtype=np.float64)
-    prior_finite = bool(
-        all(
-            np.isfinite(np.asarray(value.values)).all()
-            for group_name in ["prior", "prior_predictive"]
-            for value in prior[group_name].values()
-        )
-    )
+    prior_finite = pymc_nuts.prior_is_finite(prior, ("prior", "prior_predictive"))
     posterior_finite = bool(
         all(np.isfinite(value).all() for value in [*arrays.values(), replicated])
     )
-    r_hat = float(tree_values(pm.stats.rhat(posterior, var_names=monitored, method="rank"), monitored).max())
-    bulk = float(tree_values(pm.stats.ess(posterior, var_names=monitored, method="bulk"), monitored).min())
-    tail = float(tree_values(pm.stats.ess(posterior, var_names=monitored, method="tail"), monitored).min())
-    mcse_mean = float(tree_values(pm.stats.mcse(posterior, var_names=monitored, method="mean"), monitored).max())
-    mcse_sd = float(tree_values(pm.stats.mcse(posterior, var_names=monitored, method="sd"), monitored).max())
-    energy = np.asarray(posterior["sample_stats"]["energy"].values, dtype=np.float64)
-    ebfmi = float(np.min(np.mean(np.diff(energy, axis=1) ** 2, axis=1) / np.var(energy, axis=1)))
-    divergences = int(np.asarray(posterior["sample_stats"]["diverging"].values).sum())
-    depth_hits = int(np.asarray(posterior["sample_stats"]["reached_max_treedepth"].values).sum())
-    constraints = bool(all(np.all(arrays[name] > 0.0) for name in component_names))
-    complete = bool(
-        prior_finite
-        and posterior_finite
-        and constraints
-        and r_hat <= config["maximum_r_hat"]
-        and bulk >= config["minimum_bulk_ess"]
-        and tail >= config["minimum_tail_ess"]
-        and ebfmi >= config["minimum_ebfmi"]
-        and divergences <= config["maximum_divergences"]
-        and depth_hits <= config["maximum_tree_depth_hits"]
-    )
-    component_variances = np.stack([arrays[name].reshape(-1) ** 2 for name in component_names], axis=1)
-    fractions = component_variances / component_variances.sum(axis=1, keepdims=True)
-    fraction_means = fractions.mean(axis=0)
-    fraction_means /= fraction_means.sum()
+    convergence = pymc_nuts_diagnostics(posterior, MONITORED)
+    constraints = bool(all(np.all(arrays[name] > 0.0) for name in COMPONENT_NAMES))
     observed_mean = float(config["outcome"].mean())
     observed_sd = float(config["outcome"].std(ddof=1))
     replicated_flat = replicated.reshape(-1, replicated.shape[-1])
     replicated_means = replicated_flat.mean(axis=1)
     replicated_sds = replicated_flat.std(axis=1, ddof=1)
-    result = {
-        "format": "marklab.pymc_gaussian_crossed_nested_hierarchy_worker_result",
+    return {
+        "format": RESULT_FORMAT,
         "version": 1,
-        "backend": {
-            "name": "pymc",
-            "version": pm.__version__,
-            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
-            "environment_lock_sha256": lock_sha,
-            "worker_sha256": worker_sha,
-        },
+        "backend": backend_identity("pymc", pm.__version__, lock_sha, worker_sha),
         "request_sha256": request_sha,
-        "fit_state": "complete" if complete else "nonconverged",
-        "sampling": {
-            "chains": config["chains"],
-            "tune_per_chain": config["tune"],
-            "draws_per_chain": config["draws"],
-            "completed_draws": config["chains"] * config["draws"],
-        },
-        "posterior": {name: summary(arrays[name]) for name in monitored},
-        "variance_partition": {
-            "cohort_intercept": float(fraction_means[0]),
-            "cohort_exposure_slope": float(fraction_means[1]),
-            "patient_intercept": float(fraction_means[2]),
-            "patient_exposure_slope": float(fraction_means[3]),
-            "slide_intercept": float(fraction_means[4]),
-            "roi_intercept": float(fraction_means[5]),
-            "batch_intercept": float(fraction_means[6]),
-            "residual": float(fraction_means[7]),
-        },
-        "diagnostics": {
-            "prior_predictive_finite": prior_finite,
-            "posterior_finite": posterior_finite,
-            "r_hat": r_hat,
-            "ess_bulk": bulk,
-            "ess_tail": tail,
-            "mcse_mean": mcse_mean,
-            "mcse_sd": mcse_sd,
-            "minimum_ebfmi": ebfmi,
-            "divergences": divergences,
-            "max_tree_depth_hits": depth_hits,
-            "constraints_valid": constraints,
-            "identifiability_checks_passed": True,
-        },
+        **fit_summary(convergence, config, prior_finite, posterior_finite, constraints),
+        "posterior": {name: summary(arrays[name]) for name in MONITORED},
+        "variance_partition": variance_partition(config, arrays),
         "posterior_predictive": {
             "observed_outcome_mean": observed_mean,
             "replicated_outcome_mean_mean": float(replicated_means.mean()),
-            "probability_replicated_mean_at_least_observed": float(np.mean(replicated_means >= observed_mean)),
+            "probability_replicated_mean_at_least_observed": float(
+                np.mean(replicated_means >= observed_mean)
+            ),
             "observed_outcome_sd": observed_sd,
             "replicated_outcome_sd_mean": float(replicated_sds.mean()),
-            "probability_replicated_sd_at_least_observed": float(np.mean(replicated_sds >= observed_sd)),
+            "probability_replicated_sd_at_least_observed": float(
+                np.mean(replicated_sds >= observed_sd)
+            ),
         },
     }
-    encoded = json.dumps(result, allow_nan=False, separators=(",", ":"), sort_keys=True).encode()
-    if len(encoded) > config["maximum_output_bytes"]:
-        raise ContractError("result exceeds output limit")
-    return result
 
 
 def main() -> None:
-    if pm.__version__ != PYMC_VERSION:
-        raise ContractError(f"PyMC version drift: expected {PYMC_VERSION}, found {pm.__version__}")
-    if sys.version_info[:2] != (3, 12):
-        raise ContractError(
-            f"Python version drift: expected 3.12, found {sys.version_info.major}.{sys.version_info.minor}"
-        )
-    script = Path(__file__)
-    lock_sha = hashlib.sha256(script.with_name("uv.lock").read_bytes()).hexdigest()
-    worker_sha = hashlib.sha256(script.read_bytes()).hexdigest()
-    raw = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
-    if len(raw) > 16 * 1024 * 1024:
-        raise ContractError("request exceeds 16 MiB")
-    request_sha = hashlib.sha256(raw).hexdigest()
+    require_versions(pymc=pm.__version__)
+    lock_sha, worker_sha = worker_digests(__file__)
+    raw = read_request(16 * MIB)
     config = validate(json.loads(raw), lock_sha, worker_sha)
-    result = fit(config, request_sha, lock_sha, worker_sha)
-    sys.stdout.write(json.dumps(result, allow_nan=False, separators=(",", ":"), sort_keys=True))
-    sys.stdout.write("\n")
+    result = fit(config, sha256_hex(raw), lock_sha, worker_sha)
+    write_result(result, max_bytes=config["maximum_output_bytes"])
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as error:
-        print(
-            f"Marklab PyMC crossed/nested worker failed: {type(error).__name__}: {error}",
-            file=sys.stderr,
-        )
-        raise SystemExit(2) from error
+    run_worker(main, "Marklab PyMC crossed/nested worker failed")

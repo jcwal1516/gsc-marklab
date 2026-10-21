@@ -1,11 +1,16 @@
 use std::path::{Path, PathBuf};
 
-use marklab_workflow::{ArtifactRef, CacheStatus, ContentDigest};
+use marklab_project::{ArtifactRef, ContentDigest};
+use marklab_workflow::CacheStatus;
 use serde::Serialize;
 
 use crate::{
-    ClassicalCacheStatus, ClassicalNullModel, ClassicalRandomizationUnit, ClassicalSpatialResult,
-    ClassicalSpatialResultDocument, ClassicalSpatialStatus, ClassicalWorkflowIdentity, Result,
+    spatial::{
+        ClassicalCacheStatus, ClassicalNullModel, ClassicalRandomizationUnit,
+        ClassicalSpatialResult, ClassicalSpatialResultDocument, ClassicalSpatialStatus,
+        ClassicalWorkflowIdentity,
+    },
+    Result,
 };
 
 use super::transaction::OutputTransaction;

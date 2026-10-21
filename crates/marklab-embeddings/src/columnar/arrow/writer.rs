@@ -18,8 +18,8 @@ use crate::{CellEmbeddingTable, EmbeddingStatus};
 
 use super::{
     super::{
-        CellEmbeddingTablePhysicalBindings, ColumnarWriteSummary, EmbeddingColumnarBudgets,
-        EmbeddingColumnarError,
+        CellEmbeddingTablePhysicalBindings, ColumnarError, ColumnarWriteSummary,
+        EmbeddingColumnarBudgets,
     },
     profile::{
         component_bytes, embedding_schema, enforce_decoded_budget, enforce_retained_budget,
@@ -34,7 +34,7 @@ pub fn write_cell_embedding_table_arrow(
     table: &CellEmbeddingTable,
     bindings: CellEmbeddingTablePhysicalBindings,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<ColumnarWriteSummary, EmbeddingColumnarError> {
+) -> Result<ColumnarWriteSummary, ColumnarError> {
     validate_table_bindings(table, bindings)?;
     let row_count = table.row_count();
     let dimension = table.dimension();
@@ -47,51 +47,49 @@ pub fn write_cell_embedding_table_arrow(
     let record_batch_count = row_count.div_ceil(RECORD_BATCH_ROWS);
     let record_block_bytes = record_batch_count
         .checked_mul(size_of::<arrow_ipc::Block>())
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let record_block_capacity_bytes = record_block_bytes
         .checked_mul(2)
         .and_then(|value| value.checked_add(size_of::<Vec<arrow_ipc::Block>>()))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let batch_peak_bytes = maximum_batch_bytes
         .checked_mul(2)
         .and_then(|value| value.checked_add(record_block_capacity_bytes))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let footer_builder_bytes = record_block_bytes
         .checked_add(MAXIMUM_MESSAGE_BYTES)
         .and_then(|value| value.checked_mul(2))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let footer_peak_bytes = record_block_capacity_bytes
         .checked_add(footer_builder_bytes)
         .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let retained_bytes = batch_peak_bytes.max(footer_peak_bytes);
     enforce_retained_budget(retained_bytes, budgets)?;
 
     let schema = embedding_schema(dimension, bindings)?;
     let options = IpcWriteOptions::try_new(ALIGNMENT, false, MetadataVersion::V5)
-        .map_err(|_| EmbeddingColumnarError::ArrowWriter)?;
+        .map_err(|_| ColumnarError::ArrowWriter)?;
     let mut sink = DigestingWriter::new(output, budgets.maximum_file_bytes());
     let write_result = (|| {
         let mut writer = FileWriter::try_new_with_options(&mut sink, &schema, options)
-            .map_err(|_| EmbeddingColumnarError::ArrowWriter)?;
+            .map_err(|_| ColumnarError::ArrowWriter)?;
         let mut start = 0_usize;
         while start < row_count {
             let end = start
                 .checked_add(RECORD_BATCH_ROWS)
                 .map(|value| value.min(row_count))
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
             let batch = build_record_batch(table, &schema, start, end, dimension)?;
             writer
                 .write(&batch)
-                .map_err(|_| EmbeddingColumnarError::ArrowWriter)?;
+                .map_err(|_| ColumnarError::ArrowWriter)?;
             start = end;
         }
-        writer
-            .finish()
-            .map_err(|_| EmbeddingColumnarError::ArrowWriter)
+        writer.finish().map_err(|_| ColumnarError::ArrowWriter)
     })();
     if let Some(observed) = sink.budget_exceeded() {
-        return Err(EmbeddingColumnarError::FileByteBudgetExceeded {
+        return Err(ColumnarError::FileByteBudgetExceeded {
             observed,
             maximum: budgets.maximum_file_bytes(),
         });
@@ -101,7 +99,7 @@ pub fn write_cell_embedding_table_arrow(
     Ok(ColumnarWriteSummary::new(
         content_digest,
         encoded_byte_len,
-        u64::try_from(row_count).map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
+        u64::try_from(row_count).map_err(|_| ColumnarError::SizeOverflow)?,
         dimension,
     ))
 }
@@ -113,38 +111,31 @@ pub(crate) fn build_record_batch(
     start: usize,
     end: usize,
     dimension: u32,
-) -> Result<RecordBatch, EmbeddingColumnarError> {
-    let row_count = end
-        .checked_sub(start)
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
-    let dimension_usize =
-        usize::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+) -> Result<RecordBatch, ColumnarError> {
+    let row_count = end.checked_sub(start).ok_or(ColumnarError::SizeOverflow)?;
+    let dimension_usize = usize::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?;
     let component_count = row_count
         .checked_mul(dimension_usize)
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let identifier_bytes = (start..end).try_fold(0_usize, |total, index| {
-        let row = table
-            .row(index)
-            .map_err(|_| EmbeddingColumnarError::ArrowWriter)?;
+        let row = table.row(index).map_err(|_| ColumnarError::ArrowWriter)?;
         total
             .checked_add(row.cell_id().as_str().len())
-            .ok_or(EmbeddingColumnarError::SizeOverflow)
+            .ok_or(ColumnarError::SizeOverflow)
     })?;
     let mut cells = StringBuilder::with_capacity(row_count, identifier_bytes);
     let values = Float32Builder::with_capacity(component_count);
     let list_field = match schema.field(1).data_type() {
         DataType::FixedSizeList(field, length)
-            if *length
-                == i32::try_from(dimension)
-                    .map_err(|_| EmbeddingColumnarError::SizeOverflow)? =>
+            if *length == i32::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)? =>
         {
             Arc::clone(field)
         }
-        _ => return Err(EmbeddingColumnarError::ArrowWriter),
+        _ => return Err(ColumnarError::ArrowWriter),
     };
     let mut embeddings = FixedSizeListBuilder::with_capacity(
         values,
-        i32::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
+        i32::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?,
         row_count,
     )
     .with_field(list_field);
@@ -152,12 +143,10 @@ pub(crate) fn build_record_batch(
         row_count,
         row_count
             .checked_mul(EmbeddingStatus::ExtractionFailed.wire_name().len())
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?,
+            .ok_or(ColumnarError::SizeOverflow)?,
     );
     for index in start..end {
-        let row = table
-            .row(index)
-            .map_err(|_| EmbeddingColumnarError::ArrowWriter)?;
+        let row = table.row(index).map_err(|_| ColumnarError::ArrowWriter)?;
         cells.append_value(row.cell_id().as_str());
         if let Some(vector) = row.vector() {
             embeddings.values().append_slice(vector);
@@ -174,14 +163,13 @@ pub(crate) fn build_record_batch(
         Arc::new(embeddings.finish()),
         Arc::new(statuses.finish()),
     ];
-    RecordBatch::try_new(Arc::new(schema.clone()), columns)
-        .map_err(|_| EmbeddingColumnarError::ArrowWriter)
+    RecordBatch::try_new(Arc::new(schema.clone()), columns).map_err(|_| ColumnarError::ArrowWriter)
 }
 
 pub(crate) fn validate_table_bindings(
     table: &CellEmbeddingTable,
     bindings: CellEmbeddingTablePhysicalBindings,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     if table.qc_summary().logical_digest() != bindings.table_logical_digest()
         || !table.matches_physical_bindings(
             bindings.expected_cells_artifact_id(),
@@ -189,7 +177,7 @@ pub(crate) fn validate_table_bindings(
             bindings.row_link_logical_digest(),
         )
     {
-        return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     Ok(())
 }
@@ -197,7 +185,7 @@ pub(crate) fn validate_table_bindings(
 pub(crate) fn estimate_writer_batch_bytes(
     table: &CellEmbeddingTable,
     dimension: u32,
-) -> Result<usize, EmbeddingColumnarError> {
+) -> Result<usize, ColumnarError> {
     let row_count = table.row_count().min(RECORD_BATCH_ROWS);
     let mut identifier_bytes = 0_usize;
     let mut current_identifier_bytes = 0_usize;
@@ -206,32 +194,28 @@ pub(crate) fn estimate_writer_batch_bytes(
             identifier_bytes = identifier_bytes.max(current_identifier_bytes);
             current_identifier_bytes = 0;
         }
-        let row = table
-            .row(index)
-            .map_err(|_| EmbeddingColumnarError::ArrowWriter)?;
+        let row = table.row(index).map_err(|_| ColumnarError::ArrowWriter)?;
         current_identifier_bytes = current_identifier_bytes
             .checked_add(row.cell_id().as_str().len())
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
     }
     identifier_bytes = identifier_bytes.max(current_identifier_bytes);
     let component_bytes = row_count
-        .checked_mul(usize::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?)
+        .checked_mul(usize::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?)
         .and_then(|value| value.checked_mul(size_of::<f32>()))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let offsets = row_count
         .checked_add(1)
         .and_then(|value| value.checked_mul(size_of::<i32>()))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let status_bytes = row_count
         .checked_mul(EmbeddingStatus::ExtractionFailed.wire_name().len())
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let row_validity_bytes = validity_bytes(row_count)?;
     let value_validity_bytes = validity_bytes(
         row_count
-            .checked_mul(
-                usize::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
-            )
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?,
+            .checked_mul(usize::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?)
+            .ok_or(ColumnarError::SizeOverflow)?,
     )?;
     component_bytes
         .checked_add(identifier_bytes)
@@ -241,64 +225,58 @@ pub(crate) fn estimate_writer_batch_bytes(
         .and_then(|value| value.checked_add(value_validity_bytes))
         .and_then(|value| value.checked_add(9 * (ALIGNMENT - 1)))
         .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)
 }
 
 pub(crate) fn estimate_writer_decoded_bytes(
     table: &CellEmbeddingTable,
     dimension: u32,
-) -> Result<u64, EmbeddingColumnarError> {
-    let dimension_usize =
-        usize::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+) -> Result<u64, ColumnarError> {
+    let dimension_usize = usize::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?;
     let mut required = 0_u64;
     let mut start = 0_usize;
     while start < table.row_count() {
         let end = start
             .checked_add(RECORD_BATCH_ROWS)
             .map(|value| value.min(table.row_count()))
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
-        let rows = end
-            .checked_sub(start)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
+        let rows = end.checked_sub(start).ok_or(ColumnarError::SizeOverflow)?;
         let element_count = rows
             .checked_mul(dimension_usize)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let string_bytes = (start..end).try_fold(0_u64, |total, index| {
-            let row = table
-                .row(index)
-                .map_err(|_| EmbeddingColumnarError::ArrowWriter)?;
+            let row = table.row(index).map_err(|_| ColumnarError::ArrowWriter)?;
             let cell_bytes = u64::try_from(row.cell_id().as_str().len())
-                .map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+                .map_err(|_| ColumnarError::SizeOverflow)?;
             let status_bytes = u64::try_from(row.status().wire_name().len())
-                .map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+                .map_err(|_| ColumnarError::SizeOverflow)?;
             total
                 .checked_add(cell_bytes)
                 .and_then(|value| value.checked_add(status_bytes))
-                .ok_or(EmbeddingColumnarError::SizeOverflow)
+                .ok_or(ColumnarError::SizeOverflow)
         })?;
         let offset_bytes = rows
             .checked_add(1)
             .and_then(|value| value.checked_mul(size_of::<i32>()))
             .and_then(|value| value.checked_mul(2))
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let row_validity_bytes = validity_bytes(rows)?;
         let element_validity_bytes = validity_bytes(element_count)?;
         let validity_buffer_bytes = row_validity_bytes
             .checked_mul(3)
             .and_then(|value| value.checked_add(element_validity_bytes))
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
-        let offset_bytes =
-            u64::try_from(offset_bytes).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
-        let validity_buffer_bytes = u64::try_from(validity_buffer_bytes)
-            .map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
+        let offset_bytes = u64::try_from(offset_bytes).map_err(|_| ColumnarError::SizeOverflow)?;
+        let validity_buffer_bytes =
+            u64::try_from(validity_buffer_bytes).map_err(|_| ColumnarError::SizeOverflow)?;
         let batch_required = component_bytes(rows, dimension)?
             .checked_add(string_bytes)
             .and_then(|value| value.checked_add(offset_bytes))
             .and_then(|value| value.checked_add(validity_buffer_bytes))
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         required = required
             .checked_add(batch_required)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         start = end;
     }
     Ok(required)

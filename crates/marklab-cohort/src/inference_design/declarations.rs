@@ -49,7 +49,7 @@ pub enum InferenceAnalysisLevel {
     Cluster,
 }
 
-/// Admitted null families used by current patient and cell-mark callers.
+/// Supported null families used by current patient and cell-mark callers.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum InferenceNullFamily {
     /// Whole scalar values move freely across fixed cell locations.

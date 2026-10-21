@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand};
+use clap::Subcommand;
 use serde::{Deserialize, Serialize};
 
 use self::{
@@ -8,71 +8,68 @@ use self::{
     lddmm_landmarks::run_lddmm_landmarks, nonrigid::run_nonrigid,
     probabilistic_svf::run_probabilistic_svf, svf::run_svf,
 };
-use super::topology::TopologyCliError;
+use crate::cli_error::{into_marklab_error, CliError};
 
-#[path = "registration/atlas.rs"]
 mod atlas;
-#[path = "registration/landmark_uncertainty.rs"]
 mod landmark_uncertainty;
-#[path = "registration/lddmm_landmarks.rs"]
 mod lddmm_landmarks;
-#[path = "registration/nonrigid.rs"]
 mod nonrigid;
-#[path = "registration/probabilistic_svf.rs"]
 mod probabilistic_svf;
-#[path = "registration/svf.rs"]
 mod svf;
 
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct RegistrationCli {
-    #[command(subcommand)]
-    command: RegistrationTopLevel,
-}
-
 #[derive(Debug, Subcommand)]
-enum RegistrationTopLevel {
-    Registration {
-        #[command(subcommand)]
-        command: RegistrationCommand,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum RegistrationCommand {
+pub(crate) enum RegistrationCommand {
+    /// Register images with a nonrigid displacement model.
     Nonrigid {
+        /// JSON specification containing observations and settings for this analysis.
         #[arg(long)]
         input: PathBuf,
+        /// Destination for the analysis output.
         #[arg(long)]
         out: PathBuf,
     },
+    /// Register images through a stationary velocity field.
     Svf {
+        /// JSON specification containing observations and settings for this analysis.
         #[arg(long)]
         input: PathBuf,
+        /// Destination for the analysis output.
         #[arg(long)]
         out: PathBuf,
     },
+    /// Register landmarks through a diffeomorphic deformation model.
     LddmmLandmarks {
+        /// JSON specification containing observations and settings for this analysis.
         #[arg(long)]
         input: PathBuf,
+        /// Destination for the analysis output.
         #[arg(long)]
         out: PathBuf,
     },
+    /// Estimate uncertainty in stationary-velocity-field registration.
     ProbabilisticSvf {
+        /// JSON specification containing observations and settings for this analysis.
         #[arg(long)]
         input: PathBuf,
+        /// Destination for the analysis output.
         #[arg(long)]
         out: PathBuf,
     },
+    /// Propagate declared landmark uncertainty through registration.
     LandmarkUncertainty {
+        /// JSON specification containing observations and settings for this analysis.
         #[arg(long)]
         input: PathBuf,
+        /// Destination for the analysis output.
         #[arg(long)]
         out: PathBuf,
     },
+    /// Build a registration atlas from multiple specimens.
     Atlas {
+        /// JSON specification containing observations and settings for this analysis.
         #[arg(long)]
         input: PathBuf,
+        /// Destination for the analysis output.
         #[arg(long)]
         out: PathBuf,
     },
@@ -86,33 +83,19 @@ struct RegistrationImage {
     pixels: Vec<Vec<f64>>,
 }
 
-pub(crate) fn run_cli() -> Result<(), TopologyCliError> {
-    match RegistrationCli::parse().command {
-        RegistrationTopLevel::Registration {
-            command: RegistrationCommand::Nonrigid { input, out },
-        } => run_nonrigid(input, out),
-        RegistrationTopLevel::Registration {
-            command: RegistrationCommand::Svf { input, out },
-        } => run_svf(input, out),
-        RegistrationTopLevel::Registration {
-            command: RegistrationCommand::LddmmLandmarks { input, out },
-        } => run_lddmm_landmarks(input, out),
-        RegistrationTopLevel::Registration {
-            command: RegistrationCommand::ProbabilisticSvf { input, out },
-        } => run_probabilistic_svf(input, out),
-        RegistrationTopLevel::Registration {
-            command: RegistrationCommand::LandmarkUncertainty { input, out },
-        } => run_landmark_uncertainty(input, out),
-        RegistrationTopLevel::Registration {
-            command: RegistrationCommand::Atlas { input, out },
-        } => run_atlas(input, out),
+pub(crate) fn run_cli(command: RegistrationCommand) -> Result<(), CliError> {
+    match command {
+        RegistrationCommand::Nonrigid { input, out } => run_nonrigid(input, out),
+        RegistrationCommand::Svf { input, out } => run_svf(input, out),
+        RegistrationCommand::LddmmLandmarks { input, out } => run_lddmm_landmarks(input, out),
+        RegistrationCommand::ProbabilisticSvf { input, out } => run_probabilistic_svf(input, out),
+        RegistrationCommand::LandmarkUncertainty { input, out } => {
+            run_landmark_uncertainty(input, out)
+        }
+        RegistrationCommand::Atlas { input, out } => run_atlas(input, out),
     }
 }
 
-pub(crate) fn into_marklab_error(error: TopologyCliError) -> marklab::MarklabError {
-    marklab::MarklabError::Validation(error.to_string())
-}
-
-pub(crate) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<RegistrationCli>(|| run_cli().map_err(into_marklab_error))
+pub(crate) fn execute(command: RegistrationCommand) -> marklab::Result<()> {
+    run_cli(command).map_err(into_marklab_error)
 }

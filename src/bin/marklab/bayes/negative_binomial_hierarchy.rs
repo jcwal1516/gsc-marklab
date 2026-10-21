@@ -4,9 +4,12 @@ use marklab_bayes::{
     sha256_hex, NegativeBinomialHierarchyResult, NegativeBinomialHierarchySpec,
     NegativeBinomialHierarchyWorkerRequest,
 };
-use marklab_workflow::ArtifactRef;
+use marklab_project::ArtifactRef;
 
-use super::{input_file, publish_json, run_worker, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::NegativeBinomialHierarchyArgs;
+use super::{publish_json, run_worker, MAXIMUM_INPUT_BYTES};
+use crate::cli_error::CliError;
+use crate::input_file;
 
 const WORKER: &str = "marklab_numpyro_negative_binomial_hierarchy_worker.py";
 const SOURCE_KIND: &str =
@@ -14,7 +17,9 @@ const SOURCE_KIND: &str =
 const LOCK_KIND: &str = "application/vnd.marklab.python-lock+text;version=1";
 const WORKER_KIND: &str = "application/vnd.marklab.python-worker+source;version=1";
 
-pub(super) fn run(input: PathBuf, output: PathBuf) -> Result<(), BayesCliError> {
+pub(super) fn run(args: NegativeBinomialHierarchyArgs) -> Result<(), CliError> {
+    let NegativeBinomialHierarchyArgs { input, out } = args;
+    let output = out;
     let prepared = prepare(&input)?;
     let result = execute(&prepared)?;
     publish_json(&output, &result)
@@ -28,10 +33,10 @@ pub(crate) struct Prepared {
     repository: PathBuf,
 }
 
-pub(crate) fn prepare(input: &Path) -> Result<Prepared, BayesCliError> {
+pub(crate) fn prepare(input: &Path) -> Result<Prepared, CliError> {
     let source = read(input)?;
     let spec: NegativeBinomialHierarchySpec = serde_json::from_slice(&source)?;
-    let repository = marklab::python_backend_assets_root()?;
+    let repository = marklab::backend::python_backend_assets_root()?;
     let directory = repository.join("workers/python");
     let lock = read(&directory.join("uv.lock"))?;
     let worker = read(&directory.join(WORKER))?;
@@ -42,8 +47,7 @@ pub(crate) fn prepare(input: &Path) -> Result<Prepared, BayesCliError> {
     ]
     .into_iter()
     .map(|(kind, bytes)| {
-        ArtifactRef::from_bytes(kind, bytes)
-            .map_err(|error| BayesCliError::Input(error.to_string()))
+        ArtifactRef::from_bytes(kind, bytes).map_err(|error| CliError::Input(error.to_string()))
     })
     .collect::<Result<_, _>>()?;
     let request = NegativeBinomialHierarchyWorkerRequest::new(
@@ -62,9 +66,7 @@ pub(crate) fn prepare(input: &Path) -> Result<Prepared, BayesCliError> {
     })
 }
 
-pub(crate) fn execute(
-    prepared: &Prepared,
-) -> Result<NegativeBinomialHierarchyResult, BayesCliError> {
+pub(crate) fn execute(prepared: &Prepared) -> Result<NegativeBinomialHierarchyResult, CliError> {
     let bytes = run_worker(
         &prepared.repository,
         WORKER,
@@ -76,7 +78,7 @@ pub(crate) fn execute(
     Ok(result)
 }
 
-fn read(path: &Path) -> Result<Vec<u8>, BayesCliError> {
+fn read(path: &Path) -> Result<Vec<u8>, CliError> {
     input_file::read_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,

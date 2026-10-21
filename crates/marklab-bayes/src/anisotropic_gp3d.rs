@@ -1,17 +1,24 @@
+use crate::is_worker_timeout;
 use crate::validation::all_finite as finite;
 
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::validation::{validate_scalar_summary, SummarySupport};
+use crate::ClaimStatus;
 use crate::{
-    gp::{GpPosteriorPredictive, GpScalarSummary},
+    gp::GpPosteriorPredictive,
     model::{
         BackendContract, DiagnosticPolicy, MODEL_FORMAT, MODEL_VERSION, PYMC_VERSION,
         WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION,
     },
-    BayesError, FitState, NormalMeanDiagnostics, NutsSamplingSpec, SamplingSummary, WorkerBackend,
+    BayesError, FitState, NutsSamplingSpec, PosteriorDiagnostics, SamplingSummary, ScalarSummary,
+    WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct AnisotropicGp3dObservation {
@@ -26,6 +33,15 @@ pub struct AnisotropicGp3dPredictionCoordinate {
     pub coordinates_um: [f64; 3],
 }
 
+/// Three-dimensional Gaussian regression with axis-specific Matérn-3/2 length scales.
+///
+/// The marginalized likelihood is `y ~ MVN(mu * 1, K + (sigma^2 + jitter) I)`. The kernel is
+/// `a^2 (1 + sqrt(3) r) exp(-sqrt(3) r)` with `r = ||(x_i - x_j) / (ell_x, ell_y, ell_z)||`;
+/// the worker floors this distance at `1e-15` for finite gradients. The mean has
+/// `Normal(mean_prior_mean, mean_prior_sd)` prior. Amplitude, each length scale, and noise SD
+/// have independent half-normal priors with their corresponding supplied scales. Coordinates
+/// and length scales are in micrometres; predictions are conditional latent-field draws.
+///
 #[derive(Clone, Debug)]
 pub struct AnisotropicGp3dSpec {
     pub mean_prior_mean: f64,
@@ -54,8 +70,8 @@ pub struct AnisotropicGp3dModelIr {
     pub noise_prior_sd: f64,
     pub jitter: f64,
     pub observation_unit: &'static str,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -113,7 +129,8 @@ impl AnisotropicGp3dWorkerRequest {
             .sort_by(|left, right| left.prediction_id.cmp(&right.prediction_id));
         let mut observation_ids = BTreeSet::new();
         let mut coordinate_bits = BTreeSet::new();
-        let mut distinct_by_axis = [BTreeSet::new(), BTreeSet::new(), BTreeSet::new()];
+        let mut minimum = [f64::INFINITY; 3];
+        let mut maximum = [f64::NEG_INFINITY; 3];
         for observation in &spec.observations {
             if observation.observation_id.is_empty()
                 || observation.observation_id.trim() != observation.observation_id
@@ -130,14 +147,17 @@ impl AnisotropicGp3dWorkerRequest {
                 ));
             }
             for (axis, coordinate) in observation.coordinates_um.iter().enumerate() {
-                distinct_by_axis[axis].insert(coordinate.to_bits());
+                minimum[axis] = minimum[axis].min(*coordinate);
+                maximum[axis] = maximum[axis].max(*coordinate);
             }
         }
-        if distinct_by_axis.iter().any(|values| values.len() < 2) {
+        let spans = std::array::from_fn(|axis| maximum[axis] - minimum[axis]);
+        if spans.iter().any(|span| !span.is_finite() || *span <= 0.0) {
             return Err(BayesError::InvalidSpec(
                 "anisotropic 3-D GP requires variation on every coordinate axis".into(),
             ));
         }
+        validate_axis_length_identifiability(&spec.observations, spans)?;
         let mut prediction_ids = BTreeSet::new();
         for prediction in &spec.predictions {
             if prediction.prediction_id.is_empty()
@@ -153,7 +173,7 @@ impl AnisotropicGp3dWorkerRequest {
                 ));
             }
         }
-        if !(1..=3_600).contains(&timeout_seconds) {
+        if !is_worker_timeout(timeout_seconds) {
             return Err(BayesError::InvalidSpec(
                 "worker timeout must be between 1 and 3600 seconds".into(),
             ));
@@ -164,7 +184,12 @@ impl AnisotropicGp3dWorkerRequest {
         let n = spec.observations.len() as u128;
         let m = spec.predictions.len() as u128;
         let posterior_draws = u128::from(sampling.chains) * u128::from(sampling.draws_per_chain);
-        let work = u128::from(total_iterations) * n.pow(3) + posterior_draws * n.pow(2) * m;
+        // Each conditional draw builds the three covariance blocks, factors the
+        // observed covariance, forms the Schur complement, and factors the full
+        // prediction covariance for a joint Gaussian draw.
+        let conditional_work =
+            n.pow(2) + n * m + m.pow(2) + n.pow(3) + n.pow(2) * m + n * m.pow(2) + m.pow(3);
+        let work = u128::from(total_iterations) * n.pow(3) + posterior_draws * conditional_work;
         let maximum_conditioning_work = 2_000_000_000_u64;
         if total_iterations > maximum_total_iterations
             || work > u128::from(maximum_conditioning_work)
@@ -179,7 +204,7 @@ impl AnisotropicGp3dWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -198,8 +223,8 @@ impl AnisotropicGp3dWorkerRequest {
                 noise_prior_sd: spec.noise_prior_sd,
                 jitter: spec.jitter,
                 observation_unit: "scalar_field_value",
-                backend_capability: "nuts_exact_dense_anisotropic_gp3d",
-                maturity: "experimental",
+                backend_capability: BackendCapability::NutsExactDenseAnisotropicGp3d,
+                maturity: ModelMaturity::Experimental,
             },
             observations: spec.observations,
             predictions: spec.predictions,
@@ -217,6 +242,35 @@ impl AnisotropicGp3dWorkerRequest {
     }
 }
 
+fn validate_axis_length_identifiability(
+    observations: &[AnisotropicGp3dObservation],
+    spans: [f64; 3],
+) -> Result<(), BayesError> {
+    // Squared kernel distances are linear in the inverse squared axis lengths.
+    // Normalize each column by its axis span before checking their Gram matrix;
+    // coordinate units and different physical axis scales must not change rank.
+    let mut gram = [[0.0; 3]; 3];
+    for (index, left) in observations.iter().enumerate() {
+        for right in &observations[index + 1..] {
+            let row: [f64; 3] = std::array::from_fn(|axis| {
+                ((left.coordinates_um[axis] - right.coordinates_um[axis]) / spans[axis]).powi(2)
+            });
+            for i in 0..3 {
+                for j in 0..3 {
+                    gram[i][j] += row[i] * row[j];
+                }
+            }
+        }
+    }
+    let gram = gram.map(|row| row.to_vec());
+    if marklab_numerics::dense::gauss_jordan_solve(&gram, &[0.0; 3]).is_none() {
+        return Err(BayesError::InvalidSpec(
+            "3-D GP pairwise displacements cannot distinguish all three axis length scales".into(),
+        ));
+    }
+    Ok(())
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct AnisotropicGp3dResourceLimits {
     pub maximum_observations: u32,
@@ -230,12 +284,12 @@ pub struct AnisotropicGp3dResourceLimits {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AnisotropicGp3dPosterior {
-    pub mean: GpScalarSummary,
-    pub amplitude: GpScalarSummary,
-    pub length_scale_x_um: GpScalarSummary,
-    pub length_scale_y_um: GpScalarSummary,
-    pub length_scale_z_um: GpScalarSummary,
-    pub noise_sd: GpScalarSummary,
+    pub mean: ScalarSummary,
+    pub amplitude: ScalarSummary,
+    pub length_scale_x_um: ScalarSummary,
+    pub length_scale_y_um: ScalarSummary,
+    pub length_scale_z_um: ScalarSummary,
+    pub noise_sd: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -260,7 +314,7 @@ pub struct AnisotropicGp3dWorkerResult {
     pub sampling: SamplingSummary,
     pub posterior: AnisotropicGp3dPosterior,
     pub predictions: Vec<AnisotropicGp3dPredictionSummary>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: GpPosteriorPredictive,
 }
 
@@ -272,11 +326,7 @@ impl AnisotropicGp3dWorkerResult {
     ) -> Result<(), BayesError> {
         if self.format != "marklab.pymc_anisotropic_gp3d_worker_result"
             || self.version != 1
-            || self.backend.name != "pymc"
-            || self.backend.version != PYMC_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
             || self.fit_state == FitState::ApproximateOnly
             || self.predictions.len() != request.predictions.len()
@@ -337,7 +387,7 @@ impl AnisotropicGp3dWorkerResult {
         Ok(())
     }
 
-    fn posterior_summaries(&self) -> [&GpScalarSummary; 6] {
+    fn posterior_summaries(&self) -> [&ScalarSummary; 6] {
         [
             &self.posterior.mean,
             &self.posterior.amplitude,
@@ -358,6 +408,9 @@ impl AnisotropicGp3dWorkerResult {
             self.posterior.length_scale_y_um.mean,
             self.posterior.length_scale_z_um.mean,
         ];
+        // Plug-in metric at the posterior mean lengths. Inverse-square length
+        // moments need not be finite under the half-normal priors; the legacy
+        // output key does not mean an average of the per-draw metric matrices.
         let metric = [
             [1.0 / lengths[0].powi(2), 0.0, 0.0],
             [0.0, 1.0 / lengths[1].powi(2), 0.0],
@@ -371,9 +424,9 @@ impl AnisotropicGp3dWorkerResult {
             input,
             fit_state: self.fit_state,
             claim_status: match self.fit_state {
-                FitState::Complete => "experimental",
-                FitState::Nonconverged => "diagnostic_only_nonconverged",
-                FitState::ApproximateOnly => "experimental_approximate_only",
+                FitState::Complete => ClaimStatus::Experimental,
+                FitState::Nonconverged => ClaimStatus::DiagnosticOnlyNonconverged,
+                FitState::ApproximateOnly => ClaimStatus::ExperimentalApproximateOnly,
             },
             sampling: self.sampling,
             posterior: self.posterior,
@@ -427,20 +480,12 @@ fn validate_diagnostics(
     Ok(())
 }
 
-fn validate_scalar(value: &GpScalarSummary) -> Result<(), BayesError> {
-    if !finite(&[
-        value.mean,
-        value.sd,
-        value.interval_lower,
-        value.interval_upper,
-    ]) || value.sd <= 0.0
-        || value.interval_lower > value.interval_upper
-    {
-        return Err(BayesError::WorkerContract(
-            "invalid anisotropic 3-D GP scalar summary".into(),
-        ));
-    }
-    Ok(())
+fn validate_scalar(value: &ScalarSummary) -> Result<(), BayesError> {
+    validate_scalar_summary(
+        value,
+        SummarySupport::Real,
+        "invalid anisotropic 3-D GP scalar summary",
+    )
 }
 
 pub fn anisotropic_matern32_covariance(
@@ -467,8 +512,8 @@ pub fn anisotropic_matern32_covariance(
         .map(|((left, right), scale)| ((left - right) / scale).powi(2))
         .sum::<f64>()
         .sqrt();
-    let scaled = 3.0_f64.sqrt() * radius;
-    let covariance = amplitude.powi(2) * (1.0 + scaled) * (-scaled).exp();
+    // `radius` is already scaled by the per-axis length scales.
+    let covariance = marklab_numerics::kernel::matern32(radius, amplitude, 1.0);
     if !covariance.is_finite() {
         return Err(BayesError::InvalidSpec(
             "anisotropic Matérn covariance is not finite".into(),
@@ -494,12 +539,15 @@ pub struct AnisotropicGp3dFit {
     pub model: AnisotropicGp3dModelIr,
     pub input: AnisotropicGp3dInputIdentity,
     pub fit_state: FitState,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub sampling: SamplingSummary,
     pub posterior: AnisotropicGp3dPosterior,
+    /// Plug-in `diag(1 / E[length_scale_axis]^2)`, in inverse square micrometres.
+    /// The legacy field name refers to the mean lengths, not `E[diag(1 / length_scale_axis^2)]`.
+    /// This is not a dimensionless metric for physical-radius K calculations.
     pub posterior_mean_anisotropy_metric: [[f64; 3]; 3],
     pub predictions: Vec<AnisotropicGp3dPredictionSummary>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: GpPosteriorPredictive,
     pub seed: u64,
     pub request_sha256: String,
@@ -523,15 +571,66 @@ mod tests {
     }
 
     #[test]
-    fn anisotropic_gp_requires_variation_on_every_axis() {
-        let observations = (0..8)
-            .map(|index| AnisotropicGp3dObservation {
-                observation_id: format!("o-{index}"),
-                coordinates_um: [index as f64, (index % 2) as f64, 0.0],
-                value: index as f64,
-            })
-            .collect();
-        let result = AnisotropicGp3dWorkerRequest::new(
+    fn anisotropic_gp_requires_distinguishable_axis_length_scales() {
+        for (name, coordinates, accepted) in [
+            (
+                "constant axis",
+                (0..8).map(|i| [i as f64, (i % 2) as f64, 0.0]).collect(),
+                false,
+            ),
+            (
+                "collinear axes",
+                (0..8).map(|i| [i as f64; 3]).collect(),
+                false,
+            ),
+            (
+                "planar but identifiable",
+                (0..8)
+                    .map(|i| {
+                        let x = (i % 4) as f64;
+                        let y = (i / 4) as f64;
+                        [x, y, x + y]
+                    })
+                    .collect(),
+                true,
+            ),
+            ("3-D grid", grid_coordinates(), true),
+            (
+                "rescaled grid",
+                grid_coordinates()
+                    .into_iter()
+                    .map(|p| [p[0] * 1e-6 + 10.0, p[1] * 1e6, p[2] * 1e-3])
+                    .collect(),
+                true,
+            ),
+        ] {
+            let result = request(coordinates, 1);
+            assert_eq!(result.is_ok(), accepted, "{name}");
+        }
+    }
+
+    #[test]
+    fn anisotropic_gp_bounds_joint_prediction_work() {
+        for (predictions, accepted) in [(2, true), (200, true), (256, false), (512, false)] {
+            let result = request(grid_coordinates(), predictions);
+            assert_eq!(result.is_ok(), accepted, "{predictions} predictions");
+            if !accepted {
+                assert!(result.unwrap_err().to_string().contains("work"));
+            }
+        }
+    }
+
+    fn grid_coordinates() -> Vec<[f64; 3]> {
+        (0..8)
+            .map(|i| [(i % 2) as f64, ((i / 2) % 2) as f64, (i / 4) as f64])
+            .collect()
+    }
+
+    fn request(
+        coordinates: Vec<[f64; 3]>,
+        predictions: usize,
+    ) -> Result<AnisotropicGp3dWorkerRequest, BayesError> {
+        AnisotropicGp3dWorkerRequest::new(
             AnisotropicGp3dSpec {
                 mean_prior_mean: 0.0,
                 mean_prior_sd: 1.0,
@@ -539,11 +638,21 @@ mod tests {
                 length_scale_prior_sd_um: [1.0; 3],
                 noise_prior_sd: 1.0,
                 jitter: 1e-6,
-                observations,
-                predictions: vec![AnisotropicGp3dPredictionCoordinate {
-                    prediction_id: "p".into(),
-                    coordinates_um: [0.0; 3],
-                }],
+                observations: coordinates
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, coordinates_um)| AnisotropicGp3dObservation {
+                        observation_id: format!("o-{index}"),
+                        coordinates_um,
+                        value: index as f64,
+                    })
+                    .collect(),
+                predictions: (0..predictions)
+                    .map(|index| AnisotropicGp3dPredictionCoordinate {
+                        prediction_id: format!("p-{index}"),
+                        coordinates_um: [0.5; 3],
+                    })
+                    .collect(),
             },
             NutsSamplingSpec {
                 chains: 2,
@@ -555,7 +664,6 @@ mod tests {
             "lock".into(),
             "worker".into(),
             60,
-        );
-        assert!(matches!(result, Err(BayesError::InvalidSpec(_))));
+        )
     }
 }

@@ -15,15 +15,7 @@ pub fn load_pattern_parquet_with_diagnostics(
     load_pattern_parquet_with_builder(path.as_ref(), mask, false)
 }
 
-#[allow(dead_code, reason = "used by the feature-gated classical CLI adapter")]
-pub(crate) fn load_classical_pattern_parquet_with_diagnostics(
-    path: impl AsRef<Path>,
-    mask: &TumorMask,
-) -> Result<PatternLoadResult> {
-    load_pattern_parquet_with_builder(path.as_ref(), mask, true)
-}
-
-fn load_pattern_parquet_with_builder(
+pub(crate) fn load_pattern_parquet_with_builder(
     path: &Path,
     mask: &TumorMask,
     allow_sparse: bool,
@@ -36,7 +28,7 @@ fn load_pattern_parquet_with_builder(
         .map_err(|error| MarklabError::Schema(error.to_string()))?;
 
     let mut pattern_builder = if allow_sparse {
-        PatternBuilder::new_classical(mask, "Parquet")
+        PatternBuilder::with_sparse_policy(mask, "Parquet", true)
     } else {
         PatternBuilder::new(mask, "Parquet")
     };

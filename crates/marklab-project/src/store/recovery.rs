@@ -2,24 +2,18 @@ use std::str::FromStr;
 
 use cap_std::fs::Dir;
 
+#[cfg(test)]
+use super::RecoveryFault;
 use super::{
     coordination::{sync_directory_at, CoordinationMode},
-    ArtifactStoreError, LocalArtifactStore, RecoveryFault, RecoveryIssue, RecoveryIssueReason,
-    RecoveryReport, QUARANTINE_DIRECTORY, STAGING_DIRECTORY,
+    ArtifactStoreError, LocalArtifactStore, RecoveryIssue, RecoveryIssueReason, RecoveryReport,
+    QUARANTINE_DIRECTORY, STAGING_DIRECTORY,
 };
 use crate::ContentDigest;
 
 impl LocalArtifactStore {
     /// Quarantine recognized abandoned regular staging files without deleting evidence.
     pub fn recover_staging(&self) -> Result<RecoveryReport, ArtifactStoreError> {
-        self.recover_staging_inner(RecoveryFault::None)
-    }
-
-    fn recover_staging_inner(
-        &self,
-        fault: RecoveryFault,
-    ) -> Result<RecoveryReport, ArtifactStoreError> {
-        let _ = fault;
         let _coordination = self.acquire_coordination_lock(CoordinationMode::Exclusive)?;
         let staging =
             self.root
@@ -99,7 +93,7 @@ impl LocalArtifactStore {
                 continue;
             }
             #[cfg(test)]
-            if fault == RecoveryFault::AfterQuarantineLink {
+            if self.recovery_fault == RecoveryFault::AfterQuarantineLink {
                 report.issues.push(RecoveryIssue {
                     entry: name.to_owned(),
                     quarantine_target: Some(quarantine_name),
@@ -118,7 +112,7 @@ impl LocalArtifactStore {
                 continue;
             }
             #[cfg(test)]
-            if fault == RecoveryFault::AfterQuarantineSync {
+            if self.recovery_fault == RecoveryFault::AfterQuarantineSync {
                 report.issues.push(RecoveryIssue {
                     entry: name.to_owned(),
                     quarantine_target: Some(quarantine_name),
@@ -137,7 +131,7 @@ impl LocalArtifactStore {
                 continue;
             }
             #[cfg(test)]
-            if fault == RecoveryFault::AfterStagingRemove {
+            if self.recovery_fault == RecoveryFault::AfterStagingRemove {
                 report.quarantined.push(quarantine_name.clone());
                 report.issues.push(RecoveryIssue {
                     entry: name.to_owned(),
@@ -164,10 +158,13 @@ impl LocalArtifactStore {
 
     #[cfg(test)]
     pub(super) fn recover_staging_with_fault(
-        &self,
+        &mut self,
         fault: RecoveryFault,
     ) -> Result<RecoveryReport, ArtifactStoreError> {
-        self.recover_staging_inner(fault)
+        self.recovery_fault = fault;
+        let result = self.recover_staging();
+        self.recovery_fault = RecoveryFault::None;
+        result
     }
 }
 

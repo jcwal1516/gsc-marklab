@@ -1,34 +1,53 @@
 #!/usr/bin/env python3
+"""Neural marked Poisson point process fitted by penalized maximum likelihood with JAX."""
 
-import hashlib
 import json
 import math
 import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import scipy
-from scipy.optimize import minimize
+
+from marklab_worker_support.factor_models import jax_objective, minimize_lbfgs
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    exact,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
 
 
-class ContractError(Exception):
-    pass
+def window_area(window):
+    return (window[1] - window[0]) * (window[3] - window[2])
 
 
-def main():
-    if (
-        jax.__version__ != "0.11.1"
-        or np.__version__ != "2.4.6"
-        or scipy.__version__ != "1.18.1"
-        or sys.version_info[:2] != (3, 12)
-    ):
-        raise ContractError("neural point-process backend version drift")
+def quadrature_locations(window, grid_size):
+    """Midpoints of a ``grid_size`` x ``grid_size`` grid over the rectangular window."""
+    x0, x1, y0, y1 = window
+    x_half_cell = (x1 - x0) / (2 * grid_size)
+    y_half_cell = (y1 - y0) / (2 * grid_size)
+    xs = jnp.linspace(x0 + x_half_cell, x1 - x_half_cell, grid_size)
+    ys = jnp.linspace(y0 + y_half_cell, y1 - y_half_cell, grid_size)
+    yy, xx = jnp.meshgrid(ys, xs, indexing="ij")
+    return jnp.stack([xx.ravel(), yy.ravel()], axis=1)
+
+
+def main() -> None:
+    require_versions(jax=jax.__version__, numpy=np.__version__, scipy=scipy.__version__)
     jax.config.update("jax_enable_x64", True)
-    request_bytes = sys.stdin.buffer.read(32 * 1024 * 1024 + 1)
+    request_bytes = read_request(32 * MIB)
     request = json.loads(request_bytes)
-    if request["format"] != "marklab.jax_neural_point_process_request" or request["version"] != 1:
-        raise ContractError("request identity mismatch")
+    exact(request["format"], "marklab.jax_neural_point_process_request", "request.format")
+    exact(request["version"], 1, "request.version")
     patterns = request["patterns"]
     train_patterns = [pattern for pattern in patterns if pattern["split"] == "train"]
     test_patterns = [pattern for pattern in patterns if pattern["split"] == "test"]
@@ -67,6 +86,11 @@ def main():
         return parts
 
     def network(parameters, locations, context):
+        """Intensity and mark log-probabilities at ``locations`` for one pattern context.
+
+        One tanh hidden layer over ``[location, context]`` feeds a softplus intensity
+        (plus 1e-8) and a softmax over marks.
+        """
         weight, bias, intensity_weight, intensity_bias, mark_weight, mark_bias = unpack(parameters)
         repeated_context = jnp.broadcast_to(context, (locations.shape[0], context.shape[0]))
         inputs = jnp.concatenate([locations, repeated_context], axis=1)
@@ -75,23 +99,21 @@ def main():
         mark_log_probability = jax.nn.log_softmax(representation @ mark_weight + mark_bias, axis=1)
         return intensity, mark_log_probability
 
-    def quadrature_locations(window, grid_size):
-        x0, x1, y0, y1 = window
-        xs = jnp.linspace(x0 + (x1 - x0) / (2 * grid_size), x1 - (x1 - x0) / (2 * grid_size), grid_size)
-        ys = jnp.linspace(y0 + (y1 - y0) / (2 * grid_size), y1 - (y1 - y0) / (2 * grid_size), grid_size)
-        yy, xx = jnp.meshgrid(ys, xs, indexing="ij")
-        return jnp.stack([xx.ravel(), yy.ravel()], axis=1)
-
     prepared_train = []
     for pattern in train_patterns:
         locations = jnp.asarray([point["coordinates"] for point in pattern["points"]])
         marks = jnp.asarray([mark_index[point["mark"]] for point in pattern["points"]], dtype=int)
         context = jnp.asarray(pattern["context"])
         quadrature = quadrature_locations(pattern["window"], request["quadrature_grid"])
-        area = (pattern["window"][1] - pattern["window"][0]) * (pattern["window"][3] - pattern["window"][2])
+        area = window_area(pattern["window"])
         prepared_train.append((locations, marks, context, quadrature, area))
 
     def log_likelihood(parameters, prepared):
+        """Marked Poisson process log-likelihood summed over patterns.
+
+        Each pattern contributes ``sum_i log lambda(s_i) - |W| mean_q lambda(q)``, the window
+        integral approximated on the midpoint quadrature grid, plus ``sum_i log p(m_i | s_i)``.
+        """
         total = 0.0
         for locations, marks, context, quadrature, area in prepared:
             intensity, mark_log_probability = network(parameters, locations, context)
@@ -101,25 +123,20 @@ def main():
         return total
 
     def objective(parameters):
-        return -log_likelihood(parameters, prepared_train) + 0.5 * request["parameter_precision"] * jnp.sum(parameters * parameters)
+        """Negative log-likelihood plus a Gaussian penalty ``parameter_precision / 2 * |w|^2``."""
+        return -log_likelihood(parameters, prepared_train) + 0.5 * request[
+            "parameter_precision"
+        ] * jnp.sum(parameters * parameters)
 
-    value_and_gradient = jax.jit(jax.value_and_grad(objective))
-
-    def scipy_objective(parameters):
-        value, gradient = value_and_gradient(jnp.asarray(parameters))
-        return float(value), np.asarray(gradient, dtype=float)
-
-    initial_objective = scipy_objective(initial)[0]
-    fit = minimize(
-        scipy_objective,
+    initial_objective, fit = minimize_lbfgs(
+        jax_objective(objective),
         initial,
-        jac=True,
-        method="L-BFGS-B",
-        options={"maxiter": request["maximum_iterations"], "ftol": 1e-8, "gtol": 1e-4},
+        maximum_iterations=request["maximum_iterations"],
+        ftol=1e-8,
+        gtol=1e-4,
+        failure="neural point-process training did not converge",
     )
-    if not fit.success or not np.isfinite(fit.x).all():
-        raise ContractError(f"neural point-process training did not converge: {fit.message}")
-    prepared_test = []
+    fitted_parameters = jnp.asarray(fit.x)
     mark_correct = 0
     mark_total = 0
     neural_log_likelihood = 0.0
@@ -132,22 +149,19 @@ def main():
         context = jnp.asarray(pattern["context"])
         coarse = quadrature_locations(pattern["window"], request["quadrature_grid"])
         reference = quadrature_locations(pattern["window"], request["quadrature_reference_grid"])
-        area = (pattern["window"][1] - pattern["window"][0]) * (pattern["window"][3] - pattern["window"][2])
-        prepared_test.append((locations, marks, context, coarse, area))
-        intensity, mark_logs = network(jnp.asarray(fit.x), locations, context)
-        coarse_intensity, _ = network(jnp.asarray(fit.x), coarse, context)
-        reference_intensity, _ = network(jnp.asarray(fit.x), reference, context)
-        neural_log_likelihood += float(jnp.sum(jnp.log(intensity)) - area * jnp.mean(coarse_intensity))
+        area = window_area(pattern["window"])
+        intensity, mark_logs = network(fitted_parameters, locations, context)
+        coarse_intensity, _ = network(fitted_parameters, coarse, context)
+        reference_intensity, _ = network(fitted_parameters, reference, context)
+        location_term = jnp.sum(jnp.log(intensity)) - area * jnp.mean(coarse_intensity)
+        neural_log_likelihood += float(location_term)
         neural_log_likelihood += float(jnp.sum(mark_logs[jnp.arange(len(marks)), marks]))
         mark_correct += int(np.sum(np.asarray(jnp.argmax(mark_logs, axis=1)) == marks_np))
         mark_total += len(marks_np)
         integral_coarse.append(float(area * jnp.mean(coarse_intensity)))
         integral_reference.append(float(area * jnp.mean(reference_intensity)))
     training_point_count = sum(len(pattern["points"]) for pattern in train_patterns)
-    training_area = sum(
-        (pattern["window"][1] - pattern["window"][0]) * (pattern["window"][3] - pattern["window"][2])
-        for pattern in train_patterns
-    )
+    training_area = sum(window_area(pattern["window"]) for pattern in train_patterns)
     homogeneous_intensity = training_point_count / training_area
     mark_counts = np.zeros(mark_count)
     for pattern in train_patterns:
@@ -156,22 +170,27 @@ def main():
     mark_probability = mark_counts / mark_counts.sum()
     homogeneous_log_likelihood = 0.0
     for pattern in test_patterns:
-        area = (pattern["window"][1] - pattern["window"][0]) * (pattern["window"][3] - pattern["window"][2])
-        homogeneous_log_likelihood += len(pattern["points"]) * math.log(homogeneous_intensity) - area * homogeneous_intensity
-        homogeneous_log_likelihood += sum(math.log(mark_probability[mark_index[point["mark"]]]) for point in pattern["points"])
+        area = window_area(pattern["window"])
+        point_count = len(pattern["points"])
+        homogeneous_log_likelihood += (
+            point_count * math.log(homogeneous_intensity) - area * homogeneous_intensity
+        )
+        homogeneous_log_likelihood += sum(
+            math.log(mark_probability[mark_index[point["mark"]]]) for point in pattern["points"]
+        )
     relative_integral_difference = max(
         abs(coarse - reference) / max(abs(reference), 1e-12)
-        for coarse, reference in zip(integral_coarse, integral_reference)
+        for coarse, reference in zip(integral_coarse, integral_reference, strict=True)
     )
     probe_context = jnp.asarray([1.0])
     probe_locations = jnp.asarray([[0.2, 0.5], [0.8, 0.5]])
-    probe_intensity, _ = network(jnp.asarray(fit.x), probe_locations, probe_context)
+    probe_intensity, _ = network(fitted_parameters, probe_locations, probe_context)
     weights = [np.asarray(part).tolist() for part in unpack(fit.x)]
     result = {
         "format": "marklab.neural_marked_cox_process",
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "request_sha256": sha256_hex(request_bytes),
         "architecture": request["architecture"],
         "network_parameters": {
             "input_hidden_weight": weights[0],
@@ -208,13 +227,8 @@ def main():
         "fit_state": "complete",
         "claim_status": "experimental_synthetic_neural_marked_cox_process",
     }
-    json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    sys.stdout.write("\n")
+    write_result(result)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, json.JSONDecodeError, np.linalg.LinAlgError) as error:
-        print(f"neural point-process worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(main, "neural point-process worker contract error", errors=CONTRACT_ERRORS)

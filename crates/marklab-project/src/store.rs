@@ -28,25 +28,23 @@ pub trait ArtifactReadSeek: Read + Seek + Send {}
 
 impl<T: Read + Seek + Send> ArtifactReadSeek for T {}
 
+/// Test-only crash point inside publication.
+#[cfg(test)]
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum PublishFault {
     None,
-    #[cfg(test)]
     AfterFileSync,
-    #[cfg(test)]
     AfterPublication,
-    #[cfg(test)]
     StagingCreateCollision,
 }
 
+/// Test-only crash point inside staging recovery.
+#[cfg(test)]
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum RecoveryFault {
     None,
-    #[cfg(test)]
     AfterQuarantineLink,
-    #[cfg(test)]
     AfterQuarantineSync,
-    #[cfg(test)]
     AfterStagingRemove,
 }
 
@@ -54,6 +52,10 @@ enum RecoveryFault {
 pub struct LocalArtifactStore {
     root: Dir,
     store_id: StoreId,
+    #[cfg(test)]
+    publish_fault: PublishFault,
+    #[cfg(test)]
+    recovery_fault: RecoveryFault,
 }
 
 /// Outcome of an immutable managed publication attempt.

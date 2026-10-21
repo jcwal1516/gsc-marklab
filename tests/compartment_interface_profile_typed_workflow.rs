@@ -1,17 +1,24 @@
-#![allow(dead_code)]
-
+#[allow(dead_code)]
 #[path = "support/declared_scalar.rs"]
 mod support;
 
 use marklab::{
-    analyze_compartment_interface_profile, execute_algorithm_with_store, ArtifactRef,
-    ArtifactSchema, BinaryCompartmentPartition2D, BinaryMarkDeclaration, CacheStatus,
-    CompartmentInterfaceAnalysisNode, CompartmentInterfaceError, CompartmentInterfaceLimits,
-    CompartmentInterfaceProfile, CompartmentPartitionLimits, DeclaredScalarPatternInput,
-    DurableProject, DurableProjectLimits, HistologicCompartmentMarkDeclaration, LocalScheduler,
-    MarkTable, MeasurementStatus, MissingnessPolicy, NativeRuntimeProvenance, NodeId,
-    ObservationWindow2D, ObservationWindowLimits, ScalarMarkColumn, ScalarMarkId,
-    ScalarMarkModality, ScalarMarkUnit, SchedulerLimits, WorkflowGraph,
+    compartments::{
+        analyze_compartment_interface_profile, BinaryCompartmentPartition2D,
+        CompartmentInterfaceAnalysisNode, CompartmentInterfaceError, CompartmentInterfaceLimits,
+        CompartmentInterfaceProfile, CompartmentPartitionLimits,
+    },
+    marks::{
+        BinaryMarkDeclaration, DeclaredScalarPatternInput, HistologicCompartmentMarkDeclaration,
+        MarkTable, MissingnessPolicy, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality,
+        ScalarMarkUnit,
+    },
+    workflow::{
+        execute_algorithm_with_store, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
+        DurableProjectLimits, LocalScheduler, NativeRuntimeProvenance, NodeId, SchedulerLimits,
+        WorkflowGraph,
+    },
+    MeasurementStatus, ObservationWindow2D, ObservationWindowLimits,
 };
 use support::{
     binary_metadata, fixture, histologic_compartment_metadata, publish_record, MARK_SCHEMA,
@@ -203,7 +210,10 @@ fn typed_compartment_rows_flow_to_oriented_cell_interface_profile() {
     assert_eq!(result, replay);
     assert_eq!(result.case_id, "declared-case");
     assert_eq!(result.mark_id, mark_id.as_str());
-    assert_eq!(result.measurement_status, "measured");
+    assert_eq!(
+        result.measurement_status,
+        marklab::MeasurementStatus::Measured
+    );
     assert_eq!(result.negative_compartment_id, "stroma");
     assert_eq!(result.positive_compartment_id, "tumor");
     assert_eq!(result.interface_length_um, 10.0);

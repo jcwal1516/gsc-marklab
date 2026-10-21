@@ -1,10 +1,10 @@
-use arrow::datatypes::{DataType, Field, Schema};
+use arrow::datatypes::Schema;
 use arrow_ipc::{Endianness, Type};
 
 use crate::{
     columnar::{
         multiscale::{cell_patch_metadata, validate_cell_patch_domain, CELL_PATCH_METADATA_KEYS},
-        MultiscaleColumnarError, SpatialArrowFailure,
+        ArrowIpcFailure, ColumnarError,
     },
     multiscale::physical::{SpatialArtifactRole, SpatialPhysicalEncoding},
     CellPatchLink,
@@ -13,7 +13,7 @@ use crate::{
 pub(super) const METADATA_LIMIT: usize = 64 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum CellPatchArrowProfile {
+pub(crate) enum CellPatchArrowProfile {
     Assignment,
     Edge,
 }
@@ -48,32 +48,20 @@ impl CellPatchArrowProfile {
     }
 }
 
-pub(super) fn assignment_schema(link: &CellPatchLink) -> Result<Schema, MultiscaleColumnarError> {
+pub(super) fn assignment_schema(link: &CellPatchLink) -> Result<Schema, ColumnarError> {
     validate_cell_patch_domain(link)?;
     Ok(Schema::new_with_metadata(
-        vec![
-            Field::new("cell_id", DataType::Utf8, false),
-            Field::new("assignment_status", DataType::Utf8, false),
-            Field::new("anchor_x_bits", DataType::UInt64, false),
-            Field::new("anchor_y_bits", DataType::UInt64, false),
-            Field::new("edge_start", DataType::UInt64, false),
-            Field::new("edge_count", DataType::UInt64, false),
-        ],
+        crate::columnar::multiscale::cell_patch_assignment_fields(),
         metadata(CellPatchArrowProfile::Assignment, link)
             .into_iter()
             .collect(),
     ))
 }
 
-pub(super) fn edge_schema(link: &CellPatchLink) -> Result<Schema, MultiscaleColumnarError> {
+pub(super) fn edge_schema(link: &CellPatchLink) -> Result<Schema, ColumnarError> {
     validate_cell_patch_domain(link)?;
     Ok(Schema::new_with_metadata(
-        vec![
-            Field::new("assignment_row", DataType::UInt64, false),
-            Field::new("patch_id", DataType::Utf8, false),
-            Field::new("weight_numerator", DataType::UInt64, true),
-            Field::new("weight_denominator", DataType::UInt64, true),
-        ],
+        crate::columnar::multiscale::cell_patch_edge_fields(),
         metadata(CellPatchArrowProfile::Edge, link)
             .into_iter()
             .collect(),
@@ -83,7 +71,7 @@ pub(super) fn edge_schema(link: &CellPatchLink) -> Result<Schema, MultiscaleColu
 pub(super) fn expected_schema(
     profile: CellPatchArrowProfile,
     link: &CellPatchLink,
-) -> Result<Schema, MultiscaleColumnarError> {
+) -> Result<Schema, ColumnarError> {
     match profile {
         CellPatchArrowProfile::Assignment => assignment_schema(link),
         CellPatchArrowProfile::Edge => edge_schema(link),
@@ -94,7 +82,7 @@ pub(super) fn validate_flatbuffer_schema(
     schema: arrow_ipc::Schema<'_>,
     profile: CellPatchArrowProfile,
     link: &CellPatchLink,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     validate_schema_shape(schema, profile)?;
     validate_metadata(schema.custom_metadata(), profile, link)?;
     validate_cell_patch_domain(link)
@@ -103,19 +91,19 @@ pub(super) fn validate_flatbuffer_schema(
 fn validate_schema_shape(
     schema: arrow_ipc::Schema<'_>,
     profile: CellPatchArrowProfile,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     if schema.endianness() != Endianness::Little
         || schema
             .features()
             .is_some_and(|features| !features.is_empty())
     {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     let fields = schema
         .fields()
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidSchema))?;
+        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidSchema))?;
     if fields.len() != profile.field_count() {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     match profile {
         CellPatchArrowProfile::Assignment => {
@@ -143,37 +131,31 @@ fn validate_metadata(
     entries: Option<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<arrow_ipc::KeyValue<'_>>>>,
     profile: CellPatchArrowProfile,
     link: &CellPatchLink,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     let expected = metadata(profile, link);
     let entries =
-        entries.ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidApplicationMetadata))?;
+        entries.ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata))?;
     if entries.len() != CELL_PATCH_METADATA_KEYS.len() {
-        return Err(arrow_failure(
-            SpatialArrowFailure::InvalidApplicationMetadata,
-        ));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata));
     }
     let mut total = 0_usize;
     for (entry, (expected_key, expected_value)) in entries.iter().zip(expected) {
         let key = entry
             .key()
-            .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidApplicationMetadata))?;
+            .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata))?;
         let value = entry
             .value()
-            .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidApplicationMetadata))?;
+            .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata))?;
         total = total
             .checked_add(key.len())
             .and_then(|sum| sum.checked_add(value.len()))
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         if key != expected_key || value != expected_value || value.is_empty() {
-            return Err(arrow_failure(
-                SpatialArrowFailure::InvalidApplicationMetadata,
-            ));
+            return Err(arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata));
         }
     }
     if total > METADATA_LIMIT {
-        return Err(arrow_failure(
-            SpatialArrowFailure::InvalidApplicationMetadata,
-        ));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata));
     }
     Ok(())
 }
@@ -182,7 +164,7 @@ fn validate_utf8_field(
     field: arrow_ipc::Field<'_>,
     name: &str,
     nullable: bool,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     if field.name() != Some(name)
         || field.nullable() != nullable
         || field.dictionary().is_some()
@@ -195,7 +177,7 @@ fn validate_utf8_field(
         || field.type_type() != Type::Utf8
         || field.type_as_utf_8().is_none()
     {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     Ok(())
 }
@@ -204,7 +186,7 @@ fn validate_u64_field(
     field: arrow_ipc::Field<'_>,
     name: &str,
     nullable: bool,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     let integer = field.type_as_int();
     if field.name() != Some(name)
         || field.nullable() != nullable
@@ -218,11 +200,11 @@ fn validate_u64_field(
         || field.type_type() != Type::Int
         || integer.is_none_or(|integer| integer.bitWidth() != 64 || integer.is_signed())
     {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     Ok(())
 }
 
-pub(super) fn arrow_failure(reason: SpatialArrowFailure) -> MultiscaleColumnarError {
-    MultiscaleColumnarError::Arrow { reason }
+pub(super) fn arrow_failure(reason: ArrowIpcFailure) -> ColumnarError {
+    ColumnarError::Arrow { reason }
 }

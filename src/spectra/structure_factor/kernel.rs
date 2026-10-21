@@ -8,6 +8,108 @@ pub struct PhaseSum {
     pub im: f64,
 }
 
+/// Mode-major phases shared by all permutations of one bounded mode chunk.
+pub(super) struct PhaseCache {
+    point_count: usize,
+    phases: Vec<PhaseSum>,
+}
+
+impl PhaseCache {
+    pub(super) fn new(point_count: usize, mode_capacity: usize) -> Self {
+        Self {
+            point_count,
+            phases: Vec::with_capacity(point_count * mode_capacity),
+        }
+    }
+
+    pub(super) fn prepare(&mut self, pattern: &Pattern, modes: &[KMode]) -> Option<()> {
+        if pattern.is_empty()
+            || pattern.len() != self.point_count
+            || modes
+                .iter()
+                .any(|mode| !mode.kx.is_finite() || !mode.ky.is_finite())
+        {
+            return None;
+        }
+        self.phases.clear();
+        for mode in modes {
+            for (x, y) in pattern.x_um.iter().zip(&pattern.y_um) {
+                let phase = -(mode.kx * x + mode.ky * y);
+                // Keep the existing separate operations and accumulation order.
+                // sin_cos or a reassociated reduction can change permutation ties.
+                self.phases.push(PhaseSum {
+                    re: phase.cos(),
+                    im: phase.sin(),
+                });
+            }
+        }
+        Some(())
+    }
+
+    pub(super) fn total_phase_sums_into(&self, totals: &mut Vec<PhaseSum>) {
+        totals.clear();
+        totals.extend(self.phases.chunks_exact(self.point_count).map(|phases| {
+            let mut total = PhaseSum { re: 0.0, im: 0.0 };
+            for phase in phases {
+                total.re += phase.re;
+                total.im += phase.im;
+            }
+            total
+        }));
+    }
+
+    pub(super) fn binary_powers_into(
+        &self,
+        selected_indices: &[usize],
+        context: BinaryMarkContext,
+        totals: &[PhaseSum],
+        powers: &mut Vec<f64>,
+    ) -> Option<()> {
+        if totals.len() != self.phases.len() / self.point_count
+            || selected_indices
+                .iter()
+                .any(|index| *index >= self.point_count)
+        {
+            return None;
+        }
+        powers.clear();
+        for (phases, total) in self.phases.chunks_exact(self.point_count).zip(totals) {
+            let mut selected = PhaseSum { re: 0.0, im: 0.0 };
+            for index in selected_indices {
+                selected.re += phases[*index].re;
+                selected.im += phases[*index].im;
+            }
+            powers.push(centered_power_from_phase_sums(
+                self.point_count,
+                context.n_marked,
+                context.use_unmarked_subset,
+                selected,
+                *total,
+            ));
+        }
+        Some(())
+    }
+
+    pub(super) fn value_powers_into(&self, values: &[f64], powers: &mut Vec<f64>) -> Option<()> {
+        if values.len() != self.point_count || values.iter().any(|value| !value.is_finite()) {
+            return None;
+        }
+        let mean = values.iter().sum::<f64>() / values.len() as f64;
+        powers.clear();
+        for phases in self.phases.chunks_exact(self.point_count) {
+            let mut re = 0.0;
+            let mut im = 0.0;
+            for (phase, value) in phases.iter().zip(values) {
+                let centered = value - mean;
+                re += centered * phase.re;
+                im += centered * phase.im;
+            }
+            powers.push((re * re + im * im) / self.point_count as f64);
+        }
+        Some(())
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct BinaryMarkContext {
     n_marked: usize,
@@ -35,6 +137,10 @@ impl BinaryMarkContext {
 
     pub(crate) fn use_unmarked_subset(self) -> bool {
         self.use_unmarked_subset
+    }
+
+    pub(super) fn selected_count(self) -> usize {
+        self.selected_count
     }
 }
 
@@ -314,7 +420,23 @@ pub(super) fn centered_structure_factor_for_index_subset(
         return None;
     }
     let selected = selected_phase_sum(pattern, selected_indices, kx, ky)?;
-    let p_hat = n_marked as f64 / pattern.len() as f64;
+    Some(centered_power_from_phase_sums(
+        pattern.len(),
+        n_marked,
+        selected_are_unmarked,
+        selected,
+        total,
+    ))
+}
+
+fn centered_power_from_phase_sums(
+    point_count: usize,
+    n_marked: usize,
+    selected_are_unmarked: bool,
+    selected: PhaseSum,
+    total: PhaseSum,
+) -> f64 {
+    let p_hat = n_marked as f64 / point_count as f64;
     let (re, im) = if selected_are_unmarked {
         (
             (1.0 - p_hat) * total.re - selected.re,
@@ -326,7 +448,7 @@ pub(super) fn centered_structure_factor_for_index_subset(
             selected.im - p_hat * total.im,
         )
     };
-    Some((re * re + im * im) / pattern.len() as f64)
+    (re * re + im * im) / point_count as f64
 }
 
 pub(super) fn total_phase_sum(pattern: &Pattern, kx: f64, ky: f64) -> Option<PhaseSum> {

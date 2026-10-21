@@ -1,10 +1,13 @@
 use super::support::*;
 use marklab::{
-    ArtifactAvailabilityFailure, ArtifactCatalog, MultiscaleArtifactBinding,
-    MultiscaleEmbeddingArtifactGraphError, MultiscaleEmbeddingArtifactRole,
-    MultiscaleEmbeddingDerivationContract, MultiscaleEmbeddingExecutionProvenance,
-    MultiscaleEmbeddingProvenance, MultiscaleEmbeddingSupport, PatchSourceEntitySet,
-    VerifiedDirectPatchEmbeddingArtifactGraph,
+    embeddings::{
+        ArtifactAvailabilityFailure, MultiscaleArtifactBinding,
+        MultiscaleEmbeddingArtifactGraphError, MultiscaleEmbeddingArtifactRole,
+        MultiscaleEmbeddingDerivationContract, MultiscaleEmbeddingExecutionProvenance,
+        MultiscaleEmbeddingProvenance, MultiscaleEmbeddingSupport, PatchSourceEntitySet,
+        VerifiedDirectPatchEmbeddingArtifactGraph,
+    },
+    workflow::ArtifactCatalog,
 };
 
 fn validate(fixture: &Fixture) -> VerifiedDirectPatchEmbeddingArtifactGraph {
@@ -14,20 +17,7 @@ fn validate(fixture: &Fixture) -> VerifiedDirectPatchEmbeddingArtifactGraph {
 fn validate_result(
     fixture: &Fixture,
 ) -> Result<VerifiedDirectPatchEmbeddingArtifactGraph, MultiscaleEmbeddingArtifactGraphError> {
-    fixture.provenance.validate_direct_patch_artifact_graph(
-        fixture.provenance_artifact_id,
-        &fixture.expected_patches,
-        &fixture.source_entities,
-        &fixture.identity_map,
-        &fixture.source_row_link,
-        &fixture.input_normalization,
-        &fixture.context,
-        &fixture.footprints,
-        &fixture.overlap,
-        &fixture.support,
-        &fixture.catalog,
-        &fixture.store,
-    )
+    fixture.direct_graph_result()
 }
 
 fn corrupt_source_entity(fixture: &Fixture) -> String {

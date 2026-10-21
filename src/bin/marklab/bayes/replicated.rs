@@ -1,23 +1,30 @@
-use super::{publish_json, BayesCliError};
+use super::cli_schema::BuildReplicatedHierarchicalLgcpArgs;
+use super::{publish_json, CliError};
 use marklab_bayes::{
     replicated_hierarchical_lgcp, sha256_hex, ReplicatedError, ReplicatedFieldPolicy,
     ReplicatedLgcpPattern, ReplicatedLgcpSpec,
 };
 use serde::Serialize;
-use std::{fs, path::PathBuf};
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input: PathBuf,
-    policy: String,
-    gps: f64,
-    pips: f64,
-    amplitude: f64,
-    length: f64,
-    rep_amp: f64,
-    jitter: f64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
-    let bytes = fs::read(&input).map_err(|source| BayesCliError::Io {
+use std::fs;
+pub(super) fn run(args: BuildReplicatedHierarchicalLgcpArgs) -> Result<(), CliError> {
+    let BuildReplicatedHierarchicalLgcpArgs {
+        input,
+        field_policy,
+        global_prior_sd,
+        patient_intercept_prior_sd,
+        population_field_amplitude,
+        population_field_length_scale_um,
+        replicate_field_amplitude,
+        jitter,
+        out,
+    } = args;
+    let policy = field_policy;
+    let gps = global_prior_sd;
+    let pips = patient_intercept_prior_sd;
+    let amplitude = population_field_amplitude;
+    let length = population_field_length_scale_um;
+    let rep_amp = replicate_field_amplitude;
+    let bytes = fs::read(&input).map_err(|source| CliError::Io {
         path: input.clone(),
         source,
     })?;
@@ -36,9 +43,7 @@ pub(super) fn run(
             "cell_count",
         ]
     {
-        return Err(BayesCliError::Input(
-            "replicated LGCP headers differ".into(),
-        ));
+        return Err(CliError::Input("replicated LGCP headers differ".into()));
     }
     let patterns = r
         .deserialize()
@@ -69,9 +74,9 @@ pub(super) fn run(
         },
     )
 }
-fn map_error(e: ReplicatedError) -> BayesCliError {
+fn map_error(e: ReplicatedError) -> CliError {
     let ReplicatedError::Invalid(m) = e;
-    BayesCliError::Input(m)
+    CliError::Input(m)
 }
 #[derive(Serialize)]
 struct Output {

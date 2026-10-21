@@ -3,12 +3,12 @@ use std::mem::size_of;
 use crate::{
     errors::{MarklabError, Result},
     geom::spatial_index::SpatialIndex2D,
+    memory_budget::enforce_storage_budget,
     multimodal::{
         cells::{CellSection, FusedCell},
         labels::PrimaryLabelEncoding,
     },
     output::NeighborhoodTerritory,
-    perf::counters::enforce_storage_budget,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq)]

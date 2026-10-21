@@ -6,6 +6,7 @@ mod mapping;
 mod types;
 
 use mapping::{map_uptake_cells, map_vessels, validate_entities};
+use marklab_core::backend::ClaimStatus;
 pub use types::*;
 
 pub fn simulate_vascular_transport(
@@ -107,7 +108,7 @@ pub fn simulate_vascular_transport(
             positivity_violations,
         },
         observation_model: "identity_concentration_field",
-        claim_status: "advanced_transport_not_causal_or_hemodynamic_truth",
+        claim_status: ClaimStatus::AdvancedTransportNotCausalOrHemodynamicTruth,
     })
 }
 
@@ -262,20 +263,36 @@ fn local_flow(
     let mut uptake_mass = 0.0;
     for index in 0..concentration.len() {
         let before = concentration[index];
-        concentration[index] = if uptake[index] == 0.0 {
-            before + source[index] * dt
+        let exposure = uptake[index] * dt;
+        let lost_fraction = -(-exposure).exp_m1();
+        let source_amount = source[index] * dt;
+        let retained_source_fraction = if exposure == 0.0 {
+            1.0
         } else {
-            let decay = (-uptake[index] * dt).exp();
-            before * decay + source[index] / uptake[index] * (1.0 - decay)
+            lost_fraction / exposure
         };
+        let retained_source = if exposure <= 1.0 {
+            source_amount * retained_source_fraction
+        } else {
+            source[index] / uptake[index] * lost_fraction
+        };
+        concentration[index] = before * (-exposure).exp() + retained_source;
         if !concentration[index].is_finite() {
             return Err(SimulationError::Numerical(
                 "vascular source/uptake flow became non-finite".into(),
             ));
         }
-        let gross_source = source[index] * dt * area;
+        // 1 - (1 - exp(-x))/x also suffers cancellation near zero. Its Taylor
+        // expansion measures actual uptake of newly supplied material, independently
+        // of the rounded concentration change used in the mass-balance diagnostic.
+        let consumed_source_fraction = if exposure < 1e-4 {
+            exposure * (0.5 + exposure * (-1.0 / 6.0 + exposure * (1.0 / 24.0 - exposure / 120.0)))
+        } else {
+            1.0 - retained_source_fraction
+        };
+        let gross_source = source_amount * area;
         source_mass += gross_source;
-        uptake_mass += gross_source - (concentration[index] - before) * area;
+        uptake_mass += (before * lost_fraction + source_amount * consumed_source_fraction) * area;
     }
     Ok((source_mass, uptake_mass.max(0.0)))
 }

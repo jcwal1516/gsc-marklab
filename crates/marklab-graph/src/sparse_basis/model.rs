@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::numerical::orthogonality_error;
 use crate::{GraphError, GraphNodeInput};
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -77,7 +78,7 @@ pub struct GraphSparseRadiusBasisResult {
     pub ritz_rotations: usize,
     pub working_bytes: u64,
     pub retained_bytes: u64,
-    pub claim_status: String,
+    pub claim_status: ClaimStatus,
 }
 
 impl GraphSparseRadiusBasisResult {
@@ -130,7 +131,7 @@ impl GraphSparseRadiusBasisResult {
             || self.component_policy
                 != "retain_complete_component_zero_eigenspace_then_global_low_modes"
             || self.signal_policy != "ignored_basis_depends_only_on_geometry"
-            || self.claim_status != "experimental_sparse_low_frequency_basis"
+            || self.claim_status != ClaimStatus::ExperimentalSparseLowFrequencyBasis
             || self.node_ids != node_ids
             || self.node_count != spec.nodes.len()
             || self.radius_um.to_bits() != spec.radius_um.to_bits()

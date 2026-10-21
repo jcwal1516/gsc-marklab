@@ -2,7 +2,7 @@ use crate::{
     data::Pattern,
     errors::{MarklabError, Result},
     geom::{length_scales::analysis_effective_length_um, spatial_index::SpatialIndex2D},
-    perf::counters::enforce_storage_budget,
+    memory_budget::enforce_storage_budget,
 };
 
 pub fn neighborhood_radius_from_scale(scale_um: f64) -> f64 {

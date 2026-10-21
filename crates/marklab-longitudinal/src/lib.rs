@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-//! Bounded linear-Gaussian longitudinal inference for Marklab.
+//! Linear-Gaussian longitudinal inference for Marklab.
 
 mod matrix;
 mod nonlinear;
@@ -20,6 +20,7 @@ pub use phylogenetic_association::{
     PhylogeneticSpatialAssociationSpec, PhylogeneticSpatialPair, TreeEdge,
 };
 
+use marklab_core::backend::ClaimStatus;
 use matrix::Matrix;
 use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
@@ -63,7 +64,7 @@ pub struct LinearGaussianStateSpaceResult {
     pub smoothed_states: Vec<StateEstimate>,
     pub planned_matrix_operations_upper_bound: u64,
     pub maximum_matrix_operations: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 impl<'de> Deserialize<'de> for LinearGaussianStateSpaceResult {
@@ -93,7 +94,7 @@ impl<'de> Deserialize<'de> for LinearGaussianStateSpaceResult {
         let owned = OwnedResult::deserialize(deserializer)?;
         if owned.format != "marklab.linear_gaussian_state_space"
             || owned.algorithm != "kalman_joseph_rts_cholesky"
-            || owned.claim_status != "linear_gaussian_model_only"
+            || owned.claim_status != ClaimStatus::LinearGaussianModelOnly.as_str()
         {
             return Err(serde::de::Error::custom(
                 "unexpected linear-Gaussian state-space result identity",
@@ -113,7 +114,7 @@ impl<'de> Deserialize<'de> for LinearGaussianStateSpaceResult {
             smoothed_states: owned.smoothed_states,
             planned_matrix_operations_upper_bound: owned.planned_matrix_operations_upper_bound,
             maximum_matrix_operations: owned.maximum_matrix_operations,
-            claim_status: "linear_gaussian_model_only",
+            claim_status: ClaimStatus::LinearGaussianModelOnly,
         })
     }
 }
@@ -230,7 +231,7 @@ pub fn kalman_filter_and_smooth(
         smoothed_states: smoothed,
         planned_matrix_operations_upper_bound: model.planned_operations,
         maximum_matrix_operations: model.maximum_operations,
-        claim_status: "linear_gaussian_model_only",
+        claim_status: ClaimStatus::LinearGaussianModelOnly,
     })
 }
 

@@ -3,16 +3,17 @@ use std::path::PathBuf;
 use marklab_cohort::{tost_equivalence, PatientEffect, TostEquivalenceResult, TostEquivalenceSpec};
 use serde::{Deserialize, Serialize};
 
-use super::{effects::read_effects, publication::publish_json, CohortError};
+use super::{effects::read_effects, publication::publish_json, CohortError, EquivalenceArgs};
 
-pub(super) fn run(
-    input: PathBuf,
-    lower_margin: f64,
-    upper_margin: f64,
-    alpha: f64,
-    margin_rationale: String,
-    out: PathBuf,
-) -> Result<(), CohortError> {
+pub(super) fn run(args: EquivalenceArgs) -> Result<(), CohortError> {
+    let EquivalenceArgs {
+        input,
+        lower_margin,
+        upper_margin,
+        alpha,
+        margin_rationale,
+        out,
+    } = args;
     let prepared = prepare(input, lower_margin, upper_margin, alpha, margin_rationale)?;
     let result = execute(&prepared)?;
     publish_json(&out, &result)

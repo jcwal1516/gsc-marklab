@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     graph_spectral_workflow, CanonicalGraphNode, GraphError, GraphSpectralSpec, LaplacianSpec,
 };
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -47,7 +48,7 @@ pub struct GraphHeatResult {
     pub pair_evaluations: u64,
     pub jacobi_rotations: usize,
     pub kernel_entries_evaluated: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn graph_heat_workflow(spec: GraphHeatSpec) -> Result<GraphHeatResult, GraphError> {
@@ -176,6 +177,6 @@ pub fn graph_heat_workflow(spec: GraphHeatSpec) -> Result<GraphHeatResult, Graph
         pair_evaluations: graph.work.pair_evaluations,
         jacobi_rotations: graph.work.jacobi_rotations,
         kernel_entries_evaluated,
-        claim_status: "experimental_exact_small_graph_heat",
+        claim_status: ClaimStatus::ExperimentalExactSmallGraphHeat,
     })
 }

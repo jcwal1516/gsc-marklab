@@ -7,8 +7,8 @@ use crate::{EmbeddingStatus, ExpectedCellSet};
 
 use super::{
     super::{
-        enforce_file_budget, ArrowIpcFailure, CellEmbeddingTablePhysicalBindings,
-        EmbeddingColumnarBudgets, EmbeddingColumnarError,
+        enforce_file_budget, ArrowIpcFailure, CellEmbeddingTablePhysicalBindings, ColumnarError,
+        EmbeddingColumnarBudgets,
     },
     preflight_reader::{
         declared_table_logical_digest_reader, preflight_cell_embedding_table_arrow_reader,
@@ -85,9 +85,8 @@ pub fn preflight_cell_embedding_table_arrow_bytes(
     expected: &ExpectedCellSet,
     bindings: CellEmbeddingTablePhysicalBindings,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CellEmbeddingArrowPreflight, EmbeddingColumnarError> {
-    let encoded_byte_len =
-        u64::try_from(bytes.len()).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+) -> Result<CellEmbeddingArrowPreflight, ColumnarError> {
+    let encoded_byte_len = u64::try_from(bytes.len()).map_err(|_| ColumnarError::SizeOverflow)?;
     enforce_file_budget(encoded_byte_len, budgets)?;
     preflight_cell_embedding_table_arrow_reader(
         &mut Cursor::new(bytes),
@@ -101,11 +100,10 @@ pub fn preflight_cell_embedding_table_arrow_bytes(
 pub(super) fn declared_table_logical_digest(
     bytes: &[u8],
     budgets: EmbeddingColumnarBudgets,
-) -> Result<ContentDigest, EmbeddingColumnarError> {
+) -> Result<ContentDigest, ColumnarError> {
     declared_table_logical_digest_reader(&mut Cursor::new(bytes), budgets)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn validate_record_batch_message(
     message_bytes: &[u8],
     body_bytes: &[u8],
@@ -114,7 +112,7 @@ pub(super) fn validate_record_batch_message(
     expected_cells: &[marklab_data::CellId],
     dimension: u32,
     aggregate_decoded_bytes: &mut u64,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     if message_bytes.len() < 8 || &message_bytes[..4] != CONTINUATION_MARKER {
         return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
     }
@@ -137,7 +135,7 @@ pub(super) fn validate_record_batch_message(
         || message.header_type() != MessageHeader::RecordBatch
         || message.bodyLength() != declared_body_length
         || message.bodyLength()
-            != i64::try_from(body_bytes.len()).map_err(|_| EmbeddingColumnarError::SizeOverflow)?
+            != i64::try_from(body_bytes.len()).map_err(|_| ColumnarError::SizeOverflow)?
         || message
             .custom_metadata()
             .is_some_and(|metadata| !metadata.is_empty())
@@ -165,8 +163,8 @@ pub(super) fn validate_record_batch_message(
         return Err(arrow_failure(ArrowIpcFailure::InvalidFieldNodes));
     }
     let element_count = rows
-        .checked_mul(usize::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?)
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .checked_mul(usize::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?)
+        .ok_or(ColumnarError::SizeOverflow)?;
     let expected_node_lengths = [rows, rows, element_count, rows];
     for (node, expected_length) in nodes.iter().zip(expected_node_lengths) {
         let length = nonnegative_usize(node.length(), ArrowIpcFailure::InvalidFieldNodes)?;
@@ -185,21 +183,21 @@ pub(super) fn validate_record_batch_message(
     let offset_bytes = rows
         .checked_add(1)
         .and_then(|value| value.checked_mul(size_of::<i32>()))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let cell_bytes = expected_cells.iter().try_fold(0_usize, |total, cell| {
         total
             .checked_add(cell.as_str().len())
-            .ok_or(EmbeddingColumnarError::SizeOverflow)
+            .ok_or(ColumnarError::SizeOverflow)
     })?;
     let value_bytes = element_count
         .checked_mul(size_of::<f32>())
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let minimum_status_bytes = rows
         .checked_mul(EmbeddingStatus::Present.wire_name().len())
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let maximum_status_bytes = rows
         .checked_mul(EmbeddingStatus::ExtractionFailed.wire_name().len())
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let row_validity_bytes = validity_bytes(rows)?;
     let value_validity_bytes = validity_bytes(element_count)?;
     let exact_lengths = [
@@ -238,15 +236,15 @@ pub(super) fn validate_record_batch_message(
         }
         next_offset = end;
         decoded_bytes = decoded_bytes
-            .checked_add(u64::try_from(length).map_err(|_| EmbeddingColumnarError::SizeOverflow)?)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .checked_add(u64::try_from(length).map_err(|_| ColumnarError::SizeOverflow)?)
+            .ok_or(ColumnarError::SizeOverflow)?;
     }
     if align(next_offset)? != body_bytes.len() {
         return Err(arrow_failure(ArrowIpcFailure::InvalidBuffers));
     }
     *aggregate_decoded_bytes = aggregate_decoded_bytes
         .checked_add(decoded_bytes)
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     Ok(())
 }
 
@@ -383,7 +381,7 @@ mod tests {
                     1,
                     &mut decoded_bytes,
                 ),
-                Err(EmbeddingColumnarError::Arrow {
+                Err(ColumnarError::Arrow {
                     reason: ArrowIpcFailure::InvalidMessage,
                 })
             ));
@@ -401,7 +399,7 @@ mod tests {
                 bindings(),
                 budgets(),
             ),
-            Err(EmbeddingColumnarError::Arrow {
+            Err(ColumnarError::Arrow {
                 reason: ArrowIpcFailure::DictionaryBatch,
             })
         ));
@@ -414,7 +412,7 @@ mod tests {
                 bindings(),
                 budgets(),
             ),
-            Err(EmbeddingColumnarError::Arrow {
+            Err(ColumnarError::Arrow {
                 reason: ArrowIpcFailure::InvalidFooter,
             })
         ));
@@ -437,7 +435,7 @@ mod tests {
                 bindings(),
                 budgets(),
             ),
-            Err(EmbeddingColumnarError::Arrow {
+            Err(ColumnarError::Arrow {
                 reason: ArrowIpcFailure::InvalidFooterLength,
             })
         ));

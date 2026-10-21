@@ -1,13 +1,12 @@
 import hashlib
 import json
 import subprocess
+import sys
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 WORKER = ROOT / "workers/python/marklab_gudhi_witness_bottleneck_worker.py"
-PYTHON = ROOT / "target/pymc-venv/bin/python"
 
 
 class GudhiWitnessBottleneckWorkerTests(unittest.TestCase):
@@ -48,19 +47,25 @@ class GudhiWitnessBottleneckWorkerTests(unittest.TestCase):
             "maximum_comparisons": 2,
             "maximum_interval_budget": 5,
         }
-        request_bytes = json.dumps(request, sort_keys=True, separators=(",", ":")).encode()
+        request_bytes = json.dumps(
+            request, sort_keys=True, separators=(",", ":")
+        ).encode()
         completed = subprocess.run(
-            [str(PYTHON), "-I", str(WORKER)],
+            [sys.executable, "-I", str(WORKER)],
             input=request_bytes,
             capture_output=True,
             check=True,
         )
         result = json.loads(completed.stdout)
-        self.assertEqual(result["request_sha256"], hashlib.sha256(request_bytes).hexdigest())
+        self.assertEqual(
+            result["request_sha256"], hashlib.sha256(request_bytes).hexdigest()
+        )
         self.assertEqual(result["maximum_finite_bottleneck_distance_um_squared"], 1.0)
         self.assertTrue(result["has_infinite_essential_mismatch"])
         self.assertEqual(result["comparisons"][0]["status"], "finite")
-        self.assertEqual(result["comparisons"][0]["bottleneck_distance_um_squared"], 1.0)
+        self.assertEqual(
+            result["comparisons"][0]["bottleneck_distance_um_squared"], 1.0
+        )
         self.assertEqual(
             result["comparisons"][1]["status"], "infinite_essential_count_mismatch"
         )

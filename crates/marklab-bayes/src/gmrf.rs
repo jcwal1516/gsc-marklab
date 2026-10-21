@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use thiserror::Error;
 
-use crate::linalg;
+use marklab_numerics::dense;
 
 #[derive(Clone, Debug)]
 pub struct GmrfConstraint {
@@ -43,7 +43,7 @@ pub fn gmrf_log_density(spec: GmrfSpec) -> Result<GmrfDensityResult, GmrfDensity
     let null_basis = null_space_basis(spec.dimension, &row_basis, spec.constraint_tolerance)?;
     let constrained_dimension = null_basis.len();
     let projected = projected_precision(&spec.precision, spec.dimension, &null_basis);
-    let lower = linalg::cholesky(&projected, constrained_dimension).ok_or_else(|| {
+    let lower = dense::cholesky(&projected, constrained_dimension).ok_or_else(|| {
         GmrfDensityError::InvalidInput(
             "precision is not positive definite on the constrained subspace".into(),
         )
@@ -273,7 +273,10 @@ mod tests {
         .unwrap();
         assert!((result.log_determinant - 10.0_f64.ln()).abs() <= 1e-12);
         assert!((result.quadratic - 1.5).abs() <= 1e-12);
-        assert!((result.log_density + 1.4365845199123224).abs() <= 1e-12);
+        // On the subspace a + b = 0 the projected precision is diag(5/2, 4): rank 2, log
+        // determinant ln 10.
+        let oracle = 0.5 * 10.0_f64.ln() - 0.5 * 1.5 - (2.0 * std::f64::consts::PI).ln();
+        assert!((result.log_density - oracle).abs() <= 1e-12);
     }
 
     #[test]

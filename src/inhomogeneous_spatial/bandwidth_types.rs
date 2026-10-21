@@ -1,3 +1,6 @@
+use crate::result_vocabulary::{
+    BandwidthSelectionMethod, BandwidthSelectionObjective, BandwidthTieBreak,
+};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -32,7 +35,7 @@ impl GaussianBandwidthSelectionLimits {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-/// Prespecified likelihood selection followed by the existing Gaussian K/L analysis.
+/// Prespecified likelihood selection followed by the Gaussian K/L analysis.
 pub struct GaussianBandwidthSelectionConfig {
     pub(super) radii_um: Box<[f64]>,
     pub(super) candidate_bandwidths_um: Box<[f64]>,
@@ -133,11 +136,11 @@ pub struct GaussianBandwidthCandidateScore {
 /// Complete identity and score table for prespecified bandwidth selection.
 pub struct GaussianBandwidthSelectionSummary {
     /// Stable selection method.
-    pub method: String,
+    pub method: BandwidthSelectionMethod,
     /// Stable score objective.
-    pub objective: String,
+    pub objective: BandwidthSelectionObjective,
     /// Exact-tie policy.
-    pub tie_break: String,
+    pub tie_break: BandwidthTieBreak,
     /// Selection cannot inspect downstream K/L/g values.
     pub selection_uses_spatial_curve: bool,
     /// Zero-based selected candidate index.
@@ -154,11 +157,11 @@ pub struct GaussianBandwidthSelectionSummary {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-/// Selected-bandwidth wrapper around the existing typed Gaussian K/L result.
+/// Gaussian K/L result at the selected bandwidth.
 pub struct SelectedInhomogeneousSpatialResult {
     /// Persisted prespecified selection evidence.
     pub selection: GaussianBandwidthSelectionSummary,
-    /// Existing K/L result evaluated only at the selected bandwidth.
+    /// K/L result evaluated only at the selected bandwidth.
     pub analysis: InhomogeneousSpatialResult,
     /// Exact selection-plus-analysis configuration identity.
     pub configuration_digest: String,

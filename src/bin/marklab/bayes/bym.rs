@@ -1,13 +1,16 @@
-use std::{collections::BTreeMap, fs, path::PathBuf};
+use std::collections::BTreeMap;
 
 use marklab_bayes::{
-    build_icar_plan, sha256_hex, validate_spatial_weights, BymFitSpec, BymFitWorkerRequest,
-    BymFitWorkerResult, BymInputIdentity, DiagonalPolicy, IcarPlan, NormalizationPolicy,
-    NutsSamplingSpec, SpatialEdge, SpatialWeightsPolicy, SymmetryPolicy, ValidatedSpatialWeights,
+    build_icar_plan, json_sha256, sha256_hex, validate_spatial_weights, BymFitSpec,
+    BymFitWorkerRequest, BymFitWorkerResult, BymInputIdentity, DiagonalPolicy, IcarPlan,
+    NormalizationPolicy, SpatialEdge, SpatialWeightsPolicy, SymmetryPolicy,
+    ValidatedSpatialWeights,
 };
 use serde::Deserialize;
 
-use super::{publish_json, run_worker, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::BymFitArgs;
+use super::worker_identity;
+use super::{publish_json, run_worker, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -23,43 +26,38 @@ struct EdgeRow {
     weight: f64,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    region_path: PathBuf,
-    edge_path: PathBuf,
-    data_path: PathBuf,
-    intercept_prior_mean: f64,
-    intercept_prior_sd: f64,
-    coefficient_prior_sd: f64,
-    structured_sd_prior: f64,
-    unstructured_sd_prior: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: BymFitArgs) -> Result<(), CliError> {
+    let BymFitArgs {
+        regions,
+        edges,
+        data,
+        intercept_prior_mean,
+        intercept_prior_sd,
+        coefficient_prior_sd,
+        structured_sd_prior,
+        unstructured_sd_prior,
+        timeout_seconds,
+        out,
+        nuts,
+    } = args;
+    let region_path = regions;
+    let edge_path = edges;
+    let data_path = data;
+    let sampling = nuts.spec();
+    let output_path = out;
     let input = read_input(&region_path, &edge_path, &data_path)?;
     let weights = input.weights;
     let plan = input.plan;
     let data = input.data;
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path = worker_directory.join("marklab_pymc_bym_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
-    let data_sha256 = sha256_hex(&serde_json::to_vec(&serde_json::json!({
+    let repository = &marklab::backend::python_backend_assets_root()?;
+    let identity = worker_identity(repository, "marklab_pymc_bym_worker.py")?;
+    let data_sha256 = json_sha256(&serde_json::json!({
         "region_ids": weights.region_ids,
         "counts": data.counts,
         "expected": data.expected,
         "design": data.design,
         "predictor_names": data.predictor_names,
-    }))?);
+    }))?;
     let request = BymFitWorkerRequest::new(
         BymFitSpec {
             region_ids: weights.region_ids,
@@ -78,8 +76,8 @@ pub(super) fn run(
             unstructured_sd_prior,
         },
         sampling,
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
+        identity.environment_lock_sha256,
+        identity.worker_sha256,
         timeout_seconds,
     )?;
     let identity = BymInputIdentity {
@@ -112,7 +110,7 @@ pub(super) fn read_input(
     region_path: &std::path::Path,
     edge_path: &std::path::Path,
     data_path: &std::path::Path,
-) -> Result<BymInput, BayesCliError> {
+) -> Result<BymInput, CliError> {
     let weights = validate_spatial_weights(
         read_regions(region_path)?,
         read_edges(edge_path)?,
@@ -122,9 +120,8 @@ pub(super) fn read_input(
             normalization: NormalizationPolicy::Preserve,
         },
     )
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let plan =
-        build_icar_plan(&weights).map_err(|error| BayesCliError::Input(error.to_string()))?;
+    .map_err(|error| CliError::Input(error.to_string()))?;
+    let plan = build_icar_plan(&weights).map_err(|error| CliError::Input(error.to_string()))?;
     let data = read_data(data_path, &weights.region_ids)?;
     Ok(BymInput {
         weights,
@@ -133,21 +130,21 @@ pub(super) fn read_input(
     })
 }
 
-fn read_regions(path: &std::path::Path) -> Result<Vec<String>, BayesCliError> {
+fn read_regions(path: &std::path::Path) -> Result<Vec<String>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader.headers()?.iter().eq(["region_id"]) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "BYM region headers must be exactly: region_id".into(),
         ));
     }
     reader
         .deserialize::<RegionRow>()
-        .map(|row| row.map(|row| row.region_id).map_err(BayesCliError::from))
+        .map(|row| row.map(|row| row.region_id).map_err(CliError::from))
         .collect()
 }
 
-fn read_edges(path: &std::path::Path) -> Result<Vec<SpatialEdge>, BayesCliError> {
+fn read_edges(path: &std::path::Path) -> Result<Vec<SpatialEdge>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader
@@ -155,7 +152,7 @@ fn read_edges(path: &std::path::Path) -> Result<Vec<SpatialEdge>, BayesCliError>
         .iter()
         .eq(["source_region", "target_region", "weight"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "BYM edge headers must be exactly: source_region,target_region,weight".into(),
         ));
     }
@@ -167,7 +164,7 @@ fn read_edges(path: &std::path::Path) -> Result<Vec<SpatialEdge>, BayesCliError>
                 target_region: row.target_region,
                 weight: row.weight,
             })
-            .map_err(BayesCliError::from)
+            .map_err(CliError::from)
         })
         .collect()
 }
@@ -179,7 +176,7 @@ pub(super) struct BymData {
     pub predictor_names: Vec<String>,
 }
 
-fn read_data(path: &std::path::Path, region_ids: &[String]) -> Result<BymData, BayesCliError> {
+fn read_data(path: &std::path::Path, region_ids: &[String]) -> Result<BymData, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     let headers = reader.headers()?.clone();
@@ -189,7 +186,7 @@ fn read_data(path: &std::path::Path, region_ids: &[String]) -> Result<BymData, B
         || headers.get(1) != Some("count")
         || headers.get(2) != Some("expected")
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "BYM data must have region_id,count,expected followed by 1-16 predictors".into(),
         ));
     }
@@ -204,7 +201,7 @@ fn read_data(path: &std::path::Path, region_ids: &[String]) -> Result<BymData, B
             || name == "intercept"
             || predictor_names[..index].contains(name)
     }) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "BYM predictor names must be exact, unique, and not intercept".into(),
         ));
     }
@@ -214,13 +211,13 @@ fn read_data(path: &std::path::Path, region_ids: &[String]) -> Result<BymData, B
         let region_id = record[0].to_owned();
         let count = record[1]
             .parse::<u64>()
-            .map_err(|_| BayesCliError::Input("BYM counts must be nonnegative integers".into()))?;
+            .map_err(|_| CliError::Input("BYM counts must be nonnegative integers".into()))?;
         let values = record
             .iter()
             .skip(2)
             .map(|value| {
                 value.parse::<f64>().map_err(|_| {
-                    BayesCliError::Input("BYM expected/design values must be finite numbers".into())
+                    CliError::Input("BYM expected/design values must be finite numbers".into())
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -229,13 +226,13 @@ fn read_data(path: &std::path::Path, region_ids: &[String]) -> Result<BymData, B
             || values.iter().any(|value| !value.is_finite())
             || rows.insert(region_id, (count, values)).is_some()
         {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "BYM rows require unique regions, positive expected, and finite design".into(),
             ));
         }
     }
     if rows.len() != region_ids.len() {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "BYM data must contain exactly one row per region".into(),
         ));
     }
@@ -245,7 +242,7 @@ fn read_data(path: &std::path::Path, region_ids: &[String]) -> Result<BymData, B
     for region_id in region_ids {
         let (count, values) = rows
             .remove(region_id)
-            .ok_or_else(|| BayesCliError::Input(format!("missing BYM region {region_id}")))?;
+            .ok_or_else(|| CliError::Input(format!("missing BYM region {region_id}")))?;
         counts.push(count);
         expected.push(values[0]);
         design.extend_from_slice(&values[1..]);
@@ -258,8 +255,8 @@ fn read_data(path: &std::path::Path, region_ids: &[String]) -> Result<BymData, B
     })
 }
 
-fn validate_file(path: &std::path::Path) -> Result<(), BayesCliError> {
-    super::input_file::validate_regular_file(
+fn validate_file(path: &std::path::Path) -> Result<(), CliError> {
+    crate::input_file::validate_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,
         "BYM input must be a regular file within the 16 MiB limit",

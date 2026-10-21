@@ -1,25 +1,25 @@
-use std::path::PathBuf;
-
-use marklab_bayes::{
-    multiscale_embedding_kernel, sha256_hex, MultiscaleBaseKernel, MultiscaleEmbeddingKernelResult,
+use marklab_bayes::sha256_hex;
+use marklab_embeddings::analysis::{
+    multiscale_embedding_kernel, MultiscaleBaseKernel, MultiscaleEmbeddingKernelResult,
     MultiscaleEmbeddingKernelSpec, MultiscaleEmbeddingSummary, MultiscaleKernelError,
     MultiscaleKernelWeight,
 };
 use serde::Serialize;
 
-use super::{embedding_spatial, publish_json, BayesCliError};
+use super::cli_schema::MultiscaleEmbeddingKernelArgs;
+use super::{embedding_spatial, publish_json, CliError};
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input: PathBuf,
-    weights: PathBuf,
-    sample_a: String,
-    sample_b: String,
-    base_kernel: String,
-    kernel_scale: Option<f64>,
-    maximum_component_scale_visits: u64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: MultiscaleEmbeddingKernelArgs) -> Result<(), CliError> {
+    let MultiscaleEmbeddingKernelArgs {
+        input,
+        weights,
+        sample_a,
+        sample_b,
+        base_kernel,
+        kernel_scale,
+        maximum_component_scale_visits,
+        out,
+    } = args;
     let input_bytes = embedding_spatial::read(&input)?;
     let weight_bytes = embedding_spatial::read(&weights)?;
     let (summaries, feature_names) = read_summaries(&input_bytes)?;
@@ -47,7 +47,7 @@ pub(super) fn run(
 
 fn read_summaries(
     bytes: &[u8],
-) -> Result<(Vec<MultiscaleEmbeddingSummary>, Vec<String>), BayesCliError> {
+) -> Result<(Vec<MultiscaleEmbeddingSummary>, Vec<String>), CliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
@@ -55,7 +55,7 @@ fn read_summaries(
     let headers = reader.headers()?.clone();
     if headers.len() < 3 || headers.iter().take(2).collect::<Vec<_>>() != ["sample_id", "scale_um"]
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "multiscale summaries require sample_id,scale_um and embedding_* columns".into(),
         ));
     }
@@ -71,14 +71,11 @@ fn read_summaries(
             sample_id: record[0].to_owned(),
             scale_um: record[1]
                 .parse()
-                .map_err(|_| BayesCliError::Input("summary scale is invalid".into()))?,
+                .map_err(|_| CliError::Input("summary scale is invalid".into()))?,
             embedding: (2..record.len())
                 .map(|index| {
                     record[index].parse::<f64>().map_err(|_| {
-                        BayesCliError::Input(format!(
-                            "summary value {} is invalid",
-                            &headers[index]
-                        ))
+                        CliError::Input(format!("summary value {} is invalid", &headers[index]))
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()?,
@@ -87,13 +84,13 @@ fn read_summaries(
     Ok((rows, feature_names))
 }
 
-fn read_weights(bytes: &[u8]) -> Result<Vec<MultiscaleKernelWeight>, BayesCliError> {
+fn read_weights(bytes: &[u8]) -> Result<Vec<MultiscaleKernelWeight>, CliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
         .from_reader(bytes);
     if reader.headers()?.iter().collect::<Vec<_>>() != ["scale_um", "weight"] {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "multiscale weight headers must be scale_um,weight".into(),
         ));
     }
@@ -104,19 +101,19 @@ fn read_weights(bytes: &[u8]) -> Result<Vec<MultiscaleKernelWeight>, BayesCliErr
             Ok(MultiscaleKernelWeight {
                 scale_um: record[0]
                     .parse()
-                    .map_err(|_| BayesCliError::Input("weight scale is invalid".into()))?,
+                    .map_err(|_| CliError::Input("weight scale is invalid".into()))?,
                 weight: record[1]
                     .parse()
-                    .map_err(|_| BayesCliError::Input("scale weight is invalid".into()))?,
+                    .map_err(|_| CliError::Input("scale weight is invalid".into()))?,
             })
         })
         .collect()
 }
 
-fn map_error(error: MultiscaleKernelError) -> BayesCliError {
+fn map_error(error: MultiscaleKernelError) -> CliError {
     match error {
-        MultiscaleKernelError::Invalid(message) => BayesCliError::Input(message),
-        MultiscaleKernelError::Numeric => BayesCliError::Backend(error.to_string()),
+        MultiscaleKernelError::Invalid(message) => CliError::Input(message),
+        MultiscaleKernelError::Numeric => CliError::Backend(error.to_string()),
     }
 }
 

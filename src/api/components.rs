@@ -1,5 +1,6 @@
 use crate::{
     api::finite_option,
+    api::qc_pipeline::strata_are_mark_homogeneous,
     common::seeds::{derive_seed, SeedEndpoint},
     config::{AnalysisConfig, ComponentMode},
     data::{validate::validation_flags, Pattern},
@@ -11,10 +12,12 @@ use crate::{
     },
     output::{
         AnalysisSection, ComponentAnalysisSummary, ComponentModeSelection, ResolvedComponentMode,
+        StatusFlag,
     },
     spectra::structure_factor::{
-        permutation_whitened_spectrum, permutation_whitened_value_spectrum,
-        SpectrumPermutationOptions,
+        observed_power_for_modes, permutation_whitened_spectrum,
+        permutation_whitened_value_spectrum, resolvable_modes_for_pattern,
+        stratified_permutation_whitened_spectrum_from_observed_modes, SpectrumPermutationOptions,
     },
 };
 
@@ -101,6 +104,7 @@ pub(super) fn component_results_for(
     config: &AnalysisConfig,
     pattern: &Pattern,
     plan: &ComponentAnalysisPlan,
+    configured_strata: Option<&[u32]>,
 ) -> Result<AnalysisSection<Vec<ComponentAnalysisSummary>>> {
     if !plan.includes_components() {
         return Ok(AnalysisSection::NotApplicable);
@@ -132,7 +136,7 @@ pub(super) fn component_results_for(
     Ok(AnalysisSection::available(
         component_ids
             .into_iter()
-            .map(|id| component_summary_for(config, pattern, component_id, id))
+            .map(|id| component_summary_for(config, pattern, component_id, id, configured_strata))
             .collect::<Result<Vec<_>>>()?
             .into_iter()
             .flatten()
@@ -145,6 +149,7 @@ pub(super) fn component_summary_for(
     pattern: &Pattern,
     component_ids: &[u32],
     target_component_id: u32,
+    configured_strata: Option<&[u32]>,
 ) -> Result<Option<ComponentAnalysisSummary>> {
     let indices = component_ids
         .iter()
@@ -169,7 +174,7 @@ pub(super) fn component_summary_for(
         .map(|index| pattern.mark[*index])
         .collect::<Vec<_>>();
     let mut component = Pattern::from_arrays(x, y, marks, pattern.meta.clone())?;
-    component.window = component_window(pattern, &component);
+    component.window = component_window(pattern, &component)?;
     if let Some(values) = pattern.mark_prob.as_deref() {
         component.mark_prob = Some(
             indices
@@ -180,7 +185,19 @@ pub(super) fn component_summary_for(
         );
     }
 
-    let status_flags = validation_flags(&component, config);
+    let strata = configured_strata.map(|values| {
+        indices
+            .iter()
+            .map(|index| values[*index])
+            .collect::<Vec<_>>()
+    });
+    let degenerate = strata
+        .as_deref()
+        .is_some_and(|strata| strata_are_mark_homogeneous(&component.mark, strata));
+    let mut status_flags = validation_flags(&component, config);
+    if degenerate {
+        status_flags.push(StatusFlag::DegenerateSpatialStrataNull);
+    }
     let options = SpectrumPermutationOptions {
         n_shells: config.spectrum.k_shells,
         low_k_modes: config.spectrum.low_k_shells,
@@ -202,13 +219,21 @@ pub(super) fn component_summary_for(
         k_shell_min: config.validation.k_shell_min,
         k_chunk_modes: config.performance.k_chunk_modes,
     };
-    let spectrum = if config.analysis.use_probabilistic_marks {
+    let spectrum = if degenerate {
+        None
+    } else if config.analysis.use_probabilistic_marks {
         if let Some(values) = component.mark_prob.as_deref() {
             let values = values.iter().copied().map(f64::from).collect::<Vec<_>>();
             permutation_whitened_value_spectrum(&component, &values, options)?
         } else {
             None
         }
+    } else if let Some(strata) = strata.as_deref() {
+        let modes = resolvable_modes_for_pattern(&component, options.n_shells).unwrap_or_default();
+        let observed = observed_power_for_modes(&component, &modes);
+        stratified_permutation_whitened_spectrum_from_observed_modes(
+            &component, strata, &modes, observed, options,
+        )?
     } else {
         permutation_whitened_spectrum(&component, options)?
     };
@@ -221,7 +246,11 @@ pub(super) fn component_summary_for(
         status_flags,
         primary_endpoint_value: spectrum.as_ref().map_or_else(
             || crate::output::AnalysisSection::InsufficientData {
-                reason: "component spectrum could not be estimated".into(),
+                reason: if degenerate {
+                    "component stratified spectrum null is degenerate because every configured stratum is mark-homogeneous"
+                } else {
+                    "component spectrum could not be estimated"
+                }.into(),
             },
             |spectrum| crate::output::AnalysisSection::available(spectrum.low_k_excess),
         ),
@@ -255,20 +284,27 @@ pub(super) fn component_summary_for(
     }))
 }
 
-pub(super) fn component_window(parent: &Pattern, component: &Pattern) -> crate::data::TumorWindow {
+pub(super) fn component_window(
+    parent: &Pattern,
+    component: &Pattern,
+) -> Result<crate::data::TumorWindow> {
     let area_fraction = if parent.is_empty() {
         0.0
     } else {
         component.len() as f64 / parent.len() as f64
     };
     let area_um2 = parent.window.area_um2 * area_fraction;
-    crate::data::TumorWindow {
+    // Single-cell or coincident components have no extent; their spectrum then reports
+    // insufficient data. Without a neighbor they keep the parent's sampling resolution.
+    let analysis_effective_length_um = component_bounding_box_diagonal_um(component).unwrap_or(0.0);
+    let d_nn_mean_um = mean_nearest_neighbor_distance(&component.x_um, &component.y_um)?
+        .unwrap_or(parent.window.d_nn_mean_um);
+    Ok(crate::data::TumorWindow {
         area_um2,
-        analysis_effective_length_um: component_bounding_box_diagonal_um(component).unwrap_or(0.0),
-        d_nn_mean_um: mean_nearest_neighbor_distance(&component.x_um, &component.y_um)
-            .unwrap_or(parent.window.d_nn_mean_um),
+        analysis_effective_length_um,
+        d_nn_mean_um,
         valid_mask_fraction: parent.window.valid_mask_fraction,
-    }
+    })
 }
 
 pub(super) fn component_bounding_box_diagonal_um(pattern: &Pattern) -> Option<f64> {

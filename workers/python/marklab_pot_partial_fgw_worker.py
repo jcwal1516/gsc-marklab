@@ -3,124 +3,33 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
-import warnings
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import numpy as np
 import ot
 
+from marklab_worker_support import fused_gromov
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    worker_digests,
+    write_result,
+)
 
-POT_VERSION = "0.9.7.post1"
-
-
-def exact_object(value: Any, keys: set[str], path: str) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != keys:
-        raise ValueError(f"{path} fields differ")
-    return value
-
-
-def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, Any]:
-    request = exact_object(
-        request,
-        {
-            "format",
-            "version",
-            "backend",
-            "source",
-            "target",
-            "source_structure_row_major",
-            "target_structure_row_major",
-            "transported_mass",
-            "alpha",
-            "epsilon",
-            "feature_scale",
-            "structure_scale",
-            "tolerance",
-            "maximum_iterations",
-            "resources",
-        },
-        "request",
-    )
-    if request["format"] != "marklab.pot_partial_fused_gromov_wasserstein_request" or request["version"] != 1:
-        raise ValueError("request identity differs")
-    backend = exact_object(
-        request["backend"],
-        {"name", "version", "python_version", "environment_lock_sha256", "worker_sha256"},
-        "backend",
-    )
-    if (
-        backend["name"] != "pot"
-        or backend["version"] != POT_VERSION
-        or backend["python_version"] != "3.12"
-        or backend["environment_lock_sha256"] != lock_digest
-        or backend["worker_sha256"] != worker_digest
-        or ot.__version__ != POT_VERSION
-        or sys.version_info[:2] != (3, 12)
-    ):
-        raise ValueError("backend identity differs")
-    for support in ("source", "target"):
-        if not isinstance(request[support], list) or not 1 <= len(request[support]) <= 32:
-            raise ValueError(f"{support} dimensions differ")
-        for index, row in enumerate(request[support]):
-            exact_object(row, {"id", "mass", "features"}, f"{support}[{index}]")
-    exact_object(
-        request["resources"],
-        {
-            "maximum_source_points",
-            "maximum_target_points",
-            "maximum_feature_dimension",
-            "maximum_solver_fits",
-            "feasibility_tolerance",
-            "maximum_output_bytes",
-            "timeout_seconds",
-        },
-        "resources",
-    )
-    return request
-
-
-def make_problem(request: dict[str, Any]) -> tuple[np.ndarray, ...]:
-    source = np.asarray([row["mass"] for row in request["source"]], dtype=np.float64)
-    target = np.asarray([row["mass"] for row in request["target"]], dtype=np.float64)
-    source_features = np.asarray([row["features"] for row in request["source"]], dtype=np.float64)
-    target_features = np.asarray([row["features"] for row in request["target"]], dtype=np.float64)
-    feature_cost = np.sum(
-        ((source_features[:, None, :] - target_features[None, :, :]) / float(request["feature_scale"])) ** 2,
-        axis=2,
-    )
-    rows = len(source)
-    columns = len(target)
-    source_structure = np.asarray(request["source_structure_row_major"], dtype=np.float64).reshape(rows, rows)
-    target_structure = np.asarray(request["target_structure_row_major"], dtype=np.float64).reshape(columns, columns)
-    return (
-        source,
-        target,
-        feature_cost,
-        source_structure / float(request["structure_scale"]),
-        target_structure / float(request["structure_scale"]),
-    )
-
-
-def initial_plans(
-    source: np.ndarray,
-    target: np.ndarray,
-    feature_cost: np.ndarray,
-    source_structure: np.ndarray,
-    target_structure: np.ndarray,
-    mass: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    independent = mass * np.outer(source, target)
-    feature = mass * ot.emd(source, target, feature_cost)
-    source_profile = source_structure @ source
-    target_profile = target_structure @ target
-    profile_cost = (source_profile[:, None] - target_profile[None, :]) ** 2
-    structure = mass * ot.emd(source, target, profile_cost)
-    return independent, feature, structure
+# Rust re-serializes one JSON input file of at most 16 MiB. JSON strings never grow, and each of
+# the at most 10,304 numbers (2 x 32 masses, 64 x 128 features, 2 x 32 x 32 structure entries)
+# grows to at most 24 bytes, so a request stays below 16 MiB + 0.25 MiB + 1 KiB of fixed fields.
+MAXIMUM_REQUEST_BYTES = 17 * MIB
 
 
 def summarize(
@@ -138,7 +47,6 @@ def summarize(
     source_structure: np.ndarray,
     target_structure: np.ndarray,
 ) -> dict[str, Any]:
-    rows, columns = plan.shape
     source_marginals = np.sum(plan, axis=1)
     target_marginals = np.sum(plan, axis=0)
     transported = float(np.sum(plan))
@@ -149,14 +57,12 @@ def summarize(
         float(np.max(np.maximum(-unmatched_source, 0.0))),
         float(np.max(np.maximum(-unmatched_target, 0.0))),
     )
-    feature_objective = float(np.sum(feature_cost * plan))
-    difference = source_structure[:, None, :, None] - target_structure[None, :, None, :]
-    structural_objective = float(
-        np.sum((difference * difference) * plan[:, :, None, None] * plan[None, None, :, :])
+    feature_objective, structural_objective, entropy = fused_gromov.plan_objectives(
+        plan, feature_cost, source_structure, target_structure
     )
-    positive = plan > 0.0
-    entropy = -float(np.sum(plan[positive] * np.log(plan[positive])))
-    regularized = alpha * feature_objective + (1.0 - alpha) * structural_objective - epsilon * entropy
+    regularized = (
+        alpha * feature_objective + (1.0 - alpha) * structural_objective - epsilon * entropy
+    )
     final_change = float(errors[-1])
     return {
         "scenario": scenario,
@@ -167,15 +73,7 @@ def summarize(
         "iterations": len(errors),
         "converged": final_change <= float(request["tolerance"]),
         "final_plan_change": final_change,
-        "plan": [
-            {
-                "source_id": request["source"][index // columns]["id"],
-                "target_id": request["target"][index % columns]["id"],
-                "mass": float(value),
-                "feature_cost": float(feature_cost[index // columns, index % columns]),
-            }
-            for index, value in enumerate(plan.ravel())
-        ],
+        "plan": fused_gromov.plan_entries(request, plan, feature_cost),
         "source_marginals": source_marginals.tolist(),
         "target_marginals": target_marginals.tolist(),
         "transported_mass": transported,
@@ -203,16 +101,20 @@ def solve(
     source_structure: np.ndarray,
     target_structure: np.ndarray,
 ) -> dict[str, Any]:
+    """Fit entropic partial FGW by successive linearization from ``initial``.
+
+    Minimizes ``alpha * <C, P> + (1 - alpha) * sum_ijkl (S_ik - T_jl)^2 P_ij P_kl
+    - epsilon * H(P)`` over plans with total mass ``mass`` and marginals bounded by the source
+    and target masses. Each step solves the entropic partial transport problem for the
+    linearized cost ``alpha * C + (1 - alpha) * 2 * sum_kl (S_ik - T_jl)^2 P_kl`` (log-domain
+    Sinkhorn) and stops once the Frobenius plan change falls to the tolerance.
+    """
     plan = np.asarray(initial, dtype=np.float64)
-    structural_loss = (
-        source_structure[:, None, :, None]
-        - target_structure[None, :, None, :]
-    ) ** 2
+    structural_loss = (source_structure[:, None, :, None] - target_structure[None, :, None, :]) ** 2
+    tolerance = float(request["tolerance"])
     errors = []
     for _ in range(int(request["maximum_iterations"])):
-        structural_gradient = 2.0 * np.einsum(
-            "ijkl,kl->ij", structural_loss, plan, optimize=True
-        )
+        structural_gradient = 2.0 * np.einsum("ijkl,kl->ij", structural_loss, plan, optimize=True)
         linearized_cost = alpha * feature_cost + (1.0 - alpha) * structural_gradient
         updated = ot.partial.entropic_partial_wasserstein(
             source,
@@ -222,16 +124,20 @@ def solve(
             m=mass,
             method="sinkhorn_log",
             numItermax=1000,
-            stopThr=min(float(request["tolerance"]) / 10.0, 1e-12),
+            stopThr=min(tolerance / 10.0, 1e-12),
         )
         updated = np.asarray(updated, dtype=np.float64)
         error = float(np.linalg.norm(updated - plan))
         errors.append(error)
         plan = updated
-        if error <= float(request["tolerance"]):
+        if error <= tolerance:
             break
-    if not errors or not np.all(np.isfinite(plan)) or not all(math.isfinite(value) for value in errors):
-        raise ValueError(f"partial FGW {scenario}/{initialization} returned an incomplete fit")
+    if (
+        not errors
+        or not np.all(np.isfinite(plan))
+        or not all(math.isfinite(value) for value in errors)
+    ):
+        raise ContractError(f"partial FGW {scenario}/{initialization} returned an incomplete fit")
     return summarize(
         request,
         scenario,
@@ -249,44 +155,24 @@ def solve(
     )
 
 
-def run(raw: bytes) -> dict[str, Any]:
-    path = Path(__file__)
-    request = validate(
-        json.loads(raw),
-        hashlib.sha256(path.with_name("uv.lock").read_bytes()).hexdigest(),
-        hashlib.sha256(path.read_bytes()).hexdigest(),
-    )
-    source, target, feature_cost, source_structure, target_structure = make_problem(request)
+def run(request: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Fit the baseline from each starting plan, then one-at-a-time parameter controls.
+
+    Returns the initialization sensitivity (three starts at the requested controls) and the
+    parameter sensitivity (alpha, transported mass, and epsilon each moved down and up, from the
+    independent coupling, with the baseline in second position).
+    """
+    problem = fused_gromov.problem(request)
+    source, target = problem[0], problem[1]
     mass = float(request["transported_mass"])
     alpha = float(request["alpha"])
     epsilon = float(request["epsilon"])
-    bases = initial_plans(
-        source, target, feature_cost, source_structure, target_structure, mass
-    )
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
+    starting_plans = fused_gromov.initial_plans(*problem, mass)
+    with fused_gromov.no_solver_warnings():
         initialization_sensitivity = [
-            solve(
-                request,
-                "baseline",
-                name,
-                mass,
-                alpha,
-                epsilon,
-                initial,
-                source,
-                target,
-                feature_cost,
-                source_structure,
-                target_structure,
-            )
-            for name, initial in zip(
-                ("independent_mass", "feature_emd", "structure_profile_emd"),
-                bases,
-                strict=True,
-            )
+            solve(request, "baseline", name, mass, alpha, epsilon, initial, *problem)
+            for name, initial in zip(fused_gromov.INITIALIZATIONS, starting_plans, strict=True)
         ]
-        baseline = initialization_sensitivity[0]
         parameter_controls = [
             ("alpha_lower", mass, alpha / 2.0, epsilon),
             ("alpha_upper", mass, (1.0 + alpha) / 2.0, epsilon),
@@ -295,10 +181,10 @@ def run(raw: bytes) -> dict[str, Any]:
             ("epsilon_lower", mass, alpha, epsilon / 2.0),
             ("epsilon_upper", mass, alpha, epsilon * 2.0),
         ]
-        additional = []
+        controls = []
         for scenario, scenario_mass, scenario_alpha, scenario_epsilon in parameter_controls:
             independent = scenario_mass * np.outer(source, target)
-            additional.append(
+            controls.append(
                 solve(
                     request,
                     scenario,
@@ -307,32 +193,33 @@ def run(raw: bytes) -> dict[str, Any]:
                     scenario_alpha,
                     scenario_epsilon,
                     independent,
-                    source,
-                    target,
-                    feature_cost,
-                    source_structure,
-                    target_structure,
+                    *problem,
                 )
             )
-        parameter_sensitivity = [
-            additional[0],
-            baseline,
-            additional[1],
-            additional[2],
-            additional[3],
-            additional[4],
-            additional[5],
-        ]
-    if caught:
-        messages = "; ".join(str(item.message) for item in caught)
-        raise ValueError(f"POT emitted solver warnings: {messages}")
+    parameter_sensitivity = [controls[0], initialization_sensitivity[0], *controls[1:]]
+    return initialization_sensitivity, parameter_sensitivity
+
+
+def main() -> None:
+    require_versions(pot=ot.__version__)
+    lock_digest, worker_digest = worker_digests(__file__)
+    raw = read_request(MAXIMUM_REQUEST_BYTES)
+    request = fused_gromov.validate_request(
+        json.loads(raw),
+        request_format="marklab.pot_partial_fused_gromov_wasserstein_request",
+        extra_request_keys=("transported_mass",),
+        extra_resource_keys=("maximum_solver_fits", "feasibility_tolerance"),
+        lock_sha256=lock_digest,
+        worker_sha256=worker_digest,
+    )
+    initialization_sensitivity, parameter_sensitivity = run(request)
     best = min(initialization_sensitivity, key=lambda fit: float(fit["regularized_objective"]))
     all_fits = initialization_sensitivity + parameter_sensitivity
-    return {
+    result = {
         "format": "marklab.pot_partial_fused_gromov_wasserstein_worker_result",
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(raw).hexdigest(),
+        "request_sha256": sha256_hex(raw),
         "fit_state": "complete" if all(fit["converged"] for fit in all_fits) else "nonconverged",
         "best_initialization": best["initialization"],
         "best_plan": best["plan"],
@@ -345,17 +232,8 @@ def run(raw: bytes) -> dict[str, Any]:
         "parameter_sensitivity": parameter_sensitivity,
         "claim_status": "ensemble_descriptive_alignment_not_correspondence",
     }
-
-
-def main() -> None:
-    raw = sys.stdin.buffer.read()
-    try:
-        encoded = json.dumps(run(raw), allow_nan=False, separators=(",", ":")).encode()
-    except Exception as error:
-        print(f"partial FGW worker failed: {error}", file=sys.stderr)
-        raise SystemExit(2) from error
-    sys.stdout.buffer.write(encoded)
+    write_result(result, sort_keys=False, newline=False)
 
 
 if __name__ == "__main__":
-    main()
+    run_worker(main, "partial FGW worker failed")

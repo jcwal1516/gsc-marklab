@@ -170,6 +170,7 @@ pub enum DurableProjectError {
     #[error("system clock milliseconds exceed u64")]
     ClockOverflow,
     /// Test-only crash point interrupted the durable commit.
+    #[cfg(test)]
     #[error("injected durable project failure {stage}")]
     InjectedFailure {
         /// Interrupted lifecycle stage.

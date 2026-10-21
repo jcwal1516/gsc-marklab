@@ -3,83 +3,50 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use clap::{Parser, Subcommand};
+use clap::Args;
 use marklab::{
-    arbitrary_window_ipp_log_likelihood, ArbitraryWindowIppError, ArbitraryWindowIppEvent,
-    ArbitraryWindowIppLikelihoodResult, ArbitraryWindowIppLimits, ArbitraryWindowIppQuadratureNode,
-    ArbitraryWindowIppSpec, ObservationWindow2D, ObservationWindowLimits,
+    spatial::{
+        arbitrary_window_ipp_log_likelihood, ArbitraryWindowIppError, ArbitraryWindowIppEvent,
+        ArbitraryWindowIppLikelihoodResult, ArbitraryWindowIppLimits,
+        ArbitraryWindowIppQuadratureNode, ArbitraryWindowIppSpec,
+    },
+    ObservationWindow2D, ObservationWindowLimits,
 };
 
-use super::{publish_json, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::{publish_json, CliError, MAXIMUM_INPUT_BYTES};
 
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct ArbitraryWindowIppCli {
-    #[command(subcommand)]
-    command: ArbitraryWindowIppTopLevel,
-}
-
-#[derive(Debug, Subcommand)]
-enum ArbitraryWindowIppTopLevel {
-    Bayes {
-        #[command(subcommand)]
-        command: ArbitraryWindowIppCommand,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum ArbitraryWindowIppCommand {
-    ArbitraryWindowIppLikelihood {
-        #[arg(long)]
-        events: PathBuf,
-        #[arg(long)]
-        quadrature: PathBuf,
-        #[arg(long)]
-        window: PathBuf,
-        #[arg(long, allow_hyphen_values = true)]
-        intercept: f64,
-        #[arg(long, allow_hyphen_values = true)]
-        coefficient: f64,
-        #[arg(long)]
-        maximum_events: usize,
-        #[arg(long)]
-        maximum_quadrature_nodes: usize,
-        #[arg(long)]
-        maximum_work: usize,
-        #[arg(long, default_value_t = 16 * 1024 * 1024)]
-        maximum_retained_bytes: usize,
-        #[arg(long)]
-        out: PathBuf,
-    },
-}
-
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let ArbitraryWindowIppTopLevel::Bayes { command } =
-        ArbitraryWindowIppCli::parse_from(std::env::args_os()).command;
-    let ArbitraryWindowIppCommand::ArbitraryWindowIppLikelihood {
-        events,
-        quadrature,
-        window,
-        intercept,
-        coefficient,
-        maximum_events,
-        maximum_quadrature_nodes,
-        maximum_work,
-        maximum_retained_bytes,
-        out,
-    } = command;
-    run(
-        events,
-        quadrature,
-        window,
-        intercept,
-        coefficient,
-        maximum_events,
-        maximum_quadrature_nodes,
-        maximum_work,
-        maximum_retained_bytes,
-        out,
-    )
+#[derive(Debug, Args)]
+pub(crate) struct ArbitraryWindowIppLikelihoodArgs {
+    /// Observed point events with coordinates and model covariates.
+    #[arg(long)]
+    events: PathBuf,
+    /// Quadrature nodes, weights and covariates for spatial integration.
+    #[arg(long)]
+    quadrature: PathBuf,
+    /// Observation-window geometry used for spatial integration or edge correction.
+    #[arg(long)]
+    window: PathBuf,
+    /// Intercept on the model's linear predictor scale.
+    #[arg(long, allow_hyphen_values = true)]
+    intercept: f64,
+    /// Covariate coefficient on the model's linear predictor scale.
+    #[arg(long, allow_hyphen_values = true)]
+    coefficient: f64,
+    /// Upper bound on events.
+    #[arg(long)]
+    maximum_events: usize,
+    /// Upper bound on quadrature nodes.
+    #[arg(long)]
+    maximum_quadrature_nodes: usize,
+    /// Upper bound on work.
+    #[arg(long)]
+    maximum_work: usize,
+    /// Upper bound on retained bytes.
+    #[arg(long, default_value_t = 16 * 1024 * 1024)]
+    maximum_retained_bytes: usize,
+    /// Destination for the analysis output.
+    #[arg(long)]
+    out: PathBuf,
 }
 
 pub(crate) struct PreparedArbitraryWindowIpp {
@@ -87,56 +54,54 @@ pub(crate) struct PreparedArbitraryWindowIpp {
     pub(crate) spec: ArbitraryWindowIppSpec,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    events_path: PathBuf,
-    quadrature_path: PathBuf,
-    window_path: PathBuf,
-    intercept: f64,
-    coefficient: f64,
-    maximum_events: usize,
-    maximum_quadrature_nodes: usize,
-    maximum_work: usize,
-    maximum_retained_bytes: usize,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
-    let prepared = prepare(
-        events_path,
-        quadrature_path,
-        window_path,
+pub(super) fn run(args: ArbitraryWindowIppLikelihoodArgs) -> Result<(), CliError> {
+    let ArbitraryWindowIppLikelihoodArgs {
+        events: events_path,
+        quadrature: quadrature_path,
+        window: window_path,
         intercept,
         coefficient,
         maximum_events,
         maximum_quadrature_nodes,
         maximum_work,
         maximum_retained_bytes,
+        out: output_path,
+    } = args;
+    let prepared = prepare(
+        events_path,
+        quadrature_path,
+        window_path,
+        intercept,
+        coefficient,
+        marklab::spatial::ArbitraryWindowIppLimits {
+            maximum_events,
+            maximum_quadrature_nodes,
+            maximum_work,
+            maximum_retained_bytes,
+        },
     )?;
     let result = execute(&prepared)?;
     publish_json(&output_path, &result)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare(
     events_path: PathBuf,
     quadrature_path: PathBuf,
     window_path: PathBuf,
     intercept: f64,
     coefficient: f64,
-    maximum_events: usize,
-    maximum_quadrature_nodes: usize,
-    maximum_work: usize,
-    maximum_retained_bytes: usize,
-) -> Result<PreparedArbitraryWindowIpp, BayesCliError> {
+    limits: ArbitraryWindowIppLimits,
+) -> Result<PreparedArbitraryWindowIpp, CliError> {
     let events = read_csv::<ArbitraryWindowIppEvent>(&events_path, "events")?;
     let quadrature = read_csv::<ArbitraryWindowIppQuadratureNode>(&quadrature_path, "quadrature")?;
     validate_file(&window_path, "window")?;
-    let window_text = fs::read_to_string(&window_path).map_err(|source| BayesCliError::Io {
+    let window_text = fs::read_to_string(&window_path).map_err(|source| CliError::Io {
         path: window_path,
         source,
     })?;
     let window =
         ObservationWindow2D::from_geojson_str(&window_text, ObservationWindowLimits::default())
-            .map_err(|error| BayesCliError::Input(error.to_string()))?;
+            .map_err(|error| CliError::Input(error.to_string()))?;
     Ok(PreparedArbitraryWindowIpp {
         window,
         spec: ArbitraryWindowIppSpec {
@@ -144,51 +109,37 @@ pub(crate) fn prepare(
             quadrature,
             intercept,
             coefficient,
-            limits: ArbitraryWindowIppLimits {
-                maximum_events,
-                maximum_quadrature_nodes,
-                maximum_work,
-                maximum_retained_bytes,
-            },
+            limits,
         },
     })
 }
 
 pub(crate) fn execute(
     prepared: &PreparedArbitraryWindowIpp,
-) -> Result<ArbitraryWindowIppLikelihoodResult, BayesCliError> {
+) -> Result<ArbitraryWindowIppLikelihoodResult, CliError> {
     arbitrary_window_ipp_log_likelihood(&prepared.window, prepared.spec.clone()).map_err(map_error)
 }
 
-fn read_csv<T: serde::de::DeserializeOwned>(
-    path: &Path,
-    label: &str,
-) -> Result<Vec<T>, BayesCliError> {
+fn read_csv<T: serde::de::DeserializeOwned>(path: &Path, label: &str) -> Result<Vec<T>, CliError> {
     validate_file(path, label)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     reader
         .deserialize()
         .collect::<Result<Vec<_>, _>>()
-        .map_err(BayesCliError::Csv)
+        .map_err(CliError::Csv)
 }
 
-fn validate_file(path: &Path, label: &str) -> Result<(), BayesCliError> {
-    super::input_file::validate_regular_file(
+fn validate_file(path: &Path, label: &str) -> Result<(), CliError> {
+    crate::input_file::validate_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,
         &format!("arbitrary-window IPP {label} must be a regular file within 16 MiB"),
     )
 }
 
-fn map_error(error: ArbitraryWindowIppError) -> BayesCliError {
+fn map_error(error: ArbitraryWindowIppError) -> CliError {
     match error {
-        ArbitraryWindowIppError::Invalid(message) => BayesCliError::Input(message),
-        ArbitraryWindowIppError::Numerical(message) => BayesCliError::Backend(message),
+        ArbitraryWindowIppError::Invalid(message) => CliError::Input(message),
+        ArbitraryWindowIppError::Numerical(message) => CliError::Backend(message),
     }
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<ArbitraryWindowIppCli>(|| {
-        run_cli().map_err(super::into_marklab_error)
-    })
 }

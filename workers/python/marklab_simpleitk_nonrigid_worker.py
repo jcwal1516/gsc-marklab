@@ -1,17 +1,27 @@
 #!/usr/bin/env python3
+"""SimpleITK worker for multiresolution B-spline registration of same-stain images."""
 
 import contextlib
-import hashlib
 import io
 import json
 import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import numpy as np
 import SimpleITK as sitk
 
-
-class ContractError(Exception):
-    pass
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    ContractError,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
 
 
 def image_from_array(array, spacing):
@@ -21,10 +31,9 @@ def image_from_array(array, spacing):
 
 
 def main():
-    if sitk.Version_VersionString() != "2.5.5" or np.__version__ != "2.4.6" or sys.version_info[:2] != (3, 12):
-        raise ContractError("nonrigid backend version drift")
+    require_versions(simpleitk=sitk.Version_VersionString(), numpy=np.__version__)
     sitk.ProcessObject_SetGlobalDefaultNumberOfThreads(1)
-    request_bytes = sys.stdin.buffer.read(32 * 1024 * 1024 + 1)
+    request_bytes = read_request(32 * MIB)
     request = json.loads(request_bytes)
     if request["format"] != "marklab.simpleitk_nonrigid_request" or request["version"] != 1:
         raise ContractError("request identity mismatch")
@@ -53,8 +62,14 @@ def main():
     registration.SetInitialTransform(transform, inPlace=True)
     objective_trace = []
     level_starts = []
-    registration.AddCommand(sitk.sitkIterationEvent, lambda: objective_trace.append(float(registration.GetMetricValue())))
-    registration.AddCommand(sitk.sitkMultiResolutionIterationEvent, lambda: level_starts.append(len(objective_trace)))
+    registration.AddCommand(
+        sitk.sitkIterationEvent,
+        lambda: objective_trace.append(float(registration.GetMetricValue())),
+    )
+    registration.AddCommand(
+        sitk.sitkMultiResolutionIterationEvent,
+        lambda: level_starts.append(len(objective_trace)),
+    )
     captured = io.StringIO()
     with contextlib.redirect_stdout(captured), contextlib.redirect_stderr(captured):
         registration.Execute(fixed, moving)
@@ -76,13 +91,17 @@ def main():
     displacement_array = sitk.GetArrayFromImage(displacement).astype(float)
     mse_before = float(np.mean((fixed_array[mask] - moving_array[mask]) ** 2))
     mse_after = float(np.mean((fixed_array[mask] - warped_array[mask]) ** 2))
-    if not objective_trace or not np.isfinite(warped_array).all() or not np.isfinite(jacobian_array).all():
+    if (
+        not objective_trace
+        or not np.isfinite(warped_array).all()
+        or not np.isfinite(jacobian_array).all()
+    ):
         raise ContractError("nonrigid registration returned incomplete or non-finite output")
     result = {
         "format": "marklab.multiresolution_nonrigid_registration",
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "request_sha256": sha256_hex(request_bytes),
         "fixed_frame": request["fixed"]["frame"],
         "moving_frame": request["moving"]["frame"],
         "transform": {
@@ -113,13 +132,12 @@ def main():
         "fit_state": "complete" if mse_after < mse_before else "nonconverged",
         "claim_status": "experimental_synthetic_nonrigid_registration",
     }
-    json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    sys.stdout.write("\n")
+    write_result(result)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, RuntimeError, json.JSONDecodeError) as error:
-        print(f"nonrigid registration worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(
+        main,
+        "nonrigid registration worker contract error",
+        errors=(*CONTRACT_ERRORS, RuntimeError),
+    )

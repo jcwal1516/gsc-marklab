@@ -1,11 +1,23 @@
+use marklab_numerics::{dense, kernel::matern32};
 use serde::Serialize;
 use thiserror::Error;
 
 use crate::{
-    inhomogeneous_poisson::validate_and_canonicalize, linalg, InhomogeneousPoissonEvent,
+    inhomogeneous_poisson::validate_and_canonicalize, InhomogeneousPoissonEvent,
     InhomogeneousPoissonSpec, MidpointQuadratureValue, RectangularWindow,
 };
+use marklab_core::backend::ModelMaturity;
 
+/// Construct the fixed-covariance gridded log-Gaussian Cox-process model.
+///
+/// The fitting worker used by `GriddedLgcpFitSpec` has `count_k ~ Poisson(A * exp(alpha +
+/// beta * x_k + offset_k + u_k))` for cell area `A`. Independent priors are `alpha ~
+/// Normal(intercept_prior_mean, intercept_prior_sd)` and `beta ~
+/// Normal(coefficient_prior_mean, coefficient_prior_sd)`. The field is `u = L z`, with `z ~
+/// Normal(0, I)` and fixed `L = chol(K)` from the cell-midpoint Matérn-3/2 kernel, amplitude
+/// squared, and diagonal jitter. This specification builds cells and covariance; it does not
+/// itself sample a posterior or infer the kernel parameters.
+///
 #[derive(Clone, Debug)]
 pub struct GriddedLgcpSpec {
     pub window: RectangularWindow,
@@ -40,7 +52,7 @@ pub struct GriddedLgcpModelIr {
     pub field_length_scale_um: f64,
     pub jitter: f64,
     pub likelihood: &'static str,
-    pub maturity: &'static str,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -152,8 +164,7 @@ pub fn build_gridded_lgcp(spec: GriddedLgcpSpec) -> Result<GriddedLgcpModel, Gri
             let dx = cells[row].midpoint_x_um - cells[column].midpoint_x_um;
             let dy = cells[row].midpoint_y_um - cells[column].midpoint_y_um;
             let distance = dx.hypot(dy);
-            let scaled = 3.0_f64.sqrt() * distance / spec.field_length_scale_um;
-            let mut value = spec.field_amplitude.powi(2) * (1.0 + scaled) * (-scaled).exp();
+            let mut value = matern32(distance, spec.field_amplitude, spec.field_length_scale_um);
             if row == column {
                 value += spec.jitter;
             }
@@ -165,7 +176,7 @@ pub fn build_gridded_lgcp(spec: GriddedLgcpSpec) -> Result<GriddedLgcpModel, Gri
             covariance[row * dimension + column] = value;
         }
     }
-    let field_cholesky = linalg::cholesky(&covariance, dimension).ok_or_else(|| {
+    let field_cholesky = dense::cholesky(&covariance, dimension).ok_or_else(|| {
         GriddedLgcpError::Numerical("LGCP field covariance is not positive definite".into())
     })?;
     Ok(GriddedLgcpModel {
@@ -186,7 +197,7 @@ pub fn build_gridded_lgcp(spec: GriddedLgcpSpec) -> Result<GriddedLgcpModel, Gri
             field_length_scale_um: spec.field_length_scale_um,
             jitter: spec.jitter,
             likelihood: "poisson_cell_area_exp_fixed_plus_latent_log_intensity",
-            maturity: "experimental_model_construction",
+            maturity: ModelMaturity::ExperimentalModelConstruction,
         },
         window: validated.window,
         grid_x: validated.grid_x,

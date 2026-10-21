@@ -1,82 +1,82 @@
 #!/usr/bin/env python3
-"""Static SciPy worker for exact conjugate Normal prior sensitivity."""
+"""SciPy worker for exact conjugate normal-mean prior sensitivity."""
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import scipy
 from scipy import stats
 
-BACKEND_VERSION = "scipy-1.18.1"
+sys.path.append(str(Path(__file__).resolve().parent))
 
+from marklab_worker_support import versions
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    backend_identity,
+    exact,
+    integer,
+    number,
+    obj,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    validate_backend,
+    worker_digests,
+    write_result,
+)
 
-class ContractError(ValueError):
-    pass
-
-
-def obj(value: Any, keys: set[str], path: str) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != keys:
-        actual = set(value) if isinstance(value, dict) else set()
-        raise ContractError(
-            f"{path} fields differ: missing={sorted(keys - actual)}, unknown={sorted(actual - keys)}"
-        )
-    return value
-
-
-def number(value: Any, path: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ContractError(f"{path} must be numeric")
-    result = float(value)
-    if not math.isfinite(result):
-        raise ContractError(f"{path} must be finite")
-    return result
-
-
-def integer(value: Any, path: str, low: int, high: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
-        raise ContractError(f"{path} must be an integer in [{low}, {high}]")
-    return value
-
-
-def exact(value: Any, expected: Any, path: str) -> None:
-    if value != expected:
-        raise ContractError(f"{path} must equal {expected!r}")
+BACKEND_VERSION = f"scipy-{versions.SCIPY}"
+MODEL_KEYS = {
+    "format",
+    "version",
+    "family",
+    "likelihood",
+    "known_sigma",
+    "posterior_method",
+    "predictive_method",
+    "decision_quantity",
+    "decision_threshold",
+    "decision_probability_threshold",
+    "material_mean_shift",
+    "backend_capability",
+    "maturity",
+}
 
 
 def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, Any]:
     request = obj(
         request,
-        {"format", "version", "backend", "model", "observations", "priors", "base_prior", "resources"},
+        {
+            "format",
+            "version",
+            "backend",
+            "model",
+            "observations",
+            "priors",
+            "base_prior",
+            "resources",
+        },
         "request",
     )
     exact(request["format"], "marklab.pymc_worker_request", "request.format")
     integer(request["version"], "request.version", 1, 1)
-    backend = obj(
+    validate_backend(
         request["backend"],
-        {"name", "version", "python_version", "environment_lock_sha256", "worker_sha256"},
         "backend",
+        name="scipy",
+        version=BACKEND_VERSION,
+        lock_sha256=lock_digest,
+        worker_sha256=worker_digest,
     )
-    exact(backend["name"], "scipy", "backend.name")
-    exact(backend["version"], BACKEND_VERSION, "backend.version")
-    exact(backend["python_version"], "3.12", "backend.python")
-    exact(backend["environment_lock_sha256"], lock_digest, "backend.lock")
-    exact(backend["worker_sha256"], worker_digest, "backend.worker")
-    model = obj(
-        request["model"],
-        {
-            "format", "version", "family", "likelihood", "known_sigma", "posterior_method",
-            "predictive_method", "decision_quantity", "decision_threshold",
-            "decision_probability_threshold", "material_mean_shift", "backend_capability", "maturity",
-        },
-        "model",
-    )
+    model = obj(request["model"], MODEL_KEYS, "model")
     exact(model["format"], "marklab.bayesian_model_ir", "model.format")
     integer(model["version"], "model.version", 1, 1)
     exact(model["family"], "normal_mean_known_sigma", "model.family")
@@ -96,11 +96,7 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     material_shift = number(model["material_mean_shift"], "model.material_shift")
     exact(model["backend_capability"], "prior_sensitivity", "model.capability")
     exact(model["maturity"], "experimental_sensitivity", "model.maturity")
-    if (
-        known_sigma <= 0.0
-        or not 0.5 < probability_threshold < 1.0
-        or material_shift <= 0.0
-    ):
+    if known_sigma <= 0.0 or not 0.5 < probability_threshold < 1.0 or material_shift <= 0.0:
         raise ContractError("model controls are invalid")
     observations_raw = request["observations"]
     if not isinstance(observations_raw, list) or not 2 <= len(observations_raw) <= 100_000:
@@ -133,10 +129,19 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
         raise ContractError("base prior must name one prior")
     resources = obj(
         request["resources"],
-        {"maximum_observations", "maximum_priors", "maximum_work_units", "maximum_output_bytes", "timeout_seconds"},
+        {
+            "maximum_observations",
+            "maximum_priors",
+            "maximum_work_units",
+            "maximum_output_bytes",
+            "timeout_seconds",
+        },
         "resources",
     )
-    if len(observations) > integer(resources["maximum_observations"], "resources.observations", 1, 100_000):
+    maximum_observations = integer(
+        resources["maximum_observations"], "resources.observations", 1, 100_000
+    )
+    if len(observations) > maximum_observations:
         raise ContractError("observation limit exceeded")
     if len(priors) > integer(resources["maximum_priors"], "resources.priors", 1, 32):
         raise ContractError("prior limit exceeded")
@@ -158,12 +163,16 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
 
 
 def summarize(config: dict[str, Any], prior: dict[str, Any]) -> dict[str, Any]:
+    """Exact conjugate posterior and leave-one-out predictive score under one prior.
+
+    Model: ``y_i ~ Normal(mu, known_sigma)`` with ``mu ~ Normal(prior_mean, prior_sd)``. Reports
+    the posterior mean and SD, ``P(mu > decision_threshold)`` and the resulting decision, and the
+    exact leave-one-out log predictive density.
+    """
     observations = config["observations"]
     prior_variance = prior["prior_sd"] ** 2
     observation_variance = config["known_sigma"] ** 2
-    posterior_variance = 1.0 / (
-        1.0 / prior_variance + len(observations) / observation_variance
-    )
+    posterior_variance = 1.0 / (1.0 / prior_variance + len(observations) / observation_variance)
     posterior_mean = posterior_variance * (
         prior["prior_mean"] / prior_variance + observations.sum() / observation_variance
     )
@@ -221,13 +230,7 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
     return {
         "format": "marklab.scipy_prior_sensitivity_worker_result",
         "version": 1,
-        "backend": {
-            "name": "scipy",
-            "version": BACKEND_VERSION,
-            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
-            "environment_lock_sha256": lock_sha,
-            "worker_sha256": worker_sha,
-        },
+        "backend": backend_identity("scipy", BACKEND_VERSION, lock_sha, worker_sha),
         "request_sha256": request_sha,
         "observation_count": len(config["observations"]),
         "observed_mean": float(config["observations"].mean()),
@@ -238,23 +241,12 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
 
 
 def main() -> None:
-    if scipy.__version__ != "1.18.1" or sys.version_info[:2] != (3, 12):
-        raise ContractError("SciPy or Python version drift")
-    script = Path(__file__)
-    lock_sha = hashlib.sha256(script.with_name("uv.lock").read_bytes()).hexdigest()
-    worker_sha = hashlib.sha256(script.read_bytes()).hexdigest()
-    raw = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
-    if len(raw) > 16 * 1024 * 1024:
-        raise ContractError("request exceeds 16 MiB")
-    request_sha = hashlib.sha256(raw).hexdigest()
-    result = fit(validate(json.loads(raw), lock_sha, worker_sha), request_sha, lock_sha, worker_sha)
-    sys.stdout.write(json.dumps(result, allow_nan=False, sort_keys=True, separators=(",", ":")))
-    sys.stdout.write("\n")
+    require_versions(scipy=scipy.__version__)
+    lock_sha, worker_sha = worker_digests(__file__)
+    raw = read_request(16 * MIB)
+    config = validate(json.loads(raw), lock_sha, worker_sha)
+    write_result(fit(config, sha256_hex(raw), lock_sha, worker_sha))
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as error:
-        print(f"marklab prior-sensitivity worker failed: {type(error).__name__}: {error}", file=sys.stderr)
-        raise SystemExit(2) from error
+    run_worker(main, "marklab prior-sensitivity worker failed")

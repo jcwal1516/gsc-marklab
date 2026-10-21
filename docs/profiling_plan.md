@@ -1,18 +1,9 @@
 # Profiling
 
-Commands for measuring where `marklab analyze` spends time and memory. They match what
-`marklab profile-plan` prints. No sample data is included: supply your own representative,
-non-patient cell table and mask. The commands below call them `representative`.
-
-## Example workload
-
-```bash
-marklab analyze \
-  --cells /data/representative.parquet \
-  --mask /data/representative.geojson \
-  --config /opt/marklab/examples/config.toml \
-  --out /work/out/profile_run
-```
+Commands for measuring where `marklab analyze` spends time and memory. This is the plan that
+`marklab profile-plan --workload representative --out profiling_plan.md` writes. No sample data is
+included: put your own representative, non-patient cell table and mask at
+`fixtures/representative.parquet` and `fixtures/representative.geojson`.
 
 ## Samply
 
@@ -61,4 +52,8 @@ cargo bench --bench periodogram
 cargo bench --bench multiscale_residual
 cargo bench --bench random_labeling_envelope
 cargo bench --bench pattern_load
+cargo bench --bench spatial_stages
+cargo bench --bench cohort_hierarchy
+cargo bench --bench cell_embeddings
+cargo bench --bench patch_embeddings
 ```

@@ -1,4 +1,6 @@
-use crate::{linalg, BayesError};
+use marklab_numerics::dense;
+
+use crate::BayesError;
 
 use super::DistanceToResourceSpec;
 
@@ -28,32 +30,20 @@ pub(super) fn posterior(
             }
         }
     }
-    let cholesky = linalg::cholesky(&precision, dimension).ok_or_else(|| {
+    let cholesky = dense::cholesky(&precision, dimension).ok_or_else(|| {
         BayesError::InvalidSpec("distance posterior precision is not positive definite".into())
     })?;
-    let mean = solve_cholesky(&cholesky, &right, dimension);
+    let mean = dense::cholesky_solve(&cholesky, dimension, &right);
     let mut covariance = vec![0.0; dimension * dimension];
     for column in 0..dimension {
         let mut unit = vec![0.0; dimension];
         unit[column] = 1.0;
-        let solution = solve_cholesky(&cholesky, &unit, dimension);
+        let solution = dense::cholesky_solve(&cholesky, dimension, &unit);
         for row in 0..dimension {
             covariance[row * dimension + column] = solution[row];
         }
     }
     Ok((mean, covariance))
-}
-
-fn solve_cholesky(lower: &[f64], right: &[f64], dimension: usize) -> Vec<f64> {
-    let intermediate = linalg::solve_lower_dot(lower, dimension, right);
-    let mut result = vec![0.0; dimension];
-    for row in (0..dimension).rev() {
-        let prior = (row + 1..dimension)
-            .map(|column| lower[column * dimension + row] * result[column])
-            .sum::<f64>();
-        result[row] = (intermediate[row] - prior) / lower[row * dimension + row];
-    }
-    result
 }
 
 pub(super) fn linear_summary(values: &[f64], mean: &[f64], covariance: &[f64]) -> (f64, f64) {

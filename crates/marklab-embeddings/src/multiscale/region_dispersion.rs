@@ -178,7 +178,6 @@ pub enum PatchRegionEmbeddingDispersionError {
 ///
 /// Returns a typed error when a provenance variant or exact artifact binding disagrees, a count
 /// overflows, or the conservative component-operation bound exceeds the caller's maximum.
-#[allow(clippy::too_many_arguments)]
 pub fn patch_region_embedding_dispersion(
     source_table: &PatchEmbeddingTable,
     link: &PatchRegionLink,

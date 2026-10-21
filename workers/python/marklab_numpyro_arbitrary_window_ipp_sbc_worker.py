@@ -3,69 +3,56 @@
 
 from __future__ import annotations
 
-import hashlib
-import importlib.util
 import json
 import math
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
 import arviz as az
 import jax
 
 jax.config.update("jax_enable_x64", True)
+
 import jax.numpy as jnp
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
 from numpyro.infer import MCMC, NUTS
 
+sys.path.append(str(Path(__file__).resolve().parent))
+
+import marklab_pymc_inhomogeneous_poisson_worker as pymc_contract
+from marklab_worker_support import versions
+from marklab_worker_support.diagnostics import divergence_count
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    backend_identity,
+    derive_seed,
+    exact,
+    file_sha256,
+    integer,
+    obj,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    validate_backend,
+    worker_digests,
+    write_result,
+)
+from marklab_worker_support.sbc import rank_and_coverage
 
 REQUEST_FORMAT = "marklab.numpyro_arbitrary_window_ipp_sbc_request"
 RESULT_FORMAT = "marklab.arbitrary_window_ipp_sbc"
-NUMPYRO_VERSION = "0.21.0"
-JAX_VERSION = "0.11.1"
-
-
-class ContractError(ValueError):
-    pass
-
-
-def exact_object(value: Any, keys: set[str], path: str) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != keys:
-        actual = set(value) if isinstance(value, dict) else set()
-        raise ContractError(
-            f"{path} fields differ: missing={sorted(keys - actual)}, unknown={sorted(actual - keys)}"
-        )
-    return value
-
-
-def exact(value: Any, expected: Any, path: str) -> None:
-    if value != expected:
-        raise ContractError(f"{path} must equal {expected!r}")
-
-
-def integer(value: Any, path: str, low: int, high: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
-        raise ContractError(f"{path} must be an integer in [{low},{high}]")
-    return value
-
-
-def load_pymc_contract() -> Any:
-    path = Path(__file__).with_name("marklab_pymc_inhomogeneous_poisson_worker.py")
-    specification = importlib.util.spec_from_file_location("marklab_pymc_ipp_contract", path)
-    if specification is None or specification.loader is None:
-        raise ContractError("cannot load the PyMC IPP contract")
-    module = importlib.util.module_from_spec(specification)
-    specification.loader.exec_module(module)
-    return module
+SBC_PARAMETERS = ("intercept", "coefficient", "total_expected_count")
 
 
 def validate(
     request: Any, lock_digest: str, worker_digest: str, pymc_worker_digest: str
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    request = exact_object(
+    request = obj(
         request,
         {
             "format",
@@ -82,20 +69,16 @@ def validate(
     )
     exact(request["format"], REQUEST_FORMAT, "request.format")
     exact(request["version"], 1, "request.version")
-    backend = exact_object(
+    validate_backend(
         request["backend"],
-        {"name", "version", "python_version", "environment_lock_sha256", "worker_sha256"},
         "backend",
+        name="numpyro",
+        version=versions.NUMPYRO,
+        lock_sha256=lock_digest,
+        worker_sha256=worker_digest,
     )
-    exact(backend["name"], "numpyro", "backend.name")
-    exact(backend["version"], NUMPYRO_VERSION, "backend.version")
-    exact(backend["python_version"], "3.12", "backend.python")
-    exact(backend["environment_lock_sha256"], lock_digest, "backend.lock")
-    exact(backend["worker_sha256"], worker_digest, "backend.worker")
-    exact(request["jax_version"], JAX_VERSION, "request.jax_version")
-    config = load_pymc_contract().validate(
-        request["source_request"], lock_digest, pymc_worker_digest
-    )
+    exact(request["jax_version"], versions.JAX, "request.jax_version")
+    config = pymc_contract.validate(request["source_request"], lock_digest, pymc_worker_digest)
     replicates = integer(request["replicates"], "replicates", 20, 100)
     maximum_generated_count = integer(
         request["maximum_generated_count"], "maximum_generated_count", 1, 10_000_000
@@ -121,10 +104,7 @@ def validate(
 
 
 def seed_for(seed: int, purpose: str, replicate: int) -> int:
-    digest = hashlib.sha256(
-        f"marklab-numpyro-arbitrary-window-ipp-sbc-v1\0{seed}\0{purpose}\0{replicate}".encode()
-    ).digest()
-    return int.from_bytes(digest[:4], "little")
+    return derive_seed("marklab-numpyro-arbitrary-window-ipp-sbc-v1", seed, purpose, replicate)
 
 
 def model(
@@ -137,6 +117,12 @@ def model(
     coefficient_mean: float,
     coefficient_sd: float,
 ) -> None:
+    """Gridded Poisson approximation of the log-linear IPP used to refit SBC replicates.
+
+    Likelihood: ``n_k ~ Poisson(A * exp(alpha + beta * covariate_k + offset_k))`` for each
+    quadrature node of area ``A``. Priors: ``alpha ~ Normal(intercept_mean, intercept_sd)`` and
+    ``beta ~ Normal(coefficient_mean, coefficient_sd)``.
+    """
     intercept = numpyro.sample("intercept", dist.Normal(intercept_mean, intercept_sd))
     coefficient = numpyro.sample("coefficient", dist.Normal(coefficient_mean, coefficient_sd))
     expected = cell_area * jnp.exp(intercept + coefficient * covariate + offset)
@@ -144,6 +130,8 @@ def model(
 
 
 def calibration(values: list[dict[str, Any]], name: str, draws: int) -> dict[str, Any]:
+    """Accept a parameter when its mean normalized rank is in [0.25, 0.75] and its 90%
+    coverage is in [0.65, 1]."""
     if not values:
         return {
             "replicates": 0,
@@ -172,6 +160,7 @@ def run_sbc(
     lock_digest: str,
     worker_digest: str,
 ) -> dict[str, Any]:
+    """Draw intercept and coefficient from their priors, simulate node counts, and refit."""
     completed: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
     covariate = np.asarray(config["grid_covariate"], dtype=np.float64)
@@ -193,9 +182,7 @@ def run_sbc(
                 {
                     "replicate": replicate,
                     "reason": "generated_count_resource_ceiling",
-                    "true_total_expected_count": (
-                        true_total if math.isfinite(true_total) else None
-                    ),
+                    "true_total_expected_count": true_total if math.isfinite(true_total) else None,
                 }
             )
             continue
@@ -240,51 +227,63 @@ def run_sbc(
         }
         intercept = samples["intercept"]
         coefficient = samples["coefficient"]
-        total = (
-            config["cell_area"]
-            * np.exp(
-                intercept[:, None] + coefficient[:, None] * covariate + offset
-            )
-        ).sum(axis=1)
+        node_expected = config["cell_area"] * np.exp(
+            intercept[:, None] + coefficient[:, None] * covariate + offset
+        )
+        total = node_expected.sum(axis=1)
+        chain_shape = (config["chains"], config["draws"])
         posterior = az.from_dict(
-            {"posterior": {
-                "intercept": intercept.reshape(config["chains"], config["draws"]),
-                "coefficient": coefficient.reshape(config["chains"], config["draws"]),
-            }}
-        )
-        r_hat = float(
-            max(
-                np.asarray(az.rhat(posterior)["intercept"]).item(),
-                np.asarray(az.rhat(posterior)["coefficient"]).item(),
-            )
-        )
-        divergences = int(np.asarray(sampler.get_extra_fields()["diverging"]).sum())
-        if not np.isfinite(intercept).all() or not np.isfinite(coefficient).all() or not np.isfinite(total).all():
-            failures.append(
-                {"replicate": replicate, "reason": "non_finite_posterior", "true_total_expected_count": true_total}
-            )
-            continue
-        completed.append(
             {
-                "replicate": replicate,
-                "true_intercept": true_intercept,
-                "true_coefficient": true_coefficient,
-                "true_total_expected_count": true_total,
-                "realized_total_count": int(counts.sum()),
-                "intercept_rank": int(np.count_nonzero(intercept < true_intercept)),
-                "coefficient_rank": int(np.count_nonzero(coefficient < true_coefficient)),
-                "total_expected_count_rank": int(np.count_nonzero(total < true_total)),
-                "intercept_covered_90": bool(np.quantile(intercept, 0.05) <= true_intercept <= np.quantile(intercept, 0.95)),
-                "coefficient_covered_90": bool(np.quantile(coefficient, 0.05) <= true_coefficient <= np.quantile(coefficient, 0.95)),
-                "total_expected_count_covered_90": bool(np.quantile(total, 0.05) <= true_total <= np.quantile(total, 0.95)),
-                "r_hat": r_hat,
-                "divergences": divergences,
+                "posterior": {
+                    "intercept": intercept.reshape(chain_shape),
+                    "coefficient": coefficient.reshape(chain_shape),
+                }
             }
         )
-    draws = config["chains"] * config["draws"]
+        r_hat_values = az.rhat(posterior)
+        r_hat = float(
+            max(
+                np.asarray(r_hat_values["intercept"]).item(),
+                np.asarray(r_hat_values["coefficient"]).item(),
+            )
+        )
+        divergences = divergence_count(sampler.get_extra_fields()["diverging"])
+        if (
+            not np.isfinite(intercept).all()
+            or not np.isfinite(coefficient).all()
+            or not np.isfinite(total).all()
+        ):
+            failures.append(
+                {
+                    "replicate": replicate,
+                    "reason": "non_finite_posterior",
+                    "true_total_expected_count": true_total,
+                }
+            )
+            continue
+        truths = {
+            "intercept": true_intercept,
+            "coefficient": true_coefficient,
+            "total_expected_count": true_total,
+        }
+        draws = {"intercept": intercept, "coefficient": coefficient, "total_expected_count": total}
+        row: dict[str, Any] = {
+            "replicate": replicate,
+            "true_intercept": true_intercept,
+            "true_coefficient": true_coefficient,
+            "true_total_expected_count": true_total,
+            "realized_total_count": int(counts.sum()),
+            "r_hat": r_hat,
+            "divergences": divergences,
+        }
+        for name in SBC_PARAMETERS:
+            row[f"{name}_rank"], row[f"{name}_covered_90"] = rank_and_coverage(
+                draws[name], truths[name]
+            )
+        completed.append(row)
+    posterior_draws = config["chains"] * config["draws"]
     calibration_results = {
-        name: calibration(completed, name, draws)
-        for name in ("intercept", "coefficient", "total_expected_count")
+        name: calibration(completed, name, posterior_draws) for name in SBC_PARAMETERS
     }
     accepted = (
         not failures
@@ -295,13 +294,7 @@ def run_sbc(
     return {
         "format": RESULT_FORMAT,
         "version": 1,
-        "backend": {
-            "name": "numpyro",
-            "version": numpyro.__version__,
-            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
-            "environment_lock_sha256": lock_digest,
-            "worker_sha256": worker_digest,
-        },
+        "backend": backend_identity("numpyro", numpyro.__version__, lock_digest, worker_digest),
         "jax_version": jax.__version__,
         "request_sha256": request_sha256,
         "source_request_sha256": source_request_sha256,
@@ -319,42 +312,20 @@ def run_sbc(
 
 
 def main() -> None:
-    if (
-        numpyro.__version__ != NUMPYRO_VERSION
-        or jax.__version__ != JAX_VERSION
-        or sys.version_info[:2] != (3, 12)
-    ):
-        raise ContractError("NumPyro, JAX, or Python version drift")
-    script = Path(__file__)
-    lock_digest = hashlib.sha256(script.with_name("uv.lock").read_bytes()).hexdigest()
-    worker_digest = hashlib.sha256(script.read_bytes()).hexdigest()
-    pymc_worker_digest = hashlib.sha256(
-        script.with_name("marklab_pymc_inhomogeneous_poisson_worker.py").read_bytes()
-    ).hexdigest()
-    raw = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
-    if len(raw) > 16 * 1024 * 1024:
-        raise ContractError("request exceeds 16 MiB")
-    request_sha256 = hashlib.sha256(raw).hexdigest()
-    request, config = validate(
-        json.loads(raw), lock_digest, worker_digest, pymc_worker_digest
-    )
+    require_versions(numpyro=numpyro.__version__, jax=jax.__version__)
+    lock_digest, worker_digest = worker_digests(__file__)
+    pymc_worker_digest = file_sha256(pymc_contract.__file__)
+    raw = read_request(16 * MIB)
+    request, config = validate(json.loads(raw), lock_digest, worker_digest, pymc_worker_digest)
     result = run_sbc(
         config,
-        request_sha256,
+        sha256_hex(raw),
         request["source_request_sha256"],
         lock_digest,
         worker_digest,
     )
-    sys.stdout.write(json.dumps(result, allow_nan=False, sort_keys=True, separators=(",", ":")))
-    sys.stdout.write("\n")
+    write_result(result)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as error:
-        print(
-            f"marklab NumPyro arbitrary-window IPP SBC failed: {type(error).__name__}: {error}",
-            file=sys.stderr,
-        )
-        raise SystemExit(2) from error
+    run_worker(main, "marklab NumPyro arbitrary-window IPP SBC failed")

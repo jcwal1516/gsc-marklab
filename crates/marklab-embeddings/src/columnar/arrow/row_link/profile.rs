@@ -6,7 +6,7 @@ use arrow_ipc::Type;
 use crate::CellEmbeddingRowLink;
 
 use super::super::{
-    super::super::{ArrowIpcFailure, EmbeddingColumnarError},
+    super::super::{ArrowIpcFailure, ColumnarError},
     profile::{arrow_failure, validate_utf8_field},
 };
 
@@ -27,9 +27,7 @@ pub(super) const METADATA_KEYS: [&str; 9] = [
     "marklab.source_vectors_artifact_id",
 ];
 
-pub(super) fn row_link_schema(
-    row_link: &CellEmbeddingRowLink,
-) -> Result<Schema, EmbeddingColumnarError> {
+pub(super) fn row_link_schema(row_link: &CellEmbeddingRowLink) -> Result<Schema, ColumnarError> {
     let values = metadata_values(row_link);
     let metadata = METADATA_KEYS
         .iter()
@@ -49,7 +47,7 @@ pub(super) fn row_link_schema(
 pub(super) fn validate_flatbuffer_schema(
     schema: arrow_ipc::Schema<'_>,
     row_link: &CellEmbeddingRowLink,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     if schema.endianness() != arrow_ipc::Endianness::Little
         || schema
             .features()
@@ -74,7 +72,7 @@ fn validate_u64_field(
     field: arrow_ipc::Field<'_>,
     name: &str,
     nullable: bool,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     let integer = field.type_as_int();
     if field.name() != Some(name)
         || field.nullable() != nullable
@@ -98,7 +96,7 @@ fn validate_metadata(
         flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<arrow_ipc::KeyValue<'_>>>,
     >,
     row_link: &CellEmbeddingRowLink,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     let metadata =
         metadata.ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata))?;
     if metadata.len() != METADATA_KEYS.len() {
@@ -116,7 +114,7 @@ fn validate_metadata(
         total_bytes = total_bytes
             .checked_add(observed_key.len())
             .and_then(|total| total.checked_add(observed_value.len()))
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         if observed_key != key || observed_value != value {
             return Err(arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata));
         }
@@ -146,10 +144,8 @@ pub(super) fn validate_nullable_bitmap(
     row_link: &CellEmbeddingRowLink,
     start: usize,
     rows: usize,
-) -> Result<(), EmbeddingColumnarError> {
-    let end = start
-        .checked_add(rows)
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+) -> Result<(), ColumnarError> {
+    let end = start.checked_add(rows).ok_or(ColumnarError::SizeOverflow)?;
     let entries = row_link
         .entries()
         .get(start..end)
@@ -160,7 +156,7 @@ pub(super) fn validate_nullable_bitmap(
             let local_row = byte_index
                 .checked_mul(8)
                 .and_then(|value| value.checked_add(bit))
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
             if local_row < rows
                 && entries
                     .get(local_row)

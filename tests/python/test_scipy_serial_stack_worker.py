@@ -1,11 +1,10 @@
 import json
-from pathlib import Path
 import subprocess
 import sys
 import unittest
+from pathlib import Path
 
 import numpy as np
-
 
 WORKER = (
     Path(__file__).resolve().parents[2]
@@ -35,8 +34,7 @@ class SerialStackPosteriorTest(unittest.TestCase):
         completed = subprocess.run(
             [sys.executable, str(WORKER)],
             input=json.dumps(request).encode(),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             check=True,
         )
         result = json.loads(completed.stdout)

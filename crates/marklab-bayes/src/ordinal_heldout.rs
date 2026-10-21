@@ -1,4 +1,5 @@
 use crate::{BayesError, OrdinalGroupSitePatientData};
+use marklab_core::vocabulary::StatisticalUnit;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -25,7 +26,7 @@ pub struct OrdinalSiteFoldScore {
 pub struct OrdinalSiteHeldoutComparison {
     pub format: String,
     pub version: u32,
-    pub statistical_unit: String,
+    pub statistical_unit: StatisticalUnit,
     pub heldout_unit: String,
     pub null: String,
     pub assumptions: Vec<String>,
@@ -54,7 +55,7 @@ impl OrdinalSiteHeldoutComparison {
             .collect::<BTreeSet<_>>();
         self.format == "marklab.ordinal_site_heldout_comparison"
             && self.version == 1
-            && self.statistical_unit == "patient"
+            && self.statistical_unit == StatisticalUnit::Patient
             && self.heldout_unit == "entire_site"
             && self.reference_group == spec.reference_group
             && self.comparison_group == spec.comparison_group
@@ -214,7 +215,7 @@ pub fn ordinal_site_heldout_comparison(
     Ok(OrdinalSiteHeldoutComparison {
         format: "marklab.ordinal_site_heldout_comparison".into(),
         version: 1,
-        statistical_unit: "patient".into(),
+        statistical_unit: StatisticalUnit::Patient,
         heldout_unit: "entire_site".into(),
         null: "nonproportional ordinal probabilities do not improve heldout patient log score"
             .into(),

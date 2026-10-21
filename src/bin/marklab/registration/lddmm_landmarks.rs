@@ -1,11 +1,15 @@
+use marklab_bayes::is_worker_timeout;
 use std::{collections::HashSet, path::PathBuf};
 
 use marklab_topology::sha256_hex;
 use serde::Deserialize;
 
-use super::super::topology::{
-    publish_json, read_input, read_required, run_worker, TopologyCliError,
-};
+use super::super::topology::{publish_json, read_input, read_required, run_worker};
+use crate::cli_error::CliError;
+use marklab_bayes::backend_versions::JAX_VERSION;
+use marklab_bayes::backend_versions::NUMPY_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_bayes::backend_versions::SCIPY_VERSION;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -21,11 +25,11 @@ struct LddmmLandmarkSpec {
     maximum_iterations: usize,
     timeout_seconds: u64,
 }
-pub(super) fn run_lddmm_landmarks(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+pub(super) fn run_lddmm_landmarks(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let spec: LddmmLandmarkSpec = serde_json::from_slice(&bytes)?;
     validate_lddmm_landmarks(&spec)?;
-    let repository = marklab::python_backend_assets_root()?;
+    let repository = marklab::backend::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_jax_lddmm_landmark_worker.py");
     let lock = read_required(&lock_path)?;
@@ -35,10 +39,10 @@ pub(super) fn run_lddmm_landmarks(input: PathBuf, out: PathBuf) -> Result<(), To
         "version": 1,
         "backend": {
             "name": "jax_scipy_landmark_lddmm",
-            "jax_version": "0.11.1",
-            "scipy_version": "1.18.1",
-            "numpy_version": "2.4.6",
-            "python_version": "3.12",
+            "jax_version": JAX_VERSION,
+            "scipy_version": SCIPY_VERSION,
+            "numpy_version": NUMPY_VERSION,
+            "python_version": PYTHON_VERSION,
             "license": "Apache-2.0_plus_BSD-3-Clause",
             "environment_lock_sha256": sha256_hex(&lock),
             "worker_sha256": sha256_hex(&worker)
@@ -66,14 +70,14 @@ pub(super) fn run_lddmm_landmarks(input: PathBuf, out: PathBuf) -> Result<(), To
         || result["request_sha256"] != sha256_hex(&request_bytes)
         || result["claim_status"] != "experimental_synthetic_landmark_lddmm"
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "LDDMM landmark result identity mismatch".into(),
         ));
     }
     publish_json(&out, &result)
 }
 
-fn validate_lddmm_landmarks(spec: &LddmmLandmarkSpec) -> Result<(), TopologyCliError> {
+fn validate_lddmm_landmarks(spec: &LddmmLandmarkSpec) -> Result<(), CliError> {
     let unique_points = |points: &[[f64; 2]]| {
         let mut unique = HashSet::new();
         points.iter().all(|point| {
@@ -97,9 +101,9 @@ fn validate_lddmm_landmarks(spec: &LddmmLandmarkSpec) -> Result<(), TopologyCliE
         || spec.data_weight <= 0.0
         || !(8..=256).contains(&spec.time_steps)
         || !(10..=2_000).contains(&spec.maximum_iterations)
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "landmark LDDMM requires unique paired physical landmarks/frames, a positive Gaussian kernel/data weight, and bounded shooting controls"
                 .into(),
         ));

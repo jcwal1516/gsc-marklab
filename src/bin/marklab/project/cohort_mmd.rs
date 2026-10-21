@@ -1,6 +1,7 @@
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashSet},
-    fs, io,
+    io,
     path::PathBuf,
 };
 
@@ -8,53 +9,56 @@ use marklab_cohort::{
     patient_level_blocked_mmd, patient_level_mmd, Fingerprint, MmdEstimator, MmdKernel,
     MmdPermutationResult, MmdPermutationSpec, PatientExchangeabilityBlock,
 };
-use marklab_workflow::{
-    execute_algorithm, ArtifactRef, ArtifactSchema, CacheKeyMaterial, CacheStatus, ContentDigest,
-    DurableProject, DurableProjectLimits, LocalScheduler, MarklabProject, NodeError, NodeId,
-    NodeSpec, SchedulerLimits, WorkflowGraph, WorkflowNode,
-};
+use marklab_project::ContentDigest;
+use marklab_workflow::NodeError;
 use serde::{Deserialize, Serialize};
 
+use crate::cohort::CliMmdKernel;
+
+use super::cli_schema::{CohortMmdLimits, CohortMmdProjectArgs};
 use super::{
-    bayes, native_runtime_provenance, report_recovery, source_artifact, BayesCliError,
-    MAXIMUM_INPUT_BYTES, MAXIMUM_RESULT_BYTES, PROJECT_CONTROL_BYTES, PROJECT_LEDGER_BYTES,
-    PROJECT_LEDGER_RECORDS, PROJECT_RECORD_BYTES,
+    durable::{self, Codec, NodeContract, Source, SourceNode},
+    CliError, MAXIMUM_INPUT_BYTES, MAXIMUM_RESULT_BYTES,
 };
 
 const INPUT_KIND: &str = "application/vnd.marklab.source.patient-fingerprints-csv;version=1";
-const OUTPUT_KIND: &str = "application/vnd.marklab.cohort-mmd+json;version=1";
-const IMPLEMENTATION_IDENTITY: &str = "marklab-project-cohort-mmd-node-v1";
+const OUTPUT_KIND: &str = "application/vnd.marklab.cohort-mmd+json;version=2";
+const IMPLEMENTATION_IDENTITY: &str = "marklab-project-cohort-mmd-node-v2";
 const FIXED_MAXIMUM_KERNEL_ELEMENTS: u64 = 25_000_000;
 const FIXED_MAXIMUM_MMD_EVALUATIONS: u64 = 100_000_000;
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    project_path: PathBuf,
-    input_path: PathBuf,
-    group_a: String,
-    group_b: String,
-    kernel: String,
-    bandwidth: Option<f64>,
-    estimator: String,
-    permutations: usize,
-    seed: u64,
-    maximum_patients: usize,
-    maximum_features: usize,
-    maximum_kernel_elements: u64,
-    maximum_mmd_evaluations: u64,
-    memory_budget_mib: usize,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: CohortMmdProjectArgs) -> Result<(), CliError> {
+    let CohortMmdProjectArgs {
+        project: project_path,
+        input: input_path,
+        group_a,
+        group_b,
+        kernel,
+        bandwidth,
+        estimator,
+        permutations,
+        seed,
+        limits,
+        out: output_path,
+    } = args;
+    let CohortMmdLimits {
+        maximum_patients,
+        maximum_features,
+        maximum_kernel_elements,
+        maximum_mmd_evaluations,
+        memory_budget_mib,
+    } = limits;
+    const LABEL: &str = "cohort MMD input";
     let memory_bytes = memory_budget_mib
         .checked_mul(1024 * 1024)
-        .ok_or_else(|| BayesCliError::Input("--memory-budget-mib is too large".into()))?;
+        .ok_or_else(|| CliError::Input("--memory-budget-mib is too large".into()))?;
     if maximum_patients == 0
         || maximum_features == 0
         || maximum_kernel_elements == 0
         || maximum_mmd_evaluations == 0
         || memory_bytes == 0
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "cohort MMD patient, feature, kernel-work, permutation-work, and memory limits must be positive"
                 .into(),
         ));
@@ -62,18 +66,16 @@ pub(super) fn run(
     if maximum_kernel_elements > FIXED_MAXIMUM_KERNEL_ELEMENTS
         || maximum_mmd_evaluations > FIXED_MAXIMUM_MMD_EVALUATIONS
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "cohort MMD declared work limits exceed the fixed production ceilings".into(),
         ));
     }
-    let kernel_value = parse_kernel(&kernel, bandwidth)?;
-    let estimator_value = parse_estimator(&estimator)?;
-    let input_path_json = serde_json::to_vec(&input_path).map_err(|error| {
-        BayesCliError::Input(format!("input path is not serializable: {error}"))
-    })?;
+    let kernel_value = parse_kernel(kernel, bandwidth)?;
+    let estimator_value = estimator.into();
+    let input_path_json = serde_json::to_vec(&input_path)
+        .map_err(|error| CliError::Input(format!("input path is not serializable: {error}")))?;
     let input_bytes = read_bounded(&input_path, memory_bytes)?;
-    let artifact = ArtifactRef::from_bytes(INPUT_KIND, &input_bytes)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let source = Source::from_bytes(input_path.clone(), INPUT_KIND, &input_bytes)?;
     let parsed = read_fingerprints(&input_bytes)?;
     let requirements = preflight(
         &parsed,
@@ -81,10 +83,7 @@ pub(super) fn run(
         &group_b,
         kernel_value,
         permutations,
-        maximum_patients,
-        maximum_features,
-        maximum_kernel_elements,
-        maximum_mmd_evaluations,
+        limits,
     )?;
     let retained = retained_bytes(
         input_bytes.len(),
@@ -93,21 +92,16 @@ pub(super) fn run(
         requirements.kernel_elements,
     )?;
     if retained > memory_bytes {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "cohort MMD retained-memory estimate {retained} exceeds budget {memory_bytes}"
         )));
     }
-    if source_artifact(&input_path, INPUT_KIND)? != artifact {
-        return Err(BayesCliError::Input(
-            "cohort MMD input changed while prepared".into(),
-        ));
-    }
+    source.ensure_unchanged(LABEL)?;
     drop(input_bytes);
 
-    let node = CohortMmdProjectNode::new(
+    let (analysis, contract) = CohortMmd::new(
         input_path,
         input_path_json,
-        artifact.clone(),
         parsed,
         MmdPermutationSpec {
             group_a,
@@ -118,73 +112,36 @@ pub(super) fn run(
             seed,
         },
         requirements,
-        kernel,
-        estimator,
-        maximum_patients,
-        maximum_features,
-        maximum_kernel_elements,
-        maximum_mmd_evaluations,
-        memory_budget_mib,
+        limits,
     )?;
-    let runtime = native_runtime_provenance()?;
-    let limits = DurableProjectLimits::new(
-        PROJECT_CONTROL_BYTES,
-        PROJECT_LEDGER_BYTES,
-        PROJECT_LEDGER_RECORDS,
-        PROJECT_RECORD_BYTES,
-        MAXIMUM_RESULT_BYTES,
-    )
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let mut durable = DurableProject::open_or_create(&project_path, limits)
-        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
-    report_recovery(&durable);
-    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    project
-        .register_reference(artifact)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let graph = WorkflowGraph::new([node.spec().clone()])
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let scheduler = LocalScheduler::new(SchedulerLimits {
-        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
-    })
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let execution = execute_algorithm(
-        &mut durable,
-        &mut project,
-        &graph,
+    let node = SourceNode::new(
+        contract,
+        LABEL,
+        vec![source],
+        analysis,
+        CohortMmd::execute,
+        |analysis, output| analysis.validate(output).map_err(NodeError::decode),
+    )?;
+
+    let run = durable::execute_node(
+        &project_path,
         &node,
-        &scheduler,
-        ArtifactSchema::new("marklab.cohort_mmd", 1)
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-        runtime,
-    )
-    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
-    bayes::publish_json(&output_path, &execution.output)?;
-    let cache_status = match execution.cache_status {
-        CacheStatus::Hit => "hit",
-        CacheStatus::Miss => "miss",
-    };
-    eprintln!("project cohort-mmd cache_status={cache_status}");
-    Ok(())
+        ("marklab.cohort_mmd", 1),
+        MAXIMUM_RESULT_BYTES,
+    )?;
+    durable::publish("cohort-mmd", &output_path, &run.output, run.cache_status)
 }
 
-fn read_bounded(path: &std::path::Path, memory_bytes: usize) -> Result<Vec<u8>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
+fn read_bounded(path: &std::path::Path, memory_bytes: usize) -> Result<Vec<u8>, CliError> {
     let maximum = (MAXIMUM_INPUT_BYTES as usize).min(memory_bytes);
-    if !metadata.is_file() || metadata.len() > maximum as u64 {
-        return Err(BayesCliError::Input(format!(
+    crate::input_file::read_regular_file(
+        path,
+        maximum as u64,
+        &format!(
             "cohort MMD input must be a regular file within {maximum} bytes: {}",
             path.display()
-        )));
-    }
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
+        ),
+    )
 }
 
 #[derive(Debug, Deserialize)]
@@ -203,7 +160,7 @@ struct FingerprintInput {
     blocks: Option<Vec<PatientExchangeabilityBlock>>,
 }
 
-fn read_fingerprints(bytes: &[u8]) -> Result<FingerprintInput, BayesCliError> {
+fn read_fingerprints(bytes: &[u8]) -> Result<FingerprintInput, CliError> {
     let mut reader = csv::ReaderBuilder::new().flexible(false).from_reader(bytes);
     let headers = reader.headers()?.clone();
     let blocked = headers
@@ -214,16 +171,16 @@ fn read_fingerprints(bytes: &[u8]) -> Result<FingerprintInput, BayesCliError> {
             .iter()
             .eq(["patient_id", "group", "feature", "value"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "CSV header must be exactly patient_id,group,feature,value or patient_id,group,feature,value,block"
                 .into(),
         ));
     }
     let mut grouped = BTreeMap::<String, (String, Option<String>, BTreeMap<String, f64>)>::new();
     for decoded in reader.deserialize::<FingerprintCsvRecord>() {
-        let row = decoded.map_err(|error| BayesCliError::Input(error.to_string()))?;
+        let row = decoded.map_err(|error| CliError::Input(error.to_string()))?;
         if blocked && row.block.is_none() {
-            return Err(BayesCliError::Input(format!(
+            return Err(CliError::Input(format!(
                 "patient {} is missing its fingerprint block",
                 row.patient_id
             )));
@@ -232,19 +189,19 @@ fn read_fingerprints(bytes: &[u8]) -> Result<FingerprintInput, BayesCliError> {
             .entry(row.patient_id.clone())
             .or_insert_with(|| (row.group.clone(), row.block.clone(), BTreeMap::new()));
         if entry.0 != row.group {
-            return Err(BayesCliError::Input(format!(
+            return Err(CliError::Input(format!(
                 "patient {} has conflicting group labels",
                 row.patient_id
             )));
         }
         if entry.1 != row.block {
-            return Err(BayesCliError::Input(format!(
+            return Err(CliError::Input(format!(
                 "patient {} has conflicting fingerprint blocks",
                 row.patient_id
             )));
         }
         if entry.2.insert(row.feature.clone(), row.value).is_some() {
-            return Err(BayesCliError::Input(format!(
+            return Err(CliError::Input(format!(
                 "patient {} has duplicate feature {:?}",
                 row.patient_id, row.feature
             )));
@@ -256,7 +213,7 @@ fn read_fingerprints(bytes: &[u8]) -> Result<FingerprintInput, BayesCliError> {
         if let Some(assignments) = &mut blocks {
             assignments.push(
                 PatientExchangeabilityBlock::new(patient_id.clone(), block.unwrap_or_default())
-                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
+                    .map_err(|error| CliError::Input(error.to_string()))?,
             );
         }
         fingerprints.push(Fingerprint {
@@ -284,48 +241,51 @@ struct Requirements {
     mmd_evaluations: u64,
 }
 
-#[allow(clippy::too_many_arguments)]
 fn preflight(
     input: &FingerprintInput,
     group_a: &str,
     group_b: &str,
     kernel: MmdKernel,
     permutations: usize,
-    maximum_patients: usize,
-    maximum_features: usize,
-    maximum_kernel_elements: u64,
-    maximum_mmd_evaluations: u64,
-) -> Result<Requirements, BayesCliError> {
+    limits: CohortMmdLimits,
+) -> Result<Requirements, CliError> {
+    let CohortMmdLimits {
+        maximum_patients,
+        maximum_features,
+        maximum_kernel_elements,
+        maximum_mmd_evaluations,
+        ..
+    } = limits;
     if group_a.trim().is_empty()
         || group_b.trim().is_empty()
         || group_a.trim() != group_a
         || group_b.trim() != group_b
         || group_a == group_b
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "group labels must be non-empty, exact, and distinct".into(),
         ));
     }
     if permutations == 0 || permutations > 1_000_000 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "permutations must be between 1 and 1000000".into(),
         ));
     }
     if let MmdKernel::Rbf { bandwidth } = kernel {
         if !bandwidth.is_finite() || bandwidth <= 0.0 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "RBF bandwidth must be finite and positive".into(),
             ));
         }
     }
     let fingerprints = &input.fingerprints;
     if fingerprints.is_empty() || fingerprints.len() > 1_000_000 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "MMD requires 1 to 1000000 patient fingerprints".into(),
         ));
     }
     if fingerprints.len() > maximum_patients {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "cohort MMD patient count exceeds maximum_patients {maximum_patients}"
         )));
     }
@@ -335,7 +295,7 @@ fn preflight(
         || features.iter().any(|feature| feature.trim().is_empty())
         || features.iter().collect::<HashSet<_>>().len() != features.len()
     {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "cohort MMD features must be unique, complete, nonempty, and within maximum_features {maximum_features}"
         )));
     }
@@ -350,7 +310,7 @@ fn preflight(
             || fingerprint.values.len() != features.len()
             || fingerprint.values.iter().any(|value| !value.is_finite())
         {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "cohort MMD fingerprints require unique exact patient IDs and complete finite feature vectors"
                     .into(),
             ));
@@ -360,20 +320,20 @@ fn preflight(
         } else if fingerprint.group == group_b {
             group_b_count += 1;
         } else {
-            return Err(BayesCliError::Input(format!(
+            return Err(CliError::Input(format!(
                 "patient {} has undeclared group {:?}",
                 fingerprint.patient_id, fingerprint.group
             )));
         }
     }
     if group_a_count < 2 || group_b_count < 2 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "each group must contain at least two patient fingerprints".into(),
         ));
     }
     let block_count = if let Some(assignments) = &input.blocks {
         if assignments.len() != fingerprints.len() {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "blocked fingerprint design requires exactly one assignment per patient".into(),
             ));
         }
@@ -386,7 +346,7 @@ fn preflight(
                 .iter()
                 .any(|row| !by_patient.contains_key(row.patient_id.as_str()))
         {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "blocked fingerprint assignments do not match exact patients".into(),
             ));
         }
@@ -401,7 +361,7 @@ fn preflight(
             }
         }
         if !groups_by_block.values().any(|groups| groups.0 && groups.1) {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "fingerprint blocks are fully confounded with group".into(),
             ));
         }
@@ -411,17 +371,17 @@ fn preflight(
     };
     let kernel_elements = (fingerprints.len() as u64)
         .checked_mul(fingerprints.len() as u64)
-        .ok_or_else(|| BayesCliError::Input("MMD kernel matrix size overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("MMD kernel matrix size overflowed".into()))?;
     if kernel_elements > maximum_kernel_elements {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "MMD kernel matrix has {kernel_elements} elements, exceeding maximum_kernel_elements {maximum_kernel_elements}"
         )));
     }
     let mmd_evaluations = kernel_elements
         .checked_mul(permutations as u64 + 1)
-        .ok_or_else(|| BayesCliError::Input("MMD permutation work overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("MMD permutation work overflowed".into()))?;
     if mmd_evaluations > maximum_mmd_evaluations {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "MMD requires {mmd_evaluations} kernel-by-permutation evaluations, exceeding maximum_mmd_evaluations {maximum_mmd_evaluations}"
         )));
     }
@@ -442,51 +402,48 @@ fn retained_bytes(
     patients: usize,
     features: usize,
     kernel_elements: u64,
-) -> Result<usize, BayesCliError> {
+) -> Result<usize, CliError> {
     let matrix = usize::try_from(kernel_elements)
         .ok()
         .and_then(|value| value.checked_mul(8))
-        .ok_or_else(|| BayesCliError::Input("MMD kernel memory overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("MMD kernel memory overflowed".into()))?;
     let analysis = source_bytes
         .checked_add(patients.saturating_mul(512 + features.saturating_mul(16)))
         .and_then(|value| value.checked_add(features.saturating_mul(256)))
-        .ok_or_else(|| BayesCliError::Input("MMD analysis memory overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("MMD analysis memory overflowed".into()))?;
     analysis
         .checked_mul(2)
         .and_then(|value| value.checked_add(matrix))
         .and_then(|value| value.checked_add(patients.saturating_mul(128)))
-        .ok_or_else(|| BayesCliError::Input("MMD retained-memory estimate overflowed".into()))
+        .ok_or_else(|| CliError::Input("MMD retained-memory estimate overflowed".into()))
 }
 
-struct CohortMmdProjectNode {
-    spec: NodeSpec,
+struct CohortMmd {
     input_path: PathBuf,
     input_path_json: Vec<u8>,
-    input_artifacts: Vec<ArtifactRef>,
     input: FingerprintInput,
     analysis: MmdPermutationSpec,
     requirements: Requirements,
-    configuration_digest: ContentDigest,
-    execution_policy: Vec<u8>,
 }
 
-impl CohortMmdProjectNode {
-    #[allow(clippy::too_many_arguments)]
+impl CohortMmd {
     fn new(
         input_path: PathBuf,
         input_path_json: Vec<u8>,
-        input_artifact: ArtifactRef,
         input: FingerprintInput,
         analysis: MmdPermutationSpec,
         requirements: Requirements,
-        kernel: String,
-        estimator: String,
-        maximum_patients: usize,
-        maximum_features: usize,
-        maximum_kernel_elements: u64,
-        maximum_mmd_evaluations: u64,
-        memory_budget_mib: usize,
-    ) -> Result<Self, BayesCliError> {
+        limits: CohortMmdLimits,
+    ) -> Result<(Self, NodeContract), CliError> {
+        let CohortMmdLimits {
+            maximum_patients,
+            maximum_features,
+            maximum_kernel_elements,
+            maximum_mmd_evaluations,
+            memory_budget_mib,
+        } = limits;
+        let kernel = kernel_name(analysis.kernel);
+        let estimator = estimator_name(analysis.estimator);
         let bandwidth_identity = match analysis.kernel {
             MmdKernel::Linear => "none".into(),
             MmdKernel::Rbf { bandwidth } => bandwidth.to_bits().to_string(),
@@ -512,28 +469,25 @@ impl CohortMmdProjectNode {
             analysis.permutations, analysis.seed
         )
         .into_bytes();
-        Ok(Self {
-            spec: NodeSpec::new(
-                NodeId::new("cohort-mmd")
-                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
-                "cohort_mmd",
-                1,
-                Vec::new(),
-            )
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-            input_path,
-            input_path_json,
-            input_artifacts: vec![input_artifact],
-            input,
-            analysis,
-            requirements,
-            configuration_digest,
-            execution_policy,
-        })
-    }
-
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
+        Ok((
+            Self {
+                input_path,
+                input_path_json,
+                input,
+                analysis,
+                requirements,
+            },
+            NodeContract {
+                id: "cohort-mmd",
+                kind: "cohort_mmd",
+                version: 1,
+                configuration_digest,
+                execution_policy: Cow::Owned(execution_policy),
+                implementation_identity: IMPLEMENTATION_IDENTITY,
+                output_kind: OUTPUT_KIND,
+                codec: Codec::ExactFloatJson,
+            },
+        ))
     }
 
     fn validate(&self, output: &Output) -> io::Result<()> {
@@ -562,9 +516,7 @@ impl CohortMmdProjectNode {
             || !output.p_value.is_finite()
             || output.p_value <= 0.0
             || output.p_value > 1.0
-            || output.permutations.requested != self.analysis.permutations
-            || output.permutations.attempted != self.analysis.permutations
-            || output.permutations.completed != self.analysis.permutations
+            || output.permutations != self.analysis.permutations
             || output.seed != self.analysis.seed
             || self.requirements.kernel_elements > FIXED_MAXIMUM_KERNEL_ELEMENTS
             || self.requirements.mmd_evaluations > FIXED_MAXIMUM_MMD_EVALUATIONS
@@ -578,39 +530,8 @@ impl CohortMmdProjectNode {
         }
         Ok(())
     }
-}
 
-impl WorkflowNode for CohortMmdProjectNode {
-    type Output = Output;
-
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.input_artifacts
-    }
-
-    fn verify_input_content(&self) -> Result<(), NodeError> {
-        let current = source_artifact(&self.input_path, INPUT_KIND).map_err(NodeError::input)?;
-        if self.input_artifacts.first() != Some(&current) {
-            return Err(NodeError::input(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "cohort MMD input identity changed",
-            )));
-        }
-        Ok(())
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: &self.execution_policy,
-            implementation_identity: IMPLEMENTATION_IDENTITY,
-        }
-    }
-
-    fn execute(&self) -> Result<Self::Output, NodeError> {
+    fn execute(&self) -> Result<Output, NodeError> {
         let (result, block_count) = if let Some(blocks) = &self.input.blocks {
             let blocked =
                 patient_level_blocked_mmd(&self.input.fingerprints, blocks, &self.analysis)
@@ -630,21 +551,6 @@ impl WorkflowNode for CohortMmdProjectNode {
             block_count,
         ))
     }
-
-    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
-        self.validate(output).map_err(NodeError::encoding)?;
-        marklab::exact_float_json::encode(output).map_err(NodeError::encoding)
-    }
-
-    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
-        let output: Output = marklab::exact_float_json::decode(bytes).map_err(NodeError::decode)?;
-        self.validate(&output).map_err(NodeError::decode)?;
-        Ok(output)
-    }
-
-    fn output_kind(&self) -> &'static str {
-        OUTPUT_KIND
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -660,7 +566,7 @@ struct Output {
     estimator: String,
     mmd_squared: f64,
     p_value: f64,
-    permutations: PermutationSummary,
+    permutations: usize,
     seed: u64,
 }
 
@@ -692,11 +598,7 @@ impl Output {
             estimator: estimator_name(result.estimator).into(),
             mmd_squared: result.mmd_squared,
             p_value: result.p_value,
-            permutations: PermutationSummary {
-                requested: result.permutations_requested,
-                attempted: result.permutations_attempted,
-                completed: result.permutations_completed,
-            },
+            permutations: result.permutations_requested,
             seed: result.seed,
         }
     }
@@ -727,35 +629,14 @@ struct KernelSummary {
     bandwidth: Option<f64>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct PermutationSummary {
-    requested: usize,
-    attempted: usize,
-    completed: usize,
-}
-
-fn parse_kernel(value: &str, bandwidth: Option<f64>) -> Result<MmdKernel, BayesCliError> {
+fn parse_kernel(value: CliMmdKernel, bandwidth: Option<f64>) -> Result<MmdKernel, CliError> {
     match (value, bandwidth) {
-        ("linear", None) => Ok(MmdKernel::Linear),
-        ("linear", Some(_)) => Err(BayesCliError::Input(
-            "linear MMD forbids --bandwidth".into(),
-        )),
-        ("rbf", Some(bandwidth)) => Ok(MmdKernel::Rbf { bandwidth }),
-        ("rbf", None) => Err(BayesCliError::Input("RBF MMD requires --bandwidth".into())),
-        _ => Err(BayesCliError::Input(
-            "MMD kernel must be linear or rbf".into(),
-        )),
-    }
-}
-
-fn parse_estimator(value: &str) -> Result<MmdEstimator, BayesCliError> {
-    match value {
-        "unbiased" => Ok(MmdEstimator::Unbiased),
-        "biased" => Ok(MmdEstimator::Biased),
-        _ => Err(BayesCliError::Input(
-            "MMD estimator must be unbiased or biased".into(),
-        )),
+        (CliMmdKernel::Linear, None) => Ok(MmdKernel::Linear),
+        (CliMmdKernel::Linear, Some(_)) => {
+            Err(CliError::Input("linear MMD forbids --bandwidth".into()))
+        }
+        (CliMmdKernel::Rbf, Some(bandwidth)) => Ok(MmdKernel::Rbf { bandwidth }),
+        (CliMmdKernel::Rbf, None) => Err(CliError::Input("RBF MMD requires --bandwidth".into())),
     }
 }
 

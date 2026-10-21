@@ -1,4 +1,6 @@
 use crate::RectangularWindow;
+use marklab_core::backend::ModelMaturity;
+pub use marklab_data::JointLocationGridRow;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 use thiserror::Error;
@@ -14,14 +16,15 @@ pub struct JointCategoricalPoint {
     pub mark_covariate: f64,
     pub neighborhood_effect: f64,
 }
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct JointLocationGridRow {
-    pub ix: u32,
-    pub iy: u32,
-    pub location_covariate: f64,
-    pub location_offset: f64,
-}
+/// Validated construction descriptor for joint point locations and categorical marks.
+///
+/// The builder records the location grid, reference mark, covariates, neighbourhood effects,
+/// and positive location/coefficient/field prior scales. The reference mark identifies the
+/// declared softmax contrast. It emits an `experimental_model_construction` document; no
+/// current worker consumes this specification to evaluate its location/mark likelihood or
+/// sample its priors. It must not be interpreted as a fitted point process or as evidence for
+/// a neighbourhood effect.
+///
 #[derive(Clone, Debug)]
 pub struct JointCategoricalMarkSpec {
     pub points: Vec<JointCategoricalPoint>,
@@ -53,7 +56,7 @@ pub struct JointCategoricalMarkModelIr {
     pub mark_coefficient_prior_sd: f64,
     pub mark_field_prior_sd: f64,
     pub random_labeling_comparison: &'static str,
-    pub maturity: &'static str,
+    pub maturity: ModelMaturity,
 }
 #[derive(Debug, Serialize)]
 pub struct JointCategoricalMarkModel {
@@ -161,7 +164,7 @@ pub fn build_joint_location_mark_model(
             mark_coefficient_prior_sd: s.mark_coefficient_prior_sd,
             mark_field_prior_sd: s.mark_field_prior_sd,
             random_labeling_comparison: "required_nested_zero_neighborhood_and_mark_fields",
-            maturity: "experimental_model_construction",
+            maturity: ModelMaturity::ExperimentalModelConstruction,
         },
         window: s.window,
         grid_x: s.grid_x,
@@ -185,6 +188,14 @@ pub struct JointContinuousPoint {
     pub location_offset: f64,
     pub mark_covariate: f64,
 }
+/// Validated construction descriptor for joint point locations and continuous marks.
+///
+/// The builder records known mark-noise SD, fixed shared-field amplitude and length scale,
+/// jitter, and prior scales for the mark loading and private field. These are declarations
+/// for a shared-field location/mark model. The output is `experimental_model_construction`:
+/// no current Python worker consumes this type or evaluates its declared likelihood and
+/// priors. Constructing it neither estimates latent fields nor produces a posterior.
+///
 #[derive(Clone, Debug)]
 pub struct JointContinuousMarkSpec {
     pub points: Vec<JointContinuousPoint>,
@@ -218,7 +229,7 @@ pub struct JointContinuousMarkModelIr {
     pub known_mark_noise_sd: f64,
     pub identifiability: &'static str,
     pub separate_model_comparison: &'static str,
-    pub maturity: &'static str,
+    pub maturity: ModelMaturity,
 }
 #[derive(Debug, Serialize)]
 pub struct JointContinuousMarkModel {
@@ -340,7 +351,7 @@ pub fn build_joint_continuous_mark_model(
             known_mark_noise_sd: s.known_mark_noise_sd,
             identifiability: "fixed_shared_scale_and_location_loading_plus_positive_mark_loading",
             separate_model_comparison: "required_nested_zero_shared_loading",
-            maturity: "experimental_model_construction",
+            maturity: ModelMaturity::ExperimentalModelConstruction,
         },
         window: s.window,
         grid_x: s.grid_x,

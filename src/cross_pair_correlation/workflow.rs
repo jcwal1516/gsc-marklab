@@ -1,14 +1,17 @@
+use crate::result_vocabulary::{EdgeCorrection, MarkNullModel, MarkPermutationUnit};
+use crate::workflow_codec::invalid;
 use std::io;
 
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_project::{ArtifactRef, ContentDigest, MarklabProject};
+use marklab_workflow::{CacheKeyMaterial, NodeError, NodeId, NodeSpec, WorkflowNode};
 use serde::Serialize;
 
 use crate::{
-    workflow::pattern_artifact, DeclaredScalarPatternInput, ObservationWindow2D,
-    PairCorrelationKernel, PairCorrelationPointStatus, ScalarMarkId,
+    marked_workflow::pattern_artifact,
+    marks::{DeclaredScalarPatternInput, ScalarMarkId},
+    scalar_mark::COMPARTMENT_MARK_ID,
+    spatial::{PairCorrelationKernel, PairCorrelationPointStatus},
+    ObservationWindow2D,
 };
 
 use super::{
@@ -19,7 +22,7 @@ use super::{
 const NODE_KIND: &str = "categorical_cross_pair_correlation";
 const WINDOW_KIND: &str = "application/vnd.marklab.observation-window-ref;version=1";
 const CONFIG_KIND: &str = "application/vnd.marklab.categorical-cross-g-config+json;version=1";
-const RESULT_KIND: &str = "application/vnd.marklab.categorical-cross-g-result+json;version=1";
+const RESULT_KIND: &str = "application/vnd.marklab.categorical-cross-g-result+json;version=2";
 const POLICY: &[u8] = b"serial;retained-directed-pairs;epanechnikov;explicit-bandwidth;standard-border-radius-plus-bandwidth;complete-row-random-labeling;erl";
 
 pub struct CategoricalCrossPairCorrelationAnalysisNode<'a> {
@@ -61,7 +64,7 @@ impl<'a> CategoricalCrossPairCorrelationAnalysisNode<'a> {
             inputs,
             configuration_digest: config_ref.digest(),
             implementation_identity: format!(
-                "marklab/{};adapter=categorical-cross-g-node-v2",
+                "marklab/{};adapter=categorical-cross-g-node-v4",
                 env!("CARGO_PKG_VERSION")
             ),
         })
@@ -81,7 +84,7 @@ impl WorkflowNode for CategoricalCrossPairCorrelationAnalysisNode<'_> {
     fn input_artifacts(&self) -> &[ArtifactRef] {
         &self.inputs
     }
-    fn semantic_input_artifacts(&self) -> &[marklab_workflow::ArtifactId] {
+    fn semantic_input_artifacts(&self) -> &[marklab_project::ArtifactId] {
         self.input.semantic_artifact_ids()
     }
     fn verify_input_content(&self) -> Result<(), NodeError> {
@@ -197,7 +200,7 @@ fn validate(
     window: &ObservationWindow2D,
     config: &CategoricalCrossPairCorrelationConfig,
 ) -> io::Result<()> {
-    let mark_id = ScalarMarkId::new("histologic_compartment").map_err(invalid_owned)?;
+    let mark_id = ScalarMarkId::new(COMPARTMENT_MARK_ID).map_err(invalid_owned)?;
     let table = input
         .mark_table()
         .ok_or_else(|| invalid("typed MarkTable is absent"))?;
@@ -217,16 +220,10 @@ fn validate(
         .position(|level| level == &config.target_level)
         .and_then(|value| u32::try_from(value).ok())
         .ok_or_else(|| invalid("target level is absent"))?;
-    let expected_status = match table
+    let expected_status = table
         .measurement_status(&mark_id)
-        .ok_or_else(|| invalid("measurement status is absent"))?
-    {
-        marklab_data::MeasurementStatus::Measured => "measured",
-        marklab_data::MeasurementStatus::ImportedPrediction => "imported_prediction",
-        marklab_data::MeasurementStatus::MorphologyPrediction => "morphology_prediction",
-        marklab_data::MeasurementStatus::DerivedSummary => "derived_summary",
-    };
-    if result.mark_id != "histologic_compartment"
+        .ok_or_else(|| invalid("measurement status is absent"))?;
+    if result.mark_id != COMPARTMENT_MARK_ID
         || result.measurement_status != expected_status
         || result.coordinate_frame_id != input.coordinate_frame_id().as_str()
         || result.window.logical_digest != window.descriptor().logical_digest.to_string()
@@ -234,14 +231,13 @@ fn validate(
         || result.target_level != config.target_level
         || result.kernel != PairCorrelationKernel::Epanechnikov
         || result.bandwidth_um.to_bits() != config.bandwidth_um.to_bits()
-        || result.geometry_build_count != 1
-        || result.edge_correction != "standard_border_radius_plus_bandwidth"
+        || result.edge_correction != EdgeCorrection::StandardBorderRadiusPlusBandwidth
         || result.source_count != codes.iter().filter(|code| **code == source_code).count()
         || result.target_count != codes.iter().filter(|code| **code == target_code).count()
         || result.configuration_digest != configuration_digest(config).to_string()
         || result.curve.len() != config.radii_um.len()
-        || result.inference.null_model != "random_labeling"
-        || result.inference.permutation_unit != "complete_categorical_row"
+        || result.inference.null_model != MarkNullModel::RandomLabeling
+        || result.inference.permutation_unit != MarkPermutationUnit::CompleteCategoricalRow
         || result.inference.permutations_completed != config.permutations
         || result.inference.seed != config.seed
         || result.inference.alpha.to_bits() != config.alpha.to_bits()
@@ -257,10 +253,16 @@ fn validate(
         ));
     }
     for (point, radius) in result.curve.iter().zip(&config.radii_um) {
+        let zero_estimate = point.status == PairCorrelationPointStatus::NoPairsInKernelSupport
+            && point.eligible_source_centers > 0
+            && point.directed_source_target_pairs_in_support == 0
+            && point.kernel_weight_sum == 0.0
+            && point.cross_g == Some(0.0);
         if point.radius_um.to_bits() != radius.to_bits()
             || !point.kernel_weight_sum.is_finite()
             || point.kernel_weight_sum < 0.0
-            || point.cross_g.is_some() != (point.status == PairCorrelationPointStatus::Available)
+            || point.cross_g.is_some()
+                != (point.status == PairCorrelationPointStatus::Available || zero_estimate)
             || point.cross_g.is_some_and(|value| !value.is_finite())
             || point.theoretical_cross_g.to_bits() != 1.0_f64.to_bits()
             || point.lower_cross_g.is_some_and(|value| !value.is_finite())
@@ -292,10 +294,6 @@ fn validate(
         return Err(invalid("cross-g inference is inconsistent or non-finite"));
     }
     Ok(())
-}
-
-fn invalid(message: &'static str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message)
 }
 
 fn invalid_owned(error: impl std::fmt::Display) -> io::Error {

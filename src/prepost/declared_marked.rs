@@ -11,7 +11,7 @@ use super::marked::compare_marked_prepost;
 /// Runtime-only declared context around one unchanged marked pre/post result.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DeclaredMarkedPrePostResult<'a> {
-    /// Exact compatibility pre/post result produced by the existing comparison.
+    /// Pre/post comparison result.
     pub result: PrePostResult,
     /// Pre-analysis scalar declarations, provenance identities, and endpoint routing.
     pub pre_mark_use: DeclaredMarkUse,
@@ -103,9 +103,9 @@ pub enum DeclaredMarkedPrePostError {
 /// Ordered CellIds, rows, slides, coordinate frames, timepoints, and exact provenance/evidence
 /// artifact IDs may differ and remain separately visible in the returned runtime wrapper. The
 /// available row-count, label, and declaration-digest bindings are checked on each input. Because
-/// the compatibility result carries no private receipt or declared-input digest, an otherwise
+/// the marked pre/post result carries no declared-input digest, an otherwise
 /// same-label/same-row result supplied through the public runtime fields remains caller-asserted.
-/// After the semantic mark gate, the function delegates unchanged to [`compare_marked_prepost`].
+/// After the semantic mark gate, the function delegates to [`compare_marked_prepost`].
 /// It infers no row correspondence or biological unit and makes no population, equivalence,
 /// noninferiority, causal, or biological claim.
 ///

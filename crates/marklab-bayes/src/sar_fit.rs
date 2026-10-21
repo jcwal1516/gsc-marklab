@@ -1,16 +1,33 @@
+use crate::is_worker_timeout;
 use crate::validation::all_finite as finite;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::validation::{validate_scalar_summary, SummarySupport};
+use crate::ClaimStatus;
+use crate::ScalarSummary;
 use crate::{
     model::{
         BackendContract, DiagnosticPolicy, WorkerResourceLimits, MODEL_FORMAT, MODEL_VERSION,
         PYMC_VERSION, WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION,
     },
-    BayesError, FitState, NormalMeanDiagnostics, NutsSamplingSpec, SamplingSummary, SarModelType,
+    BayesError, FitState, NutsSamplingSpec, PosteriorDiagnostics, SamplingSummary, SarModelType,
     WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
+/// Gaussian spatial autoregression using a lag or spatial-error likelihood.
+///
+/// For row-standardized weights `W`, set `A = I - rho W`. The lag model uses residuals `A y -
+/// alpha - X beta`; the error model uses `A (y - alpha - X beta)`. Residuals have independent
+/// `Normal(0, sigma)` likelihood and the worker adds `log(abs(det(A)))` to account for the
+/// transformation of `y`. Priors are `alpha ~ Normal(intercept_prior_mean,
+/// intercept_prior_sd)`, independent `beta_j ~ Normal(0, coefficient_prior_sd)`, `rho ~
+/// Uniform(-rho_bound, rho_bound)`, and `sigma ~ HalfNormal(sigma_prior_sd)`. Normal and
+/// half-normal parameters are scales.
+///
 #[derive(Clone, Debug)]
 pub struct SarFitSpec {
     pub model_type: SarModelType,
@@ -41,8 +58,8 @@ pub struct SarFitModelIr {
     pub sigma_prior_sd: f64,
     pub weight_normalization: &'static str,
     pub likelihood_jacobian: &'static str,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -72,7 +89,7 @@ impl SarFitWorkerRequest {
     ) -> Result<Self, BayesError> {
         sampling.validate()?;
         validate_spec(&spec)?;
-        if !(1..=3_600).contains(&timeout_seconds) {
+        if !is_worker_timeout(timeout_seconds) {
             return Err(BayesError::InvalidSpec(
                 "worker timeout must be between 1 and 3600 seconds".into(),
             ));
@@ -91,7 +108,7 @@ impl SarFitWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -108,8 +125,8 @@ impl SarFitWorkerRequest {
                 sigma_prior_sd: spec.sigma_prior_sd,
                 weight_normalization: "row_standardized_zero_diagonal_island_free",
                 likelihood_jacobian: "log_abs_determinant_i_minus_rho_w",
-                backend_capability: "nuts",
-                maturity: "experimental",
+                backend_capability: BackendCapability::Nuts,
+                maturity: ModelMaturity::Experimental,
             },
             region_ids: spec.region_ids,
             weights: spec.weights,
@@ -271,37 +288,28 @@ pub(crate) fn design_full_rank(design: &[f64], rows: usize, predictors: usize) -
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct SarScalarSummary {
-    pub mean: f64,
-    pub sd: f64,
-    pub interval_lower: f64,
-    pub interval_upper: f64,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct SarCoefficientSummary {
     pub predictor: String,
     #[serde(flatten)]
-    pub summary: SarScalarSummary,
+    pub summary: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SarFitPosterior {
-    pub intercept: SarScalarSummary,
+    pub intercept: ScalarSummary,
     pub coefficients: Vec<SarCoefficientSummary>,
-    pub rho: SarScalarSummary,
-    pub sigma: SarScalarSummary,
+    pub rho: ScalarSummary,
+    pub sigma: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SarImpactSummary {
     pub predictor: String,
-    pub direct: SarScalarSummary,
-    pub indirect: SarScalarSummary,
-    pub total: SarScalarSummary,
+    pub direct: ScalarSummary,
+    pub indirect: ScalarSummary,
+    pub total: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -325,7 +333,7 @@ pub struct SarFitWorkerResult {
     pub sampling: SamplingSummary,
     pub posterior: SarFitPosterior,
     pub impacts: Vec<SarImpactSummary>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: SarPosteriorPredictive,
 }
 
@@ -338,11 +346,7 @@ impl SarFitWorkerResult {
         if self.fit_state == FitState::ApproximateOnly
             || self.format != "marklab.pymc_sar_worker_result"
             || self.version != 1
-            || self.backend.name != "pymc"
-            || self.backend.version != PYMC_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
         {
             return Err(BayesError::WorkerContract(
@@ -475,9 +479,9 @@ impl SarFitWorkerResult {
             input,
             fit_state: self.fit_state,
             claim_status: match self.fit_state {
-                FitState::Complete => "experimental",
-                FitState::Nonconverged => "diagnostic_only_nonconverged",
-                FitState::ApproximateOnly => "experimental_approximate_only",
+                FitState::Complete => ClaimStatus::Experimental,
+                FitState::Nonconverged => ClaimStatus::DiagnosticOnlyNonconverged,
+                FitState::ApproximateOnly => ClaimStatus::ExperimentalApproximateOnly,
             },
             sampling: self.sampling,
             posterior: self.posterior,
@@ -490,20 +494,8 @@ impl SarFitWorkerResult {
     }
 }
 
-fn validate_scalar(summary: &SarScalarSummary) -> Result<(), BayesError> {
-    if !finite(&[
-        summary.mean,
-        summary.sd,
-        summary.interval_lower,
-        summary.interval_upper,
-    ]) || summary.sd <= 0.0
-        || summary.interval_lower > summary.interval_upper
-    {
-        return Err(BayesError::WorkerContract(
-            "invalid SAR scalar summary".into(),
-        ));
-    }
-    Ok(())
+fn validate_scalar(summary: &ScalarSummary) -> Result<(), BayesError> {
+    validate_scalar_summary(summary, SummarySupport::Real, "invalid SAR scalar summary")
 }
 
 #[derive(Debug, Serialize)]
@@ -523,11 +515,11 @@ pub struct SarFitResult {
     pub model: SarFitModelIr,
     pub input: SarFitInputIdentity,
     pub fit_state: FitState,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub sampling: SamplingSummary,
     pub posterior: SarFitPosterior,
     pub impacts: Vec<SarImpactSummary>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: SarPosteriorPredictive,
     pub seed: u64,
     pub request_sha256: String,

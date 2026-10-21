@@ -1,5 +1,5 @@
 use super::*;
-use marklab::{
+use marklab::embeddings::{
     slide_embedding_aggregation_path_discrepancy, MultiscaleEmbeddingProvenanceVariant,
     SlideEmbeddingAggregationPathDiscrepancy, SlideEmbeddingAggregationPathDiscrepancyError,
     SlideEmbeddingAggregationPathDiscrepancyStatus,

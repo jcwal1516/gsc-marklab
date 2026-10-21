@@ -12,6 +12,8 @@ pub use validation::{
 };
 
 const RAW_CELLVIT_DIMENSION: u32 = 1_280;
+const MAX_DIMENSION: u32 = 65_536;
+const MAX_INPUT_CHANNELS: usize = 256;
 
 /// Canonical bounded fixed-point decimal represented as a JSON string.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -105,15 +107,73 @@ impl CellEmbeddingModelProvenance {
     }
 }
 
-/// Closed raw RGB H&E tensor and normalization contract.
+/// Declared tensor semantics, with the original CellViT profile retained for compatibility.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CellEmbeddingTensorContract {
+    version: u32,
     output_dimension: u32,
-    input_channel_mean: [CanonicalDecimal; 3],
-    input_channel_std: [CanonicalDecimal; 3],
+    pooling: String,
+    output_normalization: String,
+    input_channel_order: String,
+    input_channel_mean: Vec<CanonicalDecimal>,
+    input_channel_std: Vec<CanonicalDecimal>,
+    modality: String,
+    stain: String,
 }
 
 impl CellEmbeddingTensorContract {
+    /// Declare a model-independent version-two tensor contract.
+    ///
+    /// Pooling and normalization describe the producer's output; Marklab does not apply
+    /// them again. Dimensions are bounded at 65,536 and channel declarations at 256.
+    /// Empty input normalization vectors require an explicit `none` channel order.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        output_dimension: u32,
+        pooling: impl Into<String>,
+        output_normalization: impl Into<String>,
+        input_channel_order: impl Into<String>,
+        input_channel_mean: Vec<CanonicalDecimal>,
+        input_channel_std: Vec<CanonicalDecimal>,
+        modality: impl Into<String>,
+        stain: impl Into<String>,
+    ) -> Result<Self, EmbeddingError> {
+        let tensor = Self {
+            version: 2,
+            output_dimension,
+            pooling: pooling.into(),
+            output_normalization: output_normalization.into(),
+            input_channel_order: input_channel_order.into(),
+            input_channel_mean,
+            input_channel_std,
+            modality: modality.into(),
+            stain: stain.into(),
+        };
+        let declarations = [
+            tensor.pooling.as_str(),
+            tensor.output_normalization.as_str(),
+            tensor.input_channel_order.as_str(),
+            tensor.modality.as_str(),
+            tensor.stain.as_str(),
+        ];
+        if output_dimension == 0 || declarations.contains(&"") {
+            return Err(EmbeddingError::ProvenanceIncomplete);
+        }
+        if output_dimension > MAX_DIMENSION
+            || declarations.into_iter().any(|value| !valid_token(value))
+            || tensor.input_channel_mean.len() != tensor.input_channel_std.len()
+            || tensor.input_channel_mean.len() > MAX_INPUT_CHANNELS
+            || (tensor.input_channel_mean.is_empty() != (tensor.input_channel_order == "none"))
+            || tensor
+                .input_channel_std
+                .iter()
+                .any(|value| !value.is_positive())
+        {
+            return Err(EmbeddingError::InvalidProvenance);
+        }
+        Ok(tensor)
+    }
+
     /// Construct the version-one raw CellViT RGB H&E tensor profile.
     pub fn rgb_he_raw(
         output_dimension: u32,
@@ -129,9 +189,15 @@ impl CellEmbeddingTensorContract {
             return Err(EmbeddingError::InvalidProvenance);
         }
         Ok(Self {
+            version: 1,
             output_dimension,
-            input_channel_mean,
-            input_channel_std,
+            pooling: "nucleus_bbox_intersecting_token_mean".to_owned(),
+            output_normalization: "none".to_owned(),
+            input_channel_order: "rgb".to_owned(),
+            input_channel_mean: input_channel_mean.into(),
+            input_channel_std: input_channel_std.into(),
+            modality: "brightfield".to_owned(),
+            stain: "he".to_owned(),
         })
     }
 
@@ -228,7 +294,7 @@ impl CellEmbeddingInputArtifacts {
     }
 }
 
-/// Strict complete version-one cell-embedding provenance artifact.
+/// Complete cell-embedding provenance, including the readable legacy version-one profile.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CellEmbeddingProvenance {
     model: CellEmbeddingModelProvenance,
@@ -261,6 +327,11 @@ impl CellEmbeddingProvenance {
     /// Fixed output-vector dimension.
     pub fn output_dimension(&self) -> u32 {
         self.tensor.output_dimension
+    }
+
+    /// Provenance schema version: one for legacy CellViT, two for declared model outputs.
+    pub fn format_version(&self) -> u32 {
+        self.tensor.version
     }
 
     /// Sorted exact set of thirteen direct artifact dependencies.

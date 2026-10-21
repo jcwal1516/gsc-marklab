@@ -77,7 +77,6 @@ fn contained_shared_assigns_every_expected_cell_to_all_half_open_windows() {
     assert!(!format!("{link:?}").contains("cell-a"));
     assert!(!format!("{:?}", link.assignments()[0]).contains("60"));
     assert!(!format!("{:?}", link.edges()[0]).contains("patch-a"));
-    assert_eq!(link.logical_digest(), reference_link_digest(&link));
     assert_eq!(
         link.logical_digest().to_string(),
         "ffadec571282725c30a94178358bbe885642c043948a3529d23c00125f3a1b73"

@@ -74,10 +74,19 @@ slide-1:000000003,10,0,0,case-1,baseline,cellvit,true,true,slide-1,Inflammatory\
     assert_eq!(fs::read(&first).unwrap(), fs::read(&second).unwrap());
     let result: serde_json::Value =
         serde_json::from_slice(&fs::read(first).unwrap()).expect("result JSON");
-    assert_eq!(result["format"], "marklab.categorical-pair/1");
+    assert_eq!(result["format"], "marklab.categorical-pair/2");
     assert_eq!(result["source_level"], "Neoplastic");
     assert_eq!(result["target_level"], "Inflammatory");
     assert_eq!(result["curve"].as_array().expect("curve").len(), 2);
+    for point in result["curve"].as_array().expect("curve") {
+        match (point["cross_k"].as_f64(), point["cross_l"].as_f64()) {
+            (Some(k), Some(l)) => {
+                assert!((l - (k / std::f64::consts::PI).sqrt()).abs() < 1e-12)
+            }
+            (None, None) => {}
+            _ => panic!("cross K/L availability differs"),
+        }
+    }
     assert_eq!(
         fs::read_to_string(project.join("executions.jsonl"))
             .unwrap()

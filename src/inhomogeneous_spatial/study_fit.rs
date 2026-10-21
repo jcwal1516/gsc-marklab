@@ -5,11 +5,33 @@ use super::{
 };
 use crate::{ObservationWindow2D, Pattern};
 
-/// Only the concrete study caller enables refitting; legacy public analyses use default.
+/// Only pathology studies enable refitting; the other analyses use the default.
 #[derive(Default)]
 pub(crate) struct StudyFitPolicy {
     pub refit: bool,
     pub bandwidth_candidates_um: Vec<f64>,
+    /// Declared support rule; `None` keeps the default complete-eligibility behaviour.
+    pub support: Option<SupportPolicy>,
+}
+
+/// Pathology support rule applied inside the native analyses.
+///
+/// A radius with eligible centers but no pairs in kernel support yields `g = 0` rather than an
+/// unavailable bin. A simulated curve without eligible centers at a radius where the observed
+/// curve has them is redrawn from a seed derived from the simulation's own seed, so observed and
+/// accepted simulated patterns satisfy the same support event; after
+/// `maximum_draws_per_simulation` draws the analysis is unavailable.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SupportPolicy {
+    pub maximum_draws_per_simulation: usize,
+}
+
+/// Whether a simulated curve is eligible at every radius where the observed curve is.
+pub(super) fn covers_observed_support(observed: &[bool], simulated: &[bool]) -> bool {
+    observed
+        .iter()
+        .zip(simulated)
+        .all(|(observed, simulated)| !observed || *simulated)
 }
 
 pub(super) fn select_config(

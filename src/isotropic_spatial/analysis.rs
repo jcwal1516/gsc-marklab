@@ -1,4 +1,8 @@
-use marklab_workflow::ContentDigest;
+use crate::edge_corrected::{estimate_curve, CurveWork};
+use crate::result_vocabulary::{
+    ArcMeasureOwner, DuplicatePointPolicy, EdgeCorrection, PairTraversal, SpatialExecutionMode,
+};
+use marklab_project::ContentDigest;
 
 use crate::common::finite::canonical_zero;
 
@@ -77,16 +81,16 @@ pub fn analyze_isotropic_spatial_pattern(
         maximum_boundary_intersection_angles: 0,
         estimated_storage_bytes,
         logical_digest: observed_plan.logical_digest().to_string(),
-        execution_mode: "exact".into(),
-        duplicate_policy: "reject".into(),
-        visible_arc_owner: "observation_window_2d_segment_circle_partition".into(),
-        pair_traversal: "exact_streaming_unordered_pairs_with_two_directed_arc_weights".into(),
+        execution_mode: SpatialExecutionMode::Exact,
+        duplicate_policy: DuplicatePointPolicy::Reject,
+        visible_arc_owner: ArcMeasureOwner::ObservationWindow2dSegmentCirclePartition,
+        pair_traversal: PairTraversal::ExactStreamingUnorderedPairsWithTwoDirectedArcWeights,
     };
     if pattern.len() < 2 {
         return Ok(IsotropicSpatialResult {
             case_id: pattern.meta.case_id.clone(),
             timepoint: pattern.meta.timepoint.clone(),
-            correction: "isotropic".into(),
+            correction: EdgeCorrection::Isotropic,
             status: IsotropicSpatialStatus::InsufficientPoints,
             window: window_summary(window.descriptor()),
             geometry,
@@ -171,7 +175,7 @@ pub fn analyze_isotropic_spatial_pattern(
     Ok(IsotropicSpatialResult {
         case_id: pattern.meta.case_id.clone(),
         timepoint: pattern.meta.timepoint.clone(),
-        correction: "isotropic".into(),
+        correction: EdgeCorrection::Isotropic,
         status: IsotropicSpatialStatus::Available,
         window: window_summary(window.descriptor()),
         geometry,
@@ -189,74 +193,21 @@ pub fn analyze_isotropic_spatial_pattern(
     })
 }
 
-struct IsotropicCurveWork {
-    directed_pairs: Vec<usize>,
-    visible_arc_evaluations: Vec<usize>,
-    visible_fraction_sums: Vec<f64>,
-    inverse_visible_fraction_sums: Vec<f64>,
-}
-
 fn isotropic_curve(
     x: &[f64],
     y: &[f64],
     window: &ObservationWindow2D,
     radii_um: &[f64],
     budget: &mut IsotropicArcBudget,
-) -> Result<IsotropicCurveWork, IsotropicSpatialError> {
-    let mut directed_pair_starts = vec![0_usize; radii_um.len()];
-    let mut evaluation_starts = vec![0_usize; radii_um.len()];
-    let mut fraction_starts = vec![0.0_f64; radii_um.len()];
-    let mut inverse_starts = vec![0.0_f64; radii_um.len()];
-    let maximum_radius = *radii_um.last().expect("validated radii");
-    for left in 0..x.len() {
-        for right in (left + 1)..x.len() {
-            budget.charge_pair()?;
-            let displacement_x = x[right] - x[left];
-            let displacement_y = y[right] - y[left];
-            let distance = displacement_x.hypot(displacement_y);
-            if distance > maximum_radius {
-                continue;
-            }
-            let start = radii_um.partition_point(|radius| *radius < distance);
-            if start == radii_um.len() {
-                continue;
-            }
-            let left_fraction =
-                budget.visible_fraction(window, x[left], y[left], distance, left, right)?;
-            let right_fraction =
-                budget.visible_fraction(window, x[right], y[right], distance, right, left)?;
-            directed_pair_starts[start] = directed_pair_starts[start]
-                .checked_add(2)
-                .ok_or(IsotropicSpatialError::SizeOverflow)?;
-            evaluation_starts[start] = evaluation_starts[start]
-                .checked_add(2)
-                .ok_or(IsotropicSpatialError::SizeOverflow)?;
-            fraction_starts[start] += left_fraction + right_fraction;
-            inverse_starts[start] += 1.0 / left_fraction + 1.0 / right_fraction;
-            if !fraction_starts[start].is_finite() || !inverse_starts[start].is_finite() {
-                return Err(IsotropicSpatialError::InvalidPattern {
-                    reason: "isotropic pair accumulation is non-finite".into(),
-                });
-            }
-        }
-    }
-    cumulative_counts(&mut directed_pair_starts)?;
-    cumulative_counts(&mut evaluation_starts)?;
-    cumulative_finite(&mut fraction_starts)?;
-    cumulative_finite(&mut inverse_starts)?;
-    Ok(IsotropicCurveWork {
-        directed_pairs: directed_pair_starts,
-        visible_arc_evaluations: evaluation_starts,
-        visible_fraction_sums: fraction_starts,
-        inverse_visible_fraction_sums: inverse_starts,
-    })
+) -> Result<CurveWork, IsotropicSpatialError> {
+    estimate_curve(x, y, window, radii_um, None, budget)
 }
 
 fn make_curve(
     area_um2: f64,
     point_count: usize,
     radii_um: &[f64],
-    work: &IsotropicCurveWork,
+    work: &CurveWork,
 ) -> Result<Vec<IsotropicKlPoint>, IsotropicSpatialError> {
     let denominator = point_count
         .checked_mul(point_count - 1)
@@ -266,7 +217,7 @@ fn make_curve(
         .copied()
         .enumerate()
         .map(|(index, radius_um)| {
-            let k = area_um2 * work.inverse_visible_fraction_sums[index] / denominator;
+            let k = area_um2 * work.weighted_sums[index] / denominator;
             let l = (k / std::f64::consts::PI).sqrt();
             if !k.is_finite() || !l.is_finite() {
                 return Err(IsotropicSpatialError::InvalidPattern {
@@ -275,12 +226,10 @@ fn make_curve(
             }
             Ok(IsotropicKlPoint {
                 radius_um,
-                directed_pairs: work.directed_pairs[index],
-                visible_arc_evaluations: work.visible_arc_evaluations[index],
-                visible_arc_fraction_sum: canonical_zero(work.visible_fraction_sums[index]),
-                inverse_visible_arc_fraction_sum: canonical_zero(
-                    work.inverse_visible_fraction_sums[index],
-                ),
+                directed_pairs: work.pair_counts[index],
+                visible_arc_evaluations: work.evaluations[index],
+                visible_arc_fraction_sum: canonical_zero(work.measure_sums[index]),
+                inverse_visible_arc_fraction_sum: canonical_zero(work.weighted_sums[index]),
                 k: Some(canonical_zero(k)),
                 l: Some(canonical_zero(l)),
                 theoretical_k: std::f64::consts::PI * radius_um * radius_um,
@@ -404,25 +353,4 @@ pub(super) fn isotropic_configuration_digest(config: &IsotropicSpatialConfig) ->
             .to_vec(),
     ]);
     ContentDigest::from_framed(fields.iter().map(Vec::as_slice))
-}
-
-fn cumulative_counts(values: &mut [usize]) -> Result<(), IsotropicSpatialError> {
-    for index in 1..values.len() {
-        values[index] = values[index]
-            .checked_add(values[index - 1])
-            .ok_or(IsotropicSpatialError::SizeOverflow)?;
-    }
-    Ok(())
-}
-
-fn cumulative_finite(values: &mut [f64]) -> Result<(), IsotropicSpatialError> {
-    for index in 1..values.len() {
-        values[index] += values[index - 1];
-        if !values[index].is_finite() {
-            return Err(IsotropicSpatialError::InvalidPattern {
-                reason: "isotropic cumulative sum is non-finite".into(),
-            });
-        }
-    }
-    Ok(())
 }

@@ -1,19 +1,20 @@
+use crate::workflow_node::{NodeAnalysis, TypedNode};
 use marklab_embeddings::{CellEmbeddingArtifact, CellEmbeddingTable};
-use marklab_workflow::{
-    ArtifactId, ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId,
-    NodeSpec, WorkflowNode,
-};
+use marklab_project::{ArtifactId, ArtifactRef, ContentDigest, MarklabProject};
+use marklab_workflow::{NodeError, NodeId, NodeSpec};
 use thiserror::Error;
 
 use crate::{
     cell_embedding_mark::{
         bind_declared_binary_cell_embedding_centroid, DeclaredBinaryCellEmbeddingCentroidBinding,
     },
-    declared_binary_cell_embedding_centroid_discrepancy,
+    embeddings::{
+        declared_binary_cell_embedding_centroid_discrepancy,
+        DeclaredBinaryCellEmbeddingCentroidDiscrepancy,
+        DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus,
+    },
+    marked_workflow::pattern_artifact,
     scalar_mark::DeclaredScalarPatternInput,
-    workflow::pattern_artifact,
-    DeclaredBinaryCellEmbeddingCentroidDiscrepancy,
-    DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus,
 };
 
 const NODE_KIND: &str = "declared_binary_cell_embedding_centroid";
@@ -30,17 +31,17 @@ const CODEC_LENGTH: usize = 18;
 
 /// Exact centroid computation exposed as one provenance-aware project workflow node.
 pub struct DeclaredBinaryCellEmbeddingCentroidNode<'node, 'pattern> {
-    spec: NodeSpec,
+    node: TypedNode<DeclaredBinaryCellEmbeddingCentroidAnalysis<'node, 'pattern>>,
+}
+
+struct DeclaredBinaryCellEmbeddingCentroidAnalysis<'node, 'pattern> {
     input: &'node DeclaredScalarPatternInput<'pattern>,
     table: &'node CellEmbeddingTable,
     artifact: CellEmbeddingArtifact,
     maximum_rows: usize,
     maximum_component_operations: u64,
     maximum_working_bytes: usize,
-    inputs: [ArtifactRef; 2],
     semantic_inputs: Box<[ArtifactId]>,
-    configuration_digest: ContentDigest,
-    implementation_identity: String,
     binding: DeclaredBinaryCellEmbeddingCentroidBinding,
 }
 
@@ -108,62 +109,60 @@ impl<'node, 'pattern> DeclaredBinaryCellEmbeddingCentroidNode<'node, 'pattern> {
             .register_reference(declared.clone())
             .map_err(NodeError::input)?;
 
-        Ok(Self {
-            spec,
-            input,
-            table,
-            artifact,
+        let node_inputs = [pattern, declared];
+        let node_semantic_inputs = semantic_inputs.into_boxed_slice();
+        let node_configuration_digest = configuration_digest(
             maximum_rows,
             maximum_component_operations,
             maximum_working_bytes,
-            inputs: [pattern, declared],
-            semantic_inputs: semantic_inputs.into_boxed_slice(),
-            configuration_digest: configuration_digest(
-                maximum_rows,
-                maximum_component_operations,
-                maximum_working_bytes,
-            ),
-            implementation_identity: format!(
-                "marklab/{};adapter={ADAPTER_REVISION};codec={CODEC_REVISION}",
-                env!("CARGO_PKG_VERSION")
-            ),
-            binding,
+        );
+        let node_implementation_identity = format!(
+            "marklab/{};adapter={ADAPTER_REVISION};codec={CODEC_REVISION}",
+            env!("CARGO_PKG_VERSION")
+        );
+        Ok(Self {
+            node: TypedNode {
+                spec,
+                analysis: DeclaredBinaryCellEmbeddingCentroidAnalysis {
+                    input,
+                    table,
+                    artifact,
+                    maximum_rows,
+                    maximum_component_operations,
+                    maximum_working_bytes,
+                    semantic_inputs: node_semantic_inputs,
+                    binding,
+                },
+                inputs: node_inputs,
+                configuration_digest: node_configuration_digest,
+                execution_policy: std::borrow::Cow::Borrowed(EXECUTION_POLICY),
+                implementation_identity: node_implementation_identity,
+            },
         })
     }
 
     /// Return the exact dependency-free specification registered in the graph.
     pub fn spec(&self) -> &NodeSpec {
-        &self.spec
+        self.node.spec()
     }
 }
 
-impl WorkflowNode for DeclaredBinaryCellEmbeddingCentroidNode<'_, '_> {
+impl NodeAnalysis for DeclaredBinaryCellEmbeddingCentroidAnalysis<'_, '_> {
     type Output = DeclaredBinaryCellEmbeddingCentroidDiscrepancy;
-
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.inputs
-    }
+    type Inputs = [ArtifactRef; 2];
 
     fn semantic_input_artifacts(&self) -> &[ArtifactId] {
         &self.semantic_inputs
     }
 
-    fn verify_input_content(&self) -> Result<(), NodeError> {
+    fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
         let pattern = pattern_artifact(self.input.pattern())?;
-        self.inputs[0]
-            .verify_identity(pattern.digest(), pattern.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 0, &pattern)?;
         let declared = self
             .input
             .declared_artifact_ref()
             .map_err(NodeError::input)?;
-        self.inputs[1]
-            .verify_identity(declared.digest(), declared.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 1, &declared)?;
         let binding = bind_declared_binary_cell_embedding_centroid(
             self.input,
             self.table,
@@ -177,14 +176,6 @@ impl WorkflowNode for DeclaredBinaryCellEmbeddingCentroidNode<'_, '_> {
             return Err(NodeError::input(CentroidNodeInputError::BindingChanged));
         }
         Ok(())
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: EXECUTION_POLICY,
-            implementation_identity: &self.implementation_identity,
-        }
     }
 
     fn execute(&self) -> Result<Self::Output, NodeError> {
@@ -211,6 +202,8 @@ impl WorkflowNode for DeclaredBinaryCellEmbeddingCentroidNode<'_, '_> {
         OUTPUT_KIND
     }
 }
+
+crate::workflow_node::impl_workflow_node!(DeclaredBinaryCellEmbeddingCentroidNode<'_, '_> => DeclaredBinaryCellEmbeddingCentroidDiscrepancy);
 
 fn configuration_digest(
     maximum_rows: usize,

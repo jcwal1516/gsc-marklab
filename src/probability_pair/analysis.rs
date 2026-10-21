@@ -1,13 +1,20 @@
+use crate::result_vocabulary::{
+    EdgeCorrection, MarkNormalization, MarkNullModel, MarkPermutationUnit, MultiplicityCorrection,
+    ProbabilityContributionMode,
+};
 use marklab_cohort::{InferenceAlternative, InferenceDesign};
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 
-use crate::common::{finite::canonical_zero, summation::kahan_add};
+use marklab_numerics::summation::NeumaierSum;
+
+use crate::common::finite::canonical_zero;
 
 use crate::{
     classical::window_summary,
     mark_pair_plan::{build_mark_pair_plan, erl_workspace_bytes, MarkPairPlan, MarkPairPlanError},
+    marks::DeclaredScalarPatternInput,
     permutation::envelopes::GlobalEnvelope,
-    DeclaredScalarPatternInput, ObservationWindow2D,
+    ObservationWindow2D,
 };
 
 use super::types::*;
@@ -156,7 +163,7 @@ pub fn probability_mark_connection(
         measurement_status,
         coordinate_frame_id: frame.clone(),
         window: window_summary(window.descriptor()),
-        normalization: "expected_positive_positive_pairs_per_eligible_directed_pair".into(),
+        normalization: MarkNormalization::ExpectedPositivePositivePairsPerEligibleDirectedPair,
         effective_positive_mass: canonical_zero(positive_mass),
         effective_negative_mass: canonical_zero(negative_mass),
         expected_random_label_connection: canonical_zero(
@@ -165,25 +172,22 @@ pub fn probability_mark_connection(
         geometry: ProbabilityPairGeometrySummary {
             point_count: probabilities.len(),
             directed_pair_count: plan.pairs.len(),
-            geometry_build_count: 1,
             geometry_digest: plan.geometry.logical_digest(),
             pair_plan_digest: plan.digest,
-            edge_correction: "standard_border_reduced_sample".into(),
+            edge_correction: EdgeCorrection::StandardBorderReducedSample,
             estimated_storage_bytes: retained_bytes,
         },
         configuration_digest: configuration_digest(config),
         limits: config.limits,
         curve: observed.points,
         inference: ProbabilityPairInferenceSummary {
-            null_model: "random_labeling".into(),
-            permutation_unit: "complete_probability_row".into(),
-            probability_mode: "exact_expected_contributions".into(),
-            alternative: "two_sided".into(),
-            multiplicity: "single_connection_erl_family".into(),
+            null_model: MarkNullModel::RandomLabeling,
+            permutation_unit: MarkPermutationUnit::CompleteProbabilityRow,
+            probability_mode: ProbabilityContributionMode::ExactExpectedContributions,
+            alternative: marklab_cohort::InferenceAlternative::TwoSided,
+            multiplicity: MultiplicityCorrection::SingleConnectionErlFamily,
             connection,
             permutations_requested: config.permutations,
-            permutations_attempted: config.permutations,
-            permutations_completed: config.permutations,
             seed: config.seed,
             alpha: config.alpha,
             permutation_pair_evaluations: required_evaluations,
@@ -276,22 +280,22 @@ fn attach_envelope(
 }
 
 fn effective_masses(probabilities: &[f32]) -> (f64, f64, f64) {
-    let (mut positive, mut positive_correction) = (0.0, 0.0);
-    let (mut negative, mut negative_correction) = (0.0, 0.0);
-    let (mut unordered_pairs, mut pair_correction) = (0.0, 0.0);
+    let mut positive = NeumaierSum::new();
+    let mut negative = NeumaierSum::new();
+    let mut unordered_pairs = NeumaierSum::new();
     for probability in probabilities {
         let probability = f64::from(*probability);
         // Sum pair products directly: squaring total mass and subtracting
         // squared probabilities loses tiny pairs beside a dominant probability.
-        kahan_add(
-            &mut unordered_pairs,
-            &mut pair_correction,
-            probability * positive,
-        );
-        kahan_add(&mut positive, &mut positive_correction, probability);
-        kahan_add(&mut negative, &mut negative_correction, 1.0 - probability);
+        unordered_pairs.add(probability * positive.total());
+        positive.add(probability);
+        negative.add(1.0 - probability);
     }
-    (positive, negative, 2.0 * unordered_pairs)
+    (
+        positive.total(),
+        negative.total(),
+        2.0 * unordered_pairs.total(),
+    )
 }
 
 pub(crate) fn configuration_digest(config: &ProbabilityPairConfig) -> ContentDigest {

@@ -1,3 +1,4 @@
+use super::DeterministicRng;
 use crate::{
     common::seeds::splitmix64,
     config::{NeighborhoodNullModel, RegistrationTransform},
@@ -160,16 +161,48 @@ pub(in crate::synthetic_smoke) fn multimodal_replicate_scenario(
 }
 
 fn random_label_input(timepoint: &str, seed: u64) -> Result<MultimodalInput> {
-    let labels = permute_fixed_count(25, 12, seed)?;
-    let mut he_cells = Vec::new();
-    for row in 0..5 {
-        for column in 0..5 {
-            let index = row * 5 + column;
+    let ihc_cells = territory_cluster("random", (20.0, 20.0))
+        .into_iter()
+        .chain(retained_controls())
+        .collect();
+    let (he_cells, ihc_cells) = random_label_cells(
+        5,
+        |row, column| (10.0 + column as f64 * 15.0, 10.0 + row as f64 * 15.0),
+        ihc_cells,
+        12,
+        6,
+        seed,
+    )?;
+    Ok(MultimodalInput {
+        he_cells,
+        ihc_cells,
+        landmarks: identity_landmarks(),
+        case_id: "smoke-random-labels".into(),
+        timepoint: timepoint.into(),
+        protein: "MSH6".into(),
+    })
+}
+
+/// Fixed-count random lymphocyte classes on a square H&E lattice and fixed-count random
+/// MMR-abnormal marks on the supplied IHC cells.
+fn random_label_cells(
+    columns: usize,
+    mut position: impl FnMut(usize, usize) -> (f64, f64),
+    mut ihc_cells: Vec<IhcCell>,
+    lymphocytes: usize,
+    abnormal: usize,
+    seed: u64,
+) -> Result<(Vec<HeCell>, Vec<IhcCell>)> {
+    let labels = permute_fixed_count(columns * columns, lymphocytes, seed)?;
+    let mut he_cells = Vec::with_capacity(columns * columns);
+    for row in 0..columns {
+        for column in 0..columns {
+            let (x_um, y_um) = position(row, column);
             he_cells.push(HeCell {
                 cell_id: format!("random-{row}-{column}"),
-                x_um: 10.0 + column as f64 * 15.0,
-                y_um: 10.0 + row as f64 * 15.0,
-                cell_type: Some(if labels[index] == 1 {
+                x_um,
+                y_um,
+                cell_type: Some(if labels[row * columns + column] == 1 {
                     "lymphocyte".into()
                 } else {
                     "tumor".into()
@@ -178,24 +211,116 @@ fn random_label_input(timepoint: &str, seed: u64) -> Result<MultimodalInput> {
             });
         }
     }
-    let mut ihc_cells = territory_cluster("random", (20.0, 20.0))
-        .into_iter()
-        .chain(retained_controls())
-        .collect::<Vec<_>>();
-    let ihc_marks =
-        permute_fixed_count(ihc_cells.len(), 6, splitmix64(seed ^ 0x6968_635f_6d61_726b))?;
+    let ihc_marks = permute_fixed_count(
+        ihc_cells.len(),
+        abnormal,
+        splitmix64(seed ^ 0x6968_635f_6d61_726b),
+    )?;
     for (cell, mark) in ihc_cells.iter_mut().zip(ihc_marks) {
         cell.mmr_mark = Some(mark);
         cell.mmr_probability = Some(if mark == 1 { 0.95 } else { 0.05 });
     }
+    Ok((he_cells, ihc_cells))
+}
 
-    Ok(MultimodalInput {
+/// Cell layouts for the multimodal shuffle calibration.
+#[cfg(test)]
+#[derive(Clone, Copy, Debug)]
+pub(in crate::synthetic_smoke) enum MultimodalCalibrationLayout {
+    /// The original control: a 5 x 5 H&E lattice at 15 um spacing and 12 IHC cells.
+    SparseGrid,
+    /// An 8 x 8 H&E lattice at 9 um spacing, jittered by up to 2 um, and 24 uniformly placed
+    /// IHC cells. The 12 um graph then has H&E-H&E edges and uneven degree.
+    DenseJitteredGrid,
+}
+
+#[cfg(test)]
+impl MultimodalCalibrationLayout {
+    pub(in crate::synthetic_smoke) const fn name(self) -> &'static str {
+        match self {
+            Self::SparseGrid => "sparse_grid_25he_12ihc",
+            Self::DenseJitteredGrid => "dense_jittered_grid_64he_24ihc",
+        }
+    }
+}
+
+/// Every source-section null model, each evaluated in the same production run.
+#[cfg(test)]
+pub(in crate::synthetic_smoke) const CALIBRATION_NULL_MODELS: [NeighborhoodNullModel; 4] = [
+    NeighborhoodNullModel::SourceSection,
+    NeighborhoodNullModel::SourceSectionDensity,
+    NeighborhoodNullModel::SourceSectionCellClass,
+    NeighborhoodNullModel::SourceSectionRegistrationQc,
+];
+
+/// Uniformly random fixed-count lymphocyte classes and MMR-abnormal marks: a hypothesis
+/// under which every source-section null model holds.
+#[cfg(test)]
+pub(in crate::synthetic_smoke) fn multimodal_calibration_scenario(
+    layout: MultimodalCalibrationLayout,
+    lymphocyte_percent: usize,
+    abnormal_percent: usize,
+    scenario: u64,
+    replicate: usize,
+) -> Result<MultimodalScenario> {
+    let scenario_seed =
+        splitmix64(0x6d6d_6361_6c69_6272 ^ scenario.wrapping_mul(0x9e37_79b9_7f4a_7c15))
+            ^ (replicate as u64).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    let mut config = multimodal_smoke_config(scenario_seed);
+    config.permutation.seed = splitmix64(scenario_seed ^ 0x6e75_6c6c_5f73_6565);
+    config.neighborhood.null_models = CALIBRATION_NULL_MODELS.to_vec();
+    let mut rng = DeterministicRng::new(splitmix64(scenario_seed ^ 0x6c61_796f_7574));
+    let (columns, spacing, jitter, ihc_cells) = match layout {
+        MultimodalCalibrationLayout::SparseGrid => (
+            5,
+            15.0,
+            0.0,
+            territory_cluster("random", (20.0, 20.0))
+                .into_iter()
+                .chain(retained_controls())
+                .collect::<Vec<_>>(),
+        ),
+        MultimodalCalibrationLayout::DenseJitteredGrid => (
+            8,
+            9.0,
+            2.0,
+            (0..24)
+                .map(|index| IhcCell {
+                    cell_id: format!("random-ihc-{index}"),
+                    x_um: 10.0 + 63.0 * rng.unit(),
+                    y_um: 10.0 + 63.0 * rng.unit(),
+                    mmr_mark: None,
+                    mmr_probability: None,
+                })
+                .collect(),
+        ),
+    };
+    let ihc_count = ihc_cells.len();
+    let (he_cells, ihc_cells) = random_label_cells(
+        columns,
+        |row, column| {
+            (
+                10.0 + column as f64 * spacing + rng.centered(jitter),
+                10.0 + row as f64 * spacing + rng.centered(jitter),
+            )
+        },
+        ihc_cells,
+        columns * columns * lymphocyte_percent / 100,
+        ihc_count * abnormal_percent / 100,
+        splitmix64(scenario_seed),
+    )?;
+    let pre = MultimodalInput {
         he_cells,
         ihc_cells,
         landmarks: identity_landmarks(),
-        case_id: "smoke-random-labels".into(),
-        timepoint: timepoint.into(),
+        case_id: "calibration-random-labels".into(),
+        timepoint: "pre".into(),
         protein: "MSH6".into(),
+    };
+    Ok(MultimodalScenario {
+        config,
+        pre,
+        post: None,
     })
 }
 
@@ -383,34 +508,4 @@ fn affine_landmarks() -> Vec<LandmarkPair> {
         .into_iter()
         .map(|(x, y)| LandmarkPair::new(x, y, 1.1 * x + 0.2 * y + 3.0, -0.1 * x + 0.9 * y - 4.0))
         .collect()
-}
-
-#[derive(Clone, Copy, Debug)]
-struct DeterministicRng {
-    state: u64,
-}
-
-impl DeterministicRng {
-    fn new(seed: u64) -> Self {
-        Self {
-            state: seed ^ 0xa076_1d64_78bd_642f,
-        }
-    }
-
-    fn unit(&mut self) -> f64 {
-        let value = self.next_u64() >> 11;
-        value as f64 / ((1_u64 << 53) as f64)
-    }
-
-    fn centered(&mut self, width: f64) -> f64 {
-        (2.0 * self.unit() - 1.0) * width
-    }
-
-    fn next_u64(&mut self) -> u64 {
-        self.state = self
-            .state
-            .wrapping_mul(6_364_136_223_846_793_005)
-            .wrapping_add(1_442_695_040_888_963_407);
-        self.state ^ (self.state >> 33)
-    }
 }

@@ -1,6 +1,6 @@
 use marklab_cohort::InferenceAlternative;
 use marklab_data::{CoordinateFrameId, MeasurementStatus};
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 use thiserror::Error;
 
 use crate::scalar_mark::ScalarMarkId;
@@ -8,8 +8,11 @@ use crate::scalar_mark::ScalarMarkId;
 /// Explicit adjacency normalization for global Moran's I.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GlobalMoranWeightPolicy {
-    /// Every directed radius-neighbour edge has weight one.
+    /// Every directed radius-neighbour edge has weight one; isolated rows are rejected.
     BinarySymmetric,
+    /// Binary weights retaining isolated rows in centering, variance and permutation support.
+    /// At least one spatial edge is required.
+    BinarySymmetricIncludingIsolates,
     /// Each outgoing radius-neighbour row sums to one.
     RowStandardized,
 }
@@ -18,6 +21,7 @@ impl GlobalMoranWeightPolicy {
     pub(super) fn wire_name(self) -> &'static str {
         match self {
             Self::BinarySymmetric => "binary_symmetric",
+            Self::BinarySymmetricIncludingIsolates => "binary_symmetric_including_isolates",
             Self::RowStandardized => "row_standardized",
         }
     }
@@ -26,7 +30,7 @@ impl GlobalMoranWeightPolicy {
 /// Prespecified tail for the global Moran random-labeling test.
 pub type GlobalMoranAlternative = InferenceAlternative;
 
-/// Conditioning used by the admitted method-specific random-labeling design.
+/// Conditioning used by the supported method-specific random-labeling design.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GlobalMoranConditioning {
     /// Permute complete scalar values across all rows.
@@ -178,10 +182,6 @@ pub struct GlobalMoranResult {
     pub p_value: f64,
     /// Requested permutations.
     pub permutations_requested: usize,
-    /// Attempted permutations.
-    pub permutations_attempted: usize,
-    /// Successfully completed permutations.
-    pub permutations_completed: usize,
     /// Exact base seed.
     pub seed: u64,
     /// Prespecified alternative.
@@ -232,10 +232,6 @@ pub struct GlobalGearyResult {
     pub p_value: f64,
     /// Requested permutations.
     pub permutations_requested: usize,
-    /// Attempted permutations.
-    pub permutations_attempted: usize,
-    /// Successfully completed permutations.
-    pub permutations_completed: usize,
     /// Exact base seed.
     pub seed: u64,
     /// Prespecified alternative.
@@ -250,7 +246,7 @@ pub type GlobalMoranError = GlobalSpatialAutocorrelationError;
 /// Invalid typed input, design, resource, geometry, or numerical state for global Geary's C.
 pub type GlobalGearyError = GlobalSpatialAutocorrelationError;
 
-/// Shared failure states of the admitted global spatial-autocorrelation workflows.
+/// Shared failure states of the supported global spatial-autocorrelation workflows.
 #[derive(Debug, Error, PartialEq)]
 pub enum GlobalSpatialAutocorrelationError {
     /// One or more resource ceilings are zero.
@@ -331,6 +327,9 @@ pub enum GlobalSpatialAutocorrelationError {
         /// Isolated row.
         row: usize,
     },
+    /// All observed rows are isolated, so the sum of spatial weights is zero.
+    #[error("global spatial-autocorrelation graph has no spatial edges")]
+    NoSpatialEdges,
     /// Directed edge count exceeds the explicit limit.
     #[error("global spatial-autocorrelation directed-edge count exceeds {maximum}")]
     DirectedEdgeLimitExceeded {

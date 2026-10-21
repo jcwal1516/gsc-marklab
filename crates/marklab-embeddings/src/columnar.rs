@@ -1,5 +1,9 @@
 mod arrow;
+mod driver;
 mod error;
+mod read_context;
+pub use driver::*;
+pub use read_context::*;
 mod multiscale;
 mod parquet;
 mod resources;
@@ -36,9 +40,8 @@ pub use arrow::{
     write_cell_patch_edge_table_arrow, write_patch_footprint_set_arrow,
     write_patch_overlap_graph_arrow, write_patch_region_link_arrow, CellEmbeddingArrowPreflight,
     CellEmbeddingRowLinkArrowPreflight, CellPatchAssignmentArrowPreflight,
-    CellPatchEdgeArrowPreflight, EmbeddingColumnarPublicationError,
-    MultiscaleColumnarPublicationError, PatchFootprintArrowPreflight, PatchOverlapArrowPreflight,
-    PatchRegionArrowPreflight,
+    CellPatchEdgeArrowPreflight, ColumnarPublicationError, PatchFootprintArrowPreflight,
+    PatchOverlapArrowPreflight, PatchRegionArrowPreflight,
 };
 pub use arrow::{
     preflight_patch_embedding_table_arrow_bytes, preflight_region_embedding_table_arrow_bytes,
@@ -57,11 +60,8 @@ pub use arrow::{
 pub(crate) use error::{
     enforce_decoded_budget, enforce_file_budget, enforce_retained_budget, enforce_row_group_budget,
 };
-pub use error::{ArrowIpcFailure, EmbeddingColumnarError, ParquetFailure};
-pub use multiscale::{
-    MultiscaleColumnarError, SpatialArrowFailure, SpatialColumnarWriteSummary,
-    SpatialParquetFailure,
-};
+pub use error::{ArrowIpcFailure, ColumnarError, ParquetFailure};
+pub use multiscale::SpatialColumnarWriteSummary;
 pub use parquet::{
     preflight_cell_embedding_row_link_parquet_bytes, preflight_cell_embedding_table_parquet_bytes,
     preflight_cell_patch_assignment_table_parquet_bytes,
@@ -164,26 +164,26 @@ impl EmbeddingColumnarBudgets {
     }
 }
 
-/// Exact logical bindings required to reconstruct a canonical patch-embedding table.
+/// Exact logical bindings required to reconstruct a canonical multiscale embedding table.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct PatchEmbeddingTableReadBindings {
+pub struct MultiscaleEmbeddingTableReadBindings {
     expected_entities: MultiscaleArtifactBinding,
     support: MultiscaleArtifactBinding,
     provenance: MultiscaleArtifactBinding,
 }
 
-impl PatchEmbeddingTableReadBindings {
-    /// Bind distinct expected-patch, support, and provenance artifacts to their logical identities.
+impl MultiscaleEmbeddingTableReadBindings {
+    /// Bind distinct expected-entity, support, and provenance artifacts to their logical identities.
     pub fn new(
         expected_entities: MultiscaleArtifactBinding,
         support: MultiscaleArtifactBinding,
         provenance: MultiscaleArtifactBinding,
-    ) -> Result<Self, MultiscaleColumnarError> {
+    ) -> Result<Self, ColumnarError> {
         if expected_entities.artifact_id() == support.artifact_id()
             || expected_entities.artifact_id() == provenance.artifact_id()
             || support.artifact_id() == provenance.artifact_id()
         {
-            return Err(MultiscaleColumnarError::ArtifactBindingMismatch);
+            return Err(ColumnarError::ArtifactBindingMismatch);
         }
         Ok(Self {
             expected_entities,
@@ -192,7 +192,7 @@ impl PatchEmbeddingTableReadBindings {
         })
     }
 
-    /// Expected-patch artifact identity and logical digest.
+    /// Expected-entity artifact identity and logical digest.
     pub fn expected_entities(self) -> MultiscaleArtifactBinding {
         self.expected_entities
     }
@@ -226,12 +226,12 @@ impl CellEmbeddingTablePhysicalBindings {
         row_link_artifact_id: ArtifactId,
         row_link_logical_digest: ContentDigest,
         table_logical_digest: ContentDigest,
-    ) -> Result<Self, EmbeddingColumnarError> {
+    ) -> Result<Self, ColumnarError> {
         if expected_cells_artifact_id == provenance_artifact_id
             || expected_cells_artifact_id == row_link_artifact_id
             || provenance_artifact_id == row_link_artifact_id
         {
-            return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
+            return Err(ColumnarError::ArtifactBindingMismatch);
         }
         Ok(Self {
             expected_cells_artifact_id,

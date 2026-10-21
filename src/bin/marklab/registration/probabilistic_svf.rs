@@ -1,12 +1,19 @@
+use marklab_bayes::is_worker_timeout;
 use std::path::PathBuf;
 
 use marklab_topology::sha256_hex;
 use serde::Deserialize;
 
+use crate::cli_error::CliError;
+
 use super::{
-    super::topology::{publish_json, read_input, read_required, run_worker, TopologyCliError},
+    super::topology::{publish_json, read_input, read_required, run_worker},
     RegistrationImage,
 };
+use marklab_bayes::backend_versions::JAX_VERSION;
+use marklab_bayes::backend_versions::NUMPY_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_bayes::backend_versions::SCIPY_VERSION;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -22,11 +29,11 @@ struct ProbabilisticSvfSpec {
     seed: u64,
     timeout_seconds: u64,
 }
-pub(super) fn run_probabilistic_svf(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+pub(super) fn run_probabilistic_svf(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let spec: ProbabilisticSvfSpec = serde_json::from_slice(&bytes)?;
     validate_probabilistic_svf(&spec)?;
-    let repository = marklab::python_backend_assets_root()?;
+    let repository = marklab::backend::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_jax_probabilistic_svf_worker.py");
     let lock = read_required(&lock_path)?;
@@ -36,10 +43,10 @@ pub(super) fn run_probabilistic_svf(input: PathBuf, out: PathBuf) -> Result<(), 
         "version": 1,
         "backend": {
             "name": "jax_scipy_variational_svf",
-            "jax_version": "0.11.1",
-            "scipy_version": "1.18.1",
-            "numpy_version": "2.4.6",
-            "python_version": "3.12",
+            "jax_version": JAX_VERSION,
+            "scipy_version": SCIPY_VERSION,
+            "numpy_version": NUMPY_VERSION,
+            "python_version": PYTHON_VERSION,
             "license": "Apache-2.0_plus_BSD-3-Clause",
             "environment_lock_sha256": sha256_hex(&lock),
             "worker_sha256": sha256_hex(&worker)
@@ -68,14 +75,14 @@ pub(super) fn run_probabilistic_svf(input: PathBuf, out: PathBuf) -> Result<(), 
         || result["fit_state"] != "approximate_only"
         || result["claim_status"] != "experimental_synthetic_probabilistic_diffeomorphism"
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "probabilistic SVF result identity mismatch".into(),
         ));
     }
     publish_json(&out, &result)
 }
 
-fn validate_probabilistic_svf(spec: &ProbabilisticSvfSpec) -> Result<(), TopologyCliError> {
+fn validate_probabilistic_svf(spec: &ProbabilisticSvfSpec) -> Result<(), CliError> {
     let height = spec.fixed.pixels.len();
     let width = spec.fixed.pixels.first().map(Vec::len).unwrap_or(0);
     let valid_image = |image: &RegistrationImage| {
@@ -106,9 +113,9 @@ fn validate_probabilistic_svf(spec: &ProbabilisticSvfSpec) -> Result<(), Topolog
         || !spec.variational_samples.is_multiple_of(2)
         || !(20..=1_000).contains(&spec.posterior_draws)
         || !(10..=2_000).contains(&spec.maximum_iterations)
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "probabilistic SVF requires bounded same-grid images, a constant-translation velocity family, positive prior/noise, antithetic variational samples, and bounded posterior controls"
                 .into(),
         ));

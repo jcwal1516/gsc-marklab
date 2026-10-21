@@ -1,207 +1,116 @@
+pub(crate) use marklab_bayes::protocol::replicated_arbitrary_window_multitype_lgcp_inferred_kernel::{KernelPriors, KernelResources, WorkerRequest, WorkerResult, Output, validate_result, array, strings, string};
+
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand};
-use marklab_bayes::{
-    sha256_hex, BackendContract, DiagnosticPolicy, FitState, NormalMeanDiagnostics,
-    SamplingSummary, SarScalarSummary, WorkerBackend,
-};
-use serde::{Deserialize, Serialize};
+use marklab_bayes::sha256_hex;
+use marklab_bayes::BackendContract;
+use marklab_bayes::FitState;
 
-use super::{
-    publish_json,
-    replicated_arbitrary_window_lgcp_agreement::backend_matches,
-    replicated_arbitrary_window_multitype_lgcp::{
-        self, hierarchy_effects_valid, pair_differences_valid, summary_valid,
-        type_posteriors_valid, Args as SourceArgs, HierarchyEffect, NodeTypePosterior,
-        PairDifference, PatternTypePredictive, TypePosterior,
-    },
-    run_worker, BayesCliError,
-};
+use super::publish_json;
+use super::replicated_arbitrary_window_multitype_lgcp;
+use super::replicated_arbitrary_window_multitype_lgcp::Args as SourceArgs;
+use super::run_worker;
+use super::CliError;
+use marklab_bayes::backend_versions::PYMC_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::NullHypothesis;
+use marklab_core::vocabulary::StatisticalUnit;
 
-const PYMC_VERSION: &str = "6.3.0";
 const MAXIMUM_ADAPTER_BYTES: u64 = 8 * 1_048_576;
-
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct Cli {
-    #[command(subcommand)]
-    command: Top,
-}
-
-#[derive(Debug, Subcommand)]
-enum Top {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    FitReplicatedArbitraryWindowMultitypeLgcpInferredKernel(Box<Args>),
-}
 
 #[derive(Clone, Debug, clap::Args)]
 pub(crate) struct Args {
+    /// Per-node, per-type quadrature CSV (pattern_id, patient_id, group, type_id, count, ...).
     #[arg(long)]
     pub(crate) input: PathBuf,
+    /// Group level used as the regression reference.
     #[arg(long)]
     pub(crate) reference_group: String,
+    /// Group level whose effect is compared with the reference group.
     #[arg(long)]
     pub(crate) comparison_group: String,
+    /// Point-type label used as the model reference.
     #[arg(long)]
     pub(crate) reference_type: String,
+    /// Prior mean for intercept.
     #[arg(long, allow_hyphen_values = true)]
     pub(crate) intercept_prior_mean: f64,
+    /// Prior scale for intercept.
     #[arg(long)]
     pub(crate) intercept_prior_sd: f64,
+    /// Prior scale for group effect.
     #[arg(long)]
     pub(crate) group_effect_prior_sd: f64,
+    /// Prior scale for covariate effect.
     #[arg(long)]
     pub(crate) covariate_effect_prior_sd: f64,
+    /// Prior scale for patient standard deviation.
     #[arg(long)]
     pub(crate) patient_sd_prior_scale: f64,
+    /// Prior scale for pattern standard deviation.
     #[arg(long)]
     pub(crate) pattern_sd_prior_scale: f64,
+    /// Prior scale for field amplitude.
     #[arg(long)]
     pub(crate) field_amplitude_prior_scale: f64,
+    /// Prior scale, in micrometers, for field length scale.
     #[arg(long)]
     pub(crate) field_length_scale_prior_scale_um: f64,
+    /// Diagonal stabilization added to covariance matrices.
     #[arg(long)]
     pub(crate) jitter: f64,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
     pub(crate) chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
     pub(crate) tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
     pub(crate) draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
     pub(crate) target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
     pub(crate) seed: u64,
+    /// Upper bound on patients.
     #[arg(long)]
     pub(crate) maximum_patients: usize,
+    /// Upper bound on patterns.
     #[arg(long)]
     pub(crate) maximum_patterns: usize,
+    /// Upper bound on types.
     #[arg(long)]
     pub(crate) maximum_types: usize,
+    /// Upper bound on nodes per pattern.
     #[arg(long)]
     pub(crate) maximum_nodes_per_pattern: usize,
+    /// Upper bound on total nodes.
     #[arg(long)]
     pub(crate) maximum_total_nodes: usize,
+    /// Upper bound on total node type rows.
     #[arg(long)]
     pub(crate) maximum_total_node_type_rows: usize,
+    /// Upper bound on total events.
     #[arg(long)]
     pub(crate) maximum_total_events: u64,
+    /// Upper bound on draw node type work.
     #[arg(long)]
     pub(crate) maximum_draw_node_type_work: u64,
+    /// Upper bound on kernel cube work.
     #[arg(long)]
     pub(crate) maximum_kernel_cube_work: u64,
+    /// Upper bound on tree depth.
     #[arg(long)]
     pub(crate) maximum_tree_depth: u32,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
     pub(crate) timeout_seconds: u64,
+    /// Destination for the analysis output.
     #[arg(long)]
     pub(crate) out: PathBuf,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct KernelPriors {
-    field_amplitude_scale: f64,
-    field_length_scale_scale_um: f64,
-    jitter: f64,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct KernelResources {
-    maximum_kernel_cube_work: u64,
-    kernel_cube_work: u64,
-    maximum_tree_depth: u32,
-    timeout_seconds: u64,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct KernelPosterior {
-    field_amplitude: SarScalarSummary,
-    field_length_scale_um: SarScalarSummary,
-}
-
-#[derive(Serialize)]
-struct WorkerRequest<'a> {
-    format: &'static str,
-    version: u32,
-    backend: BackendContract,
-    source_backend: BackendContract,
-    source_request_sha256: &'a str,
-    source_request: serde_json::Value,
-    kernel_priors: KernelPriors,
-    resources: KernelResources,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WorkerResult {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    source_backend: WorkerBackend,
-    input_sha256: String,
-    request_sha256: String,
-    source_request_sha256: String,
-    fit_state: FitState,
-    sampling: SamplingSummary,
-    kernel_posterior: KernelPosterior,
-    type_posteriors: Vec<TypePosterior>,
-    group_effect_differences: Vec<PairDifference>,
-    patient_type_effects: Vec<HierarchyEffect>,
-    pattern_type_effects: Vec<HierarchyEffect>,
-    node_type_posteriors: Vec<NodeTypePosterior>,
-    pattern_type_posterior_predictive: Vec<PatternTypePredictive>,
-    diagnostics: NormalMeanDiagnostics,
-    kernel_cube_work: u64,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct Output {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    source_backend: WorkerBackend,
-    input_sha256: String,
-    request_sha256: String,
-    source_request_sha256: String,
-    fit_state: FitState,
-    sampling: SamplingSummary,
-    kernel_posterior: KernelPosterior,
-    type_posteriors: Vec<TypePosterior>,
-    group_effect_differences: Vec<PairDifference>,
-    patient_type_effects: Vec<HierarchyEffect>,
-    pattern_type_effects: Vec<HierarchyEffect>,
-    node_type_posteriors: Vec<NodeTypePosterior>,
-    pattern_type_posterior_predictive: Vec<PatternTypePredictive>,
-    diagnostics: NormalMeanDiagnostics,
-    patient_count: usize,
-    pattern_count: usize,
-    type_count: usize,
-    total_node_count: usize,
-    total_node_type_row_count: usize,
-    total_event_count: u64,
-    groups: [String; 2],
-    reference_type: String,
-    cohort_count: usize,
-    kernel_priors: KernelPriors,
-    resources: KernelResources,
-    statistical_unit: String,
-    pattern_unit: String,
-    likelihood: String,
-    null_model: String,
-    assumptions: Vec<String>,
-    finite_result_policy: String,
-    claim_status: String,
 }
 
 pub(crate) struct Prepared {
@@ -225,66 +134,13 @@ impl Prepared {
     }
 }
 
-impl Output {
-    pub(crate) fn validate_for(&self, prepared: &Prepared) -> Result<(), BayesCliError> {
-        let mut value = serde_json::to_value(self)?;
-        let object = value
-            .as_object_mut()
-            .ok_or_else(|| BayesCliError::Backend("inferred-kernel result differs".into()))?;
-        for name in [
-            "patient_count",
-            "pattern_count",
-            "type_count",
-            "total_node_count",
-            "total_node_type_row_count",
-            "total_event_count",
-            "groups",
-            "reference_type",
-            "cohort_count",
-            "kernel_priors",
-            "resources",
-            "statistical_unit",
-            "pattern_unit",
-            "likelihood",
-            "null_model",
-            "assumptions",
-            "finite_result_policy",
-            "claim_status",
-        ] {
-            object.remove(name);
-        }
-        object.insert(
-            "kernel_cube_work".into(),
-            prepared.resources.kernel_cube_work.into(),
-        );
-        let result: WorkerResult = serde_json::from_value(value)?;
-        validate_result(&result, prepared)?;
-        let source = &prepared.source_value;
-        if self.patient_count != array(source, "patients")?.len()
-            || self.pattern_count != array(source, "patterns")?.len()
-            || self.type_count != array(source, "type_ids")?.len()
-            || self.total_node_count != array(source, "nodes")?.len()
-            || self.total_node_type_row_count != array(source, "node_type_counts")?.len()
-            || self.statistical_unit != "patient"
-            || self.pattern_unit != "slide_pattern_nested_in_patient"
-        {
-            return Err(BayesCliError::Backend(
-                "durable replicated multitype inferred-kernel metadata differs".into(),
-            ));
-        }
-        Ok(())
-    }
-}
-
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let Top::Bayes { command } = Cli::parse_from(std::env::args_os()).command;
-    let Command::FitReplicatedArbitraryWindowMultitypeLgcpInferredKernel(args) = command;
+pub(super) fn run(args: Box<Args>) -> Result<(), CliError> {
     let out = args.out.clone();
     let prepared = prepare(*args)?;
     publish_json(&out, &execute(&prepared)?)
 }
 
-pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
+pub(crate) fn prepare(args: Args) -> Result<Prepared, CliError> {
     if ![
         args.field_amplitude_prior_scale,
         args.field_length_scale_prior_scale_um,
@@ -296,7 +152,7 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         || args.maximum_kernel_cube_work > 1_000_000
         || !(10..=14).contains(&args.maximum_tree_depth)
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated multitype inferred-kernel controls are invalid".into(),
         ));
     }
@@ -331,7 +187,8 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         out: PathBuf::new(),
     })?;
     let source_value: serde_json::Value = serde_json::from_slice(source.request_bytes())?;
-    let kernel_cube_work = array(&source_value, "patterns")?
+    let kernel_cube_work = array(&source_value, "patterns")
+        .map_err(super::protocol_error)?
         .iter()
         .try_fold(0_u64, |total, row| {
             row["node_count"]
@@ -339,9 +196,9 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
                 .and_then(|nodes| nodes.checked_pow(3))
                 .and_then(|work| total.checked_add(work))
         })
-        .ok_or_else(|| BayesCliError::Input("multitype kernel work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("multitype kernel work overflows".into()))?;
     if kernel_cube_work > args.maximum_kernel_cube_work {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "multitype kernel cube work exceeds maximum: {kernel_cube_work} > {}",
             args.maximum_kernel_cube_work
         )));
@@ -357,12 +214,12 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
         maximum_tree_depth: args.maximum_tree_depth,
         timeout_seconds: args.timeout_seconds,
     };
-    let repository = &marklab::python_backend_assets_root()?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let directory = repository.join("workers/python");
     let backend = BackendContract {
         name: "pymc",
         version: PYMC_VERSION,
-        python_version: "3.12",
+        python_version: PYTHON_VERSION,
         environment_lock_sha256: sha256_hex(&read_bounded(&directory.join("uv.lock"))?),
         worker_sha256: sha256_hex(&read_bounded(&directory.join(
             "marklab_pymc_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_worker.py",
@@ -392,21 +249,21 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
     })
 }
 
-pub(crate) fn execute(prepared: &Prepared) -> Result<Output, BayesCliError> {
+pub(crate) fn execute(prepared: &Prepared) -> Result<Output, CliError> {
     let bytes = run_worker(
-        &marklab::python_backend_assets_root()?,
+        &marklab::backend::python_backend_assets_root()?,
         "marklab_pymc_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_worker.py",
         &prepared.request_bytes,
         prepared.timeout_seconds,
     )?;
     let result: WorkerResult = serde_json::from_slice(&bytes)?;
-    validate_result(&result, prepared)?;
+    validate_result(&result, &prepared.validation_context()).map_err(super::protocol_error)?;
     let source = &prepared.source_value;
-    let patients = array(source, "patients")?;
-    let patterns = array(source, "patterns")?;
-    let types = strings(source, "type_ids")?;
-    let nodes = array(source, "nodes")?;
-    let counts = array(source, "node_type_counts")?;
+    let patients = array(source, "patients").map_err(super::protocol_error)?;
+    let patterns = array(source, "patterns").map_err(super::protocol_error)?;
+    let types = strings(source, "type_ids").map_err(super::protocol_error)?;
+    let nodes = array(source, "nodes").map_err(super::protocol_error)?;
+    let counts = array(source, "node_type_counts").map_err(super::protocol_error)?;
     Ok(Output {
         format: result.format,
         version: result.version,
@@ -432,10 +289,10 @@ pub(crate) fn execute(prepared: &Prepared) -> Result<Output, BayesCliError> {
         total_node_type_row_count: counts.len(),
         total_event_count: counts.iter().filter_map(|row| row["count"].as_u64()).sum(),
         groups: [
-            string(source, "reference_group")?,
-            string(source, "comparison_group")?,
+            string(source, "reference_group").map_err(super::protocol_error)?,
+            string(source, "comparison_group").map_err(super::protocol_error)?,
         ],
-        reference_type: string(source, "reference_type")?,
+        reference_type: string(source, "reference_type").map_err(super::protocol_error)?,
         cohort_count: patterns
             .iter()
             .filter_map(|row| row["cohort"].as_str())
@@ -443,11 +300,11 @@ pub(crate) fn execute(prepared: &Prepared) -> Result<Output, BayesCliError> {
             .len(),
         kernel_priors: prepared.kernel_priors.clone(),
         resources: prepared.resources.clone(),
-        statistical_unit: "patient".into(),
+        statistical_unit: StatisticalUnit::Patient,
         pattern_unit: "slide_pattern_nested_in_patient".into(),
         likelihood: "independent_type_specific_poisson_intensities_over_one_shared_exact_window"
             .into(),
-        null_model: "every_type_comparison_group_log_intensity_effect_equals_zero".into(),
+        null_model: NullHypothesis::EveryTypeComparisonGroupLogIntensityEffectEqualsZero,
         assumptions: [
             "one_shared_isotropic_matern_kernel_across_types_and_slide_patterns",
             "type_specific_latent_fields_are_conditionally_independent_given_shared_kernel_scales",
@@ -462,204 +319,36 @@ pub(crate) fn execute(prepared: &Prepared) -> Result<Output, BayesCliError> {
         .collect(),
         finite_result_policy: "nonconverged_is_diagnostic_only_reject_non_finite".into(),
         claim_status: if result.fit_state == FitState::Complete {
-            "experimental_inferred_shared_multitype_kernel"
+            ClaimStatus::ExperimentalInferredSharedMultitypeKernel
         } else {
-            "diagnostic_only_nonconverged"
-        }
-        .into(),
+            ClaimStatus::DiagnosticOnlyNonconverged
+        },
     })
 }
 
-fn validate_result(result: &WorkerResult, prepared: &Prepared) -> Result<(), BayesCliError> {
-    let source = &prepared.source_value;
-    let types = strings(source, "type_ids")?;
-    let patients = identities(array(source, "patients")?, "patient_id")?;
-    let patterns = identities(array(source, "patterns")?, "pattern_id")?;
-    let nodes = array(source, "nodes")?;
-    let counts = array(source, "node_type_counts")?;
-    let policy = DiagnosticPolicy::default();
-    let diagnostics_pass = result.diagnostics.prior_predictive_finite
-        && result.diagnostics.posterior_finite
-        && result.diagnostics.constraints_valid
-        && result.diagnostics.identifiability_checks_passed
-        && result.diagnostics.r_hat <= policy.maximum_r_hat
-        && result.diagnostics.ess_bulk >= policy.minimum_bulk_ess
-        && result.diagnostics.ess_tail >= policy.minimum_tail_ess
-        && result.diagnostics.minimum_ebfmi >= policy.minimum_ebfmi
-        && result.diagnostics.divergences <= policy.maximum_divergences
-        && result.diagnostics.max_tree_depth_hits <= policy.maximum_tree_depth_hits;
-    let nodes_valid = result.node_type_posteriors.len() == counts.len()
-        && result
-            .node_type_posteriors
-            .iter()
-            .zip(counts)
-            .all(|(row, count)| {
-                let Some(node_index) = count["node_index"].as_u64().map(|value| value as usize)
-                else {
-                    return false;
-                };
-                let Some(type_index) = count["type_index"].as_u64().map(|value| value as usize)
-                else {
-                    return false;
-                };
-                nodes.get(node_index).is_some_and(|node| {
-                    row.pattern_id == node["pattern_id"]
-                        && row.node_id == node["node_id"]
-                        && types.get(type_index) == Some(&row.type_id)
-                        && summary_valid(&row.latent_effect)
-                        && summary_valid(&row.expected_count)
-                        && row.expected_count.mean > 0.0
-                })
-            });
-    let complete_draws = source["sampling"]["chains"].as_u64().unwrap_or(0)
-        * source["sampling"]["draws_per_chain"].as_u64().unwrap_or(0);
-    if result.format
-        != "marklab.bayesian_replicated_arbitrary_window_multitype_lgcp_inferred_kernel_fit"
-        || result.version != 1
-        || !backend_matches(&result.backend, &prepared.backend)
-        || !backend_matches(&result.source_backend, prepared.source.backend())
-        || result.input_sha256 != source["input_sha256"]
-        || result.request_sha256 != prepared.request_sha256
-        || result.source_request_sha256 != prepared.source.request_sha256()
-        || result.sampling.completed_draws != complete_draws
-        || result.kernel_cube_work != prepared.resources.kernel_cube_work
-        || !summary_valid(&result.kernel_posterior.field_amplitude)
-        || !summary_valid(&result.kernel_posterior.field_length_scale_um)
-        || result.kernel_posterior.field_amplitude.mean <= 0.0
-        || result.kernel_posterior.field_length_scale_um.mean <= 0.0
-        || !type_posteriors_valid(&result.type_posteriors, &types)
-        || !pair_differences_valid(&result.group_effect_differences, &types)
-        || !hierarchy_effects_valid(
-            &result.patient_type_effects,
-            patients.iter().map(String::as_str),
-            &types,
-        )
-        || !hierarchy_effects_valid(
-            &result.pattern_type_effects,
-            patterns.iter().map(String::as_str),
-            &types,
-        )
-        || !nodes_valid
-        || !predictive_valid(
-            &result.pattern_type_posterior_predictive,
-            source,
-            complete_draws,
-        )
-        || (result.fit_state == FitState::Complete) != diagnostics_pass
-    {
-        return Err(BayesCliError::Backend(
-            "replicated multitype inferred-kernel result differs".into(),
-        ));
-    }
-    Ok(())
-}
-
-pub(crate) fn predictive_valid(
-    rows: &[PatternTypePredictive],
-    source: &serde_json::Value,
-    draws: u64,
-) -> bool {
-    let Ok(patterns) = array(source, "patterns") else {
-        return false;
-    };
-    let Ok(types) = strings(source, "type_ids") else {
-        return false;
-    };
-    let Ok(nodes) = array(source, "nodes") else {
-        return false;
-    };
-    let Ok(counts) = array(source, "node_type_counts") else {
-        return false;
-    };
-    rows.len() == patterns.len() * types.len()
-        && rows.iter().enumerate().all(|(index, row)| {
-            let pattern_index = index / types.len();
-            let type_index = index % types.len();
-            let observed = counts
-                .iter()
-                .filter(|count| {
-                    count["type_index"].as_u64() == Some(type_index as u64)
-                        && count["node_index"].as_u64().is_some_and(|node| {
-                            nodes[node as usize]["pattern_index"].as_u64()
-                                == Some(pattern_index as u64)
-                        })
-                })
-                .filter_map(|count| count["count"].as_u64())
-                .sum::<u64>();
-            let finite = [
-                row.replicated_total_count_mean,
-                row.replicated_total_count_sd,
-                row.replicated_total_count_interval_lower,
-                row.replicated_total_count_interval_upper,
-                row.total_count_two_sided_tail_probability,
-                row.observed_node_count_variance,
-                row.replicated_node_count_variance_mean,
-                row.node_variance_two_sided_tail_probability,
-            ]
-            .into_iter()
-            .all(f64::is_finite);
-            row.pattern_id == patterns[pattern_index]["pattern_id"]
-                && row.type_id == types[type_index]
-                && row.observed_total_count == observed
-                && row.replicate_count == draws
-                && finite
-                && row.replicated_total_count_sd >= 0.0
-                && row.replicated_total_count_interval_lower
-                    <= row.replicated_total_count_interval_upper
-                && row.observed_node_count_variance >= 0.0
-                && row.replicated_node_count_variance_mean >= 0.0
-                && (0.0..=1.0).contains(&row.total_count_two_sided_tail_probability)
-                && (0.0..=1.0).contains(&row.node_variance_two_sided_tail_probability)
-        })
-}
-
-fn array<'a>(
-    value: &'a serde_json::Value,
-    name: &str,
-) -> Result<&'a [serde_json::Value], BayesCliError> {
-    value[name]
-        .as_array()
-        .map(Vec::as_slice)
-        .ok_or_else(|| BayesCliError::Input(format!("prepared {name} differ")))
-}
-
-fn strings(value: &serde_json::Value, name: &str) -> Result<Vec<String>, BayesCliError> {
-    array(value, name)?
-        .iter()
-        .map(|row| {
-            row.as_str()
-                .map(ToOwned::to_owned)
-                .ok_or_else(|| BayesCliError::Input(format!("prepared {name} differ")))
-        })
-        .collect()
-}
-
-fn identities(rows: &[serde_json::Value], name: &str) -> Result<Vec<String>, BayesCliError> {
-    rows.iter()
-        .map(|row| {
-            row[name]
-                .as_str()
-                .map(ToOwned::to_owned)
-                .ok_or_else(|| BayesCliError::Input(format!("prepared {name} differs")))
-        })
-        .collect()
-}
-
-fn string(value: &serde_json::Value, name: &str) -> Result<String, BayesCliError> {
-    value[name]
-        .as_str()
-        .map(ToOwned::to_owned)
-        .ok_or_else(|| BayesCliError::Input(format!("prepared {name} differs")))
-}
-
-fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
-    super::input_file::read_regular_file(
+fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>, CliError> {
+    crate::input_file::read_regular_file(
         path,
         MAXIMUM_ADAPTER_BYTES,
         "replicated multitype inferred-kernel adapter is absent or oversized",
     )
 }
 
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<Cli>(|| run_cli().map_err(super::into_marklab_error))
+impl Prepared {
+    fn validation_context(&self) -> marklab_bayes::protocol::replicated_arbitrary_window_multitype_lgcp_inferred_kernel::ValidationContext<'_>{
+        marklab_bayes::protocol::replicated_arbitrary_window_multitype_lgcp_inferred_kernel::ValidationContext {
+            source_value: &self.source_value,
+            backend: &self.backend,
+            source_backend: self.source.backend(),
+            request_sha256: &self.request_sha256,
+            source_request_sha256: self.source.request_sha256(),
+            resources: &self.resources,
+        }
+    }
+
+    pub(crate) fn validate_result(&self, result: &Output) -> Result<(), CliError> {
+        result
+            .validate_for(&self.validation_context())
+            .map_err(super::protocol_error)
+    }
 }

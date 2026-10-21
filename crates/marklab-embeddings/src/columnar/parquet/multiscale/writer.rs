@@ -22,7 +22,7 @@ use crate::columnar::{
             estimate_metadata_retained_bytes, ParquetDigestingWriter, WRITER_FIXED_RETAINED_BYTES,
         },
     },
-    EmbeddingColumnarBudgets, MultiscaleColumnarError, SpatialColumnarWriteSummary,
+    ColumnarError, EmbeddingColumnarBudgets, SpatialColumnarWriteSummary,
 };
 
 /// Write the exact deterministic Parquet profile for a patch-footprint set.
@@ -32,7 +32,7 @@ pub fn write_patch_footprint_set_parquet(
     context: &PatchEmbeddingContext,
     footprints: &PatchFootprintSet,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<SpatialColumnarWriteSummary, MultiscaleColumnarError> {
+) -> Result<SpatialColumnarWriteSummary, ColumnarError> {
     validate_footprint_domain(expected, context, footprints)?;
     let profile = SpatialParquetProfile::Footprint;
     enforce_footer_bound(footprints.row_count())?;
@@ -60,7 +60,7 @@ pub fn write_patch_overlap_graph_parquet(
     footprints: &PatchFootprintSet,
     overlap: &PatchOverlapGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<SpatialColumnarWriteSummary, MultiscaleColumnarError> {
+) -> Result<SpatialColumnarWriteSummary, ColumnarError> {
     validate_overlap_domain(expected, context, footprints, overlap)?;
     let profile = SpatialParquetProfile::Overlap;
     enforce_footer_bound(overlap.edge_count())?;
@@ -91,13 +91,9 @@ fn write_parquet<F>(
     row_count: usize,
     budgets: EmbeddingColumnarBudgets,
     mut build_batch: F,
-) -> Result<SpatialColumnarWriteSummary, MultiscaleColumnarError>
+) -> Result<SpatialColumnarWriteSummary, ColumnarError>
 where
-    F: FnMut(
-        &arrow::datatypes::Schema,
-        usize,
-        usize,
-    ) -> Result<RecordBatch, MultiscaleColumnarError>,
+    F: FnMut(&arrow::datatypes::Schema, usize, usize) -> Result<RecordBatch, ColumnarError>,
 {
     let options = ArrowWriterOptions::new()
         .with_properties(writer_properties(profile, expected, footprints, overlap))
@@ -106,28 +102,26 @@ where
     let mut sink = ParquetDigestingWriter::new(output, budgets.maximum_file_bytes());
     let write_result = (|| {
         let mut writer = ArrowWriter::try_new_with_options(&mut sink, Arc::clone(&schema), options)
-            .map_err(|_| MultiscaleColumnarError::ParquetWriter)?;
+            .map_err(|_| ColumnarError::ParquetWriter)?;
         let mut start = 0_usize;
         while start < row_count {
             let end = start
                 .checked_add(PUBLIC_BATCH_ROWS)
                 .map(|value| value.min(row_count))
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
             let batch = build_batch(&schema, start, end)?;
             writer
                 .write(&batch)
-                .map_err(|_| MultiscaleColumnarError::ParquetWriter)?;
+                .map_err(|_| ColumnarError::ParquetWriter)?;
             start = end;
         }
-        let metadata = writer
-            .close()
-            .map_err(|_| MultiscaleColumnarError::ParquetWriter)?;
+        let metadata = writer.close().map_err(|_| ColumnarError::ParquetWriter)?;
         canonical_compact_len(&metadata, MAXIMUM_FOOTER_BYTES)
-            .map_err(|_| MultiscaleColumnarError::ParquetWriter)?;
+            .map_err(|_| ColumnarError::ParquetWriter)?;
         Ok(())
     })();
     if let Some(observed) = sink.budget_exceeded() {
-        return Err(MultiscaleColumnarError::FileByteBudgetExceeded {
+        return Err(ColumnarError::FileByteBudgetExceeded {
             observed,
             maximum: budgets.maximum_file_bytes(),
         });
@@ -137,7 +131,7 @@ where
     Ok(SpatialColumnarWriteSummary::new(
         digest,
         encoded_len,
-        u64::try_from(row_count).map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+        u64::try_from(row_count).map_err(|_| ColumnarError::SizeOverflow)?,
     ))
 }
 
@@ -146,15 +140,15 @@ fn build_footprint_batch(
     footprints: &PatchFootprintSet,
     start: usize,
     end: usize,
-) -> Result<RecordBatch, MultiscaleColumnarError> {
+) -> Result<RecordBatch, ColumnarError> {
     let rows = footprints
         .footprints()
         .get(start..end)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let text_bytes = rows.iter().try_fold(0_usize, |total, row| {
         total
             .checked_add(row.patch_id().as_str().len())
-            .ok_or(MultiscaleColumnarError::SizeOverflow)
+            .ok_or(ColumnarError::SizeOverflow)
     })?;
     let mut ids = StringBuilder::with_capacity(rows.len(), text_bytes);
     let mut x = Int64Builder::with_capacity(rows.len());
@@ -170,7 +164,7 @@ fn build_footprint_batch(
         Arc::new(y.finish()),
     ];
     RecordBatch::try_new(Arc::new(schema.clone()), columns)
-        .map_err(|_| MultiscaleColumnarError::ParquetWriter)
+        .map_err(|_| ColumnarError::ParquetWriter)
 }
 
 fn build_overlap_batch(
@@ -178,20 +172,20 @@ fn build_overlap_batch(
     overlap: &PatchOverlapGraph,
     start: usize,
     end: usize,
-) -> Result<RecordBatch, MultiscaleColumnarError> {
+) -> Result<RecordBatch, ColumnarError> {
     let rows = overlap
         .edges()
         .get(start..end)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let (left_bytes, right_bytes) =
         rows.iter()
             .try_fold((0_usize, 0_usize), |(left, right), row| {
-                Ok::<_, MultiscaleColumnarError>((
+                Ok::<_, ColumnarError>((
                     left.checked_add(row.left_patch_id().as_str().len())
-                        .ok_or(MultiscaleColumnarError::SizeOverflow)?,
+                        .ok_or(ColumnarError::SizeOverflow)?,
                     right
                         .checked_add(row.right_patch_id().as_str().len())
-                        .ok_or(MultiscaleColumnarError::SizeOverflow)?,
+                        .ok_or(ColumnarError::SizeOverflow)?,
                 ))
             })?;
     let mut left = StringBuilder::with_capacity(rows.len(), left_bytes);
@@ -202,7 +196,7 @@ fn build_overlap_batch(
     }
     let columns: Vec<ArrayRef> = vec![Arc::new(left.finish()), Arc::new(right.finish())];
     RecordBatch::try_new(Arc::new(schema.clone()), columns)
-        .map_err(|_| MultiscaleColumnarError::ParquetWriter)
+        .map_err(|_| ColumnarError::ParquetWriter)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -219,9 +213,7 @@ struct ChunkEstimate {
     uncompressed_value_bytes: usize,
 }
 
-fn footprint_estimates(
-    footprints: &PatchFootprintSet,
-) -> Result<WriterEstimates, MultiscaleColumnarError> {
+fn footprint_estimates(footprints: &PatchFootprintSet) -> Result<WriterEstimates, ColumnarError> {
     estimate_writer(
         footprints.row_count(),
         3,
@@ -229,14 +221,14 @@ fn footprint_estimates(
             let text = rows.iter().try_fold(0_usize, |total, row| {
                 total
                     .checked_add(row.patch_id().as_str().len())
-                    .ok_or(MultiscaleColumnarError::SizeOverflow)
+                    .ok_or(ColumnarError::SizeOverflow)
             })?;
             let decoded_bytes = decoded_chunk(rows.len(), 1, text, 2)?;
             let uncompressed_value_bytes = rows
                 .len()
                 .checked_mul(20)
                 .and_then(|value| value.checked_add(text))
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
             Ok(ChunkEstimate {
                 decoded_bytes,
                 input_batch_bytes: decoded_bytes,
@@ -246,9 +238,7 @@ fn footprint_estimates(
     )
 }
 
-fn overlap_estimates(
-    overlap: &PatchOverlapGraph,
-) -> Result<WriterEstimates, MultiscaleColumnarError> {
+fn overlap_estimates(overlap: &PatchOverlapGraph) -> Result<WriterEstimates, ColumnarError> {
     estimate_writer(
         overlap.edge_count(),
         2,
@@ -257,14 +247,14 @@ fn overlap_estimates(
                 total
                     .checked_add(row.left_patch_id().as_str().len())
                     .and_then(|value| value.checked_add(row.right_patch_id().as_str().len()))
-                    .ok_or(MultiscaleColumnarError::SizeOverflow)
+                    .ok_or(ColumnarError::SizeOverflow)
             })?;
             let decoded_bytes = decoded_chunk(rows.len(), 2, text, 0)?;
             let uncompressed_value_bytes = rows
                 .len()
                 .checked_mul(8)
                 .and_then(|value| value.checked_add(text))
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
             Ok(ChunkEstimate {
                 decoded_bytes,
                 input_batch_bytes: decoded_bytes,
@@ -277,8 +267,8 @@ fn overlap_estimates(
 fn estimate_writer(
     row_count: usize,
     columns: usize,
-    chunks: impl Iterator<Item = Result<ChunkEstimate, MultiscaleColumnarError>>,
-) -> Result<WriterEstimates, MultiscaleColumnarError> {
+    chunks: impl Iterator<Item = Result<ChunkEstimate, ColumnarError>>,
+) -> Result<WriterEstimates, ColumnarError> {
     let mut decoded_bytes = 0_u64;
     let mut maximum_input_batch = 0_usize;
     let mut maximum_uncompressed_values = 0_usize;
@@ -286,10 +276,9 @@ fn estimate_writer(
         let chunk = chunk?;
         decoded_bytes = decoded_bytes
             .checked_add(
-                u64::try_from(chunk.decoded_bytes)
-                    .map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+                u64::try_from(chunk.decoded_bytes).map_err(|_| ColumnarError::SizeOverflow)?,
             )
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         maximum_input_batch = maximum_input_batch.max(chunk.input_batch_bytes);
         maximum_uncompressed_values =
             maximum_uncompressed_values.max(chunk.uncompressed_value_bytes);
@@ -297,37 +286,37 @@ fn estimate_writer(
     let group_rows = row_count.min(ROW_GROUP_ROWS);
     let page_bound = group_rows
         .checked_mul(columns)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let page_overhead = page_bound
         .checked_mul(1024 + 4 * size_of::<bytes::Bytes>())
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     // All leaves are required, so Data Page V2 level byte lengths are exactly zero. The encoder
     // workspace is still charged independently because the locked writer constructs level state.
     let encoder_workspace = group_rows
         .checked_mul(16)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let retained_row_group_chunks = maximum_uncompressed_values
         .checked_mul(2)
         .and_then(|value| value.checked_add(page_overhead))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let page_assembly_transient = maximum_uncompressed_values
         .checked_mul(4)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let row_group_bytes = maximum_input_batch
         .checked_add(encoder_workspace)
         .and_then(|value| value.checked_add(retained_row_group_chunks))
         .and_then(|value| value.checked_add(page_assembly_transient))
         .and_then(|value| value.checked_add(WRITER_FIXED_RETAINED_BYTES))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let row_groups = row_count.div_ceil(ROW_GROUP_ROWS);
-    let metadata = estimate_metadata_retained_bytes(row_groups)
-        .map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+    let metadata =
+        estimate_metadata_retained_bytes(row_groups).map_err(|_| ColumnarError::SizeOverflow)?;
     let row_group_peak = row_group_bytes
         .checked_add(metadata)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let footer_peak = metadata
         .checked_add(WRITER_FIXED_RETAINED_BYTES)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let retained_bytes = row_group_peak.max(footer_peak);
     Ok(WriterEstimates {
         decoded_bytes,
@@ -341,33 +330,33 @@ fn decoded_chunk(
     utf8_columns: usize,
     text_bytes: usize,
     i64_columns: usize,
-) -> Result<usize, MultiscaleColumnarError> {
+) -> Result<usize, ColumnarError> {
     let validity = rows
         .checked_add(7)
         .map(|value| value / 8)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let offsets = rows
         .checked_add(1)
         .and_then(|value| value.checked_mul(size_of::<i32>()))
         .and_then(|value| value.checked_mul(utf8_columns))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let values = rows
         .checked_mul(size_of::<i64>())
         .and_then(|value| value.checked_mul(i64_columns))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     validity
         .checked_mul(utf8_columns + i64_columns)
         .and_then(|value| value.checked_add(offsets))
         .and_then(|value| value.checked_add(text_bytes))
         .and_then(|value| value.checked_add(values))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)
 }
 
 fn enforce_writer_estimates(
     _row_count: usize,
     estimates: WriterEstimates,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     enforce_decoded_budget(estimates.decoded_bytes, budgets)?;
     enforce_row_group_budget(estimates.row_group_bytes, budgets)?;
     enforce_retained_budget(estimates.retained_bytes, budgets)
@@ -456,7 +445,7 @@ mod tests {
         );
         assert!(matches!(
             enforce_writer_estimates(row_count, estimates, decoded_short),
-            Err(MultiscaleColumnarError::DecodedByteBudgetExceeded { .. })
+            Err(ColumnarError::DecodedByteBudgetExceeded { .. })
         ));
         let group_short = EmbeddingColumnarBudgets::new(
             u64::MAX,
@@ -466,7 +455,7 @@ mod tests {
         );
         assert!(matches!(
             enforce_writer_estimates(row_count, estimates, group_short),
-            Err(MultiscaleColumnarError::RowGroupByteBudgetExceeded { .. })
+            Err(ColumnarError::RowGroupByteBudgetExceeded { .. })
         ));
         let retained_short = EmbeddingColumnarBudgets::new(
             u64::MAX,
@@ -476,7 +465,7 @@ mod tests {
         );
         assert!(matches!(
             enforce_writer_estimates(row_count, estimates, retained_short),
-            Err(MultiscaleColumnarError::RetainedByteBudgetExceeded { .. })
+            Err(ColumnarError::RetainedByteBudgetExceeded { .. })
         ));
     }
 }

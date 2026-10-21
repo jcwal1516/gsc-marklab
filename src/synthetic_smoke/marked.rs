@@ -101,6 +101,11 @@ pub(super) fn run_generator(
     replicates: usize,
     engine: &AnalysisEngine,
 ) -> Result<SyntheticSmokeResult> {
+    if !GENERATORS.contains(&generator) {
+        return Err(MarklabError::Validation(format!(
+            "unknown synthetic smoke generator {generator}"
+        )));
+    }
     if generator == "prepost_metadata_mismatch" {
         return run_marked_prepost_metadata_mismatch(replicates, engine);
     }

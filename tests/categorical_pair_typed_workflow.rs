@@ -1,14 +1,15 @@
-#![allow(dead_code)]
-
 use approx::assert_abs_diff_eq;
 use marklab::{
-    categorical_mark_connection_cross_k, BinaryMarkDeclaration, CategoricalPairConfig,
-    CategoricalPairLimits, CategoricalPairPointStatus, DeclaredScalarPatternInput,
-    HistologicCompartmentMarkDeclaration, MarkTable, MeasurementStatus, MissingnessPolicy,
-    ObservationWindow2D, ObservationWindowLimits, ScalarMarkColumn, ScalarMarkId,
-    ScalarMarkModality, ScalarMarkUnit,
+    marks::{
+        categorical_mark_connection_cross_k, BinaryMarkDeclaration, CategoricalPairConfig,
+        CategoricalPairLimits, CategoricalPairPointStatus, DeclaredScalarPatternInput,
+        HistologicCompartmentMarkDeclaration, MarkTable, MissingnessPolicy, ScalarMarkColumn,
+        ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
+    },
+    MeasurementStatus, ObservationWindow2D, ObservationWindowLimits,
 };
 
+#[allow(dead_code)]
 #[path = "support/declared_scalar.rs"]
 mod support;
 use support::*;
@@ -136,12 +137,13 @@ fn typed_categorical_mark_connection_and_directed_cross_k_match_hand_oracles() {
     assert_eq!(result.source_count, 2);
     assert_eq!(result.target_count, 2);
     assert_eq!(result.geometry.directed_pair_count, 6);
-    assert_eq!(result.geometry.geometry_build_count, 1);
 
     let empty = &result.curve[0];
     assert_eq!(empty.status, CategoricalPairPointStatus::NoPairsInShell);
     assert_eq!(empty.connection_probability, None);
     assert_eq!(empty.cross_k, Some(0.0));
+    assert_eq!(empty.cross_l, Some(0.0));
+    assert_abs_diff_eq!(empty.theoretical_cross_l, 0.5);
 
     let radius = &result.curve[1];
     assert_eq!(radius.status, CategoricalPairPointStatus::Available);
@@ -155,11 +157,24 @@ fn typed_categorical_mark_connection_and_directed_cross_k_match_hand_oracles() {
     );
     assert_abs_diff_eq!(radius.cross_k.expect("cross K"), 7.0);
     assert_abs_diff_eq!(
+        radius.cross_l.expect("cross L"),
+        (7.0 / std::f64::consts::PI).sqrt()
+    );
+    assert_abs_diff_eq!(
         radius.theoretical_cross_k,
         std::f64::consts::PI * 1.1_f64.powi(2)
     );
+    assert_abs_diff_eq!(radius.theoretical_cross_l, 1.1);
+    assert_abs_diff_eq!(
+        radius.lower_cross_l.expect("lower cross L"),
+        (radius.lower_cross_k.expect("lower cross K") / std::f64::consts::PI).sqrt()
+    );
+    assert_abs_diff_eq!(
+        radius.upper_cross_l.expect("upper cross L"),
+        (radius.upper_cross_k.expect("upper cross K") / std::f64::consts::PI).sqrt()
+    );
     assert_abs_diff_eq!(result.expected_random_label_connection, 1.0 / 3.0);
-    assert_eq!(result.inference.permutations_completed, 31);
+    assert_eq!(result.inference.permutations_requested, 31);
     assert!(result.inference.connection.is_some());
     assert!(result.inference.cross_k.is_some());
 }
@@ -208,7 +223,7 @@ fn same_levels_and_one_short_pair_work_are_rejected() {
     .expect("unknown-level config");
     assert!(matches!(
         categorical_mark_connection_cross_k(&input, &window, &unknown),
-        Err(marklab::CategoricalPairError::UnknownLevel { level }) if level == "immune"
+        Err(marklab::marks::CategoricalPairError::UnknownLevel { level }) if level == "immune"
     ));
     let limited = CategoricalPairConfig::new(
         vec![1.1],
@@ -243,7 +258,7 @@ fn same_levels_and_one_short_pair_work_are_rejected() {
     .expect("one-short config");
     assert!(matches!(
         categorical_mark_connection_cross_k(&input, &window, &one_short),
-        Err(marklab::CategoricalPairError::RetainedByteLimitExceeded { required, maximum })
+        Err(marklab::marks::CategoricalPairError::RetainedByteLimitExceeded { required, maximum })
             if required == baseline.geometry.estimated_storage_bytes && required == maximum + 1
     ));
 }

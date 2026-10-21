@@ -5,6 +5,8 @@ mod chebyshev_heat;
 mod diffusion_wavelet;
 mod eigendecomposition;
 mod filter;
+mod graph_signal;
+mod group_centrality;
 mod heat;
 mod heterogeneous;
 mod hodge;
@@ -36,6 +38,18 @@ pub use diffusion_wavelet::{
     DiffusionWaveletTree, GraphDiffusionWaveletResult, GraphDiffusionWaveletSpec,
 };
 pub use filter::chebyshev_apply;
+pub use graph_signal::{
+    graph_dirichlet_energy, graph_smoothness_permutation_test, local_embedding_roughness,
+    summarize_graph_signal_input, GraphDirichletEnergyResult, GraphDirichletEnergySpec,
+    GraphEnergyNormalization, GraphLaplacian, GraphSignalEdge, GraphSignalError,
+    GraphSignalInputSummary, GraphSignalNode, GraphSmoothnessPermutationResult,
+    GraphSmoothnessPermutationSpec, LocalEmbeddingRoughnessResult, LocalEmbeddingRoughnessRow,
+    LocalEmbeddingRoughnessSpec, LocalRoughnessStatus, StratifiedGraphSignalNode,
+};
+pub use group_centrality::{
+    graph_group_centrality_workflow, GraphGroupCentralityNode, GraphGroupCentralityResult,
+    GraphGroupCentralityRow, GraphGroupCentralitySpec,
+};
 pub use heat::{
     graph_heat_workflow, DiffusionDistanceResult, DiffusionPairSpec, GraphHeatAtTime,
     GraphHeatResult, GraphHeatSpec,

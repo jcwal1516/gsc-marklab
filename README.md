@@ -20,6 +20,12 @@ immunohistochemistry (IHC) slides. Marklab does not find or classify cells. Anot
 (for example a segmentation model such as CellViT) produces the table of cells; Marklab
 analyzes it.
 
+The upstream model is the user's choice. CellViT is one example, not a requirement.
+Cell tables and feature vectors must follow the chosen Marklab input contract, including
+object identity, physical coordinates and feature order. Model-specific adapters cover
+particular exports; their extra requirements do not apply to every workflow. See
+[input and output formats](docs/formats.md).
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/marklab-overview-dark.svg">
@@ -41,13 +47,16 @@ the label, and measure the pattern again. Repeat that many times (999 in the exa
 configuration). If the real section looks unlike almost all of the shuffled versions, the
 labeled cells are organized in a way that chance does not explain.
 
-Because cell positions never move, the test asks only about the labels. Dense or sparse
-tissue, holes and odd shapes affect the real and shuffled sections equally, so they do not
-create false signals.
+Because cell positions never move, the test asks about the labels conditional on the
+observed tissue geometry. Valid inference still requires that labels can be exchanged
+within the declared strata; density-related labeling or staining can violate that assumption.
 
-Several statistics are tested together with global envelopes, which keeps the overall
-false-positive rate at the level you set (5% in the example configuration). A fixed random seed makes every
-run reproducible: the same input and settings give the same result.
+Each global envelope controls testing across the eligible distances of its curve under
+the declared null. It does not automatically correct every statistic, marker or separate
+run in a study. The executed synthetic calibration and its limited tissue shapes and label
+prevalences are described in [validation methodology](docs/validation-methodology.md).
+A fixed random seed makes runs reproducible within the same implementation and numerical
+environment.
 
 ## What it can do
 
@@ -58,6 +67,8 @@ run reproducible: the same input and settings give the same result.
 | Are all cells, regardless of label, clustered or regular? (Ripley's K and L functions, nearest-neighbor and empty-space distances) | `marklab classical`, `marklab nearest-space` |
 | What does an H&E section and an IHC section of the same tissue show together? | `marklab multimodal` |
 | Do patient groups differ, counting each patient once rather than each cell? | `marklab cohort`, `marklab study` |
+| How do cell types co-occur with distance, or differ from fixed-count random labeling? | `marklab numerics categorical-co-occurrence`, `marklab numerics categorical-enrichment` |
+| Which cell types reach other groups or occupy clustered graph neighborhoods? | `marklab graph group-centrality` |
 | How do markers and cell types change with distance from annotated structures, and where are local hotspots? | `marklab pathology` |
 | What do Bayesian spatial and hierarchical models say? (via pinned PyMC/NumPyro environments) | `marklab bayes`, `marklab project` |
 | What is in this whole-slide image, and can I cut out a region? (`--features wsi`) | `marklab inspect-slide`, `marklab extract-region` |
@@ -66,6 +77,11 @@ There are also research workflows for 3-D tissue, graphs, topology, time series,
 designs and simulation. `marklab --help` lists every command, and
 `marklab <command> --help` shows its options. [What Marklab can do](docs/capabilities.md)
 describes each workflow and how mature it is.
+
+Executed public-cohort examples include [35 Schürch CODEX patients](docs/validation-schurch.md)
+and [100 Jackson IMC patients](docs/validation-jackson.md), with independent numerical
+checks for the stated patient-group designs. These examples do not establish clinical
+validity or promote every command to the same maturity tier.
 
 ## Quick start
 
@@ -158,8 +174,9 @@ marklab backend doctor
   MMR status, prove that cells are clonally related, or show treatment response.
 - A before/after comparison compares two different tissue sections. It does not track
   the same cells over time.
-- Many workflows beyond `analyze`, `prepost` and `classical` are experimental. Each
-  guide says so where it applies.
+- Evidence tiers apply to each workflow and configuration. See the
+  [maturity table](docs/capabilities.md#command-maturity); software tests alone do not
+  establish validity on patient cohorts.
 
 ## Documentation
 
@@ -167,9 +184,10 @@ marklab backend doctor
 | --- | --- |
 | [What Marklab can do](docs/capabilities.md) | Every workflow, the question it answers and how mature it is |
 | [SPEC.md](SPEC.md) | Exact definitions of the statistics, inference and outputs |
-| [Result format 0.3](docs/result-format-0.3.md) | The fields in `result.json` |
+| [Result format 0.4](docs/result-format-0.4.md) | The fields in `result.json` |
 | [Classical spatial workflow](docs/classical-spatial-workflow.md) | Ripley's K and L: inputs, method and interpretation |
 | [Multiplex studies](docs/multiplex-study.md) | Analyzing a panel of markers across slides and patients |
+| [Input and output formats](docs/formats.md) | Tested cell-table, annotation, embedding and image profiles, with their limits |
 | [Pathology maps](docs/pathology-maps.md) | Marker and cell-type profiles around annotated structures, and hotspot maps |
 | [Pathology studies](docs/pathology-studies.md) | Composition, spatial-study and enrichment-scan workflows |
 | [Normal-mean prior sensitivity](docs/normal-mean-prior-sensitivity.md) | How much a Bayesian conclusion depends on the chosen prior |
@@ -191,6 +209,8 @@ marklab backend doctor
 | [`marklab-embeddings`](crates/marklab-embeddings) | Reading model embeddings for cells, patches and regions |
 | [`marklab-cohort`](crates/marklab-cohort) | Patient-level group comparisons |
 | [`marklab-bayes`](crates/marklab-bayes) | Bayesian model definitions and fit results |
+| [`marklab-transport`](crates/marklab-transport) | Optimal transport and fused Gromov–Wasserstein alignment |
+| [`marklab-prediction`](crates/marklab-prediction) | Grouped conformal prediction, fusion and retrieval |
 | [`marklab-sbi`](crates/marklab-sbi) | Simulation-based inference |
 | [`marklab-simulation`](crates/marklab-simulation) | Tissue simulation models |
 | [`marklab-causal`](crates/marklab-causal) | Causal-design research workflows |
@@ -213,16 +233,19 @@ The default features are `cli`, `parallel`, `csv` and `parquet`. Whole-slide ima
 ## Study data and results
 
 Keep real study inputs, patient or specimen metadata, model artifacts, and generated
-research results outside this source checkout. Use a sibling directory such as
-`../gsc-marklab_results/` and pass external input and output paths to Marklab. The
+research results outside this source checkout, and pass external input and output
+paths to Marklab. The
 repository keeps synthetic examples, test fixtures, and synthetic documentation figures
 so tests and demonstrations remain reproducible.
 
-Common local data and output directories are ignored as a precaution. Ignore rules do
-not remove existing tracked files or data retained in Git history; check both before
-sharing or publishing the repository.
+`.gitignore` lists common data and output directories, but it does not untrack files that
+are already committed or remove them from Git history.
 
 ## License
+
+For software citation metadata, use [CITATION.cff](CITATION.cff). See the
+[changelog](CHANGELOG.md) for unreleased contract and workflow changes. Cite source
+datasets and statistical methods separately when publishing an analysis.
 
 Licensed under either of [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE) at your
 option.

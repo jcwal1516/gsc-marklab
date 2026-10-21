@@ -1,221 +1,111 @@
-use std::{collections::BTreeSet, fs, path::PathBuf};
-
-use clap::{Parser, Subcommand};
-use marklab_bayes::{sha256_hex, BackendContract, FitState, NutsSamplingSpec, WorkerBackend};
-use serde::{Deserialize, Serialize};
-
-use super::{
-    conditional_multitype_mark::{self, Args as FitArgs},
-    publish_json,
-    replicated_arbitrary_window_lgcp_agreement::backend_matches,
-    run_worker, BayesCliError,
+pub(crate) use marklab_bayes::protocol::conditional_multitype_mark_sbc::{
+    validate_result, Calibration, Output, Resources, ValidationContext, WorkerRequest, WorkerResult,
 };
 
-const NUMPYRO_VERSION: &str = "0.21.0";
-const JAX_VERSION: &str = "0.11.1";
+use crate::input_file::read_file;
+use std::path::PathBuf;
 
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct Cli {
-    #[command(subcommand)]
-    command: Top,
-}
-#[derive(Debug, Subcommand)]
-enum Top {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-#[derive(Debug, Subcommand)]
-enum Command {
-    ConditionalMultitypeMarkSbc(Box<Args>),
-}
+use marklab_bayes::sha256_hex;
+use marklab_bayes::BackendContract;
+use marklab_bayes::NutsSamplingSpec;
+
+use super::conditional_multitype_mark;
+use super::conditional_multitype_mark::Args as FitArgs;
+use super::publish_json;
+use super::run_worker;
+use super::CliError;
+use marklab_bayes::backend_versions::JAX_VERSION;
+use marklab_bayes::backend_versions::NUMPYRO_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::StatisticalUnit;
 
 #[derive(Debug, clap::Args)]
-struct Args {
+pub(crate) struct Args {
+    /// CSV of points: point_id or cell_id, x_um, y_um, and type_id or histologic_compartment.
     #[arg(long)]
     input: PathBuf,
+    /// Point-type label used as the model reference.
     #[arg(long)]
     reference_type: String,
+    /// Spatial radius in micrometers.
     #[arg(long)]
     radius_um: f64,
+    /// Prior scale for intercept.
     #[arg(long)]
     intercept_prior_sd: f64,
+    /// Prior scale for interaction.
     #[arg(long)]
     interaction_prior_sd: f64,
+    /// Number of simulated datasets used for posterior calibration.
     #[arg(long)]
     replicates: u32,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
     chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
     tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
     draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
     target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
     seed: u64,
+    /// Upper bound on points.
     #[arg(long)]
     maximum_points: usize,
+    /// Upper bound on types.
     #[arg(long)]
     maximum_types: usize,
+    /// Upper bound on neighbor visits.
     #[arg(long)]
     maximum_neighbor_visits: u64,
+    /// Upper bound on edges.
     #[arg(long)]
     maximum_edges: usize,
+    /// Upper bound on draw parameter work.
     #[arg(long)]
     maximum_draw_parameter_work: u64,
+    /// Upper bound on working bytes.
     #[arg(long)]
     maximum_working_bytes: usize,
+    /// Upper bound on tree depth.
     #[arg(long)]
     maximum_tree_depth: u32,
+    /// Upper bound on states.
     #[arg(long)]
     maximum_states: u64,
+    /// Upper bound on enumeration work.
     #[arg(long)]
     maximum_enumeration_work: u64,
+    /// Upper bound on enumeration bytes.
     #[arg(long)]
     maximum_enumeration_bytes: u64,
+    /// Upper bound on total iterations.
     #[arg(long)]
     maximum_total_iterations: u64,
+    /// Smallest admitted p-value for simulation-based rank uniformity.
     #[arg(long)]
     minimum_rank_uniformity_p_value: f64,
+    /// Smallest admitted empirical coverage of nominal 90% intervals.
     #[arg(long)]
     minimum_coverage_90: f64,
+    /// Largest admitted empirical coverage of nominal 90% intervals.
     #[arg(long)]
     maximum_coverage_90: f64,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
     timeout_seconds: u64,
+    /// Destination for the analysis output.
     #[arg(long)]
     out: PathBuf,
 }
 
-#[derive(Clone, Debug, Serialize)]
-struct Calibration {
-    replicates: u32,
-    rank_bins: u32,
-    interval_probability: f64,
-    minimum_rank_uniformity_p_value: f64,
-    minimum_coverage: f64,
-    maximum_coverage: f64,
-}
-
-#[derive(Clone, Debug, Serialize)]
-struct Resources {
-    maximum_states: u64,
-    state_count: u64,
-    maximum_enumeration_work: u64,
-    enumeration_work: u64,
-    maximum_enumeration_bytes: u64,
-    enumeration_bytes: u64,
-    maximum_total_iterations: u64,
-    maximum_output_bytes: usize,
-    timeout_seconds: u64,
-}
-
-#[derive(Serialize)]
-struct WorkerRequest<'a> {
-    format: &'static str,
-    version: u32,
-    backend: BackendContract,
-    jax_version: &'static str,
-    source_request_sha256: &'a str,
-    source_request: serde_json::Value,
-    calibration: Calibration,
-    resources: Resources,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct ReplicateParameter {
-    parameter: String,
-    truth: f64,
-    rank: u64,
-    covered: bool,
-}
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Replicate {
-    replicate: u32,
-    simulated_type_counts: Vec<u64>,
-    parameters: Vec<ReplicateParameter>,
-    r_hat: f64,
-    ess_bulk: f64,
-    ess_tail: f64,
-    minimum_ebfmi: f64,
-    divergences: u64,
-    max_tree_depth_hits: u64,
-}
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Failure {
-    replicate: u32,
-    reason: String,
-}
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Diagnostic {
-    parameter: String,
-    rank_histogram: Vec<u64>,
-    rank_uniformity_p_value: f64,
-    coverage_90: f64,
-    mean_normalized_rank: f64,
-}
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct EnumerationOracle {
-    state_count: u64,
-    zero_parameter_log_normalizer: f64,
-}
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WorkerResult {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    jax_version: String,
-    input_sha256: String,
-    request_sha256: String,
-    source_request_sha256: String,
-    fit_state: FitState,
-    enumeration_oracle: EnumerationOracle,
-    replicates: Vec<Replicate>,
-    failures: Vec<Failure>,
-    diagnostics: Vec<Diagnostic>,
-}
-
-#[derive(Debug, Serialize)]
-struct Output {
-    format: &'static str,
-    version: u32,
-    backend: WorkerBackend,
-    jax_version: String,
-    input_sha256: String,
-    request_sha256: String,
-    source_request_sha256: String,
-    fit_state: FitState,
-    sampling: NutsSamplingSpec,
-    calibration: Calibration,
-    resources: Resources,
-    enumeration_oracle: EnumerationOracle,
-    replicates: Vec<Replicate>,
-    failures: Vec<Failure>,
-    diagnostics: Vec<Diagnostic>,
-    statistical_unit: &'static str,
-    generative_model: &'static str,
-    fitted_model: &'static str,
-    assumptions: [&'static str; 4],
-    finite_result_policy: &'static str,
-    claim_status: &'static str,
-}
-
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let Top::Bayes { command } = Cli::parse_from(std::env::args_os()).command;
-    let Command::ConditionalMultitypeMarkSbc(args) = command;
-    run(*args)
-}
-
-fn run(args: Args) -> Result<(), BayesCliError> {
+pub(super) fn run(args: Args) -> Result<(), CliError> {
     if !(20..=100).contains(&args.replicates)
         || !args.minimum_rank_uniformity_p_value.is_finite()
         || !(0.0..=1.0).contains(&args.minimum_rank_uniformity_p_value)
@@ -227,7 +117,7 @@ fn run(args: Args) -> Result<(), BayesCliError> {
         || args.maximum_enumeration_work == 0
         || args.maximum_enumeration_bytes == 0
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "conditional multitype SBC controls are invalid".into(),
         ));
     }
@@ -262,34 +152,34 @@ fn run(args: Args) -> Result<(), BayesCliError> {
     let source: serde_json::Value = serde_json::from_slice(prepared.request_bytes())?;
     let point_count = source["points"]
         .as_array()
-        .ok_or_else(|| BayesCliError::Input("prepared points differ".into()))?
+        .ok_or_else(|| CliError::Input("prepared points differ".into()))?
         .len();
     let type_ids = source["type_ids"]
         .as_array()
-        .ok_or_else(|| BayesCliError::Input("prepared types differ".into()))?
+        .ok_or_else(|| CliError::Input("prepared types differ".into()))?
         .iter()
         .map(|value| value.as_str().unwrap_or_default().to_owned())
         .collect::<Vec<_>>();
     let edge_count = source["edges"]
         .as_array()
-        .ok_or_else(|| BayesCliError::Input("prepared edges differ".into()))?
+        .ok_or_else(|| CliError::Input("prepared edges differ".into()))?
         .len();
     if point_count > 10 || type_ids.len() > 4 || type_ids.iter().any(String::is_empty) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "exact conditional multitype SBC requires at most ten sites and four types".into(),
         ));
     }
     let state_count = (type_ids.len() as u64)
         .checked_pow(point_count as u32)
-        .ok_or_else(|| BayesCliError::Input("SBC state count overflows".into()))?;
+        .ok_or_else(|| CliError::Input("SBC state count overflows".into()))?;
     let enumeration_work = state_count
         .checked_mul((point_count + edge_count) as u64)
-        .ok_or_else(|| BayesCliError::Input("SBC enumeration work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("SBC enumeration work overflows".into()))?;
     let enumeration_bytes = state_count
         .checked_mul(point_count as u64)
         .and_then(|value| value.checked_mul(2))
         .and_then(|value| value.checked_add(state_count.checked_mul(16)?))
-        .ok_or_else(|| BayesCliError::Input("SBC enumeration bytes overflow".into()))?;
+        .ok_or_else(|| CliError::Input("SBC enumeration bytes overflow".into()))?;
     let total_iterations = u64::from(args.replicates)
         .checked_mul(u64::from(args.chains))
         .and_then(|value| {
@@ -297,13 +187,13 @@ fn run(args: Args) -> Result<(), BayesCliError> {
                 .checked_add(u64::from(args.draws))
                 .and_then(|iterations| value.checked_mul(iterations))
         })
-        .ok_or_else(|| BayesCliError::Input("SBC total iterations overflow".into()))?;
+        .ok_or_else(|| CliError::Input("SBC total iterations overflow".into()))?;
     if state_count > args.maximum_states
         || enumeration_work > args.maximum_enumeration_work
         || enumeration_bytes > args.maximum_enumeration_bytes
         || total_iterations > args.maximum_total_iterations
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "conditional multitype SBC resource ceiling exceeded".into(),
         ));
     }
@@ -326,14 +216,14 @@ fn run(args: Args) -> Result<(), BayesCliError> {
         maximum_output_bytes: 2 * 1_048_576,
         timeout_seconds: args.timeout_seconds,
     };
-    let repository = &marklab::python_backend_assets_root()?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let directory = repository.join("workers/python");
     let backend = BackendContract {
         name: "numpyro",
         version: NUMPYRO_VERSION,
-        python_version: "3.12",
-        environment_lock_sha256: sha256_hex(&read(&directory.join("uv.lock"))?),
-        worker_sha256: sha256_hex(&read(
+        python_version: PYTHON_VERSION,
+        environment_lock_sha256: sha256_hex(&read_file(&directory.join("uv.lock"))?),
+        worker_sha256: sha256_hex(&read_file(
             &directory.join("marklab_numpyro_conditional_multitype_mark_sbc_worker.py"),
         )?),
     };
@@ -358,14 +248,17 @@ fn run(args: Args) -> Result<(), BayesCliError> {
     let result: WorkerResult = serde_json::from_slice(&output)?;
     validate_result(
         &result,
-        &backend,
-        &request_sha,
-        prepared.request_sha256(),
-        &type_ids,
-        point_count,
-        &sampling,
-        &calibration,
-    )?;
+        ValidationContext {
+            backend: &backend,
+            request_sha256: &request_sha,
+            source_request_sha256: prepared.request_sha256(),
+            type_ids: &type_ids,
+            point_count,
+            sampling: &sampling,
+            calibration: &calibration,
+        },
+    )
+    .map_err(super::protocol_error)?;
     publish_json(
         &args.out,
         &Output {
@@ -384,7 +277,7 @@ fn run(args: Args) -> Result<(), BayesCliError> {
             replicates: result.replicates,
             failures: result.failures,
             diagnostics: result.diagnostics,
-            statistical_unit: "one_fixed_location_pattern",
+            statistical_unit: StatisticalUnit::OneFixedLocationPattern,
             generative_model: "exact_normalized_finite_state_symmetric_categorical_gibbs",
             fitted_model: "single_site_conditional_composite_pseudoposterior",
             assumptions: [
@@ -394,125 +287,7 @@ fn run(args: Args) -> Result<(), BayesCliError> {
                 "calibration_failure_is_not_repaired_by_threshold_or_seed_search",
             ],
             finite_result_policy: "accept_only_exact_dispositions_finite_diagnostics_and_declared_rank_coverage_bounds",
-            claim_status: "experimental_simulation_calibration",
+            claim_status: ClaimStatus::ExperimentalSimulationCalibration,
         },
     )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn validate_result(
-    result: &WorkerResult,
-    backend: &BackendContract,
-    request_sha: &str,
-    source_sha: &str,
-    type_ids: &[String],
-    point_count: usize,
-    sampling: &NutsSamplingSpec,
-    calibration: &Calibration,
-) -> Result<(), BayesCliError> {
-    let expected_names = parameter_names(type_ids);
-    let completed_draws = u64::from(sampling.chains) * u64::from(sampling.draws_per_chain);
-    let indices = result
-        .replicates
-        .iter()
-        .map(|row| row.replicate)
-        .chain(result.failures.iter().map(|row| row.replicate))
-        .collect::<BTreeSet<_>>();
-    let dispositions_valid = result.replicates.len() + result.failures.len()
-        == calibration.replicates as usize
-        && indices == (0..calibration.replicates).collect::<BTreeSet<_>>()
-        && result.failures.iter().all(|row| !row.reason.is_empty());
-    let completed = result.replicates.len();
-    let rows_valid = result.replicates.iter().all(|row| {
-        row.simulated_type_counts.len() == type_ids.len()
-            && row.simulated_type_counts.iter().sum::<u64>() == point_count as u64
-            && row.parameters.len() == expected_names.len()
-            && row
-                .parameters
-                .iter()
-                .zip(&expected_names)
-                .all(|(parameter, expected)| {
-                    parameter.parameter == *expected
-                        && parameter.truth.is_finite()
-                        && parameter.rank <= completed_draws
-                })
-            && [row.r_hat, row.ess_bulk, row.ess_tail, row.minimum_ebfmi]
-                .into_iter()
-                .all(f64::is_finite)
-    });
-    let diagnostics_valid = result.diagnostics.len() == expected_names.len()
-        && result
-            .diagnostics
-            .iter()
-            .zip(&expected_names)
-            .all(|(row, expected)| {
-                row.parameter == *expected
-                    && row.rank_histogram.len() == calibration.rank_bins as usize
-                    && row.rank_histogram.iter().sum::<u64>() == completed as u64
-                    && [
-                        row.rank_uniformity_p_value,
-                        row.coverage_90,
-                        row.mean_normalized_rank,
-                    ]
-                    .into_iter()
-                    .all(|value| value.is_finite() && (0.0..=1.0).contains(&value))
-            });
-    let passes = result.failures.is_empty()
-        && result.diagnostics.iter().all(|row| {
-            row.rank_uniformity_p_value >= calibration.minimum_rank_uniformity_p_value
-                && (calibration.minimum_coverage..=calibration.maximum_coverage)
-                    .contains(&row.coverage_90)
-        });
-    if result.format != "marklab.numpyro_conditional_multitype_mark_sbc_result"
-        || result.version != 1
-        || !backend_matches(&result.backend, backend)
-        || result.jax_version != JAX_VERSION
-        || result.request_sha256 != request_sha
-        || result.source_request_sha256 != source_sha
-        || result.enumeration_oracle.state_count != (type_ids.len() as u64).pow(point_count as u32)
-        || !result
-            .enumeration_oracle
-            .zero_parameter_log_normalizer
-            .is_finite()
-        || !dispositions_valid
-        || !rows_valid
-        || !diagnostics_valid
-        || (result.fit_state == FitState::Complete) != passes
-    {
-        return Err(BayesCliError::Backend(
-            "conditional multitype SBC result differs".into(),
-        ));
-    }
-    Ok(())
-}
-
-fn parameter_names(type_ids: &[String]) -> Vec<String> {
-    let mut names = type_ids[1..]
-        .iter()
-        .map(|identity| format!("intercept:{identity}"))
-        .collect::<Vec<_>>();
-    for left in 0..type_ids.len() {
-        for right in left..type_ids.len() {
-            if left != 0 || right != 0 {
-                names.push(format!("potential:{}|{}", type_ids[left], type_ids[right]));
-            }
-        }
-    }
-    for left in 0..type_ids.len() {
-        for right in left + 1..type_ids.len() {
-            names.push(format!("affinity:{}|{}", type_ids[left], type_ids[right]));
-        }
-    }
-    names
-}
-
-fn read(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<Cli>(|| run_cli().map_err(super::into_marklab_error))
 }

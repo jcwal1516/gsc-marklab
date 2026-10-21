@@ -1,6 +1,7 @@
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashSet},
-    fs, io,
+    io,
     path::{Path, PathBuf},
 };
 
@@ -8,44 +9,45 @@ use marklab_cohort::{
     patient_level_blocked_energy_distance, patient_level_energy_distance, EnergyDistanceResult,
     EnergyDistanceSpec, EnergyMetric, Fingerprint, PatientExchangeabilityBlock,
 };
-use marklab_workflow::{
-    execute_algorithm, ArtifactRef, ArtifactSchema, CacheKeyMaterial, CacheStatus, ContentDigest,
-    DurableProject, DurableProjectLimits, LocalScheduler, MarklabProject, NodeError, NodeId,
-    NodeSpec, SchedulerLimits, WorkflowGraph, WorkflowNode,
-};
+use marklab_project::ContentDigest;
+use marklab_workflow::NodeError;
 use serde::{Deserialize, Serialize};
 
+use super::cli_schema::{CohortEnergyLimits, CohortEnergyProjectArgs};
 use super::{
-    bayes, native_runtime_provenance, report_recovery, source_artifact, BayesCliError,
-    MAXIMUM_INPUT_BYTES, MAXIMUM_RESULT_BYTES, PROJECT_CONTROL_BYTES, PROJECT_LEDGER_BYTES,
-    PROJECT_LEDGER_RECORDS, PROJECT_RECORD_BYTES,
+    durable::{self, Codec, NodeContract, Source, SourceNode},
+    CliError, MAXIMUM_INPUT_BYTES, MAXIMUM_RESULT_BYTES,
 };
 
 const INPUT_KIND: &str = "application/vnd.marklab.source.patient-fingerprints-csv;version=1";
-const OUTPUT_KIND: &str = "application/vnd.marklab.cohort-energy+json;version=1";
-const IMPLEMENTATION_IDENTITY: &str = "marklab-project-cohort-energy-node-v1";
+const OUTPUT_KIND: &str = "application/vnd.marklab.cohort-energy+json;version=2";
+const IMPLEMENTATION_IDENTITY: &str = "marklab-project-cohort-energy-node-v2";
 const FIXED_DISTANCE_ELEMENTS: u64 = 25_000_000;
 const FIXED_ENERGY_EVALUATIONS: u64 = 100_000_000;
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    project_path: PathBuf,
-    input_path: PathBuf,
-    group_a: String,
-    group_b: String,
-    metric: String,
-    permutations: usize,
-    seed: u64,
-    maximum_patients: usize,
-    maximum_features: usize,
-    maximum_distance_elements: u64,
-    maximum_energy_evaluations: u64,
-    memory_budget_mib: usize,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: CohortEnergyProjectArgs) -> Result<(), CliError> {
+    let CohortEnergyProjectArgs {
+        project: project_path,
+        input: input_path,
+        group_a,
+        group_b,
+        metric,
+        permutations,
+        seed,
+        limits,
+        out: output_path,
+    } = args;
+    let CohortEnergyLimits {
+        maximum_patients,
+        maximum_features,
+        maximum_distance_elements,
+        maximum_energy_evaluations,
+        memory_budget_mib,
+    } = limits;
+    const LABEL: &str = "cohort energy source";
     let memory_bytes = memory_budget_mib
         .checked_mul(1024 * 1024)
-        .ok_or_else(|| BayesCliError::Input("--memory-budget-mib is too large".into()))?;
+        .ok_or_else(|| CliError::Input("--memory-budget-mib is too large".into()))?;
     if maximum_patients < 4
         || maximum_features == 0
         || maximum_distance_elements == 0
@@ -54,46 +56,30 @@ pub(super) fn run(
         || maximum_energy_evaluations > FIXED_ENERGY_EVALUATIONS
         || memory_bytes == 0
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "cohort energy resource limits must be positive and remain within fixed ceilings"
                 .into(),
         ));
     }
-    let metric_kind = parse_metric(&metric)?;
+    let metric_kind = metric.into();
     let input_bytes = read_bounded(&input_path, memory_bytes)?;
-    let prepared_artifact = ArtifactRef::from_bytes(INPUT_KIND, &input_bytes)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let source = Source::from_bytes(input_path.clone(), INPUT_KIND, &input_bytes)?;
     let parsed = read_fingerprints(&input_bytes)?;
-    let requirements = preflight(
-        &parsed,
-        &group_a,
-        &group_b,
-        permutations,
-        maximum_patients,
-        maximum_features,
-        maximum_distance_elements,
-        maximum_energy_evaluations,
-    )?;
+    let requirements = preflight(&parsed, &group_a, &group_b, permutations, limits)?;
     let retained = retained_bytes(input_bytes.len(), &parsed, &requirements)?;
     if retained > memory_bytes {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "cohort energy retained-memory estimate {retained} exceeds budget {memory_bytes}"
         )));
     }
-    let current_artifact = source_artifact(&input_path, INPUT_KIND)?;
-    if prepared_artifact != current_artifact {
-        return Err(BayesCliError::Input(
-            "cohort energy source changed while prepared".into(),
-        ));
-    }
+    source.ensure_unchanged(LABEL)?;
 
     let input_path_identity = serde_json::to_vec(&input_path).map_err(|error| {
-        BayesCliError::Input(format!("input path is not JSON-serializable: {error}"))
+        CliError::Input(format!("input path is not JSON-serializable: {error}"))
     })?;
     let analysis = EnergyAnalysis {
         input_path,
         input_path_identity,
-        input_artifact: prepared_artifact.clone(),
         fingerprints: parsed.fingerprints,
         blocks: parsed.blocks,
         spec: EnergyDistanceSpec {
@@ -105,74 +91,40 @@ pub(super) fn run(
         },
         requirements,
     };
-    let node = CohortEnergyNode::new(
-        analysis,
-        metric,
+    let contract = analysis.contract(
         maximum_patients,
         maximum_features,
         maximum_distance_elements,
         maximum_energy_evaluations,
         memory_budget_mib,
+    );
+    let node = SourceNode::new(
+        contract,
+        LABEL,
+        vec![source],
+        analysis,
+        EnergyAnalysis::execute,
+        |analysis, output| analysis.validate(output).map_err(NodeError::decode),
     )?;
-    let runtime = native_runtime_provenance()?;
-    let limits = DurableProjectLimits::new(
-        PROJECT_CONTROL_BYTES,
-        PROJECT_LEDGER_BYTES,
-        PROJECT_LEDGER_RECORDS,
-        PROJECT_RECORD_BYTES,
-        MAXIMUM_RESULT_BYTES,
-    )
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let mut durable = DurableProject::open_or_create(&project_path, limits)
-        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
-    report_recovery(&durable);
-    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    project
-        .register_reference(prepared_artifact)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let graph = WorkflowGraph::new([node.spec().clone()])
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let scheduler = LocalScheduler::new(SchedulerLimits {
-        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
-    })
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let execution = execute_algorithm(
-        &mut durable,
-        &mut project,
-        &graph,
+    let run = durable::execute_node(
+        &project_path,
         &node,
-        &scheduler,
-        ArtifactSchema::new("marklab.cohort_energy", 1)
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-        runtime,
-    )
-    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
-    bayes::publish_json(&output_path, &execution.output)?;
-    let cache_status = match execution.cache_status {
-        CacheStatus::Hit => "hit",
-        CacheStatus::Miss => "miss",
-    };
-    eprintln!("project cohort-energy cache_status={cache_status}");
-    Ok(())
+        ("marklab.cohort_energy", 1),
+        MAXIMUM_RESULT_BYTES,
+    )?;
+    durable::publish("cohort-energy", &output_path, &run.output, run.cache_status)
 }
 
-fn read_bounded(path: &Path, memory_bytes: usize) -> Result<Vec<u8>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
+fn read_bounded(path: &Path, memory_bytes: usize) -> Result<Vec<u8>, CliError> {
     let maximum = (MAXIMUM_INPUT_BYTES as usize).min(memory_bytes);
-    if !metadata.is_file() || metadata.len() > maximum as u64 {
-        return Err(BayesCliError::Input(format!(
+    crate::input_file::read_regular_file(
+        path,
+        maximum as u64,
+        &format!(
             "cohort energy input must be a regular file within {maximum} bytes: {}",
             path.display()
-        )));
-    }
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
+        ),
+    )
 }
 
 #[derive(Debug, Deserialize)]
@@ -190,7 +142,7 @@ struct ParsedFingerprints {
     blocks: Option<Vec<PatientExchangeabilityBlock>>,
 }
 
-fn read_fingerprints(bytes: &[u8]) -> Result<ParsedFingerprints, BayesCliError> {
+fn read_fingerprints(bytes: &[u8]) -> Result<ParsedFingerprints, CliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
@@ -204,7 +156,7 @@ fn read_fingerprints(bytes: &[u8]) -> Result<ParsedFingerprints, BayesCliError> 
             .iter()
             .eq(["patient_id", "group", "feature", "value"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "CSV header must be exactly patient_id,group,feature,value or patient_id,group,feature,value,block"
                 .into(),
         ));
@@ -213,7 +165,7 @@ fn read_fingerprints(bytes: &[u8]) -> Result<ParsedFingerprints, BayesCliError> 
     for decoded in reader.deserialize::<FingerprintCsvRecord>() {
         let row = decoded?;
         if blocked && row.block.is_none() {
-            return Err(BayesCliError::Input(format!(
+            return Err(CliError::Input(format!(
                 "patient {} is missing its fingerprint block",
                 row.patient_id
             )));
@@ -222,19 +174,19 @@ fn read_fingerprints(bytes: &[u8]) -> Result<ParsedFingerprints, BayesCliError> 
             .entry(row.patient_id.clone())
             .or_insert_with(|| (row.group.clone(), row.block.clone(), BTreeMap::new()));
         if entry.0 != row.group {
-            return Err(BayesCliError::Input(format!(
+            return Err(CliError::Input(format!(
                 "patient {} has conflicting group labels",
                 row.patient_id
             )));
         }
         if entry.1 != row.block {
-            return Err(BayesCliError::Input(format!(
+            return Err(CliError::Input(format!(
                 "patient {} has conflicting fingerprint blocks",
                 row.patient_id
             )));
         }
         if entry.2.insert(row.feature.clone(), row.value).is_some() {
-            return Err(BayesCliError::Input(format!(
+            return Err(CliError::Input(format!(
                 "patient {} has duplicate feature {:?}",
                 row.patient_id, row.feature
             )));
@@ -246,7 +198,7 @@ fn read_fingerprints(bytes: &[u8]) -> Result<ParsedFingerprints, BayesCliError> 
         if let Some(assignments) = &mut blocks {
             assignments.push(
                 PatientExchangeabilityBlock::new(patient_id.clone(), block.unwrap_or_default())
-                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
+                    .map_err(|error| CliError::Input(error.to_string()))?,
             );
         }
         fingerprints.push(Fingerprint {
@@ -274,35 +226,38 @@ struct Requirements {
     energy_evaluations: u64,
 }
 
-#[allow(clippy::too_many_arguments)]
 fn preflight(
     parsed: &ParsedFingerprints,
     group_a: &str,
     group_b: &str,
     permutations: usize,
-    maximum_patients: usize,
-    maximum_features: usize,
-    maximum_distance_elements: u64,
-    maximum_energy_evaluations: u64,
-) -> Result<Requirements, BayesCliError> {
+    limits: CohortEnergyLimits,
+) -> Result<Requirements, CliError> {
+    let CohortEnergyLimits {
+        maximum_patients,
+        maximum_features,
+        maximum_distance_elements,
+        maximum_energy_evaluations,
+        ..
+    } = limits;
     if group_a.is_empty()
         || group_b.is_empty()
         || group_a.trim() != group_a
         || group_b.trim() != group_b
         || group_a == group_b
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "energy group labels must be distinct exact nonempty values".into(),
         ));
     }
     if permutations == 0 || permutations > 1_000_000 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "energy permutations must be between 1 and 1000000".into(),
         ));
     }
     let fingerprints = &parsed.fingerprints;
     if fingerprints.len() < 4 || fingerprints.len() > maximum_patients {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "fingerprint count is outside 4..=maximum_patients {maximum_patients}"
         )));
     }
@@ -312,7 +267,7 @@ fn preflight(
         || features.iter().any(|feature| feature.trim().is_empty())
         || features.iter().collect::<HashSet<_>>().len() != features.len()
     {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "fingerprint features are invalid or exceed maximum_features {maximum_features}"
         )));
     }
@@ -327,7 +282,7 @@ fn preflight(
             || fingerprint.values.len() != features.len()
             || fingerprint.values.iter().any(|value| !value.is_finite())
         {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "fingerprints require unique exact patients and complete finite shared features"
                     .into(),
             ));
@@ -337,14 +292,14 @@ fn preflight(
         } else if fingerprint.group == group_b {
             group_b_count += 1;
         } else {
-            return Err(BayesCliError::Input(format!(
+            return Err(CliError::Input(format!(
                 "patient {} has undeclared group {:?}",
                 fingerprint.patient_id, fingerprint.group
             )));
         }
     }
     if group_a_count < 2 || group_b_count < 2 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "each energy group requires at least two patient fingerprints".into(),
         ));
     }
@@ -356,7 +311,7 @@ fn preflight(
                 .map(|assignment| (assignment.patient_id(), assignment.block()))
                 .collect::<BTreeMap<_, _>>();
             if by_patient.len() != fingerprints.len() {
-                return Err(BayesCliError::Input(
+                return Err(CliError::Input(
                     "blocked energy requires exactly one block per patient".into(),
                 ));
             }
@@ -365,7 +320,7 @@ fn preflight(
                 let block = by_patient
                     .get(fingerprint.patient_id.as_str())
                     .ok_or_else(|| {
-                        BayesCliError::Input(format!(
+                        CliError::Input(format!(
                             "missing fingerprint block for patient {}",
                             fingerprint.patient_id
                         ))
@@ -375,7 +330,7 @@ fn preflight(
                 groups.1 |= fingerprint.group == group_b;
             }
             if !labels.values().any(|(has_a, has_b)| *has_a && *has_b) {
-                return Err(BayesCliError::Input(
+                return Err(CliError::Input(
                     "fingerprint blocks are fully confounded with group".into(),
                 ));
             }
@@ -386,17 +341,17 @@ fn preflight(
     let patient_count = fingerprints.len();
     let distance_elements = (patient_count as u64)
         .checked_mul(patient_count as u64)
-        .ok_or_else(|| BayesCliError::Input("energy distance element count overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("energy distance element count overflowed".into()))?;
     if distance_elements > maximum_distance_elements {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "{distance_elements} energy distance elements exceed maximum_distance_elements {maximum_distance_elements}"
         )));
     }
     let energy_evaluations = distance_elements
         .checked_mul(permutations as u64 + 1)
-        .ok_or_else(|| BayesCliError::Input("energy evaluation count overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("energy evaluation count overflowed".into()))?;
     if energy_evaluations > maximum_energy_evaluations {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "{energy_evaluations} energy evaluations exceed maximum_energy_evaluations {maximum_energy_evaluations}"
         )));
     }
@@ -416,16 +371,16 @@ fn retained_bytes(
     source_bytes: usize,
     parsed: &ParsedFingerprints,
     requirements: &Requirements,
-) -> Result<usize, BayesCliError> {
+) -> Result<usize, CliError> {
     let values = requirements
         .patient_count
         .checked_mul(requirements.feature_count)
         .and_then(|value| value.checked_mul(2 * std::mem::size_of::<f64>()))
-        .ok_or_else(|| BayesCliError::Input("energy fingerprint memory overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("energy fingerprint memory overflowed".into()))?;
     let matrix = usize::try_from(requirements.distance_elements)
         .ok()
         .and_then(|value| value.checked_mul(std::mem::size_of::<f64>()))
-        .ok_or_else(|| BayesCliError::Input("energy distance memory overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("energy distance memory overflowed".into()))?;
     source_bytes
         .checked_add(values)
         .and_then(|value| value.checked_add(matrix))
@@ -440,46 +395,37 @@ fn retained_bytes(
             )
         })
         .and_then(|value| value.checked_add(32 * 1024))
-        .ok_or_else(|| BayesCliError::Input("energy retained-memory estimate overflowed".into()))
+        .ok_or_else(|| CliError::Input("energy retained-memory estimate overflowed".into()))
 }
 
 struct EnergyAnalysis {
     input_path: PathBuf,
     input_path_identity: Vec<u8>,
-    input_artifact: ArtifactRef,
     fingerprints: Vec<Fingerprint>,
     blocks: Option<Vec<PatientExchangeabilityBlock>>,
     spec: EnergyDistanceSpec,
     requirements: Requirements,
 }
 
-struct CohortEnergyNode {
-    node_spec: NodeSpec,
-    analysis: EnergyAnalysis,
-    configuration_digest: ContentDigest,
-    execution_policy: Vec<u8>,
-}
-
-impl CohortEnergyNode {
-    #[allow(clippy::too_many_arguments)]
-    fn new(
-        analysis: EnergyAnalysis,
-        metric: String,
+impl EnergyAnalysis {
+    fn contract(
+        &self,
         maximum_patients: usize,
         maximum_features: usize,
         maximum_distance_elements: u64,
         maximum_energy_evaluations: u64,
         memory_budget_mib: usize,
-    ) -> Result<Self, BayesCliError> {
-        let blocked = analysis.requirements.blocked.to_string();
+    ) -> NodeContract {
+        let metric = metric_name(self.spec.metric);
+        let blocked = self.requirements.blocked.to_string();
         let configuration_digest = ContentDigest::from_framed([
             b"marklab-cohort-energy-configuration-v1".as_slice(),
-            analysis.input_path_identity.as_slice(),
-            analysis.spec.group_a.as_bytes(),
-            analysis.spec.group_b.as_bytes(),
+            self.input_path_identity.as_slice(),
+            self.spec.group_a.as_bytes(),
+            self.spec.group_b.as_bytes(),
             metric.as_bytes(),
-            analysis.spec.permutations.to_string().as_bytes(),
-            analysis.spec.seed.to_string().as_bytes(),
+            self.spec.permutations.to_string().as_bytes(),
+            self.spec.seed.to_string().as_bytes(),
             blocked.as_bytes(),
             maximum_patients.to_string().as_bytes(),
             maximum_features.to_string().as_bytes(),
@@ -491,34 +437,49 @@ impl CohortEnergyNode {
             "serial;patient-population-unit;group-label-permutation;metric={metric};blocked={blocked};maximum_patients={maximum_patients};maximum_features={maximum_features};maximum_distance_elements={maximum_distance_elements};maximum_energy_evaluations={maximum_energy_evaluations};memory_budget_mib={memory_budget_mib}"
         )
         .into_bytes();
-        Ok(Self {
-            node_spec: NodeSpec::new(
-                NodeId::new("cohort-energy")
-                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
-                "cohort_energy",
-                1,
-                Vec::new(),
-            )
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-            analysis,
+        NodeContract {
+            id: "cohort-energy",
+            kind: "cohort_energy",
+            version: 1,
             configuration_digest,
-            execution_policy,
-        })
+            execution_policy: Cow::Owned(execution_policy),
+            implementation_identity: IMPLEMENTATION_IDENTITY,
+            output_kind: OUTPUT_KIND,
+            codec: Codec::ExactFloatJson,
+        }
     }
 
-    fn spec(&self) -> &NodeSpec {
-        &self.node_spec
+    fn execute(&self) -> Result<Output, NodeError> {
+        let (result, block_count) = match &self.blocks {
+            Some(blocks) => {
+                let blocked =
+                    patient_level_blocked_energy_distance(&self.fingerprints, blocks, &self.spec)
+                        .map_err(NodeError::execution)?;
+                let block_count = blocked.design().block_count();
+                (blocked.into_parts().0, Some(block_count))
+            }
+            None => (
+                patient_level_energy_distance(&self.fingerprints, &self.spec)
+                    .map_err(NodeError::execution)?,
+                None,
+            ),
+        };
+        Ok(Output::from_result(
+            self.input_path.clone(),
+            result,
+            block_count,
+        ))
     }
 
     fn validate(&self, output: &Output) -> io::Result<()> {
-        let requirements = &self.analysis.requirements;
-        let minimum_p = 1.0 / (self.analysis.spec.permutations + 1) as f64;
-        let lattice = output.p_value * (self.analysis.spec.permutations + 1) as f64;
+        let requirements = &self.requirements;
+        let minimum_p = 1.0 / (self.spec.permutations + 1) as f64;
+        let lattice = output.p_value * (self.spec.permutations + 1) as f64;
         let output_path_identity = serde_json::to_vec(&output.input)
             .map_err(|error| invalid_owned(format!("decoded input path is invalid: {error}")))?;
         if output.format != "marklab.cohort_energy"
             || output.version != 1
-            || output_path_identity != self.analysis.input_path_identity
+            || output_path_identity != self.input_path_identity
             || output.design.randomization_unit != "patient"
             || output.design.blocked != requirements.blocked
             || output.design.null_family.as_deref()
@@ -527,91 +488,18 @@ impl CohortEnergyNode {
             || output.groups.group_a_patients != requirements.group_a_count
             || output.groups.group_b_patients != requirements.group_b_count
             || output.feature_count != requirements.feature_count
-            || output.metric != metric_name(self.analysis.spec.metric)
+            || output.metric != metric_name(self.spec.metric)
             || !output.energy_distance.is_finite()
             || !output.p_value.is_finite()
             || !(minimum_p..=1.0).contains(&output.p_value)
             || (lattice - lattice.round()).abs() > 1e-9
-            || output.permutations.requested != self.analysis.spec.permutations
-            || output.permutations.attempted != self.analysis.spec.permutations
-            || output.permutations.completed != self.analysis.spec.permutations
-            || output.seed != self.analysis.spec.seed
+            || output.permutations != self.spec.permutations
+            || output.seed != self.spec.seed
             || requirements.energy_evaluations > FIXED_ENERGY_EVALUATIONS
         {
             return Err(invalid("decoded cohort energy result differs"));
         }
         Ok(())
-    }
-}
-
-impl WorkflowNode for CohortEnergyNode {
-    type Output = Output;
-
-    fn spec(&self) -> &NodeSpec {
-        &self.node_spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        std::slice::from_ref(&self.analysis.input_artifact)
-    }
-
-    fn verify_input_content(&self) -> Result<(), NodeError> {
-        let current =
-            source_artifact(&self.analysis.input_path, INPUT_KIND).map_err(NodeError::input)?;
-        if current != self.analysis.input_artifact {
-            return Err(NodeError::input(invalid(
-                "cohort energy source identity changed",
-            )));
-        }
-        Ok(())
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: &self.execution_policy,
-            implementation_identity: IMPLEMENTATION_IDENTITY,
-        }
-    }
-
-    fn execute(&self) -> Result<Self::Output, NodeError> {
-        let (result, block_count) = match &self.analysis.blocks {
-            Some(blocks) => {
-                let blocked = patient_level_blocked_energy_distance(
-                    &self.analysis.fingerprints,
-                    blocks,
-                    &self.analysis.spec,
-                )
-                .map_err(NodeError::execution)?;
-                let block_count = blocked.design().block_count();
-                (blocked.into_parts().0, Some(block_count))
-            }
-            None => (
-                patient_level_energy_distance(&self.analysis.fingerprints, &self.analysis.spec)
-                    .map_err(NodeError::execution)?,
-                None,
-            ),
-        };
-        Ok(Output::from_result(
-            self.analysis.input_path.clone(),
-            result,
-            block_count,
-        ))
-    }
-
-    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
-        self.validate(output).map_err(NodeError::encoding)?;
-        marklab::exact_float_json::encode(output).map_err(NodeError::encoding)
-    }
-
-    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
-        let output: Output = marklab::exact_float_json::decode(bytes).map_err(NodeError::decode)?;
-        self.validate(&output).map_err(NodeError::decode)?;
-        Ok(output)
-    }
-
-    fn output_kind(&self) -> &'static str {
-        OUTPUT_KIND
     }
 }
 
@@ -627,7 +515,7 @@ struct Output {
     metric: String,
     energy_distance: f64,
     p_value: f64,
-    permutations: PermutationSummary,
+    permutations: usize,
     seed: u64,
 }
 
@@ -655,11 +543,7 @@ impl Output {
             metric: metric_name(result.metric).into(),
             energy_distance: result.energy_distance,
             p_value: result.p_value,
-            permutations: PermutationSummary {
-                requested: result.permutations_requested,
-                attempted: result.permutations_attempted,
-                completed: result.permutations_completed,
-            },
+            permutations: result.permutations_requested,
             seed: result.seed,
         }
     }
@@ -681,23 +565,6 @@ struct PopulationDesignSummary {
 struct GroupSummary {
     group_a_patients: usize,
     group_b_patients: usize,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct PermutationSummary {
-    requested: usize,
-    attempted: usize,
-    completed: usize,
-}
-
-fn parse_metric(value: &str) -> Result<EnergyMetric, BayesCliError> {
-    match value {
-        "euclidean" => Ok(EnergyMetric::Euclidean),
-        _ => Err(BayesCliError::Input(
-            "energy metric must be euclidean".into(),
-        )),
-    }
 }
 
 fn metric_name(value: EnergyMetric) -> &'static str {

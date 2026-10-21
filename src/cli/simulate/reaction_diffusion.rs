@@ -19,22 +19,39 @@ struct Input {
     reaction: ReactionModel,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn run(
+/// Arguments of `marklab simulate reaction-diffusion`.
+#[derive(clap::Args, Debug)]
+pub struct ReactionDiffusionArgs {
+    /// JSON grid with initial_row_major field, diffusion_um2_per_time and reaction model.
+    #[arg(long)]
     input: PathBuf,
+    /// Simulation end time in the model's time units.
+    #[arg(long)]
     final_time: f64,
+    /// Simulation time step in the model's time units.
+    #[arg(long)]
     time_step: f64,
+    /// Number of simulation steps between retained state summaries.
+    #[arg(long)]
     record_every_steps: u32,
+    /// Upper bound on cell steps.
+    #[arg(long)]
     maximum_cell_steps: u64,
+    /// File to write the result to.
+    #[arg(long)]
     out: PathBuf,
-) -> Result<()> {
-    let metadata = fs::metadata(&input).map_err(|source| MarklabError::io(&input, source))?;
-    if metadata.len() > 16 * 1024 * 1024 {
-        return Err(MarklabError::Validation(
-            "reaction-diffusion input exceeds 16 MiB".into(),
-        ));
-    }
-    let bytes = fs::read(&input).map_err(|source| MarklabError::io(&input, source))?;
+}
+
+pub(crate) fn run(args: ReactionDiffusionArgs) -> Result<()> {
+    let ReactionDiffusionArgs {
+        input,
+        final_time,
+        time_step,
+        record_every_steps,
+        maximum_cell_steps,
+        out,
+    } = args;
+    let bytes = super::read_input(&input, "reaction-diffusion")?;
     let input: Input = serde_json::from_slice(&bytes)?;
     let result = simulate_reaction_diffusion(ReactionDiffusionSpec {
         grid_x: input.grid_x,

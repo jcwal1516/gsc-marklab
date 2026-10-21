@@ -4,14 +4,13 @@ use crate::{
 };
 
 use super::{
-    admission::{prepare, PreparedSpatialAutocorrelation},
+    preparation::{prepare, PreparedSpatialAutocorrelation},
     GlobalGearyAlternative, GlobalGearyDesign, GlobalGearyError, GlobalGearyLimits,
     GlobalGearyResult, GlobalMoranAlternative, GlobalMoranDesign, GlobalMoranError,
     GlobalMoranLimits, GlobalMoranResult, GlobalMoranWeightPolicy,
 };
 
 /// Compute global Moran's I and a deterministic whole-value random-labeling test.
-#[allow(clippy::too_many_arguments)]
 pub fn global_moran_permutation(
     input: &DeclaredScalarPatternInput<'_>,
     window: &ObservationWindow2D,
@@ -80,8 +79,6 @@ pub fn global_moran_permutation(
         null_expectation,
         p_value,
         permutations_requested: design.permutations,
-        permutations_attempted: design.permutations,
-        permutations_completed: design.permutations,
         seed: design.seed,
         alternative: design.alternative,
         conditioning: design.conditioning,
@@ -89,7 +86,6 @@ pub fn global_moran_permutation(
 }
 
 /// Compute global Geary's C and a deterministic whole-value random-labeling test.
-#[allow(clippy::too_many_arguments)]
 pub fn global_geary_permutation(
     input: &DeclaredScalarPatternInput<'_>,
     window: &ObservationWindow2D,
@@ -158,8 +154,6 @@ pub fn global_geary_permutation(
         null_expectation,
         p_value,
         permutations_requested: design.permutations,
-        permutations_attempted: design.permutations,
-        permutations_completed: design.permutations,
         seed: design.seed,
         alternative: design.alternative,
         conditioning: design.conditioning,

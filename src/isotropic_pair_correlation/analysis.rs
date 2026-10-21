@@ -1,4 +1,8 @@
-use marklab_workflow::ContentDigest;
+use crate::edge_corrected::{estimate_curve, CurveWork};
+use crate::result_vocabulary::{
+    ArcMeasureOwner, DuplicatePointPolicy, EdgeCorrection, PairTraversal, SpatialExecutionMode,
+};
+use marklab_project::ContentDigest;
 
 use crate::common::finite::canonical_zero;
 
@@ -11,10 +15,9 @@ use crate::{
     common::seeds::{derive_seed, SeedEndpoint},
     isotropic_spatial::edge::IsotropicArcBudget,
     mark_pair_plan::erl_workspace_bytes,
-    pair_correlation::epanechnikov_weight,
     permutation::envelopes::GlobalEnvelope,
-    IsotropicSpatialError, ObservationWindow2D, PairCorrelationKernel, PairCorrelationPointStatus,
-    Pattern,
+    spatial::{IsotropicSpatialError, PairCorrelationKernel, PairCorrelationPointStatus},
+    ObservationWindow2D, Pattern,
 };
 
 use super::types::*;
@@ -82,24 +85,24 @@ pub fn analyze_isotropic_pair_correlation(
         maximum_boundary_intersection_angles: 0,
         estimated_storage_bytes,
         logical_digest: observed_plan.logical_digest().to_string(),
-        execution_mode: "exact".into(),
-        duplicate_policy: "reject".into(),
-        visible_arc_owner: "observation_window_2d_segment_circle_partition".into(),
+        execution_mode: SpatialExecutionMode::Exact,
+        duplicate_policy: DuplicatePointPolicy::Reject,
+        visible_arc_owner: ArcMeasureOwner::ObservationWindow2dSegmentCirclePartition,
         pair_traversal:
-            "exact_streaming_unordered_compact_support_pairs_with_two_directed_arc_weights".into(),
+            PairTraversal::ExactStreamingUnorderedCompactSupportPairsWithTwoDirectedArcWeights,
     };
     if pattern.len() < 2 {
         return Ok(IsotropicPairCorrelationResult {
             case_id: pattern.meta.case_id.clone(),
             timepoint: pattern.meta.timepoint.clone(),
-            correction: "isotropic".into(),
+            correction: EdgeCorrection::Isotropic,
             kernel: PairCorrelationKernel::Epanechnikov,
             bandwidth_um: config.bandwidth_um,
             window: window_summary(window.descriptor()),
             geometry,
             configuration,
             null_design,
-            randomization_unit: "whole_location_pattern".into(),
+            randomization_unit: crate::spatial::ClassicalRandomizationUnit::WholeLocationPattern,
             curve: unavailable_curve(&config.radii_um),
             inference: None,
             csr_candidate_draws: 0,
@@ -183,14 +186,14 @@ pub fn analyze_isotropic_pair_correlation(
     Ok(IsotropicPairCorrelationResult {
         case_id: pattern.meta.case_id.clone(),
         timepoint: pattern.meta.timepoint.clone(),
-        correction: "isotropic".into(),
+        correction: EdgeCorrection::Isotropic,
         kernel: PairCorrelationKernel::Epanechnikov,
         bandwidth_um: config.bandwidth_um,
         window: window_summary(window.descriptor()),
         geometry,
         configuration,
         null_design,
-        randomization_unit: "whole_location_pattern".into(),
+        randomization_unit: crate::spatial::ClassicalRandomizationUnit::WholeLocationPattern,
         curve,
         inference,
         csr_candidate_draws,
@@ -204,50 +207,19 @@ fn evaluate(
     config: &IsotropicPairCorrelationConfig,
     budget: &mut IsotropicArcBudget,
 ) -> Result<Evaluation, IsotropicSpatialError> {
-    let mut directed_pairs = vec![0_usize; config.radii_um.len()];
-    let mut arc_evaluations = vec![0_usize; config.radii_um.len()];
-    let mut fraction_sums = vec![0.0_f64; config.radii_um.len()];
-    let mut weighted_inverse_sums = vec![0.0_f64; config.radii_um.len()];
-    let maximum_query_radius = config.radii_um[config.radii_um.len() - 1] + config.bandwidth_um;
-    for left in 0..x.len() {
-        for right in (left + 1)..x.len() {
-            budget.charge_pair()?;
-            let distance = (x[right] - x[left]).hypot(y[right] - y[left]);
-            if distance >= maximum_query_radius {
-                continue;
-            }
-            let lower = distance - config.bandwidth_um;
-            let upper = distance + config.bandwidth_um;
-            let start = config.radii_um.partition_point(|radius| *radius <= lower);
-            let end = config.radii_um.partition_point(|radius| *radius < upper);
-            if start == end {
-                continue;
-            }
-            let left_fraction =
-                budget.visible_fraction(window, x[left], y[left], distance, left, right)?;
-            let right_fraction =
-                budget.visible_fraction(window, x[right], y[right], distance, right, left)?;
-            for index in start..end {
-                let kernel =
-                    epanechnikov_weight(config.radii_um[index], distance, config.bandwidth_um)
-                        .expect("strictly partitioned Epanechnikov support");
-                directed_pairs[index] = directed_pairs[index]
-                    .checked_add(2)
-                    .ok_or(IsotropicSpatialError::SizeOverflow)?;
-                arc_evaluations[index] = arc_evaluations[index]
-                    .checked_add(2)
-                    .ok_or(IsotropicSpatialError::SizeOverflow)?;
-                fraction_sums[index] += left_fraction + right_fraction;
-                weighted_inverse_sums[index] +=
-                    kernel * (1.0 / left_fraction + 1.0 / right_fraction);
-                if !fraction_sums[index].is_finite() || !weighted_inverse_sums[index].is_finite() {
-                    return Err(IsotropicSpatialError::InvalidPattern {
-                        reason: "isotropic pair-correlation accumulation is non-finite".into(),
-                    });
-                }
-            }
-        }
-    }
+    let CurveWork {
+        pair_counts: directed_pairs,
+        evaluations: arc_evaluations,
+        measure_sums: fraction_sums,
+        weighted_sums: weighted_inverse_sums,
+    } = estimate_curve(
+        x,
+        y,
+        window,
+        &config.radii_um,
+        Some(config.bandwidth_um),
+        budget,
+    )?;
     let denominator = x
         .len()
         .checked_mul(x.len().saturating_sub(1))
@@ -266,14 +238,14 @@ fn evaluate(
         } else {
             PairCorrelationPointStatus::Available
         };
-        let g = (status == PairCorrelationPointStatus::Available)
+        let g = (denominator > 0.0)
             .then(|| {
                 window.area_um2() * weighted_inverse_sums[index]
                     / (std::f64::consts::TAU * config.radii_um[index] * denominator)
             })
             .filter(|value| value.is_finite())
             .map(canonical_zero);
-        if status == PairCorrelationPointStatus::Available && g.is_none() {
+        if denominator > 0.0 && g.is_none() {
             return Err(IsotropicSpatialError::InvalidPattern {
                 reason: "isotropic pair-correlation normalization is non-finite".into(),
             });

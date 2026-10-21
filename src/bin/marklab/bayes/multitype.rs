@@ -1,30 +1,37 @@
-use super::{publish_json, BayesCliError};
+use super::cli_schema::MultitypePapangelouArgs;
+use super::{publish_json, CliError};
 use marklab_bayes::{
     multitype_papangelou, sha256_hex, MultitypeBaseline, MultitypeError, MultitypeInteraction,
     MultitypePapangelouResult, MultitypePapangelouSpec, MultitypePoint,
 };
 use serde::Serialize;
-use std::{fs, path::PathBuf};
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    pp: PathBuf,
-    bp: PathBuf,
-    ip: PathBuf,
-    proposal_type: String,
-    x: f64,
-    y: f64,
-    cap: u64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
-    let pb = fs::read(&pp).map_err(|source| BayesCliError::Io {
+use std::fs;
+pub(super) fn run(args: MultitypePapangelouArgs) -> Result<(), CliError> {
+    let MultitypePapangelouArgs {
+        points,
+        baselines,
+        interactions,
+        proposal_type,
+        proposal_x_um,
+        proposal_y_um,
+        maximum_visits,
+        out,
+    } = args;
+    let pp = points;
+    let bp = baselines;
+    let ip = interactions;
+    let x = proposal_x_um;
+    let y = proposal_y_um;
+    let cap = maximum_visits;
+    let pb = fs::read(&pp).map_err(|source| CliError::Io {
         path: pp.clone(),
         source,
     })?;
-    let bb = fs::read(&bp).map_err(|source| BayesCliError::Io {
+    let bb = fs::read(&bp).map_err(|source| CliError::Io {
         path: bp.clone(),
         source,
     })?;
-    let ib = fs::read(&ip).map_err(|source| BayesCliError::Io {
+    let ib = fs::read(&ip).map_err(|source| CliError::Io {
         path: ip.clone(),
         source,
     })?;
@@ -60,22 +67,22 @@ pub(super) fn run(
 fn read<T: for<'a> serde::Deserialize<'a>, const N: usize>(
     b: &[u8],
     h: [&str; N],
-) -> Result<Vec<T>, BayesCliError> {
+) -> Result<Vec<T>, CliError> {
     let mut r = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
         .from_reader(b);
     if r.headers()?.iter().collect::<Vec<_>>() != h {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "multitype CSV headers differ from exact contract".into(),
         ));
     }
     Ok(r.deserialize().collect::<Result<Vec<_>, _>>()?)
 }
-fn map_error(e: MultitypeError) -> BayesCliError {
+fn map_error(e: MultitypeError) -> CliError {
     match e {
-        MultitypeError::Invalid(m) | MultitypeError::Resource(m) => BayesCliError::Input(m),
-        MultitypeError::Numerical(m) => BayesCliError::Backend(m),
+        MultitypeError::Invalid(m) | MultitypeError::Resource(m) => CliError::Input(m),
+        MultitypeError::Numerical(m) => CliError::Backend(m),
     }
 }
 #[derive(Serialize)]

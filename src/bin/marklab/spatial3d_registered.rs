@@ -12,7 +12,6 @@ use marklab_spatial3d::{
 use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
 
-#[path = "spatial3d_registered/longitudinal.rs"]
 pub(crate) mod longitudinal;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]

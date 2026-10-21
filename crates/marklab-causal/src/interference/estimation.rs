@@ -1,6 +1,6 @@
 use super::{
-    validation::CompiledCluster, CausalError, CausalUnit, ExposureContrast, ExposureMeanEstimate,
-    JointBinaryExposure,
+    validation::CompiledCluster, CausalError, CausalUnit, ExposureContrast, ExposureContrastStatus,
+    ExposureMeanEstimate, ExposureMeanStatus, JointBinaryExposure,
 };
 
 pub(super) fn enumerate_assignments(
@@ -99,7 +99,7 @@ pub(super) fn estimate_exposure_mean(
             ht_mean: None,
             hajek_mean: None,
             exact_fixed_outcome_ht_sd: None,
-            status: "unavailable_no_positivity",
+            status: ExposureMeanStatus::UnavailableNoPositivity,
         });
     }
     let (numerator, denominator, observed_units) =
@@ -130,9 +130,9 @@ pub(super) fn estimate_exposure_mean(
         hajek_mean,
         exact_fixed_outcome_ht_sd: Some(variance.sqrt()),
         status: if hajek_mean.is_some() {
-            "estimated"
+            ExposureMeanStatus::Estimated
         } else {
-            "ht_only_no_observed_hajek_denominator"
+            ExposureMeanStatus::HtOnlyNoObservedHajekDenominator
         },
     })
 }
@@ -193,9 +193,9 @@ pub(super) fn contrasts(means: &[ExposureMeanEstimate]) -> Vec<ExposureContrast>
             low,
             estimate,
             status: if estimate.is_some() {
-                "estimated"
+                ExposureContrastStatus::Estimated
             } else {
-                "unavailable_observed_exposure_denominator"
+                ExposureContrastStatus::UnavailableObservedExposureDenominator
             },
         }
     })

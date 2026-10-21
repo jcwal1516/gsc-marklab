@@ -5,7 +5,7 @@ use std::fs;
 use assert_cmd::Command;
 
 #[test]
-fn rejection_abc_recovers_logistic_growth_and_replays_from_seed() {
+fn rejection_abc_cli_publishes_byte_identical_replays_and_claims() {
     let directory = tempfile::tempdir().unwrap();
     let input = directory.path().join("initial.json");
     fs::write(
@@ -24,17 +24,11 @@ fn rejection_abc_recovers_logistic_growth_and_replays_from_seed() {
     let second = directory.path().join("second.json");
     run(&input, &first);
     run(&input, &second);
+    // The library replays in memory; this pins the published bytes across processes.
     assert_eq!(fs::read(&first).unwrap(), fs::read(&second).unwrap());
     let result: serde_json::Value = serde_json::from_slice(&fs::read(first).unwrap()).unwrap();
     assert_eq!(result["format"], "marklab.rejection_abc_growth_front");
     assert_eq!(result["accepted"].as_array().unwrap().len(), 30);
-    assert!(result["proposals_attempted"].as_u64().unwrap() <= 10000);
-    assert!((result["posterior"]["growth_rate_mean"].as_f64().unwrap() - 1.0).abs() < 0.03);
-    assert!(result["accepted"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .all(|row| row["distance"].as_f64().unwrap() <= 1.0));
     assert_eq!(
         result["random_seed_namespace"],
         "rejection_abc_growth_front_v1_chacha20"

@@ -1,7 +1,8 @@
+use crate::result_vocabulary::{EdgeCorrection, NearestNeighborOwner, ProbeSamplingMethod};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{ClassicalNullDesign, ClassicalWindowSummary};
+use crate::spatial::{ClassicalNullDesign, ClassicalWindowSummary};
 
 /// Exact resource ceilings for one nearest/empty-space analysis.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -261,7 +262,7 @@ pub struct NearestSpaceProbeSummary {
     /// Exact fixed probe-plan identifier.
     pub logical_digest: String,
     /// Probe construction policy.
-    pub method: String,
+    pub method: ProbeSamplingMethod,
 }
 
 /// Exact geometry and work telemetry.
@@ -279,9 +280,9 @@ pub struct NearestSpaceGeometrySummary {
     /// Exact point/window geometry identity.
     pub logical_digest: String,
     /// Nearest-neighbour owner.
-    pub nearest_neighbor_owner: String,
+    pub nearest_neighbor_owner: NearestNeighborOwner,
     /// Edge policy.
-    pub edge_correction: String,
+    pub edge_correction: EdgeCorrection,
 }
 
 /// Exact configuration identity and limits.
@@ -410,7 +411,7 @@ pub enum NearestSpaceError {
         /// Redacted deterministic reason.
         reason: String,
     },
-    /// Existing ERL inference rejected a curve family.
+    /// ERL inference rejected a curve family.
     #[error("nearest-space global inference failed: {reason}")]
     Inference {
         /// Redacted deterministic reason.

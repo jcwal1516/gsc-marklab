@@ -3,7 +3,7 @@
 use std::{fs, path::Path};
 
 use assert_cmd::Command;
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 
 fn project_normal_mean_command(project: &Path, input: &Path, output: &Path) -> Command {
     project_normal_mean_command_with_seed(project, input, output, "20260824")

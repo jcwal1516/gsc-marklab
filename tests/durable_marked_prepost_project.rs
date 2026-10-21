@@ -154,7 +154,7 @@ fn marked_prepost_replays_three_typed_nodes_without_second_execution() {
     let first_bytes = fs::read(&first).expect("first comparison");
     assert_eq!(first_bytes, fs::read(&second).expect("replayed comparison"));
     let result: serde_json::Value = serde_json::from_slice(&first_bytes).expect("result JSON");
-    assert_eq!(result["format_version"], "0.3");
+    assert_eq!(result["format_version"], "0.4");
     assert_eq!(result["analysis"]["kind"], "marked_prepost");
 
     let ledger = fs::read_to_string(project.join("executions.jsonl")).expect("ledger");

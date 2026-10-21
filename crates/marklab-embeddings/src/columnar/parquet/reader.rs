@@ -1,4 +1,4 @@
-use std::io::Cursor;
+use std::io::{Cursor, Read, Seek};
 
 use marklab_project::{ArtifactRecord, LocalArtifactStore, VerifiedReaderError};
 
@@ -12,7 +12,7 @@ use self::{
     record::validate_embedding_record,
 };
 use super::{
-    super::{CellEmbeddingTablePhysicalBindings, EmbeddingColumnarBudgets, EmbeddingColumnarError},
+    super::{CellEmbeddingTablePhysicalBindings, ColumnarError, EmbeddingColumnarBudgets},
     preflight::{
         declared_table_logical_digest_parquet_reader, prepare_cell_embedding_table_parquet_reader,
         PreparedCellEmbeddingParquet,
@@ -34,42 +34,16 @@ pub fn read_cell_embedding_table_parquet_bytes(
     row_link: &CellEmbeddingRowLink,
     graph: VerifiedCellEmbeddingArtifactGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CellEmbeddingTable, EmbeddingColumnarError> {
-    let encoded_byte_len =
-        u64::try_from(bytes.len()).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
-    if encoded_byte_len > budgets.maximum_file_bytes() {
-        return Err(EmbeddingColumnarError::FileByteBudgetExceeded {
-            observed: encoded_byte_len,
-            maximum: budgets.maximum_file_bytes(),
-        });
-    }
-    let dimension = validate_embedding_record(record, encoded_byte_len, expected, row_link, graph)?;
-    let mut source = Cursor::new(bytes);
-    let declared_logical_digest = declared_table_logical_digest_parquet_reader(
-        &mut source,
-        encoded_byte_len,
-        expected,
-        budgets,
-    )?;
-    let bindings = physical_bindings(graph, declared_logical_digest)?;
-    let prepared = prepare_cell_embedding_table_parquet_reader(
-        &mut source,
-        encoded_byte_len,
-        marklab_project::ContentDigest::from_bytes(bytes),
-        expected,
-        dimension,
-        bindings,
-        budgets,
-    )?;
-    validate_preflight_identity(&prepared, record, dimension)?;
-    materialize_cell_embedding_table_parquet(
-        &mut source,
+) -> Result<CellEmbeddingTable, ColumnarError> {
+    let context = crate::CellEmbeddingTableReadContext {
         expected,
         row_link,
         graph,
-        dimension,
-        declared_logical_digest,
-        prepared,
+    };
+    crate::columnar::read::<crate::Parquet, crate::CellEmbeddingTableEntity>(
+        Cursor::new(bytes),
+        record,
+        &context,
         budgets,
     )
 }
@@ -82,46 +56,14 @@ pub fn read_cell_embedding_table_parquet_from_store(
     row_link: &CellEmbeddingRowLink,
     graph: VerifiedCellEmbeddingArtifactGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CellEmbeddingTable, VerifiedReaderError<EmbeddingColumnarError>> {
-    let encoded_byte_len = record.content().byte_len();
-    if encoded_byte_len > budgets.maximum_file_bytes() {
-        return Err(VerifiedReaderError::Callback(
-            EmbeddingColumnarError::FileByteBudgetExceeded {
-                observed: encoded_byte_len,
-                maximum: budgets.maximum_file_bytes(),
-            },
-        ));
-    }
-    let dimension = validate_embedding_record(record, encoded_byte_len, expected, row_link, graph)
-        .map_err(VerifiedReaderError::Callback)?;
-    store.with_verified_reader(record, |reader| {
-        let declared_logical_digest = declared_table_logical_digest_parquet_reader(
-            reader,
-            encoded_byte_len,
-            expected,
-            budgets,
-        )?;
-        let bindings = physical_bindings(graph, declared_logical_digest)?;
-        let prepared = prepare_cell_embedding_table_parquet_reader(
-            reader,
-            encoded_byte_len,
-            record.content().digest(),
-            expected,
-            dimension,
-            bindings,
-            budgets,
-        )?;
-        validate_preflight_identity(&prepared, record, dimension)?;
-        materialize_cell_embedding_table_parquet(
-            reader,
-            expected,
-            row_link,
-            graph,
-            dimension,
-            declared_logical_digest,
-            prepared,
-            budgets,
-        )
+) -> Result<CellEmbeddingTable, VerifiedReaderError<ColumnarError>> {
+    let context = crate::CellEmbeddingTableReadContext {
+        expected,
+        row_link,
+        graph,
+    };
+    crate::columnar::with_verified_columnar_reader(store, record, budgets, |reader| {
+        reader.read::<crate::Parquet, crate::CellEmbeddingTableEntity>(&context)
     })
 }
 
@@ -133,11 +75,10 @@ pub fn scan_cell_embedding_table_parquet_bytes(
     row_link: &CellEmbeddingRowLink,
     graph: VerifiedCellEmbeddingArtifactGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<EmbeddingQcSummary, EmbeddingColumnarError> {
-    let encoded_byte_len =
-        u64::try_from(bytes.len()).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+) -> Result<EmbeddingQcSummary, ColumnarError> {
+    let encoded_byte_len = u64::try_from(bytes.len()).map_err(|_| ColumnarError::SizeOverflow)?;
     if encoded_byte_len > budgets.maximum_file_bytes() {
-        return Err(EmbeddingColumnarError::FileByteBudgetExceeded {
+        return Err(ColumnarError::FileByteBudgetExceeded {
             observed: encoded_byte_len,
             maximum: budgets.maximum_file_bytes(),
         });
@@ -181,11 +122,11 @@ pub fn scan_cell_embedding_table_parquet_from_store(
     row_link: &CellEmbeddingRowLink,
     graph: VerifiedCellEmbeddingArtifactGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<EmbeddingQcSummary, VerifiedReaderError<EmbeddingColumnarError>> {
+) -> Result<EmbeddingQcSummary, VerifiedReaderError<ColumnarError>> {
     let encoded_byte_len = record.content().byte_len();
     if encoded_byte_len > budgets.maximum_file_bytes() {
         return Err(VerifiedReaderError::Callback(
-            EmbeddingColumnarError::FileByteBudgetExceeded {
+            ColumnarError::FileByteBudgetExceeded {
                 observed: encoded_byte_len,
                 maximum: budgets.maximum_file_bytes(),
             },
@@ -232,14 +173,18 @@ pub fn verify_cell_embedding_table_parquet_bytes(
     row_link: &CellEmbeddingRowLink,
     graph: VerifiedCellEmbeddingArtifactGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<VerifiedCellEmbeddingTableArtifact, EmbeddingColumnarError> {
-    let qc_summary =
-        scan_cell_embedding_table_parquet_bytes(bytes, record, expected, row_link, graph, budgets)?;
-    Ok(VerifiedCellEmbeddingTableArtifact::new(
-        record.id(),
+) -> Result<VerifiedCellEmbeddingTableArtifact, ColumnarError> {
+    let context = crate::CellEmbeddingTableReadContext {
+        expected,
+        row_link,
         graph,
-        qc_summary,
-    ))
+    };
+    crate::columnar::verify::<crate::Parquet, crate::CellEmbeddingTableEntity>(
+        Cursor::new(bytes),
+        record,
+        &context,
+        budgets,
+    )
 }
 
 /// Fully verify a managed Parquet table and return an exact artifact-bound receipt.
@@ -250,21 +195,21 @@ pub fn verify_cell_embedding_table_parquet_from_store(
     row_link: &CellEmbeddingRowLink,
     graph: VerifiedCellEmbeddingArtifactGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<VerifiedCellEmbeddingTableArtifact, VerifiedReaderError<EmbeddingColumnarError>> {
-    let qc_summary = scan_cell_embedding_table_parquet_from_store(
-        store, record, expected, row_link, graph, budgets,
-    )?;
-    Ok(VerifiedCellEmbeddingTableArtifact::new(
-        record.id(),
+) -> Result<VerifiedCellEmbeddingTableArtifact, VerifiedReaderError<ColumnarError>> {
+    let context = crate::CellEmbeddingTableReadContext {
+        expected,
+        row_link,
         graph,
-        qc_summary,
-    ))
+    };
+    crate::columnar::with_verified_columnar_reader(store, record, budgets, |reader| {
+        reader.verify::<crate::Parquet, crate::CellEmbeddingTableEntity>(&context)
+    })
 }
 
 fn physical_bindings(
     graph: VerifiedCellEmbeddingArtifactGraph,
     declared_logical_digest: marklab_project::ContentDigest,
-) -> Result<CellEmbeddingTablePhysicalBindings, EmbeddingColumnarError> {
+) -> Result<CellEmbeddingTablePhysicalBindings, ColumnarError> {
     CellEmbeddingTablePhysicalBindings::new(
         graph.expected_cells_artifact_id,
         graph.provenance_artifact_id,
@@ -278,12 +223,92 @@ fn validate_preflight_identity(
     prepared: &PreparedCellEmbeddingParquet,
     record: &ArtifactRecord,
     dimension: u32,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     if prepared.summary.dimension() != dimension
         || prepared.summary.content_digest() != record.content().digest()
         || prepared.summary.encoded_byte_len() != record.content().byte_len()
     {
-        return Err(EmbeddingColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     Ok(())
+}
+
+fn prepare_trusted_reader<R: Read + Seek + ?Sized>(
+    reader: &mut R,
+    record: &ArtifactRecord,
+    context: &crate::CellEmbeddingTableReadContext<'_>,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<
+    (
+        u32,
+        marklab_project::ContentDigest,
+        PreparedCellEmbeddingParquet,
+    ),
+    ColumnarError,
+> {
+    let encoded = record.content().byte_len();
+    super::super::enforce_file_budget(encoded, budgets)?;
+    let dimension = validate_embedding_record(
+        record,
+        encoded,
+        context.expected,
+        context.row_link,
+        context.graph,
+    )?;
+    let digest =
+        declared_table_logical_digest_parquet_reader(reader, encoded, context.expected, budgets)?;
+    let prepared = prepare_cell_embedding_table_parquet_reader(
+        reader,
+        encoded,
+        record.content().digest(),
+        context.expected,
+        dimension,
+        physical_bindings(context.graph, digest)?,
+        budgets,
+    )?;
+    validate_preflight_identity(&prepared, record, dimension)?;
+    Ok((dimension, digest, prepared))
+}
+
+pub(crate) fn read_cell_embedding_table_parquet_reader<R: Read + Seek + ?Sized>(
+    reader: &mut R,
+    record: &ArtifactRecord,
+    context: &crate::CellEmbeddingTableReadContext<'_>,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<CellEmbeddingTable, ColumnarError> {
+    let (dimension, digest, prepared) = prepare_trusted_reader(reader, record, context, budgets)?;
+    materialize_cell_embedding_table_parquet(
+        reader,
+        context.expected,
+        context.row_link,
+        context.graph,
+        dimension,
+        digest,
+        prepared,
+        budgets,
+    )
+}
+
+pub(crate) fn verify_cell_embedding_table_parquet_reader<R: Read + Seek + ?Sized>(
+    reader: &mut R,
+    record: &ArtifactRecord,
+    context: &crate::CellEmbeddingTableReadContext<'_>,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<VerifiedCellEmbeddingTableArtifact, ColumnarError> {
+    let (dimension, digest, prepared) = prepare_trusted_reader(reader, record, context, budgets)?;
+    let qc = scan_cell_embedding_table_parquet(
+        reader,
+        context.expected,
+        context.row_link,
+        context.graph,
+        dimension,
+        digest,
+        prepared,
+        budgets,
+    )?;
+    Ok(VerifiedCellEmbeddingTableArtifact::new(
+        record.id(),
+        context.graph,
+        qc,
+    ))
 }

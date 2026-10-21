@@ -7,7 +7,7 @@ use parquet::{
     format::KeyValue,
 };
 
-use super::super::{CellEmbeddingTablePhysicalBindings, EmbeddingColumnarError};
+use super::super::{CellEmbeddingTablePhysicalBindings, ColumnarError};
 
 pub(super) const PARQUET_MAGIC: &[u8; 4] = b"PAR1";
 pub(super) const TRAILER_BYTES: usize = 8;
@@ -40,8 +40,8 @@ pub(super) const METADATA_KEYS: [&str; 7] = [
     "marklab.schema_version",
 ];
 
-pub(super) fn embedding_schema(dimension: u32) -> Result<Schema, EmbeddingColumnarError> {
-    let length = i32::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+pub(super) fn embedding_schema(dimension: u32) -> Result<Schema, ColumnarError> {
+    let length = i32::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?;
     Ok(Schema::new(vec![
         Field::new("cell_id", DataType::Utf8, false),
         Field::new(
@@ -104,50 +104,48 @@ pub(super) fn embedding_decoded_bytes(
     dimension: u32,
     identifier_bytes: usize,
     status_bytes: usize,
-) -> Result<u64, EmbeddingColumnarError> {
-    let dimension = usize::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+) -> Result<u64, ColumnarError> {
+    let dimension = usize::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?;
     let mut required = 0_usize;
     let mut start = 0_usize;
     while start < row_count {
         let rows = row_count
             .checked_sub(start)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?
+            .ok_or(ColumnarError::SizeOverflow)?
             .min(PUBLIC_BATCH_ROWS);
         let components = rows
             .checked_mul(dimension)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let offsets = rows
             .checked_add(1)
             .and_then(|value| value.checked_mul(size_of::<i32>()))
             .and_then(|value| value.checked_mul(2))
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let validity = bitmap_bytes(rows)?
             .checked_mul(3)
             .and_then(|value| value.checked_add(bitmap_bytes(components).ok()?))
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         required = required
             .checked_add(
                 components
                     .checked_mul(size_of::<f32>())
                     .and_then(|value| value.checked_add(offsets))
                     .and_then(|value| value.checked_add(validity))
-                    .ok_or(EmbeddingColumnarError::SizeOverflow)?,
+                    .ok_or(ColumnarError::SizeOverflow)?,
             )
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
-        start = start
-            .checked_add(rows)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
+        start = start.checked_add(rows).ok_or(ColumnarError::SizeOverflow)?;
     }
     required = required
         .checked_add(identifier_bytes)
         .and_then(|value| value.checked_add(status_bytes))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
-    u64::try_from(required).map_err(|_| EmbeddingColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)?;
+    u64::try_from(required).map_err(|_| ColumnarError::SizeOverflow)
 }
 
-fn bitmap_bytes(values: usize) -> Result<usize, EmbeddingColumnarError> {
+fn bitmap_bytes(values: usize) -> Result<usize, ColumnarError> {
     values
         .checked_add(7)
         .map(|value| value / 8)
-        .ok_or(EmbeddingColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)
 }

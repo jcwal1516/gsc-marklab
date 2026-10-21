@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::LongitudinalError;
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -85,7 +86,7 @@ pub struct ScalarNonlinearFilterResult {
     pub predicted_states: Vec<ScalarMoment>,
     pub filtered_states: Vec<ScalarMoment>,
     pub diagnostics: Vec<NonlinearStepDiagnostics>,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 struct SigmaPoints {
@@ -249,7 +250,7 @@ pub fn nonlinear_gaussian_filter(
         predicted_states,
         filtered_states,
         diagnostics,
-        claim_status: "scalar_gaussian_moment_approximation_only",
+        claim_status: ClaimStatus::ScalarGaussianMomentApproximationOnly,
     })
 }
 

@@ -1,6 +1,9 @@
+use crate::result_vocabulary::{
+    DuplicatePointPolicy, EdgeCorrection, OverlapMeasureOwner, PairTraversal, SpatialExecutionMode,
+};
 use serde::{Deserialize, Serialize};
 
-use crate::{
+use crate::spatial::{
     ClassicalInferenceSummary, ClassicalNullDesign, ClassicalWindowSummary, PairCorrelationKernel,
     PairCorrelationPointStatus, TranslationSpatialError, TranslationSpatialLimits,
 };
@@ -154,13 +157,13 @@ pub struct TranslationPairCorrelationGeometrySummary {
     /// Exact point/window geometry identity.
     pub logical_digest: String,
     /// Exact rather than approximate execution mode.
-    pub execution_mode: String,
+    pub execution_mode: SpatialExecutionMode,
     /// Duplicate-coordinate handling policy.
-    pub duplicate_policy: String,
+    pub duplicate_policy: DuplicatePointPolicy,
     /// Canonical exact overlap implementation identity.
-    pub overlap_owner: String,
+    pub overlap_owner: OverlapMeasureOwner,
     /// Pair traversal and directed-weight semantics.
-    pub pair_traversal: String,
+    pub pair_traversal: PairTraversal,
 }
 
 /// Configuration identity retained with one translation-corrected g result.
@@ -184,7 +187,7 @@ pub struct TranslationPairCorrelationResult {
     /// Source timepoint identity.
     pub timepoint: String,
     /// Fixed edge-correction name.
-    pub correction: String,
+    pub correction: EdgeCorrection,
     /// Fixed compact-support kernel.
     pub kernel: PairCorrelationKernel,
     /// Positive physical half-bandwidth.
@@ -198,7 +201,7 @@ pub struct TranslationPairCorrelationResult {
     /// Whole-pattern conditional-CSR design.
     pub null_design: ClassicalNullDesign,
     /// Fixed population-randomization unit.
-    pub randomization_unit: String,
+    pub randomization_unit: crate::spatial::ClassicalRandomizationUnit,
     /// Radius-aligned observed curve and simultaneous envelope.
     pub curve: Vec<TranslationPairCorrelationPoint>,
     /// Simultaneous ERL inference when at least one radius is jointly eligible.

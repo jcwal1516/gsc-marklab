@@ -5,9 +5,10 @@ mod workflow;
 
 pub use model::{
     BaselineCovariate, CausalError, CausalUnit, ClusterAssignment, ExposureContrast,
-    ExposureMeanEstimate, InterferenceEdge, InterferenceRandomizationResult, JointBinaryExposure,
-    JointExposureProbabilities, ObservedUnitExposure, RandomizedInterferenceResult,
-    RandomizedInterferenceSpec, UnitExposureProbabilities,
+    ExposureContrastStatus, ExposureMeanEstimate, ExposureMeanStatus, InterferenceEdge,
+    InterferenceRandomizationResult, JointBinaryExposure, JointExposureProbabilities,
+    ObservedUnitExposure, RandomizedInterferenceResult, RandomizedInterferenceSpec,
+    UnitExposureProbabilities,
 };
 pub use workflow::randomized_binary_interference;
 

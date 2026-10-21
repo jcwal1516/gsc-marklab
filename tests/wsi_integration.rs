@@ -361,6 +361,7 @@ fn public_aperio_jp2k_region_matches_openslide_oracle() {
         sum_error[channel] += u64::from(error);
     }
     let mean_error = sum_error.into_iter().sum::<u64>() as f64 / actual.pixels.len() as f64;
+    println!("public Aperio maximum RGBA errors: {maximum_error:?}; mean absolute RGBA error: {mean_error}");
     assert!(
         maximum_error.into_iter().all(|error| error <= 24),
         "decoded pixels exceed the reviewed maximum channel error: max={maximum_error:?}, \

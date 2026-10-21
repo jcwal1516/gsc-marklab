@@ -1,59 +1,21 @@
-use super::{publish_json, run_worker, BayesCliError, MAXIMUM_INPUT_BYTES};
-use clap::{Args, Parser, Subcommand};
+use super::NonproportionalOrdinalGroupSiteModelArgs;
+use super::{publish_json, run_worker, CliError, MAXIMUM_INPUT_BYTES};
+use clap::Args;
 use marklab_bayes::{
-    nonproportional_ordinal_group_site_data_sha256, sha256_hex,
-    NonproportionalOrdinalGroupSiteInputIdentity, NonproportionalOrdinalGroupSiteSpec,
-    NonproportionalOrdinalGroupSiteWorkerRequest, NonproportionalOrdinalGroupSiteWorkerResult,
-    NutsSamplingSpec, OrdinalGroupSitePatientData,
+    json_sha256, sha256_hex, NonproportionalOrdinalGroupSiteInputIdentity,
+    NonproportionalOrdinalGroupSiteSpec, NonproportionalOrdinalGroupSiteWorkerRequest,
+    NonproportionalOrdinalGroupSiteWorkerResult, OrdinalGroupSitePatientData,
 };
 use serde::Deserialize;
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct Cli {
-    #[command(subcommand)]
-    command: Top,
-}
-#[derive(Debug, Subcommand)]
-enum Top {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-#[derive(Debug, Subcommand)]
-enum Command {
-    NonproportionalOrdinalGroupSite(Box<Options>),
-}
 #[derive(Debug, Args)]
-struct Options {
+pub(crate) struct NonproportionalOrdinalGroupSiteArgs {
+    #[command(flatten)]
+    pub(super) model: NonproportionalOrdinalGroupSiteModelArgs,
+    /// Destination for the analysis output.
     #[arg(long)]
-    input: PathBuf,
-    #[arg(long)]
-    reference_group: String,
-    #[arg(long)]
-    comparison_group: String,
-    #[arg(long)]
-    ordered_levels: String,
-    #[arg(long)]
-    cutpoint_prior_sd: f64,
-    #[arg(long)]
-    site_intercept_sd_prior_sd: f64,
-    #[arg(long)]
-    chains: u32,
-    #[arg(long)]
-    tune: u32,
-    #[arg(long)]
-    draws: u32,
-    #[arg(long)]
-    target_accept: f64,
-    #[arg(long)]
-    seed: u64,
-    #[arg(long)]
-    timeout_seconds: u64,
-    #[arg(long)]
-    out: PathBuf,
+    pub(super) out: PathBuf,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -64,29 +26,8 @@ struct Row {
     outcome: String,
 }
 
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let Cli {
-        command:
-            Top::Bayes {
-                command: Command::NonproportionalOrdinalGroupSite(a),
-            },
-    } = Cli::parse();
-    let prepared = prepare(
-        a.input,
-        a.reference_group,
-        a.comparison_group,
-        a.ordered_levels.split(',').map(str::to_owned).collect(),
-        a.cutpoint_prior_sd,
-        a.site_intercept_sd_prior_sd,
-        NutsSamplingSpec {
-            chains: a.chains,
-            tune_per_chain: a.tune,
-            draws_per_chain: a.draws,
-            target_accept: a.target_accept,
-            seed: a.seed,
-        },
-        a.timeout_seconds,
-    )?;
+pub(super) fn run(a: NonproportionalOrdinalGroupSiteArgs) -> Result<(), CliError> {
+    let prepared = prepare(a.model)?;
     let result = execute(&prepared)?;
     publish_json(
         &a.out,
@@ -102,27 +43,31 @@ pub(crate) struct PreparedNonproportionalOrdinalGroupSite {
     pub(crate) timeout_seconds: u64,
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare(
-    input_path: PathBuf,
-    reference_group: String,
-    comparison_group: String,
-    ordered_levels: Vec<String>,
-    cutpoint_prior_sd: f64,
-    site_intercept_sd_prior_sd: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-) -> Result<PreparedNonproportionalOrdinalGroupSite, BayesCliError> {
-    let metadata = fs::metadata(&input_path).map_err(|source| BayesCliError::Io {
+    model: NonproportionalOrdinalGroupSiteModelArgs,
+) -> Result<PreparedNonproportionalOrdinalGroupSite, CliError> {
+    let NonproportionalOrdinalGroupSiteModelArgs {
+        input: input_path,
+        reference_group,
+        comparison_group,
+        ordered_levels,
+        cutpoint_prior_sd,
+        site_intercept_sd_prior_sd,
+        timeout_seconds,
+        nuts,
+    } = model;
+    let sampling = nuts.spec();
+
+    let metadata = fs::metadata(&input_path).map_err(|source| CliError::Io {
         path: input_path.clone(),
         source,
     })?;
     if metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "nonproportional ordinal input exceeds 16 MiB".into(),
         ));
     }
-    let bytes = fs::read(&input_path).map_err(|source| BayesCliError::Io {
+    let bytes = fs::read(&input_path).map_err(|source| CliError::Io {
         path: input_path.clone(),
         source,
     })?;
@@ -136,10 +81,10 @@ pub(crate) fn prepare(
         .from_reader(bytes.as_slice());
     let patients = reader
         .deserialize::<Row>()
-        .map(|row| -> Result<_, BayesCliError> {
+        .map(|row| -> Result<_, CliError> {
             let row = row?;
             let outcome_code = codes.get(row.outcome.as_str()).copied().ok_or_else(|| {
-                BayesCliError::Input(format!("outcome {:?} is not ordered", row.outcome))
+                CliError::Input(format!("outcome {:?} is not ordered", row.outcome))
             })?;
             Ok(OrdinalGroupSitePatientData {
                 patient_id: row.patient_id,
@@ -149,15 +94,15 @@ pub(crate) fn prepare(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let root = &marklab::python_backend_assets_root()?;
+    let root = &marklab::backend::python_backend_assets_root()?;
     let directory = root.join("workers/python");
     let lock_path = directory.join("uv.lock");
-    let lock = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
+    let lock = fs::read(&lock_path).map_err(|source| CliError::Io {
         path: lock_path,
         source,
     })?;
     let worker_path = directory.join("marklab_pymc_nonproportional_ordinal_group_site_worker.py");
-    let worker = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
+    let worker = fs::read(&worker_path).map_err(|source| CliError::Io {
         path: worker_path,
         source,
     })?;
@@ -177,7 +122,7 @@ pub(crate) fn prepare(
     )?;
     let identity = NonproportionalOrdinalGroupSiteInputIdentity {
         path: input_path.display().to_string(),
-        patient_data_sha256: nonproportional_ordinal_group_site_data_sha256(&request.patients)?,
+        patient_data_sha256: json_sha256(&request.patients)?,
         patient_count: request.patients.len(),
         site_count: request.site_ids.len(),
         level_count: ordered_levels.len(),
@@ -205,9 +150,9 @@ pub(crate) fn prepare(
 
 pub(crate) fn execute(
     prepared: &PreparedNonproportionalOrdinalGroupSite,
-) -> Result<NonproportionalOrdinalGroupSiteWorkerResult, BayesCliError> {
+) -> Result<NonproportionalOrdinalGroupSiteWorkerResult, CliError> {
     let bytes = run_worker(
-        &marklab::python_backend_assets_root()?,
+        &marklab::backend::python_backend_assets_root()?,
         "marklab_pymc_nonproportional_ordinal_group_site_worker.py",
         &prepared.request_bytes,
         prepared.timeout_seconds,
@@ -215,8 +160,4 @@ pub(crate) fn execute(
     let result: NonproportionalOrdinalGroupSiteWorkerResult = serde_json::from_slice(&bytes)?;
     result.validate(&prepared.request, &prepared.request_sha256)?;
     Ok(result)
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<Cli>(|| run_cli().map_err(super::into_marklab_error))
 }

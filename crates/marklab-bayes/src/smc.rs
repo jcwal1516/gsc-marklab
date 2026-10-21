@@ -1,12 +1,28 @@
+//! Annealed sequential Monte Carlo for the conjugate normal mean with known sigma (PyMC).
+//!
+//! The model is `y_i ~ Normal(mu, known_sigma)` with `mu ~ Normal(prior_mean, prior_sd)`. Each
+//! chain tempers from the prior (beta 0) to the posterior (beta 1) with PyMC's independent
+//! Metropolis-Hastings kernel; the next beta keeps the particle ESS near `ess_target *
+//! particles`. The worker records each stage's beta, ESS, acceptance rate and resampling
+//! ancestors, plus one log marginal likelihood per chain. `fit_state` is complete when prior,
+//! posterior and predictive particles are finite, every chain reaches beta 1 along a strictly
+//! increasing path, ancestry indexes are valid and every chain evidence is finite; ESS and
+//! acceptance are reported but not gated. `approximate_only` results are rejected.
+
+use crate::is_worker_timeout;
 use crate::validation::all_finite as finite;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::validation::{validate_scalar_summary, SummarySupport};
+use crate::ClaimStatus;
 use crate::{
     model::{BackendContract, PYMC_VERSION, WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION},
     BayesError, FitState, NormalMeanModelIr, NormalMeanPosteriorPredictive, NormalMeanSpec,
-    SarScalarSummary, WorkerBackend,
+    ScalarSummary, WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct SmcSamplingSpec {
@@ -58,7 +74,7 @@ impl NormalMeanSmcWorkerRequest {
                 "SMC requires 100-10000 particles, 2-4 chains, and targets in (0,1)".into(),
             ));
         }
-        if !(1..=3_600).contains(&timeout_seconds) {
+        if !is_worker_timeout(timeout_seconds) {
             return Err(BayesError::InvalidSpec(
                 "SMC worker timeout must be between 1 and 3600 seconds".into(),
             ));
@@ -70,14 +86,14 @@ impl NormalMeanSmcWorkerRequest {
             ));
         }
         let mut model = spec.model_ir();
-        model.backend_capability = "annealed_smc";
+        model.backend_capability = BackendCapability::AnnealedSmc;
         Ok(Self {
             format: WORKER_REQUEST_FORMAT,
             version: WORKER_REQUEST_VERSION,
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -142,7 +158,7 @@ pub struct NormalMeanSmcWorkerResult {
     pub backend: WorkerBackend,
     pub request_sha256: String,
     pub fit_state: FitState,
-    pub posterior: SarScalarSummary,
+    pub posterior: ScalarSummary,
     pub evidence: SmcEvidence,
     pub chains: Vec<SmcChain>,
     pub diagnostics: SmcDiagnostics,
@@ -158,11 +174,7 @@ impl NormalMeanSmcWorkerResult {
         if self.fit_state == FitState::ApproximateOnly
             || self.format != "marklab.pymc_normal_mean_smc_worker_result"
             || self.version != 1
-            || self.backend.name != "pymc"
-            || self.backend.version != PYMC_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
         {
             return Err(BayesError::WorkerContract(
@@ -280,9 +292,9 @@ impl NormalMeanSmcWorkerResult {
             sampling: request.sampling,
             fit_state: self.fit_state,
             claim_status: match self.fit_state {
-                FitState::Complete => "experimental",
-                FitState::Nonconverged => "diagnostic_only_nonconverged",
-                FitState::ApproximateOnly => "experimental_approximate_only",
+                FitState::Complete => ClaimStatus::Experimental,
+                FitState::Nonconverged => ClaimStatus::DiagnosticOnlyNonconverged,
+                FitState::ApproximateOnly => ClaimStatus::ExperimentalApproximateOnly,
             },
             posterior: self.posterior,
             evidence: self.evidence,
@@ -294,20 +306,12 @@ impl NormalMeanSmcWorkerResult {
     }
 }
 
-fn validate_scalar(summary: &SarScalarSummary) -> Result<(), BayesError> {
-    if !finite(&[
-        summary.mean,
-        summary.sd,
-        summary.interval_lower,
-        summary.interval_upper,
-    ]) || summary.sd <= 0.0
-        || summary.interval_lower > summary.interval_upper
-    {
-        return Err(BayesError::WorkerContract(
-            "invalid normal-mean SMC posterior".into(),
-        ));
-    }
-    Ok(())
+fn validate_scalar(summary: &ScalarSummary) -> Result<(), BayesError> {
+    validate_scalar_summary(
+        summary,
+        SummarySupport::Real,
+        "invalid normal-mean SMC posterior",
+    )
 }
 
 #[derive(Debug, Serialize)]
@@ -326,8 +330,8 @@ pub struct NormalMeanSmcFit {
     pub input: NormalMeanSmcInputIdentity,
     pub sampling: SmcSamplingSpec,
     pub fit_state: FitState,
-    pub claim_status: &'static str,
-    pub posterior: SarScalarSummary,
+    pub claim_status: ClaimStatus,
+    pub posterior: ScalarSummary,
     pub evidence: SmcEvidence,
     pub chains: Vec<SmcChain>,
     pub diagnostics: SmcDiagnostics,

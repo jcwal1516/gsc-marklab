@@ -1,10 +1,13 @@
 use super::*;
 use marklab::{
-    publish_region_embedding_table_arrow, publish_region_embedding_table_parquet,
-    verify_region_embedding_table_arrow_bytes, verify_region_embedding_table_arrow_from_store,
-    verify_region_embedding_table_parquet_bytes, verify_region_embedding_table_parquet_from_store,
-    write_region_embedding_table_arrow, write_region_embedding_table_parquet, ArtifactStoreError,
-    DerivedRegionEmbeddingTableCandidate, MultiscaleColumnarError, VerifiedReaderError,
+    embeddings::{
+        publish_region_embedding_table_arrow, publish_region_embedding_table_parquet,
+        verify_region_embedding_table_arrow_bytes, verify_region_embedding_table_arrow_from_store,
+        verify_region_embedding_table_parquet_bytes,
+        verify_region_embedding_table_parquet_from_store, write_region_embedding_table_arrow,
+        write_region_embedding_table_parquet, ColumnarError, DerivedRegionEmbeddingTableCandidate,
+    },
+    workflow::{ArtifactStoreError, VerifiedReaderError},
 };
 
 fn finalized_candidate(fixture: &DerivedFixture) -> DerivedRegionEmbeddingTableCandidate {
@@ -159,7 +162,7 @@ fn region_receipt_requires_the_exact_candidate_and_preserves_failure_precedence(
     bytes[0] ^= 1;
     assert!(matches!(
         verify_region_embedding_table_arrow_bytes(&bytes, &record, &candidate, budgets()),
-        Err(MultiscaleColumnarError::Arrow { .. })
+        Err(ColumnarError::Arrow { .. })
     ));
 
     corrupt_managed(&fixture._direct._root, record.id());

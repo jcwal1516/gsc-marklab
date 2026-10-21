@@ -1,6 +1,6 @@
 use std::{fs::OpenOptions, io::Write, path::Path};
 
-use crate::{CacheStatus, MarklabError, Result};
+use crate::{workflow::CacheStatus, MarklabError, Result};
 
 pub(super) fn write_output(
     path: &Path,

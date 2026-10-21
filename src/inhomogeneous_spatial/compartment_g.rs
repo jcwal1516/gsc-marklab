@@ -1,8 +1,11 @@
+use crate::result_vocabulary::{EdgeCorrection, InhomogeneousNullModel, SpatialRandomizationUnit};
 use crate::{
     classical::{window_summary, SpatialGeometryPlan2D},
     common::finite::canonical_zero,
+    compartments::BinaryCompartmentPartition2D,
     permutation::envelopes::GlobalEnvelope,
-    BinaryCompartmentPartition2D, ClassicalSpatialLimits, PairCorrelationKernel, Pattern,
+    spatial::{ClassicalSpatialLimits, PairCorrelationKernel},
+    Pattern,
 };
 
 use super::{
@@ -31,6 +34,16 @@ pub fn analyze_piecewise_compartment_pair_correlation(
     pattern: &Pattern,
     partition: &BinaryCompartmentPartition2D,
     config: &PiecewiseCompartmentPairCorrelationConfig,
+) -> Result<PiecewiseCompartmentPairCorrelationResult, InhomogeneousSpatialError> {
+    analyze_piecewise_compartment_pair_correlation_capturing(pattern, partition, config, None)
+}
+
+/// [`analyze_piecewise_compartment_pair_correlation`], optionally retaining the null curves.
+pub(crate) fn analyze_piecewise_compartment_pair_correlation_capturing(
+    pattern: &Pattern,
+    partition: &BinaryCompartmentPartition2D,
+    config: &PiecewiseCompartmentPairCorrelationConfig,
+    capture: Option<&mut super::NullCurveCapture>,
 ) -> Result<PiecewiseCompartmentPairCorrelationResult, InhomogeneousSpatialError> {
     let base = &config.intensity;
     if pattern.len() < 2 {
@@ -126,6 +139,10 @@ pub fn analyze_piecewise_compartment_pair_correlation(
         &jointly_eligible,
         config,
     )?;
+    if let Some(capture) = capture {
+        capture.simulated = simulated;
+        capture.jointly_eligible = jointly_eligible;
+    }
     let compartment_queries = fitted.roles.len();
     let intensity = into_piecewise_intensity_summary(pattern, partition, fitted);
     Ok(PiecewiseCompartmentPairCorrelationResult {
@@ -135,8 +152,7 @@ pub fn analyze_piecewise_compartment_pair_correlation(
         intensity,
         kernel: PairCorrelationKernel::Epanechnikov,
         pair_bandwidth_um: config.pair_bandwidth_um,
-        edge_correction: "standard_border_radius_plus_pair_bandwidth_inverse_intensity_ratio"
-            .into(),
+        edge_correction: EdgeCorrection::StandardBorderRadiusPlusPairBandwidthInverseIntensityRatio,
         configuration_digest: piecewise_g_configuration_digest(config).to_string(),
         compartment_queries,
         observed_pair_visits,
@@ -145,9 +161,10 @@ pub fn analyze_piecewise_compartment_pair_correlation(
         limits: base.limits,
         curve: observed.points,
         inference: InhomogeneousSpatialInference {
-            null_model: "fixed_binary_compartment_counts_uniform_within_exact_partition".into(),
-            randomization_unit: "whole_location_pattern_conditioned_on_binary_compartment_counts"
-                .into(),
+            null_model:
+                InhomogeneousNullModel::FixedBinaryCompartmentCountsUniformWithinExactPartition,
+            randomization_unit:
+                SpatialRandomizationUnit::WholeLocationPatternConditionedOnBinaryCompartmentCounts,
             p_global: envelope.p_global,
             erl_depth: envelope.erl_depth,
             critical_depth: envelope.critical_depth,
@@ -156,6 +173,7 @@ pub fn analyze_piecewise_compartment_pair_correlation(
             seed: base.seed,
             alpha: base.alpha,
             null_draws: counters.null_draws,
+            support_redraws: None,
         },
     })
 }

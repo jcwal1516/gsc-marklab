@@ -1,12 +1,17 @@
-use crate::{probability_transform::sigmoid, validation::all_finite as finite};
+use crate::is_worker_timeout;
+use crate::validation::all_finite as finite;
+use marklab_numerics::relative_eq;
+use marklab_numerics::sigmoid;
 
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::backend_versions::SCIPY_VERSION;
 use crate::{BackendContract, BayesError, WorkerBackend};
 
-const SCIPY_VERSION: &str = "1.18.1";
+const RELATIVE_TOLERANCE: f64 = 1e-10;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct PredictionCalibrationRow {
@@ -50,7 +55,7 @@ impl PredictionCalibrationWorkerRequest {
     ) -> Result<Self, BayesError> {
         if !(16..=100_000).contains(&spec.rows.len())
             || !(2..=20).contains(&spec.bins)
-            || !(1..=3_600).contains(&spec.timeout_seconds)
+            || !is_worker_timeout(spec.timeout_seconds)
         {
             return Err(BayesError::InvalidSpec(
                 "calibration row, bin, or timeout limits are invalid".into(),
@@ -87,7 +92,7 @@ impl PredictionCalibrationWorkerRequest {
             backend: BackendContract {
                 name: "scipy",
                 version: SCIPY_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -163,11 +168,7 @@ impl PredictionCalibrationWorkerResult {
     ) -> Result<(), BayesError> {
         if self.format != "marklab.scipy_prediction_calibration_worker_result"
             || self.version != 1
-            || self.backend.name != "scipy"
-            || self.backend.version != SCIPY_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
             || !finite(&[
                 self.calibrator.intercept,
@@ -201,7 +202,7 @@ impl PredictionCalibrationWorkerResult {
                 || prediction.score.to_bits() != expected.score.to_bits()
                 || prediction.label != expected.label
                 || !(0.0..=1.0).contains(&prediction.probability)
-                || !approximately_equal(prediction.probability, probability)
+                || !relative_eq(prediction.probability, probability, RELATIVE_TOLERANCE)
             {
                 return Err(BayesError::WorkerContract(
                     "calibrated prediction identity or probability differs".into(),
@@ -211,7 +212,7 @@ impl PredictionCalibrationWorkerResult {
             squared_error += residual * residual;
         }
         let brier = squared_error / test.len() as f64;
-        if !approximately_equal(brier, self.metrics.brier_score) {
+        if !relative_eq(brier, self.metrics.brier_score, RELATIVE_TOLERANCE) {
             return Err(BayesError::WorkerContract(
                 "calibration Brier score differs".into(),
             ));
@@ -250,10 +251,18 @@ fn validate_bins(
             / members.len() as f64;
         expected_ece += members.len() as f64 / predictions.len() as f64 * (mean - rate).abs();
         if row.count != members.len() as u32
-            || !approximately_equal(row.lower, f64::from(bin_index) / f64::from(bins))
-            || !approximately_equal(row.upper, f64::from(bin_index + 1) / f64::from(bins))
-            || !approximately_equal(row.mean_probability, mean)
-            || !approximately_equal(row.observed_rate, rate)
+            || !relative_eq(
+                row.lower,
+                f64::from(bin_index) / f64::from(bins),
+                RELATIVE_TOLERANCE,
+            )
+            || !relative_eq(
+                row.upper,
+                f64::from(bin_index + 1) / f64::from(bins),
+                RELATIVE_TOLERANCE,
+            )
+            || !relative_eq(row.mean_probability, mean, RELATIVE_TOLERANCE)
+            || !relative_eq(row.observed_rate, rate, RELATIVE_TOLERANCE)
             || !finite(&[row.wilson_95_lower, row.wilson_95_upper])
             || row.wilson_95_lower < 0.0
             || row.wilson_95_upper > 1.0
@@ -264,15 +273,15 @@ fn validate_bins(
         }
     }
     if occupied != metrics.reliability_bins.len()
-        || !approximately_equal(expected_ece, metrics.expected_calibration_error)
+        || !relative_eq(
+            expected_ece,
+            metrics.expected_calibration_error,
+            RELATIVE_TOLERANCE,
+        )
     {
         return Err(BayesError::WorkerContract(
             "calibration reliability family differs".into(),
         ));
     }
     Ok(())
-}
-
-fn approximately_equal(left: f64, right: f64) -> bool {
-    (left - right).abs() <= 1e-10 * (1.0 + left.abs().max(right.abs()))
 }

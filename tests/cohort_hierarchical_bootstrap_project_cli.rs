@@ -3,7 +3,8 @@
 use std::{fs, path::Path};
 
 use assert_cmd::Command;
-use marklab_workflow::{ContentDigest, NodeId, NodeSpec};
+use marklab_project::ContentDigest;
+use marklab_workflow::{NodeId, NodeSpec};
 
 fn fixture(directory: &Path) -> std::path::PathBuf {
     let input = directory.join("nested_endpoints.csv");

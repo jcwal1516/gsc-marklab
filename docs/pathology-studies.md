@@ -11,7 +11,9 @@ Three workflows for comparing patients. All run in Rust; no Python or R is neede
   tests whether a region that extreme could arise by chance.
 
 Every cell has one definite type, and every slide names its patient, so that patients
-rather than cells are the unit of comparison. These workflows are experimental.
+rather than cells are the unit of comparison. These workflows are at the Research tier,
+except that `spatial-study` is Experimental for fixed-bandwidth L-minus-r curves in
+rectangular windows (see [capabilities](capabilities.md#command-maturity)).
 
 ```sh
 marklab pathology composition --recipe examples/pathology-studies/composition.json --out output/composition
@@ -23,14 +25,15 @@ The output directory must be new or empty. From Rust, `analyze_pathology_composi
 `analyze_pathology_spatial_study` and `analyze_pathology_scan` take the recipe as JSON bytes
 and return the result; the matching `publish_*` functions write the output directory. These
 workflows write their own versioned result documents (v1), separate from
-[result format 0.3](result-format-0.3.md).
+[result format 0.4](result-format-0.4.md).
 
 ## Recipes
 
 Each recipe is a JSON file with `format`, `version: 1`, `study`, `design` and `limits`. The
 formats are `marklab.pathology_composition_recipe`, `marklab.pathology_spatial_study_recipe`
 and `marklab.pathology_scan_recipe`. Unknown fields or versions are errors. The files in
-`examples/pathology-studies/` are complete examples.
+`examples/pathology-studies/` are complete synthetic examples; `generate.py` in the same
+directory recreates them.
 
 The `study` section names the study, lists the cell types in order, and records how they
 were measured and where the data came from. It then lists the slides. Each slide has a
@@ -126,6 +129,35 @@ never chosen by looking at the curves or p-values. An optional cell-type filter 
 L and g. Cross-type g needs two different cell types. Edge effects use standard border
 correction.
 
+The Gaussian model and its simulations condition on the observed cell count. If a slide
+has `n` independently located cells with location density `f`, this is a binomial point
+process with first-order intensity `lambda(u) = n f(u)`. At an observed cell, a
+leave-one-out kernel sum has only `n-1` training cells and estimates `(n-1) f(u)`, after
+smoothing and edge correction. Marklab therefore multiplies the sum by `n/(n-1)` to
+estimate the declared `n`-cell intensity. More generally, a held-out fold uses
+`n / training_count`. The fixed-count model is also named in the result as
+`fixed_gridded_inhomogeneous_binomial`, and its randomization unit says that the whole
+location pattern is conditioned on count.
+
+This convention would be different for an unconditional Poisson process. By the
+[Mecke-Slivnyak theorem](https://stoch.math.kit.edu/img/Last/lastpenrose2017.pdf), removing
+the conditioned point leaves a Poisson process with the original intensity, so the raw
+leave-one-out sum is the Poisson-model estimator. `spatstat` documents that raw sum in
+[`density.ppp`](https://search.r-project.org/CRAN/refmans/spatstat.explore/html/density.ppp.html).
+Changing Marklab to that convention would change its model and serialized scientific
+meaning, rather than merely improve numerical agreement.
+
+The distinction also affects the reference curve. A fixed-`n` binomial process has
+same-type pair correlation `g = (n-1)/n`, as derived in
+[Baddeley's point-process notes](https://leman.stat.vt.edu/VTCourses/BaddeleyPointProcesses.pdf),
+so its corresponding K curve is `(n-1)/n` times the Poisson curve away from window effects.
+The `theoretical_k = pi r^2` and `theoretical_g = 1` fields are Poisson reference curves;
+they are not the finite-count simulation null. The global-envelope inference uses the
+declared fixed-count simulations. For cross-type g, the source and target patterns are
+independent conditional on their separate type counts, and their cross pair correlation
+remains 1. The type-specific `n/(n-1)` factors therefore use the same intensity definition
+for L, g and directed cross-g.
+
 How the null hypothesis handles the density estimate:
 
 - `plugin` keeps the density estimated from the real data.
@@ -140,13 +172,52 @@ How the null hypothesis handles the density estimate:
 
 Each patient's curve is the area-weighted mean of their slide curves, on one distance axis
 that every slide supports. Distances, slides and patients are never dropped, interpolated
-or filled with zeros. Patient groups are compared with a functional L2 test that shuffles
+or filled with zeros.
+
+### Sparse cell types
+
+By default a radius bin is supported only when the observed curve and every simulated curve
+have an estimate there. For `g` and cross-type `g`, eligible centers with positive normalization
+but no pairs in kernel support give a zero estimate. A bin without eligible centers remains
+unavailable and can leave a slide without a common supported distance axis. A design may also
+declare, before analysis,
+
+```json
+"support_rule": {"kind": "expected_pair_count", "minimum_expected_pairs": 1.0,
+                 "maximum_draws_per_simulation": 50}
+```
+
+for Gaussian intensity models. Its expected pair count at radius `r` is
+`centers(r) × partners / area × A(r)`: the observed eligible centers (border distance at
+least `r`, or `r + h` for `g`), the partner count (`n − 1`, or the target count for cross-type
+`g`) over the window area, and the area a pair must fall in (`πr²` for L; the kernel annulus
+`π((r + h)² − max(0, r − h)²)` for `g`). It uses counts and border distances only, never pair
+distances or curve values. If any declared radius falls below the minimum, the slide is
+unavailable and the reason names that radius; bins are still never removed. Otherwise:
+
+- a simulated pattern without eligible centers at a radius where the observed pattern has
+  them is redrawn from a seed derived from that simulation's own seed. Observed and accepted
+  simulated patterns then satisfy the same support event, so the Monte Carlo test is
+  conditional on it. After `maximum_draws_per_simulation` draws the slide is unavailable.
+
+The result reports each slide's `expected_pairs` and `support_redraws`. Without the rule,
+results are unchanged. Patient groups are compared with a functional L2 test that shuffles
 whole patients. Three different p-values appear in the results and answer different
 questions: the within-slide global envelope test, the Bonferroni combination across slides,
 and the patient-group comparison.
 
-Outputs: `result.json`, `patient-curves.csv`, `slide-curves.csv`, `curves.svg` and
-`report.md`, including density diagnostics, which null was used, and anything unavailable.
+Outputs: `result.json`, `patient-curves.csv`, `slide-curves.csv`, `curves.svg`,
+`null-curves.json` and `report.md`, including density diagnostics, which null was used, and
+anything unavailable.
+
+`null-curves.json` (format `marklab.pathology_spatial_null_curves`, version 1) holds, for each
+slide, the observed curve and every simulated curve of its within-slide envelope test, on the
+reported scale (`L(r) − r` in µm, or `g(r) − 1`), with the slide seed, null model and the
+envelope's own p-value. Simulated values are written only at radii that were eligible in the
+observed curve and in every simulated curve, which are exactly the radii the ERL envelope
+used; other entries are `null`. A slide whose analysis failed is listed with its reason and no
+curves. The file is separate from `result.json`, whose contents are unchanged, and its size
+is charged to the study's memory budget before publication.
 
 ## Enrichment scans
 
@@ -197,5 +268,124 @@ To run it, set `MARKLAB_STAT_CALIBRATION_OUTPUT` to a new file path and run the 
 in release mode. Each JSON line reports attempted, available, unavailable and error counts,
 rejection rates, Wilson intervals and Monte Carlo uncertainty. An unavailable result is
 never counted as a successful non-rejection, and an unexpected error fails the experiment.
-Comparison with the R packages spatstat and GET, and validation on real studies, are still
-to be done.
+Every scenario must produce inference in at least 95% of attempts, except
+`sparse_cross_g_refit` (below). A null scenario fails if the lower bound of its Wilson interval
+exceeds the nominal 0.05 level; the interval uses a Bonferroni-adjusted z over the 15 null
+scenarios, so a correctly sized method fails the run with probability at most 2.5%. An
+alternative fails if the lower bound of its 95% Wilson interval for the rejection rate is
+below 0.8. The experiment evaluates every scenario before failing and reports all failed
+criteria together.
+
+`sparse_cross_g_refit` (4 immune sources among 40 cells, cross-type `g` at 100 and 200 µm)
+and `cluster_g_refit` (two tight clusters, `g`) declare the expected-pair support rule with a
+minimum of 1 and 50 draws per simulation. Without it every attempt lacked a complete radius
+axis. A uniformly placed source is an eligible center at 200 µm with probability
+`0.52² = 0.2704`, so the sparse scenario can support the axis in only `1 − 0.7296⁴ = 0.717` of
+attempts; its availability threshold was fixed at 0.65 before the run, and size is assessed
+among available attempts. In the 10 October 2026 run, the sparse null scenario produced
+inference in 693 of 1,000 attempts (the other 307 named radius 200 or 100 µm, with no eligible
+source), with 32 rejections: **0.046** (Wilson 95% 0.033–0.065). The clustered alternative
+rejected in all 250 attempts (Wilson 0.985–1.000). Every other scenario reproduced the
+previous run's counts exactly. The weekly calibration workflow runs it and saves its JSON lines,
+including partial output when the run stops early.
+An executed comparison with spatstat and GET is described below. The separate
+[Schürch](validation-schurch.md) and [Jackson](validation-jackson.md) studies validate
+the common patient Max-T workflow on real groups. They do not validate patient inference
+from this command's fitted spatial curves or scan statistics.
+
+## Reference comparisons on published cells
+
+On 10 October 2026, the production `pathology spatial-study` command was compared with
+`spatstat.explore` 3.8-3 on the published
+[rabbit amacrine](https://search.r-project.org/CRAN/refmans/spatstat.data/html/amacrine.html)
+and [cat beta ganglion](https://search.r-project.org/CRAN/refmans/spatstat.data/html/betacells.html)
+cell recordings in `spatstat.data` 3.1-9. Both datasets have documented physical scales.
+The comparison used the original observation rectangles and coordinates in micrometres,
+with all cells, off cells and on cells evaluated separately: six cases and 96 radius values.
+These are two specimen recordings, not six independent subjects.
+
+The executable comparison is
+[`compare_spatstat.R`](../tests/fixtures/inhomogeneous_spatial/compare_spatstat.R). It writes
+recipes, command outputs, per-radius comparisons and `summary.json` to a new external
+directory. It requires an existing Marklab executable and R libraries `spatstat.geom`,
+`spatstat.explore`, `spatstat.data`, `GET` and `jsonlite`; these are optional validation
+tools, not application dependencies. R and the complete package dependency set are fixed
+in [`reference-packages.tsv`](../tests/fixtures/inhomogeneous_spatial/reference-packages.tsv),
+and the script rejects any other versions. For example, with a matching local R library:
+
+```sh
+R_LIBS=target/reference-r-library Rscript \
+  tests/fixtures/inhomogeneous_spatial/compare_spatstat.R \
+  target/debug/marklab <output-dir>
+```
+
+The checks distinguish four calculations:
+
+- **Pair estimator:** supply Marklab's event intensities to
+  [`Kinhom`](https://search.r-project.org/CRAN/refmans/spatstat.explore/html/Kinhom.html)
+  with `correction="border"` and `renormalise=FALSE`. The largest
+  `abs(K_marklab - K_reference) / max(1, abs(K_reference))` was **2.59e-11**, below the
+  **1e-10** tolerance. The native L-minus-r transformation also passed its separate
+  **1e-10 µm** absolute tolerance. Raw reference values are retained, including tiny
+  floating-point residuals of either sign at zero-pair radii.
+- **Intensity estimation:** compare the 64×64 grid approximation with an independent
+  Gaussian calculation using the analytic rectangular-window mass from the normal CDF,
+  including the same `n/(n-1)` training-count multiplier. The maximum relative intensity
+  difference was **0.0475%**, below the **0.1%** tolerance. Recomputing spatstat K from
+  those independent intensities gave a maximum scaled difference of **0.0425%**, below
+  the **0.2%** tolerance. The initial comparison omitted the multiplier and failed;
+  matching that estimator definition resolved the discrepancy without changing Marklab
+  or relaxing the tolerances.
+- **Convention comparison:** the runner supplies both raw and `n/(n-1)`-scaled analytic
+  intensities to `Kinhom`, each with `renormalise=FALSE` and with the default first-power
+  renormalisation enabled. For the border ratio estimator, scaling every intensity by
+  `n/(n-1)` scales K by `(n-1)/n`, not its square, because one inverse-intensity factor
+  cancels in the eligible-center denominator. The largest algebra error was **5.59e-11**
+  against a prespecified **1e-10** tolerance. With `renormalise=TRUE, normpower=1`,
+  `Kinhom` multiplies by `area(W) / sum(1/lambda_i)`, so the global intensity scale cancels;
+  the largest invariance error was **5.12e-11**. These definitions are documented in the
+  [`Kinhom` manual](https://search.r-project.org/CRAN/refmans/spatstat.explore/html/Kinhom.html).
+  The runner also executes the actual package-default pipeline, with intensity omitted,
+  leave-one-out enabled and renormalisation enabled. Its scaled difference from Marklab
+  ranged from **4.18%** to **21.1%** across the six cases. That difference is descriptive:
+  it combines a different intensity convention and implementation with `Kinhom`'s
+  data-dependent renormalisation, and it has no agreement threshold.
+- **Global envelopes:** GET **1.0-9** exactly reproduced the existing checked-in tied-curve
+  oracle: depths, critical depth, lower/upper bounds and p-value **0.8**. The four native
+  ERL tests also passed, including identical curves, radius eligibility and finite-sample
+  envelope coverage.
+- **Within-slide null curves:** for each of the six cases the runner passes the exported
+  `null-curves.json` curves to GET 1.0-9 `global_envelope_test(type = "erl", alternative =
+  "two.sided")` on the eligible radii (all 16 here). Tolerances, fixed before the run, were
+  1e-12 absolute for the p-value and 1e-12 scaled for the envelope bounds. All six p-values
+  agreed (largest error **2.08e-17**) and the bounds agreed within **5.08e-15**. Every
+  observed retinal curve was the most extreme of its 40 curves (p = 1/40 in both), so these
+  cases test only the extreme rank. A prespecified synthetic pattern drawn from an
+  inhomogeneous Poisson process (`rpoispp`, intensity `2e-4 exp(1.5 x / 1000)` per µm² in a
+  1000 µm square; 454 cells) gave a non-extreme p-value, **0.25** in both, with identical p-values and bounds (error
+  0). Run 01 had six cases and run 02 added the synthetic case; all other existing
+  checks passed again.
+
+The real-data runs use a fixed bandwidth of 15% of the shorter window side and 16 radii
+from 1.25% to 20% of that side. Their 39 simulations exercise the production pipeline;
+they are not a calibration or power experiment. The GET agreement covers the plug-in
+fixed-intensity `L(r) − r` null; refitted, `g`, cross-type `g` and compartment nulls export
+the same file but were not compared. No patient
+replication or group labels were invented, and patient-group inference correctly remained
+unavailable. The scheduled calibration workflow is configured to rerun this pinned
+comparison weekly and retain its generated recipes, curves and summary as an artifact.
+That job has not yet run in CI; the recorded results come from local macOS runs.
+
+The comparison does not claim `g` or cross-type `g` parity. Marklab's pathology estimators
+use a radius-plus-pair-bandwidth border eligibility rule and normalize by the eligible
+inverse-intensity center sum. The native
+[`pcfinhom`](https://search.r-project.org/CRAN/refmans/spatstat.explore/html/pcfinhom.html)
+and
+[`pcfcross.inhom`](https://search.r-project.org/CRAN/refmans/spatstat.explore/html/pcfcross.inhom.html)
+interfaces report translation and Ripley-isotropic estimates, not that border-ratio
+estimator. Treating one as the other would manufacture agreement between different
+statistics. A future package-parity comparison needs a genuinely corresponding production
+edge correction; the existing independent rectangle oracles continue to test Marklab's
+present formulas. Fitted-null calibration, irregular observation windows, real-cohort
+inference from these fitted curves and clinical interpretation also remain unvalidated. The two unsupported
+calibration scenarios above remain support-handling tests.

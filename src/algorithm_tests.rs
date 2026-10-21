@@ -10,15 +10,28 @@ use crate::{
     },
     periodogram::{
         fft2::fft2_power_spectrum,
-        raster::{
-            centered_mark_raster, centered_mark_raster_for_marks, RasterAssignmentPlan, RasterSpec,
-        },
+        raster::{RasterAssignmentPlan, RasterSpec},
         tapered::{hann_tapered_raster_periodogram, hann_weight},
     },
     spectra::anisotropy::anisotropy_from_weighted_modes,
     Pattern,
 };
 use approx::assert_abs_diff_eq;
+
+fn centered_mark_raster(pattern: &Pattern, cell_size_um: f64) -> Option<(RasterSpec, Vec<f32>)> {
+    centered_mark_raster_for_marks(pattern, &pattern.mark, cell_size_um)
+}
+
+fn centered_mark_raster_for_marks(
+    pattern: &Pattern,
+    marks: &[u8],
+    cell_size_um: f64,
+) -> Option<(RasterSpec, Vec<f32>)> {
+    let plan = RasterAssignmentPlan::new(pattern, cell_size_um)?;
+    let mut raster = Vec::with_capacity(plan.pixel_count());
+    plan.fill_centered_binary_marks(marks, &mut raster)?;
+    Some((plan.spec().clone(), raster))
+}
 
 fn meta() -> PatternMeta {
     PatternMeta {

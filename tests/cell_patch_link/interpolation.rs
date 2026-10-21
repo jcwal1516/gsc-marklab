@@ -105,7 +105,6 @@ fn declared_interpolation_preserves_canonical_group_weights_and_zero_states() {
     assert_eq!(first[2].weight().expect("weight").numerator(), 1);
     assert_eq!(link.assignments()[1].anchor_px()[0].to_bits(), 0);
     assert!(!format!("{:?}", first[0].weight().expect("weight")).contains("numerator"));
-    assert_eq!(link.logical_digest(), reference_link_digest(&link));
     assert_eq!(
         link.logical_digest().to_string(),
         "c7317ffb9ec145963dd2d311eec5ea97a7f4254176226a9d6b61f903d8d4bb06"

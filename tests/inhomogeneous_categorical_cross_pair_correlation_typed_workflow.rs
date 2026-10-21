@@ -1,18 +1,26 @@
-#![allow(dead_code)]
-
 use approx::assert_abs_diff_eq;
 use marklab::{
-    execute_algorithm_with_store, inhomogeneous_categorical_cross_pair_correlation, ArtifactRef,
-    ArtifactSchema, BinaryMarkDeclaration, CacheStatus, DeclaredScalarPatternInput, DurableProject,
-    DurableProjectLimits, HistologicCompartmentMarkDeclaration,
-    InhomogeneousCategoricalCrossPairCorrelationAnalysisNode,
-    InhomogeneousCategoricalCrossPairCorrelationConfig, InhomogeneousSpatialConfig,
-    InhomogeneousSpatialLimits, IsotropicSpatialLimits, LocalScheduler, MarkTable,
-    MeasurementStatus, MissingnessPolicy, NativeRuntimeProvenance, NodeId, ObservationWindow2D,
-    ObservationWindowLimits, PairCorrelationPointStatus, ScalarMarkColumn, ScalarMarkId,
-    ScalarMarkModality, ScalarMarkUnit, SchedulerLimits, TranslationSpatialLimits, WorkflowGraph,
+    marks::{
+        BinaryMarkDeclaration, DeclaredScalarPatternInput, HistologicCompartmentMarkDeclaration,
+        MarkTable, MissingnessPolicy, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality,
+        ScalarMarkUnit,
+    },
+    spatial::{
+        inhomogeneous_categorical_cross_pair_correlation,
+        InhomogeneousCategoricalCrossPairCorrelationAnalysisNode,
+        InhomogeneousCategoricalCrossPairCorrelationConfig, InhomogeneousSpatialConfig,
+        InhomogeneousSpatialLimits, IsotropicSpatialLimits, PairCorrelationPointStatus,
+        TranslationSpatialLimits,
+    },
+    workflow::{
+        execute_algorithm_with_store, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
+        DurableProjectLimits, LocalScheduler, NativeRuntimeProvenance, NodeId, SchedulerLimits,
+        WorkflowGraph,
+    },
+    MeasurementStatus, ObservationWindow2D, ObservationWindowLimits,
 };
 
+#[allow(dead_code)]
 #[path = "support/declared_scalar.rs"]
 mod support;
 use support::*;
@@ -157,6 +165,72 @@ fn gaussian_intensity_at_event(event: (f64, f64), other: (f64, f64), bandwidth: 
 }
 
 #[test]
+fn empty_cross_kernel_is_zero_for_each_edge_correction() {
+    let (fixture, pattern, table, window) = input_fixture([0, 0, 1, 1]);
+    let input = DeclaredScalarPatternInput::from_mark_table(
+        &fixture.project,
+        &pattern,
+        &table,
+        fixture.slide_id.clone(),
+        fixture.frame_id.clone(),
+    )
+    .unwrap();
+    let intensity = InhomogeneousSpatialConfig::new(
+        vec![0.5],
+        2.0,
+        [20, 20],
+        19,
+        7,
+        0.05,
+        1e-12,
+        config(7).intensity_config().limits(),
+    )
+    .unwrap();
+    let base =
+        InhomogeneousCategoricalCrossPairCorrelationConfig::new(intensity, 0.25, "tumor", "stroma")
+            .unwrap();
+    let translation = base
+        .clone()
+        .with_translation_correction(
+            TranslationSpatialLimits::new(
+                16,
+                16,
+                1_000_000,
+                1_000_000,
+                100_000_000,
+                10_000,
+                1,
+                1 << 20,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    let isotropic = base
+        .clone()
+        .with_isotropic_correction(
+            IsotropicSpatialLimits::new(
+                16,
+                16,
+                1_000_000,
+                1_000_000,
+                100_000_000,
+                100_000_000,
+                1,
+                1 << 20,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    for config in [base, translation, isotropic] {
+        let result =
+            inhomogeneous_categorical_cross_pair_correlation(&input, &window, &config).unwrap();
+        assert_eq!(result.curve[0].cross_g, Some(0.0));
+        assert!(result.curve[0].inference_eligible);
+        assert!(result.inference.p_global.is_some());
+    }
+}
+
+#[test]
 fn type_specific_leave_one_out_intensities_flow_into_directed_cross_g() {
     let (fixture, pattern, table, window) = input_fixture([0, 0, 1, 1]);
     let input = DeclaredScalarPatternInput::from_mark_table(
@@ -216,7 +290,7 @@ fn type_specific_leave_one_out_intensities_flow_into_directed_cross_g() {
     );
     assert_eq!(
         result.inference.null_model,
-        "independent_fixed_gridded_type_specific_inhomogeneous_binomial"
+        marklab::spatial::InhomogeneousNullModel::IndependentFixedGriddedTypeSpecificInhomogeneousBinomial
     );
     assert_eq!(result.inference.simulations_completed, 19);
 }
@@ -276,7 +350,7 @@ fn translation_and_isotropic_corrections_match_independent_inhomogeneous_oracles
             .as_ref()
             .expect("translation work")
             .correction,
-        "translation"
+        marklab::spatial::EdgeCorrection::Translation
     );
 
     let isotropic = config_with_bytes(20260901, bytes)
@@ -315,7 +389,7 @@ fn translation_and_isotropic_corrections_match_independent_inhomogeneous_oracles
             .as_ref()
             .expect("isotropic work")
             .correction,
-        "isotropic"
+        marklab::spatial::EdgeCorrection::Isotropic
     );
 }
 
@@ -332,7 +406,7 @@ fn sparse_type_and_one_short_retained_memory_fail_before_output() {
     .expect("declared input");
     assert!(matches!(
         inhomogeneous_categorical_cross_pair_correlation(&input, &window, &config(7)),
-        Err(marklab::InhomogeneousCategoricalCrossPairCorrelationError::SparseLevel {
+        Err(marklab::spatial::InhomogeneousCategoricalCrossPairCorrelationError::SparseLevel {
             level,
             count: 1
         }) if level == "stroma"
@@ -355,7 +429,7 @@ fn sparse_type_and_one_short_retained_memory_fail_before_output() {
             &window,
             &config_with_bytes(7, baseline.estimated_storage_bytes - 1)
         ),
-        Err(marklab::InhomogeneousCategoricalCrossPairCorrelationError::RetainedByteLimitExceeded {
+        Err(marklab::spatial::InhomogeneousCategoricalCrossPairCorrelationError::RetainedByteLimitExceeded {
             required,
             maximum
         }) if required == maximum + 1

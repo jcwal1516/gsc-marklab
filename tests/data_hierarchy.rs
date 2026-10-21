@@ -1,4 +1,4 @@
-use marklab::{MarklabProject, ProjectError};
+use marklab::workflow::{MarklabProject, ProjectError};
 use marklab_data::{
     BiologicalSourceError, BlockId, CellId, CohortHierarchy, CoreId, HierarchyError, HierarchyId,
     HierarchyKind, HierarchyNode, IdentityError, PatchId, PatientId, RegionId,

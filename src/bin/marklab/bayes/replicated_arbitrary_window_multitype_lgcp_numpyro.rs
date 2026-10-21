@@ -1,9 +1,10 @@
 use marklab_bayes::{sha256_hex, BackendContract};
 
-use super::{replicated_arbitrary_window_multitype_lgcp::Prepared, run_worker, BayesCliError};
+use super::{replicated_arbitrary_window_multitype_lgcp::Prepared, run_worker, CliError};
+pub(crate) use marklab_bayes::backend_versions::JAX_VERSION;
+use marklab_bayes::backend_versions::NUMPYRO_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
 
-const NUMPYRO_VERSION: &str = "0.21.0";
-pub(crate) const JAX_VERSION: &str = "0.11.1";
 const MAXIMUM_ADAPTER_BYTES: u64 = 8 * 1_048_576;
 
 pub(crate) struct Execution {
@@ -16,19 +17,19 @@ pub(crate) fn execute(
     prepared: &Prepared,
     depth: u32,
     timeout_seconds: u64,
-) -> Result<Execution, BayesCliError> {
+) -> Result<Execution, CliError> {
     if !(10..=14).contains(&depth) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "NumPyro replicated multitype LGCP depth is invalid".into(),
         ));
     }
-    let repository = &marklab::python_backend_assets_root()?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let workers = repository.join("workers/python");
     let worker_name = "marklab_numpyro_replicated_arbitrary_window_multitype_lgcp_worker.py";
     let backend = BackendContract {
         name: "numpyro",
         version: NUMPYRO_VERSION,
-        python_version: "3.12",
+        python_version: PYTHON_VERSION,
         environment_lock_sha256: sha256_hex(&read_bounded(&workers.join("uv.lock"))?),
         worker_sha256: sha256_hex(&read_bounded(&workers.join(worker_name))?),
     };
@@ -51,8 +52,8 @@ pub(crate) fn execute(
     })
 }
 
-fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
-    super::input_file::read_regular_file(
+fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>, CliError> {
+    crate::input_file::read_regular_file(
         path,
         MAXIMUM_ADAPTER_BYTES,
         "NumPyro replicated multitype LGCP adapter is absent or oversized",

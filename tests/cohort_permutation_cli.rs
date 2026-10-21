@@ -65,9 +65,7 @@ b-2,B,2,\n",
             < 1e-12
     );
     assert_eq!(result["p_value"], 1.0);
-    assert_eq!(result["permutations"]["requested"], 99);
-    assert_eq!(result["permutations"]["attempted"], 99);
-    assert_eq!(result["permutations"]["completed"], 99);
+    assert_eq!(result["permutations"], 99);
 }
 
 #[test]

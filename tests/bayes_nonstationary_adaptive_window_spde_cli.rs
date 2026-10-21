@@ -120,12 +120,15 @@ fn local_anisotropy_and_interior_refinement_change_one_holed_window_spde() {
                 .as_f64()
                 .expect("background area")
     );
+    // The former relative-objective stop reported success with gradient
+    // 3.299134399128434e-4 on this fixture, above the existing 2e-4 contract.
     assert!(
         result["spatial_factor"]["gradient_maximum"]
             .as_f64()
             .expect("gradient")
             <= 2e-4
     );
+    assert!(result["spatial_factor"]["iterations"].as_u64().unwrap() <= 1000);
     assert_eq!(
         result["statistical_unit"],
         "within_specimen_field_diagnostic"

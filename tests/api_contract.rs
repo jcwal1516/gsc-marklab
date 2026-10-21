@@ -1,8 +1,12 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use std::fs;
 
 use marklab::{
     compare_marked_prepost, compare_multimodal_prepost, AnalysisConfig, AnalysisEngine, HeCell,
-    IhcCell, LandmarkPair, MultimodalEngine, MultimodalInput, Pattern, PatternLoader, PatternMeta,
+    IhcCell, LandmarkPair, MultimodalEngine, MultimodalInput, Pattern, PatternLoader,
     RegistrationTransform, ResultDocument, StatusFlag, TumorMask,
 };
 
@@ -15,16 +19,7 @@ fn public_api_exposes_engine_config_pattern_and_flags() {
         vec![0.0, 10.0, 20.0, 30.0],
         vec![0.0, 0.0, 0.0, 0.0],
         vec![1, 0, 1, 0],
-        PatternMeta {
-            case_id: "case_001".into(),
-            timepoint: "post".into(),
-            protein: "MSH6".into(),
-            slide_id: None,
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta("case_001".into(), "post".into(), "MSH6".into(), None),
     )
     .expect("pattern");
 
@@ -57,16 +52,7 @@ fn public_marked_analysis_run_retains_result_and_execution_context() {
         vec![0.0, 1.0, 0.0, 1.0],
         vec![0.0, 0.0, 1.0, 1.0],
         vec![1, 0, 0, 1],
-        PatternMeta {
-            case_id: "case-run".into(),
-            timepoint: "post".into(),
-            protein: "generic".into(),
-            slide_id: None,
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta("case-run".into(), "post".into(), "generic".into(), None),
     )
     .expect("pattern");
     pattern.window.area_um2 = 4.0;
@@ -103,16 +89,7 @@ fn marked_result_uses_multiscale_residual_terms_without_obsolete_aliases() {
         vec![0.0, 1.0, 0.0, 1.0],
         vec![0.0, 0.0, 1.0, 1.0],
         vec![1, 0, 0, 1],
-        PatternMeta {
-            case_id: "case_terms".into(),
-            timepoint: "post".into(),
-            protein: "generic".into(),
-            slide_id: None,
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta("case_terms".into(), "post".into(), "generic".into(), None),
     )
     .expect("pattern");
     pattern.window.area_um2 = 4.0;

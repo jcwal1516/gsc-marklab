@@ -1,231 +1,116 @@
-use std::{fs, path::PathBuf};
-
-use clap::{Parser, Subcommand};
-use marklab_bayes::{sha256_hex, BackendContract, FitState, NutsSamplingSpec, WorkerBackend};
-use serde::{Deserialize, Serialize};
-
-use super::{
-    publish_json,
-    replicated_arbitrary_window_lgcp_fit::{self, WorkerRequest as FitRequest},
-    run_worker, BayesCliError,
+pub(crate) use marklab_bayes::protocol::replicated_arbitrary_window_lgcp_sbc::{
+    validate_result, Calibration, Resources, SbcResult, WorkerRequest, WorkerResult,
 };
 
-const NUMPYRO_VERSION: &str = "0.21.0";
-const JAX_VERSION: &str = "0.11.1";
+use crate::input_file::read_file;
+use std::path::PathBuf;
 
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct SbcCli {
-    #[command(subcommand)]
-    command: TopLevel,
-}
+use marklab_bayes::sha256_hex;
+use marklab_bayes::BackendContract;
+use marklab_bayes::NutsSamplingSpec;
 
-#[derive(Debug, Subcommand)]
-enum TopLevel {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    ReplicatedArbitraryWindowLgcpSbc(Box<Arguments>),
-}
+use super::publish_json;
+use super::replicated_arbitrary_window_lgcp_fit;
+use super::run_worker;
+use super::CliError;
+use marklab_bayes::backend_versions::JAX_VERSION;
+use marklab_bayes::backend_versions::NUMPYRO_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::StatisticalUnit;
 
 #[derive(Debug, clap::Args)]
-struct Arguments {
+pub(crate) struct Arguments {
+    /// Per-node quadrature CSV (pattern_id, patient_id, group, node_id, x_um, y_um, count, ...).
     #[arg(long)]
     input: PathBuf,
+    /// Group level used as the regression reference.
     #[arg(long)]
     reference_group: String,
+    /// Group level whose effect is compared with the reference group.
     #[arg(long)]
     comparison_group: String,
+    /// Prior mean for intercept.
     #[arg(long, allow_hyphen_values = true)]
     intercept_prior_mean: f64,
+    /// Prior scale for intercept.
     #[arg(long)]
     intercept_prior_sd: f64,
+    /// Prior scale for group effect.
     #[arg(long)]
     group_effect_prior_sd: f64,
+    /// Prior scale for covariate effect.
     #[arg(long)]
     covariate_effect_prior_sd: f64,
+    /// Prior scale for patient standard deviation.
     #[arg(long)]
     patient_sd_prior_scale: f64,
+    /// Prior scale for pattern standard deviation.
     #[arg(long)]
     pattern_sd_prior_scale: f64,
+    /// Amplitude of the latent spatial field covariance.
     #[arg(long)]
     field_amplitude: f64,
+    /// Spatial covariance length scale in micrometers.
     #[arg(long)]
     field_length_scale_um: f64,
+    /// Diagonal stabilization added to covariance matrices.
     #[arg(long)]
     jitter: f64,
+    /// Number of simulated datasets used for posterior calibration.
     #[arg(long)]
     replicates: u32,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
     chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
     tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
     draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
     target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
     seed: u64,
+    /// Upper bound on patients.
     #[arg(long)]
     maximum_patients: usize,
+    /// Upper bound on patterns.
     #[arg(long)]
     maximum_patterns: usize,
+    /// Upper bound on nodes per pattern.
     #[arg(long)]
     maximum_nodes_per_pattern: usize,
+    /// Upper bound on total nodes.
     #[arg(long)]
     maximum_total_nodes: usize,
+    /// Upper bound on total events.
     #[arg(long)]
     maximum_total_events: u64,
+    /// Upper bound on draw node work.
     #[arg(long)]
     maximum_draw_node_work: u64,
+    /// Smallest admitted p-value for simulation-based rank uniformity.
     #[arg(long)]
     minimum_rank_uniformity_p_value: f64,
+    /// Smallest admitted empirical coverage of nominal 90% intervals.
     #[arg(long)]
     minimum_coverage_90: f64,
+    /// Largest admitted empirical coverage of nominal 90% intervals.
     #[arg(long)]
     maximum_coverage_90: f64,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
     timeout_seconds: u64,
+    /// Destination for the analysis output.
     #[arg(long)]
     out: PathBuf,
 }
 
-#[derive(Clone, Debug, Serialize)]
-struct Calibration {
-    replicates: u32,
-    rank_bins: u32,
-    interval_probability: f64,
-    latent_node_index: usize,
-    minimum_rank_uniformity_p_value: f64,
-    minimum_coverage: f64,
-    maximum_coverage: f64,
-}
-
-#[derive(Clone, Debug, Serialize)]
-struct Resources {
-    maximum_replicates: u32,
-    maximum_simulated_nodes: u64,
-    maximum_total_iterations: u64,
-    maximum_output_bytes: usize,
-    timeout_seconds: u64,
-}
-
-#[derive(Serialize)]
-struct WorkerRequest<'a> {
-    format: &'static str,
-    version: u32,
-    backend: BackendContract,
-    jax_version: &'static str,
-    source_request_sha256: &'a str,
-    source_request: &'a FitRequest,
-    calibration: Calibration,
-    resources: Resources,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Replicate {
-    replicate: u32,
-    simulated_total_events: u64,
-    true_group_effect: f64,
-    group_effect_rank: u64,
-    group_effect_covered: bool,
-    true_patient_sd: f64,
-    patient_sd_rank: u64,
-    patient_sd_covered: bool,
-    true_pattern_sd: f64,
-    pattern_sd_rank: u64,
-    pattern_sd_covered: bool,
-    true_latent_node: f64,
-    latent_node_rank: u64,
-    latent_node_covered: bool,
-    r_hat: f64,
-    ess_bulk: f64,
-    ess_tail: f64,
-    minimum_ebfmi: f64,
-    divergences: u64,
-    max_tree_depth_hits: u64,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Failure {
-    replicate: u32,
-    reason: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct ParameterDiagnostics {
-    rank_histogram: Vec<u64>,
-    rank_uniformity_p_value: f64,
-    coverage_90: f64,
-    mean_normalized_rank: f64,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Diagnostics {
-    group_effect: ParameterDiagnostics,
-    patient_sd: ParameterDiagnostics,
-    pattern_sd: ParameterDiagnostics,
-    latent_node: ParameterDiagnostics,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WorkerResult {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    jax_version: String,
-    input_sha256: String,
-    request_sha256: String,
-    source_request_sha256: String,
-    fit_state: FitState,
-    replicates: Vec<Replicate>,
-    failures: Vec<Failure>,
-    diagnostics: Diagnostics,
-    physical_latent_pattern_id: String,
-    physical_latent_node_id: String,
-}
-
-#[derive(Debug, Serialize)]
-struct SbcResult {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    jax_version: String,
-    input_sha256: String,
-    request_sha256: String,
-    source_request_sha256: String,
-    fit_state: FitState,
-    sampling: NutsSamplingSpec,
-    calibration: Calibration,
-    resources: Resources,
-    replicates: Vec<Replicate>,
-    failures: Vec<Failure>,
-    diagnostics: Diagnostics,
-    physical_latent_pattern_id: String,
-    physical_latent_node_id: String,
-    statistical_unit: String,
-    assumptions: Vec<String>,
-    finite_result_policy: String,
-    claim_status: String,
-}
-
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let TopLevel::Bayes { command } = SbcCli::parse_from(std::env::args_os()).command;
-    let Command::ReplicatedArbitraryWindowLgcpSbc(arguments) = command;
-    run(*arguments)
-}
-
-fn run(arguments: Arguments) -> Result<(), BayesCliError> {
+pub(super) fn run(arguments: Arguments) -> Result<(), CliError> {
     if !(20..=100).contains(&arguments.replicates)
         || !arguments.minimum_rank_uniformity_p_value.is_finite()
         || !(0.0..=1.0).contains(&arguments.minimum_rank_uniformity_p_value)
@@ -234,7 +119,7 @@ fn run(arguments: Arguments) -> Result<(), BayesCliError> {
         || !(0.0..=arguments.maximum_coverage_90).contains(&arguments.minimum_coverage_90)
         || arguments.maximum_coverage_90 > 1.0
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated LGCP SBC controls are invalid".into(),
         ));
     }
@@ -246,34 +131,41 @@ fn run(arguments: Arguments) -> Result<(), BayesCliError> {
         seed: arguments.seed,
     };
     let prepared = replicated_arbitrary_window_lgcp_fit::prepare(
-        arguments.input,
-        arguments.reference_group,
-        arguments.comparison_group,
-        arguments.intercept_prior_mean,
-        arguments.intercept_prior_sd,
-        arguments.group_effect_prior_sd,
-        arguments.covariate_effect_prior_sd,
-        arguments.patient_sd_prior_scale,
-        arguments.pattern_sd_prior_scale,
-        arguments.field_amplitude,
-        arguments.field_length_scale_um,
-        arguments.jitter,
-        sampling.clone(),
-        arguments.maximum_patients,
-        arguments.maximum_patterns,
-        arguments.maximum_nodes_per_pattern,
-        arguments.maximum_total_nodes,
-        arguments.maximum_total_events,
-        arguments.maximum_draw_node_work,
-        arguments.timeout_seconds,
+        crate::bayes::ReplicatedArbitraryWindowLgcpFitArgs {
+            input: arguments.input,
+            reference_group: arguments.reference_group,
+            comparison_group: arguments.comparison_group,
+            intercept_prior_mean: arguments.intercept_prior_mean,
+            intercept_prior_sd: arguments.intercept_prior_sd,
+            group_effect_prior_sd: arguments.group_effect_prior_sd,
+            covariate_effect_prior_sd: arguments.covariate_effect_prior_sd,
+            patient_sd_prior_scale: arguments.patient_sd_prior_scale,
+            pattern_sd_prior_scale: arguments.pattern_sd_prior_scale,
+            field_amplitude: arguments.field_amplitude,
+            field_length_scale_um: arguments.field_length_scale_um,
+            jitter: arguments.jitter,
+            chains: sampling.chains,
+            tune: sampling.tune_per_chain,
+            draws: sampling.draws_per_chain,
+            target_accept: sampling.target_accept,
+            seed: sampling.seed,
+            maximum_patients: arguments.maximum_patients,
+            maximum_patterns: arguments.maximum_patterns,
+            maximum_nodes_per_pattern: arguments.maximum_nodes_per_pattern,
+            maximum_total_nodes: arguments.maximum_total_nodes,
+            maximum_total_events: arguments.maximum_total_events,
+            maximum_draw_node_work: arguments.maximum_draw_node_work,
+            timeout_seconds: arguments.timeout_seconds,
+            out: std::path::PathBuf::new(),
+        },
     )?;
     let maximum_simulated_nodes = u64::from(arguments.replicates)
         .checked_mul(arguments.maximum_total_nodes as u64)
-        .ok_or_else(|| BayesCliError::Input("replicated LGCP SBC node work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("replicated LGCP SBC node work overflows".into()))?;
     let maximum_total_iterations = u64::from(arguments.replicates)
         .checked_mul(u64::from(arguments.chains))
         .and_then(|value| value.checked_mul(u64::from(arguments.tune + arguments.draws)))
-        .ok_or_else(|| BayesCliError::Input("replicated LGCP SBC iterations overflow".into()))?;
+        .ok_or_else(|| CliError::Input("replicated LGCP SBC iterations overflow".into()))?;
     let calibration = Calibration {
         replicates: arguments.replicates,
         rank_bins: 10,
@@ -290,15 +182,16 @@ fn run(arguments: Arguments) -> Result<(), BayesCliError> {
         maximum_output_bytes: 2 * 1_048_576,
         timeout_seconds: arguments.timeout_seconds,
     };
-    let repository = &marklab::python_backend_assets_root()?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let directory = repository.join("workers/python");
-    let lock = read(&directory.join("uv.lock"))?;
-    let worker =
-        read(&directory.join("marklab_numpyro_replicated_arbitrary_window_lgcp_sbc_worker.py"))?;
+    let lock = read_file(&directory.join("uv.lock"))?;
+    let worker = read_file(
+        &directory.join("marklab_numpyro_replicated_arbitrary_window_lgcp_sbc_worker.py"),
+    )?;
     let backend = BackendContract {
         name: "numpyro",
         version: NUMPYRO_VERSION,
-        python_version: "3.12",
+        python_version: PYTHON_VERSION,
         environment_lock_sha256: sha256_hex(&lock),
         worker_sha256: sha256_hex(&worker),
     };
@@ -328,7 +221,8 @@ fn run(arguments: Arguments) -> Result<(), BayesCliError> {
         &prepared.request,
         &prepared.request_sha256,
         &calibration,
-    )?;
+    )
+    .map_err(super::protocol_error)?;
     publish_json(
         &arguments.out,
         &SbcResult {
@@ -348,7 +242,7 @@ fn run(arguments: Arguments) -> Result<(), BayesCliError> {
             diagnostics: worker_result.diagnostics,
             physical_latent_pattern_id: worker_result.physical_latent_pattern_id,
             physical_latent_node_id: worker_result.physical_latent_node_id,
-            statistical_unit: "patient".into(),
+            statistical_unit: StatisticalUnit::Patient,
             assumptions: vec![
                 "prior_generative_counts_use_the_exact_replicated_hierarchy".into(),
                 "every_failed_replicate_is_retained_with_its_reason".into(),
@@ -356,119 +250,7 @@ fn run(arguments: Arguments) -> Result<(), BayesCliError> {
             ],
             finite_result_policy:
                 "accept_only_complete_finite_replicates_and_declared_calibration_bounds".into(),
-            claim_status: "experimental_simulation_calibration".into(),
+            claim_status: ClaimStatus::ExperimentalSimulationCalibration,
         },
     )
-}
-
-fn validate_result(
-    result: &WorkerResult,
-    backend: &BackendContract,
-    request_sha256: &str,
-    source: &FitRequest,
-    source_sha256: &str,
-    calibration: &Calibration,
-) -> Result<(), BayesCliError> {
-    let completed_draws = source.completed_draws();
-    let (pattern_id, node_id) = source.first_node_identity();
-    let completed = result.replicates.len();
-    let dispositions_complete =
-        completed + result.failures.len() == calibration.replicates as usize;
-    let disposition_indices = result
-        .replicates
-        .iter()
-        .map(|row| row.replicate)
-        .chain(result.failures.iter().map(|row| row.replicate))
-        .collect::<std::collections::BTreeSet<_>>();
-    let dispositions_exact = disposition_indices
-        == (0..calibration.replicates).collect::<std::collections::BTreeSet<_>>()
-        && result
-            .failures
-            .iter()
-            .all(|failure| !failure.reason.is_empty());
-    let replicate_rows_valid = result.replicates.iter().all(|row| {
-        let finite = [
-            row.true_group_effect,
-            row.true_patient_sd,
-            row.true_pattern_sd,
-            row.true_latent_node,
-            row.r_hat,
-            row.ess_bulk,
-            row.ess_tail,
-            row.minimum_ebfmi,
-        ]
-        .into_iter()
-        .all(f64::is_finite);
-        finite
-            && row.replicate < calibration.replicates
-            && row.group_effect_rank <= completed_draws
-            && row.patient_sd_rank <= completed_draws
-            && row.pattern_sd_rank <= completed_draws
-            && row.latent_node_rank <= completed_draws
-    });
-    let parameters = [
-        &result.diagnostics.group_effect,
-        &result.diagnostics.patient_sd,
-        &result.diagnostics.pattern_sd,
-        &result.diagnostics.latent_node,
-    ];
-    let diagnostic_rows_valid = parameters.iter().all(|diagnostic| {
-        diagnostic.rank_histogram.len() == calibration.rank_bins as usize
-            && diagnostic.rank_histogram.iter().sum::<u64>() == completed as u64
-            && [
-                diagnostic.rank_uniformity_p_value,
-                diagnostic.coverage_90,
-                diagnostic.mean_normalized_rank,
-            ]
-            .into_iter()
-            .all(f64::is_finite)
-            && (0.0..=1.0).contains(&diagnostic.rank_uniformity_p_value)
-            && (0.0..=1.0).contains(&diagnostic.coverage_90)
-            && (0.0..=1.0).contains(&diagnostic.mean_normalized_rank)
-    });
-    let passes = result.failures.is_empty()
-        && parameters.iter().all(|diagnostic| {
-            diagnostic.rank_uniformity_p_value >= calibration.minimum_rank_uniformity_p_value
-                && (calibration.minimum_coverage..=calibration.maximum_coverage)
-                    .contains(&diagnostic.coverage_90)
-        });
-    if result.format != "marklab.numpyro_replicated_arbitrary_window_lgcp_sbc_result"
-        || result.version != 1
-        || !backend_matches(&result.backend, backend)
-        || result.jax_version != JAX_VERSION
-        || result.input_sha256 != source.input_sha256()
-        || result.request_sha256 != request_sha256
-        || result.source_request_sha256 != source_sha256
-        || result.physical_latent_pattern_id != pattern_id
-        || result.physical_latent_node_id != node_id
-        || !dispositions_complete
-        || !dispositions_exact
-        || !replicate_rows_valid
-        || !diagnostic_rows_valid
-        || (result.fit_state == FitState::Complete) != passes
-    {
-        return Err(BayesCliError::Backend(
-            "replicated LGCP SBC result differs".into(),
-        ));
-    }
-    Ok(())
-}
-
-fn backend_matches(result: &WorkerBackend, expected: &BackendContract) -> bool {
-    result.name == expected.name
-        && result.version == expected.version
-        && result.python_version == expected.python_version
-        && result.environment_lock_sha256 == expected.environment_lock_sha256
-        && result.worker_sha256 == expected.worker_sha256
-}
-
-fn read(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<SbcCli>(|| run_cli().map_err(super::into_marklab_error))
 }

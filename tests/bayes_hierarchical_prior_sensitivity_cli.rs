@@ -1,6 +1,6 @@
 #![cfg(feature = "cli")]
 
-use std::fs;
+use std::{collections::HashSet, fs};
 
 use assert_cmd::Command;
 
@@ -89,24 +89,67 @@ p-6,3.8\n",
     assert_eq!(result["base_scenario"], "baseline");
     let scenarios = result["scenarios"].as_array().expect("scenarios");
     assert_eq!(scenarios.len(), 5);
-    assert_eq!(scenarios[0]["scenario_id"], "baseline");
-    assert_eq!(scenarios[1]["scenario_id"], "between_patient_sd_lower");
-    assert_eq!(scenarios[2]["scenario_id"], "between_patient_sd_upper");
-    assert_eq!(scenarios[3]["scenario_id"], "global_sd_lower");
-    assert_eq!(scenarios[4]["scenario_id"], "global_sd_upper");
-    assert!(scenarios
-        .iter()
-        .all(|scenario| scenario["fit_state"] == "complete"));
-    assert!(scenarios.iter().all(|scenario| {
-        scenario["diagnostics"]["divergences"] == 0
-            && scenario["global_mean_shift_standardized"]
+    assert_eq!(result["material_standardized_shift"], 0.5);
+    let baseline = &scenarios[0]["posterior"];
+    let mut requests = HashSet::new();
+    let mut material = Vec::new();
+    for (scenario, (name, global_sd, between_sd)) in scenarios.iter().zip([
+        ("baseline", 5.0, 2.0),
+        ("between_patient_sd_lower", 5.0, 1.5),
+        ("between_patient_sd_upper", 5.0, 3.0),
+        ("global_sd_lower", 3.75, 2.0),
+        ("global_sd_upper", 7.5, 2.0),
+    ]) {
+        assert_eq!(scenario["scenario_id"], name);
+        assert_eq!(scenario["global_prior_sd"], global_sd);
+        assert_eq!(scenario["between_patient_sd_prior"], between_sd);
+        assert_eq!(scenario["fit_state"], "complete");
+        assert_eq!(scenario["diagnostics"]["divergences"], 0);
+        // Existing request identities must differ: relabeling one baseline fit is insufficient.
+        assert!(requests.insert(scenario["request_sha256"].as_str().unwrap()));
+        let mut maximum = 0.0_f64;
+        for (parameter, field) in [
+            ("global_mean", "global_mean_shift_standardized"),
+            (
+                "between_patient_sd",
+                "between_patient_sd_shift_standardized",
+            ),
+        ] {
+            let scale = baseline[parameter]["sd"].as_f64().unwrap();
+            assert!(scale > 0.0);
+            let shift = (scenario["posterior"][parameter]["mean"].as_f64().unwrap()
+                - baseline[parameter]["mean"].as_f64().unwrap())
+                / scale;
+            assert!(
+                (scenario[field].as_f64().unwrap() - shift).abs() < 1e-12,
+                "{name}, {parameter}"
+            );
+            maximum = maximum.max(shift.abs());
+        }
+        assert!(
+            (scenario["maximum_absolute_standardized_shift"]
                 .as_f64()
-                .expect("global shift")
-                .is_finite()
-            && scenario["between_patient_sd_shift_standardized"]
-                .as_f64()
-                .expect("scale shift")
-                .is_finite()
-    }));
+                .unwrap()
+                - maximum)
+                .abs()
+                < 1e-12
+        );
+        assert_eq!(scenario["material_shift"], maximum >= 0.5);
+        if maximum >= 0.5 {
+            material.push(name);
+        }
+    }
+    assert_eq!(
+        result["material_shift_scenarios"],
+        serde_json::json!(material)
+    );
+    assert_eq!(
+        result["sensitivity_state"],
+        if material.is_empty() {
+            "stable_within_declared_prior_grid"
+        } else {
+            "sensitive_within_declared_prior_grid"
+        }
+    );
     assert_eq!(result["claim_status"], "experimental_prior_sensitivity");
 }

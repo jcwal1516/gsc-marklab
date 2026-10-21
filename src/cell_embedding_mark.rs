@@ -3,10 +3,10 @@ use std::{io::Write, mem::size_of};
 use marklab_embeddings::{
     CellEmbeddingArtifact, CellEmbeddingTable, EmbeddingQcSummary, EmbeddingStatus,
 };
-use marklab_workflow::{ArtifactId, ContentDigest, ContentDigestWriter};
+use marklab_project::{ArtifactId, ContentDigest, ContentDigestWriter};
 use thiserror::Error;
 
-use crate::{
+use crate::marks::{
     BinaryMarkDeclaration, DeclaredScalarIdentity, DeclaredScalarPatternInput,
     ProbabilityMarkDeclaration,
 };
@@ -185,7 +185,7 @@ pub enum DeclaredBinaryCellEmbeddingCentroidDiscrepancyError {
         /// First mismatched or absent row.
         row: usize,
     },
-    /// The admitted row traversal exceeds the caller maximum.
+    /// The validated row traversal exceeds the caller maximum.
     #[error("declared binary cell-embedding rows {required} exceed caller maximum {maximum}")]
     RowCountBudgetExceeded {
         /// Exact table row count.
@@ -445,8 +445,8 @@ pub(crate) fn bind_declared_binary_cell_embedding_centroid(
 
 /// Compare mean present cell-embedding vectors for exact declared binary groups.
 ///
-/// The materialized table is bound to its existing verified artifact, row identities are bound to
-/// the declared input, and explicit row/component/working limits are admitted before allocation or
+/// The materialized table is bound to its verified artifact, row identities are bound to
+/// the declared input, and explicit row/component/working limits are checked before allocation or
 /// component arithmetic. Present components are accumulated as `f64` in canonical row/component
 /// order; all non-present statuses are counted but excluded. Runtime is `O(N*D)` when available,
 /// with exactly two `D`-component `f64` accumulators. The result is descriptive only and proves no
@@ -539,10 +539,7 @@ fn zeroed_accumulator(
     dimension: usize,
     requested: usize,
 ) -> Result<Vec<f64>, DeclaredBinaryCellEmbeddingCentroidDiscrepancyError> {
-    let mut values = Vec::new();
-    values.try_reserve_exact(dimension).map_err(|_| {
+    crate::common::alloc::try_filled(dimension, 0.0).map_err(|_| {
         DeclaredBinaryCellEmbeddingCentroidDiscrepancyError::AllocationFailed { requested }
-    })?;
-    values.resize(dimension, 0.0);
-    Ok(values)
+    })
 }

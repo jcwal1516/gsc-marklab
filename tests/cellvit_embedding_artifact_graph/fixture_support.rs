@@ -5,7 +5,7 @@ pub(super) struct Fixture {
     pub(super) store: LocalArtifactStore,
     pub(super) catalog: ArtifactCatalog,
     pub(super) provenance: CellEmbeddingProvenance,
-    pub(super) provenance_artifact_id: marklab::ArtifactId,
+    pub(super) provenance_artifact_id: marklab::workflow::ArtifactId,
     pub(super) expected: ExpectedCellSet,
     pub(super) identity_map: CellIdentityMap,
     pub(super) context: EmbeddingSpatialContext,
@@ -55,12 +55,22 @@ pub(super) fn draft_record(
     schema: &str,
     kind: &str,
     bytes: &[u8],
-    dependencies: Vec<marklab::ArtifactId>,
+    dependencies: Vec<marklab::workflow::ArtifactId>,
     table: Option<TableManifest>,
 ) -> ArtifactRecord {
     ArtifactRecord::new(
         ArtifactRef::from_bytes(kind, bytes).expect("artifact content"),
-        ArtifactSchema::new(schema, 1).expect("artifact schema"),
+        ArtifactSchema::new(
+            schema,
+            if schema == "marklab.cell_embedding_provenance"
+                && kind == "application/vnd.marklab.embedding-provenance.v2+json"
+            {
+                2
+            } else {
+                1
+            },
+        )
+        .expect("artifact schema"),
         table,
         dependencies,
         BTreeMap::new(),
@@ -79,7 +89,7 @@ pub(super) fn publish_record(
     schema: &str,
     kind: &str,
     bytes: &[u8],
-    dependencies: Vec<marklab::ArtifactId>,
+    dependencies: Vec<marklab::workflow::ArtifactId>,
     table: Option<TableManifest>,
 ) -> ArtifactRecord {
     store
@@ -373,7 +383,11 @@ pub(super) fn build_fixture_with_rows_and_sources(
     let source_cells = publish_record(
         &store,
         "marklab.cell_embedding_source_cells",
-        "text/csv;profile=marklab-cellvit-he-bundle-v1",
+        if dimension == 1_280 {
+            "text/csv;profile=marklab-cellvit-he-bundle-v1"
+        } else {
+            "text/csv"
+        },
         source_cells_bytes,
         Vec::new(),
         None,
@@ -381,7 +395,11 @@ pub(super) fn build_fixture_with_rows_and_sources(
     let source_vectors = publish_record(
         &store,
         "marklab.cell_embedding_source_npy",
-        "application/x-npy;profile=marklab-cellvit-he-f4-v1",
+        if dimension == 1_280 {
+            "application/x-npy;profile=marklab-cellvit-he-f4-v1"
+        } else {
+            "application/x-npy"
+        },
         source_vectors_bytes,
         Vec::new(),
         None,
@@ -494,7 +512,11 @@ pub(super) fn build_fixture_with_rows_and_sources(
     .into_record();
 
     let model = CellEmbeddingModelProvenance::new(
-        "cellvit_sam_h",
+        if dimension == 1_280 {
+            "cellvit_sam_h"
+        } else {
+            "user_supplied_encoder"
+        },
         "1.0",
         "sam_h",
         checkpoint.id(),
@@ -508,20 +530,41 @@ pub(super) fn build_fixture_with_rows_and_sources(
     )
     .expect("model provenance");
     let decimal = |value| CanonicalDecimal::new(value).expect("decimal");
-    let tensor = CellEmbeddingTensorContract::rgb_he_raw(
-        dimension,
-        [decimal("0.485"), decimal("0.456"), decimal("0.406")],
-        [decimal("0.229"), decimal("0.224"), decimal("0.225")],
-    )
+    let tensor = if dimension == 1_280 {
+        CellEmbeddingTensorContract::rgb_he_raw(
+            dimension,
+            [decimal("0.485"), decimal("0.456"), decimal("0.406")],
+            [decimal("0.229"), decimal("0.224"), decimal("0.225")],
+        )
+    } else {
+        CellEmbeddingTensorContract::new(
+            dimension,
+            "cell_mask_mean",
+            "none",
+            "grayscale",
+            vec![decimal("0.5")],
+            vec![decimal("0.25")],
+            "brightfield",
+            "ihc",
+        )
+    }
     .expect("tensor");
     let execution = CellEmbeddingExecutionProvenance::new(
         preprocessing.id(),
         run_config.id(),
         environment.id(),
         converter.id(),
-        "marklab_cellvit_converter",
+        if dimension == 1_280 {
+            "marklab_cellvit_converter"
+        } else {
+            "user_converter"
+        },
         "1.0",
-        "cellvit_he_bundle",
+        if dimension == 1_280 {
+            "cellvit_he_bundle"
+        } else {
+            "declared_model_output"
+        },
         "1.0",
     )
     .expect("execution");
@@ -539,7 +582,11 @@ pub(super) fn build_fixture_with_rows_and_sources(
     let provenance_record = publish_record(
         &store,
         "marklab.cell_embedding_provenance",
-        "application/vnd.marklab.embedding-provenance.v1+json",
+        if dimension == 1_280 {
+            "application/vnd.marklab.embedding-provenance.v1+json"
+        } else {
+            "application/vnd.marklab.embedding-provenance.v2+json"
+        },
         &provenance_bytes,
         provenance.direct_dependencies().to_vec(),
         None,
@@ -578,7 +625,7 @@ pub(super) fn build_fixture_with_rows_and_sources(
 
 pub(super) fn replace_record(
     catalog: &ArtifactCatalog,
-    replaced: marklab::ArtifactId,
+    replaced: marklab::workflow::ArtifactId,
     replacement: ArtifactRecord,
 ) -> ArtifactCatalog {
     ArtifactCatalog::from_records(
@@ -594,7 +641,7 @@ pub(super) fn replace_record(
 pub(super) fn provenance_record(
     fixture: &Fixture,
     kind: &str,
-    dependencies: Vec<marklab::ArtifactId>,
+    dependencies: Vec<marklab::workflow::ArtifactId>,
     semantic_metadata: BTreeMap<String, String>,
     table: Option<TableManifest>,
 ) -> ArtifactRecord {
@@ -818,13 +865,13 @@ pub(super) fn write_embedding_rows_parquet(
 }
 
 pub(super) fn exact_retained_limit<T: std::fmt::Debug>(
-    mut operation: impl FnMut(usize) -> Result<T, EmbeddingColumnarError>,
+    mut operation: impl FnMut(usize) -> Result<T, ColumnarError>,
 ) -> usize {
     let mut maximum = 0_usize;
     for _ in 0..8 {
         match operation(maximum) {
             Ok(_) => return maximum,
-            Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
+            Err(ColumnarError::RetainedByteBudgetExceeded {
                 required,
                 maximum: observed_maximum,
             }) => {

@@ -1,14 +1,14 @@
+use crate::result_vocabulary::{EdgeCorrection, InhomogeneousNullModel, SpatialRandomizationUnit};
 use std::io;
 
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_project::{ArtifactRef, ContentDigest, MarklabProject};
+use marklab_workflow::{CacheKeyMaterial, NodeError, NodeId, NodeSpec, WorkflowNode};
 use serde::Serialize;
 
 use crate::{
-    workflow::pattern_artifact, ObservationWindow2D, PairCorrelationKernel,
-    PairCorrelationPointStatus, Pattern,
+    marked_workflow::pattern_artifact,
+    spatial::{PairCorrelationKernel, PairCorrelationPointStatus},
+    ObservationWindow2D, Pattern,
 };
 
 use super::{
@@ -64,7 +64,7 @@ impl<'a> InhomogeneousPairCorrelationAnalysisNode<'a> {
             inputs,
             configuration_digest: config_ref.digest(),
             implementation_identity: format!(
-                "marklab/{};adapter=inhomogeneous-pair-correlation-node-v3",
+                "marklab/{};adapter=inhomogeneous-pair-correlation-node-v4",
                 env!("CARGO_PKG_VERSION")
             ),
         })
@@ -187,7 +187,7 @@ fn validate(
         || result.pair_bandwidth_um.to_bits() != config.pair_bandwidth_um().to_bits()
         || result.intensity_bandwidth_um.to_bits() != intensity.bandwidth_um().to_bits()
         || result.edge_correction
-            != "standard_border_radius_plus_pair_bandwidth_inverse_intensity_ratio"
+            != EdgeCorrection::StandardBorderRadiusPlusPairBandwidthInverseIntensityRatio
         || result.configuration_digest != g_configuration_digest(config).to_string()
         || result.limits != intensity.limits()
         || result.estimated_storage_bytes > intensity.limits().maximum_retained_bytes
@@ -195,8 +195,9 @@ fn validate(
         || result.total_pair_visits > intensity.limits().maximum_pair_visits
         || result.intensity_evaluations > intensity.limits().maximum_intensity_evaluations
         || result.curve.len() != intensity.radii_um().len()
-        || result.inference.null_model != "fixed_gridded_inhomogeneous_binomial"
-        || result.inference.randomization_unit != "whole_location_pattern_conditioned_on_count"
+        || result.inference.null_model != InhomogeneousNullModel::FixedGriddedInhomogeneousBinomial
+        || result.inference.randomization_unit
+            != SpatialRandomizationUnit::WholeLocationPatternConditionedOnCount
         || result.inference.simulations_completed != intensity.simulations()
         || result.inference.seed != intensity.seed()
         || result.inference.alpha.to_bits() != intensity.alpha().to_bits()
@@ -234,7 +235,7 @@ pub(super) fn validate_g_curve(
                     && point.directed_pairs_in_support == 0
                     && point.inverse_intensity_kernel_sum.to_bits() == 0.0_f64.to_bits()
                     && point.eligible_center_inverse_intensity_sum > 0.0
-                    && point.g.is_none()
+                    && point.g.is_none_or(|value| value == 0.0)
             }
         };
         if !status_consistent

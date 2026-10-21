@@ -5,7 +5,7 @@ use geojson::{GeoJson, Geometry, Value};
 use marklab_data::{
     CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit, SpatialAxis,
 };
-use marklab_workflow::{ContentDigest, ContentDigestWriter};
+use marklab_project::{ContentDigest, ContentDigestWriter};
 use rstar::RTree;
 
 use crate::common::finite::canonical_zero;

@@ -1,12 +1,12 @@
-use std::{fs, path::PathBuf};
-
 use marklab_bayes::{
-    sha256_hex, PoissonExposureObservation, PoissonLaplaceInputIdentity, PoissonLaplaceSpec,
-    PoissonLaplaceWorkerRequest, PoissonLaplaceWorkerResult,
+    json_sha256, sha256_hex, PoissonExposureObservation, PoissonLaplaceInputIdentity,
+    PoissonLaplaceSpec, PoissonLaplaceWorkerRequest, PoissonLaplaceWorkerResult,
 };
 use serde::Deserialize;
 
-use super::{publish_json, run_worker, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::PoissonLogRateLaplaceArgs;
+use super::worker_identity;
+use super::{publish_json, run_worker, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -16,31 +16,23 @@ struct ObservationRow {
     exposure: f64,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input_path: PathBuf,
-    prior_mean: f64,
-    prior_sd: f64,
-    initial_log_rate: f64,
-    max_iterations: u32,
-    gradient_tolerance: f64,
-    seed: u64,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: PoissonLogRateLaplaceArgs) -> Result<(), CliError> {
+    let PoissonLogRateLaplaceArgs {
+        input,
+        prior_mean,
+        prior_sd,
+        initial_log_rate,
+        max_iterations,
+        gradient_tolerance,
+        seed,
+        timeout_seconds,
+        out,
+    } = args;
+    let input_path = input;
+    let output_path = out;
     let observations = read_observations(&input_path)?;
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path = worker_directory.join("marklab_scipy_pytensor_laplace_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
+    let identity = worker_identity(repository, "marklab_scipy_pytensor_laplace_worker.py")?;
     let request = PoissonLaplaceWorkerRequest::new(
         PoissonLaplaceSpec {
             prior_mean,
@@ -50,15 +42,15 @@ pub(super) fn run(
             gradient_tolerance,
             observations,
         },
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
+        identity.environment_lock_sha256,
+        identity.worker_sha256,
         timeout_seconds,
         seed,
     )?;
     let identity = PoissonLaplaceInputIdentity {
         path: input_path.display().to_string(),
         observation_count: request.observations.len(),
-        observations_sha256: sha256_hex(&serde_json::to_vec(&request.observations)?),
+        observations_sha256: json_sha256(&request.observations)?,
     };
     let request_bytes = serde_json::to_vec(&request)?;
     let request_sha256 = sha256_hex(&request_bytes);
@@ -73,10 +65,8 @@ pub(super) fn run(
     publish_json(&output_path, &result.into_fit(request, identity))
 }
 
-fn read_observations(
-    path: &std::path::Path,
-) -> Result<Vec<PoissonExposureObservation>, BayesCliError> {
-    super::input_file::validate_regular_file(
+fn read_observations(path: &std::path::Path) -> Result<Vec<PoissonExposureObservation>, CliError> {
+    crate::input_file::validate_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,
         "Poisson Laplace input must be a regular file within the 16 MiB limit",
@@ -87,7 +77,7 @@ fn read_observations(
         .iter()
         .eq(["observation_id", "count", "exposure"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "Poisson Laplace headers must be exactly: observation_id,count,exposure".into(),
         ));
     }
@@ -100,7 +90,7 @@ fn read_observations(
             exposure: row.exposure,
         });
         if observations.len() > 100_000 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "Poisson Laplace observation count exceeds 100000".into(),
             ));
         }

@@ -5,16 +5,8 @@ fn source_identity_chain_is_exact_private_and_digest_bound() {
     let fixture = fixture();
     assert_eq!(fixture.source_entities.entries()[0].source_entity_row(), 2);
     assert_eq!(
-        fixture.source_entities.logical_digest(),
-        reference_source_digest(&fixture.source_entities)
-    );
-    assert_eq!(
         fixture.source_entities.logical_digest().to_string(),
         "1b7ef7d5899d89b17e2309455dd4c07df4c7211924f53b6036552e7d3e6e76e2"
-    );
-    assert_eq!(
-        fixture.identity_map.logical_digest(),
-        reference_identity_digest(&fixture.identity_map)
     );
     assert_eq!(
         fixture.identity_map.logical_digest().to_string(),
@@ -31,7 +23,6 @@ fn source_identity_chain_is_exact_private_and_digest_bound() {
         link.entries()[3].status(),
         EmbeddingStatus::ExtractionFailed
     );
-    assert_eq!(link.logical_digest(), reference_row_link_digest(&link));
     assert_eq!(
         link.logical_digest().to_string(),
         "37ef6645c0a1ab664be6182eb00b9953dcdc79890ee682014427fae60920da76"

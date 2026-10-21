@@ -1,7 +1,9 @@
+use crate::edge_corrected::{cache_corrections, estimate_cross, CrossWork};
+use crate::result_vocabulary::{EdgeCorrection, MarkNullModel, MarkPermutationUnit};
 use std::collections::BTreeMap;
 
 use marklab_cohort::{InferenceAlternative, InferenceDesign};
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 use serde::{Deserialize, Serialize};
 
 use crate::common::finite::canonical_zero;
@@ -10,16 +12,18 @@ use crate::{
     classical::window_summary,
     isotropic_spatial::edge::IsotropicArcBudget,
     mark_pair_plan::{build_mark_pair_plan, erl_workspace_bytes, MarkPairPlan},
-    pair_correlation::epanechnikov_weight,
+    marks::{DeclaredScalarPatternInput, ScalarMarkId},
     permutation::envelopes::GlobalEnvelope,
-    ClassicalWindowSummary, DeclaredScalarPatternInput, IsotropicSpatialError,
-    IsotropicSpatialLimits, ObservationWindow2D, PairCorrelationKernel, PairCorrelationPointStatus,
-    ScalarMarkId,
+    scalar_mark::COMPARTMENT_MARK_ID,
+    spatial::{
+        ClassicalWindowSummary, IsotropicSpatialError, IsotropicSpatialLimits,
+        PairCorrelationKernel, PairCorrelationPointStatus,
+    },
+    ObservationWindow2D,
 };
 
 use super::{
-    analysis::{measurement_status_name, resolve},
-    CategoricalCrossPairCorrelationConfig, CategoricalCrossPairCorrelationError,
+    analysis::resolve, CategoricalCrossPairCorrelationConfig, CategoricalCrossPairCorrelationError,
     CategoricalCrossPairCorrelationInference,
 };
 
@@ -74,7 +78,8 @@ pub struct IsotropicCategoricalCrossPairCorrelationPoint {
 #[serde(deny_unknown_fields)]
 pub struct IsotropicCategoricalCrossPairCorrelationResult {
     pub mark_id: String,
-    pub measurement_status: String,
+    #[serde(with = "crate::measurement_status_wire")]
+    pub measurement_status: marklab_data::MeasurementStatus,
     pub coordinate_frame_id: String,
     pub window: ClassicalWindowSummary,
     pub source_level: String,
@@ -83,7 +88,7 @@ pub struct IsotropicCategoricalCrossPairCorrelationResult {
     pub target_count: usize,
     pub kernel: PairCorrelationKernel,
     pub bandwidth_um: f64,
-    pub edge_correction: String,
+    pub edge_correction: EdgeCorrection,
     pub geometry_digest: String,
     pub pair_plan_digest: String,
     pub retained_directed_pair_count: usize,
@@ -116,7 +121,7 @@ pub fn isotropic_categorical_cross_pair_correlation(
     if frame != input.coordinate_frame_id() {
         return Err(CategoricalCrossPairCorrelationError::CoordinateFrameMismatch);
     }
-    let mark_id = ScalarMarkId::new("histologic_compartment").map_err(dependency)?;
+    let mark_id = ScalarMarkId::new(COMPARTMENT_MARK_ID).map_err(dependency)?;
     let table = input
         .mark_table()
         .ok_or(CategoricalCrossPairCorrelationError::MissingCategoricalMark)?;
@@ -243,12 +248,9 @@ pub fn isotropic_categorical_cross_pair_correlation(
         };
     Ok(IsotropicCategoricalCrossPairCorrelationResult {
         mark_id: mark_id.as_str().into(),
-        measurement_status: measurement_status_name(
-            table
-                .measurement_status(&mark_id)
-                .ok_or(CategoricalCrossPairCorrelationError::MissingCategoricalMark)?,
-        )
-        .into(),
+        measurement_status: table
+            .measurement_status(&mark_id)
+            .ok_or(CategoricalCrossPairCorrelationError::MissingCategoricalMark)?,
         coordinate_frame_id: frame.as_str().into(),
         window: window_summary(window.descriptor()),
         source_level: base.source_level.clone(),
@@ -257,7 +259,7 @@ pub fn isotropic_categorical_cross_pair_correlation(
         target_count,
         kernel: PairCorrelationKernel::Epanechnikov,
         bandwidth_um: base.bandwidth_um,
-        edge_correction: "isotropic".into(),
+        edge_correction: EdgeCorrection::Isotropic,
         geometry_digest: plan.geometry.logical_digest().to_string(),
         pair_plan_digest: plan.digest.to_string(),
         retained_directed_pair_count: plan.pairs.len(),
@@ -270,8 +272,8 @@ pub fn isotropic_categorical_cross_pair_correlation(
         configuration_digest: configuration_digest(config).to_string(),
         curve: observed.points,
         inference: CategoricalCrossPairCorrelationInference {
-            null_model: "random_labeling".into(),
-            permutation_unit: "complete_categorical_row".into(),
+            null_model: MarkNullModel::RandomLabeling,
+            permutation_unit: MarkPermutationUnit::CompleteCategoricalRow,
             p_global,
             erl_depth,
             critical_depth,
@@ -291,44 +293,7 @@ fn build_fractions(
     plan: &MarkPairPlan,
     budget: &mut IsotropicArcBudget,
 ) -> Result<BTreeMap<(usize, usize), f64>, CategoricalCrossPairCorrelationError> {
-    let pattern = input.pattern();
-    let mut fractions = BTreeMap::new();
-    for pair in &plan.pairs {
-        if pair.source >= pair.target {
-            continue;
-        }
-        budget.charge_pair().map_err(isotropic_dependency)?;
-        let lower = pair.distance_um - config.bandwidth_um;
-        let upper = pair.distance_um + config.bandwidth_um;
-        let start = config.radii_um.partition_point(|radius| *radius <= lower);
-        let end = config.radii_um.partition_point(|radius| *radius < upper);
-        if start == end {
-            continue;
-        }
-        let left = budget
-            .visible_fraction(
-                window,
-                pattern.x_um[pair.source],
-                pattern.y_um[pair.source],
-                pair.distance_um,
-                pair.source,
-                pair.target,
-            )
-            .map_err(isotropic_dependency)?;
-        let right = budget
-            .visible_fraction(
-                window,
-                pattern.x_um[pair.target],
-                pattern.y_um[pair.target],
-                pair.distance_um,
-                pair.target,
-                pair.source,
-            )
-            .map_err(isotropic_dependency)?;
-        fractions.insert((pair.source, pair.target), left);
-        fractions.insert((pair.target, pair.source), right);
-    }
-    Ok(fractions)
+    cache_corrections(input, window, config, plan, budget).map_err(isotropic_dependency)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -343,37 +308,18 @@ fn evaluate(
     fractions: &BTreeMap<(usize, usize), f64>,
     config: &CategoricalCrossPairCorrelationConfig,
 ) -> Result<Evaluation, CategoricalCrossPairCorrelationError> {
-    let mut counts = vec![0_usize; config.radii_um.len()];
-    let mut fraction_sums = vec![0.0_f64; config.radii_um.len()];
-    let mut weighted_sums = vec![0.0_f64; config.radii_um.len()];
-    for pair in &plan.pairs {
-        if codes[pair.source] != source_code || codes[pair.target] != target_code {
-            continue;
-        }
-        let Some(fraction) = fractions.get(&(pair.source, pair.target)).copied() else {
-            continue;
-        };
-        let lower = pair.distance_um - config.bandwidth_um;
-        let upper = pair.distance_um + config.bandwidth_um;
-        let start = config.radii_um.partition_point(|radius| *radius <= lower);
-        let end = config.radii_um.partition_point(|radius| *radius < upper);
-        for index in start..end {
-            let kernel = epanechnikov_weight(
-                config.radii_um[index],
-                pair.distance_um,
-                config.bandwidth_um,
-            )
-            .expect("strict compact support");
-            counts[index] = counts[index]
-                .checked_add(1)
-                .ok_or(CategoricalCrossPairCorrelationError::SizeOverflow)?;
-            fraction_sums[index] += fraction;
-            weighted_sums[index] += kernel / fraction;
-            if !fraction_sums[index].is_finite() || !weighted_sums[index].is_finite() {
-                return Err(dependency("isotropic cross-g accumulation is non-finite"));
-            }
-        }
-    }
+    let CrossWork {
+        counts,
+        measure_sums: fraction_sums,
+        weighted_sums,
+    } = estimate_cross::<IsotropicArcBudget>(
+        codes,
+        (source_code, target_code),
+        area,
+        plan,
+        fractions,
+        config,
+    )?;
     let mut points = Vec::new();
     let mut values = Vec::new();
     let mut eligible = Vec::new();
@@ -383,8 +329,8 @@ fn evaluate(
         .and_then(|()| eligible.try_reserve_exact(config.radii_um.len()))
         .map_err(|_| CategoricalCrossPairCorrelationError::AllocationFailed)?;
     for index in 0..config.radii_um.len() {
-        let available = counts[index] > 0;
-        let cross_g = available.then(|| {
+        let has_pairs = counts[index] > 0;
+        let cross_g = (source_count > 0 && target_count > 0).then(|| {
             area * weighted_sums[index]
                 / (std::f64::consts::TAU
                     * config.radii_um[index]
@@ -395,10 +341,10 @@ fn evaluate(
             return Err(dependency("isotropic cross-g normalization is non-finite"));
         }
         values.push(cross_g.unwrap_or(0.0));
-        eligible.push(available);
+        eligible.push(cross_g.is_some());
         points.push(IsotropicCategoricalCrossPairCorrelationPoint {
             radius_um: config.radii_um[index],
-            status: if available {
+            status: if has_pairs {
                 PairCorrelationPointStatus::Available
             } else {
                 PairCorrelationPointStatus::NoPairsInKernelSupport

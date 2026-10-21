@@ -1,10 +1,10 @@
 use std::{collections::BTreeMap, io::Write};
 
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 
 use crate::{
     geom::{spatial_index::SpatialIndex2D, window::ObservationWindow2D},
-    ClassicalSpatialError, ClassicalSpatialLimits,
+    spatial::{ClassicalSpatialError, ClassicalSpatialLimits},
 };
 
 pub(super) struct PairVisitBudget {
@@ -216,7 +216,7 @@ fn geometry_digest(
 }
 
 fn write_digest_part(
-    writer: &mut marklab_workflow::ContentDigestWriter,
+    writer: &mut marklab_project::ContentDigestWriter,
     part: &[u8],
 ) -> Result<(), ClassicalSpatialError> {
     writer

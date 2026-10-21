@@ -3,7 +3,8 @@
 use std::{fs, path::Path};
 
 use assert_cmd::Command;
-use marklab_workflow::{ContentDigest, NodeId, NodeSpec};
+use marklab_project::ContentDigest;
+use marklab_workflow::{NodeId, NodeSpec};
 
 fn fixture(path: &Path) {
     let mut csv = String::from("patient_id,group,family_order,family,endpoint,value\n");

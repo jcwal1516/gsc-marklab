@@ -105,7 +105,8 @@ fn disconnected_components_produce_no_cross_component_precision_entries() {
     }
     let input = serde_json::json!({
         "window_frame": "synthetic_disconnected_um",
-        "window": {"type":"MultiPolygon","coordinates":[
+        // GeoJSON permits a bounding box member; the window comes from the coordinates.
+        "window": {"type":"MultiPolygon","bbox":[0.0,0.0,5.0,2.0],"coordinates":[
             [[[0.0,0.0],[2.0,0.0],[2.0,2.0],[0.0,2.0],[0.0,0.0]]],
             [[[3.0,0.0],[5.0,0.0],[5.0,2.0],[3.0,2.0],[3.0,0.0]]]
         ]},
@@ -156,4 +157,20 @@ fn disconnected_components_produce_no_cross_component_precision_entries() {
             .expect("right x");
         assert_eq!(left_x < 2.5, right_x < 2.5);
     }
+}
+
+#[test]
+fn misspelled_input_fields_are_named_in_the_error() {
+    let root = tempfile::tempdir().expect("root");
+    fixture::write_input(root.path());
+    let path = root.path().join("adaptive-spde.json");
+    let mut input: serde_json::Value =
+        serde_json::from_slice(&fs::read(&path).expect("input")).expect("input JSON");
+    input["kapa"] = input["kappa"].clone();
+    fs::write(&path, serde_json::to_vec(&input).expect("input")).expect("write input");
+
+    fixture::direct_command(root.path(), &root.path().join("result.json"))
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("unknown field `kapa`"));
 }

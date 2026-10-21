@@ -1,3 +1,4 @@
+mod load;
 mod multiscale;
 mod preflight;
 mod preflight_reader;
@@ -7,9 +8,10 @@ mod reader;
 mod row_link;
 mod writer;
 
+pub(crate) use load::*;
 pub use multiscale::*;
 pub use preflight::{preflight_cell_embedding_table_arrow_bytes, CellEmbeddingArrowPreflight};
-pub use publication::{publish_cell_embedding_table_arrow, EmbeddingColumnarPublicationError};
+pub use publication::{publish_cell_embedding_table_arrow, ColumnarPublicationError};
 pub use reader::{
     read_cell_embedding_table_arrow_bytes, read_cell_embedding_table_arrow_from_store,
     scan_cell_embedding_table_arrow_bytes, scan_cell_embedding_table_arrow_from_store,

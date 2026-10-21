@@ -1,10 +1,12 @@
 use std::io::Write;
 
 use marklab_data::{CoordinateFrameId, SlideId};
-use marklab_workflow::{ArtifactRef, ContentDigest, ContentDigestWriter};
+use marklab_project::{ArtifactRef, ContentDigest, ContentDigestWriter};
 
 use super::{AssayMarkValues, MarkTable, ScalarMarkColumn, ScalarMarkColumnValues};
-use crate::scalar_mark::{declaration::measurement_status_name, DeclaredScalarInputError};
+use crate::{
+    measurement_status_wire::name as measurement_status_name, scalar_mark::DeclaredScalarInputError,
+};
 
 const MARK_TABLE_KIND: &str = "application/vnd.marklab.scalar-mark-table;version=1";
 const MARK_TABLE_DIGEST_DOMAIN: &[u8] = b"marklab-scalar-mark-table-v1";

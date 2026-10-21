@@ -33,7 +33,7 @@ fn local_multivariate_moran_matches_hand_values_and_controls_the_location_family
     assert_eq!(result["point_count"], 4);
     assert_eq!(result["dimension"], 2);
     assert_eq!(result["directed_edge_count"], 6);
-    assert_eq!(result["permutations_completed"], 31);
+    assert_eq!(result["permutations_requested"], 31);
     assert_eq!(result["locations"][0]["point_id"], "p0");
     assert_eq!(result["locations"][1]["point_id"], "p1");
     assert_eq!(result["locations"][2]["point_id"], "p2");

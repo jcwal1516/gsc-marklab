@@ -1,29 +1,22 @@
-use crate::validation::is_lower_hex_sha256 as is_sha256;
-
-use std::collections::BTreeSet;
+use crate::is_worker_timeout;
+use crate::validation::is_sha256;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::sbc::{
+    validate_sbc_replicates, SbcCalibrationPolicy, SbcControls, SbcReplicateRow, SbcSamplerRow,
+};
+use crate::ClaimStatus;
 use crate::{
     hierarchical_agreement::{JAX_VERSION, NUMPYRO_VERSION},
     BackendContract, BayesError, BetaBinomialGroupGenderRegressionModelIr,
     BetaBinomialGroupGenderRegressionWorkerRequest, FitState, HierarchicalSbcFailure,
-    HierarchicalSbcParameterDiagnostics, NutsSamplingSpec, WorkerBackend,
+    NutsSamplingSpec, SbcParameterDiagnostics, WorkerBackend,
 };
 
 const REQUEST_FORMAT: &str = "marklab.numpyro_beta_binomial_group_gender_sbc_worker_request";
 const RESULT_FORMAT: &str = "marklab.numpyro_beta_binomial_group_gender_sbc_worker_result";
-
-#[derive(Clone, Debug, Serialize)]
-pub struct BetaBinomialGroupGenderSbcCalibrationPolicy {
-    pub replicates: u32,
-    pub rank_bins: u32,
-    pub interval_probability: f64,
-    pub maximum_tree_depth: u32,
-    pub minimum_rank_uniformity_p_value: f64,
-    pub minimum_coverage: f64,
-    pub maximum_coverage: f64,
-}
 
 #[derive(Clone, Debug, Serialize)]
 pub struct BetaBinomialGroupGenderSbcResourceLimits {
@@ -42,38 +35,30 @@ pub struct NumpyroBetaBinomialGroupGenderSbcWorkerRequest {
     pub jax_version: &'static str,
     pub source_request_sha256: String,
     pub source_request: BetaBinomialGroupGenderRegressionWorkerRequest,
-    pub calibration: BetaBinomialGroupGenderSbcCalibrationPolicy,
+    pub calibration: SbcCalibrationPolicy,
     pub resources: BetaBinomialGroupGenderSbcResourceLimits,
 }
 
 impl NumpyroBetaBinomialGroupGenderSbcWorkerRequest {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         source_request: BetaBinomialGroupGenderRegressionWorkerRequest,
-        replicates: u32,
-        minimum_rank_uniformity_p_value: f64,
-        minimum_coverage: f64,
-        maximum_coverage: f64,
+        controls: SbcControls,
         environment_lock_sha256: String,
         worker_sha256: String,
         timeout_seconds: u64,
     ) -> Result<Self, BayesError> {
-        if !(20..=100).contains(&replicates)
-            || !minimum_rank_uniformity_p_value.is_finite()
-            || !(0.0..0.1).contains(&minimum_rank_uniformity_p_value)
-            || !minimum_coverage.is_finite()
-            || !maximum_coverage.is_finite()
-            || !(0.0..=1.0).contains(&minimum_coverage)
-            || !(0.0..=1.0).contains(&maximum_coverage)
-            || minimum_coverage > maximum_coverage
-            || !is_sha256(&environment_lock_sha256)
-            || !is_sha256(&worker_sha256)
-            || !(1..=3_600).contains(&timeout_seconds)
-        {
-            return Err(BayesError::InvalidSpec(
-                "beta-binomial group/gender SBC controls or identities are invalid".into(),
-            ));
-        }
+        let calibration = SbcCalibrationPolicy::new(controls)
+            .filter(|_| {
+                is_sha256(&environment_lock_sha256)
+                    && is_sha256(&worker_sha256)
+                    && is_worker_timeout(timeout_seconds)
+            })
+            .ok_or_else(|| {
+                BayesError::InvalidSpec(
+                    "beta-binomial group/gender SBC controls or identities are invalid".into(),
+                )
+            })?;
+        let replicates = calibration.replicates;
         let trial_count = source_request
             .patients
             .iter()
@@ -104,29 +89,21 @@ impl NumpyroBetaBinomialGroupGenderSbcWorkerRequest {
                 "beta-binomial group/gender SBC exceeds trial or iteration limits".into(),
             ));
         }
-        let source_request_sha256 = crate::sha256_hex(&serde_json::to_vec(&source_request)?);
+        let source_request_sha256 = crate::json_sha256(&source_request)?;
         Ok(Self {
             format: REQUEST_FORMAT,
             version: 1,
             backend: BackendContract {
                 name: "numpyro",
                 version: NUMPYRO_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
             jax_version: JAX_VERSION,
             source_request_sha256,
             source_request,
-            calibration: BetaBinomialGroupGenderSbcCalibrationPolicy {
-                replicates,
-                rank_bins: 10,
-                interval_probability: 0.9,
-                maximum_tree_depth: 12,
-                minimum_rank_uniformity_p_value,
-                minimum_coverage,
-                maximum_coverage,
-            },
+            calibration,
             resources: BetaBinomialGroupGenderSbcResourceLimits {
                 maximum_replicates: 100,
                 maximum_simulated_trials,
@@ -168,15 +145,74 @@ pub struct BetaBinomialGroupGenderSbcReplicate {
     pub max_tree_depth_hits: u64,
 }
 
+impl SbcReplicateRow for BetaBinomialGroupGenderSbcReplicate {
+    fn replicate(&self) -> u32 {
+        self.replicate
+    }
+
+    fn ranks(&self) -> Vec<(u32, bool)> {
+        vec![
+            (
+                self.intercept_log_odds_rank,
+                self.intercept_log_odds_covered,
+            ),
+            (
+                self.group_log_odds_effect_rank,
+                self.group_log_odds_effect_covered,
+            ),
+            (
+                self.gender_log_odds_effect_rank,
+                self.gender_log_odds_effect_covered,
+            ),
+            (self.concentration_rank, self.concentration_covered),
+            (
+                self.marginal_probability_difference_rank,
+                self.marginal_probability_difference_covered,
+            ),
+            (
+                self.patient_probability_0_rank,
+                self.patient_probability_0_covered,
+            ),
+        ]
+    }
+
+    fn truths_valid(&self) -> bool {
+        [
+            self.true_intercept_log_odds,
+            self.true_group_log_odds_effect,
+            self.true_gender_log_odds_effect,
+            self.true_concentration,
+            self.true_marginal_probability_difference,
+            self.true_patient_probability_0,
+        ]
+        .iter()
+        .all(|value| value.is_finite())
+            && self.true_concentration > 0.0
+            && (-1.0..1.0).contains(&self.true_marginal_probability_difference)
+            && (0.0..1.0).contains(&self.true_patient_probability_0)
+    }
+
+    fn sampler(&self) -> SbcSamplerRow {
+        SbcSamplerRow {
+            r_hat: self.r_hat,
+            ess_bulk: self.ess_bulk,
+            ess_tail: self.ess_tail,
+            minimum_ebfmi: Some(self.minimum_ebfmi),
+            divergences: self.divergences,
+            max_tree_depth_hits: self.max_tree_depth_hits,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct BetaBinomialGroupGenderSbcDiagnostics {
-    pub intercept_log_odds: HierarchicalSbcParameterDiagnostics,
-    pub group_log_odds_effect: HierarchicalSbcParameterDiagnostics,
-    pub gender_log_odds_effect: HierarchicalSbcParameterDiagnostics,
-    pub concentration: HierarchicalSbcParameterDiagnostics,
-    pub marginal_probability_difference: HierarchicalSbcParameterDiagnostics,
-    pub patient_probability_0: HierarchicalSbcParameterDiagnostics,
+    pub intercept_log_odds: SbcParameterDiagnostics,
+    pub group_log_odds_effect: SbcParameterDiagnostics,
+    pub gender_log_odds_effect: SbcParameterDiagnostics,
+    pub concentration: SbcParameterDiagnostics,
+    pub marginal_probability_difference: SbcParameterDiagnostics,
+    pub patient_probability_0: SbcParameterDiagnostics,
 }
 
 #[derive(Debug, Deserialize)]
@@ -201,11 +237,7 @@ impl NumpyroBetaBinomialGroupGenderSbcWorkerResult {
     ) -> Result<(), BayesError> {
         if self.format != RESULT_FORMAT
             || self.version != 1
-            || self.backend.name != request.backend.name
-            || self.backend.version != request.backend.version
-            || self.backend.python_version != request.backend.python_version
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.jax_version != JAX_VERSION
             || self.request_sha256 != request_sha256
             || self.replicates.len() + self.failures.len()
@@ -217,109 +249,23 @@ impl NumpyroBetaBinomialGroupGenderSbcWorkerResult {
         }
         let posterior_draws = request.source_request.sampling.chains
             * request.source_request.sampling.draws_per_chain;
-        let policy = &request.source_request.diagnostic_policy;
-        let mut dispositions = BTreeSet::new();
-        for row in &self.replicates {
-            if row.replicate >= request.calibration.replicates
-                || !dispositions.insert(row.replicate)
-                || [
-                    row.intercept_log_odds_rank,
-                    row.group_log_odds_effect_rank,
-                    row.gender_log_odds_effect_rank,
-                    row.concentration_rank,
-                    row.marginal_probability_difference_rank,
-                    row.patient_probability_0_rank,
-                ]
-                .iter()
-                .any(|rank| *rank > posterior_draws)
-                || ![
-                    row.true_intercept_log_odds,
-                    row.true_group_log_odds_effect,
-                    row.true_gender_log_odds_effect,
-                    row.true_concentration,
-                    row.true_marginal_probability_difference,
-                    row.true_patient_probability_0,
-                    row.r_hat,
-                    row.ess_bulk,
-                    row.ess_tail,
-                    row.minimum_ebfmi,
-                ]
-                .iter()
-                .all(|value| value.is_finite())
-                || row.true_concentration <= 0.0
-                || !(-1.0..1.0).contains(&row.true_marginal_probability_difference)
-                || !(0.0..1.0).contains(&row.true_patient_probability_0)
-                || row.r_hat > policy.maximum_r_hat
-                || row.ess_bulk < policy.minimum_bulk_ess
-                || row.ess_tail < policy.minimum_tail_ess
-                || row.minimum_ebfmi < policy.minimum_ebfmi
-                || row.divergences > policy.maximum_divergences
-                || row.max_tree_depth_hits > policy.maximum_tree_depth_hits
-            {
-                return Err(BayesError::WorkerContract(
-                    "beta-binomial group/gender SBC replicate is invalid".into(),
-                ));
-            }
-        }
-        for failure in &self.failures {
-            if failure.replicate >= request.calibration.replicates
-                || !dispositions.insert(failure.replicate)
-                || failure.reason.is_empty()
-                || failure.reason.len() > 512
-            {
-                return Err(BayesError::WorkerContract(
-                    "beta-binomial group/gender SBC failure disposition is invalid".into(),
-                ));
-            }
-        }
-        let diagnostics = [
-            &self.diagnostics.intercept_log_odds,
-            &self.diagnostics.group_log_odds_effect,
-            &self.diagnostics.gender_log_odds_effect,
-            &self.diagnostics.concentration,
-            &self.diagnostics.marginal_probability_difference,
-            &self.diagnostics.patient_probability_0,
-        ];
-        for diagnostic in diagnostics {
-            if diagnostic.rank_histogram.len() != request.calibration.rank_bins as usize
-                || diagnostic.rank_histogram.iter().sum::<u32>() != self.replicates.len() as u32
-                || ![
-                    diagnostic.rank_uniformity_p_value,
-                    diagnostic.coverage_90,
-                    diagnostic.mean_normalized_rank,
-                ]
-                .iter()
-                .all(|value| value.is_finite() && (0.0..=1.0).contains(value))
-            {
-                return Err(BayesError::WorkerContract(
-                    "beta-binomial group/gender SBC diagnostics are invalid".into(),
-                ));
-            }
-        }
-        let passes = self.failures.is_empty()
-            && [
+        validate_sbc_replicates(
+            &self.replicates,
+            &self.failures,
+            &[
                 &self.diagnostics.intercept_log_odds,
                 &self.diagnostics.group_log_odds_effect,
                 &self.diagnostics.gender_log_odds_effect,
                 &self.diagnostics.concentration,
                 &self.diagnostics.marginal_probability_difference,
                 &self.diagnostics.patient_probability_0,
-            ]
-            .into_iter()
-            .all(|diagnostic| {
-                diagnostic.rank_uniformity_p_value
-                    >= request.calibration.minimum_rank_uniformity_p_value
-                    && (request.calibration.minimum_coverage..=request.calibration.maximum_coverage)
-                        .contains(&diagnostic.coverage_90)
-            });
-        if dispositions.len() != request.calibration.replicates as usize
-            || (self.fit_state == FitState::Complete) != passes
-        {
-            return Err(BayesError::WorkerContract(
-                "beta-binomial group/gender SBC disposition or fit state is invalid".into(),
-            ));
-        }
-        Ok(())
+            ],
+            &request.calibration,
+            posterior_draws,
+            &request.source_request.diagnostic_policy,
+            self.fit_state,
+        )
+        .map_err(|violation| violation.error("beta-binomial group/gender"))
     }
 
     pub fn into_result(
@@ -340,9 +286,9 @@ impl NumpyroBetaBinomialGroupGenderSbcWorkerResult {
             failures: self.failures,
             diagnostics: self.diagnostics,
             claim_status: if self.fit_state == FitState::Complete {
-                "experimental_simulation_calibration"
+                ClaimStatus::ExperimentalSimulationCalibration
             } else {
-                "diagnostic_only_failed_calibration"
+                ClaimStatus::DiagnosticOnlyFailedCalibration
             },
             request_sha256: self.request_sha256,
         }
@@ -357,12 +303,12 @@ pub struct BetaBinomialGroupGenderSbcResult {
     pub jax_version: String,
     pub model: BetaBinomialGroupGenderRegressionModelIr,
     pub sampling: NutsSamplingSpec,
-    pub calibration: BetaBinomialGroupGenderSbcCalibrationPolicy,
+    pub calibration: SbcCalibrationPolicy,
     pub resources: BetaBinomialGroupGenderSbcResourceLimits,
     pub fit_state: FitState,
     pub replicates: Vec<BetaBinomialGroupGenderSbcReplicate>,
     pub failures: Vec<HierarchicalSbcFailure>,
     pub diagnostics: BetaBinomialGroupGenderSbcDiagnostics,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub request_sha256: String,
 }

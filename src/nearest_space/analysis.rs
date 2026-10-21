@@ -1,4 +1,5 @@
-use marklab_workflow::ContentDigest;
+use crate::result_vocabulary::{EdgeCorrection, NearestNeighborOwner, ProbeSamplingMethod};
+use marklab_project::ContentDigest;
 
 use crate::common::finite::canonical_zero;
 
@@ -7,7 +8,9 @@ use crate::{
     common::seeds::{derive_seed, SeedEndpoint},
     geom::window::ObservationWindow2D,
     permutation::envelopes::GlobalEnvelope,
-    ClassicalNullDesign, ClassicalNullModel, ClassicalRandomizationUnit, ClassicalSpatialLimits,
+    spatial::{
+        ClassicalNullDesign, ClassicalNullModel, ClassicalRandomizationUnit, ClassicalSpatialLimits,
+    },
     Pattern,
 };
 
@@ -181,8 +184,8 @@ pub fn analyze_nearest_space_pattern(
             nearest_query_count: nearest_queries,
             estimated_storage_bytes: retained,
             logical_digest: observed_plan.logical_digest().to_string(),
-            nearest_neighbor_owner: "spatial_index_2d".into(),
-            edge_correction: "standard_border_reduced_sample".into(),
+            nearest_neighbor_owner: NearestNeighborOwner::SpatialIndex2d,
+            edge_correction: EdgeCorrection::StandardBorderReducedSample,
         },
         configuration: NearestSpaceConfigurationSummary {
             radius_count: config.radii_um.len(),
@@ -465,7 +468,7 @@ fn build_probe_plan(
             spacing_um: [spacing_x, spacing_y],
             maximum_location_error_um: canonical_zero(spacing_x.hypot(spacing_y) / 2.0),
             logical_digest: logical_digest.to_string(),
-            method: "fixed_cell_centred_rectangular_grid".into(),
+            method: ProbeSamplingMethod::FixedCellCentredRectangularGrid,
         },
         probes,
     })
@@ -587,9 +590,9 @@ fn intersect_eligibility(target: &mut [bool], observed: &[bool]) {
     }
 }
 
-fn map_csr_error(error: crate::ClassicalSpatialError) -> NearestSpaceError {
+fn map_csr_error(error: crate::spatial::ClassicalSpatialError) -> NearestSpaceError {
     match error {
-        crate::ClassicalSpatialError::CsrDrawLimitExceeded { maximum } => {
+        crate::spatial::ClassicalSpatialError::CsrDrawLimitExceeded { maximum } => {
             NearestSpaceError::CsrDrawLimitExceeded { maximum }
         }
         error => geometry_error(error),

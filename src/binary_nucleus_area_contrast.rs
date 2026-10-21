@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use marklab_workflow::{ContentDigest, ContentDigestWriter, MarklabProject};
+use marklab_project::{ContentDigest, ContentDigestWriter, MarklabProject};
 use thiserror::Error;
 
 use crate::scalar_mark::{
@@ -103,7 +103,7 @@ impl DeclaredBinaryGroupNucleusAreaContrast {
 /// Invalid declaration/value binding or caller row limit.
 #[derive(Debug, Error)]
 pub enum DeclaredBinaryGroupNucleusAreaContrastError {
-    /// Existing declared scalar input or exact nucleus-area provenance is invalid.
+    /// The declared scalar input or the nucleus-area provenance is invalid.
     #[error(transparent)]
     ScalarInput(#[from] DeclaredScalarInputError),
     /// The compatibility Pattern has no dense nucleus-area column.
@@ -112,7 +112,7 @@ pub enum DeclaredBinaryGroupNucleusAreaContrastError {
     /// The dense nucleus-area column has the wrong number of rows.
     #[error("nucleus-area column has {observed} rows; expected {expected}")]
     NucleusAreaLengthMismatch {
-        /// Exact compatibility Pattern row count.
+        /// Pattern row count.
         expected: usize,
         /// Observed nucleus-area row count.
         observed: usize,

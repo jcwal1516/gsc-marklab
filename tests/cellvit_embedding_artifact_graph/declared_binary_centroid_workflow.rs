@@ -1,15 +1,26 @@
+use crate::declared_scalar_support::pattern_fixture::pattern_meta;
+
 use std::collections::BTreeSet;
 
 use marklab::{
-    declared_binary_cell_embedding_centroid_discrepancy, publish_cell_embedding_table_arrow,
-    verify_cell_embedding_table_arrow_from_store, ArtifactDraft, ArtifactId, BinaryMarkDeclaration,
-    CacheStatus, DeclaredBinaryCellEmbeddingCentroidDiscrepancy,
-    DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus, DeclaredBinaryCellEmbeddingCentroidNode,
-    DeclaredScalarPatternInput, LocalArtifactStore, LocalScheduler, MarkTable, MarklabProject,
-    MeasurementStatus, MissingnessPolicy, NodeError, NodeId, NodeRun, Pattern, PatternMeta,
-    ProbabilityMarkDeclaration, ProbabilityThresholdComparator, ProjectError, ScalarMarkColumn,
-    ScalarMarkId, ScalarMarkModality, ScalarMarkUnit, SchedulerLimits,
-    VectorArtifactRefMarkDeclaration, WorkflowError, WorkflowGraph, WorkflowNode,
+    embeddings::{
+        declared_binary_cell_embedding_centroid_discrepancy, publish_cell_embedding_table_arrow,
+        verify_cell_embedding_table_arrow_from_store,
+        DeclaredBinaryCellEmbeddingCentroidDiscrepancy,
+        DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus,
+        DeclaredBinaryCellEmbeddingCentroidNode,
+    },
+    marks::{
+        BinaryMarkDeclaration, DeclaredScalarPatternInput, MarkTable, MissingnessPolicy,
+        ProbabilityMarkDeclaration, ProbabilityThresholdComparator, ScalarMarkColumn, ScalarMarkId,
+        ScalarMarkModality, ScalarMarkUnit, VectorArtifactRefMarkDeclaration,
+    },
+    workflow::{
+        ArtifactDraft, ArtifactId, CacheStatus, LocalArtifactStore, LocalScheduler, MarklabProject,
+        NodeError, NodeId, NodeRun, ProjectError, SchedulerLimits, WorkflowError, WorkflowGraph,
+        WorkflowNode,
+    },
+    MeasurementStatus, Pattern,
 };
 
 use super::*;
@@ -27,7 +38,7 @@ struct WorkflowFixture {
     slide_id: SlideId,
     frame_id: CoordinateFrameId,
     binary: BinaryMarkDeclaration,
-    binary_record_id: marklab::ArtifactId,
+    binary_record_id: marklab::workflow::ArtifactId,
     table: CellEmbeddingTable,
     artifact: CellEmbeddingArtifact,
 }
@@ -247,16 +258,12 @@ fn workflow_fixture(
         (0..marks.len()).map(|index| index as f64).collect(),
         vec![0.0; marks.len()],
         marks,
-        PatternMeta {
-            case_id: "centroid-workflow-case".into(),
-            timepoint: "post".into(),
-            protein: "MSH6".into(),
-            slide_id: Some(slide_id.as_str().to_owned()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "centroid-workflow-case".into(),
+            "post".into(),
+            "MSH6".into(),
+            Some(slide_id.as_str().to_owned()),
+        ),
     )
     .expect("pattern");
     pattern.window.area_um2 = 40.0;

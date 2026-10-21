@@ -1,12 +1,15 @@
 use std::collections::BTreeSet;
 
 use marklab_data::{CoordinateFrameId, MeasurementStatus};
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 
-use crate::{AssayMarkValues, MarkTable, ObservationWindow2D, ScalarMarkId};
+use crate::{
+    marks::{AssayMarkValues, MarkTable, ScalarMarkId},
+    ObservationWindow2D,
+};
 
 use super::{
-    admission::reject_duplicate_points, weights::RadiusWeights, GlobalMoranError,
+    preparation::reject_duplicate_points, weights::RadiusWeights, GlobalMoranError,
     GlobalMoranWeightPolicy,
 };
 
@@ -42,6 +45,8 @@ pub enum AssaySpatialUnavailable {
     InsufficientObservedPoints,
     /// At least one observed point has no observed neighbour under the declared radius.
     IsolatedObservedPoint,
+    /// All observed rows are isolated, so both statistics have zero total weight.
+    NoSpatialEdges,
     /// The observed values have no variance.
     ZeroVariance,
     /// Finite input overflowed or otherwise failed numerical evaluation.
@@ -77,7 +82,6 @@ pub struct AssaySpatialSummary {
 /// index construction plus output-sensitive radius queries and O(edges) per statistic; the
 /// explicit limits bound point, channel, graph and evaluation counts. Coordinate/selection or
 /// resource errors abort; scientific unavailability stays in the returned endpoint list.
-#[allow(clippy::too_many_arguments)]
 pub fn summarize_assay_spatial(
     input: AssaySpatialInput<'_>,
     window: &ObservationWindow2D,
@@ -123,6 +127,13 @@ pub fn summarize_assay_spatial(
                 Err(GlobalMoranError::IsolatedPoint { .. }) => {
                     result.outcome = AssaySpatialOutcome::Unavailable {
                         reason: AssaySpatialUnavailable::IsolatedObservedPoint,
+                    };
+                    results.push(result);
+                    continue;
+                }
+                Err(GlobalMoranError::NoSpatialEdges) => {
+                    result.outcome = AssaySpatialOutcome::Unavailable {
+                        reason: AssaySpatialUnavailable::NoSpatialEdges,
                     };
                     results.push(result);
                     continue;

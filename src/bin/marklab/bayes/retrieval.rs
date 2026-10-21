@@ -1,10 +1,12 @@
-use super::{embedding_spatial, publish_json, BayesCliError};
-use marklab_bayes::{
-    build_region_retrieval_index, retrieve_analogous_regions, sha256_hex, QueryRegion,
-    RegionRetrievalError, RegionRetrievalResult, RetrievalLeakagePolicy, TrainingRegion,
+use super::cli_schema::RetrieveAnalogousRegionsArgs;
+use super::{embedding_spatial, publish_json, CliError};
+use marklab_bayes::sha256_hex;
+use marklab_prediction::{
+    build_region_retrieval_index, retrieve_analogous_regions, QueryRegion, RegionRetrievalError,
+    RegionRetrievalResult, RetrievalLeakagePolicy, TrainingRegion,
 };
 use serde::Serialize;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 pub(crate) struct PreparedRegionRetrievalInputs {
     pub training_sha256: String,
@@ -14,14 +16,17 @@ pub(crate) struct PreparedRegionRetrievalInputs {
     pub query: QueryRegion,
 }
 
-pub(super) fn run(
-    training: PathBuf,
-    query: PathBuf,
-    k: u32,
-    policy: String,
-    max: u64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: RetrieveAnalogousRegionsArgs) -> Result<(), CliError> {
+    let RetrieveAnalogousRegionsArgs {
+        training,
+        query,
+        k,
+        leakage_policy,
+        maximum_component_candidate_visits,
+        out,
+    } = args;
+    let policy = leakage_policy;
+    let max = maximum_component_candidate_visits;
     let prepared = prepare_inputs(&training, &query)?;
     let index = build_region_retrieval_index(prepared.training, prepared.feature_names, max)
         .map_err(map)?;
@@ -45,7 +50,7 @@ pub(super) fn run(
 pub(crate) fn prepare_inputs(
     training: &Path,
     query: &Path,
-) -> Result<PreparedRegionRetrievalInputs, BayesCliError> {
+) -> Result<PreparedRegionRetrievalInputs, CliError> {
     let training_bytes = embedding_spatial::read(training)?;
     let query_bytes = embedding_spatial::read(query)?;
     let (training_rows, feature_names) = training_rows(&training_bytes)?;
@@ -58,7 +63,7 @@ pub(crate) fn prepare_inputs(
         query: query_row,
     })
 }
-fn training_rows(b: &[u8]) -> Result<(Vec<TrainingRegion>, Vec<String>), BayesCliError> {
+fn training_rows(b: &[u8]) -> Result<(Vec<TrainingRegion>, Vec<String>), CliError> {
     let mut r = csv::ReaderBuilder::new().from_reader(b);
     let h = r.headers()?.clone();
     if h.len() < 8
@@ -72,9 +77,7 @@ fn training_rows(b: &[u8]) -> Result<(Vec<TrainingRegion>, Vec<String>), BayesCl
                 "provenance_sha256",
             ]
     {
-        return Err(BayesCliError::Input(
-            "training retrieval headers differ".into(),
-        ));
+        return Err(CliError::Input("training retrieval headers differ".into()));
     }
     let names = h.iter().skip(6).map(str::to_owned).collect();
     let mut rows = Vec::new();
@@ -90,14 +93,14 @@ fn training_rows(b: &[u8]) -> Result<(Vec<TrainingRegion>, Vec<String>), BayesCl
             embedding: (6..x.len())
                 .map(|i| {
                     x[i].parse()
-                        .map_err(|_| BayesCliError::Input("training embedding is invalid".into()))
+                        .map_err(|_| CliError::Input("training embedding is invalid".into()))
                 })
                 .collect::<Result<_, _>>()?,
         });
     }
     Ok((rows, names))
 }
-fn query_row(b: &[u8]) -> Result<QueryRegion, BayesCliError> {
+fn query_row(b: &[u8]) -> Result<QueryRegion, CliError> {
     let mut r = csv::ReaderBuilder::new().from_reader(b);
     let h = r.headers()?.clone();
     if h.len() < 7
@@ -110,13 +113,11 @@ fn query_row(b: &[u8]) -> Result<QueryRegion, BayesCliError> {
                 "provenance_sha256",
             ]
     {
-        return Err(BayesCliError::Input(
-            "query retrieval headers differ".into(),
-        ));
+        return Err(CliError::Input("query retrieval headers differ".into()));
     }
     let rows = r.records().collect::<Result<Vec<_>, _>>()?;
     if rows.len() != 1 {
-        return Err(BayesCliError::Input("query must contain one row".into()));
+        return Err(CliError::Input("query must contain one row".into()));
     }
     let x = &rows[0];
     Ok(QueryRegion {
@@ -128,13 +129,13 @@ fn query_row(b: &[u8]) -> Result<QueryRegion, BayesCliError> {
         embedding: (5..x.len())
             .map(|i| {
                 x[i].parse()
-                    .map_err(|_| BayesCliError::Input("query embedding is invalid".into()))
+                    .map_err(|_| CliError::Input("query embedding is invalid".into()))
             })
             .collect::<Result<_, _>>()?,
     })
 }
-fn map(e: RegionRetrievalError) -> BayesCliError {
-    BayesCliError::Input(e.to_string())
+fn map(e: RegionRetrievalError) -> CliError {
+    CliError::Input(e.to_string())
 }
 #[derive(Serialize)]
 struct Output {

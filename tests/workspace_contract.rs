@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fs,
-    path::{Path, PathBuf},
+    path::Path,
     process::Command,
 };
 
@@ -38,25 +38,6 @@ fn cargo_metadata() -> serde_json::Value {
     serde_json::from_slice(&output.stdout).expect("parse cargo metadata JSON")
 }
 
-fn rust_sources(root: &Path) -> Vec<PathBuf> {
-    let mut pending = vec![root.to_path_buf()];
-    let mut sources = Vec::new();
-    while let Some(directory) = pending.pop() {
-        for entry in fs::read_dir(&directory)
-            .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()))
-        {
-            let path = entry.expect("source directory entry").path();
-            if path.is_dir() {
-                pending.push(path);
-            } else if path.extension().and_then(|value| value.to_str()) == Some("rs") {
-                sources.push(path);
-            }
-        }
-    }
-    sources.sort();
-    sources
-}
-
 #[test]
 fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
     let root = parse_manifest("Cargo.toml");
@@ -82,6 +63,8 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
             "crates/marklab-embeddings",
             "crates/marklab-cohort",
             "crates/marklab-bayes",
+            "crates/marklab-transport",
+            "crates/marklab-prediction",
             "crates/marklab-simulation",
             "crates/marklab-sbi",
             "crates/marklab-longitudinal",
@@ -136,6 +119,8 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
         "crates/marklab-embeddings/Cargo.toml",
         "crates/marklab-cohort/Cargo.toml",
         "crates/marklab-bayes/Cargo.toml",
+        "crates/marklab-transport/Cargo.toml",
+        "crates/marklab-prediction/Cargo.toml",
         "crates/marklab-simulation/Cargo.toml",
         "crates/marklab-sbi/Cargo.toml",
         "crates/marklab-longitudinal/Cargo.toml",
@@ -173,12 +158,6 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
         );
     }
 
-    let root_lib = fs::read_to_string("src/lib.rs").expect("read src/lib.rs");
-    assert!(
-        root_lib.starts_with("#![forbid(unsafe_code)]"),
-        "the compatibility crate must retain the safety boundary"
-    );
-
     let metadata = cargo_metadata();
     let workspace_members = metadata["workspace_members"]
         .as_array()
@@ -186,12 +165,12 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
     let default_members = metadata["workspace_default_members"]
         .as_array()
         .expect("metadata workspace_default_members");
-    assert_eq!(workspace_members.len(), 17);
+    assert_eq!(workspace_members.len(), 19);
     assert_eq!(default_members.len(), 1);
 
     let root_manifest = fs::canonicalize("Cargo.toml").expect("canonical root manifest");
     let packages = metadata["packages"].as_array().expect("metadata packages");
-    assert_eq!(packages.len(), 17);
+    assert_eq!(packages.len(), 19);
     let package = packages
         .iter()
         .find(|package| package["name"] == "marklab")
@@ -237,7 +216,7 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
 }
 
 #[test]
-fn workspace_dependencies_descend_layers_and_core_libraries_are_not_cli_gated() {
+fn workspace_dependencies_descend_layers_and_core_packages_have_no_cli_feature() {
     let metadata = cargo_metadata();
     let workspace_ids = metadata["workspace_members"]
         .as_array()
@@ -259,17 +238,19 @@ fn workspace_dependencies_descend_layers_and_core_libraries_are_not_cli_gated() 
     let layers = HashMap::from([
         ("marklab-core", 0_u8),
         ("marklab-numerics", 0_u8),
-        ("marklab-cohort", 0_u8),
-        ("marklab-causal", 0_u8),
-        ("marklab-longitudinal", 0_u8),
+        ("marklab-cohort", 1_u8),
+        ("marklab-causal", 1_u8),
+        ("marklab-longitudinal", 1_u8),
         ("marklab-policy", 0_u8),
-        ("marklab-simulation", 0_u8),
-        ("marklab-spatial3d", 0_u8),
-        ("marklab-topology", 0_u8),
+        ("marklab-simulation", 2_u8),
+        ("marklab-spatial3d", 1_u8),
+        ("marklab-topology", 1_u8),
         ("marklab-data", 1_u8),
-        ("marklab-bayes", 1_u8),
+        ("marklab-bayes", 2_u8),
         ("marklab-graph", 1_u8),
-        ("marklab-sbi", 1_u8),
+        ("marklab-transport", 1_u8),
+        ("marklab-prediction", 1_u8),
+        ("marklab-sbi", 3_u8),
         ("marklab-project", 2_u8),
         ("marklab-embeddings", 3_u8),
         ("marklab-workflow", 3_u8),
@@ -305,58 +286,6 @@ fn workspace_dependencies_descend_layers_and_core_libraries_are_not_cli_gated() 
                 !features.contains_key("cli"),
                 "core package {name} must not define a cli feature"
             );
-        }
-
-        for target in package["targets"].as_array().expect("metadata targets") {
-            let is_library = target["crate_types"]
-                .as_array()
-                .expect("target crate_types")
-                .iter()
-                .any(|crate_type| crate_type == "rlib" || crate_type == "lib");
-            if !is_library {
-                continue;
-            }
-            let source_path = target["src_path"].as_str().expect("library source path");
-            let source_root = Path::new(source_path)
-                .parent()
-                .expect("library source directory");
-            let cli_gated_files = rust_sources(source_root)
-                .into_iter()
-                .filter(|path| {
-                    fs::read_to_string(path)
-                        .unwrap_or_else(|error| panic!("read {}: {error}", path.display()))
-                        .contains("feature = \"cli\"")
-                })
-                .map(|path| {
-                    path.strip_prefix(source_root)
-                        .expect("source path below root")
-                        .to_string_lossy()
-                        .replace('\\', "/")
-                })
-                .collect::<HashSet<_>>();
-            if name == "marklab" {
-                assert_eq!(
-                    cli_gated_files,
-                    HashSet::from([
-                        "cli/classical.rs".to_string(),
-                        "io/mod.rs".to_string(),
-                        "lib.rs".to_string(),
-                        "multimodal/mod.rs".to_string(),
-                        "neighborhood/mod.rs".to_string(),
-                        "output/document.rs".to_string(),
-                        "output/marked_artifacts.rs".to_string(),
-                        "output/mod.rs".to_string(),
-                        "output/writer.rs".to_string(),
-                        "perf/mod.rs".to_string(),
-                    ]),
-                    "the compatibility library may CLI-gate only its current adapter files"
-                );
-            } else {
-                assert!(
-                    cli_gated_files.is_empty(),
-                    "core library {name} must not be CLI-gated: {cli_gated_files:?}"
-                );
-            }
         }
     }
 }

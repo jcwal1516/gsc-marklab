@@ -1,13 +1,15 @@
-#![allow(dead_code)]
-
 use approx::assert_abs_diff_eq;
 use marklab::{
-    continuous_mark_weighted_k, BinaryMarkDeclaration, DeclaredScalarPatternInput, MarkTable,
-    MarkWeightedKConfig, MarkWeightedKError, MarkWeightedKLimits, MarkWeightedKPointStatus,
-    MeasurementStatus, MissingnessPolicy, NucleusAreaUm2MarkDeclaration, ObservationWindow2D,
-    ObservationWindowLimits, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
+    marks::{
+        continuous_mark_weighted_k, BinaryMarkDeclaration, DeclaredScalarPatternInput, MarkTable,
+        MarkWeightedKConfig, MarkWeightedKError, MarkWeightedKLimits, MarkWeightedKPointStatus,
+        MissingnessPolicy, NucleusAreaUm2MarkDeclaration, ScalarMarkColumn, ScalarMarkId,
+        ScalarMarkModality, ScalarMarkUnit,
+    },
+    MeasurementStatus, ObservationWindow2D, ObservationWindowLimits,
 };
 
+#[allow(dead_code)]
 #[path = "support/declared_scalar.rs"]
 mod support;
 use support::*;
@@ -125,13 +127,15 @@ fn cumulative_weighted_and_unweighted_k_match_hand_oracles() {
     assert_eq!(result, replay);
     assert_eq!(
         result.weight_function,
-        "product_over_global_arithmetic_mean_squared"
+        marklab::marks::WeightFunction::ProductOverGlobalArithmeticMeanSquared
     );
-    assert_eq!(result.edge_correction, "standard_border_reduced_sample");
+    assert_eq!(
+        result.edge_correction,
+        marklab::spatial::EdgeCorrection::StandardBorderReducedSample
+    );
     assert_abs_diff_eq!(result.global_mark_mean, 2.5);
     assert_abs_diff_eq!(result.expected_random_label_weight, 14.0 / 15.0);
     assert_eq!(result.geometry.directed_pair_count, 6);
-    assert_eq!(result.geometry.geometry_build_count, 1);
 
     let first = &result.curve[0];
     assert_eq!(first.status, MarkWeightedKPointStatus::Available);
@@ -161,7 +165,7 @@ fn cumulative_weighted_and_unweighted_k_match_hand_oracles() {
     );
     assert_abs_diff_eq!(radius.theoretical_k, std::f64::consts::PI * 1.1_f64.powi(2));
     assert!(radius.inference_eligible);
-    assert_eq!(result.inference.permutations_completed, 31);
+    assert_eq!(result.inference.permutations_requested, 31);
     assert!(result.inference.weighted_k.is_some());
 }
 

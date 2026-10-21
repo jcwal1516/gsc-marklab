@@ -1,8 +1,8 @@
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 
 use crate::{
-    classical::SpatialGeometryPlan2D, ClassicalSpatialLimits, DeclaredScalarPatternInput,
-    ObservationWindow2D,
+    classical::SpatialGeometryPlan2D, marks::DeclaredScalarPatternInput,
+    spatial::ClassicalSpatialLimits, ObservationWindow2D,
 };
 
 #[derive(Clone, Copy)]
@@ -28,7 +28,6 @@ pub(crate) enum MarkPairPlanError {
     Dependency(String),
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_mark_pair_plan(
     input: &DeclaredScalarPatternInput<'_>,
     window: &ObservationWindow2D,

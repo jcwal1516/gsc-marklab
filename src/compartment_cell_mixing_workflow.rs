@@ -1,17 +1,20 @@
+use crate::workflow_codec::invalid;
+use crate::workflow_node::{NodeAnalysis, TypedNode};
 use std::io;
 
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_project::{ArtifactRef, MarklabProject};
+use marklab_workflow::{NodeError, NodeId, NodeSpec};
 use serde::Serialize;
 
 use crate::{
     compartment_cell_mixing::configuration_digest,
-    compartment_interface::analysis::measurement_status_name,
-    compartment_interface_workflow::partition_artifact, workflow::pattern_artifact,
-    BinaryCompartmentPartition2D, CompartmentCellMixingConfig, CompartmentCellMixingResult,
-    DeclaredScalarPatternInput, ScalarMarkId,
+    compartment_interface_workflow::partition_artifact,
+    compartments::{
+        BinaryCompartmentPartition2D, CompartmentCellMixingConfig, CompartmentCellMixingResult,
+    },
+    marked_workflow::pattern_artifact,
+    marks::{DeclaredScalarPatternInput, ScalarMarkId},
+    scalar_mark::COMPARTMENT_MARK_ID,
 };
 
 const NODE_KIND: &str = "compartment_cell_mixing";
@@ -21,13 +24,13 @@ const POLICY: &[u8] = b"serial;exact-undirected-physical-radius-graph;binary-com
 
 /// Cache-addressed typed compartment cell-mixing node.
 pub struct CompartmentCellMixingAnalysisNode<'a> {
-    spec: NodeSpec,
+    node: TypedNode<CompartmentCellMixingAnalysis<'a>>,
+}
+
+struct CompartmentCellMixingAnalysis<'a> {
     input: &'a DeclaredScalarPatternInput<'a>,
     partition: &'a BinaryCompartmentPartition2D,
     config: &'a CompartmentCellMixingConfig,
-    inputs: [ArtifactRef; 4],
-    configuration_digest: ContentDigest,
-    implementation_identity: String,
 }
 
 impl<'a> CompartmentCellMixingAnalysisNode<'a> {
@@ -51,41 +54,42 @@ impl<'a> CompartmentCellMixingAnalysisNode<'a> {
                 .register_reference(artifact.clone())
                 .map_err(NodeError::input)?;
         }
+        let node_spec = NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?;
+        let node_configuration_digest = config_ref.digest();
+        let node_implementation_identity = format!(
+            "marklab/{};adapter=compartment-cell-mixing-node-v1",
+            env!("CARGO_PKG_VERSION")
+        );
         Ok(Self {
-            spec: NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?,
-            input,
-            partition,
-            config,
-            inputs,
-            configuration_digest: config_ref.digest(),
-            implementation_identity: format!(
-                "marklab/{};adapter=compartment-cell-mixing-node-v1",
-                env!("CARGO_PKG_VERSION")
-            ),
+            node: TypedNode {
+                spec: node_spec,
+                analysis: CompartmentCellMixingAnalysis {
+                    input,
+                    partition,
+                    config,
+                },
+                inputs,
+                configuration_digest: node_configuration_digest,
+                execution_policy: std::borrow::Cow::Borrowed(POLICY),
+                implementation_identity: node_implementation_identity,
+            },
         })
     }
 
     pub fn spec(&self) -> &NodeSpec {
-        &self.spec
+        self.node.spec()
     }
 }
 
-impl WorkflowNode for CompartmentCellMixingAnalysisNode<'_> {
+impl NodeAnalysis for CompartmentCellMixingAnalysis<'_> {
     type Output = CompartmentCellMixingResult;
+    type Inputs = [ArtifactRef; 4];
 
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.inputs
-    }
-
-    fn semantic_input_artifacts(&self) -> &[marklab_workflow::ArtifactId] {
+    fn semantic_input_artifacts(&self) -> &[marklab_project::ArtifactId] {
         self.input.semantic_artifact_ids()
     }
 
-    fn verify_input_content(&self) -> Result<(), NodeError> {
+    fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
         let current = [
             pattern_artifact(self.input.pattern())?,
             self.input
@@ -94,25 +98,16 @@ impl WorkflowNode for CompartmentCellMixingAnalysisNode<'_> {
             partition_artifact(self.partition)?,
             config_artifact(self.input, self.partition, self.config)?,
         ];
-        for (bound, current) in self.inputs.iter().zip(current) {
-            bound
-                .verify_identity(current.digest(), current.byte_len())
-                .map_err(NodeError::input)?;
-        }
-        Ok(())
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: POLICY,
-            implementation_identity: &self.implementation_identity,
-        }
+        crate::workflow_node::verify_inputs(inputs, current)
     }
 
     fn execute(&self) -> Result<Self::Output, NodeError> {
-        crate::analyze_compartment_cell_mixing(self.input, self.partition, self.config)
-            .map_err(NodeError::execution)
+        crate::compartments::analyze_compartment_cell_mixing(
+            self.input,
+            self.partition,
+            self.config,
+        )
+        .map_err(NodeError::execution)
     }
 
     fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
@@ -133,10 +128,12 @@ impl WorkflowNode for CompartmentCellMixingAnalysisNode<'_> {
     }
 }
 
+crate::workflow_node::impl_workflow_node!(CompartmentCellMixingAnalysisNode<'_> => CompartmentCellMixingResult);
+
 #[derive(Serialize)]
 struct ConfigArtifact {
     radius_um: f64,
-    limits: crate::CompartmentCellMixingLimits,
+    limits: crate::compartments::CompartmentCellMixingLimits,
     logical_digest: String,
 }
 
@@ -163,7 +160,7 @@ fn validate(
 ) -> io::Result<()> {
     let descriptor = partition.descriptor();
     let expected_digest = configuration_digest(input, partition, config).map_err(invalid_owned)?;
-    let mark_id = ScalarMarkId::new("histologic_compartment").map_err(invalid_owned)?;
+    let mark_id = ScalarMarkId::new(COMPARTMENT_MARK_ID).map_err(invalid_owned)?;
     let table = input
         .mark_table()
         .ok_or_else(|| invalid("typed MarkTable is absent"))?;
@@ -191,11 +188,9 @@ fn validate(
         || result.timepoint != input.pattern().meta.timepoint
         || result.mark_id != mark_id.as_str()
         || result.measurement_status
-            != measurement_status_name(
-                table
-                    .measurement_status(&mark_id)
-                    .ok_or_else(|| invalid("typed compartment status is absent"))?,
-            )
+            != table
+                .measurement_status(&mark_id)
+                .ok_or_else(|| invalid("typed compartment status is absent"))?
         || result.coordinate_frame_id != descriptor.coordinate_frame_id.as_str()
         || result.partition_digest != descriptor.logical_digest.to_string()
         || result.radius_um.to_bits() != config.radius_um().to_bits()
@@ -271,7 +266,7 @@ fn finite_entropy(value: f64, normalized: f64) -> bool {
     value.is_finite() && value >= 0.0 && normalized.is_finite() && (0.0..=1.0).contains(&normalized)
 }
 
-fn valid_summary(value: &crate::CompartmentCellMixingSummary) -> bool {
+fn valid_summary(value: &crate::compartments::CompartmentCellMixingSummary) -> bool {
     let total = value
         .same_compartment_neighbor_incidences
         .checked_add(value.cross_compartment_neighbor_incidences);
@@ -308,10 +303,6 @@ fn binary_entropy(probability: f64) -> f64 {
     } else {
         value
     }
-}
-
-fn invalid(message: &'static str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message)
 }
 
 fn invalid_owned(error: impl std::fmt::Display) -> io::Error {

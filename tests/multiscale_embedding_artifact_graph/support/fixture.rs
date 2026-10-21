@@ -1,5 +1,12 @@
 use super::*;
 
+#[cfg(feature = "parquet")]
+use marklab::embeddings::{
+    verify_patch_footprint_set_arrow_from_store, verify_patch_footprint_set_parquet_from_store,
+    verify_patch_overlap_graph_arrow_from_store, verify_patch_overlap_graph_parquet_from_store,
+    VerifiedDirectPatchEmbeddingArtifactGraph, VerifiedPatchEmbeddingSupportArtifact,
+};
+
 pub(crate) fn fixture() -> Fixture {
     fixture_with_options(FixtureOptions::default())
 }
@@ -576,8 +583,8 @@ pub(crate) fn fixture_with_options(options: FixtureOptions) -> Fixture {
 }
 
 #[cfg(feature = "parquet")]
-fn physical_budgets() -> marklab::EmbeddingColumnarBudgets {
-    marklab::EmbeddingColumnarBudgets::new(
+fn physical_budgets() -> marklab::embeddings::EmbeddingColumnarBudgets {
+    marklab::embeddings::EmbeddingColumnarBudgets::new(
         64 * 1024 * 1024,
         64 * 1024 * 1024,
         64 * 1024 * 1024,
@@ -594,7 +601,7 @@ fn canonical_footprint_record(
     parquet: bool,
 ) -> ArtifactRecord {
     if parquet {
-        marklab::publish_patch_footprint_set_parquet(
+        marklab::embeddings::publish_patch_footprint_set_parquet(
             store,
             expected,
             context,
@@ -604,7 +611,7 @@ fn canonical_footprint_record(
         .expect("publish canonical footprint Parquet")
         .into_record()
     } else {
-        marklab::publish_patch_footprint_set_arrow(
+        marklab::embeddings::publish_patch_footprint_set_arrow(
             store,
             expected,
             context,
@@ -637,7 +644,7 @@ fn canonical_overlap_record(
     parquet: bool,
 ) -> ArtifactRecord {
     if parquet {
-        marklab::publish_patch_overlap_graph_parquet(
+        marklab::embeddings::publish_patch_overlap_graph_parquet(
             store,
             expected,
             context,
@@ -648,7 +655,7 @@ fn canonical_overlap_record(
         .expect("publish canonical overlap Parquet")
         .into_record()
     } else {
-        marklab::publish_patch_overlap_graph_arrow(
+        marklab::embeddings::publish_patch_overlap_graph_arrow(
             store,
             expected,
             context,
@@ -671,4 +678,65 @@ fn canonical_overlap_record(
     _parquet: bool,
 ) -> ArtifactRecord {
     panic!("canonical physical fixture requires the parquet feature")
+}
+
+#[cfg(feature = "parquet")]
+pub(crate) fn patch_support(
+    fixture: &Fixture,
+    graph: VerifiedDirectPatchEmbeddingArtifactGraph,
+    footprint_parquet: bool,
+    overlap_parquet: bool,
+) -> VerifiedPatchEmbeddingSupportArtifact {
+    let footprints = if footprint_parquet {
+        verify_patch_footprint_set_parquet_from_store(
+            &fixture.store,
+            &fixture.footprint_record,
+            &fixture.expected_patches,
+            &fixture.context,
+            &fixture.footprints,
+            graph,
+            budgets(),
+        )
+        .expect("verified mixed Parquet footprints")
+    } else {
+        verify_patch_footprint_set_arrow_from_store(
+            &fixture.store,
+            &fixture.footprint_record,
+            &fixture.expected_patches,
+            &fixture.context,
+            &fixture.footprints,
+            graph,
+            budgets(),
+        )
+        .expect("verified mixed Arrow footprints")
+    };
+    let overlap = if overlap_parquet {
+        verify_patch_overlap_graph_parquet_from_store(
+            &fixture.store,
+            &fixture.overlap_record,
+            &fixture.expected_patches,
+            &fixture.context,
+            &fixture.footprints,
+            &fixture.overlap,
+            footprints,
+            graph,
+            budgets(),
+        )
+        .expect("verified mixed Parquet overlap")
+    } else {
+        verify_patch_overlap_graph_arrow_from_store(
+            &fixture.store,
+            &fixture.overlap_record,
+            &fixture.expected_patches,
+            &fixture.context,
+            &fixture.footprints,
+            &fixture.overlap,
+            footprints,
+            graph,
+            budgets(),
+        )
+        .expect("verified mixed Arrow overlap")
+    };
+    VerifiedPatchEmbeddingSupportArtifact::from_verified_components(graph, footprints, overlap)
+        .expect("verified mixed-format patch support")
 }

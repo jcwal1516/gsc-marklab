@@ -1,88 +1,108 @@
-use std::{collections::BTreeMap, fs, path::PathBuf};
-
-use clap::{Parser, Subcommand};
-use marklab_bayes::{
-    sha256_hex, BackendContract, DiagnosticPolicy, FitState, NormalMeanDiagnostics,
-    NutsSamplingSpec, SamplingSummary, SarScalarSummary, WorkerBackend,
+pub(crate) use marklab_bayes::protocol::replicated_arbitrary_window_lgcp_fit::{
+    validate_result, Node, Patient, Pattern, Priors, Resources, ResultDocument, WorkerRequest,
+    WorkerResult,
 };
-use serde::{Deserialize, Serialize};
 
-use super::{posterior_validation::summary_valid, publish_json, run_worker, BayesCliError};
+use crate::input_file::read_file;
+use marklab_numerics::dense;
+use marklab_numerics::kernel::matern32;
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::PathBuf;
 
-const PYMC_VERSION: &str = "6.3.0";
+use marklab_bayes::sha256_hex;
+use marklab_bayes::BackendContract;
+use marklab_bayes::DiagnosticPolicy;
+use marklab_bayes::FitState;
+use marklab_bayes::NutsSamplingSpec;
+use serde::Deserialize;
 
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct FitCli {
-    #[command(subcommand)]
-    command: TopLevel,
-}
-
-#[derive(Debug, Subcommand)]
-enum TopLevel {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    FitReplicatedArbitraryWindowLgcp(Box<Arguments>),
-}
+use super::publish_json;
+use super::run_worker;
+use super::CliError;
+use marklab_bayes::backend_versions::PYMC_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::NullHypothesis;
+use marklab_core::vocabulary::StatisticalUnit;
 
 #[derive(Debug, clap::Args)]
-struct Arguments {
+pub(crate) struct Arguments {
+    /// Per-node quadrature CSV (pattern_id, patient_id, group, node_id, x_um, y_um, count, ...).
     #[arg(long)]
-    input: PathBuf,
+    pub(crate) input: PathBuf,
+    /// Group level used as the regression reference.
     #[arg(long)]
-    reference_group: String,
+    pub(crate) reference_group: String,
+    /// Group level whose effect is compared with the reference group.
     #[arg(long)]
-    comparison_group: String,
+    pub(crate) comparison_group: String,
+    /// Prior mean for intercept.
     #[arg(long, allow_hyphen_values = true)]
-    intercept_prior_mean: f64,
+    pub(crate) intercept_prior_mean: f64,
+    /// Prior scale for intercept.
     #[arg(long)]
-    intercept_prior_sd: f64,
+    pub(crate) intercept_prior_sd: f64,
+    /// Prior scale for group effect.
     #[arg(long)]
-    group_effect_prior_sd: f64,
+    pub(crate) group_effect_prior_sd: f64,
+    /// Prior scale for covariate effect.
     #[arg(long)]
-    covariate_effect_prior_sd: f64,
+    pub(crate) covariate_effect_prior_sd: f64,
+    /// Prior scale for patient standard deviation.
     #[arg(long)]
-    patient_sd_prior_scale: f64,
+    pub(crate) patient_sd_prior_scale: f64,
+    /// Prior scale for pattern standard deviation.
     #[arg(long)]
-    pattern_sd_prior_scale: f64,
+    pub(crate) pattern_sd_prior_scale: f64,
+    /// Amplitude of the latent spatial field covariance.
     #[arg(long)]
-    field_amplitude: f64,
+    pub(crate) field_amplitude: f64,
+    /// Spatial covariance length scale in micrometers.
     #[arg(long)]
-    field_length_scale_um: f64,
+    pub(crate) field_length_scale_um: f64,
+    /// Diagonal stabilization added to covariance matrices.
     #[arg(long)]
-    jitter: f64,
+    pub(crate) jitter: f64,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
-    chains: u32,
+    pub(crate) chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
-    tune: u32,
+    pub(crate) tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
-    draws: u32,
+    pub(crate) draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
-    target_accept: f64,
+    pub(crate) target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
-    seed: u64,
+    pub(crate) seed: u64,
+    /// Upper bound on patients.
     #[arg(long)]
-    maximum_patients: usize,
+    pub(crate) maximum_patients: usize,
+    /// Upper bound on patterns.
     #[arg(long)]
-    maximum_patterns: usize,
+    pub(crate) maximum_patterns: usize,
+    /// Upper bound on nodes per pattern.
     #[arg(long)]
-    maximum_nodes_per_pattern: usize,
+    pub(crate) maximum_nodes_per_pattern: usize,
+    /// Upper bound on total nodes.
     #[arg(long)]
-    maximum_total_nodes: usize,
+    pub(crate) maximum_total_nodes: usize,
+    /// Upper bound on total events.
     #[arg(long)]
-    maximum_total_events: u64,
+    pub(crate) maximum_total_events: u64,
+    /// Upper bound on draw node work.
     #[arg(long)]
-    maximum_draw_node_work: u64,
+    pub(crate) maximum_draw_node_work: u64,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
-    timeout_seconds: u64,
+    pub(crate) timeout_seconds: u64,
+    /// Destination for the analysis output.
     #[arg(long)]
-    out: PathBuf,
+    pub(crate) out: PathBuf,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -103,261 +123,6 @@ struct CsvRow {
     event_sha256: String,
 }
 
-#[derive(Debug, Serialize)]
-struct Patient {
-    patient_id: String,
-    group: String,
-    group_index: u8,
-}
-
-#[derive(Debug, Serialize)]
-struct Pattern {
-    pattern_id: String,
-    patient_id: String,
-    patient_index: usize,
-    cohort: String,
-    window_sha256: String,
-    window_area_um2: f64,
-    event_sha256: String,
-    event_count: u64,
-    node_count: usize,
-}
-
-#[derive(Debug, Serialize)]
-struct Node {
-    pattern_id: String,
-    pattern_index: usize,
-    patient_index: usize,
-    node_id: String,
-    x_um: f64,
-    y_um: f64,
-    weight_um2: f64,
-    covariate: f64,
-    count: u64,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Priors {
-    intercept_mean: f64,
-    intercept_sd: f64,
-    group_effect_sd: f64,
-    covariate_effect_sd: f64,
-    patient_sd_scale: f64,
-    pattern_sd_scale: f64,
-    field_amplitude: f64,
-    field_length_scale_um: f64,
-    jitter: f64,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Resources {
-    maximum_patients: usize,
-    maximum_patterns: usize,
-    maximum_nodes_per_pattern: usize,
-    maximum_total_nodes: usize,
-    maximum_total_events: u64,
-    maximum_draw_node_work: u64,
-    draw_node_work: u64,
-    timeout_seconds: u64,
-}
-
-#[derive(Debug, Serialize)]
-pub(crate) struct WorkerRequest {
-    format: &'static str,
-    version: u32,
-    pub(crate) backend: BackendContract,
-    input_sha256: String,
-    reference_group: String,
-    comparison_group: String,
-    patients: Vec<Patient>,
-    patterns: Vec<Pattern>,
-    nodes: Vec<Node>,
-    cholesky: Vec<f64>,
-    priors: Priors,
-    sampling: NutsSamplingSpec,
-    diagnostic_policy: DiagnosticPolicy,
-    resources: Resources,
-}
-
-impl WorkerRequest {
-    pub(crate) fn input_sha256(&self) -> &str {
-        &self.input_sha256
-    }
-
-    pub(crate) fn first_node_identity(&self) -> (&str, &str) {
-        (&self.nodes[0].pattern_id, &self.nodes[0].node_id)
-    }
-
-    pub(crate) fn completed_draws(&self) -> u64 {
-        u64::from(self.sampling.chains) * u64::from(self.sampling.draws_per_chain)
-    }
-
-    pub(crate) fn patient_count(&self) -> usize {
-        self.patients.len()
-    }
-
-    pub(crate) fn pattern_count(&self) -> usize {
-        self.patterns.len()
-    }
-
-    pub(crate) fn node_count(&self) -> usize {
-        self.nodes.len()
-    }
-
-    pub(crate) fn event_count(&self) -> u64 {
-        self.nodes.iter().map(|node| node.count).sum()
-    }
-
-    pub(crate) fn cohort_count(&self) -> usize {
-        self.patterns
-            .iter()
-            .map(|pattern| pattern.cohort.as_str())
-            .collect::<std::collections::BTreeSet<_>>()
-            .len()
-    }
-
-    pub(crate) fn groups(&self) -> [String; 2] {
-        [self.reference_group.clone(), self.comparison_group.clone()]
-    }
-
-    pub(crate) fn kernel_cube_work(&self) -> Option<u64> {
-        self.patterns.iter().try_fold(0_u64, |work, pattern| {
-            let nodes = pattern.node_count as u64;
-            work.checked_add(nodes.checked_pow(3)?)
-        })
-    }
-
-    pub(crate) fn diagnostic_policy(&self) -> &DiagnosticPolicy {
-        &self.diagnostic_policy
-    }
-
-    pub(crate) fn patient_effects_valid(&self, rows: &[PatientEffect]) -> bool {
-        rows.len() == self.patients.len()
-            && rows.iter().zip(&self.patients).all(|(row, patient)| {
-                row.patient_id == patient.patient_id && summary_valid(&row.effect)
-            })
-    }
-
-    pub(crate) fn pattern_effects_valid(&self, rows: &[PatternEffect]) -> bool {
-        rows.len() == self.patterns.len()
-            && rows.iter().zip(&self.patterns).all(|(row, pattern)| {
-                row.pattern_id == pattern.pattern_id && summary_valid(&row.effect)
-            })
-    }
-
-    pub(crate) fn nodes_valid(&self, rows: &[NodePosterior]) -> bool {
-        rows.len() == self.nodes.len()
-            && rows.iter().zip(&self.nodes).all(|(row, node)| {
-                row.pattern_id == node.pattern_id
-                    && row.node_id == node.node_id
-                    && summary_valid(&row.latent_effect)
-                    && summary_valid(&row.expected_count)
-                    && row.expected_count.mean > 0.0
-            })
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct Posterior {
-    pub(crate) intercept: SarScalarSummary,
-    pub(crate) group_effect: SarScalarSummary,
-    pub(crate) covariate_effect: SarScalarSummary,
-    pub(crate) patient_sd: SarScalarSummary,
-    pub(crate) pattern_sd: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct PatientEffect {
-    pub(crate) patient_id: String,
-    pub(crate) effect: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct PatternEffect {
-    pub(crate) pattern_id: String,
-    pub(crate) effect: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct NodePosterior {
-    pub(crate) pattern_id: String,
-    pub(crate) node_id: String,
-    pub(crate) latent_effect: SarScalarSummary,
-    pub(crate) expected_count: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct PatternPosteriorPredictive {
-    pub(crate) pattern_id: String,
-    pub(crate) observed_total_count: u64,
-    pub(crate) replicate_count: u64,
-    pub(crate) replicated_total_count_mean: f64,
-    pub(crate) replicated_total_count_sd: f64,
-    pub(crate) replicated_total_count_interval_lower: f64,
-    pub(crate) replicated_total_count_interval_upper: f64,
-    pub(crate) total_count_two_sided_tail_probability: f64,
-    pub(crate) observed_node_count_variance: f64,
-    pub(crate) replicated_node_count_variance_mean: f64,
-    pub(crate) node_variance_two_sided_tail_probability: f64,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WorkerResult {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    input_sha256: String,
-    request_sha256: String,
-    fit_state: FitState,
-    pub(crate) sampling: SamplingSummary,
-    posterior: Posterior,
-    patient_effects: Vec<PatientEffect>,
-    pattern_effects: Vec<PatternEffect>,
-    nodes: Vec<NodePosterior>,
-    pattern_posterior_predictive: Vec<PatternPosteriorPredictive>,
-    diagnostics: NormalMeanDiagnostics,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct ResultDocument {
-    format: String,
-    version: u32,
-    pub(crate) backend: WorkerBackend,
-    pub(crate) input_sha256: String,
-    pub(crate) request_sha256: String,
-    pub(crate) fit_state: FitState,
-    pub(crate) sampling: SamplingSummary,
-    pub(crate) posterior: Posterior,
-    pub(crate) patient_effects: Vec<PatientEffect>,
-    pub(crate) pattern_effects: Vec<PatternEffect>,
-    pub(crate) nodes: Vec<NodePosterior>,
-    pub(crate) pattern_posterior_predictive: Vec<PatternPosteriorPredictive>,
-    pub(crate) diagnostics: NormalMeanDiagnostics,
-    patient_count: usize,
-    pattern_count: usize,
-    total_node_count: usize,
-    total_event_count: u64,
-    groups: [String; 2],
-    cohort_count: usize,
-    priors: Priors,
-    resources: Resources,
-    statistical_unit: String,
-    pattern_unit: String,
-    null_model: String,
-    assumptions: Vec<String>,
-    finite_result_policy: String,
-    claim_status: String,
-}
-
 pub(crate) struct PreparedReplicatedArbitraryWindowLgcpFit {
     pub(crate) request: WorkerRequest,
     pub(crate) request_bytes: Vec<u8>,
@@ -365,19 +130,17 @@ pub(crate) struct PreparedReplicatedArbitraryWindowLgcpFit {
     pub(crate) timeout_seconds: u64,
 }
 
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let TopLevel::Bayes { command } = FitCli::parse_from(std::env::args_os()).command;
-    let Command::FitReplicatedArbitraryWindowLgcp(arguments) = command;
+pub(super) fn run(arguments: Box<Arguments>) -> Result<(), CliError> {
     let output = arguments.out.clone();
-    let prepared = prepare_arguments(*arguments)?;
+    let prepared = prepare(*arguments)?;
     publish_json(&output, &execute(&prepared)?)
 }
 
 pub(crate) fn execute(
     prepared: &PreparedReplicatedArbitraryWindowLgcpFit,
-) -> Result<ResultDocument, BayesCliError> {
+) -> Result<ResultDocument, CliError> {
     let request = &prepared.request;
-    let repository = &marklab::python_backend_assets_root()?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let bytes = run_worker(
         repository,
         "marklab_pymc_replicated_arbitrary_window_lgcp_worker.py",
@@ -385,7 +148,7 @@ pub(crate) fn execute(
         prepared.timeout_seconds,
     )?;
     let worker: WorkerResult = serde_json::from_slice(&bytes)?;
-    validate_result(&worker, request, &prepared.request_sha256)?;
+    validate_result(&worker, request, &prepared.request_sha256).map_err(super::protocol_error)?;
     let cohort_count = request
         .patterns
         .iter()
@@ -417,9 +180,9 @@ pub(crate) fn execute(
         cohort_count,
         priors: request.priors.clone(),
         resources: request.resources.clone(),
-        statistical_unit: "patient".into(),
+        statistical_unit: StatisticalUnit::Patient,
         pattern_unit: "slide_pattern_nested_in_patient".into(),
-        null_model: "comparison_group_log_intensity_effect_equals_zero".into(),
+        null_model: NullHypothesis::ComparisonGroupLogIntensityEffectEqualsZero,
         assumptions: vec![
             "patients_are_independent_population_units".into(),
             "slide_patterns_are_repeated_measurements_not_population_replicates".into(),
@@ -431,17 +194,16 @@ pub(crate) fn execute(
         ],
         finite_result_policy: "nonconverged_is_diagnostic_only_reject_non_finite".into(),
         claim_status: if worker.fit_state == FitState::Complete {
-            "experimental_replicated_pattern_hierarchy"
+            ClaimStatus::ExperimentalReplicatedPatternHierarchy
         } else {
-            "diagnostic_only_nonconverged"
-        }
-        .into(),
+            ClaimStatus::DiagnosticOnlyNonconverged
+        },
     })
 }
 
-fn prepare_arguments(
+pub(crate) fn prepare(
     arguments: Arguments,
-) -> Result<PreparedReplicatedArbitraryWindowLgcpFit, BayesCliError> {
+) -> Result<PreparedReplicatedArbitraryWindowLgcpFit, CliError> {
     let timeout_seconds = arguments.timeout_seconds;
     let request = prepare_request(arguments)?;
     let request_bytes = serde_json::to_vec(&request)?;
@@ -454,60 +216,8 @@ fn prepare_arguments(
     })
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn prepare(
-    input: PathBuf,
-    reference_group: String,
-    comparison_group: String,
-    intercept_prior_mean: f64,
-    intercept_prior_sd: f64,
-    group_effect_prior_sd: f64,
-    covariate_effect_prior_sd: f64,
-    patient_sd_prior_scale: f64,
-    pattern_sd_prior_scale: f64,
-    field_amplitude: f64,
-    field_length_scale_um: f64,
-    jitter: f64,
-    sampling: NutsSamplingSpec,
-    maximum_patients: usize,
-    maximum_patterns: usize,
-    maximum_nodes_per_pattern: usize,
-    maximum_total_nodes: usize,
-    maximum_total_events: u64,
-    maximum_draw_node_work: u64,
-    timeout_seconds: u64,
-) -> Result<PreparedReplicatedArbitraryWindowLgcpFit, BayesCliError> {
-    prepare_arguments(Arguments {
-        input,
-        reference_group,
-        comparison_group,
-        intercept_prior_mean,
-        intercept_prior_sd,
-        group_effect_prior_sd,
-        covariate_effect_prior_sd,
-        patient_sd_prior_scale,
-        pattern_sd_prior_scale,
-        field_amplitude,
-        field_length_scale_um,
-        jitter,
-        chains: sampling.chains,
-        tune: sampling.tune_per_chain,
-        draws: sampling.draws_per_chain,
-        target_accept: sampling.target_accept,
-        seed: sampling.seed,
-        maximum_patients,
-        maximum_patterns,
-        maximum_nodes_per_pattern,
-        maximum_total_nodes,
-        maximum_total_events,
-        maximum_draw_node_work,
-        timeout_seconds,
-        out: PathBuf::new(),
-    })
-}
-
-fn prepare_request(arguments: Arguments) -> Result<WorkerRequest, BayesCliError> {
-    let bytes = fs::read(&arguments.input).map_err(|source| BayesCliError::Io {
+fn prepare_request(arguments: Arguments) -> Result<WorkerRequest, CliError> {
+    let bytes = fs::read(&arguments.input).map_err(|source| CliError::Io {
         path: arguments.input.clone(),
         source,
     })?;
@@ -530,7 +240,7 @@ fn prepare_request(arguments: Arguments) -> Result<WorkerRequest, BayesCliError>
         "event_sha256",
     ];
     if reader.headers()?.iter().ne(expected) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated exact-window LGCP headers differ".into(),
         ));
     }
@@ -546,7 +256,7 @@ fn prepare_request(arguments: Arguments) -> Result<WorkerRequest, BayesCliError>
                 entry.insert(row.group.clone());
             }
             std::collections::btree_map::Entry::Occupied(entry) if entry.get() != &row.group => {
-                return Err(BayesCliError::Input(
+                return Err(CliError::Input(
                     "replicated LGCP patient group changes across rows".into(),
                 ));
             }
@@ -554,7 +264,7 @@ fn prepare_request(arguments: Arguments) -> Result<WorkerRequest, BayesCliError>
         }
     }
     if patient_groups.len() > arguments.maximum_patients {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated LGCP patient ceiling exceeded".into(),
         ));
     }
@@ -566,7 +276,7 @@ fn prepare_request(arguments: Arguments) -> Result<WorkerRequest, BayesCliError>
             } else if group == &arguments.comparison_group {
                 1
             } else {
-                return Err(BayesCliError::Input(
+                return Err(CliError::Input(
                     "replicated LGCP has a foreign group".into(),
                 ));
             };
@@ -587,7 +297,7 @@ fn prepare_request(arguments: Arguments) -> Result<WorkerRequest, BayesCliError>
         grouped.entry(row.pattern_id.clone()).or_default().push(row);
     }
     if !(6..=arguments.maximum_patterns).contains(&grouped.len()) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated LGCP pattern count is invalid".into(),
         ));
     }
@@ -597,7 +307,7 @@ fn prepare_request(arguments: Arguments) -> Result<WorkerRequest, BayesCliError>
     let mut cholesky = Vec::new();
     for (pattern_index, (pattern_id, pattern_rows)) in grouped.into_iter().enumerate() {
         if !(4..=arguments.maximum_nodes_per_pattern).contains(&pattern_rows.len()) {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "replicated LGCP node count is invalid".into(),
             ));
         }
@@ -612,7 +322,7 @@ fn prepare_request(arguments: Arguments) -> Result<WorkerRequest, BayesCliError>
                 || row.window_area_um2 != first.window_area_um2
                 || row.event_sha256 != first.event_sha256
         }) {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "replicated LGCP pattern identity changes".into(),
             ));
         }
@@ -620,7 +330,7 @@ fn prepare_request(arguments: Arguments) -> Result<WorkerRequest, BayesCliError>
         let weight_sum = pattern_rows.iter().map(|row| row.weight_um2).sum::<f64>();
         if (weight_sum - first.window_area_um2).abs() > 1e-10 * first.window_area_um2.abs().max(1.0)
         {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "replicated LGCP node weights do not conserve exact window area".into(),
             ));
         }
@@ -669,13 +379,13 @@ fn prepare_request(arguments: Arguments) -> Result<WorkerRequest, BayesCliError>
             < 4
         || nodes.len() > arguments.maximum_total_nodes
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated LGCP requires four patients per group and two to four patterns each".into(),
         ));
     }
     let total_events = nodes.iter().map(|node| node.count).sum::<u64>();
     if total_events > arguments.maximum_total_events {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated LGCP event ceiling exceeded".into(),
         ));
     }
@@ -689,9 +399,9 @@ fn prepare_request(arguments: Arguments) -> Result<WorkerRequest, BayesCliError>
     let work = u64::from(arguments.chains)
         .checked_mul(u64::from(arguments.draws))
         .and_then(|value| value.checked_mul(nodes.len() as u64))
-        .ok_or_else(|| BayesCliError::Input("replicated LGCP work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("replicated LGCP work overflows".into()))?;
     if work > arguments.maximum_draw_node_work {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated LGCP draw-node ceiling exceeded".into(),
         ));
     }
@@ -704,19 +414,19 @@ fn prepare_request(arguments: Arguments) -> Result<WorkerRequest, BayesCliError>
             }
         }
     }
-    let repository = &marklab::python_backend_assets_root()?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let directory = repository.join("workers/python");
     let lock_path = directory.join("uv.lock");
     let worker_path = directory.join("marklab_pymc_replicated_arbitrary_window_lgcp_worker.py");
-    let lock = read(&lock_path)?;
-    let worker = read(&worker_path)?;
+    let lock = read_file(&lock_path)?;
+    let worker = read_file(&worker_path)?;
     Ok(WorkerRequest {
         format: "marklab.pymc_replicated_arbitrary_window_lgcp_request",
         version: 1,
         backend: BackendContract {
             name: "pymc",
             version: PYMC_VERSION,
-            python_version: "3.12",
+            python_version: PYTHON_VERSION,
             environment_lock_sha256: sha256_hex(&lock),
             worker_sha256: sha256_hex(&worker),
         },
@@ -753,7 +463,7 @@ fn prepare_request(arguments: Arguments) -> Result<WorkerRequest, BayesCliError>
     })
 }
 
-fn validate_controls(arguments: &Arguments, rows: &[CsvRow]) -> Result<(), BayesCliError> {
+fn validate_controls(arguments: &Arguments, rows: &[CsvRow]) -> Result<(), CliError> {
     let scales = [
         arguments.intercept_prior_mean,
         arguments.intercept_prior_sd,
@@ -779,7 +489,7 @@ fn validate_controls(arguments: &Arguments, rows: &[CsvRow]) -> Result<(), Bayes
         || arguments.timeout_seconds == 0
         || arguments.timeout_seconds > 3600
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated LGCP controls are invalid".into(),
         ));
     }
@@ -806,9 +516,7 @@ fn validate_controls(arguments: &Arguments, rows: &[CsvRow]) -> Result<(), Bayes
                 && rows[index - 1].pattern_id == row.pattern_id
                 && rows[index - 1].node_id == row.node_id)
         {
-            return Err(BayesCliError::Input(
-                "replicated LGCP row is invalid".into(),
-            ));
+            return Err(CliError::Input("replicated LGCP row is invalid".into()));
         }
     }
     Ok(())
@@ -819,225 +527,19 @@ fn cholesky_block(
     amplitude: f64,
     length: f64,
     jitter: f64,
-) -> Result<Vec<f64>, BayesCliError> {
+) -> Result<Vec<f64>, CliError> {
     let n = rows.len();
     let mut covariance = vec![0.0; n * n];
     for row in 0..n {
         for column in 0..n {
-            let scaled = 3.0_f64.sqrt()
-                * (rows[row].x_um - rows[column].x_um).hypot(rows[row].y_um - rows[column].y_um)
-                / length;
-            covariance[row * n + column] = amplitude.powi(2) * (1.0 + scaled) * (-scaled).exp()
-                + if row == column { jitter } else { 0.0 };
+            let distance =
+                (rows[row].x_um - rows[column].x_um).hypot(rows[row].y_um - rows[column].y_um);
+            covariance[row * n + column] =
+                matern32(distance, amplitude, length) + if row == column { jitter } else { 0.0 };
         }
     }
-    let mut lower = vec![0.0; n * n];
-    for row in 0..n {
-        for column in 0..=row {
-            let mut value = covariance[row * n + column];
-            for inner in 0..column {
-                value -= lower[row * n + inner] * lower[column * n + inner];
-            }
-            if row == column {
-                if value <= 0.0 || !value.is_finite() {
-                    return Err(BayesCliError::Input(
-                        "replicated LGCP covariance is invalid".into(),
-                    ));
-                }
-                lower[row * n + column] = value.sqrt();
-            } else {
-                lower[row * n + column] = value / lower[column * n + column];
-            }
-        }
-    }
-    Ok(lower)
-}
-
-fn validate_result(
-    result: &WorkerResult,
-    request: &WorkerRequest,
-    request_sha256: &str,
-) -> Result<(), BayesCliError> {
-    let policy = &request.diagnostic_policy;
-    let diagnostics_pass = result.diagnostics.prior_predictive_finite
-        && result.diagnostics.posterior_finite
-        && result.diagnostics.constraints_valid
-        && result.diagnostics.identifiability_checks_passed
-        && result.diagnostics.r_hat <= policy.maximum_r_hat
-        && result.diagnostics.ess_bulk >= policy.minimum_bulk_ess
-        && result.diagnostics.ess_tail >= policy.minimum_tail_ess
-        && result.diagnostics.minimum_ebfmi >= policy.minimum_ebfmi
-        && result.diagnostics.divergences <= policy.maximum_divergences
-        && result.diagnostics.max_tree_depth_hits <= policy.maximum_tree_depth_hits;
-    let summaries = [
-        &result.posterior.intercept,
-        &result.posterior.group_effect,
-        &result.posterior.covariate_effect,
-        &result.posterior.patient_sd,
-        &result.posterior.pattern_sd,
-    ];
-    let patient_effects_valid =
-        result
-            .patient_effects
-            .iter()
-            .zip(&request.patients)
-            .all(|(effect, patient)| {
-                effect.patient_id == patient.patient_id && summary_valid(&effect.effect)
-            });
-    let pattern_effects_valid =
-        result
-            .pattern_effects
-            .iter()
-            .zip(&request.patterns)
-            .all(|(effect, pattern)| {
-                effect.pattern_id == pattern.pattern_id && summary_valid(&effect.effect)
-            });
-    let predictive_valid = predictive_valid(
-        &result.pattern_posterior_predictive,
-        request,
-        result.sampling.completed_draws,
-    );
-    let nodes_valid = result.nodes.len() == request.nodes.len()
-        && result.nodes.iter().zip(&request.nodes).all(|(row, node)| {
-            row.pattern_id == node.pattern_id
-                && row.node_id == node.node_id
-                && summary_valid(&row.latent_effect)
-                && summary_valid(&row.expected_count)
-                && row.expected_count.mean > 0.0
-        });
-    if result.format != "marklab.bayesian_replicated_arbitrary_window_lgcp_fit"
-        || result.version != 2
-        || result.backend.name != request.backend.name
-        || result.backend.version != request.backend.version
-        || result.backend.python_version != request.backend.python_version
-        || result.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-        || result.backend.worker_sha256 != request.backend.worker_sha256
-        || result.input_sha256 != request.input_sha256
-        || result.request_sha256 != request_sha256
-        || result.sampling.completed_draws
-            != u64::from(request.sampling.chains) * u64::from(request.sampling.draws_per_chain)
-        || result.patient_effects.len() != request.patients.len()
-        || result.pattern_effects.len() != request.patterns.len()
-        || summaries.iter().any(|summary| !summary_valid(summary))
-        || !patient_effects_valid
-        || !pattern_effects_valid
-        || !predictive_valid
-        || !nodes_valid
-        || (result.fit_state == FitState::Complete) != diagnostics_pass
-    {
-        return Err(BayesCliError::Backend(
-            "replicated LGCP result differs".into(),
-        ));
-    }
-    Ok(())
-}
-
-impl ResultDocument {
-    pub(crate) fn validate_for(
-        &self,
-        prepared: &PreparedReplicatedArbitraryWindowLgcpFit,
-    ) -> Result<(), BayesCliError> {
-        let request = &prepared.request;
-        let policy = &request.diagnostic_policy;
-        let diagnostics_pass = self.diagnostics.prior_predictive_finite
-            && self.diagnostics.posterior_finite
-            && self.diagnostics.constraints_valid
-            && self.diagnostics.identifiability_checks_passed
-            && self.diagnostics.r_hat <= policy.maximum_r_hat
-            && self.diagnostics.ess_bulk >= policy.minimum_bulk_ess
-            && self.diagnostics.ess_tail >= policy.minimum_tail_ess
-            && self.diagnostics.minimum_ebfmi >= policy.minimum_ebfmi
-            && self.diagnostics.divergences <= policy.maximum_divergences
-            && self.diagnostics.max_tree_depth_hits <= policy.maximum_tree_depth_hits;
-        let patient_effects_valid =
-            self.patient_effects
-                .iter()
-                .zip(&request.patients)
-                .all(|(effect, patient)| {
-                    effect.patient_id == patient.patient_id && summary_valid(&effect.effect)
-                });
-        let pattern_effects_valid =
-            self.pattern_effects
-                .iter()
-                .zip(&request.patterns)
-                .all(|(effect, pattern)| {
-                    effect.pattern_id == pattern.pattern_id && summary_valid(&effect.effect)
-                });
-        let predictive_valid = predictive_valid(
-            &self.pattern_posterior_predictive,
-            request,
-            self.sampling.completed_draws,
-        );
-        let nodes_valid = self.nodes.len() == request.nodes.len()
-            && self.nodes.iter().zip(&request.nodes).all(|(row, node)| {
-                row.pattern_id == node.pattern_id
-                    && row.node_id == node.node_id
-                    && summary_valid(&row.latent_effect)
-                    && summary_valid(&row.expected_count)
-                    && row.expected_count.mean > 0.0
-            });
-        if self.format != "marklab.bayesian_replicated_arbitrary_window_lgcp_fit"
-            || self.version != 2
-            || self.backend.name != request.backend.name
-            || self.backend.version != request.backend.version
-            || self.backend.python_version != request.backend.python_version
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
-            || self.input_sha256 != request.input_sha256
-            || self.request_sha256 != prepared.request_sha256
-            || self.patient_count != request.patients.len()
-            || self.pattern_count != request.patterns.len()
-            || self.total_node_count != request.nodes.len()
-            || self.total_event_count != request.nodes.iter().map(|node| node.count).sum::<u64>()
-            || self.patient_effects.len() != request.patients.len()
-            || self.pattern_effects.len() != request.patterns.len()
-            || !patient_effects_valid
-            || !pattern_effects_valid
-            || !predictive_valid
-            || !nodes_valid
-            || self.statistical_unit != "patient"
-            || self.pattern_unit != "slide_pattern_nested_in_patient"
-            || (self.fit_state == FitState::Complete) != diagnostics_pass
-        {
-            return Err(BayesCliError::Backend(
-                "replicated LGCP durable result identity or diagnostics differ".into(),
-            ));
-        }
-        Ok(())
-    }
-}
-
-pub(crate) fn predictive_valid(
-    rows: &[PatternPosteriorPredictive],
-    request: &WorkerRequest,
-    completed_draws: u64,
-) -> bool {
-    rows.len() == request.patterns.len()
-        && rows.iter().zip(&request.patterns).all(|(row, pattern)| {
-            let finite = [
-                row.replicated_total_count_mean,
-                row.replicated_total_count_sd,
-                row.replicated_total_count_interval_lower,
-                row.replicated_total_count_interval_upper,
-                row.total_count_two_sided_tail_probability,
-                row.observed_node_count_variance,
-                row.replicated_node_count_variance_mean,
-                row.node_variance_two_sided_tail_probability,
-            ]
-            .into_iter()
-            .all(f64::is_finite);
-            row.pattern_id == pattern.pattern_id
-                && row.observed_total_count == pattern.event_count
-                && row.replicate_count == completed_draws
-                && finite
-                && row.replicated_total_count_sd >= 0.0
-                && row.replicated_total_count_interval_lower
-                    <= row.replicated_total_count_interval_upper
-                && row.observed_node_count_variance >= 0.0
-                && row.replicated_node_count_variance_mean >= 0.0
-                && (0.0..=1.0).contains(&row.total_count_two_sided_tail_probability)
-                && (0.0..=1.0).contains(&row.node_variance_two_sided_tail_probability)
-        })
+    dense::cholesky(&covariance, n)
+        .ok_or_else(|| CliError::Input("replicated LGCP covariance is invalid".into()))
 }
 
 fn is_digest(value: &str) -> bool {
@@ -1047,13 +549,10 @@ fn is_digest(value: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
-fn read(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<FitCli>(|| run_cli().map_err(super::into_marklab_error))
+impl PreparedReplicatedArbitraryWindowLgcpFit {
+    pub(crate) fn validate_result(&self, result: &ResultDocument) -> Result<(), CliError> {
+        result
+            .validate_for(&self.request, &self.request_sha256)
+            .map_err(super::protocol_error)
+    }
 }

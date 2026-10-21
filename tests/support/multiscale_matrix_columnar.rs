@@ -1,10 +1,14 @@
 use std::str::FromStr;
 
 use marklab::{
-    ArtifactId, CohortHierarchy, ContentDigest, EmbeddingStatus, ExpectedPatchSet,
-    ExpectedRegionSet, ExpectedSlideSet, HierarchyId, HierarchyNode, PatchEmbeddingRow,
-    PatchEmbeddingTable, PatchId, PatientId, RegionEmbeddingRow, RegionEmbeddingTable, RegionId,
-    ReplicationRole, SlideEmbeddingRow, SlideEmbeddingTable, SlideId,
+    embeddings::{
+        EmbeddingStatus, ExpectedPatchSet, ExpectedRegionSet, ExpectedSlideSet, PatchEmbeddingRow,
+        PatchEmbeddingTable, RegionEmbeddingRow, RegionEmbeddingTable, SlideEmbeddingRow,
+        SlideEmbeddingTable,
+    },
+    workflow::{ArtifactId, ContentDigest},
+    CohortHierarchy, HierarchyId, HierarchyNode, PatchId, PatientId, RegionId, ReplicationRole,
+    SlideId,
 };
 
 pub const LARGE: usize = 256 * 1024 * 1024;
@@ -148,6 +152,14 @@ pub fn matrix_fixture() -> MatrixFixture {
 }
 
 pub fn patch_table_with_rows(row_count: usize, dimension: u32) -> PatchEmbeddingTable {
+    patch_fixture_with_rows(row_count, dimension).1
+}
+
+/// The expected patch set together with a table of `row_count` rows cycling through statuses.
+pub fn patch_fixture_with_rows(
+    row_count: usize,
+    dimension: u32,
+) -> (ExpectedPatchSet, PatchEmbeddingTable) {
     let patient = HierarchyId::from(PatientId::new("scale-patient").expect("patient ID"));
     let slide = SlideId::new("scale-slide").expect("slide ID");
     let slide_node = HierarchyId::from(slide.clone());
@@ -202,7 +214,7 @@ pub fn patch_table_with_rows(row_count: usize, dimension: u32) -> PatchEmbedding
                 .expect("rejected scale patch"),
         })
         .collect();
-    PatchEmbeddingTable::from_rows(
+    let table = PatchEmbeddingTable::from_rows(
         dimension,
         &expected,
         artifact_id(b"scale-expected-patches"),
@@ -213,5 +225,6 @@ pub fn patch_table_with_rows(row_count: usize, dimension: u32) -> PatchEmbedding
         rows,
         LARGE,
     )
-    .expect("scale patch table")
+    .expect("scale patch table");
+    (expected, table)
 }

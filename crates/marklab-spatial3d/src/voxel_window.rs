@@ -7,6 +7,9 @@ use super::{
     metric_ball_scale, metric_is_identity, validate_spd, CoordinateUnit, K3dCorrection,
     NormalizedPoint3D, Point3DInput, Spatial3dError,
 };
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::NullHypothesis;
+use marklab_core::vocabulary::StatisticalUnit;
 
 const MAXIMUM_GRID_VOXELS: u64 = 1_000_000;
 const MAXIMUM_OCCUPIED_VOXELS: usize = 250_000;
@@ -180,13 +183,13 @@ pub struct VoxelWindowK3dResult {
     /// Caller memory budget in bytes.
     pub memory_budget_bytes: usize,
     /// Statistical unit.
-    pub statistical_unit: &'static str,
+    pub statistical_unit: StatisticalUnit,
     /// Conditioned null interpretation.
-    pub null_model: &'static str,
+    pub null_model: NullHypothesis,
     /// Finite-result behavior.
     pub finite_result_policy: &'static str,
     /// Claim ceiling.
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 impl<'de> Deserialize<'de> for VoxelWindowK3dResult {
@@ -226,12 +229,14 @@ impl<'de> Deserialize<'de> for VoxelWindowK3dResult {
         };
         if owned.format != "marklab.voxel_window_homogeneous_k3d"
             || owned.coordinate_unit != "micrometer"
-            || owned.statistical_unit != "one_3d_point_pattern_observed_in_one_segmented_volume"
+            || owned.statistical_unit
+                != StatisticalUnit::One3dPointPatternObservedInOneSegmentedVolume.as_str()
             || owned.null_model
-                != "homogeneous_process_conditioned_on_exact_voxel_union_observation_window"
+                != NullHypothesis::HomogeneousProcessConditionedOnExactVoxelUnionObservationWindow
+                    .as_str()
             || owned.finite_result_policy
                 != "reject_non_finite_or_undefined_radius_no_infinity_persisted"
-            || owned.claim_status != "descriptive_voxel_window_3d_point_process_only"
+            || owned.claim_status != ClaimStatus::DescriptiveVoxelWindow3dPointProcessOnly.as_str()
         {
             return Err(serde::de::Error::custom(
                 "unexpected voxel-window K result identity",
@@ -254,10 +259,11 @@ impl<'de> Deserialize<'de> for VoxelWindowK3dResult {
             translation_voxel_pair_checks: owned.translation_voxel_pair_checks,
             retained_memory_bytes: owned.retained_memory_bytes,
             memory_budget_bytes: owned.memory_budget_bytes,
-            statistical_unit: "one_3d_point_pattern_observed_in_one_segmented_volume",
-            null_model: "homogeneous_process_conditioned_on_exact_voxel_union_observation_window",
+            statistical_unit: StatisticalUnit::One3dPointPatternObservedInOneSegmentedVolume,
+            null_model:
+                NullHypothesis::HomogeneousProcessConditionedOnExactVoxelUnionObservationWindow,
             finite_result_policy: "reject_non_finite_or_undefined_radius_no_infinity_persisted",
-            claim_status: "descriptive_voxel_window_3d_point_process_only",
+            claim_status: ClaimStatus::DescriptiveVoxelWindow3dPointProcessOnly,
         })
     }
 }
@@ -580,10 +586,10 @@ pub fn voxel_window_k3d(spec: VoxelWindowK3dSpec) -> Result<VoxelWindowK3dResult
         translation_voxel_pair_checks: translation_checks,
         retained_memory_bytes,
         memory_budget_bytes,
-        statistical_unit: "one_3d_point_pattern_observed_in_one_segmented_volume",
-        null_model: "homogeneous_process_conditioned_on_exact_voxel_union_observation_window",
+        statistical_unit: StatisticalUnit::One3dPointPatternObservedInOneSegmentedVolume,
+        null_model: NullHypothesis::HomogeneousProcessConditionedOnExactVoxelUnionObservationWindow,
         finite_result_policy: "reject_non_finite_or_undefined_radius_no_infinity_persisted",
-        claim_status: "descriptive_voxel_window_3d_point_process_only",
+        claim_status: ClaimStatus::DescriptiveVoxelWindow3dPointProcessOnly,
     })
 }
 

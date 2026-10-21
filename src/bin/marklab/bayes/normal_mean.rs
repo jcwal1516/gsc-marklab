@@ -9,19 +9,21 @@ use marklab_bayes::{
 };
 use serde::Deserialize;
 
-use super::{publish_json, run_worker, BayesCliError};
+use super::{cli_schema::NormalMeanArgs, publish_json, run_worker, CliError};
 
 const MAXIMUM_INPUT_BYTES: u64 = 16 * 1024 * 1024;
 
-pub(super) fn run_normal_mean(
-    input_path: PathBuf,
-    prior_mean: f64,
-    prior_sd: f64,
-    known_sigma: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: NormalMeanArgs) -> Result<(), CliError> {
+    let NormalMeanArgs {
+        input: input_path,
+        prior_mean,
+        prior_sd,
+        known_sigma,
+        nuts,
+        timeout_seconds,
+        out: output_path,
+    } = args;
+    let sampling = nuts.spec();
     let prepared = prepare_normal_mean(
         input_path,
         prior_mean,
@@ -50,17 +52,17 @@ pub(crate) fn prepare_normal_mean(
     known_sigma: f64,
     sampling: NutsSamplingSpec,
     timeout_seconds: u64,
-) -> Result<PreparedNormalMean, BayesCliError> {
+) -> Result<PreparedNormalMean, CliError> {
     let observations = read_observations(&input_path)?;
-    let repository = &marklab::python_backend_assets_root()?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let worker_directory = repository.join("workers/python");
     let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
+    let lock_bytes = fs::read(&lock_path).map_err(|source| CliError::Io {
         path: lock_path.clone(),
         source,
     })?;
     let worker_path = worker_directory.join("marklab_pymc_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
+    let worker_bytes = fs::read(&worker_path).map_err(|source| CliError::Io {
         path: worker_path,
         source,
     })?;
@@ -91,10 +93,8 @@ pub(crate) fn prepare_normal_mean(
     })
 }
 
-pub(crate) fn execute_normal_mean(
-    prepared: &PreparedNormalMean,
-) -> Result<WorkerResult, BayesCliError> {
-    let repository = &marklab::python_backend_assets_root()?;
+pub(crate) fn execute_normal_mean(prepared: &PreparedNormalMean) -> Result<WorkerResult, CliError> {
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let result_bytes = run_worker(
         repository,
         "marklab_pymc_worker.py",
@@ -112,25 +112,25 @@ struct ObservationRow {
     observation: f64,
 }
 
-pub(super) fn read_observations(path: &Path) -> Result<Vec<f64>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
+pub(super) fn read_observations(path: &Path) -> Result<Vec<f64>, CliError> {
+    let metadata = fs::metadata(path).map_err(|source| CliError::Io {
         path: path.to_owned(),
         source,
     })?;
     if !metadata.is_file() {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "input must be a regular file: {}",
             path.display()
         )));
     }
     if metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "input exceeds the {MAXIMUM_INPUT_BYTES}-byte limit"
         )));
     }
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader.headers()?.iter().eq(["observation"]) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "normal-mean CSV headers must be exactly: observation".into(),
         ));
     }
@@ -138,9 +138,7 @@ pub(super) fn read_observations(path: &Path) -> Result<Vec<f64>, BayesCliError> 
     for row in reader.deserialize::<ObservationRow>() {
         observations.push(row?.observation);
         if observations.len() > 100_000 {
-            return Err(BayesCliError::Input(
-                "observation count exceeds 100000".into(),
-            ));
+            return Err(CliError::Input("observation count exceeds 100000".into()));
         }
     }
     Ok(observations)

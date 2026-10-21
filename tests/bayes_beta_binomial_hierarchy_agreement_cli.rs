@@ -74,6 +74,18 @@ p-8,45,100\n",
             result["comparison"][parameter]["passes"], true,
             "{parameter}: {result}"
         );
+        // Each tolerance uses the compared quantity's own MCSE from both backends, not an
+        // aggregate over the model's parameters.
+        let mcse = |backend: &str| {
+            result[backend]["posterior"][parameter]["mcse_mean"]
+                .as_f64()
+                .unwrap()
+        };
+        let combined = result["comparison"][parameter]["combined_mcse"]
+            .as_f64()
+            .unwrap();
+        assert!(mcse("pymc") > 0.0 && mcse("numpyro") > 0.0, "{result}");
+        assert_eq!(combined, mcse("pymc").hypot(mcse("numpyro")), "{result}");
     }
     assert_eq!(
         result["comparison"]["patient_probabilities"]["passes"], true,

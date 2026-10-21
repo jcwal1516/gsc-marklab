@@ -147,8 +147,8 @@ impl MarkTable {
         if distinct.windows(2).any(|pair| pair[0] == pair[1]) {
             return Err(DeclaredScalarInputError::DuplicateArtifactRole);
         }
-        // Assay channels may share one acquisition/processing provenance record. Legacy
-        // specialized roles retain their stricter distinct-role contract above.
+        // Assay channels may share one acquisition/processing provenance record. The
+        // specialized roles keep the stricter distinct-role check above.
         for id in assay_ids {
             if !ids.contains(&id) {
                 ids.push(id);

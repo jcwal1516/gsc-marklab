@@ -82,14 +82,7 @@ struct NumericsInput {
 }
 
 pub(crate) fn run(input_path: PathBuf, output_path: PathBuf) -> Result<()> {
-    let metadata =
-        fs::metadata(&input_path).map_err(|source| MarklabError::io(&input_path, source))?;
-    if metadata.len() > 16 * 1024 * 1024 {
-        return Err(MarklabError::Validation(
-            "mechanistic-tissue input exceeds 16 MiB".into(),
-        ));
-    }
-    let bytes = fs::read(&input_path).map_err(|source| MarklabError::io(&input_path, source))?;
+    let bytes = super::read_input(&input_path, "mechanistic-tissue")?;
     let input: Input = serde_json::from_slice(&bytes)?;
     let result = simulate_mechanistic_tissue(MechanisticTissueSpec {
         grid_x: input.grid_x,

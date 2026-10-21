@@ -15,6 +15,10 @@ pub enum ArrowIpcFailure {
     UnsupportedVersion,
     /// Dictionary blocks are present.
     DictionaryBatch,
+    /// Dictionaries, compression, features, or custom metadata violate the spatial profile.
+    ForbiddenFeature,
+    /// Decoded rows differ from the canonical domain order or values.
+    InvalidCanonicalRows,
     /// File-level custom metadata is present.
     FileCustomMetadata,
     /// The exact field order, type, nullability, child, or field metadata differs.
@@ -74,6 +78,10 @@ pub enum ParquetFailure {
     UnsupportedCompression,
     /// Statistics, indexes, dictionaries, bloom filters, or encryption were declared.
     ForbiddenAuxiliaryData,
+    /// Encoding, compression, or auxiliary declarations violate the spatial profile.
+    ForbiddenFeature,
+    /// Decoded rows differ from the canonical domain order or values.
+    InvalidCanonicalRows,
     /// Canonical cell identifiers are absent, duplicated, or out of order.
     InvalidCellOrder,
     /// Status and nullable linkage semantics disagree.
@@ -90,7 +98,7 @@ pub enum ParquetFailure {
 
 /// Bounded, redacted embedding physical-format failure.
 #[derive(Clone, Copy, Debug, Error, Eq, PartialEq)]
-pub enum EmbeddingColumnarError {
+pub enum ColumnarError {
     /// Encoded bytes exceed the caller's file limit.
     #[error("columnar file bytes {observed} exceed budget {maximum}")]
     FileByteBudgetExceeded {
@@ -158,9 +166,9 @@ pub enum EmbeddingColumnarError {
 pub(crate) fn enforce_file_budget(
     observed: u64,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     if observed > budgets.maximum_file_bytes() {
-        return Err(EmbeddingColumnarError::FileByteBudgetExceeded {
+        return Err(ColumnarError::FileByteBudgetExceeded {
             observed,
             maximum: budgets.maximum_file_bytes(),
         });
@@ -171,9 +179,9 @@ pub(crate) fn enforce_file_budget(
 pub(crate) fn enforce_retained_budget(
     required: usize,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     if required > budgets.maximum_retained_bytes() {
-        return Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
+        return Err(ColumnarError::RetainedByteBudgetExceeded {
             required,
             maximum: budgets.maximum_retained_bytes(),
         });
@@ -184,9 +192,9 @@ pub(crate) fn enforce_retained_budget(
 pub(crate) fn enforce_row_group_budget(
     required: usize,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     if required > budgets.maximum_row_group_bytes() {
-        return Err(EmbeddingColumnarError::RowGroupByteBudgetExceeded {
+        return Err(ColumnarError::RowGroupByteBudgetExceeded {
             required,
             maximum: budgets.maximum_row_group_bytes(),
         });
@@ -197,12 +205,32 @@ pub(crate) fn enforce_row_group_budget(
 pub(crate) fn enforce_decoded_budget(
     required: u64,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     if required > budgets.maximum_decoded_bytes() {
-        return Err(EmbeddingColumnarError::DecodedByteBudgetExceeded {
+        return Err(ColumnarError::DecodedByteBudgetExceeded {
             required,
             maximum: budgets.maximum_decoded_bytes(),
         });
     }
     Ok(())
+}
+
+/// Failure while declaring, encoding, or durably publishing a canonical columnar artifact.
+#[derive(Debug, Error)]
+pub enum ColumnarPublicationError {
+    /// Canonical encoding or resource validation failed before publication.
+    #[error(transparent)]
+    Columnar(#[from] ColumnarError),
+    /// A fixed canonical artifact or table declaration could not be constructed.
+    #[error("canonical columnar artifact declaration failed")]
+    Declaration,
+    /// Durable store publication, verification, or cleanup failed.
+    #[error(transparent)]
+    Store(#[from] marklab_project::ArtifactStoreError),
+}
+
+impl ColumnarPublicationError {
+    pub(crate) fn declaration<T>(_: T) -> Self {
+        Self::Declaration
+    }
 }

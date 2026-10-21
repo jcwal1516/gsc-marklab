@@ -1,23 +1,68 @@
 #!/usr/bin/env python3
+"""SciPy worker for Marklab's advanced Bayesian and SPDE diagnostics.
 
-import hashlib
-import itertools
+Each request selects one mode:
+
+* ``hmc_normal``: fixed-step HMC for a normal mean with a conjugate oracle;
+* ``spde_suite``: stationary alpha = 2 SPDE LGCP and one-factor MAP fits on rectangular meshes;
+* ``adaptive_window_spde`` / ``nonstationary_adaptive_window_spde``: one-factor MAP fits on a
+  mesh adapted to a polygonal window, with stationary or piecewise-constant local parameters.
+"""
+
 import json
 import math
 import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import numpy as np
 import scipy
-from scipy.cluster.vq import kmeans2
 from scipy.optimize import minimize
 from scipy.spatial import Delaunay
 
+from marklab_worker_support.fem import (
+    GRADIENT_TOLERANCE,
+    LINEAR_ELEMENT_MASS,
+    OPTIMIZER_OPTIONS,
+    add_element,
+    assemble_fem,
+    basis_gradients,
+    build_mesh,
+    factor_objective,
+    fit_spatial_factor,
+    initial_factor,
+    projection,
+    sign_aligned_factor,
+    sparse_triplets,
+    stationary_precision,
+    triangle_double_area,
+)
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    ContractError,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
 
-class ContractError(Exception):
-    pass
+REQUEST_FORMAT = "marklab.scipy_advanced_bayes_request"
+
+
+# Fixed-step HMC
 
 
 def hmc_normal(spec):
+    """Sample a normal-mean posterior with fixed-step Hamiltonian Monte Carlo.
+
+    Model: ``q ~ Normal(prior_mean, prior_sd)`` and ``y_i ~ Normal(q, sigma)`` with known
+    ``sigma``. One chain uses momentum ``p ~ Normal(0, sqrt(mass))``, ``leapfrog_steps`` leapfrog
+    steps of size ``step_size``, and a Metropolis correction. The conjugate posterior is reported
+    alongside the draws as an oracle.
+    """
     observations = np.asarray(spec["observations"], dtype=float)
     sigma = float(spec["observation_standard_deviation"])
     prior_mean = float(spec["prior_mean"])
@@ -25,275 +70,272 @@ def hmc_normal(spec):
     mass = float(spec["mass"])
     step = float(spec["step_size"])
     leapfrog_steps = int(spec["leapfrog_steps"])
-    warmup = int(spec["warmup"]); draws = int(spec["draws"])
-    if not 2 <= len(observations) <= 10000 or not np.isfinite(observations).all() or min(sigma, prior_sd, mass, step) <= 0 or not 1 <= leapfrog_steps <= 100 or not 100 <= warmup <= 10000 or not 500 <= draws <= 100000:
+    warmup = int(spec["warmup"])
+    draws = int(spec["draws"])
+    if (
+        not 2 <= len(observations) <= 10000
+        or not np.isfinite(observations).all()
+        or min(sigma, prior_sd, mass, step) <= 0
+        or not 1 <= leapfrog_steps <= 100
+        or not 100 <= warmup <= 10000
+        or not 500 <= draws <= 100000
+    ):
         raise ContractError("bounded finite normal HMC contract violated")
     precision = len(observations) / sigma**2 + 1.0 / prior_sd**2
     analytic_variance = 1.0 / precision
     analytic_mean = analytic_variance * (observations.sum() / sigma**2 + prior_mean / prior_sd**2)
-    def logp(q):
-        return -0.5 * ((q - prior_mean) / prior_sd) ** 2 - 0.5 * float(np.sum(((observations - q) / sigma) ** 2))
+
+    def log_density(q):
+        prior_term = -0.5 * ((q - prior_mean) / prior_sd) ** 2
+        return prior_term - 0.5 * float(np.sum(((observations - q) / sigma) ** 2))
+
     def gradient(q):
         return -(q - prior_mean) / prior_sd**2 + float(np.sum(observations - q)) / sigma**2
-    rng = np.random.default_rng(spec["seed"]); q = float(spec["initial_state"])
-    chain = []; accepted = 0; energy_errors = []
+
+    rng = np.random.default_rng(spec["seed"])
+    q = float(spec["initial_state"])
+    chain = []
+    accepted = 0
+    energy_errors = []
     for iteration in range(warmup + draws):
         momentum = float(rng.normal(0.0, math.sqrt(mass)))
-        current_q = q; current_p = momentum
-        proposed_q = q; proposed_p = momentum + 0.5 * step * gradient(proposed_q)
+        proposed_q = q
+        proposed_p = momentum + 0.5 * step * gradient(proposed_q)
         for leapfrog in range(leapfrog_steps):
             proposed_q += step * proposed_p / mass
             if leapfrog + 1 < leapfrog_steps:
                 proposed_p += step * gradient(proposed_q)
-        proposed_p += 0.5 * step * gradient(proposed_q); proposed_p = -proposed_p
-        current_h = -logp(current_q) + current_p**2 / (2.0 * mass)
-        proposed_h = -logp(proposed_q) + proposed_p**2 / (2.0 * mass)
+        proposed_p += 0.5 * step * gradient(proposed_q)
+        proposed_p = -proposed_p
+        current_h = -log_density(q) + momentum**2 / (2.0 * mass)
+        proposed_h = -log_density(proposed_q) + proposed_p**2 / (2.0 * mass)
         energy_error = proposed_h - current_h
         if math.log(rng.uniform()) < min(0.0, -energy_error):
             q = proposed_q
-            if iteration >= warmup: accepted += 1
+            if iteration >= warmup:
+                accepted += 1
         if iteration >= warmup:
-            chain.append(q); energy_errors.append(energy_error)
+            chain.append(q)
+            energy_errors.append(energy_error)
     values = np.asarray(chain)
     return {
-        "format":"marklab.fixed_step_hmc_normal_mean", "version":1,
-        "algorithm":{"mass":mass,"step_size":step,"leapfrog_steps":leapfrog_steps,"warmup":warmup,"draws":draws,"seed":spec["seed"]},
-        "posterior":{"mean":float(values.mean()),"standard_deviation":float(values.std(ddof=1)),"interval_95":np.quantile(values,[0.025,0.975]).tolist(),"draws":values.tolist()},
-        "analytic_posterior":{"mean":analytic_mean,"standard_deviation":math.sqrt(analytic_variance)},
-        "diagnostics":{"acceptance_rate":accepted/draws,"maximum_absolute_energy_error":float(np.max(np.abs(energy_errors))),"mean_energy_error":float(np.mean(energy_errors)),"constraint_transform_jacobian":0.0},
-        "claim_status":"experimental_synthetic_fixed_step_hmc",
+        "format": "marklab.fixed_step_hmc_normal_mean",
+        "version": 1,
+        "algorithm": {
+            "mass": mass,
+            "step_size": step,
+            "leapfrog_steps": leapfrog_steps,
+            "warmup": warmup,
+            "draws": draws,
+            "seed": spec["seed"],
+        },
+        "posterior": {
+            "mean": float(values.mean()),
+            "standard_deviation": float(values.std(ddof=1)),
+            "interval_95": np.quantile(values, [0.025, 0.975]).tolist(),
+            "draws": values.tolist(),
+        },
+        "analytic_posterior": {
+            "mean": analytic_mean,
+            "standard_deviation": math.sqrt(analytic_variance),
+        },
+        "diagnostics": {
+            "acceptance_rate": accepted / draws,
+            "maximum_absolute_energy_error": float(np.max(np.abs(energy_errors))),
+            "mean_energy_error": float(np.mean(energy_errors)),
+            "constraint_transform_jacobian": 0.0,
+        },
+        "claim_status": "experimental_synthetic_fixed_step_hmc",
     }
 
 
-def cluster_scores(points, maximum):
-    results = []
-    for count in range(1, maximum + 1):
-        order = np.argsort(points[:, 0] + 0.01 * points[:, 1])
-        initial = points[order[np.linspace(0, len(points) - 1, count).astype(int)]]
-        centers, labels = kmeans2(points, initial, minit="matrix", iter=50)
-        residual = points - centers[labels]
-        rss = max(float(np.sum(residual * residual)), 1e-12)
-        variance = rss / (2 * len(points))
-        # Historical residual penalty: a descriptive score, not a Thomas log likelihood.
-        score = len(points) * 2 * math.log(variance) + (4 * count) * math.log(len(points))
-        results.append((count, score, math.sqrt(variance), centers, labels))
-    return results
-
-
-def sample_cluster_count(scores, iterations, burnin, rng):
-    by_count = {row[0]: row for row in scores}; current = min(scores, key=lambda row: row[1])[0]
-    retained = []; accepted = 0
-    for iteration in range(iterations):
-        direction = -1 if rng.uniform() < 0.5 else 1
-        proposal = current + direction
-        if proposal in by_count:
-            log_alpha = -0.5 * (by_count[proposal][1] - by_count[current][1])
-            if math.log(rng.uniform()) < min(0.0, log_alpha):
-                current = proposal; accepted += 1
-        if iteration >= burnin: retained.append(current)
-    return np.asarray(retained), accepted / iterations
-
-
-def exact_exchange(spec, rng):
-    sites = int(spec["sites"]); edges = [tuple(edge) for edge in spec["edges"]]
-    observed = tuple(int(value) for value in spec["observed_types"])
-    if not 2 <= sites <= 16 or len(observed) != sites or set(observed) != {0, 1} or any(not (0 <= a < b < sites) for a, b in edges):
-        raise ContractError("finite binary Gibbs contract violated")
-    states = list(itertools.product([0, 1], repeat=sites))
-    statistics = np.asarray([sum(state[a] == state[b] for a, b in edges) for state in states], float)
-    observed_stat = float(sum(observed[a] == observed[b] for a, b in edges))
-    prior_sd = float(spec["interaction_prior_sd"]); proposal_sd = float(spec["proposal_sd"])
-    draws = int(spec["draws"]); burnin = int(spec["burnin"])
-    theta = 0.0; retained = []; accepted = 0
-    for iteration in range(draws + burnin):
-        proposal = theta + rng.normal(0.0, proposal_sd)
-        weights = np.exp(proposal * statistics - np.max(proposal * statistics)); weights /= weights.sum()
-        auxiliary_stat = statistics[rng.choice(len(states), p=weights)]
-        log_alpha = -0.5 * (proposal**2 - theta**2) / prior_sd**2 + (proposal - theta) * observed_stat + (theta - proposal) * auxiliary_stat
-        if math.log(rng.uniform()) < min(0.0, log_alpha):
-            theta = proposal
-            if iteration >= burnin: accepted += 1
-        if iteration >= burnin: retained.append(theta)
-    values = np.asarray(retained)
-    return {"posterior_interaction_mean":float(values.mean()),"posterior_interaction_interval_95":np.quantile(values,[0.025,0.975]).tolist(),"acceptance_rate":accepted/draws,"observed_same_type_edge_statistic":observed_stat,"state_space_size":len(states),"auxiliary_draw_status":"exact_finite_state_enumeration","draws":values.tolist()}
-
-
-def advanced_cluster(spec):
-    patterns = spec["patterns"]
-    if spec["cluster_family"] != "thomas_gaussian" or not 3 <= len(patterns) <= 64 or len({p["pattern_id"] for p in patterns}) != len(patterns) or len({p["patient_id"] for p in patterns}) != len(patterns):
-        raise ContractError("independent unique patterns with the legacy family label required")
-    maximum = int(spec["maximum_parents"])
-    iterations = int(spec["latent_iterations"])
-    burnin = int(spec["latent_burnin"])
-    if not 2 <= maximum <= 16 or not 500 <= iterations <= 20000 or not 100 <= burnin < iterations:
-        raise ContractError("cluster-count sampler bounds violated")
-    rng = np.random.default_rng(spec["seed"])
-    pattern_results = []
-    for pattern in patterns:
-        points = np.asarray(pattern["points"], float)
-        window = pattern["window"]
-        if points.ndim != 2 or points.shape[1] != 2 or len(points) < 12 or not np.isfinite(points).all() or not all(window[0] <= point[0] <= window[1] and window[2] <= point[1] <= window[3] for point in points):
-            raise ContractError("bounded finite cluster points required")
-        scores = cluster_scores(points, maximum)
-        counts, acceptance = sample_cluster_count(scores, iterations, burnin, rng)
-        chosen = min(scores, key=lambda row: abs(row[0] - counts.mean()))
-        area = (window[1] - window[0]) * (window[3] - window[2])
-        pattern_results.append({
-            "pattern_id": pattern["pattern_id"],
-            "patient_id": pattern["patient_id"],
-            "cluster_count_mean": float(counts.mean()),
-            "cluster_count_interval_95": np.quantile(counts, [0.025, 0.975]).tolist(),
-            "within_cluster_scale": chosen[2],
-            "clusters_per_unit_area": float(counts.mean() / area),
-            "points_per_cluster": float(len(points) / counts.mean()),
-            "count_sampler_acceptance_rate": acceptance,
-            "boundary_policy": "rectangular_observation_window_no_cluster_edge_correction",
-        })
-    exchange = exact_exchange(spec["finite_gibbs"], rng)
-    shrinkage = float(spec["hierarchical_shrinkage"])
-    raw = np.asarray([
-        [math.log(row["clusters_per_unit_area"]),
-         math.log(row["points_per_cluster"]),
-         math.log(row["within_cluster_scale"])]
-        for row in pattern_results
-    ])
-    center = raw.mean(axis=0)
-    pooled = (len(patterns) * raw + shrinkage * center) / (len(patterns) + shrinkage)
-    return {
-        "format": "marklab.advanced_cluster_and_gibbs_models",
-        "version": 2,
-        "cluster_heuristic": {
-            "method": "kmeans_penalized_residual_score_with_neighbor_count_sampling",
-            "score_definition": "2*n*log(RSS/(2*n)) + 4*k*log(n)",
-            "mean_cluster_count": float(np.mean([row["cluster_count_mean"] for row in pattern_results])),
-            "mean_within_cluster_scale": float(np.mean([row["within_cluster_scale"] for row in pattern_results])),
-            "mean_points_per_cluster": float(np.mean([row["points_per_cluster"] for row in pattern_results])),
-            "pattern_results": pattern_results,
-        },
-        "exchange_mcmc": exchange,
-        "fixed_log_shrinkage": {
-            "patient_count": len(patterns),
-            "shrinkage": shrinkage,
-            "population_log_parameter_mean": center.tolist(),
-            "patient_log_parameter_means": pooled.tolist(),
-            "parameters": ["log_clusters_per_unit_area", "log_points_per_cluster", "log_within_cluster_scale"],
-        },
-        "limitations": [
-            "cluster_count_interval_is_score_sampler_quantiles_not_a_credible_interval",
-            "kmeans_heuristic_not_a_thomas_likelihood",
-            "cluster_scale_uses_selected_count",
-            "fixed_shrinkage_not_a_fitted_hierarchical_model",
-            "posterior_predictive_checks_not_computed",
-            "binary_gibbs_fit_is_independent_of_cluster_heuristic",
-        ],
-        "claim_status": "experimental_cluster_heuristic_and_separate_finite_gibbs_fit",
-    }
-
-
-def build_mesh(bounds, resolution, kappa, tau):
-    x0, x1, y0, y1 = map(float, bounds)
-    xs = np.linspace(x0, x1, resolution); ys = np.linspace(y0, y1, resolution)
-    vertices = np.asarray([[x, y] for y in ys for x in xs], dtype=float)
-    triangulation = Delaunay(vertices)
-    triangles = np.asarray(sorted((tuple(sorted(map(int, simplex))) for simplex in triangulation.simplices)), dtype=int)
-    mass = np.zeros((len(vertices), len(vertices))); stiffness = np.zeros_like(mass)
-    areas = []
-    for triangle in triangles:
-        coordinates = vertices[triangle]
-        signed_double_area = np.cross(coordinates[1] - coordinates[0], coordinates[2] - coordinates[0])
-        area = abs(float(signed_double_area)) / 2.0
-        if area <= 0:
-            raise ContractError("degenerate SPDE triangle")
-        areas.append(area)
-        local_mass = area / 12.0 * np.asarray([[2,1,1],[1,2,1],[1,1,2]], float)
-        b = np.asarray([coordinates[1,1]-coordinates[2,1],coordinates[2,1]-coordinates[0,1],coordinates[0,1]-coordinates[1,1]]) / (2.0 * area)
-        c = np.asarray([coordinates[2,0]-coordinates[1,0],coordinates[0,0]-coordinates[2,0],coordinates[1,0]-coordinates[0,0]]) / (2.0 * area)
-        local_stiffness = area * (np.outer(b,b) + np.outer(c,c))
-        for local_i, global_i in enumerate(triangle):
-            for local_j, global_j in enumerate(triangle):
-                mass[global_i,global_j] += local_mass[local_i,local_j]
-                stiffness[global_i,global_j] += local_stiffness[local_i,local_j]
-    lumped = mass.sum(axis=1)
-    precision = tau**2 * (kappa**4 * mass + 2.0 * kappa**2 * stiffness + stiffness @ np.diag(1.0/lumped) @ stiffness)
-    precision = (precision + precision.T) / 2.0
-    return {"vertices":vertices,"triangles":triangles,"triangulation":triangulation,"mass":mass,"stiffness":stiffness,"precision":precision,"triangle_areas":np.asarray(areas)}
-
-
-def projection(mesh, locations):
-    locations = np.asarray(locations, float)
-    triangulation = mesh["triangulation"]
-    simplices = triangulation.find_simplex(locations)
-    if np.any(simplices < 0):
-        raise ContractError("SPDE projection location lies outside the rectangular mesh")
-    matrix = np.zeros((len(locations), len(mesh["vertices"])))
-    for row, (point, simplex_index) in enumerate(zip(locations, simplices)):
-        transform = triangulation.transform[simplex_index]
-        first = transform[:2] @ (point - transform[2])
-        barycentric = np.asarray([first[0], first[1], 1.0-first.sum()])
-        if barycentric.min() < -1e-10:
-            raise ContractError("invalid SPDE barycentric projection")
-        matrix[row,triangulation.simplices[simplex_index]] = barycentric
-    return matrix
+# Rectangular SPDE suite
 
 
 def fit_lgcp(mesh, points, prior_sd, maximum_iterations):
+    """Laplace-mode (MAP) fit of a log-Gaussian Cox process with an SPDE latent field.
+
+    Log intensity ``beta + u(s)`` with ``u = sum_k w_k phi_k(s)`` on the mesh basis,
+    ``w ~ Normal(0, Q^-1)`` (stationary SPDE GMRF) and ``beta ~ Normal(0, prior_sd)``. The
+    Poisson-process likelihood integral uses one-point (centroid) quadrature per triangle; the
+    linear predictor is clipped to ``[-30, 30]`` inside the exponential.
+    """
     event_projection = projection(mesh, points)
     triangle_coordinates = mesh["vertices"][mesh["triangles"]]
     quadrature_locations = triangle_coordinates.mean(axis=1)
     quadrature_projection = projection(mesh, quadrature_locations)
     weights = mesh["triangle_areas"]
-    precision = mesh["precision"]; count = len(points)
+    precision = mesh["precision"]
+    count = len(points)
+
     def objective(parameter):
-        beta = parameter[0]; field = parameter[1:]
+        beta = parameter[0]
+        field = parameter[1:]
         event_eta = beta + event_projection @ field
-        quad_eta = beta + quadrature_projection @ field
-        intensity = np.exp(np.clip(quad_eta, -30.0, 30.0))
-        value = 0.5*beta**2/prior_sd**2 + 0.5*field@precision@field - event_eta.sum() + weights@intensity
-        gradient = np.concatenate([[beta/prior_sd**2-count+weights@intensity], precision@field-event_projection.sum(axis=0)+quadrature_projection.T@(weights*intensity)])
-        return float(value), gradient
-    initial = np.zeros(len(mesh["vertices"])+1); initial[0] = math.log(count/np.sum(weights))
-    fit = minimize(objective, initial, jac=True, method="L-BFGS-B", options={"maxiter":maximum_iterations,"ftol":1e-12,"gtol":1e-7})
-    if not fit.success and np.linalg.norm(fit.jac, ord=np.inf) > 2e-4:
+        quadrature_eta = beta + quadrature_projection @ field
+        intensity = np.exp(np.clip(quadrature_eta, -30.0, 30.0))
+        value = (
+            0.5 * beta**2 / prior_sd**2
+            + 0.5 * field @ precision @ field
+            - event_eta.sum()
+            + weights @ intensity
+        )
+        beta_gradient = beta / prior_sd**2 - count + weights @ intensity
+        field_gradient = (
+            precision @ field
+            - event_projection.sum(axis=0)
+            + quadrature_projection.T @ (weights * intensity)
+        )
+        return float(value), np.concatenate([[beta_gradient], field_gradient])
+
+    initial = np.zeros(len(mesh["vertices"]) + 1)
+    initial[0] = math.log(count / np.sum(weights))
+    fit = minimize(
+        objective,
+        initial,
+        jac=True,
+        method="L-BFGS-B",
+        options={"maxiter": maximum_iterations, **OPTIMIZER_OPTIONS},
+    )
+    if not fit.success and np.linalg.norm(fit.jac, ord=np.inf) > GRADIENT_TOLERANCE:
         raise ContractError(f"SPDE LGCP optimization failed: {fit.message}")
-    beta = float(fit.x[0]); field = fit.x[1:]
-    vertex_intensity = np.exp(np.clip(beta+field,-30,30))
-    quad_intensity = np.exp(np.clip(beta+quadrature_projection@field,-30,30))
-    midpoint = (mesh["vertices"][:,0].min()+mesh["vertices"][:,0].max())/2.0
-    left = vertex_intensity[mesh["vertices"][:,0] < midpoint].mean()
-    right = vertex_intensity[mesh["vertices"][:,0] > midpoint].mean()
-    return {"beta":beta,"field":field,"vertex_intensity":vertex_intensity,"integrated":float(weights@quad_intensity),"right_left_ratio":float(right/left),"objective":float(fit.fun),"gradient_max":float(np.linalg.norm(fit.jac,ord=np.inf)),"iterations":int(fit.nit),"event_projection":event_projection,"quadrature_projection":quadrature_projection,"quadrature_weights":weights}
+    beta = float(fit.x[0])
+    field = fit.x[1:]
+    vertex_intensity = np.exp(np.clip(beta + field, -30, 30))
+    quadrature_intensity = np.exp(np.clip(beta + quadrature_projection @ field, -30, 30))
+    x_coordinates = mesh["vertices"][:, 0]
+    midpoint = (x_coordinates.min() + x_coordinates.max()) / 2.0
+    left = vertex_intensity[x_coordinates < midpoint].mean()
+    right = vertex_intensity[x_coordinates > midpoint].mean()
+    return {
+        "beta": beta,
+        "field": field,
+        "vertex_intensity": vertex_intensity,
+        "integrated": float(weights @ quadrature_intensity),
+        "right_left_ratio": float(right / left),
+        "objective": float(fit.fun),
+        "gradient_max": float(np.linalg.norm(fit.jac, ord=np.inf)),
+        "iterations": int(fit.nit),
+        "event_projection": event_projection,
+        "quadrature_projection": quadrature_projection,
+        "quadrature_weights": weights,
+    }
 
 
-def fit_spatial_factor(mesh, observations, noise_sd, maximum_iterations):
-    coordinates = np.asarray([row["coordinates"] for row in observations], float)
-    values = np.asarray([row["values"] for row in observations], float)
-    if values.ndim != 2 or values.shape[1] < 2 or not np.isfinite(values).all():
-        raise ContractError("SPDE factor model requires a finite matrix with at least two features")
-    design = projection(mesh, coordinates); means = values.mean(axis=0); centered = values-means
-    initial_field = np.linalg.solve(design.T@design + noise_sd**2*mesh["precision"] + np.eye(len(mesh["vertices"]))*1e-8, design.T@centered[:,0])
-    initial_loadings = np.linalg.lstsq((design@initial_field)[:,None], centered, rcond=None)[0].ravel()
-    initial = np.concatenate([initial_field,initial_loadings])
-    vertex_count = len(initial_field); precision = mesh["precision"]
-    def objective(parameter):
-        field = parameter[:vertex_count]; loadings = parameter[vertex_count:]
-        projected = design@field; residual = centered-projected[:,None]*loadings[None,:]
-        value = 0.5*np.sum(residual**2)/noise_sd**2 + 0.5*field@precision@field + 0.5*loadings@loadings
-        gradient_field = precision@field-design.T@(residual@loadings)/noise_sd**2
-        gradient_loadings = loadings-projected@residual/noise_sd**2
-        return float(value),np.concatenate([gradient_field,gradient_loadings])
-    fit = minimize(objective,initial,jac=True,method="L-BFGS-B",options={"maxiter":maximum_iterations,"ftol":1e-12,"gtol":1e-7})
-    if not fit.success and np.linalg.norm(fit.jac,ord=np.inf)>2e-4:
-        raise ContractError(f"SPDE factor optimization failed: {fit.message}")
-    field=fit.x[:vertex_count]; loadings=fit.x[vertex_count:]; projected=design@field
-    if loadings[0]<0: field=-field; loadings=-loadings; projected=-projected
-    reconstruction=means+projected[:,None]*loadings[None,:]
-    correlation=float(np.corrcoef(projected,coordinates[:,0])[0,1])
-    return {"means":means,"field":field,"projected":projected,"loadings":loadings,"rmse":float(np.sqrt(np.mean((reconstruction-values)**2))),"x_correlation":correlation,"objective":float(fit.fun),"iterations":int(fit.nit),"projection":design}
+def spde_suite(spec):
+    window = spec["window"]
+    bounds = window["bounds"]
+    resolutions = [int(value) for value in spec["mesh_resolutions"]]
+    kappa = float(spec["kappa"])
+    tau = float(spec["tau"])
+    beta_prior_sd = float(spec["lgcp_beta_prior_sd"])
+    noise_sd = float(spec["factor_noise_sd"])
+    maximum_iterations = int(spec["maximum_iterations"])
+    if (
+        window["holes"] != []
+        or not isinstance(window["frame"], str)
+        or not (0 <= bounds[0] < bounds[1] and 0 <= bounds[2] < bounds[3])
+        or spec["alpha"] != 2
+        or not 3 <= min(resolutions) <= max(resolutions) <= 16
+        or resolutions != sorted(set(resolutions))
+        or min(kappa, tau, beta_prior_sd, noise_sd) <= 0
+        or not 10 <= maximum_iterations <= 10000
+    ):
+        raise ContractError("bounded hole-free rectangular alpha-two SPDE contract violated")
+    points = np.asarray(spec["lgcp_points"], float)
+    if (
+        points.ndim != 2
+        or points.shape[1] != 2
+        or not 10 <= len(points) <= 10000
+        or not np.isfinite(points).all()
+    ):
+        raise ContractError("finite bounded LGCP points required")
+    sensitivity = []
+    fitted_by_resolution = {}
+    for resolution in resolutions:
+        candidate = build_mesh(bounds, resolution, kappa, tau)
+        lgcp = fit_lgcp(candidate, points, beta_prior_sd, maximum_iterations)
+        fitted_by_resolution[resolution] = (candidate, lgcp)
+        sensitivity.append(
+            {
+                "resolution": resolution,
+                "vertex_count": len(candidate["vertices"]),
+                "triangle_count": len(candidate["triangles"]),
+                "integrated_intensity": lgcp["integrated"],
+                "right_to_left_mean_intensity_ratio": lgcp["right_left_ratio"],
+            }
+        )
+    resolution = resolutions[-1]
+    mesh, lgcp = fitted_by_resolution[resolution]
+    factor = fit_spatial_factor(mesh, spec["factor_observations"], noise_sd, maximum_iterations)
+    eigenvalues = np.linalg.eigvalsh(mesh["precision"])
+    max_projection_error = max(
+        float(np.max(np.abs(lgcp["event_projection"].sum(axis=1) - 1))),
+        float(np.max(np.abs(lgcp["quadrature_projection"].sum(axis=1) - 1))),
+        float(np.max(np.abs(factor["projection"].sum(axis=1) - 1))),
+    )
+    return {
+        "format": "marklab.rectangular_spde_suite",
+        "version": 1,
+        "mesh": {
+            "frame": window["frame"],
+            "bounds": bounds,
+            "holes": [],
+            "boundary_condition": "natural_neumann_with_positive_kappa",
+            "basis": "piecewise_linear_triangular",
+            "alpha": 2,
+            "kappa": kappa,
+            "tau": tau,
+            "resolution": resolution,
+            "vertices": mesh["vertices"].tolist(),
+            "triangles": mesh["triangles"].tolist(),
+            "vertex_count": len(mesh["vertices"]),
+            "triangle_count": len(mesh["triangles"]),
+            "mass_matrix": sparse_triplets(mesh["mass"]),
+            "stiffness_matrix": sparse_triplets(mesh["stiffness"]),
+            "precision_matrix": sparse_triplets(mesh["precision"]),
+            "minimum_precision_eigenvalue": float(eigenvalues[0]),
+            "maximum_projection_row_sum_error": max_projection_error,
+        },
+        "lgcp": {
+            "inference": "fixed_hyperparameter_laplace_map",
+            "beta": lgcp["beta"],
+            "latent_field_weights": lgcp["field"].tolist(),
+            "vertex_intensity": lgcp["vertex_intensity"].tolist(),
+            "integrated_intensity": lgcp["integrated"],
+            "right_to_left_mean_intensity_ratio": lgcp["right_left_ratio"],
+            "objective": lgcp["objective"],
+            "gradient_maximum": lgcp["gradient_max"],
+            "iterations": lgcp["iterations"],
+            "event_projection": sparse_triplets(lgcp["event_projection"]),
+            "quadrature_projection": sparse_triplets(lgcp["quadrature_projection"]),
+            "quadrature_weights": lgcp["quadrature_weights"].tolist(),
+        },
+        "spatial_factor": {
+            "inference": "fixed_hyperparameter_laplace_map",
+            "factor_count": 1,
+            "feature_means": factor["means"].tolist(),
+            "mesh_field_weights": factor["field"].tolist(),
+            "projected_region_factor": factor["projected"].tolist(),
+            "loadings": factor["loadings"].tolist(),
+            "reconstruction_rmse": factor["rmse"],
+            "factor_x_correlation": factor["x_correlation"],
+            "objective": factor["objective"],
+            "iterations": factor["iterations"],
+            "projection": sparse_triplets(factor["projection"]),
+        },
+        "mesh_sensitivity": sensitivity,
+        "limitations": [
+            "hole_free_rectangle_only",
+            "fixed_spde_hyperparameters",
+            "dense_bounded_laplace_map",
+            "synthetic_oracle_only",
+        ],
+        "claim_status": "experimental_synthetic_rectangular_spde_lgcp_and_factor_models",
+    }
 
 
-def sparse_triplets(matrix, tolerance=1e-14):
-    rows,columns=np.nonzero(np.abs(matrix)>tolerance)
-    return {"rows":rows.tolist(),"columns":columns.tolist(),"values":matrix[rows,columns].tolist(),"shape":list(matrix.shape)}
+# Polygonal windows
 
 
 def signed_ring_area(ring):
@@ -304,6 +346,7 @@ def signed_ring_area(ring):
 
 
 def parse_polygonal_window(value):
+    """Validate a GeoJSON MultiPolygon window and return its rings, segments, and exact area."""
     if value.get("type") != "MultiPolygon" or not isinstance(value.get("coordinates"), list):
         raise ContractError("adaptive SPDE window must be a GeoJSON MultiPolygon")
     polygons = []
@@ -316,15 +359,27 @@ def parse_polygonal_window(value):
         rings = []
         for ring_value in polygon_value:
             ring = np.asarray(ring_value, dtype=float)
-            if ring.ndim != 2 or ring.shape[1] != 2 or len(ring) < 4 or not np.isfinite(ring).all() or not np.array_equal(ring[0], ring[-1]):
-                raise ContractError("adaptive SPDE rings must be finite, closed, and have at least four positions")
+            if (
+                ring.ndim != 2
+                or ring.shape[1] != 2
+                or len(ring) < 4
+                or not np.isfinite(ring).all()
+                or not np.array_equal(ring[0], ring[-1])
+            ):
+                raise ContractError(
+                    "adaptive SPDE rings must be finite, closed, and have at least four positions"
+                )
             area = abs(float(signed_ring_area(ring)))
             if area <= 0.0:
                 raise ContractError("adaptive SPDE ring has zero area")
             rings.append(ring)
             vertex_count += len(ring)
-            boundary_segments.extend((ring[index], ring[index + 1]) for index in range(len(ring) - 1))
-        polygon_area = abs(float(signed_ring_area(rings[0]))) - sum(abs(float(signed_ring_area(ring))) for ring in rings[1:])
+            boundary_segments.extend(
+                (ring[index], ring[index + 1]) for index in range(len(ring) - 1)
+            )
+        exterior_area = abs(float(signed_ring_area(rings[0])))
+        hole_area = sum(abs(float(signed_ring_area(ring))) for ring in rings[1:])
+        polygon_area = exterior_area - hole_area
         if polygon_area <= 0.0:
             raise ContractError("adaptive SPDE polygon holes consume its exterior")
         total_area += polygon_area
@@ -332,7 +387,12 @@ def parse_polygonal_window(value):
     if not polygons or vertex_count > 100000:
         raise ContractError("adaptive SPDE window component/vertex bound violated")
     all_points = np.vstack([ring for polygon in polygons for ring in polygon])
-    bounds = [float(all_points[:, 0].min()), float(all_points[:, 0].max()), float(all_points[:, 1].min()), float(all_points[:, 1].max())]
+    bounds = [
+        float(all_points[:, 0].min()),
+        float(all_points[:, 0].max()),
+        float(all_points[:, 1].min()),
+        float(all_points[:, 1].max()),
+    ]
     if not bounds[0] < bounds[1] or not bounds[2] < bounds[3] or not math.isfinite(total_area):
         raise ContractError("adaptive SPDE window bounds or area are invalid")
     return {
@@ -359,13 +419,13 @@ def point_on_segment(point, first, second, tolerance=1e-10):
 
 
 def point_in_ring(point, ring):
+    """Even-odd ray-casting test; returns ``(inside, on_boundary)``."""
     inside = False
     x, y = map(float, point)
-    for first, second in zip(ring[:-1], ring[1:]):
+    for first, second in zip(ring[:-1], ring[1:], strict=True):
         if point_on_segment(np.asarray(point), first, second):
             return True, True
-        y_crosses = (first[1] > y) != (second[1] > y)
-        if y_crosses:
+        if (first[1] > y) != (second[1] > y):
             crossing_x = first[0] + (y - first[1]) * (second[0] - first[0]) / (second[1] - first[1])
             if crossing_x > x:
                 inside = not inside
@@ -373,16 +433,17 @@ def point_in_ring(point, ring):
 
 
 def window_contains(window, point):
+    """Whether ``point`` lies in the closed window (boundaries, including holes', count)."""
     for polygon in window["polygons"]:
-        exterior, exterior_boundary = point_in_ring(point, polygon[0])
-        if not exterior:
+        in_exterior, on_exterior = point_in_ring(point, polygon[0])
+        if not in_exterior:
             continue
-        if exterior_boundary:
+        if on_exterior:
             return True
         excluded = False
         for hole in polygon[1:]:
-            in_hole, hole_boundary = point_in_ring(point, hole)
-            if hole_boundary:
+            in_hole, on_hole = point_in_ring(point, hole)
+            if on_hole:
                 return True
             if in_hole:
                 excluded = True
@@ -402,84 +463,88 @@ def resampled_boundary_points(window, spacing):
     return points
 
 
+def orientation(a, b, c):
+    return float((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]))
+
+
 def segment_within_window(window, first, second):
-    def orientation(a, b, c):
-        return float((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]))
+    """Whether a segment crosses no boundary segment and 17 sample points lie in the window."""
     for boundary_first, boundary_second in window["segments"]:
         first_side = orientation(first, second, boundary_first)
         second_side = orientation(first, second, boundary_second)
         boundary_first_side = orientation(boundary_first, boundary_second, first)
         boundary_second_side = orientation(boundary_first, boundary_second, second)
-        tolerance = 1e-12 * max(1.0, float(np.linalg.norm(second - first)), float(np.linalg.norm(boundary_second - boundary_first)))
-        if first_side * second_side < -(tolerance ** 2) and boundary_first_side * boundary_second_side < -(tolerance ** 2):
+        tolerance = 1e-12 * max(
+            1.0,
+            float(np.linalg.norm(second - first)),
+            float(np.linalg.norm(boundary_second - boundary_first)),
+        )
+        if first_side * second_side < -(
+            tolerance**2
+        ) and boundary_first_side * boundary_second_side < -(tolerance**2):
             return False
-    return all(window_contains(window, first + fraction * (second - first)) for fraction in np.linspace(0.0, 1.0, 17))
+    return all(
+        window_contains(window, first + fraction * (second - first))
+        for fraction in np.linspace(0.0, 1.0, 17)
+    )
 
 
-def build_adaptive_window_mesh(window, base_resolution, refinement_level, observation_coordinates, kappa, tau, maximum_vertices, maximum_triangles, maximum_boundary_checks, memory_budget_bytes):
+# Window-adapted meshes
+
+
+def grid_spacing(window, base_resolution):
+    x0, x1, y0, y1 = window["bounds"]
+    return min((x1 - x0) / (base_resolution - 1), (y1 - y0) / (base_resolution - 1))
+
+
+def window_candidates(window, base_resolution, boundary_spacing, observation_coordinates):
+    """Grid points inside the window, resampled boundary points, and observation locations."""
     x0, x1, y0, y1 = window["bounds"]
     xs = np.linspace(x0, x1, base_resolution)
     ys = np.linspace(y0, y1, base_resolution)
-    base_spacing = min((x1 - x0) / (base_resolution - 1), (y1 - y0) / (base_resolution - 1))
-    boundary_spacing = base_spacing / (2 ** refinement_level)
-    boundary_point_count = sum(max(1, int(math.ceil(float(np.linalg.norm(second - first)) / boundary_spacing))) for first, second in window["segments"])
-    if boundary_point_count > 4 * maximum_vertices:
-        raise ContractError("adaptive SPDE boundary refinement exceeds the bounded candidate budget")
     candidates = [[x, y] for y in ys for x in xs if window_contains(window, np.asarray([x, y]))]
     candidates.extend(resampled_boundary_points(window, boundary_spacing))
     candidates.extend(observation_coordinates.tolist())
-    canonical = sorted({(float(point[0]), float(point[1])) for point in candidates})
-    vertices = np.asarray(canonical, dtype=float)
-    if len(vertices) < 3 or len(vertices) > maximum_vertices:
-        raise ContractError("adaptive SPDE vertex bound violated")
+    return candidates
+
+
+def unique_vertices(candidates):
+    return np.asarray(sorted({(float(point[0]), float(point[1])) for point in candidates}), float)
+
+
+def window_triangles(window, vertices, maximum_boundary_checks, maximum_triangles, label):
+    """Delaunay-triangulate and keep the triangles whose centroid and edges lie in the window.
+
+    Returns the vertices used by retained triangles, the triangles re-indexed to them, and the
+    boundary-segment work count.
+    """
     triangulation = Delaunay(vertices)
     boundary_checks = len(triangulation.simplices) * 3 * len(window["segments"])
     if boundary_checks > maximum_boundary_checks:
-        raise ContractError("adaptive SPDE boundary-segment/triangle work bound exceeded")
+        raise ContractError(f"{label} boundary-segment/triangle work bound exceeded")
     retained = []
     for simplex in triangulation.simplices:
         triangle = tuple(sorted(map(int, simplex)))
         coordinates = vertices[list(triangle)]
-        centroid = coordinates.mean(axis=0)
-        if not window_contains(window, centroid):
+        if not window_contains(window, coordinates.mean(axis=0)):
             continue
-        if all(segment_within_window(window, coordinates[index], coordinates[(index + 1) % 3]) for index in range(3)):
+        if all(
+            segment_within_window(window, coordinates[index], coordinates[(index + 1) % 3])
+            for index in range(3)
+        ):
             retained.append(triangle)
     triangles = np.asarray(sorted(set(retained)), dtype=int)
     if len(triangles) == 0 or len(triangles) > maximum_triangles:
-        raise ContractError("adaptive SPDE triangle bound violated")
+        raise ContractError(f"{label} triangle bound violated")
     used = sorted(set(map(int, triangles.ravel())))
     remap = {old: new for new, old in enumerate(used)}
-    vertices = vertices[used]
-    triangles = np.asarray([[remap[int(index)] for index in triangle] for triangle in triangles], dtype=int)
-    vertex_count = len(vertices)
-    dense_bytes = 10 * vertex_count * vertex_count * 8
-    if dense_bytes > memory_budget_bytes:
-        raise ContractError("adaptive SPDE dense finite-element memory budget exceeded")
-    mass = np.zeros((vertex_count, vertex_count))
-    stiffness = np.zeros_like(mass)
-    areas = []
-    for triangle in triangles:
-        coordinates = vertices[triangle]
-        signed_double_area = float(np.cross(coordinates[1] - coordinates[0], coordinates[2] - coordinates[0]))
-        area = abs(signed_double_area) / 2.0
-        if area <= 1e-14:
-            raise ContractError("adaptive SPDE produced a degenerate triangle")
-        areas.append(area)
-        local_mass = area / 12.0 * np.asarray([[2, 1, 1], [1, 2, 1], [1, 1, 2]], float)
-        denominator = signed_double_area
-        b = np.asarray([coordinates[1, 1] - coordinates[2, 1], coordinates[2, 1] - coordinates[0, 1], coordinates[0, 1] - coordinates[1, 1]]) / denominator
-        c = np.asarray([coordinates[2, 0] - coordinates[1, 0], coordinates[0, 0] - coordinates[2, 0], coordinates[1, 0] - coordinates[0, 0]]) / denominator
-        local_stiffness = area * (np.outer(b, b) + np.outer(c, c))
-        for local_i, global_i in enumerate(triangle):
-            for local_j, global_j in enumerate(triangle):
-                mass[global_i, global_j] += local_mass[local_i, local_j]
-                stiffness[global_i, global_j] += local_stiffness[local_i, local_j]
-    lumped = mass.sum(axis=1)
-    if np.any(lumped <= 0.0):
-        raise ContractError("adaptive SPDE mesh contains an unused or zero-mass vertex")
-    precision = tau ** 2 * (kappa ** 4 * mass + 2.0 * kappa ** 2 * stiffness + stiffness @ np.diag(1.0 / lumped) @ stiffness)
-    precision = (precision + precision.T) / 2.0
+    triangles = np.asarray(
+        [[remap[int(index)] for index in triangle] for triangle in triangles], dtype=int
+    )
+    return vertices[used], triangles, boundary_checks
+
+
+def connected_components(vertex_count, triangles):
     adjacency = [set() for _ in range(vertex_count)]
     for triangle in triangles:
         for left, right in ((0, 1), (1, 2), (2, 0)):
@@ -496,10 +561,73 @@ def build_adaptive_window_mesh(window, base_resolution, refinement_level, observ
                 if neighbor in remaining:
                     remaining.remove(neighbor)
                     stack.append(neighbor)
-    return {"vertices": vertices, "triangles": triangles, "mass": mass, "stiffness": stiffness, "precision": precision, "triangle_areas": np.asarray(areas), "mesh_area": float(sum(areas)), "connected_components": components, "boundary_spacing": boundary_spacing}
+    return components
+
+
+def build_adaptive_window_mesh(
+    window,
+    base_resolution,
+    refinement_level,
+    observation_coordinates,
+    kappa,
+    tau,
+    maximum_vertices,
+    maximum_triangles,
+    maximum_boundary_checks,
+    memory_budget_bytes,
+):
+    """Window-adapted mesh with the stationary SPDE precision (``stationary_precision``)."""
+    boundary_spacing = grid_spacing(window, base_resolution) / (2**refinement_level)
+    boundary_point_count = sum(
+        max(1, int(math.ceil(float(np.linalg.norm(second - first)) / boundary_spacing)))
+        for first, second in window["segments"]
+    )
+    if boundary_point_count > 4 * maximum_vertices:
+        raise ContractError(
+            "adaptive SPDE boundary refinement exceeds the bounded candidate budget"
+        )
+    candidates = window_candidates(
+        window, base_resolution, boundary_spacing, observation_coordinates
+    )
+    vertices = unique_vertices(candidates)
+    if len(vertices) < 3 or len(vertices) > maximum_vertices:
+        raise ContractError("adaptive SPDE vertex bound violated")
+    vertices, triangles, _ = window_triangles(
+        window, vertices, maximum_boundary_checks, maximum_triangles, "adaptive SPDE"
+    )
+    vertex_count = len(vertices)
+    if 10 * vertex_count * vertex_count * 8 > memory_budget_bytes:
+        raise ContractError("adaptive SPDE dense finite-element memory budget exceeded")
+    mass, stiffness, areas = assemble_fem(vertices, triangles, 1e-14, "adaptive SPDE")
+    lumped = mass.sum(axis=1)
+    if np.any(lumped <= 0.0):
+        raise ContractError("adaptive SPDE mesh contains an unused or zero-mass vertex")
+    return {
+        "vertices": vertices,
+        "triangles": triangles,
+        "mass": mass,
+        "stiffness": stiffness,
+        "precision": stationary_precision(mass, stiffness, lumped, kappa, tau),
+        "triangle_areas": np.asarray(areas),
+        "mesh_area": float(sum(areas)),
+        "connected_components": connected_components(vertex_count, triangles),
+        "boundary_spacing": boundary_spacing,
+    }
+
+
+def adaptive_barycentric(coordinates, point):
+    """Barycentric coordinates of ``point`` in a triangle, or None for a degenerate triangle."""
+    (x0, y0), (x1, y1), (x2, y2) = coordinates
+    denominator = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
+    if abs(float(denominator)) <= 1e-14:
+        return None
+    first = ((y1 - y2) * (point[0] - x2) + (x2 - x1) * (point[1] - y2)) / denominator
+    second = ((y2 - y0) * (point[0] - x2) + (x0 - x2) * (point[1] - y2)) / denominator
+    return np.asarray([first, second, 1.0 - first - second])
 
 
 def adaptive_projection(mesh, locations, maximum_visits):
+    """Barycentric projection matrix found by a bounded linear search over triangles."""
     locations = np.asarray(locations, dtype=float)
     matrix = np.zeros((len(locations), len(mesh["vertices"])))
     visits = 0
@@ -509,13 +637,9 @@ def adaptive_projection(mesh, locations, maximum_visits):
             visits += 1
             if visits > maximum_visits:
                 raise ContractError("adaptive SPDE projection triangle-visit bound exceeded")
-            coordinates = mesh["vertices"][triangle]
-            denominator = ((coordinates[1, 1] - coordinates[2, 1]) * (coordinates[0, 0] - coordinates[2, 0]) + (coordinates[2, 0] - coordinates[1, 0]) * (coordinates[0, 1] - coordinates[2, 1]))
-            if abs(float(denominator)) <= 1e-14:
+            barycentric = adaptive_barycentric(mesh["vertices"][triangle], point)
+            if barycentric is None:
                 continue
-            first = ((coordinates[1, 1] - coordinates[2, 1]) * (point[0] - coordinates[2, 0]) + (coordinates[2, 0] - coordinates[1, 0]) * (point[1] - coordinates[2, 1])) / denominator
-            second = ((coordinates[2, 1] - coordinates[0, 1]) * (point[0] - coordinates[2, 0]) + (coordinates[0, 0] - coordinates[2, 0]) * (point[1] - coordinates[2, 1])) / denominator
-            barycentric = np.asarray([first, second, 1.0 - first - second])
             if barycentric.min() >= -1e-10 and barycentric.max() <= 1.0 + 1e-10:
                 matrix[row, triangle] = np.clip(barycentric, 0.0, 1.0)
                 matrix[row] /= matrix[row].sum()
@@ -526,75 +650,316 @@ def adaptive_projection(mesh, locations, maximum_visits):
     return matrix, visits
 
 
-def fit_adaptive_spatial_factor(mesh, observations, noise_sd, maximum_iterations, maximum_projection_visits):
+def fit_adaptive_spatial_factor(
+    mesh, observations, noise_sd, maximum_iterations, maximum_projection_visits
+):
+    """MAP fit of the one-factor SPDE model (see ``factor_objective``) on an adapted mesh.
+
+    Up to ``min(50, max(1, maximum_iterations // 5))`` exact block-coordinate updates (field given
+    loadings, then loadings given field) run first; if the gradient is still above tolerance,
+    L-BFGS-B continues from that state with the remaining iteration budget. Its relative-objective
+    stop uses ``factr=10`` accuracy; a successful objective-change stop still has to satisfy the
+    unchanged gradient acceptance limit.
+    """
     coordinates = np.asarray([row["coordinates"] for row in observations], dtype=float)
     values = np.asarray([row["values"] for row in observations], dtype=float)
     design, projection_visits = adaptive_projection(mesh, coordinates, maximum_projection_visits)
     means = values.mean(axis=0)
     centered = values - means
-    initial_field = np.linalg.solve(design.T @ design + noise_sd ** 2 * mesh["precision"] + np.eye(len(mesh["vertices"])) * 1e-8, design.T @ centered[:, 0])
-    initial_loadings = np.linalg.lstsq((design @ initial_field)[:, None], centered, rcond=None)[0].ravel()
-    if not np.isfinite(initial_loadings).all() or float(initial_loadings @ initial_loadings) <= 1e-16:
-        initial_loadings = np.zeros(values.shape[1]); initial_loadings[0] = 1.0
-    field = initial_field
-    loadings = initial_loadings
     precision = mesh["precision"]
+    field, loadings = initial_factor(design, centered, precision, noise_sd)
+    if not np.isfinite(loadings).all() or float(loadings @ loadings) <= 1e-16:
+        loadings = np.zeros(values.shape[1])
+        loadings[0] = 1.0
     gram = design.T @ design
     converged = False
     objective_value = math.inf
     gradient_maximum = math.inf
     block_iterations = min(50, max(1, maximum_iterations // 5))
-    for iteration in range(1, block_iterations + 1):
+    iteration = 0
+    while iteration < block_iterations:
+        iteration += 1
         loading_norm = float(loadings @ loadings)
-        system = precision + (loading_norm / noise_sd ** 2) * gram + np.eye(len(field)) * 1e-10
-        right_hand_side = design.T @ (centered @ loadings) / noise_sd ** 2
+        system = precision + (loading_norm / noise_sd**2) * gram + np.eye(len(field)) * 1e-10
+        right_hand_side = design.T @ (centered @ loadings) / noise_sd**2
         field = np.linalg.solve(system, right_hand_side)
         projected = design @ field
-        denominator = 1.0 + float(projected @ projected) / noise_sd ** 2
-        loadings = (projected @ centered) / (noise_sd ** 2 * denominator)
-        residual = centered - projected[:, None] * loadings[None, :]
-        objective_value = float(0.5 * np.sum(residual ** 2) / noise_sd ** 2 + 0.5 * field @ precision @ field + 0.5 * loadings @ loadings)
-        gradient_field = precision @ field - design.T @ (residual @ loadings) / noise_sd ** 2
-        gradient_loadings = loadings - projected @ residual / noise_sd ** 2
-        gradient_maximum = float(np.linalg.norm(np.concatenate([gradient_field, gradient_loadings]), ord=np.inf))
+        denominator = 1.0 + float(projected @ projected) / noise_sd**2
+        loadings = (projected @ centered) / (noise_sd**2 * denominator)
+        objective_value, gradient = factor_objective(
+            field, loadings, design, centered, precision, noise_sd
+        )
+        gradient_maximum = float(np.linalg.norm(gradient, ord=np.inf))
         if not math.isfinite(objective_value) or not math.isfinite(gradient_maximum):
             raise ContractError("adaptive SPDE block-coordinate solver produced a nonfinite state")
-        if gradient_maximum <= 2e-4:
+        if gradient_maximum <= GRADIENT_TOLERANCE:
             converged = True
             break
     if not converged:
         vertex_count = len(field)
+
         def objective(parameter):
-            candidate_field = parameter[:vertex_count]
-            candidate_loadings = parameter[vertex_count:]
-            candidate_projected = design @ candidate_field
-            candidate_residual = centered - candidate_projected[:, None] * candidate_loadings[None, :]
-            value = 0.5 * np.sum(candidate_residual ** 2) / noise_sd ** 2 + 0.5 * candidate_field @ precision @ candidate_field + 0.5 * candidate_loadings @ candidate_loadings
-            gradient_field = precision @ candidate_field - design.T @ (candidate_residual @ candidate_loadings) / noise_sd ** 2
-            gradient_loadings = candidate_loadings - candidate_projected @ candidate_residual / noise_sd ** 2
-            return float(value), np.concatenate([gradient_field, gradient_loadings])
-        fit = minimize(objective, np.concatenate([field, loadings]), jac=True, method="L-BFGS-B", options={"maxiter": maximum_iterations - block_iterations, "ftol": 1e-12, "gtol": 1e-7})
+            return factor_objective(
+                parameter[:vertex_count],
+                parameter[vertex_count:],
+                design,
+                centered,
+                precision,
+                noise_sd,
+            )
+
+        fit = minimize(
+            objective,
+            np.concatenate([field, loadings]),
+            jac=True,
+            method="L-BFGS-B",
+            options={
+                "maxiter": maximum_iterations - block_iterations,
+                **OPTIMIZER_OPTIONS,
+                "ftol": 10.0 * np.finfo(float).eps,
+            },
+        )
         field = fit.x[:vertex_count]
         loadings = fit.x[vertex_count:]
         objective_value = float(fit.fun)
         gradient_maximum = float(np.linalg.norm(fit.jac, ord=np.inf))
         iteration = block_iterations + int(fit.nit)
-        if not math.isfinite(objective_value) or not math.isfinite(gradient_maximum) or (not fit.success and gradient_maximum > 2e-4):
-            raise ContractError(f"adaptive SPDE warmed optimization failed after {iteration} iterations with gradient {gradient_maximum}: {fit.message}")
-    projected = design @ field
-    if loadings[0] < 0:
-        field = -field
-        loadings = -loadings
-        projected = -projected
+        if (
+            not math.isfinite(objective_value)
+            or not math.isfinite(gradient_maximum)
+            or gradient_maximum > GRADIENT_TOLERANCE
+        ):
+            raise ContractError(
+                f"adaptive SPDE warmed optimization failed after {iteration} iterations "
+                f"with gradient {gradient_maximum}: {fit.message}"
+            )
+    field, loadings, projected = sign_aligned_factor(field, loadings, design @ field)
     reconstruction = means + projected[:, None] * loadings[None, :]
-    correlation = float(np.corrcoef(projected, coordinates[:, 0])[0, 1])
-    return {"means": means, "field": field, "projected": projected, "loadings": loadings, "rmse": float(np.sqrt(np.mean((reconstruction - values) ** 2))), "x_correlation": correlation, "objective": objective_value, "gradient_max": gradient_maximum, "iterations": iteration, "projection": design, "projection_visits": projection_visits}
+    return {
+        "means": means,
+        "field": field,
+        "projected": projected,
+        "loadings": loadings,
+        "rmse": float(np.sqrt(np.mean((reconstruction - values) ** 2))),
+        "x_correlation": float(np.corrcoef(projected, coordinates[:, 0])[0, 1]),
+        "objective": objective_value,
+        "gradient_max": gradient_maximum,
+        "iterations": iteration,
+        "projection": design,
+        "projection_visits": projection_visits,
+    }
+
+
+def factor_observation_arrays(spec, window, message):
+    """Validate 8-512 unique, finite, in-window observations with 2-16 features each."""
+    observations = spec["factor_observations"]
+    coordinates = np.asarray([row["coordinates"] for row in observations], dtype=float)
+    values = np.asarray([row["values"] for row in observations], dtype=float)
+    identities = [row["region_id"] for row in observations]
+    if (
+        coordinates.ndim != 2
+        or coordinates.shape[1] != 2
+        or not 8 <= len(coordinates) <= 512
+        or values.ndim != 2
+        or values.shape[0] != len(coordinates)
+        or not 2 <= values.shape[1] <= 16
+        or not np.isfinite(coordinates).all()
+        or not np.isfinite(values).all()
+        or len(set(identities)) != len(identities)
+        or any(not isinstance(identity, str) or not identity for identity in identities)
+        or any(not window_contains(window, point) for point in coordinates)
+    ):
+        raise ContractError(message)
+    return observations, coordinates, values, identities
+
+
+def window_summary(window, frame):
+    return {
+        "frame": frame,
+        "exact_area": window["exact_area"],
+        "bounds": window["bounds"],
+        "component_count": window["component_count"],
+        "hole_count": window["hole_count"],
+        "ring_count": window["ring_count"],
+        "vertex_count": window["vertex_count"],
+    }
+
+
+def require_result_size(result, maximum_result_bytes, label):
+    encoded = json.dumps(result, allow_nan=False, separators=(",", ":"), sort_keys=True)
+    if len(encoded.encode()) > maximum_result_bytes:
+        raise ContractError(f"{label} result exceeds maximum_result_bytes")
+
+
+def adaptive_window_spde(spec):
+    window = parse_polygonal_window(spec["window"])
+    frame = spec["window_frame"]
+    base_resolution = int(spec["base_resolution"])
+    refinement_levels = int(spec["boundary_refinement_levels"])
+    maximum_relative_area_error = float(spec["maximum_relative_area_error"])
+    kappa = float(spec["kappa"])
+    tau = float(spec["tau"])
+    noise_sd = float(spec["factor_noise_sd"])
+    maximum_iterations = int(spec["maximum_iterations"])
+    maximum_vertices = int(spec["maximum_vertices"])
+    maximum_triangles = int(spec["maximum_triangles"])
+    maximum_boundary_checks = int(spec["maximum_boundary_segment_triangle_checks"])
+    maximum_projection_visits = int(spec["maximum_projection_triangle_visits"])
+    memory_budget_mib = int(spec["memory_budget_mib"])
+    maximum_result_bytes = int(spec["maximum_result_bytes"])
+    if (
+        not isinstance(frame, str)
+        or not frame
+        or spec["alpha"] != 2
+        or spec["factor_count"] != 1
+        or not 4 <= base_resolution <= 32
+        or not 0 <= refinement_levels <= 4
+        or not all(
+            math.isfinite(value) for value in (maximum_relative_area_error, kappa, tau, noise_sd)
+        )
+        or not 0.0 < maximum_relative_area_error <= 0.25
+        or min(kappa, tau, noise_sd) <= 0.0
+        or not 10 <= maximum_iterations <= 10000
+        or not 16 <= maximum_vertices <= 1024
+        or not 16 <= maximum_triangles <= 4096
+        or not 1 <= maximum_boundary_checks <= 100000000
+        or maximum_projection_visits <= 0
+        or not 8 <= memory_budget_mib <= 4096
+        or not 1024 <= maximum_result_bytes <= 16 * MIB
+    ):
+        raise ContractError("adaptive arbitrary-window SPDE controls violate their bounds")
+    observations, coordinates, values, identities = factor_observation_arrays(
+        spec, window, "adaptive SPDE requires unique finite in-window multivariate observations"
+    )
+    sensitivity = []
+    meshes = []
+    for level in range(refinement_levels + 1):
+        mesh = build_adaptive_window_mesh(
+            window,
+            base_resolution,
+            level,
+            coordinates,
+            kappa,
+            tau,
+            maximum_vertices,
+            maximum_triangles,
+            maximum_boundary_checks,
+            memory_budget_mib * MIB,
+        )
+        relative_area_error = abs(mesh["mesh_area"] - window["exact_area"]) / window["exact_area"]
+        sensitivity.append(
+            {
+                "boundary_refinement_level": level,
+                "boundary_spacing": mesh["boundary_spacing"],
+                "vertex_count": len(mesh["vertices"]),
+                "triangle_count": len(mesh["triangles"]),
+                "mesh_area": mesh["mesh_area"],
+                "relative_area_error": relative_area_error,
+            }
+        )
+        meshes.append(mesh)
+    mesh = meshes[-1]
+    relative_area_error = sensitivity[-1]["relative_area_error"]
+    if relative_area_error > maximum_relative_area_error:
+        raise ContractError(
+            f"adaptive SPDE mesh relative area error {relative_area_error} exceeds tolerance "
+            f"{maximum_relative_area_error}"
+        )
+    factor = fit_adaptive_spatial_factor(
+        mesh, observations, noise_sd, maximum_iterations, maximum_projection_visits
+    )
+    eigenvalues = np.linalg.eigvalsh(mesh["precision"])
+    projection_error = float(np.max(np.abs(factor["projection"].sum(axis=1) - 1.0)))
+    result = {
+        "format": "marklab.adaptive_window_spde",
+        "version": 1,
+        "window": {
+            **window_summary(window, frame),
+            "geometry_policy": (
+                "exact_polygon_membership_with_reported_piecewise_linear_mesh_area_error"
+            ),
+        },
+        "mesh": {
+            "basis": "piecewise_linear_triangular",
+            "boundary_condition": "natural_neumann_with_positive_kappa",
+            "alpha": 2,
+            "kappa": kappa,
+            "tau": tau,
+            "base_resolution": base_resolution,
+            "boundary_refinement_levels": refinement_levels,
+            "vertices": mesh["vertices"].tolist(),
+            "triangles": mesh["triangles"].tolist(),
+            "vertex_count": len(mesh["vertices"]),
+            "triangle_count": len(mesh["triangles"]),
+            "connected_components": mesh["connected_components"],
+            "mesh_area": mesh["mesh_area"],
+            "relative_area_error": relative_area_error,
+            "constant_mass_integral": float(mesh["mass"].sum()),
+            "mass_matrix": sparse_triplets(mesh["mass"]),
+            "stiffness_matrix": sparse_triplets(mesh["stiffness"]),
+            "precision_matrix": sparse_triplets(mesh["precision"]),
+            "minimum_precision_eigenvalue": float(eigenvalues[0]),
+            "maximum_precision_eigenvalue": float(eigenvalues[-1]),
+            "maximum_projection_row_sum_error": projection_error,
+        },
+        "spatial_factor": {
+            "inference": "fixed_hyperparameter_penalized_map",
+            "factor_count": 1,
+            "region_ids": identities,
+            "feature_count": values.shape[1],
+            "feature_means": factor["means"].tolist(),
+            "mesh_field_weights": factor["field"].tolist(),
+            "projected_region_factor": factor["projected"].tolist(),
+            "loadings": factor["loadings"].tolist(),
+            "reconstruction_rmse": factor["rmse"],
+            "factor_x_correlation": factor["x_correlation"],
+            "objective": factor["objective"],
+            "gradient_maximum": factor["gradient_max"],
+            "iterations": factor["iterations"],
+            "projection": sparse_triplets(factor["projection"]),
+            "projection_triangle_visits": factor["projection_visits"],
+        },
+        "mesh_sensitivity": sensitivity,
+        "limits": {
+            "maximum_vertices": maximum_vertices,
+            "maximum_triangles": maximum_triangles,
+            "maximum_boundary_segment_triangle_checks": maximum_boundary_checks,
+            "maximum_projection_triangle_visits": maximum_projection_visits,
+            "memory_budget_mib": memory_budget_mib,
+            "maximum_result_bytes": maximum_result_bytes,
+            "maximum_iterations": maximum_iterations,
+        },
+        "assumptions": [
+            "polygonal_window_coordinates_are_physical",
+            "piecewise_linear_finite_elements",
+            "fixed_kappa_tau_and_one_factor",
+            "observation_locations_not_population_replicates",
+        ],
+        "limitations": [
+            "boundary_conforming_quality_reported_by_mesh_area_error",
+            "fixed_spde_hyperparameters",
+            "dense_bounded_penalized_map",
+            "within_specimen_spatial_field_diagnostic",
+        ],
+        "claim_status": "fitted_arbitrary_window_spde_diagnostic",
+    }
+    require_result_size(result, maximum_result_bytes, "adaptive SPDE")
+    return result
+
+
+# Nonstationary window-adapted SPDE
 
 
 def anisotropy_tensor(ratio, major_axis_degrees):
+    """Unit-determinant tensor ``R diag(ratio, 1/ratio) R^T`` rotated to the major axis."""
     ratio = float(ratio)
     angle = float(major_axis_degrees)
-    if not math.isfinite(ratio) or not math.isfinite(angle) or not 1.0 <= ratio <= 16.0 or not -180.0 <= angle <= 180.0:
+    if (
+        not math.isfinite(ratio)
+        or not math.isfinite(angle)
+        or not 1.0 <= ratio <= 16.0
+        or not -180.0 <= angle <= 180.0
+    ):
         raise ContractError("nonstationary SPDE anisotropy parameters are invalid")
     radians = math.radians(angle)
     cosine = math.cos(radians)
@@ -608,39 +973,32 @@ def anisotropy_tensor(ratio, major_axis_degrees):
 
 
 def nonstationary_parameter_at(point, background, regions):
-    matched = [region for region in regions if float(np.linalg.norm(point - region["center"])) <= region["radius"] + 1e-12]
+    matched = [
+        region
+        for region in regions
+        if float(np.linalg.norm(point - region["center"])) <= region["radius"] + 1e-12
+    ]
     if len(matched) > 1:
         raise ContractError("nonstationary SPDE parameter regions overlap")
     return matched[0] if matched else background
 
 
-def build_nonstationary_adaptive_mesh(window, spec, observation_coordinates):
-    x0, x1, y0, y1 = window["bounds"]
-    base_resolution = int(spec["base_resolution"])
-    boundary_level = int(spec["boundary_refinement_levels"])
-    maximum_vertices = int(spec["maximum_vertices"])
-    maximum_triangles = int(spec["maximum_triangles"])
-    maximum_candidates = int(spec["maximum_candidate_points"])
-    maximum_boundary_checks = int(spec["maximum_boundary_segment_triangle_checks"])
-    memory_budget_bytes = int(spec["memory_budget_mib"]) * 1024 * 1024
-    base_spacing = min((x1 - x0) / (base_resolution - 1), (y1 - y0) / (base_resolution - 1))
-    boundary_spacing = base_spacing / (2 ** boundary_level)
-    xs = np.linspace(x0, x1, base_resolution)
-    ys = np.linspace(y0, y1, base_resolution)
-    candidates = [[x, y] for y in ys for x in xs if window_contains(window, np.asarray([x, y]))]
-    candidates.extend(resampled_boundary_points(window, boundary_spacing))
-    candidates.extend(observation_coordinates.tolist())
-    background_raw = spec["background"]
-    background = {
-        "region_id": "background",
-        "center": None,
-        "radius": None,
-        "kappa": float(background_raw["kappa"]),
-        "tau": float(background_raw["tau"]),
-        "anisotropy_ratio": float(background_raw["anisotropy_ratio"]),
-        "major_axis_degrees": float(background_raw["major_axis_degrees"]),
-        "interior_refinement_levels": 0,
+def local_parameters(raw, region_id, center, radius, refinement_levels):
+    return {
+        "region_id": region_id,
+        "center": center,
+        "radius": radius,
+        "kappa": float(raw["kappa"]),
+        "tau": float(raw["tau"]),
+        "anisotropy_ratio": float(raw["anisotropy_ratio"]),
+        "major_axis_degrees": float(raw["major_axis_degrees"]),
+        "interior_refinement_levels": refinement_levels,
     }
+
+
+def parameter_regions(spec):
+    """Validate the background and the non-overlapping circular parameter regions."""
+    background = local_parameters(spec["background"], "background", None, None, 0)
     regions = []
     identities = set()
     for raw in spec["parameter_regions"]:
@@ -648,16 +1006,7 @@ def build_nonstationary_adaptive_mesh(window, spec, observation_coordinates):
         center = np.asarray(raw["center"], dtype=float)
         radius = float(raw["radius"])
         level = int(raw["interior_refinement_levels"])
-        region = {
-            "region_id": identity,
-            "center": center,
-            "radius": radius,
-            "kappa": float(raw["kappa"]),
-            "tau": float(raw["tau"]),
-            "anisotropy_ratio": float(raw["anisotropy_ratio"]),
-            "major_axis_degrees": float(raw["major_axis_degrees"]),
-            "interior_refinement_levels": level,
-        }
+        region = local_parameters(raw, identity, center, radius, level)
         if (
             not isinstance(identity, str)
             or not identity
@@ -674,15 +1023,23 @@ def build_nonstationary_adaptive_mesh(window, spec, observation_coordinates):
     if not 1 <= len(regions) <= 16:
         raise ContractError("nonstationary SPDE requires one to sixteen parameter regions")
     for left, first in enumerate(regions):
-        for second in regions[left + 1:]:
-            if float(np.linalg.norm(first["center"] - second["center"])) <= first["radius"] + second["radius"]:
+        for second in regions[left + 1 :]:
+            separation = float(np.linalg.norm(first["center"] - second["center"]))
+            if separation <= first["radius"] + second["radius"]:
                 raise ContractError("nonstationary SPDE parameter regions overlap")
     for parameter in [background, *regions]:
-        if not all(math.isfinite(parameter[key]) and parameter[key] > 0.0 for key in ("kappa", "tau")):
+        if not all(
+            math.isfinite(parameter[key]) and parameter[key] > 0.0 for key in ("kappa", "tau")
+        ):
             raise ContractError("nonstationary SPDE kappa and tau must be finite and positive")
         parameter["anisotropy_tensor"] = anisotropy_tensor(
             parameter["anisotropy_ratio"], parameter["major_axis_degrees"]
         )
+    return background, regions
+
+
+def add_region_candidates(candidates, window, regions, base_spacing, maximum_candidates):
+    """Append refined grid points inside each circular region (and inside the window)."""
     for region in regions:
         spacing = base_spacing / (2 ** region["interior_refinement_levels"])
         count = int(math.ceil(2.0 * region["radius"] / spacing))
@@ -691,72 +1048,91 @@ def build_nonstationary_adaptive_mesh(window, spec, observation_coordinates):
             for column in range(count + 1):
                 x = region["center"][0] - region["radius"] + column * spacing
                 point = np.asarray([x, y])
-                if float(np.linalg.norm(point - region["center"])) <= region["radius"] + 1e-12 and window_contains(window, point):
+                in_region = (
+                    float(np.linalg.norm(point - region["center"])) <= region["radius"] + 1e-12
+                )
+                if in_region and window_contains(window, point):
                     candidates.append([x, y])
                 if len(candidates) > maximum_candidates:
                     raise ContractError("nonstationary SPDE adaptive candidate bound exceeded")
-    canonical = sorted({(float(point[0]), float(point[1])) for point in candidates})
-    if len(canonical) > maximum_candidates:
+
+
+def nonstationary_precision(mass, stiffness, lumped, kappas, taus):
+    """Nonstationary alpha = 2 SPDE precision ``Q = (K T)^T C~^-1 (K T)``.
+
+    ``K = G_H + diag(C~ kappa^2)`` uses the anisotropic stiffness ``G_H`` and per-vertex
+    ``kappa``; ``T = diag(tau)``; ``C~`` is the lumped mass.
+    """
+    operator = stiffness + np.diag(lumped * kappas**2)
+    weighted = operator @ np.diag(taus)
+    precision = weighted.T @ np.diag(1.0 / lumped) @ weighted
+    return (precision + precision.T) / 2.0
+
+
+def build_nonstationary_adaptive_mesh(window, spec, observation_coordinates):
+    """Window-adapted mesh with piecewise-constant local kappa, tau, and anisotropy.
+
+    Each vertex takes the parameters of the circular region containing it (else the background);
+    each triangle's stiffness uses the mean of its vertices' anisotropy tensors.
+    """
+    base_resolution = int(spec["base_resolution"])
+    boundary_level = int(spec["boundary_refinement_levels"])
+    maximum_vertices = int(spec["maximum_vertices"])
+    maximum_triangles = int(spec["maximum_triangles"])
+    maximum_candidates = int(spec["maximum_candidate_points"])
+    maximum_boundary_checks = int(spec["maximum_boundary_segment_triangle_checks"])
+    memory_budget_bytes = int(spec["memory_budget_mib"]) * MIB
+    base_spacing = grid_spacing(window, base_resolution)
+    boundary_spacing = base_spacing / (2**boundary_level)
+    candidates = window_candidates(
+        window, base_resolution, boundary_spacing, observation_coordinates
+    )
+    background, regions = parameter_regions(spec)
+    add_region_candidates(candidates, window, regions, base_spacing, maximum_candidates)
+    vertices = unique_vertices(candidates)
+    if len(vertices) > maximum_candidates:
         raise ContractError("nonstationary SPDE unique candidate bound exceeded")
-    vertices = np.asarray(canonical, dtype=float)
     if len(vertices) < 3 or len(vertices) > maximum_vertices:
         raise ContractError("nonstationary SPDE vertex bound violated")
-    triangulation = Delaunay(vertices)
-    boundary_checks = len(triangulation.simplices) * 3 * len(window["segments"])
-    if boundary_checks > maximum_boundary_checks:
-        raise ContractError("nonstationary SPDE boundary work bound exceeded")
-    retained = []
-    for simplex in triangulation.simplices:
-        triangle = tuple(sorted(map(int, simplex)))
-        coordinates = vertices[list(triangle)]
-        if not window_contains(window, coordinates.mean(axis=0)):
-            continue
-        if all(segment_within_window(window, coordinates[index], coordinates[(index + 1) % 3]) for index in range(3)):
-            retained.append(triangle)
-    triangles = np.asarray(sorted(set(retained)), dtype=int)
-    if len(triangles) == 0 or len(triangles) > maximum_triangles:
-        raise ContractError("nonstationary SPDE triangle bound violated")
-    used = sorted(set(map(int, triangles.ravel())))
-    remap = {old: new for new, old in enumerate(used)}
-    vertices = vertices[used]
-    triangles = np.asarray([[remap[int(index)] for index in triangle] for triangle in triangles], dtype=int)
+    vertices, triangles, boundary_checks = window_triangles(
+        window, vertices, maximum_boundary_checks, maximum_triangles, "nonstationary SPDE"
+    )
     vertex_count = len(vertices)
     if 12 * vertex_count * vertex_count * 8 > memory_budget_bytes:
         raise ContractError("nonstationary SPDE dense FEM memory budget exceeded")
-    vertex_parameters = [nonstationary_parameter_at(point, background, regions) for point in vertices]
+    vertex_parameters = [
+        nonstationary_parameter_at(point, background, regions) for point in vertices
+    ]
     mass = np.zeros((vertex_count, vertex_count))
     stiffness = np.zeros_like(mass)
     areas = []
     triangle_regions = []
     for triangle in triangles:
         coordinates = vertices[triangle]
-        signed_double_area = float(np.cross(coordinates[1] - coordinates[0], coordinates[2] - coordinates[0]))
-        area = abs(signed_double_area) / 2.0
+        double_area = triangle_double_area(coordinates)
+        area = abs(double_area) / 2.0
         if area <= 1e-14:
             raise ContractError("nonstationary SPDE produced a degenerate triangle")
         areas.append(area)
-        triangle_regions.append(nonstationary_parameter_at(coordinates.mean(axis=0), background, regions)["region_id"])
-        local_mass = area / 12.0 * np.asarray([[2, 1, 1], [1, 2, 1], [1, 1, 2]], float)
-        denominator = signed_double_area
-        b = np.asarray([coordinates[1, 1] - coordinates[2, 1], coordinates[2, 1] - coordinates[0, 1], coordinates[0, 1] - coordinates[1, 1]]) / denominator
-        c = np.asarray([coordinates[2, 0] - coordinates[1, 0], coordinates[0, 0] - coordinates[2, 0], coordinates[1, 0] - coordinates[0, 0]]) / denominator
-        gradients = np.column_stack([b, c])
-        tensor = sum((vertex_parameters[int(index)]["anisotropy_tensor"] for index in triangle), np.zeros((2, 2))) / 3.0
-        local_stiffness = area * gradients @ tensor @ gradients.T
-        for local_i, global_i in enumerate(triangle):
-            for local_j, global_j in enumerate(triangle):
-                mass[global_i, global_j] += local_mass[local_i, local_j]
-                stiffness[global_i, global_j] += local_stiffness[local_i, local_j]
+        centroid_parameters = nonstationary_parameter_at(
+            coordinates.mean(axis=0), background, regions
+        )
+        triangle_regions.append(centroid_parameters["region_id"])
+        gradients = np.column_stack(basis_gradients(coordinates, double_area))
+        tensor_sum = sum(
+            (vertex_parameters[int(index)]["anisotropy_tensor"] for index in triangle),
+            np.zeros((2, 2)),
+        )
+        tensor = tensor_sum / 3.0
+        add_element(mass, triangle, area / 12.0 * LINEAR_ELEMENT_MASS)
+        add_element(stiffness, triangle, area * gradients @ tensor @ gradients.T)
     areas = np.asarray(areas)
     lumped = mass.sum(axis=1)
     if np.any(lumped <= 0.0):
         raise ContractError("nonstationary SPDE mesh has zero mass")
     kappas = np.asarray([parameter["kappa"] for parameter in vertex_parameters])
     taus = np.asarray([parameter["tau"] for parameter in vertex_parameters])
-    operator = stiffness + np.diag(lumped * kappas ** 2)
-    weighted = operator @ np.diag(taus)
-    precision = weighted.T @ np.diag(1.0 / lumped) @ weighted
-    precision = (precision + precision.T) / 2.0
+    precision = nonstationary_precision(mass, stiffness, lumped, kappas, taus)
     symmetry_error = float(np.max(np.abs(precision - precision.T)))
     eigenvalues = np.linalg.eigvalsh(precision)
     if eigenvalues[0] <= 0.0:
@@ -765,18 +1141,22 @@ def build_nonstationary_adaptive_mesh(window, spec, observation_coordinates):
     for parameter in [background, *regions]:
         selected = areas[np.asarray(triangle_regions) == parameter["region_id"]]
         if len(selected) == 0:
-            raise ContractError(f"nonstationary SPDE region {parameter['region_id']} has no retained triangles")
-        summaries.append({
-            "region_id": parameter["region_id"],
-            "kappa": parameter["kappa"],
-            "tau": parameter["tau"],
-            "anisotropy_ratio": parameter["anisotropy_ratio"],
-            "major_axis_degrees": parameter["major_axis_degrees"],
-            "anisotropy_tensor": parameter["anisotropy_tensor"].tolist(),
-            "interior_refinement_levels": parameter["interior_refinement_levels"],
-            "triangle_count": len(selected),
-            "median_triangle_area": float(np.median(selected)),
-        })
+            raise ContractError(
+                f"nonstationary SPDE region {parameter['region_id']} has no retained triangles"
+            )
+        summaries.append(
+            {
+                "region_id": parameter["region_id"],
+                "kappa": parameter["kappa"],
+                "tau": parameter["tau"],
+                "anisotropy_ratio": parameter["anisotropy_ratio"],
+                "major_axis_degrees": parameter["major_axis_degrees"],
+                "anisotropy_tensor": parameter["anisotropy_tensor"].tolist(),
+                "interior_refinement_levels": parameter["interior_refinement_levels"],
+                "triangle_count": len(selected),
+                "median_triangle_area": float(np.median(selected)),
+            }
+        )
     return {
         "vertices": vertices,
         "triangles": triangles,
@@ -821,32 +1201,18 @@ def nonstationary_adaptive_window_spde(spec):
         or not 1 <= int(spec["maximum_boundary_segment_triangle_checks"]) <= 100000000
         or not 1 <= maximum_projection_visits <= 100000000
         or not 8 <= int(spec["memory_budget_mib"]) <= 4096
-        or not 1024 <= maximum_result_bytes <= 16 * 1024 * 1024
+        or not 1024 <= maximum_result_bytes <= 16 * MIB
     ):
         raise ContractError("nonstationary adaptive SPDE controls violate their bounds")
-    observations = spec["factor_observations"]
-    coordinates = np.asarray([row["coordinates"] for row in observations], dtype=float)
-    values = np.asarray([row["values"] for row in observations], dtype=float)
-    identities = [row["region_id"] for row in observations]
-    if (
-        coordinates.ndim != 2
-        or coordinates.shape[1] != 2
-        or not 8 <= len(coordinates) <= 512
-        or values.ndim != 2
-        or values.shape[0] != len(coordinates)
-        or not 2 <= values.shape[1] <= 16
-        or not np.isfinite(coordinates).all()
-        or not np.isfinite(values).all()
-        or len(set(identities)) != len(identities)
-        or any(not isinstance(identity, str) or not identity for identity in identities)
-        or any(not window_contains(window, point) for point in coordinates)
-    ):
-        raise ContractError("nonstationary SPDE observations are invalid")
+    observations, coordinates, values, identities = factor_observation_arrays(
+        spec, window, "nonstationary SPDE observations are invalid"
+    )
     mesh = build_nonstationary_adaptive_mesh(window, spec, coordinates)
     relative_area_error = abs(mesh["mesh_area"] - window["exact_area"]) / window["exact_area"]
     if relative_area_error > maximum_relative_area_error:
         raise ContractError(
-            f"nonstationary SPDE mesh relative area error {relative_area_error} exceeds {maximum_relative_area_error}"
+            f"nonstationary SPDE mesh relative area error {relative_area_error} exceeds "
+            f"{maximum_relative_area_error}"
         )
     factor = fit_adaptive_spatial_factor(
         mesh, observations, noise_sd, maximum_iterations, maximum_projection_visits
@@ -856,15 +1222,7 @@ def nonstationary_adaptive_window_spde(spec):
         "format": "marklab.nonstationary_adaptive_window_spde",
         "version": 1,
         "statistical_unit": "within_specimen_field_diagnostic",
-        "window": {
-            "frame": frame,
-            "exact_area": window["exact_area"],
-            "bounds": window["bounds"],
-            "component_count": window["component_count"],
-            "hole_count": window["hole_count"],
-            "ring_count": window["ring_count"],
-            "vertex_count": window["vertex_count"],
-        },
+        "window": window_summary(window, frame),
         "mesh": {
             "operator": "mass_lumped_nonstationary_alpha_two_spde",
             "basis": "piecewise_linear_triangular",
@@ -906,7 +1264,9 @@ def nonstationary_adaptive_window_spde(spec):
             "maximum_vertices": int(spec["maximum_vertices"]),
             "maximum_triangles": int(spec["maximum_triangles"]),
             "maximum_candidate_points": int(spec["maximum_candidate_points"]),
-            "maximum_boundary_segment_triangle_checks": int(spec["maximum_boundary_segment_triangle_checks"]),
+            "maximum_boundary_segment_triangle_checks": int(
+                spec["maximum_boundary_segment_triangle_checks"]
+            ),
             "maximum_projection_triangle_visits": maximum_projection_visits,
             "memory_budget_mib": int(spec["memory_budget_mib"]),
             "maximum_result_bytes": maximum_result_bytes,
@@ -925,122 +1285,41 @@ def nonstationary_adaptive_window_spde(spec):
         ],
         "claim_status": "fitted_nonstationary_anisotropic_adaptive_spde_diagnostic",
     }
-    if len(json.dumps(result, allow_nan=False, separators=(",", ":"), sort_keys=True).encode()) > maximum_result_bytes:
-        raise ContractError("nonstationary SPDE result exceeds maximum_result_bytes")
+    require_result_size(result, maximum_result_bytes, "nonstationary SPDE")
     return result
 
 
-def adaptive_window_spde(spec):
-    window = parse_polygonal_window(spec["window"])
-    frame = spec["window_frame"]
-    base_resolution = int(spec["base_resolution"])
-    refinement_levels = int(spec["boundary_refinement_levels"])
-    maximum_relative_area_error = float(spec["maximum_relative_area_error"])
-    kappa = float(spec["kappa"])
-    tau = float(spec["tau"])
-    noise_sd = float(spec["factor_noise_sd"])
-    maximum_iterations = int(spec["maximum_iterations"])
-    maximum_vertices = int(spec["maximum_vertices"])
-    maximum_triangles = int(spec["maximum_triangles"])
-    maximum_boundary_checks = int(spec["maximum_boundary_segment_triangle_checks"])
-    maximum_projection_visits = int(spec["maximum_projection_triangle_visits"])
-    memory_budget_bytes = int(spec["memory_budget_mib"]) * 1024 * 1024
-    maximum_result_bytes = int(spec["maximum_result_bytes"])
-    if not isinstance(frame, str) or not frame or spec["alpha"] != 2 or spec["factor_count"] != 1 or not 4 <= base_resolution <= 32 or not 0 <= refinement_levels <= 4 or not all(math.isfinite(value) for value in (maximum_relative_area_error, kappa, tau, noise_sd)) or not 0.0 < maximum_relative_area_error <= 0.25 or min(kappa, tau, noise_sd) <= 0.0 or not 10 <= maximum_iterations <= 10000 or not 16 <= maximum_vertices <= 1024 or not 16 <= maximum_triangles <= 4096 or not 1 <= maximum_boundary_checks <= 100000000 or maximum_projection_visits <= 0 or not 8 <= int(spec["memory_budget_mib"]) <= 4096 or not 1024 <= maximum_result_bytes <= 16 * 1024 * 1024:
-        raise ContractError("adaptive arbitrary-window SPDE controls violate their bounds")
-    observations = spec["factor_observations"]
-    coordinates = np.asarray([row["coordinates"] for row in observations], dtype=float)
-    values = np.asarray([row["values"] for row in observations], dtype=float)
-    identities = [row["region_id"] for row in observations]
-    if coordinates.ndim != 2 or coordinates.shape[1] != 2 or not 8 <= len(coordinates) <= 512 or values.ndim != 2 or values.shape[0] != len(coordinates) or not 2 <= values.shape[1] <= 16 or not np.isfinite(coordinates).all() or not np.isfinite(values).all() or len(set(identities)) != len(identities) or any(not isinstance(identity, str) or not identity for identity in identities) or any(not window_contains(window, point) for point in coordinates):
-        raise ContractError("adaptive SPDE requires unique finite in-window multivariate observations")
-    sensitivity = []
-    meshes = []
-    for level in range(refinement_levels + 1):
-        mesh = build_adaptive_window_mesh(window, base_resolution, level, coordinates, kappa, tau, maximum_vertices, maximum_triangles, maximum_boundary_checks, memory_budget_bytes)
-        relative_area_error = abs(mesh["mesh_area"] - window["exact_area"]) / window["exact_area"]
-        sensitivity.append({"boundary_refinement_level": level, "boundary_spacing": mesh["boundary_spacing"], "vertex_count": len(mesh["vertices"]), "triangle_count": len(mesh["triangles"]), "mesh_area": mesh["mesh_area"], "relative_area_error": relative_area_error})
-        meshes.append(mesh)
-    mesh = meshes[-1]
-    relative_area_error = sensitivity[-1]["relative_area_error"]
-    if relative_area_error > maximum_relative_area_error:
-        raise ContractError(f"adaptive SPDE mesh relative area error {relative_area_error} exceeds tolerance {maximum_relative_area_error}")
-    factor = fit_adaptive_spatial_factor(mesh, observations, noise_sd, maximum_iterations, maximum_projection_visits)
-    eigenvalues = np.linalg.eigvalsh(mesh["precision"])
-    projection_error = float(np.max(np.abs(factor["projection"].sum(axis=1) - 1.0)))
-    result = {
-        "format": "marklab.adaptive_window_spde",
-        "version": 1,
-        "window": {"frame": frame, "exact_area": window["exact_area"], "bounds": window["bounds"], "component_count": window["component_count"], "hole_count": window["hole_count"], "ring_count": window["ring_count"], "vertex_count": window["vertex_count"], "geometry_policy": "exact_polygon_membership_with_reported_piecewise_linear_mesh_area_error"},
-        "mesh": {"basis": "piecewise_linear_triangular", "boundary_condition": "natural_neumann_with_positive_kappa", "alpha": 2, "kappa": kappa, "tau": tau, "base_resolution": base_resolution, "boundary_refinement_levels": refinement_levels, "vertices": mesh["vertices"].tolist(), "triangles": mesh["triangles"].tolist(), "vertex_count": len(mesh["vertices"]), "triangle_count": len(mesh["triangles"]), "connected_components": mesh["connected_components"], "mesh_area": mesh["mesh_area"], "relative_area_error": relative_area_error, "constant_mass_integral": float(mesh["mass"].sum()), "mass_matrix": sparse_triplets(mesh["mass"]), "stiffness_matrix": sparse_triplets(mesh["stiffness"]), "precision_matrix": sparse_triplets(mesh["precision"]), "minimum_precision_eigenvalue": float(eigenvalues[0]), "maximum_precision_eigenvalue": float(eigenvalues[-1]), "maximum_projection_row_sum_error": projection_error},
-        "spatial_factor": {"inference": "fixed_hyperparameter_penalized_map", "factor_count": 1, "region_ids": identities, "feature_count": values.shape[1], "feature_means": factor["means"].tolist(), "mesh_field_weights": factor["field"].tolist(), "projected_region_factor": factor["projected"].tolist(), "loadings": factor["loadings"].tolist(), "reconstruction_rmse": factor["rmse"], "factor_x_correlation": factor["x_correlation"], "objective": factor["objective"], "gradient_maximum": factor["gradient_max"], "iterations": factor["iterations"], "projection": sparse_triplets(factor["projection"]), "projection_triangle_visits": factor["projection_visits"]},
-        "mesh_sensitivity": sensitivity,
-        "limits": {"maximum_vertices": maximum_vertices, "maximum_triangles": maximum_triangles, "maximum_boundary_segment_triangle_checks": maximum_boundary_checks, "maximum_projection_triangle_visits": maximum_projection_visits, "memory_budget_mib": int(spec["memory_budget_mib"]), "maximum_result_bytes": maximum_result_bytes, "maximum_iterations": maximum_iterations},
-        "assumptions": ["polygonal_window_coordinates_are_physical", "piecewise_linear_finite_elements", "fixed_kappa_tau_and_one_factor", "observation_locations_not_population_replicates"],
-        "limitations": ["boundary_conforming_quality_reported_by_mesh_area_error", "fixed_spde_hyperparameters", "dense_bounded_penalized_map", "within_specimen_spatial_field_diagnostic"],
-        "claim_status": "fitted_arbitrary_window_spde_diagnostic",
-    }
-    if len(json.dumps(result, allow_nan=False, separators=(",", ":"), sort_keys=True).encode()) > maximum_result_bytes:
-        raise ContractError("adaptive SPDE result exceeds maximum_result_bytes")
-    return result
+# Entry point
 
-
-def spde_suite(spec):
-    window=spec["window"]; bounds=window["bounds"]
-    resolutions=[int(value) for value in spec["mesh_resolutions"]]
-    kappa=float(spec["kappa"]); tau=float(spec["tau"]); maximum_iterations=int(spec["maximum_iterations"])
-    if window["holes"] != [] or not isinstance(window["frame"],str) or not (0<=bounds[0]<bounds[1] and 0<=bounds[2]<bounds[3]) or spec["alpha"] != 2 or not 3<=min(resolutions)<=max(resolutions)<=16 or resolutions != sorted(set(resolutions)) or min(kappa,tau,float(spec["lgcp_beta_prior_sd"]),float(spec["factor_noise_sd"]))<=0 or not 10<=maximum_iterations<=10000:
-        raise ContractError("bounded hole-free rectangular alpha-two SPDE contract violated")
-    points=np.asarray(spec["lgcp_points"],float)
-    if points.ndim!=2 or points.shape[1]!=2 or not 10<=len(points)<=10000 or not np.isfinite(points).all():
-        raise ContractError("finite bounded LGCP points required")
-    sensitivity=[]; fitted_by_resolution={}
-    for resolution in resolutions:
-        candidate=build_mesh(bounds,resolution,kappa,tau)
-        lgcp=fit_lgcp(candidate,points,float(spec["lgcp_beta_prior_sd"]),maximum_iterations)
-        fitted_by_resolution[resolution]=(candidate,lgcp)
-        sensitivity.append({"resolution":resolution,"vertex_count":len(candidate["vertices"]),"triangle_count":len(candidate["triangles"]),"integrated_intensity":lgcp["integrated"],"right_to_left_mean_intensity_ratio":lgcp["right_left_ratio"]})
-    resolution=resolutions[-1]; mesh,lgcp=fitted_by_resolution[resolution]
-    factor=fit_spatial_factor(mesh,spec["factor_observations"],float(spec["factor_noise_sd"]),maximum_iterations)
-    eigenvalues=np.linalg.eigvalsh(mesh["precision"])
-    max_projection_error=max(float(np.max(np.abs(lgcp["event_projection"].sum(axis=1)-1))),float(np.max(np.abs(lgcp["quadrature_projection"].sum(axis=1)-1))),float(np.max(np.abs(factor["projection"].sum(axis=1)-1))))
-    return {
-        "format":"marklab.rectangular_spde_suite","version":1,
-        "mesh":{"frame":window["frame"],"bounds":bounds,"holes":[],"boundary_condition":"natural_neumann_with_positive_kappa","basis":"piecewise_linear_triangular","alpha":2,"kappa":kappa,"tau":tau,"resolution":resolution,"vertices":mesh["vertices"].tolist(),"triangles":mesh["triangles"].tolist(),"vertex_count":len(mesh["vertices"]),"triangle_count":len(mesh["triangles"]),"mass_matrix":sparse_triplets(mesh["mass"]),"stiffness_matrix":sparse_triplets(mesh["stiffness"]),"precision_matrix":sparse_triplets(mesh["precision"]),"minimum_precision_eigenvalue":float(eigenvalues[0]),"maximum_projection_row_sum_error":max_projection_error},
-        "lgcp":{"inference":"fixed_hyperparameter_laplace_map","beta":lgcp["beta"],"latent_field_weights":lgcp["field"].tolist(),"vertex_intensity":lgcp["vertex_intensity"].tolist(),"integrated_intensity":lgcp["integrated"],"right_to_left_mean_intensity_ratio":lgcp["right_left_ratio"],"objective":lgcp["objective"],"gradient_maximum":lgcp["gradient_max"],"iterations":lgcp["iterations"],"event_projection":sparse_triplets(lgcp["event_projection"]),"quadrature_projection":sparse_triplets(lgcp["quadrature_projection"]),"quadrature_weights":lgcp["quadrature_weights"].tolist()},
-        "spatial_factor":{"inference":"fixed_hyperparameter_laplace_map","factor_count":1,"feature_means":factor["means"].tolist(),"mesh_field_weights":factor["field"].tolist(),"projected_region_factor":factor["projected"].tolist(),"loadings":factor["loadings"].tolist(),"reconstruction_rmse":factor["rmse"],"factor_x_correlation":factor["x_correlation"],"objective":factor["objective"],"iterations":factor["iterations"],"projection":sparse_triplets(factor["projection"])},
-        "mesh_sensitivity":sensitivity,
-        "limitations":["hole_free_rectangle_only","fixed_spde_hyperparameters","dense_bounded_laplace_map","synthetic_oracle_only"],
-        "claim_status":"experimental_synthetic_rectangular_spde_lgcp_and_factor_models",
-    }
+MODES = {
+    "hmc_normal": hmc_normal,
+    "spde_suite": spde_suite,
+    "adaptive_window_spde": adaptive_window_spde,
+    "nonstationary_adaptive_window_spde": nonstationary_adaptive_window_spde,
+}
+WINDOW_MODES = {"adaptive_window_spde", "nonstationary_adaptive_window_spde"}
 
 
 def main():
-    if np.__version__ != "2.4.6" or scipy.__version__ != "1.18.1" or sys.version_info[:2] != (3, 12):
-        raise ContractError("advanced Bayesian backend version drift")
-    request_bytes = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
+    require_versions(numpy=np.__version__, scipy=scipy.__version__)
+    request_bytes = read_request(16 * MIB)
     request = json.loads(request_bytes)
-    if len(request_bytes) > 16 * 1024 * 1024 or request["format"] != "marklab.scipy_advanced_bayes_request" or request["version"] != 1:
+    if request["format"] != REQUEST_FORMAT or request["version"] != 1:
         raise ContractError("request identity/size mismatch")
-    if request["mode"] == "hmc_normal": result = hmc_normal(request["spec"])
-    elif request["mode"] == "advanced_cluster": result = advanced_cluster(request["spec"])
-    elif request["mode"] == "spde_suite": result = spde_suite(request["spec"])
-    elif request["mode"] == "adaptive_window_spde": result = adaptive_window_spde(request["spec"])
-    elif request["mode"] == "nonstationary_adaptive_window_spde": result = nonstationary_adaptive_window_spde(request["spec"])
-    else: raise ContractError("unknown advanced Bayesian mode")
-    if request["mode"] in {"adaptive_window_spde", "nonstationary_adaptive_window_spde"}:
-        if abs(result["window"]["exact_area"] - float(request["canonical_window_area"])) > 1e-10 * max(1.0, float(request["canonical_window_area"])):
+    mode = request["mode"]
+    if mode not in MODES:
+        raise ContractError("unknown advanced Bayesian mode")
+    result = MODES[mode](request["spec"])
+    if mode in WINDOW_MODES:
+        canonical_area = float(request["canonical_window_area"])
+        if abs(result["window"]["exact_area"] - canonical_area) > 1e-10 * max(1.0, canonical_area):
             raise ContractError("Rust and SciPy adaptive SPDE window areas disagree")
-        result["window"]["exact_area"] = float(request["canonical_window_area"])
+        result["window"]["exact_area"] = canonical_area
         result["window"]["canonical_sha256"] = request["canonical_window_sha256"]
     result["backend"] = request["backend"]
-    result["request_sha256"] = hashlib.sha256(request_bytes).hexdigest()
-    json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True); sys.stdout.write("\n")
+    result["request_sha256"] = sha256_hex(request_bytes)
+    write_result(result)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, json.JSONDecodeError, np.linalg.LinAlgError) as error:
-        print(f"advanced Bayesian worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(main, "advanced Bayesian worker contract error", errors=CONTRACT_ERRORS)

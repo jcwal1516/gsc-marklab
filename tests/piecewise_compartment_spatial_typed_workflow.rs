@@ -1,11 +1,18 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use approx::assert_abs_diff_eq;
 use marklab::{
-    analyze_piecewise_compartment_pair_correlation, analyze_piecewise_compartment_spatial_pattern,
-    BinaryCompartmentPartition2D, CompartmentPartitionLimits, CoordinateFrame, CoordinateFrameId,
-    CoordinateRegistry, CoordinateSpace, CoordinateUnit, InhomogeneousSpatialError,
-    ObservationWindow2D, ObservationWindowLimits, Pattern, PatternMeta,
-    PiecewiseCompartmentPairCorrelationConfig, PiecewiseCompartmentRole,
-    PiecewiseCompartmentSpatialConfig, PiecewiseCompartmentSpatialLimits, SpatialAxis,
+    compartments::{BinaryCompartmentPartition2D, CompartmentPartitionLimits},
+    spatial::{
+        analyze_piecewise_compartment_pair_correlation,
+        analyze_piecewise_compartment_spatial_pattern, InhomogeneousSpatialError,
+        PiecewiseCompartmentPairCorrelationConfig, PiecewiseCompartmentRole,
+        PiecewiseCompartmentSpatialConfig, PiecewiseCompartmentSpatialLimits,
+    },
+    CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit,
+    ObservationWindow2D, ObservationWindowLimits, Pattern, SpatialAxis,
 };
 
 fn framed_window(
@@ -88,7 +95,7 @@ fn leave_one_out_piecewise_compartment_intensity_flows_into_epanechnikov_g() {
     assert_eq!(result.pair_bandwidth_um, bandwidth);
     assert_eq!(
         result.inference.null_model,
-        "fixed_binary_compartment_counts_uniform_within_exact_partition"
+        marklab::spatial::InhomogeneousNullModel::FixedBinaryCompartmentCountsUniformWithinExactPartition
     );
 }
 
@@ -135,16 +142,12 @@ fn fixture() -> (Pattern, ObservationWindow2D, BinaryCompartmentPartition2D) {
         vec![2.0, 4.0, 6.0, 8.0, 9.0],
         vec![5.0; 5],
         vec![0; 5],
-        PatternMeta {
-            case_id: "piecewise-case".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("piecewise-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "piecewise-case".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("piecewise-slide".into()),
+        ),
     )
     .expect("pattern");
     (pattern, observation, partition)
@@ -257,17 +260,20 @@ fn leave_one_out_piecewise_compartment_intensity_flows_into_border_kl() {
 
     assert_eq!(
         result.intensity.estimator,
-        "piecewise_constant_binary_compartment"
+        marklab::spatial::IntensityEstimator::PiecewiseConstantBinaryCompartment
     );
     assert_eq!(
         result.intensity.cross_fit,
-        "leave_one_out_within_compartment"
+        marklab::spatial::IntensityCrossFit::LeaveOneOutWithinCompartment
     );
     assert_eq!(
         result.intensity.boundary_correction,
-        "exact_compartment_area"
+        marklab::spatial::IntensityBoundaryCorrection::ExactCompartmentArea
     );
-    assert_eq!(result.intensity.interface_event_policy, "reject");
+    assert_eq!(
+        result.intensity.interface_event_policy,
+        marklab::spatial::CompartmentInterfaceEventPolicy::Reject
+    );
     assert_eq!(result.intensity.negative.compartment_id, "stroma");
     assert_eq!(result.intensity.negative.event_count, 2);
     assert_eq!(result.intensity.negative.area_um2, 50.0);
@@ -317,11 +323,11 @@ fn leave_one_out_piecewise_compartment_intensity_flows_into_border_kl() {
     }
     assert_eq!(
         result.inference.null_model,
-        "fixed_binary_compartment_counts_uniform_within_exact_partition"
+        marklab::spatial::InhomogeneousNullModel::FixedBinaryCompartmentCountsUniformWithinExactPartition
     );
     assert_eq!(
         result.inference.randomization_unit,
-        "whole_location_pattern_conditioned_on_binary_compartment_counts"
+        marklab::spatial::SpatialRandomizationUnit::WholeLocationPatternConditionedOnBinaryCompartmentCounts
     );
     assert_eq!(result.inference.simulations_completed, 19);
     assert!(result.inference.null_draws >= 5 * 19);

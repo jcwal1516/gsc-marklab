@@ -1,4 +1,7 @@
+use crate::is_worker_timeout;
 use crate::validation::all_finite as finite;
+use crate::validation::is_exact_name;
+use marklab_numerics::relative_eq;
 
 use std::{
     f64::consts::PI,
@@ -9,12 +12,18 @@ use statrs::distribution::{ContinuousCDF, Normal};
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::backend_versions::SCIPY_BACKEND;
+use crate::ClaimStatus;
+use crate::SensitivityStatus;
 use crate::{
     model::{BackendContract, WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION},
     BayesError, WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
-const SENSITIVITY_BACKEND_VERSION: &str = "scipy-1.18.1";
+const RELATIVE_TOLERANCE: f64 = 1e-10;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -24,6 +33,15 @@ pub struct NormalPriorAlternative {
     pub prior_sd: f64,
 }
 
+/// Exact normal-mean sensitivity analysis across explicitly supplied normal priors.
+///
+/// Every alternative uses the same independent likelihood `y_i ~ Normal(mu, known_sigma)` and
+/// its own `mu ~ Normal(prior_mean, prior_sd)`, parameterized by SDs. The worker computes
+/// each conjugate posterior analytically, reports the probability that `mu` exceeds
+/// `decision_threshold`, and scores exact leave-one-out normal predictions. The base prior
+/// and material-shift thresholds define comparisons between fitted alternatives; they are not
+/// additional probabilistic priors.
+///
 #[derive(Clone, Debug, Serialize)]
 pub struct NormalMeanPriorSensitivitySpec {
     pub observations: Vec<f64>,
@@ -48,7 +66,7 @@ impl NormalMeanPriorSensitivitySpec {
             || self.decision_probability_threshold >= 1.0
             || !self.material_mean_shift.is_finite()
             || self.material_mean_shift <= 0.0
-            || !(1..=3_600).contains(&timeout_seconds)
+            || !is_worker_timeout(timeout_seconds)
         {
             return Err(BayesError::InvalidSpec(
                 "normal-mean prior-sensitivity inputs or controls are invalid".into(),
@@ -57,9 +75,7 @@ impl NormalMeanPriorSensitivitySpec {
         self.priors
             .sort_by(|left, right| left.prior_name.cmp(&right.prior_name));
         for (index, prior) in self.priors.iter().enumerate() {
-            if prior.prior_name.is_empty()
-                || prior.prior_name.len() > 128
-                || prior.prior_name.trim() != prior.prior_name
+            if !is_exact_name(&prior.prior_name)
                 || !prior.prior_mean.is_finite()
                 || !prior.prior_sd.is_finite()
                 || prior.prior_sd <= 0.0
@@ -103,8 +119,8 @@ impl NormalMeanPriorSensitivitySpec {
             decision_threshold: self.decision_threshold,
             decision_probability_threshold: self.decision_probability_threshold,
             material_mean_shift: self.material_mean_shift,
-            backend_capability: "prior_sensitivity",
-            maturity: "experimental_sensitivity",
+            backend_capability: BackendCapability::PriorSensitivity,
+            maturity: ModelMaturity::ExperimentalSensitivity,
         }
     }
 }
@@ -122,8 +138,8 @@ pub struct PriorSensitivityModelIr {
     pub decision_threshold: f64,
     pub decision_probability_threshold: f64,
     pub material_mean_shift: f64,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -160,8 +176,8 @@ impl PriorSensitivityWorkerRequest {
             version: WORKER_REQUEST_VERSION,
             backend: BackendContract {
                 name: "scipy",
-                version: SENSITIVITY_BACKEND_VERSION,
-                python_version: "3.12",
+                version: SCIPY_BACKEND,
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -223,14 +239,10 @@ impl PriorSensitivityWorkerResult {
             request.observations.iter().sum::<f64>() / request.observations.len() as f64;
         if self.format != "marklab.scipy_prior_sensitivity_worker_result"
             || self.version != 1
-            || self.backend.name != "scipy"
-            || self.backend.version != SENSITIVITY_BACKEND_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
             || self.observation_count != request.observations.len()
-            || !approximately_equal(self.observed_mean, observed_mean)
+            || !relative_eq(self.observed_mean, observed_mean, RELATIVE_TOLERANCE)
             || self.priors.len() != request.priors.len()
         {
             return Err(BayesError::WorkerContract(
@@ -273,30 +285,43 @@ impl PriorSensitivityWorkerResult {
                     actual.loo_elpd_difference_from_base,
                 ])
                 || !(0.0..=1.0).contains(&actual.probability_above_threshold)
-                || !approximately_equal(actual.prior_mean, expected.prior_mean)
-                || !approximately_equal(actual.prior_sd, expected.prior_sd)
-                || !approximately_equal(actual.posterior_mean, expected.posterior_mean)
-                || !approximately_equal(actual.posterior_sd, expected.posterior_sd)
-                || !approximately_equal(
+                || !relative_eq(actual.prior_mean, expected.prior_mean, RELATIVE_TOLERANCE)
+                || !relative_eq(actual.prior_sd, expected.prior_sd, RELATIVE_TOLERANCE)
+                || !relative_eq(
+                    actual.posterior_mean,
+                    expected.posterior_mean,
+                    RELATIVE_TOLERANCE,
+                )
+                || !relative_eq(
+                    actual.posterior_sd,
+                    expected.posterior_sd,
+                    RELATIVE_TOLERANCE,
+                )
+                || !relative_eq(
                     actual.probability_above_threshold,
                     expected.probability_above_threshold,
+                    RELATIVE_TOLERANCE,
                 )
-                || !approximately_equal(actual.loo_elpd, expected.loo_elpd)
-                || !approximately_equal(
+                || !relative_eq(actual.loo_elpd, expected.loo_elpd, RELATIVE_TOLERANCE)
+                || !relative_eq(
                     actual.mean_difference_from_base,
                     expected.mean_difference_from_base,
+                    RELATIVE_TOLERANCE,
                 )
-                || !approximately_equal(
+                || !relative_eq(
                     actual.sd_difference_from_base,
                     expected.sd_difference_from_base,
+                    RELATIVE_TOLERANCE,
                 )
-                || !approximately_equal(
+                || !relative_eq(
                     actual.probability_difference_from_base,
                     expected.probability_difference_from_base,
+                    RELATIVE_TOLERANCE,
                 )
-                || !approximately_equal(
+                || !relative_eq(
                     actual.loo_elpd_difference_from_base,
                     expected.loo_elpd_difference_from_base,
+                    RELATIVE_TOLERANCE,
                 )
             {
                 return Err(BayesError::WorkerContract(
@@ -330,11 +355,11 @@ impl PriorSensitivityWorkerResult {
             conclusion_changed_priors: self.conclusion_changed_priors.clone(),
             material_mean_shift_priors: self.material_mean_shift_priors,
             sensitivity_state: if self.conclusion_changed_priors.is_empty() {
-                "decision_stable"
+                SensitivityStatus::DecisionStable
             } else {
-                "decision_sensitive"
+                SensitivityStatus::DecisionSensitive
             },
-            claim_status: "experimental_sensitivity_analysis",
+            claim_status: ClaimStatus::ExperimentalSensitivityAnalysis,
             request_sha256: self.request_sha256,
         }
     }
@@ -479,12 +504,12 @@ pub fn evaluate_normal_mean_prior_sensitivity(
             "prior-sensitivity differences are not finite".into(),
         ));
     }
-    let request_sha256 = crate::sha256_hex(&serde_json::to_vec(&(
+    let request_sha256 = crate::json_sha256(&(
         "marklab.normal_mean_prior_sensitivity_native",
         2,
         &spec,
         timeout_seconds,
-    ))?);
+    ))?;
     let observed_mean = spec.observations.iter().sum::<f64>() / spec.observations.len() as f64;
     check_time()?;
     Ok(NormalMeanPriorSensitivityResult {
@@ -497,13 +522,13 @@ pub fn evaluate_normal_mean_prior_sensitivity(
         observed_mean,
         priors,
         sensitivity_state: if changed.is_empty() {
-            "decision_stable"
+            SensitivityStatus::DecisionStable
         } else {
-            "decision_sensitive"
+            SensitivityStatus::DecisionSensitive
         },
         conclusion_changed_priors: changed,
         material_mean_shift_priors: shifted,
-        claim_status: "experimental_sensitivity_analysis",
+        claim_status: ClaimStatus::ExperimentalSensitivityAnalysis,
         request_sha256,
     })
 }
@@ -521,13 +546,9 @@ pub struct NormalMeanPriorSensitivityResult {
     pub priors: Vec<PriorSensitivitySummary>,
     pub conclusion_changed_priors: Vec<String>,
     pub material_mean_shift_priors: Vec<String>,
-    pub sensitivity_state: &'static str,
-    pub claim_status: &'static str,
+    pub sensitivity_state: SensitivityStatus,
+    pub claim_status: ClaimStatus,
     pub request_sha256: String,
-}
-
-fn approximately_equal(left: f64, right: f64) -> bool {
-    (left - right).abs() <= 1e-10 * left.abs().max(right.abs()).max(1.0)
 }
 
 #[derive(Debug, Serialize)]
@@ -551,8 +572,8 @@ pub struct PriorSensitivityResult {
     pub priors: Vec<PriorSensitivitySummary>,
     pub conclusion_changed_priors: Vec<String>,
     pub material_mean_shift_priors: Vec<String>,
-    pub sensitivity_state: &'static str,
-    pub claim_status: &'static str,
+    pub sensitivity_state: SensitivityStatus,
+    pub claim_status: ClaimStatus,
     pub request_sha256: String,
 }
 
@@ -600,7 +621,10 @@ mod tests {
         assert_eq!(result.material_mean_shift_priors, ["skeptical"]);
         assert_eq!(result.priors[1].posterior_mean, 0.25);
         assert_eq!(result.priors[1].mean_difference_from_base, -1.75);
-        assert_eq!(result.sensitivity_state, "decision_sensitive");
+        assert_eq!(
+            result.sensitivity_state,
+            SensitivityStatus::DecisionSensitive
+        );
 
         specification.priors.reverse();
         let reordered = evaluate_normal_mean_prior_sensitivity(specification, 60).unwrap();
@@ -621,7 +645,7 @@ mod tests {
             (probability / expected - 1.0).abs() < 1e-10,
             "{probability}"
         );
-        assert_eq!(result.sensitivity_state, "decision_stable");
+        assert_eq!(result.sensitivity_state, SensitivityStatus::DecisionStable);
 
         specification.decision_threshold = 1.0;
         let result = evaluate_normal_mean_prior_sensitivity(specification.clone(), 60).unwrap();

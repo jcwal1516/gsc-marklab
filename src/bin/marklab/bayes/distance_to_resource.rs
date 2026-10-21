@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::fs;
 
 use marklab_bayes::{
     fit_distance_to_resource_model, DistanceOutcomeObservation, DistanceToResourceSpec,
@@ -6,7 +6,8 @@ use marklab_bayes::{
 };
 use serde::Deserialize;
 
-use super::{publish_json, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::DistanceToResourceArgs;
+use super::{publish_json, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -39,23 +40,26 @@ struct ObservationInput {
     accessibility: f64,
 }
 
-pub(super) fn run(
-    input_path: PathBuf,
-    coefficient_prior_sd: f64,
-    patient_effect_prior_sd: f64,
-    known_noise_sd: f64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
-    let metadata = fs::metadata(&input_path).map_err(|source| BayesCliError::Io {
+pub(super) fn run(args: DistanceToResourceArgs) -> Result<(), CliError> {
+    let DistanceToResourceArgs {
+        input,
+        coefficient_prior_sd,
+        patient_effect_prior_sd,
+        known_noise_sd,
+        out,
+    } = args;
+    let input_path = input;
+    let output_path = out;
+    let metadata = fs::metadata(&input_path).map_err(|source| CliError::Io {
         path: input_path.clone(),
         source,
     })?;
     if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "distance-to-resource input must be a regular file within 16 MiB".into(),
         ));
     }
-    let bytes = fs::read(&input_path).map_err(|source| BayesCliError::Io {
+    let bytes = fs::read(&input_path).map_err(|source| CliError::Io {
         path: input_path,
         source,
     })?;

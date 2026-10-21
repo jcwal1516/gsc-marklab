@@ -1,10 +1,13 @@
 use super::*;
 use marklab::{
-    publish_slide_embedding_table_arrow, publish_slide_embedding_table_parquet,
-    verify_slide_embedding_table_arrow_bytes, verify_slide_embedding_table_arrow_from_store,
-    verify_slide_embedding_table_parquet_bytes, verify_slide_embedding_table_parquet_from_store,
-    write_slide_embedding_table_arrow, write_slide_embedding_table_parquet, ArtifactStoreError,
-    MultiscaleColumnarError, VerifiedReaderError, VerifiedSlideEmbeddingTableArtifact,
+    embeddings::{
+        publish_slide_embedding_table_arrow, publish_slide_embedding_table_parquet,
+        verify_slide_embedding_table_arrow_bytes, verify_slide_embedding_table_arrow_from_store,
+        verify_slide_embedding_table_parquet_bytes,
+        verify_slide_embedding_table_parquet_from_store, write_slide_embedding_table_arrow,
+        write_slide_embedding_table_parquet, ColumnarError, VerifiedSlideEmbeddingTableArtifact,
+    },
+    workflow::{ArtifactStoreError, VerifiedReaderError},
 };
 
 fn assert_receipt_lineage(
@@ -162,13 +165,13 @@ fn slide_receipts_preserve_failure_precedence_and_privacy() {
 
     assert!(matches!(
         verify_slide_embedding_table_arrow_bytes(&bytes, &record, &different_candidate, budgets(),),
-        Err(MultiscaleColumnarError::ArtifactBindingMismatch)
+        Err(ColumnarError::ArtifactBindingMismatch)
     ));
 
     bytes[0] ^= 1;
     assert!(matches!(
         verify_slide_embedding_table_arrow_bytes(&bytes, &record, &candidate, budgets(),),
-        Err(MultiscaleColumnarError::Arrow { .. })
+        Err(ColumnarError::Arrow { .. })
     ));
 
     corrupt_managed(&fixture.lower._direct._root, record.id());

@@ -1,8 +1,7 @@
 import importlib.util
-from pathlib import Path
 import unittest
+from pathlib import Path
 from unittest import mock
-
 
 WORKER = (
     Path(__file__).resolve().parents[2]
@@ -25,9 +24,9 @@ class NeuralSbiVersionTests(unittest.TestCase):
         with (
             mock.patch.object(worker.torch, "__version__", "2.12.0+cu130"),
             mock.patch.object(worker, "version", return_value="2.12.0"),
+            self.assertRaisesRegex(worker.ContractError, "backend version drift"),
         ):
-            with self.assertRaisesRegex(worker.ContractError, "backend version drift"):
-                worker.validate_backend_versions()
+            worker.validate_backend_versions()
 
 
 if __name__ == "__main__":

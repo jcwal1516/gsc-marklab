@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, path::PathBuf};
+use std::collections::BTreeMap;
 
 use marklab_cohort::{
     functional_equivalence_band, FunctionalDifferenceCurve, FunctionalEquivalenceResult,
@@ -6,7 +6,10 @@ use marklab_cohort::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{input::validate_input_file_with_message, publication::publish_json, CohortError};
+use super::{
+    input::validate_input_file_with_message, publication::publish_json, CohortError,
+    FunctionalEquivalenceArgs,
+};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -44,14 +47,15 @@ struct Replicates {
     unit: &'static str,
 }
 
-pub(super) fn run(
-    input: PathBuf,
-    alpha: f64,
-    replicates: usize,
-    seed: u64,
-    margin_rationale: String,
-    out: PathBuf,
-) -> Result<(), CohortError> {
+pub(super) fn run(args: FunctionalEquivalenceArgs) -> Result<(), CohortError> {
+    let FunctionalEquivalenceArgs {
+        input,
+        alpha,
+        replicates,
+        seed,
+        margin_rationale,
+        out,
+    } = args;
     let (curves, margin_curve) = read_curves(&input)?;
     let result = functional_equivalence_band(
         &curves,

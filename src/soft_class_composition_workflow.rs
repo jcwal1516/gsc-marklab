@@ -1,16 +1,18 @@
+use crate::workflow_codec::invalid;
+use crate::workflow_node::{NodeAnalysis, TypedNode};
 use std::io;
 
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_project::{ArtifactRef, MarklabProject};
+use marklab_workflow::{NodeError, NodeId, NodeSpec};
 use serde::Serialize;
 
 use crate::{
-    compartment_interface::analysis::measurement_status_name,
-    soft_class_composition::configuration_digest, workflow::pattern_artifact,
-    DeclaredScalarPatternInput, ScalarMarkId, SoftClassCompositionLimits,
-    SoftClassCompositionResult,
+    marked_workflow::pattern_artifact,
+    marks::{
+        DeclaredScalarPatternInput, ScalarMarkId, SoftClassCompositionLimits,
+        SoftClassCompositionResult,
+    },
+    soft_class_composition::configuration_digest,
 };
 
 const NODE_KIND: &str = "soft_class_composition";
@@ -20,13 +22,13 @@ const POLICY: &[u8] = b"serial;complete-probability-simplex-rows;no-threshold;sh
 
 /// Cache-addressed soft class-composition node over one typed simplex column.
 pub struct SoftClassCompositionAnalysisNode<'a> {
-    spec: NodeSpec,
+    node: TypedNode<SoftClassCompositionAnalysis<'a>>,
+}
+
+struct SoftClassCompositionAnalysis<'a> {
     input: &'a DeclaredScalarPatternInput<'a>,
     mark_id: &'a ScalarMarkId,
     limits: &'a SoftClassCompositionLimits,
-    inputs: [ArtifactRef; 3],
-    configuration_digest: ContentDigest,
-    implementation_identity: String,
 }
 
 impl<'a> SoftClassCompositionAnalysisNode<'a> {
@@ -49,41 +51,42 @@ impl<'a> SoftClassCompositionAnalysisNode<'a> {
                 .register_reference(artifact.clone())
                 .map_err(NodeError::input)?;
         }
+        let node_spec = NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?;
+        let node_configuration_digest = config.digest();
+        let node_implementation_identity = format!(
+            "marklab/{};adapter=soft-class-composition-node-v1",
+            env!("CARGO_PKG_VERSION")
+        );
         Ok(Self {
-            spec: NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?,
-            input,
-            mark_id,
-            limits,
-            inputs,
-            configuration_digest: config.digest(),
-            implementation_identity: format!(
-                "marklab/{};adapter=soft-class-composition-node-v1",
-                env!("CARGO_PKG_VERSION")
-            ),
+            node: TypedNode {
+                spec: node_spec,
+                analysis: SoftClassCompositionAnalysis {
+                    input,
+                    mark_id,
+                    limits,
+                },
+                inputs,
+                configuration_digest: node_configuration_digest,
+                execution_policy: std::borrow::Cow::Borrowed(POLICY),
+                implementation_identity: node_implementation_identity,
+            },
         })
     }
 
     pub fn spec(&self) -> &NodeSpec {
-        &self.spec
+        self.node.spec()
     }
 }
 
-impl WorkflowNode for SoftClassCompositionAnalysisNode<'_> {
+impl NodeAnalysis for SoftClassCompositionAnalysis<'_> {
     type Output = SoftClassCompositionResult;
+    type Inputs = [ArtifactRef; 3];
 
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.inputs
-    }
-
-    fn semantic_input_artifacts(&self) -> &[marklab_workflow::ArtifactId] {
+    fn semantic_input_artifacts(&self) -> &[marklab_project::ArtifactId] {
         self.input.semantic_artifact_ids()
     }
 
-    fn verify_input_content(&self) -> Result<(), NodeError> {
+    fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
         let current = [
             pattern_artifact(self.input.pattern())?,
             self.input
@@ -91,24 +94,11 @@ impl WorkflowNode for SoftClassCompositionAnalysisNode<'_> {
                 .map_err(NodeError::input)?,
             config_artifact(self.input, self.mark_id, self.limits)?,
         ];
-        for (bound, current) in self.inputs.iter().zip(current) {
-            bound
-                .verify_identity(current.digest(), current.byte_len())
-                .map_err(NodeError::input)?;
-        }
-        Ok(())
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: POLICY,
-            implementation_identity: &self.implementation_identity,
-        }
+        crate::workflow_node::verify_inputs(inputs, current)
     }
 
     fn execute(&self) -> Result<Self::Output, NodeError> {
-        crate::soft_class_composition(self.input, self.mark_id, self.limits)
+        crate::marks::soft_class_composition(self.input, self.mark_id, self.limits)
             .map_err(NodeError::execution)
     }
 
@@ -129,6 +119,8 @@ impl WorkflowNode for SoftClassCompositionAnalysisNode<'_> {
         RESULT_KIND
     }
 }
+
+crate::workflow_node::impl_workflow_node!(SoftClassCompositionAnalysisNode<'_> => SoftClassCompositionResult);
 
 #[derive(Serialize)]
 struct ConfigArtifact<'a> {
@@ -181,11 +173,9 @@ fn validate(
         || result.timepoint != input.pattern().meta.timepoint
         || result.mark_id != mark_id.as_str()
         || result.measurement_status
-            != measurement_status_name(
-                table
-                    .measurement_status(mark_id)
-                    .ok_or_else(|| invalid("typed simplex status is absent"))?,
-            )
+            != table
+                .measurement_status(mark_id)
+                .ok_or_else(|| invalid("typed simplex status is absent"))?
         || result.row_count != input.pattern().len()
         || result.class_count != levels.len()
         || result.row_count == 0
@@ -223,10 +213,6 @@ fn validate(
 
 fn finite_unit(value: f64) -> bool {
     value.is_finite() && (0.0..=1.0).contains(&value)
-}
-
-fn invalid(message: &'static str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message)
 }
 
 fn invalid_owned(error: impl std::fmt::Display) -> io::Error {

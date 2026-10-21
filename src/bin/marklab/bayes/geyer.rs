@@ -1,17 +1,21 @@
-use super::{publish_json, BayesCliError};
+use super::cli_schema::GeyerSaturationStatisticArgs;
+use super::{publish_json, CliError};
 use marklab_bayes::{
     geyer_saturation_statistic, sha256_hex, GeyerPointSummary, StraussError, StraussPoint,
 };
 use serde::Serialize;
 use std::{fs, path::PathBuf};
-pub(super) fn run(
-    input: PathBuf,
-    radius: f64,
-    saturation: u32,
-    cap: u64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
-    let bytes = fs::read(&input).map_err(|source| BayesCliError::Io {
+pub(super) fn run(args: GeyerSaturationStatisticArgs) -> Result<(), CliError> {
+    let GeyerSaturationStatisticArgs {
+        input,
+        interaction_radius_um,
+        saturation,
+        maximum_pair_visits,
+        out,
+    } = args;
+    let radius = interaction_radius_um;
+    let cap = maximum_pair_visits;
+    let bytes = fs::read(&input).map_err(|source| CliError::Io {
         path: input.clone(),
         source,
     })?;
@@ -20,7 +24,7 @@ pub(super) fn run(
         .flexible(false)
         .from_reader(bytes.as_slice());
     if reader.headers()?.iter().collect::<Vec<_>>() != ["point_id", "x_um", "y_um"] {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "Geyer headers must be exactly: point_id,x_um,y_um".into(),
         ));
     }
@@ -44,10 +48,10 @@ pub(super) fn run(
         },
     )
 }
-fn map_error(e: StraussError) -> BayesCliError {
+fn map_error(e: StraussError) -> CliError {
     match e {
-        StraussError::InvalidSpec(m) | StraussError::Resource(m) => BayesCliError::Input(m),
-        StraussError::Numerical(m) => BayesCliError::Backend(m),
+        StraussError::InvalidSpec(m) | StraussError::Resource(m) => CliError::Input(m),
+        StraussError::Numerical(m) => CliError::Backend(m),
     }
 }
 #[derive(Serialize)]

@@ -1,13 +1,16 @@
-pub(super) use std::{io::Write, mem::size_of, str::FromStr};
+pub(super) use std::{mem::size_of, str::FromStr};
 
 pub(super) use marklab::{
-    ArtifactId, CohortHierarchy, ContentDigest, CoordinateFrame, CoordinateFrameId,
-    CoordinateRegistry, CoordinateSpace, CoordinateUnit, EffectiveReceptiveField, ExpectedPatchSet,
-    ExpectedRegionSet, FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention,
-    MultiscaleEmbeddingError, PatchBoundaryPolicy, PatchEmbeddingContext, PatchFootprint,
-    PatchFootprintSet, PatchId, PatchRegionAssessment, PatchRegionAssessmentBindings,
-    PatchRegionDeclaration, PatchRegionLink, PatchRegionRelation, PatientId, PositiveRational,
-    RegionId, ReplicationRole, SlideId, SpatialAxis, TransformId, TransformMatrix,
+    embeddings::{
+        EffectiveReceptiveField, ExpectedPatchSet, ExpectedRegionSet, MultiscaleEmbeddingError,
+        PatchBoundaryPolicy, PatchEmbeddingContext, PatchFootprint, PatchFootprintSet,
+        PatchRegionAssessment, PatchRegionAssessmentBindings, PatchRegionDeclaration,
+        PatchRegionLink, PatchRegionRelation, PositiveRational,
+    },
+    workflow::{ArtifactId, ContentDigest},
+    CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace,
+    CoordinateUnit, FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention, PatchId,
+    PatientId, RegionId, ReplicationRole, SlideId, SpatialAxis, TransformId, TransformMatrix,
 };
 
 pub(super) const BUDGET: usize = 1 << 20;
@@ -166,102 +169,4 @@ pub(super) fn declarations() -> Vec<PatchRegionDeclaration> {
         PatchRegionDeclaration::partial_overlap(patch("patch-b"), region("region-a"), 1, 2)
             .expect("half overlap"),
     ]
-}
-
-fn frame(writer: &mut impl Write, value: &[u8]) {
-    writer
-        .write_all(&(value.len() as u128).to_be_bytes())
-        .expect("reference length frame");
-    writer.write_all(value).expect("reference value frame");
-}
-
-pub(super) fn reference_relations_digest(assessment: &PatchRegionAssessment) -> ContentDigest {
-    let mut writer = ContentDigest::builder();
-    frame(&mut writer, b"marklab-patch-region-assessment-relations-v1");
-    frame(
-        &mut writer,
-        &u64::try_from(assessment.nonzero_relation_count())
-            .expect("bounded rows")
-            .to_be_bytes(),
-    );
-    for row in assessment.nonzero_relations() {
-        frame(&mut writer, row.patch_id().as_str().as_bytes());
-        frame(&mut writer, row.region_id().as_str().as_bytes());
-        frame(
-            &mut writer,
-            match row.relation() {
-                PatchRegionRelation::FullyContained => b"fully_contained",
-                PatchRegionRelation::PartialOverlap => b"partial_overlap",
-            },
-        );
-        frame(&mut writer, &row.numerator().to_be_bytes());
-        frame(&mut writer, &row.denominator().to_be_bytes());
-    }
-    writer.finish().0
-}
-
-pub(super) fn reference_link_digest(link: &PatchRegionLink) -> ContentDigest {
-    let mut writer = ContentDigest::builder();
-    frame(&mut writer, b"marklab-patch-region-link-logical-v1");
-    frame(
-        &mut writer,
-        link.expected_patches_artifact_id().digest().as_bytes(),
-    );
-    frame(
-        &mut writer,
-        link.expected_patches_logical_digest().as_bytes(),
-    );
-    frame(
-        &mut writer,
-        link.expected_regions_artifact_id().digest().as_bytes(),
-    );
-    frame(
-        &mut writer,
-        link.expected_regions_logical_digest().as_bytes(),
-    );
-    frame(
-        &mut writer,
-        link.patch_context_artifact_id().digest().as_bytes(),
-    );
-    frame(&mut writer, link.patch_context_logical_digest().as_bytes());
-    frame(
-        &mut writer,
-        link.patch_footprints_artifact_id().digest().as_bytes(),
-    );
-    frame(
-        &mut writer,
-        link.patch_footprints_logical_digest().as_bytes(),
-    );
-    frame(
-        &mut writer,
-        link.converter_artifact_id().digest().as_bytes(),
-    );
-    frame(&mut writer, link.converter_content_digest().as_bytes());
-    frame(
-        &mut writer,
-        link.assessment_artifact_id().digest().as_bytes(),
-    );
-    frame(&mut writer, link.assessment_content_digest().as_bytes());
-    frame(&mut writer, b"expected_cartesian_exhaustive");
-    frame(&mut writer, &link.assessed_pair_count().to_be_bytes());
-    frame(
-        &mut writer,
-        &u64::try_from(link.nonzero_relation_count())
-            .expect("bounded rows")
-            .to_be_bytes(),
-    );
-    for row in link.nonzero_relations() {
-        frame(&mut writer, row.patch_id().as_str().as_bytes());
-        frame(&mut writer, row.region_id().as_str().as_bytes());
-        frame(
-            &mut writer,
-            match row.relation() {
-                PatchRegionRelation::FullyContained => b"fully_contained",
-                PatchRegionRelation::PartialOverlap => b"partial_overlap",
-            },
-        );
-        frame(&mut writer, &row.numerator().to_be_bytes());
-        frame(&mut writer, &row.denominator().to_be_bytes());
-    }
-    writer.finish().0
 }

@@ -1,7 +1,8 @@
+use crate::result_vocabulary::EdgeCorrection;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{ClassicalSpatialLimits, ClassicalWindowSummary};
+use crate::spatial::{ClassicalSpatialLimits, ClassicalWindowSummary};
 
 /// Frozen compact-support kernel for homogeneous pair correlation.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -98,12 +99,13 @@ impl HomogeneousPairCorrelationConfig {
     }
 }
 
-/// Availability of one kernel-smoothed radius.
+/// Geometric support of one kernel-smoothed radius.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PairCorrelationPointStatus {
     Available,
     NoEligibleCenters,
+    /// No kernel contribution; a positive normalization still yields an estimate of zero.
     NoPairsInKernelSupport,
 }
 
@@ -142,11 +144,10 @@ pub struct HomogeneousPairCorrelationResult {
     pub window: ClassicalWindowSummary,
     pub kernel: PairCorrelationKernel,
     pub bandwidth_um: f64,
-    pub edge_correction: String,
-    pub null_model: String,
-    pub randomization_unit: String,
+    pub edge_correction: EdgeCorrection,
+    pub null_model: crate::spatial::ClassicalNullModel,
+    pub randomization_unit: crate::spatial::ClassicalRandomizationUnit,
     pub geometry_digest: String,
-    pub geometry_build_count: usize,
     pub observed_pair_visits: usize,
     pub total_pair_visits: usize,
     pub estimated_storage_bytes: usize,

@@ -1,7 +1,13 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use marklab::{
-    analyze_inhomogeneous_pair_correlation, analyze_inhomogeneous_spatial_pattern,
-    InhomogeneousPairCorrelationConfig, InhomogeneousSpatialConfig, InhomogeneousSpatialLimits,
-    ObservationWindow2D, ObservationWindowLimits, Pattern, PatternMeta,
+    spatial::{
+        analyze_inhomogeneous_pair_correlation, analyze_inhomogeneous_spatial_pattern,
+        InhomogeneousPairCorrelationConfig, InhomogeneousSpatialConfig, InhomogeneousSpatialLimits,
+    },
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 
 fn window() -> ObservationWindow2D {
@@ -26,16 +32,12 @@ fn gradient_pattern(replicate: usize) -> Pattern {
         x,
         y,
         vec![0; 40],
-        PatternMeta {
-            case_id: format!("inhomogeneous-null-{replicate}"),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some(format!("inhomogeneous-null-slide-{replicate}")),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            format!("inhomogeneous-null-{replicate}"),
+            "baseline".into(),
+            "unmarked".into(),
+            Some(format!("inhomogeneous-null-slide-{replicate}")),
+        ),
     )
     .expect("pattern")
 }
@@ -140,16 +142,12 @@ fn tight_cluster_pattern() -> Pattern {
         x,
         y,
         vec![0; 40],
-        PatternMeta {
-            case_id: "inhomogeneous-cluster-control".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("inhomogeneous-cluster-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "inhomogeneous-cluster-control".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("inhomogeneous-cluster-slide".into()),
+        ),
     )
     .expect("cluster pattern")
 }

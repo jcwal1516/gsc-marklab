@@ -1,0 +1,90 @@
+{
+  "format": "marklab.isotropic_spatial",
+  "format_version": "1",
+  "analysis": {
+    "case_id": "isotropic-workflow-case",
+    "timepoint": "baseline",
+    "correction": "isotropic",
+    "status": "available",
+    "window": {
+      "coordinate_unit": "micrometre",
+      "coordinate_frame": "existing_pattern_physical_xy",
+      "membership_policy": "closed_window",
+      "area_um2": 100.0,
+      "perimeter_um": 40.0,
+      "bounds_um": [
+        0.0,
+        0.0,
+        10.0,
+        10.0
+      ],
+      "component_count": 1,
+      "hole_count": 0,
+      "ring_count": 1,
+      "vertex_count": 5,
+      "logical_digest": "5e73213ddcbbb3702c911d8d67b25cd75e1569de3cdf70b4fba3d59f1a5de17b"
+    },
+    "geometry": {
+      "point_count": 2,
+      "maximum_radius_um": 2.0,
+      "observed_pair_visits": 1,
+      "total_pair_visits": 20,
+      "observed_visible_arc_evaluations": 2,
+      "total_visible_arc_evaluations": 6,
+      "total_arc_segment_tests": 24,
+      "total_arc_membership_queries": 7,
+      "maximum_boundary_intersection_angles": 2,
+      "estimated_storage_bytes": 2048,
+      "logical_digest": "96c975bf77af2b5470bf8fcf19f3432c2634e9589f9d239590956593d8db81d1",
+      "execution_mode": "exact",
+      "duplicate_policy": "reject",
+      "visible_arc_owner": "observation_window_2d_segment_circle_partition",
+      "pair_traversal": "exact_streaming_unordered_pairs_with_two_directed_arc_weights"
+    },
+    "configuration": {
+      "radius_count": 1,
+      "logical_digest": "db54b2853030c7d01f5bb2e67a65a5c9e94410a64603ca3f423c342013c84395",
+      "limits": {
+        "maximum_points": 16,
+        "maximum_radii": 8,
+        "maximum_pair_visits": 1000,
+        "maximum_visible_arc_evaluations": 2000,
+        "maximum_arc_segment_tests": 200000,
+        "maximum_arc_membership_queries": 100000,
+        "maximum_csr_draws": 100000,
+        "maximum_retained_bytes": 1048576
+      }
+    },
+    "null_design": {
+      "null_model": "homogeneous_csr_conditional_on_count",
+      "randomization_unit": "whole_location_pattern",
+      "conditioned_point_count": 2,
+      "simulations": 19,
+      "seed": 83,
+      "alpha": 0.05
+    },
+    "curve": [
+      {
+        "radius_um": 2.0,
+        "directed_pairs": 2,
+        "visible_arc_evaluations": 2,
+        "visible_arc_fraction_sum": 1.6666666666666665,
+        "inverse_visible_arc_fraction_sum": 2.5000000000000004,
+        "k": 125.00000000000003,
+        "l": 6.307831305050401,
+        "theoretical_k": 12.566370614359172,
+        "theoretical_l": 2.0,
+        "lower_l": 0.0,
+        "upper_l": 5.641895835477563
+      }
+    ],
+    "inference": {
+      "p_global": 0.05,
+      "erl_depth": 0.05,
+      "critical_depth": 0.125,
+      "simulations": 19,
+      "eligible_radius_count": 1
+    },
+    "csr_candidate_draws": 38
+  }
+}

@@ -2,7 +2,8 @@ use std::path::PathBuf;
 
 use marklab_topology::sha256_hex;
 
-use super::super::topology::{read_required, TopologyCliError};
+use super::super::topology::read_required;
+use crate::cli_error::CliError;
 
 pub(super) struct WorkerAssets {
     pub(super) repository: PathBuf,
@@ -11,8 +12,8 @@ pub(super) struct WorkerAssets {
     pub(super) worker_sha256: String,
 }
 
-pub(super) fn load(worker_name: &str) -> Result<WorkerAssets, TopologyCliError> {
-    let repository = marklab::python_backend_assets_root()?;
+pub(super) fn load(worker_name: &str) -> Result<WorkerAssets, CliError> {
+    let repository = marklab::backend::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python").join(worker_name);
     let lock = read_required(&lock_path)?;

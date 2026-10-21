@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-//! Canonical typed embedding values and bounded artifact encodings.
+//! Embedding values and their artifact encodings.
+
+pub mod analysis;
 
 mod artifact;
 mod canonical_token;
@@ -85,13 +87,12 @@ pub use columnar::{
     CellEmbeddingArrowPreflight, CellEmbeddingParquetPreflight, CellEmbeddingRowLinkArrowPreflight,
     CellEmbeddingRowLinkParquetPreflight, CellEmbeddingTablePhysicalBindings,
     CellPatchAssignmentArrowPreflight, CellPatchAssignmentParquetPreflight,
-    CellPatchEdgeArrowPreflight, CellPatchEdgeParquetPreflight, ColumnarWriteSummary,
-    EmbeddingColumnarBudgets, EmbeddingColumnarError, EmbeddingColumnarPublicationError,
-    MultiscaleColumnarError, MultiscaleColumnarPublicationError, ParquetFailure,
-    PatchEmbeddingTableReadBindings, PatchFootprintArrowPreflight, PatchFootprintParquetPreflight,
-    PatchOverlapArrowPreflight, PatchOverlapParquetPreflight, PatchRegionArrowPreflight,
-    PatchRegionParquetPreflight, RowLinkColumnarWriteSummary, SpatialArrowFailure,
-    SpatialColumnarWriteSummary, SpatialParquetFailure,
+    CellPatchEdgeArrowPreflight, CellPatchEdgeParquetPreflight, ColumnarError,
+    ColumnarPublicationError, ColumnarWriteSummary, EmbeddingColumnarBudgets,
+    MultiscaleEmbeddingTableReadBindings, ParquetFailure, PatchFootprintArrowPreflight,
+    PatchFootprintParquetPreflight, PatchOverlapArrowPreflight, PatchOverlapParquetPreflight,
+    PatchRegionArrowPreflight, PatchRegionParquetPreflight, RowLinkColumnarWriteSummary,
+    SpatialColumnarWriteSummary,
 };
 #[cfg(feature = "parquet")]
 pub use columnar::{
@@ -120,6 +121,21 @@ pub use columnar::{
     write_region_embedding_table_parquet, write_slide_embedding_table_arrow,
     write_slide_embedding_table_parquet, MultiscaleMatrixArrowPreflight,
     MultiscaleMatrixParquetPreflight,
+};
+#[cfg(feature = "parquet")]
+pub use columnar::{
+    publish as publish_columnar, read as read_columnar, verify as verify_columnar,
+    with_verified_columnar_reader, ArrowIpc, CellEmbeddingRowLinkEntity,
+    CellEmbeddingRowLinkReadContext, CellEmbeddingRowLinkVerifyContext, CellEmbeddingTableEntity,
+    CellEmbeddingTableReadContext, CellEmbeddingTableWriteContext, CellPatchAssignmentEntity,
+    CellPatchAssignmentReadContext, CellPatchEdgeEntity, CellPatchEdgeReadContext,
+    CellPatchReadContext, CellPatchVerifyContext, ColumnarEntity, ColumnarFormat, Parquet,
+    PatchEmbeddingTableEntity, PatchEmbeddingTableReadContext, PatchEmbeddingTableVerifyContext,
+    PatchFootprintEntity, PatchFootprintReadContext, PatchFootprintVerifyContext,
+    PatchFootprintWriteContext, PatchOverlapEntity, PatchOverlapReadContext,
+    PatchOverlapVerifyContext, PatchOverlapWriteContext, PatchRegionEntity, PatchRegionReadContext,
+    PatchRegionVerifyContext, RegionEmbeddingTableEntity, RegionEmbeddingTableReadContext,
+    SlideEmbeddingTableEntity, SlideEmbeddingTableReadContext, VerifiedColumnarReader,
 };
 pub use context::{EmbeddingSpatialContext, PatchBoundaryPolicy, PositiveRational};
 pub use error::EmbeddingError;
@@ -190,9 +206,10 @@ pub use source::{
     MissingPromotionField, SourceBundleReconciler, SourceBundleReconciliation,
 };
 pub use source::{
-    CellVitCsvField, CellVitNpyMatrix, CellVitNpySummary, CsvFailure, ImportFailure,
-    ManifestFailure, NpyFailure, NpyVersion, ReconciliationFailure, SourceBundleBudgets,
-    SourceBundleError, SourceFileKind, SourceIoFailure, SourceIoOperation,
+    CellVitCsvField, CellVitNpyMatrix, CellVitNpySummary, CsvFailure, EmbeddingNpyMatrix,
+    EmbeddingNpySummary, ImportFailure, ManifestFailure, NpyFailure, NpyVersion,
+    ReconciliationFailure, SourceBundleBudgets, SourceBundleError, SourceFileKind, SourceIoFailure,
+    SourceIoOperation,
 };
 pub use table::{
     CellEmbeddingBlock, CellEmbeddingRow, CellEmbeddingTable, CellEmbeddingView,

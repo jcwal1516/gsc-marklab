@@ -1,23 +1,27 @@
-pub(super) use std::{io::Write, mem::size_of, mem::size_of_val, str::FromStr};
+pub(super) use std::{mem::size_of, mem::size_of_val, str::FromStr};
 
 pub(super) use marklab::{
-    ArtifactId, CellPatchAssignmentMode, CellPatchLinkProducer, CohortHierarchy, ContentDigest,
-    EmbeddingEntityKind, EmbeddingStatus, ExpectedPatchSet, ExpectedRegionSet, HierarchyId,
-    HierarchyNode, MultiscaleArtifactBinding, MultiscaleDirectPatchInputArtifacts,
-    MultiscaleDirectPatchModelProvenance, MultiscaleEmbeddingDerivationContract,
-    MultiscaleEmbeddingError, MultiscaleEmbeddingExecutionProvenance,
-    MultiscaleEmbeddingProvenance, MultiscaleEmbeddingProvenanceVariant,
-    MultiscaleEmbeddingSupport, MultiscaleEmbeddingSupportVariant, PatchEmbeddingContext,
-    PatchEmbeddingInputNormalization, PatchEmbeddingSourceRowLink,
-    PatchEmbeddingSourceRowLinkEntry, PatchFootprint, PatchFootprintSet, PatchId, PatchIdentityMap,
-    PatchIdentityMapEntry, PatchNormalizationDecimal, PatchRegionAssessment,
-    PatchRegionAssessmentBindings, PatchRegionDeclaration, PatchSourceEntityEntry,
-    PatchSourceEntitySet, PatientId, RegionId, ReplicationRole, SlideId,
+    embeddings::{
+        CellPatchAssignmentMode, CellPatchLinkProducer, EmbeddingEntityKind, EmbeddingStatus,
+        ExpectedPatchSet, ExpectedRegionSet, MultiscaleArtifactBinding,
+        MultiscaleDirectPatchInputArtifacts, MultiscaleDirectPatchModelProvenance,
+        MultiscaleEmbeddingDerivationContract, MultiscaleEmbeddingError,
+        MultiscaleEmbeddingExecutionProvenance, MultiscaleEmbeddingProvenance,
+        MultiscaleEmbeddingProvenanceVariant, MultiscaleEmbeddingSupport,
+        MultiscaleEmbeddingSupportVariant, PatchEmbeddingContext, PatchEmbeddingInputNormalization,
+        PatchEmbeddingSourceRowLink, PatchEmbeddingSourceRowLinkEntry, PatchFootprint,
+        PatchFootprintSet, PatchIdentityMap, PatchIdentityMapEntry, PatchNormalizationDecimal,
+        PatchRegionAssessment, PatchRegionAssessmentBindings, PatchRegionDeclaration,
+        PatchSourceEntityEntry, PatchSourceEntitySet,
+    },
+    workflow::{ArtifactId, ContentDigest},
+    CohortHierarchy, HierarchyId, HierarchyNode, PatchId, PatientId, RegionId, ReplicationRole,
+    SlideId,
 };
 pub(super) use marklab::{
+    embeddings::{EffectiveReceptiveField, PatchBoundaryPolicy, PositiveRational},
     CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit,
-    EffectiveReceptiveField, FrameTransform, ImageCoordinateConvention, PatchBoundaryPolicy,
-    PositiveRational, SpatialAxis, TransformId, TransformMatrix,
+    FrameTransform, ImageCoordinateConvention, SpatialAxis, TransformId, TransformMatrix,
 };
 
 pub(super) const BUDGET: usize = 1 << 20;
@@ -284,134 +288,4 @@ pub(super) fn region_declarations() -> Vec<PatchRegionDeclaration> {
         PatchRegionDeclaration::partial_overlap(patch("patch-b"), region("region-a"), 1, 2)
             .expect("half overlap"),
     ]
-}
-
-fn frame(writer: &mut impl Write, value: &[u8]) {
-    writer
-        .write_all(&(value.len() as u128).to_be_bytes())
-        .expect("reference frame length");
-    writer.write_all(value).expect("reference frame value");
-}
-
-fn artifact_frame(writer: &mut impl Write, value: ArtifactId) {
-    frame(writer, value.digest().as_bytes());
-}
-
-pub(super) fn reference_source_digest(source: &PatchSourceEntitySet) -> ContentDigest {
-    let mut writer = ContentDigest::builder();
-    frame(&mut writer, b"marklab-patch-source-entity-set-logical-v1");
-    frame(&mut writer, b"marklab.patch_source_entity_set");
-    frame(&mut writer, &1_u32.to_be_bytes());
-    frame(&mut writer, source.source_profile().as_bytes());
-    frame(
-        &mut writer,
-        &u64::try_from(source.entries().len())
-            .expect("bounded rows")
-            .to_be_bytes(),
-    );
-    for entry in source.entries() {
-        frame(&mut writer, entry.source_patch_id().as_bytes());
-        frame(&mut writer, &entry.source_entity_row().to_be_bytes());
-    }
-    writer.finish().0
-}
-
-pub(super) fn reference_identity_digest(map: &PatchIdentityMap) -> ContentDigest {
-    let mut writer = ContentDigest::builder();
-    frame(&mut writer, b"marklab-patch-identity-map-logical-v1");
-    frame(&mut writer, b"marklab.patch_identity_map");
-    frame(&mut writer, &1_u32.to_be_bytes());
-    artifact_frame(&mut writer, map.source_entities_artifact_id());
-    frame(&mut writer, map.source_entities_logical_digest().as_bytes());
-    artifact_frame(&mut writer, map.expected_patches_artifact_id());
-    frame(
-        &mut writer,
-        map.expected_patches_logical_digest().as_bytes(),
-    );
-    frame(
-        &mut writer,
-        &u64::try_from(map.entries().len())
-            .expect("bounded rows")
-            .to_be_bytes(),
-    );
-    for entry in map.entries() {
-        frame(&mut writer, entry.source_patch_id().as_bytes());
-        frame(&mut writer, entry.patch_id().as_str().as_bytes());
-    }
-    writer.finish().0
-}
-
-pub(super) fn reference_row_link_digest(link: &PatchEmbeddingSourceRowLink) -> ContentDigest {
-    let mut writer = ContentDigest::builder();
-    frame(&mut writer, b"marklab-patch-source-row-link-logical-v1");
-    frame(&mut writer, b"marklab.patch_embedding_source_row_link");
-    frame(&mut writer, &1_u32.to_be_bytes());
-    artifact_frame(&mut writer, link.source_entities_artifact_id());
-    frame(
-        &mut writer,
-        link.source_entities_logical_digest().as_bytes(),
-    );
-    artifact_frame(&mut writer, link.source_vectors_artifact_id());
-    artifact_frame(&mut writer, link.expected_patches_artifact_id());
-    frame(
-        &mut writer,
-        link.expected_patches_logical_digest().as_bytes(),
-    );
-    artifact_frame(&mut writer, link.identity_map_artifact_id());
-    frame(&mut writer, link.identity_map_logical_digest().as_bytes());
-    artifact_frame(&mut writer, link.converter_artifact_id());
-    frame(
-        &mut writer,
-        &u64::try_from(link.entries().len())
-            .expect("bounded rows")
-            .to_be_bytes(),
-    );
-    for entry in link.entries() {
-        frame(&mut writer, entry.patch_id().as_str().as_bytes());
-        frame(
-            &mut writer,
-            match entry.status() {
-                EmbeddingStatus::Present => b"present",
-                EmbeddingStatus::MissingVector => b"missing_vector",
-                EmbeddingStatus::ExtractionFailed => b"extraction_failed",
-                EmbeddingStatus::QcRejected => b"qc_rejected",
-            },
-        );
-        frame(&mut writer, &entry.source_entity_row().to_be_bytes());
-        match entry.source_vector_row() {
-            Some(row) => {
-                frame(&mut writer, &[1]);
-                frame(&mut writer, &row.to_be_bytes());
-            }
-            None => frame(&mut writer, &[0]),
-        }
-    }
-    writer.finish().0
-}
-
-pub(super) fn reference_normalization_digest(
-    normalization: &PatchEmbeddingInputNormalization,
-) -> ContentDigest {
-    let mut writer = ContentDigest::builder();
-    frame(&mut writer, b"marklab-patch-input-normalization-logical-v1");
-    frame(&mut writer, b"marklab.patch_embedding_input_normalization");
-    frame(&mut writer, &1_u32.to_be_bytes());
-    frame(&mut writer, b"he_brightfield");
-    frame(&mut writer, b"srgb");
-    frame(&mut writer, &3_u64.to_be_bytes());
-    for channel in ["r", "g", "b"] {
-        frame(&mut writer, channel.as_bytes());
-    }
-    frame(&mut writer, b"0");
-    frame(&mut writer, b"1");
-    frame(&mut writer, &3_u64.to_be_bytes());
-    for value in normalization.channel_mean() {
-        frame(&mut writer, value.as_str().as_bytes());
-    }
-    frame(&mut writer, &3_u64.to_be_bytes());
-    for value in normalization.channel_std() {
-        frame(&mut writer, value.as_str().as_bytes());
-    }
-    frame(&mut writer, b"none");
-    writer.finish().0
 }

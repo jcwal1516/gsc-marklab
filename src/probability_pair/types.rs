@@ -1,8 +1,12 @@
+use crate::result_vocabulary::{
+    EdgeCorrection, MarkNormalization, MarkNullModel, MarkPermutationUnit, MultiplicityCorrection,
+    ProbabilityContributionMode,
+};
 use marklab_data::{CoordinateFrameId, MeasurementStatus};
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 use thiserror::Error;
 
-use crate::{ClassicalWindowSummary, ScalarMarkId};
+use crate::{marks::ScalarMarkId, spatial::ClassicalWindowSummary};
 
 /// Exact resource ceilings for one probability-weighted pair workflow.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -174,14 +178,12 @@ pub struct ProbabilityPairGeometrySummary {
     pub point_count: usize,
     /// Directed pairs retained through the maximum radius.
     pub directed_pair_count: usize,
-    /// Geometry construction count for observed plus null evaluation.
-    pub geometry_build_count: usize,
     /// Point/window geometry identity.
     pub geometry_digest: ContentDigest,
     /// Ordered directed pair-plan identity.
     pub pair_plan_digest: ContentDigest,
     /// Named edge correction.
-    pub edge_correction: String,
+    pub edge_correction: EdgeCorrection,
     /// Conservative retained-byte estimate.
     pub estimated_storage_bytes: usize,
 }
@@ -203,23 +205,19 @@ pub struct ProbabilityPairComponentInference {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProbabilityPairInferenceSummary {
     /// Exact null family.
-    pub null_model: String,
+    pub null_model: MarkNullModel,
     /// Atomic row moved by each permutation.
-    pub permutation_unit: String,
+    pub permutation_unit: MarkPermutationUnit,
     /// Expected-contribution rather than sampled-label mode.
-    pub probability_mode: String,
+    pub probability_mode: ProbabilityContributionMode,
     /// Two-sided alternative.
-    pub alternative: String,
+    pub alternative: marklab_cohort::InferenceAlternative,
     /// Declared multiplicity family.
-    pub multiplicity: String,
+    pub multiplicity: MultiplicityCorrection,
     /// Connection ERL inference when at least one radius is eligible.
     pub connection: Option<ProbabilityPairComponentInference>,
     /// Requested permutations.
     pub permutations_requested: usize,
-    /// Attempted permutations.
-    pub permutations_attempted: usize,
-    /// Completed permutations.
-    pub permutations_completed: usize,
     /// Base seed.
     pub seed: u64,
     /// Family-wise alpha.
@@ -240,7 +238,7 @@ pub struct ProbabilityPairResult {
     /// Exact observation-window summary.
     pub window: ClassicalWindowSummary,
     /// Named formula and denominator policy.
-    pub normalization: String,
+    pub normalization: MarkNormalization,
     /// Sum of positive probabilities.
     pub effective_positive_mass: f64,
     /// Sum of complementary probabilities.
@@ -319,7 +317,7 @@ pub enum ProbabilityPairError {
     /// Checked arithmetic overflowed.
     #[error("probability pair size arithmetic overflow")]
     SizeOverflow,
-    /// An existing typed geometry, inference, or codec owner failed.
+    /// Geometry, inference or codec validation failed.
     #[error("probability pair dependency failed: {reason}")]
     Dependency {
         /// Redacted deterministic reason.

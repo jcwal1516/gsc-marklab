@@ -1,10 +1,18 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use approx::assert_abs_diff_eq;
 use marklab::{
-    CacheStatus, LocalScheduler, MarklabProject, NodeId, ObservationWindow2D,
-    ObservationWindowLimits, Pattern, PatternMeta, SchedulerLimits,
-    TranslationPairCorrelationAnalysisNode, TranslationPairCorrelationConfig,
-    TranslationPairCorrelationResultDocument, TranslationSpatialLimits, WorkflowGraph,
-    WorkflowNode,
+    spatial::{
+        TranslationPairCorrelationAnalysisNode, TranslationPairCorrelationConfig,
+        TranslationPairCorrelationResultDocument, TranslationSpatialLimits,
+    },
+    workflow::{
+        CacheStatus, LocalScheduler, MarklabProject, NodeId, SchedulerLimits, WorkflowGraph,
+        WorkflowNode,
+    },
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 
 fn pattern() -> Pattern {
@@ -12,16 +20,12 @@ fn pattern() -> Pattern {
         vec![0.5, 1.5],
         vec![0.5, 0.5],
         vec![0, 0],
-        PatternMeta {
-            case_id: "translation-g-workflow-case".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("translation-g-workflow-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "translation-g-workflow-case".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("translation-g-workflow-slide".into()),
+        ),
     )
     .expect("pattern")
 }
@@ -97,6 +101,10 @@ fn translation_g_node_misses_hits_round_trips_and_invalidates_overlap_limits() {
     );
     let document = TranslationPairCorrelationResultDocument::new(direct).expect("document");
     let encoded = document.to_json_pretty().expect("JSON");
+    assert_eq!(
+        encoded,
+        include_str!("fixtures/edge_estimators/translation_pair_correlation.json")
+    );
     assert!(encoded.contains("\"format\": \"marklab.translation_pair_correlation\""));
     assert_eq!(
         TranslationPairCorrelationResultDocument::from_json(&encoded)

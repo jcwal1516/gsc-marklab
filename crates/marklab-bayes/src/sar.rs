@@ -302,12 +302,18 @@ mod tests {
         let error = sar_gaussian_log_likelihood(spec(SarModelType::Error, 0.25)).unwrap();
         assert!((lag.log_abs_determinant - 0.9375_f64.ln()).abs() <= 1e-12);
         assert!((lag.residual_sum_squares - 0.25).abs() <= 1e-12);
-        assert!((lag.log_likelihood + 2.353864256690381).abs() <= 1e-12);
+        // W swaps the two regions, so |I - rho W| = 1 - rho^2 = 0.9375. The lag residual
+        // (I - rho W)y - X beta is (0, 0.5); the error residual (I - rho W)(y - X beta) is
+        // (0.3125, 0.625).
+        let gaussian = |rss: f64| {
+            0.9375_f64.ln() - (2.0 * std::f64::consts::PI * 1.44).ln() - rss / (2.0 * 1.44)
+        };
+        assert!((lag.log_likelihood - gaussian(0.25)).abs() <= 1e-12);
         assert!((lag.impacts[0].direct - 0.8).abs() <= 1e-12);
         assert!((lag.impacts[0].indirect - 0.2).abs() <= 1e-12);
         assert!((lag.impacts[0].total - 1.0).abs() <= 1e-12);
         assert!((error.residual_sum_squares - 0.48828125).abs() <= 1e-12);
-        assert!((error.log_likelihood + 2.4366008018292704).abs() <= 1e-12);
+        assert!((error.log_likelihood - gaussian(0.48828125)).abs() <= 1e-12);
         assert!(error.impacts.is_empty());
     }
 

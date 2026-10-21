@@ -1,14 +1,20 @@
 use std::{collections::BTreeMap, fs, path::Path};
 
 use crate::{
-    ArtifactDraft, ArtifactId, ArtifactRef, ArtifactSchema, BinaryMarkDeclaration, CohortHierarchy,
-    CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit,
-    DurableProject, DurableProjectLimits, HierarchyId, HierarchyNode,
-    HistologicCompartmentMarkDeclaration, LocalArtifactStore, MarkTable, MarklabError,
-    MarklabProject, MeasurementStatus, MissingnessPolicy, NucleusAreaUm2MarkDeclaration,
+    marks::{
+        BinaryMarkDeclaration, HistologicCompartmentMarkDeclaration, MarkTable, MissingnessPolicy,
+        NucleusAreaUm2MarkDeclaration, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality,
+        ScalarMarkUnit,
+    },
+    scalar_mark::COMPARTMENT_MARK_ID,
+    workflow::{
+        ArtifactDraft, ArtifactId, ArtifactRef, ArtifactSchema, DurableProject,
+        DurableProjectLimits, LocalArtifactStore, MarklabProject, StoreId,
+    },
+    CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace,
+    CoordinateUnit, HierarchyId, HierarchyNode, MarklabError, MeasurementStatus,
     ObservationWindow2D, ObservationWindowLimits, PatientId, Pattern, PatternLoader,
-    ReplicationRole, Result, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
-    SlideId, SpatialAxis, StoreId, TumorMask,
+    ReplicationRole, Result, SlideId, SpatialAxis, TumorMask,
 };
 
 use super::classical::{read_bounded_utf8, source_artifact};
@@ -17,10 +23,6 @@ pub(super) use super::project_output::write_output;
 const SOURCE_CELLS_KIND: &str = "application/vnd.marklab.source.categorical-cell-table;version=1";
 const SOURCE_WINDOW_KIND: &str = "application/vnd.marklab.source.observation-window;version=1";
 const MARK_SCHEMA: &str = "marklab.scalar_mark_provenance";
-const PROJECT_CONTROL_BYTES: usize = 1024 * 1024;
-const PROJECT_LEDGER_BYTES: usize = 16 * 1024 * 1024;
-const PROJECT_LEDGER_RECORDS: usize = 10_000;
-const PROJECT_RECORD_BYTES: usize = 64 * 1024;
 const FRAME_ID: &str = "categorical-pair-physical-xy-um";
 
 pub(super) struct PrepareRequest<'a> {
@@ -83,7 +85,7 @@ fn prepare_with_nucleus_area(
         .into_vec();
     let levels = pattern
         .categorical_stratum_levels
-        .get("histologic_compartment")
+        .get(COMPARTMENT_MARK_ID)
         .ok_or_else(|| {
             MarklabError::Validation(
                 "categorical mark workflow requires the histologic_compartment codebook".into(),
@@ -92,7 +94,7 @@ fn prepare_with_nucleus_area(
         .to_vec();
     let codes = pattern
         .categorical_strata
-        .get("histologic_compartment")
+        .get(COMPARTMENT_MARK_ID)
         .ok_or_else(|| {
             MarklabError::Validation(
                 "categorical mark workflow requires histologic_compartment codes".into(),
@@ -132,14 +134,8 @@ fn prepare_with_nucleus_area(
         ));
     }
 
-    let durable_limits = DurableProjectLimits::new(
-        PROJECT_CONTROL_BYTES,
-        PROJECT_LEDGER_BYTES,
-        PROJECT_LEDGER_RECORDS,
-        PROJECT_RECORD_BYTES,
-        memory_bytes,
-    )
-    .map_err(|error| MarklabError::Validation(error.to_string()))?;
+    let durable_limits = DurableProjectLimits::for_object_bytes(memory_bytes)
+        .map_err(|error| MarklabError::Validation(error.to_string()))?;
     let durable = DurableProject::open_or_create(request.project, durable_limits)
         .map_err(|error| MarklabError::Compute(error.to_string()))?;
     let store_path = request.project.join(request.store_id);
@@ -184,11 +180,13 @@ fn prepare_with_nucleus_area(
         BTreeMap::from([
             (
                 "levels_digest".into(),
-                crate::ContentDigest::from_framed(level_refs.iter().map(|level| level.as_bytes()))
-                    .to_string(),
+                crate::workflow::ContentDigest::from_framed(
+                    level_refs.iter().map(|level| level.as_bytes()),
+                )
+                .to_string(),
             ),
             ("levels_count".into(), levels.len().to_string()),
-            ("mark_id".into(), "histologic_compartment".into()),
+            ("mark_id".into(), COMPARTMENT_MARK_ID.into()),
             ("mark_label".into(), "Histologic compartment".into()),
             ("measurement_status".into(), "morphology_prediction".into()),
             ("modality".into(), "histology".into()),

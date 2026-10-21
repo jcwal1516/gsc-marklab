@@ -18,6 +18,7 @@ pub use api::{
 };
 pub use error::DurableProjectError;
 
+#[cfg(test)]
 use execution::CommitFault;
 use layout::{ensure_directory, ensure_lock_file, ensure_project_root, open_and_lock};
 use recovery::recover_pending;
@@ -35,6 +36,8 @@ pub struct DurableProject {
     head: ProjectHeadWire,
     ledger: Vec<ExecutionWire>,
     report: DurableOpenReport,
+    #[cfg(test)]
+    commit_fault: CommitFault,
 }
 
 impl DurableProject {
@@ -73,6 +76,8 @@ impl DurableProject {
                 action,
                 artifact_store: store_report,
             },
+            #[cfg(test)]
+            commit_fault: CommitFault::None,
         })
     }
 
@@ -107,17 +112,21 @@ impl DurableProject {
         output_kind: &str,
         encoded_output: &[u8],
     ) -> Result<DurableCommitDisposition, DurableProjectError> {
-        self.commit_success_inner(request, output_kind, encoded_output, CommitFault::None)
+        execution::commit_success(self, request, output_kind, encoded_output)
     }
 
-    fn commit_success_inner(
+    #[cfg(test)]
+    fn commit_success_with_fault(
         &mut self,
         request: &DurableExecutionRequest,
         output_kind: &str,
         encoded_output: &[u8],
         fault: CommitFault,
     ) -> Result<DurableCommitDisposition, DurableProjectError> {
-        execution::commit_success_inner(self, request, output_kind, encoded_output, fault)
+        self.commit_fault = fault;
+        let result = self.commit_success(request, output_kind, encoded_output);
+        self.commit_fault = CommitFault::None;
+        result
     }
 }
 
@@ -186,7 +195,7 @@ mod tests {
             let mut project =
                 DurableProject::open_or_create(directory.path(), limits()).expect("project");
             let error = project
-                .commit_success_inner(&request(), "application/result", b"result", fault)
+                .commit_success_with_fault(&request(), "application/result", b"result", fault)
                 .expect_err("injected failure");
             assert!(matches!(error, DurableProjectError::InjectedFailure { .. }));
             drop(project);
@@ -298,7 +307,7 @@ mod tests {
         let mut second = request();
         second.cache_key = ContentDigest::from_bytes(b"second cache key");
         assert!(matches!(
-            project.commit_success_inner(
+            project.commit_success_with_fault(
                 &second,
                 "application/result",
                 b"other",
@@ -334,7 +343,7 @@ mod tests {
             let mut project =
                 DurableProject::open_or_create(directory.path(), limits()).expect("project");
             assert!(matches!(
-                project.commit_success_inner(
+                project.commit_success_with_fault(
                     &request(),
                     "application/result",
                     b"result",

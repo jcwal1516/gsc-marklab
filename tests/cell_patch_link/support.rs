@@ -1,14 +1,18 @@
-pub(super) use std::{io::Write, mem::size_of, str::FromStr};
+pub(super) use std::{mem::size_of, str::FromStr};
 
 pub(super) use marklab::{
-    ArtifactId, CellId, CellPatchAnchor, CellPatchAssignment, CellPatchAssignmentMode,
-    CellPatchAssignmentStatus, CellPatchContributor, CellPatchEdge, CellPatchLink,
-    CellPatchLinkBindings, CohortHierarchy, ContentDigest, CoordinateFrame, CoordinateFrameId,
-    CoordinateRegistry, CoordinateSpace, CoordinateUnit, DeclaredCellPatchAssignment,
-    EffectiveReceptiveField, ExpectedCellSet, ExpectedPatchSet, FrameTransform, HierarchyId,
-    HierarchyNode, ImageCoordinateConvention, MultiscaleEmbeddingError, PatchBoundaryPolicy,
-    PatchEmbeddingContext, PatchFootprint, PatchFootprintSet, PatchId, PatientId, PositiveRational,
-    ReplicationRole, SlideId, SpatialAxis, TransformId, TransformMatrix,
+    embeddings::{
+        CellPatchAnchor, CellPatchAssignment, CellPatchAssignmentMode, CellPatchAssignmentStatus,
+        CellPatchContributor, CellPatchEdge, CellPatchLink, CellPatchLinkBindings,
+        DeclaredCellPatchAssignment, EffectiveReceptiveField, ExpectedCellSet, ExpectedPatchSet,
+        MultiscaleEmbeddingError, PatchBoundaryPolicy, PatchEmbeddingContext, PatchFootprint,
+        PatchFootprintSet, PositiveRational,
+    },
+    workflow::{ArtifactId, ContentDigest},
+    CellId, CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry,
+    CoordinateSpace, CoordinateUnit, FrameTransform, HierarchyId, HierarchyNode,
+    ImageCoordinateConvention, PatchId, PatientId, ReplicationRole, SlideId, SpatialAxis,
+    TransformId, TransformMatrix,
 };
 
 pub(super) const BUDGET: usize = 1 << 20;
@@ -168,93 +172,4 @@ pub(super) fn fixture_with_footprints(
 
 pub(super) fn anchor(cell_id: &str, xy: [f64; 2]) -> CellPatchAnchor {
     CellPatchAnchor::new(cell(cell_id), xy).expect("finite anchor")
-}
-
-fn frame(writer: &mut impl Write, value: &[u8]) {
-    writer
-        .write_all(&(value.len() as u128).to_be_bytes())
-        .expect("reference length frame");
-    writer.write_all(value).expect("reference value frame");
-}
-
-pub(super) fn reference_link_digest(link: &CellPatchLink) -> ContentDigest {
-    let mut writer = ContentDigest::builder();
-    frame(&mut writer, b"marklab-cell-patch-link-logical-v1");
-    frame(
-        &mut writer,
-        match link.mode() {
-            CellPatchAssignmentMode::ContainedShared => b"contained_shared",
-            CellPatchAssignmentMode::DeclaredWeightedInterpolation => {
-                b"declared_weighted_interpolation"
-            }
-        },
-    );
-    frame(
-        &mut writer,
-        link.expected_cells_artifact_id().digest().as_bytes(),
-    );
-    frame(&mut writer, link.expected_cells_logical_digest().as_bytes());
-    frame(
-        &mut writer,
-        link.expected_patches_artifact_id().digest().as_bytes(),
-    );
-    frame(
-        &mut writer,
-        link.expected_patches_logical_digest().as_bytes(),
-    );
-    frame(
-        &mut writer,
-        link.patch_context_artifact_id().digest().as_bytes(),
-    );
-    frame(&mut writer, link.patch_context_logical_digest().as_bytes());
-    frame(
-        &mut writer,
-        link.patch_footprints_artifact_id().digest().as_bytes(),
-    );
-    frame(
-        &mut writer,
-        link.patch_footprints_logical_digest().as_bytes(),
-    );
-    frame(&mut writer, link.producer_artifact_id().digest().as_bytes());
-    frame(&mut writer, link.producer_content_digest().as_bytes());
-    frame(
-        &mut writer,
-        &u64::try_from(link.assignment_count())
-            .expect("bounded assignments")
-            .to_be_bytes(),
-    );
-    for (row, assignment) in link.assignments().iter().enumerate() {
-        frame(&mut writer, assignment.cell_id().as_str().as_bytes());
-        frame(
-            &mut writer,
-            &assignment.anchor_px()[0].to_bits().to_be_bytes(),
-        );
-        frame(
-            &mut writer,
-            &assignment.anchor_px()[1].to_bits().to_be_bytes(),
-        );
-        frame(
-            &mut writer,
-            match assignment.status() {
-                CellPatchAssignmentStatus::Assigned => b"assigned",
-                CellPatchAssignmentStatus::OutsideSampledSupport => b"outside_sampled_support",
-                CellPatchAssignmentStatus::InterpolationUnavailable => b"interpolation_unavailable",
-            },
-        );
-        frame(&mut writer, &assignment.edge_count().to_be_bytes());
-        for edge in link
-            .edges_for_assignment(row)
-            .expect("canonical edge range")
-        {
-            frame(&mut writer, edge.patch_id().as_str().as_bytes());
-            if let Some(weight) = edge.weight() {
-                frame(&mut writer, b"weight_present");
-                frame(&mut writer, &weight.numerator().to_be_bytes());
-                frame(&mut writer, &weight.denominator().to_be_bytes());
-            } else {
-                frame(&mut writer, b"weight_absent");
-            }
-        }
-    }
-    writer.finish().0
 }

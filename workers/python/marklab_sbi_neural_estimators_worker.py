@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
+"""sbi worker comparing amortized NPE, NLE, and NRE and sequential NPE on a Gaussian toy model.
+
+The simulator draws ``theta`` from a uniform prior and returns ``theta`` plus Gaussian noise, so
+the posterior is a truncated Gaussian whose mean and SD serve as the analytic oracle.
+"""
 
 import contextlib
-import hashlib
 import io
 import json
 import sys
 from importlib.metadata import version
+from pathlib import Path
 
 import numpy as np
 import sbi
@@ -15,9 +20,18 @@ from sbi.inference import NLE, NPE, NRE
 from sbi.utils import BoxUniform
 from scipy.stats import truncnorm
 
+sys.path.append(str(Path(__file__).resolve().parent))
 
-class ContractError(Exception):
-    pass
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    ContractError,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
 
 
 class NoOpTracker:
@@ -41,24 +55,23 @@ class NoOpTracker:
         pass
 
 
-def validate_backend_versions():
-    if (
-        sbi.__version__ != "0.26.1"
-        # Torch's runtime label includes a platform suffix on Linux wheels.
-        or version("torch") != "2.13.0"
-        or np.__version__ != "2.4.6"
-        or scipy.__version__ != "1.18.1"
-        or sys.version_info[:2] != (3, 12)
-    ):
-        raise ContractError("neural SBI backend version drift")
+def validate_backend_versions() -> None:
+    # Torch's runtime label includes a platform suffix on Linux wheels, so the installed
+    # distribution version is checked instead.
+    require_versions(
+        sbi=sbi.__version__,
+        torch=version("torch"),
+        numpy=np.__version__,
+        scipy=scipy.__version__,
+    )
 
 
-def main():
+def main() -> None:
     validate_backend_versions()
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
     torch.use_deterministic_algorithms(True)
-    request_bytes = sys.stdin.buffer.read(4 * 1024 * 1024 + 1)
+    request_bytes = read_request(4 * MIB)
     request = json.loads(request_bytes)
     if request["format"] != "marklab.sbi_neural_estimators_request" or request["version"] != 1:
         raise ContractError("request identity mismatch")
@@ -85,7 +98,10 @@ def main():
 
     def simulate(count, seed, proposal=None):
         torch.manual_seed(seed)
-        theta = prior.sample((count,)) if proposal is None else proposal.sample((count,), show_progress_bars=False)
+        if proposal is None:
+            theta = prior.sample((count,))
+        else:
+            theta = proposal.sample((count,), show_progress_bars=False)
         summary = theta + noise_sd * torch.randn_like(theta)
         return theta, summary
 
@@ -102,7 +118,7 @@ def main():
         buffer = io.BytesIO()
         torch.save(estimator.state_dict(), buffer)
         state = buffer.getvalue()
-        return len(state), hashlib.sha256(state).hexdigest()
+        return len(state), sha256_hex(state)
 
     theta, summary = simulate(request["simulations_per_estimator"], request["seed"])
     estimators = {}
@@ -168,7 +184,9 @@ def main():
                 request["seed"] + 100 + round_index,
                 proposal,
             )
-            bank_bytes = theta_round.detach().numpy().tobytes() + summary_round.detach().numpy().tobytes()
+            bank_bytes = (
+                theta_round.detach().numpy().tobytes() + summary_round.detach().numpy().tobytes()
+            )
             sequential_estimator = sequential_inference.append_simulations(
                 theta_round,
                 summary_round,
@@ -183,14 +201,18 @@ def main():
             proposal = sequential_inference.build_posterior(sequential_estimator).set_default_x(
                 observed_tensor
             )
-            round_records.append({
-                "round": round_index + 1,
-                "proposal": "prior" if round_index == 0 else f"round_{round_index}_npe_posterior",
-                "simulation_count": len(theta_round),
-                "theta_minimum": float(theta_round.min()),
-                "theta_maximum": float(theta_round.max()),
-                "simulation_bank_sha256": hashlib.sha256(bank_bytes).hexdigest(),
-            })
+            round_records.append(
+                {
+                    "round": round_index + 1,
+                    "proposal": "prior"
+                    if round_index == 0
+                    else f"round_{round_index}_npe_posterior",
+                    "simulation_count": len(theta_round),
+                    "theta_minimum": float(theta_round.min()),
+                    "theta_maximum": float(theta_round.max()),
+                    "simulation_bank_sha256": sha256_hex(bank_bytes),
+                }
+            )
     with torch.no_grad():
         sequential_log_density = sequential_estimator.log_prob(grid, observed_grid)
     sequential_mean, sequential_sd = density_summary(sequential_log_density)
@@ -201,7 +223,7 @@ def main():
         "format": "marklab.neural_simulation_based_inference",
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "request_sha256": sha256_hex(request_bytes),
         "prior": prior_spec,
         "simulator": simulator_spec,
         "observed_summary": observed,
@@ -229,13 +251,8 @@ def main():
         },
         "claim_status": "experimental_synthetic_amortized_and_sequential_sbi",
     }
-    json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    sys.stdout.write("\n")
+    write_result(result)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, RuntimeError, json.JSONDecodeError, np.linalg.LinAlgError) as error:
-        print(f"neural SBI worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(main, "neural SBI worker contract error", errors=(*CONTRACT_ERRORS, RuntimeError))

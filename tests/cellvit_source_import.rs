@@ -6,12 +6,17 @@ use std::{
 };
 
 use marklab::{
-    import_cellvit_he_bundle_bytes, import_cellvit_he_bundle_from_store,
-    import_cellvit_he_bundle_readers, ArtifactId, ArtifactKey, ArtifactLocator, ArtifactRecord,
-    ArtifactRef, ArtifactSchema, CellId, CellIdentityMap, CellIdentityMapEntry, CellVitCsvSummary,
-    CellVitHeArtifactBindings, CellVitHeImportRequest, CohortHierarchy, EmbeddingStatus,
-    ExpectedCellSet, HierarchyId, HierarchyNode, ImportFailure, LocalArtifactStore, PatientId,
-    ReplicationRole, SlideId, SourceBundleBudgets, SourceBundleError, StoreId,
+    embeddings::{
+        import_cellvit_he_bundle_bytes, import_cellvit_he_bundle_from_store,
+        import_cellvit_he_bundle_readers, CellIdentityMap, CellIdentityMapEntry, CellVitCsvSummary,
+        CellVitHeArtifactBindings, CellVitHeImportRequest, EmbeddingStatus, ExpectedCellSet,
+        ImportFailure, SourceBundleBudgets, SourceBundleError,
+    },
+    workflow::{
+        ArtifactId, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef, ArtifactSchema,
+        LocalArtifactStore, StoreId,
+    },
+    CellId, CohortHierarchy, HierarchyId, HierarchyNode, PatientId, ReplicationRole, SlideId,
 };
 
 const HEADER: &str = "cell_id,case_id,specimen_id,timepoint,fragment_id,roi_id,native_row,embedding_row,x_px,y_px,x_um,y_um,cell_type_id,cell_type_label,type_probability,nucleus_area_um2,nucleus_perimeter_um,eccentricity,solidity,circularity,qc_pass,block_500_id,split\r\n";

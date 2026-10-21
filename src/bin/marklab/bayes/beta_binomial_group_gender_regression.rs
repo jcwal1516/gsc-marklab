@@ -1,14 +1,17 @@
-use std::{collections::BTreeMap, fs, path::PathBuf};
+use std::{collections::BTreeMap, fs};
 
 use marklab_bayes::{
-    beta_binomial_group_gender_data_sha256, sha256_hex, BetaBinomialGroupGenderPatientData,
+    json_sha256, sha256_hex, BetaBinomialGroupGenderPatientData,
     BetaBinomialGroupGenderRegressionInputIdentity, BetaBinomialGroupGenderRegressionSpec,
     BetaBinomialGroupGenderRegressionWorkerRequest, BetaBinomialGroupGenderRegressionWorkerResult,
-    NutsSamplingSpec,
 };
 use serde::Deserialize;
 
-use super::{publish_json, run_worker, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::{
+    BetaBinomialGroupGenderRegressionArgs, BetaBinomialGroupGenderRegressionModelArgs,
+};
+use super::worker_identity;
+use super::{publish_json, run_worker, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -20,36 +23,10 @@ struct PatientRow {
     trials: u64,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input_path: PathBuf,
-    reference_group: String,
-    comparison_group: String,
-    reference_gender: String,
-    comparison_gender: String,
-    intercept_prior_mean: f64,
-    intercept_prior_sd: f64,
-    group_effect_prior_sd: f64,
-    gender_effect_prior_sd: f64,
-    concentration_prior_sd: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
-    let prepared = prepare(
-        input_path,
-        reference_group,
-        comparison_group,
-        reference_gender,
-        comparison_gender,
-        intercept_prior_mean,
-        intercept_prior_sd,
-        group_effect_prior_sd,
-        gender_effect_prior_sd,
-        concentration_prior_sd,
-        sampling,
-        timeout_seconds,
-    )?;
+pub(super) fn run(args: BetaBinomialGroupGenderRegressionArgs) -> Result<(), CliError> {
+    let BetaBinomialGroupGenderRegressionArgs { model, out } = args;
+    let output_path = out;
+    let prepared = prepare(model)?;
     let result = execute(&prepared)?;
     publish_json(
         &output_path,
@@ -65,31 +42,34 @@ pub(crate) struct PreparedBetaBinomialGroupGenderRegression {
     pub(crate) timeout_seconds: u64,
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare(
-    input_path: PathBuf,
-    reference_group: String,
-    comparison_group: String,
-    reference_gender: String,
-    comparison_gender: String,
-    intercept_prior_mean: f64,
-    intercept_prior_sd: f64,
-    group_effect_prior_sd: f64,
-    gender_effect_prior_sd: f64,
-    concentration_prior_sd: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-) -> Result<PreparedBetaBinomialGroupGenderRegression, BayesCliError> {
-    let metadata = fs::metadata(&input_path).map_err(|source| BayesCliError::Io {
+    model: BetaBinomialGroupGenderRegressionModelArgs,
+) -> Result<PreparedBetaBinomialGroupGenderRegression, CliError> {
+    let BetaBinomialGroupGenderRegressionModelArgs {
+        input: input_path,
+        reference_group,
+        comparison_group,
+        reference_gender,
+        comparison_gender,
+        intercept_prior_mean,
+        intercept_prior_sd,
+        group_effect_prior_sd,
+        gender_effect_prior_sd,
+        concentration_prior_sd,
+        nuts,
+        timeout_seconds,
+    } = model;
+    let sampling = nuts.spec();
+    let metadata = fs::metadata(&input_path).map_err(|source| CliError::Io {
         path: input_path.clone(),
         source,
     })?;
     if metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "beta-binomial group/gender input exceeds 16 MiB".into(),
         ));
     }
-    let input_bytes = fs::read(&input_path).map_err(|source| BayesCliError::Io {
+    let input_bytes = fs::read(&input_path).map_err(|source| CliError::Io {
         path: input_path.clone(),
         source,
     })?;
@@ -109,23 +89,15 @@ pub(crate) fn prepare(
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| {
-            BayesCliError::Input(format!(
+            CliError::Input(format!(
                 "invalid beta-binomial group/gender patient CSV: {error}"
             ))
         })?;
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path =
-        worker_directory.join("marklab_pymc_beta_binomial_group_gender_regression_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
+    let identity = worker_identity(
+        repository,
+        "marklab_pymc_beta_binomial_group_gender_regression_worker.py",
+    )?;
     let request = BetaBinomialGroupGenderRegressionWorkerRequest::new(
         BetaBinomialGroupGenderRegressionSpec {
             reference_group,
@@ -140,8 +112,8 @@ pub(crate) fn prepare(
             patients,
         },
         sampling,
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
+        identity.environment_lock_sha256,
+        identity.worker_sha256,
         timeout_seconds,
     )?;
     let mut design_cell_counts = BTreeMap::new();
@@ -152,7 +124,7 @@ pub(crate) fn prepare(
     }
     let input_identity = BetaBinomialGroupGenderRegressionInputIdentity {
         path: input_path.display().to_string(),
-        patient_data_sha256: beta_binomial_group_gender_data_sha256(&request.patients)?,
+        patient_data_sha256: json_sha256(&request.patients)?,
         design_cell_counts,
     };
     let request_bytes = serde_json::to_vec(&request)?;
@@ -168,8 +140,8 @@ pub(crate) fn prepare(
 
 pub(crate) fn execute(
     prepared: &PreparedBetaBinomialGroupGenderRegression,
-) -> Result<BetaBinomialGroupGenderRegressionWorkerResult, BayesCliError> {
-    let repository = &marklab::python_backend_assets_root()?;
+) -> Result<BetaBinomialGroupGenderRegressionWorkerResult, CliError> {
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let result_bytes = run_worker(
         repository,
         "marklab_pymc_beta_binomial_group_gender_regression_worker.py",

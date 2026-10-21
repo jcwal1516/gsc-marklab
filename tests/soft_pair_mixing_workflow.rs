@@ -1,5 +1,4 @@
-#![allow(dead_code)]
-
+#[allow(dead_code)]
 #[path = "support/declared_scalar.rs"]
 mod support;
 
@@ -7,19 +6,25 @@ use std::collections::BTreeMap;
 
 use approx::assert_abs_diff_eq;
 use marklab::{
-    execute_algorithm_with_store, soft_pair_mixing, ArtifactRef, ArtifactSchema,
-    BinaryMarkDeclaration, CacheStatus, DeclaredScalarPatternInput, DurableProject,
-    DurableProjectLimits, LocalScheduler, MarkTable, MeasurementStatus, MissingnessPolicy,
-    NativeRuntimeProvenance, NodeId, ObservationWindow2D, ObservationWindowLimits,
-    ProbabilitySimplexMarkDeclaration, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality,
-    ScalarMarkUnit, SchedulerLimits, SoftPairMixingAnalysisNode, SoftPairMixingConfig,
-    SoftPairMixingError, SoftPairMixingLimits, WorkflowGraph,
+    marks::{
+        soft_pair_mixing, BinaryMarkDeclaration, DeclaredScalarPatternInput, MarkTable,
+        MissingnessPolicy, ProbabilitySimplexMarkDeclaration, ScalarMarkColumn, ScalarMarkId,
+        ScalarMarkModality, ScalarMarkUnit, SoftPairMixingAnalysisNode, SoftPairMixingConfig,
+        SoftPairMixingError, SoftPairMixingLimits,
+    },
+    workflow::{
+        execute_algorithm_with_store, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
+        DurableProjectLimits, LocalScheduler, NativeRuntimeProvenance, NodeId, SchedulerLimits,
+        WorkflowGraph,
+    },
+    MeasurementStatus, ObservationWindow2D, ObservationWindowLimits,
 };
 use support::{binary_metadata, fixture, publish_record, MARK_SCHEMA};
 
 fn metadata() -> BTreeMap<String, String> {
     let levels = ["a", "b", "c"];
-    let digest = marklab::ContentDigest::from_framed(levels.iter().map(|level| level.as_bytes()));
+    let digest =
+        marklab::workflow::ContentDigest::from_framed(levels.iter().map(|level| level.as_bytes()));
     BTreeMap::from([
         ("levels_count".into(), "3".into()),
         ("levels_digest".into(), digest.to_string()),

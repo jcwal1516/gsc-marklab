@@ -3,6 +3,7 @@
 //! In-memory cohort hierarchy and data contracts for Marklab.
 
 mod coordinate;
+mod geometry;
 mod hierarchy;
 mod measurement;
 mod node;
@@ -25,4 +26,9 @@ pub use marklab_core::{
 pub use measurement::MeasurementStatus;
 pub use node::{
     HierarchyNode, RepeatedMeasureError, RepeatedMeasureSet, ReplicationRole, ReplicationRoleKind,
+};
+
+pub use geometry::{
+    ArbitraryWindowIppQuadratureNode, ArbitraryWindowIppWindowSummary, JointLocationGridRow,
+    RectangularWindow,
 };

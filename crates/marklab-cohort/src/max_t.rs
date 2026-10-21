@@ -92,10 +92,6 @@ pub struct MaxTPermutationResult {
     pub alpha: f64,
     /// Requested replicate count.
     pub permutations_requested: usize,
-    /// Attempted replicate count.
-    pub permutations_attempted: usize,
-    /// Completed replicate count.
-    pub permutations_completed: usize,
     /// Base seed.
     pub seed: u64,
 }
@@ -160,10 +156,6 @@ pub struct HierarchicalMaxTResult {
     pub alpha: f64,
     /// Requested replicate count.
     pub permutations_requested: usize,
-    /// Attempted replicate count.
-    pub permutations_attempted: usize,
-    /// Completed replicate count.
-    pub permutations_completed: usize,
     /// Base deterministic seed.
     pub seed: u64,
 }
@@ -238,8 +230,6 @@ pub fn hierarchical_gatekeeping_max_t(
         opened_family_count,
         alpha: spec.alpha,
         permutations_requested: spec.permutations,
-        permutations_attempted: spec.permutations,
-        permutations_completed: spec.permutations,
         seed: spec.seed,
     })
 }
@@ -474,8 +464,6 @@ fn execute_max_t(
         critical_value,
         alpha: spec.alpha,
         permutations_requested: spec.permutations,
-        permutations_attempted: spec.permutations,
-        permutations_completed: spec.permutations,
         seed: spec.seed,
     })
 }

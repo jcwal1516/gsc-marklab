@@ -21,12 +21,6 @@ pub use support::{
     VerifiedPatchEmbeddingSupportArtifact, VerifiedRegionEmbeddingSupportArtifact,
     VerifiedSlideEmbeddingSupportArtifact,
 };
-#[cfg(feature = "parquet")]
-#[allow(unused_imports)]
-pub(in crate::multiscale) use support::{
-    VerifiedPatchEmbeddingSupportBindings, VerifiedRegionEmbeddingSupportBindings,
-    VerifiedSlideEmbeddingSupportBindings,
-};
 pub use table_artifact::{
     VerifiedPatchEmbeddingTableArtifact, VerifiedRegionEmbeddingTableArtifact,
     VerifiedSlideEmbeddingTableArtifact,

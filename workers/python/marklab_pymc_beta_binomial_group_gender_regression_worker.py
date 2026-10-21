@@ -1,95 +1,84 @@
 #!/usr/bin/env python3
-"""Static PyMC worker for patient beta-binomial group regression adjusted for gender."""
+"""PyMC worker for patient beta-binomial group regression adjusted for gender."""
 
 from __future__ import annotations
 
-import hashlib
 import json
-import math
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
-import numpy as np
 sys.path.append(str(Path(__file__).resolve().parent))
-import marklab_pytensor_config  # noqa: E402,F401
+
+# Configure PyTensor before PyMC is imported.
+from marklab_worker_support import pytensor_config  # noqa: F401
+
+# isort: split
+import numpy as np
 import pymc as pm
 
+from marklab_worker_support import pymc_nuts, pymc_request
+from marklab_worker_support.count_summaries import group_gender_report
+from marklab_worker_support.nuts_contract import fit_summary, pymc_nuts_diagnostics
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    backend_identity,
+    derive_seed,
+    exact,
+    integer,
+    number,
+    obj,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    worker_digests,
+    write_result,
+)
 
-PYMC_VERSION = "6.3.0"
-
-
-class ContractError(ValueError):
-    pass
-
-
-def obj(value: Any, keys: set[str], path: str) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != keys:
-        actual = set(value) if isinstance(value, dict) else set()
-        raise ContractError(
-            f"{path} fields differ: missing={sorted(keys - actual)}, unknown={sorted(actual - keys)}"
-        )
-    return value
-
-
-def number(value: Any, path: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ContractError(f"{path} must be numeric")
-    result = float(value)
-    if not math.isfinite(result):
-        raise ContractError(f"{path} must be finite")
-    return result
-
-
-def integer(value: Any, path: str, low: int, high: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
-        raise ContractError(f"{path} must be an integer in [{low}, {high}]")
-    return value
-
-
-def exact(value: Any, expected: Any, path: str) -> None:
-    if value != expected:
-        raise ContractError(f"{path} must equal {expected!r}")
+RESULT_FORMAT = "marklab.pymc_beta_binomial_group_gender_regression_worker_result"
+MODEL_KEYS = {
+    "format",
+    "version",
+    "family",
+    "reference_group",
+    "comparison_group",
+    "reference_gender",
+    "comparison_gender",
+    "intercept_prior",
+    "intercept_prior_mean",
+    "intercept_prior_sd",
+    "group_effect_prior",
+    "group_effect_prior_sd",
+    "gender_effect_prior",
+    "gender_effect_prior_sd",
+    "concentration_prior",
+    "concentration_prior_sd",
+    "patient_probability",
+    "likelihood",
+    "interaction",
+    "standardization",
+    "biological_unit",
+    "backend_capability",
+    "maturity",
+}
 
 
 def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, Any]:
-    request = obj(
-        request,
-        {"format", "version", "backend", "model", "patients", "sampling", "resources", "diagnostic_policy"},
-        "request",
+    request, model = pymc_request.validate_envelope(
+        request, lock_digest, worker_digest, ("patients",), MODEL_KEYS
     )
-    exact(request["format"], "marklab.pymc_worker_request", "request.format")
-    exact(request["version"], 1, "request.version")
-    backend = obj(
-        request["backend"],
-        {"name", "version", "python_version", "environment_lock_sha256", "worker_sha256"},
-        "backend",
-    )
-    exact(backend["name"], "pymc", "backend.name")
-    exact(backend["version"], PYMC_VERSION, "backend.version")
-    exact(backend["python_version"], "3.12", "backend.python")
-    exact(backend["environment_lock_sha256"], lock_digest, "backend.lock")
-    exact(backend["worker_sha256"], worker_digest, "backend.worker")
-    model = obj(
-        request["model"],
-        {
-            "format", "version", "family", "reference_group", "comparison_group",
-            "reference_gender", "comparison_gender", "intercept_prior", "intercept_prior_mean",
-            "intercept_prior_sd", "group_effect_prior", "group_effect_prior_sd",
-            "gender_effect_prior", "gender_effect_prior_sd", "concentration_prior",
-            "concentration_prior_sd", "patient_probability", "likelihood", "interaction",
-            "standardization", "biological_unit", "backend_capability", "maturity",
-        },
-        "model",
-    )
-    exact(model["format"], "marklab.bayesian_model_ir", "model.format")
-    exact(model["version"], 1, "model.version")
     exact(model["family"], "patient_beta_binomial_group_gender_regression", "model.family")
     exact(model["intercept_prior"], "normal_log_odds", "model.intercept_prior")
     exact(model["group_effect_prior"], "normal_log_odds_difference", "model.group_prior")
     exact(model["gender_effect_prior"], "normal_log_odds_difference", "model.gender_prior")
     exact(model["concentration_prior"], "half_normal", "model.concentration_prior")
-    exact(model["patient_probability"], "beta_additive_group_gender_mean_concentration", "model.patient")
+    exact(
+        model["patient_probability"],
+        "beta_additive_group_gender_mean_concentration",
+        "model.patient",
+    )
     exact(model["likelihood"], "beta_binomial_collapsed_patient_counts", "model.likelihood")
     exact(model["interaction"], "none", "model.interaction")
     exact(model["standardization"], "observed_gender_distribution", "model.standardization")
@@ -97,7 +86,8 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     comparison_group = model["comparison_group"]
     reference_gender = model["reference_gender"]
     comparison_gender = model["comparison_gender"]
-    if any(not isinstance(value, str) or not value for value in [reference_group, comparison_group, reference_gender, comparison_gender]):
+    identities = [reference_group, comparison_group, reference_gender, comparison_gender]
+    if any(not isinstance(value, str) or not value for value in identities):
         raise ContractError("group or gender identities are invalid")
     if reference_group == comparison_group or reference_gender == comparison_gender:
         raise ContractError("group or gender contrasts are degenerate")
@@ -117,7 +107,9 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     successes: list[int] = []
     trials: list[int] = []
     for index, raw in enumerate(patients):
-        row = obj(raw, {"patient_id", "group", "gender", "successes", "trials"}, f"patients[{index}]")
+        row = obj(
+            raw, {"patient_id", "group", "gender", "successes", "trials"}, f"patients[{index}]"
+        )
         patient_id = row["patient_id"]
         group = row["group"]
         gender = row["gender"]
@@ -137,41 +129,33 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
         trials.append(trial)
     if patient_ids != sorted(patient_ids) or len(set(patient_ids)) != len(patient_ids):
         raise ContractError("patient identities must be unique and sorted")
-    if any(
-        sum(group == expected_group and gender == expected_gender for group, gender in zip(groups, genders)) < 4
-        for expected_group in (reference_group, comparison_group)
-        for expected_gender in (reference_gender, comparison_gender)
-    ):
-        raise ContractError("each group/gender design cell requires four patients")
-    sampling = obj(
-        request["sampling"],
-        {"chains", "tune_per_chain", "draws_per_chain", "target_accept", "seed"},
-        "sampling",
-    )
-    chains = integer(sampling["chains"], "sampling.chains", 2, 8)
-    tune = integer(sampling["tune_per_chain"], "sampling.tune", 100, 100_000)
-    draws = integer(sampling["draws_per_chain"], "sampling.draws", 100, 100_000)
-    target_accept = number(sampling["target_accept"], "sampling.target_accept")
-    seed = integer(sampling["seed"], "sampling.seed", 0, 2**64 - 1)
+    design = list(zip(groups, genders, strict=True))
+    for expected_group in (reference_group, comparison_group):
+        for expected_gender in (reference_gender, comparison_gender):
+            if design.count((expected_group, expected_gender)) < 4:
+                raise ContractError("each group/gender design cell requires four patients")
+    sampling = pymc_request.validate_sampling(request["sampling"])
     resources = obj(
         request["resources"],
-        {"maximum_patients", "maximum_total_trials", "maximum_total_iterations", "maximum_output_bytes", "timeout_seconds"},
+        {
+            "maximum_patients",
+            "maximum_total_trials",
+            "maximum_total_iterations",
+            "maximum_output_bytes",
+            "timeout_seconds",
+        },
         "resources",
     )
     if len(patients) > integer(resources["maximum_patients"], "resources.patients", 16, 512):
         raise ContractError("patient limit exceeded")
     if sum(trials) > integer(resources["maximum_total_trials"], "resources.trials", 1, 10_000_000):
         raise ContractError("trial limit exceeded")
-    if chains * (tune + draws) > integer(resources["maximum_total_iterations"], "resources.iterations", 1, 400_000):
+    iterations = sampling["chains"] * (sampling["tune"] + sampling["draws"])
+    if iterations > integer(
+        resources["maximum_total_iterations"], "resources.iterations", 1, 400_000
+    ):
         raise ContractError("iteration limit exceeded")
-    policy = obj(
-        request["diagnostic_policy"],
-        {
-            "prior_predictive_draws", "maximum_r_hat", "minimum_bulk_ess", "minimum_tail_ess",
-            "minimum_ebfmi", "maximum_divergences", "maximum_tree_depth_hits", "maximum_tree_depth",
-        },
-        "policy",
-    )
+    policy = pymc_request.validate_policy(request["diagnostic_policy"])
     return {
         "reference_group": reference_group,
         "comparison_group": comparison_group,
@@ -185,54 +169,39 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
         "patient_ids": patient_ids,
         "groups": groups,
         "genders": genders,
-        "group_indicator": np.asarray([group == comparison_group for group in groups], dtype=np.float64),
-        "gender_indicator": np.asarray([gender == comparison_gender for gender in genders], dtype=np.float64),
+        "group_indicator": np.asarray(
+            [group == comparison_group for group in groups], dtype=np.float64
+        ),
+        "gender_indicator": np.asarray(
+            [gender == comparison_gender for gender in genders], dtype=np.float64
+        ),
         "successes": np.asarray(successes, dtype=np.int64),
         "trials": np.asarray(trials, dtype=np.int64),
-        "chains": chains,
-        "tune": tune,
-        "draws": draws,
-        "target_accept": target_accept,
-        "seed": seed,
-        "prior_draws": integer(policy["prior_predictive_draws"], "policy.prior_draws", 1, 100_000),
-        "maximum_r_hat": number(policy["maximum_r_hat"], "policy.rhat"),
-        "minimum_bulk_ess": number(policy["minimum_bulk_ess"], "policy.bulk"),
-        "minimum_tail_ess": number(policy["minimum_tail_ess"], "policy.tail"),
-        "minimum_ebfmi": number(policy["minimum_ebfmi"], "policy.ebfmi"),
-        "maximum_divergences": integer(policy["maximum_divergences"], "policy.divergences", 0, 2**63 - 1),
-        "maximum_tree_depth_hits": integer(policy["maximum_tree_depth_hits"], "policy.depth hits", 0, 2**63 - 1),
-        "maximum_tree_depth": integer(policy["maximum_tree_depth"], "policy.depth", 1, 32),
+        **sampling,
+        **policy,
     }
 
 
 def seed_for(seed: int, purpose: str, index: int = 0) -> int:
-    digest = hashlib.sha256(
-        f"marklab-pymc-beta-binomial-group-gender-v1\0{seed}\0{purpose}\0{index}".encode()
-    ).digest()
-    return int.from_bytes(digest[:4], "little")
-
-
-def summary(values: np.ndarray) -> dict[str, float]:
-    flat = values.reshape(-1)
-    return {
-        "mean": float(flat.mean()),
-        "sd": float(flat.std(ddof=1)),
-        "interval_lower": float(np.quantile(flat, 0.025)),
-        "interval_upper": float(np.quantile(flat, 0.975)),
-    }
-
-
-def tree_values(tree: Any, names: list[str]) -> np.ndarray:
-    return np.concatenate([np.asarray(tree[name].values).reshape(-1) for name in names])
-
-
-def sigmoid(values: np.ndarray) -> np.ndarray:
-    return 1.0 / (1.0 + np.exp(-values))
+    return derive_seed("marklab-pymc-beta-binomial-group-gender-v1", seed, purpose, index)
 
 
 def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str) -> dict[str, Any]:
+    """Fit the collapsed patient beta-binomial regression on group and gender by NUTS.
+
+    Likelihood: ``y_i ~ BetaBinomial(n_i, p_i * phi, (1 - p_i) * phi)`` with
+    ``logit(p_i) = alpha + beta_group * g_i + beta_gender * s_i`` (no interaction), where
+    ``g_i`` and ``s_i`` indicate the comparison group and gender. Priors:
+    ``alpha ~ Normal(intercept_mean, intercept_sd)``, ``beta_group ~ Normal(0, group_sd)``,
+    ``beta_gender ~ Normal(0, gender_sd)``, and concentration ``phi ~ HalfNormal(
+    concentration_sd)``. Patient probabilities are integrated out and drawn afterwards from
+    their exact conditional beta posteriors.
+    Normal scales are SDs; half-normal scales are the SDs of their underlying normal distributions.
+    """
     with pm.Model():
-        intercept = pm.Normal("intercept_log_odds", config["intercept_mean"], config["intercept_sd"])
+        intercept = pm.Normal(
+            "intercept_log_odds", config["intercept_mean"], config["intercept_sd"]
+        )
         group_effect = pm.Normal("group_log_odds_effect", 0.0, config["group_sd"])
         gender_effect = pm.Normal("gender_log_odds_effect", 0.0, config["gender_sd"])
         concentration = pm.HalfNormal("concentration", config["concentration_sd"])
@@ -248,214 +217,62 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
             n=config["trials"],
             observed=config["successes"],
         )
-        prior = pm.sample_prior_predictive(
-            draws=config["prior_draws"], random_seed=seed_for(config["seed"], "prior")
+        prior, posterior, predictive = pymc_nuts.sample_prior_posterior_predictive(
+            config, seed_for, "successes"
         )
-        posterior = pm.sample(
-            draws=config["draws"],
-            tune=config["tune"],
-            chains=config["chains"],
-            cores=1,
-            blas_cores=1,
-            random_seed=[seed_for(config["seed"], "chain", index) for index in range(config["chains"])],
-            target_accept=config["target_accept"],
-            nuts_sampler="pymc",
-            nuts={"max_treedepth": config["maximum_tree_depth"]},
-            progressbar=False,
-            quiet=True,
-            compute_convergence_checks=False,
-        )
-        predictive = pm.sample_posterior_predictive(
-            posterior,
-            var_names=["successes"],
-            random_seed=seed_for(config["seed"], "predictive"),
-            progressbar=False,
-        )
-    intercept_draws = np.asarray(posterior["posterior"]["intercept_log_odds"].values, dtype=np.float64)
-    group_draws = np.asarray(posterior["posterior"]["group_log_odds_effect"].values, dtype=np.float64)
-    gender_draws = np.asarray(posterior["posterior"]["gender_log_odds_effect"].values, dtype=np.float64)
-    concentration_draws = np.asarray(posterior["posterior"]["concentration"].values, dtype=np.float64)
-    p00 = sigmoid(intercept_draws)
-    p10 = sigmoid(intercept_draws + group_draws)
-    p01 = sigmoid(intercept_draws + gender_draws)
-    p11 = sigmoid(intercept_draws + group_draws + gender_draws)
-    gender_weight = float(config["gender_indicator"].mean())
-    marginal_reference = (1.0 - gender_weight) * p00 + gender_weight * p01
-    marginal_comparison = (1.0 - gender_weight) * p10 + gender_weight * p11
-    marginal_difference = marginal_comparison - marginal_reference
-    group_odds_ratio = np.exp(group_draws)
-    gender_odds_ratio = np.exp(gender_draws)
+    draws = posterior["posterior"]
+    intercept_draws = np.asarray(draws["intercept_log_odds"].values, dtype=np.float64)
+    group_draws = np.asarray(draws["group_log_odds_effect"].values, dtype=np.float64)
+    gender_draws = np.asarray(draws["gender_log_odds_effect"].values, dtype=np.float64)
+    concentration_draws = np.asarray(draws["concentration"].values, dtype=np.float64)
     replicated = np.asarray(predictive["posterior_predictive"]["successes"].values, dtype=np.int64)
-    monitored = ["intercept_log_odds", "group_log_odds_effect", "gender_log_odds_effect", "concentration"]
-    prior_finite = bool(all(np.isfinite(np.asarray(value.values)).all() for value in prior["prior"].values()))
+    monitored = [
+        "intercept_log_odds",
+        "group_log_odds_effect",
+        "gender_log_odds_effect",
+        "concentration",
+    ]
+    prior_finite = pymc_nuts.prior_is_finite(prior)
     posterior_finite = bool(
-        all(np.isfinite(values).all() for values in [intercept_draws, group_draws, gender_draws, concentration_draws, replicated])
-    )
-    r_hat = float(tree_values(pm.stats.rhat(posterior, var_names=monitored, method="rank"), monitored).max())
-    bulk = float(tree_values(pm.stats.ess(posterior, var_names=monitored, method="bulk"), monitored).min())
-    tail = float(tree_values(pm.stats.ess(posterior, var_names=monitored, method="tail"), monitored).min())
-    mcse_mean = float(tree_values(pm.stats.mcse(posterior, var_names=monitored, method="mean"), monitored).max())
-    mcse_sd = float(tree_values(pm.stats.mcse(posterior, var_names=monitored, method="sd"), monitored).max())
-    energy = np.asarray(posterior["sample_stats"]["energy"].values, dtype=np.float64)
-    ebfmi = float(np.min(np.mean(np.diff(energy, axis=1) ** 2, axis=1) / np.var(energy, axis=1)))
-    divergences = int(np.asarray(posterior["sample_stats"]["diverging"].values).sum())
-    depth_hits = int(np.asarray(posterior["sample_stats"]["reached_max_treedepth"].values).sum())
-    constraints = bool(
-        np.all(concentration_draws > 0.0)
-        and all(np.all((0.0 < values) & (values < 1.0)) for values in [p00, p10, p01, p11])
-        and np.isfinite(group_odds_ratio).all()
-        and np.isfinite(gender_odds_ratio).all()
-    )
-    complete = bool(
-        prior_finite and posterior_finite and constraints
-        and r_hat <= config["maximum_r_hat"]
-        and bulk >= config["minimum_bulk_ess"]
-        and tail >= config["minimum_tail_ess"]
-        and ebfmi >= config["minimum_ebfmi"]
-        and divergences <= config["maximum_divergences"]
-        and depth_hits <= config["maximum_tree_depth_hits"]
-    )
-    flat_intercept = intercept_draws.reshape(-1)
-    flat_group = group_draws.reshape(-1)
-    flat_gender = gender_draws.reshape(-1)
-    flat_concentration = concentration_draws.reshape(-1)
-    conditional_rng = np.random.default_rng(seed_for(config["seed"], "conditional"))
-    patients = []
-    for index, patient_id in enumerate(config["patient_ids"]):
-        linear_probability = sigmoid(
-            flat_intercept
-            + config["group_indicator"][index] * flat_group
-            + config["gender_indicator"][index] * flat_gender
+        all(
+            np.isfinite(values).all()
+            for values in [
+                intercept_draws,
+                group_draws,
+                gender_draws,
+                concentration_draws,
+                replicated,
+            ]
         )
-        conditional = conditional_rng.beta(
-            config["successes"][index] + linear_probability * flat_concentration,
-            config["trials"][index] - config["successes"][index]
-            + (1.0 - linear_probability) * flat_concentration,
-        )
-        observed = float(config["successes"][index] / config["trials"][index])
-        linear_mean = float(linear_probability.mean())
-        denominator = linear_mean - observed
-        shrinkage = 0.0 if denominator == 0.0 else float((conditional.mean() - observed) / denominator)
-        patients.append(
-            {
-                "patient_id": patient_id,
-                "group": config["groups"][index],
-                "gender": config["genders"][index],
-                "successes": int(config["successes"][index]),
-                "trials": int(config["trials"][index]),
-                "observed_proportion": observed,
-                "posterior_probability": summary(conditional),
-                "shrinkage_toward_linear_predictor": shrinkage,
-            }
-        )
-    replicated_flat = replicated.reshape(-1, replicated.shape[-1])
-    group_reference_mask = config["group_indicator"] == 0.0
-    group_comparison_mask = ~group_reference_mask
-    gender_reference_mask = config["gender_indicator"] == 0.0
-    gender_comparison_mask = ~gender_reference_mask
-    observed_proportions = config["successes"] / config["trials"]
-    replicated_proportions = replicated_flat / config["trials"]
-    observed_group_difference = float(
-        observed_proportions[group_comparison_mask].mean()
-        - observed_proportions[group_reference_mask].mean()
     )
-    replicated_group_differences = (
-        replicated_proportions[:, group_comparison_mask].mean(axis=1)
-        - replicated_proportions[:, group_reference_mask].mean(axis=1)
+    convergence = pymc_nuts_diagnostics(posterior, monitored)
+    report, constraints = group_gender_report(
+        config,
+        intercept_draws,
+        group_draws,
+        gender_draws,
+        concentration_draws,
+        replicated,
+        np.random.default_rng(seed_for(config["seed"], "conditional")),
     )
-    observed_gender_difference = float(
-        observed_proportions[gender_comparison_mask].mean()
-        - observed_proportions[gender_reference_mask].mean()
-    )
-    replicated_gender_differences = (
-        replicated_proportions[:, gender_comparison_mask].mean(axis=1)
-        - replicated_proportions[:, gender_reference_mask].mean(axis=1)
-    )
-    replicated_totals = replicated_flat.sum(axis=1)
-    observed_total = int(config["successes"].sum())
     return {
-        "format": "marklab.pymc_beta_binomial_group_gender_regression_worker_result",
+        "format": RESULT_FORMAT,
         "version": 1,
-        "backend": {
-            "name": "pymc", "version": pm.__version__,
-            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
-            "environment_lock_sha256": lock_sha, "worker_sha256": worker_sha,
-        },
+        "backend": backend_identity("pymc", pm.__version__, lock_sha, worker_sha),
         "request_sha256": request_sha,
-        "fit_state": "complete" if complete else "nonconverged",
-        "sampling": {
-            "chains": config["chains"], "tune_per_chain": config["tune"],
-            "draws_per_chain": config["draws"], "completed_draws": config["chains"] * config["draws"],
-        },
-        "posterior": {
-            "intercept_log_odds": summary(intercept_draws),
-            "group_log_odds_effect": summary(group_draws),
-            "gender_log_odds_effect": summary(gender_draws),
-            "reference_group_reference_gender_probability": summary(p00),
-            "comparison_group_reference_gender_probability": summary(p10),
-            "reference_group_comparison_gender_probability": summary(p01),
-            "comparison_group_comparison_gender_probability": summary(p11),
-            "reference_gender_probability_difference": summary(p10 - p00),
-            "comparison_gender_probability_difference": summary(p11 - p01),
-            "marginal_reference_group_probability": summary(marginal_reference),
-            "marginal_comparison_group_probability": summary(marginal_comparison),
-            "marginal_probability_difference_comparison_minus_reference": summary(marginal_difference),
-            "group_odds_ratio": summary(group_odds_ratio),
-            "gender_odds_ratio": summary(gender_odds_ratio),
-            "concentration": summary(concentration_draws),
-            "overdispersion_mean": float((1.0 / (concentration_draws + 1.0)).mean()),
-        },
-        "patients": patients,
-        "diagnostics": {
-            "prior_predictive_finite": prior_finite, "posterior_finite": posterior_finite,
-            "r_hat": r_hat, "ess_bulk": bulk, "ess_tail": tail,
-            "mcse_mean": mcse_mean, "mcse_sd": mcse_sd, "minimum_ebfmi": ebfmi,
-            "divergences": divergences, "max_tree_depth_hits": depth_hits,
-            "constraints_valid": constraints, "identifiability_checks_passed": True,
-        },
-        "posterior_predictive": {
-            "observed_total_successes": observed_total,
-            "replicated_total_successes_mean": float(replicated_totals.mean()),
-            "probability_replicated_total_successes_at_least_observed": float(
-                np.mean(replicated_totals >= observed_total)
-            ),
-            "observed_group_mean_proportion_difference": observed_group_difference,
-            "replicated_group_mean_proportion_difference_mean": float(replicated_group_differences.mean()),
-            "probability_replicated_group_difference_at_least_observed": float(
-                np.mean(replicated_group_differences >= observed_group_difference)
-            ),
-            "observed_gender_mean_proportion_difference": observed_gender_difference,
-            "replicated_gender_mean_proportion_difference_mean": float(replicated_gender_differences.mean()),
-            "probability_replicated_gender_difference_at_least_observed": float(
-                np.mean(replicated_gender_differences >= observed_gender_difference)
-            ),
-        },
+        **fit_summary(convergence, config, prior_finite, posterior_finite, constraints),
+        **report,
     }
 
 
 def main() -> None:
-    if pm.__version__ != PYMC_VERSION or sys.version_info[:2] != (3, 12):
-        raise ContractError("PyMC or Python version drift")
-    script = Path(__file__)
-    lock_sha = hashlib.sha256(script.with_name("uv.lock").read_bytes()).hexdigest()
-    worker_sha = hashlib.sha256(script.read_bytes()).hexdigest()
-    raw = sys.stdin.buffer.read(2 * 1024 * 1024 + 1)
-    if not raw or len(raw) > 2 * 1024 * 1024:
-        raise ContractError("request size is invalid")
-    result = fit(validate(json.loads(raw), lock_sha, worker_sha), hashlib.sha256(raw).hexdigest(), lock_sha, worker_sha)
-    encoded = json.dumps(result, allow_nan=False, sort_keys=True, separators=(",", ":"))
-    if len(encoded.encode()) > 2 * 1_048_576:
-        raise ContractError("result exceeds output limit")
-    sys.stdout.write(encoded)
-    sys.stdout.write("\n")
+    require_versions(pymc=pm.__version__)
+    lock_sha, worker_sha = worker_digests(__file__)
+    raw = read_request(2 * MIB)
+    config = validate(json.loads(raw), lock_sha, worker_sha)
+    result = fit(config, sha256_hex(raw), lock_sha, worker_sha)
+    write_result(result, max_bytes=2 * MIB)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as error:
-        print(
-            f"Marklab PyMC beta-binomial group/gender worker failed: {type(error).__name__}: {error}",
-            file=sys.stderr,
-        )
-        raise SystemExit(2) from error
+    run_worker(main, "Marklab PyMC beta-binomial group/gender worker failed")

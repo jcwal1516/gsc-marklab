@@ -34,7 +34,6 @@ pub struct RepeatedFreedmanLaneResult {
     pub studentized_statistic: f64,
     pub p_value: f64,
     pub permutations_requested: usize,
-    pub permutations_completed: usize,
     pub seed: u64,
 }
 
@@ -107,7 +106,6 @@ pub fn repeated_measures_freedman_lane(
         studentized_statistic: observed.target_statistic,
         p_value,
         permutations_requested: spec.permutations,
-        permutations_completed: spec.permutations,
         seed: spec.seed,
     })
 }
@@ -275,52 +273,7 @@ fn fit_ols(
 }
 
 fn solve(matrix: &[Vec<f64>], rhs: &[f64]) -> Result<Vec<f64>, CohortInferenceError> {
-    let size = rhs.len();
-    let mut augmented = matrix
-        .iter()
-        .zip(rhs)
-        .map(|(row, value)| {
-            let mut row = row.clone();
-            row.push(*value);
-            row
-        })
-        .collect::<Vec<_>>();
-    for pivot in 0..size {
-        let selected = (pivot..size)
-            .max_by(|left, right| {
-                augmented[*left][pivot]
-                    .abs()
-                    .total_cmp(&augmented[*right][pivot].abs())
-            })
-            .expect("non-empty pivot range");
-        if augmented[selected][pivot].abs() <= 1e-12 {
-            return Err(CohortInferenceError::InvalidInput(
-                "repeated model design is rank deficient".into(),
-            ));
-        }
-        augmented.swap(pivot, selected);
-        let diagonal = augmented[pivot][pivot];
-        for value in &mut augmented[pivot][pivot..=size] {
-            *value /= diagonal;
-        }
-        for row in 0..size {
-            if row == pivot {
-                continue;
-            }
-            let factor = augmented[row][pivot];
-            let pivot_values = augmented[pivot][pivot..=size].to_vec();
-            for (value, pivot_value) in augmented[row][pivot..=size].iter_mut().zip(pivot_values) {
-                *value -= factor * pivot_value;
-            }
-        }
-    }
-    let solution = augmented.iter().map(|row| row[size]).collect::<Vec<_>>();
-    if solution.iter().any(|value| !value.is_finite()) {
-        return Err(CohortInferenceError::NumericalFailure(
-            "repeated model solve produced a non-finite coefficient".into(),
-        ));
-    }
-    Ok(solution)
+    crate::numeric::solve_design(matrix, rhs, "repeated")
 }
 
 #[cfg(test)]

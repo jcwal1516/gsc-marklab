@@ -158,7 +158,7 @@ fn preflight_rejects_row_link_schema_metadata_codec_encoding_and_auxiliary_drift
                 &row_link,
                 budgets,
             ),
-            Err(EmbeddingColumnarError::Parquet { reason: observed }) if observed == reason
+            Err(ColumnarError::Parquet { reason: observed }) if observed == reason
         ));
     };
 
@@ -208,7 +208,7 @@ fn preflight_rejects_optional_levels_that_disagree_with_the_logical_row_link() {
     bytes[levels.end - 1] ^= 1;
     assert!(matches!(
         preflight_cell_embedding_row_link_parquet_bytes(&bytes, &expected, &row_link, budgets,),
-        Err(EmbeddingColumnarError::Parquet {
+        Err(ColumnarError::Parquet {
             reason: ParquetFailure::InvalidPage,
         })
     ));
@@ -247,7 +247,7 @@ fn preflight_rejects_larger_physical_cell_ids_before_stock_decode_at_exact_budge
     );
     assert!(matches!(
         preflight_cell_embedding_row_link_parquet_bytes(&hostile, &expected, &row_link, exact,),
-        Err(EmbeddingColumnarError::Parquet {
+        Err(ColumnarError::Parquet {
             reason: ParquetFailure::InvalidCellOrder,
         })
     ));
@@ -260,7 +260,7 @@ fn preflight_rejects_larger_physical_cell_ids_before_stock_decode_at_exact_budge
     );
     assert_eq!(
         preflight_cell_embedding_row_link_parquet_bytes(&hostile, &expected, &row_link, one_short,),
-        Err(EmbeddingColumnarError::DecodedByteBudgetExceeded {
+        Err(ColumnarError::DecodedByteBudgetExceeded {
             required,
             maximum: required - 1,
         })

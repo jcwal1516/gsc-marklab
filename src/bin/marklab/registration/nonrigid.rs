@@ -1,12 +1,17 @@
+use marklab_bayes::is_worker_timeout;
 use std::{collections::HashSet, path::PathBuf};
 
 use marklab_topology::sha256_hex;
 use serde::Deserialize;
 
+use crate::cli_error::CliError;
+
 use super::{
-    super::topology::{publish_json, read_input, read_required, run_worker, TopologyCliError},
+    super::topology::{publish_json, read_input, read_required, run_worker},
     RegistrationImage,
 };
+use marklab_bayes::backend_versions::NUMPY_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -22,11 +27,11 @@ struct NonrigidSpec {
     maximum_iterations: usize,
     timeout_seconds: u64,
 }
-pub(super) fn run_nonrigid(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+pub(super) fn run_nonrigid(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let spec: NonrigidSpec = serde_json::from_slice(&bytes)?;
     validate_nonrigid(&spec)?;
-    let repository = marklab::python_backend_assets_root()?;
+    let repository = marklab::backend::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_simpleitk_nonrigid_worker.py");
     let lock = read_required(&lock_path)?;
@@ -38,8 +43,8 @@ pub(super) fn run_nonrigid(input: PathBuf, out: PathBuf) -> Result<(), TopologyC
             "name": "SimpleITK",
             "version": "SimpleITK-2.5.5",
             "itk_family": "ITK-5.4",
-            "numpy_version": "2.4.6",
-            "python_version": "3.12",
+            "numpy_version": NUMPY_VERSION,
+            "python_version": PYTHON_VERSION,
             "license": "Apache-2.0",
             "environment_lock_sha256": sha256_hex(&lock),
             "worker_sha256": sha256_hex(&worker)
@@ -67,14 +72,14 @@ pub(super) fn run_nonrigid(input: PathBuf, out: PathBuf) -> Result<(), TopologyC
         || result["request_sha256"] != sha256_hex(&request_bytes)
         || result["claim_status"] != "experimental_synthetic_nonrigid_registration"
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "nonrigid registration result identity mismatch".into(),
         ));
     }
     publish_json(&out, &result)
 }
 
-fn validate_nonrigid(spec: &NonrigidSpec) -> Result<(), TopologyCliError> {
+fn validate_nonrigid(spec: &NonrigidSpec) -> Result<(), CliError> {
     let height = spec.fixed.pixels.len();
     let width = spec.fixed.pixels.first().map(Vec::len).unwrap_or(0);
     let valid_image = |image: &RegistrationImage| {
@@ -119,9 +124,9 @@ fn validate_nonrigid(spec: &NonrigidSpec) -> Result<(), TopologyCliError> {
             .iter()
             .any(|sigma| !sigma.is_finite() || *sigma < 0.0)
         || !(10..=10_000).contains(&spec.maximum_iterations)
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "nonrigid registration requires bounded finite physical images, valid masks/frames, same-stain mean squares, and a canonical coarse-to-fine B-spline plan"
                 .into(),
         ));

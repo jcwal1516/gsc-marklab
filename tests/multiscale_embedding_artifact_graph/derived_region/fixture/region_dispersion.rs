@@ -9,7 +9,7 @@ fn finalization_budgets() -> EmbeddingFinalizationBudgets {
 fn finalize_candidate(
     fixture: &DerivedFixture,
     graph: VerifiedDerivedRegionEmbeddingArtifactGraph,
-) -> marklab::DerivedRegionEmbeddingTableCandidate {
+) -> marklab::embeddings::DerivedRegionEmbeddingTableCandidate {
     finalize_region_embedding_table_from_patches(
         &fixture.expected_regions,
         &fixture.source_patch_table_value,
@@ -23,7 +23,8 @@ fn finalize_candidate(
 fn compute(
     fixture: &DerivedFixture,
     maximum_component_operations: u64,
-) -> Result<marklab::PatchRegionEmbeddingDispersion, PatchRegionEmbeddingDispersionError> {
+) -> Result<marklab::embeddings::PatchRegionEmbeddingDispersion, PatchRegionEmbeddingDispersionError>
+{
     let graph = validate_graph(fixture);
     let candidate = finalize_candidate(fixture, graph);
     patch_region_embedding_dispersion(
@@ -224,7 +225,7 @@ fn region_dispersion_rejects_all_binding_drift_before_the_work_budget() {
         ),
         Err(
             PatchRegionEmbeddingDispersionError::UnsupportedSourceProvenanceVariant {
-                observed: marklab::MultiscaleEmbeddingProvenanceVariant::DerivedRegion,
+                observed: marklab::embeddings::MultiscaleEmbeddingProvenanceVariant::DerivedRegion,
             }
         )
     );
@@ -240,7 +241,7 @@ fn region_dispersion_rejects_all_binding_drift_before_the_work_budget() {
         ),
         Err(
             PatchRegionEmbeddingDispersionError::UnsupportedRegionProvenanceVariant {
-                observed: marklab::MultiscaleEmbeddingProvenanceVariant::DirectPatch,
+                observed: marklab::embeddings::MultiscaleEmbeddingProvenanceVariant::DirectPatch,
             }
         )
     );

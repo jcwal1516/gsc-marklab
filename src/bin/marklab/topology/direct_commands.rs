@@ -1,3 +1,4 @@
+use marklab_bayes::is_worker_timeout;
 use std::path::PathBuf;
 
 use marklab_topology::{
@@ -5,10 +6,14 @@ use marklab_topology::{
     AlphaPersistenceWorkerRequest, ConnectivityTransitionSpec,
 };
 
-use super::{publish_json, read_input, read_required, run_worker, TopologyCliError};
+use super::{publish_json, read_input, read_required, run_worker, CliError};
+use marklab_bayes::backend_versions::GUDHI_SCIKIT_IMAGE_SCIPY_BACKEND;
+use marklab_bayes::backend_versions::GUDHI_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_bayes::backend_versions::SCIPY_VERSION;
 
-pub(super) fn run_validation(out: PathBuf) -> Result<(), TopologyCliError> {
-    let repository = marklab::python_backend_assets_root()?;
+pub(super) fn run_validation(out: PathBuf) -> Result<(), CliError> {
+    let repository = marklab::backend::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_topology_validation_worker.py");
     let lock = read_required(&lock_path)?;
@@ -18,8 +23,8 @@ pub(super) fn run_validation(out: PathBuf) -> Result<(), TopologyCliError> {
         "version": 1,
         "backend": {
             "name": "gudhi_scikit_image_scipy",
-            "version": "gudhi-3.13.0+scikit-image-0.26.0+scipy-1.18.1",
-            "python_version": "3.12",
+            "version": GUDHI_SCIKIT_IMAGE_SCIPY_BACKEND,
+            "python_version": PYTHON_VERSION,
             "license": "MIT_GPLv3_CGAL_plus_BSD-3-Clause",
             "environment_lock_sha256": sha256_hex(&lock),
             "worker_sha256": sha256_hex(&worker)
@@ -34,7 +39,7 @@ pub(super) fn run_validation(out: PathBuf) -> Result<(), TopologyCliError> {
         || result["exact_fixture_status"] != "passed"
         || result["claim_status"] != "synthetic_exact_topology_validation_only"
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "topology validation result identity mismatch".into(),
         ));
     }
@@ -61,7 +66,7 @@ struct TopologyStabilitySpec {
     timeout_seconds: u64,
 }
 
-pub(super) fn run_stability(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+pub(super) fn run_stability(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let spec: TopologyStabilitySpec = serde_json::from_slice(&bytes)?;
     if spec.base_mask.len() < 3
@@ -95,9 +100,9 @@ pub(super) fn run_stability(input: PathBuf, out: PathBuf) -> Result<(), Topology
         })
         || spec.scales_um.windows(2).any(|pair| pair[0] >= pair[1])
         || !(1..=10_000).contains(&spec.repetitions)
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "topology stability mask, generator, scales, repetitions, or timeout are invalid"
                 .into(),
         ));
@@ -108,11 +113,11 @@ pub(super) fn run_stability(input: PathBuf, out: PathBuf) -> Result<(), Topology
         .iter()
         .collect::<std::collections::BTreeSet<_>>();
     if unique_candidates.len() != spec.perturbation_generator.candidate_pixels.len() {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "topology stability candidate pixels must be unique".into(),
         ));
     }
-    let repository = marklab::python_backend_assets_root()?;
+    let repository = marklab::backend::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_topology_stability_worker.py");
     let lock = read_required(&lock_path)?;
@@ -122,8 +127,8 @@ pub(super) fn run_stability(input: PathBuf, out: PathBuf) -> Result<(), Topology
         "version": 1,
         "backend": {
             "name": "gudhi_scikit_image_scipy",
-            "version": "gudhi-3.13.0+scikit-image-0.26.0+scipy-1.18.1",
-            "python_version": "3.12",
+            "version": GUDHI_SCIKIT_IMAGE_SCIPY_BACKEND,
+            "python_version": PYTHON_VERSION,
             "license": "MIT_GPLv3_CGAL_plus_BSD-3-Clause",
             "environment_lock_sha256": sha256_hex(&lock),
             "worker_sha256": sha256_hex(&worker)
@@ -149,7 +154,7 @@ pub(super) fn run_stability(input: PathBuf, out: PathBuf) -> Result<(), Topology
         || result["results"].as_array().map(Vec::len) != Some(spec.repetitions)
         || result["claim_status"] != "experimental_declared_segmentation_perturbations"
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "topology stability result identity mismatch".into(),
         ));
     }
@@ -182,10 +187,7 @@ struct PersistenceComparisonSpec {
     timeout_seconds: u64,
 }
 
-pub(super) fn run_compare_persistence(
-    input: PathBuf,
-    out: PathBuf,
-) -> Result<(), TopologyCliError> {
+pub(super) fn run_compare_persistence(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let mut spec: PersistenceComparisonSpec = serde_json::from_slice(&bytes)?;
     spec.diagrams
@@ -197,7 +199,7 @@ pub(super) fn run_compare_persistence(
         || spec.coefficient < 0.0
         || spec.maximum_exact_assignments == 0
         || spec.maximum_exact_assignments > 1_000_000
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
         || spec.diagrams.iter().enumerate().any(|(index, diagram)| {
             diagram.patient_id.trim().is_empty()
                 || diagram.group.trim().is_empty()
@@ -208,7 +210,7 @@ pub(super) fn run_compare_persistence(
                 })
         })
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "persistence comparison diagrams, metric, coefficient, assignments, or timeout are invalid"
                 .into(),
         ));
@@ -219,11 +221,11 @@ pub(super) fn run_compare_persistence(
         .map(|diagram| diagram.group.as_str())
         .collect::<std::collections::BTreeSet<_>>();
     if groups != std::collections::BTreeSet::from(["A", "B"]) {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "persistence comparison requires exact nonempty groups A and B".into(),
         ));
     }
-    let repository = marklab::python_backend_assets_root()?;
+    let repository = marklab::backend::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path =
         repository.join("workers/python/marklab_gudhi_persistence_comparison_worker.py");
@@ -233,7 +235,7 @@ pub(super) fn run_compare_persistence(
         "format": "marklab.gudhi_persistence_comparison_request",
         "version": 1,
         "backend": {
-            "name": "gudhi", "version": "3.13.0", "python_version": "3.12",
+            "name": "gudhi", "version": GUDHI_VERSION, "python_version": PYTHON_VERSION,
             "license": "MIT", "environment_lock_sha256": sha256_hex(&lock),
             "worker_sha256": sha256_hex(&worker)
         },
@@ -253,18 +255,18 @@ pub(super) fn run_compare_persistence(
         || result["request_sha256"] != sha256_hex(&request_bytes)
         || result["claim_status"] != "experimental_whole_patient_topology_comparison"
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "persistence comparison result identity mismatch".into(),
         ));
     }
     publish_json(&out, &result)
 }
 
-pub(super) fn run_connectivity(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+pub(super) fn run_connectivity(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let spec: ConnectivityTransitionSpec = serde_json::from_slice(&bytes)?;
-    let result = connectivity_transition(spec)
-        .map_err(|error| TopologyCliError::Input(error.to_string()))?;
+    let result =
+        connectivity_transition(spec).map_err(|error| CliError::Input(error.to_string()))?;
     publish_json(&out, &result)
 }
 
@@ -279,7 +281,7 @@ struct RasterMorphologySpec {
     timeout_seconds: u64,
 }
 
-pub(super) fn run_raster_morphology(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+pub(super) fn run_raster_morphology(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let spec: RasterMorphologySpec = serde_json::from_slice(&bytes)?;
     if spec.mask.len() < 3
@@ -301,13 +303,13 @@ pub(super) fn run_raster_morphology(input: PathBuf, out: PathBuf) -> Result<(), 
                     > 1e-12
         })
         || spec.radii_um.windows(2).any(|pair| pair[0] >= pair[1])
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "raster morphology dimensions, conventions, radii, or timeout are invalid".into(),
         ));
     }
-    let repository = marklab::python_backend_assets_root()?;
+    let repository = marklab::backend::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_skimage_raster_morphology_worker.py");
     let lock = read_required(&lock_path)?;
@@ -318,8 +320,8 @@ pub(super) fn run_raster_morphology(input: PathBuf, out: PathBuf) -> Result<(), 
         "backend": {
             "name": "scikit-image",
             "version": "0.26.0",
-            "scipy_version": "1.18.1",
-            "python_version": "3.12",
+            "scipy_version": SCIPY_VERSION,
+            "python_version": PYTHON_VERSION,
             "license": "BSD-3-Clause",
             "environment_lock_sha256": sha256_hex(&lock),
             "worker_sha256": sha256_hex(&worker),
@@ -343,26 +345,26 @@ pub(super) fn run_raster_morphology(input: PathBuf, out: PathBuf) -> Result<(), 
         || result["request_sha256"] != sha256_hex(&request_bytes)
         || result["claim_status"] != "experimental_supplied_binary_raster"
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "raster morphology result identity mismatch".into(),
         ));
     }
     publish_json(&out, &result)
 }
-pub(super) fn run_alpha_persistence(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+pub(super) fn run_alpha_persistence(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let spec: AlphaPersistenceSpec = serde_json::from_slice(&bytes)?;
-    let repository = marklab::python_backend_assets_root()?;
+    let repository = marklab::backend::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_gudhi_alpha_persistence_worker.py");
     let lock = read_required(&lock_path)?;
     let worker = read_required(&worker_path)?;
     let timeout_seconds = spec.timeout_seconds;
     let request = AlphaPersistenceWorkerRequest::new(spec, sha256_hex(&lock), sha256_hex(&worker))
-        .map_err(|error| TopologyCliError::Input(error.to_string()))?;
+        .map_err(|error| CliError::Input(error.to_string()))?;
     let request_bytes = serde_json::to_vec(&request)?;
     let response = run_worker(&repository, &worker_path, &request_bytes, timeout_seconds)?;
     let result = AlphaPersistenceResult::parse_and_validate(&response, &request, &request_bytes)
-        .map_err(|error| TopologyCliError::Backend(error.to_string()))?;
+        .map_err(|error| CliError::Backend(error.to_string()))?;
     publish_json(&out, &result)
 }

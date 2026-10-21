@@ -22,7 +22,11 @@ fn resolvable_band(pattern: &Pattern) -> Option<KBand> {
         if pattern.window.d_nn_mean_um.is_finite() && pattern.window.d_nn_mean_um > 0.0 {
             pattern.window.d_nn_mean_um
         } else {
-            mean_nearest_neighbor_distance(&pattern.x_um, &pattern.y_um)?
+            // `Pattern` admits only finite coordinates, so the index cannot fail here and
+            // `None` means fewer than two cells, which leaves the band undefined.
+            mean_nearest_neighbor_distance(&pattern.x_um, &pattern.y_um)
+                .ok()
+                .flatten()?
         };
     KBand::from_window(analysis_effective_length_um, d_nn_mean_um)
 }

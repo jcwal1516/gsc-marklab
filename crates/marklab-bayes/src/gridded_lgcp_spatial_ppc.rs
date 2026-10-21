@@ -1,5 +1,6 @@
 use serde::Serialize;
 
+use crate::ClaimStatus;
 use crate::{BayesError, FitState, GriddedLgcpPredictionResult};
 
 #[derive(Debug, Serialize)]
@@ -25,7 +26,7 @@ pub struct GriddedLgcpSpatialPpcResult {
     pub neighbor_pair_count: usize,
     pub summaries: GriddedLgcpSpatialPpcSummaries,
     pub prediction: GriddedLgcpPredictionResult,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn gridded_lgcp_spatial_ppc(
@@ -66,7 +67,7 @@ pub fn gridded_lgcp_spatial_ppc(
             adjacent_mean_absolute_difference: summarize(observed_contrast, &replicated_contrast),
         },
         prediction,
-        claim_status: "experimental_discretized_spatial_posterior_predictive",
+        claim_status: ClaimStatus::ExperimentalDiscretizedSpatialPosteriorPredictive,
     })
 }
 

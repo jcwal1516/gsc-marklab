@@ -1,8 +1,14 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use approx::assert_abs_diff_eq;
 use marklab::{
-    analyze_inhomogeneous_spatial_pattern, InhomogeneousSpatialConfig, InhomogeneousSpatialLimits,
-    InhomogeneousSpatialPointStatus, ObservationWindow2D, ObservationWindowLimits, Pattern,
-    PatternMeta,
+    spatial::{
+        analyze_inhomogeneous_spatial_pattern, InhomogeneousSpatialConfig,
+        InhomogeneousSpatialLimits, InhomogeneousSpatialPointStatus,
+    },
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 
 const PYTHON_ORACLE: &str =
@@ -13,16 +19,12 @@ fn pattern() -> Pattern {
         vec![2.0, 3.0, 7.0, 9.0],
         vec![2.0, 2.0, 7.0, 7.0],
         vec![0; 4],
-        PatternMeta {
-            case_id: "inhomogeneous-case".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("inhomogeneous-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "inhomogeneous-case".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("inhomogeneous-slide".into()),
+        ),
     )
     .expect("pattern")
 }
@@ -70,14 +72,17 @@ fn gaussian_leave_one_out_intensity_flows_into_border_inhomogeneous_kl() {
         .expect("deterministic replay");
     assert_eq!(result, replay);
 
-    assert_eq!(result.intensity.estimator, "gaussian_kernel");
+    assert_eq!(
+        result.intensity.estimator,
+        marklab::spatial::IntensityEstimator::GaussianKernel
+    );
     assert_eq!(
         result.intensity.cross_fit,
-        "leave_one_out_n_over_n_minus_one"
+        marklab::spatial::IntensityCrossFit::LeaveOneOut
     );
     assert_eq!(
         result.intensity.boundary_correction,
-        "deterministic_cell_center_quadrature"
+        marklab::spatial::IntensityBoundaryCorrection::DeterministicCellCenterQuadrature
     );
     assert_eq!(result.intensity.bandwidth_um, 2.0);
     assert_eq!(result.intensity.integration_grid, [10, 10]);
@@ -150,7 +155,7 @@ fn gaussian_leave_one_out_intensity_flows_into_border_inhomogeneous_kl() {
     );
     assert_eq!(
         result.inference.null_model,
-        "fixed_gridded_inhomogeneous_binomial"
+        marklab::spatial::InhomogeneousNullModel::FixedGriddedInhomogeneousBinomial
     );
     assert_eq!(result.inference.simulations_completed, 19);
 }
@@ -178,7 +183,7 @@ fn near_zero_and_each_actual_work_ceiling_fail_explicitly() {
                 )
             )
         ),
-        Err(marklab::InhomogeneousSpatialError::RetainedByteLimitExceeded {
+        Err(marklab::spatial::InhomogeneousSpatialError::RetainedByteLimitExceeded {
             required,
             maximum
         }) if required == maximum + 1
@@ -198,7 +203,7 @@ fn near_zero_and_each_actual_work_ceiling_fail_explicitly() {
                 )
             )
         ),
-        Err(marklab::InhomogeneousSpatialError::IntensityEvaluationLimitExceeded { .. })
+        Err(marklab::spatial::InhomogeneousSpatialError::IntensityEvaluationLimitExceeded { .. })
     ));
     assert!(matches!(
         analyze_inhomogeneous_spatial_pattern(
@@ -215,7 +220,7 @@ fn near_zero_and_each_actual_work_ceiling_fail_explicitly() {
                 )
             )
         ),
-        Err(marklab::InhomogeneousSpatialError::PairVisitLimitExceeded { .. })
+        Err(marklab::spatial::InhomogeneousSpatialError::PairVisitLimitExceeded { .. })
     ));
     assert!(matches!(
         analyze_inhomogeneous_spatial_pattern(
@@ -232,7 +237,7 @@ fn near_zero_and_each_actual_work_ceiling_fail_explicitly() {
                 )
             )
         ),
-        Err(marklab::InhomogeneousSpatialError::NullDrawLimitExceeded { .. })
+        Err(marklab::spatial::InhomogeneousSpatialError::NullDrawLimitExceeded { .. })
     ));
     assert!(matches!(
         analyze_inhomogeneous_spatial_pattern(
@@ -244,7 +249,7 @@ fn near_zero_and_each_actual_work_ceiling_fail_explicitly() {
                 make_limits(1_000_000, 1_000_000, 1_000_000, 1 << 20)
             )
         ),
-        Err(marklab::InhomogeneousSpatialError::NearZeroIntensity { row: 0, .. })
+        Err(marklab::spatial::InhomogeneousSpatialError::NearZeroIntensity { row: 0, .. })
     ));
 }
 
@@ -274,7 +279,7 @@ fn polygon_hole_excludes_quadrature_probes_and_invalid_inputs_fail() {
         Pattern::from_arrays(vec![1.0], vec![1.0], vec![0], pattern().meta).expect("singleton");
     assert!(matches!(
         analyze_inhomogeneous_spatial_pattern(&singleton, &window(), &config(23)),
-        Err(marklab::InhomogeneousSpatialError::InsufficientPoints)
+        Err(marklab::spatial::InhomogeneousSpatialError::InsufficientPoints)
     ));
     let limits =
         InhomogeneousSpatialLimits::new(16, 16, 1_000, 1_000_000, 1_000_000, 1_000_000, 1 << 20)

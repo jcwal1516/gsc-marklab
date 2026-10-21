@@ -1,10 +1,10 @@
 use crate::{common::stats::mean_all_finite, geom::window::PROFILE_BUFFER_ANGLE, Result};
 
 use super::{
-    admission::Geometry,
     charge,
     input::{Recipe, Slide},
     invalid,
+    preparation::Geometry,
     result::{ProfileBand, StructureProfile},
 };
 

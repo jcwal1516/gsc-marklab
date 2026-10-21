@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use marklab_bayes::{
     apply_abstention, mahalanobis_ood_score, AbstentionDecision, AbstentionPolicy,
     MahalanobisOodResult, MahalanobisOodSpec, OodRepresentationUnit, PredictionForAbstention,
@@ -7,7 +5,9 @@ use marklab_bayes::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{embedding_spatial, publish_json, BayesCliError};
+use super::cli_schema::ApplyAbstentionArgs;
+use super::cli_schema::OodScoreArgs;
+use super::{embedding_spatial, publish_json, CliError};
 
 #[derive(Debug, Deserialize)]
 struct InputRow {
@@ -17,12 +17,13 @@ struct InputRow {
     ood_score: f64,
 }
 
-pub(super) fn run_abstention(
-    input: PathBuf,
-    maximum_uncertainty: f64,
-    maximum_ood_score: f64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run_abstention(args: ApplyAbstentionArgs) -> Result<(), CliError> {
+    let ApplyAbstentionArgs {
+        input,
+        maximum_uncertainty,
+        maximum_ood_score,
+        out,
+    } = args;
     let bytes = embedding_spatial::read(&input)?;
     let mut reader = csv::ReaderBuilder::new()
         .flexible(false)
@@ -32,7 +33,7 @@ pub(super) fn run_abstention(
         .iter()
         .eq(["prediction_id", "prediction", "uncertainty", "ood_score"])
     {
-        return Err(BayesCliError::Input("abstention CSV header differs".into()));
+        return Err(CliError::Input("abstention CSV header differs".into()));
     }
     let policy = AbstentionPolicy {
         maximum_uncertainty,
@@ -53,9 +54,9 @@ pub(super) fn run_abstention(
             )
             .map_err(map)
         })
-        .collect::<Result<Vec<_>, BayesCliError>>()?;
+        .collect::<Result<Vec<_>, CliError>>()?;
     if decisions.is_empty() {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "abstention input must contain at least one prediction".into(),
         ));
     }
@@ -73,12 +74,13 @@ pub(super) fn run_abstention(
     )
 }
 
-pub(super) fn run_ood(
-    input: PathBuf,
-    shrinkage: f64,
-    validation_quantile: f64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run_ood(args: OodScoreArgs) -> Result<(), CliError> {
+    let OodScoreArgs {
+        input,
+        shrinkage,
+        validation_quantile,
+        out,
+    } = args;
     let bytes = embedding_spatial::read(&input)?;
     let mut reader = csv::ReaderBuilder::new()
         .flexible(false)
@@ -87,7 +89,7 @@ pub(super) fn run_ood(
     if headers.len() < 5
         || headers.iter().take(3).collect::<Vec<_>>() != ["unit_id", "split", "domain"]
     {
-        return Err(BayesCliError::Input("OOD CSV header differs".into()));
+        return Err(CliError::Input("OOD CSV header differs".into()));
     }
     let feature_names = headers
         .iter()
@@ -107,7 +109,7 @@ pub(super) fn run_ood(
                 .map(|value| {
                     value
                         .parse::<f64>()
-                        .map_err(|_| BayesCliError::Input("OOD representation is invalid".into()))
+                        .map_err(|_| CliError::Input("OOD representation is invalid".into()))
                 })
                 .collect::<Result<Vec<_>, _>>()?,
         });
@@ -128,8 +130,8 @@ pub(super) fn run_ood(
     )
 }
 
-fn map(error: PredictionSafetyError) -> BayesCliError {
-    BayesCliError::Input(error.to_string())
+fn map(error: PredictionSafetyError) -> CliError {
+    CliError::Input(error.to_string())
 }
 
 #[derive(Serialize)]

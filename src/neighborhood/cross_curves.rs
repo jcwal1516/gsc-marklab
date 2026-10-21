@@ -7,12 +7,12 @@ use crate::{
     },
     errors::{MarklabError, Result},
     geom::spatial_index::SpatialIndex2D,
+    memory_budget::enforce_storage_budget,
     multimodal::{
         cells::FusedCell,
         labels::{PrimaryLabelEncoding, PrimaryLabelId},
     },
     output::{CrossInteractionCurve, CrossInteractionPoint},
-    perf::counters::enforce_storage_budget,
     permutation::envelopes::GlobalEnvelope,
 };
 

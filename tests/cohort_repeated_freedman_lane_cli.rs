@@ -68,7 +68,7 @@ s-4,v-3,42.4,1\n",
     );
     assert!((result["target_coefficient"].as_f64().unwrap() - 2.1).abs() < 1e-12);
     assert!(result["studentized_statistic"].as_f64().unwrap() > 10.0);
-    assert_eq!(result["permutations"]["completed"], 99);
+    assert_eq!(result["permutations"]["requested"], 99);
     assert_eq!(
         result["claim_status"],
         "experimental_residual_exchangeability_required"

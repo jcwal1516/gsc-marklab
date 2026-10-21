@@ -1,12 +1,18 @@
+use marklab_bayes::is_worker_timeout;
 use std::{collections::HashSet, path::PathBuf};
 
 use marklab_topology::sha256_hex;
 
-use super::super::topology::{publish_json, read_input, run_worker, TopologyCliError};
+use super::super::topology::{publish_json, read_input, run_worker};
 use super::schema::TensorFactorSpec;
 use super::worker_assets;
+use crate::cli_error::CliError;
+use marklab_bayes::backend_versions::JAX_VERSION;
+use marklab_bayes::backend_versions::NUMPY_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_bayes::backend_versions::SCIPY_VERSION;
 
-pub(super) fn run_tensor_factor(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+pub(super) fn run_tensor_factor(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let mut spec: TensorFactorSpec = serde_json::from_slice(&bytes)?;
     spec.entries
@@ -18,10 +24,10 @@ pub(super) fn run_tensor_factor(input: PathBuf, out: PathBuf) -> Result<(), Topo
         "version": 1,
         "backend": {
             "name": "jax_scipy_l_bfgs_laplace",
-            "jax_version": "0.11.1",
-            "scipy_version": "1.18.1",
-            "numpy_version": "2.4.6",
-            "python_version": "3.12",
+            "jax_version": JAX_VERSION,
+            "scipy_version": SCIPY_VERSION,
+            "numpy_version": NUMPY_VERSION,
+            "python_version": PYTHON_VERSION,
             "license": "Apache-2.0_plus_BSD-3-Clause",
             "environment_lock_sha256": assets.lock_sha256,
             "worker_sha256": assets.worker_sha256
@@ -60,14 +66,14 @@ pub(super) fn run_tensor_factor(input: PathBuf, out: PathBuf) -> Result<(), Topo
         || result["fit_state"] != "approximate_only"
         || result["claim_status"] != expected_claim
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "tensor factor result identity mismatch".into(),
         ));
     }
     publish_json(&out, &result)
 }
 
-fn validate_tensor_factor(spec: &TensorFactorSpec) -> Result<(), TopologyCliError> {
+fn validate_tensor_factor(spec: &TensorFactorSpec) -> Result<(), CliError> {
     let mut modes = HashSet::new();
     let valid_modes = spec
         .mode_names
@@ -135,9 +141,9 @@ fn validate_tensor_factor(spec: &TensorFactorSpec) -> Result<(), TopologyCliErro
         || !spec.noise_standard_deviation.is_finite()
         || spec.noise_standard_deviation <= 0.0
         || !(10..=10_000).contains(&spec.maximum_iterations)
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "tensor factorization requires one complete bounded three-mode tensor index, held-out entries, valid CP/Tucker ranks, and positive Laplace controls"
                 .into(),
         ));

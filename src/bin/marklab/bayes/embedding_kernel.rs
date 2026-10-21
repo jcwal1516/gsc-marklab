@@ -1,22 +1,22 @@
-use std::path::PathBuf;
-
-use marklab_bayes::{
-    kernel_mark_correlation, sha256_hex, EmbeddingKernelError, EmbeddingKernelKind,
-    EmbeddingKernelSpec, KernelEmbeddingRow, KernelMarkCorrelationResult,
-    KernelMarkCorrelationSpec,
+use marklab_bayes::sha256_hex;
+use marklab_embeddings::analysis::{
+    kernel_mark_correlation, EmbeddingKernelError, EmbeddingKernelKind, EmbeddingKernelSpec,
+    KernelEmbeddingRow, KernelMarkCorrelationResult, KernelMarkCorrelationSpec,
 };
 use serde::Serialize;
 
-use super::{embedding_spatial, publish_json, BayesCliError};
+use super::cli_schema::KernelMarkCorrelationArgs;
+use super::{embedding_spatial, publish_json, CliError};
 
-pub(super) fn run(
-    input: PathBuf,
-    bins: PathBuf,
-    kernel: String,
-    global_reference_tolerance: f64,
-    maximum_pair_visits: u64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: KernelMarkCorrelationArgs) -> Result<(), CliError> {
+    let KernelMarkCorrelationArgs {
+        input,
+        bins,
+        kernel,
+        global_reference_tolerance,
+        maximum_pair_visits,
+        out,
+    } = args;
     let input_bytes = embedding_spatial::read(&input)?;
     let bin_bytes = embedding_spatial::read(&bins)?;
     let (rows, feature_names) = read_rows(&input_bytes)?;
@@ -42,7 +42,7 @@ pub(super) fn run(
     )
 }
 
-fn read_rows(bytes: &[u8]) -> Result<(Vec<KernelEmbeddingRow>, Vec<String>), BayesCliError> {
+fn read_rows(bytes: &[u8]) -> Result<(Vec<KernelEmbeddingRow>, Vec<String>), CliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
@@ -52,7 +52,7 @@ fn read_rows(bytes: &[u8]) -> Result<(Vec<KernelEmbeddingRow>, Vec<String>), Bay
         || headers.iter().take(5).collect::<Vec<_>>()
             != ["object_id", "biological_unit", "split", "x_um", "y_um"]
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "kernel input requires object_id,biological_unit,split,x_um,y_um and at least two embedding_* columns"
                 .into(),
         ));
@@ -67,7 +67,7 @@ fn read_rows(bytes: &[u8]) -> Result<(Vec<KernelEmbeddingRow>, Vec<String>), Bay
         let record = record?;
         let parse = |index: usize| {
             record[index].parse::<f64>().map_err(|_| {
-                BayesCliError::Input(format!(
+                CliError::Input(format!(
                     "kernel numeric value in column {} is invalid",
                     &headers[index]
                 ))
@@ -87,10 +87,10 @@ fn read_rows(bytes: &[u8]) -> Result<(Vec<KernelEmbeddingRow>, Vec<String>), Bay
     Ok((rows, feature_names))
 }
 
-fn map_error(error: EmbeddingKernelError) -> BayesCliError {
+fn map_error(error: EmbeddingKernelError) -> CliError {
     match error {
-        EmbeddingKernelError::Invalid(message) => BayesCliError::Input(message),
-        EmbeddingKernelError::Numeric(message) => BayesCliError::Backend(message),
+        EmbeddingKernelError::Invalid(message) => CliError::Input(message),
+        EmbeddingKernelError::Numeric(message) => CliError::Backend(message),
     }
 }
 

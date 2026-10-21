@@ -227,6 +227,20 @@ pub(super) struct SpatialLatentFactorSpec {
     pub(super) target_accept: f64,
     pub(super) seed: u64,
     pub(super) timeout_seconds: u64,
+    /// Optional SPDE prior for the factor; absent keeps the dense Matern-3/2 GP.
+    #[serde(default)]
+    pub(super) latent_field: Option<SpatialLatentField>,
+}
+
+/// SPDE (alpha = 2, smoothness 1) factor prior on a regular rectangular mesh over the regions'
+/// bounding box widened by `mesh_extension_um`, projected to the regions barycentrically.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, tag = "kind", rename_all = "snake_case")]
+pub(super) enum SpatialLatentField {
+    SpdeAlphaTwo {
+        mesh_resolution: usize,
+        mesh_extension_um: f64,
+    },
 }
 
 #[derive(Debug, Deserialize, Serialize)]

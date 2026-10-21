@@ -1,12 +1,16 @@
 use std::path::PathBuf;
 
 use crate::{
-    execute_algorithm_with_store,
     inhomogeneous_spatial::compartment_g_workflow::encode_piecewise_compartment_pair_correlation_result,
-    ArtifactSchema, LocalScheduler, MarklabError, NodeId,
-    PiecewiseCompartmentPairCorrelationAnalysisNode, PiecewiseCompartmentPairCorrelationConfig,
-    PiecewiseCompartmentSpatialConfig, PiecewiseCompartmentSpatialLimits, Result, SchedulerLimits,
-    WorkflowGraph,
+    spatial::{
+        PiecewiseCompartmentPairCorrelationAnalysisNode, PiecewiseCompartmentPairCorrelationConfig,
+        PiecewiseCompartmentSpatialConfig, PiecewiseCompartmentSpatialLimits,
+    },
+    workflow::{
+        execute_algorithm_with_store, ArtifactSchema, LocalScheduler, NodeId, SchedulerLimits,
+        WorkflowGraph,
+    },
+    MarklabError, Result,
 };
 
 use super::{
@@ -16,24 +20,64 @@ use super::{
     },
 };
 
-pub(super) struct Request {
+#[derive(clap::Args, Debug)]
+pub struct Request {
+    /// Durable project directory that caches results.
+    #[arg(long)]
     pub project: PathBuf,
+    /// Cell table (CSV or Parquet).
+    #[arg(long)]
     pub cells: PathBuf,
+    /// Mask defining the observed tissue region.
+    #[arg(long)]
     pub observation_mask: PathBuf,
+    /// Mask defining the negative spatial compartment.
+    #[arg(long)]
     pub negative_mask: PathBuf,
+    /// Mask defining the positive spatial compartment.
+    #[arg(long)]
     pub positive_mask: PathBuf,
+    /// Identifier of the compartment treated as the negative level.
+    #[arg(long)]
     pub negative_compartment_id: String,
+    /// Identifier of the compartment treated as the positive level.
+    #[arg(long)]
     pub positive_compartment_id: String,
+    /// New JSON file for the result; it must not already exist.
+    #[arg(long)]
     pub out: PathBuf,
+    /// Comma-separated radii in µm.
+    #[arg(long, value_delimiter = ',')]
     pub radii_um: Vec<f64>,
+    /// Pair-correlation kernel bandwidth in µm.
+    #[arg(long)]
     pub pair_bandwidth_um: f64,
+    /// Number of simulated null patterns.
+    #[arg(long)]
     pub simulations: usize,
+    /// Random seed; the same seed gives the same result.
+    #[arg(long)]
     pub seed: u64,
+    /// Significance level.
+    #[arg(long)]
     pub alpha: f64,
+    /// Memory budget in MiB.
+    #[arg(long)]
     pub memory_budget_mib: usize,
+    /// Upper bound on boundary segments.
+    #[arg(long = "max-boundary-segments", value_name = "MAX_BOUNDARY_SEGMENTS")]
     pub maximum_boundary_segments: usize,
+    /// Upper bound on compartment queries.
+    #[arg(
+        long = "max-compartment-queries",
+        value_name = "MAX_COMPARTMENT_QUERIES"
+    )]
     pub maximum_compartment_queries: usize,
+    /// Maximum number of cell pairs visited.
+    #[arg(long = "max-pair-visits", value_name = "MAX_PAIR_VISITS")]
     pub maximum_pair_visits: usize,
+    /// Upper bound on null draws.
+    #[arg(long = "max-null-draws", value_name = "MAX_NULL_DRAWS")]
     pub maximum_null_draws: usize,
 }
 

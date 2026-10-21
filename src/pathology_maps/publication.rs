@@ -11,7 +11,7 @@ use super::{render, PathologyMapsResult};
 /// Atomically publish one complete map result, SVG figures and spatial GeoJSON overlays.
 ///
 /// Geometry is in the explicitly declared micrometre frame, not geographic longitude/latitude.
-/// Existing output transaction semantics reject nonempty destinations.
+/// The output transaction rejects nonempty destinations.
 pub fn publish_pathology_maps(result: &PathologyMapsResult, output: &Path) -> Result<()> {
     let transaction = OutputTransaction::new(output)?;
     let write = |name: &str, bytes: &[u8]| -> Result<()> {

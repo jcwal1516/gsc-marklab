@@ -1,11 +1,10 @@
-use std::path::PathBuf;
-
 use marklab_bayes::{
     build_nngp, full_gp_log_density, nngp_log_density, NngpError, NngpObservation, NngpSpec,
 };
 use serde::{Deserialize, Serialize};
 
-use super::{publish_json, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::NngpDensityArgs;
+use super::{publish_json, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -15,18 +14,21 @@ struct FieldRow {
     field_value: f64,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input_path: PathBuf,
-    mean: f64,
-    amplitude: f64,
-    length_scale_um: f64,
-    neighbors: usize,
-    jitter: f64,
-    variance_tolerance: f64,
-    include_full_reference: bool,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: NngpDensityArgs) -> Result<(), CliError> {
+    let NngpDensityArgs {
+        input,
+        mean,
+        amplitude,
+        length_scale_um,
+        neighbors,
+        jitter,
+        variance_tolerance,
+        full_reference,
+        out,
+    } = args;
+    let input_path = input;
+    let include_full_reference = full_reference;
+    let output_path = out;
     let observations = read_field(&input_path)?;
     let plan = build_nngp(NngpSpec {
         mean,
@@ -75,8 +77,8 @@ pub(super) fn run(
     publish_json(&output_path, &result)
 }
 
-fn read_field(path: &std::path::Path) -> Result<Vec<NngpObservation>, BayesCliError> {
-    super::input_file::validate_regular_file(
+fn read_field(path: &std::path::Path) -> Result<Vec<NngpObservation>, CliError> {
+    crate::input_file::validate_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,
         "NNGP input must be a regular file within the 16 MiB limit",
@@ -87,7 +89,7 @@ fn read_field(path: &std::path::Path) -> Result<Vec<NngpObservation>, BayesCliEr
         .iter()
         .eq(["coordinate_id", "x_um", "field_value"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "NNGP headers must be exactly: coordinate_id,x_um,field_value".into(),
         ));
     }
@@ -100,16 +102,16 @@ fn read_field(path: &std::path::Path) -> Result<Vec<NngpObservation>, BayesCliEr
             field_value: row.field_value,
         });
         if rows.len() > 10_000 {
-            return Err(BayesCliError::Input("NNGP row count exceeds 10000".into()));
+            return Err(CliError::Input("NNGP row count exceeds 10000".into()));
         }
     }
     Ok(rows)
 }
 
-fn map_error(error: NngpError) -> BayesCliError {
+fn map_error(error: NngpError) -> CliError {
     match error {
-        NngpError::InvalidInput(message) => BayesCliError::Input(message),
-        NngpError::Numerical(message) => BayesCliError::Backend(message),
+        NngpError::InvalidInput(message) => CliError::Input(message),
+        NngpError::Numerical(message) => CliError::Backend(message),
     }
 }
 

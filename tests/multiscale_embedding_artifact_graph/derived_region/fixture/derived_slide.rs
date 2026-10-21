@@ -1,12 +1,15 @@
 use super::*;
 use marklab::{
-    finalize_slide_embedding_table_from_patches, finalize_slide_embedding_table_from_regions,
-    publish_region_embedding_table_arrow, publish_region_embedding_table_parquet,
-    verify_region_embedding_table_arrow_from_store,
-    verify_region_embedding_table_parquet_from_store, DerivedRegionEmbeddingTableCandidate,
-    DerivedSlideEmbeddingTableCandidate, ExpectedSlideSet, RegionEmbeddingTable, SlideId,
-    VerifiedDerivedSlideEmbeddingArtifactGraph, VerifiedRegionEmbeddingTableArtifact,
-    VerifiedSlideEmbeddingSupportArtifact,
+    embeddings::{
+        finalize_slide_embedding_table_from_patches, finalize_slide_embedding_table_from_regions,
+        publish_region_embedding_table_arrow, publish_region_embedding_table_parquet,
+        verify_region_embedding_table_arrow_from_store,
+        verify_region_embedding_table_parquet_from_store, DerivedRegionEmbeddingTableCandidate,
+        DerivedSlideEmbeddingTableCandidate, ExpectedSlideSet, RegionEmbeddingTable,
+        VerifiedDerivedSlideEmbeddingArtifactGraph, VerifiedRegionEmbeddingTableArtifact,
+        VerifiedSlideEmbeddingSupportArtifact,
+    },
+    SlideId,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

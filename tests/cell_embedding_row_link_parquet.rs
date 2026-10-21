@@ -9,14 +9,19 @@ use std::{
 };
 
 use marklab::{
-    preflight_cell_embedding_row_link_arrow_bytes, preflight_cell_embedding_row_link_parquet_bytes,
-    publish_cell_embedding_row_link_parquet, validate_cell_embedding_row_link_parquet_bytes,
-    validate_cell_embedding_row_link_parquet_from_store, write_cell_embedding_row_link_arrow,
-    write_cell_embedding_row_link_parquet, ArtifactId, ArtifactKey, ArtifactLocator,
-    ArtifactRecord, ArtifactRef, CellEmbeddingRowLink, CellEmbeddingRowLinkEntry, CellId,
-    CohortHierarchy, ContentDigest, EmbeddingColumnarBudgets, EmbeddingColumnarError,
-    ExpectedCellSet, HierarchyId, HierarchyNode, LocalArtifactStore, PatientId,
-    PublicationDisposition, ReplicationRole, SlideId, StoreId, TableFormat, VerifiedReaderError,
+    embeddings::{
+        preflight_cell_embedding_row_link_arrow_bytes,
+        preflight_cell_embedding_row_link_parquet_bytes, publish_cell_embedding_row_link_parquet,
+        validate_cell_embedding_row_link_parquet_bytes,
+        validate_cell_embedding_row_link_parquet_from_store, write_cell_embedding_row_link_arrow,
+        write_cell_embedding_row_link_parquet, CellEmbeddingRowLink, CellEmbeddingRowLinkEntry,
+        ColumnarError, EmbeddingColumnarBudgets, ExpectedCellSet,
+    },
+    workflow::{
+        ArtifactId, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef, ContentDigest,
+        LocalArtifactStore, PublicationDisposition, StoreId, TableFormat, VerifiedReaderError,
+    },
+    CellId, CohortHierarchy, HierarchyId, HierarchyNode, PatientId, ReplicationRole, SlideId,
 };
 use parquet::file::metadata::ParquetMetaDataReader;
 use proptest::prelude::*;
@@ -413,7 +418,7 @@ fn borrowed_and_managed_row_link_parquet_validation_have_exact_parity() {
             &row_link,
             budgets(),
         ),
-        Err(EmbeddingColumnarError::ArtifactBindingMismatch)
+        Err(ColumnarError::ArtifactBindingMismatch)
     ));
     let managed = validate_cell_embedding_row_link_parquet_from_store(
         &store,
@@ -470,8 +475,8 @@ fn borrowed_and_managed_row_link_parquet_reject_the_same_hostile_page_header() {
     assert_eq!(managed, borrowed);
     assert!(matches!(
         managed,
-        EmbeddingColumnarError::Parquet {
-            reason: marklab::ParquetFailure::InvalidPageHeader,
+        ColumnarError::Parquet {
+            reason: marklab::embeddings::ParquetFailure::InvalidPageHeader,
         }
     ));
 }
@@ -503,7 +508,7 @@ fn row_link_parquet_managed_reader_prioritizes_store_integrity_failure() {
             budgets(),
         ),
         Err(VerifiedReaderError::Store(
-            marklab::ArtifactStoreError::ContentIntegrity { .. }
+            marklab::workflow::ArtifactStoreError::ContentIntegrity { .. }
         ))
     ));
 }
@@ -535,8 +540,8 @@ fn row_link_parquet_reader_rejects_cell_and_source_row_drift_after_preflight() {
             &row_link,
             budgets(),
         ),
-        Err(EmbeddingColumnarError::Parquet {
-            reason: marklab::ParquetFailure::InvalidCellOrder,
+        Err(ColumnarError::Parquet {
+            reason: marklab::embeddings::ParquetFailure::InvalidCellOrder,
         })
     ));
     assert!(matches!(
@@ -547,8 +552,8 @@ fn row_link_parquet_reader_rejects_cell_and_source_row_drift_after_preflight() {
             &row_link,
             budgets(),
         ),
-        Err(EmbeddingColumnarError::Parquet {
-            reason: marklab::ParquetFailure::InvalidCellOrder,
+        Err(ColumnarError::Parquet {
+            reason: marklab::embeddings::ParquetFailure::InvalidCellOrder,
         })
     ));
 
@@ -567,8 +572,8 @@ fn row_link_parquet_reader_rejects_cell_and_source_row_drift_after_preflight() {
             &row_link,
             budgets(),
         ),
-        Err(EmbeddingColumnarError::Parquet {
-            reason: marklab::ParquetFailure::InvalidComponent,
+        Err(ColumnarError::Parquet {
+            reason: marklab::embeddings::ParquetFailure::InvalidComponent,
         })
     ));
 
@@ -587,8 +592,8 @@ fn row_link_parquet_reader_rejects_cell_and_source_row_drift_after_preflight() {
             &row_link,
             budgets(),
         ),
-        Err(EmbeddingColumnarError::Parquet {
-            reason: marklab::ParquetFailure::InvalidStatus,
+        Err(ColumnarError::Parquet {
+            reason: marklab::embeddings::ParquetFailure::InvalidStatus,
         })
     ));
 }
@@ -625,7 +630,7 @@ fn row_link_parquet_writer_and_preflight_share_the_exact_decoded_budget() {
         EmbeddingColumnarBudgets::new(8 * 1024 * 1024, 16 * 1024 * 1024, 8 * 1024 * 1024, 0);
     let writer_required =
         match write_cell_embedding_row_link_parquet(&mut Vec::new(), &row_link, zero_decoded) {
-            Err(EmbeddingColumnarError::DecodedByteBudgetExceeded { required, .. }) => required,
+            Err(ColumnarError::DecodedByteBudgetExceeded { required, .. }) => required,
             result => panic!("expected writer decoded budget failure, observed {result:?}"),
         };
     let mut bytes = Vec::new();
@@ -637,7 +642,7 @@ fn row_link_parquet_writer_and_preflight_share_the_exact_decoded_budget() {
         &row_link,
         zero_decoded,
     ) {
-        Err(EmbeddingColumnarError::DecodedByteBudgetExceeded { required, .. }) => required,
+        Err(ColumnarError::DecodedByteBudgetExceeded { required, .. }) => required,
         result => panic!("expected preflight decoded budget failure, observed {result:?}"),
     };
     assert_eq!(preflight_required, writer_required);

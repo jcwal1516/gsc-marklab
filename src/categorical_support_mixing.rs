@@ -1,12 +1,15 @@
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::common::summation::kahan_add;
 use crate::{
-    classical::SpatialGeometryPlan2D, compartment_interface::analysis::measurement_status_name,
-    ClassicalSpatialLimits, DeclaredScalarPatternInput, ObservationWindow2D, ScalarMarkId,
+    classical::SpatialGeometryPlan2D,
+    marks::{DeclaredScalarPatternInput, ScalarMarkId},
+    measurement_status_wire::name as measurement_status_name,
+    spatial::ClassicalSpatialLimits,
+    ObservationWindow2D,
 };
+use marklab_numerics::summation::{neumaier_sum, NeumaierSum};
 
 pub(crate) const CATEGORICAL_SUPPORT_SEMANTICS: &str =
     "winner_type_pixel_support_sensitivity_weighting_conditional_on_fixed_hard_labels_not_class_posterior";
@@ -213,8 +216,7 @@ pub fn categorical_support_mixing(
     }
 
     let mut hard_counts: Vec<usize> = allocated_zeros(matrix_cells)?;
-    let mut support_mass: Vec<f64> = allocated_zeros(matrix_cells)?;
-    let mut support_correction: Vec<f64> = allocated_zeros(matrix_cells)?;
+    let mut support_mass: Vec<NeumaierSum> = allocated_zeros(matrix_cells)?;
     let mut directed_pair_visits = 0_usize;
     for source in 0..points {
         let neighbors = plan
@@ -237,11 +239,8 @@ pub fn categorical_support_mixing(
             hard_counts[index] = hard_counts[index]
                 .checked_add(1)
                 .ok_or(CategoricalSupportMixingError::SizeOverflow)?;
-            kahan_add(
-                &mut support_mass[index],
-                &mut support_correction[index],
-                f64::from(supports[source]) * f64::from(supports[neighbor.index]),
-            );
+            support_mass[index]
+                .add(f64::from(supports[source]) * f64::from(supports[neighbor.index]));
         }
     }
     if directed_pair_visits == 0 {
@@ -252,18 +251,11 @@ pub fn categorical_support_mixing(
     matrix
         .try_reserve_exact(matrix_cells)
         .map_err(|_| CategoricalSupportMixingError::AllocationFailed)?;
-    let mut total_support_weighted_pair_mass = 0.0_f64;
-    let mut total_support_correction = 0.0_f64;
     for source_class in 0..classes {
         for target_class in 0..classes {
             let index = source_class * classes + target_class;
             let count = hard_counts[index];
-            let mass = support_mass[index];
-            kahan_add(
-                &mut total_support_weighted_pair_mass,
-                &mut total_support_correction,
-                mass,
-            );
+            let mass = support_mass[index].total();
             matrix.push(CategoricalSupportMixingCell {
                 source_class_index: source_class,
                 source_class_id: levels[source_class].clone(),
@@ -277,6 +269,8 @@ pub fn categorical_support_mixing(
             });
         }
     }
+    let total_support_weighted_pair_mass =
+        neumaier_sum(matrix.iter().map(|cell| cell.support_weighted_pair_mass));
     let configuration_digest =
         configuration_digest(input, window, categorical_mark_id, support_mark_id, config)?;
     let graph_digest = ContentDigest::from_framed([
@@ -338,12 +332,8 @@ pub(crate) fn configuration_digest(
 fn allocated_zeros<T: Default + Clone>(
     length: usize,
 ) -> Result<Vec<T>, CategoricalSupportMixingError> {
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(length)
-        .map_err(|_| CategoricalSupportMixingError::AllocationFailed)?;
-    values.resize(length, T::default());
-    Ok(values)
+    crate::common::alloc::try_filled(length, T::default())
+        .map_err(|_| CategoricalSupportMixingError::AllocationFailed)
 }
 
 fn geometry(error: impl std::fmt::Display) -> CategoricalSupportMixingError {

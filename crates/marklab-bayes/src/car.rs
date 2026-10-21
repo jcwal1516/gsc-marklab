@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 
 use thiserror::Error;
 
-use crate::{linalg, DiagonalPolicy, NormalizationPolicy, SymmetryPolicy, ValidatedSpatialWeights};
+use marklab_numerics::dense;
+
+use crate::{DiagonalPolicy, NormalizationPolicy, SymmetryPolicy, ValidatedSpatialWeights};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CarMode {
@@ -144,7 +146,7 @@ fn proper_density(
             };
         }
     }
-    let lower = linalg::cholesky(&precision, dimension).ok_or_else(|| {
+    let lower = dense::cholesky(&precision, dimension).ok_or_else(|| {
         CarDensityError::InvalidInput(
             "rho is outside the interval yielding positive-definite proper CAR precision".into(),
         )
@@ -208,7 +210,7 @@ fn intrinsic_density(
                     precision[component[row] * dimension + component[column]];
             }
         }
-        let lower = linalg::cholesky(&reduced, reduced_dimension).ok_or_else(|| {
+        let lower = dense::cholesky(&reduced, reduced_dimension).ok_or_else(|| {
             CarDensityError::Numerical(
                 "precision is not positive definite on the required subspace".into(),
             )
@@ -291,8 +293,15 @@ mod tests {
             field,
         })
         .unwrap();
-        assert!((proper.log_density + 1.8779553444319261).abs() <= 1e-12);
-        assert!((intrinsic.log_density + 0.9506058139671261).abs() <= 1e-12);
+        let log_two_pi = (2.0 * std::f64::consts::PI).ln();
+        // Path a-b-c: det(D - rho W) = 2(1 - rho^2) = 1.92 and x'(D - rho W)x = 0.074.
+        let proper_oracle =
+            0.5 * (1.5_f64.powi(3) * 1.92).ln() - 0.5 * 1.5 * 0.074 - 1.5 * log_two_pi;
+        // D - W has nonzero eigenvalues 1 and 3, and x'(D - W)x = sum over edges of
+        // (x_i - x_j)^2 = 0.09.
+        let intrinsic_oracle = 0.5 * (1.5_f64.powi(2) * 3.0).ln() - 0.5 * 1.5 * 0.09 - log_two_pi;
+        assert!((proper.log_density - proper_oracle).abs() <= 1e-12);
+        assert!((intrinsic.log_density - intrinsic_oracle).abs() <= 1e-12);
     }
 
     #[test]

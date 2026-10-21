@@ -15,38 +15,86 @@ struct InputRow {
     density_b: f64,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn run(
+/// Arguments of `marklab simulate spatial-competition`.
+#[derive(clap::Args, Debug)]
+pub struct SpatialCompetitionArgs {
+    /// Initial density CSV with position_um, density_a, and density_b columns.
+    #[arg(long)]
     input: PathBuf,
+    /// Species A diffusion coefficient in square micrometers per time unit.
+    #[arg(long)]
     diffusion_a_um2_per_time: f64,
+    /// Species B diffusion coefficient in square micrometers per time unit.
+    #[arg(long)]
     diffusion_b_um2_per_time: f64,
+    /// Species A intrinsic growth rate per time unit.
+    #[arg(long)]
     growth_a_per_time: f64,
+    /// Species B intrinsic growth rate per time unit.
+    #[arg(long)]
     growth_b_per_time: f64,
+    /// Carrying-capacity density for species A.
+    #[arg(long)]
     carrying_a: f64,
+    /// Carrying-capacity density for species B.
+    #[arg(long)]
     carrying_b: f64,
+    /// Effect of species B density on competition experienced by species A.
+    #[arg(long)]
     competition_a_from_b: f64,
+    /// Effect of species A density on competition experienced by species B.
+    #[arg(long)]
     competition_b_from_a: f64,
+    /// Treatment-induced loss rate for species A per time unit.
+    #[arg(long)]
     treatment_a_per_time: f64,
+    /// Treatment-induced loss rate for species B per time unit.
+    #[arg(long)]
     treatment_b_per_time: f64,
+    /// Time at which to stop the simulation.
+    #[arg(long)]
     final_time: f64,
+    /// Time increment for each solver step.
+    #[arg(long)]
     time_step: f64,
+    /// Fraction of each carrying capacity used to flag extinction.
+    #[arg(long)]
     extinction_threshold_fraction: f64,
+    /// Number of solver steps between recorded snapshots.
+    #[arg(long)]
     record_every_steps: u32,
+    /// Maximum grid-cell updates summed over both species and all time steps.
+    #[arg(long)]
     maximum_cell_species_steps: u64,
+    /// File to write the result to.
+    #[arg(long)]
     out: PathBuf,
-) -> Result<()> {
-    let metadata = fs::metadata(&input).map_err(|source| MarklabError::io(&input, source))?;
-    if metadata.len() > 16 * 1024 * 1024 {
-        return Err(MarklabError::Validation(
-            "spatial-competition input exceeds 16 MiB".into(),
-        ));
-    }
+}
+
+pub(crate) fn run(args: SpatialCompetitionArgs) -> Result<()> {
+    let SpatialCompetitionArgs {
+        input,
+        diffusion_a_um2_per_time,
+        diffusion_b_um2_per_time,
+        growth_a_per_time,
+        growth_b_per_time,
+        carrying_a,
+        carrying_b,
+        competition_a_from_b,
+        competition_b_from_a,
+        treatment_a_per_time,
+        treatment_b_per_time,
+        final_time,
+        time_step,
+        extinction_threshold_fraction,
+        record_every_steps,
+        maximum_cell_species_steps,
+        out,
+    } = args;
+    let bytes = super::read_input(&input, "spatial-competition")?;
     let mut reader = csv::ReaderBuilder::new()
         .flexible(false)
-        .from_path(&input)
-        .map_err(|error| {
-            MarklabError::Validation(format!("spatial-competition CSV failed: {error}"))
-        })?;
+        .from_reader(bytes.as_slice());
     if !reader
         .headers()?
         .iter()

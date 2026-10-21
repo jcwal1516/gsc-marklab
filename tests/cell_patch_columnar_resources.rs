@@ -6,22 +6,26 @@ mod support;
 use std::{io::Write, mem::size_of};
 
 use marklab::{
-    preflight_cell_patch_assignment_table_arrow_bytes,
-    preflight_cell_patch_assignment_table_parquet_bytes,
-    preflight_cell_patch_edge_table_arrow_bytes, preflight_cell_patch_edge_table_parquet_bytes,
-    publish_cell_patch_assignment_table_arrow, publish_cell_patch_assignment_table_parquet,
-    publish_cell_patch_edge_table_arrow, publish_cell_patch_edge_table_parquet,
-    validate_cell_patch_assignment_table_arrow_bytes,
-    validate_cell_patch_assignment_table_arrow_from_store,
-    validate_cell_patch_assignment_table_parquet_bytes,
-    validate_cell_patch_assignment_table_parquet_from_store,
-    validate_cell_patch_edge_table_arrow_bytes, validate_cell_patch_edge_table_arrow_from_store,
-    validate_cell_patch_edge_table_parquet_bytes,
-    validate_cell_patch_edge_table_parquet_from_store, write_cell_patch_assignment_table_arrow,
-    write_cell_patch_assignment_table_parquet, write_cell_patch_edge_table_arrow,
-    write_cell_patch_edge_table_parquet, CellPatchAssignment, CellPatchAssignmentStatus,
-    CellPatchEdge, CellPatchLink, EmbeddingColumnarBudgets, LocalArtifactStore,
-    MultiscaleColumnarError, SpatialColumnarWriteSummary, StoreId,
+    embeddings::{
+        preflight_cell_patch_assignment_table_arrow_bytes,
+        preflight_cell_patch_assignment_table_parquet_bytes,
+        preflight_cell_patch_edge_table_arrow_bytes, preflight_cell_patch_edge_table_parquet_bytes,
+        publish_cell_patch_assignment_table_arrow, publish_cell_patch_assignment_table_parquet,
+        publish_cell_patch_edge_table_arrow, publish_cell_patch_edge_table_parquet,
+        validate_cell_patch_assignment_table_arrow_bytes,
+        validate_cell_patch_assignment_table_arrow_from_store,
+        validate_cell_patch_assignment_table_parquet_bytes,
+        validate_cell_patch_assignment_table_parquet_from_store,
+        validate_cell_patch_edge_table_arrow_bytes,
+        validate_cell_patch_edge_table_arrow_from_store,
+        validate_cell_patch_edge_table_parquet_bytes,
+        validate_cell_patch_edge_table_parquet_from_store, write_cell_patch_assignment_table_arrow,
+        write_cell_patch_assignment_table_parquet, write_cell_patch_edge_table_arrow,
+        write_cell_patch_edge_table_parquet, CellPatchAssignment, CellPatchAssignmentStatus,
+        CellPatchEdge, CellPatchLink, ColumnarError, EmbeddingColumnarBudgets,
+        SpatialColumnarWriteSummary,
+    },
+    workflow::{LocalArtifactStore, StoreId},
 };
 use parquet::{
     file::metadata::{
@@ -346,8 +350,8 @@ fn assignment_parquet_writer_requirements(link: &CellPatchLink) -> WriterRequire
 
 fn edge_parquet_writer_requirements(link: &CellPatchLink) -> WriterRequirements {
     let fixed_values = match link.mode() {
-        marklab::CellPatchAssignmentMode::ContainedShared => 12,
-        marklab::CellPatchAssignmentMode::DeclaredWeightedInterpolation => 28,
+        marklab::embeddings::CellPatchAssignmentMode::ContainedShared => 12,
+        marklab::embeddings::CellPatchAssignmentMode::DeclaredWeightedInterpolation => 28,
     };
     let chunks = link
         .edges()
@@ -368,13 +372,13 @@ fn assert_writer_budget_edges(
     requirements: WriterRequirements,
     mut write: impl FnMut(
         EmbeddingColumnarBudgets,
-    ) -> Result<SpatialColumnarWriteSummary, MultiscaleColumnarError>,
+    ) -> Result<SpatialColumnarWriteSummary, ColumnarError>,
 ) {
     let decoded_error = write(EmbeddingColumnarBudgets::new(LARGE as u64, LARGE, LARGE, 0))
         .expect_err("zero decoded budget");
     assert_eq!(
         decoded_error,
-        MultiscaleColumnarError::DecodedByteBudgetExceeded {
+        ColumnarError::DecodedByteBudgetExceeded {
             required: requirements.decoded,
             maximum: 0,
         }
@@ -386,7 +390,7 @@ fn assert_writer_budget_edges(
             0,
             requirements.decoded,
         )),
-        Err(MultiscaleColumnarError::RowGroupByteBudgetExceeded {
+        Err(ColumnarError::RowGroupByteBudgetExceeded {
             required: requirements.group,
             maximum: 0,
         })
@@ -398,7 +402,7 @@ fn assert_writer_budget_edges(
             requirements.group,
             requirements.decoded,
         )),
-        Err(MultiscaleColumnarError::RetainedByteBudgetExceeded {
+        Err(ColumnarError::RetainedByteBudgetExceeded {
             required: requirements.retained,
             maximum: 0,
         })
@@ -452,19 +456,10 @@ fn assert_writer_budget_edges(
         assert!(
             matches!(
                 (&error, expected),
-                (
-                    MultiscaleColumnarError::FileByteBudgetExceeded { .. },
-                    "file"
-                ) | (
-                    MultiscaleColumnarError::DecodedByteBudgetExceeded { .. },
-                    "decoded"
-                ) | (
-                    MultiscaleColumnarError::RowGroupByteBudgetExceeded { .. },
-                    "group"
-                ) | (
-                    MultiscaleColumnarError::RetainedByteBudgetExceeded { .. },
-                    "retained"
-                )
+                (ColumnarError::FileByteBudgetExceeded { .. }, "file")
+                    | (ColumnarError::DecodedByteBudgetExceeded { .. }, "decoded")
+                    | (ColumnarError::RowGroupByteBudgetExceeded { .. }, "group")
+                    | (ColumnarError::RetainedByteBudgetExceeded { .. }, "retained")
             ),
             "unexpected {expected} error: {error:?}"
         );
@@ -476,7 +471,7 @@ fn assert_reader_budget_edges<T>(
     group: usize,
     retained: usize,
     decoded: u64,
-    mut validate: impl FnMut(EmbeddingColumnarBudgets) -> Result<T, MultiscaleColumnarError>,
+    mut validate: impl FnMut(EmbeddingColumnarBudgets) -> Result<T, ColumnarError>,
 ) {
     validate(EmbeddingColumnarBudgets::new(
         encoded_len,
@@ -510,19 +505,10 @@ fn assert_reader_budget_edges<T>(
         assert!(
             matches!(
                 (&error, expected),
-                (
-                    MultiscaleColumnarError::FileByteBudgetExceeded { .. },
-                    "file"
-                ) | (
-                    MultiscaleColumnarError::DecodedByteBudgetExceeded { .. },
-                    "decoded"
-                ) | (
-                    MultiscaleColumnarError::RowGroupByteBudgetExceeded { .. },
-                    "group"
-                ) | (
-                    MultiscaleColumnarError::RetainedByteBudgetExceeded { .. },
-                    "retained"
-                )
+                (ColumnarError::FileByteBudgetExceeded { .. }, "file")
+                    | (ColumnarError::DecodedByteBudgetExceeded { .. }, "decoded")
+                    | (ColumnarError::RowGroupByteBudgetExceeded { .. }, "group")
+                    | (ColumnarError::RetainedByteBudgetExceeded { .. }, "retained")
             ),
             "unexpected {expected} error: {error:?}"
         );
