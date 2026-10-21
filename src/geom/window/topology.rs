@@ -292,7 +292,9 @@ fn validate_segment_intersections(
                 });
             }
             if segments_intersect(segment.start, segment.end, other.start, other.end) {
-                return invalid("rings self-intersect, cross, overlap, or touch");
+                return Err(ObservationWindowError::InvalidTopology {
+                    reason: describe_contact(segment, other),
+                });
             }
         }
     }
@@ -364,6 +366,45 @@ fn segments_intersect(a: Point, b: Point, c: Point, d: Point) -> bool {
         || (ab_d == 0.0 && point_on_segment(d, a, b))
         || (cd_a == 0.0 && point_on_segment(a, c, d))
         || (cd_b == 0.0 && point_on_segment(b, c, d))
+}
+
+/// Names the kind and location of a contact between two non-adjacent boundary segments,
+/// so the caller can find and fix it in the source geometry.
+fn describe_contact(segment: &BoundarySegment, other: &BoundarySegment) -> String {
+    let rings = if segment.ring_id == other.ring_id {
+        "a ring meets itself"
+    } else {
+        "two rings meet"
+    };
+    let [a, b, c, d] = [segment.start, segment.end, other.start, other.end];
+    let shared = [c, d]
+        .into_iter()
+        .filter(|point| point_on_segment(*point, a, b))
+        .chain(
+            [a, b]
+                .into_iter()
+                .filter(|point| point_on_segment(*point, c, d)),
+        )
+        .collect::<Vec<_>>();
+    match shared.as_slice() {
+        [] => {
+            let t = cross(c, d, a) / (cross(c, d, a) - cross(c, d, b));
+            let x = a[0] + t * (b[0] - a[0]);
+            let y = a[1] + t * (b[1] - a[1]);
+            format!("{rings}: boundaries cross near ({x:.3}, {y:.3})")
+        }
+        // A pair touching at one point may still be part of a longer shared edge, so the
+        // message names the location without claiming the contact is only a point.
+        [point, rest @ ..] if rest.iter().all(|candidate| candidate == point) => format!(
+            "{rings} at ({}, {}); rings may not touch, even at a single point such as squares \
+             meeting only at a corner, so merge those parts or buffer the mask slightly",
+            point[0], point[1]
+        ),
+        [point, ..] => format!(
+            "{rings} along a shared stretch of boundary through ({}, {})",
+            point[0], point[1]
+        ),
+    }
 }
 
 fn opposite_signs(left: f64, right: f64) -> bool {

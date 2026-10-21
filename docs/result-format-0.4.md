@@ -82,6 +82,17 @@ spectrum is computed for it.
 `largest_interpretable_scale_fraction * analysis_effective_length_um`. Every endpoint uses
 this one definition.
 
+### Spectral correlation length
+
+`SpectrumSummary.xi_um` is `2π / k` for the shell with the largest whitened power among the
+`spectrum_curve` points with `inference_eligible = true`. It can only take the shell values
+listed there, so the neighbouring eligible shells set its resolution. When the largest
+whitened power is in the lowest-`k` eligible shell, `xi_um` is the largest scale the window
+resolves: the correlation length is at least that value and may be larger. To detect this,
+compare `xi_um` with `2π / k` of the first eligible `spectrum_curve` point.
+`xi_stability_interval_um` spans the eligible shells whose whitened power is at least 95% of
+the peak; it is a single value when one shell dominates.
+
 ### Mark-pair covariance
 
 `mark_pair_covariance_curve` measures, at each distance, whether pairs of cells that far
