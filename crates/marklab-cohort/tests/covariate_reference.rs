@@ -80,9 +80,78 @@ fn blocked_patient_covariate_freedman_lane_matches_restricted_residual_oracle() 
         .expect("blocked result");
     let blocks = [vec![0, 1, 2, 6, 7, 8], vec![3, 4, 5, 9, 10, 11]];
     let reference = slow_reference(&records, &spec, &blocks);
+    assert!((result.effect_group_a_minus_group_b - reference.0).abs() < 1e-12);
+    assert!((result.target_standard_error - reference.1).abs() < 1e-12);
+    assert!((result.studentized_statistic - reference.2).abs() < 1e-12);
     assert_eq!(result.p_value, reference.3);
     assert!(result.blocked);
     assert_eq!(result.block_count, 2);
+    assert_eq!(result.reduced_model_columns, 3);
+    assert_eq!(result.residual_degrees_of_freedom, 8);
+}
+
+#[test]
+fn blocked_covariate_effect_is_the_within_block_contrast() {
+    // Group A is concentrated in the high-outcome block, but within each block the groups do not differ.
+    let fixture = [
+        ("north", "A", 1.0, 11.5),
+        ("north", "A", 2.0, 10.0),
+        ("north", "A", 3.0, 12.0),
+        ("north", "A", 4.0, 11.5),
+        ("north", "B", 2.0, 12.0),
+        ("north", "B", 3.0, 10.5),
+        ("south", "A", 1.0, 1.0),
+        ("south", "A", 4.0, 1.5),
+        ("south", "B", 1.0, 1.5),
+        ("south", "B", 2.0, 0.0),
+        ("south", "B", 3.0, 2.0),
+        ("south", "B", 4.0, 1.5),
+    ];
+    let records = fixture
+        .iter()
+        .enumerate()
+        .map(|(index, (_, group, age, outcome))| CovariatePatientRecord {
+            patient_id: format!("p-{index:02}"),
+            group: (*group).into(),
+            outcome: *outcome,
+            covariate: *age,
+        })
+        .collect::<Vec<_>>();
+    let assignments = fixture
+        .iter()
+        .enumerate()
+        .map(|(index, (block, ..))| {
+            PatientExchangeabilityBlock::new(format!("p-{index:02}"), *block).expect("assignment")
+        })
+        .collect::<Vec<_>>();
+    let spec = CovariatePermutationSpec {
+        group_a: "A".into(),
+        group_b: "B".into(),
+        permutations: 199,
+        seed: 47,
+        alternative: PermutationAlternative::TwoSided,
+    };
+    let pooled = patient_covariate_freedman_lane(&records, &spec).expect("unblocked");
+    assert!((pooled.effect_group_a_minus_group_b - 10.0 / 3.0).abs() < 1e-9);
+    let blocked =
+        patient_blocked_covariate_freedman_lane(&records, &assignments, &spec).expect("blocked");
+    assert!(blocked.effect_group_a_minus_group_b.abs() < 1e-9);
+    assert!(blocked.p_value > 0.5);
+    let reference = slow_reference(&records, &spec, &[(0..6).collect(), (6..12).collect()]);
+    assert!((blocked.target_standard_error - reference.1).abs() < 1e-12);
+    assert_eq!(blocked.p_value, reference.3);
+
+    let by_group = records
+        .iter()
+        .map(|record| {
+            PatientExchangeabilityBlock::new(record.patient_id.clone(), record.group.as_str())
+                .expect("assignment")
+        })
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        patient_blocked_covariate_freedman_lane(&records, &by_group, &spec),
+        Err(error) if error.to_string().contains("no block contains both groups")
+    ));
 }
 
 #[test]
@@ -131,19 +200,32 @@ fn slow_reference(
     spec: &CovariatePermutationSpec,
     blocks: &[Vec<usize>],
 ) -> (f64, f64, f64, f64) {
-    let x = records.iter().map(|row| row.covariate).collect::<Vec<_>>();
+    // Blocked designs absorb block means: one indicator per block after the first.
+    let nuisance = records
+        .iter()
+        .enumerate()
+        .map(|(row, record)| {
+            let mut columns = vec![1.0, record.covariate];
+            columns.extend(
+                blocks[1..]
+                    .iter()
+                    .map(|block| f64::from(block.contains(&row))),
+            );
+            columns
+        })
+        .collect::<Vec<_>>();
     let y = records.iter().map(|row| row.outcome).collect::<Vec<_>>();
     let group = records
         .iter()
         .map(|row| f64::from(row.group == spec.group_a))
         .collect::<Vec<_>>();
-    let fitted = simple_fitted(&x, &y);
+    let fitted = qr_fitted(&nuisance, &y);
     let residuals = y
         .iter()
         .zip(&fitted)
         .map(|(value, fit)| value - fit)
         .collect::<Vec<_>>();
-    let observed = fwl(&x, &group, &y);
+    let observed = fwl(&nuisance, &group, &y);
     let mut lower = 0usize;
     let mut upper = 0usize;
     for replicate in 0..spec.permutations {
@@ -165,7 +247,7 @@ fn slow_reference(
             .enumerate()
             .map(|(index, fit)| fit + residuals[indices[index]])
             .collect::<Vec<_>>();
-        let statistic = fwl(&x, &group, &permuted).2;
+        let statistic = fwl(&nuisance, &group, &permuted).2;
         lower += usize::from(statistic <= observed.2);
         upper += usize::from(statistic >= observed.2);
     }
@@ -173,48 +255,69 @@ fn slow_reference(
     (observed.0, observed.1, observed.2, p)
 }
 
-fn simple_fitted(x: &[f64], y: &[f64]) -> Vec<f64> {
-    let mean_x = x.iter().sum::<f64>() / x.len() as f64;
-    let mean_y = y.iter().sum::<f64>() / y.len() as f64;
-    let slope = x
-        .iter()
-        .zip(y)
-        .map(|(x, y)| (x - mean_x) * (y - mean_y))
-        .sum::<f64>()
-        / x.iter().map(|x| (x - mean_x).powi(2)).sum::<f64>();
-    x.iter().map(|x| mean_y + slope * (x - mean_x)).collect()
-}
-
-fn fwl(x: &[f64], group: &[f64], y: &[f64]) -> (f64, f64, f64) {
-    let group_fit = simple_fitted(x, group);
-    let y_fit = simple_fitted(x, y);
+fn fwl(nuisance: &[Vec<f64>], group: &[f64], outcome: &[f64]) -> (f64, f64, f64) {
+    let group_fit = qr_fitted(nuisance, group);
+    let outcome_fit = qr_fitted(nuisance, outcome);
     let group_residual = group
         .iter()
         .zip(group_fit)
         .map(|(value, fit)| value - fit)
         .collect::<Vec<_>>();
-    let y_residual = y
+    let outcome_residual = outcome
         .iter()
-        .zip(y_fit)
+        .zip(outcome_fit)
         .map(|(value, fit)| value - fit)
         .collect::<Vec<_>>();
-    let denominator = group_residual
-        .iter()
-        .map(|value| value * value)
-        .sum::<f64>();
-    let coefficient = group_residual
-        .iter()
-        .zip(&y_residual)
-        .map(|(group, outcome)| group * outcome)
-        .sum::<f64>()
-        / denominator;
-    let rss = y_residual
+    let denominator = dot(&group_residual, &group_residual);
+    let coefficient = dot(&group_residual, &outcome_residual) / denominator;
+    let rss = outcome_residual
         .iter()
         .zip(&group_residual)
         .map(|(outcome, group)| (outcome - coefficient * group).powi(2))
         .sum::<f64>();
-    let standard_error = (rss / (y.len() - 3) as f64 / denominator).sqrt();
+    let degrees = outcome.len() - nuisance[0].len() - 1;
+    let standard_error = (rss / degrees as f64 / denominator).sqrt();
     (coefficient, standard_error, coefficient / standard_error)
+}
+
+fn qr_fitted(design: &[Vec<f64>], outcome: &[f64]) -> Vec<f64> {
+    let columns = design[0].len();
+    let mut q = Vec::<Vec<f64>>::with_capacity(columns);
+    let mut r = vec![vec![0.0; columns]; columns];
+    for column in 0..columns {
+        let mut vector = design.iter().map(|row| row[column]).collect::<Vec<_>>();
+        for prior in 0..column {
+            r[prior][column] = dot(&q[prior], &vector);
+            for (value, basis) in vector.iter_mut().zip(&q[prior]) {
+                *value -= r[prior][column] * basis;
+            }
+        }
+        r[column][column] = dot(&vector, &vector).sqrt();
+        assert!(r[column][column] > 1e-12, "oracle design rank");
+        for value in &mut vector {
+            *value /= r[column][column];
+        }
+        q.push(vector);
+    }
+    let qty = q
+        .iter()
+        .map(|column| dot(column, outcome))
+        .collect::<Vec<_>>();
+    let mut beta = vec![0.0; columns];
+    for row in (0..columns).rev() {
+        let remainder = ((row + 1)..columns)
+            .map(|column| r[row][column] * beta[column])
+            .sum::<f64>();
+        beta[row] = (qty[row] - remainder) / r[row][row];
+    }
+    design.iter().map(|row| dot(row, &beta)).collect::<Vec<_>>()
+}
+
+fn dot(left: &[f64], right: &[f64]) -> f64 {
+    left.iter()
+        .zip(right)
+        .map(|(left, right)| left * right)
+        .sum()
 }
 
 fn derive_seed(base_seed: u64, replicate: usize) -> u64 {

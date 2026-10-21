@@ -53,9 +53,102 @@ fn covariate_matrix_unblocked_and_blocked_results_match_a_qr_fwl_oracle() {
     let blocked = patient_blocked_covariate_matrix_freedman_lane(&records, &assignments, &spec)
         .expect("blocked result");
     let blocks = [vec![0, 1, 2, 6, 7, 8], vec![3, 4, 5, 9, 10, 11]];
-    assert_eq!(blocked.p_value, slow_reference(&records, &spec, &blocks).3);
+    let reference = slow_reference(&records, &spec, &blocks);
+    assert!((blocked.effect_group_a_minus_group_b - reference.0).abs() < 1e-12);
+    assert!((blocked.target_standard_error - reference.1).abs() < 1e-12);
+    assert!((blocked.studentized_statistic - reference.2).abs() < 1e-12);
+    assert_eq!(blocked.p_value, reference.3);
     assert!(blocked.blocked);
     assert_eq!(blocked.block_count, 2);
+    assert_eq!(blocked.reduced_model_columns, 4);
+    assert_eq!(blocked.residual_degrees_of_freedom, 7);
+}
+
+#[test]
+fn blocked_effect_and_p_value_describe_the_within_block_contrast() {
+    // Group A is concentrated in the high-outcome block, but within each block the groups do not differ.
+    let fixture = [
+        ("north", "A", 1.0, 11.5),
+        ("north", "A", 2.0, 10.0),
+        ("north", "A", 3.0, 12.0),
+        ("north", "A", 4.0, 11.5),
+        ("north", "B", 2.0, 12.0),
+        ("north", "B", 3.0, 10.5),
+        ("south", "A", 1.0, 1.0),
+        ("south", "A", 4.0, 1.5),
+        ("south", "B", 1.0, 1.5),
+        ("south", "B", 2.0, 0.0),
+        ("south", "B", 3.0, 2.0),
+        ("south", "B", 4.0, 1.5),
+    ];
+    let records = fixture
+        .iter()
+        .enumerate()
+        .map(
+            |(index, (_, group, age, outcome))| CovariateMatrixPatientRecord {
+                patient_id: format!("p-{index:02}"),
+                group: (*group).into(),
+                outcome: *outcome,
+                covariate_names: vec!["age".into(), "batch".into()],
+                covariates: vec![*age, age % 2.0],
+            },
+        )
+        .collect::<Vec<_>>();
+    let assignments = fixture
+        .iter()
+        .enumerate()
+        .map(|(index, (block, ..))| {
+            PatientExchangeabilityBlock::new(format!("p-{index:02}"), *block).expect("assignment")
+        })
+        .collect::<Vec<_>>();
+    let spec = spec();
+    let pooled = patient_covariate_matrix_freedman_lane(&records, &spec).expect("unblocked");
+    assert!((pooled.effect_group_a_minus_group_b - 10.0 / 3.0).abs() < 1e-9);
+    let blocked = patient_blocked_covariate_matrix_freedman_lane(&records, &assignments, &spec)
+        .expect("blocked");
+    assert!(blocked.effect_group_a_minus_group_b.abs() < 1e-9);
+    assert!(blocked.p_value > 0.5);
+    let blocks = [(0..6).collect::<Vec<_>>(), (6..12).collect::<Vec<_>>()];
+    let reference = slow_reference(&records, &spec, &blocks);
+    assert!((blocked.target_standard_error - reference.1).abs() < 1e-12);
+    assert_eq!(blocked.p_value, reference.3);
+}
+
+#[test]
+fn blocked_covariate_matrix_requires_a_within_block_contrast() {
+    let records = records();
+    let by_group = records
+        .iter()
+        .map(|record| {
+            PatientExchangeabilityBlock::new(record.patient_id.clone(), record.group.as_str())
+                .expect("assignment")
+        })
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        patient_blocked_covariate_matrix_freedman_lane(&records, &by_group, &spec()),
+        Err(error) if error.to_string().contains("no block contains both groups")
+    ));
+
+    let mut constant = records.clone();
+    let assignments = constant
+        .iter()
+        .map(|record| {
+            let number = record.patient_id[2..].parse::<usize>().expect("number");
+            PatientExchangeabilityBlock::new(
+                record.patient_id.clone(),
+                if number <= 3 { "north" } else { "south" },
+            )
+            .expect("assignment")
+        })
+        .collect::<Vec<_>>();
+    for record in &mut constant {
+        let number = record.patient_id[2..].parse::<usize>().expect("number");
+        record.covariates[1] = if number <= 3 { 0.0 } else { 1.0 };
+    }
+    assert!(matches!(
+        patient_blocked_covariate_matrix_freedman_lane(&constant, &assignments, &spec()),
+        Err(error) if error.to_string().contains("rank deficient")
+    ));
 }
 
 #[test]
@@ -76,7 +169,8 @@ fn covariate_matrix_rejects_missing_and_collinear_columns() {
 }
 
 fn records() -> Vec<CovariateMatrixPatientRecord> {
-    let noise = [-1.0, 0.5, -1.0, 1.0, -0.5, 1.0];
+    // Not a block-plus-batch pattern, so the blocked model keeps residual variance.
+    let noise = [-1.0, 0.5, -0.25, 1.0, -0.5, 0.75];
     ["A", "B"]
         .into_iter()
         .flat_map(|group| {
@@ -112,9 +206,19 @@ fn slow_reference(
     spec: &CovariatePermutationSpec,
     blocks: &[Vec<usize>],
 ) -> (f64, f64, f64, f64) {
+    // Blocked designs absorb block means: one indicator per block after the first.
     let nuisance = records
         .iter()
-        .map(|record| vec![1.0, record.covariates[0], record.covariates[1]])
+        .enumerate()
+        .map(|(row, record)| {
+            let mut columns = vec![1.0, record.covariates[0], record.covariates[1]];
+            columns.extend(
+                blocks[1..]
+                    .iter()
+                    .map(|block| f64::from(block.contains(&row))),
+            );
+            columns
+        })
         .collect::<Vec<_>>();
     let group = records
         .iter()

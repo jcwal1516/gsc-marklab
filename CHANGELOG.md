@@ -4,6 +4,14 @@
 
 ### Scientific and serialized contracts
 
+- Blocked `cohort covariate-permutation` and `cohort covariate-matrix-permutation` now remove block means
+  before the residual permutation, which puts block fixed effects in the model. Before, residuals moved only
+  within blocks but the model had no block terms. The p-value then tested the within-block contrast, while the
+  reported effect, standard error and statistic were not adjusted for block, so they disagreed whenever the
+  groups differed by block. Both documents are now version 2 and report `block_indicator_columns`.
+  `reduced_model_columns`, `full_model_columns` and the residual degrees of freedom count the block columns. A
+  blocked run needs at least one block that contains both groups. Unblocked results are unchanged.
+
 - Result format 0.5 adds `xi_resolution` to spectrum and component summaries: whether the
   shell that sets `xi_um` lies inside the eligible range or at its lowest- or highest-`k`
   edge, and the wavelengths of its eligible neighbours. At the lowest-`k` edge the window
