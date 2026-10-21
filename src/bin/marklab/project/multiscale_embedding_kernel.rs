@@ -340,12 +340,11 @@ fn preflight(
         {
             return Err(CliError::Input("sample scales or vectors differ".into()));
         }
-        if base_kernel == MultiscaleBaseKernel::Cosine {
-            if a[index].embedding.iter().all(|value| *value == 0.0)
-                || b[index].embedding.iter().all(|value| *value == 0.0)
-            {
-                return Err(CliError::Input("cosine summary has zero norm".into()));
-            }
+        if base_kernel == MultiscaleBaseKernel::Cosine
+            && (a[index].embedding.iter().all(|value| *value == 0.0)
+                || b[index].embedding.iter().all(|value| *value == 0.0))
+        {
+            return Err(CliError::Input("cosine summary has zero norm".into()));
         }
     }
     Ok(Requirements {
